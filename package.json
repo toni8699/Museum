@@ -1,0 +1,22 @@
+{
+  "name": "personal-portfolios",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev:chopin",
+    "dev:chopin": "npm run dev -w @portfolio/chopin",
+    "dev:brownie": "npm run dev -w @portfolio/brownie",
+    "dev:museum": "npm run dev -w @portfolio/museum",
+    "build:chopin": "npm run build -w @portfolio/chopin",
+    "build:brownie": "npm run build -w @portfolio/brownie",
+    "build:museum": "npm run build -w @portfolio/museum",
+    "build": "npm run build:chopin && npm run build:brownie && npm run build:museum"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

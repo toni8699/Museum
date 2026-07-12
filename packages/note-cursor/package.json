@@ -1,0 +1,21 @@
+{
+  "name": "@portfolio/note-cursor",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "svelte": "./src/NoteCursor.svelte",
+  "exports": {
+    ".": {
+      "types": "./src/types.ts",
+      "svelte": "./src/NoteCursor.svelte",
+      "default": "./src/NoteCursor.svelte"
+    }
+  },
+  "files": ["src"],
+  "peerDependencies": {
+    "svelte": "^5.0.0"
+  },
+  "dependencies": {
+    "@portfolio/audio-plink": "*"
+  }
+}

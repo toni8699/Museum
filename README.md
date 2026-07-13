@@ -1,40 +1,38 @@
 # Personal Portfolios
 
-npm workspaces monorepo for personal portfolio experiments. The live product today is a **Phase 1 graybox** of an interactive Chopin museum in 3D.
+npm workspaces monorepo for personal portfolio experiments. The live product today is an interactive Chopin museum in 3D, with a **Phase 4 Paris Salon asset vertical slice** inside the wider graybox.
 
 ## Quick start
 
 ```bash
 npm install
-npm run dev:museum
+npm run dev
 ```
 
 Open the printed local URL, then go to `/museum`.
 
 | Script | Purpose |
 |--------|---------|
-| `npm run dev:museum` | Run the museum app |
-| `npm run build:museum` | Production build |
-| `npm run check -w @portfolio/museum` | Typecheck |
+| `npm run dev` / `dev:museum` | Run the museum app |
+| `npm run build` / `build:museum` | Production build |
+| `npm run check` | Typecheck museum |
 
 Requires **Node ≥ 20** and a WebGL-capable browser. No env vars or backend.
-
-> Root scripts `dev`, `dev:chopin`, and `dev:brownie` still point at apps that are not in this tree. Use `dev:museum` / `build:museum`.
 
 ## What’s in the repo
 
 ```
-apps/museum/          ← SvelteKit + Threlte graybox museum (active)
+apps/museum/          ← SvelteKit + Threlte museum (only app)
 packages/
-  scroll-travel/      ← scroll → camera path helpers (for portfolio apps)
+  scroll-travel/      ← scroll → camera path helpers (unused by museum)
   audio-plink/        ← tiny Web Audio clicks
   note-cursor/        ← custom ♪ cursor trail
-  portfolio-content/  ← copy for Chopin / Brownie personas
-  portfolio-hud/      ← HUD widgets for scroll portfolios
+  portfolio-content/  ← shared copy helpers
+  portfolio-hud/      ← HUD widgets
   tsconfig/           ← shared TS base
 ```
 
-Shared packages were built for scroll-driven portfolio sites (`chopin` / `brownie`). Those apps are not present; the museum uses its own node-to-node camera system and does not import the HUD / cursor packages.
+Shared packages are available in the workspace; the museum uses its own node-to-node camera system and does not import the HUD / cursor packages.
 
 ## Museum overview
 
@@ -46,6 +44,8 @@ An immersive single-viewport experience: walk a circular narrative through Chopi
 
 - `/` — short landing (“Graybox visitor flow”)
 - `/museum` — full-bleed 3D scene + HUD overlay
+- `/dev/materials` — isolated architecture-material preview
+- `/dev/assets` — GLB inspector, licence metadata, scale checks, and fallbacks
 
 **Controls**
 
@@ -82,10 +82,10 @@ Tour order (8 stops):
 | Music Chamber | Circular focus; graybox grand piano |
 | Legacy | Continuing music; returns to entrance |
 
-Phase 1 is intentionally graybox: primitive geometry, placeholder props, fog lighting, no final art or exhibits. Narrative content and interaction rules live in data (`rooms.ts`); the shell and camera both read from that graph.
+Most rooms remain intentionally graybox. Paris Salon is the first asset-based slice: an optimized grand piano and repeated chair model sit alongside reusable primitive fallbacks. Narrative content and interaction rules still live in `rooms.ts`; Paris object transforms live separately in `paris-salon-layout.ts` without changing the camera graph.
 
 ## Status
 
-**Phase 1 graybox** — layout and guided navigation are the product. Final materials, exhibits, audio, free-look, and collision are out of scope for this phase.
+**Phase 1–4** — layout, guided navigation, shared architecture materials, and the Paris Salon asset workflow. Production GLBs are cached and safely cloned, source/licence records remain separate, and `/dev/assets` validates models before placement. Other rooms, final portraits, and exhibit interaction remain later work.
 
 For agents and deeper camera/layout work, see [`AGENTS.md`](./AGENTS.md) and [`docs/CAMERA_AND_LAYOUT.md`](./docs/CAMERA_AND_LAYOUT.md).

@@ -4,7 +4,7 @@
 </script>
 
 <svelte:head>
-  <title>Chopin Museum — Phase 1 Graybox</title>
+  <title>Chopin Museum — Paris Salon</title>
 </svelte:head>
 
 <main class="museum-page">

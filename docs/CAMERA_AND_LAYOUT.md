@@ -193,7 +193,7 @@ When reversing an edge, `camera-route.ts` reverses the waypoint array automatica
 
 ### Explicitly out of Phase 1
 
-Final materials / GLTF exhibits · shadow maps / postprocessing · spatial or music audio · free-look / orbit · collision / navmesh · continuous scroll travel inside museum · SSR-friendly 3D · chopin/brownie scroll portfolio apps · mobile free-look gestures beyond HUD buttons/spheres.
+Final materials / GLTF exhibits · shadow maps / postprocessing · spatial or music audio · free-look / orbit · collision / navmesh · continuous scroll travel inside museum · SSR-friendly 3D · mobile free-look gestures beyond HUD buttons/spheres.
 
 ---
 
@@ -207,11 +207,10 @@ Final materials / GLTF exhibits · shadow maps / postprocessing · spatial or mu
 | Guided is linear loop | No branching narrative yet | Extend `next`/`previous` + state rules carefully |
 | Shell: one opening per side | Complex facades unsupported | Extend `buildWall` if needed |
 | Music chamber shell skipped | Must keep `CentralChamber` in sync with nodes | Edit both when resizing chamber |
-| Shadows off / basic mats | Flat graybox look | Intentional for Phase 1 |
+| Selective shadows / GLTF only in Paris | Other rooms retain the graybox look | Keep Phase 4 asset and shadow work scoped to Paris |
 | Far plane 90 / fog 22–54 | Distant geometry fades | Raise fog/far if world grows |
 | Free mode still graph-bound | Disconnected nodes throw in route builder | Keep graph connected for all free targets |
 | Mobile HUD hides route list | Discovery via Next/spheres only | Accept or add mobile route UI |
-| Monorepo stale chopin/brownie | `npm run dev` fails | Use `dev:museum` |
 
 ---
 

@@ -7,14 +7,11 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "npm run dev:chopin",
-    "dev:chopin": "npm run dev -w @portfolio/chopin",
-    "dev:brownie": "npm run dev -w @portfolio/brownie",
+    "dev": "npm run dev:museum",
     "dev:museum": "npm run dev -w @portfolio/museum",
-    "build:chopin": "npm run build -w @portfolio/chopin",
-    "build:brownie": "npm run build -w @portfolio/brownie",
+    "build": "npm run build:museum",
     "build:museum": "npm run build -w @portfolio/museum",
-    "build": "npm run build:chopin && npm run build:brownie && npm run build:museum"
+    "check": "npm run check -w @portfolio/museum"
   },
   "engines": {
     "node": ">=20"

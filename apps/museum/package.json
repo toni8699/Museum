@@ -16,6 +16,7 @@
     "three": "^0.175.0"
   },
   "devDependencies": {
+    "@gltf-transform/cli": "^4.4.1",
     "@sveltejs/adapter-auto": "^6.0.0",
     "@sveltejs/kit": "^2.22.0",
     "@sveltejs/vite-plugin-svelte": "^5.1.0",

@@ -1,15 +1,16 @@
 <script lang="ts">
   import { T } from '@threlte/core';
+  import MuseumMaterial from '../materials/MuseumMaterial.svelte';
 </script>
 
 <T.Group>
-  <T.Mesh position={[0, 0.02, 0]}>
-    <T.CylinderGeometry args={[5.5, 5.5, 0.08, 96]} />
-    <T.MeshStandardMaterial color="#17151c" roughness={0.78} metalness={0.05} />
+  <T.Mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+    <T.CircleGeometry args={[5.5, 96]} />
+    <MuseumMaterial materialId="wood-walnut" surfaceSize={[11, 11]} />
   </T.Mesh>
   <T.Mesh position={[0, 3.55, 0]} rotation={[Math.PI / 2, 0, 0]}>
     <T.TorusGeometry args={[5.55, 0.08, 10, 96]} />
-    <T.MeshStandardMaterial color="#d6b35f" emissive="#d6b35f" emissiveIntensity={0.22} />
+    <MuseumMaterial materialId="brass-aged" surfaceSize={[1.2, 0.3]} />
   </T.Mesh>
   <T.Mesh position={[0, 1.05, 0]}>
     <T.BoxGeometry args={[2.25, 0.62, 1.05]} />

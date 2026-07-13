@@ -1,17 +1,21 @@
 <script lang="ts">
   import { T } from '@threlte/core';
   import type { MuseumRoom, RoomOpening, RoomOpeningSide, Vec3 } from '$lib/types/museum';
+  import Floor from '../materials/surfaces/Floor.svelte';
+  import Ceiling from '../materials/surfaces/Ceiling.svelte';
+  import Wall from '../materials/surfaces/Wall.svelte';
   import RoomPortal from './RoomPortal.svelte';
 
   let { rooms }: { rooms: MuseumRoom[] } = $props();
 
   const wallThickness = 0.16;
-  const floorThickness = 0.08;
 
   type WallSegment = {
     id: string;
+    side: RoomOpeningSide;
     position: Vec3;
-    size: Vec3;
+    length: number;
+    height: number;
   };
 
   function wallSegment(
@@ -36,10 +40,10 @@
 
     return {
       id: `${room.id}-${side}-${suffix}`,
+      side,
       position: alongX ? [coordinate, y, fixedCoordinate] : [fixedCoordinate, y, coordinate],
-      size: alongX
-        ? [length, height, wallThickness]
-        : [wallThickness, height, length]
+      length,
+      height
     };
   }
 
@@ -139,20 +143,24 @@
       {@const [width, height, depth] = room.dimensions}
       {@const wallSegments = buildRoomWalls(room)}
       <T.Group position={room.position} rotation={room.rotation}>
-        <T.Mesh position={[0, floorThickness / 2, 0]}>
-          <T.BoxGeometry args={[width, floorThickness, depth]} />
-          <T.MeshStandardMaterial color={room.color} roughness={0.88} metalness={0.02} />
-        </T.Mesh>
-        <T.Mesh position={[0, height + floorThickness / 2, 0]}>
-          <T.BoxGeometry args={[width, floorThickness, depth]} />
-          <T.MeshStandardMaterial color="#111018" roughness={0.95} />
-        </T.Mesh>
+        <Floor
+          {width}
+          {depth}
+          position={[0, 0.01, 0]}
+          tint={room.color}
+          receiveShadow={room.id === 'paris'}
+        />
+        <Ceiling {width} {depth} position={[0, height, 0]} tint="#111018" />
 
         {#each wallSegments as segment (segment.id)}
-          <T.Mesh position={segment.position}>
-            <T.BoxGeometry args={segment.size} />
-            <T.MeshStandardMaterial color={room.color} roughness={0.9} metalness={0.01} />
-          </T.Mesh>
+          <Wall
+            side={segment.side}
+            length={segment.length}
+            height={segment.height}
+            position={segment.position}
+            thickness={wallThickness}
+            tint={room.color}
+          />
         {/each}
 
         {#each room.openings as opening (opening.id)}
@@ -164,6 +172,7 @@
               width={opening.width}
               height={opening.height}
               color={room.accentColor}
+              materialId="brass-aged"
             />
           {/if}
         {/each}

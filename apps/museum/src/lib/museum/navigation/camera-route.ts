@@ -12,6 +12,7 @@ export type CameraRoute = {
   positions: Vec3[];
   targets: Vec3[];
   clearance: number;
+  nodeIds: string[];
 };
 
 function connectedEdges(nodeId: string): OrientedConnection[] {
@@ -93,7 +94,8 @@ export function getCameraRoute(fromNodeId: string, toNodeId: string): CameraRout
     return {
       positions: [[...node.position]],
       targets: [[...node.cameraTarget]],
-      clearance: 0.35
+      clearance: 0.35,
+      nodeIds: [fromNodeId]
     };
   }
 
@@ -110,6 +112,7 @@ export function getCameraRoute(fromNodeId: string, toNodeId: string): CameraRout
   return {
     positions,
     targets: buildLookAheadTargets(fromNodeId, toNodeId, positions),
-    clearance: Math.min(...path.map((edge) => edge.connection.clearance))
+    clearance: Math.min(...path.map((edge) => edge.connection.clearance)),
+    nodeIds: [fromNodeId, ...path.map((edge) => edge.toNodeId)]
   };
 }

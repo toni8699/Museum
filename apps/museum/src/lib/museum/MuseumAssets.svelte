@@ -5,6 +5,8 @@
     RuntimeMuseumScene,
     SceneObjectPlacement
   } from '$lib/content/scene';
+  import EditorPlacementRoot from './EditorPlacementRoot.svelte';
+  import type { EditorPlacementRegistry } from './placement-registry';
   import type { MuseumRoomId } from '$lib/types/museum';
   import AssetModel from './assets/AssetModel.svelte';
   import { isSceneObjectEnabled } from './paris-activation';
@@ -12,11 +14,14 @@
   let {
     scene,
     preloadParisHero = false,
-    loadParisSalon = false
+    loadParisSalon = false,
+    placementRegistry
   }: {
     scene: RuntimeMuseumScene;
     preloadParisHero?: boolean;
     loadParisSalon?: boolean;
+    /** Editor-only; omitted on visitor `/museum`. */
+    placementRegistry?: EditorPlacementRegistry;
   } = $props();
 
   const roomGroups = $derived.by(() => {
@@ -33,20 +38,40 @@
       placements
     }));
   });
-
 </script>
 
 {#each roomGroups as group (group.room.id)}
   <T.Group position={group.room.position} rotation={group.room.rotation}>
     {#each group.placements as placement (placement.id)}
-      <AssetModel
-        assetId={placement.assetId}
-        position={placement.position}
-        rotation={placement.rotation}
-        scale={placement.scale ?? 1}
-        fallback={placement.fallback}
-        enabled={isSceneObjectEnabled(placement, { preloadParisHero, loadParisSalon })}
-      />
+      {@const enabled = isSceneObjectEnabled(placement, {
+        preloadParisHero,
+        loadParisSalon
+      })}
+      {#if placementRegistry}
+        <EditorPlacementRoot
+          placementId={placement.id}
+          {placementRegistry}
+          position={placement.position}
+          rotation={placement.rotation}
+          scale={placement.scale ?? 1}
+        >
+          <AssetModel
+            assetId={placement.assetId}
+            fallback={placement.fallback}
+            {enabled}
+            localTransform
+          />
+        </EditorPlacementRoot>
+      {:else}
+        <AssetModel
+          assetId={placement.assetId}
+          position={placement.position}
+          rotation={placement.rotation}
+          scale={placement.scale ?? 1}
+          fallback={placement.fallback}
+          {enabled}
+        />
+      {/if}
     {/each}
   </T.Group>
 {/each}

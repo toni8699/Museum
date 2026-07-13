@@ -7,13 +7,15 @@
 	import EditorViewport from './EditorViewport.svelte';
 
 	const store = createMuseumEditorStore();
+
+	const selectedObject = $derived(store.selectedObject);
 </script>
 
 <main class="page">
 	<aside class="panel outliner" aria-label="Outliner">
 		<header>
 			<h1>Museum editor</h1>
-			<p>Phase 1 shell — orbit only</p>
+			<p>Phase 2 — placement selection</p>
 		</header>
 
 		<section>
@@ -21,8 +23,15 @@
 			<ul>
 				{#each store.document.objects as object (object.id)}
 					<li>
-						<span class="id">{object.id}</span>
-						<span class="meta">{object.roomId} · {object.assetId}</span>
+						<button
+							type="button"
+							class="outliner-item"
+							class:selected={store.selectedPlacementId === object.id}
+							onclick={() => store.selectPlacement(object.id)}
+						>
+							<span class="id">{object.id}</span>
+							<span class="meta">{object.roomId} · {object.assetId}</span>
+						</button>
 					</li>
 				{/each}
 			</ul>
@@ -32,7 +41,7 @@
 			<h2>Nodes ({store.nodeCount})</h2>
 			<ul>
 				{#each store.document.navigationNodes as node (node.id)}
-					<li>
+					<li class="node-item">
 						<span class="id">{node.id}</span>
 						<span class="meta">{node.roomId} · {node.label}</span>
 					</li>
@@ -44,22 +53,41 @@
 	</aside>
 
 	<div class="center">
-		<EditorViewport
-			scene={store.scene}
-			state={store.state}
-			ambientIntensity={store.ambientIntensity}
-			directionalIntensity={store.directionalIntensity}
-			fogEnabled={store.fogEnabled}
-			fogNear={store.fogNear}
-			fogFar={store.fogFar}
-		/>
+		<EditorViewport {store} />
 	</div>
 
 	<aside class="panel inspector" aria-label="Inspector">
 		<header>
 			<h2>Inspector</h2>
-			<p>Selection and transforms arrive in later phases.</p>
+			{#if selectedObject}
+				<p>Selected placement (transforms in Phase 3).</p>
+			{:else}
+				<p>Select a placement in the outliner or viewport.</p>
+			{/if}
 		</header>
+
+		{#if selectedObject}
+			<section class="selection" aria-label="Selection">
+				<h2>Selection</h2>
+				<dl>
+					<div>
+						<dt>Id</dt>
+						<dd class="id">{selectedObject.id}</dd>
+					</div>
+					<div>
+						<dt>Room</dt>
+						<dd>{selectedObject.roomId}</dd>
+					</div>
+					<div>
+						<dt>Asset</dt>
+						<dd class="id">{selectedObject.assetId}</dd>
+					</div>
+				</dl>
+				<button type="button" class="deselect" onclick={() => store.deselect()}>
+					Deselect
+				</button>
+			</section>
+		{/if}
 
 		<section class="lighting" aria-label="Viewport lighting">
 			<h2>Lighting</h2>
@@ -182,13 +210,34 @@
 		gap: 0.35rem;
 	}
 
-	li {
+	.outliner-item,
+	.node-item {
 		display: flex;
 		flex-direction: column;
 		gap: 0.15rem;
+		width: 100%;
 		padding: 0.45rem 0.5rem;
 		border-radius: 0.35rem;
 		background: #1a1a22;
+		border: 1px solid transparent;
+		color: inherit;
+		text-align: left;
+		font: inherit;
+	}
+
+	.outliner-item {
+		cursor: pointer;
+	}
+
+	.outliner-item:hover {
+		border-color: #3a3a46;
+		background: #22222c;
+	}
+
+	.outliner-item.selected {
+		border-color: #d6b35f;
+		background: #2a2618;
+		box-shadow: inset 0 0 0 1px #d6b35f;
 	}
 
 	.id {
@@ -210,6 +259,48 @@
 
 	.back:hover {
 		text-decoration: underline;
+	}
+
+	.selection dl {
+		margin: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 0.55rem;
+	}
+
+	.selection dl div {
+		display: flex;
+		flex-direction: column;
+		gap: 0.15rem;
+	}
+
+	.selection dt {
+		color: #a8a29a;
+		font-size: 0.72rem;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+	}
+
+	.selection dd {
+		margin: 0;
+		font-size: 0.85rem;
+	}
+
+	.deselect {
+		align-self: flex-start;
+		padding: 0.4rem 0.55rem;
+		border: 1px solid #3a3a46;
+		border-radius: 0.35rem;
+		background: #1a1a22;
+		color: #f4efe4;
+		font: inherit;
+		font-size: 0.8rem;
+		cursor: pointer;
+	}
+
+	.deselect:hover {
+		border-color: #6b6458;
+		background: #22222c;
 	}
 
 	.lighting {

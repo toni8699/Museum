@@ -1,19 +1,19 @@
 # Current Museum Agent Handoff
 
-- **Current completed phase:** Phase 1 — production-isolated `/dev/museum-editor` shell, editor store, three-column UI, OrbitControls viewport.
-- **Branch / baseline commit:** `main` at `9019a62`; Phase 0 + Phase 1 changes are currently uncommitted.
-- **Latest handoff:** [`phase-1.md`](./phase-1.md)
-- **Verification:** `npm test` — 35/35 passed; `npm run check` — 0 errors/0 warnings; `npm run build` — passed; production preview `/dev/museum-editor` — 404; `/museum` — 200; client editor chunk is stub-only. Dev `/dev/museum-editor` — 200. Browser/WebGL orbit + pending visitor visual tour remain manual.
-- **Next phase:** Phase 2 — placement root registry, raycast selection, outliner, BoxHelper.
-- **Blocker:** none for implementation. A browser-capable session is needed for orbit interaction and the pending visitor regression check.
+- **Current completed phase:** Phase 2 — placement selection (loop fix + bloat trim).
+- **Branch / baseline commit:** `main` at `9019a62`; Phase 0–2 changes are currently uncommitted.
+- **Latest handoff:** [`phase-2.md`](./phase-2.md)
+- **Verification:** After trim: hard-refresh `/dev/museum-editor` — no `effect_update_depth_exceeded`; select → BoxHelper. `notifyPlacementRootChanged` kept for Phase 3.
+- **Next phase:** Phase 3 — TransformControls, uniform scale, inspector, snapshot history.
+- **Blocker:** none. Room/camera framing deferred.
 
 ## Required Reading Order
 
-1. [`phase-1.md`](./phase-1.md)
-2. [`../../apps/museum/src/lib/editor/MuseumEditorApp.svelte`](../../apps/museum/src/lib/editor/MuseumEditorApp.svelte)
-3. [`../../apps/museum/src/lib/editor/EditorViewport.svelte`](../../apps/museum/src/lib/editor/EditorViewport.svelte)
-4. [`../../apps/museum/src/lib/editor/museum-editor.svelte.ts`](../../apps/museum/src/lib/editor/museum-editor.svelte.ts)
-5. [`../../apps/museum/src/lib/museum/MuseumAssets.svelte`](../../apps/museum/src/lib/museum/MuseumAssets.svelte)
-6. [`../../apps/museum/src/lib/museum/MuseumScene.svelte`](../../apps/museum/src/lib/museum/MuseumScene.svelte)
+1. [`phase-2.md`](./phase-2.md)
+2. [`../../apps/museum/src/lib/editor/museum-editor.svelte.ts`](../../apps/museum/src/lib/editor/museum-editor.svelte.ts)
+3. [`../../apps/museum/src/lib/editor/EditorSelection.svelte`](../../apps/museum/src/lib/editor/EditorSelection.svelte)
+4. [`../../apps/museum/src/lib/editor/EditorSelectionHelper.svelte`](../../apps/museum/src/lib/editor/EditorSelectionHelper.svelte)
+5. [`../../apps/museum/src/lib/museum/assets/AssetModel.svelte`](../../apps/museum/src/lib/museum/assets/AssetModel.svelte)
+6. [`../../apps/museum/src/lib/editor/MuseumEditorApp.svelte`](../../apps/museum/src/lib/editor/MuseumEditorApp.svelte)
 
-Start Phase 2 by registering outer placement roots with `userData.editorEntity`, then wiring an explicit editor raycaster (not per-mesh click).
+Start Phase 3 by attaching one TransformControls instance to the registered outer placement root and wiring snapshot history before numeric inspector edits.

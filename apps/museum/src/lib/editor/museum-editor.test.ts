@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { museumSceneDocument } from '$lib/content/scene';
+import { Object3D } from 'three';
+import {
+	filterEffectiveHits,
+	nextPlacementCycleId,
+	NEAR_INVISIBLE_OPACITY,
+	resolveNormalSelection,
+	uniquePlacementIdsInOrder,
+	type SelectionHitInfo
+} from './editor-selection';
 import {
 	cloneMuseumSceneDocument,
 	createMuseumEditorStore,
@@ -64,5 +73,121 @@ describe('createMuseumEditorStore', () => {
 		expect(store.ambientIntensity).toBe(EDITOR_VISITOR_LIGHTING.ambientIntensity);
 		expect(store.directionalIntensity).toBe(EDITOR_VISITOR_LIGHTING.directionalIntensity);
 		expect(store.fogEnabled).toBe(true);
+	});
+});
+
+describe('MuseumEditorStore selection', () => {
+	it('selects document ids without requiring a registered root', () => {
+		const store = createMuseumEditorStore();
+		const id = store.document.objects[0]!.id;
+
+		store.selectPlacement(id);
+
+		expect(store.selectedPlacementId).toBe(id);
+		expect(store.getPlacementRoot(id)).toBeUndefined();
+		expect(store.selectedObject?.id).toBe(id);
+	});
+
+	it('ignores unknown ids without clearing the current selection', () => {
+		const store = createMuseumEditorStore();
+		const id = store.document.objects[0]!.id;
+		store.selectPlacement(id);
+
+		store.selectPlacement('not-a-real-placement');
+
+		expect(store.selectedPlacementId).toBe(id);
+	});
+
+	it('deselects the current placement', () => {
+		const store = createMuseumEditorStore();
+		store.selectPlacement(store.document.objects[0]!.id);
+		store.deselect();
+		expect(store.selectedPlacementId).toBeNull();
+	});
+
+	it('cycles with empty / absent / wrap rules', () => {
+		const store = createMuseumEditorStore();
+		const a = store.document.objects[0]!.id;
+		const b = store.document.objects[1]!.id;
+		const c = store.document.objects[2]!.id;
+
+		store.cyclePlacement([]);
+		expect(store.selectedPlacementId).toBeNull();
+
+		store.selectPlacement(a);
+		store.cyclePlacement([b, c]);
+		expect(store.selectedPlacementId).toBe(b);
+
+		store.cyclePlacement([b, c]);
+		expect(store.selectedPlacementId).toBe(c);
+
+		store.cyclePlacement([b, c]);
+		expect(store.selectedPlacementId).toBe(b);
+	});
+
+	it('bumps registryVersion on register and unregister', () => {
+		const store = createMuseumEditorStore();
+		const id = store.document.objects[0]!.id;
+		const root = new Object3D();
+		const version0 = store.registryVersion;
+
+		store.registerPlacementRoot(id, root);
+		expect(store.registryVersion).toBe(version0 + 1);
+		expect(store.getPlacementRoot(id)).toBe(root);
+
+		store.registerPlacementRoot(id, root);
+		expect(store.registryVersion).toBe(version0 + 1);
+
+		store.unregisterPlacementRoot(id, root);
+		expect(store.registryVersion).toBe(version0 + 2);
+		expect(store.getPlacementRoot(id)).toBeUndefined();
+	});
+});
+
+describe('editor-selection helpers', () => {
+	const hits = (entries: Array<[number, string | null]>): SelectionHitInfo[] =>
+		entries.map(([opacity, placementId]) => ({ opacity, placementId }));
+
+	it('filters near-invisible hits for normal selection', () => {
+		expect(
+			resolveNormalSelection(
+				hits([
+					[NEAR_INVISIBLE_OPACITY - 0.01, 'ghost'],
+					[1, 'piano']
+				])
+			)
+		).toEqual({ action: 'select', id: 'piano' });
+
+		expect(resolveNormalSelection(hits([[1, null]]))).toEqual({ action: 'deselect' });
+		expect(resolveNormalSelection(hits([]))).toEqual({ action: 'deselect' });
+	});
+
+	it('dedupes placement ids while preserving hit order', () => {
+		expect(
+			uniquePlacementIdsInOrder(
+				hits([
+					[0.01, 'a'],
+					[1, 'b'],
+					[1, 'c'],
+					[1, 'b'],
+					[1, 'd']
+				])
+			)
+		).toEqual(['b', 'c', 'd']);
+	});
+
+	it('implements cycle next-id rules', () => {
+		expect(nextPlacementCycleId('x', [])).toBeUndefined();
+		expect(nextPlacementCycleId(null, ['a', 'b'])).toBe('a');
+		expect(nextPlacementCycleId('z', ['a', 'b'])).toBe('a');
+		expect(nextPlacementCycleId('a', ['a', 'b'])).toBe('b');
+		expect(nextPlacementCycleId('b', ['a', 'b'])).toBe('a');
+	});
+
+	it('keeps near-invisible hits out of effective lists', () => {
+		expect(filterEffectiveHits(hits([[0.01, 'a'], [0.05, 'b'], [1, 'c']]))).toEqual([
+			{ opacity: 0.05, placementId: 'b' },
+			{ opacity: 1, placementId: 'c' }
+		]);
 	});
 });

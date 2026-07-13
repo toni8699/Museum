@@ -28,6 +28,13 @@
   import WorkshopRoom from './rooms/WorkshopRoom.svelte';
   import MusicChamber from './rooms/MusicChamber.svelte';
   import LegacyRoom from './rooms/LegacyRoom.svelte';
+  import type { EditorPlacementRegistry } from './placement-registry';
+
+  const EDITOR_PARIS_ACTIVATION = {
+    preloadParisHero: true,
+    loadParisSalon: true,
+    routePassesParis: true
+  } as const;
 
   let {
     scene = museumScene,
@@ -38,7 +45,9 @@
     directionalIntensity = 0.7,
     fogEnabled = true,
     fogNear = 22,
-    fogFar = 54
+    fogFar = 54,
+    placementRegistry,
+    forceParisAssets = false
   }: {
     scene?: RuntimeMuseumScene;
     state?: MuseumStateStore;
@@ -50,13 +59,19 @@
     fogEnabled?: boolean;
     fogNear?: number;
     fogFar?: number;
+    /** Editor-only placement root registry; omitted on visitor `/museum`. */
+    placementRegistry?: EditorPlacementRegistry;
+    /** Editor overview: load all Paris GLBs regardless of tour room. */
+    forceParisAssets?: boolean;
   } = $props();
 
   const graph = $derived.by(() => {
     assertNavigationGraphMatchesScene(state.graph, scene);
     return createNavigationGraph(scene);
   });
-  const parisActivation = $derived(getParisAssetActivation(state, graph));
+  const parisActivation = $derived(
+    forceParisAssets ? EDITOR_PARIS_ACTIVATION : getParisAssetActivation(state, graph)
+  );
 
   interactivity();
 </script>
@@ -86,6 +101,7 @@
   {scene}
   preloadParisHero={parisActivation.preloadParisHero}
   loadParisSalon={parisActivation.loadParisSalon}
+  {placementRegistry}
 />
 <WorkshopRoom />
 <MusicChamber />

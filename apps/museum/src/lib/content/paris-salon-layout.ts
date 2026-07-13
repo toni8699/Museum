@@ -16,39 +16,67 @@ export const parisSalonAssets: AssetPlacement[] = [
     rotation: [0, 0, 0]
   },
   {
-    id: 'chair-front-left',
-    assetId: 'paris-salon-chair',
-    fallback: 'chair',
-    position: [-0.7, 0, 1.55],
-    rotation: [0, -Math.PI * 0.27, 0]
-  },
-  {
-    id: 'chair-front-center',
-    assetId: 'paris-salon-chair',
-    fallback: 'chair',
-    position: [0.65, 0, 2.25],
-    rotation: [0, -Math.PI * 0.09, 0]
-  },
-  {
-    id: 'chair-front-right',
-    assetId: 'paris-salon-chair',
-    fallback: 'chair',
-    position: [2, 0, 2.35],
+    id: 'salon-chandelier',
+    assetId: 'paris-chandelier',
+    fallback: 'chandelier',
+    position: [-0.1, 4.19, 0.65],
     rotation: [0, Math.PI * 0.08, 0]
   },
   {
-    id: 'chair-right-side',
-    assetId: 'paris-salon-chair',
-    fallback: 'chair',
-    position: [3.15, 0, 0.65],
-    rotation: [0, Math.PI * 0.37, 0]
+    id: 'left-wall-sofa',
+    assetId: 'paris-salon-sofa',
+    fallback: 'sofa',
+    position: [-4.92, 0, -1.7],
+    rotation: [0, Math.PI / 2, 0]
   },
   {
-    id: 'chair-left-side',
+    id: 'sofa-table',
+    assetId: 'paris-salon-table',
+    fallback: 'table',
+    position: [-3.35, 0, -1.7],
+    rotation: [0, Math.PI, 0]
+  },
+  {
+    id: 'sofa-chair-right',
     assetId: 'paris-salon-chair',
     fallback: 'chair',
-    position: [-0.65, 0, -1.45],
-    rotation: [0, -Math.PI * 0.62, 0]
+    position: [-2.42, 0, -1.7],
+    rotation: [0, Math.PI * 2, 0]
+  },
+  {
+    id: 'sofa-chair-front',
+    assetId: 'paris-salon-chair',
+    fallback: 'chair',
+    position: [-3.35, 0, -0.72],
+    rotation: [0, -Math.PI/2 , 0]
+  },
+  {
+    id: 'front-salon-table',
+    assetId: 'paris-salon-table',
+    fallback: 'table',
+    position: [-1.5, 0, 1.62],
+    rotation: [0, Math.PI, 0]
+  },
+  {
+    id: 'front-chair-left',
+    assetId: 'paris-salon-chair',
+    fallback: 'chair',
+    position: [-2.43, 0, 1.62],
+    rotation: [0, Math.PI , 0]
+  },
+  {
+    id: 'front-chair-center',
+    assetId: 'paris-salon-chair',
+    fallback: 'chair',
+    position: [-1.5, 0, 2.62],
+    rotation: [0, -Math.PI/2 , 0]
+  },
+  {
+    id: 'front-chair-right',
+    assetId: 'paris-salon-chair',
+    fallback: 'chair',
+    position: [-0.57, 0, 1.62],
+    rotation: [0, Math.PI*2 , 0]
   },
   {
     id: 'portrait-liszt',
@@ -115,10 +143,10 @@ export const parisSalonAssets: AssetPlacement[] = [
     scale: 0.82
   },
   {
-    id: 'publisher-clock',
-    assetId: 'paris-mantel-clock',
+    id: 'back-wall-clock',
+    assetId: 'paris-grandfather-clock',
     fallback: 'clock',
-    position: [4.45, 0.77, -3.2],
+    position: [4.72, 0, -4.55],
     rotation: [0, 0, 0]
   }
 ];

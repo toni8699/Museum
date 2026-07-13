@@ -1,6 +1,6 @@
 # Personal Portfolios
 
-npm workspaces monorepo for personal portfolio experiments. The live product today is an interactive Chopin museum in 3D, with a **Phase 4 Paris Salon asset vertical slice** inside the wider graybox.
+npm workspaces monorepo for personal portfolio experiments. The live product today is an interactive Chopin museum in 3D, with a **Phase 4.5 Paris Salon vertical slice** inside the wider graybox.
 
 ## Quick start
 
@@ -49,7 +49,8 @@ An immersive single-viewport experience: walk a circular narrative through Chopi
 
 **Controls**
 
-- **Next / Back** (HUD or `→` `↓` `Space` / `←` `↑` `Backspace`)
+- **Next / Back** (HUD, or arrows / `Space` / `Backspace` outside Paris)
+- **Paris Salon look-around**: drag on the 3D view or use arrow keys; `Space` advances and `Backspace` returns
 - Click glowing navigation spheres (when allowed)
 - **M** — guided ↔ free tour
 - **R** — reduced motion (instant jumps)
@@ -82,10 +83,10 @@ Tour order (8 stops):
 | Music Chamber | Circular focus; graybox grand piano |
 | Legacy | Continuing music; returns to entrance |
 
-Most rooms remain intentionally graybox. Paris Salon is the first asset-based slice: an optimized grand piano and repeated chair model sit alongside reusable primitive fallbacks. Narrative content and interaction rules still live in `rooms.ts`; Paris object transforms live separately in `paris-salon-layout.ts` without changing the camera graph.
+Most rooms remain intentionally graybox. Paris Salon is the first polished asset slice: an optimized grand piano, upholstered chairs, sofa, round tables, chandelier, oil lamp, and grandfather clock sit alongside reusable primitive fallbacks. Narrative content and interaction rules still live in `rooms.ts`; Paris object transforms live separately in `paris-salon-layout.ts` without changing the camera graph.
 
 ## Status
 
-**Phase 1–4** — layout, guided navigation, shared architecture materials, and the Paris Salon asset workflow. Production GLBs are cached and safely cloned, source/licence records remain separate, and `/dev/assets` validates models before placement. Other rooms, final portraits, and exhibit interaction remain later work.
+**Phase 1–4.5** — layout, guided navigation, shared architecture materials, the Paris Salon asset workflow, room-scoped free-look, conversational furniture clusters, and polished salon lighting. Production GLBs are cached and safely cloned, source/licence records remain separate, and `/dev/assets` validates models before placement. Other rooms, final portraits, and exhibit interaction remain later work.
 
 For agents and deeper camera/layout work, see [`AGENTS.md`](./AGENTS.md) and [`docs/CAMERA_AND_LAYOUT.md`](./docs/CAMERA_AND_LAYOUT.md).

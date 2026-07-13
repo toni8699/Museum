@@ -208,6 +208,7 @@ Final materials / GLTF exhibits · shadow maps / postprocessing · spatial or mu
 | Shell: one opening per side | Complex facades unsupported | Extend `buildWall` if needed |
 | Music chamber shell skipped | Must keep `CentralChamber` in sync with nodes | Edit both when resizing chamber |
 | Selective shadows / GLTF only in Paris | Other rooms retain the graybox look | Keep Phase 4 asset and shadow work scoped to Paris |
+| Free-look only at stable Paris stop | Eye position remains fixed and yaw/pitch are clamped | Edit `CameraDirector` without adding a second camera controller |
 | Far plane 90 / fog 22–54 | Distant geometry fades | Raise fog/far if world grows |
 | Free mode still graph-bound | Disconnected nodes throw in route builder | Keep graph connected for all free targets |
 | Mobile HUD hides route list | Discovery via Next/spheres only | Accept or add mobile route UI |

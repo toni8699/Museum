@@ -39,6 +39,8 @@ flowchart TB
 
 **Paris asset slice:** `apps/museum/src/lib/content/assets.ts` owns model provenance/defaults; `paris-salon-layout.ts` owns local placement transforms; `AssetModel.svelte` owns cached loading, cloning, and fallbacks. Preview at `/dev/assets`. Source models/licences live under `assets-source/`; only optimized GLBs under `static/museum/models/` load in production.
 
+For the asset handoff workflow and optimization checklist, see [`docs/ASSET_WORKFLOW.md`](./docs/ASSET_WORKFLOW.md).
+
 | Concern | Owns |
 |---------|------|
 | Room poses, dims, openings, colors | `museumRooms` |
@@ -103,6 +105,7 @@ apps/museum/src/
 - **`@portfolio/scroll-travel`** is a museum dependency but **unused**; do not wire it in unless intentionally switching to scroll/section travel.
 - **`audioEnabled`** on state is unused; shared audio/cursor/HUD packages are for missing portfolio apps.
 - Paris hero loading begins in Departure or whenever the active camera route crosses Paris; repeated models reuse the per-Canvas GLTF cache and clone scenes/materials per instance.
+- At the stable Paris stop, `CameraDirector` keeps the authored eye position but permits clamped mouse/arrow free-look. During transitions and in every other room, the guided camera remains authoritative.
 
 ## Conventions for agents
 
@@ -118,6 +121,6 @@ apps/museum/src/
 
 ## Known limitations (do not assume fixed)
 
-No collision/navmesh · no free-look at rest · selective shadows and GLTF assets only in Paris · no exhibit interaction · no spatial audio · `targetWaypoints` typed but unused (look synthesized) · `lockInteraction` unused in data · mobile hides route list · camera can clip walls if waypoints are wrong.
+No collision/navmesh · fixed-eye free-look only at the Paris stop · selective shadows and GLTF assets only in Paris · no exhibit interaction · no spatial audio · `targetWaypoints` typed but unused (look synthesized) · `lockInteraction` unused in data · mobile hides route list · camera can clip walls if waypoints are wrong.
 
 Full authoring checklist and limits: [`docs/CAMERA_AND_LAYOUT.md`](./docs/CAMERA_AND_LAYOUT.md).

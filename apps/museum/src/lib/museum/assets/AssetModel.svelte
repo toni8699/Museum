@@ -53,6 +53,7 @@
   const asset = $derived(getMuseumAsset(assetId));
   const fallbackKind = $derived(
     fallback ??
+      asset.fallback ??
       (asset.category === 'book'
         ? 'books'
         : asset.category === 'decor'
@@ -148,7 +149,9 @@
   const fallbackBoundsPosition = $derived<Vec3>(
     fallbackKind === 'frame'
       ? [0, 0, 0]
-      : [0, assetFallbackDimensions[fallbackKind][1] / 2, 0]
+      : fallbackKind === 'chandelier'
+        ? [0, -assetFallbackDimensions[fallbackKind][1] / 2, 0]
+        : [0, assetFallbackDimensions[fallbackKind][1] / 2, 0]
   );
 </script>
 

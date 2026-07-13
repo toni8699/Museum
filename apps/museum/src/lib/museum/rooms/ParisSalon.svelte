@@ -42,17 +42,49 @@
   <T is={lightTarget} />
   <T.SpotLight
     bind:ref={keyLight}
-    position={[0.8, 3.75, 1.6]}
+    position={[1.05, 3.82, 1.45]}
     target={lightTarget}
     color="#ffd5a0"
-    intensity={48}
+    intensity={44}
     distance={12}
     angle={0.72}
     penumbra={0.78}
     decay={2}
     castShadow={preloadHero}
+    visible={preloadHero}
   />
-  <T.PointLight position={[-2.6, 2.4, -2.8]} color="#d69d65" intensity={7} distance={5.5} />
+  <T.PointLight
+    position={[-0.1, 3.05, 0.65]}
+    color="#ffd4a0"
+    intensity={13}
+    distance={8}
+    decay={2}
+    visible={preloadHero}
+  />
+  <T.PointLight
+    position={[-3.25, 2.25, -1.35]}
+    color="#e7b987"
+    intensity={5.5}
+    distance={5}
+    decay={2}
+    visible={preloadHero}
+  />
+  <T.PointLight
+    position={[3.45, 1.35, -3.15]}
+    color="#ffb96f"
+    intensity={3.2}
+    distance={3}
+    decay={2}
+    visible={preloadHero}
+  />
+  <T.PointLight
+    position={[4.3, 3, 3.15]}
+    color="#cbdcff"
+    intensity={4.5}
+    distance={5.5}
+    decay={2}
+    visible={preloadHero}
+  />
 
   {#each parisSalonAssets as placement (placement.id)}
     <AssetModel

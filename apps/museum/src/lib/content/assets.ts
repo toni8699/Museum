@@ -21,21 +21,78 @@ export const museumAssets: MuseumAsset[] = [
   },
   {
     id: 'paris-salon-chair',
-    name: 'Paris Salon Chair',
+    name: 'Upholstered Paris Salon Chair',
     category: 'chair',
-    sourceFile: 'assets-source/models/dining-chair-02/dining_chair_02_1k.gltf',
-    productionFile: '/museum/models/furniture/dining-chair-02.glb',
-    sourceUrl: 'https://polyhaven.com/a/dining_chair_02',
-    creator: 'James Ray Cock / Poly Haven',
-    license: 'CC0 1.0',
-    attribution: 'Dining Chair 02 by Poly Haven, released under CC0 1.0.',
+    sourceFile: 'assets-source/models/salon-chair/source.glb',
+    productionFile: '/museum/models/furniture/chair/salon-chair.glb',
+    sourceUrl: 'https://sketchfab.com/3d-models/chair-02f920ac307b47dda8d6fa14e5fe1da5',
+    creator: 'shuvalov.di',
+    license: 'CC BY-SA 4.0',
+    attribution:
+      'Chair by shuvalov.di, licensed under CC BY-SA 4.0. Modified for the museum: floor-centered pivot, geometry optimization, WebP textures, and Meshopt compression.',
     defaultScale: 0.92,
     castShadow: true,
     receiveShadow: false,
     status: 'approved',
     rooms: ['paris'],
     notes:
-      'Shared production model; scale 0.92 yields an approximately 0.40 m × 0.90 m × 0.53 m chair. Clone the cached scene for repeated placements.'
+      'Replaces Dining Chair 02. Scale 0.92 yields an approximately 0.64 m × 0.90 m × 0.54 m chair. The optimized derivative remains CC BY-SA 4.0.'
+  },
+  {
+    id: 'paris-salon-sofa',
+    name: 'Paris Salon Sofa 03',
+    category: 'sofa',
+    sourceFile: 'assets-source/models/sofa-03/sofa_03_1k_gltf/sofa_03_1k.gltf',
+    productionFile: '/museum/models/furniture/sofa/sofa-03.glb',
+    sourceUrl: 'https://polyhaven.com/a/sofa_03',
+    creator: 'Fran Calvente / Poly Haven',
+    license: 'CC0 1.0',
+    attribution: 'Sofa 03 by Fran Calvente / Poly Haven, released under CC0 1.0.',
+    defaultScale: 0.9,
+    castShadow: true,
+    receiveShadow: false,
+    status: 'approved',
+    rooms: ['paris'],
+    notes:
+      'Official 1K glTF source set. Tangents were generated before optimization; scale 0.9 yields approximately 2.46 m × 1.01 m × 0.83 m.'
+  },
+  {
+    id: 'paris-salon-table',
+    name: 'Round Paris Salon Table',
+    category: 'table',
+    sourceFile: 'assets-source/models/salon-table/source.glb',
+    productionFile: '/museum/models/furniture/table/salon-table.glb',
+    sourceUrl: 'https://sketchfab.com/3d-models/table-1132fa2850a24917892733566bd68e74',
+    creator: 'yryabchenko',
+    license: 'CC BY 4.0',
+    attribution: 'Table by yryabchenko, licensed under CC BY 4.0.',
+    defaultScale: 0.21,
+    castShadow: true,
+    receiveShadow: false,
+    status: 'approved',
+    rooms: ['paris'],
+    notes:
+      'Floor-centered and scaled into a compact salon table, approximately 0.95 m × 0.69 m × 0.95 m.'
+  },
+  {
+    id: 'paris-chandelier',
+    name: 'Paris Salon Chandelier',
+    category: 'decor',
+    sourceFile: 'assets-source/models/chandelier/source.glb',
+    productionFile: '/museum/models/decor/chandelier/chandelier2.glb',
+    sourceUrl:
+      'https://sketchfab.com/3d-models/chandelier-a2209f4e95de4ea6b76d0523c3eff86c',
+    creator: 'myhalchuk2000',
+    license: 'CC BY 4.0',
+    attribution: 'Chandelier by myhalchuk2000, licensed under CC BY 4.0.',
+    fallback: 'chandelier',
+    defaultScale: 0.45,
+    castShadow: false,
+    receiveShadow: false,
+    status: 'approved',
+    rooms: ['paris'],
+    notes:
+      'Ceiling-pivoted replacement (chandelier2). defaultScale 0.45 yields approximately 0.89 m × 1.48 m × 0.90 m.'
   },
   {
     id: 'paris-writing-desk',
@@ -52,15 +109,22 @@ export const museumAssets: MuseumAsset[] = [
   },
   {
     id: 'paris-table-lamp',
-    name: 'Paris Table Lamp',
+    name: 'Victorian Brass Oil Lamp',
     category: 'lamp',
-    productionFile: '/museum/models/decor/table-lamp.glb',
-    license: 'pending',
-    defaultScale: 1,
+    sourceFile: 'assets-source/models/victorian-oil-lamp/source.glb',
+    productionFile: '/museum/models/decor/oil-lamp/victorian-oil-lamp.glb',
+    sourceUrl:
+      'https://sketchfab.com/3d-models/victorian-brass-oil-lamp-c932f6165fef40029c3f18afe19b9934',
+    creator: 'Tijerín Art Studio',
+    license: 'CC BY 4.0',
+    attribution: 'Victorian Brass Oil Lamp by Tijerín Art Studio, licensed under CC BY 4.0.',
+    defaultScale: 0.01,
     castShadow: false,
     receiveShadow: false,
-    status: 'placeholder',
-    rooms: ['paris']
+    status: 'approved',
+    rooms: ['paris'],
+    notes:
+      'The source geometry was far from its origin. Production is floor-centered and measures approximately 0.23 m × 0.54 m × 0.21 m.'
   },
   {
     id: 'paris-portrait-frame',
@@ -89,16 +153,23 @@ export const museumAssets: MuseumAsset[] = [
     notes: 'Repeated in small groups; do not create a unique model for each book.'
   },
   {
-    id: 'paris-mantel-clock',
-    name: 'Paris Mantel Clock',
+    id: 'paris-grandfather-clock',
+    name: 'Paris Grandfather Clock',
     category: 'clock',
-    productionFile: '/museum/models/decor/mantel-clock.glb',
-    license: 'pending',
-    defaultScale: 1,
+    sourceFile: 'assets-source/models/grandfather-clock/source.glb',
+    productionFile: '/museum/models/decor/clock/grandfather-clock.glb',
+    sourceUrl:
+      'https://sketchfab.com/3d-models/grandfather-clock-cef39f1bd3df43578236f273f273a873',
+    creator: 'Lyskilde',
+    license: 'CC BY 4.0',
+    attribution: 'Grandfather Clock by Lyskilde, licensed under CC BY 4.0.',
+    defaultScale: 0.008,
     castShadow: false,
     receiveShadow: false,
-    status: 'placeholder',
-    rooms: ['paris']
+    status: 'approved',
+    rooms: ['paris'],
+    notes:
+      'Floor-centered; scale 0.008 yields approximately 0.38 m × 2.11 m × 0.50 m. UVs outside [0, 1] remain unquantized.'
   },
   {
     id: 'paris-salon-rug',

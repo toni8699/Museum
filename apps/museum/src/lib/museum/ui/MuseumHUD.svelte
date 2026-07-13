@@ -7,7 +7,7 @@
 
 <aside class="hud" aria-label="Museum navigation controls">
   <div class="panel title-panel">
-    <p class="eyebrow">Phase 1 graybox</p>
+    <p class="eyebrow">Phase 4.5 museum</p>
     <h1>{currentRoom?.title}</h1>
     {#if currentRoom?.subtitle}<p class="subtitle">{currentRoom.subtitle}</p>{/if}
     <p class="mood">{currentRoom?.mood}</p>
@@ -37,7 +37,11 @@
     {/each}
   </nav>
 
-  <p class="hint">Keyboard: arrows / space move, M toggles mode, R toggles reduced motion.</p>
+  {#if museumState.currentRoomId === 'paris' && !museumState.isTransitioning}
+    <p class="hint">Paris: drag to look · arrows rotate · Space next · Backspace back.</p>
+  {:else}
+    <p class="hint">Keyboard: arrows / space move, M toggles mode, R toggles reduced motion.</p>
+  {/if}
 </aside>
 
 <style>

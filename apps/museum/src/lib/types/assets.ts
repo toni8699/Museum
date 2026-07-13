@@ -3,16 +3,21 @@ import type { MuseumRoomId, Vec3 } from '$lib/types/museum';
 export type AssetId =
   | 'paris-grand-piano'
   | 'paris-salon-chair'
+  | 'paris-salon-sofa'
+  | 'paris-salon-table'
+  | 'paris-chandelier'
   | 'paris-writing-desk'
   | 'paris-table-lamp'
   | 'paris-portrait-frame'
   | 'paris-book'
-  | 'paris-mantel-clock'
+  | 'paris-grandfather-clock'
   | 'paris-salon-rug';
 
 export type AssetCategory =
   | 'piano'
   | 'chair'
+  | 'sofa'
+  | 'table'
   | 'desk'
   | 'lamp'
   | 'frame'
@@ -27,6 +32,9 @@ export type AssetLoadStatus = 'idle' | 'loading' | 'ready' | 'failed' | 'fallbac
 export type FallbackKind =
   | 'piano'
   | 'chair'
+  | 'sofa'
+  | 'table'
+  | 'chandelier'
   | 'desk'
   | 'lamp'
   | 'frame'
@@ -44,6 +52,7 @@ export type MuseumAsset = {
   creator?: string;
   license: string;
   attribution?: string;
+  fallback?: FallbackKind;
   defaultScale: number;
   defaultRotation?: Vec3;
   castShadow: boolean;

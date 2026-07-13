@@ -63,19 +63,79 @@
       <FallbackMaterial materialId="wood-walnut" surfaceSize={[0.2, 0.68]} tint="#130f0d" {wireframe} />
     </T.Mesh>
   {:else if kind === 'chair'}
-    <!-- 0.5 m wide x 0.55 m deep x 0.9 m high; sitter faces -Z. -->
+    <!-- 0.64 m wide x 0.54 m deep x 0.9 m high; sitter faces -Z. -->
     <T.Mesh position={[0, 0.46, 0]} {castShadow} {receiveShadow}>
-      <T.BoxGeometry args={[0.5, 0.12, 0.5]} />
-      <FallbackMaterial materialId="velvet-dark" surfaceSize={[0.5, 0.5]} tint="#642a35" {wireframe} />
+      <T.BoxGeometry args={[0.58, 0.12, 0.5]} />
+      <FallbackMaterial materialId="velvet-dark" surfaceSize={[0.58, 0.5]} tint="#642a35" {wireframe} />
     </T.Mesh>
     <T.Mesh position={[0, 0.7, 0.235]} {castShadow} {receiveShadow}>
-      <T.BoxGeometry args={[0.5, 0.4, 0.08]} />
-      <FallbackMaterial materialId="velvet-dark" surfaceSize={[0.5, 0.4]} tint="#642a35" {wireframe} />
+      <T.BoxGeometry args={[0.62, 0.4, 0.08]} />
+      <FallbackMaterial materialId="velvet-dark" surfaceSize={[0.62, 0.4]} tint="#642a35" {wireframe} />
     </T.Mesh>
-    {#each [[-0.2, -0.2], [0.2, -0.2], [-0.2, 0.2], [0.2, 0.2]] as leg}
+    {#each [[-0.24, -0.2], [0.24, -0.2], [-0.24, 0.2], [0.24, 0.2]] as leg}
       <T.Mesh position={[leg[0], 0.21, leg[1]]} {castShadow} {receiveShadow}>
         <T.BoxGeometry args={[0.045, 0.42, 0.045]} />
         <FallbackMaterial materialId="wood-walnut" surfaceSize={[0.05, 0.42]} {wireframe} />
+      </T.Mesh>
+    {/each}
+  {:else if kind === 'sofa'}
+    <!-- Victorian salon sofa: 2.46 m wide x 0.83 m deep x 1.01 m high; faces -Z. -->
+    <T.Mesh position={[0, 0.48, 0]} {castShadow} {receiveShadow}>
+      <T.BoxGeometry args={[2.22, 0.28, 0.72]} />
+      <FallbackMaterial materialId="velvet-dark" surfaceSize={[2.22, 0.72]} tint="#5b2a2f" {wireframe} />
+    </T.Mesh>
+    <T.Mesh position={[0, 0.76, 0.32]} {castShadow} {receiveShadow}>
+      <T.BoxGeometry args={[2.46, 0.5, 0.16]} />
+      <FallbackMaterial materialId="velvet-dark" surfaceSize={[2.46, 0.5]} tint="#5b2a2f" {wireframe} />
+    </T.Mesh>
+    {#each [-1.16, 1.16] as x}
+      <T.Mesh position={[x, 0.62, 0]} {castShadow} {receiveShadow}>
+        <T.BoxGeometry args={[0.14, 0.42, 0.78]} />
+        <FallbackMaterial materialId="wood-walnut" surfaceSize={[0.14, 0.78]} {wireframe} />
+      </T.Mesh>
+    {/each}
+    {#each [[-1.06, -0.28], [1.06, -0.28], [-1.06, 0.28], [1.06, 0.28]] as leg}
+      <T.Mesh position={[leg[0], 0.16, leg[1]]} {castShadow} {receiveShadow}>
+        <T.BoxGeometry args={[0.07, 0.32, 0.07]} />
+        <FallbackMaterial materialId="wood-walnut" surfaceSize={[0.07, 0.32]} {wireframe} />
+      </T.Mesh>
+    {/each}
+  {:else if kind === 'table'}
+    <!-- Compact round salon table: 0.95 m diameter x 0.69 m high. -->
+    <T.Mesh position={[0, 0.65, 0]} {castShadow} {receiveShadow}>
+      <T.CylinderGeometry args={[0.475, 0.475, 0.08, 32]} />
+      <FallbackMaterial materialId="wood-walnut" surfaceSize={[0.95, 0.95]} {wireframe} />
+    </T.Mesh>
+    <T.Mesh position={[0, 0.34, 0]} {castShadow} {receiveShadow}>
+      <T.CylinderGeometry args={[0.08, 0.11, 0.58, 18]} />
+      <FallbackMaterial materialId="wood-walnut" surfaceSize={[0.22, 0.58]} tint="#2e1b13" {wireframe} />
+    </T.Mesh>
+    <T.Mesh position={[0, 0.04, 0]} {castShadow} {receiveShadow}>
+      <T.CylinderGeometry args={[0.27, 0.31, 0.08, 24]} />
+      <FallbackMaterial materialId="wood-walnut" surfaceSize={[0.62, 0.08]} tint="#2e1b13" {wireframe} />
+    </T.Mesh>
+  {:else if kind === 'chandelier'}
+    <!-- Ceiling-mounted fallback; placement origin is the top pivot. -->
+    <T.Mesh position={[0, -0.25, 0]} {castShadow} {receiveShadow}>
+      <T.CylinderGeometry args={[0.025, 0.025, 0.5, 10]} />
+      <FallbackMaterial materialId="brass-aged" surfaceSize={[0.08, 0.5]} {wireframe} />
+    </T.Mesh>
+    <T.Mesh position={[0, -0.72, 0]} {castShadow} {receiveShadow}>
+      <T.CylinderGeometry args={[0.045, 0.075, 0.46, 12]} />
+      <FallbackMaterial materialId="brass-aged" surfaceSize={[0.15, 0.46]} {wireframe} />
+    </T.Mesh>
+    <T.Mesh position={[0, -0.98, 0]} {castShadow} {receiveShadow}>
+      <T.SphereGeometry args={[0.1, 16, 12]} />
+      <FallbackMaterial materialId="brass-aged" surfaceSize={[0.2, 0.2]} {wireframe} />
+    </T.Mesh>
+    {#each [[0.28, -1.08, 0], [-0.28, -1.08, 0], [0, -1.08, 0.28], [0, -1.08, -0.28]] as arm}
+      <T.Mesh position={[arm[0], arm[1], arm[2]]} {castShadow} {receiveShadow}>
+        <T.SphereGeometry args={[0.055, 12, 8]} />
+        <FallbackMaterial materialId="brass-aged" surfaceSize={[0.11, 0.11]} {wireframe} />
+      </T.Mesh>
+      <T.Mesh position={[arm[0], -1.25, arm[2]]} {castShadow} {receiveShadow}>
+        <T.CylinderGeometry args={[0.035, 0.05, 0.3, 12]} />
+        <FallbackMaterial materialId="paper-aged" surfaceSize={[0.1, 0.3]} tint="#f1d7a5" {wireframe} />
       </T.Mesh>
     {/each}
   {:else if kind === 'desk'}
@@ -140,18 +200,18 @@
       <FallbackMaterial materialId="paper-aged" surfaceSize={[0.36, 0.24]} tint="#7b3032" {wireframe} />
     </T.Mesh>
   {:else if kind === 'clock'}
-    <!-- Mantel clock: 0.34 m wide x 0.32 m high x 0.16 m deep. -->
-    <T.Mesh position={[0, 0.13, 0]} {castShadow} {receiveShadow}>
-      <T.BoxGeometry args={[0.34, 0.26, 0.16]} />
-      <FallbackMaterial materialId="wood-walnut" surfaceSize={[0.34, 0.26]} {wireframe} />
+    <!-- Grandfather clock: 0.38 m wide x 2.11 m high x 0.5 m deep. -->
+    <T.Mesh position={[0, 0.93, 0]} {castShadow} {receiveShadow}>
+      <T.BoxGeometry args={[0.34, 1.8, 0.42]} />
+      <FallbackMaterial materialId="wood-walnut" surfaceSize={[0.34, 1.8]} {wireframe} />
     </T.Mesh>
-    <T.Mesh position={[0, 0.17, 0.085]} rotation={[Math.PI / 2, 0, 0]} {castShadow} {receiveShadow}>
-      <T.CylinderGeometry args={[0.1, 0.1, 0.02, 24]} />
-      <FallbackMaterial materialId="paper-aged" surfaceSize={[0.2, 0.2]} tint="#e3dcc8" {wireframe} />
+    <T.Mesh position={[0, 1.76, 0.225]} rotation={[Math.PI / 2, 0, 0]} {castShadow} {receiveShadow}>
+      <T.CylinderGeometry args={[0.14, 0.14, 0.025, 28]} />
+      <FallbackMaterial materialId="paper-aged" surfaceSize={[0.28, 0.28]} tint="#e3dcc8" {wireframe} />
     </T.Mesh>
-    <T.Mesh position={[0, 0.015, 0]} {castShadow} {receiveShadow}>
-      <T.BoxGeometry args={[0.38, 0.03, 0.19]} />
-      <FallbackMaterial materialId="brass-aged" surfaceSize={[0.38, 0.19]} {wireframe} />
+    <T.Mesh position={[0, 0.045, 0]} {castShadow} {receiveShadow}>
+      <T.BoxGeometry args={[0.38, 0.09, 0.5]} />
+      <FallbackMaterial materialId="wood-walnut" surfaceSize={[0.38, 0.5]} tint="#2a1912" {wireframe} />
     </T.Mesh>
   {:else if kind === 'decor'}
     <!-- Small ceramic-vase stand-in. -->

@@ -1,6 +1,11 @@
 <script lang="ts">
   import MuseumCanvas from '$lib/museum/MuseumCanvas.svelte';
   import MuseumHUD from '$lib/museum/ui/MuseumHUD.svelte';
+  import { museumScene } from '$lib/content/scene';
+  import { museumState } from '$lib/state/museum-state.svelte';
+
+  const scene = museumScene;
+  const state = museumState;
 </script>
 
 <svelte:head>
@@ -8,8 +13,8 @@
 </svelte:head>
 
 <main class="museum-page">
-  <MuseumCanvas />
-  <MuseumHUD />
+  <MuseumCanvas {scene} {state} />
+  <MuseumHUD {scene} {state} />
 </main>
 
 <style>

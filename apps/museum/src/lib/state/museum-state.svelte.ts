@@ -1,7 +1,11 @@
-import { getNode } from '$lib/content/rooms';
+import {
+  getNode,
+  museumNavigationGraph,
+  type NavigationGraph
+} from '$lib/content/scene';
 import type { MuseumRoomId, TourMode } from '$lib/types/museum';
 
-class MuseumStateStore {
+export class MuseumStateStore {
   currentRoomId = $state<MuseumRoomId>('entrance');
   activeNodeId = $state('entrance-start');
   targetNodeId = $state<string | null>(null);
@@ -11,12 +15,22 @@ class MuseumStateStore {
   reducedMotion = $state(false);
   visitedRoomIds = $state(new Set<MuseumRoomId>(['entrance']));
 
+  constructor(
+    readonly graph: NavigationGraph = museumNavigationGraph,
+    initialNodeId = 'entrance-start'
+  ) {
+    const initialNode = getNode(initialNodeId, graph);
+    this.activeNodeId = initialNode.id;
+    this.currentRoomId = initialNode.roomId;
+    this.visitedRoomIds = new Set([initialNode.roomId]);
+  }
+
   get activeNode() {
-    return getNode(this.activeNodeId);
+    return getNode(this.activeNodeId, this.graph);
   }
 
   get targetNode() {
-    return this.targetNodeId ? getNode(this.targetNodeId) : null;
+    return this.targetNodeId ? getNode(this.targetNodeId, this.graph) : null;
   }
 
   get currentRoom() {
@@ -24,7 +38,9 @@ class MuseumStateStore {
   }
 
   get connectedNodes() {
-    return this.activeNode.connectedNodeIds.filter((id) => this.canNavigateTo(id)).map(getNode);
+    return this.activeNode.connectedNodeIds
+      .filter((id) => this.canNavigateTo(id))
+      .map((id) => getNode(id, this.graph));
   }
 
   canNavigateTo(nodeId: string) {
@@ -32,11 +48,11 @@ class MuseumStateStore {
     if (this.tourMode === 'free') return true;
     if (nodeId === this.activeNode.nextNodeId) return true;
     if (nodeId !== this.activeNode.previousNodeId) return false;
-    return this.visitedRoomIds.has(getNode(nodeId).roomId);
+    return this.visitedRoomIds.has(getNode(nodeId, this.graph).roomId);
   }
 
   requestNode(nodeId: string) {
-    const next = getNode(nodeId);
+    const next = getNode(nodeId, this.graph);
     if (!this.canNavigateTo(nodeId)) return;
     if (nodeId === this.activeNodeId || next.lockInteraction || this.isTransitioning) return;
 
@@ -45,7 +61,7 @@ class MuseumStateStore {
   }
 
   completeTransition(nodeId: string) {
-    const next = getNode(nodeId);
+    const next = getNode(nodeId, this.graph);
     this.activeNodeId = nodeId;
     this.currentRoomId = next.roomId;
     this.targetNodeId = null;
@@ -72,4 +88,11 @@ class MuseumStateStore {
   }
 }
 
-export const museumState = new MuseumStateStore();
+export function createMuseumState(
+  graph: NavigationGraph = museumNavigationGraph,
+  initialNodeId = 'entrance-start'
+) {
+  return new MuseumStateStore(graph, initialNodeId);
+}
+
+export const museumState = createMuseumState();

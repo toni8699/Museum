@@ -2,22 +2,31 @@
   import { T } from '@threlte/core';
   import type { IntersectionEvent } from '@threlte/extras';
   import type { NavigationNodeData } from '$lib/types/museum';
-  import { museumState } from '$lib/state/museum-state.svelte';
+  import {
+    museumState,
+    type MuseumStateStore
+  } from '$lib/state/museum-state.svelte';
 
-  let { node }: { node: NavigationNodeData } = $props();
+  let {
+    node,
+    state: store = museumState
+  }: {
+    node: NavigationNodeData;
+    state?: MuseumStateStore;
+  } = $props();
 
   let hovered = $state(false);
-  const isCurrent = $derived(museumState.activeNodeId === node.id);
-  const isTarget = $derived(museumState.targetNodeId === node.id);
-  const isConnected = $derived(museumState.canNavigateTo(node.id));
-  const visible = $derived(museumState.tourMode === 'free' || isCurrent || isTarget || isConnected);
+  const isCurrent = $derived(store.activeNodeId === node.id);
+  const isTarget = $derived(store.targetNodeId === node.id);
+  const isConnected = $derived(store.canNavigateTo(node.id));
+  const visible = $derived(store.tourMode === 'free' || isCurrent || isTarget || isConnected);
   const opacity = $derived(isCurrent ? 0.95 : isTarget ? 0.9 : isConnected ? 0.76 : 0.22);
   const color = $derived(isCurrent ? '#ffffff' : isTarget ? '#d6b35f' : isConnected ? '#c7a65b' : '#6f6a78');
   const scale = $derived(isCurrent ? 1.18 : hovered ? 1.08 : 1);
 
   function select(event: IntersectionEvent<MouseEvent>) {
     event.stopPropagation();
-    museumState.requestNode(node.id);
+    store.requestNode(node.id);
   }
 
   function showHover(event: IntersectionEvent<PointerEvent>) {

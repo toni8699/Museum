@@ -1,8 +1,28 @@
 <script lang="ts">
-  import { navigationNodes, roomById } from '$lib/content/rooms';
-  import { museumState } from '$lib/state/museum-state.svelte';
+  import { roomById } from '$lib/content/rooms';
+  import {
+    assertNavigationGraphMatchesScene,
+    museumScene,
+    type RuntimeMuseumScene
+  } from '$lib/content/scene';
+  import {
+    museumState,
+    type MuseumStateStore
+  } from '$lib/state/museum-state.svelte';
 
-  const currentRoom = $derived(roomById.get(museumState.currentRoomId));
+  let {
+    scene = museumScene,
+    state = museumState
+  }: {
+    scene?: RuntimeMuseumScene;
+    state?: MuseumStateStore;
+  } = $props();
+
+  const navigationNodes = $derived.by(() => {
+    assertNavigationGraphMatchesScene(state.graph, scene);
+    return scene.navigationNodes;
+  });
+  const currentRoom = $derived(roomById.get(state.currentRoomId));
 </script>
 
 <aside class="hud" aria-label="Museum navigation controls">
@@ -14,30 +34,30 @@
   </div>
 
   <div class="panel controls">
-    <button onclick={() => museumState.goBack()} disabled={museumState.isTransitioning}>Back</button>
-    <button class="primary" onclick={() => museumState.goNext()} disabled={museumState.isTransitioning}>
+    <button onclick={() => state.goBack()} disabled={state.isTransitioning}>Back</button>
+    <button class="primary" onclick={() => state.goNext()} disabled={state.isTransitioning}>
       Next
     </button>
-    <button onclick={() => museumState.toggleTourMode()}>Mode: {museumState.tourMode}</button>
-    <button onclick={() => museumState.toggleReducedMotion()}>
-      Reduced motion: {museumState.reducedMotion ? 'on' : 'off'}
+    <button onclick={() => state.toggleTourMode()}>Mode: {state.tourMode}</button>
+    <button onclick={() => state.toggleReducedMotion()}>
+      Reduced motion: {state.reducedMotion ? 'on' : 'off'}
     </button>
   </div>
 
   <nav class="panel route" aria-label="Museum route">
     {#each navigationNodes as node, index (node.id)}
       <button
-        class:active={museumState.activeNodeId === node.id}
-        class:visited={museumState.visitedRoomIds.has(node.roomId)}
-        disabled={!museumState.canNavigateTo(node.id)}
-        onclick={() => museumState.requestNode(node.id)}
+        class:active={state.activeNodeId === node.id}
+        class:visited={state.visitedRoomIds.has(node.roomId)}
+        disabled={!state.canNavigateTo(node.id)}
+        onclick={() => state.requestNode(node.id)}
       >
         <span>{index + 1}</span>{node.label}
       </button>
     {/each}
   </nav>
 
-  {#if museumState.currentRoomId === 'paris' && !museumState.isTransitioning}
+  {#if state.currentRoomId === 'paris' && !state.isTransitioning}
     <p class="hint">Paris: drag to look · arrows rotate · Space next · Backspace back.</p>
   {:else}
     <p class="hint">Keyboard: arrows / space move, M toggles mode, R toggles reduced motion.</p>

@@ -55,7 +55,6 @@ export type MuseumRoom = {
   openings: RoomOpening[];
   color: string;
   accentColor: string;
-  navigationNodeIds: string[];
 };
 
 export type MuseumState = {

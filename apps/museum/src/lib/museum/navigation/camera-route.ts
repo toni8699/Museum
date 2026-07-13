@@ -1,4 +1,8 @@
-import { getNode, navigationConnections } from '$lib/content/rooms';
+import {
+  getNode,
+  museumNavigationGraph,
+  type NavigationGraph
+} from '$lib/content/scene';
 import type { MuseumConnection, Vec3 } from '$lib/types/museum';
 
 type OrientedConnection = {
@@ -15,10 +19,10 @@ export type CameraRoute = {
   nodeIds: string[];
 };
 
-function connectedEdges(nodeId: string): OrientedConnection[] {
+function connectedEdges(nodeId: string, graph: NavigationGraph): OrientedConnection[] {
   const edges: OrientedConnection[] = [];
 
-  for (const connection of navigationConnections) {
+  for (const connection of graph.connections) {
     if (connection.fromNodeId === nodeId) {
       edges.push({
         connection,
@@ -40,7 +44,11 @@ function connectedEdges(nodeId: string): OrientedConnection[] {
   return edges;
 }
 
-function findConnectionPath(fromNodeId: string, toNodeId: string) {
+function findConnectionPath(
+  fromNodeId: string,
+  toNodeId: string,
+  graph: NavigationGraph
+) {
   const queue: { nodeId: string; path: OrientedConnection[] }[] = [
     { nodeId: fromNodeId, path: [] }
   ];
@@ -51,7 +59,7 @@ function findConnectionPath(fromNodeId: string, toNodeId: string) {
     if (!current) break;
     if (current.nodeId === toNodeId) return current.path;
 
-    for (const edge of connectedEdges(current.nodeId)) {
+    for (const edge of connectedEdges(current.nodeId, graph)) {
       if (visited.has(edge.toNodeId)) continue;
       visited.add(edge.toNodeId);
       queue.push({ nodeId: edge.toNodeId, path: [...current.path, edge] });
@@ -76,21 +84,30 @@ function appendDistinct(destination: Vec3[], points: Vec3[]) {
   }
 }
 
-function buildLookAheadTargets(fromNodeId: string, toNodeId: string, positions: Vec3[]): Vec3[] {
+function buildLookAheadTargets(
+  fromNodeId: string,
+  toNodeId: string,
+  positions: Vec3[],
+  graph: NavigationGraph
+): Vec3[] {
   const lastIndex = positions.length - 1;
 
   return positions.map((position, index) => {
-    if (index === 0) return [...getNode(fromNodeId).cameraTarget];
-    if (index === lastIndex) return [...getNode(toNodeId).cameraTarget];
+    if (index === 0) return [...getNode(fromNodeId, graph).cameraTarget];
+    if (index === lastIndex) return [...getNode(toNodeId, graph).cameraTarget];
 
     const lookAhead = positions[Math.min(lastIndex, index + 2)];
     return [lookAhead[0], Math.min(position[1], 1.5), lookAhead[2]];
   });
 }
 
-export function getCameraRoute(fromNodeId: string, toNodeId: string): CameraRoute {
+export function getCameraRoute(
+  fromNodeId: string,
+  toNodeId: string,
+  graph: NavigationGraph = museumNavigationGraph
+): CameraRoute {
   if (fromNodeId === toNodeId) {
-    const node = getNode(fromNodeId);
+    const node = getNode(fromNodeId, graph);
     return {
       positions: [[...node.position]],
       targets: [[...node.cameraTarget]],
@@ -99,7 +116,9 @@ export function getCameraRoute(fromNodeId: string, toNodeId: string): CameraRout
     };
   }
 
-  const path = findConnectionPath(fromNodeId, toNodeId);
+  getNode(fromNodeId, graph);
+  getNode(toNodeId, graph);
+  const path = findConnectionPath(fromNodeId, toNodeId, graph);
   const positions: Vec3[] = [];
 
   for (const edge of path) {
@@ -111,7 +130,7 @@ export function getCameraRoute(fromNodeId: string, toNodeId: string): CameraRout
 
   return {
     positions,
-    targets: buildLookAheadTargets(fromNodeId, toNodeId, positions),
+    targets: buildLookAheadTargets(fromNodeId, toNodeId, positions, graph),
     clearance: Math.min(...path.map((edge) => edge.connection.clearance)),
     nodeIds: [fromNodeId, ...path.map((edge) => edge.toNodeId)]
   };

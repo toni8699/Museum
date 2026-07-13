@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { T, useTask, useThrelte } from '@threlte/core';
   import {
     CurvePath,
@@ -10,13 +10,28 @@
     Spherical,
     Vector3
   } from 'three';
-  import { getNode } from '$lib/content/rooms';
-  import { museumState } from '$lib/state/museum-state.svelte';
+  import {
+    getNode,
+    museumNavigationGraph,
+    type NavigationGraph
+  } from '$lib/content/scene';
+  import {
+    museumState,
+    type MuseumStateStore
+  } from '$lib/state/museum-state.svelte';
   import { getCameraRoute } from './camera-route';
+
+  let {
+    graph = museumNavigationGraph,
+    state: store = museumState
+  }: {
+    graph?: NavigationGraph;
+    state?: MuseumStateStore;
+  } = $props();
 
   let cameraRef = $state<PerspectiveCamera>();
 
-  const initialNode = getNode('entrance-start');
+  const initialNode = untrack(() => getNode(store.activeNodeId, graph));
   const currentPosition = new Vector3(...initialNode.position);
   const currentTarget = new Vector3(...initialNode.cameraTarget);
   let positionPath = createRoundedPath([currentPosition.clone()]);
@@ -44,8 +59,8 @@
   const smootherstep = (t: number) => t * t * t * (t * (t * 6 - 15) + 10);
 
   const canLookAround = () =>
-    museumState.currentRoomId === 'paris' &&
-    !museumState.isTransitioning &&
+    store.currentRoomId === 'paris' &&
+    !store.isTransitioning &&
     activeTargetNodeId === null;
 
   function cancelPointerLook() {
@@ -88,10 +103,10 @@
   }
 
   $effect(() => {
-    const targetNodeId = museumState.targetNodeId;
+    const targetNodeId = store.targetNodeId;
     if (!targetNodeId || targetNodeId === activeTargetNodeId) return;
 
-    const route = getCameraRoute(museumState.activeNodeId, targetNodeId);
+    const route = getCameraRoute(store.activeNodeId, targetNodeId, graph);
     const positions = route.positions.map((point) => new Vector3(...point));
     const targets = route.targets.map((point) => new Vector3(...point));
     positions[0] = currentPosition.clone();
@@ -100,14 +115,14 @@
     targetPath = createRoundedPath(targets, 0.65);
     transitionDuration = Math.min(4.8, Math.max(1.25, positionPath.getLength() / 6.2));
     activeTargetNodeId = targetNodeId;
-    transitionProgress = museumState.reducedMotion ? 1 : 0;
+    transitionProgress = store.reducedMotion ? 1 : 0;
   });
 
   useTask((delta) => {
     if (!cameraRef) return;
 
     if (activeTargetNodeId) {
-      const speed = museumState.reducedMotion ? 24 : 1 / transitionDuration;
+      const speed = store.reducedMotion ? 24 : 1 / transitionDuration;
       transitionProgress = Math.min(1, transitionProgress + delta * speed);
       const eased = smootherstep(transitionProgress);
       positionPath.getPointAt(eased, currentPosition);
@@ -116,10 +131,10 @@
       if (transitionProgress >= 1) {
         const completed = activeTargetNodeId;
         activeTargetNodeId = null;
-        museumState.completeTransition(completed);
+        store.completeTransition(completed);
       }
     } else {
-      const node = getNode(museumState.activeNodeId);
+      const node = getNode(store.activeNodeId, graph);
       currentPosition.set(...node.position);
       currentTarget.set(...node.cameraTarget);
 
@@ -173,14 +188,14 @@
 
       if (event.key === 'ArrowRight' || event.key === 'ArrowDown' || event.key === ' ') {
         event.preventDefault();
-        museumState.goNext();
+        store.goNext();
       }
       if (event.key === 'ArrowLeft' || event.key === 'ArrowUp' || event.key === 'Backspace') {
         event.preventDefault();
-        museumState.goBack();
+        store.goBack();
       }
-      if (event.key === 'm' || event.key === 'M') museumState.toggleTourMode();
-      if (event.key === 'r' || event.key === 'R') museumState.toggleReducedMotion();
+      if (event.key === 'm' || event.key === 'M') store.toggleTourMode();
+      if (event.key === 'r' || event.key === 'R') store.toggleReducedMotion();
     };
 
     const onPointerDown = (event: PointerEvent) => {
@@ -234,7 +249,7 @@
   });
 
   $effect(() => {
-    const activeNodeId = museumState.activeNodeId;
+    const activeNodeId = store.activeNodeId;
     const lookEnabled = canLookAround();
 
     if (activeNodeId !== lookNodeId) {

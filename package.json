@@ -11,7 +11,8 @@
     "dev:museum": "npm run dev -w @portfolio/museum",
     "build": "npm run build:museum",
     "build:museum": "npm run build -w @portfolio/museum",
-    "check": "npm run check -w @portfolio/museum"
+    "check": "npm run check -w @portfolio/museum",
+    "test": "npm run test -w @portfolio/museum"
   },
   "engines": {
     "node": ">=20"

@@ -1,0 +1,841 @@
+{
+  "objects": [
+    {
+      "id": "main-piano",
+      "assetId": "paris-grand-piano",
+      "fallback": "piano",
+      "position": [
+        1.35,
+        0,
+        -0.25
+      ],
+      "rotation": [
+        0,
+        -0.25132741228718347,
+        0
+      ]
+    },
+    {
+      "id": "piano-rug",
+      "assetId": "paris-salon-rug",
+      "fallback": "rug",
+      "position": [
+        1.25,
+        0.012,
+        -0.2
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "salon-chandelier",
+      "assetId": "paris-chandelier",
+      "fallback": "chandelier",
+      "position": [
+        -0.1,
+        4.19,
+        0.65
+      ],
+      "rotation": [
+        0,
+        0.25132741228718347,
+        0
+      ]
+    },
+    {
+      "id": "left-wall-sofa",
+      "assetId": "paris-salon-sofa",
+      "fallback": "sofa",
+      "position": [
+        -4.92,
+        0,
+        -1.7
+      ],
+      "rotation": [
+        0,
+        1.5707963267948966,
+        0
+      ]
+    },
+    {
+      "id": "sofa-table",
+      "assetId": "paris-salon-table",
+      "fallback": "table",
+      "position": [
+        -3.35,
+        0,
+        -1.7
+      ],
+      "rotation": [
+        0,
+        3.141592653589793,
+        0
+      ]
+    },
+    {
+      "id": "sofa-chair-right",
+      "assetId": "paris-salon-chair",
+      "fallback": "chair",
+      "position": [
+        -2.42,
+        0,
+        -1.7
+      ],
+      "rotation": [
+        0,
+        6.283185307179586,
+        0
+      ]
+    },
+    {
+      "id": "sofa-chair-front",
+      "assetId": "paris-salon-chair",
+      "fallback": "chair",
+      "position": [
+        -3.35,
+        0,
+        -0.72
+      ],
+      "rotation": [
+        0,
+        -1.5707963267948966,
+        0
+      ]
+    },
+    {
+      "id": "front-salon-table",
+      "assetId": "paris-salon-table",
+      "fallback": "table",
+      "position": [
+        -1.5,
+        0,
+        1.62
+      ],
+      "rotation": [
+        0,
+        3.141592653589793,
+        0
+      ]
+    },
+    {
+      "id": "front-chair-left",
+      "assetId": "paris-salon-chair",
+      "fallback": "chair",
+      "position": [
+        -2.43,
+        0,
+        1.62
+      ],
+      "rotation": [
+        0,
+        3.141592653589793,
+        0
+      ]
+    },
+    {
+      "id": "front-chair-center",
+      "assetId": "paris-salon-chair",
+      "fallback": "chair",
+      "position": [
+        -1.5,
+        0,
+        2.62
+      ],
+      "rotation": [
+        0,
+        -1.5707963267948966,
+        0
+      ]
+    },
+    {
+      "id": "front-chair-right",
+      "assetId": "paris-salon-chair",
+      "fallback": "chair",
+      "position": [
+        -0.57,
+        0,
+        1.62
+      ],
+      "rotation": [
+        0,
+        6.283185307179586,
+        0
+      ]
+    },
+    {
+      "id": "portrait-liszt",
+      "assetId": "paris-portrait-frame",
+      "fallback": "frame",
+      "position": [
+        -3.8,
+        2.1,
+        -4.88
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "portrait-delacroix",
+      "assetId": "paris-portrait-frame",
+      "fallback": "frame",
+      "position": [
+        -2,
+        2.1,
+        -4.88
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "portrait-viardot",
+      "assetId": "paris-portrait-frame",
+      "fallback": "frame",
+      "position": [
+        -0.2,
+        2.1,
+        -4.88
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "portrait-sand",
+      "assetId": "paris-portrait-frame",
+      "fallback": "frame",
+      "position": [
+        1.6,
+        2.1,
+        -4.88
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "portrait-pleyel",
+      "assetId": "paris-portrait-frame",
+      "fallback": "frame",
+      "position": [
+        3.4,
+        2.1,
+        -4.88
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "publisher-desk",
+      "assetId": "paris-writing-desk",
+      "fallback": "desk",
+      "position": [
+        3.85,
+        0,
+        -3.25
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "publisher-lamp",
+      "assetId": "paris-table-lamp",
+      "fallback": "lamp",
+      "position": [
+        3.4,
+        0.77,
+        -3.22
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "publisher-books",
+      "assetId": "paris-book",
+      "fallback": "books",
+      "position": [
+        3.85,
+        0.77,
+        -3.2
+      ],
+      "rotation": [
+        0,
+        0.18849555921538758,
+        0
+      ]
+    },
+    {
+      "id": "teaching-books",
+      "assetId": "paris-book",
+      "fallback": "books",
+      "position": [
+        4.15,
+        0.77,
+        -3.16
+      ],
+      "rotation": [
+        0,
+        -0.25132741228718347,
+        0
+      ],
+      "scale": 0.82
+    },
+    {
+      "id": "back-wall-clock",
+      "assetId": "paris-grandfather-clock",
+      "fallback": "clock",
+      "position": [
+        4.72,
+        0,
+        -4.55
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ]
+    }
+  ],
+  "navigationNodes": [
+    {
+      "id": "entrance-start",
+      "roomId": "entrance",
+      "label": "Begin: The First Note",
+      "position": [
+        0,
+        1.65,
+        20.6
+      ],
+      "cameraTarget": [
+        0,
+        1.5,
+        15
+      ],
+      "connectedNodeIds": [
+        "legacy-return",
+        "poland-threshold"
+      ],
+      "nextNodeId": "poland-threshold",
+      "previousNodeId": "legacy-return"
+    },
+    {
+      "id": "poland-threshold",
+      "roomId": "poland",
+      "label": "Poland: Roots",
+      "position": [
+        -13.838477631085023,
+        1.65,
+        13.838477631085023
+      ],
+      "cameraTarget": [
+        -10.585786437626904,
+        1.35,
+        10.585786437626904
+      ],
+      "connectedNodeIds": [
+        "entrance-start",
+        "departure-corridor"
+      ],
+      "nextNodeId": "departure-corridor",
+      "previousNodeId": "entrance-start"
+    },
+    {
+      "id": "departure-corridor",
+      "roomId": "departure",
+      "label": "Departure: Distance",
+      "position": [
+        -21.8,
+        1.65,
+        3.0000000000000004
+      ],
+      "cameraTarget": [
+        -11.8,
+        1.5,
+        2.9999999999999996
+      ],
+      "connectedNodeIds": [
+        "poland-threshold",
+        "paris-seat"
+      ],
+      "nextNodeId": "paris-seat",
+      "previousNodeId": "poland-threshold"
+    },
+    {
+      "id": "paris-seat",
+      "roomId": "paris",
+      "label": "Paris Salon",
+      "position": [
+        -7.451409019648286,
+        1.65,
+        -15.591270733611195
+      ],
+      "cameraTarget": [
+        -11.10967358474644,
+        1.05,
+        -12.14640493481043
+      ],
+      "connectedNodeIds": [
+        "departure-corridor",
+        "workshop-desk"
+      ],
+      "nextNodeId": "workshop-desk",
+      "previousNodeId": "departure-corridor"
+    },
+    {
+      "id": "workshop-desk",
+      "roomId": "workshop",
+      "label": "Workshop: Manuscripts",
+      "position": [
+        11.829132282549077,
+        1.65,
+        -15.377871967313801
+      ],
+      "cameraTarget": [
+        11.371849211911808,
+        1.05,
+        -10.683099108771168
+      ],
+      "connectedNodeIds": [
+        "paris-seat",
+        "music-entry"
+      ],
+      "nextNodeId": "music-entry",
+      "previousNodeId": "paris-seat"
+    },
+    {
+      "id": "music-entry",
+      "roomId": "music-chamber",
+      "label": "Music Chamber Entry",
+      "position": [
+        3.247,
+        1.65,
+        -1.875
+      ],
+      "cameraTarget": [
+        0,
+        1.25,
+        0
+      ],
+      "connectedNodeIds": [
+        "workshop-desk",
+        "music-center"
+      ],
+      "nextNodeId": "music-center",
+      "previousNodeId": "workshop-desk"
+    },
+    {
+      "id": "music-center",
+      "roomId": "music-chamber",
+      "label": "Central Piano",
+      "position": [
+        2.8,
+        1.65,
+        2.6
+      ],
+      "cameraTarget": [
+        0,
+        1.1,
+        0
+      ],
+      "connectedNodeIds": [
+        "music-entry",
+        "legacy-return"
+      ],
+      "nextNodeId": "legacy-return",
+      "previousNodeId": "music-entry"
+    },
+    {
+      "id": "legacy-return",
+      "roomId": "legacy",
+      "label": "Legacy: Return",
+      "position": [
+        15.255929815143862,
+        1.65,
+        7.067291240312979
+      ],
+      "cameraTarget": [
+        10.805041260941108,
+        1.25,
+        9.573202467405215
+      ],
+      "connectedNodeIds": [
+        "music-center",
+        "entrance-start"
+      ],
+      "nextNodeId": "entrance-start",
+      "previousNodeId": "music-center"
+    }
+  ],
+  "connections": [
+    {
+      "id": "entrance-poland",
+      "fromNodeId": "entrance-start",
+      "toNodeId": "poland-threshold",
+      "clearance": 0.35,
+      "positionWaypoints": [
+        [
+          0,
+          1.65,
+          20.6
+        ],
+        [
+          -2.2,
+          1.65,
+          19.2
+        ],
+        [
+          -3.5,
+          1.65,
+          18
+        ],
+        [
+          -5.7,
+          1.65,
+          17.1
+        ],
+        [
+          -8.464466094067262,
+          1.65,
+          15.535533905932738
+        ],
+        [
+          -10.727207793864215,
+          1.65,
+          16.384062043356593
+        ],
+        [
+          -13.838477631085023,
+          1.65,
+          13.838477631085023
+        ]
+      ]
+    },
+    {
+      "id": "poland-departure",
+      "fromNodeId": "poland-threshold",
+      "toNodeId": "departure-corridor",
+      "clearance": 0.35,
+      "positionWaypoints": [
+        [
+          -13.838477631085023,
+          1.65,
+          13.838477631085023
+        ],
+        [
+          -15.11126983722081,
+          1.65,
+          10.585786437626906
+        ],
+        [
+          -15.535533905932738,
+          1.65,
+          8.464466094067262
+        ],
+        [
+          -16.4,
+          1.65,
+          6.2
+        ],
+        [
+          -17,
+          1.65,
+          4
+        ],
+        [
+          -18.4,
+          1.65,
+          3
+        ],
+        [
+          -21.8,
+          1.65,
+          3.0000000000000004
+        ]
+      ]
+    },
+    {
+      "id": "departure-paris",
+      "fromNodeId": "departure-corridor",
+      "toNodeId": "paris-seat",
+      "clearance": 0.35,
+      "positionWaypoints": [
+        [
+          -21.8,
+          1.65,
+          3.0000000000000004
+        ],
+        [
+          -11.2,
+          1.65,
+          2.9999999999999996
+        ],
+        [
+          -11.2,
+          1.65,
+          -4
+        ],
+        [
+          -15,
+          1.65,
+          -8
+        ],
+        [
+          -17.127518794332904,
+          1.65,
+          -11.933006168513039
+        ],
+        [
+          -16.493419603049222,
+          1.65,
+          -12.420774777192792
+        ],
+        [
+          -15.859320411765545,
+          1.65,
+          -12.908543385872546
+        ],
+        [
+          -15.609338999817169,
+          1.65,
+          -13.73165291301963
+        ],
+        [
+          -9.42687188480129,
+          1.65,
+          -18.487396847647233
+        ],
+        [
+          -7.451409019648286,
+          1.65,
+          -15.591270733611195
+        ]
+      ]
+    },
+    {
+      "id": "paris-workshop",
+      "fromNodeId": "paris-seat",
+      "toNodeId": "workshop-desk",
+      "clearance": 0.35,
+      "positionWaypoints": [
+        [
+          -7.451409019648286,
+          1.65,
+          -15.591270733611195
+        ],
+        [
+          -9.42687188480129,
+          1.65,
+          -18.487396847647233
+        ],
+        [
+          -7.774555722898624,
+          1.65,
+          -19.127593146539407
+        ],
+        [
+          0,
+          1.65,
+          -19.3
+        ],
+        [
+          7.195330500091415,
+          1.65,
+          -19.194661330232876
+        ],
+        [
+          8.658636326130678,
+          1.65,
+          -17.81671501071257
+        ],
+        [
+          11.829132282549077,
+          1.65,
+          -15.377871967313801
+        ]
+      ]
+    },
+    {
+      "id": "workshop-music-entry",
+      "fromNodeId": "workshop-desk",
+      "toNodeId": "music-entry",
+      "clearance": 0.35,
+      "positionWaypoints": [
+        [
+          11.829132282549077,
+          1.65,
+          -15.377871967313801
+        ],
+        [
+          8.475723097875768,
+          1.65,
+          -11.0184400272385
+        ],
+        [
+          4.732099026258657,
+          1.65,
+          -10.744070184856138
+        ],
+        [
+          4.4,
+          1.65,
+          -7.7
+        ],
+        [
+          4.806,
+          1.65,
+          -2.775
+        ],
+        [
+          4.027,
+          1.65,
+          -2.325
+        ],
+        [
+          3.247,
+          1.65,
+          -1.875
+        ]
+      ]
+    },
+    {
+      "id": "music-entry-center",
+      "fromNodeId": "music-entry",
+      "toNodeId": "music-center",
+      "clearance": 0.35,
+      "positionWaypoints": [
+        [
+          3.247,
+          1.65,
+          -1.875
+        ],
+        [
+          3.4,
+          1.65,
+          0.2
+        ],
+        [
+          3.2,
+          1.65,
+          1.5
+        ],
+        [
+          2.8,
+          1.65,
+          2.6
+        ]
+      ]
+    },
+    {
+      "id": "music-center-legacy",
+      "fromNodeId": "music-center",
+      "toNodeId": "legacy-return",
+      "clearance": 0.35,
+      "positionWaypoints": [
+        [
+          2.8,
+          1.65,
+          2.6
+        ],
+        [
+          3.247,
+          1.65,
+          1.875
+        ],
+        [
+          4.027,
+          1.65,
+          2.325
+        ],
+        [
+          4.806,
+          1.65,
+          2.775
+        ],
+        [
+          6.3,
+          1.65,
+          4.4
+        ],
+        [
+          9.036880054476999,
+          1.65,
+          6.951446195751538
+        ],
+        [
+          11.09770242614896,
+          1.65,
+          8.536694173960738
+        ],
+        [
+          15.255929815143862,
+          1.65,
+          7.067291240312979
+        ]
+      ]
+    },
+    {
+      "id": "legacy-entrance",
+      "fromNodeId": "legacy-return",
+      "toNodeId": "entrance-start",
+      "clearance": 0.35,
+      "positionWaypoints": [
+        [
+          15.255929815143862,
+          1.65,
+          7.067291240312979
+        ],
+        [
+          18.60933899981717,
+          1.65,
+          9.26834708698037
+        ],
+        [
+          13.73165291301963,
+          1.65,
+          15.609338999817169
+        ],
+        [
+          12.182987580461413,
+          1.65,
+          16.310506374794315
+        ],
+        [
+          8.5,
+          1.65,
+          18
+        ],
+        [
+          3.5,
+          1.65,
+          20.5
+        ],
+        [
+          0,
+          1.65,
+          20.6
+        ]
+      ]
+    }
+  ]
+}

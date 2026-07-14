@@ -12,6 +12,13 @@ export type SceneObjectPlacement = AssetPlacement & {
   roomId: MuseumRoomId;
 };
 
+export type SceneObjectCluster = {
+  id: string;
+  name: string;
+  roomId: MuseumRoomId;
+  memberIds: string[];
+};
+
 export type SceneNavigationNode = Omit<
   NavigationNodeData,
   'position' | 'cameraTarget'
@@ -41,6 +48,8 @@ export type SceneConnection = Omit<
 export type MuseumSceneDocument = {
   version: 1;
   objects: SceneObjectPlacement[];
+  /** Editor-only hierarchy metadata. Visitor rendering intentionally stays flat. */
+  clusters?: SceneObjectCluster[];
   navigationNodes: SceneNavigationNode[];
   connections: SceneConnection[];
 };
@@ -85,8 +94,39 @@ export function resolveSceneDocument(document: MuseumSceneDocument): RuntimeMuse
   }
 
   assertUniqueIds('scene object', document.objects.map((object) => object.id));
+  const clusters = document.clusters ?? [];
+  assertUniqueIds('scene cluster', clusters.map((cluster) => cluster.id));
   assertUniqueIds('navigation node', document.navigationNodes.map((node) => node.id));
   assertUniqueIds('connection', document.connections.map((connection) => connection.id));
+
+  const objectById = new Map(document.objects.map((object) => [object.id, object]));
+  const clusteredMemberIds = new Set<string>();
+
+  for (const cluster of clusters) {
+    if (cluster.memberIds.length < 2) {
+      throw new Error(`Scene cluster must contain at least two members: ${cluster.id}`);
+    }
+
+    const memberIds = new Set<string>();
+    for (const memberId of cluster.memberIds) {
+      if (memberIds.has(memberId)) {
+        throw new Error(`Duplicate member in scene cluster ${cluster.id}: ${memberId}`);
+      }
+      memberIds.add(memberId);
+
+      const placement = objectById.get(memberId);
+      if (!placement) {
+        throw new Error(`Unknown member in scene cluster ${cluster.id}: ${memberId}`);
+      }
+      if (placement.roomId !== cluster.roomId) {
+        throw new Error(`Cross-room member in scene cluster ${cluster.id}: ${memberId}`);
+      }
+      if (clusteredMemberIds.has(memberId)) {
+        throw new Error(`Scene object belongs to multiple clusters: ${memberId}`);
+      }
+      clusteredMemberIds.add(memberId);
+    }
+  }
 
   const navigationNodes = document.navigationNodes.map((node): NavigationNodeData => ({
     ...node,

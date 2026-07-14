@@ -78,14 +78,20 @@
 
 		if (event.altKey) {
 			store.cyclePlacement(uniquePlacementIdsInOrder(hits));
+			if (store.selectedPlacementId) store.focusPlacement(store.selectedPlacementId);
 			return;
 		}
 
 		const result = resolveNormalSelection(hits);
 		if (result.action === 'select') {
-			store.selectPlacement(result.id);
+			if (event.shiftKey) {
+				store.togglePlacement(result.id);
+			} else {
+				store.selectPlacement(result.id);
+				store.focusPlacement(result.id);
+			}
 		} else {
-			store.deselect();
+			if (!event.shiftKey) store.deselect();
 		}
 	}
 

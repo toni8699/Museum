@@ -64,7 +64,7 @@
 
 	<label class="checkbox">
 		<input type="checkbox" bind:checked={store.keepOnFloor} />
-		<span>Keep on floor {store.keepOnFloor ? 'on' : 'off'}</span>
+		<span>Keep {store.selectedPlacementIds.length > 1 ? 'group' : 'selection'} on floor {store.keepOnFloor ? 'on' : 'off'}</span>
 	</label>
 
 	<button
@@ -75,7 +75,7 @@
 	>
 		Drop to Floor
 	</button>
-	<p class="hint">G drops the selection. Hold Shift while dragging to bypass snaps.</p>
+	<p class="hint">End drops each selected object. F reframes. Hold Shift while dragging to bypass snaps.</p>
 
 	{#if store.statusMessage}
 		<p class="status" role="status">{store.statusMessage}</p>

@@ -12,20 +12,63 @@
 
 	const store = createMuseumEditorStore();
 	let parisOpen = $state(false);
+	let openClusterIds = $state<string[]>([]);
+	let outlinerElement = $state<HTMLElement>();
+	let viewportElement = $state<HTMLElement>();
 
 	const selectedObject = $derived(store.selectedObject);
+	const singleEditableObject = $derived(
+		store.selectedPlacementIds.length === 1 && !store.selectedClusterId
+			? store.selectedObject
+			: undefined
+	);
 	const parisObjects = $derived(
 		store.document.objects.filter((object) => object.roomId === 'paris')
+	);
+	const parisClusters = $derived(
+		store.clusters.filter((cluster) => cluster.roomId === 'paris')
+	);
+	const clusteredPlacementIds = $derived(
+		new Set(parisClusters.flatMap((cluster) => cluster.memberIds))
+	);
+	const ungroupedParisObjects = $derived(
+		parisObjects.filter((object) => !clusteredPlacementIds.has(object.id))
 	);
 
 	function toggleParis() {
 		store.selectRoom('paris');
+		store.focusRoom('paris');
 		parisOpen = !parisOpen;
 	}
 
-	function selectObject(id: string) {
+	function selectObject(id: string, event?: MouseEvent) {
 		parisOpen = true;
-		store.selectPlacement(id);
+		if (event?.shiftKey) {
+			store.togglePlacement(id);
+		} else {
+			store.selectPlacement(id);
+			store.focusPlacement(id);
+		}
+	}
+
+	function selectCluster(id: string) {
+		store.selectCluster(id);
+		store.focusSelection();
+		if (!openClusterIds.includes(id)) openClusterIds = [...openClusterIds, id];
+	}
+
+	function toggleClusterOpen(id: string) {
+		openClusterIds = openClusterIds.includes(id)
+			? openClusterIds.filter((clusterId) => clusterId !== id)
+			: [...openClusterIds, id];
+	}
+
+	function editorOwnsReservedShortcuts() {
+		const active = document.activeElement;
+		return Boolean(
+			active &&
+			(outlinerElement?.contains(active) || viewportElement?.contains(active))
+		);
 	}
 
 	function isEditableTarget(target: EventTarget | null) {
@@ -38,15 +81,32 @@
 		const onKeyDown = (event: KeyboardEvent) => {
 			if (isEditableTarget(event.target)) return;
 			const modifier = event.metaKey || event.ctrlKey;
-			if (!modifier) return;
+			const key = event.key.toLowerCase();
 
-			if (event.key.toLowerCase() === 'z') {
+			if (modifier && key === 'z') {
 				event.preventDefault();
 				if (event.shiftKey) store.redo();
 				else store.undo();
-			} else if (event.ctrlKey && event.key.toLowerCase() === 'y') {
+			} else if (modifier && event.ctrlKey && key === 'y') {
 				event.preventDefault();
 				store.redo();
+			} else if (modifier && key === 'g' && editorOwnsReservedShortcuts()) {
+				event.preventDefault();
+				event.stopPropagation();
+				if (event.shiftKey) store.ungroupCluster();
+				else store.createCluster();
+			} else if (modifier && key === 'a' && editorOwnsReservedShortcuts()) {
+				event.preventDefault();
+				event.stopPropagation();
+				store.selectAllInRoom();
+			} else if (!modifier && !event.altKey && event.key === 'End') {
+				event.preventDefault();
+				store.requestDropToFloor();
+			} else if (!modifier && !event.altKey && key === 'f') {
+				event.preventDefault();
+				store.focusSelection();
+			} else if (!modifier && !event.altKey && event.key === 'Escape') {
+				store.deselect();
 			}
 		};
 
@@ -56,10 +116,10 @@
 </script>
 
 <main class="page">
-	<aside class="panel outliner" aria-label="Outliner">
+	<aside bind:this={outlinerElement} class="panel outliner" aria-label="Outliner">
 		<header>
 			<h1>Museum editor</h1>
-			<p>Phase 3.5 — precision placement</p>
+			<p>Phase 3.6 — clusters and framing</p>
 		</header>
 
 		<section>
@@ -84,20 +144,73 @@
 
 							{#if parisOpen}
 								<ul class="objects" aria-label="Paris Salon objects">
-									{#each parisObjects as object (object.id)}
+									{#each parisClusters as cluster (cluster.id)}
+										<li class="cluster-item">
+											<div class="cluster-line">
+												<button
+													type="button"
+													class="chevron-button"
+													aria-label={`Toggle ${cluster.name}`}
+													aria-expanded={openClusterIds.includes(cluster.id)}
+													onclick={() => toggleClusterOpen(cluster.id)}
+												>
+													<span class="chevron" class:open={openClusterIds.includes(cluster.id)}>›</span>
+												</button>
+												<button
+													type="button"
+													class="object-row cluster-row"
+													class:selected={store.selectedClusterId === cluster.id}
+													onclick={() => selectCluster(cluster.id)}
+												>
+													<span>{cluster.name}</span>
+													<span class="meta">{cluster.memberIds.length} objects</span>
+												</button>
+											</div>
+											{#if openClusterIds.includes(cluster.id)}
+												<ul class="cluster-members">
+													{#each cluster.memberIds as memberId (memberId)}
+														{@const object = parisObjects.find((candidate) => candidate.id === memberId)}
+														{#if object}
+															<li class="member-line">
+																<button
+																	type="button"
+																	class="object-row"
+																	class:selected={store.selectedPlacementIds.includes(object.id)}
+																	onclick={(event) => selectObject(object.id, event)}
+																>
+																	<span class="id">{object.id}</span>
+																</button>
+																<button class="mini-action" type="button" aria-label={`Remove ${object.id} from ${cluster.name}`} onclick={() => store.removeMemberFromCluster(cluster.id, object.id)}>−</button>
+															</li>
+														{/if}
+													{/each}
+												</ul>
+											{/if}
+										</li>
+									{/each}
+									{#each ungroupedParisObjects as object (object.id)}
 										<li>
-											<button
-												type="button"
-												class="object-row"
-												class:selected={store.selectedPlacementId === object.id}
-												onclick={() => selectObject(object.id)}
-											>
-												<span class="id">{object.id}</span>
-												<span class="meta">{object.assetId}</span>
-											</button>
+											<div class="member-line">
+												<button
+													type="button"
+													class="object-row"
+													class:selected={store.selectedPlacementIds.includes(object.id)}
+													onclick={(event) => selectObject(object.id, event)}
+												>
+													<span class="id">{object.id}</span>
+													<span class="meta">{object.assetId}</span>
+												</button>
+												{#if store.selectedClusterId}
+													<button class="mini-action" type="button" aria-label={`Add ${object.id} to selected cluster`} onclick={() => store.addMemberToCluster(store.selectedClusterId!, object.id)}>+</button>
+												{/if}
+											</div>
 										</li>
 									{/each}
 								</ul>
+								<div class="cluster-actions">
+									<button type="button" disabled={store.selectedPlacementIds.length < 2 || Boolean(store.selectedClusterId)} onclick={() => store.createCluster()}>Create cluster</button>
+									<button type="button" disabled={!store.selectedClusterId} onclick={() => store.ungroupCluster()}>Ungroup</button>
+								</div>
 							{/if}
 						{:else}
 							<div class="room-row placeholder" aria-disabled="true">
@@ -115,7 +228,8 @@
 		<a class="back" href="/museum">Back to museum</a>
 	</aside>
 
-	<div class="center">
+	<!-- svelte-ignore a11y_no_noninteractive_tabindex (the WebGL viewport owns guarded editor shortcuts) -->
+	<div bind:this={viewportElement} class="center" role="application" aria-label="3D editor viewport" tabindex="0" onpointerdown={(event) => event.currentTarget.focus()}>
 		<EditorViewport {store} />
 	</div>
 
@@ -128,7 +242,11 @@
 					<button type="button" disabled={!store.canRedo} onclick={() => store.redo()}>Redo</button>
 				</div>
 			</div>
-			{#if selectedObject}
+			{#if store.selectedCluster}
+				<p>{store.selectedCluster.name} · {store.selectedPlacementIds.length} selected</p>
+			{:else if store.selectedPlacementIds.length > 1}
+				<p>{store.selectedPlacementIds.length} selected</p>
+			{:else if selectedObject}
 				<p class="id">{selectedObject.id}</p>
 			{:else if store.selectedRoomId === 'paris'}
 				<p>Paris is centered. Select an object to edit it.</p>
@@ -137,15 +255,25 @@
 			{/if}
 		</header>
 
-		{#if selectedObject}
+		{#if store.selectedCluster}
+			<section class="selection" aria-label="Cluster selection">
+				<label class="rename"><span>Cluster name</span><input value={store.selectedCluster.name} onchange={(event) => store.renameCluster(store.selectedCluster!.id, event.currentTarget.value)} /></label>
+				<button type="button" class="deselect" onclick={() => store.ungroupCluster()}>Ungroup cluster</button>
+			</section>
+		{:else if store.selectedPlacementIds.length > 1}
+			<section class="selection" aria-label="Multiple selection">
+				<p>{store.selectedPlacementIds.length} objects selected. Numeric transforms are available for a single object.</p>
+				<button type="button" class="deselect" onclick={() => store.deselect()}>Clear selection</button>
+			</section>
+		{:else if singleEditableObject}
 			<section class="selection" aria-label="Selection">
 				<dl>
-					<div><dt>Room</dt><dd>{selectedObject.roomId}</dd></div>
-					<div><dt>Asset</dt><dd class="id">{selectedObject.assetId}</dd></div>
+					<div><dt>Room</dt><dd>{singleEditableObject.roomId}</dd></div>
+					<div><dt>Asset</dt><dd class="id">{singleEditableObject.assetId}</dd></div>
 				</dl>
 				<button type="button" class="deselect" onclick={() => store.deselect()}>Deselect object</button>
 			</section>
-			{#key selectedObject.id}
+			{#key singleEditableObject.id}
 				<EditorTransformInspector {store} />
 			{/key}
 		{/if}
@@ -207,8 +335,19 @@
 	.object-row { display: flex; flex-direction: column; gap: 0.1rem; width: 100%; padding: 0.4rem 0.45rem; border: 1px solid transparent; border-radius: 0.3rem; background: #16161d; color: inherit; text-align: left; cursor: pointer; }
 	.object-row:hover { border-color: #3a3a46; background: #202029; }
 	.object-row.selected { border-color: #d6b35f; background: #2a2618; box-shadow: inset 0 0 0 1px #d6b35f; }
+	.cluster-item, .cluster-members { display: flex; flex-direction: column; gap: 0.25rem; }
+	.cluster-line, .member-line { display: flex; align-items: stretch; gap: 0.25rem; }
+	.cluster-row { flex: 1; }
+	.cluster-members { margin-left: 1.1rem; padding-left: 0.45rem; border-left: 1px solid #36323a; }
+	.chevron-button, .mini-action, .cluster-actions button { border: 1px solid #3a3a46; border-radius: 0.3rem; background: #1a1a22; color: #f4efe4; cursor: pointer; }
+	.chevron-button { width: 1.7rem; padding: 0; }
+	.mini-action { width: 1.8rem; flex: 0 0 1.8rem; }
+	.cluster-actions { display: flex; gap: 0.35rem; margin-top: 0.45rem; }
+	.cluster-actions button { padding: 0.38rem 0.5rem; font: inherit; font-size: 0.7rem; }
+	.cluster-actions button:disabled { opacity: 0.4; cursor: default; }
 	.id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.75rem; }
-	.center { min-width: 0; min-height: 0; }
+	.center { min-width: 0; min-height: 0; outline: none; }
+	.center:focus-visible { box-shadow: inset 0 0 0 1px #d6b35f; }
 	.back { margin-top: auto; color: #d6c7a8; font-size: 0.85rem; text-decoration: none; }
 	.back:hover { text-decoration: underline; }
 	.inspector-title { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
@@ -219,6 +358,9 @@
 	.selection dl div { display: flex; flex-direction: column; gap: 0.1rem; }
 	.selection dt { color: #8f8a82; font-size: 0.67rem; text-transform: uppercase; letter-spacing: 0.04em; }
 	.selection dd { margin: 0; font-size: 0.8rem; }
+	.selection p { margin: 0; color: #a8a29a; font-size: 0.75rem; line-height: 1.4; }
+	.rename { display: flex; flex-direction: column; gap: 0.3rem; color: #d6d0c4; font-size: 0.75rem; }
+	.rename input { padding: 0.4rem; border: 1px solid #3a3a46; border-radius: 0.3rem; background: #1a1a22; color: #f4efe4; font: inherit; }
 	.deselect { align-self: flex-start; }
 	.camera-controls, .lighting { margin-top: 0.4rem; gap: 0.7rem; border-top: 1px solid #2a2a33; padding-top: 0.85rem; }
 	.camera-controls p { margin: 0; color: #a8a29a; font-size: 0.75rem; line-height: 1.4; }

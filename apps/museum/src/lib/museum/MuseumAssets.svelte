@@ -50,6 +50,7 @@
       {#if placementRegistry}
         <EditorPlacementRoot
           placementId={placement.id}
+          roomId={placement.roomId}
           {placementRegistry}
           position={placement.position}
           rotation={placement.rotation}

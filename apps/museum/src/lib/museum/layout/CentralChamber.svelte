@@ -8,7 +8,13 @@
   $effect(() => {
     const object = floorMesh;
     if (!object) return;
-    object.userData.editorSurface = { type: 'floor', placeable: true };
+    object.userData.surfaceType = 'floor';
+    object.userData.roomId = 'music-chamber';
+    object.userData.editorSurface = {
+      type: 'floor',
+      placeable: true,
+      roomId: 'music-chamber'
+    };
   });
 </script>
 

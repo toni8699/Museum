@@ -15,16 +15,19 @@ import {
 	getPlacementWorldBounds,
 	GROUND_EPSILON,
 	groundPlacementToFloor,
+	groundSelectionRigidly,
 	isEditorPlaceableFloor,
 	rotationSnapRadians,
 	snapRoomLocalPosition
 } from './editor-placement';
 
-function makeFloor(y = 0) {
+function makeFloor(y = 0, roomId?: string) {
 	const mesh = new Mesh(new PlaneGeometry(20, 20), new MeshBasicMaterial());
 	mesh.rotation.x = -Math.PI / 2;
 	mesh.position.y = y;
-	mesh.userData.editorSurface = { type: 'floor', placeable: true };
+	mesh.userData.surfaceType = 'floor';
+	mesh.userData.roomId = roomId;
+	mesh.userData.editorSurface = { type: 'floor', placeable: true, roomId };
 	mesh.updateMatrixWorld(true);
 	return mesh;
 }
@@ -173,6 +176,36 @@ describe('findFloorBelowPlacement', () => {
 		expect(isEditorPlaceableFloor(hit!.object)).toBe(true);
 	});
 
+	it('starts above the bounds and chooses the highest same-room floor', () => {
+		const root = makeBoxPlacement({ position: [0, 2, 0] });
+		root.userData.roomId = 'paris';
+		const parisLow = makeFloor(0, 'paris');
+		const parisHigh = makeFloor(0.75, 'paris');
+		const otherRoomHigher = makeFloor(1.25, 'workshop');
+		const scene = new Group();
+		scene.add(parisLow, parisHigh, otherRoomHigher, root);
+		scene.updateMatrixWorld(true);
+
+		const hit = findFloorBelowPlacement(root, [scene]);
+		expect(hit?.point.y).toBeCloseTo(0.75, 4);
+		expect(hit?.object.userData.roomId).toBe('paris');
+	});
+
+	it('can recover from a floor intersecting the object and respects max drop distance', () => {
+		const intersecting = makeBoxPlacement({ position: [0, 2, 0] });
+		const raisedFloor = makeFloor(2.2);
+		const raisedScene = new Group();
+		raisedScene.add(raisedFloor, intersecting);
+		raisedScene.updateMatrixWorld(true);
+		expect(findFloorBelowPlacement(intersecting, [raisedScene])?.point.y).toBeCloseTo(2.2, 4);
+
+		const distant = makeBoxPlacement({ position: [0, 100, 0] });
+		const distantScene = new Group();
+		distantScene.add(makeFloor(0), distant);
+		distantScene.updateMatrixWorld(true);
+		expect(findFloorBelowPlacement(distant, [distantScene])).toBeNull();
+	});
+
 	it('ignores unmarked geometry and the selected object itself', () => {
 		const root = makeBoxPlacement({ position: [0, 2, 0] });
 		const unmarked = new Mesh(new PlaneGeometry(20, 20), new MeshBasicMaterial());
@@ -215,10 +248,36 @@ describe('applyWorldYDeltaToPlacement / snapRoomLocalPosition', () => {
 		expect(root.position.z).toBeCloseTo(-0.3, 8);
 	});
 
+	it('can snap X/Z while preserving Y for keep-on-floor transforms', () => {
+		const root = new Group();
+		root.position.set(0.14, 0.07, -0.26);
+		snapRoomLocalPosition(root, 0.1, { snapY: false });
+		expect(root.position.toArray()).toEqual([0.1, 0.07, -0.30000000000000004]);
+	});
+
 	it('treats near-zero ground deltas as no-ops', () => {
 		const root = makeBoxPlacement({ position: [0, 0.5, 0] });
 		const before = root.position.y;
 		applyWorldYDeltaToPlacement(root, GROUND_EPSILON / 2);
 		expect(root.position.y).toBe(before);
+	});
+});
+
+describe('groundSelectionRigidly', () => {
+	it('uses one shared Y delta and preserves member spacing', () => {
+		const first = makeBoxPlacement({ position: [-1, 2, 0] });
+		const second = makeBoxPlacement({ position: [1, 4, 0] });
+		first.userData.roomId = 'paris';
+		second.userData.roomId = 'paris';
+		const floor = makeFloor(0, 'paris');
+		const scene = new Group();
+		scene.add(floor, first, second);
+		scene.updateMatrixWorld(true);
+		const beforeSpacing = second.position.y - first.position.y;
+
+		const result = groundSelectionRigidly([first, second], [scene]);
+		expect(result.grounded).toBe(true);
+		expect(getPlacementWorldBounds(first).min.y).toBeCloseTo(0, 4);
+		expect(second.position.y - first.position.y).toBeCloseTo(beforeSpacing, 8);
 	});
 });

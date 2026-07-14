@@ -186,6 +186,43 @@ describe('resolveSceneDocument', () => {
     );
   });
 
+  it('validates editor clusters while keeping runtime rendering flat', () => {
+		const document = JSON.parse(JSON.stringify(museumSceneDocument)) as MuseumSceneDocument;
+		const [first, second] = document.objects;
+		document.clusters = [
+			{
+				id: 'cluster-1',
+				name: 'Reading corner',
+				roomId: first.roomId,
+				memberIds: [first.id, second.id]
+			}
+		];
+		const resolved = resolveSceneDocument(document);
+		expect(resolved.objects).toHaveLength(document.objects.length);
+		expect(resolved).not.toHaveProperty('clusters');
+
+		const duplicateMember = JSON.parse(JSON.stringify(document)) as MuseumSceneDocument;
+		duplicateMember.clusters![0]!.memberIds = [first.id, first.id];
+		expect(() => resolveSceneDocument(duplicateMember)).toThrow('Duplicate member');
+
+		const tooSmall = JSON.parse(JSON.stringify(document)) as MuseumSceneDocument;
+		tooSmall.clusters![0]!.memberIds = [first.id];
+		expect(() => resolveSceneDocument(tooSmall)).toThrow('at least two members');
+
+		const missing = JSON.parse(JSON.stringify(document)) as MuseumSceneDocument;
+		missing.clusters![0]!.memberIds = [first.id, 'missing'];
+		expect(() => resolveSceneDocument(missing)).toThrow('Unknown member');
+
+		const multiple = JSON.parse(JSON.stringify(document)) as MuseumSceneDocument;
+		multiple.clusters!.push({
+			id: 'cluster-2',
+			name: 'Duplicate ownership',
+			roomId: first.roomId,
+			memberIds: [first.id, document.objects[2]!.id]
+		});
+		expect(() => resolveSceneDocument(multiple)).toThrow('multiple clusters');
+	});
+
   it('requires navigation state and scene data to share one runtime instance', () => {
     const first = resolveSceneDocument(museumSceneDocument);
     const second = resolveSceneDocument(museumSceneDocument);

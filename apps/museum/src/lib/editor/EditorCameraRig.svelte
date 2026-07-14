@@ -1,11 +1,12 @@
 <script lang="ts">
 	import { getRoom } from '$lib/content/rooms';
-	import type { MuseumRoomId } from '$lib/types/museum';
-	import { T } from '@threlte/core';
+	import { T, useTask } from '@threlte/core';
 	import { OrbitControls } from '@threlte/extras';
-	import { MOUSE, type PerspectiveCamera } from 'three';
+	import { Box3, MOUSE, type PerspectiveCamera } from 'three';
 	import type { OrbitControls as ThreeOrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 	import {
+		createEditorBoundsCameraFrame,
+		createEditorPanSpeed,
 		createEditorRoomCameraFrame,
 		EDITOR_CAMERA_FOV,
 		EDITOR_NEUTRAL_CAMERA_POSITION,
@@ -13,16 +14,9 @@
 		EDITOR_NEUTRAL_MAX_DISTANCE,
 		EDITOR_NEUTRAL_MIN_DISTANCE
 	} from './editor-camera';
+	import type { MuseumEditorStore } from './museum-editor.svelte';
 
-	let {
-		selectedRoomId,
-		focusVersion,
-		panEnabled
-	}: {
-		selectedRoomId: MuseumRoomId | null;
-		focusVersion: number;
-		panEnabled: boolean;
-	} = $props();
+	let { store }: { store: MuseumEditorStore } = $props();
 
 	const editorMouseButtons = {
 		LEFT: MOUSE.ROTATE,
@@ -32,22 +26,53 @@
 
 	let camera = $state<PerspectiveCamera>();
 	let orbitControls = $state<ThreeOrbitControls>();
-	const frame = $derived(
-		selectedRoomId ? createEditorRoomCameraFrame(getRoom(selectedRoomId)) : null
-	);
 
 	$effect(() => {
-		void focusVersion;
+		void store.cameraFocusVersion;
+		void store.registryVersion;
 		const currentCamera = camera;
 		const controls = orbitControls;
-		const currentFrame = frame;
-		if (!currentCamera || !controls || !currentFrame) return;
+		const roomId = store.selectedRoomId;
+		if (!currentCamera || !controls || !roomId) return;
 
-		currentCamera.position.set(...currentFrame.position);
-		controls.target.set(...currentFrame.target);
-		controls.minDistance = currentFrame.minDistance;
-		controls.maxDistance = currentFrame.maxDistance;
+		let frame = null;
+		if (store.cameraFocusKind === 'room') {
+			frame = createEditorRoomCameraFrame(getRoom(roomId));
+		} else if (store.cameraFocusKind) {
+			const ids =
+				store.cameraFocusKind === 'placement' && store.cameraFocusPlacementId
+					? [store.cameraFocusPlacementId]
+					: store.selectedPlacementIds;
+			const roots = store.getPlacementRoots(ids);
+			if (roots.length !== ids.length || roots.length === 0) return;
+			const bounds = new Box3();
+			for (const root of roots) {
+				root.updateWorldMatrix(true, true);
+				bounds.expandByObject(root);
+			}
+			frame = createEditorBoundsCameraFrame(
+				bounds,
+				currentCamera.position,
+				controls.target,
+				{ fovDegrees: currentCamera.fov, aspect: currentCamera.aspect }
+			);
+		}
+		if (!frame) return;
+
+		currentCamera.position.set(...frame.position);
+		controls.target.set(...frame.target);
+		controls.minDistance = frame.minDistance;
+		controls.maxDistance = frame.maxDistance;
 		controls.update();
+	});
+
+	useTask(() => {
+		const currentCamera = camera;
+		const controls = orbitControls;
+		if (!currentCamera || !controls) return;
+		controls.panSpeed = createEditorPanSpeed(
+			currentCamera.position.distanceTo(controls.target)
+		);
 	});
 </script>
 
@@ -62,9 +87,9 @@
 <OrbitControls
 	bind:ref={orbitControls}
 	enableDamping
-	enablePan={panEnabled}
+	enablePan={store.cameraPanEnabled}
 	mouseButtons={editorMouseButtons}
-	target={frame?.target ?? EDITOR_NEUTRAL_CAMERA_TARGET}
-	minDistance={frame?.minDistance ?? EDITOR_NEUTRAL_MIN_DISTANCE}
-	maxDistance={frame?.maxDistance ?? EDITOR_NEUTRAL_MAX_DISTANCE}
+	target={EDITOR_NEUTRAL_CAMERA_TARGET}
+	minDistance={EDITOR_NEUTRAL_MIN_DISTANCE}
+	maxDistance={EDITOR_NEUTRAL_MAX_DISTANCE}
 />

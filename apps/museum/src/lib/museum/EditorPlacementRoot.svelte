@@ -3,10 +3,11 @@
   import type { Group } from 'three';
   import type { Snippet } from 'svelte';
   import type { EditorPlacementRegistry } from './placement-registry';
-  import type { Vec3 } from '$lib/types/museum';
+  import type { MuseumRoomId, Vec3 } from '$lib/types/museum';
 
   let {
     placementId,
+    roomId,
     placementRegistry,
     position = [0, 0, 0] as Vec3,
     rotation = [0, 0, 0] as Vec3,
@@ -15,6 +16,7 @@
     children
   }: {
     placementId: string;
+    roomId: MuseumRoomId;
     placementRegistry: EditorPlacementRegistry;
     position?: Vec3;
     rotation?: Vec3;
@@ -33,6 +35,7 @@
 
     object.userData.editorEntity = 'placement';
     object.userData.placementId = id;
+    object.userData.roomId = roomId;
     registry.registerPlacementRoot(id, object);
 
     return () => {

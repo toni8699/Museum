@@ -36,17 +36,13 @@
 			forceParisAssets
 		>
 			{#snippet camera(_graph, _state)}
-				<EditorCameraRig
-					selectedRoomId={store.selectedRoomId}
-					focusVersion={store.cameraFocusVersion}
-					panEnabled={store.cameraPanEnabled}
-				/>
+				<EditorCameraRig {store} />
 			{/snippet}
 		</MuseumScene>
 		<EditorSelection {store} {transformControls} />
-		<EditorPlacementTools {store} {transformControls} />
+		<EditorPlacementTools {store} />
 		<!-- Selection-bound Three helpers must be disposed and recreated for a new root. -->
-		{#key store.selectedPlacementId}
+		{#key store.selectionKey}
 			<EditorSelectionHelper {store} />
 			<EditorTransformControls {store} bind:controls={transformControls} />
 		{/key}

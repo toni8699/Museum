@@ -1,7 +1,7 @@
 <script lang="ts">
   import { T } from '@threlte/core';
   import type { MaterialId, Vec2 } from '$lib/types/materials';
-  import type { Vec3 } from '$lib/types/museum';
+  import type { MuseumRoomId, Vec3 } from '$lib/types/museum';
   import type { Mesh } from 'three';
   import MuseumMaterial from '../MuseumMaterial.svelte';
 
@@ -12,7 +12,8 @@
     materialId = 'wood-walnut' as MaterialId,
     tint,
     textures = 'auto' as const,
-    receiveShadow = false
+    receiveShadow = false,
+    roomId
   }: {
     width: number;
     depth: number;
@@ -21,6 +22,7 @@
     tint?: string;
     textures?: 'auto' | 'off';
     receiveShadow?: boolean;
+    roomId?: MuseumRoomId;
   } = $props();
 
   const surfaceSize: Vec2 = $derived([width, depth]);
@@ -30,7 +32,9 @@
   $effect(() => {
     const object = mesh;
     if (!object) return;
-    object.userData.editorSurface = { type: 'floor', placeable: true };
+    object.userData.surfaceType = 'floor';
+    object.userData.roomId = roomId;
+    object.userData.editorSurface = { type: 'floor', placeable: true, roomId };
   });
 </script>
 

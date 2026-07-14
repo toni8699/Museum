@@ -15,10 +15,13 @@ export const DEFAULT_ROTATION_SNAP_DEGREES = 15;
 
 /** Ignore near-zero grounding deltas so already-on-floor drops create no history. */
 export const GROUND_EPSILON = 1e-4;
+export const FLOOR_RAY_EPSILON = 0.02;
+export const MAX_DROP_DISTANCE = 50;
 
 export type EditorSurfaceUserData = {
 	type: 'floor';
 	placeable: boolean;
+	roomId?: string;
 };
 
 export type FloorHit = {
@@ -33,7 +36,11 @@ export function rotationSnapRadians(degrees: number) {
 
 export function isEditorPlaceableFloor(object: Object3D): boolean {
 	const surface = object.userData?.editorSurface as EditorSurfaceUserData | undefined;
-	return surface?.type === 'floor' && surface.placeable === true;
+	return (
+		object.userData?.surfaceType === 'floor' &&
+		surface?.type === 'floor' &&
+		surface.placeable === true
+	);
 }
 
 export function getPlacementWorldBounds(root: Object3D): Box3 {
@@ -45,10 +52,16 @@ export function calculateGroundDeltaY(bounds: Box3, floorY: number) {
 	return floorY - bounds.min.y;
 }
 
-export function snapRoomLocalPosition(root: Object3D, step: number) {
+export function snapRoomLocalPosition(
+	root: Object3D,
+	step: number,
+	options: { snapY?: boolean } = {}
+) {
 	if (!(step > 0) || !Number.isFinite(step)) return;
 	root.position.x = Math.round(root.position.x / step) * step;
-	root.position.y = Math.round(root.position.y / step) * step;
+	if (options.snapY ?? true) {
+		root.position.y = Math.round(root.position.y / step) * step;
+	}
 	root.position.z = Math.round(root.position.z / step) * step;
 }
 
@@ -91,7 +104,7 @@ function collectRayOrigins(bounds: Box3): Vector3[] {
 	const min = bounds.min;
 	const max = bounds.max;
 	const center = bounds.getCenter(new Vector3());
-	const y = min.y + 0.01;
+	const y = max.y + FLOOR_RAY_EPSILON;
 
 	return [
 		new Vector3(center.x, y, center.z),
@@ -102,22 +115,71 @@ function collectRayOrigins(bounds: Box3): Vector3[] {
 	];
 }
 
-function nearestValidFloorHit(
+function bestValidFloorHit(
 	hits: Intersection[],
-	root: Object3D
+	excludedRoots: Object3D[],
+	preferredRoomId?: string
 ): FloorHit | null {
-	let best: FloorHit | null = null;
+	let bestPreferred: FloorHit | null = null;
+	let bestFallback: FloorHit | null = null;
 
 	for (const hit of hits) {
-		if (isDescendantOf(hit.object, root)) continue;
+		if (excludedRoots.some((root) => isDescendantOf(hit.object, root))) continue;
 		const floor = climbToPlaceableFloor(hit.object);
 		if (!floor) continue;
-		if (!best || hit.distance < best.distance) {
-			best = {
+		const candidate = {
 				point: hit.point.clone(),
 				distance: hit.distance,
 				object: floor
 			};
+		const floorRoomId =
+			floor.userData?.roomId ??
+			(floor.userData?.editorSurface as EditorSurfaceUserData | undefined)?.roomId;
+		if (preferredRoomId && floorRoomId === preferredRoomId) {
+			if (!bestPreferred || candidate.point.y > bestPreferred.point.y) {
+				bestPreferred = candidate;
+			}
+		} else if (!bestFallback || candidate.point.y > bestFallback.point.y) {
+			bestFallback = candidate;
+		}
+	}
+
+	return bestPreferred ?? bestFallback;
+}
+
+export function findFloorBelowBounds(
+	bounds: Box3,
+	targets: Object3D[],
+	excludedRoots: Object3D[],
+	preferredRoomId?: string,
+	raycaster = new Raycaster()
+): FloorHit | null {
+	if (bounds.isEmpty()) return null;
+
+	const down = new Vector3(0, -1, 0);
+	let best: FloorHit | null = null;
+
+	for (const origin of collectRayOrigins(bounds)) {
+		raycaster.set(origin, down);
+		raycaster.far = MAX_DROP_DISTANCE;
+		const hits = raycaster.intersectObjects(targets, true);
+		const candidate = bestValidFloorHit(hits, excludedRoots, preferredRoomId);
+		if (!candidate) continue;
+		const candidateRoomId =
+			candidate.object.userData?.roomId ??
+			(candidate.object.userData?.editorSurface as EditorSurfaceUserData | undefined)?.roomId;
+		const bestRoomId = best
+			? best.object.userData?.roomId ??
+				(best.object.userData?.editorSurface as EditorSurfaceUserData | undefined)?.roomId
+			: undefined;
+		const candidatePreferred = preferredRoomId && candidateRoomId === preferredRoomId;
+		const bestPreferred = preferredRoomId && bestRoomId === preferredRoomId;
+		if (
+			!best ||
+			(candidatePreferred && !bestPreferred) ||
+			(candidatePreferred === bestPreferred && candidate.point.y > best.point.y)
+		) {
+			best = candidate;
 		}
 	}
 
@@ -134,25 +196,8 @@ export function findFloorBelowPlacement(
 	raycaster = new Raycaster()
 ): FloorHit | null {
 	const bounds = getPlacementWorldBounds(root);
-	if (bounds.isEmpty()) return null;
-
-	const down = new Vector3(0, -1, 0);
-	let best: FloorHit | null = null;
-
-	for (const origin of collectRayOrigins(bounds)) {
-		// Start slightly above the bottom so coplanar floor contacts still hit.
-		origin.y += 0.02;
-		raycaster.set(origin, down);
-		raycaster.far = 200;
-		const hits = raycaster.intersectObjects(targets, true);
-		const candidate = nearestValidFloorHit(hits, root);
-		if (!candidate) continue;
-		if (!best || candidate.distance < best.distance) {
-			best = candidate;
-		}
-	}
-
-	return best;
+	const preferredRoomId = root.userData?.roomId as string | undefined;
+	return findFloorBelowBounds(bounds, targets, [root], preferredRoomId, raycaster);
 }
 
 /**
@@ -178,5 +223,22 @@ export function groundPlacementToFloor(
 	const floorHit = findFloorBelowPlacement(root, targets);
 	if (!floorHit) return { grounded: false, deltaY: 0 };
 	const deltaY = dropPlacementToFloor(root, floorHit);
+	return { grounded: true, deltaY };
+}
+
+/** Ground a selection with one shared world-Y delta, preserving rigid spacing. */
+export function groundSelectionRigidly(
+	roots: Object3D[],
+	targets: Object3D[]
+): { grounded: boolean; deltaY: number } {
+	if (roots.length === 0) return { grounded: false, deltaY: 0 };
+	const bounds = new Box3();
+	for (const root of roots) bounds.union(getPlacementWorldBounds(root));
+	const preferredRoomId = roots[0]?.userData?.roomId as string | undefined;
+	const floorHit = findFloorBelowBounds(bounds, targets, roots, preferredRoomId);
+	if (!floorHit) return { grounded: false, deltaY: 0 };
+	const deltaY = calculateGroundDeltaY(bounds, floorHit.point.y);
+	if (Math.abs(deltaY) < GROUND_EPSILON) return { grounded: true, deltaY: 0 };
+	for (const root of roots) applyWorldYDeltaToPlacement(root, deltaY);
 	return { grounded: true, deltaY };
 }

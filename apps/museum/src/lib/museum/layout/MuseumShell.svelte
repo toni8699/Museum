@@ -146,6 +146,7 @@
         <Floor
           {width}
           {depth}
+          roomId={room.id}
           position={[0, 0.01, 0]}
           tint={room.color}
           receiveShadow={room.id === 'paris'}

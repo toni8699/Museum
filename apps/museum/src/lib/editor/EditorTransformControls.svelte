@@ -2,16 +2,17 @@
 	import { onDestroy } from 'svelte';
 	import { useThrelte } from '@threlte/core';
 	import { TransformControls } from '@threlte/extras';
+	import { Group, Matrix4 } from 'three';
 	import type { TransformControls as ThreeTransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 	import {
-		groundPlacementToFloor,
-		rotationSnapRadians,
-		snapRoomLocalPosition
-	} from './editor-placement';
-	import {
-		enforceUniformObjectScale,
-		placementTransformFromObject
-	} from './editor-transform';
+		applyRigidPivotDelta,
+		captureMemberTransformBaselines,
+		resetSessionPivot,
+		snapPivotRoomLocal,
+		type MemberTransformBaseline
+	} from './editor-cluster-transform';
+	import { groundSelectionRigidly, rotationSnapRadians } from './editor-placement';
+	import { enforceUniformObjectScale, placementTransformFromObject } from './editor-transform';
 	import type { MuseumEditorStore } from './museum-editor.svelte';
 
 	let {
@@ -23,99 +24,128 @@
 	} = $props();
 
 	const { scene } = useThrelte();
+	const pivot = new Group();
+	pivot.name = 'EditorSelectionPivot';
+	pivot.userData.editorEntity = 'selection-pivot';
+	scene.add(pivot);
 
-	const selectedRoot = $derived.by(() => {
-		const id = store.selectedPlacementId;
-		return id ? store.getPlacementRoot(id) : undefined;
-	});
+	type TransformSession = {
+		startPivotWorldMatrix: Matrix4;
+		members: MemberTransformBaseline[];
+	};
 
-	let activePlacementId: string | null = null;
+	let session: TransformSession | null = null;
 	let shiftHeld = $state(false);
-
+	const selectedRoots = $derived(store.getPlacementRoots());
 	const effectiveRotationSnap = $derived(
 		store.rotationSnapEnabled && !shiftHeld
 			? rotationSnapRadians(store.rotationSnapDegrees)
 			: null
 	);
 
-	function syncDocumentFromRoot(id: string, root: NonNullable<typeof selectedRoot>) {
-		if (store.transformMode === 'scale') {
-			enforceUniformObjectScale(root, controls?.axis ?? null);
-		}
-
-		if (store.translationSnapEnabled && !shiftHeld) {
-			snapRoomLocalPosition(root, store.translationSnap);
-		}
-
-		store.updatePlacementTransform(id, placementTransformFromObject(root));
-	}
+	$effect(() => {
+		void store.selectionKey;
+		void store.registryVersion;
+		void store.historyVersion;
+		if (session) return;
+		resetSessionPivot(pivot, selectedRoots);
+	});
 
 	function beginTransform() {
-		const id = store.selectedPlacementId;
-		if (!id || !selectedRoot) return;
+		const ids = [...store.selectedPlacementIds];
+		const roots = store.getPlacementRoots(ids);
+		if (ids.length === 0 || roots.length !== ids.length) return;
+		pivot.updateMatrixWorld(true);
 		if (!store.beginDocumentTransaction()) return;
-		activePlacementId = id;
+		session = {
+			startPivotWorldMatrix: pivot.matrixWorld.clone(),
+			members: captureMemberTransformBaselines(ids, roots)
+		};
 	}
 
 	function previewTransform() {
-		const id = activePlacementId;
-		const root = selectedRoot;
-		if (!id || !root) return;
-		syncDocumentFromRoot(id, root);
+		const active = session;
+		if (!active) return;
+
+		if (store.transformMode === 'scale') {
+			enforceUniformObjectScale(pivot, controls?.axis ?? null);
+		}
+		if (store.transformMode === 'translate' && store.translationSnapEnabled && !shiftHeld) {
+			snapPivotRoomLocal(
+				pivot,
+				active.members[0]?.root.parent ?? null,
+				store.translationSnap,
+				!store.keepOnFloor
+			);
+		}
+
+		pivot.updateMatrixWorld(true);
+		const transforms = applyRigidPivotDelta(
+			active.startPivotWorldMatrix,
+			pivot.matrixWorld,
+			active.members
+		);
+		for (const [id, transform] of transforms) {
+			store.updatePlacementTransform(id, transform);
+		}
 	}
 
 	function finishTransform() {
-		const id = activePlacementId;
-		const root = selectedRoot;
-		if (!id || !root) {
-			activePlacementId = null;
-			return;
-		}
+		const active = session;
+		if (!active) return;
+		previewTransform();
 
-		syncDocumentFromRoot(id, root);
-
-		// Ground after snap so Keep on Floor wins over Y quantization.
 		if (store.keepOnFloor) {
-			const result = groundPlacementToFloor(root, [scene]);
+			const roots = active.members.map((member) => member.root);
+			const result = groundSelectionRigidly(roots, [scene]);
 			if (!result.grounded) {
 				store.setStatusMessage('No floor below selection');
-			} else {
-				store.updatePlacementTransform(id, placementTransformFromObject(root));
+			} else if (result.deltaY !== 0) {
+				for (const member of active.members) {
+					store.updatePlacementTransform(
+						member.id,
+						placementTransformFromObject(member.root)
+					);
+				}
 			}
 		}
 
-		activePlacementId = null;
+		session = null;
 		store.commitDocumentTransaction();
+		resetSessionPivot(pivot, store.getPlacementRoots());
 	}
 
 	function onKeyDown(event: KeyboardEvent) {
 		if (event.key === 'Shift') shiftHeld = true;
 	}
 
-	function onKeyUp(event: KeyboardEvent) {
-		if (event.key === 'Shift') shiftHeld = false;
+	function clearShift() {
+		shiftHeld = false;
 	}
 
 	$effect(() => {
 		window.addEventListener('keydown', onKeyDown);
-		window.addEventListener('keyup', onKeyUp);
+		window.addEventListener('keyup', clearShift);
+		window.addEventListener('blur', clearShift);
 		return () => {
 			window.removeEventListener('keydown', onKeyDown);
-			window.removeEventListener('keyup', onKeyUp);
+			window.removeEventListener('keyup', clearShift);
+			window.removeEventListener('blur', clearShift);
 		};
 	});
 
 	onDestroy(() => {
-		if (!activePlacementId) return;
-		activePlacementId = null;
+		pivot.removeFromParent();
+		if (!session) return;
+		session = null;
 		store.cancelDocumentTransaction();
 	});
 </script>
 
-{#if selectedRoot}
+{#if selectedRoots.length > 0}
 	<TransformControls
 		bind:controls
-		object={selectedRoot}
+		object={pivot}
 		mode={store.transformMode}
 		space="world"
 		translationSnap={null}

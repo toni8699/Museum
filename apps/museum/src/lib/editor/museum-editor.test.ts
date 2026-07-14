@@ -188,6 +188,121 @@ describe('MuseumEditorStore selection', () => {
 		expect(store.registryVersion).toBe(version0 + 2);
 		expect(store.getPlacementRoot(id)).toBeUndefined();
 	});
+
+	it('keeps ordered multi-selection as the only mutable selection source', () => {
+		const store = createMuseumEditorStore();
+		const [a, b, c] = store.document.objects;
+		store.selectRoom('paris');
+		store.selectPlacement(a.id);
+		store.togglePlacement(b.id);
+		store.togglePlacement(c.id);
+		expect(store.selectedPlacementIds).toEqual([a.id, b.id, c.id]);
+		expect(store.primaryPlacementId).toBe(c.id);
+
+		store.togglePlacement(b.id);
+		expect(store.selectedPlacementIds).toEqual([a.id, c.id]);
+		store.selectPlacement(b.id);
+		expect(store.selectedPlacementIds).toEqual([b.id]);
+	});
+});
+
+describe('MuseumEditorStore clusters', () => {
+	it('creates, selects, renames, and ungroups through document history', () => {
+		const store = createMuseumEditorStore();
+		const [a, b] = store.document.objects;
+		store.selectRoom('paris');
+		store.selectPlacements([a.id, b.id]);
+		const clusterId = store.createCluster('Salon pair');
+		expect(clusterId).toBeTruthy();
+		expect(store.selectedClusterId).toBe(clusterId);
+		expect(store.selectedPlacementIds).toEqual([a.id, b.id]);
+		expect(store.clusters[0]?.name).toBe('Salon pair');
+
+		expect(store.renameCluster(clusterId!, 'Reading pair')).toBe(true);
+		expect(store.clusters[0]?.name).toBe('Reading pair');
+		expect(store.undo()).toBe(true);
+		expect(store.clusters[0]?.name).toBe('Salon pair');
+		expect(store.redo()).toBe(true);
+		expect(store.clusters[0]?.name).toBe('Reading pair');
+
+		expect(store.ungroupCluster(clusterId)).toBe(true);
+		expect(store.clusters).toHaveLength(0);
+		expect(store.undo()).toBe(true);
+		expect(store.clusters[0]?.memberIds).toEqual([a.id, b.id]);
+	});
+
+	it('clears cluster identity when a member is toggled and reconciles deleted clusters on undo', () => {
+		const store = createMuseumEditorStore();
+		const [a, b] = store.document.objects;
+		store.selectRoom('paris');
+		store.selectPlacements([a.id, b.id]);
+		const clusterId = store.createCluster()!;
+		store.togglePlacement(a.id);
+		expect(store.selectedClusterId).toBeNull();
+		expect(store.selectedPlacementIds).toEqual([b.id]);
+
+		store.selectCluster(clusterId);
+		expect(store.undo()).toBe(true);
+		expect(store.clusters).toHaveLength(0);
+		expect(store.selectedClusterId).toBeNull();
+		expect(store.selectedPlacementIds).toEqual([]);
+	});
+
+	it('adds and removes members with one-cluster ownership and auto-ungroup rules', () => {
+		const store = createMuseumEditorStore();
+		const [a, b, c, d] = store.document.objects;
+		store.selectRoom('paris');
+		store.selectPlacements([a.id, b.id]);
+		const firstCluster = store.createCluster()!;
+		expect(store.addMemberToCluster(firstCluster, c.id)).toBe(true);
+		expect(store.clusters[0]?.memberIds).toEqual([a.id, b.id, c.id]);
+
+		store.selectPlacements([c.id, d.id]);
+		expect(store.createCluster()).toBeNull();
+		expect(store.clusters).toHaveLength(1);
+
+		expect(store.removeMemberFromCluster(firstCluster, c.id)).toBe(true);
+		expect(store.removeMemberFromCluster(firstCluster, b.id)).toBe(true);
+		expect(store.clusters).toHaveLength(0);
+	});
+
+	it('auto-ungroups when deletion leaves one member and restores everything on undo', () => {
+		const store = createMuseumEditorStore();
+		const [a, b] = store.document.objects;
+		store.selectRoom('paris');
+		store.selectPlacements([a.id, b.id]);
+		store.createCluster();
+		expect(store.deletePlacement(a.id)).toBe(true);
+		expect(store.document.objects.some((object) => object.id === a.id)).toBe(false);
+		expect(store.clusters).toHaveLength(0);
+
+		expect(store.undo()).toBe(true);
+		expect(store.document.objects.some((object) => object.id === a.id)).toBe(true);
+		expect(store.clusters[0]?.memberIds).toEqual([a.id, b.id]);
+	});
+
+	it('restores cluster membership and transforms together from one snapshot', () => {
+		const store = createMuseumEditorStore();
+		const [a, b] = store.document.objects;
+		const originalX = a.position[0];
+		store.selectRoom('paris');
+		store.selectPlacements([a.id, b.id]);
+		expect(store.beginDocumentTransaction()).toBe(true);
+		store.document.clusters!.push({
+			id: 'combined-snapshot',
+			name: 'Combined snapshot',
+			roomId: 'paris',
+			memberIds: [a.id, b.id]
+		});
+		const transform = placementTransformFromDocument(a);
+		transform.position[0] += 2;
+		store.updatePlacementTransform(a.id, transform);
+		expect(store.commitDocumentTransaction()).toBe(true);
+
+		expect(store.undo()).toBe(true);
+		expect(store.clusters).toHaveLength(0);
+		expect(store.document.objects.find((object) => object.id === a.id)?.position[0]).toBe(originalX);
+	});
 });
 
 describe('editor room camera framing', () => {

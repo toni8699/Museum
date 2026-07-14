@@ -1,10 +1,19 @@
 <script lang="ts">
   import { T } from '@threlte/core';
+  import type { Mesh } from 'three';
   import MuseumMaterial from '../materials/MuseumMaterial.svelte';
+
+  let floorMesh = $state<Mesh>();
+
+  $effect(() => {
+    const object = floorMesh;
+    if (!object) return;
+    object.userData.editorSurface = { type: 'floor', placeable: true };
+  });
 </script>
 
 <T.Group>
-  <T.Mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+  <T.Mesh bind:ref={floorMesh} position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
     <T.CircleGeometry args={[5.5, 96]} />
     <MuseumMaterial materialId="wood-walnut" surfaceSize={[11, 11]} />
   </T.Mesh>

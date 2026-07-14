@@ -11,6 +11,10 @@ import { untrack } from 'svelte';
 import type { Object3D } from 'three';
 import { nextPlacementCycleId } from './editor-selection';
 import {
+	DEFAULT_ROTATION_SNAP_DEGREES,
+	DEFAULT_TRANSLATION_SNAP
+} from './editor-placement';
+import {
 	placementTransformFromDocument,
 	type EditorTransformMode,
 	type PlacementTransform,
@@ -18,6 +22,7 @@ import {
 } from './editor-transform';
 
 const HISTORY_LIMIT = 100;
+const STATUS_MESSAGE_MS = 2500;
 
 /** Deep-clone a scene document so the session never mutates the checked-in JSON singleton. */
 export function cloneMuseumSceneDocument(
@@ -84,6 +89,17 @@ export class MuseumEditorStore {
 	fogNear = $state<number>(EDITOR_BRIGHT_LIGHTING.fogNear);
 	fogFar = $state<number>(EDITOR_BRIGHT_LIGHTING.fogFar);
 
+	/** Session-only placement tools; excluded from document snapshots and visitor JSON. */
+	translationSnapEnabled = $state(true);
+	translationSnap = $state(DEFAULT_TRANSLATION_SNAP);
+	rotationSnapEnabled = $state(true);
+	rotationSnapDegrees = $state(DEFAULT_ROTATION_SNAP_DEGREES);
+	keepOnFloor = $state(false);
+	statusMessage = $state<string | null>(null);
+	dropToFloorRequestId = $state(0);
+
+	#statusMessageTimer: ReturnType<typeof setTimeout> | null = null;
+
 	get objectCount() {
 		return this.document.objects.length;
 	}
@@ -124,6 +140,27 @@ export class MuseumEditorStore {
 		this.fogEnabled = preset.fogEnabled;
 		this.fogNear = preset.fogNear;
 		this.fogFar = preset.fogFar;
+	}
+
+	setStatusMessage(message: string | null) {
+		if (this.#statusMessageTimer) {
+			clearTimeout(this.#statusMessageTimer);
+			this.#statusMessageTimer = null;
+		}
+		this.statusMessage = message;
+		if (!message) return;
+		this.#statusMessageTimer = setTimeout(() => {
+			this.statusMessage = null;
+			this.#statusMessageTimer = null;
+		}, STATUS_MESSAGE_MS);
+	}
+
+	requestDropToFloor() {
+		if (!this.selectedPlacementId) {
+			this.setStatusMessage('Select a placement to drop to floor');
+			return;
+		}
+		this.dropToFloorRequestId += 1;
 	}
 
 	selectRoom(id: MuseumRoomId) {

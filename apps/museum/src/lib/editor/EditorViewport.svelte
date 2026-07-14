@@ -3,6 +3,7 @@
 	import MuseumScene from '$lib/museum/MuseumScene.svelte';
 	import type { EditorPlacementRegistry } from '$lib/museum/placement-registry';
 	import EditorCameraRig from './EditorCameraRig.svelte';
+	import EditorPlacementTools from './EditorPlacementTools.svelte';
 	import EditorSelection from './EditorSelection.svelte';
 	import EditorSelectionHelper from './EditorSelectionHelper.svelte';
 	import EditorTransformControls from './EditorTransformControls.svelte';
@@ -43,6 +44,7 @@
 			{/snippet}
 		</MuseumScene>
 		<EditorSelection {store} {transformControls} />
+		<EditorPlacementTools {store} {transformControls} />
 		<!-- Selection-bound Three helpers must be disposed and recreated for a new root. -->
 		{#key store.selectedPlacementId}
 			<EditorSelectionHelper {store} />

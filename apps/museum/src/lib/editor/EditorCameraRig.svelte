@@ -9,7 +9,9 @@
 		createEditorRoomCameraFrame,
 		EDITOR_CAMERA_FOV,
 		EDITOR_NEUTRAL_CAMERA_POSITION,
-		EDITOR_NEUTRAL_CAMERA_TARGET
+		EDITOR_NEUTRAL_CAMERA_TARGET,
+		EDITOR_NEUTRAL_MAX_DISTANCE,
+		EDITOR_NEUTRAL_MIN_DISTANCE
 	} from './editor-camera';
 
 	let {
@@ -54,7 +56,7 @@
 	makeDefault
 	position={EDITOR_NEUTRAL_CAMERA_POSITION}
 	fov={EDITOR_CAMERA_FOV}
-	near={0.1}
+	near={0.05}
 	far={120}
 />
 <OrbitControls
@@ -63,6 +65,6 @@
 	enablePan={panEnabled}
 	mouseButtons={editorMouseButtons}
 	target={frame?.target ?? EDITOR_NEUTRAL_CAMERA_TARGET}
-	minDistance={frame?.minDistance ?? 4}
-	maxDistance={frame?.maxDistance ?? 60}
+	minDistance={frame?.minDistance ?? EDITOR_NEUTRAL_MIN_DISTANCE}
+	maxDistance={frame?.maxDistance ?? EDITOR_NEUTRAL_MAX_DISTANCE}
 />

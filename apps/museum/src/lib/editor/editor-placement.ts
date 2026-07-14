@@ -1,0 +1,182 @@
+import { degreesToRadians } from './editor-transform';
+import {
+	Box3,
+	Raycaster,
+	Vector3,
+	type Intersection,
+	type Object3D
+} from 'three';
+
+export const TRANSLATION_SNAP_STEPS = [0.01, 0.05, 0.1, 0.5, 1.0] as const;
+export const ROTATION_SNAP_DEGREES_OPTIONS = [1, 5, 15, 45, 90] as const;
+
+export const DEFAULT_TRANSLATION_SNAP = 0.1;
+export const DEFAULT_ROTATION_SNAP_DEGREES = 15;
+
+/** Ignore near-zero grounding deltas so already-on-floor drops create no history. */
+export const GROUND_EPSILON = 1e-4;
+
+export type EditorSurfaceUserData = {
+	type: 'floor';
+	placeable: boolean;
+};
+
+export type FloorHit = {
+	point: Vector3;
+	distance: number;
+	object: Object3D;
+};
+
+export function rotationSnapRadians(degrees: number) {
+	return degreesToRadians(degrees);
+}
+
+export function isEditorPlaceableFloor(object: Object3D): boolean {
+	const surface = object.userData?.editorSurface as EditorSurfaceUserData | undefined;
+	return surface?.type === 'floor' && surface.placeable === true;
+}
+
+export function getPlacementWorldBounds(root: Object3D): Box3 {
+	root.updateWorldMatrix(true, true);
+	return new Box3().setFromObject(root);
+}
+
+export function calculateGroundDeltaY(bounds: Box3, floorY: number) {
+	return floorY - bounds.min.y;
+}
+
+export function snapRoomLocalPosition(root: Object3D, step: number) {
+	if (!(step > 0) || !Number.isFinite(step)) return;
+	root.position.x = Math.round(root.position.x / step) * step;
+	root.position.y = Math.round(root.position.y / step) * step;
+	root.position.z = Math.round(root.position.z / step) * step;
+}
+
+/**
+ * Apply a world-space Y delta to a placement root, converting through any parent.
+ */
+export function applyWorldYDeltaToPlacement(root: Object3D, deltaY: number) {
+	if (!Number.isFinite(deltaY) || Math.abs(deltaY) < GROUND_EPSILON) return;
+
+	const world = new Vector3();
+	root.getWorldPosition(world);
+	world.y += deltaY;
+
+	if (root.parent) {
+		root.parent.worldToLocal(world);
+	}
+
+	root.position.copy(world);
+}
+
+function isDescendantOf(object: Object3D, ancestor: Object3D) {
+	let current: Object3D | null = object;
+	while (current) {
+		if (current === ancestor) return true;
+		current = current.parent;
+	}
+	return false;
+}
+
+function climbToPlaceableFloor(object: Object3D): Object3D | null {
+	let current: Object3D | null = object;
+	while (current) {
+		if (isEditorPlaceableFloor(current)) return current;
+		current = current.parent;
+	}
+	return null;
+}
+
+function collectRayOrigins(bounds: Box3): Vector3[] {
+	const min = bounds.min;
+	const max = bounds.max;
+	const center = bounds.getCenter(new Vector3());
+	const y = min.y + 0.01;
+
+	return [
+		new Vector3(center.x, y, center.z),
+		new Vector3(min.x, y, min.z),
+		new Vector3(min.x, y, max.z),
+		new Vector3(max.x, y, min.z),
+		new Vector3(max.x, y, max.z)
+	];
+}
+
+function nearestValidFloorHit(
+	hits: Intersection[],
+	root: Object3D
+): FloorHit | null {
+	let best: FloorHit | null = null;
+
+	for (const hit of hits) {
+		if (isDescendantOf(hit.object, root)) continue;
+		const floor = climbToPlaceableFloor(hit.object);
+		if (!floor) continue;
+		if (!best || hit.distance < best.distance) {
+			best = {
+				point: hit.point.clone(),
+				distance: hit.distance,
+				object: floor
+			};
+		}
+	}
+
+	return best;
+}
+
+/**
+ * Raycast downward from the placement bounds against scene objects.
+ * Returns the nearest placeable floor hit below the object, or null.
+ */
+export function findFloorBelowPlacement(
+	root: Object3D,
+	targets: Object3D[],
+	raycaster = new Raycaster()
+): FloorHit | null {
+	const bounds = getPlacementWorldBounds(root);
+	if (bounds.isEmpty()) return null;
+
+	const down = new Vector3(0, -1, 0);
+	let best: FloorHit | null = null;
+
+	for (const origin of collectRayOrigins(bounds)) {
+		// Start slightly above the bottom so coplanar floor contacts still hit.
+		origin.y += 0.02;
+		raycaster.set(origin, down);
+		raycaster.far = 200;
+		const hits = raycaster.intersectObjects(targets, true);
+		const candidate = nearestValidFloorHit(hits, root);
+		if (!candidate) continue;
+		if (!best || candidate.distance < best.distance) {
+			best = candidate;
+		}
+	}
+
+	return best;
+}
+
+/**
+ * Move the placement root so its world AABB bottom rests on the floor hit.
+ * Returns the applied world Y delta (0 if none).
+ */
+export function dropPlacementToFloor(root: Object3D, floorHit: FloorHit): number {
+	const bounds = getPlacementWorldBounds(root);
+	const deltaY = calculateGroundDeltaY(bounds, floorHit.point.y);
+	if (Math.abs(deltaY) < GROUND_EPSILON) return 0;
+	applyWorldYDeltaToPlacement(root, deltaY);
+	return deltaY;
+}
+
+/**
+ * Ground a placement against the nearest placeable floor below it.
+ * Returns false when no valid floor exists.
+ */
+export function groundPlacementToFloor(
+	root: Object3D,
+	targets: Object3D[]
+): { grounded: boolean; deltaY: number } {
+	const floorHit = findFloorBelowPlacement(root, targets);
+	if (!floorHit) return { grounded: false, deltaY: 0 };
+	const deltaY = dropPlacementToFloor(root, floorHit);
+	return { grounded: true, deltaY };
+}

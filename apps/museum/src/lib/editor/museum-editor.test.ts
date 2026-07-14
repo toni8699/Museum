@@ -202,6 +202,7 @@ describe('editor room camera framing', () => {
 		]);
 		expect(frame.position.every(Number.isFinite)).toBe(true);
 		expect(frame.radius).toBeGreaterThan(0);
+		expect(frame.minDistance).toBe(0.2);
 		expect(frame.minDistance).toBeLessThan(frame.maxDistance);
 
 		const dx = frame.position[0] - frame.target[0];
@@ -303,6 +304,68 @@ describe('MuseumEditorStore history', () => {
 		let undoCount = 0;
 		while (store.undo()) undoCount += 1;
 		expect(undoCount).toBe(100);
+	});
+});
+
+describe('MuseumEditorStore placement settings', () => {
+	it('defaults snap and keep-on-floor settings outside document history', () => {
+		const store = createMuseumEditorStore();
+		expect(store.translationSnapEnabled).toBe(true);
+		expect(store.translationSnap).toBe(0.1);
+		expect(store.rotationSnapEnabled).toBe(true);
+		expect(store.rotationSnapDegrees).toBe(15);
+		expect(store.keepOnFloor).toBe(false);
+
+		const id = store.document.objects[0]!.id;
+		store.selectRoom('paris');
+		store.translationSnapEnabled = false;
+		store.rotationSnapDegrees = 45;
+		store.keepOnFloor = true;
+
+		const transform = placementTransformFromDocument(store.document.objects[0]!);
+		transform.position[1] = 1.25;
+		store.commitPlacementTransform(id, transform);
+		expect(store.undo()).toBe(true);
+
+		expect(store.translationSnapEnabled).toBe(false);
+		expect(store.rotationSnapDegrees).toBe(45);
+		expect(store.keepOnFloor).toBe(true);
+		expect(JSON.stringify(store.document)).not.toContain('translationSnap');
+		expect(JSON.stringify(store.document)).not.toContain('keepOnFloor');
+	});
+
+	it('records one history entry when a grounded Y change is committed', () => {
+		const store = createMuseumEditorStore();
+		const id = store.document.objects[0]!.id;
+		const originalY = store.document.objects[0]!.position[1];
+		store.selectRoom('paris');
+		store.selectPlacement(id);
+
+		const transform = placementTransformFromDocument(store.document.objects[0]!);
+		transform.position[1] = originalY + 1.5;
+		expect(store.commitPlacementTransform(id, transform)).toBe(true);
+		expect(store.document.objects[0]!.position[1]).toBeCloseTo(originalY + 1.5);
+
+		expect(store.undo()).toBe(true);
+		expect(store.document.objects[0]!.position[1]).toBeCloseTo(originalY);
+
+		expect(store.redo()).toBe(true);
+		expect(store.document.objects[0]!.position[1]).toBeCloseTo(originalY + 1.5);
+	});
+
+	it('bumps drop requests only when a placement is selected', () => {
+		const store = createMuseumEditorStore();
+		expect(store.dropToFloorRequestId).toBe(0);
+
+		store.requestDropToFloor();
+		expect(store.dropToFloorRequestId).toBe(0);
+		expect(store.statusMessage).toBe('Select a placement to drop to floor');
+
+		const id = store.document.objects[0]!.id;
+		store.selectRoom('paris');
+		store.selectPlacement(id);
+		store.requestDropToFloor();
+		expect(store.dropToFloorRequestId).toBe(1);
 	});
 });
 

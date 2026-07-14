@@ -2,6 +2,7 @@
   import { T } from '@threlte/core';
   import type { MaterialId, Vec2 } from '$lib/types/materials';
   import type { Vec3 } from '$lib/types/museum';
+  import type { Mesh } from 'three';
   import MuseumMaterial from '../MuseumMaterial.svelte';
 
   let {
@@ -23,9 +24,17 @@
   } = $props();
 
   const surfaceSize: Vec2 = $derived([width, depth]);
+  let mesh = $state<Mesh>();
+
+  // Stamp editor floor metadata outside reactive props — Threlte remounts on userData object churn.
+  $effect(() => {
+    const object = mesh;
+    if (!object) return;
+    object.userData.editorSurface = { type: 'floor', placeable: true };
+  });
 </script>
 
-<T.Mesh {position} rotation={[-Math.PI / 2, 0, 0]} {receiveShadow}>
+<T.Mesh bind:ref={mesh} {position} rotation={[-Math.PI / 2, 0, 0]} {receiveShadow}>
   <T.PlaneGeometry args={[width, depth]} />
   <MuseumMaterial {materialId} surfaceSize={surfaceSize} {tint} {textures} />
 </T.Mesh>

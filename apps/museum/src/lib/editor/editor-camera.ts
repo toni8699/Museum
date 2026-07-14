@@ -3,6 +3,10 @@ import type { MuseumRoom, Vec3 } from '$lib/types/museum';
 export const EDITOR_CAMERA_FOV = 50;
 export const EDITOR_NEUTRAL_CAMERA_POSITION: Vec3 = [0, 18, 24];
 export const EDITOR_NEUTRAL_CAMERA_TARGET: Vec3 = [0, 1, 0];
+/** Closest orbit radius — small enough to inspect placement details. */
+export const EDITOR_MIN_ORBIT_DISTANCE = 0.2;
+export const EDITOR_NEUTRAL_MIN_DISTANCE = 1;
+export const EDITOR_NEUTRAL_MAX_DISTANCE = 60;
 
 export type EditorRoomCameraFrame = {
 	position: Vec3;
@@ -47,7 +51,7 @@ export function createEditorRoomCameraFrame(
 		],
 		target,
 		radius,
-		minDistance: Math.max(2, radius * 0.45),
+		minDistance: EDITOR_MIN_ORBIT_DISTANCE,
 		maxDistance: distance * 1.5
 	};
 }

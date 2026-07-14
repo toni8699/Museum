@@ -81,18 +81,51 @@
 		<fieldset>
 			<legend>Position (m)</legend>
 			<div class="field-grid">
-				<EditorNumberField label="X" value={transform.position[0]} step={0.01} oncommit={(value) => setPosition(0, value)} />
-				<EditorNumberField label="Y" value={transform.position[1]} step={0.01} oncommit={(value) => setPosition(1, value)} />
-				<EditorNumberField label="Z" value={transform.position[2]} step={0.01} oncommit={(value) => setPosition(2, value)} />
+				<EditorNumberField
+					label="X"
+					value={transform.position[0]}
+					step={store.translationSnapEnabled ? store.translationSnap : 0.01}
+					oncommit={(value) => setPosition(0, value)}
+				/>
+				<EditorNumberField
+					label="Y"
+					value={transform.position[1]}
+					step={store.translationSnapEnabled ? store.translationSnap : 0.01}
+					oncommit={(value) => setPosition(1, value)}
+				/>
+				<EditorNumberField
+					label="Z"
+					value={transform.position[2]}
+					step={store.translationSnapEnabled ? store.translationSnap : 0.01}
+					oncommit={(value) => setPosition(2, value)}
+				/>
 			</div>
 		</fieldset>
 
 		<fieldset>
 			<legend>Rotation (degrees)</legend>
 			<div class="field-grid">
-				<EditorNumberField label="X" value={radiansToDegrees(transform.rotation[0])} step={1} fractionDigits={2} oncommit={(value) => setRotation(0, value)} />
-				<EditorNumberField label="Y" value={radiansToDegrees(transform.rotation[1])} step={1} fractionDigits={2} oncommit={(value) => setRotation(1, value)} />
-				<EditorNumberField label="Z" value={radiansToDegrees(transform.rotation[2])} step={1} fractionDigits={2} oncommit={(value) => setRotation(2, value)} />
+				<EditorNumberField
+					label="X"
+					value={radiansToDegrees(transform.rotation[0])}
+					step={store.rotationSnapEnabled ? store.rotationSnapDegrees : 1}
+					fractionDigits={2}
+					oncommit={(value) => setRotation(0, value)}
+				/>
+				<EditorNumberField
+					label="Y"
+					value={radiansToDegrees(transform.rotation[1])}
+					step={store.rotationSnapEnabled ? store.rotationSnapDegrees : 1}
+					fractionDigits={2}
+					oncommit={(value) => setRotation(1, value)}
+				/>
+				<EditorNumberField
+					label="Z"
+					value={radiansToDegrees(transform.rotation[2])}
+					step={store.rotationSnapEnabled ? store.rotationSnapDegrees : 1}
+					fractionDigits={2}
+					oncommit={(value) => setRotation(2, value)}
+				/>
 			</div>
 		</fieldset>
 

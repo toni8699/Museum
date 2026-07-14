@@ -6,6 +6,7 @@
 		EDITOR_BRIGHT_LIGHTING,
 		EDITOR_VISITOR_LIGHTING
 	} from './museum-editor.svelte';
+	import EditorPlacementInspector from './EditorPlacementInspector.svelte';
 	import EditorTransformInspector from './EditorTransformInspector.svelte';
 	import EditorViewport from './EditorViewport.svelte';
 
@@ -58,7 +59,7 @@
 	<aside class="panel outliner" aria-label="Outliner">
 		<header>
 			<h1>Museum editor</h1>
-			<p>Phase 3 — Paris placement transforms</p>
+			<p>Phase 3.5 — precision placement</p>
 		</header>
 
 		<section>
@@ -148,6 +149,8 @@
 				<EditorTransformInspector {store} />
 			{/key}
 		{/if}
+
+		<EditorPlacementInspector {store} />
 
 		<section class="camera-controls" aria-label="Editor camera controls">
 			<h2>Camera</h2>

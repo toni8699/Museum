@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { museumSceneDocument } from '$lib/content/scene';
+import {
+	assertNavigationGraphMatchesScene,
+	museumSceneDocument
+} from '$lib/content/scene';
+import { getRoom } from '$lib/content/rooms';
 import { Object3D } from 'three';
 import {
 	filterEffectiveHits,
@@ -15,6 +19,15 @@ import {
 	EDITOR_BRIGHT_LIGHTING,
 	EDITOR_VISITOR_LIGHTING
 } from './museum-editor.svelte';
+import { createEditorRoomCameraFrame } from './editor-camera';
+import {
+	degreesToRadians,
+	enforceUniformObjectScale,
+	MIN_PLACEMENT_SCALE,
+	placementTransformFromDocument,
+	radiansToDegrees,
+	writePlacementTransform
+} from './editor-transform';
 
 describe('cloneMuseumSceneDocument', () => {
 	it('does not mutate the checked-in museumSceneDocument singleton', () => {
@@ -77,10 +90,14 @@ describe('createMuseumEditorStore', () => {
 });
 
 describe('MuseumEditorStore selection', () => {
-	it('selects document ids without requiring a registered root', () => {
+	it('requires an editable room and selects document ids without a registered root', () => {
 		const store = createMuseumEditorStore();
 		const id = store.document.objects[0]!.id;
 
+		store.selectPlacement(id);
+		expect(store.selectedPlacementId).toBeNull();
+
+		store.selectRoom('paris');
 		store.selectPlacement(id);
 
 		expect(store.selectedPlacementId).toBe(id);
@@ -91,6 +108,7 @@ describe('MuseumEditorStore selection', () => {
 	it('ignores unknown ids without clearing the current selection', () => {
 		const store = createMuseumEditorStore();
 		const id = store.document.objects[0]!.id;
+		store.selectRoom('paris');
 		store.selectPlacement(id);
 
 		store.selectPlacement('not-a-real-placement');
@@ -100,9 +118,11 @@ describe('MuseumEditorStore selection', () => {
 
 	it('deselects the current placement', () => {
 		const store = createMuseumEditorStore();
+		store.selectRoom('paris');
 		store.selectPlacement(store.document.objects[0]!.id);
 		store.deselect();
 		expect(store.selectedPlacementId).toBeNull();
+		expect(store.selectedRoomId).toBe('paris');
 	});
 
 	it('cycles with empty / absent / wrap rules', () => {
@@ -114,6 +134,7 @@ describe('MuseumEditorStore selection', () => {
 		store.cyclePlacement([]);
 		expect(store.selectedPlacementId).toBeNull();
 
+		store.selectRoom('paris');
 		store.selectPlacement(a);
 		store.cyclePlacement([b, c]);
 		expect(store.selectedPlacementId).toBe(b);
@@ -123,6 +144,31 @@ describe('MuseumEditorStore selection', () => {
 
 		store.cyclePlacement([b, c]);
 		expect(store.selectedPlacementId).toBe(b);
+	});
+
+	it('resets a newly selected placement to rotate but preserves the current mode on reselect', () => {
+		const store = createMuseumEditorStore();
+		const a = store.document.objects[0]!.id;
+		const b = store.document.objects[1]!.id;
+		store.selectRoom('paris');
+
+		store.selectPlacement(a);
+		store.transformMode = 'translate';
+		store.selectPlacement(a);
+		expect(store.transformMode).toBe('translate');
+
+		store.selectPlacement(b);
+		expect(store.selectedPlacementId).toBe(b);
+		expect(store.selectedObject?.id).toBe(b);
+		expect(store.transformMode).toBe('rotate');
+	});
+
+	it('toggles middle-button camera panning independently of room selection', () => {
+		const store = createMuseumEditorStore();
+		expect(store.cameraPanEnabled).toBe(true);
+		store.toggleCameraPan();
+		expect(store.cameraPanEnabled).toBe(false);
+		expect(store.selectedRoomId).toBeNull();
 	});
 
 	it('bumps registryVersion on register and unregister', () => {
@@ -141,6 +187,122 @@ describe('MuseumEditorStore selection', () => {
 		store.unregisterPlacementRoot(id, root);
 		expect(store.registryVersion).toBe(version0 + 2);
 		expect(store.getPlacementRoot(id)).toBeUndefined();
+	});
+});
+
+describe('editor room camera framing', () => {
+	it('centers the target in Paris and follows its authored yaw', () => {
+		const room = getRoom('paris');
+		const frame = createEditorRoomCameraFrame(room);
+
+		expect(frame.target).toEqual([
+			room.position[0],
+			room.position[1] + room.dimensions[1] / 2,
+			room.position[2]
+		]);
+		expect(frame.position.every(Number.isFinite)).toBe(true);
+		expect(frame.radius).toBeGreaterThan(0);
+		expect(frame.minDistance).toBeLessThan(frame.maxDistance);
+
+		const dx = frame.position[0] - frame.target[0];
+		const dz = frame.position[2] - frame.target[2];
+		expect(Math.atan2(dx, dz)).toBeCloseTo(room.rotation[1]);
+	});
+});
+
+describe('editor placement transforms', () => {
+	it('converts degrees and radians at the inspector boundary', () => {
+		expect(radiansToDegrees(Math.PI / 2)).toBeCloseTo(90);
+		expect(degreesToRadians(180)).toBeCloseTo(Math.PI);
+	});
+
+	it('enforces one positive scale from the active axis', () => {
+		const root = new Object3D();
+		root.scale.set(2, 3, 4);
+		expect(enforceUniformObjectScale(root, 'Y')).toBe(3);
+		expect(root.scale.toArray()).toEqual([3, 3, 3]);
+
+		root.scale.set(-2, -2, -2);
+		expect(enforceUniformObjectScale(root, 'X')).toBe(MIN_PLACEMENT_SCALE);
+		expect(root.scale.toArray()).toEqual([
+			MIN_PLACEMENT_SCALE,
+			MIN_PLACEMENT_SCALE,
+			MIN_PLACEMENT_SCALE
+		]);
+	});
+
+	it('omits unit scale and rejects invalid transform values', () => {
+		const placement = cloneMuseumSceneDocument(museumSceneDocument).objects[0]!;
+		const transform = placementTransformFromDocument(placement);
+		transform.scale = 1;
+		expect(writePlacementTransform(placement, transform)).toBe(true);
+		expect(placement.scale).toBeUndefined();
+
+		transform.position[0] = Number.NaN;
+		expect(writePlacementTransform(placement, transform)).toBe(false);
+	});
+});
+
+describe('MuseumEditorStore history', () => {
+	function translatedTransform(store: ReturnType<typeof createMuseumEditorStore>, x: number) {
+		const transform = placementTransformFromDocument(store.document.objects[0]!);
+		transform.position[0] = x;
+		return transform;
+	}
+
+	it('collapses previews into one commit and restores scene/state identity', () => {
+		const store = createMuseumEditorStore();
+		const id = store.document.objects[0]!.id;
+		const originalX = store.document.objects[0]!.position[0];
+		store.selectRoom('paris');
+		store.selectPlacement(id);
+
+		expect(store.beginDocumentTransaction()).toBe(true);
+		store.updatePlacementTransform(id, translatedTransform(store, 2));
+		store.updatePlacementTransform(id, translatedTransform(store, 3));
+		expect(store.commitDocumentTransaction()).toBe(true);
+		expect(store.canUndo).toBe(true);
+		expect(store.document.objects[0]!.position[0]).toBe(3);
+		assertNavigationGraphMatchesScene(store.state.graph, store.scene);
+
+		expect(store.undo()).toBe(true);
+		expect(store.document.objects[0]!.position[0]).toBe(originalX);
+		expect(store.selectedPlacementId).toBe(id);
+		assertNavigationGraphMatchesScene(store.state.graph, store.scene);
+
+		expect(store.redo()).toBe(true);
+		expect(store.document.objects[0]!.position[0]).toBe(3);
+		assertNavigationGraphMatchesScene(store.state.graph, store.scene);
+	});
+
+	it('suppresses no-ops and clears redo after a divergent edit', () => {
+		const store = createMuseumEditorStore();
+		const id = store.document.objects[0]!.id;
+		store.selectRoom('paris');
+
+		store.beginDocumentTransaction();
+		expect(store.commitDocumentTransaction()).toBe(false);
+		expect(store.canUndo).toBe(false);
+
+		store.commitPlacementTransform(id, translatedTransform(store, 2));
+		store.undo();
+		expect(store.canRedo).toBe(true);
+		store.commitPlacementTransform(id, translatedTransform(store, 4));
+		expect(store.canRedo).toBe(false);
+	});
+
+	it('keeps at most 100 undoable document commits', () => {
+		const store = createMuseumEditorStore();
+		const id = store.document.objects[0]!.id;
+		store.selectRoom('paris');
+
+		for (let index = 1; index <= 105; index += 1) {
+			store.commitPlacementTransform(id, translatedTransform(store, index));
+		}
+
+		let undoCount = 0;
+		while (store.undo()) undoCount += 1;
+		expect(undoCount).toBe(100);
 	});
 });
 

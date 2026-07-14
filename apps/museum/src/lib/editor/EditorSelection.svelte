@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { useThrelte } from '@threlte/core';
 	import { Raycaster, Vector2 } from 'three';
+	import type { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 	import type { MuseumEditorStore } from './museum-editor.svelte';
 	import {
 		resolveNormalSelection,
@@ -9,7 +10,13 @@
 		uniquePlacementIdsInOrder
 	} from './editor-selection';
 
-	let { store }: { store: MuseumEditorStore } = $props();
+	let {
+		store,
+		transformControls
+	}: {
+		store: MuseumEditorStore;
+		transformControls?: TransformControls;
+	} = $props();
 
 	const { camera, scene, canvas } = useThrelte();
 	const raycaster = new Raycaster();
@@ -84,6 +91,10 @@
 
 	function onPointerDown(event: PointerEvent) {
 		if (event.button !== 0) return;
+		if (transformControls?.axis || transformControls?.dragging) {
+			suppressClick = true;
+			return;
+		}
 
 		activePointerCount += 1;
 		if (activePointerCount > 1) {
@@ -116,7 +127,11 @@
 
 		const wasActive = activePointerId === event.pointerId;
 		const shouldSelect =
-			wasActive && !suppressClick && pointerEventInsideCanvas(event);
+			wasActive &&
+			!suppressClick &&
+			!transformControls?.axis &&
+			!transformControls?.dragging &&
+			pointerEventInsideCanvas(event);
 
 		activePointerCount = Math.max(0, activePointerCount - 1);
 
@@ -139,6 +154,7 @@
 	function onKeyDown(event: KeyboardEvent) {
 		if (event.key !== 'Escape') return;
 		if (isTypingTarget(event.target)) return;
+		if (transformControls?.dragging) return;
 		store.deselect();
 	}
 

@@ -5,7 +5,9 @@
 	import EditorCameraRig from './EditorCameraRig.svelte';
 	import EditorSelection from './EditorSelection.svelte';
 	import EditorSelectionHelper from './EditorSelectionHelper.svelte';
+	import EditorTransformControls from './EditorTransformControls.svelte';
 	import type { MuseumEditorStore } from './museum-editor.svelte';
+	import type { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 
 	let { store }: { store: MuseumEditorStore } = $props();
 
@@ -14,6 +16,8 @@
 		unregisterPlacementRoot: (id, root) => store.unregisterPlacementRoot(id, root),
 		notifyPlacementRootChanged: (id) => store.notifyPlacementRootChanged(id)
 	};
+
+	let transformControls = $state<TransformControls>();
 </script>
 
 <div class="viewport" aria-label="Museum editor viewport">
@@ -31,11 +35,19 @@
 			forceParisAssets
 		>
 			{#snippet camera(_graph, _state)}
-				<EditorCameraRig />
+				<EditorCameraRig
+					selectedRoomId={store.selectedRoomId}
+					focusVersion={store.cameraFocusVersion}
+					panEnabled={store.cameraPanEnabled}
+				/>
 			{/snippet}
 		</MuseumScene>
-		<EditorSelection {store} />
-		<EditorSelectionHelper {store} />
+		<EditorSelection {store} {transformControls} />
+		<!-- Selection-bound Three helpers must be disposed and recreated for a new root. -->
+		{#key store.selectedPlacementId}
+			<EditorSelectionHelper {store} />
+			<EditorTransformControls {store} bind:controls={transformControls} />
+		{/key}
 	</Canvas>
 </div>
 

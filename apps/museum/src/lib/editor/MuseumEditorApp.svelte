@@ -7,6 +7,8 @@
 		EDITOR_BRIGHT_LIGHTING,
 		EDITOR_VISITOR_LIGHTING
 	} from './museum-editor.svelte';
+	import EditorAssetLibrary from './EditorAssetLibrary.svelte';
+	import EditorCameraInspector from './EditorCameraInspector.svelte';
 	import EditorPlacementInspector from './EditorPlacementInspector.svelte';
 	import EditorTransformInspector from './EditorTransformInspector.svelte';
 	import EditorViewport from './EditorViewport.svelte';
@@ -19,8 +21,10 @@
 	let viewportElement = $state<HTMLElement>();
 	let clusterNameInput = $state<HTMLInputElement>();
 	let clusterNameDraft = $state('');
+	let leftPanel = $state<'scene' | 'assets'>('scene');
 
 	const selectedObject = $derived(store.selectedObject);
+	const selectedCameraNode = $derived(store.selectedNavigationNode);
 	const singleEditableObject = $derived(
 		store.selectedPlacementIds.length === 1 && !store.selectedClusterId
 			? store.selectedObject
@@ -52,9 +56,16 @@
 	});
 
 	function toggleParis() {
+		if (store.isCameraPreviewActive) return;
 		store.selectRoom('paris');
 		store.focusRoom('paris');
 		parisOpen = !parisOpen;
+	}
+
+	function switchLeftPanel(panel: 'scene' | 'assets') {
+		if (store.isCameraPreviewActive) return;
+		if (panel === 'scene') store.cancelAssetPlacement();
+		leftPanel = panel;
 	}
 
 	function selectObject(id: string, event?: MouseEvent) {
@@ -65,6 +76,10 @@
 			store.selectPlacement(id);
 			store.focusPlacement(id);
 		}
+	}
+
+	function selectCameraNode(id: string) {
+		store.selectNavigationNode(id);
 	}
 
 	function selectCluster(id: string) {
@@ -128,7 +143,8 @@
 		clusterNameInput?.select();
 	}
 
-	function editorOwnsReservedShortcuts() {
+	function editorOwnsSceneShortcuts() {
+		if (leftPanel !== 'scene') return Boolean(viewportElement?.contains(document.activeElement));
 		const active = document.activeElement;
 		return Boolean(
 			active &&
@@ -144,9 +160,19 @@
 
 	onMount(() => {
 		const onKeyDown = (event: KeyboardEvent) => {
+			if (event.defaultPrevented) return;
+			if (store.cameraPreview) {
+				if (event.key === 'Escape') {
+					event.preventDefault();
+					event.stopPropagation();
+					store.stopCameraPreview();
+				}
+				return;
+			}
 			if (isEditableTarget(event.target)) return;
 			const modifier = event.metaKey || event.ctrlKey;
 			const key = event.key.toLowerCase();
+			const sceneOwnsShortcuts = editorOwnsSceneShortcuts();
 
 			if (modifier && key === 'z') {
 				event.preventDefault();
@@ -155,23 +181,51 @@
 			} else if (modifier && event.ctrlKey && key === 'y') {
 				event.preventDefault();
 				store.redo();
-			} else if (modifier && key === 'g' && editorOwnsReservedShortcuts()) {
+			} else if (
+				modifier &&
+				!event.shiftKey &&
+				!event.altKey &&
+				key === 'd' &&
+				sceneOwnsShortcuts &&
+				store.selectedPlacementIds.length > 0
+			) {
+				if (store.duplicateSelection()) {
+					event.preventDefault();
+					event.stopPropagation();
+				}
+			} else if (modifier && key === 'g' && sceneOwnsShortcuts) {
 				event.preventDefault();
 				event.stopPropagation();
 				if (event.shiftKey) ungroupSelection();
 				else void groupSelection();
-			} else if (modifier && key === 'a' && editorOwnsReservedShortcuts()) {
+			} else if (modifier && key === 'a' && sceneOwnsShortcuts) {
 				event.preventDefault();
 				event.stopPropagation();
 				store.selectAllInRoom();
-			} else if (!modifier && !event.altKey && event.key === 'End') {
+			} else if (
+				!modifier &&
+				!event.altKey &&
+				(event.key === 'Delete' || event.key === 'Backspace') &&
+				sceneOwnsShortcuts &&
+				store.selectedPlacementIds.length > 0
+			) {
+				if (store.deleteSelection()) {
+					event.preventDefault();
+					event.stopPropagation();
+				}
+			} else if (!modifier && !event.altKey && event.key === 'End' && sceneOwnsShortcuts) {
 				event.preventDefault();
 				store.requestDropToFloor();
-			} else if (!modifier && !event.altKey && key === 'f') {
+			} else if (!modifier && !event.altKey && key === 'f' && sceneOwnsShortcuts) {
 				event.preventDefault();
 				store.focusSelection();
 			} else if (!modifier && !event.altKey && event.key === 'Escape') {
-				store.deselect();
+				if (store.transformInteractionActive) return;
+				if (store.cancelAssetPlacement('Placement cancelled')) {
+					event.preventDefault();
+					return;
+				}
+				if (sceneOwnsShortcuts) store.deselect();
 			}
 		};
 
@@ -180,14 +234,37 @@
 	});
 </script>
 
-<main class="page">
-	<aside bind:this={outlinerElement} class="panel outliner" aria-label="Outliner">
+<main class="page" class:previewing={store.isCameraPreviewActive}>
+	<aside
+		bind:this={outlinerElement}
+		class="panel outliner"
+		aria-label="Outliner"
+		inert={store.isCameraPreviewActive}
+	>
 		<header>
 			<h1>Museum editor</h1>
-			<p>Phase 3.6 — clusters and framing</p>
+			<p>Phase 6 — camera editing and preview</p>
 		</header>
 
-		<section>
+		<div class="panel-tabs" role="tablist" aria-label="Editor panels">
+			<button
+				type="button"
+				role="tab"
+				aria-selected={leftPanel === 'scene'}
+				class:active={leftPanel === 'scene'}
+				onclick={() => switchLeftPanel('scene')}
+			>Scene</button>
+			<button
+				type="button"
+				role="tab"
+				aria-selected={leftPanel === 'assets'}
+				class:active={leftPanel === 'assets'}
+				onclick={() => switchLeftPanel('assets')}
+			>Assets</button>
+		</div>
+
+		{#if leftPanel === 'scene'}
+		<section aria-label="Scene hierarchy">
 			<h2>Rooms</h2>
 			<ul class="rooms" role="tree" aria-label="Museum rooms and objects">
 				{#each museumRooms as room (room.id)}
@@ -306,6 +383,28 @@
 			</ul>
 		</section>
 
+		<section class="camera-nodes" aria-label="Camera nodes">
+			<h2>Camera nodes ({store.nodeCount})</h2>
+			<ul>
+				{#each store.document.navigationNodes as node (node.id)}
+					<li>
+						<button
+							type="button"
+							class="camera-node-row"
+							class:selected={store.cameraSelection?.nodeId === node.id}
+							onclick={() => selectCameraNode(node.id)}
+						>
+							<strong>{node.label}</strong>
+							<span>{node.roomId} · <span class="id">{node.id}</span></span>
+						</button>
+					</li>
+				{/each}
+			</ul>
+		</section>
+		{:else}
+			<EditorAssetLibrary {store} />
+		{/if}
+
 		<a class="back" href="/museum">Back to museum</a>
 	</aside>
 
@@ -323,7 +422,11 @@
 					<button type="button" disabled={!store.canRedo} onclick={() => store.redo()}>Redo</button>
 				</div>
 			</div>
-			{#if store.selectedCluster}
+			{#if leftPanel === 'assets'}
+				<p>Browse the manifest and choose a floor asset to place.</p>
+			{:else if selectedCameraNode}
+				<p class="id">{selectedCameraNode.id} · {store.cameraSelection?.handle}</p>
+			{:else if store.selectedCluster}
 				<p>{store.selectedCluster.name} · {store.selectedPlacementIds.length} selected</p>
 			{:else if store.selectedPlacementIds.length > 1}
 				<p>{store.selectedPlacementIds.length} selected</p>
@@ -336,6 +439,10 @@
 			{/if}
 		</header>
 
+		{#if leftPanel === 'scene'}
+		{#if selectedCameraNode}
+			<EditorCameraInspector {store} />
+		{:else}
 		<section class="grouping" aria-label="Group selection">
 			<div class="section-heading">
 				<h2>Group selection</h2>
@@ -412,15 +519,33 @@
 			{/key}
 		{/if}
 
+		{#if store.selectedPlacementIds.length > 0}
+			<section class="placement-actions" aria-label="Placement actions">
+				<h2>Placement actions</h2>
+				<div>
+					<button type="button" onclick={() => store.duplicateSelection()}>
+						Duplicate{store.selectedPlacementIds.length > 1 ? ` ${store.selectedPlacementIds.length}` : ''}
+					</button>
+					<button type="button" class="delete" onclick={() => store.deleteSelection()}>
+						Delete{store.selectedPlacementIds.length > 1 ? ` ${store.selectedPlacementIds.length}` : ''}
+					</button>
+				</div>
+				<p>Cmd/Ctrl+D duplicates · Delete removes · Undo restores</p>
+			</section>
+		{/if}
+
 		<EditorPlacementInspector {store} />
+		{/if}
+		{/if}
 
 		<section class="camera-controls" aria-label="Editor camera controls">
 			<h2>Camera</h2>
-			<p>Middle-drag pans. Click Paris Salon to reset the room framing.</p>
+			<p>Middle-drag pans. Camera-node rows frame their authored eye and target.</p>
 			<button
 				type="button"
 				class:active={store.cameraPanEnabled}
 				aria-pressed={store.cameraPanEnabled}
+				disabled={store.isCameraPreviewActive}
 				onclick={() => store.toggleCameraPan()}
 			>
 				Pan {store.cameraPanEnabled ? 'on' : 'off'}
@@ -431,15 +556,15 @@
 			<h2>Lighting</h2>
 			<p>Session-only; excluded from history and visitor JSON.</p>
 			<div class="presets">
-				<button type="button" onclick={() => store.applyLightingPreset(EDITOR_BRIGHT_LIGHTING)}>Bright</button>
-				<button type="button" onclick={() => store.applyLightingPreset(EDITOR_VISITOR_LIGHTING)}>Visitor</button>
+				<button type="button" disabled={store.isCameraPreviewActive} onclick={() => store.applyLightingPreset(EDITOR_BRIGHT_LIGHTING)}>Bright</button>
+				<button type="button" disabled={store.isCameraPreviewActive} onclick={() => store.applyLightingPreset(EDITOR_VISITOR_LIGHTING)}>Visitor</button>
 			</div>
-			<label><span>Ambient {store.ambientIntensity.toFixed(2)}</span><input type="range" min="0" max="2" step="0.05" bind:value={store.ambientIntensity} /></label>
-			<label><span>Directional {store.directionalIntensity.toFixed(2)}</span><input type="range" min="0" max="3" step="0.05" bind:value={store.directionalIntensity} /></label>
-			<label class="checkbox"><input type="checkbox" bind:checked={store.fogEnabled} /><span>Fog</span></label>
+			<label><span>Ambient {store.ambientIntensity.toFixed(2)}</span><input type="range" min="0" max="2" step="0.05" disabled={store.isCameraPreviewActive} bind:value={store.ambientIntensity} /></label>
+			<label><span>Directional {store.directionalIntensity.toFixed(2)}</span><input type="range" min="0" max="3" step="0.05" disabled={store.isCameraPreviewActive} bind:value={store.directionalIntensity} /></label>
+			<label class="checkbox"><input type="checkbox" disabled={store.isCameraPreviewActive} bind:checked={store.fogEnabled} /><span>Fog</span></label>
 			{#if store.fogEnabled}
-				<label><span>Fog near {store.fogNear.toFixed(0)}</span><input type="range" min="1" max="80" step="1" bind:value={store.fogNear} /></label>
-				<label><span>Fog far {store.fogFar.toFixed(0)}</span><input type="range" min="5" max="120" step="1" bind:value={store.fogFar} /></label>
+				<label><span>Fog near {store.fogNear.toFixed(0)}</span><input type="range" min="1" max="80" step="1" disabled={store.isCameraPreviewActive} bind:value={store.fogNear} /></label>
+				<label><span>Fog far {store.fogFar.toFixed(0)}</span><input type="range" min="5" max="120" step="1" disabled={store.isCameraPreviewActive} bind:value={store.fogFar} /></label>
 			{/if}
 		</section>
 	</aside>
@@ -453,8 +578,18 @@
 	header h1, header h2, section h2 { margin: 0; font-size: 0.95rem; font-weight: 650; letter-spacing: 0.02em; }
 	header p, .lighting p, .meta { margin: 0.35rem 0 0; color: #a8a29a; font-size: 0.75rem; line-height: 1.4; }
 	section { display: flex; flex-direction: column; gap: 0.55rem; }
+	.panel-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 0.3rem; }
+	.panel-tabs button { padding: 0.42rem; border: 1px solid #3a3a46; border-radius: 0.32rem; background: #1a1a22; color: #a8a29a; font: inherit; font-size: 0.73rem; cursor: pointer; }
+	.panel-tabs button.active { border-color: #d6b35f; background: #2a2618; color: #fff2c7; }
 	ul { list-style: none; margin: 0; padding: 0; }
 	.rooms { display: flex; flex-direction: column; gap: 0.4rem; }
+	.camera-nodes { padding-top: 0.85rem; border-top: 1px solid #2a2a33; }
+	.camera-nodes ul { display: flex; flex-direction: column; gap: 0.3rem; }
+	.camera-node-row { display: flex; flex-direction: column; gap: 0.12rem; width: 100%; padding: 0.48rem 0.52rem; border: 1px solid transparent; border-radius: 0.34rem; background: #181820; color: inherit; text-align: left; cursor: pointer; }
+	.camera-node-row:hover { border-color: #3a3a46; background: #202029; }
+	.camera-node-row.selected { border-color: #d6b35f; background: #2a2618; }
+	.camera-node-row strong { font-size: 0.76rem; font-weight: 620; }
+	.camera-node-row > span { color: #918c84; font-size: 0.67rem; }
 	.room-row { display: flex; align-items: center; gap: 0.5rem; width: 100%; box-sizing: border-box; padding: 0.55rem; border: 1px solid transparent; border-radius: 0.4rem; background: #1a1a22; color: inherit; text-align: left; }
 	.room-row span:not(.chevron) { display: flex; flex-direction: column; gap: 0.12rem; }
 	.room-row strong { font-size: 0.8rem; font-weight: 620; }
@@ -492,6 +627,7 @@
 	.history, .presets { display: flex; gap: 0.35rem; }
 	.history button, .presets button, .deselect, .camera-controls button { padding: 0.38rem 0.5rem; border: 1px solid #3a3a46; border-radius: 0.32rem; background: #1a1a22; color: #f4efe4; font: inherit; font-size: 0.72rem; cursor: pointer; }
 	.history button:disabled { opacity: 0.4; cursor: default; }
+	.camera-controls button:disabled, .presets button:disabled { opacity: 0.4; cursor: default; }
 	.selection dl { margin: 0; display: flex; flex-direction: column; gap: 0.45rem; }
 	.selection dl div { display: flex; flex-direction: column; gap: 0.1rem; }
 	.selection dt { color: #8f8a82; font-size: 0.67rem; text-transform: uppercase; letter-spacing: 0.04em; }
@@ -513,6 +649,11 @@
 	.primary-action { border-color: #8d753c; }
 	.danger-action { background: #21191b; color: #efc7c7; }
 	.group-button:disabled, .primary-action:disabled { opacity: 0.4; cursor: default; }
+	.placement-actions { padding: 0.75rem; border: 1px solid #34313a; border-radius: 0.45rem; background: #17171f; }
+	.placement-actions div { display: flex; gap: 0.4rem; }
+	.placement-actions button { flex: 1; padding: 0.44rem; border: 1px solid #4a4438; border-radius: 0.32rem; background: #242018; color: #fff2c7; font: inherit; font-size: 0.72rem; cursor: pointer; }
+	.placement-actions button.delete { border-color: #684147; background: #21191b; color: #efc7c7; }
+	.placement-actions p { margin: 0; color: #918c84; font-size: 0.67rem; line-height: 1.4; }
 	.deselect { align-self: flex-start; }
 	.camera-controls, .lighting { margin-top: 0.4rem; gap: 0.7rem; border-top: 1px solid #2a2a33; padding-top: 0.85rem; }
 	.camera-controls p { margin: 0; color: #a8a29a; font-size: 0.75rem; line-height: 1.4; }

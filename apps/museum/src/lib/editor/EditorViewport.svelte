@@ -2,6 +2,7 @@
 	import { Canvas } from '@threlte/core';
 	import MuseumScene from '$lib/museum/MuseumScene.svelte';
 	import type { EditorPlacementRegistry } from '$lib/museum/placement-registry';
+	import EditorCameraHelpers from './EditorCameraHelpers.svelte';
 	import EditorCameraRig from './EditorCameraRig.svelte';
 	import EditorPlacementTools from './EditorPlacementTools.svelte';
 	import EditorSelection from './EditorSelection.svelte';
@@ -21,7 +22,11 @@
 	let transformControls = $state<TransformControls>();
 </script>
 
-<div class="viewport" aria-label="Museum editor viewport">
+<div
+	class="viewport"
+	class:placing={Boolean(store.pendingPlacementAssetId)}
+	aria-label="Museum editor viewport"
+>
 	<Canvas dpr={[1, 1.5]} shadows>
 		<MuseumScene
 			scene={store.scene}
@@ -35,26 +40,74 @@
 			{placementRegistry}
 			forceParisAssets
 		>
-			{#snippet camera(_graph, _state)}
-				<EditorCameraRig {store} />
+			{#snippet camera(graph, _state)}
+				<EditorCameraRig {store} {graph} />
 			{/snippet}
 		</MuseumScene>
+		{#if store.cameraSelection && !store.pendingPlacementAssetId && !store.cameraPreview}
+			{#key store.cameraSelection.nodeId}
+				<EditorCameraHelpers {store} nodeId={store.cameraSelection.nodeId} />
+			{/key}
+		{/if}
 		<EditorSelection {store} {transformControls} />
 		<EditorPlacementTools {store} />
 		<!-- Selection-bound Three helpers must be disposed and recreated for a new root. -->
 		{#key store.selectionKey}
 			<EditorSelectionHelper {store} />
-			<EditorTransformControls {store} bind:controls={transformControls} />
 		{/key}
+		<EditorTransformControls {store} bind:controls={transformControls} />
 	</Canvas>
+	{#if store.cameraPreview}
+		<div class="preview-shield" role="status">
+			Camera preview · Stop or press Escape to return
+		</div>
+	{/if}
+	{#if store.pendingPlacementAssetId}
+		<div class="placement-hint" role="status">
+			Click a Paris floor to place · Escape cancels
+		</div>
+	{/if}
 </div>
 
 <style>
 	.viewport {
+		position: relative;
 		width: 100%;
 		height: 100%;
 		min-height: 0;
 		background: #050508;
+	}
+
+	.viewport.placing :global(canvas) {
+		cursor: crosshair;
+	}
+
+	.placement-hint {
+		position: absolute;
+		left: 50%;
+		bottom: 1rem;
+		transform: translateX(-50%);
+		padding: 0.48rem 0.7rem;
+		border: 1px solid #8d753c;
+		border-radius: 999px;
+		background: rgb(18 18 24 / 92%);
+		color: #fff2c7;
+		font: 600 0.73rem/1.2 ui-sans-serif, system-ui, sans-serif;
+		pointer-events: none;
+	}
+
+	.preview-shield {
+		position: absolute;
+		inset: 0;
+		display: flex;
+		align-items: flex-end;
+		justify-content: center;
+		box-sizing: border-box;
+		padding: 1rem;
+		background: linear-gradient(to top, rgb(5 5 8 / 46%), transparent 22%);
+		color: #fff2c7;
+		font: 600 0.73rem/1.2 ui-sans-serif, system-ui, sans-serif;
+		pointer-events: auto;
 	}
 
 	.viewport :global(canvas) {

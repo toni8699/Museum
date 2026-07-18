@@ -5,13 +5,15 @@ import {
 	Mesh,
 	MeshBasicMaterial,
 	PlaneGeometry,
-	Vector3
+	Vector3,
+	type Intersection
 } from 'three';
 import {
 	applyWorldYDeltaToPlacement,
 	calculateGroundDeltaY,
 	dropPlacementToFloor,
 	findFloorBelowPlacement,
+	findPlaceableFloorIntersection,
 	getPlacementWorldBounds,
 	GROUND_EPSILON,
 	groundPlacementToFloor,
@@ -69,6 +71,33 @@ describe('isEditorPlaceableFloor', () => {
 		const locked = new Mesh(new PlaneGeometry(1, 1));
 		locked.userData.editorSurface = { type: 'floor', placeable: false };
 		expect(isEditorPlaceableFloor(locked)).toBe(false);
+	});
+});
+
+describe('findPlaceableFloorIntersection', () => {
+	function hit(object: Mesh, distance: number, y: number) {
+		return { object, distance, point: new Vector3(1, y, 2) } as Intersection;
+	}
+
+	it('accepts the nearest exact semantic floor marker through ancestors', () => {
+		const otherFloor = makeFloor(0.5, 'workshop');
+		const parisFloor = makeFloor(0.01, 'paris');
+		const child = new Mesh(new PlaneGeometry(1, 1));
+		parisFloor.add(child);
+		const result = findPlaceableFloorIntersection(
+			[hit(otherFloor, 1, 0.5), hit(child, 2, 0.01)],
+			'paris'
+		);
+		expect(result?.object).toBe(parisFloor);
+		expect(result?.point.y).toBeCloseTo(0.01);
+	});
+
+	it('rejects inferred floors without the complete semantic contract', () => {
+		const namedFloor = new Mesh(new PlaneGeometry(1, 1));
+		namedFloor.name = 'ParisFloor';
+		namedFloor.userData.surfaceType = 'floor';
+		namedFloor.userData.editorSurface = { type: 'floor', placeable: true };
+		expect(findPlaceableFloorIntersection([hit(namedFloor, 1, 0)], 'paris')).toBeNull();
 	});
 });
 

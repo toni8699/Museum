@@ -3,7 +3,7 @@ import {
 	assertNavigationGraphMatchesScene,
 	museumSceneDocument
 } from '$lib/content/scene';
-import { getRoom } from '$lib/content/rooms';
+import { getRoom, roomLocalPoint, roomPoint } from '$lib/content/rooms';
 import { Object3D } from 'three';
 import {
 	filterEffectiveHits,
@@ -322,6 +322,171 @@ describe('MuseumEditorStore clusters', () => {
 	});
 });
 
+describe('MuseumEditorStore Phase 5 placement commands', () => {
+	it('replaces pending floor assets, rejects unsupported surfaces, and cancels stale assets', () => {
+		const store = createMuseumEditorStore();
+		expect(store.beginAssetPlacement('paris-salon-chair')).toBe(true);
+		expect(store.selectedRoomId).toBe('paris');
+		expect(store.pendingPlacementAssetId).toBe('paris-salon-chair');
+
+		expect(store.beginAssetPlacement('paris-salon-table')).toBe(true);
+		expect(store.pendingPlacementAssetId).toBe('paris-salon-table');
+		expect(store.beginAssetPlacement('paris-table-lamp')).toBe(false);
+		expect(store.pendingPlacementAssetId).toBe('paris-salon-table');
+
+		store.pendingPlacementAssetId = 'missing-asset';
+		expect(store.createPendingPlacementAt([0, 0, 0])).toBeNull();
+		expect(store.pendingPlacementAssetId).toBeNull();
+	});
+
+	it('creates explicit scene fields with reserved IDs and one undo entry', () => {
+		const store = createMuseumEditorStore();
+		store.selectRoom('paris');
+		expect(store.beginAssetPlacement('paris-salon-chair')).toBe(true);
+		const firstId = store.createPendingPlacementAt([1, 0.01, 2]);
+		expect(firstId).toBe('paris-salon-chair-placement');
+		const first = store.document.objects.find((object) => object.id === firstId);
+		expect(first).toMatchObject({
+			roomId: 'paris',
+			assetId: 'paris-salon-chair',
+			fallback: 'chair',
+			position: [1, 0.01, 2],
+			rotation: [0, 0, 0]
+		});
+		expect(first).not.toHaveProperty('scale');
+		expect(store.pendingFramePlacementIds).toEqual([firstId]);
+
+		expect(store.undo()).toBe(true);
+		expect(store.document.objects.some((object) => object.id === firstId)).toBe(false);
+		expect(store.pendingFramePlacementIds).toEqual([]);
+
+		expect(store.redo()).toBe(true);
+		store.beginAssetPlacement('paris-salon-chair');
+		expect(store.createPendingPlacementAt([2, 0.01, 3])).toBe('paris-salon-chair-placement-2');
+	});
+
+	it('preserves Paris local coordinates across its authored yaw and scene rebuild', () => {
+		const store = createMuseumEditorStore();
+		const expectedLocal: [number, number, number] = [2.25, 0.01, -1.75];
+		const world = roomPoint('paris', expectedLocal);
+		const local = roomLocalPoint('paris', world);
+		store.beginAssetPlacement('paris-salon-table');
+		const id = store.createPendingPlacementAt(local)!;
+		const documentPosition = store.document.objects.find((object) => object.id === id)!.position;
+		const runtimePosition = store.scene.objects.find((object) => object.id === id)!.position;
+		expect(documentPosition[0]).toBeCloseTo(expectedLocal[0], 8);
+		expect(documentPosition[2]).toBeCloseTo(expectedLocal[2], 8);
+		expect(runtimePosition).toEqual(documentPosition);
+	});
+
+	it('duplicates selected sources with batch-safe IDs and preserves the first copy as primary', () => {
+		const store = createMuseumEditorStore();
+		store.selectRoom('paris');
+		const [first, second] = store.document.objects.filter(
+			(object) => object.assetId === 'paris-salon-chair'
+		);
+		store.selectPlacements([first.id, second.id]);
+		const originalCount = store.objectCount;
+		expect(store.duplicateSelection()).toBe(true);
+		const copyIds = store.document.objects.slice(originalCount).map((object) => object.id);
+		expect(new Set(copyIds).size).toBe(2);
+		expect(copyIds).toEqual([`${second.id}-copy`, `${first.id}-copy`]);
+		expect(store.primaryPlacementId).toBe(copyIds[0]);
+		for (const copy of store.document.objects.slice(originalCount)) {
+			const sourceId = [...store.document.objects]
+				.filter((object) => !copyIds.includes(object.id))
+				.find((object) => `${object.id}-copy` === copy.id)?.id;
+			expect(sourceId).toBeTruthy();
+		}
+	});
+
+	it('recreates complete flat clusters with collision-safe cluster IDs', () => {
+		const store = createMuseumEditorStore();
+		const [a, b, c, d] = store.document.objects;
+		store.selectRoom('paris');
+		store.selectPlacements([a.id, b.id]);
+		const sourceClusterId = store.createCluster('Salon pair')!;
+		store.selectPlacements([c.id, d.id]);
+		const occupiedClusterId = store.createCluster('Occupied')!;
+		expect(store.beginDocumentTransaction()).toBe(true);
+		store.clusters.find((cluster) => cluster.id === occupiedClusterId)!.id = `${sourceClusterId}-copy`;
+		expect(store.commitDocumentTransaction()).toBe(true);
+
+		store.selectCluster(sourceClusterId);
+		expect(store.duplicateSelection()).toBe(true);
+		const copiedCluster = store.clusters.find(
+			(cluster) => cluster.id === `${sourceClusterId}-copy-2`
+		);
+		expect(copiedCluster).toMatchObject({ name: 'Salon pair Copy', roomId: 'paris' });
+		expect(copiedCluster?.memberIds).toHaveLength(2);
+		expect(copiedCluster?.memberIds.every((id) => id.includes('-copy'))).toBe(true);
+	});
+
+	it('does not reconstruct a partially selected source cluster', () => {
+		const store = createMuseumEditorStore();
+		const [a, b] = store.document.objects;
+		store.selectRoom('paris');
+		store.selectPlacements([a.id, b.id]);
+		store.createCluster('Pair');
+		const beforeClusters = store.clusters.length;
+		store.selectPlacement(a.id);
+		expect(store.duplicateSelection()).toBe(true);
+		expect(store.clusters).toHaveLength(beforeClusters);
+	});
+
+	it('deletes cluster members with stable cleanup rules and undo restoration', () => {
+		const store = createMuseumEditorStore();
+		const [a, b, c] = store.document.objects;
+		store.selectRoom('paris');
+		store.selectPlacements([a.id, b.id, c.id]);
+		const clusterId = store.createCluster('Trio')!;
+
+		store.selectPlacement(a.id);
+		expect(store.deleteSelection()).toBe(true);
+		expect(store.clusters.find((cluster) => cluster.id === clusterId)?.memberIds).toEqual([
+			b.id,
+			c.id
+		]);
+		expect(store.undo()).toBe(true);
+		expect(store.clusters.find((cluster) => cluster.id === clusterId)?.memberIds).toEqual([
+			a.id,
+			b.id,
+			c.id
+		]);
+
+		store.selectPlacement(a.id);
+		store.selectPlacements([a.id, b.id]);
+		expect(store.deleteSelection()).toBe(true);
+		expect(store.clusters.some((cluster) => cluster.id === clusterId)).toBe(false);
+	});
+
+	it('rolls invalid mutations back atomically without history', () => {
+		const store = createMuseumEditorStore();
+		const before = JSON.stringify(store.document);
+		expect(store.beginDocumentTransaction()).toBe(true);
+		store.document.objects.push({
+			...store.document.objects[0]!,
+			id: 'invalid-placement',
+			fallback: 'invalid' as never
+		});
+		expect(store.commitDocumentTransaction()).toBe(false);
+		expect(JSON.stringify(store.document)).toBe(before);
+		expect(store.canUndo).toBe(false);
+	});
+
+	it('replaces and cancels delayed frame requests on selection changes', () => {
+		const store = createMuseumEditorStore();
+		store.selectRoom('paris');
+		const [a, b] = store.document.objects;
+		store.selectPlacement(a.id);
+		expect(store.requestPlacementFrame([a.id])).toBe(true);
+		store.requestPlacementFrame([b.id]);
+		expect(store.pendingFramePlacementIds).toEqual([b.id]);
+		store.selectPlacement(a.id);
+		expect(store.pendingFramePlacementIds).toEqual([]);
+	});
+});
+
 describe('editor room camera framing', () => {
 	it('centers the target in Paris and follows its authored yaw', () => {
 		const room = getRoom('paris');
@@ -340,6 +505,358 @@ describe('editor room camera framing', () => {
 		const dx = frame.position[0] - frame.target[0];
 		const dz = frame.position[2] - frame.target[2];
 		expect(Math.atan2(dx, dz)).toBeCloseTo(room.rotation[1]);
+	});
+});
+
+describe('MuseumEditorStore Phase 6 camera nodes', () => {
+	it('uses one camera selection, defaults rows to position, and avoids redundant focus', () => {
+		const store = createMuseumEditorStore();
+		const nodeId = 'paris-seat';
+
+		expect(store.selectNavigationNode(nodeId)).toBe(true);
+		expect(store.cameraSelection).toEqual({ nodeId, handle: 'position' });
+		const focusVersion = store.cameraFocusVersion;
+		expect(store.selectNavigationNode(nodeId)).toBe(false);
+		expect(store.cameraFocusVersion).toBe(focusVersion);
+		expect(store.canUndo).toBe(false);
+
+		expect(store.selectCameraHandle('target')).toBe(true);
+		expect(store.cameraSelection).toEqual({ nodeId, handle: 'target' });
+		expect(store.selectNavigationNode(nodeId)).toBe(true);
+		expect(store.cameraSelection).toEqual({ nodeId, handle: 'position' });
+		expect(store.cameraFocusVersion).toBe(focusVersion);
+	});
+
+	it('consumes an applied camera focus request exactly once', () => {
+		const store = createMuseumEditorStore();
+		store.selectNavigationNode('paris-seat');
+		const version = store.cameraFocusVersion;
+
+		expect(store.consumeCameraFocus(version - 1)).toBe(false);
+		expect(store.cameraFocusKind).toBe('navigation-node');
+		expect(store.consumeCameraFocus(version)).toBe(true);
+		expect(store.cameraFocusKind).toBeNull();
+		expect(store.cameraFocusNodeId).toBeNull();
+		expect(store.consumeCameraFocus(version)).toBe(false);
+	});
+
+	it('keeps camera and placement selection mutually exclusive while asset placement is latent', () => {
+		const store = createMuseumEditorStore();
+		const placementId = store.document.objects[0]!.id;
+		store.selectNavigationNode('departure-corridor');
+		expect(store.beginAssetPlacement('paris-salon-chair')).toBe(true);
+		expect(store.cameraSelection?.nodeId).toBe('departure-corridor');
+		expect(store.pendingPlacementAssetId).toBe('paris-salon-chair');
+
+		store.cancelAssetPlacement();
+		store.selectPlacement(placementId);
+		expect(store.cameraSelection).toBeNull();
+		expect(store.selectedPlacementId).toBe(placementId);
+
+		store.selectNavigationNode('paris-seat');
+		expect(store.selectedPlacementIds).toEqual([]);
+		expect(store.cameraSelection).toEqual({ nodeId: 'paris-seat', handle: 'position' });
+	});
+
+	it('registers selected camera helper roots without persisting them', () => {
+		const store = createMuseumEditorStore();
+		const root = new Object3D();
+		const version = store.registryVersion;
+		store.registerCameraHelperRoot('paris-seat', 'position', root);
+		expect(store.registryVersion).toBe(version + 1);
+		expect(store.getCameraHelperRoot('paris-seat', 'position')).toBe(root);
+
+		store.selectNavigationNode('paris-seat');
+		expect(store.getSelectedCameraHelperRoot()).toBe(root);
+		expect(JSON.stringify(store.document)).not.toContain('camera-handle');
+
+		store.unregisterCameraHelperRoot('paris-seat', 'position', root);
+		expect(store.getSelectedCameraHelperRoot()).toBeUndefined();
+	});
+
+	it('persists room-local eye edits and derives only incident runtime endpoints', () => {
+		const store = createMuseumEditorStore();
+		const nodeId = 'paris-seat';
+		const originalInteriors = store.document.connections.map((connection) =>
+			connection.positionWaypoints.map((waypoint) => ({
+				...waypoint,
+				position: [...waypoint.position]
+			}))
+		);
+		const originalPosition = [...store.document.navigationNodes.find(
+			(node) => node.id === nodeId
+		)!.position] as [number, number, number];
+		const nextPosition: [number, number, number] = [
+			originalPosition[0] + 0.75,
+			originalPosition[1] + 0.1,
+			originalPosition[2] - 0.5
+		];
+
+		store.selectNavigationNode(nodeId);
+		expect(store.commitNavigationNodePoint(nodeId, 'position', nextPosition)).toBe(true);
+		expect(store.selectedNavigationNode?.position).toEqual(nextPosition);
+		const runtimeNode = store.scene.navigationNodes.find((node) => node.id === nodeId)!;
+		expect(runtimeNode.position).toEqual(roomPoint('paris', nextPosition));
+
+		for (const connection of store.scene.connections) {
+			if (connection.fromNodeId === nodeId) {
+				expect(connection.positionWaypoints[0]).toEqual(runtimeNode.position);
+			}
+			if (connection.toNodeId === nodeId) {
+				expect(connection.positionWaypoints.at(-1)).toEqual(runtimeNode.position);
+			}
+		}
+		expect(
+			store.document.connections.map((connection) => connection.positionWaypoints)
+		).toEqual(originalInteriors);
+		assertNavigationGraphMatchesScene(store.state.graph, store.scene);
+
+		expect(store.undo()).toBe(true);
+		expect(store.selectedNavigationNode?.position).toEqual(originalPosition);
+		expect(store.redo()).toBe(true);
+		expect(store.selectedNavigationNode?.position).toEqual(nextPosition);
+	});
+
+	it('updates camera targets without changing any connection position path', () => {
+		const store = createMuseumEditorStore();
+		const nodeId = 'departure-corridor';
+		store.selectNavigationNode(nodeId);
+		store.selectCameraHandle('target');
+		const beforePaths = store.scene.connections.map((connection) =>
+			connection.positionWaypoints.map((point) => [...point])
+		);
+		const target = store.selectedNavigationNode!.cameraTarget;
+		const nextTarget: [number, number, number] = [
+			target[0] - 1,
+			target[1] + 0.2,
+			target[2] + 0.4
+		];
+
+		expect(store.commitNavigationNodePoint(nodeId, 'target', nextTarget)).toBe(true);
+		expect(store.scene.connections.map((connection) => connection.positionWaypoints)).toEqual(
+			beforePaths
+		);
+		expect(store.selectedRuntimeNavigationNode?.cameraTarget).toEqual(
+			roomPoint('departure', nextTarget)
+		);
+	});
+
+	it('collapses camera drag previews into one history entry and suppresses no movement', () => {
+		const store = createMuseumEditorStore();
+		const nodeId = 'workshop-desk';
+		store.selectNavigationNode(nodeId);
+		const original = [...store.selectedNavigationNode!.position] as [number, number, number];
+
+		expect(store.beginDocumentTransaction()).toBe(true);
+		expect(
+			store.updateNavigationNodePoint(nodeId, 'position', [original[0] + 1, original[1], original[2]])
+		).toBe(true);
+		expect(
+			store.updateNavigationNodePoint(nodeId, 'position', [original[0] + 2, original[1], original[2]])
+		).toBe(true);
+		expect(store.commitDocumentTransaction()).toBe(true);
+		expect(store.undo()).toBe(true);
+		expect(store.selectedNavigationNode?.position).toEqual(original);
+
+		expect(store.beginDocumentTransaction()).toBe(true);
+		expect(store.updateNavigationNodePoint(nodeId, 'position', original)).toBe(false);
+		expect(store.commitDocumentTransaction()).toBe(false);
+	});
+
+	it('refuses live camera writes outside a document transaction', () => {
+		const store = createMuseumEditorStore();
+		const nodeId = 'workshop-desk';
+		store.selectNavigationNode(nodeId);
+		const documentPosition = [...store.selectedNavigationNode!.position];
+		const runtimePosition = [...store.selectedRuntimeNavigationNode!.position];
+
+		expect(store.updateNavigationNodePoint(nodeId, 'position', [99, 98, 97])).toBe(false);
+		expect(store.selectedNavigationNode?.position).toEqual(documentPosition);
+		expect(store.selectedRuntimeNavigationNode?.position).toEqual(runtimePosition);
+		expect(store.canUndo).toBe(false);
+	});
+
+	it('creates modal node and transition previews without document history', () => {
+		const store = createMuseumEditorStore();
+		const placementId = store.document.objects[0]!.id;
+		store.selectNavigationNode('paris-seat');
+		store.beginAssetPlacement('paris-salon-chair');
+		store.requestPlacementFrame([placementId]);
+
+		expect(store.previewSelectedNode()).toBe(true);
+		expect(store.cameraPreview).toMatchObject({ kind: 'node', nodeId: 'paris-seat' });
+		expect(store.pendingPlacementAssetId).toBeNull();
+		expect(store.pendingFramePlacementIds).toEqual([]);
+		expect(store.cameraFocusKind).toBeNull();
+		expect(store.canUndo).toBe(false);
+		expect(store.selectPlacement(placementId)).toBe(false);
+		expect(store.beginAssetPlacement('paris-salon-chair')).toBe(false);
+		expect(store.requestPlacementFrame([placementId])).toBe(false);
+		expect(store.commitNavigationNodePoint('paris-seat', 'position', [0, 1, 0])).toBe(false);
+		expect(store.stopCameraPreview()).toBe(true);
+		expect(store.cameraSelection?.nodeId).toBe('paris-seat');
+
+		expect(store.previewSelectedTransition()).toBe(true);
+		const preview = store.cameraPreview;
+		expect(preview).toMatchObject({
+			kind: 'transition',
+			fromNodeId: 'paris-seat',
+			toNodeId: 'workshop-desk',
+			startedAtMs: null,
+			completed: false
+		});
+		const runId = preview!.runId;
+		expect(store.completeCameraPreview(runId)).toBe(false);
+		expect(store.markCameraPreviewStarted(runId, 1234)).toBe(true);
+		expect(store.markCameraPreviewStarted(runId, 5678)).toBe(false);
+		expect(store.completeCameraPreview(runId)).toBe(true);
+		expect(store.completeCameraPreview(runId)).toBe(false);
+		expect(store.stopCameraPreview()).toBe(true);
+		expect(store.canUndo).toBe(false);
+	});
+
+	it('restores camera ownership before releasing preview modal guards', () => {
+		const store = createMuseumEditorStore();
+		store.selectNavigationNode('paris-seat');
+		expect(store.previewSelectedNode()).toBe(true);
+
+		const events: string[] = [];
+		store.setCameraPreviewRestorer(() => {
+			expect(store.cameraPreview).not.toBeNull();
+			expect(store.selectNavigationNode('workshop-desk')).toBe(false);
+			events.push('restore');
+			return true;
+		});
+
+		expect(store.stopCameraPreview()).toBe(true);
+		expect(events).toEqual(['restore']);
+		expect(store.cameraPreview).toBeNull();
+
+		expect(store.previewSelectedNode()).toBe(true);
+		store.setCameraPreviewRestorer(() => false);
+		expect(store.stopCameraPreview()).toBe(false);
+		expect(store.cameraPreview).not.toBeNull();
+		store.setCameraPreviewRestorer(null);
+		expect(store.stopCameraPreview()).toBe(true);
+	});
+
+	it('blocks selection changes during a camera drag and cancels it before preview', () => {
+		const store = createMuseumEditorStore();
+		store.selectNavigationNode('paris-seat');
+		expect(store.beginDocumentTransaction()).toBe(true);
+		store.setTransformInteractionActive(true, 'camera');
+		expect(store.selectCameraHandle('target')).toBe(false);
+		expect(store.selectNavigationNode('workshop-desk')).toBe(false);
+
+		let cancelCount = 0;
+		store.setCameraTransformCanceler(() => {
+			cancelCount += 1;
+			store.setTransformInteractionActive(false);
+			store.cancelDocumentTransaction();
+			return true;
+		});
+
+		expect(store.previewSelectedNode()).toBe(true);
+		expect(cancelCount).toBe(1);
+		expect(store.transformInteractionActive).toBe(false);
+		expect(store.isDocumentTransactionActive).toBe(false);
+		expect(store.stopCameraPreview()).toBe(true);
+	});
+
+	it('guards every document and editor-command category while preview is modal', () => {
+		const store = createMuseumEditorStore();
+		const placementId = store.document.objects[0]!.id;
+		store.selectNavigationNode('paris-seat');
+		const position = [...store.selectedNavigationNode!.position] as [number, number, number];
+		expect(
+			store.commitNavigationNodePoint('paris-seat', 'position', [
+				position[0] + 0.1,
+				position[1],
+				position[2]
+			])
+		).toBe(true);
+		expect(store.undo()).toBe(true);
+		expect(store.canRedo).toBe(true);
+		expect(store.previewSelectedNode()).toBe(true);
+
+		const documentBefore = JSON.stringify(store.document);
+		const dropRequestBefore = store.dropToFloorRequestId;
+		const panBefore = store.cameraPanEnabled;
+		const ambientBefore = store.ambientIntensity;
+
+		expect(store.canUndo).toBe(false);
+		expect(store.canRedo).toBe(false);
+		expect(store.undo()).toBe(false);
+		expect(store.redo()).toBe(false);
+		expect(store.beginDocumentTransaction()).toBe(false);
+		expect(store.selectNavigationNode('workshop-desk')).toBe(false);
+		expect(store.selectCameraHandle('target')).toBe(false);
+		expect(store.selectRoom('paris')).toBe(false);
+		expect(store.selectPlacement(placementId)).toBe(false);
+		expect(store.selectPlacements([placementId])).toBe(false);
+		expect(store.togglePlacement(placementId)).toBe(false);
+		expect(store.cyclePlacement([placementId])).toBe(false);
+		expect(store.selectAllInRoom()).toBe(false);
+		expect(store.deselect()).toBe(false);
+		expect(store.focusNavigationNode('paris-seat')).toBe(false);
+		expect(store.focusRoom('paris')).toBe(false);
+		expect(store.focusPlacement(placementId)).toBe(false);
+		expect(store.focusSelection()).toBe(false);
+		expect(store.requestPlacementFrame([placementId])).toBe(false);
+		expect(store.beginAssetPlacement('paris-salon-chair')).toBe(false);
+		expect(store.createPendingPlacementAt([0, 0, 0])).toBeNull();
+		expect(store.duplicateSelection()).toBe(false);
+		expect(store.deletePlacements([placementId])).toBe(false);
+		expect(store.createCluster()).toBeNull();
+		expect(store.ungroupCluster(store.clusters[0]?.id ?? null)).toBe(false);
+		expect(store.toggleCameraPan()).toBe(false);
+		expect(store.applyLightingPreset(EDITOR_VISITOR_LIGHTING)).toBe(false);
+		expect(
+			store.commitNavigationNodePoint('paris-seat', 'position', [0, 1, 0])
+		).toBe(false);
+		store.requestDropToFloor();
+
+		expect(store.dropToFloorRequestId).toBe(dropRequestBefore);
+		expect(store.cameraPanEnabled).toBe(panBefore);
+		expect(store.ambientIntensity).toBe(ambientBefore);
+		expect(JSON.stringify(store.document)).toBe(documentBefore);
+		expect(store.stopCameraPreview()).toBe(true);
+		expect(store.canRedo).toBe(true);
+	});
+
+	it('rejects invalid outgoing transitions without entering preview', () => {
+		const store = createMuseumEditorStore();
+		const nodeId = 'music-entry';
+		store.selectNavigationNode(nodeId);
+		expect(store.beginDocumentTransaction()).toBe(true);
+		store.document.navigationNodes.find((node) => node.id === nodeId)!.nextNodeId = 'missing';
+		expect(store.commitDocumentTransaction()).toBe(true);
+
+		expect(store.previewSelectedTransition()).toBe(false);
+		expect(store.cameraPreview).toBeNull();
+		expect(store.statusMessage).toContain('Unknown navigation node');
+	});
+
+	it('reports missing and unroutable next nodes without starting preview', () => {
+		const missingStore = createMuseumEditorStore();
+		missingStore.selectNavigationNode('music-entry');
+		expect(missingStore.beginDocumentTransaction()).toBe(true);
+		delete missingStore.document.navigationNodes.find(
+			(node) => node.id === 'music-entry'
+		)!.nextNodeId;
+		expect(missingStore.commitDocumentTransaction()).toBe(true);
+		expect(missingStore.previewSelectedTransition()).toBe(false);
+		expect(missingStore.cameraPreview).toBeNull();
+		expect(missingStore.statusMessage).toContain('has no nextNodeId');
+
+		const unroutableStore = createMuseumEditorStore();
+		unroutableStore.selectNavigationNode('music-entry');
+		expect(unroutableStore.beginDocumentTransaction()).toBe(true);
+		unroutableStore.document.connections = [];
+		expect(unroutableStore.commitDocumentTransaction()).toBe(true);
+		expect(unroutableStore.previewSelectedTransition()).toBe(false);
+		expect(unroutableStore.cameraPreview).toBeNull();
+		expect(unroutableStore.statusMessage).toContain('No camera route');
 	});
 });
 

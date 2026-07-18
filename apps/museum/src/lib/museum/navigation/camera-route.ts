@@ -4,6 +4,7 @@ import {
   type NavigationGraph
 } from '$lib/content/scene';
 import type { MuseumConnection, Vec3 } from '$lib/types/museum';
+import type { CameraRoute } from './camera-motion';
 
 type OrientedConnection = {
   connection: MuseumConnection;
@@ -12,7 +13,7 @@ type OrientedConnection = {
   reversed: boolean;
 };
 
-export type CameraRoute = {
+export type ResolvedCameraRoute = CameraRoute & {
   positions: Vec3[];
   targets: Vec3[];
   clearance: number;
@@ -105,7 +106,7 @@ export function getCameraRoute(
   fromNodeId: string,
   toNodeId: string,
   graph: NavigationGraph = museumNavigationGraph
-): CameraRoute {
+): ResolvedCameraRoute {
   if (fromNodeId === toNodeId) {
     const node = getNode(fromNodeId, graph);
     return {
@@ -127,6 +128,11 @@ export function getCameraRoute(
       : edge.connection.positionWaypoints;
     appendDistinct(positions, edgePositions);
   }
+
+  // Distinct nodes may intentionally share an eye position. Keep two poses so
+  // their different targets produce a target-only, minimum-duration motion
+  // instead of being misclassified as a same-node singleton.
+  if (positions.length === 1) positions.push([...positions[0]]);
 
   return {
     positions,

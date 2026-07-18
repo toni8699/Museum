@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { useThrelte } from '@threlte/core';
+	import { roomLocalPoint } from '$lib/content/rooms';
+	import type { Vec3 } from '$lib/types/museum';
 	import { Raycaster, Vector2 } from 'three';
 	import type { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 	import type { MuseumEditorStore } from './museum-editor.svelte';
@@ -9,6 +11,7 @@
 		selectionHitFromIntersection,
 		uniquePlacementIdsInOrder
 	} from './editor-selection';
+	import { findPlaceableFloorIntersection } from './editor-placement';
 
 	let {
 		store,
@@ -29,13 +32,6 @@
 	let pointerDownY = 0;
 	let activePointerCount = 0;
 	let suppressClick = false;
-
-	function isTypingTarget(target: EventTarget | null) {
-		if (!(target instanceof HTMLElement)) return false;
-		const tag = target.tagName;
-		if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
-		return target.isContentEditable;
-	}
 
 	function releaseCapture(pointerId: number) {
 		if (canvas.hasPointerCapture(pointerId)) {
@@ -68,12 +64,25 @@
 	}
 
 	function applySelectionFromPointer(event: PointerEvent) {
+		if (store.cameraPreview) return;
 		const currentCamera = camera.current;
 		if (!currentCamera) return;
 
 		toNdc(event);
 		raycaster.setFromCamera(pointerNdc, currentCamera);
 		const intersections = raycaster.intersectObjects(scene.children, true);
+
+		if (store.pendingPlacementAssetId) {
+			const floorHit = findPlaceableFloorIntersection(intersections, 'paris');
+			if (!floorHit) {
+				store.setStatusMessage('Click a placeable Paris floor');
+				return;
+			}
+			const worldPoint = floorHit.point.toArray() as Vec3;
+			store.createPendingPlacementAt(roomLocalPoint('paris', worldPoint));
+			return;
+		}
+
 		const hits = intersections.map(selectionHitFromIntersection);
 
 		if (event.altKey) {
@@ -83,7 +92,12 @@
 		}
 
 		const result = resolveNormalSelection(hits);
-		if (result.action === 'select') {
+		if (result.action === 'select-camera') {
+			if (store.cameraSelection?.nodeId !== result.selection.nodeId) {
+				store.selectNavigationNode(result.selection.nodeId);
+			}
+			store.selectCameraHandle(result.selection.handle);
+		} else if (result.action === 'select') {
 			if (event.shiftKey) {
 				store.togglePlacement(result.id);
 			} else {
@@ -96,7 +110,7 @@
 	}
 
 	function onPointerDown(event: PointerEvent) {
-		if (event.button !== 0) return;
+		if (store.cameraPreview || event.button !== 0) return;
 		if (transformControls?.axis || transformControls?.dragging) {
 			suppressClick = true;
 			return;
@@ -157,19 +171,11 @@
 		}
 	}
 
-	function onKeyDown(event: KeyboardEvent) {
-		if (event.key !== 'Escape') return;
-		if (isTypingTarget(event.target)) return;
-		if (transformControls?.dragging) return;
-		store.deselect();
-	}
-
 	onMount(() => {
 		canvas.addEventListener('pointerdown', onPointerDown);
 		canvas.addEventListener('pointermove', onPointerMove);
 		canvas.addEventListener('pointerup', onPointerUp);
 		canvas.addEventListener('pointercancel', onPointerCancel);
-		window.addEventListener('keydown', onKeyDown);
 
 		return () => {
 			clearPendingPointer();
@@ -177,7 +183,6 @@
 			canvas.removeEventListener('pointermove', onPointerMove);
 			canvas.removeEventListener('pointerup', onPointerUp);
 			canvas.removeEventListener('pointercancel', onPointerCancel);
-			window.removeEventListener('keydown', onKeyDown);
 		};
 	});
 </script>

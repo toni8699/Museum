@@ -1,5 +1,6 @@
 import type { MuseumRoom, Vec3 } from '$lib/types/museum';
-import { Box3, Sphere, Vector3, type Object3D } from 'three';
+import { VISITOR_CAMERA_PROJECTION } from '$lib/museum/navigation/camera-motion';
+import { Box3, Sphere, Vector3, type Object3D, type PerspectiveCamera } from 'three';
 
 export const EDITOR_CAMERA_FOV = 50;
 export const EDITOR_NEUTRAL_CAMERA_POSITION: Vec3 = [0, 18, 24];
@@ -9,6 +10,8 @@ export const EDITOR_MIN_ORBIT_DISTANCE = 0.2;
 export const EDITOR_NEUTRAL_MIN_DISTANCE = 1;
 export const EDITOR_NEUTRAL_MAX_DISTANCE = 60;
 export const EDITOR_FRAME_PADDING = 1.2;
+/** World-space padding around the authored eye/target pair when framing a camera node. */
+export const EDITOR_NODE_FRAME_EXPANSION = 0.5;
 export const EDITOR_PAN_BASE_SPEED = 0.7;
 export const EDITOR_PAN_REFERENCE_DISTANCE = 8;
 export const EDITOR_PAN_MAX_BOOST = 5;
@@ -22,6 +25,41 @@ export type EditorRoomCameraFrame = {
 };
 
 export type EditorBoundsCameraFrame = EditorRoomCameraFrame;
+
+/** The OrbitControls surface needed to capture and restore an editor camera pose. */
+export type EditorOrbitControlsLike = {
+	target: Vector3;
+	minDistance: number;
+	maxDistance: number;
+	enabled: boolean;
+	enableDamping: boolean;
+	update: () => unknown;
+};
+
+/**
+ * A preview-safe editor orbit snapshot. The viewport aspect is intentionally absent:
+ * the current render size remains authoritative when preview ends.
+ */
+export type EditorOrbitPose = Readonly<{
+	position: Vector3;
+	target: Vector3;
+	zoom: number;
+	fov: number;
+	near: number;
+	far: number;
+	minDistance: number;
+	maxDistance: number;
+	enabled: boolean;
+	enableDamping: boolean;
+}>;
+
+export type EditorBoundsCameraFrameOptions = {
+	fovDegrees?: number;
+	aspect?: number;
+	padding?: number;
+	minDistance?: number;
+	maxDistance?: number;
+};
 
 function clamp(value: number, min: number, max: number) {
 	return Math.min(max, Math.max(min, value));
@@ -42,13 +80,7 @@ export function createEditorBoundsCameraFrame(
 	bounds: Box3,
 	currentPosition: Vector3,
 	currentTarget: Vector3,
-	options: {
-		fovDegrees?: number;
-		aspect?: number;
-		padding?: number;
-		minDistance?: number;
-		maxDistance?: number;
-	} = {}
+	options: EditorBoundsCameraFrameOptions = {}
 ): EditorBoundsCameraFrame | null {
 	if (bounds.isEmpty()) return null;
 
@@ -83,6 +115,20 @@ export function createEditorBoundsCameraFrame(
 	};
 }
 
+/** Frames the authored world-space eye/target pair, including coincident points. */
+export function createEditorNodeCameraFrame(
+	position: Vector3,
+	target: Vector3,
+	currentPosition: Vector3,
+	currentTarget: Vector3,
+	options: EditorBoundsCameraFrameOptions = {}
+): EditorBoundsCameraFrame | null {
+	const bounds = new Box3()
+		.setFromPoints([position, target])
+		.expandByScalar(EDITOR_NODE_FRAME_EXPANSION);
+	return createEditorBoundsCameraFrame(bounds, currentPosition, currentTarget, options);
+}
+
 export function createEditorPlacementCameraFrame(
 	root: Object3D,
 	currentPosition: Vector3,
@@ -96,6 +142,72 @@ export function createEditorPlacementCameraFrame(
 		currentTarget,
 		options
 	);
+}
+
+/** Capture before any preview-related camera or controls mutation. */
+export function captureEditorOrbitPose(
+	camera: PerspectiveCamera,
+	controls: EditorOrbitControlsLike
+): EditorOrbitPose {
+	return {
+		position: camera.position.clone(),
+		target: controls.target.clone(),
+		zoom: camera.zoom,
+		fov: camera.fov,
+		near: camera.near,
+		far: camera.far,
+		minDistance: controls.minDistance,
+		maxDistance: controls.maxDistance,
+		enabled: controls.enabled,
+		enableDamping: controls.enableDamping
+	};
+}
+
+/** Disable OrbitControls, flush damping once, then apply the visitor projection. */
+export function prepareEditorCameraPreview(
+	camera: PerspectiveCamera,
+	controls: EditorOrbitControlsLike
+): void {
+	controls.enabled = false;
+	controls.enableDamping = false;
+	controls.update();
+
+	camera.fov = VISITOR_CAMERA_PROJECTION.fov;
+	camera.near = VISITOR_CAMERA_PROJECTION.near;
+	camera.far = VISITOR_CAMERA_PROJECTION.far;
+	camera.zoom = 1;
+	camera.updateProjectionMatrix();
+}
+
+/**
+ * Restore editor orbit state in the order required by OrbitControls. Aspect is not
+ * restored so a resize that occurred during preview is retained.
+ */
+export function restoreEditorOrbitPose(
+	camera: PerspectiveCamera,
+	controls: EditorOrbitControlsLike,
+	pose: EditorOrbitPose
+): void {
+	controls.enabled = false;
+	controls.enableDamping = false;
+
+	camera.position.copy(pose.position);
+	camera.zoom = pose.zoom;
+	camera.fov = pose.fov;
+	camera.near = pose.near;
+	camera.far = pose.far;
+	controls.target.copy(pose.target);
+
+	camera.updateProjectionMatrix();
+
+	controls.minDistance = 0;
+	controls.maxDistance = Number.POSITIVE_INFINITY;
+	controls.update();
+
+	controls.minDistance = pose.minDistance;
+	controls.maxDistance = pose.maxDistance;
+	controls.enableDamping = pose.enableDamping;
+	controls.enabled = pose.enabled;
 }
 
 function rotateLocalOffset(room: MuseumRoom, offset: Vec3): Vec3 {

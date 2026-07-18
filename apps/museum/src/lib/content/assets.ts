@@ -3,7 +3,9 @@ import type {
   AssetId,
   AssetStatus,
   FallbackKind,
-  MuseumAsset
+  MuseumAsset,
+  PlacementSurface,
+  SceneObjectFallback
 } from '$lib/types/assets';
 
 export const museumAssets: MuseumAsset[] = [
@@ -17,6 +19,7 @@ export const museumAssets: MuseumAsset[] = [
     creator: 'farhad.Guli',
     license: 'CC BY 4.0',
     attribution: 'Grand Piano by farhad.Guli, licensed under CC BY 4.0.',
+    placementSurface: 'floor',
     defaultScale: 0.032,
     castShadow: true,
     receiveShadow: false,
@@ -35,6 +38,7 @@ export const museumAssets: MuseumAsset[] = [
     license: 'CC BY-SA 4.0',
     attribution:
       'Chair by shuvalov.di, licensed under CC BY-SA 4.0. Modified for the museum: floor-centered pivot, geometry optimization, WebP textures, and Meshopt compression.',
+    placementSurface: 'floor',
     defaultScale: 0.92,
     castShadow: true,
     receiveShadow: false,
@@ -52,6 +56,7 @@ export const museumAssets: MuseumAsset[] = [
     creator: 'Fran Calvente / Poly Haven',
     license: 'CC0 1.0',
     attribution: 'Sofa 03 by Fran Calvente / Poly Haven, released under CC0 1.0.',
+    placementSurface: 'floor',
     defaultScale: 0.9,
     castShadow: true,
     receiveShadow: false,
@@ -69,6 +74,7 @@ export const museumAssets: MuseumAsset[] = [
     creator: 'yryabchenko',
     license: 'CC BY 4.0',
     attribution: 'Table by yryabchenko, licensed under CC BY 4.0.',
+    placementSurface: 'floor',
     defaultScale: 0.21,
     castShadow: true,
     receiveShadow: false,
@@ -88,6 +94,7 @@ export const museumAssets: MuseumAsset[] = [
     license: 'CC BY 4.0',
     attribution: 'Chandelier by myhalchuk2000, licensed under CC BY 4.0.',
     fallback: 'chandelier',
+    placementSurface: 'ceiling',
     defaultScale: 0.45,
     castShadow: false,
     receiveShadow: false,
@@ -101,6 +108,7 @@ export const museumAssets: MuseumAsset[] = [
     category: 'desk',
     productionFile: '/museum/models/furniture/writing-desk.glb',
     license: 'pending',
+    placementSurface: 'floor',
     defaultScale: 1,
     castShadow: true,
     receiveShadow: false,
@@ -118,6 +126,7 @@ export const museumAssets: MuseumAsset[] = [
     creator: 'Tijerín Art Studio',
     license: 'CC BY 4.0',
     attribution: 'Victorian Brass Oil Lamp by Tijerín Art Studio, licensed under CC BY 4.0.',
+    placementSurface: 'surface',
     defaultScale: 0.01,
     castShadow: false,
     receiveShadow: false,
@@ -131,6 +140,7 @@ export const museumAssets: MuseumAsset[] = [
     category: 'frame',
     productionFile: '/museum/models/frames/salon-portrait-frame.glb',
     license: 'pending',
+    placementSurface: 'wall',
     defaultScale: 1,
     castShadow: false,
     receiveShadow: false,
@@ -143,6 +153,7 @@ export const museumAssets: MuseumAsset[] = [
     category: 'book',
     productionFile: '/museum/models/decor/book.glb',
     license: 'pending',
+    placementSurface: 'surface',
     defaultScale: 1,
     castShadow: false,
     receiveShadow: false,
@@ -160,6 +171,7 @@ export const museumAssets: MuseumAsset[] = [
     creator: 'Lyskilde',
     license: 'CC BY 4.0',
     attribution: 'Grandfather Clock by Lyskilde, licensed under CC BY 4.0.',
+    placementSurface: 'floor',
     defaultScale: 0.008,
     castShadow: false,
     receiveShadow: false,
@@ -173,6 +185,7 @@ export const museumAssets: MuseumAsset[] = [
     category: 'decor',
     productionFile: '/museum/models/decor/salon-rug.glb',
     license: 'pending',
+    placementSurface: 'floor',
     defaultScale: 1,
     castShadow: false,
     receiveShadow: true,
@@ -192,9 +205,32 @@ const assetStatuses: readonly AssetStatus[] = ['placeholder', 'testing', 'approv
 const fallbackKinds: readonly FallbackKind[] = [
   'piano', 'chair', 'sofa', 'table', 'chandelier', 'desk', 'lamp', 'frame', 'books', 'clock', 'rug'
 ];
+const placementSurfaces: readonly PlacementSurface[] = ['floor', 'wall', 'ceiling', 'surface'];
 
 function isOneOf<T extends string>(value: string, values: readonly T[]): value is T {
   return values.includes(value as T);
+}
+
+export function isSceneObjectFallback(value: unknown): value is SceneObjectFallback {
+  return typeof value === 'string' && isOneOf(value, fallbackKinds);
+}
+
+/**
+ * Normalize manifest fallback metadata into the scalar value persisted by scene objects.
+ * The input asset is never mutated.
+ */
+export function resolveAssetFallback(asset: MuseumAsset): SceneObjectFallback {
+  if (asset.fallback !== undefined) {
+    if (!isSceneObjectFallback(asset.fallback)) {
+      throw new Error(`Invalid fallback for museum asset: ${asset.id}`);
+    }
+    return asset.fallback;
+  }
+
+  if (asset.category === 'book') return 'books';
+  if (asset.category === 'decor') return 'rug';
+  if (isSceneObjectFallback(asset.category)) return asset.category;
+  throw new Error(`Museum asset has no valid fallback mapping: ${asset.id}`);
 }
 
 export function validateMuseumAssetManifest(assets: readonly MuseumAsset[] = museumAssets): void {
@@ -205,12 +241,22 @@ export function validateMuseumAssetManifest(assets: readonly MuseumAsset[] = mus
     ids.add(asset.id);
     if (!isOneOf(asset.category, assetCategories)) throw new Error(`Invalid asset category: ${asset.category}`);
     if (!isOneOf(asset.status, assetStatuses)) throw new Error(`Invalid asset status: ${asset.status}`);
+    if (!isOneOf(asset.placementSurface, placementSurfaces)) {
+      throw new Error(`Invalid placement surface for museum asset: ${asset.id}`);
+    }
     if (!Number.isFinite(asset.defaultScale) || asset.defaultScale <= 0) {
       throw new Error(`Invalid default scale for museum asset: ${asset.id}`);
+    }
+    if (
+      asset.defaultRotation &&
+      (asset.defaultRotation.length !== 3 || asset.defaultRotation.some((value) => !Number.isFinite(value)))
+    ) {
+      throw new Error(`Invalid default rotation for museum asset: ${asset.id}`);
     }
     if (asset.fallback && !isOneOf(asset.fallback, fallbackKinds)) {
       throw new Error(`Invalid fallback for museum asset: ${asset.id}`);
     }
+    resolveAssetFallback(asset);
     if (asset.status === 'approved' && !asset.productionFile?.trim()) {
       throw new Error(`Approved museum asset requires a production file: ${asset.id}`);
     }

@@ -6,6 +6,12 @@ import {
   type RuntimeMuseumScene
 } from '$lib/content/scene';
 import type { MuseumConnection, NavigationNodeData } from '$lib/types/museum';
+import { Vector3 } from 'three';
+import {
+  CAMERA_MOTION_TIMING,
+  createCameraMotion,
+  sampleCameraMotion
+} from './camera-motion';
 import { getCameraRoute } from './camera-route';
 
 const nodes: NavigationNodeData[] = [
@@ -123,6 +129,55 @@ describe('getCameraRoute', () => {
     });
     expect(route.positions[0]).not.toBe(nodes[1].position);
     expect(route.targets[0]).not.toBe(nodes[1].cameraTarget);
+  });
+
+  it('preserves two poses for a target-only connection between coincident eyes', () => {
+    const coincidentNodes: NavigationNodeData[] = [
+      {
+        ...nodes[0],
+        position: [3, 1, 3],
+        cameraTarget: [3, 1, 4]
+      },
+      {
+        ...nodes[1],
+        position: [3, 1, 3],
+        cameraTarget: [4, 1, 3]
+      }
+    ];
+    const graph = createNavigationGraph({
+      objects: [],
+      navigationNodes: coincidentNodes,
+      connections: [
+        {
+          id: 'coincident',
+          fromNodeId: 'a',
+          toNodeId: 'b',
+          clearance: 0.3,
+          positionWaypoints: [
+            [3, 1, 3],
+            [3, 1, 3]
+          ]
+        }
+      ]
+    });
+
+    const route = getCameraRoute('a', 'b', graph);
+    expect(route.positions).toEqual([
+      [3, 1, 3],
+      [3, 1, 3]
+    ]);
+    expect(route.targets).toEqual([
+      [3, 1, 4],
+      [4, 1, 3]
+    ]);
+
+    const motion = createCameraMotion(route);
+    const position = new Vector3();
+    const target = new Vector3();
+    expect(motion.durationSeconds).toBe(CAMERA_MOTION_TIMING.minDurationSeconds);
+    sampleCameraMotion(motion, 1, position, target);
+    expect(position.toArray()).toEqual([3, 1, 3]);
+    expect(target.toArray()).toEqual([4, 1, 3]);
   });
 
   it('throws when the injected graph is disconnected', () => {

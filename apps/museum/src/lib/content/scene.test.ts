@@ -21,6 +21,12 @@ describe('resolveSceneDocument', () => {
     expect(() => resolveSceneDocument(invalid)).toThrow(/Unknown museum asset/);
   });
 
+  it('rejects invalid scene-authoritative placement fallbacks', () => {
+    const invalid = JSON.parse(JSON.stringify(museumSceneDocument)) as MuseumSceneDocument;
+    (invalid.objects[0] as unknown as { fallback: string }).fallback = 'not-a-fallback';
+    expect(() => resolveSceneDocument(invalid)).toThrow(/Invalid fallback in scene object/);
+  });
+
   it('matches the frozen pre-migration runtime exactly', () => {
     const resolved = resolveSceneDocument(museumSceneDocument);
     const legacyObjectShape = resolved.objects.map(({ roomId: _roomId, ...placement }) => placement);

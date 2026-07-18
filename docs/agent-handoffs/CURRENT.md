@@ -1,18 +1,18 @@
 # Current Museum Agent Handoff
 
-- **Current completed phase:** Phase 4 — asset manifest and library migration.
-- **Branch / baseline commit:** `main` at `c7b3f69` (`phase 2`); Phases 3–3.5 changes may still be uncommitted.
-- **Latest handoff:** [`phase-4.md`](./phase-4.md)
-- **Prior handoff:** [`phase-3.6.md`](./phase-3.6.md)
-- **Verification:** 98/98 tests; check 0 errors / 0 warnings; build passed.
-- **Outstanding manual check:** interactive WebGL acceptance (right-panel grouping, folder auto-expand, rename focus/Save/Escape, pivot transforms, End drop, rigid Keep Group on Floor, F framing, focus-guarded shortcuts) — run in `/dev/museum-editor`. The in-app browser backend was unavailable during implementation.
-- **Next phase:** Phase 5 — placement creation and asset-library editor workflows.
+- **Current completed phase:** Phase 6 — camera editing and drift-free preview.
+- **Branch / baseline commit:** `main` at `f4324a4` (`phase 4`); Phase 5 and Phase 6 changes are uncommitted.
+- **Latest handoff:** [`phase-6.md`](./phase-6.md)
+- **Prior handoff:** [`phase-5.md`](./phase-5.md)
+- **Verification:** 173/173 tests; check 0 errors / 0 warnings; build passed; production `/museum` 200 and `/dev/museum-editor` 404; editor implementation absent from production chunks.
+- **Outstanding manual check:** interactive WebGL acceptance for the Phase 5 placement workflows and Phase 6 helper picking, persistent gizmo/orbit ownership, yawed-room camera editing, preview timing/hold/Stop/Escape, and repeated exact restoration. The in-app browser backend was unavailable during implementation.
+- **Next phase:** Phase 7 persistence/import/export and runtime document validation; broader architecture documentation remains Phase 8.
 
 ## Required Reading Order
 
-1. [`phase-4.md`](./phase-4.md)
-2. [`phase-3.6.md`](./phase-3.6.md)
-3. [`phase-3.5.md`](./phase-3.5.md)
-4. [`../../apps/museum/src/lib/content/assets.ts`](../../apps/museum/src/lib/content/assets.ts)
-5. [`../../apps/museum/src/lib/types/assets.ts`](../../apps/museum/src/lib/types/assets.ts)
+1. [`phase-6.md`](./phase-6.md)
+2. [`phase-5.md`](./phase-5.md)
+3. [`../../apps/museum/src/lib/editor/museum-editor.svelte.ts`](../../apps/museum/src/lib/editor/museum-editor.svelte.ts)
+4. [`../../apps/museum/src/lib/editor/EditorCameraRig.svelte`](../../apps/museum/src/lib/editor/EditorCameraRig.svelte)
+5. [`../../apps/museum/src/lib/museum/navigation/camera-motion.ts`](../../apps/museum/src/lib/museum/navigation/camera-motion.ts)
 6. [`../../apps/museum/src/lib/content/scene.ts`](../../apps/museum/src/lib/content/scene.ts)

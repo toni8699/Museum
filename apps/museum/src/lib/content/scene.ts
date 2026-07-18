@@ -1,5 +1,5 @@
 import rawMuseumSceneDocument from './museum-scene.json';
-import { getAssetById } from './assets';
+import { getAssetById, isSceneObjectFallback } from './assets';
 import { roomPoint } from './rooms';
 import type { AssetPlacement } from '$lib/types/assets';
 import type {
@@ -103,6 +103,9 @@ export function resolveSceneDocument(document: MuseumSceneDocument): RuntimeMuse
   for (const object of document.objects) {
     if (!getAssetById(object.assetId)) {
       throw new Error(`Unknown museum asset in scene object ${object.id}: ${object.assetId}`);
+    }
+    if (!isSceneObjectFallback(object.fallback)) {
+      throw new Error(`Invalid fallback in scene object ${object.id}: ${String(object.fallback)}`);
     }
   }
 

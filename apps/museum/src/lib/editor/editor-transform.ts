@@ -1,6 +1,7 @@
 import type { SceneObjectPlacement } from '$lib/content/scene';
 import type { Vec3 } from '$lib/types/museum';
 import type { Object3D } from 'three';
+import type { EditorCameraSelection } from './editor-selection';
 
 export type EditorTransformMode = 'translate' | 'rotate' | 'scale';
 
@@ -9,6 +10,47 @@ export type PlacementTransform = {
 	rotation: Vec3;
 	scale: number;
 };
+
+export type ActiveTransformTarget =
+	| { kind: 'placement'; key: string; object: Object3D }
+	| {
+			kind: 'camera';
+			key: string;
+			object: Object3D;
+			nodeId: string;
+			handle: EditorCameraSelection['handle'];
+	  }
+	| null;
+
+export function getActiveTransformTarget(input: {
+	previewActive: boolean;
+	pendingPlacement: boolean;
+	placementKey: string;
+	placementObject?: Object3D;
+	cameraSelection: EditorCameraSelection | null;
+	cameraObject?: Object3D;
+}): ActiveTransformTarget {
+	if (input.previewActive || input.pendingPlacement) return null;
+	if (input.cameraSelection) {
+		return input.cameraObject
+			? {
+					kind: 'camera',
+					key: `camera:${input.cameraSelection.nodeId}:${input.cameraSelection.handle}`,
+					object: input.cameraObject,
+					nodeId: input.cameraSelection.nodeId,
+					handle: input.cameraSelection.handle
+			  }
+			: null;
+	}
+	if (input.placementObject) {
+		return {
+			kind: 'placement',
+			key: `placement:${input.placementKey}`,
+			object: input.placementObject
+		};
+	}
+	return null;
+}
 
 export const MIN_PLACEMENT_SCALE = 0.01;
 const UNIT_SCALE_EPSILON = 1e-6;

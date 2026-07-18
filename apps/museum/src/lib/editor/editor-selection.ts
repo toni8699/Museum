@@ -8,12 +8,33 @@ export type EditorPlacementUserData = {
 	placementId: string;
 };
 
+export type EditorCameraHandle = 'position' | 'target';
+
+/** Ephemeral viewport tag applied to an eye or target helper root. */
+export type EditorCameraHandleUserData = {
+	editorEntity: 'camera-handle';
+	nodeId: string;
+	cameraHandle: EditorCameraHandle;
+};
+
+export type EditorCameraSelection = {
+	nodeId: string;
+	handle: EditorCameraHandle;
+};
+
 export type SelectionHitInfo = {
 	/** Effective opacity of the hit material (1 if unknown / non-mesh). */
 	opacity: number;
 	/** Climbed placement id, if any. */
 	placementId: string | null;
+	/** Climbed camera helper, if any. Absent on legacy/manual hit fixtures. */
+	cameraSelection?: EditorCameraSelection | null;
 };
+
+export type NormalSelectionResult =
+	| { action: 'select'; id: string }
+	| { action: 'select-camera'; selection: EditorCameraSelection }
+	| { action: 'deselect' };
 
 export function isEditorPlacementUserData(
 	value: unknown
@@ -23,12 +44,41 @@ export function isEditorPlacementUserData(
 	return data.editorEntity === 'placement' && typeof data.placementId === 'string';
 }
 
+export function isEditorCameraHandleUserData(
+	value: unknown
+): value is EditorCameraHandleUserData {
+	if (!value || typeof value !== 'object') return false;
+	const data = value as Record<string, unknown>;
+	return (
+		data.editorEntity === 'camera-handle' &&
+		typeof data.nodeId === 'string' &&
+		(data.cameraHandle === 'position' || data.cameraHandle === 'target')
+	);
+}
+
 /** Climb parents for `userData.editorEntity === 'placement'`. */
 export function findPlacementIdFromObject(object: Object3D | null): string | null {
 	let current: Object3D | null = object;
 	while (current) {
 		if (isEditorPlacementUserData(current.userData)) {
 			return current.userData.placementId;
+		}
+		current = current.parent;
+	}
+	return null;
+}
+
+/** Climb parents for `userData.editorEntity === 'camera-handle'`. */
+export function findCameraSelectionFromObject(
+	object: Object3D | null
+): EditorCameraSelection | null {
+	let current: Object3D | null = object;
+	while (current) {
+		if (isEditorCameraHandleUserData(current.userData)) {
+			return {
+				nodeId: current.userData.nodeId,
+				handle: current.userData.cameraHandle
+			};
 		}
 		current = current.parent;
 	}
@@ -59,7 +109,8 @@ export function getHitOpacity(object: Object3D, materialIndex?: number): number 
 export function selectionHitFromIntersection(hit: Intersection): SelectionHitInfo {
 	return {
 		opacity: getHitOpacity(hit.object, hit.face?.materialIndex),
-		placementId: findPlacementIdFromObject(hit.object)
+		placementId: findPlacementIdFromObject(hit.object),
+		cameraSelection: findCameraSelectionFromObject(hit.object)
 	};
 }
 
@@ -82,13 +133,18 @@ export function uniquePlacementIdsInOrder(hits: SelectionHitInfo[]): string[] {
 }
 
 /**
- * Normal click: first effective hit wins.
- * Placement ancestor → select id; otherwise deselect (locked / empty).
+ * Normal click: an effective camera helper wins over placement geometry.
+ * Otherwise the first effective hit keeps the existing placement/deselect rule.
  */
 export function resolveNormalSelection(
 	hits: SelectionHitInfo[]
-): { action: 'select'; id: string } | { action: 'deselect' } {
+): NormalSelectionResult {
 	const effective = filterEffectiveHits(hits);
+	const cameraHit = effective.find((hit) => hit.cameraSelection);
+	if (cameraHit?.cameraSelection) {
+		return { action: 'select-camera', selection: cameraHit.cameraSelection };
+	}
+
 	const first = effective[0];
 	if (!first) return { action: 'deselect' };
 	if (first.placementId) return { action: 'select', id: first.placementId };

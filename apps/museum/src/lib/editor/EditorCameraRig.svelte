@@ -1,22 +1,42 @@
 <script lang="ts">
+	import { onDestroy } from 'svelte';
+	import { getNode } from '$lib/content/scene';
+	import type { NavigationGraph } from '$lib/content/scene';
 	import { getRoom } from '$lib/content/rooms';
+	import {
+		createCameraMotion,
+		sampleCameraMotion,
+		type CameraMotion
+	} from '$lib/museum/navigation/camera-motion';
+	import { getCameraRoute } from '$lib/museum/navigation/camera-route';
 	import { T, useTask } from '@threlte/core';
 	import { OrbitControls } from '@threlte/extras';
-	import { Box3, MOUSE, type PerspectiveCamera } from 'three';
+	import { Box3, MOUSE, Vector3, type PerspectiveCamera } from 'three';
 	import type { OrbitControls as ThreeOrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 	import {
 		createEditorBoundsCameraFrame,
+		createEditorNodeCameraFrame,
 		createEditorPanSpeed,
 		createEditorRoomCameraFrame,
+		captureEditorOrbitPose,
 		EDITOR_CAMERA_FOV,
 		EDITOR_NEUTRAL_CAMERA_POSITION,
 		EDITOR_NEUTRAL_CAMERA_TARGET,
 		EDITOR_NEUTRAL_MAX_DISTANCE,
-		EDITOR_NEUTRAL_MIN_DISTANCE
+		EDITOR_NEUTRAL_MIN_DISTANCE,
+		prepareEditorCameraPreview,
+		restoreEditorOrbitPose,
+		type EditorOrbitPose
 	} from './editor-camera';
 	import type { MuseumEditorStore } from './museum-editor.svelte';
 
-	let { store }: { store: MuseumEditorStore } = $props();
+	let {
+		store,
+		graph
+	}: {
+		store: MuseumEditorStore;
+		graph: NavigationGraph;
+	} = $props();
 
 	const editorMouseButtons = {
 		LEFT: MOUSE.ROTATE,
@@ -26,18 +46,144 @@
 
 	let camera = $state<PerspectiveCamera>();
 	let orbitControls = $state<ThreeOrbitControls>();
+	let ownedCamera: PerspectiveCamera | undefined;
+	let ownedOrbitControls: ThreeOrbitControls | undefined;
+	// This also drives Threlte's internal OrbitControls update task. Mutating only
+	// controls.enableDamping would leave that task running during direct preview.
+	let orbitDampingTaskEnabled = $state(true);
+	let orbitPose: EditorOrbitPose | null = null;
+	let activePreviewRunId: number | null = null;
+	let activeMotion: CameraMotion | null = null;
+	const previewPosition = new Vector3();
+	const previewTarget = new Vector3();
+	const framedNodePosition = new Vector3();
+	const framedNodeTarget = new Vector3();
+
+	function applyPreviewPose(currentCamera: PerspectiveCamera) {
+		currentCamera.position.copy(previewPosition);
+		currentCamera.lookAt(previewTarget);
+	}
+
+	function clearPreviewRuntime() {
+		activePreviewRunId = null;
+		activeMotion = null;
+	}
+
+	function restoreOrbitIfNeeded() {
+		const currentCamera = camera ?? ownedCamera;
+		const controls = orbitControls ?? ownedOrbitControls;
+		if (!orbitPose) {
+			clearPreviewRuntime();
+			return true;
+		}
+		if (!currentCamera || !controls) return false;
+		const pose = orbitPose;
+		orbitDampingTaskEnabled = false;
+		restoreEditorOrbitPose(currentCamera, controls, pose);
+		orbitDampingTaskEnabled = pose.enableDamping;
+		orbitPose = null;
+		clearPreviewRuntime();
+		return true;
+	}
 
 	$effect(() => {
-		void store.cameraFocusVersion;
-		void store.registryVersion;
+		if (camera) ownedCamera = camera;
+		if (orbitControls) ownedOrbitControls = orbitControls;
+	});
+
+	$effect(() => {
+		store.setCameraPreviewRestorer(restoreOrbitIfNeeded);
+		return () => store.setCameraPreviewRestorer(null);
+	});
+
+	$effect(() => {
+		const preview = store.cameraPreview;
 		const currentCamera = camera;
 		const controls = orbitControls;
-		const roomId = store.selectedRoomId;
-		if (!currentCamera || !controls || !roomId) return;
+		if (!currentCamera || !controls) return;
+
+		if (!preview) {
+			restoreOrbitIfNeeded();
+			return;
+		}
+		if (activePreviewRunId === preview.runId) return;
+
+		try {
+			orbitPose ??= captureEditorOrbitPose(currentCamera, controls);
+			orbitDampingTaskEnabled = false;
+			prepareEditorCameraPreview(currentCamera, controls);
+			activePreviewRunId = preview.runId;
+
+			if (preview.kind === 'node') {
+				const node = getNode(preview.nodeId, graph);
+				previewPosition.set(...node.position);
+				previewTarget.set(...node.cameraTarget);
+				activeMotion = null;
+				applyPreviewPose(currentCamera);
+				return;
+			}
+
+			const route = getCameraRoute(preview.fromNodeId, preview.toNodeId, graph);
+			activeMotion = createCameraMotion(route);
+			const startsComplete = activeMotion.durationSeconds === 0;
+			sampleCameraMotion(
+				activeMotion,
+				startsComplete ? 1 : 0,
+				previewPosition,
+				previewTarget
+			);
+			applyPreviewPose(currentCamera);
+			store.markCameraPreviewStarted(preview.runId, performance.now());
+			if (startsComplete) store.completeCameraPreview(preview.runId);
+		} catch (error) {
+			store.setStatusMessage(
+				error instanceof Error ? error.message : 'Camera preview could not start'
+			);
+			store.stopCameraPreview();
+		}
+	});
+
+	$effect(() => {
+		const cameraFocusVersion = store.cameraFocusVersion;
+		void store.registryVersion;
+		void store.pendingFrameVersion;
+		void store.cameraPreview;
+		const currentCamera = camera;
+		const controls = orbitControls;
+		if (!currentCamera || !controls || store.cameraPreview) return;
 
 		let frame = null;
-		if (store.cameraFocusKind === 'room') {
-			frame = createEditorRoomCameraFrame(getRoom(roomId));
+		const pendingFrameIds = [...store.pendingFramePlacementIds];
+		if (pendingFrameIds.length > 0) {
+			const roots = store.getPlacementRoots(pendingFrameIds);
+			if (roots.length !== pendingFrameIds.length) return;
+			const bounds = new Box3();
+			for (const root of roots) {
+				root.updateWorldMatrix(true, true);
+				bounds.expandByObject(root);
+			}
+			frame = createEditorBoundsCameraFrame(
+				bounds,
+				currentCamera.position,
+				controls.target,
+				{ fovDegrees: currentCamera.fov, aspect: currentCamera.aspect }
+			);
+		} else if (
+			store.cameraFocusKind === 'navigation-node' &&
+			store.cameraFocusNodeId
+		) {
+			const node = getNode(store.cameraFocusNodeId, graph);
+			framedNodePosition.set(...node.position);
+			framedNodeTarget.set(...node.cameraTarget);
+			frame = createEditorNodeCameraFrame(
+				framedNodePosition,
+				framedNodeTarget,
+				currentCamera.position,
+				controls.target,
+				{ fovDegrees: currentCamera.fov, aspect: currentCamera.aspect }
+			);
+		} else if (store.cameraFocusKind === 'room' && store.selectedRoomId) {
+			frame = createEditorRoomCameraFrame(getRoom(store.selectedRoomId));
 		} else if (store.cameraFocusKind) {
 			const ids =
 				store.cameraFocusKind === 'placement' && store.cameraFocusPlacementId
@@ -64,15 +210,49 @@
 		controls.minDistance = frame.minDistance;
 		controls.maxDistance = frame.maxDistance;
 		controls.update();
+		if (pendingFrameIds.length > 0) store.consumePendingFrame(pendingFrameIds);
+		else store.consumeCameraFocus(cameraFocusVersion);
 	});
 
 	useTask(() => {
 		const currentCamera = camera;
 		const controls = orbitControls;
 		if (!currentCamera || !controls) return;
+
+		const preview = store.cameraPreview;
+		if (preview && activePreviewRunId === preview.runId) {
+			if (preview.kind === 'node') {
+				applyPreviewPose(currentCamera);
+				return;
+			}
+			if (!activeMotion || preview.startedAtMs === null) return;
+
+			const progress =
+				activeMotion.durationSeconds === 0
+					? 1
+					: (performance.now() - preview.startedAtMs) /
+						(1000 * activeMotion.durationSeconds);
+			if (preview.completed || progress >= 1) {
+				sampleCameraMotion(activeMotion, 1, previewPosition, previewTarget);
+				applyPreviewPose(currentCamera);
+				if (!preview.completed) store.completeCameraPreview(preview.runId);
+				return;
+			}
+
+			sampleCameraMotion(activeMotion, progress, previewPosition, previewTarget);
+			applyPreviewPose(currentCamera);
+			return;
+		}
+
 		controls.panSpeed = createEditorPanSpeed(
 			currentCamera.position.distanceTo(controls.target)
 		);
+	});
+
+	onDestroy(() => {
+		const restored = restoreOrbitIfNeeded();
+		if (restored && store.cameraPreview) store.stopCameraPreview();
+		store.setCameraPreviewRestorer(null);
 	});
 </script>
 
@@ -86,7 +266,7 @@
 />
 <OrbitControls
 	bind:ref={orbitControls}
-	enableDamping
+	enableDamping={orbitDampingTaskEnabled}
 	enablePan={store.cameraPanEnabled}
 	mouseButtons={editorMouseButtons}
 	target={EDITOR_NEUTRAL_CAMERA_TARGET}

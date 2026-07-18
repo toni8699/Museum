@@ -3,7 +3,7 @@
   import { T } from '@threlte/core';
   import { useGltf, useMeshopt } from '@threlte/extras';
   import { Box3, type Object3D } from 'three';
-  import { getMuseumAsset } from '$lib/content/assets';
+  import { getMuseumAsset, resolveAssetFallback } from '$lib/content/assets';
   import type {
     AssetId,
     AssetLoadStatus,
@@ -57,15 +57,9 @@
 
   const loader = useGltf({ meshoptDecoder: useMeshopt() });
   const asset = $derived(getMuseumAsset(assetId));
-  const fallbackKind = $derived(
-    fallback ??
-      asset.fallback ??
-      (asset.category === 'book'
-        ? 'books'
-        : asset.category === 'decor'
-          ? 'rug'
-          : asset.category)
-  );
+  // Placement fallback is authoritative. Manifest resolution is compatibility-only
+  // for preview/renderer callers that do not provide a scene placement fallback.
+  const fallbackKind = $derived(fallback ?? resolveAssetFallback(asset));
 
   let instance = $state<Object3D>();
   let rawBounds = $state<Box3>();

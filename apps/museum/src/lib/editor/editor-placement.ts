@@ -43,6 +43,34 @@ export function isEditorPlaceableFloor(object: Object3D): boolean {
 	);
 }
 
+export function getEditorPlaceableFloor(
+	object: Object3D,
+	roomId?: string
+): Object3D | null {
+	let current: Object3D | null = object;
+	while (current) {
+		if (isEditorPlaceableFloor(current)) {
+			const surface = current.userData.editorSurface as EditorSurfaceUserData;
+			if (!roomId || surface.roomId === roomId) return current;
+		}
+		current = current.parent;
+	}
+	return null;
+}
+
+/** Intersections are already nearest-first; accept only exact semantic floor metadata. */
+export function findPlaceableFloorIntersection(
+	intersections: Intersection[],
+	roomId: string
+): FloorHit | null {
+	for (const hit of intersections) {
+		const floor = getEditorPlaceableFloor(hit.object, roomId);
+		if (!floor) continue;
+		return { point: hit.point.clone(), distance: hit.distance, object: floor };
+	}
+	return null;
+}
+
 export function getPlacementWorldBounds(root: Object3D): Box3 {
 	root.updateWorldMatrix(true, true);
 	return new Box3().setFromObject(root);
@@ -92,12 +120,7 @@ function isDescendantOf(object: Object3D, ancestor: Object3D) {
 }
 
 function climbToPlaceableFloor(object: Object3D): Object3D | null {
-	let current: Object3D | null = object;
-	while (current) {
-		if (isEditorPlaceableFloor(current)) return current;
-		current = current.parent;
-	}
-	return null;
+	return getEditorPlaceableFloor(object);
 }
 
 function collectRayOrigins(bounds: Box3): Vector3[] {

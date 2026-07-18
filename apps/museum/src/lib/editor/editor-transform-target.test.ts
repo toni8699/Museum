@@ -1,0 +1,54 @@
+import { Object3D } from 'three';
+import { describe, expect, it } from 'vitest';
+import { getActiveTransformTarget } from './editor-transform';
+
+describe('getActiveTransformTarget', () => {
+	const placementObject = new Object3D();
+	const cameraObject = new Object3D();
+	const base = {
+		previewActive: false,
+		pendingPlacement: false,
+		placementKey: 'chair',
+		placementObject,
+		cameraSelection: null,
+		cameraObject: undefined
+	};
+
+	it('resolves a placement pivot only when no camera selection owns the gizmo', () => {
+		expect(getActiveTransformTarget(base)).toEqual({
+			kind: 'placement',
+			key: 'placement:chair',
+			object: placementObject
+		});
+	});
+
+	it('resolves the selected camera marker without inheriting placement state', () => {
+		expect(
+			getActiveTransformTarget({
+				...base,
+				cameraSelection: { nodeId: 'paris-seat', handle: 'target' },
+				cameraObject
+			})
+		).toEqual({
+			kind: 'camera',
+			key: 'camera:paris-seat:target',
+			object: cameraObject,
+			nodeId: 'paris-seat',
+			handle: 'target'
+		});
+	});
+
+	it('does not fall back to a stale placement while a camera helper mounts', () => {
+		expect(
+			getActiveTransformTarget({
+				...base,
+				cameraSelection: { nodeId: 'paris-seat', handle: 'position' }
+			})
+		).toBeNull();
+	});
+
+	it('detaches every target for preview and pending placement modes', () => {
+		expect(getActiveTransformTarget({ ...base, previewActive: true })).toBeNull();
+		expect(getActiveTransformTarget({ ...base, pendingPlacement: true })).toBeNull();
+	});
+});

@@ -1,17 +1,6 @@
-import type { MuseumRoomId, Vec3 } from '$lib/types/museum';
+import type { Vec3 } from '$lib/types/museum';
 
-export type AssetId =
-  | 'paris-grand-piano'
-  | 'paris-salon-chair'
-  | 'paris-salon-sofa'
-  | 'paris-salon-table'
-  | 'paris-chandelier'
-  | 'paris-writing-desk'
-  | 'paris-table-lamp'
-  | 'paris-portrait-frame'
-  | 'paris-book'
-  | 'paris-grandfather-clock'
-  | 'paris-salon-rug';
+export type AssetId = string;
 
 export type AssetCategory =
   | 'piano'
@@ -47,7 +36,7 @@ export type MuseumAsset = {
   name: string;
   category: AssetCategory;
   sourceFile?: string;
-  productionFile: string;
+  productionFile?: string;
   sourceUrl?: string;
   creator?: string;
   license: string;
@@ -58,7 +47,6 @@ export type MuseumAsset = {
   castShadow: boolean;
   receiveShadow: boolean;
   status: AssetStatus;
-  rooms: MuseumRoomId[];
   notes?: string;
 };
 

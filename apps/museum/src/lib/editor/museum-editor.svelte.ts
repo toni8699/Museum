@@ -326,6 +326,7 @@ export class MuseumEditorStore {
 		(this.document.clusters ??= []).push(cluster);
 		if (!this.commitDocumentTransaction()) return null;
 		this.selectCluster(cluster.id);
+		this.setStatusMessage(`Grouped ${memberIds.length} objects`);
 		return cluster.id;
 	}
 

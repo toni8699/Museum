@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
+	import { getMuseumAsset } from '$lib/content/assets';
 	import { museumRooms } from '$lib/content/rooms';
 	import {
 		createMuseumEditorStore,
@@ -9,12 +10,15 @@
 	import EditorPlacementInspector from './EditorPlacementInspector.svelte';
 	import EditorTransformInspector from './EditorTransformInspector.svelte';
 	import EditorViewport from './EditorViewport.svelte';
+	import { formatPlacementLabel } from './editor-outliner';
 
 	const store = createMuseumEditorStore();
 	let parisOpen = $state(false);
 	let openClusterIds = $state<string[]>([]);
 	let outlinerElement = $state<HTMLElement>();
 	let viewportElement = $state<HTMLElement>();
+	let clusterNameInput = $state<HTMLInputElement>();
+	let clusterNameDraft = $state('');
 
 	const selectedObject = $derived(store.selectedObject);
 	const singleEditableObject = $derived(
@@ -34,6 +38,18 @@
 	const ungroupedParisObjects = $derived(
 		parisObjects.filter((object) => !clusteredPlacementIds.has(object.id))
 	);
+	const selectionContainsClusteredPlacement = $derived(
+		store.selectedPlacementIds.some((id) => clusteredPlacementIds.has(id))
+	);
+	const canGroupSelection = $derived(
+		store.selectedPlacementIds.length >= 2 &&
+		!store.selectedClusterId &&
+		!selectionContainsClusteredPlacement
+	);
+
+	$effect(() => {
+		clusterNameDraft = store.selectedCluster?.name ?? '';
+	});
 
 	function toggleParis() {
 		store.selectRoom('paris');
@@ -61,6 +77,55 @@
 		openClusterIds = openClusterIds.includes(id)
 			? openClusterIds.filter((clusterId) => clusterId !== id)
 			: [...openClusterIds, id];
+	}
+
+	async function groupSelection() {
+		const clusterId = store.createCluster();
+		if (!clusterId) return;
+
+		parisOpen = true;
+		if (!openClusterIds.includes(clusterId)) {
+			openClusterIds = [...openClusterIds, clusterId];
+		}
+		store.focusSelection();
+
+		await tick();
+		if (store.selectedClusterId !== clusterId) return;
+		clusterNameInput?.focus();
+		clusterNameInput?.select();
+	}
+
+	function saveClusterName() {
+		const cluster = store.selectedCluster;
+		if (!cluster) return;
+		const nextName = clusterNameDraft.trim();
+		if (!nextName) {
+			store.setStatusMessage('Cluster name cannot be empty');
+			clusterNameInput?.focus();
+			return;
+		}
+		if (nextName === cluster.name) return;
+		if (store.renameCluster(cluster.id, nextName)) {
+			clusterNameDraft = nextName;
+			store.setStatusMessage(`Renamed cluster to ${nextName}`);
+		}
+	}
+
+	function ungroupSelection() {
+		const cluster = store.selectedCluster;
+		if (!cluster || !store.ungroupCluster(cluster.id)) return;
+		openClusterIds = openClusterIds.filter((id) => id !== cluster.id);
+		store.setStatusMessage(`Ungrouped ${cluster.name}`);
+	}
+
+	function onClusterNameKeyDown(event: KeyboardEvent) {
+		if (event.key !== 'Escape') return;
+		const cluster = store.selectedCluster;
+		if (!cluster) return;
+		event.preventDefault();
+		event.stopPropagation();
+		clusterNameDraft = cluster.name;
+		clusterNameInput?.select();
 	}
 
 	function editorOwnsReservedShortcuts() {
@@ -93,8 +158,8 @@
 			} else if (modifier && key === 'g' && editorOwnsReservedShortcuts()) {
 				event.preventDefault();
 				event.stopPropagation();
-				if (event.shiftKey) store.ungroupCluster();
-				else store.createCluster();
+				if (event.shiftKey) ungroupSelection();
+				else void groupSelection();
 			} else if (modifier && key === 'a' && editorOwnsReservedShortcuts()) {
 				event.preventDefault();
 				event.stopPropagation();
@@ -124,9 +189,13 @@
 
 		<section>
 			<h2>Rooms</h2>
-			<ul class="rooms">
+			<ul class="rooms" role="tree" aria-label="Museum rooms and objects">
 				{#each museumRooms as room (room.id)}
-					<li>
+					<li
+						role="treeitem"
+						aria-expanded={room.id === 'paris' ? parisOpen : undefined}
+						aria-selected={store.selectedRoomId === room.id}
+					>
 						{#if room.id === 'paris'}
 							<button
 								type="button"
@@ -143,9 +212,14 @@
 							</button>
 
 							{#if parisOpen}
-								<ul class="objects" aria-label="Paris Salon objects">
+								<ul class="objects" role="group" aria-label="Paris Salon objects">
 									{#each parisClusters as cluster (cluster.id)}
-										<li class="cluster-item">
+										<li
+											class="cluster-item"
+											role="treeitem"
+											aria-expanded={openClusterIds.includes(cluster.id)}
+											aria-selected={store.selectedClusterId === cluster.id}
+										>
 											<div class="cluster-line">
 												<button
 													type="button"
@@ -162,25 +236,33 @@
 													class:selected={store.selectedClusterId === cluster.id}
 													onclick={() => selectCluster(cluster.id)}
 												>
-													<span>{cluster.name}</span>
+													<span class="cluster-title">
+														<span class="folder-icon" aria-hidden="true"></span>
+														<span>{cluster.name}</span>
+													</span>
 													<span class="meta">{cluster.memberIds.length} objects</span>
 												</button>
 											</div>
 											{#if openClusterIds.includes(cluster.id)}
-												<ul class="cluster-members">
+												<ul class="cluster-members" role="group">
 													{#each cluster.memberIds as memberId (memberId)}
 														{@const object = parisObjects.find((candidate) => candidate.id === memberId)}
 														{#if object}
-															<li class="member-line">
+															<li
+																class="member-line tree-child"
+																role="treeitem"
+																aria-selected={store.selectedPlacementIds.includes(object.id)}
+															>
 																<button
 																	type="button"
 																	class="object-row"
 																	class:selected={store.selectedPlacementIds.includes(object.id)}
 																	onclick={(event) => selectObject(object.id, event)}
 																>
-																	<span class="id">{object.id}</span>
+																	<span class="placement-name">{formatPlacementLabel(object.id)}</span>
+																	<span class="meta">{formatPlacementLabel(getMuseumAsset(object.assetId).category)}</span>
 																</button>
-																<button class="mini-action" type="button" aria-label={`Remove ${object.id} from ${cluster.name}`} onclick={() => store.removeMemberFromCluster(cluster.id, object.id)}>−</button>
+																<button class="mini-action" type="button" aria-label={`Remove ${formatPlacementLabel(object.id)} from ${cluster.name}`} onclick={() => store.removeMemberFromCluster(cluster.id, object.id)}>−</button>
 															</li>
 														{/if}
 													{/each}
@@ -189,7 +271,10 @@
 										</li>
 									{/each}
 									{#each ungroupedParisObjects as object (object.id)}
-										<li>
+										<li
+											role="treeitem"
+											aria-selected={store.selectedPlacementIds.includes(object.id)}
+										>
 											<div class="member-line">
 												<button
 													type="button"
@@ -197,20 +282,16 @@
 													class:selected={store.selectedPlacementIds.includes(object.id)}
 													onclick={(event) => selectObject(object.id, event)}
 												>
-													<span class="id">{object.id}</span>
-													<span class="meta">{object.assetId}</span>
+													<span class="placement-name">{formatPlacementLabel(object.id)}</span>
+													<span class="meta">{formatPlacementLabel(getMuseumAsset(object.assetId).category)}</span>
 												</button>
 												{#if store.selectedClusterId}
-													<button class="mini-action" type="button" aria-label={`Add ${object.id} to selected cluster`} onclick={() => store.addMemberToCluster(store.selectedClusterId!, object.id)}>+</button>
+													<button class="mini-action" type="button" aria-label={`Add ${formatPlacementLabel(object.id)} to selected cluster`} onclick={() => store.addMemberToCluster(store.selectedClusterId!, object.id)}>+</button>
 												{/if}
 											</div>
 										</li>
 									{/each}
 								</ul>
-								<div class="cluster-actions">
-									<button type="button" disabled={store.selectedPlacementIds.length < 2 || Boolean(store.selectedClusterId)} onclick={() => store.createCluster()}>Create cluster</button>
-									<button type="button" disabled={!store.selectedClusterId} onclick={() => store.ungroupCluster()}>Ungroup</button>
-								</div>
 							{/if}
 						{:else}
 							<div class="room-row placeholder" aria-disabled="true">
@@ -255,12 +336,65 @@
 			{/if}
 		</header>
 
-		{#if store.selectedCluster}
-			<section class="selection" aria-label="Cluster selection">
-				<label class="rename"><span>Cluster name</span><input value={store.selectedCluster.name} onchange={(event) => store.renameCluster(store.selectedCluster!.id, event.currentTarget.value)} /></label>
-				<button type="button" class="deselect" onclick={() => store.ungroupCluster()}>Ungroup cluster</button>
-			</section>
-		{:else if store.selectedPlacementIds.length > 1}
+		<section class="grouping" aria-label="Group selection">
+			<div class="section-heading">
+				<h2>Group selection</h2>
+				{#if store.selectedCluster}<span class="grouped-badge">Grouped</span>{/if}
+			</div>
+
+			{#if store.selectedCluster}
+				<p class="group-summary">
+					<strong>{store.selectedCluster.name}</strong>
+					<span>{store.selectedCluster.memberIds.length} objects in this cluster</span>
+				</p>
+				{#key store.selectedCluster.id}
+					<form class="rename-form" onsubmit={(event) => { event.preventDefault(); saveClusterName(); }}>
+						<label class="rename">
+							<span>Cluster name</span>
+							<input
+								bind:this={clusterNameInput}
+								bind:value={clusterNameDraft}
+								aria-label="Cluster name"
+								onkeydown={onClusterNameKeyDown}
+							/>
+						</label>
+						<div class="group-actions">
+							<button
+								type="submit"
+								class="primary-action"
+								disabled={!clusterNameDraft.trim() || clusterNameDraft.trim() === store.selectedCluster.name}
+							>Save name</button>
+							<button type="button" class="danger-action" onclick={ungroupSelection}>Ungroup</button>
+						</div>
+					</form>
+				{/key}
+			{:else}
+				<p class="group-hint" id="group-selection-hint">
+					{#if selectionContainsClusteredPlacement}
+						Selected objects must be ungrouped before creating another cluster.
+					{:else if store.selectedPlacementIds.length === 0}
+						Select at least two objects to create a cluster.
+					{:else if store.selectedPlacementIds.length === 1}
+						Select one more object to create a cluster.
+					{:else}
+						Ready to create a folder-style cluster from this selection.
+					{/if}
+				</p>
+				<button
+					type="button"
+					class="group-button"
+					disabled={!canGroupSelection}
+					aria-describedby="group-selection-hint"
+					onclick={() => void groupSelection()}
+				>
+					{store.selectedPlacementIds.length >= 2
+						? `Group ${store.selectedPlacementIds.length} objects`
+						: 'Group selection'}
+				</button>
+			{/if}
+		</section>
+
+		{#if !store.selectedCluster && store.selectedPlacementIds.length > 1}
 			<section class="selection" aria-label="Multiple selection">
 				<p>{store.selectedPlacementIds.length} objects selected. Numeric transforms are available for a single object.</p>
 				<button type="button" class="deselect" onclick={() => store.deselect()}>Clear selection</button>
@@ -338,19 +472,23 @@
 	.cluster-item, .cluster-members { display: flex; flex-direction: column; gap: 0.25rem; }
 	.cluster-line, .member-line { display: flex; align-items: stretch; gap: 0.25rem; }
 	.cluster-row { flex: 1; }
-	.cluster-members { margin-left: 1.1rem; padding-left: 0.45rem; border-left: 1px solid #36323a; }
-	.chevron-button, .mini-action, .cluster-actions button { border: 1px solid #3a3a46; border-radius: 0.3rem; background: #1a1a22; color: #f4efe4; cursor: pointer; }
+	.cluster-title { display: flex; align-items: center; gap: 0.42rem; font-weight: 620; }
+	.folder-icon { position: relative; display: inline-block; width: 0.9rem; height: 0.62rem; flex: 0 0 auto; margin-top: 0.12rem; border-radius: 0.12rem; background: #d6b35f; }
+	.folder-icon::before { content: ''; position: absolute; left: 0.08rem; top: -0.18rem; width: 0.38rem; height: 0.22rem; border-radius: 0.1rem 0.1rem 0 0; background: #d6b35f; }
+	.cluster-members { margin-left: 1.1rem; padding-left: 0.7rem; border-left: 1px solid #4a4438; }
+	.tree-child { position: relative; }
+	.tree-child::before { content: ''; position: absolute; left: -0.72rem; top: 50%; width: 0.55rem; border-top: 1px solid #4a4438; }
+	.chevron-button, .mini-action { border: 1px solid #3a3a46; border-radius: 0.3rem; background: #1a1a22; color: #f4efe4; cursor: pointer; }
 	.chevron-button { width: 1.7rem; padding: 0; }
 	.mini-action { width: 1.8rem; flex: 0 0 1.8rem; }
-	.cluster-actions { display: flex; gap: 0.35rem; margin-top: 0.45rem; }
-	.cluster-actions button { padding: 0.38rem 0.5rem; font: inherit; font-size: 0.7rem; }
-	.cluster-actions button:disabled { opacity: 0.4; cursor: default; }
+	.placement-name { font-size: 0.76rem; font-weight: 570; }
 	.id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.75rem; }
 	.center { min-width: 0; min-height: 0; outline: none; }
 	.center:focus-visible { box-shadow: inset 0 0 0 1px #d6b35f; }
 	.back { margin-top: auto; color: #d6c7a8; font-size: 0.85rem; text-decoration: none; }
 	.back:hover { text-decoration: underline; }
 	.inspector-title { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+	.section-heading { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
 	.history, .presets { display: flex; gap: 0.35rem; }
 	.history button, .presets button, .deselect, .camera-controls button { padding: 0.38rem 0.5rem; border: 1px solid #3a3a46; border-radius: 0.32rem; background: #1a1a22; color: #f4efe4; font: inherit; font-size: 0.72rem; cursor: pointer; }
 	.history button:disabled { opacity: 0.4; cursor: default; }
@@ -359,8 +497,22 @@
 	.selection dt { color: #8f8a82; font-size: 0.67rem; text-transform: uppercase; letter-spacing: 0.04em; }
 	.selection dd { margin: 0; font-size: 0.8rem; }
 	.selection p { margin: 0; color: #a8a29a; font-size: 0.75rem; line-height: 1.4; }
+	.grouping { padding: 0.85rem; border: 1px solid #34313a; border-radius: 0.45rem; background: #17171f; }
+	.grouped-badge { padding: 0.18rem 0.42rem; border: 1px solid #8d753c; border-radius: 999px; background: #2a2618; color: #f4dc9b; font-size: 0.65rem; font-weight: 650; letter-spacing: 0.04em; text-transform: uppercase; }
+	.group-summary { display: flex; flex-direction: column; gap: 0.12rem; margin: 0; }
+	.group-summary strong { font-size: 0.82rem; }
+	.group-summary span, .group-hint { color: #a8a29a; font-size: 0.72rem; line-height: 1.4; }
+	.group-hint { margin: 0; }
+	.rename-form { display: flex; flex-direction: column; gap: 0.55rem; }
 	.rename { display: flex; flex-direction: column; gap: 0.3rem; color: #d6d0c4; font-size: 0.75rem; }
 	.rename input { padding: 0.4rem; border: 1px solid #3a3a46; border-radius: 0.3rem; background: #1a1a22; color: #f4efe4; font: inherit; }
+	.rename input:focus { outline: 1px solid #d6b35f; border-color: #d6b35f; }
+	.group-actions { display: flex; gap: 0.4rem; }
+	.group-button, .primary-action, .danger-action { padding: 0.46rem 0.58rem; border: 1px solid #4a4438; border-radius: 0.32rem; background: #242018; color: #fff2c7; font: inherit; font-size: 0.73rem; cursor: pointer; }
+	.group-button { align-self: flex-start; }
+	.primary-action { border-color: #8d753c; }
+	.danger-action { background: #21191b; color: #efc7c7; }
+	.group-button:disabled, .primary-action:disabled { opacity: 0.4; cursor: default; }
 	.deselect { align-self: flex-start; }
 	.camera-controls, .lighting { margin-top: 0.4rem; gap: 0.7rem; border-top: 1px solid #2a2a33; padding-top: 0.85rem; }
 	.camera-controls p { margin: 0; color: #a8a29a; font-size: 0.75rem; line-height: 1.4; }

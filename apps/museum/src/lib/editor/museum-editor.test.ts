@@ -217,6 +217,7 @@ describe('MuseumEditorStore clusters', () => {
 		expect(store.selectedClusterId).toBe(clusterId);
 		expect(store.selectedPlacementIds).toEqual([a.id, b.id]);
 		expect(store.clusters[0]?.name).toBe('Salon pair');
+		expect(store.statusMessage).toBe('Grouped 2 objects');
 
 		expect(store.renameCluster(clusterId!, 'Reading pair')).toBe(true);
 		expect(store.clusters[0]?.name).toBe('Reading pair');
@@ -229,6 +230,22 @@ describe('MuseumEditorStore clusters', () => {
 		expect(store.clusters).toHaveLength(0);
 		expect(store.undo()).toBe(true);
 		expect(store.clusters[0]?.memberIds).toEqual([a.id, b.id]);
+	});
+
+	it('rejects empty and unchanged rename attempts without adding history', () => {
+		const store = createMuseumEditorStore();
+		const [a, b] = store.document.objects;
+		store.selectRoom('paris');
+		store.selectPlacements([a.id, b.id]);
+		const clusterId = store.createCluster('Piano grouping')!;
+
+		expect(store.renameCluster(clusterId, '   ')).toBe(false);
+		expect(store.renameCluster(clusterId, 'Piano grouping')).toBe(false);
+		expect(store.clusters[0]?.name).toBe('Piano grouping');
+
+		// The only history entry is cluster creation; invalid/no-op renames add none.
+		expect(store.undo()).toBe(true);
+		expect(store.clusters).toHaveLength(0);
 	});
 
 	it('clears cluster identity when a member is toggled and reconciles deleted clusters on undo', () => {

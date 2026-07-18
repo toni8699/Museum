@@ -10,6 +10,17 @@ import {
 } from './scene';
 
 describe('resolveSceneDocument', () => {
+  it('rejects unknown placement asset IDs at the scene boundary', () => {
+    const invalid = {
+      ...museumSceneDocument,
+      objects: museumSceneDocument.objects.map((object, index) =>
+        index === 0 ? { ...object, assetId: 'missing-asset' } : object
+      )
+    };
+
+    expect(() => resolveSceneDocument(invalid)).toThrow(/Unknown museum asset/);
+  });
+
   it('matches the frozen pre-migration runtime exactly', () => {
     const resolved = resolveSceneDocument(museumSceneDocument);
     const legacyObjectShape = resolved.objects.map(({ roomId: _roomId, ...placement }) => placement);

@@ -1,4 +1,5 @@
 import rawMuseumSceneDocument from './museum-scene.json';
+import { getAssetById } from './assets';
 import { roomPoint } from './rooms';
 import type { AssetPlacement } from '$lib/types/assets';
 import type {
@@ -98,6 +99,12 @@ export function resolveSceneDocument(document: MuseumSceneDocument): RuntimeMuse
   assertUniqueIds('scene cluster', clusters.map((cluster) => cluster.id));
   assertUniqueIds('navigation node', document.navigationNodes.map((node) => node.id));
   assertUniqueIds('connection', document.connections.map((connection) => connection.id));
+
+  for (const object of document.objects) {
+    if (!getAssetById(object.assetId)) {
+      throw new Error(`Unknown museum asset in scene object ${object.id}: ${object.assetId}`);
+    }
+  }
 
   const objectById = new Map(document.objects.map((object) => [object.id, object]));
   const clusteredMemberIds = new Set<string>();

@@ -80,7 +80,7 @@
       (asset.status === 'approved' || asset.status === 'testing');
     const url = asset.productionFile;
 
-    if (!shouldLoad) {
+    if (!shouldLoad || !url) {
       instance = undefined;
       rawBounds = undefined;
       rawMetrics = undefined;

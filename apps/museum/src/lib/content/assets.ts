@@ -1,4 +1,10 @@
-import type { AssetId, MuseumAsset } from '$lib/types/assets';
+import type {
+  AssetCategory,
+  AssetId,
+  AssetStatus,
+  FallbackKind,
+  MuseumAsset
+} from '$lib/types/assets';
 
 export const museumAssets: MuseumAsset[] = [
   {
@@ -15,7 +21,6 @@ export const museumAssets: MuseumAsset[] = [
     castShadow: true,
     receiveShadow: false,
     status: 'approved',
-    rooms: ['paris'],
     notes:
       'Source units are unusually large. The production GLB is centered at a floor pivot; scale 0.032 yields an approximately 1.48 m × 1.59 m × 2.52 m open-lid piano.'
   },
@@ -34,7 +39,6 @@ export const museumAssets: MuseumAsset[] = [
     castShadow: true,
     receiveShadow: false,
     status: 'approved',
-    rooms: ['paris'],
     notes:
       'Replaces Dining Chair 02. Scale 0.92 yields an approximately 0.64 m × 0.90 m × 0.54 m chair. The optimized derivative remains CC BY-SA 4.0.'
   },
@@ -52,7 +56,6 @@ export const museumAssets: MuseumAsset[] = [
     castShadow: true,
     receiveShadow: false,
     status: 'approved',
-    rooms: ['paris'],
     notes:
       'Official 1K glTF source set. Tangents were generated before optimization; scale 0.9 yields approximately 2.46 m × 1.01 m × 0.83 m.'
   },
@@ -70,7 +73,6 @@ export const museumAssets: MuseumAsset[] = [
     castShadow: true,
     receiveShadow: false,
     status: 'approved',
-    rooms: ['paris'],
     notes:
       'Floor-centered and scaled into a compact salon table, approximately 0.95 m × 0.69 m × 0.95 m.'
   },
@@ -90,7 +92,6 @@ export const museumAssets: MuseumAsset[] = [
     castShadow: false,
     receiveShadow: false,
     status: 'approved',
-    rooms: ['paris'],
     notes:
       'Ceiling-pivoted replacement (chandelier2). defaultScale 0.45 yields approximately 0.89 m × 1.48 m × 0.90 m.'
   },
@@ -104,7 +105,6 @@ export const museumAssets: MuseumAsset[] = [
     castShadow: true,
     receiveShadow: false,
     status: 'placeholder',
-    rooms: ['paris'],
     notes: 'Primitive fallback reserves a 1.4 m by 0.7 m publisher desk footprint.'
   },
   {
@@ -122,7 +122,6 @@ export const museumAssets: MuseumAsset[] = [
     castShadow: false,
     receiveShadow: false,
     status: 'approved',
-    rooms: ['paris'],
     notes:
       'The source geometry was far from its origin. Production is floor-centered and measures approximately 0.23 m × 0.54 m × 0.21 m.'
   },
@@ -136,7 +135,6 @@ export const museumAssets: MuseumAsset[] = [
     castShadow: false,
     receiveShadow: false,
     status: 'placeholder',
-    rooms: ['paris'],
     notes: 'One reusable frame reserved for five temporary portrait planes.'
   },
   {
@@ -149,7 +147,6 @@ export const museumAssets: MuseumAsset[] = [
     castShadow: false,
     receiveShadow: false,
     status: 'placeholder',
-    rooms: ['paris'],
     notes: 'Repeated in small groups; do not create a unique model for each book.'
   },
   {
@@ -167,7 +164,6 @@ export const museumAssets: MuseumAsset[] = [
     castShadow: false,
     receiveShadow: false,
     status: 'approved',
-    rooms: ['paris'],
     notes:
       'Floor-centered; scale 0.008 yields approximately 0.38 m × 2.11 m × 0.50 m. UVs outside [0, 1] remain unquantized.'
   },
@@ -181,17 +177,75 @@ export const museumAssets: MuseumAsset[] = [
     castShadow: false,
     receiveShadow: true,
     status: 'placeholder',
-    rooms: ['paris'],
     notes: 'Optional low-profile fallback; keep clear of the local z=4 camera corridor.'
   }
 ];
 
-export const museumAssetById = new Map<AssetId, MuseumAsset>(
+const museumAssetById = new Map<string, MuseumAsset>(
   museumAssets.map((asset) => [asset.id, asset])
 );
 
+const assetCategories: readonly AssetCategory[] = [
+  'piano', 'chair', 'sofa', 'table', 'desk', 'lamp', 'frame', 'book', 'clock', 'decor'
+];
+const assetStatuses: readonly AssetStatus[] = ['placeholder', 'testing', 'approved', 'rejected'];
+const fallbackKinds: readonly FallbackKind[] = [
+  'piano', 'chair', 'sofa', 'table', 'chandelier', 'desk', 'lamp', 'frame', 'books', 'clock', 'rug'
+];
+
+function isOneOf<T extends string>(value: string, values: readonly T[]): value is T {
+  return values.includes(value as T);
+}
+
+export function validateMuseumAssetManifest(assets: readonly MuseumAsset[] = museumAssets): void {
+  const ids = new Set<string>();
+  for (const asset of assets) {
+    if (!asset.id.trim()) throw new Error('Museum asset IDs must be non-empty');
+    if (ids.has(asset.id)) throw new Error(`Duplicate museum asset id: ${asset.id}`);
+    ids.add(asset.id);
+    if (!isOneOf(asset.category, assetCategories)) throw new Error(`Invalid asset category: ${asset.category}`);
+    if (!isOneOf(asset.status, assetStatuses)) throw new Error(`Invalid asset status: ${asset.status}`);
+    if (!Number.isFinite(asset.defaultScale) || asset.defaultScale <= 0) {
+      throw new Error(`Invalid default scale for museum asset: ${asset.id}`);
+    }
+    if (asset.fallback && !isOneOf(asset.fallback, fallbackKinds)) {
+      throw new Error(`Invalid fallback for museum asset: ${asset.id}`);
+    }
+    if (asset.status === 'approved' && !asset.productionFile?.trim()) {
+      throw new Error(`Approved museum asset requires a production file: ${asset.id}`);
+    }
+    if (!asset.productionFile?.trim() && !asset.fallback) {
+      throw new Error(`Museum asset without a production file requires a fallback: ${asset.id}`);
+    }
+  }
+}
+
+validateMuseumAssetManifest();
+
+export type MuseumAssetFilters = {
+  query?: string;
+  category?: AssetCategory;
+  status?: AssetStatus;
+};
+
+export function listMuseumAssets(filters: MuseumAssetFilters = {}): MuseumAsset[] {
+  const query = filters.query?.trim().toLocaleLowerCase() ?? '';
+  return museumAssets.filter((asset) => {
+    if (filters.category && asset.category !== filters.category) return false;
+    if (filters.status && asset.status !== filters.status) return false;
+    if (!query) return true;
+    return [asset.id, asset.name, asset.category].some((value) =>
+      value.toLocaleLowerCase().includes(query)
+    );
+  });
+}
+
+export function getAssetById(id: string): MuseumAsset | undefined {
+  return museumAssetById.get(id);
+}
+
 export function getMuseumAsset(id: AssetId): MuseumAsset {
-  const asset = museumAssetById.get(id);
+  const asset = getAssetById(id);
   if (!asset) throw new Error(`Unknown museum asset: ${id}`);
   return asset;
 }

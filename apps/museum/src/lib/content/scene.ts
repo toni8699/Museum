@@ -1,6 +1,9 @@
 import rawMuseumSceneDocument from './museum-scene.json';
-import { getAssetById, isSceneObjectFallback } from './assets';
 import { roomPoint } from './rooms';
+import {
+  SceneDocumentValidationError,
+  validateSceneDocument
+} from './scene-codec';
 import type { AssetPlacement } from '$lib/types/assets';
 import type {
   MuseumConnection,
@@ -80,63 +83,10 @@ function resolveWaypoint(waypoint: SceneWaypoint): Vec3 {
     : cloneVec3(waypoint.position);
 }
 
-function assertUniqueIds(label: string, ids: string[]) {
-  const seen = new Set<string>();
-
-  for (const id of ids) {
-    if (seen.has(id)) throw new Error(`Duplicate ${label} id: ${id}`);
-    seen.add(id);
-  }
-}
-
 export function resolveSceneDocument(document: MuseumSceneDocument): RuntimeMuseumScene {
-  if (document.version !== 1) {
-    throw new Error(`Unsupported museum scene document version: ${String(document.version)}`);
-  }
-
-  assertUniqueIds('scene object', document.objects.map((object) => object.id));
-  const clusters = document.clusters ?? [];
-  assertUniqueIds('scene cluster', clusters.map((cluster) => cluster.id));
-  assertUniqueIds('navigation node', document.navigationNodes.map((node) => node.id));
-  assertUniqueIds('connection', document.connections.map((connection) => connection.id));
-
-  for (const object of document.objects) {
-    if (!getAssetById(object.assetId)) {
-      throw new Error(`Unknown museum asset in scene object ${object.id}: ${object.assetId}`);
-    }
-    if (!isSceneObjectFallback(object.fallback)) {
-      throw new Error(`Invalid fallback in scene object ${object.id}: ${String(object.fallback)}`);
-    }
-  }
-
-  const objectById = new Map(document.objects.map((object) => [object.id, object]));
-  const clusteredMemberIds = new Set<string>();
-
-  for (const cluster of clusters) {
-    if (cluster.memberIds.length < 2) {
-      throw new Error(`Scene cluster must contain at least two members: ${cluster.id}`);
-    }
-
-    const memberIds = new Set<string>();
-    for (const memberId of cluster.memberIds) {
-      if (memberIds.has(memberId)) {
-        throw new Error(`Duplicate member in scene cluster ${cluster.id}: ${memberId}`);
-      }
-      memberIds.add(memberId);
-
-      const placement = objectById.get(memberId);
-      if (!placement) {
-        throw new Error(`Unknown member in scene cluster ${cluster.id}: ${memberId}`);
-      }
-      if (placement.roomId !== cluster.roomId) {
-        throw new Error(`Cross-room member in scene cluster ${cluster.id}: ${memberId}`);
-      }
-      if (clusteredMemberIds.has(memberId)) {
-        throw new Error(`Scene object belongs to multiple clusters: ${memberId}`);
-      }
-      clusteredMemberIds.add(memberId);
-    }
-  }
+  const validation = validateSceneDocument(document);
+  if (!validation.success) throw new SceneDocumentValidationError(validation.issues[0]!);
+  document = validation.document;
 
   const navigationNodes = document.navigationNodes.map((node): NavigationNodeData => ({
     ...node,
@@ -207,8 +157,7 @@ export function assertNavigationGraphMatchesScene(
   }
 }
 
-// JSON inference widens tuple and literal types. Runtime validation is a Phase 7 concern;
-// Phase 0 keeps one explicit, checked-in document boundary.
+// JSON inference widens tuple and literal types; resolveSceneDocument validates this boundary.
 export const museumSceneDocument = rawMuseumSceneDocument as unknown as MuseumSceneDocument;
 export const museumScene = resolveSceneDocument(museumSceneDocument);
 export const museumNavigationGraph = createNavigationGraph(museumScene);

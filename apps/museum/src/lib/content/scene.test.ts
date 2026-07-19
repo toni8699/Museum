@@ -24,7 +24,7 @@ describe('resolveSceneDocument', () => {
   it('rejects invalid scene-authoritative placement fallbacks', () => {
     const invalid = JSON.parse(JSON.stringify(museumSceneDocument)) as MuseumSceneDocument;
     (invalid.objects[0] as unknown as { fallback: string }).fallback = 'not-a-fallback';
-    expect(() => resolveSceneDocument(invalid)).toThrow(/Invalid fallback in scene object/);
+    expect(() => resolveSceneDocument(invalid)).toThrow(/invalid_fallback/);
   });
 
   it('matches the frozen pre-migration runtime exactly', () => {
@@ -130,7 +130,9 @@ describe('resolveSceneDocument', () => {
           label: 'From',
           position: [0, 1.65, 0],
           cameraTarget: [0, 1, -1],
-          connectedNodeIds: ['to']
+          connectedNodeIds: ['to'],
+          nextNodeId: 'to',
+          previousNodeId: 'to'
         },
         {
           id: 'to',
@@ -138,7 +140,9 @@ describe('resolveSceneDocument', () => {
           label: 'To',
           position: [0, 1.65, 0],
           cameraTarget: [0, 1, -1],
-          connectedNodeIds: ['from']
+          connectedNodeIds: ['from'],
+          nextNodeId: 'from',
+          previousNodeId: 'from'
         }
       ],
       connections: [
@@ -199,7 +203,7 @@ describe('resolveSceneDocument', () => {
     const unknownEndpoint = cloneDocument();
     unknownEndpoint.connections[0].toNodeId = 'missing-node';
     expect(() => resolveSceneDocument(unknownEndpoint)).toThrow(
-      'Unknown navigation node in scene connection: missing-node'
+      'Unknown navigation node: missing-node'
     );
   });
 

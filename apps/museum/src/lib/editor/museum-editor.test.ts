@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
 	assertNavigationGraphMatchesScene,
-	museumSceneDocument
+	museumSceneDocument,
+	type MuseumSceneDocument
 } from '$lib/content/scene';
 import { getRoom, roomLocalPoint, roomPoint } from '$lib/content/rooms';
 import { Object3D } from 'three';
@@ -19,6 +20,7 @@ import {
 	EDITOR_BRIGHT_LIGHTING,
 	EDITOR_VISITOR_LIGHTING
 } from './museum-editor.svelte';
+import { serializeSceneDocument } from '$lib/content/scene-codec';
 import { createEditorRoomCameraFrame } from './editor-camera';
 import {
 	degreesToRadians,
@@ -86,6 +88,43 @@ describe('createMuseumEditorStore', () => {
 		expect(store.ambientIntensity).toBe(EDITOR_VISITOR_LIGHTING.ambientIntensity);
 		expect(store.directionalIntensity).toBe(EDITOR_VISITOR_LIGHTING.directionalIntensity);
 		expect(store.fogEnabled).toBe(true);
+	});
+
+	it('tracks canonical baselines across edits, imports, undo, and reset', () => {
+		const store = createMuseumEditorStore();
+		expect(store.isDirty).toBe(false);
+		store.selectRoom('paris');
+		const placement = store.document.objects[0]!;
+		expect(
+			store.commitPlacementTransform(placement.id, {
+				position: [placement.position[0] + 1, placement.position[1], placement.position[2]],
+				rotation: [...placement.rotation],
+				scale: placement.scale ?? 1
+			})
+		).toBe(true);
+		expect(store.isDirty).toBe(true);
+		expect(store.undo()).toBe(true);
+		expect(store.isDirty).toBe(false);
+
+		const imported = JSON.parse(serializeSceneDocument(museumSceneDocument)) as MuseumSceneDocument;
+		imported.objects[0]!.position[0] += 0.25;
+		expect(store.importDocument(imported)).toBe(true);
+		expect(store.isDirty).toBe(false);
+		expect(store.resetToCheckedInDocument()).toBe(true);
+		expect(store.document.objects[0]!.position).toEqual(museumSceneDocument.objects[0]!.position);
+		expect(store.isDirty).toBe(false);
+	});
+
+	it('rejects invalid imports without changing the current scene or baseline', () => {
+		const store = createMuseumEditorStore();
+		const before = serializeSceneDocument(store.document);
+		const invalid = cloneMuseumSceneDocument(museumSceneDocument);
+		invalid.navigationNodes[0]!.cameraTarget = [...invalid.navigationNodes[0]!.position];
+
+		expect(store.importDocument(invalid)).toBe(false);
+		expect(serializeSceneDocument(store.document)).toBe(before);
+		expect(store.isDirty).toBe(false);
+		expect(store.canExport).toBe(true);
 	});
 });
 
@@ -305,7 +344,7 @@ describe('MuseumEditorStore clusters', () => {
 		store.selectRoom('paris');
 		store.selectPlacements([a.id, b.id]);
 		expect(store.beginDocumentTransaction()).toBe(true);
-		store.document.clusters!.push({
+		(store.document.clusters ??= []).push({
 			id: 'combined-snapshot',
 			name: 'Combined snapshot',
 			roomId: 'paris',
@@ -830,10 +869,11 @@ describe('MuseumEditorStore Phase 6 camera nodes', () => {
 		store.selectNavigationNode(nodeId);
 		expect(store.beginDocumentTransaction()).toBe(true);
 		store.document.navigationNodes.find((node) => node.id === nodeId)!.nextNodeId = 'missing';
-		expect(store.commitDocumentTransaction()).toBe(true);
+		expect(store.commitDocumentTransaction()).toBe(false);
 
-		expect(store.previewSelectedTransition()).toBe(false);
-		expect(store.cameraPreview).toBeNull();
+		expect(store.previewSelectedTransition()).toBe(true);
+		expect(store.cameraPreview).not.toBeNull();
+		store.stopCameraPreview();
 		expect(store.statusMessage).toContain('Unknown navigation node');
 	});
 
@@ -844,19 +884,21 @@ describe('MuseumEditorStore Phase 6 camera nodes', () => {
 		delete missingStore.document.navigationNodes.find(
 			(node) => node.id === 'music-entry'
 		)!.nextNodeId;
-		expect(missingStore.commitDocumentTransaction()).toBe(true);
-		expect(missingStore.previewSelectedTransition()).toBe(false);
-		expect(missingStore.cameraPreview).toBeNull();
-		expect(missingStore.statusMessage).toContain('has no nextNodeId');
+		expect(missingStore.commitDocumentTransaction()).toBe(false);
+		expect(missingStore.previewSelectedTransition()).toBe(true);
+		expect(missingStore.cameraPreview).not.toBeNull();
+		missingStore.stopCameraPreview();
+		expect(missingStore.statusMessage).toContain('Every multi-node graph requires nextNodeId');
 
 		const unroutableStore = createMuseumEditorStore();
 		unroutableStore.selectNavigationNode('music-entry');
 		expect(unroutableStore.beginDocumentTransaction()).toBe(true);
 		unroutableStore.document.connections = [];
-		expect(unroutableStore.commitDocumentTransaction()).toBe(true);
-		expect(unroutableStore.previewSelectedTransition()).toBe(false);
-		expect(unroutableStore.cameraPreview).toBeNull();
-		expect(unroutableStore.statusMessage).toContain('No camera route');
+		expect(unroutableStore.commitDocumentTransaction()).toBe(false);
+		expect(unroutableStore.previewSelectedTransition()).toBe(true);
+		expect(unroutableStore.cameraPreview).not.toBeNull();
+		unroutableStore.stopCameraPreview();
+		expect(unroutableStore.statusMessage).toContain('No connection exists');
 	});
 });
 

@@ -1,6 +1,8 @@
 <script lang="ts">
+	import { beforeNavigate } from '$app/navigation';
 	import { onMount, tick } from 'svelte';
 	import { getMuseumAsset } from '$lib/content/assets';
+	import { parseSceneDocumentJson } from '$lib/content/scene-codec';
 	import { museumRooms } from '$lib/content/rooms';
 	import {
 		createMuseumEditorStore,
@@ -22,6 +24,8 @@
 	let clusterNameInput = $state<HTMLInputElement>();
 	let clusterNameDraft = $state('');
 	let leftPanel = $state<'scene' | 'assets'>('scene');
+	let importFileInput = $state<HTMLInputElement>();
+	let pastedSceneJson = $state('');
 
 	const selectedObject = $derived(store.selectedObject);
 	const selectedCameraNode = $derived(store.selectedNavigationNode);
@@ -143,6 +147,75 @@
 		clusterNameInput?.select();
 	}
 
+	function confirmDiscardUnsavedChanges() {
+		return !store.isDirty || window.confirm('Discard unsaved scene changes?');
+	}
+
+	function importSceneJson(json: string, clearPasteOnSuccess = false) {
+		const parsed = parseSceneDocumentJson(json);
+		if (!parsed.success) {
+			store.setStatusMessage(`Import failed: ${parsed.issues[0]?.message ?? 'Invalid scene document'}`);
+			return false;
+		}
+		if (!confirmDiscardUnsavedChanges()) return false;
+		if (!store.importDocument(parsed.document)) return false;
+		if (clearPasteOnSuccess) pastedSceneJson = '';
+		store.setStatusMessage('Imported scene document');
+		return true;
+	}
+
+	async function onImportFileChange(event: Event) {
+		const input = event.currentTarget as HTMLInputElement;
+		const file = input.files?.[0];
+		input.value = '';
+		if (!file) return;
+		try {
+			importSceneJson(await file.text());
+		} catch {
+			store.setStatusMessage('Import failed: Could not read the selected file');
+		}
+	}
+
+	async function copySceneJson() {
+		const json = store.canonicalJson;
+		if (!json) return;
+		if (!navigator.clipboard?.writeText) {
+			store.setStatusMessage('Copy failed: Clipboard API is unavailable');
+			return;
+		}
+		try {
+			await navigator.clipboard.writeText(json);
+			store.setStatusMessage('Copied canonical scene JSON');
+		} catch {
+			store.setStatusMessage('Copy failed: Clipboard permission was denied');
+		}
+	}
+
+	function downloadSceneJson() {
+		const json = store.canonicalJson;
+		if (!json) return;
+		const url = URL.createObjectURL(new Blob([json], { type: 'application/json;charset=utf-8' }));
+		const anchor = document.createElement('a');
+		anchor.href = url;
+		anchor.download = 'museum-scene.json';
+		anchor.style.display = 'none';
+		document.body.append(anchor);
+		anchor.click();
+		anchor.remove();
+		window.setTimeout(() => URL.revokeObjectURL(url), 0);
+		store.setStatusMessage('Downloaded canonical scene JSON');
+	}
+
+	function resetScene() {
+		if (!confirmDiscardUnsavedChanges()) return;
+		if (store.resetToCheckedInDocument()) store.setStatusMessage('Reset to checked-in scene');
+	}
+
+	beforeNavigate((navigation) => {
+		if (!store.isDirty || navigation.willUnload) return;
+		if (!confirmDiscardUnsavedChanges()) navigation.cancel();
+	});
+
 	function editorOwnsSceneShortcuts() {
 		if (leftPanel !== 'scene') return Boolean(viewportElement?.contains(document.activeElement));
 		const active = document.activeElement;
@@ -231,6 +304,16 @@
 
 		window.addEventListener('keydown', onKeyDown);
 		return () => window.removeEventListener('keydown', onKeyDown);
+	});
+
+	$effect(() => {
+		if (!store.isDirty) return;
+		const onBeforeUnload = (event: BeforeUnloadEvent) => {
+			event.preventDefault();
+			event.returnValue = '';
+		};
+		window.addEventListener('beforeunload', onBeforeUnload);
+		return () => window.removeEventListener('beforeunload', onBeforeUnload);
 	});
 </script>
 
@@ -567,6 +650,45 @@
 				<label><span>Fog far {store.fogFar.toFixed(0)}</span><input type="range" min="5" max="120" step="1" disabled={store.isCameraPreviewActive} bind:value={store.fogFar} /></label>
 			{/if}
 		</section>
+
+		<section class="persistence" aria-label="Scene persistence">
+			<div class="section-heading">
+				<h2>Scene JSON</h2>
+				<span class:dirty={store.isDirty} class="document-state">{store.isDirty ? 'Unsaved' : 'Saved'}</span>
+			</div>
+			<p>Browser-only export. Downloading or copying does not mark this session saved.</p>
+			<input
+				bind:this={importFileInput}
+				class="visually-hidden"
+				type="file"
+				accept="application/json,.json"
+				onchange={onImportFileChange}
+			/>
+			<div class="persistence-actions">
+				<button type="button" onclick={() => importFileInput?.click()}>Import file</button>
+				<button type="button" disabled={!store.canExport} onclick={copySceneJson}>Copy JSON</button>
+				<button type="button" disabled={!store.canExport} onclick={downloadSceneJson}>Download</button>
+				<button type="button" class="danger-action" onclick={resetScene}>Reset to checked-in scene</button>
+			</div>
+			<label class="paste-import">
+				<span>Paste scene JSON</span>
+				<textarea bind:value={pastedSceneJson} spellcheck="false" placeholder={'{ ... }'}></textarea>
+			</label>
+			<button type="button" disabled={!pastedSceneJson.trim()} onclick={() => importSceneJson(pastedSceneJson, true)}>Import pasted JSON</button>
+			{#if store.validationIssues.length > 0}
+				<div class="validation-errors" role="alert">
+					<strong>{store.validationIssues.length} validation error{store.validationIssues.length === 1 ? '' : 's'}</strong>
+					<ul>
+						{#each store.validationIssues as issue (`${issue.path}:${issue.code}`)}
+							<li><code>{issue.path}</code> — {issue.message}</li>
+						{/each}
+					</ul>
+				</div>
+			{:else}
+				<p class="validation-ok">Scene document is valid.</p>
+			{/if}
+			{#if store.statusMessage}<p class="status" role="status">{store.statusMessage}</p>{/if}
+		</section>
 	</aside>
 </main>
 
@@ -663,4 +785,18 @@
 	.lighting label { display: flex; flex-direction: column; gap: 0.3rem; color: #d6d0c4; font-size: 0.75rem; }
 	.lighting label.checkbox { flex-direction: row; align-items: center; gap: 0.45rem; }
 	.lighting input[type='range'] { width: 100%; }
+	.persistence { margin-top: 0.4rem; gap: 0.65rem; border-top: 1px solid #2a2a33; padding-top: 0.85rem; }
+	.persistence > p, .validation-ok, .status { margin: 0; color: #a8a29a; font-size: 0.72rem; line-height: 1.4; }
+	.document-state { padding: 0.18rem 0.42rem; border: 1px solid #52634e; border-radius: 999px; background: #182218; color: #cfe9c4; font-size: 0.64rem; font-weight: 650; letter-spacing: 0.04em; text-transform: uppercase; }
+	.document-state.dirty { border-color: #8d753c; background: #2a2618; color: #f4dc9b; }
+	.persistence-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 0.35rem; }
+	.persistence button { padding: 0.4rem 0.48rem; border: 1px solid #3a3a46; border-radius: 0.32rem; background: #1a1a22; color: #f4efe4; font: inherit; font-size: 0.7rem; cursor: pointer; }
+	.persistence button:disabled { opacity: 0.4; cursor: default; }
+	.persistence .danger-action { border-color: #684147; background: #21191b; color: #efc7c7; }
+	.paste-import { display: flex; flex-direction: column; gap: 0.3rem; color: #d6d0c4; font-size: 0.72rem; }
+	.paste-import textarea { min-height: 5.2rem; resize: vertical; padding: 0.42rem; border: 1px solid #3a3a46; border-radius: 0.3rem; background: #101016; color: #f4efe4; font: 0.68rem/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; }
+	.validation-errors { padding: 0.55rem; border: 1px solid #684147; border-radius: 0.35rem; background: #21191b; color: #efc7c7; font-size: 0.68rem; line-height: 1.4; }
+	.validation-errors ul { display: flex; flex-direction: column; gap: 0.25rem; margin-top: 0.35rem; }
+	.validation-errors code { color: #f4dc9b; font-size: 0.64rem; }
+	.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; clip-path: inset(50%); }
 </style>

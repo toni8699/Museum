@@ -246,6 +246,20 @@
 		return true;
 	}
 
+	function cancelTransform() {
+		const active = session;
+		if (!active) return false;
+		if (active.kind === 'camera') return cancelCameraTransform();
+		transformControls.reset();
+		session = null;
+		store.setTransformInteractionActive(false);
+		store.cancelDocumentTransaction();
+		transformControls.pointerUp(null);
+		resetSessionPivot(pivot, store.getPlacementRoots());
+		restoreOrbitAfterTransform(active);
+		return true;
+	}
+
 	function onKeyDown(event: KeyboardEvent) {
 		if (event.key === 'Shift') shiftHeld = true;
 		if (event.key === 'Escape' && cancelCameraTransform()) {
@@ -259,12 +273,12 @@
 	}
 
 	$effect(() => {
-		store.setCameraTransformCanceler(cancelCameraTransform);
+		store.setTransformCanceler(cancelTransform);
 		window.addEventListener('keydown', onKeyDown, true);
 		window.addEventListener('keyup', clearShift);
 		window.addEventListener('blur', clearShift);
 		return () => {
-			store.setCameraTransformCanceler(null);
+			store.setTransformCanceler(null);
 			window.removeEventListener('keydown', onKeyDown, true);
 			window.removeEventListener('keyup', clearShift);
 			window.removeEventListener('blur', clearShift);

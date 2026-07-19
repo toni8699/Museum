@@ -8,6 +8,11 @@ import {
 	type SceneObjectCluster,
 	type SceneObjectPlacement
 } from '$lib/content/scene';
+import {
+	serializeSceneDocument,
+	validateSceneDocument,
+	type SceneDocumentValidationResult
+} from '$lib/content/scene-codec';
 import { getAssetById, resolveAssetFallback } from '$lib/content/assets';
 import { createMuseumState, type MuseumStateStore } from '$lib/state/museum-state.svelte';
 import type { MuseumRoomId, Vec3 } from '$lib/types/museum';
@@ -38,9 +43,7 @@ const STATUS_MESSAGE_MS = 2500;
 export function cloneMuseumSceneDocument(
 	document: MuseumSceneDocument
 ): MuseumSceneDocument {
-	const clone = JSON.parse(JSON.stringify(document)) as MuseumSceneDocument;
-	clone.clusters ??= [];
-	return clone;
+	return JSON.parse(JSON.stringify(document)) as MuseumSceneDocument;
 }
 
 /** Visitor MuseumScene defaults — used by the editor “Visitor” lighting preset. */
@@ -105,6 +108,8 @@ function documentsMatch(a: MuseumSceneDocument, b: MuseumSceneDocument) {
 
 export class MuseumEditorStore {
 	document = $state(cloneMuseumSceneDocument(museumSceneDocument));
+	validation = $derived<SceneDocumentValidationResult>(validateSceneDocument(this.document));
+	baselineCanonicalJson = $state(serializeSceneDocument(museumSceneDocument));
 	scene = $state.raw<RuntimeMuseumScene>(resolveSceneDocument(this.document));
 	state = $state.raw<MuseumStateStore>(
 		createMuseumState(createNavigationGraph(this.scene), 'paris-seat')
@@ -133,7 +138,7 @@ export class MuseumEditorStore {
 
 	#placementRoots = new Map<string, Object3D>();
 	#cameraHelperRoots = new Map<string, Object3D>();
-	#cancelCameraTransform: (() => boolean) | null = null;
+	#cancelTransform: (() => boolean) | null = null;
 	#restoreCameraPreview: (() => boolean) | null = null;
 	#nextCameraPreviewRunId = 1;
 	registryVersion = $state(0);
@@ -236,6 +241,25 @@ export class MuseumEditorStore {
 		return !this.cameraPreview && !this.transformInteractionActive && this.#future.length > 0;
 	}
 
+	get isDirty() {
+		const validation = this.validation;
+		return !validation.success || validation.canonicalJson !== this.baselineCanonicalJson;
+	}
+
+	get canExport() {
+		return this.validation.success && !this.isDocumentTransactionActive;
+	}
+
+	get validationIssues() {
+		const validation = this.validation;
+		return validation.success ? [] : validation.issues;
+	}
+
+	get canonicalJson() {
+		const validation = this.validation;
+		return validation.success ? validation.canonicalJson : null;
+	}
+
 	get isDocumentTransactionActive() {
 		return this.#transactionBefore !== null;
 	}
@@ -263,8 +287,13 @@ export class MuseumEditorStore {
 		}, STATUS_MESSAGE_MS);
 	}
 
+	setTransformCanceler(cancel: (() => boolean) | null) {
+		this.#cancelTransform = cancel;
+	}
+
+	/** @deprecated Use setTransformCanceler; retained for Phase 6 integration tests. */
 	setCameraTransformCanceler(cancel: (() => boolean) | null) {
-		this.#cancelCameraTransform = cancel;
+		this.setTransformCanceler(cancel);
 	}
 
 	/** The camera rig installs this so modal guards remain active through restoration. */
@@ -444,7 +473,7 @@ export class MuseumEditorStore {
 
 	#prepareCameraPreview() {
 		if (this.transformInteractionKind === 'camera') {
-			if (!this.#cancelCameraTransform?.()) return false;
+			if (!this.#cancelTransform?.()) return false;
 		}
 		if (this.transformInteractionActive || this.isDocumentTransactionActive) return false;
 		this.cancelAssetPlacement();
@@ -998,6 +1027,42 @@ export class MuseumEditorStore {
 		return true;
 	}
 
+	/** Replace the authoring document only after any live editor ownership is released. */
+	importDocument(document: MuseumSceneDocument) {
+		const validation = validateSceneDocument(document);
+		if (!validation.success) {
+			this.setStatusMessage(validation.issues[0]?.message ?? 'Scene document validation failed');
+			return false;
+		}
+		if (!this.#prepareDocumentReplacement()) return false;
+
+		this.cancelAssetPlacement();
+		this.cancelPendingFrame();
+		this.#clearPlacementSelection();
+		this.cameraSelection = null;
+		this.selectedRoomId = null;
+		this.cameraFocusKind = null;
+		this.cameraFocusPlacementId = null;
+		this.cameraFocusNodeId = null;
+		this.#replaceDocument(validation.document);
+		this.baselineCanonicalJson = validation.canonicalJson;
+		this.#past = [];
+		this.#future = [];
+		this.#bumpHistoryVersion();
+		return true;
+	}
+
+	resetToCheckedInDocument() {
+		return this.importDocument(museumSceneDocument);
+	}
+
+	#prepareDocumentReplacement() {
+		if (this.cameraPreview && !this.stopCameraPreview()) return false;
+		if (this.transformInteractionActive && !this.#cancelTransform?.()) return false;
+		if (this.#transactionBefore) this.cancelDocumentTransaction();
+		return true;
+	}
+
 	undo() {
 		if (this.cameraPreview || this.transformInteractionActive || this.#transactionBefore || this.#past.length === 0) return false;
 		this.cancelPendingFrame();
@@ -1068,7 +1133,11 @@ export class MuseumEditorStore {
 	}
 
 	#replaceRuntime(nextScene: RuntimeMuseumScene) {
-		const nextState = createMuseumState(createNavigationGraph(nextScene), 'paris-seat');
+		const initialNodeId = nextScene.navigationNodes.some((node) => node.id === 'paris-seat')
+			? 'paris-seat'
+			: nextScene.navigationNodes[0]?.id;
+		if (!initialNodeId) throw new Error('A museum scene needs at least one navigation node');
+		const nextState = createMuseumState(createNavigationGraph(nextScene), initialNodeId);
 		this.scene = nextScene;
 		this.state = nextState;
 	}

@@ -1,92 +1,53 @@
-# Personal Portfolios
+# Interactive Chopin Museum
 
-npm workspaces monorepo for personal portfolio experiments. The live product today is an interactive Chopin museum in 3D, with a **Phase 4.5 Paris Salon vertical slice** inside the wider graybox.
+An experimental 3D museum experience about the life and music of Frédéric Chopin. Visitors move through a circular sequence of rooms using guided camera transitions, connecting places such as Poland, Paris, the composer’s workshop, and a central music chamber.
 
-## Quick start
+The project is currently a spatial prototype: the layout, pacing, navigation, and atmosphere are being established before the remaining rooms receive final exhibits and artwork.
+
+## Features
+
+- Guided tour through eight narrative stops
+- Free-tour mode for exploring the museum’s connected spaces
+- Smooth 3D camera movement with reduced-motion support
+- Central piano chamber and gold staff-line path
+- Shared materials for floors, walls, ceilings, wood, plaster, and brass
+- Paris Salon asset slice with furniture, lighting, and decorative GLB models
+- Responsive HUD with room titles, navigation, and tour controls
+- Development previews for materials, assets, and museum layout editing
+
+## Run locally
+
+Requires Node.js 20 or newer and a WebGL-capable browser.
 
 ```bash
 npm install
 npm run dev
 ```
 
-Open the printed local URL, then go to `/museum`.
+Open the local URL and visit `/museum`.
 
-| Script | Purpose |
-|--------|---------|
-| `npm run dev` / `dev:museum` | Run the museum app |
-| `npm run build` / `build:museum` | Production build |
-| `npm run check` | Typecheck museum |
+Useful commands:
 
-Requires **Node ≥ 20** and a WebGL-capable browser. No env vars or backend.
-
-## What’s in the repo
-
-```
-apps/museum/          ← SvelteKit + Threlte museum (only app)
-packages/
-  scroll-travel/      ← scroll → camera path helpers (unused by museum)
-  audio-plink/        ← tiny Web Audio clicks
-  note-cursor/        ← custom ♪ cursor trail
-  portfolio-content/  ← shared copy helpers
-  portfolio-hud/      ← HUD widgets
-  tsconfig/           ← shared TS base
+```bash
+npm run build   # Create a production build
+npm run check   # Run Svelte and TypeScript checks
+npm test        # Run the test suite
 ```
 
-Shared packages are available in the workspace; the museum uses its own node-to-node camera system and does not import the HUD / cursor packages.
+## Controls
 
-## Museum overview
+- **Next / Back:** HUD buttons, arrow keys, `Space`, and `Backspace`
+- **Navigation nodes:** Click glowing nodes when available
+- **M:** Toggle guided and free-tour modes
+- **R:** Toggle reduced motion
+- **Paris Salon:** Drag the scene or use arrow keys to look around
 
-An immersive single-viewport experience: walk a circular narrative through Chopin’s life via guided camera moves between discrete stops.
+## Technology
 
-**Stack:** SvelteKit 2 · Svelte 5 · Threlte · Three.js
+Built with SvelteKit, Svelte 5, Threlte, Three.js, and TypeScript.
 
-**Routes**
-
-- `/` — short landing (“Graybox visitor flow”)
-- `/museum` — full-bleed 3D scene + HUD overlay
-- `/dev/materials` — isolated architecture-material preview
-- `/dev/assets` — GLB inspector, licence metadata, scale checks, and fallbacks
-
-**Controls**
-
-- **Next / Back** (HUD, or arrows / `Space` / `Backspace` outside Paris)
-- **Paris Salon look-around**: drag on the 3D view or use arrow keys; `Space` advances and `Backspace` returns
-- Click glowing navigation spheres (when allowed)
-- **M** — guided ↔ free tour
-- **R** — reduced motion (instant jumps)
-
-## Spatial layout
-
-Seven rooms sit around a central music chamber. A gold “staff path” on the floor follows the tour graph. Doors and sightline cutouts face the chamber where designed.
-
-```
-                    [Workshop]
-                        |
-    [Departure] ---- [Music Chamber] ---- [Legacy]
-         |              (center)              |
-     [Poland]                              [Entrance]
-         |                                    |
-         +--------- tour loop closes ---------+
-
-Tour order (8 stops):
-  Entrance → Poland → Departure → Paris → Workshop
-  → Music Entry → Central Piano → Legacy → (back to Entrance)
-```
-
-| Room | Role |
-|------|------|
-| Entrance | Dark threshold — “The First Note” |
-| Poland | Roots and early voice |
-| Departure | Distance from home |
-| Paris Salon | Artist / teacher / performer |
-| Workshop | Composition and manuscripts |
-| Music Chamber | Circular focus; graybox grand piano |
-| Legacy | Continuing music; returns to entrance |
-
-Most rooms remain intentionally graybox. Paris Salon is the first polished asset slice: an optimized grand piano, upholstered chairs, sofa, round tables, chandelier, oil lamp, and grandfather clock sit alongside reusable primitive fallbacks. Narrative content and interaction rules still live in `rooms.ts`; Paris object transforms live separately in `paris-salon-layout.ts` without changing the camera graph.
+The main application lives in [`apps/museum`](./apps/museum). Additional development views are available at `/dev/materials`, `/dev/assets`, and `/dev/museum-editor`.
 
 ## Status
 
-**Phase 1–4.5** — layout, guided navigation, shared architecture materials, the Paris Salon asset workflow, room-scoped free-look, conversational furniture clusters, and polished salon lighting. Production GLBs are cached and safely cloned, source/licence records remain separate, and `/dev/assets` validates models before placement. Other rooms, final portraits, and exhibit interaction remain later work.
-
-For agents and deeper camera/layout work, see [`AGENTS.md`](./AGENTS.md) and [`docs/CAMERA_AND_LAYOUT.md`](./docs/CAMERA_AND_LAYOUT.md).
+This is an evolving graybox museum and interactive portfolio experiment. The Paris Salon is the first detailed asset slice; exhibit interactions, final artwork, and further room development are still in progress.

@@ -35,11 +35,28 @@ export type NavigationNodeData = {
   lockInteraction?: boolean;
 };
 
+export type RuntimePathAnchor = {
+  /** Stable authored ID, or a resolver-owned `node:<id>:position` endpoint ID. */
+  id: string;
+  position: Vec3;
+};
+
+export type RuntimePositionPath =
+  | {
+      kind: 'rounded-polyline';
+      anchors: RuntimePathAnchor[];
+    }
+  | {
+      kind: 'auto-bezier';
+      anchors: RuntimePathAnchor[];
+    };
+
 export type MuseumConnection = {
   id: string;
   fromNodeId: string;
   toNodeId: string;
-  positionWaypoints: Vec3[];
+  /** World-space path anchors, including fresh resolver-owned node endpoints. */
+  positionPath: RuntimePositionPath;
   targetWaypoints?: Vec3[];
   clearance: number;
 };

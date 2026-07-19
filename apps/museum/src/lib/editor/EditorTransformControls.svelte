@@ -19,6 +19,7 @@
 		getActiveTransformTarget,
 		placementTransformFromObject
 	} from './editor-transform';
+	import { EDITOR_CAMERA_PATH_MOVE_EPSILON } from './editor-camera-path';
 	import type { MuseumEditorStore } from './museum-editor.svelte';
 
 	let {
@@ -55,24 +56,41 @@
 		orbitWasEnabled: boolean | null;
 	};
 
-	type TransformSession = PlacementTransformSession | CameraTransformSession;
+	type AnchorTransformSession = {
+		kind: 'anchor';
+		connectionId: string;
+		anchorId: string;
+		root: Group;
+		startWorldPosition: Vector3;
+		orbitWasEnabled: boolean | null;
+	};
+
+	type TransformSession =
+		| PlacementTransformSession
+		| CameraTransformSession
+		| AnchorTransformSession;
 
 	let session: TransformSession | null = null;
 	let shiftHeld = $state(false);
 	const editorOrbitControls = useOrbitControls();
 	const selectedRoots = $derived(store.getPlacementRoots());
 	const selectedCameraRoot = $derived(store.getSelectedCameraHelperRoot());
+	const selectedAnchorRoot = $derived(store.getSelectedAnchorHelperRoot());
 	const activeTarget = $derived.by(() =>
 		getActiveTransformTarget({
-			previewActive: store.isCameraPreviewActive,
-			pendingPlacement: Boolean(store.pendingPlacementAssetId),
+			previewActive:
+				store.isCameraPreviewActive || store.directPathInteractionActive,
+			pendingPlacement: Boolean(
+				store.pendingPlacementAssetId || store.pendingNavigationCommand
+			),
 			placementKey: store.selectionKey,
 			placementObject:
 				selectedRoots.length > 0 && selectedRoots.length === store.selectedPlacementIds.length
 					? pivot
 					: undefined,
-			cameraSelection: store.cameraSelection,
-			cameraObject: selectedCameraRoot
+			navigationSelection: store.navigationSelection,
+			cameraObject: selectedCameraRoot,
+			anchorObject: selectedAnchorRoot
 		})
 	);
 	const effectiveRotationSnap = $derived(
@@ -98,12 +116,13 @@
 	});
 
 	$effect(() => {
-		transformControls.mode =
-			activeTarget?.kind === 'camera' ? 'translate' : store.transformMode;
+		const navigationTarget =
+			activeTarget?.kind === 'camera' || activeTarget?.kind === 'anchor';
+		transformControls.mode = navigationTarget ? 'translate' : store.transformMode;
 		transformControls.space = 'world';
 		transformControls.translationSnap = null;
 		transformControls.rotationSnap =
-			activeTarget?.kind === 'camera' ? null : effectiveRotationSnap;
+			navigationTarget ? null : effectiveRotationSnap;
 		invalidate();
 	});
 
@@ -120,18 +139,31 @@
 		if (!target) return;
 		if (!store.beginDocumentTransaction()) return;
 
-		if (target.kind === 'camera') {
-			store.setTransformInteractionActive(true, 'camera');
+		if (target.kind === 'camera' || target.kind === 'anchor') {
+			store.setTransformInteractionActive(true, target.kind);
 			const orbitWasEnabled = editorOrbitControls.current?.enabled ?? null;
 			if (editorOrbitControls.current) editorOrbitControls.current.enabled = false;
-			session = {
-				kind: 'camera',
-				nodeId: target.nodeId,
-				handle: target.handle,
-				root: target.object as Group,
-				startWorldPosition: target.object.getWorldPosition(new Vector3()),
-				orbitWasEnabled
-			};
+			const root = target.object as Group;
+			const startWorldPosition = target.object.getWorldPosition(new Vector3());
+			if (target.kind === 'camera') {
+				session = {
+					kind: 'camera',
+					nodeId: target.nodeId,
+					handle: target.handle,
+					root,
+					startWorldPosition,
+					orbitWasEnabled
+				};
+			} else {
+				session = {
+					kind: 'anchor',
+					connectionId: target.connectionId,
+					anchorId: target.anchorId,
+					root,
+					startWorldPosition,
+					orbitWasEnabled
+				};
+			}
 			return;
 		}
 
@@ -162,6 +194,7 @@
 		const active = session;
 		if (!active) return;
 		if (active.kind === 'camera') {
+			if (!active.nodeId || !active.handle) return;
 			const node = store.document.navigationNodes.find(
 				(candidate) => candidate.id === active.nodeId
 			);
@@ -171,6 +204,16 @@
 				active.nodeId,
 				active.handle,
 				roomLocalPoint(node.roomId, world)
+			);
+			return;
+		}
+		if (active.kind === 'anchor') {
+			if (!active.connectionId || !active.anchorId) return;
+			const world = active.root.getWorldPosition(new Vector3()).toArray() as Vec3;
+			store.updateConnectionAnchorWorldPoint(
+				active.connectionId,
+				active.anchorId,
+				world
 			);
 			return;
 		}
@@ -203,10 +246,20 @@
 		if (!active) return;
 		previewTransform();
 
-		if (active.kind === 'camera') {
+		if (active.kind === 'camera' || active.kind === 'anchor') {
 			session = null;
 			store.setTransformInteractionActive(false);
-			store.commitDocumentTransaction();
+			if (
+				active.kind === 'anchor' &&
+				active.root
+					.getWorldPosition(new Vector3())
+					.distanceTo(active.startWorldPosition) <= EDITOR_CAMERA_PATH_MOVE_EPSILON
+			) {
+				store.cancelDocumentTransaction();
+				active.root.position.copy(active.startWorldPosition);
+			} else {
+				store.commitDocumentTransaction();
+			}
 			restoreOrbitAfterTransform(active);
 			return;
 		}
@@ -233,9 +286,9 @@
 		restoreOrbitAfterTransform(active);
 	}
 
-	function cancelCameraTransform() {
+	function cancelNavigationTransform() {
 		const active = session;
-		if (!active || active.kind !== 'camera') return false;
+		if (!active || active.kind === 'placement') return false;
 		transformControls.reset();
 		session = null;
 		store.setTransformInteractionActive(false);
@@ -249,7 +302,7 @@
 	function cancelTransform() {
 		const active = session;
 		if (!active) return false;
-		if (active.kind === 'camera') return cancelCameraTransform();
+		if (active.kind !== 'placement') return cancelNavigationTransform();
 		transformControls.reset();
 		session = null;
 		store.setTransformInteractionActive(false);
@@ -262,7 +315,7 @@
 
 	function onKeyDown(event: KeyboardEvent) {
 		if (event.key === 'Shift') shiftHeld = true;
-		if (event.key === 'Escape' && cancelCameraTransform()) {
+		if (event.key === 'Escape' && cancelNavigationTransform()) {
 			event.preventDefault();
 			event.stopImmediatePropagation();
 		}

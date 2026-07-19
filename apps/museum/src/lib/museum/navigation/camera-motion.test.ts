@@ -1,10 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { LineCurve3, QuadraticBezierCurve3, Vector3 } from 'three';
+import {
+  CubicBezierCurve3,
+  LineCurve3,
+  QuadraticBezierCurve3,
+  Vector3
+} from 'three';
 import {
   CAMERA_MOTION_PATH,
   CAMERA_MOTION_TIMING,
   VISITOR_CAMERA_PROJECTION,
   createCameraMotion,
+  createCameraPositionPath,
   sampleCameraMotion,
   type CameraRoute
 } from './camera-motion';
@@ -19,8 +25,14 @@ function sample(motion: ReturnType<typeof createCameraMotion>, progress: number)
   };
 }
 
+function expectVectorClose(actual: Vector3, expected: Vector3, precision = 8) {
+  expect(actual.x).toBeCloseTo(expected.x, precision);
+  expect(actual.y).toBeCloseTo(expected.y, precision);
+  expect(actual.z).toBeCloseTo(expected.z, precision);
+}
+
 describe('camera motion constants', () => {
-  it('publishes the visitor projection and motion policy as named constants', () => {
+  it('publishes visitor projection, timing, and path policies', () => {
     expect(VISITOR_CAMERA_PROJECTION).toEqual({ fov: 54, near: 0.1, far: 90 });
     expect(CAMERA_MOTION_TIMING).toEqual({
       unitsPerSecond: 6.2,
@@ -30,7 +42,8 @@ describe('camera motion constants', () => {
     expect(CAMERA_MOTION_PATH).toEqual({
       positionCornerRadius: 0.42,
       targetCornerRadius: 0.65,
-      cornerTrimRatio: 0.2
+      cornerTrimRatio: 0.2,
+      autoBezierAlpha: 0.5
     });
   });
 });
@@ -38,15 +51,20 @@ describe('camera motion constants', () => {
 describe('createCameraMotion', () => {
   it('clones its route and live start pose without mutating either input', () => {
     const route = {
-      positions: [
-        [0, 1, 0],
-        [10, 1, 0]
+      positionParts: [
+        {
+          kind: 'rounded-polyline',
+          points: [
+            [0, 1, 0],
+            [10, 1, 0]
+          ],
+          clearance: 0.3
+        }
       ],
-      targets: [
+      targetPoints: [
         [0, 1, 1],
         [10, 1, 1]
-      ],
-      clearance: 0.3
+      ]
     } as const satisfies CameraRoute;
     const startPose = {
       position: { x: -2, y: 3, z: 4 },
@@ -69,11 +87,83 @@ describe('createCameraMotion', () => {
     });
   });
 
+  it('applies a live position before automatic tangents are generated', () => {
+    const route = {
+      positionParts: [
+        {
+          kind: 'auto-bezier',
+          anchors: [
+            [0, 0, 0],
+            [2, 0, 1],
+            [4, 0, 0]
+          ]
+        }
+      ],
+      targetPoints: [
+        [0, 0, 1],
+        [2, 0, 2],
+        [4, 0, 1]
+      ]
+    } as const satisfies CameraRoute;
+    const authoredPath = createCameraPositionPath(route.positionParts);
+    const motion = createCameraMotion(route, {
+      position: [-3, 1, 0],
+      target: [-2, 1, 0]
+    });
+
+    expect(sample(motion, 0).position).toEqual([-3, 1, 0]);
+    expect(
+      (motion.positionPath.curves[0] as CubicBezierCurve3).v1.equals(
+        (authoredPath.curves[0] as CubicBezierCurve3).v1
+      )
+    ).toBe(false);
+    expect(route.positionParts[0].anchors[0]).toEqual([0, 0, 0]);
+  });
+
+  it('keeps a live start continuous across a leading singleton mixed part', () => {
+    const route = {
+      positionParts: [
+        { kind: 'rounded-polyline', points: [[0, 0, 0]] },
+        {
+          kind: 'auto-bezier',
+          anchors: [
+            [0, 0, 0],
+            [5, 0, 0]
+          ]
+        }
+      ],
+      targetPoints: [
+        [0, 0, 1],
+        [5, 0, 1]
+      ]
+    } as const satisfies CameraRoute;
+    const motion = createCameraMotion(route, {
+      position: [-2, 1, 0],
+      target: [-1, 1, 0]
+    });
+
+    expect(sample(motion, 0)).toEqual({
+      position: [-2, 1, 0],
+      target: [-1, 1, 0]
+    });
+    expect(sample(motion, 1)).toEqual({
+      position: [5, 0, 0],
+      target: [5, 0, 1]
+    });
+    expect(
+      motion.positionPath.curves[0]
+        .getPoint(1, new Vector3())
+        .equals(motion.positionPath.curves[1].getPoint(0, new Vector3()))
+    ).toBe(true);
+  });
+
   it('ignores a start override for a singleton route and returns a zero-duration pose', () => {
     const motion = createCameraMotion(
       {
-        positions: [[2, 3, 4]],
-        targets: [[5, 6, 7]]
+        positionParts: [
+          { kind: 'rounded-polyline', points: [[2, 3, 4]] }
+        ],
+        targetPoints: [[5, 6, 7]]
       },
       {
         position: [20, 30, 40],
@@ -90,8 +180,10 @@ describe('createCameraMotion', () => {
   it('does not inspect an ignored singleton start override', () => {
     const motion = createCameraMotion(
       {
-        positions: [[2, 3, 4]],
-        targets: [[5, 6, 7]]
+        positionParts: [
+          { kind: 'rounded-polyline', points: [[2, 3, 4]] }
+        ],
+        targetPoints: [[5, 6, 7]]
       },
       {
         position: [Number.NaN, 0, 0],
@@ -106,11 +198,16 @@ describe('createCameraMotion', () => {
   it('uses position distance with shared minimum, calculated, and maximum durations', () => {
     const motionForDistance = (distance: number) =>
       createCameraMotion({
-        positions: [
-          [0, 0, 0],
-          [distance, 0, 0]
+        positionParts: [
+          {
+            kind: 'rounded-polyline',
+            points: [
+              [0, 0, 0],
+              [distance, 0, 0]
+            ]
+          }
         ],
-        targets: [
+        targetPoints: [
           [0, 0, 1],
           [distance, 0, 1]
         ]
@@ -123,11 +220,16 @@ describe('createCameraMotion', () => {
 
   it('keeps a multi-pose zero-length position route at the minimum duration', () => {
     const motion = createCameraMotion({
-      positions: [
-        [1, 2, 3],
-        [1, 2, 3]
+      positionParts: [
+        {
+          kind: 'rounded-polyline',
+          points: [
+            [1, 2, 3],
+            [1, 2, 3]
+          ]
+        }
       ],
-      targets: [
+      targetPoints: [
         [1, 2, 4],
         [11, 2, 4]
       ]
@@ -138,21 +240,66 @@ describe('createCameraMotion', () => {
     expect(sample(motion, 0.25).target[0]).toBeCloseTo(2.03515625);
   });
 
-  it('precomputes rounded position and target paths using their separate radii', () => {
-    const route = {
-      positions: [
-        [0, 0, 0],
-        [5, 0, 0],
-        [5, 0, 5]
+  it('preserves frozen Phase 6 rounded-path samples and duration', () => {
+    const motion = createCameraMotion({
+      positionParts: [
+        {
+          kind: 'rounded-polyline',
+          points: [
+            [0, 1, 0],
+            [1, 1, 0],
+            [2, 1, 0],
+            [3, 1, 1],
+            [4, 1, 2]
+          ],
+          clearance: 0.2
+        }
       ],
-      targets: [
+      targetPoints: [
+        [0, 1, 1],
+        [3, 1, 1],
+        [4, 1, 2],
+        [4, 1, 2],
+        [4, 1, 3]
+      ]
+    });
+
+    expect(motion.positionPath.getLength()).toBeCloseTo(4.808289638378762, 12);
+    expect(motion.durationSeconds).toBe(1.25);
+    expect(sample(motion, 0.25).position).toEqual([
+      0.4977291008015312,
+      1,
+      0
+    ]);
+    expect(sample(motion, 0.5).position[0]).toBeCloseTo(2.30002657873801, 12);
+    expect(sample(motion, 0.5).position[2]).toBeCloseTo(0.30002657873801, 12);
+    expect(sample(motion, 0.75).position[0]).toBeCloseTo(3.6480523776293534, 12);
+    expect(sample(motion, 0.75).position[2]).toBeCloseTo(1.6480523776293534, 12);
+  });
+
+  it('precomputes rounded position and target paths using separate radii', () => {
+    const route = {
+      positionParts: [
+        {
+          kind: 'rounded-polyline',
+          points: [
+            [0, 0, 0],
+            [5, 0, 0],
+            [5, 0, 5]
+          ]
+        }
+      ],
+      targetPoints: [
         [0, 1, 0],
         [5, 1, 0],
         [5, 1, 5]
       ]
-    } as const;
+    } as const satisfies CameraRoute;
     const motion = createCameraMotion(route);
-    const limitedMotion = createCameraMotion({ ...route, clearance: 0.25 });
+    const limitedMotion = createCameraMotion({
+      ...route,
+      positionParts: [{ ...route.positionParts[0], clearance: 0.25 }]
+    });
 
     expect(motion.positionPath.curves).toHaveLength(3);
     expect(motion.positionPath.curves[0]).toBeInstanceOf(LineCurve3);
@@ -174,53 +321,318 @@ describe('createCameraMotion', () => {
 
   it.each([
     [
-      'an empty route',
-      { positions: [], targets: [] },
-      'Camera route must contain at least one pose'
+      'no position parts',
+      { positionParts: [], targetPoints: [] },
+      'Camera route must contain at least one position path part'
+    ],
+    [
+      'an empty rounded part',
+      {
+        positionParts: [{ kind: 'rounded-polyline', points: [] }],
+        targetPoints: []
+      },
+      'Camera route position part[0] must contain at least one point'
+    ],
+    [
+      'an empty automatic part',
+      {
+        positionParts: [{ kind: 'auto-bezier', anchors: [] }],
+        targetPoints: []
+      },
+      'Camera route position part[0] must contain at least one anchor'
     ],
     [
       'mismatched pose counts',
-      { positions: [[0, 0, 0]], targets: [] },
-      'Camera route positions and targets must have the same length'
+      {
+        positionParts: [{ kind: 'rounded-polyline', points: [[0, 0, 0]] }],
+        targetPoints: []
+      },
+      'Camera route ordered position points and target points must have the same length'
     ],
     [
       'a non-finite position',
-      { positions: [[0, Number.NaN, 0]], targets: [[0, 0, 0]] },
-      'Camera route position[0] must contain exactly three finite numbers'
+      {
+        positionParts: [
+          { kind: 'rounded-polyline', points: [[0, Number.NaN, 0]] }
+        ],
+        targetPoints: [[0, 0, 0]]
+      },
+      'Camera route position part[0] point[0] must contain exactly three finite numbers'
     ],
     [
       'a non-finite target',
-      { positions: [[0, 0, 0]], targets: [[0, Number.POSITIVE_INFINITY, 0]] },
+      {
+        positionParts: [{ kind: 'rounded-polyline', points: [[0, 0, 0]] }],
+        targetPoints: [[0, Number.POSITIVE_INFINITY, 0]]
+      },
       'Camera route target[0] must contain exactly three finite numbers'
     ],
     [
       'negative clearance',
-      { positions: [[0, 0, 0]], targets: [[0, 0, 0]], clearance: -0.1 },
-      'Camera route clearance must be a finite non-negative number'
+      {
+        positionParts: [
+          { kind: 'rounded-polyline', points: [[0, 0, 0]], clearance: -0.1 }
+        ],
+        targetPoints: [[0, 0, 0]]
+      },
+      'Camera route position part[0] clearance must be a finite non-negative number'
     ],
     [
       'non-finite clearance',
-      { positions: [[0, 0, 0]], targets: [[0, 0, 0]], clearance: Number.NaN },
-      'Camera route clearance must be a finite non-negative number'
+      {
+        positionParts: [
+          {
+            kind: 'rounded-polyline',
+            points: [[0, 0, 0]],
+            clearance: Number.NaN
+          }
+        ],
+        targetPoints: [[0, 0, 0]]
+      },
+      'Camera route position part[0] clearance must be a finite non-negative number'
+    ],
+    [
+      'a non-contiguous join',
+      {
+        positionParts: [
+          {
+            kind: 'rounded-polyline',
+            points: [
+              [0, 0, 0],
+              [1, 0, 0]
+            ]
+          },
+          {
+            kind: 'auto-bezier',
+            anchors: [
+              [2, 0, 0],
+              [3, 0, 0]
+            ]
+          }
+        ],
+        targetPoints: [
+          [0, 0, 1],
+          [1, 0, 1],
+          [3, 0, 1]
+        ]
+      },
+      'Camera route position parts 0 and 1 must form a contiguous join'
     ]
   ])('rejects %s', (_label, route, message) => {
     expect(() => createCameraMotion(route as unknown as CameraRoute)).toThrow(message);
   });
 });
 
+describe('createCameraPositionPath', () => {
+  it('builds a straight cubic for two distinct automatic anchors', () => {
+    const path = createCameraPositionPath([
+      {
+        kind: 'auto-bezier',
+        anchors: [
+          [0, 0, 0],
+          [6, 3, 0]
+        ]
+      }
+    ]);
+    const curve = path.curves[0] as CubicBezierCurve3;
+
+    expect(curve).toBeInstanceOf(CubicBezierCurve3);
+    expect(curve.v0.toArray()).toEqual([0, 0, 0]);
+    expect(curve.v1.toArray()).toEqual([2, 1, 0]);
+    expect(curve.v2.toArray()).toEqual([4, 2, 0]);
+    expect(curve.v3.toArray()).toEqual([6, 3, 0]);
+  });
+
+  it('passes through uneven anchors with C1 tangent direction', () => {
+    const anchors = [
+      [0, 0, 0],
+      [1, 0, 0],
+      [5, 0, 4],
+      [6, 0, 4]
+    ] as const;
+    const path = createCameraPositionPath([
+      { kind: 'auto-bezier', anchors }
+    ]);
+
+    expect(path.curves).toHaveLength(3);
+    for (let index = 0; index < anchors.length; index += 1) {
+      const curveIndex = Math.min(index, path.curves.length - 1);
+      const point = path.curves[curveIndex].getPoint(
+        index === anchors.length - 1 ? 1 : 0,
+        new Vector3()
+      );
+      expect(point.toArray()).toEqual(anchors[index]);
+    }
+
+    for (let index = 0; index < path.curves.length - 1; index += 1) {
+      const before = path.curves[index] as CubicBezierCurve3;
+      const after = path.curves[index + 1] as CubicBezierCurve3;
+      const incoming = before.v3.clone().sub(before.v2).normalize();
+      const outgoing = after.v1.clone().sub(after.v0).normalize();
+      expectVectorClose(incoming, outgoing);
+
+			const previousInterval = Math.sqrt(
+				new Vector3(...anchors[index + 1]).distanceTo(
+					new Vector3(...anchors[index])
+				)
+			);
+			const nextInterval = Math.sqrt(
+				new Vector3(...anchors[index + 2]).distanceTo(
+					new Vector3(...anchors[index + 1])
+				)
+			);
+			const incomingKnotDerivative = before.v3
+				.clone()
+				.sub(before.v2)
+				.multiplyScalar(3 / previousInterval);
+			const outgoingKnotDerivative = after.v1
+				.clone()
+				.sub(after.v0)
+				.multiplyScalar(3 / nextInterval);
+			expectVectorClose(incomingKnotDerivative, outgoingKnotDerivative);
+    }
+  });
+
+  it('keeps duplicate segments degenerate and all generated values finite', () => {
+    const path = createCameraPositionPath([
+      {
+        kind: 'auto-bezier',
+        anchors: [
+          [0, 0, 0],
+          [0, 0, 0],
+          [3, 0, 2],
+          [3, 0, 2],
+          [7, 1, 0]
+        ]
+      }
+    ]);
+
+    expect(path.curves).toHaveLength(4);
+    expect(path.curves[0].getLength()).toBeCloseTo(0, 12);
+    expect(path.curves[2].getLength()).toBeCloseTo(0, 12);
+    for (const curve of path.curves as CubicBezierCurve3[]) {
+      for (const control of [curve.v0, curve.v1, curve.v2, curve.v3]) {
+        expect(control.toArray().every(Number.isFinite)).toBe(true);
+      }
+    }
+    for (const progress of [0, 0.1, 0.5, 0.9, 1]) {
+      expect(
+        path.getPointAt(progress, new Vector3()).toArray().every(Number.isFinite)
+      ).toBe(true);
+    }
+  });
+
+  it('samples reversed automatic anchors as the same geometry backward', () => {
+    const anchors = [
+      [0, 0, 0],
+      [2, 1, 1],
+      [7, -1, 3],
+      [9, 0, 0]
+    ] as const;
+    const forward = createCameraPositionPath([
+      { kind: 'auto-bezier', anchors }
+    ]);
+    const reverse = createCameraPositionPath([
+      { kind: 'auto-bezier', anchors: [...anchors].reverse() }
+    ]);
+
+    for (const progress of [0, 0.1, 0.35, 0.5, 0.8, 1]) {
+      expectVectorClose(
+        forward.getPointAt(progress, new Vector3()),
+        reverse.getPointAt(1 - progress, new Vector3()),
+        7
+      );
+    }
+  });
+
+  it('combines contiguous mixed parts without smoothing across boundaries', () => {
+    const path = createCameraPositionPath([
+      {
+        kind: 'rounded-polyline',
+        points: [
+          [0, 0, 0],
+          [2, 0, 0]
+        ],
+        clearance: 0.2
+      },
+      {
+        kind: 'auto-bezier',
+        anchors: [
+          [2, 0, 0],
+          [3, 0, 1],
+          [4, 0, 0]
+        ]
+      },
+      {
+        kind: 'rounded-polyline',
+        points: [
+          [4, 0, 0],
+          [5, 0, 0]
+        ],
+        clearance: 0.4
+      }
+    ]);
+
+    expect(path.curves).toHaveLength(4);
+    expect(path.curves[0]).toBeInstanceOf(LineCurve3);
+    expect(path.curves[1]).toBeInstanceOf(CubicBezierCurve3);
+    expect(path.curves[2]).toBeInstanceOf(CubicBezierCurve3);
+    expect(path.curves[3]).toBeInstanceOf(LineCurve3);
+    expect(path.curves[0].getPoint(1, new Vector3()).toArray()).toEqual([2, 0, 0]);
+    expect(path.curves[1].getPoint(0, new Vector3()).toArray()).toEqual([2, 0, 0]);
+    expect(path.curves[2].getPoint(1, new Vector3()).toArray()).toEqual([4, 0, 0]);
+    expect(path.curves[3].getPoint(0, new Vector3()).toArray()).toEqual([4, 0, 0]);
+  });
+
+  it('returns geometry identical to createCameraMotion', () => {
+    const route = {
+      positionParts: [
+        {
+          kind: 'auto-bezier',
+          anchors: [
+            [0, 0, 0],
+            [2, 0, 1],
+            [4, 0, 0]
+          ]
+        }
+      ],
+      targetPoints: [
+        [0, 0, 1],
+        [2, 0, 2],
+        [4, 0, 1]
+      ]
+    } as const satisfies CameraRoute;
+    const shared = createCameraPositionPath(route.positionParts);
+    const motion = createCameraMotion(route);
+
+    expect(shared.getLength()).toBe(motion.positionPath.getLength());
+    for (const progress of [0, 0.2, 0.5, 0.85, 1]) {
+      expectVectorClose(
+        shared.getPointAt(progress, new Vector3()),
+        motion.positionPath.getPointAt(progress, new Vector3())
+      );
+    }
+  });
+});
+
 describe('sampleCameraMotion', () => {
   const motion = createCameraMotion({
-    positions: [
-      [0, 0, 0],
-      [10, 0, 0]
+    positionParts: [
+      {
+        kind: 'rounded-polyline',
+        points: [
+          [0, 0, 0],
+          [10, 0, 0]
+        ]
+      }
     ],
-    targets: [
+    targetPoints: [
       [0, 0, 1],
       [10, 0, 1]
     ]
   });
 
-  it('clamps progress and writes into the supplied output vectors', () => {
+  it('clamps progress and writes into supplied output vectors', () => {
     const position = new Vector3(100, 100, 100);
     const target = new Vector3(200, 200, 200);
 
@@ -233,7 +645,7 @@ describe('sampleCameraMotion', () => {
     expect(target.toArray()).toEqual([10, 0, 1]);
   });
 
-  it('applies smootherstep before sampling the precomputed paths', () => {
+  it('applies smootherstep before sampling precomputed paths', () => {
     const result = sample(motion, 0.25);
 
     expect(result.position[0]).toBeCloseTo(1.03515625);

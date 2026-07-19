@@ -7,13 +7,14 @@ The project is currently a spatial prototype: the layout, pacing, navigation, an
 ## Features
 
 - Guided tour through eight narrative stops
-- Free-tour mode for exploring the museum’s connected spaces
-- Smooth 3D camera movement with reduced-motion support
-- Central piano chamber and gold staff-line path
+- Free-tour mode for exploring all graph-connected stops, including editor-authored free-only nodes
+- Smooth rounded and automatically generated Bézier camera paths with reduced-motion support
+- Central piano chamber; visitor view intentionally contains no route-line overlay
 - Shared materials for floors, walls, ceilings, wood, plaster, and brass
 - Paris Salon asset slice with furniture, lighting, and decorative GLB models
 - Responsive HUD with room titles, navigation, and tour controls
-- Development previews for materials, assets, and museum layout editing
+- Development previews for materials and assets
+- Development-only scene editor with node, connection, curve-anchor, preview, and JSON import/export workflows
 
 ## Run locally
 
@@ -46,7 +47,7 @@ npm test        # Run the test suite
 
 Built with SvelteKit, Svelte 5, Threlte, Three.js, and TypeScript.
 
-The main application lives in [`apps/museum`](./apps/museum). Additional development views are available at `/dev/materials`, `/dev/assets`, and `/dev/museum-editor`.
+The main application lives in [`apps/museum`](./apps/museum). Additional development views are available at `/dev/materials`, `/dev/assets`, and `/dev/museum-editor`. The museum editor is excluded from production; its route returns 404 in production builds.
 
 ## Status
 

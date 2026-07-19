@@ -47,6 +47,27 @@ describe('getActiveTransformTarget', () => {
 		).toBeNull();
 	});
 
+	it('resolves stable anchors as world-space navigation targets', () => {
+		const anchorObject = new Object3D();
+		expect(
+			getActiveTransformTarget({
+				...base,
+				navigationSelection: {
+					kind: 'anchor',
+					connectionId: 'a-b',
+					anchorId: 'a-b-anchor-01'
+				},
+				anchorObject
+			})
+		).toEqual({
+			kind: 'anchor',
+			key: 'anchor:a-b:a-b-anchor-01',
+			object: anchorObject,
+			connectionId: 'a-b',
+			anchorId: 'a-b-anchor-01'
+		});
+	});
+
 	it('detaches every target for preview and pending placement modes', () => {
 		expect(getActiveTransformTarget({ ...base, previewActive: true })).toBeNull();
 		expect(getActiveTransformTarget({ ...base, pendingPlacement: true })).toBeNull();

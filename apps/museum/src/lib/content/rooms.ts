@@ -148,3 +148,21 @@ export function roomLocalPoint(roomId: MuseumRoomId, worldPoint: Vec3): Vec3 {
     deltaX * sin + deltaZ * cos
   ];
 }
+
+export function isWorldPointInsideRoomXZ(
+  roomId: MuseumRoomId,
+  worldPoint: Vec3,
+  epsilon = 1e-6
+): boolean {
+  const room = getRoom(roomId);
+  const [localX, , localZ] = roomLocalPoint(roomId, worldPoint);
+  const halfWidth = room.dimensions[0] / 2;
+  const halfDepth = room.dimensions[2] / 2;
+
+  return (
+    localX >= -halfWidth - epsilon &&
+    localX <= halfWidth + epsilon &&
+    localZ >= -halfDepth - epsilon &&
+    localZ <= halfDepth + epsilon
+  );
+}

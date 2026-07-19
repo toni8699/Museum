@@ -40,20 +40,26 @@ const scene: RuntimeMuseumScene = {
       fromNodeId: 'custom-start',
       toNodeId: 'custom-next',
       clearance: 0.35,
-      positionWaypoints: [
-        [0, 1.65, 0],
-        [1, 1.65, 0]
-      ]
+      positionPath: {
+        kind: 'rounded-polyline',
+        anchors: [
+          { id: 'node:custom-start:position', position: [0, 1.65, 0] },
+          { id: 'node:custom-next:position', position: [1, 1.65, 0] }
+        ]
+      }
     },
     {
       id: 'custom-free-edge',
       fromNodeId: 'custom-next',
       toNodeId: 'custom-free',
       clearance: 0.35,
-      positionWaypoints: [
-        [1, 1.65, 0],
-        [2, 1.65, 0]
-      ]
+      positionPath: {
+        kind: 'rounded-polyline',
+        anchors: [
+          { id: 'node:custom-next:position', position: [1, 1.65, 0] },
+          { id: 'node:custom-free:position', position: [2, 1.65, 0] }
+        ]
+      }
     }
   ]
 };

@@ -8,7 +8,6 @@
 		sampleCameraMotion,
 		type CameraMotion
 	} from '$lib/museum/navigation/camera-motion';
-	import { getCameraRoute } from '$lib/museum/navigation/camera-route';
 	import { T, useTask } from '@threlte/core';
 	import { OrbitControls } from '@threlte/extras';
 	import { Box3, MOUSE, Vector3, type PerspectiveCamera } from 'three';
@@ -123,7 +122,8 @@
 				return;
 			}
 
-			const route = getCameraRoute(preview.fromNodeId, preview.toNodeId, graph);
+			const route = store.getCapturedCameraPreviewRoute(preview.runId);
+			if (!route) throw new Error('Camera preview route capture is unavailable');
 			activeMotion = createCameraMotion(route);
 			const startsComplete = activeMotion.durationSeconds === 0;
 			sampleCameraMotion(

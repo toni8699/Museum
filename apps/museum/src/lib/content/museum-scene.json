@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "objects": [
     {
       "id": "main-piano",
@@ -259,105 +259,129 @@
       "fromNodeId": "entrance-start",
       "toNodeId": "poland-threshold",
       "clearance": 0.35,
-      "positionWaypoints": [
-        { "roomId": "entrance", "position": [-2.2, 1.65, 1.2] },
-        { "roomId": "entrance", "position": [-3.5, 1.65, 0] },
-        { "position": [-5.7, 1.65, 17.1] },
-        { "roomId": "poland", "position": [5, 1.65, 0] },
-        { "roomId": "poland", "position": [4, 1.65, 2.2] }
-      ]
+      "positionPath": {
+        "kind": "rounded-polyline",
+        "anchors": [
+          { "id": "entrance-poland-anchor-01", "roomId": "entrance", "position": [-2.2, 1.65, 1.2] },
+          { "id": "entrance-poland-anchor-02", "roomId": "entrance", "position": [-3.5, 1.65, 0] },
+          { "id": "entrance-poland-anchor-03", "position": [-5.7, 1.65, 17.1] },
+          { "id": "entrance-poland-anchor-04", "roomId": "poland", "position": [5, 1.65, 0] },
+          { "id": "entrance-poland-anchor-05", "roomId": "poland", "position": [4, 1.65, 2.2] }
+        ]
+      }
     },
     {
       "id": "poland-departure",
       "fromNodeId": "poland-threshold",
       "toNodeId": "departure-corridor",
       "clearance": 0.35,
-      "positionWaypoints": [
-        { "roomId": "poland", "position": [-3.2, 1.65, 1.2] },
-        { "roomId": "poland", "position": [-5, 1.65, 0] },
-        { "position": [-16.4, 1.65, 6.2] },
-        { "roomId": "departure", "position": [4, 1.65, 0] },
-        { "roomId": "departure", "position": [3, 1.65, 1.4] }
-      ]
+      "positionPath": {
+        "kind": "rounded-polyline",
+        "anchors": [
+          { "id": "poland-departure-anchor-01", "roomId": "poland", "position": [-3.2, 1.65, 1.2] },
+          { "id": "poland-departure-anchor-02", "roomId": "poland", "position": [-5, 1.65, 0] },
+          { "id": "poland-departure-anchor-03", "position": [-16.4, 1.65, 6.2] },
+          { "id": "poland-departure-anchor-04", "roomId": "departure", "position": [4, 1.65, 0] },
+          { "id": "poland-departure-anchor-05", "roomId": "departure", "position": [3, 1.65, 1.4] }
+        ]
+      }
     },
     {
       "id": "departure-paris",
       "fromNodeId": "departure-corridor",
       "toNodeId": "paris-seat",
       "clearance": 0.35,
-      "positionWaypoints": [
-        { "roomId": "departure", "position": [3, 1.65, -5.8] },
-        { "roomId": "departure", "position": [-4, 1.65, -5.8] },
-        { "position": [-15, 1.65, -8] },
-        { "roomId": "paris", "position": [6.3, 1.65, 3.5] },
-        { "roomId": "paris", "position": [5.5, 1.65, 3.5] },
-        { "roomId": "paris", "position": [4.7, 1.65, 3.5] },
-        { "roomId": "paris", "position": [4, 1.65, 4] },
-        { "roomId": "paris", "position": [-3.8, 1.65, 4] }
-      ]
+      "positionPath": {
+        "kind": "rounded-polyline",
+        "anchors": [
+          { "id": "departure-paris-anchor-01", "roomId": "departure", "position": [3, 1.65, -5.8] },
+          { "id": "departure-paris-anchor-02", "roomId": "departure", "position": [-4, 1.65, -5.8] },
+          { "id": "departure-paris-anchor-03", "position": [-15, 1.65, -8] },
+          { "id": "departure-paris-anchor-04", "roomId": "paris", "position": [6.3, 1.65, 3.5] },
+          { "id": "departure-paris-anchor-05", "roomId": "paris", "position": [5.5, 1.65, 3.5] },
+          { "id": "departure-paris-anchor-06", "roomId": "paris", "position": [4.7, 1.65, 3.5] },
+          { "id": "departure-paris-anchor-07", "roomId": "paris", "position": [4, 1.65, 4] },
+          { "id": "departure-paris-anchor-08", "roomId": "paris", "position": [-3.8, 1.65, 4] }
+        ]
+      }
     },
     {
       "id": "paris-workshop",
       "fromNodeId": "paris-seat",
       "toNodeId": "workshop-desk",
       "clearance": 0.35,
-      "positionWaypoints": [
-        { "roomId": "paris", "position": [-3.8, 1.65, 4] },
-        { "roomId": "paris", "position": [-5.5, 1.65, 3.5] },
-        { "position": [0, 1.65, -19.3] },
-        { "roomId": "workshop", "position": [6, 1.65, 3.2] },
-        { "roomId": "workshop", "position": [4, 1.65, 3] }
-      ]
+      "positionPath": {
+        "kind": "rounded-polyline",
+        "anchors": [
+          { "id": "paris-workshop-anchor-01", "roomId": "paris", "position": [-3.8, 1.65, 4] },
+          { "id": "paris-workshop-anchor-02", "roomId": "paris", "position": [-5.5, 1.65, 3.5] },
+          { "id": "paris-workshop-anchor-03", "position": [0, 1.65, -19.3] },
+          { "id": "paris-workshop-anchor-04", "roomId": "workshop", "position": [6, 1.65, 3.2] },
+          { "id": "paris-workshop-anchor-05", "roomId": "workshop", "position": [4, 1.65, 3] }
+        ]
+      }
     },
     {
       "id": "workshop-music-entry",
       "fromNodeId": "workshop-desk",
       "toNodeId": "music-entry",
       "clearance": 0.35,
-      "positionWaypoints": [
-        { "roomId": "workshop", "position": [0, 1.65, -2.5] },
-        { "roomId": "workshop", "position": [2.8, 1.65, -5] },
-        { "position": [4.4, 1.65, -7.7] },
-        { "position": [4.806, 1.65, -2.775] },
-        { "position": [4.027, 1.65, -2.325] }
-      ]
+      "positionPath": {
+        "kind": "rounded-polyline",
+        "anchors": [
+          { "id": "workshop-music-entry-anchor-01", "roomId": "workshop", "position": [0, 1.65, -2.5] },
+          { "id": "workshop-music-entry-anchor-02", "roomId": "workshop", "position": [2.8, 1.65, -5] },
+          { "id": "workshop-music-entry-anchor-03", "position": [4.4, 1.65, -7.7] },
+          { "id": "workshop-music-entry-anchor-04", "position": [4.806, 1.65, -2.775] },
+          { "id": "workshop-music-entry-anchor-05", "position": [4.027, 1.65, -2.325] }
+        ]
+      }
     },
     {
       "id": "music-entry-center",
       "fromNodeId": "music-entry",
       "toNodeId": "music-center",
       "clearance": 0.35,
-      "positionWaypoints": [
-        { "roomId": "music-chamber", "position": [3.4, 1.65, 0.2] },
-        { "roomId": "music-chamber", "position": [3.2, 1.65, 1.5] }
-      ]
+      "positionPath": {
+        "kind": "rounded-polyline",
+        "anchors": [
+          { "id": "music-entry-center-anchor-01", "roomId": "music-chamber", "position": [3.4, 1.65, 0.2] },
+          { "id": "music-entry-center-anchor-02", "roomId": "music-chamber", "position": [3.2, 1.65, 1.5] }
+        ]
+      }
     },
     {
       "id": "music-center-legacy",
       "fromNodeId": "music-center",
       "toNodeId": "legacy-return",
       "clearance": 0.35,
-      "positionWaypoints": [
-        { "roomId": "music-chamber", "position": [3.247, 1.65, 1.875] },
-        { "roomId": "music-chamber", "position": [4.027, 1.65, 2.325] },
-        { "roomId": "music-chamber", "position": [4.806, 1.65, 2.775] },
-        { "roomId": "music-chamber", "position": [6.3, 1.65, 4.4] },
-        { "roomId": "legacy", "position": [0, 1.65, -5] },
-        { "roomId": "legacy", "position": [0, 1.65, -2.4] }
-      ]
+      "positionPath": {
+        "kind": "rounded-polyline",
+        "anchors": [
+          { "id": "music-center-legacy-anchor-01", "roomId": "music-chamber", "position": [3.247, 1.65, 1.875] },
+          { "id": "music-center-legacy-anchor-02", "roomId": "music-chamber", "position": [4.027, 1.65, 2.325] },
+          { "id": "music-center-legacy-anchor-03", "roomId": "music-chamber", "position": [4.806, 1.65, 2.775] },
+          { "id": "music-center-legacy-anchor-04", "roomId": "music-chamber", "position": [6.3, 1.65, 4.4] },
+          { "id": "music-center-legacy-anchor-05", "roomId": "legacy", "position": [0, 1.65, -5] },
+          { "id": "music-center-legacy-anchor-06", "roomId": "legacy", "position": [0, 1.65, -2.4] }
+        ]
+      }
     },
     {
       "id": "legacy-entrance",
       "fromNodeId": "legacy-return",
       "toNodeId": "entrance-start",
       "clearance": 0.35,
-      "positionWaypoints": [
-        { "roomId": "legacy", "position": [4, 1.65, 4] },
-        { "roomId": "legacy", "position": [-4, 1.65, 4] },
-        { "roomId": "legacy", "position": [-5.5, 1.65, 3.2] },
-        { "position": [8.5, 1.65, 18] },
-        { "roomId": "entrance", "position": [3.5, 1.65, 2.5] }
-      ]
+      "positionPath": {
+        "kind": "rounded-polyline",
+        "anchors": [
+          { "id": "legacy-entrance-anchor-01", "roomId": "legacy", "position": [4, 1.65, 4] },
+          { "id": "legacy-entrance-anchor-02", "roomId": "legacy", "position": [-4, 1.65, 4] },
+          { "id": "legacy-entrance-anchor-03", "roomId": "legacy", "position": [-5.5, 1.65, 3.2] },
+          { "id": "legacy-entrance-anchor-04", "position": [8.5, 1.65, 18] },
+          { "id": "legacy-entrance-anchor-05", "roomId": "entrance", "position": [3.5, 1.65, 2.5] }
+        ]
+      }
     }
   ]
 }

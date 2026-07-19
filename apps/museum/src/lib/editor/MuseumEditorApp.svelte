@@ -29,6 +29,7 @@
 
 	const selectedObject = $derived(store.selectedObject);
 	const selectedCameraNode = $derived(store.selectedNavigationNode);
+	const selectedNavigation = $derived(store.navigationSelection);
 	const singleEditableObject = $derived(
 		store.selectedPlacementIds.length === 1 && !store.selectedClusterId
 			? store.selectedObject
@@ -294,6 +295,10 @@
 				store.focusSelection();
 			} else if (!modifier && !event.altKey && event.key === 'Escape') {
 				if (store.transformInteractionActive) return;
+				if (store.cancelPendingNavigation('Camera command cancelled')) {
+					event.preventDefault();
+					return;
+				}
 				if (store.cancelAssetPlacement('Placement cancelled')) {
 					event.preventDefault();
 					return;
@@ -326,7 +331,7 @@
 	>
 		<header>
 			<h1>Museum editor</h1>
-			<p>Phase 6 — camera editing and preview</p>
+			<p>Phase 6.5 — camera path authoring</p>
 		</header>
 
 		<div class="panel-tabs" role="tablist" aria-label="Editor panels">
@@ -507,8 +512,12 @@
 			</div>
 			{#if leftPanel === 'assets'}
 				<p>Browse the manifest and choose a floor asset to place.</p>
-			{:else if selectedCameraNode}
+			{:else if selectedNavigation?.kind === 'node' && selectedCameraNode}
 				<p class="id">{selectedCameraNode.id} · {store.cameraSelection?.handle}</p>
+			{:else if selectedNavigation?.kind === 'connection'}
+				<p class="id">{selectedNavigation.connectionId} · connection</p>
+			{:else if selectedNavigation?.kind === 'anchor'}
+				<p class="id">{selectedNavigation.anchorId} · anchor</p>
 			{:else if store.selectedCluster}
 				<p>{store.selectedCluster.name} · {store.selectedPlacementIds.length} selected</p>
 			{:else if store.selectedPlacementIds.length > 1}
@@ -523,7 +532,7 @@
 		</header>
 
 		{#if leftPanel === 'scene'}
-		{#if selectedCameraNode}
+		{#if selectedNavigation}
 			<EditorCameraInspector {store} />
 		{:else}
 		<section class="grouping" aria-label="Group selection">

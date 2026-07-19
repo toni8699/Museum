@@ -16,7 +16,6 @@
   } from '$lib/state/museum-state.svelte';
   import MuseumShell from './layout/MuseumShell.svelte';
   import CentralChamber from './layout/CentralChamber.svelte';
-  import StaffPath from './layout/StaffPath.svelte';
   import NavigationNode from './navigation/NavigationNode.svelte';
   import CameraDirector from './navigation/CameraDirector.svelte';
   import { getParisAssetActivation } from './paris-activation';
@@ -90,7 +89,6 @@
 <T.DirectionalLight position={[2, 8, 5]} color="#c9d1df" intensity={directionalIntensity} />
 
 <MuseumShell rooms={museumRooms} />
-<StaffPath connections={scene.connections} />
 <CentralChamber />
 
 <EntranceRoom />

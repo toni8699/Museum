@@ -3,6 +3,7 @@
 	import MuseumScene from '$lib/museum/MuseumScene.svelte';
 	import type { EditorPlacementRegistry } from '$lib/museum/placement-registry';
 	import EditorCameraHelpers from './EditorCameraHelpers.svelte';
+	import EditorCameraPathHelpers from './EditorCameraPathHelpers.svelte';
 	import EditorCameraRig from './EditorCameraRig.svelte';
 	import EditorPlacementTools from './EditorPlacementTools.svelte';
 	import EditorSelection from './EditorSelection.svelte';
@@ -24,7 +25,11 @@
 
 <div
 	class="viewport"
-	class:placing={Boolean(store.pendingPlacementAssetId)}
+	class:placing={Boolean(
+		store.pendingPlacementAssetId ||
+		store.pendingNavigationCommand?.kind === 'place-connected-node'
+	)}
+	class:bending={Boolean(store.hoveredConnectionId || store.hoveredAnchorId)}
 	aria-label="Museum editor viewport"
 >
 	<Canvas dpr={[1, 1.5]} shadows>
@@ -44,7 +49,12 @@
 				<EditorCameraRig {store} {graph} />
 			{/snippet}
 		</MuseumScene>
-		{#if store.cameraSelection && !store.pendingPlacementAssetId && !store.cameraPreview}
+		<EditorCameraPathHelpers {store} />
+		{#if store.pendingNavigationCommand?.kind === 'connect-existing' && !store.cameraPreview}
+			{#each store.document.navigationNodes as node (node.id)}
+				<EditorCameraHelpers {store} nodeId={node.id} positionOnly />
+			{/each}
+		{:else if store.cameraSelection && !store.pendingPlacementAssetId && !store.cameraPreview}
 			{#key store.cameraSelection.nodeId}
 				<EditorCameraHelpers {store} nodeId={store.cameraSelection.nodeId} />
 			{/key}
@@ -67,6 +77,15 @@
 			Click a Paris floor to place · Escape cancels
 		</div>
 	{/if}
+	{#if store.pendingNavigationCommand?.kind === 'place-connected-node'}
+		<div class="placement-hint" role="status">
+			Click the {store.pendingNavigationCommand.roomId} floor to place · Escape cancels
+		</div>
+	{:else if store.pendingNavigationCommand?.kind === 'connect-existing'}
+		<div class="placement-hint" role="status">
+			Choose a destination camera node · Escape cancels
+		</div>
+	{/if}
 </div>
 
 <style>
@@ -80,6 +99,10 @@
 
 	.viewport.placing :global(canvas) {
 		cursor: crosshair;
+	}
+
+	.viewport.bending :global(canvas) {
+		cursor: grab;
 	}
 
 	.placement-hint {

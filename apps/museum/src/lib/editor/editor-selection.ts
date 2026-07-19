@@ -22,6 +22,30 @@ export type EditorCameraSelection = {
 	handle: EditorCameraHandle;
 };
 
+export type EditorNavigationSelection =
+	| null
+	| ({ kind: 'node' } & EditorCameraSelection)
+	| {
+			kind: 'connection';
+			connectionId: string;
+	  }
+	| {
+			kind: 'anchor';
+			connectionId: string;
+			anchorId: string;
+	  };
+
+export type EditorCameraConnectionUserData = {
+	editorEntity: 'camera-connection';
+	connectionId: string;
+};
+
+export type EditorCameraAnchorUserData = {
+	editorEntity: 'camera-anchor';
+	connectionId: string;
+	anchorId: string;
+};
+
 export type SelectionHitInfo = {
 	/** Effective opacity of the hit material (1 if unknown / non-mesh). */
 	opacity: number;
@@ -29,11 +53,14 @@ export type SelectionHitInfo = {
 	placementId: string | null;
 	/** Climbed camera helper, if any. Absent on legacy/manual hit fixtures. */
 	cameraSelection?: EditorCameraSelection | null;
+	/** Any climbed navigation helper, including path connections and anchors. */
+	navigationSelection?: EditorNavigationSelection;
 };
 
 export type NormalSelectionResult =
 	| { action: 'select'; id: string }
 	| { action: 'select-camera'; selection: EditorCameraSelection }
+	| { action: 'select-navigation'; selection: Exclude<EditorNavigationSelection, null> }
 	| { action: 'deselect' };
 
 export function isEditorPlacementUserData(
@@ -53,6 +80,29 @@ export function isEditorCameraHandleUserData(
 		data.editorEntity === 'camera-handle' &&
 		typeof data.nodeId === 'string' &&
 		(data.cameraHandle === 'position' || data.cameraHandle === 'target')
+	);
+}
+
+export function isEditorCameraConnectionUserData(
+	value: unknown
+): value is EditorCameraConnectionUserData {
+	if (!value || typeof value !== 'object') return false;
+	const data = value as Record<string, unknown>;
+	return (
+		data.editorEntity === 'camera-connection' &&
+		typeof data.connectionId === 'string'
+	);
+}
+
+export function isEditorCameraAnchorUserData(
+	value: unknown
+): value is EditorCameraAnchorUserData {
+	if (!value || typeof value !== 'object') return false;
+	const data = value as Record<string, unknown>;
+	return (
+		data.editorEntity === 'camera-anchor' &&
+		typeof data.connectionId === 'string' &&
+		typeof data.anchorId === 'string'
 	);
 }
 
@@ -85,6 +135,37 @@ export function findCameraSelectionFromObject(
 	return null;
 }
 
+/** Climb parents for any editor-only navigation helper tag. */
+export function findNavigationSelectionFromObject(
+	object: Object3D | null
+): EditorNavigationSelection {
+	let current: Object3D | null = object;
+	while (current) {
+		if (isEditorCameraHandleUserData(current.userData)) {
+			return {
+				kind: 'node',
+				nodeId: current.userData.nodeId,
+				handle: current.userData.cameraHandle
+			};
+		}
+		if (isEditorCameraAnchorUserData(current.userData)) {
+			return {
+				kind: 'anchor',
+				connectionId: current.userData.connectionId,
+				anchorId: current.userData.anchorId
+			};
+		}
+		if (isEditorCameraConnectionUserData(current.userData)) {
+			return {
+				kind: 'connection',
+				connectionId: current.userData.connectionId
+			};
+		}
+		current = current.parent;
+	}
+	return null;
+}
+
 function materialOpacity(material: Material | undefined): number {
 	if (!material) return 1;
 	if ('opacity' in material && typeof material.opacity === 'number') {
@@ -107,10 +188,18 @@ export function getHitOpacity(object: Object3D, materialIndex?: number): number 
 }
 
 export function selectionHitFromIntersection(hit: Intersection): SelectionHitInfo {
+	const navigationSelection = findNavigationSelectionFromObject(hit.object);
 	return {
 		opacity: getHitOpacity(hit.object, hit.face?.materialIndex),
 		placementId: findPlacementIdFromObject(hit.object),
-		cameraSelection: findCameraSelectionFromObject(hit.object)
+		cameraSelection:
+			navigationSelection?.kind === 'node'
+				? {
+						nodeId: navigationSelection.nodeId,
+						handle: navigationSelection.handle
+				  }
+				: null,
+		navigationSelection
 	};
 }
 
@@ -140,9 +229,29 @@ export function resolveNormalSelection(
 	hits: SelectionHitInfo[]
 ): NormalSelectionResult {
 	const effective = filterEffectiveHits(hits);
-	const cameraHit = effective.find((hit) => hit.cameraSelection);
+	const cameraHit = effective.find(
+		(hit) => hit.navigationSelection?.kind === 'node' || hit.cameraSelection
+	);
 	if (cameraHit?.cameraSelection) {
 		return { action: 'select-camera', selection: cameraHit.cameraSelection };
+	}
+	if (cameraHit?.navigationSelection?.kind === 'node') {
+		const { nodeId, handle } = cameraHit.navigationSelection;
+		return { action: 'select-camera', selection: { nodeId, handle } };
+	}
+
+	const anchorHit = effective.find(
+		(hit) => hit.navigationSelection?.kind === 'anchor'
+	);
+	if (anchorHit?.navigationSelection) {
+		return { action: 'select-navigation', selection: anchorHit.navigationSelection };
+	}
+
+	const connectionHit = effective.find(
+		(hit) => hit.navigationSelection?.kind === 'connection'
+	);
+	if (connectionHit?.navigationSelection) {
+		return { action: 'select-navigation', selection: connectionHit.navigationSelection };
 	}
 
 	const first = effective[0];

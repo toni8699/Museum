@@ -9,6 +9,7 @@ import type {
   MuseumConnection,
   MuseumRoomId,
   NavigationNodeData,
+  RuntimePathAnchor,
   Vec3
 } from '$lib/types/museum';
 
@@ -39,18 +40,33 @@ export type SceneWaypoint = {
   roomId?: MuseumRoomId;
 };
 
+export type ScenePathAnchor = SceneWaypoint & {
+  /** Stable within this connection and across serialization/history. */
+  id: string;
+};
+
+export type ScenePositionPath =
+  | {
+      kind: 'rounded-polyline';
+      anchors: ScenePathAnchor[];
+    }
+  | {
+      kind: 'auto-bezier';
+      anchors: ScenePathAnchor[];
+    };
+
 export type SceneConnection = Omit<
   MuseumConnection,
-  'positionWaypoints' | 'targetWaypoints'
+  'positionPath' | 'targetWaypoints'
 > & {
-  /** Interior waypoints only; the resolver inserts fresh node endpoints. */
-  positionWaypoints: SceneWaypoint[];
+  /** Interior anchors only; the resolver inserts fresh node endpoints. */
+  positionPath: ScenePositionPath;
   /** Interior look waypoints only; currently unused by camera-route. */
   targetWaypoints?: SceneWaypoint[];
 };
 
 export type MuseumSceneDocument = {
-  version: 1;
+  version: 2;
   objects: SceneObjectPlacement[];
   /** Editor-only hierarchy metadata. Visitor rendering intentionally stays flat. */
   clusters?: SceneObjectCluster[];
@@ -83,10 +99,10 @@ function resolveWaypoint(waypoint: SceneWaypoint): Vec3 {
     : cloneVec3(waypoint.position);
 }
 
-export function resolveSceneDocument(document: MuseumSceneDocument): RuntimeMuseumScene {
-  const validation = validateSceneDocument(document);
+export function resolveSceneDocument(input: unknown): RuntimeMuseumScene {
+  const validation = validateSceneDocument(input);
   if (!validation.success) throw new SceneDocumentValidationError(validation.issues[0]!);
-  document = validation.document;
+  const document = validation.document;
 
   const navigationNodes = document.navigationNodes.map((node): NavigationNodeData => ({
     ...node,
@@ -105,16 +121,25 @@ export function resolveSceneDocument(document: MuseumSceneDocument): RuntimeMuse
   const connections = document.connections.map((connection): MuseumConnection => {
     const fromNode = getResolvedNode(connection.fromNodeId);
     const toNode = getResolvedNode(connection.toNodeId);
+    const interiorAnchors = connection.positionPath.anchors.map(
+      (anchor): RuntimePathAnchor => ({
+        id: anchor.id,
+        position: resolveWaypoint(anchor)
+      })
+    );
     const resolved: MuseumConnection = {
       id: connection.id,
       fromNodeId: connection.fromNodeId,
       toNodeId: connection.toNodeId,
       clearance: connection.clearance,
-      positionWaypoints: [
-        cloneVec3(fromNode.position),
-        ...connection.positionWaypoints.map(resolveWaypoint),
-        cloneVec3(toNode.position)
-      ]
+      positionPath: {
+        kind: connection.positionPath.kind,
+        anchors: [
+          { id: `node:${fromNode.id}:position`, position: cloneVec3(fromNode.position) },
+          ...interiorAnchors,
+          { id: `node:${toNode.id}:position`, position: cloneVec3(toNode.position) }
+        ]
+      }
     };
 
     if (connection.targetWaypoints) {

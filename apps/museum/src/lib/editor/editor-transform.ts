@@ -2,6 +2,7 @@ import type { SceneObjectPlacement } from '$lib/content/scene';
 import type { Vec3 } from '$lib/types/museum';
 import type { Object3D } from 'three';
 import type { EditorCameraSelection } from './editor-selection';
+import type { EditorNavigationSelection } from './editor-selection';
 
 export type EditorTransformMode = 'translate' | 'rotate' | 'scale';
 
@@ -20,6 +21,13 @@ export type ActiveTransformTarget =
 			nodeId: string;
 			handle: EditorCameraSelection['handle'];
 	  }
+	| {
+			kind: 'anchor';
+			key: string;
+			object: Object3D;
+			connectionId: string;
+			anchorId: string;
+	  }
 	| null;
 
 export function getActiveTransformTarget(input: {
@@ -27,18 +35,36 @@ export function getActiveTransformTarget(input: {
 	pendingPlacement: boolean;
 	placementKey: string;
 	placementObject?: Object3D;
-	cameraSelection: EditorCameraSelection | null;
+	cameraSelection?: EditorCameraSelection | null;
+	navigationSelection?: EditorNavigationSelection;
 	cameraObject?: Object3D;
+	anchorObject?: Object3D;
 }): ActiveTransformTarget {
 	if (input.previewActive || input.pendingPlacement) return null;
-	if (input.cameraSelection) {
+	const navigationSelection =
+		input.navigationSelection ??
+		(input.cameraSelection
+			? { kind: 'node' as const, ...input.cameraSelection }
+			: null);
+	if (navigationSelection?.kind === 'anchor') {
+		return input.anchorObject
+			? {
+					kind: 'anchor',
+					key: `anchor:${navigationSelection.connectionId}:${navigationSelection.anchorId}`,
+					object: input.anchorObject,
+					connectionId: navigationSelection.connectionId,
+					anchorId: navigationSelection.anchorId
+			  }
+			: null;
+	}
+	if (navigationSelection?.kind === 'node') {
 		return input.cameraObject
 			? {
 					kind: 'camera',
-					key: `camera:${input.cameraSelection.nodeId}:${input.cameraSelection.handle}`,
+					key: `camera:${navigationSelection.nodeId}:${navigationSelection.handle}`,
 					object: input.cameraObject,
-					nodeId: input.cameraSelection.nodeId,
-					handle: input.cameraSelection.handle
+					nodeId: navigationSelection.nodeId,
+					handle: navigationSelection.handle
 			  }
 			: null;
 	}

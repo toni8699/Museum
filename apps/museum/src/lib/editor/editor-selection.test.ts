@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { Object3D, type Intersection } from 'three';
 import {
 	findCameraSelectionFromObject,
+	findNavigationSelectionFromObject,
+	isEditorCameraAnchorUserData,
+	isEditorCameraConnectionUserData,
 	isEditorCameraHandleUserData,
 	resolveNormalSelection,
 	selectionHitFromIntersection,
@@ -77,6 +80,11 @@ describe('editor camera-helper selection', () => {
 			cameraSelection: {
 				nodeId: 'departure-seat',
 				handle: 'position'
+			},
+			navigationSelection: {
+				kind: 'node',
+				nodeId: 'departure-seat',
+				handle: 'position'
 			}
 		});
 	});
@@ -112,5 +120,60 @@ describe('editor camera-helper selection', () => {
 				hit('chair-placement')
 			])
 		).toEqual(['chair-placement', 'piano-placement']);
+	});
+
+	it('recognizes and climbs stable connection and anchor tags', () => {
+		expect(
+			isEditorCameraConnectionUserData({
+				editorEntity: 'camera-connection',
+				connectionId: 'a-b'
+			})
+		).toBe(true);
+		expect(
+			isEditorCameraAnchorUserData({
+				editorEntity: 'camera-anchor',
+				connectionId: 'a-b',
+				anchorId: 'a-b-anchor-01'
+			})
+		).toBe(true);
+
+		const connectionRoot = new Object3D();
+		connectionRoot.userData = {
+			editorEntity: 'camera-connection',
+			connectionId: 'a-b'
+		};
+		const anchorRoot = new Object3D();
+		anchorRoot.userData = {
+			editorEntity: 'camera-anchor',
+			connectionId: 'a-b',
+			anchorId: 'a-b-anchor-01'
+		};
+		connectionRoot.add(anchorRoot);
+		expect(findNavigationSelectionFromObject(anchorRoot)).toEqual({
+			kind: 'anchor',
+			connectionId: 'a-b',
+			anchorId: 'a-b-anchor-01'
+		});
+	});
+
+	it('prefers anchors over connections and keeps both out of placement cycling', () => {
+		const anchorSelection = {
+			kind: 'anchor' as const,
+			connectionId: 'a-b',
+			anchorId: 'a-b-anchor-01'
+		};
+		const connectionSelection = {
+			kind: 'connection' as const,
+			connectionId: 'a-b'
+		};
+		const hits: SelectionHitInfo[] = [
+			{ opacity: 1, placementId: 'chair', navigationSelection: connectionSelection },
+			{ opacity: 1, placementId: null, navigationSelection: anchorSelection }
+		];
+		expect(resolveNormalSelection(hits)).toEqual({
+			action: 'select-navigation',
+			selection: anchorSelection
+		});
+		expect(uniquePlacementIdsInOrder(hits)).toEqual(['chair']);
 	});
 });

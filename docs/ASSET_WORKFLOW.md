@@ -8,7 +8,7 @@ Use this when adding, replacing, or optimizing Paris Salon assets in the museum.
 - Keep licence and acquisition notes in `apps/museum/assets-source/licenses/`.
 - Keep only optimized production GLBs in `apps/museum/static/museum/models/`.
 - Put model metadata, provenance, and defaults in `apps/museum/src/lib/content/assets.ts`.
-- Put Paris-only placement transforms in `apps/museum/src/lib/content/paris-salon-layout.ts`.
+- Author Paris placement transforms and clusters in `apps/museum/src/lib/content/museum-scene.json`, preferably through `/dev/museum-editor` and its canonical JSON export.
 - Let `AssetModel.svelte` handle loading, cloning, Meshopt decoding, and fallbacks.
 
 ## Add or replace an asset
@@ -31,7 +31,7 @@ Use this when adding, replacing, or optimizing Paris Salon assets in the museum.
    - `rooms`
    - `notes`
    - optional `fallback`
-5. Update `paris-salon-layout.ts` with the new placement and clustering.
+5. Add the placement and any cluster membership in `/dev/museum-editor`, then export the canonical `museum-scene.json`.
 6. Update any fallback primitives if the asset needs a new silhouette.
 7. Remove stale scene references only after the new asset is in place and verified.
 
@@ -69,7 +69,7 @@ After any change, check:
 
 - Keep the piano position unchanged unless the user explicitly asks otherwise.
 - For Paris Salon, treat furniture clusters as layout data, not scene logic.
-- Use `paris-salon-layout.ts` for transforms; do not add room-local GLTF loaders.
+- Use `museum-scene.json` for transforms; do not add room-local GLTF loaders.
 - Use the room-scoped fallback kind when a model is unavailable.
 
 ## Future-agent shortcut
@@ -80,5 +80,5 @@ If you only need the shortest version:
 2. Record licence in `assets-source/licenses/`.
 3. Optimize to `static/museum/models/` with pivot cleanup, pruning, WebP, and Meshopt.
 4. Wire it in `assets.ts`.
-5. Place it in `paris-salon-layout.ts`.
+5. Place it in `/dev/museum-editor` and export `museum-scene.json`.
 6. Validate with `check`, `build`, and `/dev/assets`.

@@ -6,6 +6,7 @@ import type {
 	SceneNavigationNode,
 	SceneObjectCluster,
 	SceneObjectPlacement,
+	ScenePathAnchor,
 	SceneWaypoint
 } from './scene';
 import type { MuseumRoomId, Vec3 } from '$lib/types/museum';
@@ -33,6 +34,17 @@ export class SceneDocumentValidationError extends Error {
 const EPSILON = 1e-6;
 
 type JsonRecord = Record<string, unknown>;
+
+type LegacySceneConnection = Omit<SceneConnection, 'positionPath'> & {
+	positionWaypoints: SceneWaypoint[];
+};
+
+type LegacyMuseumSceneDocument = Omit<MuseumSceneDocument, 'version' | 'connections'> & {
+	version: 1;
+	connections: LegacySceneConnection[];
+};
+
+type ParsedMuseumSceneDocument = MuseumSceneDocument | LegacyMuseumSceneDocument;
 
 function isRecord(value: unknown): value is JsonRecord {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -294,16 +306,52 @@ function parseWaypoint(
 	return { ...(roomId === undefined ? {} : { roomId }), position };
 }
 
-function parseConnection(
+function parsePathAnchor(
 	input: unknown,
 	path: string,
 	issues: SceneDocumentIssue[]
-): SceneConnection | undefined {
+): ScenePathAnchor | undefined {
+	if (!isRecord(input)) {
+		addIssue(issues, path, 'invalid_type', 'Expected a path anchor object');
+		return undefined;
+	}
+	assertAllowedKeys(input, ['id', 'roomId', 'position'], path, issues);
+	const id = readRequiredString(input, 'id', path, issues);
+	let roomId: MuseumRoomId | undefined;
+	if ('roomId' in input) roomId = readRoomId(input, 'roomId', path, issues);
+	const position = readVec3(input.position, `${path}.position`, issues);
+	if (!id || !position) return undefined;
+	return { id, ...(roomId === undefined ? {} : { roomId }), position };
+}
+
+function parseWaypoints(
+	value: unknown,
+	path: string,
+	issues: SceneDocumentIssue[]
+): SceneWaypoint[] | undefined {
+	if (!Array.isArray(value)) {
+		addIssue(issues, path, 'invalid_type', 'Expected an array');
+		return undefined;
+	}
+	const parsed = value.map((waypoint, index) =>
+		parseWaypoint(waypoint, `${path}[${index}]`, issues)
+	);
+	return parsed.every((waypoint): waypoint is SceneWaypoint => waypoint !== undefined)
+		? parsed
+		: undefined;
+}
+
+function parseConnectionBase(
+	input: unknown,
+	path: string,
+	issues: SceneDocumentIssue[],
+	allowedKeys: readonly string[]
+) {
 	if (!isRecord(input)) {
 		addIssue(issues, path, 'invalid_type', 'Expected a connection object');
 		return undefined;
 	}
-	assertAllowedKeys(input, ['id', 'fromNodeId', 'toNodeId', 'clearance', 'positionWaypoints', 'targetWaypoints'], path, issues);
+	assertAllowedKeys(input, allowedKeys, path, issues);
 	const id = readRequiredString(input, 'id', path, issues);
 	const fromNodeId = readRequiredString(input, 'fromNodeId', path, issues);
 	const toNodeId = readRequiredString(input, 'toNodeId', path, issues);
@@ -311,29 +359,106 @@ function parseConnection(
 	if (clearance !== undefined && clearance <= 0) {
 		addIssue(issues, `${path}.clearance`, 'invalid_clearance', 'Clearance must be greater than zero');
 	}
-	const parseWaypoints = (value: unknown, childPath: string) => {
-		if (!Array.isArray(value)) {
-			addIssue(issues, childPath, 'invalid_type', 'Expected an array');
-			return undefined;
-		}
-		const parsed = value.map((waypoint, index) => parseWaypoint(waypoint, `${childPath}[${index}]`, issues));
-		return parsed.every((waypoint): waypoint is SceneWaypoint => waypoint !== undefined)
-			? parsed
-			: undefined;
-	};
-	const positionWaypoints = parseWaypoints(input.positionWaypoints, `${path}.positionWaypoints`);
 	const targetWaypoints = 'targetWaypoints' in input
-		? parseWaypoints(input.targetWaypoints, `${path}.targetWaypoints`)
+		? parseWaypoints(input.targetWaypoints, `${path}.targetWaypoints`, issues)
 		: undefined;
-	if (!id || !fromNodeId || !toNodeId || clearance === undefined || clearance <= 0 || !positionWaypoints || ('targetWaypoints' in input && !targetWaypoints)) return undefined;
+	if (
+		!id ||
+		!fromNodeId ||
+		!toNodeId ||
+		clearance === undefined ||
+		clearance <= 0 ||
+		('targetWaypoints' in input && !targetWaypoints)
+	) {
+		return undefined;
+	}
 	return {
+		input,
 		id,
 		fromNodeId,
 		toNodeId,
 		clearance,
-		positionWaypoints,
 		...(targetWaypoints === undefined ? {} : { targetWaypoints })
 	};
+}
+
+function parseLegacyConnection(
+	input: unknown,
+	path: string,
+	issues: SceneDocumentIssue[]
+): LegacySceneConnection | undefined {
+	const base = parseConnectionBase(input, path, issues, [
+		'id',
+		'fromNodeId',
+		'toNodeId',
+		'clearance',
+		'positionWaypoints',
+		'targetWaypoints'
+	]);
+	if (!base) return undefined;
+	const positionWaypoints = parseWaypoints(
+		base.input.positionWaypoints,
+		`${path}.positionWaypoints`,
+		issues
+	);
+	if (!positionWaypoints) return undefined;
+	const { input: _input, ...connection } = base;
+	return { ...connection, positionWaypoints };
+}
+
+function parsePositionPath(
+	input: unknown,
+	path: string,
+	issues: SceneDocumentIssue[]
+): SceneConnection['positionPath'] | undefined {
+	if (!isRecord(input)) {
+		addIssue(issues, path, 'invalid_type', 'Expected a position path object');
+		return undefined;
+	}
+	assertAllowedKeys(input, ['kind', 'anchors'], path, issues);
+	const kind = readRequiredString(input, 'kind', path, issues);
+	if (kind !== 'rounded-polyline' && kind !== 'auto-bezier') {
+		addIssue(
+			issues,
+			`${path}.kind`,
+			'invalid_path_kind',
+			`Expected rounded-polyline or auto-bezier, received: ${String(kind)}`
+		);
+	}
+	if (!Array.isArray(input.anchors)) {
+		addIssue(issues, `${path}.anchors`, 'invalid_type', 'Expected an array');
+		return undefined;
+	}
+	const anchors = input.anchors.map((anchor, index) =>
+		parsePathAnchor(anchor, `${path}.anchors[${index}]`, issues)
+	);
+	if (
+		(kind !== 'rounded-polyline' && kind !== 'auto-bezier') ||
+		!anchors.every((anchor): anchor is ScenePathAnchor => anchor !== undefined)
+	) {
+		return undefined;
+	}
+	return { kind, anchors };
+}
+
+function parseConnection(
+	input: unknown,
+	path: string,
+	issues: SceneDocumentIssue[]
+): SceneConnection | undefined {
+	const base = parseConnectionBase(input, path, issues, [
+		'id',
+		'fromNodeId',
+		'toNodeId',
+		'clearance',
+		'positionPath',
+		'targetWaypoints'
+	]);
+	if (!base) return undefined;
+	const positionPath = parsePositionPath(base.input.positionPath, `${path}.positionPath`, issues);
+	if (!positionPath) return undefined;
+	const { input: _input, ...connection } = base;
+	return { ...connection, positionPath };
 }
 
 function assertUnique(
@@ -353,7 +478,7 @@ function distance(a: Vec3, b: Vec3) {
 	return Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 }
 
-function validateSemantics(document: MuseumSceneDocument, issues: SceneDocumentIssue[]) {
+function validateSemantics(document: ParsedMuseumSceneDocument, issues: SceneDocumentIssue[]) {
 	assertUnique(document.objects, 'scene object', '$.objects', issues);
 	assertUnique(document.navigationNodes, 'navigation node', '$.navigationNodes', issues);
 	assertUnique(document.connections, 'connection', '$.connections', issues);
@@ -395,6 +520,9 @@ function validateSemantics(document: MuseumSceneDocument, issues: SceneDocumentI
 
 	const edgeKeys = new Map<string, number>();
 	const edgeKey = (a: string, b: string) => a < b ? `${a.length}:${a}${b.length}:${b}` : `${b.length}:${b}${a.length}:${a}`;
+	const generatedEndpointIds = new Set(
+		document.navigationNodes.map((node) => `node:${node.id}:position`)
+	);
 	for (const [index, connection] of document.connections.entries()) {
 		const path = `$.connections[${index}]`;
 		if (connection.fromNodeId === connection.toNodeId) addIssue(issues, path, 'self_connection', 'A connection cannot join a node to itself');
@@ -403,6 +531,29 @@ function validateSemantics(document: MuseumSceneDocument, issues: SceneDocumentI
 		const key = edgeKey(connection.fromNodeId, connection.toNodeId);
 		if (edgeKeys.has(key)) addIssue(issues, path, 'duplicate_connection', `Duplicate undirected connection: ${connection.fromNodeId} / ${connection.toNodeId}`);
 		edgeKeys.set(key, index);
+		if ('positionPath' in connection) {
+			const anchorIds = new Set<string>();
+			for (const [anchorIndex, anchor] of connection.positionPath.anchors.entries()) {
+				const anchorPath = `${path}.positionPath.anchors[${anchorIndex}].id`;
+				if (anchorIds.has(anchor.id)) {
+					addIssue(
+						issues,
+						anchorPath,
+						'duplicate_anchor_id',
+						`Duplicate path anchor id in ${connection.id}: ${anchor.id}`
+					);
+				}
+				if (generatedEndpointIds.has(anchor.id)) {
+					addIssue(
+						issues,
+						anchorPath,
+						'endpoint_anchor_id',
+						`Interior anchor id collides with a generated endpoint: ${anchor.id}`
+					);
+				}
+				anchorIds.add(anchor.id);
+			}
+		}
 	}
 
 	for (const [index, node] of document.navigationNodes.entries()) {
@@ -427,11 +578,17 @@ function validateSemantics(document: MuseumSceneDocument, issues: SceneDocumentI
 	}
 	if (visited.size !== document.navigationNodes.length) addIssue(issues, '$.connections', 'disconnected_graph', 'Navigation connections must form one connected graph');
 
-	if (document.navigationNodes.length === 1) {
+	if (document.navigationNodes.length === 1 && document.version === 1) {
 		const node = document.navigationNodes[0]!;
 		if (node.nextNodeId !== undefined || node.previousNodeId !== undefined) addIssue(issues, '$.navigationNodes[0]', 'singleton_tour_links', 'A singleton graph cannot define next or previous links');
 		return;
 	}
+
+	if (document.version === 2) {
+		validateVersionTwoTour(document.navigationNodes, nodeById, issues);
+		return;
+	}
+
 	for (const [index, node] of document.navigationNodes.entries()) {
 		const path = `$.navigationNodes[${index}]`;
 		if (!node.nextNodeId) addIssue(issues, `${path}.nextNodeId`, 'missing_tour_link', 'Every multi-node graph requires nextNodeId');
@@ -458,14 +615,148 @@ function validateSemantics(document: MuseumSceneDocument, issues: SceneDocumentI
 	if (tourVisited.size !== document.navigationNodes.length || current?.id !== start.id) addIssue(issues, '$.navigationNodes', 'invalid_tour_cycle', 'nextNodeId links must form one cycle containing every node');
 }
 
-function canonicalDocument(document: MuseumSceneDocument): MuseumSceneDocument {
-	const waypoint = (value: SceneWaypoint): SceneWaypoint => ({ ...(value.roomId === undefined ? {} : { roomId: value.roomId }), position: [...value.position] });
+function validateVersionTwoTour(
+	nodes: readonly SceneNavigationNode[],
+	nodeById: ReadonlyMap<string, SceneNavigationNode>,
+	issues: SceneDocumentIssue[]
+) {
+	const linkedNodes: SceneNavigationNode[] = [];
+	for (const [index, node] of nodes.entries()) {
+		const path = `$.navigationNodes[${index}]`;
+		const hasNext = node.nextNodeId !== undefined;
+		const hasPrevious = node.previousNodeId !== undefined;
+		if (hasNext !== hasPrevious) {
+			addIssue(
+				issues,
+				path,
+				'partial_tour_links',
+				'A node must define both nextNodeId and previousNodeId, or neither'
+			);
+		}
+		if (!hasNext || !hasPrevious) continue;
+		linkedNodes.push(node);
+		for (const [key, opposite] of [
+			['nextNodeId', 'previousNodeId'],
+			['previousNodeId', 'nextNodeId']
+		] as const) {
+			const linkedId = node[key]!;
+			if (linkedId === node.id) {
+				addIssue(issues, `${path}.${key}`, 'self_tour_link', 'A tour link cannot reference its own node');
+			}
+			const linked = nodeById.get(linkedId);
+			if (!linked) {
+				addIssue(issues, `${path}.${key}`, 'unknown_node', `Unknown navigation node: ${linkedId}`);
+				continue;
+			}
+			if (linked.nextNodeId === undefined || linked.previousNodeId === undefined) {
+				addIssue(
+					issues,
+					`${path}.${key}`,
+					'free_only_tour_link',
+					`Tour link ${linkedId} references a free-only node`
+				);
+			}
+			if (!node.connectedNodeIds.includes(linkedId)) {
+				addIssue(
+					issues,
+					`${path}.${key}`,
+					'non_adjacent_tour_link',
+					`Tour link ${linkedId} is not adjacent`
+				);
+			}
+			if (linked[opposite] !== node.id) {
+				addIssue(
+					issues,
+					`${path}.${key}`,
+					'non_reciprocal_tour_link',
+					`${linkedId}.${opposite} must equal ${node.id}`
+				);
+			}
+		}
+	}
+
+	if (linkedNodes.length === 0) {
+		if (nodes.length > 1) {
+			addIssue(
+				issues,
+				'$.navigationNodes',
+				'missing_guided_cycle',
+				'A multi-node graph must retain at least one guided tour cycle'
+			);
+		}
+		return;
+	}
+	const start = linkedNodes[0]!;
+	const tourVisited = new Set<string>();
+	let current: SceneNavigationNode | undefined = start;
+	while (current && !tourVisited.has(current.id)) {
+		tourVisited.add(current.id);
+		current = current.nextNodeId ? nodeById.get(current.nextNodeId) : undefined;
+	}
+	if (tourVisited.size !== linkedNodes.length || current?.id !== start.id) {
+		addIssue(
+			issues,
+			'$.navigationNodes',
+			'invalid_tour_cycle',
+			'Guided nextNodeId links must form one cycle containing every guided node'
+		);
+	}
+}
+
+function cloneWaypoint(value: SceneWaypoint): SceneWaypoint {
 	return {
-		version: 1,
+		...(value.roomId === undefined ? {} : { roomId: value.roomId }),
+		position: [...value.position]
+	};
+}
+
+function canonicalDocument(document: MuseumSceneDocument): MuseumSceneDocument {
+	return {
+		version: 2,
 		objects: document.objects.map((object) => ({ id: object.id, roomId: object.roomId, assetId: object.assetId, fallback: object.fallback, position: [...object.position], rotation: [...object.rotation], ...(object.scale === undefined ? {} : { scale: object.scale }) })),
 		...(document.clusters === undefined ? {} : { clusters: document.clusters.map((cluster) => ({ id: cluster.id, name: cluster.name, roomId: cluster.roomId, memberIds: [...cluster.memberIds] })) }),
 		navigationNodes: document.navigationNodes.map((node) => ({ id: node.id, roomId: node.roomId, label: node.label, position: [...node.position], cameraTarget: [...node.cameraTarget], connectedNodeIds: [...node.connectedNodeIds], ...(node.nextNodeId === undefined ? {} : { nextNodeId: node.nextNodeId }), ...(node.previousNodeId === undefined ? {} : { previousNodeId: node.previousNodeId }), ...(node.lockInteraction === undefined ? {} : { lockInteraction: node.lockInteraction }) })),
-		connections: document.connections.map((connection) => ({ id: connection.id, fromNodeId: connection.fromNodeId, toNodeId: connection.toNodeId, clearance: connection.clearance, positionWaypoints: connection.positionWaypoints.map(waypoint), ...(connection.targetWaypoints === undefined ? {} : { targetWaypoints: connection.targetWaypoints.map(waypoint) }) }))
+		connections: document.connections.map((connection) => ({
+			id: connection.id,
+			fromNodeId: connection.fromNodeId,
+			toNodeId: connection.toNodeId,
+			clearance: connection.clearance,
+			positionPath: {
+				kind: connection.positionPath.kind,
+				anchors: connection.positionPath.anchors.map((anchor) => ({
+					id: anchor.id,
+					...cloneWaypoint(anchor)
+				}))
+			},
+			...(connection.targetWaypoints === undefined
+				? {}
+				: { targetWaypoints: connection.targetWaypoints.map(cloneWaypoint) })
+		}))
+	};
+}
+
+function migrateVersionOneDocument(document: LegacyMuseumSceneDocument): MuseumSceneDocument {
+	return {
+		version: 2,
+		objects: document.objects,
+		...(document.clusters === undefined ? {} : { clusters: document.clusters }),
+		navigationNodes: document.navigationNodes,
+		connections: document.connections.map((connection) => ({
+			id: connection.id,
+			fromNodeId: connection.fromNodeId,
+			toNodeId: connection.toNodeId,
+			clearance: connection.clearance,
+			positionPath: {
+				kind: 'rounded-polyline' as const,
+				anchors: connection.positionWaypoints.map((waypoint, index) => ({
+					id: `${connection.id}-anchor-${String(index + 1).padStart(2, '0')}`,
+					...waypoint
+				}))
+			},
+			...(connection.targetWaypoints === undefined
+				? {}
+				: { targetWaypoints: connection.targetWaypoints })
+		}))
 	};
 }
 
@@ -476,7 +767,14 @@ export function validateSceneDocument(input: unknown): SceneDocumentValidationRe
 		return { success: false, issues };
 	}
 	assertAllowedKeys(input, ['version', 'objects', 'clusters', 'navigationNodes', 'connections'], '$', issues);
-	if (input.version !== 1) addIssue(issues, '$.version', 'unsupported_version', `Unsupported museum scene document version: ${String(input.version)}`);
+	if (input.version !== 1 && input.version !== 2) {
+		addIssue(
+			issues,
+			'$.version',
+			'unsupported_version',
+			`Unsupported museum scene document version: ${String(input.version)}`
+		);
+	}
 	const parseArray = <T>(key: string, parser: (value: unknown, path: string, target: SceneDocumentIssue[]) => T | undefined) => {
 		const value = input[key];
 		if (!Array.isArray(value)) {
@@ -489,12 +787,41 @@ export function validateSceneDocument(input: unknown): SceneDocumentValidationRe
 	const objects = parseArray('objects', parsePlacement);
 	const clusters = 'clusters' in input ? parseArray('clusters', parseCluster) : undefined;
 	const navigationNodes = parseArray('navigationNodes', parseNode);
-	const connections = parseArray('connections', parseConnection);
-	if (!objects || !navigationNodes || !connections || ('clusters' in input && !clusters) || issues.length) return { success: false, issues };
-	const document: MuseumSceneDocument = { version: 1, objects, ...(clusters === undefined ? {} : { clusters }), navigationNodes, connections };
+	const legacyConnections = input.version === 1
+		? parseArray('connections', parseLegacyConnection)
+		: undefined;
+	const currentConnections = input.version === 2
+		? parseArray('connections', parseConnection)
+		: undefined;
+	if (
+		!objects ||
+		!navigationNodes ||
+		(input.version === 1 ? !legacyConnections : !currentConnections) ||
+		('clusters' in input && !clusters) ||
+		issues.length
+	) {
+		return { success: false, issues };
+	}
+	const document: ParsedMuseumSceneDocument = input.version === 1
+		? {
+				version: 1,
+				objects,
+				...(clusters === undefined ? {} : { clusters }),
+				navigationNodes,
+				connections: legacyConnections!
+			}
+		: {
+				version: 2,
+				objects,
+				...(clusters === undefined ? {} : { clusters }),
+				navigationNodes,
+				connections: currentConnections!
+			};
 	validateSemantics(document, issues);
 	if (issues.length) return { success: false, issues };
-	const normalized = canonicalDocument(document);
+	const normalized = canonicalDocument(
+		document.version === 1 ? migrateVersionOneDocument(document) : document
+	);
 	return { success: true, document: normalized, canonicalJson: JSON.stringify(normalized, null, 2) + '\n' };
 }
 
@@ -517,7 +844,7 @@ export function parseSceneDocumentJson(json: string): SceneDocumentValidationRes
 	}
 }
 
-export function serializeSceneDocument(document: MuseumSceneDocument): string {
+export function serializeSceneDocument(document: unknown): string {
 	const result = validateSceneDocument(document);
 	if (!result.success) throw new SceneDocumentValidationError(result.issues[0]!);
 	return result.canonicalJson;

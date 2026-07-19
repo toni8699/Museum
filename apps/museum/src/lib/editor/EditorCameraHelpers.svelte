@@ -19,13 +19,16 @@
 
 	let {
 		store,
-		nodeId
+		nodeId,
+		positionOnly = false
 	}: {
 		store: MuseumEditorStore;
 		nodeId: string;
+		positionOnly?: boolean;
 	} = $props();
 	const editorStore = untrack(() => store);
 	const helperNodeId = untrack(() => nodeId);
+	const helperPositionOnly = untrack(() => positionOnly);
 
 	const { scene } = useThrelte();
 	const positionRoot = new Group();
@@ -72,9 +75,12 @@
 	connector.raycast = () => null as never;
 	positionRoot.add(positionMarker);
 	targetRoot.add(targetMarker);
-	scene.add(positionRoot, targetRoot, connector);
+	scene.add(positionRoot);
 	editorStore.registerCameraHelperRoot(helperNodeId, 'position', positionRoot);
-	editorStore.registerCameraHelperRoot(helperNodeId, 'target', targetRoot);
+	if (!helperPositionOnly) {
+		scene.add(targetRoot, connector);
+		editorStore.registerCameraHelperRoot(helperNodeId, 'target', targetRoot);
+	}
 
 	function syncFromCommittedScene() {
 		const node = editorStore.scene.navigationNodes.find(
@@ -117,11 +123,15 @@
 		targetMaterial.color.set(activeHandle === 'target' ? 0xc9f1ff : 0x5bc8ff);
 	});
 
-	useTask(updateConnector);
+	useTask(() => {
+		if (!helperPositionOnly) updateConnector();
+	});
 
 	onDestroy(() => {
 		editorStore.unregisterCameraHelperRoot(helperNodeId, 'position', positionRoot);
-		editorStore.unregisterCameraHelperRoot(helperNodeId, 'target', targetRoot);
+		if (!helperPositionOnly) {
+			editorStore.unregisterCameraHelperRoot(helperNodeId, 'target', targetRoot);
+		}
 		positionRoot.removeFromParent();
 		targetRoot.removeFromParent();
 		connector.removeFromParent();

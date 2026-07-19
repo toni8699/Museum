@@ -617,9 +617,9 @@ describe('MuseumEditorStore Phase 6 camera nodes', () => {
 		const store = createMuseumEditorStore();
 		const nodeId = 'paris-seat';
 		const originalInteriors = store.document.connections.map((connection) =>
-			connection.positionWaypoints.map((waypoint) => ({
-				...waypoint,
-				position: [...waypoint.position]
+			connection.positionPath.anchors.map((anchor) => ({
+				...anchor,
+				position: [...anchor.position]
 			}))
 		);
 		const originalPosition = [...store.document.navigationNodes.find(
@@ -639,14 +639,14 @@ describe('MuseumEditorStore Phase 6 camera nodes', () => {
 
 		for (const connection of store.scene.connections) {
 			if (connection.fromNodeId === nodeId) {
-				expect(connection.positionWaypoints[0]).toEqual(runtimeNode.position);
+				expect(connection.positionPath.anchors[0]?.position).toEqual(runtimeNode.position);
 			}
 			if (connection.toNodeId === nodeId) {
-				expect(connection.positionWaypoints.at(-1)).toEqual(runtimeNode.position);
+				expect(connection.positionPath.anchors.at(-1)?.position).toEqual(runtimeNode.position);
 			}
 		}
 		expect(
-			store.document.connections.map((connection) => connection.positionWaypoints)
+			store.document.connections.map((connection) => connection.positionPath.anchors)
 		).toEqual(originalInteriors);
 		assertNavigationGraphMatchesScene(store.state.graph, store.scene);
 
@@ -662,7 +662,7 @@ describe('MuseumEditorStore Phase 6 camera nodes', () => {
 		store.selectNavigationNode(nodeId);
 		store.selectCameraHandle('target');
 		const beforePaths = store.scene.connections.map((connection) =>
-			connection.positionWaypoints.map((point) => [...point])
+			connection.positionPath.anchors.map((anchor) => [...anchor.position])
 		);
 		const target = store.selectedNavigationNode!.cameraTarget;
 		const nextTarget: [number, number, number] = [
@@ -672,9 +672,11 @@ describe('MuseumEditorStore Phase 6 camera nodes', () => {
 		];
 
 		expect(store.commitNavigationNodePoint(nodeId, 'target', nextTarget)).toBe(true);
-		expect(store.scene.connections.map((connection) => connection.positionWaypoints)).toEqual(
-			beforePaths
-		);
+		expect(
+			store.scene.connections.map((connection) =>
+				connection.positionPath.anchors.map((anchor) => anchor.position)
+			)
+		).toEqual(beforePaths);
 		expect(store.selectedRuntimeNavigationNode?.cameraTarget).toEqual(
 			roomPoint('departure', nextTarget)
 		);
@@ -888,7 +890,7 @@ describe('MuseumEditorStore Phase 6 camera nodes', () => {
 		expect(missingStore.previewSelectedTransition()).toBe(true);
 		expect(missingStore.cameraPreview).not.toBeNull();
 		missingStore.stopCameraPreview();
-		expect(missingStore.statusMessage).toContain('Every multi-node graph requires nextNodeId');
+		expect(missingStore.statusMessage).toContain('free-only node');
 
 		const unroutableStore = createMuseumEditorStore();
 		unroutableStore.selectNavigationNode('music-entry');
@@ -899,6 +901,217 @@ describe('MuseumEditorStore Phase 6 camera nodes', () => {
 		expect(unroutableStore.cameraPreview).not.toBeNull();
 		unroutableStore.stopCameraPreview();
 		expect(unroutableStore.statusMessage).toContain('No connection exists');
+	});
+});
+
+describe('MuseumEditorStore Phase 6.5 camera paths', () => {
+	it('selects connections and anchors without framing or placement ownership', () => {
+		const store = createMuseumEditorStore();
+		const connection = store.document.connections[0]!;
+		const anchor = connection.positionPath.anchors[0]!;
+
+		expect(store.selectConnection(connection.id)).toBe(true);
+		expect(store.navigationSelection).toEqual({
+			kind: 'connection',
+			connectionId: connection.id
+		});
+		expect(store.cameraFocusKind).toBeNull();
+
+		expect(store.selectAnchor(connection.id, anchor.id)).toBe(true);
+		expect(store.navigationSelection).toEqual({
+			kind: 'anchor',
+			connectionId: connection.id,
+			anchorId: anchor.id
+		});
+		expect(store.cameraSelection).toBeNull();
+	});
+
+	it('converts legacy connections atomically and preserves stable anchors through history', () => {
+		const store = createMuseumEditorStore();
+		const connection = store.document.connections[0]!;
+		const anchorId = connection.positionPath.anchors[0]!.id;
+		store.selectConnection(connection.id);
+
+		expect(connection.positionPath.kind).toBe('rounded-polyline');
+		expect(store.convertSelectedConnectionToSmooth()).toBe(true);
+		expect(store.selectedConnection?.positionPath.kind).toBe('auto-bezier');
+		expect(store.selectedConnection?.positionPath.anchors[0]!.id).toBe(anchorId);
+
+		expect(store.undo()).toBe(true);
+		expect(store.selectedConnection?.positionPath.kind).toBe('rounded-polyline');
+		expect(store.redo()).toBe(true);
+		expect(store.selectedConnection?.positionPath.kind).toBe('auto-bezier');
+	});
+
+	it('edits and deletes anchors with one history entry while preserving coordinate basis', () => {
+		const store = createMuseumEditorStore();
+		const connection = store.document.connections.find(
+			(candidate) => candidate.positionPath.anchors.some((anchor) => anchor.roomId)
+		)!;
+		const anchor = connection.positionPath.anchors.find((candidate) => candidate.roomId)!;
+		const original = [...anchor.position] as [number, number, number];
+		const next: [number, number, number] = [original[0] + 0.25, original[1], original[2] - 0.5];
+		store.selectConnection(connection.id);
+		store.selectAnchor(connection.id, anchor.id);
+
+		expect(store.commitSelectedAnchorPoint(next)).toBe(true);
+		expect(store.selectedAnchor?.roomId).toBe(anchor.roomId);
+		expect(store.selectedAnchor?.position).toEqual(next);
+		expect(store.selectedConnection?.positionPath.kind).toBe('auto-bezier');
+
+		expect(store.undo()).toBe(true);
+		expect(store.navigationSelection).toEqual({
+			kind: 'anchor',
+			connectionId: connection.id,
+			anchorId: anchor.id
+		});
+		expect(store.selectedAnchor?.position).toEqual(original);
+
+		expect(store.deleteSelectedAnchor()).toBe(true);
+		expect(store.navigationSelection).toEqual({
+			kind: 'connection',
+			connectionId: connection.id
+		});
+		expect(store.selectedConnection?.positionPath.kind).toBe('rounded-polyline');
+	});
+
+	it('inserts and drags one anchor inside one cancelable transaction', () => {
+		const store = createMuseumEditorStore();
+		const connection = store.document.connections[0]!;
+		const originalCount = connection.positionPath.anchors.length;
+		store.selectConnection(connection.id);
+
+		expect(store.beginDocumentTransaction()).toBe(true);
+		const anchorId = store.insertConnectionAnchorAtWorldPoint(
+			connection.id,
+			1,
+			[0, 1.65, 0]
+		);
+		expect(anchorId).toBe(`${connection.id}-anchor-06`);
+		expect(
+			store.updateConnectionAnchorWorldPoint(connection.id, anchorId!, [1, 1.65, -1])
+		).toBe(true);
+		expect(store.commitDocumentTransaction()).toBe(true);
+		expect(store.selectedConnection?.positionPath.anchors).toHaveLength(originalCount + 1);
+		expect(store.selectedConnection?.positionPath.kind).toBe('auto-bezier');
+
+		expect(store.undo()).toBe(true);
+		expect(store.navigationSelection).toEqual({
+			kind: 'connection',
+			connectionId: connection.id
+		});
+		expect(store.selectedConnection?.positionPath.anchors).toHaveLength(originalCount);
+	});
+
+	it('creates a free-only node and first smooth edge in one transaction', () => {
+		const store = createMuseumEditorStore();
+		store.selectRoom('paris');
+		store.selectNavigationNode('paris-seat');
+		const originalNodeCount = store.document.navigationNodes.length;
+		const originalConnectionCount = store.document.connections.length;
+
+		expect(store.beginConnectedNodePlacement()).toBe(true);
+		const nodeId = store.createPendingNavigationNodeAt(
+			roomPoint('paris', [0, 0, 0]),
+			[0, 0, -1]
+		);
+		expect(nodeId).toBe('camera-node-1');
+		const node = store.document.navigationNodes.find((candidate) => candidate.id === nodeId)!;
+		expect(node.label).toBe('Camera Node 1');
+		expect(node.connectedNodeIds).toEqual(['paris-seat']);
+		expect(node.nextNodeId).toBeUndefined();
+		expect(node.previousNodeId).toBeUndefined();
+		expect(store.document.navigationNodes).toHaveLength(originalNodeCount + 1);
+		expect(store.document.connections).toHaveLength(originalConnectionCount + 1);
+		expect(store.document.connections.at(-1)?.positionPath).toEqual({
+			kind: 'auto-bezier',
+			anchors: []
+		});
+		expect(store.navigationSelection).toEqual({
+			kind: 'node',
+			nodeId,
+			handle: 'position'
+		});
+
+		expect(store.undo()).toBe(true);
+		expect(store.document.navigationNodes).toHaveLength(originalNodeCount);
+		expect(store.document.connections).toHaveLength(originalConnectionCount);
+	});
+
+	it('connects existing nodes symmetrically and rejects self or duplicate edges', () => {
+		const store = createMuseumEditorStore();
+		store.selectNavigationNode('entrance-start');
+		expect(store.beginConnectExistingNodes()).toBe(true);
+		expect(store.selectNavigationNode('entrance-start')).toBe(false);
+		expect(store.statusMessage).toContain('cannot connect to itself');
+		expect(store.selectNavigationNode('paris-seat')).toBe(true);
+		const connection = store.document.connections.find(
+			(candidate) => candidate.id === 'entrance-start-paris-seat'
+		)!;
+		expect(connection.positionPath).toEqual({ kind: 'auto-bezier', anchors: [] });
+		expect(
+			store.document.navigationNodes.find((node) => node.id === 'entrance-start')
+				?.connectedNodeIds
+		).toContain('paris-seat');
+		expect(
+			store.document.navigationNodes.find((node) => node.id === 'paris-seat')
+				?.connectedNodeIds
+		).toContain('entrance-start');
+
+		expect(store.undo()).toBe(true);
+		store.selectNavigationNode('entrance-start');
+		expect(store.beginConnectExistingNodes()).toBe(true);
+		expect(store.selectNavigationNode('poland-threshold')).toBe(false);
+		expect(store.statusMessage).toContain('already connected');
+	});
+
+	it('edits labels and previews exact connections without history', () => {
+		const store = createMuseumEditorStore();
+		store.selectNavigationNode('paris-seat');
+		expect(store.commitSelectedNodeLabel('  Salon Close-up  ')).toBe(true);
+		expect(store.selectedNavigationNode?.label).toBe('Salon Close-up');
+		expect(store.undo()).toBe(true);
+
+		const connectionId = store.document.connections[0]!.id;
+		store.selectConnection(connectionId);
+		expect(store.previewSelectedConnection('reverse')).toBe(true);
+		const runId = store.cameraPreview!.runId;
+		const captured = store.getCapturedCameraPreviewRoute(runId)!;
+		const capturedJson = JSON.stringify(captured);
+		expect(store.cameraPreview).toEqual(
+			expect.objectContaining({
+				kind: 'connection',
+				connectionId,
+				direction: 'reverse'
+			})
+		);
+		const capturedPart = captured.positionParts[0]!;
+		const capturedPoint =
+			capturedPart.kind === 'rounded-polyline'
+				? capturedPart.points[0]
+				: capturedPart.anchors[0];
+		(capturedPoint as [number, number, number])[0] += 100;
+		store.scene.connections[0]!.positionPath.anchors[0]!.position[0] += 200;
+		expect(JSON.stringify(store.getCapturedCameraPreviewRoute(runId))).toBe(
+			capturedJson
+		);
+		expect(store.canUndo).toBe(false);
+		expect(store.stopCameraPreview()).toBe(true);
+		expect(store.getCapturedCameraPreviewRoute(runId)).toBeNull();
+	});
+
+	it('registers selected anchor helper roots outside serialized history', () => {
+		const store = createMuseumEditorStore();
+		const connection = store.document.connections[0]!;
+		const anchor = connection.positionPath.anchors[0]!;
+		const root = new Object3D();
+		store.registerAnchorHelperRoot(connection.id, anchor.id, root);
+		store.selectConnection(connection.id);
+		store.selectAnchor(connection.id, anchor.id);
+		expect(store.getSelectedAnchorHelperRoot()).toBe(root);
+		expect(JSON.stringify(store.document)).not.toContain('camera-anchor');
+		store.unregisterAnchorHelperRoot(connection.id, anchor.id, root);
+		expect(store.getSelectedAnchorHelperRoot()).toBeUndefined();
 	});
 });
 

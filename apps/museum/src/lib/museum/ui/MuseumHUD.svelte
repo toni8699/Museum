@@ -23,6 +23,12 @@
     return scene.navigationNodes;
   });
   const currentRoom = $derived(roomById.get(state.currentRoomId));
+  const canGoBack = $derived(
+    Boolean(state.activeNode.previousNodeId && state.canNavigateTo(state.activeNode.previousNodeId))
+  );
+  const canGoNext = $derived(
+    Boolean(state.activeNode.nextNodeId && state.canNavigateTo(state.activeNode.nextNodeId))
+  );
 </script>
 
 <aside class="hud" aria-label="Museum navigation controls">
@@ -34,8 +40,8 @@
   </div>
 
   <div class="panel controls">
-    <button onclick={() => state.goBack()} disabled={state.isTransitioning}>Back</button>
-    <button class="primary" onclick={() => state.goNext()} disabled={state.isTransitioning}>
+    <button onclick={() => state.goBack()} disabled={!canGoBack}>Back</button>
+    <button class="primary" onclick={() => state.goNext()} disabled={!canGoNext}>
       Next
     </button>
     <button onclick={() => state.toggleTourMode()}>Mode: {state.tourMode}</button>

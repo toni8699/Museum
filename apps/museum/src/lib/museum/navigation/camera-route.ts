@@ -11,7 +11,8 @@ import type {
 export type { CameraConnectionDirection } from '$lib/types/museum';
 import type {
   CameraPositionPathPart,
-  CameraRoute
+  CameraRoute,
+  CameraRouteEdge
 } from './camera-motion';
 
 type OrientedConnection = {
@@ -23,6 +24,7 @@ type OrientedConnection = {
 
 export type ResolvedCameraRoute = CameraRoute & {
   nodeIds: string[];
+  edges: CameraRouteEdge[];
 };
 
 function connectedEdges(nodeId: string, graph: NavigationGraph): OrientedConnection[] {
@@ -146,14 +148,21 @@ function assertOrientedPathContiguous(path: readonly OrientedConnection[]) {
 
 function buildPositionParts(path: readonly OrientedConnection[]) {
   const parts: CameraPositionPathPart[] = [];
+  const routeEdges: CameraRouteEdge[] = [];
 
   for (const edge of path) {
     const points = orientedConnectionPoints(edge);
+    let partIndex: number;
+    let startPointIndex: number;
+    let endPointIndex: number;
 
     if (edge.connection.positionPath.kind === 'rounded-polyline') {
       const previousPart = parts.at(-1);
       if (previousPart?.kind === 'rounded-polyline') {
+        partIndex = parts.length - 1;
+        startPointIndex = previousPart.points.length - 1;
         appendDistinct(previousPart.points as Vec3[], points);
+        endPointIndex = previousPart.points.length - 1;
         previousPart.clearance = Math.min(
           previousPart.clearance ?? edge.connection.clearance,
           edge.connection.clearance
@@ -166,17 +175,34 @@ function buildPositionParts(path: readonly OrientedConnection[]) {
           points: legacyPoints,
           clearance: edge.connection.clearance
         });
+        partIndex = parts.length - 1;
+        startPointIndex = 0;
+        endPointIndex = legacyPoints.length - 1;
       }
-      continue;
+    } else {
+      const anchors = points.map((point): Vec3 => [...point]);
+      parts.push({
+        kind: 'auto-bezier',
+        anchors
+      });
+      partIndex = parts.length - 1;
+      startPointIndex = 0;
+      endPointIndex = anchors.length - 1;
     }
 
-    parts.push({
-      kind: 'auto-bezier',
-      anchors: points.map((point): Vec3 => [...point])
+    routeEdges.push({
+      connectionId: edge.connection.id,
+      direction: edge.reversed ? 'reverse' : 'forward',
+      fromNodeId: edge.fromNodeId,
+      toNodeId: edge.toNodeId,
+      positionSpan: {
+        start: { partIndex, pointIndex: startPointIndex },
+        end: { partIndex, pointIndex: endPointIndex }
+      }
     });
   }
 
-  return parts;
+  return { parts, routeEdges };
 }
 
 function assertPositionPartsContiguous(parts: readonly CameraPositionPathPart[]) {
@@ -196,7 +222,10 @@ function assertPositionPartsContiguous(parts: readonly CameraPositionPathPart[])
   }
 }
 
-function preserveTargetOnlyMotion(parts: CameraPositionPathPart[]) {
+function preserveTargetOnlyMotion(
+  parts: CameraPositionPathPart[],
+  routeEdges: CameraRouteEdge[]
+) {
   const positions = flattenOrderedPoints(parts);
   if (positions.length !== 1) return positions;
 
@@ -206,6 +235,10 @@ function preserveTargetOnlyMotion(parts: CameraPositionPathPart[]) {
     (finalPart.points as Vec3[]).push([...positions[0]]);
   } else {
     (finalPart.anchors as Vec3[]).push([...positions[0]]);
+  }
+  const finalEdge = routeEdges.at(-1);
+  if (finalEdge) {
+    finalEdge.positionSpan.end.pointIndex += 1;
   }
   positions.push([...positions[0]]);
   return positions;
@@ -218,14 +251,15 @@ function buildResolvedRoute(
   graph: NavigationGraph
 ): ResolvedCameraRoute {
   assertOrientedPathContiguous(path);
-  const positionParts = buildPositionParts(path);
+  const { parts: positionParts, routeEdges: edges } = buildPositionParts(path);
   assertPositionPartsContiguous(positionParts);
-  const positions = preserveTargetOnlyMotion(positionParts);
+  const positions = preserveTargetOnlyMotion(positionParts, edges);
 
   return {
     positionParts,
     targetPoints: buildLookAheadTargets(fromNodeId, toNodeId, positions, graph),
-    nodeIds: [fromNodeId, ...path.map((edge) => edge.toNodeId)]
+    nodeIds: [fromNodeId, ...path.map((edge) => edge.toNodeId)],
+    edges
   };
 }
 
@@ -245,7 +279,8 @@ export function getCameraRoute(
         }
       ],
       targetPoints: [[...node.cameraTarget]],
-      nodeIds: [fromNodeId]
+      nodeIds: [fromNodeId],
+      edges: []
     };
   }
 

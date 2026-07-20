@@ -1164,6 +1164,7 @@ describe('MuseumEditorStore Phase 6.5 camera paths', () => {
 				? capturedPart.points[0]
 				: capturedPart.anchors[0];
 		(capturedPoint as [number, number, number])[0] += 100;
+		captured.edges[0]!.positionSpan.start.pointIndex += 100;
 		store.scene.connections[0]!.positionPath.anchors[0]!.position[0] += 200;
 		expect(JSON.stringify(store.getCapturedCameraPreviewRoute(runId))).toBe(
 			capturedJson

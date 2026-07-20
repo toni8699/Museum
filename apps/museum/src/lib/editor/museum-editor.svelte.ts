@@ -185,7 +185,14 @@ function cloneResolvedCameraRoute(route: ResolvedCameraRoute): ResolvedCameraRou
 				  }
 		),
 		targetPoints: route.targetPoints.map(cloneRoutePoint),
-		nodeIds: [...route.nodeIds]
+		nodeIds: [...route.nodeIds],
+		edges: route.edges.map((edge) => ({
+			...edge,
+			positionSpan: {
+				start: { ...edge.positionSpan.start },
+				end: { ...edge.positionSpan.end }
+			}
+		}))
 	};
 }
 

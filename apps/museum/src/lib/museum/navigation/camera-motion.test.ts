@@ -9,6 +9,7 @@ import {
   CAMERA_MOTION_PATH,
   CAMERA_MOTION_TIMING,
   VISITOR_CAMERA_PROJECTION,
+  compileCameraPositionPath,
   createCameraMotion,
   createCameraPositionPath,
   sampleCameraMotion,
@@ -64,6 +65,18 @@ describe('createCameraMotion', () => {
       targetPoints: [
         [0, 1, 1],
         [10, 1, 1]
+      ],
+      edges: [
+        {
+          connectionId: 'straight',
+          direction: 'forward',
+          fromNodeId: 'a',
+          toNodeId: 'b',
+          positionSpan: {
+            start: { partIndex: 0, pointIndex: 0 },
+            end: { partIndex: 0, pointIndex: 1 }
+          }
+        }
       ]
     } as const satisfies CameraRoute;
     const startPose = {
@@ -77,6 +90,18 @@ describe('createCameraMotion', () => {
 
     expect(route).toEqual(originalRoute);
     expect(startPose).toEqual(originalStartPose);
+    expect(motion.positionEdgeSpans[0].positionSpan).not.toBe(
+      route.edges[0].positionSpan
+    );
+    expect(motion.positionEdgeSpans[0]).toEqual(
+      expect.objectContaining({
+        connectionId: 'straight',
+        direction: 'forward',
+        startDistance: 0,
+        endDistance: motion.positionPath.getLength(),
+        length: motion.positionPath.getLength()
+      })
+    );
     expect(sample(motion, 0)).toEqual({
       position: [-2, 3, 4],
       target: [-1, 3, 4]
@@ -424,6 +449,129 @@ describe('createCameraMotion', () => {
 });
 
 describe('createCameraPositionPath', () => {
+  it('returns exact requested spans without changing rounded geometry or length', () => {
+    const parts = [
+      {
+        kind: 'rounded-polyline',
+        points: [
+          [0, 1, 0],
+          [1, 1, 0],
+          [2, 1, 0],
+          [3, 1, 1],
+          [4, 1, 2]
+        ],
+        clearance: 0.2
+      }
+    ] as const;
+    const shared = createCameraPositionPath(parts);
+    const compiled = compileCameraPositionPath(parts, [
+      {
+        start: { partIndex: 0, pointIndex: 0 },
+        end: { partIndex: 0, pointIndex: 2 }
+      },
+      {
+        start: { partIndex: 0, pointIndex: 2 },
+        end: { partIndex: 0, pointIndex: 4 }
+      }
+    ]);
+
+    expect(compiled.positionPath.curves).toHaveLength(shared.curves.length + 1);
+    expect(compiled.totalDistance).toBe(shared.getLength());
+    expect(compiled.spans[0].startDistance).toBe(0);
+    expect(compiled.spans[0].endDistance).toBe(
+      compiled.spans[1].startDistance
+    );
+    expect(compiled.spans[1].endDistance).toBe(compiled.totalDistance);
+    expect(compiled.spans[0].length + compiled.spans[1].length).toBeCloseTo(
+      compiled.totalDistance,
+      12
+    );
+
+    for (const progress of [0, 0.1, 0.25, 0.5, 0.75, 0.9, 1]) {
+      expectVectorClose(
+        compiled.positionPath.getPointAt(progress, new Vector3()),
+        shared.getPointAt(progress, new Vector3()),
+        12
+      );
+    }
+  });
+
+  it('measures zero-radius and duplicate rounded boundaries monotonically', () => {
+    const compiled = compileCameraPositionPath(
+      [
+        {
+          kind: 'rounded-polyline',
+          points: [
+            [0, 0, 0],
+            [0, 0, 0],
+            [1, 0, 1],
+            [2, 0, 0]
+          ],
+          clearance: 0
+        }
+      ],
+      [
+        {
+          start: { partIndex: 0, pointIndex: 0 },
+          end: { partIndex: 0, pointIndex: 1 }
+        },
+        {
+          start: { partIndex: 0, pointIndex: 1 },
+          end: { partIndex: 0, pointIndex: 3 }
+        }
+      ]
+    );
+
+    expect(compiled.spans[0].length).toBe(0);
+    expect(compiled.spans[0].endDistance).toBe(
+      compiled.spans[1].startDistance
+    );
+    expect(compiled.spans[1].endDistance).toBe(compiled.totalDistance);
+    expect(compiled.totalDistance).toBeCloseTo(2, 12);
+  });
+
+  it.each([
+    [
+      'an unknown part',
+      {
+        start: { partIndex: 1, pointIndex: 0 },
+        end: { partIndex: 1, pointIndex: 1 }
+      },
+      'Camera position span[0] start references an unknown position part'
+    ],
+    [
+      'an unknown point',
+      {
+        start: { partIndex: 0, pointIndex: 0 },
+        end: { partIndex: 0, pointIndex: 2 }
+      },
+      'Camera position span[0] end references an unknown position point'
+    ],
+    [
+      'a reversed range',
+      {
+        start: { partIndex: 0, pointIndex: 1 },
+        end: { partIndex: 0, pointIndex: 0 }
+      },
+      'Camera position span[0] ends before it starts'
+    ]
+  ])('rejects %s in requested distance spans', (_label, span, message) => {
+    expect(() =>
+      compileCameraPositionPath(
+        [
+          {
+            kind: 'rounded-polyline',
+            points: [
+              [0, 0, 0],
+              [1, 0, 0]
+            ]
+          }
+        ],
+        [span]
+      )
+    ).toThrow(message);
+  });
+
   it('builds a straight cubic for two distinct automatic anchors', () => {
     const path = createCameraPositionPath([
       {

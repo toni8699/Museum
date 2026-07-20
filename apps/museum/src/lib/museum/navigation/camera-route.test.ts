@@ -231,6 +231,27 @@ function expectTupleClose(actual: number[], expected: Vec3, precision = 10) {
   }
 }
 
+function expectedRouteEdge(
+  connectionId: string,
+  direction: 'forward' | 'reverse',
+  fromNodeId: string,
+  toNodeId: string,
+  partIndex: number,
+  startPointIndex: number,
+  endPointIndex: number
+) {
+  return {
+    connectionId,
+    direction,
+    fromNodeId,
+    toNodeId,
+    positionSpan: {
+      start: { partIndex, pointIndex: startPointIndex },
+      end: { partIndex, pointIndex: endPointIndex }
+    }
+  };
+}
+
 describe('getCameraRoute', () => {
   it.each(PHASE_SIX_MULTI_HOP)(
     'preserves frozen Phase 6 multi-hop motion from $from to $to',
@@ -269,8 +290,70 @@ describe('getCameraRoute', () => {
         [4, 1, 2],
         [4, 1, 3]
       ],
-      nodeIds: ['a', 'b', 'c']
+      nodeIds: ['a', 'b', 'c'],
+      edges: [
+        expectedRouteEdge('a-b', 'forward', 'a', 'b', 0, 0, 2),
+        expectedRouteEdge('b-c', 'forward', 'b', 'c', 0, 2, 4)
+      ]
     });
+  });
+
+  it('compiles exact forward and reverse spans through a coalesced rounded join', () => {
+    const forward = createCameraMotion(getCameraRoute('a', 'c', customGraph));
+    const reverse = createCameraMotion(getCameraRoute('c', 'a', customGraph));
+    const forwardSpans = forward.positionEdgeSpans;
+    const reverseSpans = reverse.positionEdgeSpans;
+
+    expect(forwardSpans.map((span) => span.connectionId)).toEqual(['a-b', 'b-c']);
+    expect(forwardSpans.map((span) => span.direction)).toEqual([
+      'forward',
+      'forward'
+    ]);
+    expect(forwardSpans[0].startDistance).toBe(0);
+    expect(forwardSpans[0].endDistance).toBe(forwardSpans[1].startDistance);
+    expect(forwardSpans[1].endDistance).toBe(forward.positionPath.getLength());
+    expect(forwardSpans[0].length + forwardSpans[1].length).toBeCloseTo(
+      forward.positionPath.getLength(),
+      12
+    );
+
+    // Point index 2 is the shared node. Its rounded quadratic is split into
+    // two geometry-identical halves, and the edge boundary lands between them.
+    expect(forward.positionPath.curves).toHaveLength(8);
+    const splitBoundaryDistance = forward.positionPath.curves
+      .slice(0, 4)
+      .reduce((distance, curve) => distance + curve.getLength(), 0);
+    expect(forwardSpans[0].endDistance).toBeCloseTo(splitBoundaryDistance, 12);
+
+    expect(reverseSpans.map((span) => span.connectionId)).toEqual(['b-c', 'a-b']);
+    expect(reverseSpans.map((span) => span.direction)).toEqual([
+      'reverse',
+      'reverse'
+    ]);
+    expect(reverseSpans[0].length).toBeCloseTo(forwardSpans[1].length, 12);
+    expect(reverseSpans[1].length).toBeCloseTo(forwardSpans[0].length, 12);
+    expect(reverseSpans[1].endDistance).toBe(reverse.positionPath.getLength());
+  });
+
+  it('retains contiguous exact distance spans on a representative multi-hop route', () => {
+    const route = getCameraRoute('entrance-start', 'paris-seat');
+    const motion = createCameraMotion(route);
+
+    expect(route.edges.map((edge) => edge.connectionId)).toEqual([
+      'entrance-poland',
+      'poland-departure',
+      'departure-paris'
+    ]);
+    expect(motion.positionEdgeSpans).toHaveLength(route.edges.length);
+    expect(motion.positionEdgeSpans[0].startDistance).toBe(0);
+    for (let index = 1; index < motion.positionEdgeSpans.length; index += 1) {
+      expect(motion.positionEdgeSpans[index].startDistance).toBe(
+        motion.positionEdgeSpans[index - 1].endDistance
+      );
+    }
+    expect(motion.positionEdgeSpans.at(-1)?.endDistance).toBe(
+      motion.positionPath.getLength()
+    );
   });
 
   it('reverses legacy edge points during reverse traversal', () => {
@@ -306,7 +389,8 @@ describe('getCameraRoute', () => {
         }
       ],
       targetPoints: [[2, 1, 1]],
-      nodeIds: ['b']
+      nodeIds: ['b'],
+      edges: []
     });
     const part = route.positionParts[0];
     expect(part.kind).toBe('rounded-polyline');
@@ -459,6 +543,22 @@ describe('getCameraRoute', () => {
       [7, 1, 3]
     ]);
     expect(forward.nodeIds).toEqual(['a', 'b', 'c', 'd']);
+    expect(forward.edges).toEqual([
+      expectedRouteEdge('a-b', 'forward', 'a', 'b', 0, 0, 2),
+      expectedRouteEdge('b-c', 'forward', 'b', 'c', 1, 0, 2),
+      expectedRouteEdge('c-d', 'forward', 'c', 'd', 2, 0, 2)
+    ]);
+    const forwardMotion = createCameraMotion(forward);
+    expect(forwardMotion.positionEdgeSpans[0].startDistance).toBe(0);
+    expect(forwardMotion.positionEdgeSpans[0].endDistance).toBe(
+      forwardMotion.positionEdgeSpans[1].startDistance
+    );
+    expect(forwardMotion.positionEdgeSpans[1].endDistance).toBe(
+      forwardMotion.positionEdgeSpans[2].startDistance
+    );
+    expect(forwardMotion.positionEdgeSpans[2].endDistance).toBe(
+      forwardMotion.positionPath.getLength()
+    );
 
     const reverse = getCameraRoute('d', 'a', graph);
     expect(reverse.positionParts.map((part) => part.kind)).toEqual([
@@ -491,6 +591,11 @@ describe('getCameraRoute', () => {
       [0, 1, 0],
       [0, 1, 0],
       [0, 1, 1]
+    ]);
+    expect(reverse.edges).toEqual([
+      expectedRouteEdge('c-d', 'reverse', 'd', 'c', 0, 0, 2),
+      expectedRouteEdge('b-c', 'reverse', 'c', 'b', 1, 0, 2),
+      expectedRouteEdge('a-b', 'reverse', 'b', 'a', 2, 0, 2)
     ]);
     expect(() => createCameraMotion(forward)).not.toThrow();
     expect(() => createCameraMotion(reverse)).not.toThrow();
@@ -628,7 +733,8 @@ describe('getCameraConnectionRoute', () => {
         [2, 1.5, 0],
         [2, 1, 1]
       ],
-      nodeIds: ['a', 'b']
+      nodeIds: ['a', 'b'],
+      edges: [expectedRouteEdge('scenic', 'forward', 'a', 'b', 0, 0, 2)]
     });
     expect(getCameraConnectionRoute('scenic', 'reverse', graph)).toEqual({
       positionParts: [
@@ -646,7 +752,8 @@ describe('getCameraConnectionRoute', () => {
         [0, 1.5, 0],
         [0, 1, 1]
       ],
-      nodeIds: ['b', 'a']
+      nodeIds: ['b', 'a'],
+      edges: [expectedRouteEdge('scenic', 'reverse', 'b', 'a', 0, 0, 2)]
     });
   });
 

@@ -16,7 +16,11 @@ import {
 import { getAssetById, resolveAssetFallback } from '$lib/content/assets';
 import { roomLocalPoint, roomPoint } from '$lib/content/rooms';
 import { createMuseumState, type MuseumStateStore } from '$lib/state/museum-state.svelte';
-import type { MuseumRoomId, Vec3 } from '$lib/types/museum';
+import {
+	MUSEUM_CAMERA_FOV,
+	type MuseumRoomId,
+	type Vec3
+} from '$lib/types/museum';
 import {
 	getCameraConnectionRoute,
 	getCameraRoute,
@@ -128,6 +132,7 @@ export const CAMERA_NODE_CREATION_DEFAULTS = {
 	eyeHeight: 1.65,
 	targetHeight: 1.25,
 	targetDistance: 3,
+	fov: MUSEUM_CAMERA_FOV.default,
 	clearance: 0.35
 } as const;
 
@@ -1168,6 +1173,7 @@ export class MuseumEditorStore {
 			label: `Camera Node ${number}`,
 			position: roomLocalPoint(pending.roomId, eyeWorld),
 			cameraTarget: roomLocalPoint(pending.roomId, targetWorld),
+			fov: CAMERA_NODE_CREATION_DEFAULTS.fov,
 			connectedNodeIds: [source.id]
 		});
 		if (!source.connectedNodeIds.includes(nodeId)) source.connectedNodeIds.push(nodeId);

@@ -3,7 +3,12 @@ import {
   museumNavigationGraph,
   type NavigationGraph
 } from '$lib/content/scene';
-import type { MuseumConnection, Vec3 } from '$lib/types/museum';
+import type {
+  CameraConnectionDirection,
+  MuseumConnection,
+  Vec3
+} from '$lib/types/museum';
+export type { CameraConnectionDirection } from '$lib/types/museum';
 import type {
   CameraPositionPathPart,
   CameraRoute
@@ -15,8 +20,6 @@ type OrientedConnection = {
   toNodeId: string;
   reversed: boolean;
 };
-
-export type CameraConnectionDirection = 'forward' | 'reverse';
 
 export type ResolvedCameraRoute = CameraRoute & {
   nodeIds: string[];

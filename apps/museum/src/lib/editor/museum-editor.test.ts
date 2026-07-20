@@ -126,6 +126,51 @@ describe('createMuseumEditorStore', () => {
 		expect(store.isDirty).toBe(false);
 		expect(store.canExport).toBe(true);
 	});
+
+	it('preserves authored v3 view data through import, history, and canonical export', () => {
+		const store = createMuseumEditorStore();
+		const imported = cloneMuseumSceneDocument(museumSceneDocument);
+		imported.navigationNodes[0]!.fov = 47;
+		imported.connections[0]!.viewTracks = {
+			forward: [
+				{
+					id: 'entrance-poland-view-forward-01',
+					progress: 0.35,
+					roomId: 'entrance',
+					cameraTarget: [1, 1.4, -2],
+					fov: 48
+				}
+			],
+			reverse: [
+				{
+					id: 'entrance-poland-view-reverse-01',
+					progress: 0.65,
+					cameraTarget: [100, 2, 100],
+					fov: 64
+				}
+			]
+		};
+
+		expect(store.importDocument(imported)).toBe(true);
+		expect(store.isDirty).toBe(false);
+		expect(store.canonicalJson).toContain('"fov": 47');
+		expect(store.canonicalJson).toContain('"entrance-poland-view-forward-01"');
+		expect(store.canonicalJson).toContain('"entrance-poland-view-reverse-01"');
+
+		expect(store.beginDocumentTransaction()).toBe(true);
+		store.document.connections[0]!.viewTracks!.forward[0]!.fov = 49;
+		expect(store.commitDocumentTransaction()).toBe(true);
+		expect(store.undo()).toBe(true);
+		expect(store.document.connections[0]!.viewTracks?.forward[0]?.fov).toBe(48);
+		expect(store.redo()).toBe(true);
+		expect(store.document.connections[0]!.viewTracks?.forward[0]?.fov).toBe(49);
+
+		store.toggleGrid();
+		const exported = store.canonicalJson!;
+		expect(exported).not.toContain('gridVisible');
+		expect(exported).not.toContain('cameraPreview');
+		expect(exported).not.toContain('baselineCanonicalJson');
+	});
 });
 
 describe('MuseumEditorStore selection', () => {
@@ -1045,6 +1090,7 @@ describe('MuseumEditorStore Phase 6.5 camera paths', () => {
 		expect(nodeId).toBe('camera-node-1');
 		const node = store.document.navigationNodes.find((candidate) => candidate.id === nodeId)!;
 		expect(node.label).toBe('Camera Node 1');
+		expect(node.fov).toBe(54);
 		expect(node.connectedNodeIds).toEqual(['paris-seat']);
 		expect(node.nextNodeId).toBeUndefined();
 		expect(node.previousNodeId).toBeUndefined();

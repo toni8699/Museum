@@ -6,6 +6,7 @@ import {
   QuadraticBezierCurve3,
   Vector3
 } from 'three';
+import { MUSEUM_CAMERA_FOV } from '$lib/types/museum';
 
 export type Vector3Like =
   | readonly [number, number, number]
@@ -39,7 +40,7 @@ export type CameraMotion = {
 };
 
 export const VISITOR_CAMERA_PROJECTION = {
-  fov: 54,
+  fov: MUSEUM_CAMERA_FOV.default,
   near: 0.1,
   far: 90
 } as const;

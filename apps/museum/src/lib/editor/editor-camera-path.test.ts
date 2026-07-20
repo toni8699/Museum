@@ -25,7 +25,7 @@ function createDocument(
 	kind: 'rounded-polyline' | 'auto-bezier' = 'rounded-polyline'
 ): MuseumSceneDocument {
 	return {
-		version: 2,
+		version: 3,
 		objects: [],
 		navigationNodes: [
 			{
@@ -34,6 +34,7 @@ function createDocument(
 				label: 'From',
 				position: [1, 1.65, 2],
 				cameraTarget: [0, 1.25, 0],
+				fov: 54,
 				connectedNodeIds: ['to']
 			},
 			{
@@ -42,6 +43,7 @@ function createDocument(
 				label: 'To',
 				position: [-2, 1.65, 1],
 				cameraTarget: [0, 1.25, 0],
+				fov: 54,
 				connectedNodeIds: ['from']
 			}
 		],

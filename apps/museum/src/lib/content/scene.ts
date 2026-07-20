@@ -9,6 +9,7 @@ import type {
   MuseumConnection,
   MuseumRoomId,
   NavigationNodeData,
+  RuntimeCameraViewKeyframe,
   RuntimePathAnchor,
   Vec3
 } from '$lib/types/museum';
@@ -34,6 +35,23 @@ export type SceneNavigationNode = Omit<
   cameraTarget: Vec3;
 };
 
+export type SceneCameraViewKeyframe = {
+  /** Stable within both directional tracks of this connection. */
+  id: string;
+  /** Exact-edge arc-length progress in this track's travel direction. */
+  progress: number;
+  /** Room-local when roomId is present, otherwise world-space. */
+  cameraTarget: Vec3;
+  roomId?: MuseumRoomId;
+  /** Vertical PerspectiveCamera field of view in degrees. */
+  fov: number;
+};
+
+export type SceneConnectionViewTracks = {
+  forward: SceneCameraViewKeyframe[];
+  reverse: SceneCameraViewKeyframe[];
+};
+
 export type SceneWaypoint = {
   /** Room-local when roomId is present, otherwise world-space. */
   position: Vec3;
@@ -57,16 +75,18 @@ export type ScenePositionPath =
 
 export type SceneConnection = Omit<
   MuseumConnection,
-  'positionPath' | 'targetWaypoints'
+  'positionPath' | 'viewTracks' | 'targetWaypoints'
 > & {
   /** Interior anchors only; the resolver inserts fresh node endpoints. */
   positionPath: ScenePositionPath;
+  /** Direction-specific interior view keys. Node views supply generated endpoints. */
+  viewTracks?: SceneConnectionViewTracks;
   /** Interior look waypoints only; currently unused by camera-route. */
   targetWaypoints?: SceneWaypoint[];
 };
 
 export type MuseumSceneDocument = {
-  version: 2;
+  version: 3;
   objects: SceneObjectPlacement[];
   /** Editor-only hierarchy metadata. Visitor rendering intentionally stays flat. */
   clusters?: SceneObjectCluster[];
@@ -97,6 +117,19 @@ function resolveWaypoint(waypoint: SceneWaypoint): Vec3 {
   return waypoint.roomId
     ? roomPoint(waypoint.roomId, waypoint.position)
     : cloneVec3(waypoint.position);
+}
+
+function resolveViewKeyframe(
+  keyframe: SceneCameraViewKeyframe
+): RuntimeCameraViewKeyframe {
+  return {
+    id: keyframe.id,
+    progress: keyframe.progress,
+    cameraTarget: keyframe.roomId
+      ? roomPoint(keyframe.roomId, keyframe.cameraTarget)
+      : cloneVec3(keyframe.cameraTarget),
+    fov: keyframe.fov
+  };
 }
 
 export function resolveSceneDocument(input: unknown): RuntimeMuseumScene {
@@ -148,6 +181,13 @@ export function resolveSceneDocument(input: unknown): RuntimeMuseumScene {
         ...connection.targetWaypoints.map(resolveWaypoint),
         cloneVec3(toNode.cameraTarget)
       ];
+    }
+
+    if (connection.viewTracks) {
+      resolved.viewTracks = {
+        forward: connection.viewTracks.forward.map(resolveViewKeyframe),
+        reverse: connection.viewTracks.reverse.map(resolveViewKeyframe)
+      };
     }
 
     return resolved;

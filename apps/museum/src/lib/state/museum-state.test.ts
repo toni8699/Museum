@@ -11,6 +11,7 @@ const scene: RuntimeMuseumScene = {
       label: 'Custom start',
       position: [0, 1.65, 0],
       cameraTarget: [0, 1, -1],
+      fov: 54,
       connectedNodeIds: ['custom-next'],
       nextNodeId: 'custom-next',
       previousNodeId: 'custom-free'
@@ -21,6 +22,7 @@ const scene: RuntimeMuseumScene = {
       label: 'Custom next',
       position: [1, 1.65, 0],
       cameraTarget: [1, 1, -1],
+      fov: 54,
       connectedNodeIds: ['custom-start', 'custom-free'],
       nextNodeId: 'custom-start',
       previousNodeId: 'custom-start'
@@ -31,6 +33,7 @@ const scene: RuntimeMuseumScene = {
       label: 'Custom free target',
       position: [2, 1.65, 0],
       cameraTarget: [2, 1, -1],
+      fov: 54,
       connectedNodeIds: ['custom-next']
     }
   ],

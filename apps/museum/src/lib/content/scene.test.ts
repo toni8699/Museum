@@ -10,9 +10,10 @@ import {
 } from './scene';
 
 function versionOneDocument(): unknown {
-  return {
-    ...museumSceneDocument,
-    version: 1,
+	return {
+		...museumSceneDocument,
+		version: 1,
+		navigationNodes: museumSceneDocument.navigationNodes.map(({ fov: _fov, ...node }) => node),
     connections: museumSceneDocument.connections.map(({ positionPath, ...connection }) => ({
       ...connection,
       positionWaypoints: positionPath.anchors.map(({ id: _id, ...waypoint }) => waypoint)
@@ -41,6 +42,7 @@ describe('resolveSceneDocument', () => {
   it('matches the frozen pre-migration runtime exactly', () => {
     const resolved = resolveSceneDocument(museumSceneDocument);
     const legacyObjectShape = resolved.objects.map(({ roomId: _roomId, ...placement }) => placement);
+    const legacyNavigationNodeShape = resolved.navigationNodes.map(({ fov: _fov, ...node }) => node);
     const legacyConnectionShape = resolved.connections.map(
       ({ positionPath, ...connection }) => ({
         ...connection,
@@ -50,7 +52,7 @@ describe('resolveSceneDocument', () => {
 
     expect({
       objects: legacyObjectShape,
-      navigationNodes: resolved.navigationNodes,
+      navigationNodes: legacyNavigationNodeShape,
       connections: legacyConnectionShape
     }).toEqual(legacyRuntimeScene);
   });
@@ -139,7 +141,7 @@ describe('resolveSceneDocument', () => {
 
   it('resolves mixed-space position and target waypoints with fresh endpoints', () => {
     const document: MuseumSceneDocument = {
-      version: 2,
+      version: 3,
       objects: [
         {
           id: 'scaled-object',
@@ -158,6 +160,7 @@ describe('resolveSceneDocument', () => {
           label: 'From',
           position: [0, 1.65, 0],
           cameraTarget: [0, 1, -1],
+          fov: 54,
           connectedNodeIds: ['to'],
           nextNodeId: 'to',
           previousNodeId: 'to'
@@ -168,6 +171,7 @@ describe('resolveSceneDocument', () => {
           label: 'To',
           position: [0, 1.65, 0],
           cameraTarget: [0, 1, -1],
+          fov: 54,
           connectedNodeIds: ['from'],
           nextNodeId: 'from',
           previousNodeId: 'from'
@@ -184,6 +188,25 @@ describe('resolveSceneDocument', () => {
             anchors: [
               { id: 'from-to-anchor-01', roomId: 'poland', position: [1, 1.65, 0] },
               { id: 'from-to-anchor-02', position: [8, 1.65, 8] }
+            ]
+          },
+          viewTracks: {
+            forward: [
+              {
+                id: 'from-to-view-forward-01',
+                progress: 0.3,
+                roomId: 'paris',
+                cameraTarget: [1, 1.4, 2],
+                fov: 48
+              }
+            ],
+            reverse: [
+              {
+                id: 'from-to-view-reverse-01',
+                progress: 0.65,
+                cameraTarget: [20, 1.2, 20],
+                fov: 62
+              }
             ]
           },
           targetWaypoints: [
@@ -212,8 +235,30 @@ describe('resolveSceneDocument', () => {
       [7, 1, 7],
       to.cameraTarget
     ]);
+    expect(connection.viewTracks).toEqual({
+      forward: [
+        {
+          id: 'from-to-view-forward-01',
+          progress: 0.3,
+          cameraTarget: roomPoint('paris', [1, 1.4, 2]),
+          fov: 48
+        }
+      ],
+      reverse: [
+        {
+          id: 'from-to-view-reverse-01',
+          progress: 0.65,
+          cameraTarget: [20, 1.2, 20],
+          fov: 62
+        }
+      ]
+    });
     expect(connection.positionPath.anchors[0]?.position).not.toBe(from.position);
     expect(connection.targetWaypoints?.[0]).not.toBe(from.cameraTarget);
+    expect(connection.viewTracks?.forward[0]?.cameraTarget).not.toBe(
+      document.connections[0]!.viewTracks?.forward[0]?.cameraTarget
+    );
+    expect(connection.viewTracks?.forward[0]).not.toHaveProperty('roomId');
     expect(resolved.objects[0]).toEqual(document.objects[0]);
     expect(resolved.objects[0]).not.toBe(document.objects[0]);
     expect(resolved.objects[0].position).not.toBe(document.objects[0].position);
@@ -223,9 +268,9 @@ describe('resolveSceneDocument', () => {
     const cloneDocument = () =>
       JSON.parse(JSON.stringify(museumSceneDocument)) as MuseumSceneDocument;
     const unsupported = cloneDocument();
-    (unsupported as unknown as { version: number }).version = 3;
+    (unsupported as unknown as { version: number }).version = 4;
     expect(() => resolveSceneDocument(unsupported)).toThrow(
-      'Unsupported museum scene document version: 3'
+      'Unsupported museum scene document version: 4'
     );
 
     const duplicate = cloneDocument();

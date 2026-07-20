@@ -28,6 +28,7 @@ const nodes: NavigationNodeData[] = [
     label: 'A',
     position: [0, 1, 0],
     cameraTarget: [0, 1, 1],
+    fov: 54,
     connectedNodeIds: ['b']
   },
   {
@@ -36,6 +37,7 @@ const nodes: NavigationNodeData[] = [
     label: 'B',
     position: [2, 1, 0],
     cameraTarget: [2, 1, 1],
+    fov: 54,
     connectedNodeIds: ['a', 'c']
   },
   {
@@ -44,6 +46,7 @@ const nodes: NavigationNodeData[] = [
     label: 'C',
     position: [4, 1, 2],
     cameraTarget: [4, 1, 3],
+    fov: 54,
     connectedNodeIds: ['b']
   },
   {
@@ -52,6 +55,7 @@ const nodes: NavigationNodeData[] = [
     label: 'Isolated',
     position: [9, 1, 9],
     cameraTarget: [8, 1, 9],
+    fov: 54,
     connectedNodeIds: []
   }
 ];
@@ -378,6 +382,7 @@ describe('getCameraRoute', () => {
         label: 'D',
         position: [7, 1, 2],
         cameraTarget: [7, 1, 3],
+        fov: 54,
         connectedNodeIds: ['c']
       }
     ];

@@ -1,15 +1,18 @@
 import { getAssetById, isSceneObjectFallback } from './assets';
-import { getRoom } from './rooms';
+import { getRoom, roomPoint } from './rooms';
+import { createCameraPositionPath } from '$lib/museum/navigation/camera-motion';
 import type {
 	MuseumSceneDocument,
+	SceneCameraViewKeyframe,
 	SceneConnection,
+	SceneConnectionViewTracks,
 	SceneNavigationNode,
 	SceneObjectCluster,
 	SceneObjectPlacement,
 	ScenePathAnchor,
 	SceneWaypoint
 } from './scene';
-import type { MuseumRoomId, Vec3 } from '$lib/types/museum';
+import { MUSEUM_CAMERA_FOV, type MuseumRoomId, type Vec3 } from '$lib/types/museum';
 
 export type SceneDocumentIssue = {
 	path: string;
@@ -35,16 +38,37 @@ const EPSILON = 1e-6;
 
 type JsonRecord = Record<string, unknown>;
 
-type LegacySceneConnection = Omit<SceneConnection, 'positionPath'> & {
+type SceneNavigationNodeV1V2 = Omit<SceneNavigationNode, 'fov'>;
+
+type SceneConnectionV2 = Omit<SceneConnection, 'viewTracks'>;
+
+type MuseumSceneDocumentV2 = Omit<
+	MuseumSceneDocument,
+	'version' | 'navigationNodes' | 'connections'
+> & {
+	version: 2;
+	navigationNodes: SceneNavigationNodeV1V2[];
+	connections: SceneConnectionV2[];
+};
+
+type LegacySceneConnection = Omit<SceneConnectionV2, 'positionPath'> & {
 	positionWaypoints: SceneWaypoint[];
 };
 
-type LegacyMuseumSceneDocument = Omit<MuseumSceneDocument, 'version' | 'connections'> & {
+type LegacyMuseumSceneDocument = Omit<
+	MuseumSceneDocumentV2,
+	'version' | 'connections'
+> & {
 	version: 1;
 	connections: LegacySceneConnection[];
 };
 
-type ParsedMuseumSceneDocument = MuseumSceneDocument | LegacyMuseumSceneDocument;
+type ParsedMuseumSceneDocument =
+	| MuseumSceneDocument
+	| MuseumSceneDocumentV2
+	| LegacyMuseumSceneDocument;
+
+type ParsedSceneNavigationNode = SceneNavigationNode | SceneNavigationNodeV1V2;
 
 function isRecord(value: unknown): value is JsonRecord {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -255,11 +279,11 @@ function parseCluster(
 	return { id, name, roomId, memberIds };
 }
 
-function parseNode(
+function parseNodeV1V2(
 	input: unknown,
 	path: string,
 	issues: SceneDocumentIssue[]
-): SceneNavigationNode | undefined {
+): SceneNavigationNodeV1V2 | undefined {
 	if (!isRecord(input)) {
 		addIssue(issues, path, 'invalid_type', 'Expected a navigation node object');
 		return undefined;
@@ -282,6 +306,87 @@ function parseNode(
 		label,
 		position,
 		cameraTarget,
+		connectedNodeIds,
+		...(nextNodeId === undefined ? {} : { nextNodeId }),
+		...(previousNodeId === undefined ? {} : { previousNodeId }),
+		...(lockInteraction === undefined ? {} : { lockInteraction })
+	};
+}
+
+function parseNodeV3(
+	input: unknown,
+	path: string,
+	issues: SceneDocumentIssue[]
+): SceneNavigationNode | undefined {
+	if (!isRecord(input)) {
+		addIssue(issues, path, 'invalid_type', 'Expected a navigation node object');
+		return undefined;
+	}
+	assertAllowedKeys(
+		input,
+		[
+			'id',
+			'roomId',
+			'label',
+			'position',
+			'cameraTarget',
+			'fov',
+			'connectedNodeIds',
+			'nextNodeId',
+			'previousNodeId',
+			'lockInteraction'
+		],
+		path,
+		issues
+	);
+	const id = readRequiredString(input, 'id', path, issues);
+	const roomId = readRoomId(input, 'roomId', path, issues);
+	const label = readRequiredString(input, 'label', path, issues);
+	const position = readVec3(input.position, `${path}.position`, issues);
+	const cameraTarget = readVec3(input.cameraTarget, `${path}.cameraTarget`, issues);
+	const fov = readRequiredNumber(input, 'fov', path, issues);
+	if (
+		fov !== undefined &&
+		(fov < MUSEUM_CAMERA_FOV.min || fov > MUSEUM_CAMERA_FOV.max)
+	) {
+		addIssue(
+			issues,
+			`${path}.fov`,
+			'invalid_fov',
+			`FOV must be between ${MUSEUM_CAMERA_FOV.min} and ${MUSEUM_CAMERA_FOV.max} degrees`
+		);
+	}
+	const connectedNodeIds = readStringArray(
+		input.connectedNodeIds,
+		`${path}.connectedNodeIds`,
+		issues
+	);
+	const nextNodeId = readOptionalString(input, 'nextNodeId', path, issues);
+	const previousNodeId = readOptionalString(input, 'previousNodeId', path, issues);
+	let lockInteraction: boolean | undefined;
+	if ('lockInteraction' in input) {
+		lockInteraction = readRequiredBoolean(input, 'lockInteraction', path, issues);
+	}
+	if (
+		!id ||
+		!roomId ||
+		!label ||
+		!position ||
+		!cameraTarget ||
+		fov === undefined ||
+		fov < MUSEUM_CAMERA_FOV.min ||
+		fov > MUSEUM_CAMERA_FOV.max ||
+		!connectedNodeIds
+	) {
+		return undefined;
+	}
+	return {
+		id,
+		roomId,
+		label,
+		position,
+		cameraTarget,
+		fov,
 		connectedNodeIds,
 		...(nextNodeId === undefined ? {} : { nextNodeId }),
 		...(previousNodeId === undefined ? {} : { previousNodeId }),
@@ -441,11 +546,102 @@ function parsePositionPath(
 	return { kind, anchors };
 }
 
-function parseConnection(
+function parseViewKeyframe(
 	input: unknown,
 	path: string,
 	issues: SceneDocumentIssue[]
-): SceneConnection | undefined {
+): SceneCameraViewKeyframe | undefined {
+	if (!isRecord(input)) {
+		addIssue(issues, path, 'invalid_type', 'Expected a camera view keyframe object');
+		return undefined;
+	}
+	assertAllowedKeys(input, ['id', 'progress', 'cameraTarget', 'roomId', 'fov'], path, issues);
+	const id = readRequiredString(input, 'id', path, issues);
+	const progress = readRequiredNumber(input, 'progress', path, issues);
+	if (progress !== undefined && (progress <= 0 || progress >= 1)) {
+		addIssue(
+			issues,
+			`${path}.progress`,
+			'invalid_view_progress',
+			'View keyframe progress must be strictly between zero and one'
+		);
+	}
+	const cameraTarget = readVec3(input.cameraTarget, `${path}.cameraTarget`, issues);
+	let roomId: MuseumRoomId | undefined;
+	if ('roomId' in input) roomId = readRoomId(input, 'roomId', path, issues);
+	const fov = readRequiredNumber(input, 'fov', path, issues);
+	if (
+		fov !== undefined &&
+		(fov < MUSEUM_CAMERA_FOV.min || fov > MUSEUM_CAMERA_FOV.max)
+	) {
+		addIssue(
+			issues,
+			`${path}.fov`,
+			'invalid_fov',
+			`FOV must be between ${MUSEUM_CAMERA_FOV.min} and ${MUSEUM_CAMERA_FOV.max} degrees`
+		);
+	}
+	if (
+		!id ||
+		progress === undefined ||
+		progress <= 0 ||
+		progress >= 1 ||
+		!cameraTarget ||
+		fov === undefined ||
+		fov < MUSEUM_CAMERA_FOV.min ||
+		fov > MUSEUM_CAMERA_FOV.max
+	) {
+		return undefined;
+	}
+	return {
+		id,
+		progress,
+		cameraTarget,
+		...(roomId === undefined ? {} : { roomId }),
+		fov
+	};
+}
+
+function parseViewTrack(
+	input: unknown,
+	path: string,
+	issues: SceneDocumentIssue[]
+) {
+	if (!Array.isArray(input)) {
+		addIssue(issues, path, 'invalid_type', 'Expected an array');
+		return undefined;
+	}
+	const parsed = input.map((keyframe, index) =>
+		parseViewKeyframe(keyframe, `${path}[${index}]`, issues)
+	);
+	return parsed.every(
+		(keyframe): keyframe is SceneCameraViewKeyframe => keyframe !== undefined
+	)
+		? parsed
+		: undefined;
+}
+
+function parseViewTracks(
+	input: unknown,
+	path: string,
+	issues: SceneDocumentIssue[]
+): SceneConnectionViewTracks | undefined {
+	if (!isRecord(input)) {
+		addIssue(issues, path, 'invalid_type', 'Expected a camera view tracks object');
+		return undefined;
+	}
+	assertAllowedKeys(input, ['forward', 'reverse'], path, issues);
+	const forward = parseViewTrack(input.forward, `${path}.forward`, issues);
+	const reverse = parseViewTrack(input.reverse, `${path}.reverse`, issues);
+	if (!forward || !reverse) return undefined;
+	return { forward, reverse };
+}
+
+function parseConnectionV2(
+	input: unknown,
+	path: string,
+	issues: SceneDocumentIssue[]
+): SceneConnectionV2 | undefined {
 	const base = parseConnectionBase(input, path, issues, [
 		'id',
 		'fromNodeId',
@@ -459,6 +655,34 @@ function parseConnection(
 	if (!positionPath) return undefined;
 	const { input: _input, ...connection } = base;
 	return { ...connection, positionPath };
+}
+
+function parseConnectionV3(
+	input: unknown,
+	path: string,
+	issues: SceneDocumentIssue[]
+): SceneConnection | undefined {
+	const base = parseConnectionBase(input, path, issues, [
+		'id',
+		'fromNodeId',
+		'toNodeId',
+		'clearance',
+		'positionPath',
+		'viewTracks',
+		'targetWaypoints'
+	]);
+	if (!base) return undefined;
+	const positionPath = parsePositionPath(base.input.positionPath, `${path}.positionPath`, issues);
+	const viewTracks = 'viewTracks' in base.input
+		? parseViewTracks(base.input.viewTracks, `${path}.viewTracks`, issues)
+		: undefined;
+	if (!positionPath || ('viewTracks' in base.input && !viewTracks)) return undefined;
+	const { input: _input, ...connection } = base;
+	return {
+		...connection,
+		positionPath,
+		...(viewTracks === undefined ? {} : { viewTracks })
+	};
 }
 
 function assertUnique(
@@ -554,6 +778,46 @@ function validateSemantics(document: ParsedMuseumSceneDocument, issues: SceneDoc
 				anchorIds.add(anchor.id);
 			}
 		}
+		const viewTracks = 'viewTracks' in connection
+			? (connection.viewTracks as SceneConnectionViewTracks | undefined)
+			: undefined;
+		if (viewTracks) {
+			const keyframeIds = new Set<string>();
+			for (const direction of ['forward', 'reverse'] as const) {
+				let previousProgress = -Infinity;
+				for (const [keyframeIndex, keyframe] of viewTracks[
+					direction
+				].entries()) {
+					const keyframePath = `${path}.viewTracks.${direction}[${keyframeIndex}]`;
+					if (keyframeIds.has(keyframe.id)) {
+						addIssue(
+							issues,
+							`${keyframePath}.id`,
+							'duplicate_view_keyframe_id',
+							`Duplicate camera view keyframe id in ${connection.id}: ${keyframe.id}`
+						);
+					}
+					keyframeIds.add(keyframe.id);
+					if (keyframe.progress <= previousProgress) {
+						addIssue(
+							issues,
+							`${keyframePath}.progress`,
+							'unordered_view_progress',
+							`Camera view keyframe progress must be strictly increasing in the ${direction} track`
+						);
+					}
+					previousProgress = keyframe.progress;
+				}
+			}
+		}
+	}
+
+	if (document.version === 3) {
+		validateViewKeyframePoses(
+			document,
+			new Map(document.navigationNodes.map((node) => [node.id, node])),
+			issues
+		);
 	}
 
 	for (const [index, node] of document.navigationNodes.entries()) {
@@ -584,7 +848,7 @@ function validateSemantics(document: ParsedMuseumSceneDocument, issues: SceneDoc
 		return;
 	}
 
-	if (document.version === 2) {
+	if (document.version === 2 || document.version === 3) {
 		validateVersionTwoTour(document.navigationNodes, nodeById, issues);
 		return;
 	}
@@ -607,7 +871,7 @@ function validateSemantics(document: ParsedMuseumSceneDocument, issues: SceneDoc
 	}
 	const start = document.navigationNodes[0]!;
 	const tourVisited = new Set<string>();
-	let current: SceneNavigationNode | undefined = start;
+	let current: ParsedSceneNavigationNode | undefined = start;
 	while (current && !tourVisited.has(current.id)) {
 		tourVisited.add(current.id);
 		current = current.nextNodeId ? nodeById.get(current.nextNodeId) : undefined;
@@ -616,11 +880,11 @@ function validateSemantics(document: ParsedMuseumSceneDocument, issues: SceneDoc
 }
 
 function validateVersionTwoTour(
-	nodes: readonly SceneNavigationNode[],
-	nodeById: ReadonlyMap<string, SceneNavigationNode>,
+	nodes: readonly ParsedSceneNavigationNode[],
+	nodeById: ReadonlyMap<string, ParsedSceneNavigationNode>,
 	issues: SceneDocumentIssue[]
 ) {
-	const linkedNodes: SceneNavigationNode[] = [];
+	const linkedNodes: ParsedSceneNavigationNode[] = [];
 	for (const [index, node] of nodes.entries()) {
 		const path = `$.navigationNodes[${index}]`;
 		const hasNext = node.nextNodeId !== undefined;
@@ -688,7 +952,7 @@ function validateVersionTwoTour(
 	}
 	const start = linkedNodes[0]!;
 	const tourVisited = new Set<string>();
-	let current: SceneNavigationNode | undefined = start;
+	let current: ParsedSceneNavigationNode | undefined = start;
 	while (current && !tourVisited.has(current.id)) {
 		tourVisited.add(current.id);
 		current = current.nextNodeId ? nodeById.get(current.nextNodeId) : undefined;
@@ -703,6 +967,58 @@ function validateVersionTwoTour(
 	}
 }
 
+function validateViewKeyframePoses(
+	document: MuseumSceneDocument,
+	nodeById: ReadonlyMap<string, SceneNavigationNode>,
+	issues: SceneDocumentIssue[]
+) {
+	for (const [connectionIndex, connection] of document.connections.entries()) {
+		if (!connection.viewTracks) continue;
+		const fromNode = nodeById.get(connection.fromNodeId);
+		const toNode = nodeById.get(connection.toNodeId);
+		if (!fromNode || !toNode) continue;
+		const anchors: Vec3[] = [
+			roomPoint(fromNode.roomId, fromNode.position),
+			...connection.positionPath.anchors.map((anchor) =>
+				anchor.roomId
+					? roomPoint(anchor.roomId, anchor.position)
+					: ([...anchor.position] as Vec3)
+			),
+			roomPoint(toNode.roomId, toNode.position)
+		];
+		const positionPath = createCameraPositionPath([
+			connection.positionPath.kind === 'rounded-polyline'
+				? {
+						kind: 'rounded-polyline',
+						points: anchors,
+						clearance: connection.clearance
+					}
+				: { kind: 'auto-bezier', anchors }
+		]);
+
+		for (const direction of ['forward', 'reverse'] as const) {
+			for (const [keyframeIndex, keyframe] of connection.viewTracks[
+				direction
+			].entries()) {
+				const position = positionPath.getPointAt(
+					direction === 'forward' ? keyframe.progress : 1 - keyframe.progress
+				);
+				const target = keyframe.roomId
+					? roomPoint(keyframe.roomId, keyframe.cameraTarget)
+					: keyframe.cameraTarget;
+				if (Math.hypot(position.x - target[0], position.y - target[1], position.z - target[2]) <= EPSILON) {
+					addIssue(
+						issues,
+						`$.connections[${connectionIndex}].viewTracks.${direction}[${keyframeIndex}].cameraTarget`,
+						'camera_target_too_close',
+						`Camera eye and target must be farther than ${EPSILON}`
+					);
+				}
+			}
+		}
+	}
+}
+
 function cloneWaypoint(value: SceneWaypoint): SceneWaypoint {
 	return {
 		...(value.roomId === undefined ? {} : { roomId: value.roomId }),
@@ -710,12 +1026,24 @@ function cloneWaypoint(value: SceneWaypoint): SceneWaypoint {
 	};
 }
 
+function cloneViewKeyframe(
+	value: SceneCameraViewKeyframe
+): SceneCameraViewKeyframe {
+	return {
+		id: value.id,
+		progress: value.progress,
+		...(value.roomId === undefined ? {} : { roomId: value.roomId }),
+		cameraTarget: [...value.cameraTarget],
+		fov: value.fov
+	};
+}
+
 function canonicalDocument(document: MuseumSceneDocument): MuseumSceneDocument {
 	return {
-		version: 2,
+		version: 3,
 		objects: document.objects.map((object) => ({ id: object.id, roomId: object.roomId, assetId: object.assetId, fallback: object.fallback, position: [...object.position], rotation: [...object.rotation], ...(object.scale === undefined ? {} : { scale: object.scale }) })),
 		...(document.clusters === undefined ? {} : { clusters: document.clusters.map((cluster) => ({ id: cluster.id, name: cluster.name, roomId: cluster.roomId, memberIds: [...cluster.memberIds] })) }),
-		navigationNodes: document.navigationNodes.map((node) => ({ id: node.id, roomId: node.roomId, label: node.label, position: [...node.position], cameraTarget: [...node.cameraTarget], connectedNodeIds: [...node.connectedNodeIds], ...(node.nextNodeId === undefined ? {} : { nextNodeId: node.nextNodeId }), ...(node.previousNodeId === undefined ? {} : { previousNodeId: node.previousNodeId }), ...(node.lockInteraction === undefined ? {} : { lockInteraction: node.lockInteraction }) })),
+		navigationNodes: document.navigationNodes.map((node) => ({ id: node.id, roomId: node.roomId, label: node.label, position: [...node.position], cameraTarget: [...node.cameraTarget], fov: node.fov, connectedNodeIds: [...node.connectedNodeIds], ...(node.nextNodeId === undefined ? {} : { nextNodeId: node.nextNodeId }), ...(node.previousNodeId === undefined ? {} : { previousNodeId: node.previousNodeId }), ...(node.lockInteraction === undefined ? {} : { lockInteraction: node.lockInteraction }) })),
 		connections: document.connections.map((connection) => ({
 			id: connection.id,
 			fromNodeId: connection.fromNodeId,
@@ -728,6 +1056,14 @@ function canonicalDocument(document: MuseumSceneDocument): MuseumSceneDocument {
 					...cloneWaypoint(anchor)
 				}))
 			},
+			...(connection.viewTracks === undefined
+				? {}
+				: {
+						viewTracks: {
+							forward: connection.viewTracks.forward.map(cloneViewKeyframe),
+							reverse: connection.viewTracks.reverse.map(cloneViewKeyframe)
+						}
+					}),
 			...(connection.targetWaypoints === undefined
 				? {}
 				: { targetWaypoints: connection.targetWaypoints.map(cloneWaypoint) })
@@ -735,7 +1071,7 @@ function canonicalDocument(document: MuseumSceneDocument): MuseumSceneDocument {
 	};
 }
 
-function migrateVersionOneDocument(document: LegacyMuseumSceneDocument): MuseumSceneDocument {
+function migrateVersionOneDocument(document: LegacyMuseumSceneDocument): MuseumSceneDocumentV2 {
 	return {
 		version: 2,
 		objects: document.objects,
@@ -760,6 +1096,19 @@ function migrateVersionOneDocument(document: LegacyMuseumSceneDocument): MuseumS
 	};
 }
 
+function migrateVersionTwoDocument(document: MuseumSceneDocumentV2): MuseumSceneDocument {
+	return {
+		version: 3,
+		objects: document.objects,
+		...(document.clusters === undefined ? {} : { clusters: document.clusters }),
+		navigationNodes: document.navigationNodes.map((node) => ({
+			...node,
+			fov: MUSEUM_CAMERA_FOV.default
+		})),
+		connections: document.connections
+	};
+}
+
 export function validateSceneDocument(input: unknown): SceneDocumentValidationResult {
 	const issues: SceneDocumentIssue[] = [];
 	if (!isRecord(input)) {
@@ -767,7 +1116,7 @@ export function validateSceneDocument(input: unknown): SceneDocumentValidationRe
 		return { success: false, issues };
 	}
 	assertAllowedKeys(input, ['version', 'objects', 'clusters', 'navigationNodes', 'connections'], '$', issues);
-	if (input.version !== 1 && input.version !== 2) {
+	if (input.version !== 1 && input.version !== 2 && input.version !== 3) {
 		addIssue(
 			issues,
 			'$.version',
@@ -786,41 +1135,68 @@ export function validateSceneDocument(input: unknown): SceneDocumentValidationRe
 	};
 	const objects = parseArray('objects', parsePlacement);
 	const clusters = 'clusters' in input ? parseArray('clusters', parseCluster) : undefined;
-	const navigationNodes = parseArray('navigationNodes', parseNode);
+	const legacyNavigationNodes = input.version === 1 || input.version === 2
+		? parseArray('navigationNodes', parseNodeV1V2)
+		: undefined;
+	const currentNavigationNodes = input.version === 3
+		? parseArray('navigationNodes', parseNodeV3)
+		: undefined;
 	const legacyConnections = input.version === 1
 		? parseArray('connections', parseLegacyConnection)
 		: undefined;
-	const currentConnections = input.version === 2
-		? parseArray('connections', parseConnection)
+	const versionTwoConnections = input.version === 2
+		? parseArray('connections', parseConnectionV2)
+		: undefined;
+	const currentConnections = input.version === 3
+		? parseArray('connections', parseConnectionV3)
 		: undefined;
 	if (
 		!objects ||
-		!navigationNodes ||
-		(input.version === 1 ? !legacyConnections : !currentConnections) ||
+		(input.version === 1 || input.version === 2
+			? !legacyNavigationNodes
+			: !currentNavigationNodes) ||
+		(input.version === 1
+			? !legacyConnections
+			: input.version === 2
+				? !versionTwoConnections
+				: !currentConnections) ||
 		('clusters' in input && !clusters) ||
 		issues.length
 	) {
 		return { success: false, issues };
 	}
-	const document: ParsedMuseumSceneDocument = input.version === 1
-		? {
+	const document: ParsedMuseumSceneDocument =
+		input.version === 1
+			? {
 				version: 1,
 				objects,
 				...(clusters === undefined ? {} : { clusters }),
-				navigationNodes,
+				navigationNodes: legacyNavigationNodes!,
 				connections: legacyConnections!
 			}
-		: {
+			: input.version === 2
+				? {
 				version: 2,
 				objects,
 				...(clusters === undefined ? {} : { clusters }),
-				navigationNodes,
-				connections: currentConnections!
-			};
+				navigationNodes: legacyNavigationNodes!,
+				connections: versionTwoConnections!
+				}
+				: {
+						version: 3,
+						objects,
+						...(clusters === undefined ? {} : { clusters }),
+						navigationNodes: currentNavigationNodes!,
+						connections: currentConnections!
+					};
 	validateSemantics(document, issues);
 	if (issues.length) return { success: false, issues };
 	const normalized = canonicalDocument(
-		document.version === 1 ? migrateVersionOneDocument(document) : document
+		document.version === 1
+			? migrateVersionTwoDocument(migrateVersionOneDocument(document))
+			: document.version === 2
+				? migrateVersionTwoDocument(document)
+				: document
 	);
 	return { success: true, document: normalized, canonicalJson: JSON.stringify(normalized, null, 2) + '\n' };
 }

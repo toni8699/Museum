@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "objects": [
     {
       "id": "main-piano",
@@ -178,6 +178,7 @@
       "label": "Begin: The First Note",
       "position": [0, 1.65, 2.6],
       "cameraTarget": [0, 1.5, -3],
+      "fov": 54,
       "connectedNodeIds": ["legacy-return", "poland-threshold"],
       "nextNodeId": "poland-threshold",
       "previousNodeId": "legacy-return"
@@ -188,6 +189,7 @@
       "label": "Poland: Roots",
       "position": [0, 1.65, 2.6],
       "cameraTarget": [0, 1.35, -2],
+      "fov": 54,
       "connectedNodeIds": ["entrance-start", "departure-corridor"],
       "nextNodeId": "departure-corridor",
       "previousNodeId": "entrance-start"
@@ -198,6 +200,7 @@
       "label": "Departure: Distance",
       "position": [3, 1.65, 4.8],
       "cameraTarget": [3, 1.5, -5.2],
+      "fov": 54,
       "connectedNodeIds": ["poland-threshold", "paris-seat"],
       "nextNodeId": "paris-seat",
       "previousNodeId": "poland-threshold"
@@ -208,6 +211,7 @@
       "label": "Paris Salon",
       "position": [-3.6, 1.65, 0.5],
       "cameraTarget": [1.4, 1.05, 0],
+      "fov": 54,
       "connectedNodeIds": ["departure-corridor", "workshop-desk"],
       "nextNodeId": "workshop-desk",
       "previousNodeId": "departure-corridor"
@@ -218,6 +222,7 @@
       "label": "Workshop: Manuscripts",
       "position": [0, 1.65, 3],
       "cameraTarget": [-2.5, 1.05, -1],
+      "fov": 54,
       "connectedNodeIds": ["paris-seat", "music-entry"],
       "nextNodeId": "music-entry",
       "previousNodeId": "paris-seat"
@@ -228,6 +233,7 @@
       "label": "Music Chamber Entry",
       "position": [3.247, 1.65, -1.875],
       "cameraTarget": [0, 1.25, 0],
+      "fov": 54,
       "connectedNodeIds": ["workshop-desk", "music-center"],
       "nextNodeId": "music-center",
       "previousNodeId": "workshop-desk"
@@ -238,6 +244,7 @@
       "label": "Central Piano",
       "position": [2.8, 1.65, 2.6],
       "cameraTarget": [0, 1.1, 0],
+      "fov": 54,
       "connectedNodeIds": ["music-entry", "legacy-return"],
       "nextNodeId": "legacy-return",
       "previousNodeId": "music-entry"
@@ -248,6 +255,7 @@
       "label": "Legacy: Return",
       "position": [3.7, 1.65, 0],
       "cameraTarget": [-1, 1.25, -2],
+      "fov": 54,
       "connectedNodeIds": ["music-center", "entrance-start"],
       "nextNodeId": "entrance-start",
       "previousNodeId": "music-center"

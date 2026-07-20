@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { museumSceneDocument, type MuseumSceneDocument } from './scene';
+import {
+	museumSceneDocument,
+	resolveSceneDocument,
+	type MuseumSceneDocument
+} from './scene';
+import { createCameraPositionPath } from '$lib/museum/navigation/camera-motion';
 import {
 	parseSceneDocumentJson,
 	serializeSceneDocument,
@@ -10,8 +15,23 @@ function cloneDocument() {
 	return JSON.parse(JSON.stringify(museumSceneDocument)) as MuseumSceneDocument;
 }
 
-function versionOneDocument(): unknown {
+function versionTwoDocument(): unknown {
 	const document = cloneDocument();
+	return {
+		...document,
+		version: 2,
+		navigationNodes: document.navigationNodes.map(({ fov: _fov, ...node }) => node),
+		connections: document.connections.map(({ viewTracks: _viewTracks, ...connection }) => connection)
+	};
+}
+
+function versionOneDocument(): unknown {
+	const document = versionTwoDocument() as {
+		version: number;
+		connections: Array<Record<string, unknown> & {
+			positionPath: { anchors: Array<{ id: string }> };
+		}>;
+	};
 	return {
 		...document,
 		version: 1,
@@ -22,13 +42,22 @@ function versionOneDocument(): unknown {
 	};
 }
 
+function expectIssue(input: unknown, code: string, path?: string) {
+	const result = validateSceneDocument(input);
+	expect(result.success).toBe(false);
+	if (result.success) return;
+	expect(result.issues).toContainEqual(
+		expect.objectContaining({ code, ...(path === undefined ? {} : { path }) })
+	);
+}
+
 describe('scene document codec', () => {
 	it('serializes the checked-in scene canonically without mutating it', () => {
 		const before = JSON.stringify(museumSceneDocument);
 		const json = serializeSceneDocument(museumSceneDocument);
 		const parsed = parseSceneDocumentJson(json);
 
-		expect(json).toMatch(/^\{\n  "version": 2,\n  "objects": \[/);
+		expect(json).toMatch(/^\{\n  "version": 3,\n  "objects": \[/);
 		expect(json).toContain('\n  "navigationNodes": [');
 		expect(json).not.toContain('\n  "clusters":');
 		expect(json.endsWith('\n')).toBe(true);
@@ -106,15 +135,21 @@ describe('scene document codec', () => {
 		if (!result.success) expect(result.issues).toContainEqual(expect.objectContaining({ code: 'invalid_tour_cycle' }));
 	});
 
-	it('strictly validates version 1 before deterministic migration to canonical version 2', () => {
-		const legacy = versionOneDocument();
+	it('strictly validates version 1 before deterministic migration to canonical version 3', () => {
+		const legacy = versionOneDocument() as {
+			connections: Array<Record<string, unknown>>;
+		};
+		legacy.connections[0]!.targetWaypoints = [
+			{ roomId: 'entrance', position: [0.5, 1.4, -1] }
+		];
 		const before = JSON.stringify(legacy);
 		const result = validateSceneDocument(legacy);
 
 		expect(result.success).toBe(true);
 		if (!result.success) return;
 		expect(JSON.stringify(legacy)).toBe(before);
-		expect(result.document.version).toBe(2);
+		expect(result.document.version).toBe(3);
+		expect(result.document.navigationNodes.every((node) => node.fov === 54)).toBe(true);
 		expect(result.document.connections.every((connection) => connection.positionPath.kind === 'rounded-polyline')).toBe(true);
 		expect(
 			result.document.connections.flatMap((connection) =>
@@ -125,12 +160,214 @@ describe('scene document codec', () => {
 				connection.positionPath.anchors.map((anchor) => anchor.id)
 			)
 		);
-		expect(result.canonicalJson).toContain('"version": 2');
+		expect(result.canonicalJson).toContain('"version": 3');
 		expect(result.canonicalJson).not.toContain('positionWaypoints');
+		expect(result.document.connections[0]!.targetWaypoints).toEqual(
+			legacy.connections[0]!.targetWaypoints
+		);
 		expect(serializeSceneDocument(legacy as MuseumSceneDocument)).toBe(result.canonicalJson);
 
 		const repeated = validateSceneDocument(legacy);
 		expect(repeated).toEqual(result);
+	});
+
+	it('migrates version 2 directly to v3 while preserving dormant target waypoints', () => {
+		const legacy = versionTwoDocument() as {
+			connections: Array<Record<string, unknown>>;
+		};
+		legacy.connections[0]!.targetWaypoints = [
+			{ roomId: 'entrance', position: [0.5, 1.4, -1] },
+			{ position: [12, 1.3, 8] }
+		];
+		const before = JSON.stringify(legacy);
+		const result = validateSceneDocument(legacy);
+
+		expect(result.success).toBe(true);
+		if (!result.success) return;
+		expect(JSON.stringify(legacy)).toBe(before);
+		expect(result.document.version).toBe(3);
+		expect(result.document.navigationNodes.every((node) => node.fov === 54)).toBe(true);
+		expect(result.document.connections.every((connection) => !connection.viewTracks)).toBe(true);
+		expect(result.document.connections[0]!.targetWaypoints).toEqual(
+			legacy.connections[0]!.targetWaypoints
+		);
+		expect(result.document.connections[0]!.targetWaypoints).not.toBe(
+			legacy.connections[0]!.targetWaypoints
+		);
+	});
+
+	it('round-trips canonical directional view tracks with stable field order and fresh values', () => {
+		const document = cloneDocument();
+		document.navigationNodes[0]!.fov = 48;
+		document.connections[0]!.viewTracks = {
+			forward: [
+				{
+					id: 'entrance-poland-view-forward-01',
+					progress: 0.25,
+					roomId: 'entrance',
+					cameraTarget: [1.2, 1.4, -2.1],
+					fov: 42
+				},
+				{
+					id: 'entrance-poland-view-forward-02',
+					progress: 0.75,
+					cameraTarget: [100, 2, 100],
+					fov: 60
+				}
+			],
+			reverse: []
+		};
+		const before = JSON.stringify(document);
+		const result = validateSceneDocument(document);
+
+		expect(result.success).toBe(true);
+		if (!result.success) return;
+		expect(JSON.stringify(document)).toBe(before);
+		expect(result.document).not.toBe(document);
+		expect(result.document.connections[0]!.viewTracks).not.toBe(
+			document.connections[0]!.viewTracks
+		);
+		expect(result.document.connections[0]!.viewTracks?.forward[0]?.cameraTarget).not.toBe(
+			document.connections[0]!.viewTracks?.forward[0]?.cameraTarget
+		);
+		expect(result.canonicalJson).toContain('"viewTracks": {\n        "forward": [');
+		expect(result.canonicalJson).toContain('"reverse": []');
+		expect(result.canonicalJson.indexOf('"progress"')).toBeLessThan(
+			result.canonicalJson.indexOf('"roomId": "entrance"', result.canonicalJson.indexOf('"progress"'))
+		);
+		const repeated = parseSceneDocumentJson(result.canonicalJson);
+		expect(repeated).toEqual(result);
+	});
+
+	it('rejects invalid FOV, malformed tracks, IDs, progress, targets, and rooms', () => {
+		const nodeFov = cloneDocument();
+		nodeFov.navigationNodes[0]!.fov = 9.99;
+		expectIssue(nodeFov, 'invalid_fov', '$.navigationNodes[0].fov');
+
+		const malformed = cloneDocument() as unknown as {
+			connections: Array<Record<string, unknown>>;
+		};
+		malformed.connections[0]!.viewTracks = { forward: [] };
+		expectIssue(malformed, 'invalid_type', '$.connections[0].viewTracks.reverse');
+
+		const unknownNested = cloneDocument() as unknown as {
+			connections: Array<Record<string, unknown>>;
+		};
+		unknownNested.connections[0]!.viewTracks = {
+			forward: [
+				{
+					id: 'unknown-field',
+					progress: 0.2,
+					cameraTarget: [100, 2, 100],
+					fov: 54,
+					rotation: [0, 0, 0]
+				}
+			],
+			reverse: [],
+			automatic: true
+		};
+		expectIssue(unknownNested, 'unknown_property');
+
+		const duplicate = cloneDocument();
+		duplicate.connections[0]!.viewTracks = {
+			forward: [
+				{ id: 'duplicate', progress: 0.2, cameraTarget: [100, 2, 100], fov: 54 }
+			],
+			reverse: [
+				{ id: 'duplicate', progress: 0.3, cameraTarget: [101, 2, 100], fov: 54 }
+			]
+		};
+		expectIssue(duplicate, 'duplicate_view_keyframe_id');
+
+		const unordered = cloneDocument();
+		unordered.connections[0]!.viewTracks = {
+			forward: [
+				{ id: 'later', progress: 0.7, cameraTarget: [100, 2, 100], fov: 54 },
+				{ id: 'earlier', progress: 0.4, cameraTarget: [101, 2, 100], fov: 54 }
+			],
+			reverse: []
+		};
+		expectIssue(unordered, 'unordered_view_progress');
+
+		const outOfRange = cloneDocument();
+		outOfRange.connections[0]!.viewTracks = {
+			forward: [
+				{ id: 'endpoint', progress: 1, cameraTarget: [100, 2, 100], fov: 54 }
+			],
+			reverse: []
+		};
+		expectIssue(outOfRange, 'invalid_view_progress');
+
+		const keyframeFov = cloneDocument();
+		keyframeFov.connections[0]!.viewTracks = {
+			forward: [
+				{ id: 'bad-fov', progress: 0.5, cameraTarget: [100, 2, 100], fov: 121 }
+			],
+			reverse: []
+		};
+		expectIssue(keyframeFov, 'invalid_fov');
+
+		const invalidTarget = cloneDocument();
+		invalidTarget.connections[0]!.viewTracks = {
+			forward: [
+				{ id: 'nan-target', progress: 0.5, cameraTarget: [Number.NaN, 2, 100], fov: 54 }
+			],
+			reverse: []
+		};
+		expectIssue(invalidTarget, 'non_finite_number');
+
+		const unknownRoom = cloneDocument();
+		unknownRoom.connections[0]!.viewTracks = {
+			forward: [
+				{
+					id: 'unknown-room',
+					progress: 0.5,
+					roomId: 'missing-room' as never,
+					cameraTarget: [1, 2, 3],
+					fov: 54
+				}
+			],
+			reverse: []
+		};
+		expectIssue(unknownRoom, 'unknown_room');
+	});
+
+	it('rejects view targets coincident with exact forward and reverse edge positions', () => {
+		for (const direction of ['forward', 'reverse'] as const) {
+			const document = cloneDocument();
+			const connection = document.connections[0]!;
+			const runtimeConnection = resolveSceneDocument(document).connections[0]!;
+			const runtimeAnchors = runtimeConnection.positionPath.anchors.map(
+				(anchor) => anchor.position
+			);
+			const path = createCameraPositionPath([
+				runtimeConnection.positionPath.kind === 'rounded-polyline'
+					? {
+							kind: 'rounded-polyline',
+							points: runtimeAnchors,
+							clearance: runtimeConnection.clearance
+						}
+					: { kind: 'auto-bezier', anchors: runtimeAnchors }
+			]);
+			const progress = 0.37;
+			const eye = path.getPointAt(direction === 'forward' ? progress : 1 - progress);
+			connection.viewTracks = {
+				forward: [],
+				reverse: []
+			};
+			connection.viewTracks[direction].push({
+				id: `coincident-${direction}`,
+				progress,
+				cameraTarget: [eye.x, eye.y, eye.z],
+				fov: 54
+			});
+
+			expectIssue(
+				document,
+				'camera_target_too_close',
+				`$.connections[0].viewTracks.${direction}[0].cameraTarget`
+			);
+		}
 	});
 
 	it('does not reinterpret fields across scene document versions', () => {
@@ -147,6 +384,29 @@ describe('scene document codec', () => {
 					path: '$.connections[0].positionPath',
 					code: 'unknown_property'
 				})
+			);
+		}
+
+		const versionTwo = versionTwoDocument() as {
+			navigationNodes: Array<Record<string, unknown>>;
+			connections: Array<Record<string, unknown>>;
+		};
+		versionTwo.navigationNodes[0]!.fov = 54;
+		versionTwo.connections[0]!.viewTracks = { forward: [], reverse: [] };
+		const versionTwoResult = validateSceneDocument(versionTwo);
+		expect(versionTwoResult.success).toBe(false);
+		if (!versionTwoResult.success) {
+			expect(versionTwoResult.issues).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						path: '$.navigationNodes[0].fov',
+						code: 'unknown_property'
+					}),
+					expect.objectContaining({
+						path: '$.connections[0].viewTracks',
+						code: 'unknown_property'
+					})
+				])
 			);
 		}
 
@@ -188,6 +448,7 @@ describe('scene document codec', () => {
 			label: 'Free only',
 			position: [1, 1.65, 1],
 			cameraTarget: [1, 1.25, -1],
+			fov: 54,
 			connectedNodeIds: [source.id]
 		});
 		source.connectedNodeIds.push('free-only-node');

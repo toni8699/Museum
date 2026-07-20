@@ -980,6 +980,44 @@ function smootherstep01(progress: number) {
   );
 }
 
+function inverseSmootherstep01(progress: number) {
+  const target = MathUtils.clamp(progress, 0, 1);
+  if (target === 0 || target === 1) return target;
+  let lower = 0;
+  let upper = 1;
+  for (let iteration = 0; iteration < 40; iteration += 1) {
+    const midpoint = (lower + upper) / 2;
+    if (smootherstep01(midpoint) < target) lower = midpoint;
+    else upper = midpoint;
+  }
+  return (lower + upper) / 2;
+}
+
+/** Map exact edge-local distance progress back to raw transition/playhead progress. */
+export function cameraMotionProgressAtEdgeProgress(
+  motion: CameraMotion,
+  edgeIndex: number,
+  edgeProgress: number
+) {
+  if (!Number.isInteger(edgeIndex) || edgeIndex < 0 || edgeIndex >= motion.positionEdgeSpans.length) {
+    throw new Error('Camera motion edge index is out of range');
+  }
+  if (!Number.isFinite(edgeProgress)) {
+    throw new Error('Camera motion edge progress must be finite');
+  }
+  const span = motion.positionEdgeSpans[edgeIndex];
+  const localProgress = MathUtils.clamp(edgeProgress, 0, 1);
+  if (motion.totalPositionDistance <= Number.EPSILON) {
+    return MathUtils.clamp(
+      (edgeIndex + localProgress) / motion.positionEdgeSpans.length,
+      0,
+      1
+    );
+  }
+  const distance = span.startDistance + span.length * localProgress;
+  return inverseSmootherstep01(distance / motion.totalPositionDistance);
+}
+
 function findActiveEdgeIndex(motion: CameraMotion, easedProgress: number) {
   const spans = motion.positionEdgeSpans;
   if (spans.length === 0) return -1;

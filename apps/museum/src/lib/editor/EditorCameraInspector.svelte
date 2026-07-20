@@ -81,7 +81,7 @@
 			<span>Label</span>
 			<input
 				bind:value={labelDraft}
-				disabled={store.isCameraPreviewActive || store.isEditorInteractionActive}
+				disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
 				onblur={saveLabel}
 				onkeydown={onLabelKeyDown}
 			/>
@@ -98,7 +98,7 @@
 					type="button"
 					class:active={selection.handle === handle}
 					aria-pressed={selection.handle === handle}
-					disabled={store.isCameraPreviewActive || store.isEditorInteractionActive}
+					disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
 					onclick={() => selectHandle(handle as EditorCameraHandle)}
 				>
 					{handle === 'position' ? 'Position' : 'Target'}
@@ -111,7 +111,7 @@
 				legend={`${selection.handle === 'position' ? 'Position' : 'Target'} (m)`}
 				value={point}
 				step={0.01}
-				disabled={store.isCameraPreviewActive || store.isEditorInteractionActive}
+				disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
 				oncommit={commitNodePoint}
 			/>
 		{/key}
@@ -119,35 +119,26 @@
 		<div class="topology" aria-label="Camera topology commands">
 			<button
 				type="button"
-				disabled={store.isCameraPreviewActive || store.isEditorInteractionActive}
+				disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
 				onclick={() => store.beginConnectedNodePlacement()}
 			>Add connected node</button>
 			<button
 				type="button"
-				disabled={store.isCameraPreviewActive || store.isEditorInteractionActive}
+				disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
 				onclick={() => store.beginConnectExistingNodes()}
 			>Connect existing</button>
 		</div>
 
-		<div class="preview" aria-label="Camera preview controls">
-			{#if store.cameraPreview}
-				<p role="status">
-					{store.cameraPreview.kind === 'node'
-						? 'Holding authored node pose'
-						: store.cameraPreview.completed
-							? 'Transition complete · holding destination'
-							: 'Playing transition'}
-				</p>
-				<button type="button" class="stop" onclick={() => store.stopCameraPreview()}>
-					Stop preview
-				</button>
-			{:else}
+		{#if !store.cameraPreview}
+			<div class="preview" aria-label="Camera preview controls">
 				<div>
-					<button type="button" disabled={store.isEditorInteractionActive} onclick={() => store.previewSelectedNode()}>Preview node</button>
-					<button type="button" disabled={store.isEditorInteractionActive} onclick={() => store.previewSelectedTransition()}>Preview → {nextNode?.label ?? 'Unavailable'}</button>
+					<button type="button" disabled={store.isEditorInteractionActive} onclick={() => store.previewSelectedNode('director')}>Director node</button>
+					<button type="button" disabled={store.isEditorInteractionActive} onclick={() => store.previewSelectedNode('visitor')}>Visitor node</button>
+					<button type="button" disabled={store.isEditorInteractionActive} onclick={() => store.previewSelectedTransition('director')}>Director → {nextNode?.label ?? 'Unavailable'}</button>
+					<button type="button" disabled={store.isEditorInteractionActive} onclick={() => store.previewSelectedTransition('visitor')}>Visitor → {nextNode?.label ?? 'Unavailable'}</button>
 				</div>
-			{/if}
-		</div>
+			</div>
+		{/if}
 	</section>
 {:else if selection?.kind === 'connection' && connection}
 	<section class="camera-node" aria-label="Camera connection editor">
@@ -164,20 +155,19 @@
 		</dl>
 		<button
 			type="button"
-			disabled={connection.positionPath.kind === 'auto-bezier' || store.isEditorInteractionActive || store.isCameraPreviewActive}
+			disabled={connection.positionPath.kind === 'auto-bezier' || store.isEditorInteractionActive || store.isDocumentMutationBlocked}
 			onclick={() => store.convertSelectedConnectionToSmooth()}
 		>Convert to Smooth Curve</button>
-		<div class="preview">
-			{#if store.cameraPreview}
-				<p>{store.cameraPreview.kind !== 'node' && store.cameraPreview.completed ? 'Transition complete · holding destination' : 'Playing connection'}</p>
-				<button type="button" class="stop" onclick={() => store.stopCameraPreview()}>Stop preview</button>
-			{:else}
+		{#if !store.cameraPreview}
+			<div class="preview">
 				<div>
-					<button type="button" onclick={() => store.previewSelectedConnection('forward')}>Preview {fromNode?.label ?? 'A'} → {toNode?.label ?? 'B'}</button>
-					<button type="button" onclick={() => store.previewSelectedConnection('reverse')}>Preview {toNode?.label ?? 'B'} → {fromNode?.label ?? 'A'}</button>
+					<button type="button" onclick={() => store.previewSelectedConnection('forward', 'director')}>Director {fromNode?.label ?? 'A'} → {toNode?.label ?? 'B'}</button>
+					<button type="button" onclick={() => store.previewSelectedConnection('reverse', 'director')}>Director {toNode?.label ?? 'B'} → {fromNode?.label ?? 'A'}</button>
+					<button type="button" onclick={() => store.previewSelectedConnection('forward', 'visitor')}>Visitor {fromNode?.label ?? 'A'} → {toNode?.label ?? 'B'}</button>
+					<button type="button" onclick={() => store.previewSelectedConnection('reverse', 'visitor')}>Visitor {toNode?.label ?? 'B'} → {fromNode?.label ?? 'A'}</button>
 				</div>
-			{/if}
-		</div>
+			</div>
+		{/if}
 	</section>
 {:else if selection?.kind === 'anchor' && connection && anchor}
 	<section class="camera-node" aria-label="Camera path anchor editor">
@@ -194,33 +184,32 @@
 				legend="Anchor position (m)"
 				value={anchor.position}
 				step={0.01}
-				disabled={store.isCameraPreviewActive || store.isEditorInteractionActive}
+				disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
 				oncommit={commitAnchorPoint}
 			/>
 		{/key}
 		<button
 			type="button"
 			class="danger"
-			disabled={store.isCameraPreviewActive || store.isEditorInteractionActive}
+			disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
 			onclick={() => store.deleteSelectedAnchor()}
 		>Delete Anchor</button>
 		<button
 			type="button"
 			class="done"
-			disabled={store.isCameraPreviewActive || store.isEditorInteractionActive}
+			disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
 			onclick={finishAnchorEditing}
 		>Done editing anchor</button>
-		<div class="preview" aria-label="Parent connection preview controls">
-			{#if store.cameraPreview}
-				<p>{store.cameraPreview.kind !== 'node' && store.cameraPreview.completed ? 'Transition complete · holding destination' : 'Playing connection'}</p>
-				<button type="button" class="stop" onclick={() => store.stopCameraPreview()}>Stop preview</button>
-			{:else}
+		{#if !store.cameraPreview}
+			<div class="preview" aria-label="Parent connection preview controls">
 				<div>
-					<button type="button" onclick={() => store.previewSelectedConnection('forward')}>Preview {fromNode?.label ?? 'A'} → {toNode?.label ?? 'B'}</button>
-					<button type="button" onclick={() => store.previewSelectedConnection('reverse')}>Preview {toNode?.label ?? 'B'} → {fromNode?.label ?? 'A'}</button>
+					<button type="button" onclick={() => store.previewSelectedConnection('forward', 'director')}>Director {fromNode?.label ?? 'A'} → {toNode?.label ?? 'B'}</button>
+					<button type="button" onclick={() => store.previewSelectedConnection('reverse', 'director')}>Director {toNode?.label ?? 'B'} → {fromNode?.label ?? 'A'}</button>
+					<button type="button" onclick={() => store.previewSelectedConnection('forward', 'visitor')}>Visitor {fromNode?.label ?? 'A'} → {toNode?.label ?? 'B'}</button>
+					<button type="button" onclick={() => store.previewSelectedConnection('reverse', 'visitor')}>Visitor {toNode?.label ?? 'B'} → {fromNode?.label ?? 'A'}</button>
 				</div>
-			{/if}
-		</div>
+			</div>
+		{/if}
 	</section>
 {/if}
 
@@ -232,7 +221,7 @@
 	.camera-node { display: flex; flex-direction: column; gap: 0.75rem; }
 	.section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; }
 	h2 { margin: 0; font-size: 0.9rem; }
-	.section-heading span, .preview p { color: #8d887f; font-size: 0.68rem; }
+	.section-heading span { color: #8d887f; font-size: 0.68rem; }
 	.status { margin: 0.75rem 0 0; color: #e7c87a; font-size: 0.7rem; line-height: 1.4; }
 	dl { display: flex; flex-direction: column; gap: 0.4rem; margin: 0; }
 	dl div { display: grid; grid-template-columns: 4.4rem 1fr; gap: 0.45rem; }
@@ -243,10 +232,8 @@
 	.label-field input { width: 100%; box-sizing: border-box; padding: 0.42rem; border: 1px solid #3a3a46; border-radius: 0.3rem; background: #101016; color: #f4efe4; }
 	.handles, .topology, .preview div { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.35rem; }
 	button { padding: 0.42rem 0.4rem; border: 1px solid #3a3a46; border-radius: 0.3rem; background: #1a1a22; color: #ddd6ca; font: inherit; font-size: 0.72rem; cursor: pointer; }
-	button.active, button.stop, button.done { border-color: #d6b35f; background: #2a2618; color: #fff2c7; }
+	button.active, button.done { border-color: #d6b35f; background: #2a2618; color: #fff2c7; }
 	button.danger { border-color: #744; color: #f1b1aa; }
 	button:disabled, input:disabled { opacity: 0.42; cursor: default; }
 	.preview { display: flex; flex-direction: column; gap: 0.45rem; padding-top: 0.2rem; }
-	.preview p { margin: 0; }
-	.preview .stop { align-self: flex-start; }
 </style>

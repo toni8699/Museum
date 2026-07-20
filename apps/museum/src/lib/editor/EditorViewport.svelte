@@ -50,13 +50,13 @@
 				<EditorCameraRig {store} {graph} />
 			{/snippet}
 		</MuseumScene>
-		<EditorGrid visible={store.gridVisible && !store.cameraPreview} />
+		<EditorGrid visible={store.gridVisible && !store.isVisitorCameraPreview} />
 		<EditorCameraPathHelpers {store} />
-		{#if store.pendingNavigationCommand?.kind === 'connect-existing' && !store.cameraPreview}
+		{#if store.pendingNavigationCommand?.kind === 'connect-existing' && !store.isDocumentMutationBlocked}
 			{#each store.document.navigationNodes as node (node.id)}
 				<EditorCameraHelpers {store} nodeId={node.id} positionOnly />
 			{/each}
-		{:else if store.cameraSelection && !store.pendingPlacementAssetId && !store.cameraPreview}
+		{:else if store.cameraSelection && !store.pendingPlacementAssetId && !store.isDocumentMutationBlocked}
 			{#key store.cameraSelection.nodeId}
 				<EditorCameraHelpers {store} nodeId={store.cameraSelection.nodeId} />
 			{/key}
@@ -64,14 +64,16 @@
 		<EditorSelection {store} {transformControls} />
 		<EditorPlacementTools {store} />
 		<!-- Selection-bound Three helpers must be disposed and recreated for a new root. -->
-		{#key store.selectionKey}
-			<EditorSelectionHelper {store} />
-		{/key}
+		{#if !store.isVisitorCameraPreview}
+			{#key store.selectionKey}
+				<EditorSelectionHelper {store} />
+			{/key}
+		{/if}
 		<EditorTransformControls {store} bind:controls={transformControls} />
 	</Canvas>
-	{#if store.cameraPreview}
+	{#if store.isVisitorCameraPreview}
 		<div class="preview-shield" role="status">
-			Camera preview · Stop or press Escape to return
+			Visitor preview · Stop or press Escape to return
 		</div>
 	{/if}
 	{#if store.pendingPlacementAssetId}

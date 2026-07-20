@@ -17,6 +17,10 @@ import { getAssetById, resolveAssetFallback } from '$lib/content/assets';
 import { roomLocalPoint, roomPoint } from '$lib/content/rooms';
 import { createMuseumState, type MuseumStateStore } from '$lib/state/museum-state.svelte';
 import {
+	cameraMotionProgressAtEdgeProgress,
+	createCameraMotion
+} from '$lib/museum/navigation/camera-motion';
+import {
 	MUSEUM_CAMERA_FOV,
 	type MuseumRoomId,
 	type Vec3
@@ -90,31 +94,35 @@ export type EditorLightingSettings = {
 	fogFar: number;
 };
 
+export type EditorCameraPreviewMode = 'director' | 'visitor';
+export type EditorCameraPreviewTransport = 'paused' | 'playing' | 'complete';
+
+type EditorCameraPreviewState = {
+	mode: EditorCameraPreviewMode;
+	transport: EditorCameraPreviewTransport;
+	runId: number;
+	playhead: number;
+	startedAtMs: number | null;
+};
+
 export type EditorCameraPreview =
 	| null
-	| {
+	| (EditorCameraPreviewState & {
 			kind: 'node';
 			nodeId: string;
-			runId: number;
-	  }
-	| {
+	  })
+	| (EditorCameraPreviewState & {
 			kind: 'transition';
 			fromNodeId: string;
 			toNodeId: string;
-			runId: number;
-			startedAtMs: number | null;
-			completed: boolean;
-	  }
-	| {
+	  })
+	| (EditorCameraPreviewState & {
 			kind: 'connection';
 			connectionId: string;
 			direction: 'forward' | 'reverse';
 			fromNodeId: string;
 			toNodeId: string;
-			runId: number;
-			startedAtMs: number | null;
-			completed: boolean;
-	  };
+	  });
 
 export type EditorPendingNavigationCommand =
 	| null
@@ -240,6 +248,8 @@ export class MuseumEditorStore {
 	selectedClusterId = $state<string | null>(null);
 	navigationSelection = $state<EditorNavigationSelection>(null);
 	cameraPreview = $state<EditorCameraPreview>(null);
+	cameraPreviewFollowEnabled = $state(true);
+	cameraPreviewRecenterVersion = $state(0);
 	transformMode = $state<EditorTransformMode>('rotate');
 	cameraFocusVersion = $state(0);
 	cameraFocusKind = $state<
@@ -377,6 +387,31 @@ export class MuseumEditorStore {
 		return this.cameraPreview !== null;
 	}
 
+	get isDirectorCameraPreview() {
+		return this.cameraPreview?.mode === 'director';
+	}
+
+	get isVisitorCameraPreview() {
+		return this.cameraPreview?.mode === 'visitor';
+	}
+
+	get isCameraPreviewPlaying() {
+		return this.cameraPreview?.transport === 'playing';
+	}
+
+	get isCameraPreviewPaused() {
+		return this.cameraPreview?.mode === 'director' &&
+			this.cameraPreview.transport === 'paused';
+	}
+
+	/** Visitor and active Director transport own immutable document state. */
+	get isDocumentMutationBlocked() {
+		const preview = this.cameraPreview;
+		return Boolean(
+			preview && (preview.mode === 'visitor' || preview.transport !== 'paused')
+		);
+	}
+
 	get isEditorInteractionActive() {
 		return this.transformInteractionActive || this.directPathInteractionActive;
 	}
@@ -400,12 +435,12 @@ export class MuseumEditorStore {
 
 	get canUndo() {
 		void this.historyVersion;
-		return !this.cameraPreview && !this.isEditorInteractionActive && this.#past.length > 0;
+		return !this.isDocumentMutationBlocked && !this.isEditorInteractionActive && this.#past.length > 0;
 	}
 
 	get canRedo() {
 		void this.historyVersion;
-		return !this.cameraPreview && !this.isEditorInteractionActive && this.#future.length > 0;
+		return !this.isDocumentMutationBlocked && !this.isEditorInteractionActive && this.#future.length > 0;
 	}
 
 	get isDirty() {
@@ -432,7 +467,7 @@ export class MuseumEditorStore {
 	}
 
 	applyLightingPreset(preset: EditorLightingSettings) {
-		if (this.cameraPreview) return false;
+		if (this.isVisitorCameraPreview) return false;
 		this.ambientIntensity = preset.ambientIntensity;
 		this.directionalIntensity = preset.directionalIntensity;
 		this.fogEnabled = preset.fogEnabled;
@@ -473,7 +508,7 @@ export class MuseumEditorStore {
 	}
 
 	selectNavigationNode(id: string) {
-		if (this.cameraPreview || this.isEditorInteractionActive) return false;
+		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
 		if (this.pendingNavigationCommand?.kind === 'connect-existing') {
 			return this.connectPendingNavigationNode(id);
 		}
@@ -494,7 +529,7 @@ export class MuseumEditorStore {
 	}
 
 	selectCameraHandle(handle: EditorCameraHandle) {
-		if (this.cameraPreview || this.isEditorInteractionActive || this.pendingNavigationCommand) return false;
+		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive || this.pendingNavigationCommand) return false;
 		const selection = this.cameraSelection;
 		if (!selection || selection.handle === handle) return false;
 		this.navigationSelection = {
@@ -506,7 +541,7 @@ export class MuseumEditorStore {
 	}
 
 	selectConnection(connectionId: string) {
-		if (this.cameraPreview || this.isEditorInteractionActive || this.pendingNavigationCommand) {
+		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive || this.pendingNavigationCommand) {
 			return false;
 		}
 		if (!this.document.connections.some((connection) => connection.id === connectionId)) {
@@ -522,7 +557,7 @@ export class MuseumEditorStore {
 	}
 
 	selectAnchor(connectionId: string, anchorId: string) {
-		if (this.cameraPreview || this.isEditorInteractionActive || this.pendingNavigationCommand) {
+		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive || this.pendingNavigationCommand) {
 			return false;
 		}
 		const connection = this.document.connections.find(
@@ -548,7 +583,7 @@ export class MuseumEditorStore {
 
 	/** Leave an anchor without changing the document or its history. */
 	finishAnchorEditing() {
-		if (this.cameraPreview || this.isEditorInteractionActive || this.pendingNavigationCommand) {
+		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive || this.pendingNavigationCommand) {
 			return false;
 		}
 		const selection = this.navigationSelection;
@@ -564,7 +599,7 @@ export class MuseumEditorStore {
 	}
 
 	focusNavigationNode(id: string) {
-		if (this.cameraPreview || this.isEditorInteractionActive) return false;
+		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
 		if (!this.document.navigationNodes.some((node) => node.id === id)) return false;
 		this.cancelPendingFrame();
 		this.cameraFocusKind = 'navigation-node';
@@ -576,7 +611,7 @@ export class MuseumEditorStore {
 
 	consumeCameraFocus(version: number) {
 		if (
-			this.cameraPreview ||
+			this.isDocumentMutationBlocked ||
 			version !== this.cameraFocusVersion ||
 			!this.cameraFocusKind
 		) {
@@ -593,7 +628,7 @@ export class MuseumEditorStore {
 		handle: EditorCameraHandle,
 		point: Vec3
 	) {
-		if (this.cameraPreview || !this.#transactionBefore || !isFiniteVec3(point)) {
+		if (this.isDocumentMutationBlocked || !this.#transactionBefore || !isFiniteVec3(point)) {
 			return false;
 		}
 		const selection = this.cameraSelection;
@@ -612,7 +647,7 @@ export class MuseumEditorStore {
 		handle: EditorCameraHandle,
 		point: Vec3
 	) {
-		if (this.cameraPreview || this.isEditorInteractionActive) return false;
+		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
 		if (!this.beginDocumentTransaction()) return false;
 		if (!this.updateNavigationNodePoint(nodeId, handle, point)) {
 			this.cancelDocumentTransaction();
@@ -635,7 +670,7 @@ export class MuseumEditorStore {
 	}
 
 	convertSelectedConnectionToSmooth() {
-		if (this.cameraPreview || this.isEditorInteractionActive) return false;
+		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
 		const connection = this.selectedConnection;
 		if (!connection || connection.positionPath.kind === 'auto-bezier') return false;
 		if (!this.beginDocumentTransaction()) return false;
@@ -688,7 +723,7 @@ export class MuseumEditorStore {
 	}
 
 	commitSelectedAnchorPoint(point: Vec3) {
-		if (this.cameraPreview || this.isEditorInteractionActive || !isFiniteVec3(point)) {
+		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive || !isFiniteVec3(point)) {
 			return false;
 		}
 		const selection = this.navigationSelection;
@@ -703,7 +738,7 @@ export class MuseumEditorStore {
 	}
 
 	deleteSelectedAnchor() {
-		if (this.cameraPreview || this.isEditorInteractionActive) return false;
+		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
 		const selection = this.navigationSelection;
 		const connection = this.selectedConnection;
 		if (selection?.kind !== 'anchor' || !connection) return false;
@@ -720,7 +755,7 @@ export class MuseumEditorStore {
 	}
 
 	commitSelectedNodeLabel(label: string) {
-		if (this.cameraPreview || this.isEditorInteractionActive) return false;
+		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
 		const node = this.selectedNavigationNode;
 		const next = label.trim();
 		if (!node || !next || next === node.label) return false;
@@ -729,7 +764,7 @@ export class MuseumEditorStore {
 		return this.commitDocumentTransaction();
 	}
 
-	previewSelectedNode() {
+	previewSelectedNode(mode: EditorCameraPreviewMode = 'visitor') {
 		if (this.cameraPreview) return false;
 		const nodeId = this.cameraSelection?.nodeId;
 		if (!nodeId || !this.scene.navigationNodes.some((node) => node.id === nodeId)) {
@@ -738,15 +773,21 @@ export class MuseumEditorStore {
 		}
 		if (!this.#prepareCameraPreview()) return false;
 		this.#capturedCameraPreviewRoute = null;
+		this.cameraPreviewFollowEnabled = true;
+		this.cameraPreviewRecenterVersion += 1;
 		this.cameraPreview = {
 			kind: 'node',
 			nodeId,
-			runId: this.#nextCameraPreviewRunId++
+			mode,
+			transport: 'paused',
+			runId: this.#nextCameraPreviewRunId++,
+			playhead: 0,
+			startedAtMs: null
 		};
 		return true;
 	}
 
-	previewSelectedTransition() {
+	previewSelectedTransition(mode: EditorCameraPreviewMode = 'visitor') {
 		if (this.cameraPreview) return false;
 		const nodeId = this.cameraSelection?.nodeId;
 		if (!nodeId) {
@@ -774,18 +815,25 @@ export class MuseumEditorStore {
 			runId,
 			route: cloneResolvedCameraRoute(route)
 		};
+		this.cameraPreviewFollowEnabled = true;
+		this.cameraPreviewRecenterVersion += 1;
 		this.cameraPreview = {
 			kind: 'transition',
 			fromNodeId: nodeId,
 			toNodeId,
+			mode,
+			transport: mode === 'director' ? 'paused' : 'playing',
 			runId,
-			startedAtMs: null,
-			completed: false
+			playhead: 0,
+			startedAtMs: null
 		};
 		return true;
 	}
 
-	previewSelectedConnection(direction: 'forward' | 'reverse') {
+	previewSelectedConnection(
+		direction: 'forward' | 'reverse',
+		mode: EditorCameraPreviewMode = 'visitor'
+	) {
 		if (this.cameraPreview || this.isEditorInteractionActive) return false;
 		const connection = this.selectedConnection;
 		if (!connection) {
@@ -811,16 +859,168 @@ export class MuseumEditorStore {
 			runId,
 			route: cloneResolvedCameraRoute(route)
 		};
+		this.cameraPreviewFollowEnabled = true;
+		this.cameraPreviewRecenterVersion += 1;
 		this.cameraPreview = {
 			kind: 'connection',
 			connectionId: connection.id,
 			direction,
 			fromNodeId,
 			toNodeId,
+			mode,
+			transport: mode === 'director' ? 'paused' : 'playing',
 			runId,
-			startedAtMs: null,
-			completed: false
+			playhead: 0,
+			startedAtMs: null
 		};
+		return true;
+	}
+
+	setCameraPreviewMode(mode: EditorCameraPreviewMode) {
+		const preview = this.cameraPreview;
+		if (
+			!preview ||
+			preview.mode === mode ||
+			this.isEditorInteractionActive ||
+			this.isDocumentTransactionActive
+		) {
+			return false;
+		}
+		let route: ResolvedCameraRoute | null = null;
+		if (preview.kind !== 'node') {
+			try {
+				route = this.#resolveCameraPreviewRoute(preview);
+			} catch (error) {
+				this.setStatusMessage(
+					error instanceof Error ? error.message : 'Camera preview route is unavailable'
+				);
+				return false;
+			}
+		}
+		const runId = this.#nextCameraPreviewRunId++;
+		this.#capturedCameraPreviewRoute = route
+			? { runId, route: cloneResolvedCameraRoute(route) }
+			: null;
+		this.cameraPreview = {
+			...preview,
+			mode,
+			transport: mode === 'director' ? 'paused' : preview.transport,
+			runId,
+			startedAtMs: null
+		};
+		return true;
+	}
+
+	playCameraPreview() {
+		const preview = this.cameraPreview;
+		if (
+			!preview ||
+			preview.kind === 'node' ||
+			preview.transport === 'playing' ||
+			this.isEditorInteractionActive ||
+			this.isDocumentTransactionActive
+		) {
+			return false;
+		}
+		let route: ResolvedCameraRoute;
+		try {
+			route = preview.mode === 'director'
+				? this.#resolveCameraPreviewRoute(preview)
+				: this.getCapturedCameraPreviewRoute(preview.runId)!;
+			if (!route) throw new Error('Camera preview route capture is unavailable');
+		} catch (error) {
+			this.setStatusMessage(
+				error instanceof Error ? error.message : 'Camera preview route is unavailable'
+			);
+			return false;
+		}
+		const runId = this.#nextCameraPreviewRunId++;
+		this.#capturedCameraPreviewRoute = {
+			runId,
+			route: cloneResolvedCameraRoute(route)
+		};
+		this.cameraPreview = {
+			...preview,
+			transport: 'playing',
+			runId,
+			playhead: preview.transport === 'complete' ? 0 : preview.playhead,
+			startedAtMs: null
+		};
+		return true;
+	}
+
+	pauseCameraPreview() {
+		const preview = this.cameraPreview;
+		if (!preview || preview.transport !== 'playing') return false;
+		this.cameraPreview = {
+			...preview,
+			transport: 'paused',
+			startedAtMs: null
+		};
+		return true;
+	}
+
+	setCameraPreviewPlayhead(progress: number, runId = this.cameraPreview?.runId) {
+		const preview = this.cameraPreview;
+		if (!preview || preview.kind === 'node' || preview.runId !== runId || !Number.isFinite(progress)) {
+			return false;
+		}
+		const playhead = Math.min(1, Math.max(0, progress));
+		if (Math.abs(preview.playhead - playhead) <= 1e-6 && preview.transport !== 'complete') {
+			return false;
+		}
+		this.cameraPreview = {
+			...preview,
+			playhead,
+			...(preview.transport === 'complete'
+				? { transport: 'paused' as const, startedAtMs: null }
+				: {})
+		};
+		return true;
+	}
+
+	stepCameraPreview(direction: -1 | 1) {
+		const preview = this.cameraPreview;
+		if (
+			!preview ||
+			preview.mode !== 'director' ||
+			preview.kind === 'node' ||
+			preview.transport === 'playing'
+		) {
+			return false;
+		}
+		const route = this.getCapturedCameraPreviewRoute(preview.runId);
+		if (!route) return false;
+		const motion = createCameraMotion(route);
+		const breakpoints = [0, 1];
+		for (const [edgeIndex, edge] of motion.positionEdgeSpans.entries()) {
+			breakpoints.push(cameraMotionProgressAtEdgeProgress(motion, edgeIndex, 0));
+			breakpoints.push(cameraMotionProgressAtEdgeProgress(motion, edgeIndex, 1));
+			for (const keyframe of edge.viewTrack?.keyframes ?? []) {
+				breakpoints.push(
+					cameraMotionProgressAtEdgeProgress(motion, edgeIndex, keyframe.progress)
+				);
+			}
+		}
+		const ordered = [...new Set(breakpoints.map((value) => value.toFixed(9)))]
+			.map(Number)
+			.sort((left, right) => left - right);
+		const epsilon = 1e-6;
+		const next = direction < 0
+			? [...ordered].reverse().find((value) => value < preview.playhead - epsilon) ?? 0
+			: ordered.find((value) => value > preview.playhead + epsilon) ?? 1;
+		return this.setCameraPreviewPlayhead(next);
+	}
+
+	toggleCameraPreviewFollow() {
+		if (!this.isDirectorCameraPreview) return false;
+		this.cameraPreviewFollowEnabled = !this.cameraPreviewFollowEnabled;
+		return true;
+	}
+
+	recenterCameraPreview() {
+		if (!this.isDirectorCameraPreview) return false;
+		this.cameraPreviewRecenterVersion += 1;
 		return true;
 	}
 
@@ -830,8 +1030,8 @@ export class MuseumEditorStore {
 			!preview ||
 			preview.kind === 'node' ||
 			preview.runId !== runId ||
+			preview.transport !== 'playing' ||
 			preview.startedAtMs !== null ||
-			preview.completed ||
 			!Number.isFinite(startedAtMs)
 		) {
 			return false;
@@ -846,12 +1046,17 @@ export class MuseumEditorStore {
 			!preview ||
 			preview.kind === 'node' ||
 			preview.runId !== runId ||
-			preview.startedAtMs === null ||
-			preview.completed
+			preview.transport !== 'playing' ||
+			preview.startedAtMs === null
 		) {
 			return false;
 		}
-		this.cameraPreview = { ...preview, completed: true };
+		this.cameraPreview = {
+			...preview,
+			transport: 'complete',
+			playhead: 1,
+			startedAtMs: null
+		};
 		return true;
 	}
 
@@ -860,6 +1065,7 @@ export class MuseumEditorStore {
 		if (this.#restoreCameraPreview && !this.#restoreCameraPreview()) return false;
 		this.cameraPreview = null;
 		this.#capturedCameraPreviewRoute = null;
+		this.cameraPreviewFollowEnabled = true;
 		return true;
 	}
 
@@ -868,6 +1074,15 @@ export class MuseumEditorStore {
 		return capture?.runId === runId
 			? cloneResolvedCameraRoute(capture.route)
 			: null;
+	}
+
+	#resolveCameraPreviewRoute(preview: Exclude<EditorCameraPreview, null>) {
+		if (preview.kind === 'node') {
+			throw new Error('A node preview has no camera route');
+		}
+		return preview.kind === 'connection'
+			? getCameraConnectionRoute(preview.connectionId, preview.direction, this.state.graph)
+			: getCameraRoute(preview.fromNodeId, preview.toNodeId, this.state.graph);
 	}
 
 	#prepareCameraPreview() {
@@ -889,7 +1104,7 @@ export class MuseumEditorStore {
 	}
 
 	requestDropToFloor() {
-		if (this.cameraPreview) return;
+		if (this.isDocumentMutationBlocked) return;
 		if (this.selectedPlacementIds.length === 0) {
 			this.setStatusMessage('Select a placement to drop to floor');
 			return;
@@ -898,7 +1113,7 @@ export class MuseumEditorStore {
 	}
 
 	selectRoom(id: MuseumRoomId) {
-		if (this.cameraPreview || this.isEditorInteractionActive || id !== 'paris') return false;
+		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive || id !== 'paris') return false;
 		const changed = this.selectedRoomId !== id;
 		this.selectedRoomId = id;
 		if (changed) this.#clearPlacementSelection();
@@ -906,7 +1121,7 @@ export class MuseumEditorStore {
 	}
 
 	focusRoom(id: MuseumRoomId) {
-		if (this.cameraPreview || this.isEditorInteractionActive || id !== 'paris') return false;
+		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive || id !== 'paris') return false;
 		this.cancelPendingFrame();
 		this.cameraFocusKind = 'room';
 		this.cameraFocusPlacementId = null;
@@ -916,7 +1131,7 @@ export class MuseumEditorStore {
 	}
 
 	focusPlacement(id: string) {
-		if (this.cameraPreview || this.isEditorInteractionActive || !this.isPlacementSelectable(id)) {
+		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive || !this.isPlacementSelectable(id)) {
 			return false;
 		}
 		this.cancelPendingFrame();
@@ -929,7 +1144,7 @@ export class MuseumEditorStore {
 
 	focusSelection() {
 		if (
-			this.cameraPreview ||
+			this.isDocumentMutationBlocked ||
 			this.isEditorInteractionActive ||
 			this.selectedPlacementIds.length === 0
 		) {
@@ -944,13 +1159,13 @@ export class MuseumEditorStore {
 	}
 
 	toggleCameraPan() {
-		if (this.cameraPreview) return false;
+		if (this.isVisitorCameraPreview) return false;
 		this.cameraPanEnabled = !this.cameraPanEnabled;
 		return true;
 	}
 
 	toggleGrid() {
-		if (this.cameraPreview) return false;
+		if (this.isVisitorCameraPreview) return false;
 		this.gridVisible = !this.gridVisible;
 		return true;
 	}
@@ -970,7 +1185,7 @@ export class MuseumEditorStore {
 	}
 
 	setNavigationHover(connectionId: string | null, anchorId: string | null = null) {
-		if (this.cameraPreview || this.pendingPlacementAssetId || this.pendingNavigationCommand) {
+		if (this.isDocumentMutationBlocked || this.pendingPlacementAssetId || this.pendingNavigationCommand) {
 			connectionId = null;
 			anchorId = null;
 		}
@@ -986,7 +1201,7 @@ export class MuseumEditorStore {
 	}
 
 	requestPlacementFrame(ids: string[]) {
-		if (this.cameraPreview) return false;
+		if (this.isDocumentMutationBlocked) return false;
 		const next = [...new Set(ids)].filter((id) =>
 			this.document.objects.some((object) => object.id === id)
 		);
@@ -997,7 +1212,7 @@ export class MuseumEditorStore {
 	}
 
 	consumePendingFrame(ids: string[]) {
-		if (this.cameraPreview) return false;
+		if (this.isDocumentMutationBlocked) return false;
 		if (
 			ids.length !== this.pendingFramePlacementIds.length ||
 			ids.some((id, index) => id !== this.pendingFramePlacementIds[index])
@@ -1016,7 +1231,7 @@ export class MuseumEditorStore {
 	}
 
 	beginAssetPlacement(assetId: string) {
-		if (this.cameraPreview || this.isEditorInteractionActive) return false;
+		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
 		const asset = getAssetById(assetId);
 		if (!asset) {
 			this.cancelAssetPlacement();
@@ -1046,7 +1261,7 @@ export class MuseumEditorStore {
 	}
 
 	cancelAssetPlacement(message?: string) {
-		if (this.cameraPreview) return false;
+		if (this.isDocumentMutationBlocked) return false;
 		const changed = this.pendingPlacementAssetId !== null;
 		this.pendingPlacementAssetId = null;
 		if (message) this.setStatusMessage(message);
@@ -1054,7 +1269,7 @@ export class MuseumEditorStore {
 	}
 
 	createPendingPlacementAt(position: Vec3) {
-		if (this.cameraPreview || this.isEditorInteractionActive) return null;
+		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return null;
 		const assetId = this.pendingPlacementAssetId;
 		if (!assetId) return null;
 		const asset = getAssetById(assetId);
@@ -1096,7 +1311,7 @@ export class MuseumEditorStore {
 	}
 
 	beginConnectedNodePlacement() {
-		if (this.cameraPreview || this.isEditorInteractionActive) return false;
+		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
 		const source = this.selectedNavigationNode;
 		const roomId = this.selectedRoomId;
 		if (!source) {
@@ -1120,7 +1335,7 @@ export class MuseumEditorStore {
 	}
 
 	beginConnectExistingNodes() {
-		if (this.cameraPreview || this.isEditorInteractionActive) return false;
+		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
 		const source = this.selectedNavigationNode;
 		if (!source) {
 			this.setStatusMessage('Select a source camera node');
@@ -1147,7 +1362,7 @@ export class MuseumEditorStore {
 	createPendingNavigationNodeAt(floorWorld: Vec3, cameraForwardWorld: Vec3) {
 		const pending = this.pendingNavigationCommand;
 		if (
-			this.cameraPreview ||
+			this.isDocumentMutationBlocked ||
 			this.isEditorInteractionActive ||
 			pending?.kind !== 'place-connected-node' ||
 			!isFiniteVec3(floorWorld) ||
@@ -1237,7 +1452,7 @@ export class MuseumEditorStore {
 	connectPendingNavigationNode(destinationNodeId: string) {
 		const pending = this.pendingNavigationCommand;
 		if (
-			this.cameraPreview ||
+			this.isDocumentMutationBlocked ||
 			this.isEditorInteractionActive ||
 			pending?.kind !== 'connect-existing'
 		) {
@@ -1301,7 +1516,7 @@ export class MuseumEditorStore {
 	}
 
 	selectPlacement(id: string) {
-		if (this.cameraPreview || this.isEditorInteractionActive || !this.isPlacementSelectable(id)) {
+		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive || !this.isPlacementSelectable(id)) {
 			return false;
 		}
 		this.cancelPendingFrame();
@@ -1313,7 +1528,7 @@ export class MuseumEditorStore {
 	}
 
 	selectPlacements(ids: string[]) {
-		if (this.cameraPreview || this.isEditorInteractionActive) return false;
+		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
 		const next = [...new Set(ids)].filter((id) => this.isPlacementSelectable(id));
 		if (next.length === 0) {
 			this.deselect();
@@ -1328,7 +1543,7 @@ export class MuseumEditorStore {
 	}
 
 	togglePlacement(id: string) {
-		if (this.cameraPreview || this.isEditorInteractionActive || !this.isPlacementSelectable(id)) {
+		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive || !this.isPlacementSelectable(id)) {
 			return false;
 		}
 		this.cancelPendingFrame();
@@ -1345,7 +1560,7 @@ export class MuseumEditorStore {
 	}
 
 	selectCluster(id: string) {
-		if (this.cameraPreview || this.isEditorInteractionActive) return false;
+		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
 		const cluster = this.clusters.find((candidate) => candidate.id === id);
 		if (!cluster || cluster.roomId !== this.selectedRoomId) return false;
 		this.cancelPendingFrame();
@@ -1357,7 +1572,7 @@ export class MuseumEditorStore {
 	}
 
 	deselect() {
-		if (this.cameraPreview || this.isEditorInteractionActive) return false;
+		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
 		const changed =
 			this.selectedPlacementIds.length > 0 ||
 			this.selectedClusterId !== null ||
@@ -1374,7 +1589,7 @@ export class MuseumEditorStore {
 	}
 
 	cyclePlacement(ids: string[]) {
-		if (this.cameraPreview || this.isEditorInteractionActive) return false;
+		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
 		const selectableIds = ids.filter((id) => this.isPlacementSelectable(id));
 		const next = nextPlacementCycleId(this.selectedPlacementId, selectableIds);
 		if (next === undefined) return false;
@@ -1382,7 +1597,7 @@ export class MuseumEditorStore {
 	}
 
 	selectAllInRoom() {
-		if (this.cameraPreview || this.isEditorInteractionActive) return false;
+		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
 		const roomId = this.selectedRoomId;
 		if (!roomId) return false;
 		return this.selectPlacements(
@@ -1393,7 +1608,7 @@ export class MuseumEditorStore {
 	}
 
 	createCluster(name?: string) {
-		if (this.cameraPreview || this.isEditorInteractionActive) return null;
+		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return null;
 		const memberIds = [...this.selectedPlacementIds];
 		if (memberIds.length < 2) {
 			this.setStatusMessage('Select at least two placements to create a cluster');
@@ -1434,7 +1649,7 @@ export class MuseumEditorStore {
 	}
 
 	renameCluster(id: string, name: string) {
-		if (this.cameraPreview || this.isEditorInteractionActive) return false;
+		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
 		const cluster = this.clusters.find((candidate) => candidate.id === id);
 		const nextName = name.trim();
 		if (!cluster || !nextName || cluster.name === nextName) return false;
@@ -1444,7 +1659,7 @@ export class MuseumEditorStore {
 	}
 
 	addMemberToCluster(clusterId: string, memberId: string) {
-		if (this.cameraPreview || this.isEditorInteractionActive) return false;
+		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
 		const cluster = this.clusters.find((candidate) => candidate.id === clusterId);
 		const placement = this.document.objects.find((object) => object.id === memberId);
 		if (!cluster || !placement || placement.roomId !== cluster.roomId) return false;
@@ -1461,7 +1676,7 @@ export class MuseumEditorStore {
 	}
 
 	removeMemberFromCluster(clusterId: string, memberId: string) {
-		if (this.cameraPreview || this.isEditorInteractionActive) return false;
+		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
 		const clusterIndex = this.clusters.findIndex((candidate) => candidate.id === clusterId);
 		const cluster = this.clusters[clusterIndex];
 		if (!cluster || !cluster.memberIds.includes(memberId)) return false;
@@ -1483,7 +1698,7 @@ export class MuseumEditorStore {
 	}
 
 	ungroupCluster(id = this.selectedClusterId) {
-		if (this.cameraPreview || this.isEditorInteractionActive) return false;
+		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
 		if (!id) return false;
 		const index = this.clusters.findIndex((cluster) => cluster.id === id);
 		if (index === -1 || !this.beginDocumentTransaction()) return false;
@@ -1496,7 +1711,7 @@ export class MuseumEditorStore {
 	}
 
 	duplicateSelection() {
-		if (this.cameraPreview || this.isEditorInteractionActive) return false;
+		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
 		const selectedIds = [...this.selectedPlacementIds];
 		const primaryId = this.primaryPlacementId;
 		if (!primaryId || selectedIds.length === 0) {
@@ -1558,7 +1773,7 @@ export class MuseumEditorStore {
 	}
 
 	deletePlacements(ids: string[]) {
-		if (this.cameraPreview || this.isEditorInteractionActive) return false;
+		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
 		const deleteIds = new Set(ids);
 		if (
 			deleteIds.size === 0 ||
@@ -1580,7 +1795,7 @@ export class MuseumEditorStore {
 	}
 
 	deleteSelection() {
-		if (this.cameraPreview || this.isEditorInteractionActive) return false;
+		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
 		const ids = [...this.selectedPlacementIds];
 		if (ids.length === 0) {
 			this.setStatusMessage('Select one or more placements to delete');
@@ -1597,20 +1812,20 @@ export class MuseumEditorStore {
 	}
 
 	beginDocumentTransaction() {
-		if (this.cameraPreview || this.#transactionBefore) return false;
+		if (this.isDocumentMutationBlocked || this.#transactionBefore) return false;
 		this.#transactionBefore = cloneMuseumSceneDocument(this.document);
 		return true;
 	}
 
 	updatePlacementTransform(id: string, transform: PlacementTransform) {
-		if (this.cameraPreview) return false;
+		if (this.isDocumentMutationBlocked) return false;
 		const placement = this.document.objects.find((object) => object.id === id);
 		if (!placement || !this.isPlacementSelectable(id)) return false;
 		return writePlacementTransform(placement, transform);
 	}
 
 	commitPlacementTransform(id: string, transform: PlacementTransform) {
-		if (this.cameraPreview || this.isEditorInteractionActive) return false;
+		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
 		if (!this.beginDocumentTransaction()) return false;
 		if (!this.updatePlacementTransform(id, transform)) {
 			this.cancelDocumentTransaction();
@@ -1620,7 +1835,7 @@ export class MuseumEditorStore {
 	}
 
 	commitDocumentTransaction() {
-		if (this.cameraPreview) return false;
+		if (this.isDocumentMutationBlocked) return false;
 		const before = this.#transactionBefore;
 		if (!before) return false;
 
@@ -1698,7 +1913,7 @@ export class MuseumEditorStore {
 	}
 
 	undo() {
-		if (this.cameraPreview || this.isEditorInteractionActive || this.#transactionBefore || this.#past.length === 0) return false;
+		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive || this.#transactionBefore || this.#past.length === 0) return false;
 		this.cancelPendingFrame();
 		this.cancelPendingNavigation();
 		const previous = this.#past.pop();
@@ -1711,7 +1926,7 @@ export class MuseumEditorStore {
 	}
 
 	redo() {
-		if (this.cameraPreview || this.isEditorInteractionActive || this.#transactionBefore || this.#future.length === 0) return false;
+		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive || this.#transactionBefore || this.#future.length === 0) return false;
 		this.cancelPendingFrame();
 		this.cancelPendingNavigation();
 		const next = this.#future.pop();
@@ -1802,6 +2017,30 @@ export class MuseumEditorStore {
 		const nextState = createMuseumState(createNavigationGraph(nextScene), initialNodeId);
 		this.scene = nextScene;
 		this.state = nextState;
+		this.#refreshPausedDirectorPreview();
+	}
+
+	#refreshPausedDirectorPreview() {
+		const preview = this.cameraPreview;
+		if (!preview || preview.mode !== 'director' || preview.transport !== 'paused') return;
+		const runId = this.#nextCameraPreviewRunId++;
+		if (preview.kind === 'node') {
+			this.#capturedCameraPreviewRoute = null;
+			this.cameraPreview = { ...preview, runId };
+			return;
+		}
+		try {
+			const route = this.#resolveCameraPreviewRoute(preview);
+			this.#capturedCameraPreviewRoute = {
+				runId,
+				route: cloneResolvedCameraRoute(route)
+			};
+			this.cameraPreview = { ...preview, runId };
+		} catch (error) {
+			this.setStatusMessage(
+				error instanceof Error ? error.message : 'Camera preview route is unavailable'
+			);
+		}
 	}
 
 	#bumpHistoryVersion() {

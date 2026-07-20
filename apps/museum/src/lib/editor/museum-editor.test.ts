@@ -832,7 +832,7 @@ describe('MuseumEditorStore Phase 6 camera nodes', () => {
 			fromNodeId: 'paris-seat',
 			toNodeId: 'workshop-desk',
 			startedAtMs: null,
-			completed: false
+			transport: 'playing'
 		});
 		const runId = preview!.runId;
 		expect(store.completeCameraPreview(runId)).toBe(false);
@@ -1202,6 +1202,106 @@ describe('MuseumEditorStore Phase 6.5 camera paths', () => {
 		expect(JSON.stringify(store.document)).not.toContain('camera-anchor');
 		store.unregisterAnchorHelperRoot(connection.id, anchor.id, root);
 		expect(store.getSelectedAnchorHelperRoot()).toBeUndefined();
+	});
+});
+
+describe('MuseumEditorStore Director preview', () => {
+	it('keeps paused Director editable and refreshes its route at the same playhead', () => {
+		const store = createMuseumEditorStore();
+		const connection = store.document.connections[0]!;
+		const source = store.document.navigationNodes.find(
+			(node) => node.id === connection.fromNodeId
+		)!;
+		store.selectConnection(connection.id);
+
+		expect(store.previewSelectedConnection('forward', 'director')).toBe(true);
+		expect(store.cameraPreview).toMatchObject({
+			mode: 'director',
+			transport: 'paused',
+			playhead: 0
+		});
+		expect(store.isDocumentMutationBlocked).toBe(false);
+		expect(store.setCameraPreviewPlayhead(0.37)).toBe(true);
+		const firstRunId = store.cameraPreview!.runId;
+
+		expect(store.beginDocumentTransaction()).toBe(true);
+		source.fov += 1;
+		expect(store.commitDocumentTransaction()).toBe(true);
+		expect(store.cameraPreview).toMatchObject({
+			mode: 'director',
+			transport: 'paused',
+			playhead: 0.37
+		});
+		expect(store.cameraPreview!.runId).not.toBe(firstRunId);
+		expect(
+			store.getCapturedCameraPreviewRoute(store.cameraPreview!.runId)?.startFov
+		).toBe(source.fov);
+		expect(store.undo()).toBe(true);
+		expect(store.cameraPreview?.playhead).toBe(0.37);
+		expect(store.redo()).toBe(true);
+		expect(store.cameraPreview?.playhead).toBe(0.37);
+	});
+
+	it('blocks mutations while Director plays and throughout Visitor mode', () => {
+		const store = createMuseumEditorStore();
+		const connection = store.document.connections[0]!;
+		store.selectConnection(connection.id);
+		expect(store.previewSelectedConnection('forward', 'director')).toBe(true);
+
+		expect(store.playCameraPreview()).toBe(true);
+		expect(store.cameraPreview?.transport).toBe('playing');
+		expect(store.isDocumentMutationBlocked).toBe(true);
+		expect(store.beginDocumentTransaction()).toBe(false);
+		expect(store.selectNavigationNode(connection.fromNodeId)).toBe(false);
+
+		expect(store.pauseCameraPreview()).toBe(true);
+		expect(store.isDocumentMutationBlocked).toBe(false);
+		expect(store.selectNavigationNode(connection.fromNodeId)).toBe(true);
+		expect(store.setCameraPreviewMode('visitor')).toBe(true);
+		expect(store.cameraPreview).toMatchObject({ mode: 'visitor', transport: 'paused' });
+		expect(store.isDocumentMutationBlocked).toBe(true);
+		expect(store.beginDocumentTransaction()).toBe(false);
+
+		expect(store.setCameraPreviewMode('director')).toBe(true);
+		expect(store.cameraPreview).toMatchObject({ mode: 'director', transport: 'paused' });
+		expect(store.isDocumentMutationBlocked).toBe(false);
+	});
+
+	it('scrubs, steps authored breakpoints, and keeps follow/recenter session-only', () => {
+		const store = createMuseumEditorStore();
+		const imported = cloneMuseumSceneDocument(museumSceneDocument);
+		const connection = imported.connections[0]!;
+		connection.viewTracks = {
+			forward: [
+				{
+					id: `${connection.id}-view-forward-01`,
+					progress: 0.5,
+					cameraTarget: [100, 2, 100],
+					fov: 48
+				}
+			],
+			reverse: []
+		};
+		expect(store.importDocument(imported)).toBe(true);
+		store.selectConnection(connection.id);
+		expect(store.previewSelectedConnection('forward', 'director')).toBe(true);
+
+		expect(store.stepCameraPreview(1)).toBe(true);
+		expect(store.cameraPreview?.playhead).toBeCloseTo(0.5, 8);
+		expect(store.stepCameraPreview(1)).toBe(true);
+		expect(store.cameraPreview?.playhead).toBe(1);
+		expect(store.stepCameraPreview(-1)).toBe(true);
+		expect(store.cameraPreview?.playhead).toBeCloseTo(0.5, 8);
+
+		const canonical = store.canonicalJson;
+		const recenterVersion = store.cameraPreviewRecenterVersion;
+		expect(store.cameraPreviewFollowEnabled).toBe(true);
+		expect(store.toggleCameraPreviewFollow()).toBe(true);
+		expect(store.cameraPreviewFollowEnabled).toBe(false);
+		expect(store.recenterCameraPreview()).toBe(true);
+		expect(store.cameraPreviewRecenterVersion).toBe(recenterVersion + 1);
+		expect(store.canonicalJson).toBe(canonical);
+		expect(store.isDirty).toBe(false);
 	});
 });
 

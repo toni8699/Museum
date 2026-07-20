@@ -11,6 +11,7 @@
 	} from './museum-editor.svelte';
 	import EditorAssetLibrary from './EditorAssetLibrary.svelte';
 	import EditorCameraInspector from './EditorCameraInspector.svelte';
+	import EditorCameraPreviewControls from './EditorCameraPreviewControls.svelte';
 	import EditorPlacementInspector from './EditorPlacementInspector.svelte';
 	import EditorTransformInspector from './EditorTransformInspector.svelte';
 	import EditorViewport from './EditorViewport.svelte';
@@ -61,14 +62,14 @@
 	});
 
 	function toggleParis() {
-		if (store.isCameraPreviewActive) return;
+		if (store.isDocumentMutationBlocked) return;
 		store.selectRoom('paris');
 		store.focusRoom('paris');
 		parisOpen = !parisOpen;
 	}
 
 	function switchLeftPanel(panel: 'scene' | 'assets') {
-		if (store.isCameraPreviewActive) return;
+		if (store.isDocumentMutationBlocked) return;
 		if (panel === 'scene') store.cancelAssetPlacement();
 		leftPanel = panel;
 	}
@@ -240,8 +241,9 @@
 					event.preventDefault();
 					event.stopPropagation();
 					store.stopCameraPreview();
+					return;
 				}
-				return;
+				if (store.isDocumentMutationBlocked) return;
 			}
 			if (isEditableTarget(event.target)) return;
 			const modifier = event.metaKey || event.ctrlKey;
@@ -326,12 +328,12 @@
 	});
 </script>
 
-<main class="page" class:previewing={store.isCameraPreviewActive}>
+<main class="page" class:previewing={store.isDocumentMutationBlocked}>
 	<aside
 		bind:this={outlinerElement}
 		class="panel outliner"
 		aria-label="Outliner"
-		inert={store.isCameraPreviewActive}
+		inert={store.isDocumentMutationBlocked}
 	>
 		<header>
 			<h1>Museum editor</h1>
@@ -535,6 +537,12 @@
 			{/if}
 		</header>
 
+		{#if store.cameraPreview}
+			<section class="camera-preview" aria-label="Active camera preview">
+				<EditorCameraPreviewControls {store} />
+			</section>
+		{/if}
+
 		{#if leftPanel === 'scene'}
 		{#if selectedNavigation}
 			<EditorCameraInspector {store} />
@@ -641,7 +649,7 @@
 				type="button"
 				class:active={store.cameraPanEnabled}
 				aria-pressed={store.cameraPanEnabled}
-				disabled={store.isCameraPreviewActive}
+				disabled={store.isVisitorCameraPreview}
 				onclick={() => store.toggleCameraPan()}
 			>
 				Pan {store.cameraPanEnabled ? 'on' : 'off'}
@@ -650,7 +658,7 @@
 				type="button"
 				class:active={store.gridVisible}
 				aria-pressed={store.gridVisible}
-				disabled={store.isCameraPreviewActive}
+				disabled={store.isVisitorCameraPreview}
 				onclick={() => store.toggleGrid()}
 			>
 				Grid {store.gridVisible ? 'on' : 'off'}
@@ -661,15 +669,15 @@
 			<h2>Lighting</h2>
 			<p>Session-only; excluded from history and visitor JSON.</p>
 			<div class="presets">
-				<button type="button" disabled={store.isCameraPreviewActive} onclick={() => store.applyLightingPreset(EDITOR_BRIGHT_LIGHTING)}>Bright</button>
-				<button type="button" disabled={store.isCameraPreviewActive} onclick={() => store.applyLightingPreset(EDITOR_VISITOR_LIGHTING)}>Visitor</button>
+				<button type="button" disabled={store.isVisitorCameraPreview} onclick={() => store.applyLightingPreset(EDITOR_BRIGHT_LIGHTING)}>Bright</button>
+				<button type="button" disabled={store.isVisitorCameraPreview} onclick={() => store.applyLightingPreset(EDITOR_VISITOR_LIGHTING)}>Visitor</button>
 			</div>
-			<label><span>Ambient {store.ambientIntensity.toFixed(2)}</span><input type="range" min="0" max="2" step="0.05" disabled={store.isCameraPreviewActive} bind:value={store.ambientIntensity} /></label>
-			<label><span>Directional {store.directionalIntensity.toFixed(2)}</span><input type="range" min="0" max="3" step="0.05" disabled={store.isCameraPreviewActive} bind:value={store.directionalIntensity} /></label>
-			<label class="checkbox"><input type="checkbox" disabled={store.isCameraPreviewActive} bind:checked={store.fogEnabled} /><span>Fog</span></label>
+			<label><span>Ambient {store.ambientIntensity.toFixed(2)}</span><input type="range" min="0" max="2" step="0.05" disabled={store.isVisitorCameraPreview} bind:value={store.ambientIntensity} /></label>
+			<label><span>Directional {store.directionalIntensity.toFixed(2)}</span><input type="range" min="0" max="3" step="0.05" disabled={store.isVisitorCameraPreview} bind:value={store.directionalIntensity} /></label>
+			<label class="checkbox"><input type="checkbox" disabled={store.isVisitorCameraPreview} bind:checked={store.fogEnabled} /><span>Fog</span></label>
 			{#if store.fogEnabled}
-				<label><span>Fog near {store.fogNear.toFixed(0)}</span><input type="range" min="1" max="80" step="1" disabled={store.isCameraPreviewActive} bind:value={store.fogNear} /></label>
-				<label><span>Fog far {store.fogFar.toFixed(0)}</span><input type="range" min="5" max="120" step="1" disabled={store.isCameraPreviewActive} bind:value={store.fogFar} /></label>
+				<label><span>Fog near {store.fogNear.toFixed(0)}</span><input type="range" min="1" max="80" step="1" disabled={store.isVisitorCameraPreview} bind:value={store.fogNear} /></label>
+				<label><span>Fog far {store.fogFar.toFixed(0)}</span><input type="range" min="5" max="120" step="1" disabled={store.isVisitorCameraPreview} bind:value={store.fogFar} /></label>
 			{/if}
 		</section>
 

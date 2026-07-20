@@ -9,6 +9,7 @@ import {
   CAMERA_MOTION_PATH,
   CAMERA_MOTION_TIMING,
   VISITOR_CAMERA_PROJECTION,
+  cameraMotionProgressAtEdgeProgress,
   compileCameraPositionPath,
   createCameraMotion,
   createCameraMotionSample,
@@ -937,6 +938,45 @@ describe('createCameraMotion', () => {
     ).toThrow(
       'Camera start target must be farther than 0.000001 from its position'
     );
+  });
+});
+
+describe('cameraMotionProgressAtEdgeProgress', () => {
+  it('maps exact edge distance back through transition smootherstep', () => {
+    const motion = createCameraMotion({
+      positionParts: [
+        {
+          kind: 'rounded-polyline',
+          points: [
+            [0, 0, 0],
+            [10, 0, 0]
+          ]
+        }
+      ],
+      targetPoints: [
+        [0, 0, 1],
+        [10, 0, 1]
+      ],
+      edges: [
+        {
+          connectionId: 'edge',
+          direction: 'forward',
+          fromNodeId: 'a',
+          toNodeId: 'b',
+          positionSpan: {
+            start: { partIndex: 0, pointIndex: 0 },
+            end: { partIndex: 0, pointIndex: 1 }
+          }
+        }
+      ]
+    });
+
+    const progress = cameraMotionProgressAtEdgeProgress(motion, 0, 0.25);
+    expect(progress).toBeCloseTo(inverseSmootherstep(0.25), 10);
+    const sample = sampleFull(motion, progress);
+    expect(sample.position.x).toBeCloseTo(2.5, 8);
+    expect(cameraMotionProgressAtEdgeProgress(motion, 0, 0)).toBe(0);
+    expect(cameraMotionProgressAtEdgeProgress(motion, 0, 1)).toBe(1);
   });
 });
 

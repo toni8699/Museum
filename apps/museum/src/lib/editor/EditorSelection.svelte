@@ -144,7 +144,7 @@
 	function activePathHit(event: PointerEvent): PathHit | null {
 		if (
 			event.altKey ||
-			store.cameraPreview ||
+			store.isDocumentMutationBlocked ||
 			store.pendingPlacementAssetId ||
 			store.pendingNavigationCommand
 		) {
@@ -303,7 +303,7 @@
 	}
 
 	function applySelectionFromPointer(event: PointerEvent) {
-		if (store.cameraPreview) return;
+		if (store.isDocumentMutationBlocked) return;
 		const currentCamera = camera.current;
 		if (!currentCamera) return;
 
@@ -373,7 +373,7 @@
 	}
 
 	function onPointerDown(event: PointerEvent) {
-		if (store.cameraPreview || event.button !== 0) return;
+		if (store.isDocumentMutationBlocked || event.button !== 0) return;
 		if (transformControls?.axis || transformControls?.dragging) return;
 		if (pointerSession) {
 			if (pointerSession.kind === 'path') cancelPathDrag();

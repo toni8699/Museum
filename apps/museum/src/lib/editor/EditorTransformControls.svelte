@@ -79,7 +79,7 @@
 	const activeTarget = $derived.by(() =>
 		getActiveTransformTarget({
 			previewActive:
-				store.isCameraPreviewActive || store.directPathInteractionActive,
+				store.isDocumentMutationBlocked || store.directPathInteractionActive,
 			pendingPlacement: Boolean(
 				store.pendingPlacementAssetId || store.pendingNavigationCommand
 			),

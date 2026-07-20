@@ -167,7 +167,7 @@
 
 	$effect(() => {
 		const hidden = Boolean(
-			store.cameraPreview ||
+			store.isVisitorCameraPreview ||
 			store.pendingPlacementAssetId ||
 			store.pendingNavigationCommand
 		);

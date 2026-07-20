@@ -7,9 +7,12 @@ import {
 	createEditorNodeCameraFrame,
 	createEditorPanSpeed,
 	createEditorPlacementCameraFrame,
+	EDITOR_DIRECTOR_OBSERVER_OFFSET,
 	EDITOR_NODE_FRAME_EXPANSION,
 	EDITOR_PAN_BASE_SPEED,
+	followEditorDirectorObserver,
 	prepareEditorCameraPreview,
+	recenterEditorDirectorObserver,
 	restoreEditorOrbitPose,
 	type EditorOrbitControlsLike
 } from './editor-camera';
@@ -173,6 +176,48 @@ describe('editor camera helpers', () => {
 		expect(camera.far).toBe(VISITOR_CAMERA_PROJECTION.far);
 		expect(camera.zoom).toBe(1);
 		expect(updateProjectionMatrix).toHaveBeenCalledTimes(1);
+	});
+
+	it('recenters Director to a deterministic oblique top-down pose', () => {
+		const camera = new PerspectiveCamera();
+		const controls = createControls({
+			target: new Vector3(20, 20, 20),
+			minDistance: 2,
+			maxDistance: 3
+		});
+		const visitor = new Vector3(4, 1.65, -7);
+
+		recenterEditorDirectorObserver(camera, controls, visitor);
+
+		expect(controls.target.toArray()).toEqual(visitor.toArray());
+		expect(camera.position.toArray()).toEqual([
+			visitor.x + EDITOR_DIRECTOR_OBSERVER_OFFSET[0],
+			visitor.y + EDITOR_DIRECTOR_OBSERVER_OFFSET[1],
+			visitor.z + EDITOR_DIRECTOR_OBSERVER_OFFSET[2]
+		]);
+		expect(controls.minDistance).toBe(2);
+		expect(controls.maxDistance).toBe(3);
+	});
+
+	it('follows virtual-camera delta without changing observer offset', () => {
+		const camera = new PerspectiveCamera();
+		camera.position.set(8, 6, 9);
+		const controls = createControls({ target: new Vector3(2, 1, 3) });
+		const originalOffset = camera.position.clone().sub(controls.target);
+		const delta = new Vector3();
+
+		expect(
+			followEditorDirectorObserver(
+				camera,
+				controls,
+				new Vector3(1, 2, 3),
+				new Vector3(4, 5, 1),
+				delta
+			)
+		).toBe(true);
+		expect(camera.position.toArray()).toEqual([11, 9, 7]);
+		expect(controls.target.toArray()).toEqual([5, 4, 1]);
+		expect(camera.position.clone().sub(controls.target)).toEqual(originalOffset);
 	});
 
 	it.each([

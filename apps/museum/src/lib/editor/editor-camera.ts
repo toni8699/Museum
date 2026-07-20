@@ -15,6 +15,7 @@ export const EDITOR_NODE_FRAME_EXPANSION = 0.5;
 export const EDITOR_PAN_BASE_SPEED = 0.7;
 export const EDITOR_PAN_REFERENCE_DISTANCE = 8;
 export const EDITOR_PAN_MAX_BOOST = 5;
+export const EDITOR_DIRECTOR_OBSERVER_OFFSET: Vec3 = [6, 5, 7];
 
 export type EditorRoomCameraFrame = {
 	position: Vec3;
@@ -161,6 +162,41 @@ export function captureEditorOrbitPose(
 		enabled: controls.enabled,
 		enableDamping: controls.enableDamping
 	};
+}
+
+/** Place the editor observer at a deterministic oblique top-down Director pose. */
+export function recenterEditorDirectorObserver(
+	camera: PerspectiveCamera,
+	controls: EditorOrbitControlsLike,
+	visitorPosition: Vector3,
+	offset: Vec3 = EDITOR_DIRECTOR_OBSERVER_OFFSET
+) {
+	controls.target.copy(visitorPosition);
+	camera.position
+		.copy(visitorPosition)
+		.add(new Vector3(offset[0], offset[1], offset[2]));
+	const minDistance = controls.minDistance;
+	const maxDistance = controls.maxDistance;
+	controls.minDistance = 0;
+	controls.maxDistance = Number.POSITIVE_INFINITY;
+	controls.update();
+	controls.minDistance = minDistance;
+	controls.maxDistance = maxDistance;
+}
+
+/** Translate observer and Orbit target by virtual-camera world delta. */
+export function followEditorDirectorObserver(
+	camera: PerspectiveCamera,
+	controls: EditorOrbitControlsLike,
+	previousVisitorPosition: Vector3,
+	visitorPosition: Vector3,
+	delta = new Vector3()
+) {
+	delta.copy(visitorPosition).sub(previousVisitorPosition);
+	if (delta.lengthSq() <= Number.EPSILON) return false;
+	camera.position.add(delta);
+	controls.target.add(delta);
+	return true;
 }
 
 /** Disable OrbitControls, flush damping once, then apply the visitor projection. */

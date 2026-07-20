@@ -14,6 +14,7 @@ import { Vector3 } from 'three';
 import {
   CAMERA_MOTION_TIMING,
   createCameraMotion,
+  createCameraMotionSample,
   sampleCameraMotion
 } from './camera-motion';
 import {
@@ -219,10 +220,14 @@ const PHASE_SIX_MULTI_HOP = [
 
 function sampleRoute(route: ReturnType<typeof getCameraRoute>, progress: number) {
   const motion = createCameraMotion(route);
-  const position = new Vector3();
-  const target = new Vector3();
-  sampleCameraMotion(motion, progress, position, target);
-  return { motion, position: position.toArray(), target: target.toArray() };
+  const output = createCameraMotionSample();
+  sampleCameraMotion(motion, progress, output);
+  return {
+    motion,
+    position: output.position.toArray(),
+    target: output.target.toArray(),
+    fov: output.fov
+  };
 }
 
 function expectTupleClose(actual: number[], expected: Vec3, precision = 10) {
@@ -240,7 +245,7 @@ function expectedRouteEdge(
   startPointIndex: number,
   endPointIndex: number
 ) {
-  return {
+  return expect.objectContaining({
     connectionId,
     direction,
     fromNodeId,
@@ -249,7 +254,7 @@ function expectedRouteEdge(
       start: { partIndex, pointIndex: startPointIndex },
       end: { partIndex, pointIndex: endPointIndex }
     }
-  };
+  });
 }
 
 describe('getCameraRoute', () => {
@@ -290,6 +295,8 @@ describe('getCameraRoute', () => {
         [4, 1, 2],
         [4, 1, 3]
       ],
+      startFov: 54,
+      endFov: 54,
       nodeIds: ['a', 'b', 'c'],
       edges: [
         expectedRouteEdge('a-b', 'forward', 'a', 'b', 0, 0, 2),
@@ -389,6 +396,8 @@ describe('getCameraRoute', () => {
         }
       ],
       targetPoints: [[2, 1, 1]],
+      startFov: 54,
+      endFov: 54,
       nodeIds: ['b'],
       edges: []
     });
@@ -449,12 +458,11 @@ describe('getCameraRoute', () => {
     ]);
 
     const motion = createCameraMotion(route);
-    const position = new Vector3();
-    const target = new Vector3();
+    const output = createCameraMotionSample();
     expect(motion.durationSeconds).toBe(CAMERA_MOTION_TIMING.minDurationSeconds);
-    sampleCameraMotion(motion, 1, position, target);
-    expect(position.toArray()).toEqual([3, 1, 3]);
-    expect(target.toArray()).toEqual([4, 1, 3]);
+    sampleCameraMotion(motion, 1, output);
+    expect(output.position.toArray()).toEqual([3, 1, 3]);
+    expect(output.target.toArray()).toEqual([4, 1, 3]);
   });
 
   it('retains mixed path boundaries and reverses every kind', () => {
@@ -733,6 +741,8 @@ describe('getCameraConnectionRoute', () => {
         [2, 1.5, 0],
         [2, 1, 1]
       ],
+      startFov: 54,
+      endFov: 54,
       nodeIds: ['a', 'b'],
       edges: [expectedRouteEdge('scenic', 'forward', 'a', 'b', 0, 0, 2)]
     });
@@ -752,9 +762,117 @@ describe('getCameraConnectionRoute', () => {
         [0, 1.5, 0],
         [0, 1, 1]
       ],
+      startFov: 54,
+      endFov: 54,
       nodeIds: ['b', 'a'],
       edges: [expectedRouteEdge('scenic', 'reverse', 'b', 'a', 0, 0, 2)]
     });
+  });
+
+  it('selects only the authored view track for the requested direction', () => {
+    const directionalNodes: NavigationNodeData[] = [
+      { ...nodes[0], fov: 42 },
+      { ...nodes[1], fov: 68 }
+    ];
+    const directionalConnection: MuseumConnection = {
+      ...connections[0],
+      viewTracks: {
+        forward: [
+          {
+            id: 'a-b-view-forward-01',
+            progress: 0.3,
+            cameraTarget: [1, 2, 3],
+            fov: 35
+          }
+        ],
+        reverse: [
+          {
+            id: 'a-b-view-reverse-01',
+            progress: 0.6,
+            cameraTarget: [4, 5, 6],
+            fov: 88
+          }
+        ]
+      }
+    };
+    const graph = createNavigationGraph({
+      objects: [],
+      navigationNodes: directionalNodes,
+      connections: [directionalConnection]
+    });
+
+    const forward = getCameraConnectionRoute('a-b', 'forward', graph);
+    expect(forward.startFov).toBe(42);
+    expect(forward.endFov).toBe(68);
+    expect(forward.edges[0].viewTrack).toEqual({
+      start: { cameraTarget: [0, 1, 1], fov: 42 },
+      keyframes: [
+        {
+          id: 'a-b-view-forward-01',
+          progress: 0.3,
+          cameraTarget: [1, 2, 3],
+          fov: 35
+        }
+      ],
+      end: { cameraTarget: [2, 1, 1], fov: 68 }
+    });
+
+    const reverse = getCameraConnectionRoute('a-b', 'reverse', graph);
+    expect(reverse.startFov).toBe(68);
+    expect(reverse.endFov).toBe(42);
+    expect(reverse.edges[0].viewTrack).toEqual({
+      start: { cameraTarget: [2, 1, 1], fov: 68 },
+      keyframes: [
+        {
+          id: 'a-b-view-reverse-01',
+          progress: 0.6,
+          cameraTarget: [4, 5, 6],
+          fov: 88
+        }
+      ],
+      end: { cameraTarget: [0, 1, 1], fov: 42 }
+    });
+
+    const forwardTarget = forward.edges[0].viewTrack?.keyframes[0].cameraTarget;
+    if (!Array.isArray(forwardTarget)) throw new Error('Expected tuple target');
+    (forwardTarget as number[])[0] = 99;
+    expect(directionalConnection.viewTracks?.forward[0].cameraTarget).toEqual([
+      1,
+      2,
+      3
+    ]);
+  });
+
+  it('does not reuse a forward view track as a reverse fallback', () => {
+    const graph = createNavigationGraph({
+      objects: [],
+      navigationNodes: nodes.slice(0, 2),
+      connections: [
+        {
+          ...connections[0],
+          viewTracks: {
+            forward: [
+              {
+                id: 'forward-only',
+                progress: 0.5,
+                cameraTarget: [1, 4, 3],
+                fov: 44
+              }
+            ],
+            reverse: []
+          }
+        }
+      ]
+    });
+
+    expect(
+      getCameraConnectionRoute('a-b', 'forward', graph).edges[0].viewTrack
+        ?.keyframes
+    ).toHaveLength(1);
+    expect(
+      getCameraConnectionRoute('a-b', 'reverse', graph).edges[0].viewTrack
+        ?.keyframes
+    ).toEqual([]);
   });
 
   it('rejects unknown connection ids', () => {

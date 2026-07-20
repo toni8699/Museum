@@ -157,6 +157,22 @@ describe('createMuseumEditorStore', () => {
 		expect(store.canonicalJson).toContain('"entrance-poland-view-forward-01"');
 		expect(store.canonicalJson).toContain('"entrance-poland-view-reverse-01"');
 
+		const connectionId = imported.connections[0]!.id;
+		store.selectConnection(connectionId);
+		expect(store.previewSelectedConnection('forward')).toBe(true);
+		const runId = store.cameraPreview!.runId;
+		const captured = store.getCapturedCameraPreviewRoute(runId)!;
+		const capturedJson = JSON.stringify(captured);
+		const capturedKeyframe = captured.edges[0]!.viewTrack!.keyframes[0]!;
+		(capturedKeyframe.cameraTarget as [number, number, number])[0] += 100;
+		capturedKeyframe.fov = 99;
+		(captured.edges[0]!.automaticTargetPoints![0] as [number, number, number])[0] += 100;
+		store.scene.connections[0]!.viewTracks!.forward[0]!.cameraTarget[0] += 200;
+		expect(JSON.stringify(store.getCapturedCameraPreviewRoute(runId))).toBe(
+			capturedJson
+		);
+		expect(store.stopCameraPreview()).toBe(true);
+
 		expect(store.beginDocumentTransaction()).toBe(true);
 		store.document.connections[0]!.viewTracks!.forward[0]!.fov = 49;
 		expect(store.commitDocumentTransaction()).toBe(true);

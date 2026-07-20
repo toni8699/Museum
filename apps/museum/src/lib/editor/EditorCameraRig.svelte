@@ -4,7 +4,9 @@
 	import type { NavigationGraph } from '$lib/content/scene';
 	import { getRoom } from '$lib/content/rooms';
 	import {
+		CAMERA_FOV_UPDATE_EPSILON,
 		createCameraMotion,
+		createCameraMotionSample,
 		sampleCameraMotion,
 		type CameraMotion
 	} from '$lib/museum/navigation/camera-motion';
@@ -53,14 +55,19 @@
 	let orbitPose: EditorOrbitPose | null = null;
 	let activePreviewRunId: number | null = null;
 	let activeMotion: CameraMotion | null = null;
-	const previewPosition = new Vector3();
-	const previewTarget = new Vector3();
+	const previewSample = createCameraMotionSample();
+	const previewPosition = previewSample.position;
+	const previewTarget = previewSample.target;
 	const framedNodePosition = new Vector3();
 	const framedNodeTarget = new Vector3();
 
 	function applyPreviewPose(currentCamera: PerspectiveCamera) {
 		currentCamera.position.copy(previewPosition);
 		currentCamera.lookAt(previewTarget);
+		if (Math.abs(currentCamera.fov - previewSample.fov) > CAMERA_FOV_UPDATE_EPSILON) {
+			currentCamera.fov = previewSample.fov;
+			currentCamera.updateProjectionMatrix();
+		}
 	}
 
 	function clearPreviewRuntime() {
@@ -117,6 +124,7 @@
 				const node = getNode(preview.nodeId, graph);
 				previewPosition.set(...node.position);
 				previewTarget.set(...node.cameraTarget);
+				previewSample.fov = node.fov;
 				activeMotion = null;
 				applyPreviewPose(currentCamera);
 				return;
@@ -129,8 +137,7 @@
 			sampleCameraMotion(
 				activeMotion,
 				startsComplete ? 1 : 0,
-				previewPosition,
-				previewTarget
+				previewSample
 			);
 			applyPreviewPose(currentCamera);
 			store.markCameraPreviewStarted(preview.runId, performance.now());
@@ -233,13 +240,13 @@
 					: (performance.now() - preview.startedAtMs) /
 						(1000 * activeMotion.durationSeconds);
 			if (preview.completed || progress >= 1) {
-				sampleCameraMotion(activeMotion, 1, previewPosition, previewTarget);
+				sampleCameraMotion(activeMotion, 1, previewSample);
 				applyPreviewPose(currentCamera);
 				if (!preview.completed) store.completeCameraPreview(preview.runId);
 				return;
 			}
 
-			sampleCameraMotion(activeMotion, progress, previewPosition, previewTarget);
+			sampleCameraMotion(activeMotion, progress, previewSample);
 			applyPreviewPose(currentCamera);
 			return;
 		}

@@ -17,7 +17,9 @@
     type MuseumStateStore
   } from '$lib/state/museum-state.svelte';
   import {
+    CAMERA_FOV_UPDATE_EPSILON,
     createCameraMotion,
+    createCameraMotionSample,
     sampleCameraMotion,
     VISITOR_CAMERA_PROJECTION,
     type CameraMotion
@@ -35,8 +37,10 @@
   let cameraRef = $state<PerspectiveCamera>();
 
   const initialNode = untrack(() => getNode(store.activeNodeId, graph));
-  const currentPosition = new Vector3(...initialNode.position);
-  const currentTarget = new Vector3(...initialNode.cameraTarget);
+  const motionSample = createCameraMotionSample();
+  const currentPosition = motionSample.position.set(...initialNode.position);
+  const currentTarget = motionSample.target.set(...initialNode.cameraTarget);
+  motionSample.fov = initialNode.fov;
   let activeMotion: CameraMotion | null = null;
 
   let activeTargetNodeId = $state<string | null>(null);
@@ -77,7 +81,8 @@
     const route = getCameraRoute(store.activeNodeId, targetNodeId, graph);
     activeMotion = createCameraMotion(route, {
       position: currentPosition,
-      target: currentTarget
+      target: currentTarget,
+      fov: motionSample.fov
     });
     activeTargetNodeId = targetNodeId;
     transitionProgress = store.reducedMotion ? 1 : 0;
@@ -93,7 +98,7 @@
         const speed = store.reducedMotion ? 24 : 1 / activeMotion.durationSeconds;
         transitionProgress = Math.min(1, transitionProgress + delta * speed);
       }
-      sampleCameraMotion(activeMotion, transitionProgress, currentPosition, currentTarget);
+      sampleCameraMotion(activeMotion, transitionProgress, motionSample);
 
       if (transitionProgress >= 1) {
         const completed = activeTargetNodeId;
@@ -105,6 +110,7 @@
       const node = getNode(store.activeNodeId, graph);
       currentPosition.set(...node.position);
       currentTarget.set(...node.cameraTarget);
+      motionSample.fov = node.fov;
 
       if (canLookAround()) {
         lookDirection.copy(currentTarget).sub(currentPosition);
@@ -122,6 +128,10 @@
 
     cameraRef.position.copy(currentPosition);
     cameraRef.lookAt(currentTarget);
+    if (Math.abs(cameraRef.fov - motionSample.fov) > CAMERA_FOV_UPDATE_EPSILON) {
+      cameraRef.fov = motionSample.fov;
+      cameraRef.updateProjectionMatrix();
+    }
   });
 
   onMount(() => {
@@ -235,7 +245,7 @@
   bind:ref={cameraRef}
   makeDefault
   position={initialNode.position}
-  fov={VISITOR_CAMERA_PROJECTION.fov}
+  fov={initialNode.fov}
   near={VISITOR_CAMERA_PROJECTION.near}
   far={VISITOR_CAMERA_PROJECTION.far}
 />

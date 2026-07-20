@@ -12,7 +12,8 @@ export type { CameraConnectionDirection } from '$lib/types/museum';
 import type {
   CameraPositionPathPart,
   CameraRoute,
-  CameraRouteEdge
+  CameraRouteEdge,
+  CameraRouteViewTrack
 } from './camera-motion';
 
 type OrientedConnection = {
@@ -124,6 +125,33 @@ function buildLookAheadTargets(
   });
 }
 
+function buildOrientedViewTrack(
+  edge: OrientedConnection,
+  graph: NavigationGraph
+): CameraRouteViewTrack {
+  const startNode = getNode(edge.fromNodeId, graph);
+  const endNode = getNode(edge.toNodeId, graph);
+  const direction = edge.reversed ? 'reverse' : 'forward';
+  const keyframes = edge.connection.viewTracks?.[direction] ?? [];
+
+  return {
+    start: {
+      cameraTarget: [...startNode.cameraTarget],
+      fov: startNode.fov
+    },
+    keyframes: keyframes.map((keyframe) => ({
+      id: keyframe.id,
+      progress: keyframe.progress,
+      cameraTarget: [...keyframe.cameraTarget],
+      fov: keyframe.fov
+    })),
+    end: {
+      cameraTarget: [...endNode.cameraTarget],
+      fov: endNode.fov
+    }
+  };
+}
+
 function orientedConnectionPoints(edge: OrientedConnection) {
   const points = edge.connection.positionPath.anchors.map((anchor) => anchor.position);
   return edge.reversed ? points.reverse() : points;
@@ -146,7 +174,10 @@ function assertOrientedPathContiguous(path: readonly OrientedConnection[]) {
   }
 }
 
-function buildPositionParts(path: readonly OrientedConnection[]) {
+function buildPositionParts(
+  path: readonly OrientedConnection[],
+  graph: NavigationGraph
+) {
   const parts: CameraPositionPathPart[] = [];
   const routeEdges: CameraRouteEdge[] = [];
 
@@ -198,7 +229,14 @@ function buildPositionParts(path: readonly OrientedConnection[]) {
       positionSpan: {
         start: { partIndex, pointIndex: startPointIndex },
         end: { partIndex, pointIndex: endPointIndex }
-      }
+      },
+      viewTrack: buildOrientedViewTrack(edge, graph),
+      automaticTargetPoints: buildLookAheadTargets(
+        edge.fromNodeId,
+        edge.toNodeId,
+        points,
+        graph
+      )
     });
   }
 
@@ -251,13 +289,15 @@ function buildResolvedRoute(
   graph: NavigationGraph
 ): ResolvedCameraRoute {
   assertOrientedPathContiguous(path);
-  const { parts: positionParts, routeEdges: edges } = buildPositionParts(path);
+  const { parts: positionParts, routeEdges: edges } = buildPositionParts(path, graph);
   assertPositionPartsContiguous(positionParts);
   const positions = preserveTargetOnlyMotion(positionParts, edges);
 
   return {
     positionParts,
     targetPoints: buildLookAheadTargets(fromNodeId, toNodeId, positions, graph),
+    startFov: getNode(fromNodeId, graph).fov,
+    endFov: getNode(toNodeId, graph).fov,
     nodeIds: [fromNodeId, ...path.map((edge) => edge.toNodeId)],
     edges
   };
@@ -279,6 +319,8 @@ export function getCameraRoute(
         }
       ],
       targetPoints: [[...node.cameraTarget]],
+      startFov: node.fov,
+      endFov: node.fov,
       nodeIds: [fromNodeId],
       edges: []
     };

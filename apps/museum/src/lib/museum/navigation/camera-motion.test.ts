@@ -11,19 +11,43 @@ import {
   VISITOR_CAMERA_PROJECTION,
   compileCameraPositionPath,
   createCameraMotion,
+  createCameraMotionSample,
   createCameraPositionPath,
   sampleCameraMotion,
   type CameraRoute
 } from './camera-motion';
 
 function sample(motion: ReturnType<typeof createCameraMotion>, progress: number) {
-  const position = new Vector3();
-  const target = new Vector3();
-  sampleCameraMotion(motion, progress, position, target);
+  const output = createCameraMotionSample();
+  sampleCameraMotion(motion, progress, output);
   return {
-    position: position.toArray(),
-    target: target.toArray()
+    position: output.position.toArray(),
+    target: output.target.toArray()
   };
+}
+
+function sampleFull(
+  motion: ReturnType<typeof createCameraMotion>,
+  progress: number
+) {
+  const output = createCameraMotionSample();
+  sampleCameraMotion(motion, progress, output);
+  return output;
+}
+
+function smootherstep(progress: number) {
+  return progress ** 3 * (progress * (progress * 6 - 15) + 10);
+}
+
+function inverseSmootherstep(target: number) {
+  let low = 0;
+  let high = 1;
+  for (let iteration = 0; iteration < 60; iteration += 1) {
+    const midpoint = (low + high) / 2;
+    if (smootherstep(midpoint) < target) low = midpoint;
+    else high = midpoint;
+  }
+  return (low + high) / 2;
 }
 
 function expectVectorClose(actual: Vector3, expected: Vector3, precision = 8) {
@@ -81,7 +105,8 @@ describe('createCameraMotion', () => {
     } as const satisfies CameraRoute;
     const startPose = {
       position: { x: -2, y: 3, z: 4 },
-      target: { x: -1, y: 3, z: 4 }
+      target: { x: -1, y: 3, z: 4 },
+      fov: 63
     } as const;
     const originalRoute = structuredClone(route);
     const originalStartPose = structuredClone(startPose);
@@ -133,7 +158,8 @@ describe('createCameraMotion', () => {
     const authoredPath = createCameraPositionPath(route.positionParts);
     const motion = createCameraMotion(route, {
       position: [-3, 1, 0],
-      target: [-2, 1, 0]
+      target: [-2, 1, 0],
+      fov: 54
     });
 
     expect(sample(motion, 0).position).toEqual([-3, 1, 0]);
@@ -164,7 +190,8 @@ describe('createCameraMotion', () => {
     } as const satisfies CameraRoute;
     const motion = createCameraMotion(route, {
       position: [-2, 1, 0],
-      target: [-1, 1, 0]
+      target: [-1, 1, 0],
+      fov: 54
     });
 
     expect(sample(motion, 0)).toEqual({
@@ -192,7 +219,8 @@ describe('createCameraMotion', () => {
       },
       {
         position: [20, 30, 40],
-        target: [50, 60, 70]
+        target: [50, 60, 70],
+        fov: 80
       }
     );
 
@@ -212,7 +240,8 @@ describe('createCameraMotion', () => {
       },
       {
         position: [Number.NaN, 0, 0],
-        target: [0, Number.POSITIVE_INFINITY, 0]
+        target: [0, Number.POSITIVE_INFINITY, 0],
+        fov: Number.NaN
       }
     );
 
@@ -300,6 +329,367 @@ describe('createCameraMotion', () => {
     expect(sample(motion, 0.5).position[2]).toBeCloseTo(0.30002657873801, 12);
     expect(sample(motion, 0.75).position[0]).toBeCloseTo(3.6480523776293534, 12);
     expect(sample(motion, 0.75).position[2]).toBeCloseTo(1.6480523776293534, 12);
+  });
+
+  it('hits authored edge targets and FOV exactly at position-distance progress', () => {
+    const route = {
+      positionParts: [
+        {
+          kind: 'rounded-polyline',
+          points: [
+            [0, 0, 0],
+            [10, 0, 0]
+          ]
+        }
+      ],
+      targetPoints: [
+        [0, 0, 1],
+        [10, 0, 1]
+      ],
+      startFov: 50,
+      endFov: 70,
+      edges: [
+        {
+          connectionId: 'authored',
+          direction: 'forward',
+          fromNodeId: 'a',
+          toNodeId: 'b',
+          positionSpan: {
+            start: { partIndex: 0, pointIndex: 0 },
+            end: { partIndex: 0, pointIndex: 1 }
+          },
+          viewTrack: {
+            start: { cameraTarget: [0, 0, 2], fov: 50 },
+            keyframes: [
+              {
+                id: 'authored-view-forward-01',
+                progress: 0.25,
+                cameraTarget: [2.5, 2, 3],
+                fov: 35
+              },
+              {
+                id: 'authored-view-forward-02',
+                progress: 0.75,
+                cameraTarget: [7.5, -1, 4],
+                fov: 90
+              }
+            ],
+            end: { cameraTarget: [10, 0, 2], fov: 70 }
+          },
+          automaticTargetPoints: [
+            [0, 0, 2],
+            [10, 0, 2]
+          ]
+        }
+      ]
+    } as const satisfies CameraRoute;
+    const original = structuredClone(route);
+    const motion = createCameraMotion(route);
+
+    const first = sampleFull(motion, inverseSmootherstep(0.25));
+    expect(first.position.toArray()).toEqual([2.5, 0, 0]);
+    expect(first.target.toArray()).toEqual([2.5, 2, 3]);
+    expect(first.fov).toBe(35);
+
+    const second = sampleFull(motion, inverseSmootherstep(0.75));
+    expect(second.position.toArray()).toEqual([7.5, 0, 0]);
+    expect(second.target.toArray()).toEqual([7.5, -1, 4]);
+    expect(second.fov).toBe(90);
+    expect(route).toEqual(original);
+  });
+
+  it('uses non-overshooting interval easing for authored targets and FOV', () => {
+    const motion = createCameraMotion({
+      positionParts: [
+        {
+          kind: 'rounded-polyline',
+          points: [
+            [0, 0, 0],
+            [10, 0, 0]
+          ]
+        }
+      ],
+      targetPoints: [
+        [0, 0, 1],
+        [10, 0, 1]
+      ],
+      edges: [
+        {
+          connectionId: 'authored',
+          direction: 'forward',
+          fromNodeId: 'a',
+          toNodeId: 'b',
+          positionSpan: {
+            start: { partIndex: 0, pointIndex: 0 },
+            end: { partIndex: 0, pointIndex: 1 }
+          },
+          viewTrack: {
+            start: { cameraTarget: [0, 0, 2], fov: 20 },
+            keyframes: [
+              {
+                id: 'peak',
+                progress: 0.5,
+                cameraTarget: [5, 4, 2],
+                fov: 100
+              }
+            ],
+            end: { cameraTarget: [10, 0, 2], fov: 40 }
+          }
+        }
+      ]
+    });
+
+    for (const localProgress of [0.1, 0.25, 0.4, 0.6, 0.75, 0.9]) {
+      const output = sampleFull(motion, inverseSmootherstep(localProgress));
+      expect(output.target.y).toBeGreaterThanOrEqual(0);
+      expect(output.target.y).toBeLessThanOrEqual(4);
+      expect(output.fov).toBeGreaterThanOrEqual(20);
+      expect(output.fov).toBeLessThanOrEqual(100);
+    }
+  });
+
+  it('keeps synthesized targets unchanged when only node FOV is authored', () => {
+    const baseRoute = {
+      positionParts: [
+        {
+          kind: 'rounded-polyline',
+          points: [
+            [0, 0, 0],
+            [5, 0, 3],
+            [10, 0, 0]
+          ]
+        }
+      ],
+      targetPoints: [
+        [0, 1, 1],
+        [7, 2, 4],
+        [10, 1, 1]
+      ]
+    } as const satisfies CameraRoute;
+    const automatic = createCameraMotion(baseRoute);
+    const fovOnly = createCameraMotion({
+      ...baseRoute,
+      startFov: 40,
+      endFov: 80,
+      edges: [
+        {
+          connectionId: 'fov-only',
+          direction: 'forward',
+          fromNodeId: 'a',
+          toNodeId: 'b',
+          positionSpan: {
+            start: { partIndex: 0, pointIndex: 0 },
+            end: { partIndex: 0, pointIndex: 2 }
+          },
+          viewTrack: {
+            start: { cameraTarget: [0, 1, 1], fov: 40 },
+            keyframes: [],
+            end: { cameraTarget: [10, 1, 1], fov: 80 }
+          },
+          automaticTargetPoints: baseRoute.targetPoints
+        }
+      ]
+    });
+
+    for (const progress of [0, 0.2, 0.5, 0.8, 1]) {
+      const expected = sampleFull(automatic, progress);
+      const actual = sampleFull(fovOnly, progress);
+      expectVectorClose(actual.target, expected.target, 12);
+    }
+    expect(sampleFull(fovOnly, 0).fov).toBe(40);
+    expect(sampleFull(fovOnly, 0.5).fov).toBe(60);
+    expect(sampleFull(fovOnly, 1).fov).toBe(80);
+  });
+
+  it('keeps mixed automatic and authored edges continuous at their shared node', () => {
+    const motion = createCameraMotion({
+      positionParts: [
+        {
+          kind: 'rounded-polyline',
+          points: [
+            [0, 0, 0],
+            [5, 0, 0],
+            [10, 0, 0]
+          ]
+        }
+      ],
+      targetPoints: [
+        [0, 0, 1],
+        [5, 0, 1],
+        [10, 0, 1]
+      ],
+      startFov: 45,
+      endFov: 65,
+      edges: [
+        {
+          connectionId: 'first',
+          direction: 'forward',
+          fromNodeId: 'a',
+          toNodeId: 'b',
+          positionSpan: {
+            start: { partIndex: 0, pointIndex: 0 },
+            end: { partIndex: 0, pointIndex: 1 }
+          },
+          viewTrack: {
+            start: { cameraTarget: [0, 0, 1], fov: 45 },
+            keyframes: [
+              {
+                id: 'first-view-forward-01',
+                progress: 0.5,
+                cameraTarget: [2.5, 2, 2],
+                fov: 35
+              }
+            ],
+            end: { cameraTarget: [5, 0, 1], fov: 55 }
+          }
+        },
+        {
+          connectionId: 'second',
+          direction: 'forward',
+          fromNodeId: 'b',
+          toNodeId: 'c',
+          positionSpan: {
+            start: { partIndex: 0, pointIndex: 1 },
+            end: { partIndex: 0, pointIndex: 2 }
+          },
+          viewTrack: {
+            start: { cameraTarget: [5, 0, 1], fov: 55 },
+            keyframes: [],
+            end: { cameraTarget: [10, 0, 1], fov: 65 }
+          },
+          automaticTargetPoints: [
+            [5, 0, 1],
+            [10, 0, 1]
+          ]
+        }
+      ]
+    });
+
+    const boundary = sampleFull(motion, 0.5);
+    expect(boundary.position.toArray()).toEqual([5, 0, 0]);
+    expect(boundary.target.toArray()).toEqual([5, 0, 1]);
+    expect(boundary.fov).toBe(55);
+
+    const before = sampleFull(motion, 0.499);
+    const after = sampleFull(motion, 0.501);
+    expect(before.target.distanceTo(after.target)).toBeLessThan(0.025);
+    expect(Math.abs(before.fov - after.fov)).toBeLessThan(0.025);
+  });
+
+  it('uses live target and FOV as the generated departure view', () => {
+    const route = {
+      positionParts: [
+        {
+          kind: 'rounded-polyline',
+          points: [
+            [0, 0, 0],
+            [10, 0, 0]
+          ]
+        }
+      ],
+      targetPoints: [
+        [0, 0, 1],
+        [10, 0, 1]
+      ],
+      startFov: 40,
+      endFov: 60,
+      edges: [
+        {
+          connectionId: 'live',
+          direction: 'forward',
+          fromNodeId: 'a',
+          toNodeId: 'b',
+          positionSpan: {
+            start: { partIndex: 0, pointIndex: 0 },
+            end: { partIndex: 0, pointIndex: 1 }
+          },
+          viewTrack: {
+            start: { cameraTarget: [0, 0, 1], fov: 40 },
+            keyframes: [
+              {
+                id: 'live-view-forward-01',
+                progress: 0.5,
+                cameraTarget: [5, 2, 2],
+                fov: 50
+              }
+            ],
+            end: { cameraTarget: [10, 0, 1], fov: 60 }
+          }
+        }
+      ]
+    } as const satisfies CameraRoute;
+    const startPose = {
+      position: [-2, 1, 0],
+      target: [-1, 2, 3],
+      fov: 77
+    } as const;
+    const originalRoute = structuredClone(route);
+    const originalStartPose = structuredClone(startPose);
+    const motion = createCameraMotion(route, startPose);
+
+    const start = sampleFull(motion, 0);
+    expect(start.position.toArray()).toEqual([-2, 1, 0]);
+    expect(start.target.toArray()).toEqual([-1, 2, 3]);
+    expect(start.fov).toBe(77);
+    expect(sampleFull(motion, 1).fov).toBe(60);
+    expect(route).toEqual(originalRoute);
+    expect(startPose).toEqual(originalStartPose);
+  });
+
+  it('samples FOV for singleton and zero-distance authored motion', () => {
+    const singleton = createCameraMotion({
+      positionParts: [{ kind: 'rounded-polyline', points: [[1, 2, 3]] }],
+      targetPoints: [[1, 2, 4]],
+      startFov: 33,
+      endFov: 33
+    });
+    expect(sampleFull(singleton, 0.5).fov).toBe(33);
+
+    const targetOnly = createCameraMotion({
+      positionParts: [
+        {
+          kind: 'rounded-polyline',
+          points: [
+            [1, 2, 3],
+            [1, 2, 3]
+          ]
+        }
+      ],
+      targetPoints: [
+        [1, 2, 4],
+        [2, 2, 4]
+      ],
+      startFov: 40,
+      endFov: 70,
+      edges: [
+        {
+          connectionId: 'target-only',
+          direction: 'forward',
+          fromNodeId: 'a',
+          toNodeId: 'b',
+          positionSpan: {
+            start: { partIndex: 0, pointIndex: 0 },
+            end: { partIndex: 0, pointIndex: 1 }
+          },
+          viewTrack: {
+            start: { cameraTarget: [1, 2, 4], fov: 40 },
+            keyframes: [
+              {
+                id: 'target-only-view-forward-01',
+                progress: 0.5,
+                cameraTarget: [1.5, 3, 4],
+                fov: 55
+              }
+            ],
+            end: { cameraTarget: [2, 2, 4], fov: 70 }
+          }
+        }
+      ]
+    });
+    const midpoint = sampleFull(targetOnly, 0.5);
+    expect(midpoint.position.toArray()).toEqual([1, 2, 3]);
+    expect(midpoint.target.toArray()).toEqual([1.5, 3, 4]);
+    expect(midpoint.fov).toBe(55);
   });
 
   it('precomputes rounded position and target paths using separate radii', () => {
@@ -445,6 +835,108 @@ describe('createCameraMotion', () => {
     ]
   ])('rejects %s', (_label, route, message) => {
     expect(() => createCameraMotion(route as unknown as CameraRoute)).toThrow(message);
+  });
+
+  it('rejects invalid runtime view-track candidates', () => {
+    const route = {
+      positionParts: [
+        {
+          kind: 'rounded-polyline',
+          points: [
+            [0, 0, 0],
+            [10, 0, 0]
+          ]
+        }
+      ],
+      targetPoints: [
+        [0, 0, 1],
+        [10, 0, 1]
+      ],
+      edges: [
+        {
+          connectionId: 'invalid-view',
+          direction: 'forward',
+          fromNodeId: 'a',
+          toNodeId: 'b',
+          positionSpan: {
+            start: { partIndex: 0, pointIndex: 0 },
+            end: { partIndex: 0, pointIndex: 1 }
+          },
+          viewTrack: {
+            start: { cameraTarget: [0, 0, 1], fov: 54 },
+            keyframes: [
+              {
+                id: 'duplicate',
+                progress: 0.3,
+                cameraTarget: [3, 1, 1],
+                fov: 54
+              },
+              {
+                id: 'duplicate',
+                progress: 0.6,
+                cameraTarget: [6, 1, 1],
+                fov: 54
+              }
+            ],
+            end: { cameraTarget: [10, 0, 1], fov: 54 }
+          }
+        }
+      ]
+    } as const satisfies CameraRoute;
+
+    expect(() => createCameraMotion(route)).toThrow(
+      'Camera route edge[0] view keyframe[1] id must be unique within the edge track'
+    );
+
+    const coincident = JSON.parse(JSON.stringify(route)) as CameraRoute;
+    coincident.edges![0]!.viewTrack!.keyframes[1]!.id = 'distinct';
+    coincident.edges![0]!.viewTrack!.keyframes[1]!.progress = 0.5;
+    coincident.edges![0]!.viewTrack!.keyframes[1]!.cameraTarget = [5, 0, 0];
+    expect(() => createCameraMotion(coincident)).toThrow(
+      'Camera route edge[0] view keyframe[1] target must be farther than 0.000001 from its sampled position'
+    );
+
+    const invalidFov = JSON.parse(JSON.stringify(route)) as CameraRoute;
+    invalidFov.edges![0]!.viewTrack!.keyframes[1]!.id = 'distinct';
+    invalidFov.edges![0]!.viewTrack!.keyframes[1]!.fov = 121;
+    expect(() => createCameraMotion(invalidFov)).toThrow(
+      'Camera route edge[0] view keyframe[1] fov must be a finite number between 10 and 120'
+    );
+  });
+
+  it('rejects invalid multi-pose live projection and coincident live view', () => {
+    const route = {
+      positionParts: [
+        {
+          kind: 'rounded-polyline',
+          points: [
+            [0, 0, 0],
+            [10, 0, 0]
+          ]
+        }
+      ],
+      targetPoints: [
+        [0, 0, 1],
+        [10, 0, 1]
+      ]
+    } as const satisfies CameraRoute;
+
+    expect(() =>
+      createCameraMotion(route, {
+        position: [1, 2, 3],
+        target: [1, 2, 4],
+        fov: 121
+      })
+    ).toThrow('Camera start fov must be a finite number between 10 and 120');
+    expect(() =>
+      createCameraMotion(route, {
+        position: [1, 2, 3],
+        target: [1, 2, 3],
+        fov: 54
+      })
+    ).toThrow(
+      'Camera start target must be farther than 0.000001 from its position'
+    );
   });
 });
 
@@ -781,16 +1273,19 @@ describe('sampleCameraMotion', () => {
   });
 
   it('clamps progress and writes into supplied output vectors', () => {
-    const position = new Vector3(100, 100, 100);
-    const target = new Vector3(200, 200, 200);
+    const output = createCameraMotionSample();
+    output.position.set(100, 100, 100);
+    output.target.set(200, 200, 200);
 
-    expect(sampleCameraMotion(motion, -1, position, target)).toBeUndefined();
-    expect(position.toArray()).toEqual([0, 0, 0]);
-    expect(target.toArray()).toEqual([0, 0, 1]);
+    expect(sampleCameraMotion(motion, -1, output)).toBeUndefined();
+    expect(output.position.toArray()).toEqual([0, 0, 0]);
+    expect(output.target.toArray()).toEqual([0, 0, 1]);
+    expect(output.fov).toBe(54);
 
-    sampleCameraMotion(motion, 2, position, target);
-    expect(position.toArray()).toEqual([10, 0, 0]);
-    expect(target.toArray()).toEqual([10, 0, 1]);
+    sampleCameraMotion(motion, 2, output);
+    expect(output.position.toArray()).toEqual([10, 0, 0]);
+    expect(output.target.toArray()).toEqual([10, 0, 1]);
+    expect(output.fov).toBe(54);
   });
 
   it('applies smootherstep before sampling precomputed paths', () => {
@@ -802,7 +1297,7 @@ describe('sampleCameraMotion', () => {
 
   it('rejects non-finite progress', () => {
     expect(() =>
-      sampleCameraMotion(motion, Number.NaN, new Vector3(), new Vector3())
+      sampleCameraMotion(motion, Number.NaN, createCameraMotionSample())
     ).toThrow('Camera motion progress must be finite');
   });
 });

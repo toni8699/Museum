@@ -185,13 +185,43 @@ function cloneResolvedCameraRoute(route: ResolvedCameraRoute): ResolvedCameraRou
 				  }
 		),
 		targetPoints: route.targetPoints.map(cloneRoutePoint),
+		...(route.startFov === undefined ? {} : { startFov: route.startFov }),
+		...(route.endFov === undefined ? {} : { endFov: route.endFov }),
 		nodeIds: [...route.nodeIds],
 		edges: route.edges.map((edge) => ({
-			...edge,
+			connectionId: edge.connectionId,
+			direction: edge.direction,
+			fromNodeId: edge.fromNodeId,
+			toNodeId: edge.toNodeId,
 			positionSpan: {
 				start: { ...edge.positionSpan.start },
 				end: { ...edge.positionSpan.end }
-			}
+			},
+			...(edge.viewTrack === undefined
+				? {}
+				: {
+						viewTrack: {
+							start: {
+								cameraTarget: cloneRoutePoint(edge.viewTrack.start.cameraTarget),
+								fov: edge.viewTrack.start.fov
+							},
+							keyframes: edge.viewTrack.keyframes.map((keyframe) => ({
+								id: keyframe.id,
+								progress: keyframe.progress,
+								cameraTarget: cloneRoutePoint(keyframe.cameraTarget),
+								fov: keyframe.fov
+							})),
+							end: {
+								cameraTarget: cloneRoutePoint(edge.viewTrack.end.cameraTarget),
+								fov: edge.viewTrack.end.fov
+							}
+						}
+				  }),
+			...(edge.automaticTargetPoints === undefined
+				? {}
+				: {
+						automaticTargetPoints: edge.automaticTargetPoints.map(cloneRoutePoint)
+				  })
 		}))
 	};
 }

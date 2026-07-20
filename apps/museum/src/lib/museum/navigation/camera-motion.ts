@@ -36,6 +36,27 @@ export type CameraPositionPathSpan = {
   end: CameraPositionPathLocation;
 };
 
+export type CameraRouteView = {
+  cameraTarget: Vector3Like;
+  /** Vertical PerspectiveCamera field of view in degrees. */
+  fov: number;
+};
+
+export type CameraRouteViewKeyframe = CameraRouteView & {
+  id: string;
+  /** Exact-edge arc-length progress in this track's travel direction. */
+  progress: number;
+};
+
+export type CameraRouteViewTrack = {
+  /** Generated from the oriented source node; never persisted. */
+  start: CameraRouteView;
+  /** Authored interior keys from this direction only. */
+  keyframes: readonly CameraRouteViewKeyframe[];
+  /** Generated from the oriented destination node; never persisted. */
+  end: CameraRouteView;
+};
+
 export type CameraRouteEdge = {
   connectionId: string;
   direction: CameraConnectionDirection;
@@ -43,11 +64,18 @@ export type CameraRouteEdge = {
   toNodeId: string;
   /** Locations in the coalesced position parts for this oriented edge. */
   positionSpan: CameraPositionPathSpan;
+  /** Present on resolved graph routes; optional for low-level motion callers. */
+  viewTrack?: CameraRouteViewTrack;
+  /** Existing synthesized target data scoped to this exact oriented edge. */
+  automaticTargetPoints?: readonly Vector3Like[];
 };
 
 export type CameraRoute = {
   positionParts: readonly CameraPositionPathPart[];
   targetPoints: readonly Vector3Like[];
+  /** Generated endpoint FOV values; defaults to 54 for low-level callers. */
+  startFov?: number;
+  endFov?: number;
   /** Required on resolved graph routes; optional for low-level motion callers. */
   edges?: readonly CameraRouteEdge[];
 };
@@ -55,12 +83,24 @@ export type CameraRoute = {
 export type CameraPose = {
   position: Vector3Like;
   target: Vector3Like;
+  fov: number;
+};
+
+export type CameraMotionSample = {
+  position: Vector3;
+  target: Vector3;
+  fov: number;
 };
 
 export type CameraMotion = {
   readonly positionPath: CurvePath<Vector3>;
   readonly targetPath: CurvePath<Vector3>;
   readonly positionEdgeSpans: readonly CameraPositionEdgeDistanceSpan[];
+  readonly edgeViews: readonly (CameraMotionEdgeView | null)[];
+  readonly totalPositionDistance: number;
+  readonly usesLegacyTargetPath: boolean;
+  readonly startFov: number;
+  readonly endFov: number;
   readonly durationSeconds: number;
 };
 
@@ -86,6 +126,9 @@ export const VISITOR_CAMERA_PROJECTION = {
   far: 90
 } as const;
 
+export const CAMERA_FOV_UPDATE_EPSILON = 1e-4;
+export const CAMERA_POSE_EPSILON = 1e-6;
+
 export const CAMERA_MOTION_TIMING = {
   unitsPerSecond: 6.2,
   minDurationSeconds: 1.25,
@@ -110,6 +153,42 @@ type PreparedPositionPathPart =
       anchors: Vector3[];
     };
 
+type PreparedCameraRouteView = {
+  cameraTarget: Vector3;
+  fov: number;
+};
+
+type PreparedCameraRouteViewKeyframe = PreparedCameraRouteView & {
+  id: string;
+  progress: number;
+};
+
+type PreparedCameraRouteViewTrack = {
+  start: PreparedCameraRouteView;
+  keyframes: PreparedCameraRouteViewKeyframe[];
+  end: PreparedCameraRouteView;
+};
+
+type PreparedCameraRouteEdge = Omit<
+  CameraRouteEdge,
+  'viewTrack' | 'automaticTargetPoints'
+> & {
+  viewTrack?: PreparedCameraRouteViewTrack;
+  automaticTargetPoints?: Vector3[];
+};
+
+type CameraMotionViewPoint = {
+  progress: number;
+  cameraTarget: Vector3;
+  fov: number;
+};
+
+type CameraMotionEdgeView = {
+  points: CameraMotionViewPoint[];
+  automaticTargetPath: CurvePath<Vector3> | null;
+  hasAuthoredKeyframes: boolean;
+};
+
 function isVectorTuple(
   value: Vector3Like
 ): value is readonly [number, number, number] {
@@ -131,8 +210,97 @@ function readVector3(value: Vector3Like, label: string) {
   return new Vector3(components[0], components[1], components[2]);
 }
 
+function readFov(value: number, label: string) {
+  if (
+    !Number.isFinite(value) ||
+    value < MUSEUM_CAMERA_FOV.min ||
+    value > MUSEUM_CAMERA_FOV.max
+  ) {
+    throw new Error(
+      `${label} must be a finite number between ${MUSEUM_CAMERA_FOV.min} and ${MUSEUM_CAMERA_FOV.max}`
+    );
+  }
+  return value;
+}
+
 function clonePoints(points: readonly Vector3Like[], label: string) {
   return points.map((point, index) => readVector3(point, `${label}[${index}]`));
+}
+
+function prepareRouteView(
+  view: CameraRouteView,
+  label: string
+): PreparedCameraRouteView {
+  return {
+    cameraTarget: readVector3(view.cameraTarget, `${label} cameraTarget`),
+    fov: readFov(view.fov, `${label} fov`)
+  };
+}
+
+function prepareRouteEdge(
+  edge: CameraRouteEdge,
+  edgeIndex: number
+): PreparedCameraRouteEdge {
+  const label = `Camera route edge[${edgeIndex}]`;
+  if (edge.direction !== 'forward' && edge.direction !== 'reverse') {
+    throw new Error(`${label} has an unknown direction`);
+  }
+
+  let viewTrack: PreparedCameraRouteViewTrack | undefined;
+  if (edge.viewTrack) {
+    let previousProgress = 0;
+    const keyframeIds = new Set<string>();
+    const keyframes = edge.viewTrack.keyframes.map((keyframe, keyframeIndex) => {
+      const keyframeLabel = `${label} view keyframe[${keyframeIndex}]`;
+      if (keyframe.id.trim().length === 0) {
+        throw new Error(`${keyframeLabel} id must be non-empty`);
+      }
+      if (keyframeIds.has(keyframe.id)) {
+        throw new Error(`${keyframeLabel} id must be unique within the edge track`);
+      }
+      keyframeIds.add(keyframe.id);
+      if (
+        !Number.isFinite(keyframe.progress) ||
+        keyframe.progress <= previousProgress ||
+        keyframe.progress >= 1
+      ) {
+        throw new Error(
+          `${keyframeLabel} progress must be finite, strictly increasing, and inside (0, 1)`
+        );
+      }
+      previousProgress = keyframe.progress;
+      return {
+        id: keyframe.id,
+        progress: keyframe.progress,
+        ...prepareRouteView(keyframe, keyframeLabel)
+      };
+    });
+    viewTrack = {
+      start: prepareRouteView(edge.viewTrack.start, `${label} start view`),
+      keyframes,
+      end: prepareRouteView(edge.viewTrack.end, `${label} end view`)
+    };
+  }
+
+  const automaticTargetPoints = edge.automaticTargetPoints
+    ? clonePoints(edge.automaticTargetPoints, `${label} automatic target`)
+    : undefined;
+  if (automaticTargetPoints?.length === 0) {
+    throw new Error(`${label} automatic targets must contain at least one point`);
+  }
+
+  return {
+    connectionId: edge.connectionId,
+    direction: edge.direction,
+    fromNodeId: edge.fromNodeId,
+    toNodeId: edge.toNodeId,
+    positionSpan: {
+      start: { ...edge.positionSpan.start },
+      end: { ...edge.positionSpan.end }
+    },
+    ...(viewTrack ? { viewTrack } : {}),
+    ...(automaticTargetPoints ? { automaticTargetPoints } : {})
+  };
 }
 
 function pointsForPart(part: PreparedPositionPathPart) {
@@ -617,6 +785,78 @@ export function createCameraPositionPath(
   return compileCameraPositionPath(parts, [], optionalStartPosition).positionPath;
 }
 
+function createMotionEdgeView(
+  edge: PreparedCameraRouteEdge
+): CameraMotionEdgeView | null {
+  const track = edge.viewTrack;
+  if (!track) return null;
+
+  const points: CameraMotionViewPoint[] = [
+    {
+      progress: 0,
+      cameraTarget: track.start.cameraTarget.clone(),
+      fov: track.start.fov
+    },
+    ...track.keyframes.map((keyframe) => ({
+      progress: keyframe.progress,
+      cameraTarget: keyframe.cameraTarget.clone(),
+      fov: keyframe.fov
+    })),
+    {
+      progress: 1,
+      cameraTarget: track.end.cameraTarget.clone(),
+      fov: track.end.fov
+    }
+  ];
+  const automaticTargetPath = edge.automaticTargetPoints
+    ? createRoundedPath(
+        edge.automaticTargetPoints,
+        CAMERA_MOTION_PATH.targetCornerRadius
+      )
+    : null;
+  if (automaticTargetPath) {
+    automaticTargetPath.getLength();
+    automaticTargetPath.getLengths();
+  }
+
+  return {
+    points,
+    automaticTargetPath,
+    hasAuthoredKeyframes: track.keyframes.length > 0
+  };
+}
+
+function validateAuthoredViewPoses(
+  positionPath: CurvePath<Vector3>,
+  totalPositionDistance: number,
+  positionEdgeSpans: readonly CameraPositionEdgeDistanceSpan[],
+  edges: readonly PreparedCameraRouteEdge[]
+) {
+  const sampledPosition = new Vector3();
+
+  for (const [edgeIndex, edge] of edges.entries()) {
+    const track = edge.viewTrack;
+    const span = positionEdgeSpans[edgeIndex];
+    if (!track || !span) continue;
+
+    for (const [keyframeIndex, keyframe] of track.keyframes.entries()) {
+      const distance = span.startDistance + span.length * keyframe.progress;
+      const globalProgress =
+        totalPositionDistance <= Number.EPSILON
+          ? keyframe.progress
+          : distance / totalPositionDistance;
+      positionPath.getPointAt(globalProgress, sampledPosition);
+      if (
+        sampledPosition.distanceTo(keyframe.cameraTarget) <= CAMERA_POSE_EPSILON
+      ) {
+        throw new Error(
+          `Camera route edge[${edgeIndex}] view keyframe[${keyframeIndex}] target must be farther than ${CAMERA_POSE_EPSILON} from its sampled position`
+        );
+      }
+    }
+  }
+}
+
 export function createCameraMotion(
   route: CameraRoute,
   optionalStartPose?: CameraPose
@@ -624,17 +864,16 @@ export function createCameraMotion(
   const positionParts = preparePositionParts(route.positionParts);
   const positionPointCount = countOrderedPositionPoints(positionParts);
   const targets = clonePoints(route.targetPoints, 'Camera route target');
-  const edges = (route.edges ?? []).map(
-    (edge): CameraRouteEdge => ({
-      connectionId: edge.connectionId,
-      direction: edge.direction,
-      fromNodeId: edge.fromNodeId,
-      toNodeId: edge.toNodeId,
-      positionSpan: {
-        start: { ...edge.positionSpan.start },
-        end: { ...edge.positionSpan.end }
-      }
-    })
+  const edges = (route.edges ?? []).map((edge, edgeIndex) =>
+    prepareRouteEdge(edge, edgeIndex)
+  );
+  let startFov = readFov(
+    route.startFov ?? edges[0]?.viewTrack?.start.fov ?? MUSEUM_CAMERA_FOV.default,
+    'Camera route start fov'
+  );
+  const endFov = readFov(
+    route.endFov ?? edges.at(-1)?.viewTrack?.end.fov ?? MUSEUM_CAMERA_FOV.default,
+    'Camera route end fov'
   );
 
   if (targets.length !== positionPointCount) {
@@ -644,11 +883,28 @@ export function createCameraMotion(
   }
 
   if (optionalStartPose && positionPointCount > 1) {
-    replacePreparedStartPosition(
-      positionParts,
-      readVector3(optionalStartPose.position, 'Camera start position')
+    const livePosition = readVector3(
+      optionalStartPose.position,
+      'Camera start position'
     );
-    targets[0] = readVector3(optionalStartPose.target, 'Camera start target');
+    const liveTarget = readVector3(optionalStartPose.target, 'Camera start target');
+    if (livePosition.distanceTo(liveTarget) <= CAMERA_POSE_EPSILON) {
+      throw new Error(
+        `Camera start target must be farther than ${CAMERA_POSE_EPSILON} from its position`
+      );
+    }
+    replacePreparedStartPosition(positionParts, livePosition);
+    startFov = readFov(optionalStartPose.fov, 'Camera start fov');
+    targets[0] = liveTarget.clone();
+
+    const firstEdge = edges[0];
+    if (firstEdge?.viewTrack) {
+      firstEdge.viewTrack.start.cameraTarget.copy(liveTarget);
+      firstEdge.viewTrack.start.fov = startFov;
+    }
+    if (firstEdge?.automaticTargetPoints?.[0]) {
+      firstEdge.automaticTargetPoints[0].copy(liveTarget);
+    }
   }
 
   const compiledPosition = compilePreparedPositionPath(
@@ -667,6 +923,16 @@ export function createCameraMotion(
       },
       ...compiledPosition.spans[index]
     })
+  );
+  validateAuthoredViewPoses(
+    positionPath,
+    positionLength,
+    positionEdgeSpans,
+    edges
+  );
+  const edgeViews = edges.map(createMotionEdgeView);
+  const usesLegacyTargetPath = !edgeViews.some(
+    (edgeView) => edgeView?.hasAuthoredKeyframes
   );
 
   // Curve.getPointAt() lazily builds arc-length tables. Prime both paths here so
@@ -688,27 +954,143 @@ export function createCameraMotion(
     positionPath,
     targetPath,
     positionEdgeSpans,
+    edgeViews,
+    totalPositionDistance: positionLength,
+    usesLegacyTargetPath,
+    startFov,
+    endFov,
     durationSeconds
   };
+}
+
+export function createCameraMotionSample(): CameraMotionSample {
+  return {
+    position: new Vector3(),
+    target: new Vector3(),
+    fov: MUSEUM_CAMERA_FOV.default
+  };
+}
+
+function smootherstep01(progress: number) {
+  return (
+    progress *
+    progress *
+    progress *
+    (progress * (progress * 6 - 15) + 10)
+  );
+}
+
+function findActiveEdgeIndex(motion: CameraMotion, easedProgress: number) {
+  const spans = motion.positionEdgeSpans;
+  if (spans.length === 0) return -1;
+  if (easedProgress >= 1) return spans.length - 1;
+
+  if (motion.totalPositionDistance <= Number.EPSILON) {
+    return Math.min(spans.length - 1, Math.floor(easedProgress * spans.length));
+  }
+
+  const distance = easedProgress * motion.totalPositionDistance;
+  for (let index = 0; index < spans.length; index += 1) {
+    const span = spans[index];
+    if (span.length <= Number.EPSILON) continue;
+    if (distance < span.endDistance || index === spans.length - 1) return index;
+  }
+  return spans.length - 1;
+}
+
+function getEdgeLocalProgress(
+  motion: CameraMotion,
+  edgeIndex: number,
+  easedProgress: number
+) {
+  const span = motion.positionEdgeSpans[edgeIndex];
+  if (!span) return easedProgress;
+  if (motion.totalPositionDistance <= Number.EPSILON) {
+    const scaledProgress = easedProgress * motion.positionEdgeSpans.length;
+    return MathUtils.clamp(scaledProgress - edgeIndex, 0, 1);
+  }
+  if (span.length <= Number.EPSILON) return easedProgress >= 1 ? 1 : 0;
+  const distance = easedProgress * motion.totalPositionDistance;
+  return MathUtils.clamp(
+    (distance - span.startDistance) / span.length,
+    0,
+    1
+  );
+}
+
+function sampleAuthoredView(
+  edgeView: CameraMotionEdgeView,
+  localProgress: number,
+  output: CameraMotionSample
+) {
+  const points = edgeView.points;
+  let endIndex = 1;
+  while (
+    endIndex < points.length - 1 &&
+    localProgress > points[endIndex].progress
+  ) {
+    endIndex += 1;
+  }
+  const start = points[endIndex - 1];
+  const end = points[endIndex];
+  const intervalLength = end.progress - start.progress;
+  const intervalProgress =
+    intervalLength <= Number.EPSILON
+      ? 1
+      : MathUtils.clamp(
+          (localProgress - start.progress) / intervalLength,
+          0,
+          1
+        );
+  const easedIntervalProgress = smootherstep01(intervalProgress);
+  output.target
+    .copy(start.cameraTarget)
+    .lerp(end.cameraTarget, easedIntervalProgress);
+  output.fov = MathUtils.lerp(start.fov, end.fov, easedIntervalProgress);
 }
 
 export function sampleCameraMotion(
   motion: CameraMotion,
   progress: number,
-  outPosition: Vector3,
-  outTarget: Vector3
+  output: CameraMotionSample
 ): void {
   if (!Number.isFinite(progress)) {
     throw new Error('Camera motion progress must be finite');
   }
 
   const clampedProgress = MathUtils.clamp(progress, 0, 1);
-  const easedProgress =
-    clampedProgress *
-    clampedProgress *
-    clampedProgress *
-    (clampedProgress * (clampedProgress * 6 - 15) + 10);
+  const easedProgress = smootherstep01(clampedProgress);
 
-  motion.positionPath.getPointAt(easedProgress, outPosition);
-  motion.targetPath.getPointAt(easedProgress, outTarget);
+  motion.positionPath.getPointAt(easedProgress, output.position);
+
+  const edgeIndex = findActiveEdgeIndex(motion, easedProgress);
+  const edgeView = edgeIndex < 0 ? null : motion.edgeViews[edgeIndex];
+  const localProgress = getEdgeLocalProgress(motion, edgeIndex, easedProgress);
+
+  if (motion.usesLegacyTargetPath || !edgeView) {
+    motion.targetPath.getPointAt(easedProgress, output.target);
+  } else if (edgeView.hasAuthoredKeyframes) {
+    sampleAuthoredView(edgeView, localProgress, output);
+    return;
+  } else if (edgeView.automaticTargetPath) {
+    edgeView.automaticTargetPath.getPointAt(localProgress, output.target);
+  } else {
+    motion.targetPath.getPointAt(easedProgress, output.target);
+  }
+
+  if (edgeView) {
+    const start = edgeView.points[0];
+    const end = edgeView.points.at(-1)!;
+    output.fov = MathUtils.lerp(
+      start.fov,
+      end.fov,
+      smootherstep01(localProgress)
+    );
+  } else {
+    output.fov = MathUtils.lerp(
+      motion.startFov,
+      motion.endFov,
+      smootherstep01(easedProgress)
+    );
+  }
 }

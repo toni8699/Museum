@@ -129,6 +129,33 @@ describe('createMuseumEditorStore', () => {
 });
 
 describe('MuseumEditorStore selection', () => {
+	it('finishes anchor editing without mutating history or the document', () => {
+		const store = createMuseumEditorStore();
+		const connection = store.document.connections.find(
+			(candidate) => candidate.positionPath.anchors.length > 0
+		)!;
+		const anchor = connection.positionPath.anchors[0]!;
+		const before = serializeSceneDocument(store.document);
+
+		expect(store.selectAnchor(connection.id, anchor.id)).toBe(true);
+		expect(store.finishAnchorEditing()).toBe(true);
+		expect(store.navigationSelection).toEqual({ kind: 'connection', connectionId: connection.id });
+		expect(serializeSceneDocument(store.document)).toBe(before);
+		expect(store.canUndo).toBe(false);
+	});
+
+	it('keeps calibration grid session-only', () => {
+		const store = createMuseumEditorStore();
+		const before = store.canonicalJson;
+
+		expect(store.gridVisible).toBe(false);
+		expect(store.toggleGrid()).toBe(true);
+		expect(store.gridVisible).toBe(true);
+		expect(store.canonicalJson).toBe(before);
+		expect(store.isDirty).toBe(false);
+		expect(store.canUndo).toBe(false);
+	});
+
 	it('requires an editable room and selects document ids without a registered root', () => {
 		const store = createMuseumEditorStore();
 		const id = store.document.objects[0]!.id;

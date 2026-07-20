@@ -303,6 +303,10 @@
 					event.preventDefault();
 					return;
 				}
+				if (store.finishAnchorEditing()) {
+					event.preventDefault();
+					return;
+				}
 				if (sceneOwnsShortcuts) store.deselect();
 			}
 		};
@@ -641,6 +645,15 @@
 				onclick={() => store.toggleCameraPan()}
 			>
 				Pan {store.cameraPanEnabled ? 'on' : 'off'}
+			</button>
+			<button
+				type="button"
+				class:active={store.gridVisible}
+				aria-pressed={store.gridVisible}
+				disabled={store.isCameraPreviewActive}
+				onclick={() => store.toggleGrid()}
+			>
+				Grid {store.gridVisible ? 'on' : 'off'}
 			</button>
 		</section>
 

@@ -382,12 +382,16 @@ Implement and verify in this order:
 
 ### Slice 1 — Freeze baseline and repair local UX
 
+**Difficulty:** Low · **Recommended agent:** `gpt-5.6-terra` (`medium`)
+
 - Re-run Phase 6.5 frozen route/motion samples before changing schema or sampling.
 - Add anchor **Done**, anchor-level parent preview controls, and Escape parent fallback.
 - Add grid state/toggle/helper with non-raycast ownership and disposal tests.
 - No scene-schema change in this slice.
 
 ### Slice 2 — Schema v3, migration, and export
+
+**Difficulty:** High · **Recommended agent:** `gpt-5.6-sol` (`high`)
 
 - Add v1/v2/v3 parser types and strict allowed-key sets.
 - Validate old documents under old semantics before migration.
@@ -398,12 +402,16 @@ Implement and verify in this order:
 
 ### Slice 3 — Route boundaries and shared position metrics
 
+**Difficulty:** Very high · **Recommended agent:** `gpt-5.6-sol` (`xhigh`)
+
 - Retain oriented connection identity/boundaries in `ResolvedCameraRoute`.
 - Extend the shared position compiler with exact per-edge cumulative distance spans without altering geometry.
 - Preserve legacy rounded coalescing and split cross-boundary primitives only geometrically, not visually.
 - Add exact forward/reverse and representative multi-hop span fixtures.
 
 ### Slice 4 — Target/FOV motion sampling
+
+**Difficulty:** Very high · **Recommended agent:** `gpt-5.6-sol` (`xhigh`)
 
 - Add direction-specific view selection and generated node endpoints.
 - Add segment-aligned target/FOV interpolation and reusable FOV sample output.
@@ -413,6 +421,8 @@ Implement and verify in this order:
 
 ### Slice 5 — Preview state and virtual camera
 
+**Difficulty:** High · **Recommended agent:** `gpt-5.6-sol` (`high`)
+
 - Introduce Director/Visitor mode plus paused/playing/complete transport.
 - Separate mutation guards so Director paused remains editable.
 - Add the non-default virtual camera, body/frustum, playhead, follow/recenter, and camera ownership restoration.
@@ -420,11 +430,15 @@ Implement and verify in this order:
 
 ### Slice 6 — View-keyframe helpers and authoring
 
+**Difficulty:** Very high · **Recommended agent:** `gpt-5.6-sol` (`xhigh`)
+
 - Add selection case, tagged markers, target helper registration, one-gizmo target ownership, inspector, add/edit/delete/copy commands, and history reconciliation.
 - Reuse the exact shared curve/progress mapping. Do not approximate marker placement independently.
 - Ensure paused edits refresh Director sampling without losing playhead.
 
 ### Slice 7 — Full verification and documentation
+
+**Difficulty:** Medium · **Recommended agent:** `gpt-5.6-terra` (`high`)
 
 - Run all automated checks and manual WebGL acceptance.
 - Verify visitor/editor parity and every connection in both directions.

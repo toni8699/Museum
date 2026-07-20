@@ -3,6 +3,7 @@
 	import MuseumScene from '$lib/museum/MuseumScene.svelte';
 	import type { EditorPlacementRegistry } from '$lib/museum/placement-registry';
 	import EditorCameraHelpers from './EditorCameraHelpers.svelte';
+	import EditorGrid from './EditorGrid.svelte';
 	import EditorCameraPathHelpers from './EditorCameraPathHelpers.svelte';
 	import EditorCameraRig from './EditorCameraRig.svelte';
 	import EditorPlacementTools from './EditorPlacementTools.svelte';
@@ -49,6 +50,7 @@
 				<EditorCameraRig {store} {graph} />
 			{/snippet}
 		</MuseumScene>
+		<EditorGrid visible={store.gridVisible && !store.cameraPreview} />
 		<EditorCameraPathHelpers {store} />
 		{#if store.pendingNavigationCommand?.kind === 'connect-existing' && !store.cameraPreview}
 			{#each store.document.navigationNodes as node (node.id)}

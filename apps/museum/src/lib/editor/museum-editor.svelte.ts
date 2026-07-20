@@ -206,6 +206,8 @@ export class MuseumEditorStore {
 	cameraFocusPlacementId = $state<string | null>(null);
 	cameraFocusNodeId = $state<string | null>(null);
 	cameraPanEnabled = $state(true);
+	/** Editor calibration aid; session-only and absent from scene snapshots. */
+	gridVisible = $state(false);
 	pendingFramePlacementIds = $state<string[]>([]);
 	pendingFrameVersion = $state(0);
 
@@ -499,6 +501,23 @@ export class MuseumEditorStore {
 		this.cancelPendingFrame();
 		this.#clearPlacementSelection();
 		this.navigationSelection = { kind: 'anchor', connectionId, anchorId };
+		return true;
+	}
+
+	/** Leave an anchor without changing the document or its history. */
+	finishAnchorEditing() {
+		if (this.cameraPreview || this.isEditorInteractionActive || this.pendingNavigationCommand) {
+			return false;
+		}
+		const selection = this.navigationSelection;
+		if (selection?.kind !== 'anchor') return false;
+		const connection = this.document.connections.find(
+			(candidate) => candidate.id === selection.connectionId
+		);
+		if (!connection?.positionPath.anchors.some((anchor) => anchor.id === selection.anchorId)) {
+			return false;
+		}
+		this.navigationSelection = { kind: 'connection', connectionId: connection.id };
 		return true;
 	}
 
@@ -885,6 +904,12 @@ export class MuseumEditorStore {
 	toggleCameraPan() {
 		if (this.cameraPreview) return false;
 		this.cameraPanEnabled = !this.cameraPanEnabled;
+		return true;
+	}
+
+	toggleGrid() {
+		if (this.cameraPreview) return false;
+		this.gridVisible = !this.gridVisible;
 		return true;
 	}
 

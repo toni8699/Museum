@@ -64,6 +64,10 @@
 			labelDraft = node.label;
 		}
 	}
+
+	function finishAnchorEditing() {
+		store.finishAnchorEditing();
+	}
 </script>
 
 {#if selection?.kind === 'node' && node && point}
@@ -200,6 +204,23 @@
 			disabled={store.isCameraPreviewActive || store.isEditorInteractionActive}
 			onclick={() => store.deleteSelectedAnchor()}
 		>Delete Anchor</button>
+		<button
+			type="button"
+			class="done"
+			disabled={store.isCameraPreviewActive || store.isEditorInteractionActive}
+			onclick={finishAnchorEditing}
+		>Done editing anchor</button>
+		<div class="preview" aria-label="Parent connection preview controls">
+			{#if store.cameraPreview}
+				<p>{store.cameraPreview.kind !== 'node' && store.cameraPreview.completed ? 'Transition complete · holding destination' : 'Playing connection'}</p>
+				<button type="button" class="stop" onclick={() => store.stopCameraPreview()}>Stop preview</button>
+			{:else}
+				<div>
+					<button type="button" onclick={() => store.previewSelectedConnection('forward')}>Preview {fromNode?.label ?? 'A'} → {toNode?.label ?? 'B'}</button>
+					<button type="button" onclick={() => store.previewSelectedConnection('reverse')}>Preview {toNode?.label ?? 'B'} → {fromNode?.label ?? 'A'}</button>
+				</div>
+			{/if}
+		</div>
 	</section>
 {/if}
 
@@ -222,7 +243,7 @@
 	.label-field input { width: 100%; box-sizing: border-box; padding: 0.42rem; border: 1px solid #3a3a46; border-radius: 0.3rem; background: #101016; color: #f4efe4; }
 	.handles, .topology, .preview div { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.35rem; }
 	button { padding: 0.42rem 0.4rem; border: 1px solid #3a3a46; border-radius: 0.3rem; background: #1a1a22; color: #ddd6ca; font: inherit; font-size: 0.72rem; cursor: pointer; }
-	button.active, button.stop { border-color: #d6b35f; background: #2a2618; color: #fff2c7; }
+	button.active, button.stop, button.done { border-color: #d6b35f; background: #2a2618; color: #fff2c7; }
 	button.danger { border-color: #744; color: #f1b1aa; }
 	button:disabled, input:disabled { opacity: 0.42; cursor: default; }
 	.preview { display: flex; flex-direction: column; gap: 0.45rem; padding-top: 0.2rem; }

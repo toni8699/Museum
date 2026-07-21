@@ -152,6 +152,20 @@ export type EditorPendingNavigationCommand =
 			sourceNodeId: string;
 	  };
 
+/**
+ * Phase 1.1 persistent shell — Scene keeps placement tools; Camera keeps camera tools and the timeline.
+ */
+export type EditorWorkspace = 'scene' | 'camera';
+
+/** Phase 1.1 persistent shell — left panel always offers Scene tree or Asset library. */
+export type EditorLeftPanel = 'scene' | 'assets';
+
+/** Bottom-panel frame measurements. Session-only, never serialized. */
+export const EDITOR_TIMELINE_COLLAPSED_HEIGHT = 36;
+export const EDITOR_TIMELINE_MIN_HEIGHT = 220;
+export const EDITOR_TIMELINE_MAX_HEIGHT = 360;
+export const EDITOR_TIMELINE_DEFAULT_HEIGHT = 280;
+
 export const CAMERA_NODE_CREATION_DEFAULTS = {
 	eyeHeight: 1.65,
 	targetHeight: 1.25,
@@ -288,6 +302,21 @@ export class MuseumEditorStore {
 	cameraPanEnabled = $state(true);
 	/** Editor calibration aid; session-only and absent from scene snapshots. */
 	gridVisible = $state(false);
+	/**
+	 * Phase 1.1 persistent shell — never enters history, dirty comparison, or canonical JSON.
+	 * Workspace keeps selection/history but stops any active camera preview when leaving Camera.
+	 * Camera workspace auto-expands the bottom timeline; Scene remembers the user's choice.
+	 */
+	currentWorkspace = $state<EditorWorkspace>('scene');
+	leftPanel = $state<EditorLeftPanel>('scene');
+	timelineExpanded = $state(false);
+	timelineHeight = $state(EDITOR_TIMELINE_DEFAULT_HEIGHT);
+	/**
+	 * Phase 1.1 sidebar tree expansion — owned by the store so the inspector's grouping
+	 * helpers can ask the tree to reveal a freshly created cluster.
+	 */
+	treeExpandedRoomIds = $state<MuseumRoomId[]>(['paris']);
+	treeExpandedClusterIds = $state<string[]>([]);
 	pendingFramePlacementIds = $state<string[]>([]);
 	pendingFrameVersion = $state(0);
 
@@ -1641,6 +1670,107 @@ export class MuseumEditorStore {
 	toggleGrid() {
 		if (this.isVisitorCameraPreview) return false;
 		this.gridVisible = !this.gridVisible;
+		return true;
+	}
+
+	/** Phase 1.1 — switch editor workspace. Stops any active camera preview when leaving Camera. */
+	setWorkspace(workspace: EditorWorkspace) {
+		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
+		if (workspace === this.currentWorkspace) return false;
+		if (this.currentWorkspace === 'camera' && this.cameraPreview) {
+			this.stopCameraPreview();
+		}
+		this.currentWorkspace = workspace;
+		if (workspace === 'camera' && !this.timelineExpanded) {
+			this.timelineExpanded = true;
+		}
+		return true;
+	}
+
+	/** Phase 1.1 — switch the persistent left sidebar tab. */
+	setLeftPanel(panel: EditorLeftPanel) {
+		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
+		if (panel === this.leftPanel) return false;
+		if (this.leftPanel === 'assets' && panel === 'scene') {
+			this.cancelAssetPlacement();
+		}
+		this.leftPanel = panel;
+		return true;
+	}
+
+	/** Phase 1.1 — bottom timeline panel collapse/expand state. */
+	setTimelineExpanded(value: boolean) {
+		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
+		this.timelineExpanded = Boolean(value);
+		return true;
+	}
+
+	/** Phase 1.1 — clamped timeline height in CSS pixels. */
+	setTimelineHeight(value: number) {
+		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
+		if (typeof value !== 'number' || !Number.isFinite(value)) return false;
+		this.timelineHeight = Math.min(
+			EDITOR_TIMELINE_MAX_HEIGHT,
+			Math.max(EDITOR_TIMELINE_MIN_HEIGHT, Math.round(value))
+		);
+		return true;
+	}
+
+	toggleTimeline() {
+		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
+		this.timelineExpanded = !this.timelineExpanded;
+		return true;
+	}
+
+	/** Phase 1.1 — toggle a room card's expansion in the sidebar tree. */
+	toggleRoomTreeExpansion(roomId: MuseumRoomId) {
+		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
+		this.treeExpandedRoomIds = this.treeExpandedRoomIds.includes(roomId)
+			? this.treeExpandedRoomIds.filter((candidate) => candidate !== roomId)
+			: [...this.treeExpandedRoomIds, roomId];
+		return true;
+	}
+
+	/** Phase 1.1 — toggle a cluster row's expansion in the sidebar tree. */
+	toggleClusterTreeExpansion(clusterId: string) {
+		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
+		this.treeExpandedClusterIds = this.treeExpandedClusterIds.includes(clusterId)
+			? this.treeExpandedClusterIds.filter((candidate) => candidate !== clusterId)
+			: [...this.treeExpandedClusterIds, clusterId];
+		return true;
+	}
+
+	/** Phase 1.1 — collapse a cluster row without affecting other rows. */
+	removeClusterTreeExpansion(clusterId: string) {
+		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
+		if (this.treeExpandedClusterIds.includes(clusterId)) {
+			this.treeExpandedClusterIds = this.treeExpandedClusterIds.filter(
+				(candidate) => candidate !== clusterId
+			);
+		}
+		return true;
+	}
+
+	/** Phase 1.1 — Set of every placement id that belongs to any cluster. */
+	get clusteredPlacementIds(): Set<string> {
+		return new Set(this.clusters.flatMap((cluster) => cluster.memberIds));
+	}
+
+	/** Phase 1.1 — additive helper for inspector grouping actions that need to reveal a cluster. */
+	ensureRoomTreeExpanded(roomId: MuseumRoomId) {
+		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
+		if (!this.treeExpandedRoomIds.includes(roomId)) {
+			this.treeExpandedRoomIds = [...this.treeExpandedRoomIds, roomId];
+		}
+		return true;
+	}
+
+	/** Phase 1.1 — additive helper for inspector grouping actions that need to reveal a cluster. */
+	ensureClusterTreeExpanded(clusterId: string) {
+		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
+		if (!this.treeExpandedClusterIds.includes(clusterId)) {
+			this.treeExpandedClusterIds = [...this.treeExpandedClusterIds, clusterId];
+		}
 		return true;
 	}
 

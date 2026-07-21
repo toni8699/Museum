@@ -155,8 +155,8 @@ Camera-key position remains derived from exact connection-path progress. Never p
 3. This README
 4. The selected phase plan and its latest handoff
 5. `docs/CAMERA_AND_LAYOUT.md`
-6. `docs/plans/camera-path-authoring.md`
-7. `docs/plans/camera-view-authoring.md`
+
+Historical path/view authoring plans (pre–workspace-release) are archived under `docs/archive/plans/` and are not required reading for new work.
 
 ## Release Gate
 

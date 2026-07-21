@@ -232,6 +232,59 @@ describe('MuseumEditorStore selection', () => {
 		expect(store.selectedObject?.id).toBe(id);
 	});
 
+	it('selects and frames a placement from the tree without room preselection', () => {
+		const store = createMuseumEditorStore();
+		const placement = store.document.objects.find((object) => object.roomId === 'paris')!;
+		store.toggleRoomTreeExpansion('paris');
+		store.selectNavigationNode('departure-corridor');
+		const beforeFocus = store.cameraFocusVersion;
+		const beforeHistory = store.historyVersion;
+		const beforeJson = store.canonicalJson;
+
+		expect(store.selectedRoomId).toBeNull();
+		expect(store.treeExpandedRoomIds).not.toContain('paris');
+		expect(store.selectPlacementFromTree(placement.id)).toBe(true);
+
+		expect(store.selectedRoomId).toBe('paris');
+		expect(store.treeExpandedRoomIds).toContain('paris');
+		expect(store.selectedPlacementIds).toEqual([placement.id]);
+		expect(store.selectedClusterId).toBeNull();
+		expect(store.navigationSelection).toBeNull();
+		expect(store.cameraFocusVersion).toBe(beforeFocus + 1);
+		expect(store.cameraFocusKind).toBe('placement');
+		expect(store.cameraFocusPlacementId).toBe(placement.id);
+		expect(store.historyVersion).toBe(beforeHistory);
+		expect(store.canonicalJson).toBe(beforeJson);
+		expect(store.isDirty).toBe(false);
+		expect(store.canUndo).toBe(false);
+	});
+
+	it('shift-selects the first tree placement in order without requesting focus', () => {
+		const store = createMuseumEditorStore();
+		const [first, second] = store.document.objects.filter((object) => object.roomId === 'paris');
+		store.toggleRoomTreeExpansion('paris');
+		store.selectNavigationNode('departure-corridor');
+		store.consumeCameraFocus(store.cameraFocusVersion);
+		const beforeFocus = store.cameraFocusVersion;
+		const beforeHistory = store.historyVersion;
+		const beforeJson = store.canonicalJson;
+
+		expect(store.selectPlacementFromTree(first.id, { additive: true })).toBe(true);
+		expect(store.selectedRoomId).toBe('paris');
+		expect(store.treeExpandedRoomIds).toContain('paris');
+		expect(store.selectedPlacementIds).toEqual([first.id]);
+		expect(store.navigationSelection).toBeNull();
+		expect(store.cameraFocusVersion).toBe(beforeFocus);
+		expect(store.cameraFocusKind).toBeNull();
+
+		expect(store.selectPlacementFromTree(second.id, { additive: true })).toBe(true);
+		expect(store.selectedPlacementIds).toEqual([first.id, second.id]);
+		expect(store.cameraFocusVersion).toBe(beforeFocus);
+		expect(store.historyVersion).toBe(beforeHistory);
+		expect(store.canonicalJson).toBe(beforeJson);
+		expect(store.isDirty).toBe(false);
+	});
+
 	it('ignores unknown ids without clearing the current selection', () => {
 		const store = createMuseumEditorStore();
 		const id = store.document.objects[0]!.id;
@@ -334,6 +387,38 @@ describe('MuseumEditorStore selection', () => {
 });
 
 describe('MuseumEditorStore clusters', () => {
+	it('selects, reveals, and frames a cluster from the tree without room preselection', () => {
+		const store = createMuseumEditorStore();
+		const [first, second] = store.document.objects.filter((object) => object.roomId === 'paris');
+		store.selectRoom('paris');
+		store.selectPlacements([first.id, second.id]);
+		const clusterId = store.createCluster('Tree cluster')!;
+		const beforeJson = store.canonicalJson;
+		const beforeHistory = store.historyVersion;
+		const beforeDirty = store.isDirty;
+
+		store.selectNavigationNode('departure-corridor');
+		expect(store.selectedClusterId).toBeNull();
+		expect(store.selectedPlacementIds).toEqual([]);
+		store.consumeCameraFocus(store.cameraFocusVersion);
+		store.selectedRoomId = null;
+		store.toggleRoomTreeExpansion('paris');
+		const beforeFocus = store.cameraFocusVersion;
+
+		expect(store.selectClusterFromTree(clusterId)).toBe(true);
+		expect(store.selectedRoomId).toBe('paris');
+		expect(store.treeExpandedRoomIds).toContain('paris');
+		expect(store.treeExpandedClusterIds).toContain(clusterId);
+		expect(store.selectedClusterId).toBe(clusterId);
+		expect(store.selectedPlacementIds).toEqual([first.id, second.id]);
+		expect(store.navigationSelection).toBeNull();
+		expect(store.cameraFocusVersion).toBe(beforeFocus + 1);
+		expect(store.cameraFocusKind).toBe('selection');
+		expect(store.historyVersion).toBe(beforeHistory);
+		expect(store.canonicalJson).toBe(beforeJson);
+		expect(store.isDirty).toBe(beforeDirty);
+	});
+
 	it('creates, selects, renames, and ungroups through document history', () => {
 		const store = createMuseumEditorStore();
 		const [a, b] = store.document.objects;
@@ -652,6 +737,45 @@ describe('MuseumEditorStore Phase 6 camera nodes', () => {
 		expect(store.selectNavigationNode(nodeId)).toBe(true);
 		expect(store.cameraSelection).toEqual({ nodeId, handle: 'position' });
 		expect(store.cameraFocusVersion).toBe(focusVersion);
+	});
+
+	it('never changes workspace in response to placement or camera selection', () => {
+		const store = createMuseumEditorStore();
+		const placement = store.document.objects.find((object) => object.roomId === 'paris')!;
+
+		expect(store.setWorkspace('camera')).toBe(true);
+		expect(store.selectPlacementFromTree(placement.id)).toBe(true);
+		expect(store.currentWorkspace).toBe('camera');
+
+		expect(store.setWorkspace('scene')).toBe(true);
+		expect(store.selectNavigationNode('paris-seat')).toBe(true);
+		expect(store.currentWorkspace).toBe('scene');
+	});
+
+	it('clears placement and cluster selection without changing workspace or redundant focus', () => {
+		const store = createMuseumEditorStore();
+		const [first, second] = store.document.objects.filter((object) => object.roomId === 'paris');
+		store.selectRoom('paris');
+		store.selectPlacements([first.id, second.id]);
+		const clusterId = store.createCluster('Camera handoff')!;
+		expect(store.selectedClusterId).toBe(clusterId);
+		expect(store.setWorkspace('camera')).toBe(true);
+		const beforeHistory = store.historyVersion;
+
+		expect(store.selectNavigationNode('paris-seat')).toBe(true);
+		expect(store.currentWorkspace).toBe('camera');
+		expect(store.navigationSelection).toEqual({
+			kind: 'node',
+			nodeId: 'paris-seat',
+			handle: 'position'
+		});
+		expect(store.selectedPlacementIds).toEqual([]);
+		expect(store.selectedClusterId).toBeNull();
+		const focusVersion = store.cameraFocusVersion;
+		expect(store.selectNavigationNode('paris-seat')).toBe(false);
+		expect(store.cameraFocusVersion).toBe(focusVersion);
+		expect(store.currentWorkspace).toBe('camera');
+		expect(store.historyVersion).toBe(beforeHistory);
 	});
 
 	it('consumes an applied camera focus request exactly once', () => {

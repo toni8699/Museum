@@ -1,6 +1,8 @@
-# Future Plan — Phase 6.6 Camera View Authoring and Director Preview
+# Archived Plan — Phase 6.6 Camera View Authoring and Director Preview
 
-**Status:** Proposed. No Phase 6.6 implementation exists yet.
+**Archived:** 2026-07-21. Remaining camera UI / scene overhaul work is owned by the workspace release map, starting at Phase 2 ([`../../plans/museum-editor-workspace/phase-2-camera-editing-mvp.md`](../../plans/museum-editor-workspace/phase-2-camera-editing-mvp.md)).
+
+**Original status:** Proposed. No Phase 6.6 implementation exists yet.
 
 **Planning baseline:** Phase 6.5 is complete in the working tree against clean commit `9299029`, but its changes are currently uncommitted. Preserve the existing worktree and do not reset or commit unless the user explicitly requests it.
 
@@ -50,10 +52,10 @@ Read in this order:
 
 1. `AGENTS.md` — repository rules and current runtime contracts.
 2. `docs/agent-handoffs/CURRENT.md` — actual working-tree baseline and verification status.
-3. `docs/agent-handoffs/phase-6.5.md` — position paths, selection, exact-edge preview, production isolation.
+3. `docs/archive/agent-handoffs/phase-6.5.md` — position paths, selection, exact-edge preview, production isolation.
 4. This plan.
-5. `docs/agent-handoffs/phase-6.md` — original camera helper, preview, transaction, and Orbit-restoration contracts.
-6. `docs/agent-handoffs/phase-7.md` — strict codec, canonical export/import, dirty baseline, and browser-only persistence.
+5. `docs/archive/agent-handoffs/phase-6.md` — original camera helper, preview, transaction, and Orbit-restoration contracts.
+6. `docs/archive/agent-handoffs/phase-7.md` — strict codec, canonical export/import, dirty baseline, and browser-only persistence.
 7. `docs/CAMERA_AND_LAYOUT.md` — current ownership map and Phase 6.5 behavior.
 8. `apps/museum/src/lib/content/scene-codec.ts` — strict version parsing, migration, validation, canonicalization.
 9. `apps/museum/src/lib/content/scene.ts` and `lib/types/museum.ts` — document/runtime types and local-to-world resolution.

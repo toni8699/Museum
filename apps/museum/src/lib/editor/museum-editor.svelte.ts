@@ -157,8 +157,17 @@ export type EditorPendingNavigationCommand =
  */
 export type EditorWorkspace = 'scene' | 'camera';
 
-/** Phase 1.1 persistent shell — left panel always offers Scene tree or Asset library. */
+/** Scene-workspace sidebar choice; Camera temporarily replaces it without changing it. */
 export type EditorLeftPanel = 'scene' | 'assets';
+
+export type EditorPlacementTreeSelectionOptions = {
+	additive?: boolean;
+	focus?: boolean;
+};
+
+export type EditorClusterTreeSelectionOptions = {
+	focus?: boolean;
+};
 
 /** Session-only viewport transform presentation. */
 export type EditorTransformSpace = 'local' | 'world';
@@ -2170,6 +2179,30 @@ export class MuseumEditorStore {
 		);
 	}
 
+	/** Select a placement from the tree without requiring a separate room-row click first. */
+	selectPlacementFromTree(
+		placementId: string,
+		options: EditorPlacementTreeSelectionOptions = {}
+	) {
+		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
+		const placement = this.document.objects.find((object) => object.id === placementId);
+		if (!placement) return false;
+
+		this.selectRoom(placement.roomId);
+		if (this.selectedRoomId !== placement.roomId) return false;
+		this.ensureRoomTreeExpanded(placement.roomId);
+
+		const additive = options.additive ?? false;
+		const selected = additive
+			? this.togglePlacement(placementId)
+			: this.selectPlacement(placementId);
+		if (!selected) return false;
+
+		const shouldFocus = options.focus ?? !additive;
+		if (shouldFocus) this.focusPlacement(placementId);
+		return true;
+	}
+
 	selectPlacement(id: string) {
 		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive || !this.isPlacementSelectable(id)) {
 			return false;
@@ -2223,6 +2256,30 @@ export class MuseumEditorStore {
 		this.selectedClusterId = cluster.id;
 		this.selectedPlacementIds = [...cluster.memberIds];
 		this.transformMode = 'rotate';
+		return true;
+	}
+
+	/** Select and reveal a valid cluster from the tree using its authored room ownership. */
+	selectClusterFromTree(
+		clusterId: string,
+		options: EditorClusterTreeSelectionOptions = {}
+	) {
+		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
+		const cluster = this.clusters.find((candidate) => candidate.id === clusterId);
+		if (!cluster || cluster.memberIds.length === 0) return false;
+		const ownsEveryMember = cluster.memberIds.every((memberId) =>
+			this.document.objects.some(
+				(object) => object.id === memberId && object.roomId === cluster.roomId
+			)
+		);
+		if (!ownsEveryMember) return false;
+
+		this.selectRoom(cluster.roomId);
+		if (this.selectedRoomId !== cluster.roomId) return false;
+		this.ensureRoomTreeExpanded(cluster.roomId);
+		this.ensureClusterTreeExpanded(cluster.id);
+		if (!this.selectCluster(cluster.id)) return false;
+		if (options.focus ?? true) this.focusSelection();
 		return true;
 	}
 
@@ -2296,7 +2353,8 @@ export class MuseumEditorStore {
 		};
 
 		if (!this.beginDocumentTransaction()) return null;
-		(this.document.clusters ??= []).push(cluster);
+		this.document.clusters ??= [];
+		this.document.clusters.push(cluster);
 		if (!this.commitDocumentTransaction()) return null;
 		this.selectCluster(cluster.id);
 		this.setStatusMessage(`Grouped ${memberIds.length} objects`);

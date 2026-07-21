@@ -25,13 +25,13 @@
 	});
 
 	function editorOwnsSceneShortcuts() {
-		if (store.leftPanel !== 'scene') {
-			return Boolean(viewportElement?.contains(document.activeElement));
-		}
 		const active = document.activeElement;
+		if (!active) return false;
+		if (viewportElement?.contains(active)) return true;
 		return Boolean(
-			active &&
-				(outlinerElement?.contains(active) || viewportElement?.contains(active))
+			store.currentWorkspace === 'scene' &&
+				store.leftPanel === 'scene' &&
+				outlinerElement?.contains(active)
 		);
 	}
 

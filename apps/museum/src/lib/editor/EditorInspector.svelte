@@ -25,6 +25,9 @@
 	const selectedObject = $derived(store.selectedObject);
 	const selectedCameraNode = $derived(store.selectedNavigationNode);
 	const selectedNavigation = $derived(store.navigationSelection);
+	const showAssetInspector = $derived(
+		store.currentWorkspace === 'scene' && store.leftPanel === 'assets'
+	);
 	const singleEditableObject = $derived(
 		store.selectedPlacementIds.length === 1 && !store.selectedClusterId
 			? store.selectedObject
@@ -96,7 +99,7 @@
 <aside class="panel inspector" aria-label="Inspector" style="grid-area: right;">
 	<header>
 		<h2>Inspector</h2>
-		{#if store.leftPanel === 'assets'}
+		{#if showAssetInspector}
 			<p>{selectedAsset ? 'Asset library selection' : 'No asset matches the current filters.'}</p>
 		{:else if selectedNavigation?.kind === 'node' && selectedCameraNode}
 			<p class="id">{selectedCameraNode.id} · {store.cameraSelection?.handle}</p>
@@ -119,7 +122,7 @@
 		{/if}
 	</header>
 
-	{#if store.leftPanel === 'assets'}
+	{#if showAssetInspector}
 		{#if selectedAsset}
 			<section class="asset-details" aria-label="Asset details">
 				<div>

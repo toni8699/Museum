@@ -1,6 +1,8 @@
-# Future Plan — Intuitive Camera Path Authoring
+# Archived Plan — Intuitive Camera Path Authoring
 
-**Status:** Proposed; implement after the single-room layout/editor work is complete.
+**Archived:** 2026-07-21. Superseded as active planning authority by [`../../plans/museum-editor-workspace/README-museum-editor.md`](../../plans/museum-editor-workspace/README-museum-editor.md). Path-authoring contracts remain in code and `docs/CAMERA_AND_LAYOUT.md`.
+
+**Original status:** Proposed; implement after the single-room layout/editor work is complete.
 
 **Planning baseline:** `main` at `60846ca` (`phase 5-6`).
 
@@ -32,8 +34,8 @@ Read these files in order, then work from the implementation slices below:
 1. `AGENTS.md` — repository rules and current visitor contracts.
 2. `docs/agent-handoffs/CURRENT.md` — confirm the actual baseline after intervening work.
 3. This plan.
-4. `docs/agent-handoffs/phase-6.md` — camera selection, shared gizmo, preview, modal guards, and exact Orbit restoration.
-5. `docs/agent-handoffs/phase-0.md` — scene document/resolver and visitor/editor graph separation.
+4. `docs/archive/agent-handoffs/phase-6.md` — camera selection, shared gizmo, preview, modal guards, and exact Orbit restoration.
+5. `docs/archive/agent-handoffs/phase-0.md` — scene document/resolver and visitor/editor graph separation.
 6. `apps/museum/src/lib/content/scene.ts` — authoritative document/runtime types and endpoint generation.
 7. `apps/museum/src/lib/content/museum-scene.json` — current eight nodes, eight connections, and 41 interior position waypoints.
 8. `apps/museum/src/lib/content/rooms.ts` — `roomPoint()` / `roomLocalPoint()` and room transforms.

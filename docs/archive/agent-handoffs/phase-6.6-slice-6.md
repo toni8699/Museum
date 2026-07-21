@@ -12,9 +12,9 @@
 ## Read First
 
 1. `AGENTS.md`
-2. `docs/plans/camera-view-authoring.md` — locked Phase 6.6 contract
+2. `docs/archive/plans/camera-view-authoring.md` — locked Phase 6.6 contract
 3. This file
-4. `docs/agent-handoffs/phase-6.5.md`
+4. `docs/archive/agent-handoffs/phase-6.5.md`
 5. `apps/museum/src/lib/editor/museum-editor.svelte.ts`
 6. `apps/museum/src/lib/editor/editor-camera-view.ts`
 7. `apps/museum/src/lib/editor/EditorCameraViewHelpers.svelte`

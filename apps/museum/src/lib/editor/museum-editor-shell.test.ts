@@ -38,6 +38,25 @@ describe('MuseumEditorStore Phase 1 shell session state', () => {
 		expect(store.timelineExpanded).toBe(true);
 	});
 
+	it('keeps the Scene sidebar tab choice across workspace switches without document history', () => {
+		const store = createMuseumEditorStore();
+		expect(store.setLeftPanel('assets')).toBe(true);
+		const beforeJson = store.canonicalJson;
+		const beforeHistory = store.historyVersion;
+
+		expect(store.setWorkspace('camera')).toBe(true);
+		expect(store.currentWorkspace).toBe('camera');
+		expect(store.leftPanel).toBe('assets');
+		expect(store.setWorkspace('scene')).toBe(true);
+		expect(store.currentWorkspace).toBe('scene');
+		expect(store.leftPanel).toBe('assets');
+
+		expect(store.canonicalJson).toBe(beforeJson);
+		expect(store.historyVersion).toBe(beforeHistory);
+		expect(store.isDirty).toBe(false);
+		expect(store.canUndo).toBe(false);
+	});
+
 	it('makes setWorkspace a no-op when the requested workspace equals the current one', () => {
 		const store = createMuseumEditorStore();
 		store.setWorkspace('camera');

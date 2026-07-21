@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatPlacementLabel } from './editor-outliner';
+import { formatCameraNodeLabel, formatPlacementLabel } from './editor-outliner';
 
 describe('formatPlacementLabel', () => {
 	it('turns hyphenated placement ids into readable title case', () => {
@@ -16,5 +16,15 @@ describe('formatPlacementLabel', () => {
 		expect(formatPlacementLabel('  publisher__table-lamp  ')).toBe(
 			'Publisher Table Lamp'
 		);
+	});
+});
+
+describe('formatCameraNodeLabel', () => {
+	it('prefers the authored node label and falls back to a formatted id', () => {
+		expect(formatCameraNodeLabel('  Begin: The First Note  ', 'entrance-start')).toBe(
+			'Begin: The First Note'
+		);
+		expect(formatCameraNodeLabel('   ', 'legacy-return')).toBe('Legacy Return');
+		expect(formatCameraNodeLabel(undefined, 'camera_node-9')).toBe('Camera Node 9');
 	});
 });

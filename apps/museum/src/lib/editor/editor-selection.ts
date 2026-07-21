@@ -1,4 +1,5 @@
 import type { Intersection, Material, Mesh, Object3D } from 'three';
+import type { CameraConnectionDirection } from '$lib/types/museum';
 
 /** Shared opacity floor for normal and Alt selection hit filtering. */
 export const NEAR_INVISIBLE_OPACITY = 0.05;
@@ -33,6 +34,12 @@ export type EditorNavigationSelection =
 			kind: 'anchor';
 			connectionId: string;
 			anchorId: string;
+	  }
+	| {
+			kind: 'view-keyframe';
+			connectionId: string;
+			direction: CameraConnectionDirection;
+			keyframeId: string;
 	  };
 
 export type EditorCameraConnectionUserData = {
@@ -44,6 +51,13 @@ export type EditorCameraAnchorUserData = {
 	editorEntity: 'camera-anchor';
 	connectionId: string;
 	anchorId: string;
+};
+
+export type EditorCameraViewKeyframeUserData = {
+	editorEntity: 'camera-view-keyframe';
+	connectionId: string;
+	direction: CameraConnectionDirection;
+	keyframeId: string;
 };
 
 export type SelectionHitInfo = {
@@ -106,6 +120,19 @@ export function isEditorCameraAnchorUserData(
 	);
 }
 
+export function isEditorCameraViewKeyframeUserData(
+	value: unknown
+): value is EditorCameraViewKeyframeUserData {
+	if (!value || typeof value !== 'object') return false;
+	const data = value as Record<string, unknown>;
+	return (
+		data.editorEntity === 'camera-view-keyframe' &&
+		typeof data.connectionId === 'string' &&
+		(data.direction === 'forward' || data.direction === 'reverse') &&
+		typeof data.keyframeId === 'string'
+	);
+}
+
 /** Climb parents for `userData.editorEntity === 'placement'`. */
 export function findPlacementIdFromObject(object: Object3D | null): string | null {
 	let current: Object3D | null = object;
@@ -153,6 +180,14 @@ export function findNavigationSelectionFromObject(
 				kind: 'anchor',
 				connectionId: current.userData.connectionId,
 				anchorId: current.userData.anchorId
+			};
+		}
+		if (isEditorCameraViewKeyframeUserData(current.userData)) {
+			return {
+				kind: 'view-keyframe',
+				connectionId: current.userData.connectionId,
+				direction: current.userData.direction,
+				keyframeId: current.userData.keyframeId
 			};
 		}
 		if (isEditorCameraConnectionUserData(current.userData)) {
@@ -241,10 +276,17 @@ export function resolveNormalSelection(
 	}
 
 	const anchorHit = effective.find(
-		(hit) => hit.navigationSelection?.kind === 'anchor'
+		(hit) => hit.navigationSelection?.kind === 'view-keyframe'
 	);
 	if (anchorHit?.navigationSelection) {
 		return { action: 'select-navigation', selection: anchorHit.navigationSelection };
+	}
+
+	const pathAnchorHit = effective.find(
+		(hit) => hit.navigationSelection?.kind === 'anchor'
+	);
+	if (pathAnchorHit?.navigationSelection) {
+		return { action: 'select-navigation', selection: pathAnchorHit.navigationSelection };
 	}
 
 	const connectionHit = effective.find(

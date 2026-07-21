@@ -20,6 +20,7 @@
 		placementTransformFromObject
 	} from './editor-transform';
 	import { EDITOR_CAMERA_PATH_MOVE_EPSILON } from './editor-camera-path';
+	import { EDITOR_CAMERA_VIEW_MOVE_EPSILON } from './editor-camera-view';
 	import type { MuseumEditorStore } from './museum-editor.svelte';
 
 	let {
@@ -65,10 +66,21 @@
 		orbitWasEnabled: boolean | null;
 	};
 
+	type ViewTargetTransformSession = {
+		kind: 'view-target';
+		connectionId: string;
+		direction: 'forward' | 'reverse';
+		keyframeId: string;
+		root: Group;
+		startWorldPosition: Vector3;
+		orbitWasEnabled: boolean | null;
+	};
+
 	type TransformSession =
 		| PlacementTransformSession
 		| CameraTransformSession
-		| AnchorTransformSession;
+		| AnchorTransformSession
+		| ViewTargetTransformSession;
 
 	let session: TransformSession | null = null;
 	let shiftHeld = $state(false);
@@ -76,6 +88,9 @@
 	const selectedRoots = $derived(store.getPlacementRoots());
 	const selectedCameraRoot = $derived(store.getSelectedCameraHelperRoot());
 	const selectedAnchorRoot = $derived(store.getSelectedAnchorHelperRoot());
+	const selectedViewTargetRoot = $derived(
+		store.getSelectedViewKeyframeTargetHelperRoot()
+	);
 	const activeTarget = $derived.by(() =>
 		getActiveTransformTarget({
 			previewActive:
@@ -90,7 +105,8 @@
 					: undefined,
 			navigationSelection: store.navigationSelection,
 			cameraObject: selectedCameraRoot,
-			anchorObject: selectedAnchorRoot
+			anchorObject: selectedAnchorRoot,
+			viewTargetObject: selectedViewTargetRoot
 		})
 	);
 	const effectiveRotationSnap = $derived(
@@ -117,7 +133,9 @@
 
 	$effect(() => {
 		const navigationTarget =
-			activeTarget?.kind === 'camera' || activeTarget?.kind === 'anchor';
+			activeTarget?.kind === 'camera' ||
+			activeTarget?.kind === 'anchor' ||
+			activeTarget?.kind === 'view-target';
 		transformControls.mode = navigationTarget ? 'translate' : store.transformMode;
 		transformControls.space = 'world';
 		transformControls.translationSnap = null;
@@ -139,7 +157,11 @@
 		if (!target) return;
 		if (!store.beginDocumentTransaction()) return;
 
-		if (target.kind === 'camera' || target.kind === 'anchor') {
+		if (
+			target.kind === 'camera' ||
+			target.kind === 'anchor' ||
+			target.kind === 'view-target'
+		) {
 			store.setTransformInteractionActive(true, target.kind);
 			const orbitWasEnabled = editorOrbitControls.current?.enabled ?? null;
 			if (editorOrbitControls.current) editorOrbitControls.current.enabled = false;
@@ -154,11 +176,21 @@
 					startWorldPosition,
 					orbitWasEnabled
 				};
-			} else {
+			} else if (target.kind === 'anchor') {
 				session = {
 					kind: 'anchor',
 					connectionId: target.connectionId,
 					anchorId: target.anchorId,
+					root,
+					startWorldPosition,
+					orbitWasEnabled
+				};
+			} else {
+				session = {
+					kind: 'view-target',
+					connectionId: target.connectionId,
+					direction: target.direction,
+					keyframeId: target.keyframeId,
 					root,
 					startWorldPosition,
 					orbitWasEnabled
@@ -217,6 +249,11 @@
 			);
 			return;
 		}
+		if (active.kind === 'view-target') {
+			const world = active.root.getWorldPosition(new Vector3()).toArray() as Vec3;
+			store.updateSelectedViewKeyframeTargetWorldPoint(world);
+			return;
+		}
 
 		if (store.transformMode === 'scale') {
 			enforceUniformObjectScale(pivot, transformControls.axis ?? null);
@@ -246,14 +283,21 @@
 		if (!active) return;
 		previewTransform();
 
-		if (active.kind === 'camera' || active.kind === 'anchor') {
+		if (
+			active.kind === 'camera' ||
+			active.kind === 'anchor' ||
+			active.kind === 'view-target'
+		) {
 			session = null;
 			store.setTransformInteractionActive(false);
 			if (
-				active.kind === 'anchor' &&
+				(active.kind === 'anchor' || active.kind === 'view-target') &&
 				active.root
 					.getWorldPosition(new Vector3())
-					.distanceTo(active.startWorldPosition) <= EDITOR_CAMERA_PATH_MOVE_EPSILON
+					.distanceTo(active.startWorldPosition) <=
+					(active.kind === 'anchor'
+						? EDITOR_CAMERA_PATH_MOVE_EPSILON
+						: EDITOR_CAMERA_VIEW_MOVE_EPSILON)
 			) {
 				store.cancelDocumentTransaction();
 				active.root.position.copy(active.startWorldPosition);

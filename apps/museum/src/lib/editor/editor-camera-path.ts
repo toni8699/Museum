@@ -14,6 +14,7 @@ import {
 	type Vector3Like
 } from '$lib/museum/navigation/camera-motion';
 import type { MuseumRoomId, Vec3 } from '$lib/types/museum';
+import type { CameraConnectionDirection } from '$lib/types/museum';
 import { CurvePath, MathUtils, Vector3 } from 'three';
 
 export const EDITOR_CAMERA_PATH_SAMPLES_PER_METER = 8;
@@ -90,11 +91,24 @@ export function resolveDraftConnectionPathPart(
 /** Build exact shared visitor/editor curve for one live draft connection. */
 export function createDraftConnectionPositionPath(
 	document: MuseumSceneDocument,
-	connectionId: string
+	connectionId: string,
+	direction: CameraConnectionDirection = 'forward'
 ) {
-	return createCameraPositionPath([
-		resolveDraftConnectionPathPart(document, connectionId)
-	]);
+	const part = resolveDraftConnectionPathPart(document, connectionId);
+	if (direction === 'reverse') {
+		return createCameraPositionPath([
+			part.kind === 'rounded-polyline'
+				? {
+						...part,
+						points: [...part.points].reverse()
+					}
+				: {
+						...part,
+						anchors: [...part.anchors].reverse()
+					}
+		]);
+	}
+	return createCameraPositionPath([part]);
 }
 
 /** Smallest free deterministic ID, keeping two digits until index 100. */

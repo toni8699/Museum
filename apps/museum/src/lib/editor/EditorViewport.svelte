@@ -5,6 +5,7 @@
 	import EditorCameraHelpers from './EditorCameraHelpers.svelte';
 	import EditorGrid from './EditorGrid.svelte';
 	import EditorCameraPathHelpers from './EditorCameraPathHelpers.svelte';
+	import EditorCameraViewHelpers from './EditorCameraViewHelpers.svelte';
 	import EditorCameraRig from './EditorCameraRig.svelte';
 	import EditorPlacementTools from './EditorPlacementTools.svelte';
 	import EditorSelection from './EditorSelection.svelte';
@@ -52,6 +53,7 @@
 		</MuseumScene>
 		<EditorGrid visible={store.gridVisible && !store.isVisitorCameraPreview} />
 		<EditorCameraPathHelpers {store} />
+		<EditorCameraViewHelpers {store} />
 		{#if store.pendingNavigationCommand?.kind === 'connect-existing' && !store.isDocumentMutationBlocked}
 			{#each store.document.navigationNodes as node (node.id)}
 				<EditorCameraHelpers {store} nodeId={node.id} positionOnly />

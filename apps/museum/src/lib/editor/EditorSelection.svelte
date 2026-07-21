@@ -157,6 +157,13 @@
 		if (navigationHits.some((result) => result.selection?.kind === 'node')) {
 			return null;
 		}
+		if (
+			navigationHits.some(
+				(result) => result.selection?.kind === 'view-keyframe'
+			)
+		) {
+			return null;
+		}
 		for (const result of navigationHits) {
 			if (result.selection?.kind === 'anchor') {
 				return { hit: result.hit, selection: result.selection };
@@ -356,6 +363,12 @@
 				store.selectConnection(result.selection.connectionId);
 			} else if (result.selection.kind === 'anchor') {
 				store.selectAnchor(result.selection.connectionId, result.selection.anchorId);
+			} else if (result.selection.kind === 'view-keyframe') {
+				store.selectViewKeyframe(
+					result.selection.connectionId,
+					result.selection.direction,
+					result.selection.keyframeId
+				);
 			} else {
 				store.selectNavigationNode(result.selection.nodeId);
 				store.selectCameraHandle(result.selection.handle);

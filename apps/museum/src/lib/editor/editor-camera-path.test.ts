@@ -116,6 +116,23 @@ describe('draft camera path resolution', () => {
 		}
 	});
 
+	it('builds reverse direction from the same shared geometry compiler', () => {
+		const document = createDocument('auto-bezier');
+		const forward = createDraftConnectionPositionPath(document, 'from-to');
+		const reverse = createDraftConnectionPositionPath(
+			document,
+			'from-to',
+			'reverse'
+		);
+		for (const progress of [0, 0.2, 0.5, 0.8, 1]) {
+			expect(
+				reverse
+					.getPointAt(progress)
+					.distanceTo(forward.getPointAt(1 - progress))
+			).toBeLessThan(1e-8);
+		}
+	});
+
 	it('rejects missing connections and missing endpoint nodes', () => {
 		const document = createDocument();
 		expect(() => resolveDraftConnectionPathPart(document, 'missing')).toThrow(

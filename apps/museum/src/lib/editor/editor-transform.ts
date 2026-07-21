@@ -28,6 +28,14 @@ export type ActiveTransformTarget =
 			connectionId: string;
 			anchorId: string;
 	  }
+	| {
+			kind: 'view-target';
+			key: string;
+			object: Object3D;
+			connectionId: string;
+			direction: 'forward' | 'reverse';
+			keyframeId: string;
+	  }
 	| null;
 
 export function getActiveTransformTarget(input: {
@@ -39,6 +47,7 @@ export function getActiveTransformTarget(input: {
 	navigationSelection?: EditorNavigationSelection;
 	cameraObject?: Object3D;
 	anchorObject?: Object3D;
+	viewTargetObject?: Object3D;
 }): ActiveTransformTarget {
 	if (input.previewActive || input.pendingPlacement) return null;
 	const navigationSelection =
@@ -54,6 +63,18 @@ export function getActiveTransformTarget(input: {
 					object: input.anchorObject,
 					connectionId: navigationSelection.connectionId,
 					anchorId: navigationSelection.anchorId
+			  }
+			: null;
+	}
+	if (navigationSelection?.kind === 'view-keyframe') {
+		return input.viewTargetObject
+			? {
+					kind: 'view-target',
+					key: `view-target:${navigationSelection.connectionId}:${navigationSelection.direction}:${navigationSelection.keyframeId}`,
+					object: input.viewTargetObject,
+					connectionId: navigationSelection.connectionId,
+					direction: navigationSelection.direction,
+					keyframeId: navigationSelection.keyframeId
 			  }
 			: null;
 	}

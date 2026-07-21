@@ -1,6 +1,8 @@
 <script lang="ts">
 	import type { Vec3 } from '$lib/types/museum';
 	import EditorVec3Field from './EditorVec3Field.svelte';
+	import EditorCameraFovField from './EditorCameraFovField.svelte';
+	import EditorProgressField from './EditorProgressField.svelte';
 	import type { EditorCameraHandle } from './editor-selection';
 	import type { MuseumEditorStore } from './museum-editor.svelte';
 
@@ -11,6 +13,7 @@
 	const point = $derived(store.selectedCameraPoint);
 	const connection = $derived(store.selectedConnection);
 	const anchor = $derived(store.selectedAnchor);
+	const viewKeyframe = $derived(store.selectedViewKeyframe);
 	const nextNode = $derived(
 		node?.nextNodeId
 			? store.document.navigationNodes.find((candidate) => candidate.id === node.nextNodeId)
@@ -49,6 +52,10 @@
 		return store.commitSelectedAnchorPoint(next);
 	}
 
+	function commitViewTarget(next: Vec3) {
+		return store.commitSelectedViewKeyframeTarget(next);
+	}
+
 	function saveLabel() {
 		if (!node) return;
 		if (!store.commitSelectedNodeLabel(labelDraft)) labelDraft = node.label;
@@ -67,6 +74,10 @@
 
 	function finishAnchorEditing() {
 		store.finishAnchorEditing();
+	}
+
+	function finishViewKeyframeEditing() {
+		store.finishViewKeyframeEditing();
 	}
 </script>
 
@@ -116,6 +127,12 @@
 			/>
 		{/key}
 
+		<EditorCameraFovField
+			value={node.fov}
+			disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
+			oncommit={(fov) => store.commitSelectedNodeFov(fov)}
+		/>
+
 		<div class="topology" aria-label="Camera topology commands">
 			<button
 				type="button"
@@ -152,14 +169,82 @@
 			<div><dt>To</dt><dd>{toNode?.label ?? connection.toNodeId}<small class="id">{connection.toNodeId}</small></dd></div>
 			<div><dt>Anchors</dt><dd>{connection.positionPath.anchors.length}</dd></div>
 			<div><dt>Clearance</dt><dd>{connection.clearance.toFixed(2)} m</dd></div>
+			<div><dt>Forward views</dt><dd>{connection.viewTracks?.forward.length ?? 0}</dd></div>
+			<div><dt>Reverse views</dt><dd>{connection.viewTracks?.reverse.length ?? 0}</dd></div>
 		</dl>
 		<button
 			type="button"
 			disabled={connection.positionPath.kind === 'auto-bezier' || store.isEditorInteractionActive || store.isDocumentMutationBlocked}
 			onclick={() => store.convertSelectedConnectionToSmooth()}
 		>Convert to Smooth Curve</button>
+		<div class="copy-track" aria-label="Copy directional camera view track">
+			<button
+				type="button"
+				disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive || (connection.viewTracks?.forward.length ?? 0) === 0}
+				onclick={() => store.copySelectedConnectionViewTrack('forward')}
+			>Copy forward → reverse</button>
+			<button
+				type="button"
+				disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive || (connection.viewTracks?.reverse.length ?? 0) === 0}
+				onclick={() => store.copySelectedConnectionViewTrack('reverse')}
+			>Copy reverse → forward</button>
+		</div>
 		{#if !store.cameraPreview}
 			<div class="preview">
+				<div>
+					<button type="button" onclick={() => store.previewSelectedConnection('forward', 'director')}>Director {fromNode?.label ?? 'A'} → {toNode?.label ?? 'B'}</button>
+					<button type="button" onclick={() => store.previewSelectedConnection('reverse', 'director')}>Director {toNode?.label ?? 'B'} → {fromNode?.label ?? 'A'}</button>
+					<button type="button" onclick={() => store.previewSelectedConnection('forward', 'visitor')}>Visitor {fromNode?.label ?? 'A'} → {toNode?.label ?? 'B'}</button>
+					<button type="button" onclick={() => store.previewSelectedConnection('reverse', 'visitor')}>Visitor {toNode?.label ?? 'B'} → {fromNode?.label ?? 'A'}</button>
+				</div>
+			</div>
+		{/if}
+	</section>
+{:else if selection?.kind === 'view-keyframe' && connection && viewKeyframe}
+	<section class="camera-node" aria-label="Camera view breakpoint editor">
+		<div class="section-heading">
+			<h2>View breakpoint</h2>
+			<span>{selection.direction}</span>
+		</div>
+		<dl>
+			<div><dt>View key</dt><dd class="id">{viewKeyframe.id}</dd></div>
+			<div><dt>Path</dt><dd class="id">{connection.id}</dd></div>
+			<div><dt>Direction</dt><dd>{selection.direction}</dd></div>
+			<div><dt>Target space</dt><dd>{viewKeyframe.roomId ? `${viewKeyframe.roomId} local` : 'World-space'}</dd></div>
+		</dl>
+		<EditorProgressField
+			value={viewKeyframe.progress}
+			disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
+			oncommit={(progress) => store.commitSelectedViewKeyframeProgress(progress)}
+		/>
+		{#key `${connection.id}:${selection.direction}:${viewKeyframe.id}:target`}
+			<EditorVec3Field
+				legend="Look target (m)"
+				value={viewKeyframe.cameraTarget}
+				step={0.01}
+				disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
+				oncommit={commitViewTarget}
+			/>
+		{/key}
+		<EditorCameraFovField
+			value={viewKeyframe.fov}
+			disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
+			oncommit={(fov) => store.commitSelectedViewKeyframeFov(fov)}
+		/>
+		<button
+			type="button"
+			class="danger"
+			disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
+			onclick={() => store.deleteSelectedViewKeyframe()}
+		>Delete view breakpoint</button>
+		<button
+			type="button"
+			class="done"
+			disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
+			onclick={finishViewKeyframeEditing}
+		>Done editing view</button>
+		{#if !store.cameraPreview}
+			<div class="preview" aria-label="Parent connection preview controls">
 				<div>
 					<button type="button" onclick={() => store.previewSelectedConnection('forward', 'director')}>Director {fromNode?.label ?? 'A'} → {toNode?.label ?? 'B'}</button>
 					<button type="button" onclick={() => store.previewSelectedConnection('reverse', 'director')}>Director {toNode?.label ?? 'B'} → {fromNode?.label ?? 'A'}</button>
@@ -230,7 +315,7 @@
 	.id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
 	.label-field { display: flex; flex-direction: column; gap: 0.3rem; }
 	.label-field input { width: 100%; box-sizing: border-box; padding: 0.42rem; border: 1px solid #3a3a46; border-radius: 0.3rem; background: #101016; color: #f4efe4; }
-	.handles, .topology, .preview div { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.35rem; }
+	.handles, .topology, .preview div, .copy-track { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.35rem; }
 	button { padding: 0.42rem 0.4rem; border: 1px solid #3a3a46; border-radius: 0.3rem; background: #1a1a22; color: #ddd6ca; font: inherit; font-size: 0.72rem; cursor: pointer; }
 	button.active, button.done { border-color: #d6b35f; background: #2a2618; color: #fff2c7; }
 	button.danger { border-color: #744; color: #f1b1aa; }

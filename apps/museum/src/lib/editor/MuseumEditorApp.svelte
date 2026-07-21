@@ -309,6 +309,10 @@
 					event.preventDefault();
 					return;
 				}
+				if (store.finishViewKeyframeEditing()) {
+					event.preventDefault();
+					return;
+				}
 				if (sceneOwnsShortcuts) store.deselect();
 			}
 		};
@@ -524,6 +528,8 @@
 				<p class="id">{selectedNavigation.connectionId} · connection</p>
 			{:else if selectedNavigation?.kind === 'anchor'}
 				<p class="id">{selectedNavigation.anchorId} · anchor</p>
+			{:else if selectedNavigation?.kind === 'view-keyframe'}
+				<p class="id">{selectedNavigation.keyframeId} · {selectedNavigation.direction} view</p>
 			{:else if store.selectedCluster}
 				<p>{store.selectedCluster.name} · {store.selectedPlacementIds.length} selected</p>
 			{:else if store.selectedPlacementIds.length > 1}

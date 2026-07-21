@@ -1305,6 +1305,215 @@ describe('MuseumEditorStore Director preview', () => {
 	});
 });
 
+describe('MuseumEditorStore camera view authoring', () => {
+	it('adds one independent view key at paused Director playhead and refreshes sampling', () => {
+		const store = createMuseumEditorStore();
+		const connection = store.document.connections[0]!;
+		const positionPathBefore = JSON.stringify(connection.positionPath);
+		store.selectConnection(connection.id);
+		expect(store.previewSelectedConnection('forward', 'director')).toBe(true);
+		expect(store.canAddViewKeyframeAtPlayhead).toBe(false);
+		expect(store.setCameraPreviewPlayhead(0.42)).toBe(true);
+		expect(store.canAddViewKeyframeAtPlayhead).toBe(true);
+		const runIdBefore = store.cameraPreview!.runId;
+
+		expect(store.addViewKeyframeAtPlayhead()).toBe(true);
+		expect(store.navigationSelection).toMatchObject({
+			kind: 'view-keyframe',
+			connectionId: connection.id,
+			direction: 'forward'
+		});
+		const keyframe = store.selectedViewKeyframe!;
+		expect(keyframe.id).toBe(`${connection.id}-view-forward-01`);
+		expect(keyframe.progress).toBeGreaterThan(0);
+		expect(keyframe.progress).toBeLessThan(1);
+		expect(Number.isFinite(keyframe.fov)).toBe(true);
+		expect(JSON.stringify(store.selectedConnection!.positionPath)).toBe(
+			positionPathBefore
+		);
+		expect(store.cameraPreview).toMatchObject({
+			mode: 'director',
+			transport: 'paused',
+			playhead: 0.42
+		});
+		expect(store.cameraPreview!.runId).not.toBe(runIdBefore);
+		expect(
+			store.getCapturedCameraPreviewRoute(store.cameraPreview!.runId)?.edges[0]
+				.viewTrack?.keyframes
+		).toHaveLength(1);
+
+		expect(store.undo()).toBe(true);
+		expect(store.selectedConnection?.viewTracks).toBeUndefined();
+		expect(store.navigationSelection).toEqual({
+			kind: 'connection',
+			connectionId: connection.id
+		});
+		expect(store.redo()).toBe(true);
+		expect(store.selectedConnection?.viewTracks?.forward).toHaveLength(1);
+	});
+
+	it('moves anchor-launched authoring to nearest exact curve progress first', () => {
+		const store = createMuseumEditorStore();
+		const connection = store.document.connections[0]!;
+		const anchor = connection.positionPath.anchors[0]!;
+		store.selectAnchor(connection.id, anchor.id);
+		expect(store.previewSelectedConnection('forward', 'director')).toBe(true);
+		expect(store.cameraPreview?.playhead).toBe(0);
+		expect(store.canAddViewKeyframeAtPlayhead).toBe(true);
+
+		expect(store.addViewKeyframeAtPlayhead()).toBe(true);
+		expect(store.cameraPreview!.playhead).toBeGreaterThan(0);
+		expect(store.cameraPreview!.playhead).toBeLessThan(1);
+		expect(store.navigationSelection?.kind).toBe('view-keyframe');
+		expect(store.selectedViewKeyframe?.progress).toBeGreaterThan(0);
+	});
+
+	it('edits target, FOV, and progress atomically while preserving stable selection', () => {
+		const store = createMuseumEditorStore();
+		const connection = store.document.connections[0]!;
+		store.selectConnection(connection.id);
+		store.previewSelectedConnection('forward', 'director');
+		store.setCameraPreviewPlayhead(0.35);
+		store.addViewKeyframeAtPlayhead();
+		const keyframeId = store.selectedViewKeyframe!.id;
+		const initialTarget = [...store.selectedViewKeyframe!.cameraTarget] as [number, number, number];
+		const initialFov = store.selectedViewKeyframe!.fov;
+		const initialProgress = store.selectedViewKeyframe!.progress;
+
+		const nextTarget: [number, number, number] = [
+			initialTarget[0] + 0.4,
+			initialTarget[1] + 0.2,
+			initialTarget[2] - 0.3
+		];
+		expect(
+			store.commitSelectedViewKeyframeTarget([
+				initialTarget[0] + 1e-6,
+				initialTarget[1],
+				initialTarget[2]
+			])
+		).toBe(false);
+		expect(store.commitSelectedViewKeyframeTarget(nextTarget)).toBe(true);
+		expect(store.selectedViewKeyframe?.cameraTarget).toEqual(nextTarget);
+		expect(store.commitSelectedViewKeyframeFov(Math.max(10, initialFov - 5))).toBe(true);
+		expect(store.selectedViewKeyframe?.fov).toBe(Math.max(10, initialFov - 5));
+		const nextProgress = Math.min(0.9, initialProgress + 0.08);
+		expect(store.commitSelectedViewKeyframeProgress(nextProgress)).toBe(true);
+		expect(store.selectedViewKeyframe?.progress).toBe(nextProgress);
+		expect(store.navigationSelection).toMatchObject({
+			kind: 'view-keyframe',
+			keyframeId
+		});
+
+		expect(store.undo()).toBe(true);
+		expect(store.selectedViewKeyframe?.progress).toBe(initialProgress);
+		expect(store.navigationSelection).toMatchObject({
+			kind: 'view-keyframe',
+			keyframeId
+		});
+		expect(store.redo()).toBe(true);
+		expect(store.selectedViewKeyframe?.progress).toBe(nextProgress);
+	});
+
+	it('copies directions with mirrored progress, world framing, fresh IDs, and one undo', () => {
+		const store = createMuseumEditorStore();
+		const connection = store.document.connections[0]!;
+		store.selectConnection(connection.id);
+		store.previewSelectedConnection('forward', 'director');
+		store.setCameraPreviewPlayhead(0.3);
+		store.addViewKeyframeAtPlayhead();
+		store.setCameraPreviewPlayhead(0.7);
+		store.addViewKeyframeAtPlayhead();
+		const forward = store.selectedConnection!.viewTracks!.forward.map((keyframe) => ({
+			...keyframe,
+			cameraTarget: [...keyframe.cameraTarget] as [number, number, number]
+		}));
+
+		expect(store.copySelectedConnectionViewTrack('forward')).toBe(true);
+		const reverse = store.selectedConnection!.viewTracks!.reverse;
+		expect(reverse).toHaveLength(2);
+		expect(reverse.map((keyframe) => keyframe.progress)).toEqual(
+			[...forward].reverse().map((keyframe) => 1 - keyframe.progress)
+		);
+		expect(reverse.map((keyframe) => keyframe.cameraTarget)).toEqual(
+			[...forward].reverse().map((keyframe) => keyframe.cameraTarget)
+		);
+		expect(reverse.map((keyframe) => keyframe.fov)).toEqual(
+			[...forward].reverse().map((keyframe) => keyframe.fov)
+		);
+		expect(reverse.every((keyframe) => keyframe.id.includes('-view-reverse-'))).toBe(true);
+		expect(
+			new Set([...forward, ...reverse].map((keyframe) => keyframe.id)).size
+		).toBe(4);
+
+		expect(store.undo()).toBe(true);
+		expect(store.selectedConnection?.viewTracks?.reverse).toEqual([]);
+		expect(store.redo()).toBe(true);
+		expect(store.selectedConnection?.viewTracks?.reverse).toHaveLength(2);
+	});
+
+	it('owns one view-target helper, supports world gizmo drafts, and reconciles deletion', () => {
+		const store = createMuseumEditorStore();
+		const connection = store.document.connections[0]!;
+		store.selectConnection(connection.id);
+		store.previewSelectedConnection('forward', 'director');
+		store.setCameraPreviewPlayhead(0.5);
+		store.addViewKeyframeAtPlayhead();
+		const selection = store.navigationSelection;
+		if (selection?.kind !== 'view-keyframe') throw new Error('Expected view selection');
+		const root = new Object3D();
+		store.registerViewKeyframeTargetHelperRoot(
+			selection.connectionId,
+			selection.direction,
+			selection.keyframeId,
+			root
+		);
+		expect(store.getSelectedViewKeyframeTargetHelperRoot()).toBe(root);
+		const world = store.selectedViewKeyframeWorldTarget!;
+		const moved: [number, number, number] = [world[0] + 0.5, world[1], world[2] - 0.5];
+		expect(store.beginDocumentTransaction()).toBe(true);
+		expect(store.updateSelectedViewKeyframeTargetWorldPoint(moved)).toBe(true);
+		expect(store.commitDocumentTransaction()).toBe(true);
+		expect(store.selectedViewKeyframeWorldTarget).toEqual(moved);
+
+		expect(store.deleteSelectedViewKeyframe()).toBe(true);
+		expect(store.navigationSelection).toEqual({
+			kind: 'connection',
+			connectionId: connection.id
+		});
+		expect(store.selectedConnection?.viewTracks).toBeUndefined();
+		store.unregisterViewKeyframeTargetHelperRoot(
+			selection.connectionId,
+			selection.direction,
+			selection.keyframeId,
+			root
+		);
+	});
+
+	it('edits node FOV once and exposes view Done as selection-only', () => {
+		const store = createMuseumEditorStore();
+		store.selectNavigationNode('paris-seat');
+		const initialFov = store.selectedNavigationNode!.fov;
+		expect(store.commitSelectedNodeFov(initialFov - 3)).toBe(true);
+		expect(store.selectedNavigationNode?.fov).toBe(initialFov - 3);
+		expect(store.commitSelectedNodeFov(121)).toBe(false);
+		expect(store.undo()).toBe(true);
+		expect(store.selectedNavigationNode?.fov).toBe(initialFov);
+
+		const connection = store.document.connections[0]!;
+		store.selectConnection(connection.id);
+		store.previewSelectedConnection('forward', 'director');
+		store.setCameraPreviewPlayhead(0.5);
+		store.addViewKeyframeAtPlayhead();
+		const documentBefore = serializeSceneDocument(store.document);
+		expect(store.finishViewKeyframeEditing()).toBe(true);
+		expect(store.navigationSelection).toEqual({
+			kind: 'connection',
+			connectionId: connection.id
+		});
+		expect(serializeSceneDocument(store.document)).toBe(documentBefore);
+	});
+});
+
 describe('editor placement transforms', () => {
 	it('converts degrees and radians at the inspector boundary', () => {
 		expect(radiansToDegrees(Math.PI / 2)).toBeCloseTo(90);

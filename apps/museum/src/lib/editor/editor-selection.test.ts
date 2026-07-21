@@ -6,6 +6,7 @@ import {
 	isEditorCameraAnchorUserData,
 	isEditorCameraConnectionUserData,
 	isEditorCameraHandleUserData,
+	isEditorCameraViewKeyframeUserData,
 	resolveNormalSelection,
 	selectionHitFromIntersection,
 	uniquePlacementIdsInOrder,
@@ -175,5 +176,59 @@ describe('editor camera-helper selection', () => {
 			selection: anchorSelection
 		});
 		expect(uniquePlacementIdsInOrder(hits)).toEqual(['chair']);
+	});
+
+	it('recognizes view-key tags and gives them path-pick precedence', () => {
+		expect(
+			isEditorCameraViewKeyframeUserData({
+				editorEntity: 'camera-view-keyframe',
+				connectionId: 'a-b',
+				direction: 'forward',
+				keyframeId: 'a-b-view-forward-01'
+			})
+		).toBe(true);
+		expect(
+			isEditorCameraViewKeyframeUserData({
+				editorEntity: 'camera-view-keyframe',
+				connectionId: 'a-b',
+				direction: 'sideways',
+				keyframeId: 'bad'
+			})
+		).toBe(false);
+
+		const connectionRoot = new Object3D();
+		connectionRoot.userData = {
+			editorEntity: 'camera-connection',
+			connectionId: 'a-b'
+		};
+		const viewRoot = new Object3D();
+		viewRoot.userData = {
+			editorEntity: 'camera-view-keyframe',
+			connectionId: 'a-b',
+			direction: 'reverse',
+			keyframeId: 'a-b-view-reverse-01'
+		};
+		const viewChild = new Object3D();
+		viewRoot.add(viewChild);
+		const viewSelection = {
+			kind: 'view-keyframe' as const,
+			connectionId: 'a-b',
+			direction: 'reverse' as const,
+			keyframeId: 'a-b-view-reverse-01'
+		};
+		expect(findNavigationSelectionFromObject(viewChild)).toEqual(viewSelection);
+		expect(
+			resolveNormalSelection([
+				{
+					opacity: 1,
+					placementId: 'chair',
+					navigationSelection: {
+						kind: 'connection',
+						connectionId: 'a-b'
+					}
+				},
+				{ opacity: 1, placementId: null, navigationSelection: viewSelection }
+			])
+		).toEqual({ action: 'select-navigation', selection: viewSelection });
 	});
 });

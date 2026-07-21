@@ -1018,6 +1018,25 @@ export function cameraMotionProgressAtEdgeProgress(
   return inverseSmootherstep01(distance / motion.totalPositionDistance);
 }
 
+/** Map raw transition/playhead progress to exact edge-local distance progress. */
+export function cameraMotionEdgeProgressAtProgress(
+  motion: CameraMotion,
+  edgeIndex: number,
+  progress: number
+) {
+  if (!Number.isInteger(edgeIndex) || edgeIndex < 0 || edgeIndex >= motion.positionEdgeSpans.length) {
+    throw new Error('Camera motion edge index is out of range');
+  }
+  if (!Number.isFinite(progress)) {
+    throw new Error('Camera motion progress must be finite');
+  }
+  return getEdgeLocalProgress(
+    motion,
+    edgeIndex,
+    smootherstep01(MathUtils.clamp(progress, 0, 1))
+  );
+}
+
 function findActiveEdgeIndex(motion: CameraMotion, easedProgress: number) {
   const spans = motion.positionEdgeSpans;
   if (spans.length === 0) return -1;

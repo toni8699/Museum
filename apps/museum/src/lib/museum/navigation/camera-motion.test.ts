@@ -9,6 +9,7 @@ import {
   CAMERA_MOTION_PATH,
   CAMERA_MOTION_TIMING,
   VISITOR_CAMERA_PROJECTION,
+  cameraMotionEdgeProgressAtProgress,
   cameraMotionProgressAtEdgeProgress,
   compileCameraPositionPath,
   createCameraMotion,
@@ -977,6 +978,15 @@ describe('cameraMotionProgressAtEdgeProgress', () => {
     expect(sample.position.x).toBeCloseTo(2.5, 8);
     expect(cameraMotionProgressAtEdgeProgress(motion, 0, 0)).toBe(0);
     expect(cameraMotionProgressAtEdgeProgress(motion, 0, 1)).toBe(1);
+
+    expect(
+      cameraMotionEdgeProgressAtProgress(motion, 0, progress)
+    ).toBeCloseTo(0.25, 10);
+    expect(cameraMotionEdgeProgressAtProgress(motion, 0, 0)).toBe(0);
+    expect(cameraMotionEdgeProgressAtProgress(motion, 0, 1)).toBe(1);
+    expect(() => cameraMotionEdgeProgressAtProgress(motion, 1, 0.5)).toThrow(
+      'Camera motion edge index is out of range'
+    );
   });
 });
 

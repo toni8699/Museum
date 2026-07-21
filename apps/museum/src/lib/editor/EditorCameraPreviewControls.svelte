@@ -53,6 +53,14 @@
 				{/if}
 				<button type="button" disabled={preview.mode !== 'director' || preview.transport === 'playing'} onclick={() => store.stepCameraPreview(1)}>Next</button>
 			</div>
+			{#if preview.kind === 'connection' && preview.mode === 'director'}
+				<button
+					type="button"
+					class="add-view"
+					disabled={!store.canAddViewKeyframeAtPlayhead}
+					onclick={() => store.addViewKeyframeAtPlayhead()}
+				>Add view breakpoint at playhead</button>
+			{/if}
 		{/if}
 		{#if preview.mode === 'director'}
 			<div class="director">
@@ -77,7 +85,7 @@
 	label { display: flex; flex-direction: column; gap: 0.25rem; color: #8f8a82; font-size: 0.67rem; letter-spacing: 0.04em; text-transform: uppercase; }
 	input { width: 100%; margin: 0; }
 	button { padding: 0.42rem 0.4rem; border: 1px solid #3a3a46; border-radius: 0.3rem; background: #1a1a22; color: #ddd6ca; font: inherit; font-size: 0.72rem; cursor: pointer; }
-	button.active, button.stop { border-color: #d6b35f; background: #2a2618; color: #fff2c7; }
+	button.active, button.stop, button.add-view { border-color: #d6b35f; background: #2a2618; color: #fff2c7; }
 	button:disabled, input:disabled { opacity: 0.42; cursor: default; }
 	.stop { align-self: flex-start; }
 </style>

@@ -4,6 +4,7 @@ import {
 	museumSceneDocument,
 	resolveSceneDocument,
 	type MuseumSceneDocument,
+	type SceneCameraViewKeyframe,
 	type RuntimeMuseumScene,
 	type SceneObjectCluster,
 	type SceneObjectPlacement
@@ -17,11 +18,15 @@ import { getAssetById, resolveAssetFallback } from '$lib/content/assets';
 import { roomLocalPoint, roomPoint } from '$lib/content/rooms';
 import { createMuseumState, type MuseumStateStore } from '$lib/state/museum-state.svelte';
 import {
+	cameraMotionEdgeProgressAtProgress,
 	cameraMotionProgressAtEdgeProgress,
-	createCameraMotion
+	createCameraMotion,
+	createCameraMotionSample,
+	sampleCameraMotion
 } from '$lib/museum/navigation/camera-motion';
 import {
 	MUSEUM_CAMERA_FOV,
+	type CameraConnectionDirection,
 	type MuseumRoomId,
 	type Vec3
 } from '$lib/types/museum';
@@ -52,11 +57,22 @@ import {
 } from './editor-transform';
 import {
 	allocateCameraPathAnchorId,
+	createDraftConnectionPositionPath,
 	createScenePathAnchorAtWorldPoint,
+	findNearestCurveProgress,
 	findScenePathAnchor,
 	getScenePathAnchorWorldPosition,
 	writeScenePathAnchorWorldPosition
 } from './editor-camera-path';
+import {
+	allocateCameraViewKeyframeId,
+	createSceneCameraViewKeyframeAtWorldTarget,
+	EDITOR_CAMERA_VIEW_MOVE_EPSILON,
+	EDITOR_CAMERA_VIEW_PROGRESS_EPSILON,
+	findSceneCameraViewKeyframe,
+	getSceneCameraViewKeyframeWorldTarget,
+	writeSceneCameraViewKeyframeWorldTarget
+} from './editor-camera-view';
 
 const HISTORY_LIMIT = 100;
 const STATUS_MESSAGE_MS = 2500;
@@ -154,8 +170,20 @@ function anchorHelperKey(connectionId: string, anchorId: string) {
 	return `${connectionId}${CAMERA_HELPER_KEY_SEPARATOR}${anchorId}`;
 }
 
+function viewKeyframeHelperKey(
+	connectionId: string,
+	direction: CameraConnectionDirection,
+	keyframeId: string
+) {
+	return [connectionId, direction, keyframeId].join(CAMERA_HELPER_KEY_SEPARATOR);
+}
+
 function vec3Matches(a: Vec3, b: Vec3) {
 	return a[0] === b[0] && a[1] === b[1] && a[2] === b[2];
+}
+
+function vec3Distance(a: Vec3, b: Vec3) {
+	return Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 }
 
 function isFiniteVec3(value: Vec3) {
@@ -269,12 +297,15 @@ export class MuseumEditorStore {
 	hoveredConnectionId = $state<string | null>(null);
 	hoveredAnchorId = $state<string | null>(null);
 	transformInteractionActive = $state(false);
-	transformInteractionKind = $state<'placement' | 'camera' | 'anchor' | null>(null);
+	transformInteractionKind = $state<
+		'placement' | 'camera' | 'anchor' | 'view-target' | null
+	>(null);
 	directPathInteractionActive = $state(false);
 
 	#placementRoots = new Map<string, Object3D>();
 	#cameraHelperRoots = new Map<string, Object3D>();
 	#anchorHelperRoots = new Map<string, Object3D>();
+	#viewKeyframeTargetHelperRoots = new Map<string, Object3D>();
 	#cancelTransform: (() => boolean) | null = null;
 	#cancelDirectPathDrag: (() => boolean) | null = null;
 	#restoreCameraPreview: (() => boolean) | null = null;
@@ -360,7 +391,9 @@ export class MuseumEditorStore {
 	get selectedConnection() {
 		const selection = this.navigationSelection;
 		const connectionId =
-			selection?.kind === 'connection' || selection?.kind === 'anchor'
+			selection?.kind === 'connection' ||
+			selection?.kind === 'anchor' ||
+			selection?.kind === 'view-keyframe'
 				? selection.connectionId
 				: null;
 		return connectionId
@@ -374,6 +407,35 @@ export class MuseumEditorStore {
 		return this.selectedConnection?.positionPath.anchors.find(
 			(anchor) => anchor.id === selection.anchorId
 		);
+	}
+
+	get selectedViewKeyframe(): SceneCameraViewKeyframe | undefined {
+		const selection = this.navigationSelection;
+		if (selection?.kind !== 'view-keyframe') return undefined;
+		return (
+			findSceneCameraViewKeyframe(
+				this.document,
+				selection.connectionId,
+				selection.direction,
+				selection.keyframeId
+			) ?? undefined
+		);
+	}
+
+	get selectedViewKeyframeWorldTarget(): Vec3 | undefined {
+		const keyframe = this.selectedViewKeyframe;
+		return keyframe
+			? getSceneCameraViewKeyframeWorldTarget(keyframe)
+			: undefined;
+	}
+
+	get activeViewKeyframeDirection(): CameraConnectionDirection | null {
+		const preview = this.cameraPreview;
+		if (preview?.kind === 'connection' && preview.mode === 'director') {
+			return preview.direction;
+		}
+		const selection = this.navigationSelection;
+		return selection?.kind === 'view-keyframe' ? selection.direction : null;
 	}
 
 	get selectedCameraPoint(): Vec3 | undefined {
@@ -402,6 +464,34 @@ export class MuseumEditorStore {
 	get isCameraPreviewPaused() {
 		return this.cameraPreview?.mode === 'director' &&
 			this.cameraPreview.transport === 'paused';
+	}
+
+	get canAddViewKeyframeAtPlayhead() {
+		const preview = this.cameraPreview;
+		const connection = this.selectedConnection;
+		if (
+			!preview ||
+			preview.kind !== 'connection' ||
+			preview.mode !== 'director' ||
+			preview.transport !== 'paused' ||
+			preview.connectionId !== connection?.id ||
+			this.isEditorInteractionActive ||
+			this.isDocumentTransactionActive
+		) {
+			return false;
+		}
+		const authoring = this.#getViewKeyframeAuthoringSample(preview);
+		if (!authoring) return false;
+		const progress = authoring.edgeProgress;
+		return (
+			progress > EDITOR_CAMERA_VIEW_PROGRESS_EPSILON &&
+			progress < 1 - EDITOR_CAMERA_VIEW_PROGRESS_EPSILON &&
+			!(connection.viewTracks?.[preview.direction] ?? []).some(
+				(keyframe) =>
+					Math.abs(keyframe.progress - progress) <=
+					EDITOR_CAMERA_VIEW_PROGRESS_EPSILON
+			)
+		);
 	}
 
 	/** Visitor and active Director transport own immutable document state. */
@@ -598,6 +688,99 @@ export class MuseumEditorStore {
 		return true;
 	}
 
+	selectViewKeyframe(
+		connectionId: string,
+		direction: CameraConnectionDirection,
+		keyframeId: string
+	) {
+		if (
+			this.isDocumentMutationBlocked ||
+			this.isEditorInteractionActive ||
+			this.pendingNavigationCommand
+		) {
+			return false;
+		}
+		const keyframe = findSceneCameraViewKeyframe(
+			this.document,
+			connectionId,
+			direction,
+			keyframeId
+		);
+		if (!keyframe) return false;
+
+		const current = this.navigationSelection;
+		const changed = !(
+			current?.kind === 'view-keyframe' &&
+			current.connectionId === connectionId &&
+			current.direction === direction &&
+			current.keyframeId === keyframeId
+		);
+		if (changed) {
+			this.cancelAssetPlacement();
+			this.cancelPendingFrame();
+			this.#clearPlacementSelection();
+			this.navigationSelection = {
+				kind: 'view-keyframe',
+				connectionId,
+				direction,
+				keyframeId
+			};
+		}
+
+		const preview = this.cameraPreview;
+		let movedPlayhead = false;
+		if (
+			preview?.kind === 'connection' &&
+			preview.mode === 'director' &&
+			preview.transport === 'paused' &&
+			preview.connectionId === connectionId &&
+			preview.direction === direction
+		) {
+			const route = this.getCapturedCameraPreviewRoute(preview.runId);
+			if (route) {
+				const progress = cameraMotionProgressAtEdgeProgress(
+					createCameraMotion(route),
+					0,
+					keyframe.progress
+				);
+				movedPlayhead = this.setCameraPreviewPlayhead(progress);
+			}
+		}
+		return changed || movedPlayhead;
+	}
+
+	/** Leave a view key without changing the document or history. */
+	finishViewKeyframeEditing() {
+		if (
+			this.isDocumentMutationBlocked ||
+			this.isEditorInteractionActive ||
+			this.pendingNavigationCommand
+		) {
+			return false;
+		}
+		const selection = this.navigationSelection;
+		if (selection?.kind !== 'view-keyframe') return false;
+		const connection = this.document.connections.find(
+			(candidate) => candidate.id === selection.connectionId
+		);
+		if (
+			!connection ||
+			!findSceneCameraViewKeyframe(
+				this.document,
+				selection.connectionId,
+				selection.direction,
+				selection.keyframeId
+			)
+		) {
+			return false;
+		}
+		this.navigationSelection = {
+			kind: 'connection',
+			connectionId: connection.id
+		};
+		return true;
+	}
+
 	focusNavigationNode(id: string) {
 		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
 		if (!this.document.navigationNodes.some((node) => node.id === id)) return false;
@@ -761,6 +944,297 @@ export class MuseumEditorStore {
 		if (!node || !next || next === node.label) return false;
 		if (!this.beginDocumentTransaction()) return false;
 		node.label = next;
+		return this.commitDocumentTransaction();
+	}
+
+	commitSelectedNodeFov(fov: number) {
+		if (
+			this.isDocumentMutationBlocked ||
+			this.isEditorInteractionActive ||
+			!Number.isFinite(fov) ||
+			fov < MUSEUM_CAMERA_FOV.min ||
+			fov > MUSEUM_CAMERA_FOV.max
+		) {
+			return false;
+		}
+		const node = this.selectedNavigationNode;
+		if (!node || Math.abs(node.fov - fov) <= 1e-6) return false;
+		if (!this.beginDocumentTransaction()) return false;
+		node.fov = fov;
+		return this.commitDocumentTransaction();
+	}
+
+	#getViewKeyframeAuthoringSample(
+		preview: Extract<Exclude<EditorCameraPreview, null>, { kind: 'connection' }>
+	) {
+		const route = this.getCapturedCameraPreviewRoute(preview.runId);
+		if (!route) return null;
+		const motion = createCameraMotion(route);
+		let playhead = preview.playhead;
+		let edgeProgress: number;
+		const selection = this.navigationSelection;
+		if (
+			selection?.kind === 'anchor' &&
+			selection.connectionId === preview.connectionId
+		) {
+			const anchor = this.selectedAnchor;
+			if (!anchor) return null;
+			const path = createDraftConnectionPositionPath(
+				this.document,
+				preview.connectionId,
+				preview.direction
+			);
+			edgeProgress = findNearestCurveProgress(
+				path,
+				getScenePathAnchorWorldPosition(anchor)
+			);
+			playhead = cameraMotionProgressAtEdgeProgress(
+				motion,
+				0,
+				edgeProgress
+			);
+		} else {
+			edgeProgress = cameraMotionEdgeProgressAtProgress(
+				motion,
+				0,
+				playhead
+			);
+		}
+		return { motion, playhead, edgeProgress };
+	}
+
+	addViewKeyframeAtPlayhead() {
+		const preview = this.cameraPreview;
+		const connection = this.selectedConnection;
+		if (
+			!preview ||
+			preview.kind !== 'connection' ||
+			preview.mode !== 'director' ||
+			preview.transport !== 'paused' ||
+			preview.connectionId !== connection?.id ||
+			this.isEditorInteractionActive ||
+			this.isDocumentTransactionActive
+		) {
+			return false;
+		}
+		const authoring = this.#getViewKeyframeAuthoringSample(preview);
+		if (!authoring) return false;
+		const { edgeProgress, motion, playhead } = authoring;
+		if (
+			edgeProgress <= EDITOR_CAMERA_VIEW_PROGRESS_EPSILON ||
+			edgeProgress >= 1 - EDITOR_CAMERA_VIEW_PROGRESS_EPSILON
+		) {
+			this.setStatusMessage('Move the Director playhead inside the connection');
+			return false;
+		}
+		const track = connection.viewTracks?.[preview.direction] ?? [];
+		if (
+			track.some(
+				(keyframe) =>
+					Math.abs(keyframe.progress - edgeProgress) <=
+					EDITOR_CAMERA_VIEW_PROGRESS_EPSILON
+			)
+		) {
+			this.setStatusMessage('A view breakpoint already exists at this progress');
+			return false;
+		}
+
+		this.setCameraPreviewPlayhead(playhead, preview.runId);
+		const sample = createCameraMotionSample();
+		sampleCameraMotion(motion, playhead, sample);
+		const existingIds = [
+			...(connection.viewTracks?.forward ?? []),
+			...(connection.viewTracks?.reverse ?? [])
+		].map((keyframe) => keyframe.id);
+		const id = allocateCameraViewKeyframeId(
+			connection.id,
+			preview.direction,
+			existingIds
+		);
+		const keyframe = createSceneCameraViewKeyframeAtWorldTarget(
+			id,
+			edgeProgress,
+			sample.target,
+			sample.fov,
+			this.selectedRoomId
+		);
+
+		if (!this.beginDocumentTransaction()) return false;
+		connection.viewTracks ??= { forward: [], reverse: [] };
+		connection.viewTracks[preview.direction].push(keyframe);
+		connection.viewTracks[preview.direction].sort(
+			(left, right) => left.progress - right.progress
+		);
+		this.navigationSelection = {
+			kind: 'view-keyframe',
+			connectionId: connection.id,
+			direction: preview.direction,
+			keyframeId: id
+		};
+		return this.commitDocumentTransaction();
+	}
+
+	updateSelectedViewKeyframeTargetWorldPoint(worldTarget: Vec3) {
+		if (!this.#transactionBefore || !isFiniteVec3(worldTarget)) return false;
+		const keyframe = this.selectedViewKeyframe;
+		if (!keyframe) return false;
+		const current = getSceneCameraViewKeyframeWorldTarget(keyframe);
+		if (vec3Matches(current, worldTarget)) return false;
+		writeSceneCameraViewKeyframeWorldTarget(keyframe, worldTarget);
+		return true;
+	}
+
+	commitSelectedViewKeyframeTarget(target: Vec3) {
+		if (
+			this.isDocumentMutationBlocked ||
+			this.isEditorInteractionActive ||
+			!isFiniteVec3(target)
+		) {
+			return false;
+		}
+		const keyframe = this.selectedViewKeyframe;
+		if (
+			!keyframe ||
+			vec3Distance(keyframe.cameraTarget, target) <=
+				EDITOR_CAMERA_VIEW_MOVE_EPSILON
+		) {
+			return false;
+		}
+		if (!this.beginDocumentTransaction()) return false;
+		keyframe.cameraTarget = [...target];
+		return this.commitDocumentTransaction();
+	}
+
+	commitSelectedViewKeyframeFov(fov: number) {
+		if (
+			this.isDocumentMutationBlocked ||
+			this.isEditorInteractionActive ||
+			!Number.isFinite(fov) ||
+			fov < MUSEUM_CAMERA_FOV.min ||
+			fov > MUSEUM_CAMERA_FOV.max
+		) {
+			return false;
+		}
+		const keyframe = this.selectedViewKeyframe;
+		if (!keyframe || Math.abs(keyframe.fov - fov) <= 1e-6) return false;
+		if (!this.beginDocumentTransaction()) return false;
+		keyframe.fov = fov;
+		return this.commitDocumentTransaction();
+	}
+
+	commitSelectedViewKeyframeProgress(progress: number) {
+		if (
+			this.isDocumentMutationBlocked ||
+			this.isEditorInteractionActive ||
+			!Number.isFinite(progress) ||
+			progress <= 0 ||
+			progress >= 1
+		) {
+			return false;
+		}
+		const selection = this.navigationSelection;
+		const connection = this.selectedConnection;
+		const keyframe = this.selectedViewKeyframe;
+		if (
+			selection?.kind !== 'view-keyframe' ||
+			!connection?.viewTracks ||
+			!keyframe ||
+			Math.abs(keyframe.progress - progress) <=
+				EDITOR_CAMERA_VIEW_PROGRESS_EPSILON
+		) {
+			return false;
+		}
+		const track = connection.viewTracks[selection.direction];
+		if (
+			track.some(
+				(candidate) =>
+					candidate.id !== keyframe.id &&
+					Math.abs(candidate.progress - progress) <=
+						EDITOR_CAMERA_VIEW_PROGRESS_EPSILON
+			)
+		) {
+			this.setStatusMessage('View breakpoint progress must be unique');
+			return false;
+		}
+		if (!this.beginDocumentTransaction()) return false;
+		keyframe.progress = progress;
+		track.sort((left, right) => left.progress - right.progress);
+		return this.commitDocumentTransaction();
+	}
+
+	deleteSelectedViewKeyframe() {
+		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) {
+			return false;
+		}
+		const selection = this.navigationSelection;
+		const connection = this.selectedConnection;
+		if (
+			selection?.kind !== 'view-keyframe' ||
+			!connection?.viewTracks
+		) {
+			return false;
+		}
+		const track = connection.viewTracks[selection.direction];
+		const index = track.findIndex(
+			(keyframe) => keyframe.id === selection.keyframeId
+		);
+		if (index < 0 || !this.beginDocumentTransaction()) return false;
+		track.splice(index, 1);
+		if (
+			connection.viewTracks.forward.length === 0 &&
+			connection.viewTracks.reverse.length === 0
+		) {
+			delete connection.viewTracks;
+		}
+		this.navigationSelection = {
+			kind: 'connection',
+			connectionId: connection.id
+		};
+		return this.commitDocumentTransaction();
+	}
+
+	copySelectedConnectionViewTrack(source: CameraConnectionDirection) {
+		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) {
+			return false;
+		}
+		const connection = this.selectedConnection;
+		if (!connection) return false;
+		const destination: CameraConnectionDirection =
+			source === 'forward' ? 'reverse' : 'forward';
+		const sourceTrack = connection.viewTracks?.[source] ?? [];
+		const destinationTrack = connection.viewTracks?.[destination] ?? [];
+		if (sourceTrack.length === 0 && destinationTrack.length === 0) return false;
+
+		const occupied = new Set(
+			[
+				...(connection.viewTracks?.forward ?? []),
+				...(connection.viewTracks?.reverse ?? [])
+			].map((keyframe) => keyframe.id)
+		);
+		const copied = [...sourceTrack].reverse().map((keyframe) => {
+			const id = allocateCameraViewKeyframeId(
+				connection.id,
+				destination,
+				occupied
+			);
+			occupied.add(id);
+			return {
+				id,
+				progress: 1 - keyframe.progress,
+				cameraTarget: [...keyframe.cameraTarget] as Vec3,
+				...(keyframe.roomId === undefined ? {} : { roomId: keyframe.roomId }),
+				fov: keyframe.fov
+			};
+		});
+		if (!this.beginDocumentTransaction()) return false;
+		connection.viewTracks ??= { forward: [], reverse: [] };
+		connection.viewTracks[destination] = copied;
+		if (
+			connection.viewTracks.forward.length === 0 &&
+			connection.viewTracks.reverse.length === 0
+		) {
+			delete connection.viewTracks;
+		}
 		return this.commitDocumentTransaction();
 	}
 
@@ -1172,7 +1646,7 @@ export class MuseumEditorStore {
 
 	setTransformInteractionActive(
 		active: boolean,
-		kind: 'placement' | 'camera' | 'anchor' | null = active
+		kind: 'placement' | 'camera' | 'anchor' | 'view-target' | null = active
 			? this.transformInteractionKind
 			: null
 	) {
@@ -1978,6 +2452,22 @@ export class MuseumEditorStore {
 					connectionId: connection.id
 				};
 			}
+		} else if (navigationSelection?.kind === 'view-keyframe') {
+			const connection = this.document.connections.find(
+				(candidate) => candidate.id === navigationSelection.connectionId
+			);
+			if (!connection) {
+				this.navigationSelection = null;
+			} else if (
+				!connection.viewTracks?.[navigationSelection.direction].some(
+					(keyframe) => keyframe.id === navigationSelection.keyframeId
+				)
+			) {
+				this.navigationSelection = {
+					kind: 'connection',
+					connectionId: connection.id
+				};
+			}
 		}
 		if (this.selectedClusterId) {
 			const cluster = this.clusters.find(
@@ -2144,6 +2634,52 @@ export class MuseumEditorStore {
 		const selection = this.navigationSelection;
 		return selection?.kind === 'anchor'
 			? this.getAnchorHelperRoot(selection.connectionId, selection.anchorId)
+			: undefined;
+	}
+
+	registerViewKeyframeTargetHelperRoot(
+		connectionId: string,
+		direction: CameraConnectionDirection,
+		keyframeId: string,
+		root: Object3D
+	) {
+		const key = viewKeyframeHelperKey(connectionId, direction, keyframeId);
+		if (this.#viewKeyframeTargetHelperRoots.get(key) === root) return;
+		this.#viewKeyframeTargetHelperRoots.set(key, root);
+		this.#bumpRegistryVersion();
+	}
+
+	unregisterViewKeyframeTargetHelperRoot(
+		connectionId: string,
+		direction: CameraConnectionDirection,
+		keyframeId: string,
+		root: Object3D
+	) {
+		const key = viewKeyframeHelperKey(connectionId, direction, keyframeId);
+		if (this.#viewKeyframeTargetHelperRoots.get(key) !== root) return;
+		this.#viewKeyframeTargetHelperRoots.delete(key);
+		this.#bumpRegistryVersion();
+	}
+
+	getViewKeyframeTargetHelperRoot(
+		connectionId: string,
+		direction: CameraConnectionDirection,
+		keyframeId: string
+	): Object3D | undefined {
+		void this.registryVersion;
+		return this.#viewKeyframeTargetHelperRoots.get(
+			viewKeyframeHelperKey(connectionId, direction, keyframeId)
+		);
+	}
+
+	getSelectedViewKeyframeTargetHelperRoot(): Object3D | undefined {
+		const selection = this.navigationSelection;
+		return selection?.kind === 'view-keyframe'
+			? this.getViewKeyframeTargetHelperRoot(
+					selection.connectionId,
+					selection.direction,
+					selection.keyframeId
+				)
 			: undefined;
 	}
 }

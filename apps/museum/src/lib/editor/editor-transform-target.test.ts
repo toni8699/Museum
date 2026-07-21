@@ -68,6 +68,29 @@ describe('getActiveTransformTarget', () => {
 		});
 	});
 
+	it('resolves selected view targets without falling back to placement', () => {
+		const viewTargetObject = new Object3D();
+		expect(
+			getActiveTransformTarget({
+				...base,
+				navigationSelection: {
+					kind: 'view-keyframe',
+					connectionId: 'a-b',
+					direction: 'forward',
+					keyframeId: 'a-b-view-forward-01'
+				},
+				viewTargetObject
+			})
+		).toEqual({
+			kind: 'view-target',
+			key: 'view-target:a-b:forward:a-b-view-forward-01',
+			object: viewTargetObject,
+			connectionId: 'a-b',
+			direction: 'forward',
+			keyframeId: 'a-b-view-forward-01'
+		});
+	});
+
 	it('detaches every target for preview and pending placement modes', () => {
 		expect(getActiveTransformTarget({ ...base, previewActive: true })).toBeNull();
 		expect(getActiveTransformTarget({ ...base, pendingPlacement: true })).toBeNull();

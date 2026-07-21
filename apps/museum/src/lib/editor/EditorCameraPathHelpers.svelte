@@ -174,7 +174,9 @@
 		const document = store.document;
 		const selection = store.navigationSelection;
 		const selectedConnectionId =
-			selection?.kind === 'connection' || selection?.kind === 'anchor'
+			selection?.kind === 'connection' ||
+			selection?.kind === 'anchor' ||
+			selection?.kind === 'view-keyframe'
 				? selection.connectionId
 				: null;
 		const hoveredConnectionId = store.hoveredConnectionId;

@@ -409,6 +409,7 @@
 
 <T.PerspectiveCamera
 	bind:ref={camera}
+	attach={false}
 	makeDefault
 	position={EDITOR_NEUTRAL_CAMERA_POSITION}
 	fov={EDITOR_CAMERA_FOV}
@@ -417,6 +418,7 @@
 />
 <T.PerspectiveCamera
 	bind:ref={virtualCamera}
+	attach={false}
 	fov={VISITOR_CAMERA_PROJECTION.fov}
 	near={VISITOR_CAMERA_PROJECTION.near}
 	far={VISITOR_CAMERA_PROJECTION.far}

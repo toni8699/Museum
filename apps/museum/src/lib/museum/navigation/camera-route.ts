@@ -78,6 +78,25 @@ function findConnectionPath(
   throw new Error(`No camera route from ${fromNodeId} to ${toNodeId}`);
 }
 
+function findDirectConnection(
+  fromNodeId: string,
+  toNodeId: string,
+  graph: NavigationGraph
+): OrientedConnection {
+  const connection = graph.connections.find(
+    (candidate) =>
+      (candidate.fromNodeId === fromNodeId && candidate.toNodeId === toNodeId) ||
+      (candidate.fromNodeId === toNodeId && candidate.toNodeId === fromNodeId)
+  );
+  if (!connection) {
+    throw new Error(
+      `The guided camera route is missing a connection from ${fromNodeId} to ${toNodeId}`
+    );
+  }
+  const reversed = connection.toNodeId === fromNodeId;
+  return { connection, fromNodeId, toNodeId, reversed };
+}
+
 function pointsEqual(left: Vec3, right: Vec3) {
   return left[0] === right[0] && left[1] === right[1] && left[2] === right[2];
 }
@@ -359,4 +378,58 @@ export function getCameraConnectionRoute(
     [{ connection, fromNodeId, toNodeId, reversed }],
     graph
   );
+}
+
+/**
+ * Resolve exactly one reciprocal guided cycle, including the final edge back to
+ * the requested start. Guided links choose topology; this never substitutes a
+ * BFS path for a missing guided edge.
+ */
+export function getGuidedCameraRoute(
+  startNodeId: string,
+  graph: NavigationGraph = museumNavigationGraph
+): ResolvedCameraRoute {
+  const start = getNode(startNodeId, graph);
+  if (start.nextNodeId === undefined || start.previousNodeId === undefined) {
+    throw new Error(`Camera node ${startNodeId} is not part of the guided tour`);
+  }
+
+  const guidedNodeCount = graph.navigationNodes.filter(
+    (node) => node.nextNodeId !== undefined && node.previousNodeId !== undefined
+  ).length;
+  const visited = new Set<string>();
+  const path: OrientedConnection[] = [];
+  let cursor = start;
+
+  while (true) {
+    if (visited.has(cursor.id)) {
+      throw new Error(
+        `The guided camera route repeats ${cursor.id} before returning to ${start.id}`
+      );
+    }
+    visited.add(cursor.id);
+
+    const nextNodeId = cursor.nextNodeId;
+    if (!nextNodeId) {
+      throw new Error(`Guided camera node ${cursor.id} has no next node`);
+    }
+    const next = getNode(nextNodeId, graph);
+    if (next.previousNodeId !== cursor.id) {
+      throw new Error(`Guided camera link ${cursor.id} → ${next.id} is not reciprocal`);
+    }
+
+    path.push(findDirectConnection(cursor.id, next.id, graph));
+    if (next.id === start.id) break;
+    cursor = next;
+
+    if (path.length > guidedNodeCount) {
+      throw new Error('The guided camera route does not form one cycle');
+    }
+  }
+
+  if (visited.size !== guidedNodeCount) {
+    throw new Error('The guided camera route does not include every guided node');
+  }
+
+  return buildResolvedRoute(start.id, start.id, path, graph);
 }

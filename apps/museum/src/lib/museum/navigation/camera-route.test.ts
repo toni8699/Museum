@@ -19,7 +19,8 @@ import {
 } from './camera-motion';
 import {
   getCameraConnectionRoute,
-  getCameraRoute
+  getCameraRoute,
+  getGuidedCameraRoute
 } from './camera-route';
 
 const nodes: NavigationNodeData[] = [
@@ -889,5 +890,122 @@ describe('getCameraConnectionRoute', () => {
         customGraph
       )
     ).toThrow('Unknown camera connection direction: sideways');
+  });
+});
+
+describe('getGuidedCameraRoute', () => {
+  it('resolves every guided edge exactly once including the return to start', () => {
+    const route = getGuidedCameraRoute('entrance-start');
+
+    expect(route.nodeIds).toEqual([
+      'entrance-start',
+      'poland-threshold',
+      'departure-corridor',
+      'paris-seat',
+      'workshop-desk',
+      'music-entry',
+      'music-center',
+      'legacy-return',
+      'entrance-start'
+    ]);
+    expect(route.edges.map((edge) => edge.connectionId)).toEqual([
+      'entrance-poland',
+      'poland-departure',
+      'departure-paris',
+      'paris-workshop',
+      'workshop-music-entry',
+      'music-entry-center',
+      'music-center-legacy',
+      'legacy-entrance'
+    ]);
+    expect(route.edges.map((edge) => edge.direction)).toEqual(
+      Array.from({ length: 8 }, () => 'forward')
+    );
+    expect(createCameraMotion(route).positionEdgeSpans).toHaveLength(8);
+    const finalSample = sampleRoute(route, 1);
+    expectTupleClose(
+      finalSample.position,
+      museumNavigationGraph.nodeById.get('entrance-start')!.position
+    );
+    expectTupleClose(
+      finalSample.target,
+      museumNavigationGraph.nodeById.get('entrance-start')!.cameraTarget
+    );
+  });
+
+  it('retains reverse traversal when a guided connection is authored backwards', () => {
+    const reversedConnection = museumNavigationGraph.connections[0];
+    const graph = createNavigationGraph({
+      objects: [],
+      navigationNodes: [...museumNavigationGraph.navigationNodes],
+      connections: [
+        {
+          ...reversedConnection,
+          fromNodeId: reversedConnection.toNodeId,
+          toNodeId: reversedConnection.fromNodeId,
+          positionPath: {
+            ...reversedConnection.positionPath,
+            anchors: [...reversedConnection.positionPath.anchors].reverse()
+          }
+        },
+        ...museumNavigationGraph.connections.slice(1)
+      ]
+    });
+
+    const route = getGuidedCameraRoute('entrance-start', graph);
+    expect(route.edges[0]).toMatchObject({
+      connectionId: 'entrance-poland',
+      direction: 'reverse',
+      fromNodeId: 'entrance-start',
+      toNodeId: 'poland-threshold'
+    });
+    expect(route.edges.slice(1).map((edge) => edge.direction)).toEqual(
+      Array.from({ length: 7 }, () => 'forward')
+    );
+  });
+
+  it('rotates the same reciprocal cycle from another guided start', () => {
+    const route = getGuidedCameraRoute('paris-seat');
+
+    expect(route.nodeIds[0]).toBe('paris-seat');
+    expect(route.nodeIds.at(-1)).toBe('paris-seat');
+    expect(route.edges).toHaveLength(8);
+    expect(new Set(route.edges.map((edge) => edge.connectionId)).size).toBe(8);
+  });
+
+  it('rejects broken reciprocal links and missing direct guided edges', () => {
+    const navigationNodes = museumNavigationGraph.navigationNodes.map((node) => ({
+      ...node,
+      position: [...node.position] as Vec3,
+      cameraTarget: [...node.cameraTarget] as Vec3,
+      connectedNodeIds: [...node.connectedNodeIds]
+    }));
+    const poland = navigationNodes.find((node) => node.id === 'poland-threshold')!;
+    poland.previousNodeId = 'legacy-return';
+    const brokenReciprocal = {
+      navigationNodes,
+      connections: museumNavigationGraph.connections,
+      nodeById: new Map(navigationNodes.map((node) => [node.id, node]))
+    };
+    expect(() => getGuidedCameraRoute('entrance-start', brokenReciprocal)).toThrow(
+      /not reciprocal/
+    );
+
+    const missingEdge = {
+      navigationNodes: museumNavigationGraph.navigationNodes,
+      connections: museumNavigationGraph.connections.filter(
+        (connection) => connection.id !== 'entrance-poland'
+      ),
+      nodeById: museumNavigationGraph.nodeById
+    };
+    expect(() => getGuidedCameraRoute('entrance-start', missingEdge)).toThrow(
+      'missing a connection from entrance-start to poland-threshold'
+    );
+  });
+
+  it('rejects a free-only start node', () => {
+    expect(() => getGuidedCameraRoute('a', customGraph)).toThrow(
+      'Camera node a is not part of the guided tour'
+    );
   });
 });

@@ -15,6 +15,7 @@
 		getScenePathAnchorWorldPosition
 	} from './editor-camera-path';
 	import {
+		findPriorityCameraViewKeyframeHandle,
 		findNavigationSelectionFromObject,
 		resolveNormalSelection,
 		selectionHitFromIntersection,
@@ -38,6 +39,8 @@
 	const dragPlane = new Plane();
 	const dragPlaneNormal = new Vector3(0, 1, 0);
 	const dragIntersection = new Vector3();
+	const viewDragPlane = new Plane();
+	const viewDragPlaneNormal = new Vector3();
 	const cameraForward = new Vector3();
 	const sampledPathPoint = new Vector3();
 
@@ -78,7 +81,21 @@
 		orbitWasEnabled: boolean | null;
 	};
 
-	let pointerSession: NormalPointerSession | PathPointerSession | null = null;
+	type ViewKeyframePointerSession = {
+		kind: 'view-keyframe';
+		pointerId: number;
+		startX: number;
+		startY: number;
+		dragging: boolean;
+		orbitWasEnabled: boolean | null;
+	};
+
+	let pointerSession:
+		| NormalPointerSession
+		| PathPointerSession
+		| ViewKeyframePointerSession
+		| null = null;
+	let externalKeyDragOrbitWasEnabled: boolean | null = null;
 
 	function releaseCapture(pointerId: number) {
 		if (canvas.hasPointerCapture(pointerId)) canvas.releasePointerCapture(pointerId);
@@ -149,6 +166,94 @@
 		return true;
 	}
 
+	function cancelViewKeyframeDrag() {
+		const active = pointerSession;
+		if (!active || active.kind !== 'view-keyframe') return false;
+		pointerSession = null;
+		store.cancelViewKeyframeProgressDrag();
+		releaseCapture(active.pointerId);
+		restoreOrbit(active);
+		store.setNavigationHover(null);
+		return true;
+	}
+
+	function cancelDirectDrag() {
+		return cancelViewKeyframeDrag() || cancelPathDrag();
+	}
+
+	function activeViewKeyframeHit(event: PointerEvent) {
+		if (
+			event.altKey ||
+			store.currentWorkspace !== 'camera' ||
+			store.isDocumentMutationBlocked ||
+			store.isEditorInteractionActive ||
+			store.pendingPlacementAssetId ||
+			store.pendingNavigationCommand
+		) {
+			return null;
+		}
+		return findPriorityCameraViewKeyframeHandle(
+			raycast(event).map((hit) => hit.object)
+		);
+	}
+
+	function beginViewKeyframePointer(
+		event: PointerEvent,
+		result: NonNullable<ReturnType<typeof activeViewKeyframeHit>>
+	) {
+		const handle = result;
+		const currentCamera = camera.current;
+		if (handle.viewHandle !== 'position' || !currentCamera) return false;
+		const keyframe = store.document.connections
+			.find((connection) => connection.id === handle.connectionId)
+			?.viewTracks?.[handle.direction].find(
+				(candidate) => candidate.id === handle.keyframeId
+			);
+		if (!keyframe) return false;
+		const initialWorld = createDraftConnectionPositionPath(
+			store.document,
+			handle.connectionId,
+			handle.direction
+		).getPointAt(keyframe.progress, new Vector3());
+		currentCamera.getWorldDirection(viewDragPlaneNormal).normalize();
+		viewDragPlane.setFromNormalAndCoplanarPoint(
+			viewDragPlaneNormal,
+			initialWorld
+		);
+		if (!store.beginViewKeyframeProgressDrag(handle)) return false;
+
+		const orbitWasEnabled = editorOrbitControls.current?.enabled ?? null;
+		if (editorOrbitControls.current) editorOrbitControls.current.enabled = false;
+		pointerSession = {
+			kind: 'view-keyframe',
+			pointerId: event.pointerId,
+			startX: event.clientX,
+			startY: event.clientY,
+			dragging: false,
+			orbitWasEnabled
+		};
+		canvas.setPointerCapture(event.pointerId);
+		event.preventDefault();
+		event.stopImmediatePropagation();
+		return true;
+	}
+
+	function dragViewKeyframeToPointer(event: PointerEvent) {
+		const currentCamera = camera.current;
+		if (!currentCamera) return;
+		toNdc(event);
+		raycaster.setFromCamera(pointerNdc, currentCamera);
+		if (!raycaster.ray.intersectPlane(viewDragPlane, dragIntersection)) return;
+		store.updateViewKeyframeProgressDrag(dragIntersection);
+	}
+
+	function finishViewKeyframePointer(active: ViewKeyframePointerSession) {
+		pointerSession = null;
+		store.commitViewKeyframeProgressDrag();
+		releaseCapture(active.pointerId);
+		restoreOrbit(active);
+	}
+
 	function activePathHit(event: PointerEvent): PathHit | null {
 		if (
 			event.altKey ||
@@ -186,7 +291,10 @@
 	}
 
 	function updateHover(event: PointerEvent) {
-		if (pointerSession?.kind === 'path') return;
+		if (
+			pointerSession?.kind === 'path' ||
+			pointerSession?.kind === 'view-keyframe'
+		) return;
 		const result = activePathHit(event);
 		if (!result) {
 			store.setNavigationHover(null);
@@ -395,10 +503,18 @@
 		if (store.isDocumentMutationBlocked || event.button !== 0) return;
 		if (transformControls?.axis || transformControls?.dragging) return;
 		if (pointerSession) {
-			if (pointerSession.kind === 'path') cancelPathDrag();
+			if (pointerSession.kind === 'path' || pointerSession.kind === 'view-keyframe') {
+				cancelDirectDrag();
+			}
 			else clearPointerSession();
 			return;
 		}
+
+		const viewKeyframeHit = activeViewKeyframeHit(event);
+		if (
+			viewKeyframeHit?.viewHandle === 'position' &&
+			beginViewKeyframePointer(event, viewKeyframeHit)
+		) return;
 
 		const pathHit = activePathHit(event);
 		if (pathHit && beginPathPointer(event, pathHit)) return;
@@ -439,6 +555,11 @@
 
 		event.preventDefault();
 		event.stopImmediatePropagation();
+		if (active.kind === 'view-keyframe') {
+			if (crossedThreshold) active.dragging = true;
+			if (active.dragging) dragViewKeyframeToPointer(event);
+			return;
+		}
 		if (!active.dragging && crossedThreshold && !beginDirectPathDrag(active)) {
 			cancelPathDrag();
 			return;
@@ -454,6 +575,12 @@
 			event.preventDefault();
 			event.stopImmediatePropagation();
 			finishPathPointer(active);
+			return;
+		}
+		if (active.kind === 'view-keyframe') {
+			event.preventDefault();
+			event.stopImmediatePropagation();
+			finishViewKeyframePointer(active);
 			return;
 		}
 
@@ -473,13 +600,17 @@
 
 	function onPointerCancel(event: PointerEvent) {
 		if (pointerSession?.pointerId !== event.pointerId) return;
-		if (pointerSession.kind === 'path') cancelPathDrag();
+		if (pointerSession.kind === 'path' || pointerSession.kind === 'view-keyframe') {
+			cancelDirectDrag();
+		}
 		else clearPointerSession();
 	}
 
 	function onLostPointerCapture(event: PointerEvent) {
 		if (pointerSession?.pointerId !== event.pointerId) return;
-		if (pointerSession.kind === 'path') cancelPathDrag();
+		if (pointerSession.kind === 'path' || pointerSession.kind === 'view-keyframe') {
+			cancelDirectDrag();
+		}
 		else {
 			const active = pointerSession;
 			pointerSession = null;
@@ -488,13 +619,16 @@
 	}
 
 	function onKeyDown(event: KeyboardEvent) {
-		if (event.key !== 'Escape' || !cancelPathDrag()) return;
+		if (event.key !== 'Escape' || !cancelDirectDrag()) return;
 		event.preventDefault();
 		event.stopImmediatePropagation();
 	}
 
 	function onWindowBlur() {
-		if (pointerSession?.kind === 'path') cancelPathDrag();
+		if (
+			pointerSession?.kind === 'path' ||
+			pointerSession?.kind === 'view-keyframe'
+		) cancelDirectDrag();
 		else if (pointerSession?.kind === 'normal' && pointerSession.orbitWasEnabled !== null) {
 			clearPointerSession();
 		}
@@ -504,8 +638,34 @@
 		store.setNavigationHover(null);
 	}
 
+	$effect(() => {
+		const activeDrag = store.viewKeyframeProgressDrag;
+		const activePointer = pointerSession;
+		if (activePointer?.kind === 'view-keyframe' && !activeDrag) {
+			pointerSession = null;
+			releaseCapture(activePointer.pointerId);
+			restoreOrbit(activePointer);
+		}
+		if (
+			activeDrag &&
+			activePointer?.kind !== 'view-keyframe' &&
+			externalKeyDragOrbitWasEnabled === null &&
+			editorOrbitControls.current
+		) {
+			externalKeyDragOrbitWasEnabled = editorOrbitControls.current.enabled;
+			editorOrbitControls.current.enabled = false;
+		} else if (
+			(!activeDrag || activePointer?.kind === 'view-keyframe') &&
+			externalKeyDragOrbitWasEnabled !== null &&
+			editorOrbitControls.current
+		) {
+			editorOrbitControls.current.enabled = externalKeyDragOrbitWasEnabled;
+			externalKeyDragOrbitWasEnabled = null;
+		}
+	});
+
 	onMount(() => {
-		store.setDirectPathDragCanceler(cancelPathDrag);
+		store.setDirectPathDragCanceler(cancelDirectDrag);
 		canvas.addEventListener('pointerdown', onPointerDown, true);
 		canvas.addEventListener('pointermove', onPointerMove, true);
 		canvas.addEventListener('pointerup', onPointerUp, true);
@@ -516,8 +676,18 @@
 		window.addEventListener('blur', onWindowBlur);
 
 		return () => {
-			if (pointerSession?.kind === 'path') cancelPathDrag();
+			if (
+				pointerSession?.kind === 'path' ||
+				pointerSession?.kind === 'view-keyframe'
+			) cancelDirectDrag();
 			else clearPointerSession();
+			if (
+				externalKeyDragOrbitWasEnabled !== null &&
+				editorOrbitControls.current
+			) {
+				editorOrbitControls.current.enabled = externalKeyDragOrbitWasEnabled;
+				externalKeyDragOrbitWasEnabled = null;
+			}
 			store.setDirectPathDragCanceler(null);
 			store.setNavigationHover(null);
 			canvas.removeEventListener('pointerdown', onPointerDown, true);

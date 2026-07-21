@@ -1,7 +1,7 @@
 # Museum Editor Workspace Releases
 
-**Status:** Active release authority. Phase 2 is in progress through Slice 2.2.
-**Baseline:** `main` at `fab1bc9`; Phase 2.2 is uncommitted. Preserve it. Do not commit unless requested.
+**Status:** Active release authority. Phase 2 is complete through Slice 2.4.
+**Baseline:** `main` at `3aeaa48`; Phase 2.4 is uncommitted. Preserve it. Do not commit unless requested.
 **Locked decisions:** one looped guided tour; `Scene` and `Camera` workspaces; camera placement accepts any tagged room floor.
 
 ## Main Problem
@@ -21,7 +21,7 @@ They now ship as five ordered releases. Each release has its own gate and handof
 |---:|---|---|---:|---|---|
 | 1 | [Editor layout](./phase-1-editor-layout.md) | Persistent shell; no schema or camera behavior change | High | `gpt-5.6-sol` | High |
 | 2 | [Camera editing MVP](./phase-2-camera-editing-mvp.md) | Discover, scrub, preview, and drag existing camera keys | Very High | `gpt-5.6-sol` | XHigh |
-| 3 | [Camera graph authoring](./phase-3-camera-graph-authoring.md) | Add/connect/delete/reorder cameras; framing handles; timing last | Extreme | `gpt-5.6-sol` | Max |
+| 3 | [Camera graph authoring](./phase-3-camera-graph-authoring.md) | Selection/Play parity; add/connect/delete/reorder; timeline drag-connect; framing; timing last | Extreme | `gpt-5.6-sol` | Max |
 | 4 | [Scene creation](./phase-4-scene-creation.md) | Real primitive/light entities and schema migration | Extreme | `gpt-5.6-sol` | Max |
 | 5 | [Textures](./phase-5-textures.md) | Texture/material MVP; package export as follow-on | Extreme | `gpt-5.6-sol` | Max |
 
@@ -34,12 +34,14 @@ They now ship as five ordered releases. Each release has its own gate and handof
 5. Timeline selection and scrub.
 6. Whole-tour playback.
 7. Camera-key dragging.
-8. Graph authoring.
-9. Guided-order editing.
-10. Framing controls.
-11. Timing schema.
-12. Primitives and lights.
-13. Textures and package export.
+8. Camera selection seeks preview + movie-editor Play.
+9. Graph authoring (place / connect / delete).
+10. Guided-order editing.
+11. Timeline drag-to-connect + straight auto path.
+12. Framing controls.
+13. Timing schema.
+14. Primitives and lights.
+15. Textures and package export.
 
 Do not combine timing, entity union, and texture/material changes into one schema migration. Planned canonical versions:
 

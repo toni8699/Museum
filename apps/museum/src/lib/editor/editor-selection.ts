@@ -58,6 +58,14 @@ export type EditorCameraViewKeyframeUserData = {
 	connectionId: string;
 	direction: CameraConnectionDirection;
 	keyframeId: string;
+	viewHandle: 'position' | 'target';
+};
+
+export type EditorCameraViewKeyframeHandle = {
+	connectionId: string;
+	direction: CameraConnectionDirection;
+	keyframeId: string;
+	viewHandle: 'position' | 'target';
 };
 
 export type SelectionHitInfo = {
@@ -129,7 +137,8 @@ export function isEditorCameraViewKeyframeUserData(
 		data.editorEntity === 'camera-view-keyframe' &&
 		typeof data.connectionId === 'string' &&
 		(data.direction === 'forward' || data.direction === 'reverse') &&
-		typeof data.keyframeId === 'string'
+		typeof data.keyframeId === 'string' &&
+		(data.viewHandle === 'position' || data.viewHandle === 'target')
 	);
 }
 
@@ -160,6 +169,39 @@ export function findCameraSelectionFromObject(
 		current = current.parent;
 	}
 	return null;
+}
+
+/** Climb parents for a camera framing key's derived eye marker or target handle. */
+export function findCameraViewKeyframeHandleFromObject(
+	object: Object3D | null
+): EditorCameraViewKeyframeHandle | null {
+	let current: Object3D | null = object;
+	while (current) {
+		if (isEditorCameraViewKeyframeUserData(current.userData)) {
+			return {
+				connectionId: current.userData.connectionId,
+				direction: current.userData.direction,
+				keyframeId: current.userData.keyframeId,
+				viewHandle: current.userData.viewHandle
+			};
+		}
+		current = current.parent;
+	}
+	return null;
+}
+
+/** A framing target owns overlap so its gizmo never starts derived-eye progress drag. */
+export function findPriorityCameraViewKeyframeHandle(
+	objects: readonly Object3D[]
+): EditorCameraViewKeyframeHandle | null {
+	const handles = objects
+		.map(findCameraViewKeyframeHandleFromObject)
+		.filter((handle): handle is EditorCameraViewKeyframeHandle => handle !== null);
+	return (
+		handles.find((handle) => handle.viewHandle === 'target') ??
+		handles.find((handle) => handle.viewHandle === 'position') ??
+		null
+	);
 }
 
 /** Climb parents for any editor-only navigation helper tag. */

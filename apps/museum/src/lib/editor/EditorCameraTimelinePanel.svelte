@@ -1,6 +1,8 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import type { CameraConnectionDirection } from '$lib/types/museum';
 	import {
+		cameraTimelineEdgeProgressAtProgress,
 		cameraTimelineProgressAtEdgeProgress,
 		type EditorCameraTimeline,
 		type EditorCameraTimelineEdge
@@ -18,6 +20,7 @@
 	};
 
 	const timeline = $derived(store.getCameraTimeline());
+	const preview = $derived(store.cameraPreview);
 	const disabled = $derived(
 		store.isEditorInteractionActive ||
 		store.isDocumentTransactionActive ||
@@ -27,7 +30,25 @@
 					store.cameraPreview.transport !== 'paused')
 		)
 	);
+	const tourPlaying = $derived(
+		preview?.kind === 'tour' && preview.transport === 'playing'
+	);
+	const tourTransportDisabled = $derived(
+		store.isEditorInteractionActive ||
+		store.isDocumentTransactionActive ||
+		Boolean(
+			preview &&
+				preview.kind !== 'tour' &&
+				(preview.mode !== 'director' || preview.transport !== 'paused')
+		)
+	);
 	const selected = $derived(store.navigationSelection);
+	let framingTrackElement = $state<HTMLElement>();
+	let keyDrag = $state<{
+		pointerId: number;
+		target: HTMLElement;
+		marker: TimelineViewKeyMarker;
+	} | null>(null);
 	const activeTrackLabel = $derived(
 		store.activeCameraConnectionId
 			? `${store.activeCameraDirection === 'forward' ? '▶' : '◀'} ${store.activeCameraConnectionId}`
@@ -88,6 +109,15 @@
 		store.seekCameraTimeline(Number((event.currentTarget as HTMLInputElement).value));
 	}
 
+	function toggleTourPlayback() {
+		if (preview?.kind === 'tour') {
+			if (preview.transport === 'playing') store.pauseCameraPreview();
+			else store.playCameraPreview();
+			return;
+		}
+		store.previewGuidedTour('director');
+	}
+
 	function selectEdge(event: MouseEvent, edge: EditorCameraTimelineEdge) {
 		if (!timeline) return;
 		event.stopPropagation();
@@ -123,6 +153,113 @@
 			selected.keyframeId === marker.keyframeId
 		);
 	}
+
+	function isKeyDragging(marker: TimelineViewKeyMarker) {
+		return Boolean(
+			keyDrag &&
+			keyDrag.marker.connectionId === marker.connectionId &&
+			keyDrag.marker.direction === marker.direction &&
+			keyDrag.marker.keyframeId === marker.keyframeId
+		);
+	}
+
+	function releaseKeyDragCapture(active: NonNullable<typeof keyDrag>) {
+		if (active.target.hasPointerCapture(active.pointerId)) {
+			active.target.releasePointerCapture(active.pointerId);
+		}
+	}
+
+	function cancelKeyDrag() {
+		const active = keyDrag;
+		if (!active) return false;
+		keyDrag = null;
+		releaseKeyDragCapture(active);
+		store.cancelViewKeyframeProgressDrag();
+		return true;
+	}
+
+	function beginKeyDrag(event: PointerEvent, marker: TimelineViewKeyMarker) {
+		if (event.button !== 0 || disabled || keyDrag) return;
+		if (!store.beginViewKeyframeProgressDrag(marker)) return;
+		const target = event.currentTarget as HTMLElement;
+		keyDrag = { pointerId: event.pointerId, target, marker };
+		target.setPointerCapture(event.pointerId);
+		event.preventDefault();
+		event.stopPropagation();
+	}
+
+	function updateKeyDrag(event: PointerEvent) {
+		const active = keyDrag;
+		if (
+			!active ||
+			event.pointerId !== active.pointerId ||
+			!timeline ||
+			!framingTrackElement
+		) {
+			return;
+		}
+		const rect = framingTrackElement.getBoundingClientRect();
+		const rulerProgress = rect.width > 0
+			? (event.clientX - rect.left) / rect.width
+			: store.cameraTimelinePlayhead;
+		const edgeProgress = cameraTimelineEdgeProgressAtProgress(
+			timeline,
+			active.marker.connectionId,
+			active.marker.direction,
+			rulerProgress
+		);
+		if (edgeProgress !== null) {
+			store.updateViewKeyframeProgressDrag(edgeProgress);
+		}
+		event.preventDefault();
+		event.stopPropagation();
+	}
+
+	function commitKeyDrag(event: PointerEvent) {
+		const active = keyDrag;
+		if (!active || event.pointerId !== active.pointerId || event.button !== 0) return;
+		keyDrag = null;
+		releaseKeyDragCapture(active);
+		store.commitViewKeyframeProgressDrag();
+		event.preventDefault();
+		event.stopPropagation();
+	}
+
+	function cancelKeyDragPointer(event: PointerEvent) {
+		if (keyDrag?.pointerId !== event.pointerId) return;
+		cancelKeyDrag();
+	}
+
+	$effect(() => {
+		const active = store.viewKeyframeProgressDrag;
+		if (
+			keyDrag &&
+			(!active ||
+				active.connectionId !== keyDrag.marker.connectionId ||
+				active.direction !== keyDrag.marker.direction ||
+				active.keyframeId !== keyDrag.marker.keyframeId)
+		) {
+			const stale = keyDrag;
+			keyDrag = null;
+			releaseKeyDragCapture(stale);
+		}
+	});
+
+	onMount(() => {
+		const onKeyDown = (event: KeyboardEvent) => {
+			if (event.key !== 'Escape' || !cancelKeyDrag()) return;
+			event.preventDefault();
+			event.stopImmediatePropagation();
+		};
+		const onBlur = () => cancelKeyDrag();
+		window.addEventListener('keydown', onKeyDown, true);
+		window.addEventListener('blur', onBlur);
+		return () => {
+			cancelKeyDrag();
+			window.removeEventListener('keydown', onKeyDown, true);
+			window.removeEventListener('blur', onBlur);
+		};
+	});
 </script>
 
 {#if timeline}
@@ -134,6 +271,14 @@
 				disabled={disabled || store.cameraTimelinePlayhead <= 0}
 				onclick={() => store.stepCameraTimeline(-1)}
 			>│◀</button>
+			<button
+				type="button"
+				class:active={tourPlaying}
+				aria-label={tourPlaying ? 'Pause guided tour' : 'Play guided tour'}
+				title={tourPlaying ? 'Pause guided tour' : 'Play the complete guided tour'}
+				disabled={tourTransportDisabled}
+				onclick={toggleTourPlayback}
+			>{tourPlaying ? '❚❚' : '▶'}</button>
 			<button
 				type="button"
 				aria-label="Next camera boundary"
@@ -212,7 +357,7 @@
 				<strong>Camera Framing</strong>
 				<span title={activeTrackLabel}>{activeTrackLabel}</span>
 			</div>
-			<div class="track framing-track" aria-label="Camera Framing">
+			<div bind:this={framingTrackElement} class="track framing-track" aria-label="Camera Framing">
 				<div class="rail"></div>
 				{#if viewKeyMarkers.length === 0}
 					<span class="no-keys">No camera keys on visible tracks</span>
@@ -223,10 +368,17 @@
 						class="diamond key"
 						class:selected={isKeySelected(marker)}
 						class:reverse={marker.direction === 'reverse'}
+						class:dragging={isKeyDragging(marker)}
 						style={`left: ${percent(marker.progress)};`}
 						title={`${marker.keyframeId} · ${marker.direction}`}
 						aria-label={`Select camera key ${marker.keyframeId}`}
-						disabled={disabled}
+						disabled={disabled && !isKeyDragging(marker)}
+						aria-grabbed={isKeyDragging(marker)}
+						onpointerdown={(event) => beginKeyDrag(event, marker)}
+						onpointermove={updateKeyDrag}
+						onpointerup={commitKeyDrag}
+						onpointercancel={cancelKeyDragPointer}
+						onlostpointercapture={cancelKeyDragPointer}
 						onclick={(event) => {
 							event.stopPropagation();
 							store.selectCameraTimelineViewKeyframe(
@@ -257,6 +409,7 @@
 		background: #1a1a22; color: #ddd6ca; font: inherit; font-size: 0.68rem; cursor: pointer;
 	}
 	.transport button:hover:not(:disabled) { border-color: #d6b35f; }
+	.transport button.active { border-color: #d6b35f; background: #2a2618; color: #fff2c7; }
 	.transport button:disabled { opacity: 0.38; cursor: default; }
 	.transport .add-key { border-color: #6f5d32; color: #f4dc9b; white-space: nowrap; }
 	output { min-width: 4.8rem; color: #f4efe4; font: 650 0.72rem/1 ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-numeric: tabular-nums; }
@@ -277,6 +430,7 @@
 	.diamond.key { color: #79d8ff; }
 	.diamond.key.reverse { color: #d6a2ff; }
 	.diamond.key.selected { color: #fff; }
+	.diamond.key.dragging { color: #fff; cursor: grabbing; text-shadow: 0 0 10px rgb(121 216 255 / 90%); }
 	.playhead { position: absolute; top: 0; bottom: 0; z-index: 2; width: 1px; transform: translateX(-0.5px); background: #e7c87a; pointer-events: none; box-shadow: 0 0 5px rgb(231 200 122 / 45%); }
 	.no-keys { position: absolute; top: 50%; left: 0.6rem; transform: translateY(-50%); color: #5f5b56; font-size: 0.6rem; }
 	.timeline-error { display: flex; height: 100%; min-height: 7rem; flex-direction: column; align-items: center; justify-content: center; gap: 0.3rem; color: #a8a29a; text-align: center; }

@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { Object3D, type Intersection } from 'three';
 import {
 	findCameraSelectionFromObject,
+	findCameraViewKeyframeHandleFromObject,
 	findNavigationSelectionFromObject,
+	findPriorityCameraViewKeyframeHandle,
 	isEditorCameraAnchorUserData,
 	isEditorCameraConnectionUserData,
 	isEditorCameraHandleUserData,
@@ -184,7 +186,8 @@ describe('editor camera-helper selection', () => {
 				editorEntity: 'camera-view-keyframe',
 				connectionId: 'a-b',
 				direction: 'forward',
-				keyframeId: 'a-b-view-forward-01'
+				keyframeId: 'a-b-view-forward-01',
+				viewHandle: 'position'
 			})
 		).toBe(true);
 		expect(
@@ -192,7 +195,8 @@ describe('editor camera-helper selection', () => {
 				editorEntity: 'camera-view-keyframe',
 				connectionId: 'a-b',
 				direction: 'sideways',
-				keyframeId: 'bad'
+				keyframeId: 'bad',
+				viewHandle: 'position'
 			})
 		).toBe(false);
 
@@ -206,7 +210,8 @@ describe('editor camera-helper selection', () => {
 			editorEntity: 'camera-view-keyframe',
 			connectionId: 'a-b',
 			direction: 'reverse',
-			keyframeId: 'a-b-view-reverse-01'
+			keyframeId: 'a-b-view-reverse-01',
+			viewHandle: 'position'
 		};
 		const viewChild = new Object3D();
 		viewRoot.add(viewChild);
@@ -230,5 +235,37 @@ describe('editor camera-helper selection', () => {
 				{ opacity: 1, placementId: null, navigationSelection: viewSelection }
 			])
 		).toEqual({ action: 'select-navigation', selection: viewSelection });
+	});
+
+	it('gives the target handle precedence over an overlapping derived eye marker', () => {
+		const positionRoot = new Object3D();
+		positionRoot.userData = {
+			editorEntity: 'camera-view-keyframe',
+			connectionId: 'a-b',
+			direction: 'forward',
+			keyframeId: 'view-01',
+			viewHandle: 'position'
+		};
+		const positionChild = new Object3D();
+		positionRoot.add(positionChild);
+		const targetRoot = new Object3D();
+		targetRoot.userData = {
+			editorEntity: 'camera-view-keyframe',
+			connectionId: 'a-b',
+			direction: 'forward',
+			keyframeId: 'view-01',
+			viewHandle: 'target'
+		};
+
+		expect(findCameraViewKeyframeHandleFromObject(positionChild)).toMatchObject({
+			keyframeId: 'view-01',
+			viewHandle: 'position'
+		});
+		expect(
+			findPriorityCameraViewKeyframeHandle([positionChild, targetRoot])
+		).toMatchObject({
+			keyframeId: 'view-01',
+			viewHandle: 'target'
+		});
 	});
 });

@@ -54,6 +54,7 @@
 		connectionId: string,
 		direction: 'forward' | 'reverse',
 		keyframeId: string,
+		viewHandle: 'position' | 'target',
 		name: string
 	) {
 		const root = new Group();
@@ -62,7 +63,8 @@
 			editorEntity: 'camera-view-keyframe',
 			connectionId,
 			direction,
-			keyframeId
+			keyframeId,
+			viewHandle
 		} satisfies EditorCameraViewKeyframeUserData;
 		return root;
 	}
@@ -76,6 +78,7 @@
 			connectionId,
 			direction,
 			keyframeId,
+			'position',
 			`EditorCameraViewKeyframe:${connectionId}:${direction}:${keyframeId}`
 		);
 		const geometry = new SphereGeometry(0.13, 14, 10);
@@ -114,6 +117,7 @@
 			connectionId,
 			direction,
 			keyframeId,
+			'target',
 			`EditorCameraViewTarget:${connectionId}:${direction}:${keyframeId}`
 		);
 		const geometry = new SphereGeometry(0.16, 14, 10);

@@ -33,6 +33,7 @@
 		store.pendingNavigationCommand?.kind === 'place-connected-node'
 	)}
 	class:bending={Boolean(store.hoveredConnectionId || store.hoveredAnchorId)}
+	class:dragging-camera-key={store.viewKeyframeProgressDrag !== null}
 	aria-label="Museum editor viewport"
 >
 	<EditorViewportToolbar {store} />
@@ -111,6 +112,10 @@
 
 	.viewport.bending :global(canvas) {
 		cursor: grab;
+	}
+
+	.viewport.dragging-camera-key :global(canvas) {
+		cursor: grabbing;
 	}
 
 	.placement-hint {

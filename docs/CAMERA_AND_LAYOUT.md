@@ -285,10 +285,20 @@ Alt is placement-only. Curves/anchors ignore Alt. Preview and pending placement/
 ### Preview and persistence
 
 - Node and exact-edge preview use an immutable committed graph and shared `CameraMotion`.
+- Whole-tour preview advances the global ruler across those same exact per-connection motions in guided order. It does not compile a second route-wide curve, so room-boundary position, look target, FOV, easing, turns, and backtracking match `/museum`.
 - Preview adds no history and restores exact pre-preview Orbit/camera state on Stop, Escape, completion teardown, or repeated cycles.
 - Editor session is a deep clone. One transaction creates at most one history entry; invalid/no-op/cancel creates none.
 - Browser Copy/Download exports canonical v2 but never writes repository files or clears dirty state.
 - Valid v1/v2 import normalizes to v2. Replace checked-in JSON manually, then test/build.
+
+### Camera-key progress dragging
+
+- Timeline key dragging maps the horizontal pointer through the guided ruler, the exact oriented edge motion, and finally the persisted directional edge progress.
+- 3D eye-marker dragging intersects a stable camera-facing plane and projects that world point onto `createDraftConnectionPositionPath()` with the shared nearest-progress refinement.
+- The target marker/gizmo wins any overlap with the derived eye marker. Orbit and TransformControls are disabled while a progress drag owns the pointer.
+- Progress is clamped strictly inside the edge. A progress collision is rejected only against another key in the same directional track.
+- One drag owns one document transaction. Pointer up commits one history entry only after real movement; Escape, pointer cancel, capture loss, blur, workspace switch, teardown, endpoint return, and no-op restore the original progress with no history.
+- Dragging changes only keyframe `progress`; stable ID, target, FOV, connection anchors, graph topology, and the opposite directional track remain unchanged.
 
 ---
 
@@ -336,6 +346,7 @@ After architecture, scene, or camera edits:
 - [ ] Paris live departure and stable-stop free-look still work
 - [ ] `/museum` shows no route lines or editor helpers
 - [ ] Undo/redo, no-op, Escape, blur, and pointer-cancel remain atomic
+- [ ] Camera-key timeline/3D drags stay on the exact edge curve and preserve target/FOV/anchors
 - [ ] `npm test`, `npm run check`, and `npm run build` pass
 - [ ] Production `/museum` = 200; `/dev/museum-editor` = 404; editor implementation absent from chunks
 

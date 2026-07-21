@@ -149,6 +149,10 @@ export type EditorCameraPreview =
 			direction: 'forward' | 'reverse';
 			fromNodeId: string;
 			toNodeId: string;
+	  })
+	| (EditorCameraPreviewState & {
+			kind: 'tour';
+			startNodeId: string;
 	  });
 
 export type EditorPendingNavigationCommand =
@@ -178,6 +182,13 @@ export type EditorPlacementTreeSelectionOptions = {
 
 export type EditorClusterTreeSelectionOptions = {
 	focus?: boolean;
+};
+
+/** Stable identity for one directional camera framing key. */
+export type EditorViewKeyframeProgressDragSelection = {
+	connectionId: string;
+	direction: CameraConnectionDirection;
+	keyframeId: string;
 };
 
 /** Session-only viewport transform presentation. */
@@ -391,6 +402,10 @@ export class MuseumEditorStore {
 		'placement' | 'camera' | 'anchor' | 'view-target' | null
 	>(null);
 	directPathInteractionActive = $state(false);
+	/** Phase 2.4 progress drag. The original progress stays private with the transaction. */
+	viewKeyframeProgressDrag = $state<EditorViewKeyframeProgressDragSelection | null>(
+		null
+	);
 
 	#placementRoots = new Map<string, Object3D>();
 	#cameraHelperRoots = new Map<string, Object3D>();
@@ -406,6 +421,7 @@ export class MuseumEditorStore {
 	#nextCameraPreviewRunId = 1;
 	#cameraTimelineGraph: NavigationGraph | null = null;
 	#cameraTimelineCache: EditorCameraTimeline | null = null;
+	#viewKeyframeProgressDragInitialProgress: number | null = null;
 	registryVersion = $state(0);
 
 	#past: MuseumSceneDocument[] = [];
@@ -627,7 +643,11 @@ export class MuseumEditorStore {
 	}
 
 	get isEditorInteractionActive() {
-		return this.transformInteractionActive || this.directPathInteractionActive;
+		return (
+			this.transformInteractionActive ||
+			this.directPathInteractionActive ||
+			this.viewKeyframeProgressDrag !== null
+		);
 	}
 
 	get selectedObject() {
@@ -1672,6 +1692,229 @@ export class MuseumEditorStore {
 		return this.commitDocumentTransaction();
 	}
 
+	#syncViewKeyframeProgressDragPreview(
+		selection: EditorViewKeyframeProgressDragSelection,
+		progress: number
+	) {
+		const timeline = this.getCameraTimeline();
+		const timelineProgress = timeline
+			? cameraTimelineProgressAtEdgeProgress(
+					timeline,
+					selection.connectionId,
+					selection.direction,
+					progress
+				)
+			: null;
+		if (timelineProgress === null) {
+			throw new Error('The camera key is not on the guided timeline');
+		}
+
+		const draftGraph = createNavigationGraph(resolveSceneDocument(this.document));
+		const route = getCameraConnectionRoute(
+			selection.connectionId,
+			selection.direction,
+			draftGraph
+		);
+		const motion = createCameraMotion(route);
+		const playhead = cameraMotionProgressAtEdgeProgress(motion, 0, progress);
+		const connection = this.document.connections.find(
+			(candidate) => candidate.id === selection.connectionId
+		);
+		if (!connection) throw new Error('The camera connection is unavailable');
+
+		const runId = this.#nextCameraPreviewRunId++;
+		this.#capturedCameraPreviewRoute = {
+			runId,
+			route: cloneResolvedCameraRoute(route)
+		};
+		this.cameraTimelinePlayhead = timelineProgress;
+		this.cameraPreview = {
+			kind: 'connection',
+			connectionId: connection.id,
+			direction: selection.direction,
+			fromNodeId:
+				selection.direction === 'forward'
+					? connection.fromNodeId
+					: connection.toNodeId,
+			toNodeId:
+				selection.direction === 'forward'
+					? connection.toNodeId
+					: connection.fromNodeId,
+			mode: 'director',
+			transport: 'paused',
+			runId,
+			playhead,
+			startedAtMs: null
+		};
+		return true;
+	}
+
+	/** Begin one cancel-safe transaction for a timeline or 3D camera-key progress drag. */
+	beginViewKeyframeProgressDrag(
+		selection: EditorViewKeyframeProgressDragSelection
+	) {
+		if (
+			this.isDocumentMutationBlocked ||
+			this.isEditorInteractionActive ||
+			this.isDocumentTransactionActive ||
+			this.pendingNavigationCommand
+		) {
+			return false;
+		}
+		const keyframe = findSceneCameraViewKeyframe(
+			this.document,
+			selection.connectionId,
+			selection.direction,
+			selection.keyframeId
+		);
+		if (!keyframe) return false;
+
+		this.selectCameraTimelineViewKeyframe(
+			selection.connectionId,
+			selection.direction,
+			selection.keyframeId
+		);
+		const current = this.navigationSelection;
+		if (
+			current?.kind !== 'view-keyframe' ||
+			current.connectionId !== selection.connectionId ||
+			current.direction !== selection.direction ||
+			current.keyframeId !== selection.keyframeId ||
+			!this.beginDocumentTransaction()
+		) {
+			return false;
+		}
+
+		this.#viewKeyframeProgressDragInitialProgress = keyframe.progress;
+		this.viewKeyframeProgressDrag = { ...selection };
+		return true;
+	}
+
+	/**
+	 * Update the active key with either exact edge progress or a world point projected
+	 * to the shared directional connection curve. Only progress is mutated.
+	 */
+	updateViewKeyframeProgressDrag(progressOrWorldPoint: number | Vector3Like) {
+		const selection = this.viewKeyframeProgressDrag;
+		if (!selection || !this.#transactionBefore) return false;
+		const keyframe = findSceneCameraViewKeyframe(
+			this.document,
+			selection.connectionId,
+			selection.direction,
+			selection.keyframeId
+		);
+		const connection = this.document.connections.find(
+			(candidate) => candidate.id === selection.connectionId
+		);
+		if (!keyframe || !connection?.viewTracks) return false;
+
+		let requestedProgress: number;
+		try {
+			requestedProgress =
+				typeof progressOrWorldPoint === 'number'
+					? progressOrWorldPoint
+					: findNearestCurveProgress(
+							createDraftConnectionPositionPath(
+								this.document,
+								selection.connectionId,
+								selection.direction
+							),
+							progressOrWorldPoint
+						);
+		} catch {
+			return false;
+		}
+		if (!Number.isFinite(requestedProgress)) return false;
+		const progress = Math.min(
+			1 - EDITOR_CAMERA_VIEW_PROGRESS_EPSILON,
+			Math.max(EDITOR_CAMERA_VIEW_PROGRESS_EPSILON, requestedProgress)
+		);
+		if (
+			Math.abs(progress - keyframe.progress) <=
+			EDITOR_CAMERA_VIEW_PROGRESS_EPSILON
+		) {
+			return false;
+		}
+
+		const track = connection.viewTracks[selection.direction];
+		if (
+			track.some(
+				(candidate) =>
+					candidate.id !== keyframe.id &&
+					Math.abs(candidate.progress - progress) <=
+						EDITOR_CAMERA_VIEW_PROGRESS_EPSILON
+			)
+		) {
+			this.setStatusMessage('View breakpoint progress must be unique');
+			return false;
+		}
+
+		const previousProgress = keyframe.progress;
+		keyframe.progress = progress;
+		track.sort((left, right) => left.progress - right.progress);
+		try {
+			this.#syncViewKeyframeProgressDragPreview(selection, progress);
+			return true;
+		} catch (error) {
+			keyframe.progress = previousProgress;
+			track.sort((left, right) => left.progress - right.progress);
+			this.setStatusMessage(
+				error instanceof Error
+					? error.message
+					: 'Camera key progress could not be updated'
+			);
+			return false;
+		}
+	}
+
+	/** Commit a successful drag as exactly one history entry. */
+	commitViewKeyframeProgressDrag() {
+		const selection = this.viewKeyframeProgressDrag;
+		const initialProgress = this.#viewKeyframeProgressDragInitialProgress;
+		if (!selection || initialProgress === null) return false;
+		const keyframe = findSceneCameraViewKeyframe(
+			this.document,
+			selection.connectionId,
+			selection.direction,
+			selection.keyframeId
+		);
+		if (
+			!keyframe ||
+			Math.abs(keyframe.progress - initialProgress) <=
+				EDITOR_CAMERA_VIEW_PROGRESS_EPSILON
+		) {
+			this.cancelViewKeyframeProgressDrag();
+			return false;
+		}
+
+		this.viewKeyframeProgressDrag = null;
+		this.#viewKeyframeProgressDragInitialProgress = null;
+		const committed = this.commitDocumentTransaction();
+		if (!committed) {
+			this.selectCameraTimelineViewKeyframe(
+				selection.connectionId,
+				selection.direction,
+				selection.keyframeId
+			);
+		}
+		return committed;
+	}
+
+	/** Restore the original progress/playhead and create no history entry. */
+	cancelViewKeyframeProgressDrag() {
+		const selection = this.viewKeyframeProgressDrag;
+		if (!selection) return false;
+		this.viewKeyframeProgressDrag = null;
+		this.#viewKeyframeProgressDragInitialProgress = null;
+		const cancelled = this.cancelDocumentTransaction();
+		this.selectCameraTimelineViewKeyframe(
+			selection.connectionId,
+			selection.direction,
+			selection.keyframeId
+		);
+		return cancelled;
+	}
+
 	deleteSelectedViewKeyframe() {
 		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) {
 			return false;
@@ -1746,6 +1989,51 @@ export class MuseumEditorStore {
 			delete connection.viewTracks;
 		}
 		return this.commitDocumentTransaction();
+	}
+
+	/** Phase 2.3 — preview one complete reciprocal guided cycle. */
+	previewGuidedTour(mode: EditorCameraPreviewMode = 'visitor') {
+		if (this.isEditorInteractionActive || this.isDocumentTransactionActive) {
+			return false;
+		}
+		const current = this.cameraPreview;
+		if (current?.kind === 'tour') {
+			if (current.transport === 'playing') return false;
+			if (current.mode !== mode && !this.setCameraPreviewMode(mode)) return false;
+			if (this.cameraPreview?.transport === 'complete') {
+				this.setCameraPreviewPlayhead(0, this.cameraPreview.runId);
+			}
+			return this.playCameraPreview();
+		}
+		if (
+			current &&
+			(current.mode !== 'director' || current.transport !== 'paused')
+		) {
+			return false;
+		}
+
+		const timeline = this.#readCameraTimeline();
+		if (!timeline) return false;
+		if (!this.#prepareCameraPreview()) return false;
+
+		const runId = this.#nextCameraPreviewRunId++;
+		this.#capturedCameraPreviewRoute = null;
+		if (!current) {
+			this.cameraPreviewFollowEnabled = true;
+			this.cameraPreviewRecenterVersion += 1;
+		}
+		this.cameraTimelinePlayhead = 0;
+		this.cameraPreview = {
+			kind: 'tour',
+			startNodeId: timeline.startNodeId,
+			mode,
+			transport: 'playing',
+			runId,
+			playhead: 0,
+			startedAtMs: null
+		};
+		this.timelineExpanded = true;
+		return true;
 	}
 
 	previewSelectedNode(mode: EditorCameraPreviewMode = 'visitor') {
@@ -1890,7 +2178,7 @@ export class MuseumEditorStore {
 			return false;
 		}
 		let route: ResolvedCameraRoute | null = null;
-		if (preview.kind !== 'node') {
+		if (preview.kind !== 'node' && preview.kind !== 'tour') {
 			try {
 				route = this.#resolveCameraPreviewRoute(preview);
 			} catch (error) {
@@ -1925,23 +2213,26 @@ export class MuseumEditorStore {
 		) {
 			return false;
 		}
-		let route: ResolvedCameraRoute;
-		try {
-			route = preview.mode === 'director'
-				? this.#resolveCameraPreviewRoute(preview)
-				: this.getCapturedCameraPreviewRoute(preview.runId)!;
-			if (!route) throw new Error('Camera preview route capture is unavailable');
-		} catch (error) {
-			this.setStatusMessage(
-				error instanceof Error ? error.message : 'Camera preview route is unavailable'
-			);
-			return false;
+		let route: ResolvedCameraRoute | null = null;
+		if (preview.kind === 'tour') {
+			if (!this.#readCameraTimeline()) return false;
+		} else {
+			try {
+				route = preview.mode === 'director'
+					? this.#resolveCameraPreviewRoute(preview)
+					: this.getCapturedCameraPreviewRoute(preview.runId)!;
+				if (!route) throw new Error('Camera preview route capture is unavailable');
+			} catch (error) {
+				this.setStatusMessage(
+					error instanceof Error ? error.message : 'Camera preview route is unavailable'
+				);
+				return false;
+			}
 		}
 		const runId = this.#nextCameraPreviewRunId++;
-		this.#capturedCameraPreviewRoute = {
-			runId,
-			route: cloneResolvedCameraRoute(route)
-		};
+		this.#capturedCameraPreviewRoute = route
+			? { runId, route: cloneResolvedCameraRoute(route) }
+			: null;
 		const playhead = preview.transport === 'complete' ? 0 : preview.playhead;
 		this.cameraPreview = {
 			...preview,
@@ -1956,6 +2247,8 @@ export class MuseumEditorStore {
 				preview.direction,
 				playhead
 			);
+		} else if (preview.kind === 'tour') {
+			this.cameraTimelinePlayhead = playhead;
 		}
 		return true;
 	}
@@ -1993,6 +2286,8 @@ export class MuseumEditorStore {
 				preview.direction,
 				playhead
 			);
+		} else if (preview.kind === 'tour') {
+			this.cameraTimelinePlayhead = playhead;
 		}
 		return true;
 	}
@@ -2007,17 +2302,35 @@ export class MuseumEditorStore {
 		) {
 			return false;
 		}
-		const route = this.getCapturedCameraPreviewRoute(preview.runId);
-		if (!route) return false;
-		const motion = createCameraMotion(route);
 		const breakpoints = [0, 1];
-		for (const [edgeIndex, edge] of motion.positionEdgeSpans.entries()) {
-			breakpoints.push(cameraMotionProgressAtEdgeProgress(motion, edgeIndex, 0));
-			breakpoints.push(cameraMotionProgressAtEdgeProgress(motion, edgeIndex, 1));
-			for (const keyframe of edge.viewTrack?.keyframes ?? []) {
-				breakpoints.push(
-					cameraMotionProgressAtEdgeProgress(motion, edgeIndex, keyframe.progress)
-				);
+		if (preview.kind === 'tour') {
+			const timeline = this.#readCameraTimeline();
+			if (!timeline) return false;
+			breakpoints.push(...timeline.nodeBoundaries.map((boundary) => boundary.progress));
+			for (const edge of timeline.edges) {
+				const motion = edge.motions[edge.direction];
+				for (const keyframe of motion.positionEdgeSpans[0]?.viewTrack?.keyframes ?? []) {
+					const progress = cameraTimelineProgressAtEdgeProgress(
+						timeline,
+						edge.connectionId,
+						edge.direction,
+						keyframe.progress
+					);
+					if (progress !== null) breakpoints.push(progress);
+				}
+			}
+		} else {
+			const route = this.getCapturedCameraPreviewRoute(preview.runId);
+			if (!route) return false;
+			const motion = createCameraMotion(route);
+			for (const [edgeIndex, edge] of motion.positionEdgeSpans.entries()) {
+				breakpoints.push(cameraMotionProgressAtEdgeProgress(motion, edgeIndex, 0));
+				breakpoints.push(cameraMotionProgressAtEdgeProgress(motion, edgeIndex, 1));
+				for (const keyframe of edge.viewTrack?.keyframes ?? []) {
+					breakpoints.push(
+						cameraMotionProgressAtEdgeProgress(motion, edgeIndex, keyframe.progress)
+					);
+				}
 			}
 		}
 		const ordered = [...new Set(breakpoints.map((value) => value.toFixed(9)))]
@@ -2081,11 +2394,16 @@ export class MuseumEditorStore {
 				preview.direction,
 				1
 			);
+		} else if (preview.kind === 'tour') {
+			this.cameraTimelinePlayhead = 1;
 		}
 		return true;
 	}
 
 	stopCameraPreview() {
+		if (this.viewKeyframeProgressDrag) {
+			this.cancelViewKeyframeProgressDrag();
+		}
 		if (!this.cameraPreview) return false;
 		if (this.#restoreCameraPreview && !this.#restoreCameraPreview()) return false;
 		this.cameraPreview = null;
@@ -2107,9 +2425,17 @@ export class MuseumEditorStore {
 		if (preview.kind === 'node') {
 			throw new Error('A node preview has no camera route');
 		}
-		return preview.kind === 'connection'
-			? getCameraConnectionRoute(preview.connectionId, preview.direction, this.state.graph)
-			: getCameraRoute(preview.fromNodeId, preview.toNodeId, this.state.graph);
+		if (preview.kind === 'connection') {
+			return getCameraConnectionRoute(
+				preview.connectionId,
+				preview.direction,
+				this.state.graph
+			);
+		}
+		if (preview.kind === 'tour') {
+			throw new Error('Guided tour preview uses exact camera timeline motions');
+		}
+		return getCameraRoute(preview.fromNodeId, preview.toNodeId, this.state.graph);
 	}
 
 	#prepareCameraPreview() {
@@ -2236,7 +2562,11 @@ export class MuseumEditorStore {
 
 	/** Phase 1.1 — switch editor workspace. Stops any active camera preview when leaving Camera. */
 	setWorkspace(workspace: EditorWorkspace) {
-		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
+		if (this.isDocumentMutationBlocked) return false;
+		if (this.viewKeyframeProgressDrag) {
+			this.cancelViewKeyframeProgressDrag();
+		}
+		if (this.isEditorInteractionActive) return false;
 		if (workspace === this.currentWorkspace) return false;
 		if (this.currentWorkspace === 'camera' && this.cameraPreview) {
 			this.stopCameraPreview();
@@ -3160,6 +3490,7 @@ export class MuseumEditorStore {
 	}
 
 	#prepareDocumentReplacement() {
+		if (this.viewKeyframeProgressDrag) this.cancelViewKeyframeProgressDrag();
 		if (this.cameraPreview && !this.stopCameraPreview()) return false;
 		if (this.transformInteractionActive && !this.#cancelTransform?.()) return false;
 		if (this.directPathInteractionActive && !this.#cancelDirectPathDrag?.()) return false;
@@ -3298,6 +3629,11 @@ export class MuseumEditorStore {
 		if (preview.kind === 'node') {
 			this.#capturedCameraPreviewRoute = null;
 			this.cameraPreview = { ...preview, runId };
+			return;
+		}
+		if (preview.kind === 'tour') {
+			this.#capturedCameraPreviewRoute = null;
+			if (this.#readCameraTimeline()) this.cameraPreview = { ...preview, runId };
 			return;
 		}
 		try {

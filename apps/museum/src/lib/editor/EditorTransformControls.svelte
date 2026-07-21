@@ -96,6 +96,7 @@
 			previewActive:
 				store.isDocumentMutationBlocked ||
 				store.directPathInteractionActive ||
+				store.viewKeyframeProgressDrag !== null ||
 				!store.transformGizmoVisible,
 			pendingPlacement: Boolean(
 				store.pendingPlacementAssetId || store.pendingNavigationCommand

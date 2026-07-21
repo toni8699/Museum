@@ -19,6 +19,15 @@
 	const projectMutationBlocked = $derived(
 		store.isDocumentMutationBlocked || store.isEditorInteractionActive
 	);
+	const canPreviewTour = $derived(
+		!store.isEditorInteractionActive &&
+		!store.isDocumentTransactionActive &&
+		(!store.cameraPreview ||
+			(store.cameraPreview.kind === 'tour' &&
+				store.cameraPreview.transport !== 'playing') ||
+			(store.cameraPreview.mode === 'director' &&
+				store.cameraPreview.transport === 'paused'))
+	);
 	let projectMenuOpen = $state(false);
 	let projectMenuElement = $state<HTMLElement>();
 	let importFileInput = $state<HTMLInputElement>();
@@ -135,7 +144,12 @@
 		{#if workspace === 'scene'}
 			<a class="preview-action" href="/museum" target="_blank" rel="noreferrer">Preview Museum</a>
 		{:else}
-			<button type="button" disabled title="Whole-tour preview arrives in Phase 2">Preview Tour</button>
+			<button
+				type="button"
+				disabled={!canPreviewTour}
+				title="Preview one complete guided loop"
+				onclick={() => store.previewGuidedTour()}
+			>Preview Tour</button>
 		{/if}
 		<div bind:this={projectMenuElement} class="project-menu-wrap">
 			<button

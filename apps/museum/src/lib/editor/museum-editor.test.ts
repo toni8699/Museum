@@ -22,7 +22,13 @@ import {
 } from './museum-editor.svelte';
 import { serializeSceneDocument } from '$lib/content/scene-codec';
 import { createEditorRoomCameraFrame } from './editor-camera';
-import { cameraMotionProgressAtEdgeProgress } from '$lib/museum/navigation/camera-motion';
+import {
+	cameraMotionProgressAtEdgeProgress,
+	createCameraMotion,
+	createCameraMotionSample,
+	sampleCameraMotion
+} from '$lib/museum/navigation/camera-motion';
+import { getSceneCameraViewKeyframeWorldPosition } from './editor-camera-view';
 import {
 	degreesToRadians,
 	enforceUniformObjectScale,
@@ -2257,5 +2263,258 @@ describe('MuseumEditorStore Phase 2.2 timeline selection and scrub', () => {
 		expect(store.stopCameraPreview()).toBe(true);
 		expect(store.cameraPreview).toBeNull();
 		expect(store.cameraTimelinePlayhead).toBe(playhead);
+	});
+});
+
+describe('MuseumEditorStore Phase 2.3 whole guided-tour playback', () => {
+	it('plays and completes one full exact-edge guided cycle without document history', () => {
+		const store = createMuseumEditorStore();
+		store.setWorkspace('camera');
+		const before = store.canonicalJson;
+
+		expect(store.previewGuidedTour()).toBe(true);
+		expect(store.cameraPreview).toMatchObject({
+			kind: 'tour',
+			startNodeId: 'entrance-start',
+			mode: 'visitor',
+			transport: 'playing',
+			playhead: 0
+		});
+		const runId = store.cameraPreview!.runId;
+		expect(store.getCapturedCameraPreviewRoute(runId)).toBeNull();
+		const timeline = store.getCameraTimeline()!;
+		expect(timeline.nodeBoundaries[0]!.nodeId).toBe('entrance-start');
+		expect(timeline.nodeBoundaries.at(-1)!.nodeId).toBe('entrance-start');
+		expect(timeline.edges).toHaveLength(8);
+		expect(new Set(timeline.edges.map((edge) => edge.connectionId)).size).toBe(8);
+
+		expect(store.markCameraPreviewStarted(runId, 100)).toBe(true);
+		expect(store.setCameraPreviewPlayhead(0.63, runId)).toBe(true);
+		expect(store.cameraTimelinePlayhead).toBe(0.63);
+		expect(store.completeCameraPreview(runId)).toBe(true);
+		expect(store.cameraPreview).toMatchObject({
+			kind: 'tour',
+			transport: 'complete',
+			playhead: 1
+		});
+		expect(store.cameraTimelinePlayhead).toBe(1);
+		expect(store.canonicalJson).toBe(before);
+		expect(store.canUndo).toBe(false);
+	});
+
+	it('replaces a paused scrub pose and preserves tour playhead across modes and Stop', () => {
+		const store = createMuseumEditorStore();
+		store.setWorkspace('camera');
+		expect(store.seekCameraTimeline(0.38)).toBe(true);
+		expect(store.cameraPreview).toMatchObject({
+			kind: 'connection',
+			mode: 'director',
+			transport: 'paused'
+		});
+
+		expect(store.previewGuidedTour('director')).toBe(true);
+		expect(store.cameraPreview).toMatchObject({
+			kind: 'tour',
+			mode: 'director',
+			transport: 'playing',
+			playhead: 0
+		});
+		expect(store.pauseCameraPreview()).toBe(true);
+		expect(store.setCameraPreviewPlayhead(0.41)).toBe(true);
+		expect(store.setCameraPreviewMode('visitor')).toBe(true);
+		expect(store.cameraPreview).toMatchObject({
+			kind: 'tour',
+			mode: 'visitor',
+			transport: 'paused',
+			playhead: 0.41
+		});
+		expect(store.setCameraPreviewMode('director')).toBe(true);
+		expect(store.cameraTimelinePlayhead).toBe(0.41);
+		expect(store.stopCameraPreview()).toBe(true);
+		expect(store.cameraPreview).toBeNull();
+		expect(store.cameraTimelinePlayhead).toBe(0.41);
+	});
+
+	it('reports a broken guided cycle instead of guessing a route', () => {
+		const store = createMuseumEditorStore();
+		const poland = store.state.graph.nodeById.get('poland-threshold')!;
+		poland.previousNodeId = 'legacy-return';
+
+		expect(store.previewGuidedTour()).toBe(false);
+		expect(store.cameraPreview).toBeNull();
+		expect(store.statusMessage).toMatch(/not reciprocal/);
+	});
+});
+
+describe('MuseumEditorStore Phase 2.4 camera-key progress drag', () => {
+	function importWithDragKeys() {
+		const imported = cloneMuseumSceneDocument(museumSceneDocument);
+		const connection = imported.connections[0]!;
+		connection.viewTracks = {
+			forward: [
+				{
+					id: `${connection.id}-view-forward-01`,
+					progress: 0.3,
+					cameraTarget: [100, 2, 100],
+					fov: 48
+				},
+				{
+					id: `${connection.id}-view-forward-02`,
+					progress: 0.7,
+					cameraTarget: [90, 2, 90],
+					fov: 58
+				}
+			],
+			reverse: [
+				{
+					id: `${connection.id}-view-reverse-01`,
+					progress: 0.4,
+					cameraTarget: [80, 2, 80],
+					fov: 52
+				}
+			]
+		};
+		return imported;
+	}
+
+	function firstForwardSelection(store: ReturnType<typeof createMuseumEditorStore>) {
+		const connection = store.document.connections[0]!;
+		return {
+			connectionId: connection.id,
+			direction: 'forward' as const,
+			keyframeId: connection.viewTracks!.forward[0]!.id
+		};
+	}
+
+	it('live-updates progress, playhead, target, and FOV before one stable-ID commit', () => {
+		const store = createMuseumEditorStore();
+		expect(store.importDocument(importWithDragKeys())).toBe(true);
+		store.setWorkspace('camera');
+		const selection = firstForwardSelection(store);
+		const keyframe = store.document.connections[0]!.viewTracks!.forward[0]!;
+		const positionPathBefore = JSON.stringify(store.document.connections[0]!.positionPath);
+		const targetBefore = [...keyframe.cameraTarget];
+		const fovBefore = keyframe.fov;
+		const reverseTrackBefore = JSON.stringify(
+			store.document.connections[0]!.viewTracks!.reverse
+		);
+
+		expect(store.beginViewKeyframeProgressDrag(selection)).toBe(true);
+		expect(store.isDocumentTransactionActive).toBe(true);
+		expect(store.isEditorInteractionActive).toBe(true);
+		expect(store.updateViewKeyframeProgressDrag(0.48)).toBe(true);
+		expect(store.selectedViewKeyframe?.progress).toBe(0.48);
+		expect(store.cameraPreview).toMatchObject({
+			kind: 'connection',
+			mode: 'director',
+			transport: 'paused'
+		});
+		const route = store.getCapturedCameraPreviewRoute(store.cameraPreview!.runId)!;
+		const routeKey = route.edges[0]!.viewTrack!.keyframes.find(
+			(candidate) => candidate.id === selection.keyframeId
+		)!;
+		expect(routeKey.progress).toBe(0.48);
+		const sample = createCameraMotionSample();
+		sampleCameraMotion(createCameraMotion(route), store.cameraPreview!.playhead, sample);
+		for (const [index, value] of sample.target.toArray().entries()) {
+			expect(value).toBeCloseTo(targetBefore[index]!, 8);
+		}
+		expect(sample.fov).toBeCloseTo(fovBefore, 8);
+
+		expect(store.commitViewKeyframeProgressDrag()).toBe(true);
+		expect(store.isDocumentTransactionActive).toBe(false);
+		expect(store.viewKeyframeProgressDrag).toBeNull();
+		expect(store.canUndo).toBe(true);
+		expect(store.selectedViewKeyframe).toMatchObject({
+			id: selection.keyframeId,
+			progress: 0.48,
+			cameraTarget: targetBefore,
+			fov: fovBefore
+		});
+		expect(JSON.stringify(store.selectedConnection!.positionPath)).toBe(positionPathBefore);
+		expect(JSON.stringify(store.selectedConnection!.viewTracks!.reverse)).toBe(
+			reverseTrackBefore
+		);
+
+		expect(store.undo()).toBe(true);
+		expect(store.selectedViewKeyframe).toMatchObject({
+			id: selection.keyframeId,
+			progress: 0.3
+		});
+		expect(store.redo()).toBe(true);
+		expect(store.selectedViewKeyframe).toMatchObject({
+			id: selection.keyframeId,
+			progress: 0.48
+		});
+	});
+
+	it('projects a world point onto the exact shared curve in both directions', () => {
+		for (const direction of ['forward', 'reverse'] as const) {
+			const store = createMuseumEditorStore();
+			expect(store.importDocument(importWithDragKeys())).toBe(true);
+			store.setWorkspace('camera');
+			const connection = store.document.connections[0]!;
+			const selection = {
+				connectionId: connection.id,
+				direction,
+				keyframeId: connection.viewTracks![direction][0]!.id
+			};
+			const worldPoint = getSceneCameraViewKeyframeWorldPosition(
+				store.document,
+				selection.connectionId,
+				selection.direction,
+				0.59
+			);
+
+			expect(store.beginViewKeyframeProgressDrag(selection)).toBe(true);
+			expect(store.updateViewKeyframeProgressDrag(worldPoint)).toBe(true);
+			expect(store.selectedViewKeyframe!.progress).toBeCloseTo(0.59, 3);
+			expect(store.commitViewKeyframeProgressDrag()).toBe(true);
+		}
+	});
+
+	it('clamps endpoints strictly inside the edge and rejects directional collisions', () => {
+		const store = createMuseumEditorStore();
+		expect(store.importDocument(importWithDragKeys())).toBe(true);
+		store.setWorkspace('camera');
+		const selection = firstForwardSelection(store);
+
+		expect(store.beginViewKeyframeProgressDrag(selection)).toBe(true);
+		expect(store.updateViewKeyframeProgressDrag(0)).toBe(true);
+		expect(store.selectedViewKeyframe!.progress).toBeGreaterThan(0);
+		expect(store.updateViewKeyframeProgressDrag(1)).toBe(true);
+		expect(store.selectedViewKeyframe!.progress).toBeLessThan(1);
+		expect(store.updateViewKeyframeProgressDrag(0.7)).toBe(false);
+		expect(store.selectedViewKeyframe!.progress).toBeLessThan(1);
+		expect(store.cancelViewKeyframeProgressDrag()).toBe(true);
+		expect(store.selectedViewKeyframe!.progress).toBe(0.3);
+		expect(store.canUndo).toBe(false);
+	});
+
+	it('creates no history for no-op/cancel and cancels atomically on workspace switch', () => {
+		const store = createMuseumEditorStore();
+		expect(store.importDocument(importWithDragKeys())).toBe(true);
+		store.setWorkspace('camera');
+		const selection = firstForwardSelection(store);
+
+		expect(store.beginViewKeyframeProgressDrag(selection)).toBe(true);
+		expect(store.commitViewKeyframeProgressDrag()).toBe(false);
+		expect(store.canUndo).toBe(false);
+
+		expect(store.beginViewKeyframeProgressDrag(selection)).toBe(true);
+		expect(store.updateViewKeyframeProgressDrag(0.52)).toBe(true);
+		expect(store.cancelViewKeyframeProgressDrag()).toBe(true);
+		expect(store.selectedViewKeyframe!.progress).toBe(0.3);
+		expect(store.canUndo).toBe(false);
+
+		expect(store.beginViewKeyframeProgressDrag(selection)).toBe(true);
+		expect(store.updateViewKeyframeProgressDrag(0.56)).toBe(true);
+		expect(store.setWorkspace('scene')).toBe(true);
+		expect(store.currentWorkspace).toBe('scene');
+		expect(store.viewKeyframeProgressDrag).toBeNull();
+		expect(store.isDocumentTransactionActive).toBe(false);
+		expect(store.selectedViewKeyframe!.progress).toBe(0.3);
+		expect(store.cameraPreview).toBeNull();
+		expect(store.canUndo).toBe(false);
 	});
 });

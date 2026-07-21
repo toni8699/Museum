@@ -4,9 +4,14 @@ import {
 	cameraMotionEdgeProgressAtProgress,
 	cameraMotionProgressAtEdgeProgress,
 	createCameraMotion,
+	sampleCameraMotion,
+	type CameraMotionSample,
 	type CameraMotion
 } from '$lib/museum/navigation/camera-motion';
-import { getCameraConnectionRoute } from '$lib/museum/navigation/camera-route';
+import {
+	getCameraConnectionRoute,
+	getGuidedCameraRoute
+} from '$lib/museum/navigation/camera-route';
 
 const TIMELINE_EPSILON = 1e-9;
 
@@ -64,29 +69,6 @@ function findGuidedStart(graph: NavigationGraph, preferredStartNodeId: string) {
 	);
 }
 
-function findGuidedConnection(
-	graph: NavigationGraph,
-	fromNodeId: string,
-	toNodeId: string
-) {
-	const connection = graph.connections.find(
-		(candidate) =>
-			(candidate.fromNodeId === fromNodeId && candidate.toNodeId === toNodeId) ||
-			(candidate.fromNodeId === toNodeId && candidate.toNodeId === fromNodeId)
-	);
-	if (!connection) {
-		throw new Error(
-			`The guided camera timeline is missing a connection from ${fromNodeId} to ${toNodeId}`
-		);
-	}
-	return {
-		connection,
-		direction: (connection.fromNodeId === fromNodeId
-			? 'forward'
-			: 'reverse') as CameraConnectionDirection
-	};
-}
-
 /**
  * Build timeline timing from exact oriented connection routes. This indexes the
  * checked graph; route geometry and sampling remain owned by camera-route/motion.
@@ -96,68 +78,40 @@ export function createEditorCameraTimeline(
 	preferredStartNodeId = 'entrance-start'
 ): EditorCameraTimeline {
 	const start = findGuidedStart(graph, preferredStartNodeId);
-	const guidedNodeCount = graph.navigationNodes.filter(
-		(node) => node.nextNodeId !== undefined && node.previousNodeId !== undefined
-	).length;
-	const visited = new Set<string>();
+	const guidedRoute = getGuidedCameraRoute(start.id, graph);
 	const edges: EditorCameraTimelineEdge[] = [];
-	const boundaryNodeIds: string[] = [start.id];
-	let cursor = start;
 	let elapsedSeconds = 0;
 
-	while (true) {
-		if (visited.has(cursor.id)) {
-			throw new Error(`The guided camera timeline repeats ${cursor.id} before returning to start`);
-		}
-		visited.add(cursor.id);
-		const nextNodeId = cursor.nextNodeId;
-		if (!nextNodeId) {
-			throw new Error(`Guided camera node ${cursor.id} has no next node`);
-		}
-		const next = graph.nodeById.get(nextNodeId);
-		if (!next) throw new Error(`Unknown guided camera node: ${nextNodeId}`);
-		if (next.previousNodeId !== cursor.id) {
-			throw new Error(`Guided camera link ${cursor.id} → ${next.id} is not reciprocal`);
-		}
-
-		const { connection, direction } = findGuidedConnection(
-			graph,
-			cursor.id,
-			next.id
+	for (const routeEdge of guidedRoute.edges) {
+		const connection = graph.connections.find(
+			(candidate) => candidate.id === routeEdge.connectionId
 		);
+		if (!connection) {
+			throw new Error(`Unknown camera connection: ${routeEdge.connectionId}`);
+		}
 		const forwardMotion = createCameraMotion(
 			getCameraConnectionRoute(connection.id, 'forward', graph)
 		);
 		const reverseMotion = createCameraMotion(
 			getCameraConnectionRoute(connection.id, 'reverse', graph)
 		);
-		const motion = direction === 'forward' ? forwardMotion : reverseMotion;
+		const motion =
+			routeEdge.direction === 'forward' ? forwardMotion : reverseMotion;
 		const durationSeconds = motion.durationSeconds;
 		edges.push({
 			connectionId: connection.id,
-			direction,
-			fromNodeId: cursor.id,
-			toNodeId: next.id,
+			direction: routeEdge.direction,
+			fromNodeId: routeEdge.fromNodeId,
+			toNodeId: routeEdge.toNodeId,
 			startSeconds: elapsedSeconds,
 			endSeconds: elapsedSeconds + durationSeconds,
 			durationSeconds,
 			motions: { forward: forwardMotion, reverse: reverseMotion }
 		});
 		elapsedSeconds += durationSeconds;
-		boundaryNodeIds.push(next.id);
-
-		if (next.id === start.id) break;
-		cursor = next;
-		if (edges.length > guidedNodeCount) {
-			throw new Error('The guided camera timeline does not form one cycle');
-		}
 	}
 
-	if (visited.size !== guidedNodeCount) {
-		throw new Error('The guided camera timeline does not include every guided node');
-	}
-
-	const nodeBoundaries = boundaryNodeIds.map(
+	const nodeBoundaries = guidedRoute.nodeIds.map(
 		(nodeId, boundaryIndex): EditorCameraTimelineNodeBoundary => {
 			const timeSeconds =
 				boundaryIndex === edges.length
@@ -214,6 +168,21 @@ export function getEditorCameraTimelineLocation(
 				: 0
 			: clamp01((seconds - edge.startSeconds) / edge.durationSeconds);
 	return { edge, edgeIndex, playhead, progress: clamped };
+}
+
+/** Sample the exact oriented connection motion used at this guided-tour time. */
+export function sampleEditorCameraTimeline(
+	timeline: EditorCameraTimeline,
+	progress: number,
+	output: CameraMotionSample
+) {
+	const location = getEditorCameraTimelineLocation(timeline, progress);
+	sampleCameraMotion(
+		location.edge.motions[location.edge.direction],
+		location.playhead,
+		output
+	);
+	return location;
 }
 
 /** Map an oriented edge-local motion playhead onto the global guided ruler. */
@@ -297,5 +266,27 @@ export function cameraTimelineEdgePlayheadAtProgress(
 		edge.motions[direction],
 		0,
 		focusedEdgeProgress
+	);
+}
+
+/** Resolve a global ruler point to persisted progress on one directional edge track. */
+export function cameraTimelineEdgeProgressAtProgress(
+	timeline: EditorCameraTimeline,
+	connectionId: string,
+	direction: CameraConnectionDirection,
+	progress: number
+) {
+	const edge = findEditorCameraTimelineEdge(timeline, connectionId);
+	const playhead = cameraTimelineEdgePlayheadAtProgress(
+		timeline,
+		connectionId,
+		direction,
+		progress
+	);
+	if (!edge || playhead === null) return null;
+	return cameraMotionEdgeProgressAtProgress(
+		edge.motions[direction],
+		0,
+		playhead
 	);
 }

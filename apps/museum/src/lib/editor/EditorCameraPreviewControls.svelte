@@ -24,14 +24,20 @@
 		<p role="status">
 			{preview.kind === 'node'
 				? 'Holding authored node pose'
-				: `${preview.transport} · ${(preview.playhead * 100).toFixed(1)}%`}
+				: `${preview.kind === 'tour' ? 'Guided tour · ' : ''}${preview.transport} · ${(preview.playhead * 100).toFixed(1)}%`}
 		</p>
 		{#if preview.kind !== 'node'}
 			<div class="transport">
 				{#if preview.transport === 'playing'}
 					<button type="button" class="active" onclick={() => store.pauseCameraPreview()}>Pause</button>
 				{:else}
-					<button type="button" class="active" onclick={() => store.playCameraPreview()}>Play selected edge</button>
+					<button type="button" class="active" onclick={() => store.playCameraPreview()}>
+						{preview.kind === 'tour'
+							? 'Play guided tour'
+							: preview.kind === 'connection'
+								? 'Play selected edge'
+								: 'Play transition'}
+					</button>
 				{/if}
 			</div>
 		{/if}

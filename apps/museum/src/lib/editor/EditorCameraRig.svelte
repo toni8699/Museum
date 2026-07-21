@@ -42,7 +42,9 @@
 		restoreEditorOrbitPose,
 		type EditorOrbitPose
 	} from './editor-camera';
+	import { sampleEditorCameraTimeline } from './editor-camera-timeline';
 	import type {
+		EditorCameraPreview,
 		EditorCameraPreviewMode,
 		MuseumEditorStore
 	} from './museum-editor.svelte';
@@ -84,6 +86,31 @@
 	const followDelta = new Vector3();
 	const framedNodePosition = new Vector3();
 	const framedNodeTarget = new Vector3();
+	type ActiveCameraPreview = Exclude<EditorCameraPreview, null>;
+
+	function previewDurationSeconds(
+		preview: ActiveCameraPreview,
+		motion: CameraMotion | null
+	) {
+		return preview.kind === 'tour'
+			? (store.getCameraTimeline()?.durationSeconds ?? 0)
+			: (motion?.durationSeconds ?? 0);
+	}
+
+	function samplePreviewMotion(
+		preview: ActiveCameraPreview,
+		playhead: number
+	) {
+		if (preview.kind === 'tour') {
+			const timeline = store.getCameraTimeline();
+			if (!timeline) return false;
+			sampleEditorCameraTimeline(timeline, playhead, previewSample);
+			return true;
+		}
+		if (!activeMotion) return false;
+		sampleCameraMotion(activeMotion, playhead, previewSample);
+		return true;
+	}
 
 	function applyPreviewPose(currentCamera: PerspectiveCamera) {
 		currentCamera.position.copy(previewPosition);
@@ -216,6 +243,7 @@
 
 	$effect(() => {
 		const preview = store.cameraPreview;
+		const reducedMotion = store.state.reducedMotion;
 		const currentCamera = camera;
 		const currentVirtualCamera = virtualCamera;
 		const controls = orbitControls;
@@ -261,24 +289,36 @@
 				previewTarget.set(...node.cameraTarget);
 				previewSample.fov = node.fov;
 				activeMotion = null;
+			} else if (preview.kind === 'tour') {
+				activeMotion = null;
+				if (!samplePreviewMotion(preview, preview.playhead)) {
+					throw new Error('The guided camera timeline is unavailable');
+				}
 			} else {
 				const route = store.getCapturedCameraPreviewRoute(preview.runId);
 				if (!route) throw new Error('Camera preview route capture is unavailable');
 				activeMotion = createCameraMotion(route);
-				sampleCameraMotion(activeMotion, preview.playhead, previewSample);
+				samplePreviewMotion(preview, preview.playhead);
 			}
 			applyVirtualPose();
 			if (preview.mode === 'visitor') applyPreviewPose(currentCamera);
 			else syncDirectorObserver(currentCamera, controls);
 
-			if (preview.kind !== 'node' && preview.transport === 'playing' && activeMotion) {
-				if (activeMotion.durationSeconds === 0) {
+			if (preview.kind !== 'node' && preview.transport === 'playing') {
+				const durationSeconds = previewDurationSeconds(preview, activeMotion);
+				if (durationSeconds === 0 || reducedMotion) {
+					if (!samplePreviewMotion(preview, 1)) {
+						throw new Error('Camera preview motion is unavailable');
+					}
+					applyVirtualPose();
+					if (preview.mode === 'visitor') applyPreviewPose(currentCamera);
+					else syncDirectorObserver(currentCamera, controls);
 					store.markCameraPreviewStarted(preview.runId, performance.now());
 					store.completeCameraPreview(preview.runId);
 				} else {
 					store.markCameraPreviewStarted(
 						preview.runId,
-						performance.now() - preview.playhead * activeMotion.durationSeconds * 1000
+						performance.now() - preview.playhead * durationSeconds * 1000
 					);
 				}
 			}
@@ -366,20 +406,21 @@
 		const preview = store.cameraPreview;
 		if (preview && activePreviewRunId === preview.runId) {
 			let reachedEnd = false;
-			if (preview.kind !== 'node' && activeMotion) {
+			if (preview.kind !== 'node') {
 				let progress = preview.playhead;
 				if (preview.transport === 'playing' && preview.startedAtMs !== null) {
-					progress = activeMotion.durationSeconds === 0
+					const durationSeconds = previewDurationSeconds(preview, activeMotion);
+					progress = durationSeconds === 0
 						? 1
 						: (performance.now() - preview.startedAtMs) /
-							(1000 * activeMotion.durationSeconds);
+							(1000 * durationSeconds);
 					if (progress >= 1) {
 						progress = 1;
 						reachedEnd = true;
 					}
 					store.setCameraPreviewPlayhead(progress, preview.runId);
 				}
-				sampleCameraMotion(activeMotion, progress, previewSample);
+				samplePreviewMotion(preview, progress);
 			}
 			applyVirtualPose();
 			if (preview.mode === 'visitor') applyPreviewPose(currentCamera);

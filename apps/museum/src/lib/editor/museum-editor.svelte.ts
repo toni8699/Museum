@@ -160,12 +160,6 @@ export type EditorWorkspace = 'scene' | 'camera';
 /** Scene-workspace sidebar choice; Camera temporarily replaces it without changing it. */
 export type EditorLeftPanel = 'scene' | 'assets';
 
-/**
- * Phase 2.1 Camera workspace filter. `[ All ] [ Cameras ]`. Scene workspace ignores it
- * and continues to show its Scene/Assets tabs.
- */
-export type EditorCameraTreeFilter = 'all' | 'cameras';
-
 export type EditorPlacementTreeSelectionOptions = {
 	additive?: boolean;
 	focus?: boolean;
@@ -359,11 +353,6 @@ export class MuseumEditorStore {
 	activeCameraDirection = $state<CameraConnectionDirection>('forward');
 	treeExpandedCameraConnectionIds = $state<string[]>([]);
 	treeExpandedCameraDirectionKeys = $state<string[]>([]);
-	/**
-	 * Phase 2.1 camera filter — `[ All ] [ Cameras ]` inside the Camera workspace; the
-	 * Scene workspace keeps Scene/Assets tabs and ignores this state.
-	 */
-	cameraTreeFilter = $state<EditorCameraTreeFilter>('cameras');
 
 	/** Session-only asset placement and pointer/shortcut coordination. */
 	pendingPlacementAssetId = $state<string | null>(null);
@@ -1958,16 +1947,6 @@ export class MuseumEditorStore {
 		if (!this.treeExpandedClusterIds.includes(clusterId)) {
 			this.treeExpandedClusterIds = [...this.treeExpandedClusterIds, clusterId];
 		}
-		return true;
-	}
-
-	/**
-	 * Phase 2.1 — switch the Camera workspace sidebar filter. The Scene workspace
-	 * ignores this state and keeps its Scene/Assets tabs.
-	 */
-	setCameraTreeFilter(value: EditorCameraTreeFilter) {
-		if (this.cameraTreeFilter === value) return false;
-		this.cameraTreeFilter = value;
 		return true;
 	}
 

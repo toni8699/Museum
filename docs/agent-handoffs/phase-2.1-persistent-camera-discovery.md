@@ -2,8 +2,9 @@
 
 ## Status
 
-- **Slice:** Phase 2.1 — Persistent connection direction and camera-key discovery + Camera workspace filter.
-- **Result:** Complete after review fixes. `npm run check` clean; `npm test` passes 20 files / 312 tests.
+- **Slice:** Phase 2.1 — Persistent connection direction and camera-key discovery.
+- **Follow-on:** Removed the `[ All ] [ Cameras ]` sidebar filter so Camera workspace always shows `EditorCameraTree` only. Scene objects remain pickable in the shared viewport.
+- **Result:** Complete after review fixes and All-tab removal.
 - **Schema:** Unchanged. Scene JSON, history, dirty-baseline, and timing untouched.
 - **Commit:** None created.
 
@@ -14,7 +15,8 @@
 - `apps/museum/src/lib/editor/EditorLeftSidebar.svelte`
 - `apps/museum/src/lib/editor/EditorCameraTree.svelte` (full rewrite)
 - `apps/museum/src/lib/editor/museum-editor.test.ts`
-- This handoff and `docs/agent-handoffs/CURRENT.md`
+- This handoff, `docs/agent-handoffs/CURRENT.md`, and `docs/agent-handoffs/phase-2.1-remove-camera-all-tab.md`
+- `docs/plans/museum-editor-workspace/README-museum-editor.md` (product shell: no All tab)
 
 ## Store API Surface
 
@@ -25,13 +27,15 @@ activeCameraConnectionId: string | null
 activeCameraDirection: CameraConnectionDirection  // 'forward' | 'reverse'
 treeExpandedCameraConnectionIds: string[]
 treeExpandedCameraDirectionKeys: string[]          // `${connectionId}:${direction}`
-cameraTreeFilter: 'all' | 'cameras'               // default 'cameras'
 ```
+
+Removed (corrective follow-on):
+
+- `cameraTreeFilter` / `EditorCameraTreeFilter` / `setCameraTreeFilter`
 
 Added methods:
 
 - `selectCameraConnectionDirection(connectionId, direction)` — primary entry; idempotent on identical state; auto-expands tree to reveal the direction.
-- `setCameraTreeFilter(value)` — session-only filter switch.
 - `toggleCameraConnectionTreeExpansion(connectionId)` and `toggleCameraDirectionTreeExpansion(connectionId, direction)` — tree expansion toggles.
 - `isCameraKeyHelpersActive` getter — single source of truth for helper visibility (Camera workspace + non-blocked preview + connection still in document).
 
@@ -52,14 +56,13 @@ Added methods:
 
 `EditorCameraViewHelpers.svelte` reads `isCameraKeyHelpersActive` and `activeCameraConnectionId` / `activeCameraDirection`. Helpers stay visible in the Camera workspace even when no Director preview is active, and hide in Scene workspace, during visitor preview, asset placement, or pending navigation commands.
 
-## Camera Filter
+## Camera Sidebar
 
-- Sidebar shows `[ All ] [ Cameras ]` tabs only when `currentWorkspace === 'camera'`.
-- Filter is session-only; Scene workspace ignores it.
-- Default is `'cameras'` per the plan.
-- All mode mounts `EditorSceneTree` so users can still select walls/artworks in the Camera workspace.
+- Camera workspace shows `Camera Tour` header + `EditorCameraTree` only.
+- No `[ All ] [ Cameras ]` tabs; Scene tree is not remounted under Camera.
+- Scene objects remain selectable via the shared viewport while framing cameras.
 
-## Tree Hierarchy (Cameras filter)
+## Tree Hierarchy
 
 - **Guided Tour** — chain walked from `entrance-start` via `nextNodeId`.
 - **Free Nodes** — navigation nodes outside the guided chain.
@@ -73,16 +76,15 @@ Added methods:
 
 ## Verification
 
-- `npm run check` — 0 errors, 0 warnings.
-- `npm test` — 20 files / 312 tests pass.
-- `git diff --check` — clean.
-- Focused coverage: default filter; connection selection persistence; idempotent direction switch; same-connection anchor direction preservation; cross-connection anchor forward default; keyframe trio; Done editing preserves direction; exact-edge preview direction adoption; Preview Stop preserves connection + direction + selection; helpers visibility across Camera / Scene / visitor-preview / Stop cycles; session-only filter; expansion toggle independence; node / placement clearing active state.
+- See [`phase-2.1-remove-camera-all-tab.md`](./phase-2.1-remove-camera-all-tab.md) for the corrective follow-on commands and acceptance notes.
+- Focused coverage: connection selection persistence; idempotent direction switch; same-connection anchor direction preservation; cross-connection anchor forward default; keyframe trio; Done editing preserves direction; exact-edge preview direction adoption; Preview Stop preserves connection + direction + selection; helpers visibility across Camera / Scene / visitor-preview / Stop cycles; expansion toggle independence; node / placement clearing active state.
 
 ## Known Gaps / Out of Scope
 
 - Per plan, Phase 2.1 intentionally does not include: node/connection creation/deletion, guided-order editing, any-room placement, new FOV/aim handles, paused Through-Camera mutation, timing fields, schema changes. All deferred.
 - The new tree sections default to collapsed; auto-expand only fires on the active selection's tree path.
+- Camera/Object viewport selection-scope toggle remains deferred.
 
 ## Exact Next-Slice Recommendation
 
-Phase 2.2 — Camera filter (UI polish), timeline selection, and scrub. Most of the selection plumbing already exists; the next slice wires the existing `cameraTreeFilter` to timeline lanes and adds the timeline component (`EditorCameraTimelinePanel.svelte`). Whole-tour route and playback remain Phase 2.3.
+Phase 2.2 — Timeline selection and scrub. Wire existing connection/direction/key selection into timeline lanes and add `EditorCameraTimelinePanel.svelte`. Do not reintroduce a sidebar All filter. Whole-tour route and playback remain Phase 2.3.

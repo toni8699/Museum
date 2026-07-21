@@ -1874,9 +1874,8 @@ describe('MuseumEditorStore Phase 2.1 persistent camera discovery', () => {
 		return imported;
 	}
 
-	it('defaults to the Cameras filter with no active connection', () => {
+	it('defaults with no active connection or direction focus', () => {
 		const store = createMuseumEditorStore();
-		expect(store.cameraTreeFilter).toBe('cameras');
 		expect(store.activeCameraConnectionId).toBeNull();
 		expect(store.activeCameraDirection).toBe('forward');
 	});
@@ -2048,21 +2047,6 @@ describe('MuseumEditorStore Phase 2.1 persistent camera discovery', () => {
 		// selectNavigationNode cleared the active connection focus, so the helpers stay
 		// hidden after Stop. The user can re-select a connection/key to bring them back.
 		expect(store.isCameraKeyHelpersActive).toBe(false);
-	});
-
-	it('camera filter is session-only and Scene workspace ignores it', () => {
-		const store = createMuseumEditorStore();
-		expect(store.cameraTreeFilter).toBe('cameras');
-		expect(store.setCameraTreeFilter('all')).toBe(true);
-		expect(store.cameraTreeFilter).toBe('all');
-
-		expect(store.setWorkspace('camera')).toBe(true);
-		expect(store.cameraTreeFilter).toBe('all');
-		expect(store.setWorkspace('scene')).toBe(true);
-		expect(store.cameraTreeFilter).toBe('all');
-		expect(store.setWorkspace('camera')).toBe(true);
-		expect(store.cameraTreeFilter).toBe('all');
-		expect(store.setCameraTreeFilter('all')).toBe(false);
 	});
 
 	it('camera connection and direction expansion toggle independently and persist', () => {

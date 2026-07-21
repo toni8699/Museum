@@ -90,9 +90,9 @@ Workspace switching changes attention, default filters, helper visibility, and t
 
 ### Left sidebar
 
-- Persistent `[ Scene ] [ Assets ]` tabs.
-- Camera workspace adds `[ All ] [ Cameras ]`; it defaults to `Cameras` but never locks the user out of scene objects.
-- User may select a wall, painting, or piano while framing a camera.
+- Persistent `[ Scene ] [ Assets ]` tabs in Scene workspace only.
+- Camera workspace shows the dedicated camera tree (Guided Tour, Free Nodes, Connections, keys). No `[ All ] [ Cameras ]` filter tabs.
+- User may still select a wall, painting, or piano in the shared viewport while framing a camera.
 
 ### Timeline
 

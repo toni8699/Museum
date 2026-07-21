@@ -1914,10 +1914,8 @@ export class MuseumEditorStore {
 			return false;
 		}
 
-		const parisWasActive = this.selectedRoomId === 'paris';
 		this.cancelPendingNavigation();
 		this.selectRoom('paris');
-		if (!parisWasActive) this.focusRoom('paris');
 		this.pendingPlacementAssetId = asset.id;
 		this.setNavigationHover(null);
 		this.setStatusMessage(`Click the Paris floor to place ${asset.name}`);
@@ -1969,7 +1967,6 @@ export class MuseumEditorStore {
 
 		this.pendingPlacementAssetId = null;
 		this.selectPlacement(id);
-		this.requestPlacementFrame([id]);
 		this.setStatusMessage(`Placed ${asset.name}`);
 		return id;
 	}

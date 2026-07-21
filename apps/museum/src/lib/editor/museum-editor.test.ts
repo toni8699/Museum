@@ -537,9 +537,11 @@ describe('MuseumEditorStore clusters', () => {
 describe('MuseumEditorStore Phase 5 placement commands', () => {
 	it('replaces pending floor assets, rejects unsupported surfaces, and cancels stale assets', () => {
 		const store = createMuseumEditorStore();
+		const focusVersion = store.cameraFocusVersion;
 		expect(store.beginAssetPlacement('paris-salon-chair')).toBe(true);
 		expect(store.selectedRoomId).toBe('paris');
 		expect(store.pendingPlacementAssetId).toBe('paris-salon-chair');
+		expect(store.cameraFocusVersion).toBe(focusVersion);
 
 		expect(store.beginAssetPlacement('paris-salon-table')).toBe(true);
 		expect(store.pendingPlacementAssetId).toBe('paris-salon-table');
@@ -554,6 +556,7 @@ describe('MuseumEditorStore Phase 5 placement commands', () => {
 	it('creates explicit scene fields with reserved IDs and one undo entry', () => {
 		const store = createMuseumEditorStore();
 		store.selectRoom('paris');
+		const focusVersion = store.cameraFocusVersion;
 		expect(store.beginAssetPlacement('paris-salon-chair')).toBe(true);
 		const firstId = store.createPendingPlacementAt([1, 0.01, 2]);
 		expect(firstId).toBe('paris-salon-chair-placement');
@@ -566,7 +569,8 @@ describe('MuseumEditorStore Phase 5 placement commands', () => {
 			rotation: [0, 0, 0]
 		});
 		expect(first).not.toHaveProperty('scale');
-		expect(store.pendingFramePlacementIds).toEqual([firstId]);
+		expect(store.pendingFramePlacementIds).toEqual([]);
+		expect(store.cameraFocusVersion).toBe(focusVersion);
 
 		expect(store.undo()).toBe(true);
 		expect(store.document.objects.some((object) => object.id === firstId)).toBe(false);

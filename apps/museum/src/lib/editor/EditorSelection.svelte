@@ -49,6 +49,7 @@
 		startX: number;
 		startY: number;
 		suppressClick: boolean;
+		orbitWasEnabled: boolean | null;
 	};
 
 	type PathNavigationSelection =
@@ -107,7 +108,14 @@
 		return raycaster.intersectObjects(scene.children, true);
 	}
 
-	function restoreOrbit(active: PathPointerSession) {
+	function isFloorPlacementActive() {
+		return Boolean(
+			store.pendingPlacementAssetId ||
+				store.pendingNavigationCommand?.kind === 'place-connected-node'
+		);
+	}
+
+	function restoreOrbit(active: { orbitWasEnabled: boolean | null }) {
 		if (active.orbitWasEnabled === null || !editorOrbitControls.current) return;
 		editorOrbitControls.current.enabled = active.orbitWasEnabled;
 	}
@@ -123,7 +131,7 @@
 		pointerSession = null;
 		if (!active) return;
 		releaseCapture(active.pointerId);
-		if (active.kind === 'path') restoreOrbit(active);
+		restoreOrbit(active);
 	}
 
 	function cancelPathDrag() {
@@ -348,7 +356,6 @@
 
 		if (event.altKey) {
 			store.cyclePlacement(uniquePlacementIdsInOrder(hits));
-			if (store.selectedPlacementId) store.focusPlacement(store.selectedPlacementId);
 			return;
 		}
 
@@ -378,7 +385,6 @@
 				store.togglePlacement(result.id);
 			} else {
 				store.selectPlacement(result.id);
-				store.focusPlacement(result.id);
 			}
 		} else if (!event.shiftKey) {
 			store.deselect();
@@ -397,12 +403,21 @@
 		const pathHit = activePathHit(event);
 		if (pathHit && beginPathPointer(event, pathHit)) return;
 
+		let orbitWasEnabled: boolean | null = null;
+		if (isFloorPlacementActive()) {
+			orbitWasEnabled = editorOrbitControls.current?.enabled ?? null;
+			if (editorOrbitControls.current) editorOrbitControls.current.enabled = false;
+			event.preventDefault();
+			event.stopImmediatePropagation();
+		}
+
 		pointerSession = {
 			kind: 'normal',
 			pointerId: event.pointerId,
 			startX: event.clientX,
 			startY: event.clientY,
-			suppressClick: false
+			suppressClick: false,
+			orbitWasEnabled
 		};
 		canvas.setPointerCapture(event.pointerId);
 	}
@@ -442,6 +457,11 @@
 			return;
 		}
 
+		if (active.orbitWasEnabled !== null) {
+			event.preventDefault();
+			event.stopImmediatePropagation();
+		}
+
 		const shouldSelect =
 			!active.suppressClick &&
 			!transformControls?.axis &&
@@ -460,7 +480,11 @@
 	function onLostPointerCapture(event: PointerEvent) {
 		if (pointerSession?.pointerId !== event.pointerId) return;
 		if (pointerSession.kind === 'path') cancelPathDrag();
-		else pointerSession = null;
+		else {
+			const active = pointerSession;
+			pointerSession = null;
+			restoreOrbit(active);
+		}
 	}
 
 	function onKeyDown(event: KeyboardEvent) {
@@ -471,6 +495,9 @@
 
 	function onWindowBlur() {
 		if (pointerSession?.kind === 'path') cancelPathDrag();
+		else if (pointerSession?.kind === 'normal' && pointerSession.orbitWasEnabled !== null) {
+			clearPointerSession();
+		}
 	}
 
 	function onPointerLeave() {

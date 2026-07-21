@@ -4,6 +4,7 @@ import {
 	museumSceneDocument,
 	resolveSceneDocument,
 	type MuseumSceneDocument,
+	type NavigationGraph,
 	type SceneCameraViewKeyframe,
 	type RuntimeMuseumScene,
 	type SceneObjectCluster,
@@ -73,6 +74,16 @@ import {
 	getSceneCameraViewKeyframeWorldTarget,
 	writeSceneCameraViewKeyframeWorldTarget
 } from './editor-camera-view';
+import {
+	cameraTimelineEdgePlayheadAtProgress,
+	cameraTimelineProgressAtEdgePlayhead,
+	cameraTimelineProgressAtEdgeProgress,
+	createEditorCameraTimeline,
+	findEditorCameraTimelineEdge,
+	getEditorCameraTimelineLocation,
+	type EditorCameraTimeline,
+	type EditorCameraTimelineNodeBoundary
+} from './editor-camera-timeline';
 
 const HISTORY_LIMIT = 100;
 const STATUS_MESSAGE_MS = 2500;
@@ -171,6 +182,20 @@ export type EditorClusterTreeSelectionOptions = {
 
 /** Session-only viewport transform presentation. */
 export type EditorTransformSpace = 'local' | 'world';
+
+type EditorCameraTimelineCue =
+	| {
+			kind: 'node';
+			progress: number;
+			boundary: EditorCameraTimelineNodeBoundary;
+	  }
+	| {
+			kind: 'view-keyframe';
+			progress: number;
+			connectionId: string;
+			direction: CameraConnectionDirection;
+			keyframeId: string;
+	  };
 
 /** Bottom-panel frame measurements. Session-only, never serialized. */
 export const EDITOR_TIMELINE_COLLAPSED_HEIGHT = 36;
@@ -335,6 +360,8 @@ export class MuseumEditorStore {
 	/** Scene workspace preference is restored after Camera forces the panel open. */
 	sceneTimelineExpanded = $state(false);
 	timelineHeight = $state(EDITOR_TIMELINE_DEFAULT_HEIGHT);
+	/** Phase 2.2 global guided-tour ruler. Session-only and normalized to [0, 1]. */
+	cameraTimelinePlayhead = $state(0);
 	/**
 	 * Phase 1.1 sidebar tree expansion — owned by the store so the inspector's grouping
 	 * helpers can ask the tree to reveal a freshly created cluster.
@@ -377,6 +404,8 @@ export class MuseumEditorStore {
 		route: ResolvedCameraRoute;
 	} | null = null;
 	#nextCameraPreviewRunId = 1;
+	#cameraTimelineGraph: NavigationGraph | null = null;
+	#cameraTimelineCache: EditorCameraTimeline | null = null;
 	registryVersion = $state(0);
 
 	#past: MuseumSceneDocument[] = [];
@@ -574,6 +603,19 @@ export class MuseumEditorStore {
 					EDITOR_CAMERA_VIEW_PROGRESS_EPSILON
 			)
 		);
+	}
+
+	/** Build the current timeline index from the resolved graph and shared motion compiler. */
+	getCameraTimeline(): EditorCameraTimeline | null {
+		const graph = this.state.graph;
+		if (this.#cameraTimelineGraph === graph) return this.#cameraTimelineCache;
+		this.#cameraTimelineGraph = graph;
+		try {
+			this.#cameraTimelineCache = createEditorCameraTimeline(graph);
+		} catch {
+			this.#cameraTimelineCache = null;
+		}
+		return this.#cameraTimelineCache;
 	}
 
 	/** Visitor and active Director transport own immutable document state. */
@@ -924,6 +966,329 @@ export class MuseumEditorStore {
 		this.activeCameraDirection = selection.direction;
 		this.#expandActiveCameraDirection(selection.direction);
 		return true;
+	}
+
+	#readCameraTimeline() {
+		const cached = this.getCameraTimeline();
+		if (cached) return cached;
+		try {
+			return createEditorCameraTimeline(this.state.graph);
+		} catch (error) {
+			this.setStatusMessage(
+				error instanceof Error ? error.message : 'The camera timeline is unavailable'
+			);
+			return null;
+		}
+	}
+
+	#syncCameraTimelineForConnection(
+		connectionId: string,
+		direction: CameraConnectionDirection,
+		playhead: number
+	) {
+		const timeline = this.getCameraTimeline();
+		if (!timeline) return false;
+		const progress = cameraTimelineProgressAtEdgePlayhead(
+			timeline,
+			connectionId,
+			direction,
+			playhead
+		);
+		if (progress === null) return false;
+		this.cameraTimelinePlayhead = progress;
+		return true;
+	}
+
+	#syncCameraTimelineForNode(nodeId: string) {
+		const timeline = this.getCameraTimeline();
+		if (!timeline) return false;
+		const candidates = timeline.nodeBoundaries.filter(
+			(boundary) => boundary.nodeId === nodeId
+		);
+		if (candidates.length === 0) return false;
+		const boundary = candidates.reduce((nearest, candidate) =>
+			Math.abs(candidate.progress - this.cameraTimelinePlayhead) <
+			Math.abs(nearest.progress - this.cameraTimelinePlayhead)
+				? candidate
+				: nearest
+		);
+		this.cameraTimelinePlayhead = boundary.progress;
+		return true;
+	}
+
+	#canSeekCameraTimeline() {
+		const preview = this.cameraPreview;
+		return !(
+			this.isEditorInteractionActive ||
+			this.pendingNavigationCommand ||
+			this.isDocumentTransactionActive ||
+			(preview && (preview.mode !== 'director' || preview.transport !== 'paused'))
+		);
+	}
+
+	#showCameraTimelineNodePose(nodeId: string) {
+		if (!this.#canSeekCameraTimeline()) return false;
+		if (!this.scene.navigationNodes.some((node) => node.id === nodeId)) return false;
+		if (
+			this.cameraPreview?.kind === 'node' &&
+			this.cameraPreview.nodeId === nodeId &&
+			this.cameraPreview.mode === 'director' &&
+			this.cameraPreview.transport === 'paused'
+		) {
+			return false;
+		}
+		const hadPreview = this.cameraPreview !== null;
+		if (!hadPreview && !this.#prepareCameraPreview()) return false;
+		this.#capturedCameraPreviewRoute = null;
+		if (!hadPreview) {
+			this.cameraPreviewFollowEnabled = true;
+			this.cameraPreviewRecenterVersion += 1;
+		}
+		this.cameraPreview = {
+			kind: 'node',
+			nodeId,
+			mode: 'director',
+			transport: 'paused',
+			runId: this.#nextCameraPreviewRunId++,
+			playhead: 0,
+			startedAtMs: null
+		};
+		this.timelineExpanded = true;
+		return true;
+	}
+
+	#showCameraTimelineConnectionPose(
+		connectionId: string,
+		direction: CameraConnectionDirection,
+		playhead: number
+	) {
+		if (!this.#canSeekCameraTimeline() || !Number.isFinite(playhead)) return false;
+		const preview = this.cameraPreview;
+		if (
+			preview?.kind === 'connection' &&
+			preview.connectionId === connectionId &&
+			preview.direction === direction &&
+			preview.mode === 'director' &&
+			preview.transport === 'paused'
+		) {
+			return this.setCameraPreviewPlayhead(playhead, preview.runId);
+		}
+		const connection = this.document.connections.find(
+			(candidate) => candidate.id === connectionId
+		);
+		if (!connection) return false;
+		let route: ResolvedCameraRoute;
+		try {
+			route = getCameraConnectionRoute(connectionId, direction, this.state.graph);
+		} catch (error) {
+			this.setStatusMessage(
+				error instanceof Error ? error.message : 'The camera connection is unavailable'
+			);
+			return false;
+		}
+		const hadPreview = this.cameraPreview !== null;
+		if (!hadPreview && !this.#prepareCameraPreview()) return false;
+		const runId = this.#nextCameraPreviewRunId++;
+		this.#capturedCameraPreviewRoute = {
+			runId,
+			route: cloneResolvedCameraRoute(route)
+		};
+		if (!hadPreview) {
+			this.cameraPreviewFollowEnabled = true;
+			this.cameraPreviewRecenterVersion += 1;
+		}
+		const fromNodeId =
+			direction === 'forward' ? connection.fromNodeId : connection.toNodeId;
+		const toNodeId =
+			direction === 'forward' ? connection.toNodeId : connection.fromNodeId;
+		this.cameraPreview = {
+			kind: 'connection',
+			connectionId,
+			direction,
+			fromNodeId,
+			toNodeId,
+			mode: 'director',
+			transport: 'paused',
+			runId,
+			playhead: Math.min(1, Math.max(0, playhead)),
+			startedAtMs: null
+		};
+		this.timelineExpanded = true;
+		return true;
+	}
+
+	/** Phase 2.2 — scrub the global ruler through the exact guided edge motion. */
+	seekCameraTimeline(progress: number) {
+		if (!this.#canSeekCameraTimeline() || !Number.isFinite(progress)) return false;
+		const timeline = this.#readCameraTimeline();
+		if (!timeline) return false;
+		const location = getEditorCameraTimelineLocation(timeline, progress);
+		const movedTimeline =
+			Math.abs(this.cameraTimelinePlayhead - location.progress) > 1e-6;
+		const selected = this.selectCameraConnectionDirection(
+			location.edge.connectionId,
+			location.edge.direction
+		);
+		this.cameraTimelinePlayhead = location.progress;
+		const shown = this.#showCameraTimelineConnectionPose(
+			location.edge.connectionId,
+			location.edge.direction,
+			location.playhead
+		);
+		return movedTimeline || selected || shown;
+	}
+
+	/** Select a guided edge and seek to the pointer's nearest global ruler point. */
+	selectCameraTimelineEdge(
+		connectionId: string,
+		direction: CameraConnectionDirection,
+		progress: number
+	) {
+		if (!this.#canSeekCameraTimeline() || !Number.isFinite(progress)) return false;
+		const timeline = this.#readCameraTimeline();
+		if (!timeline) return false;
+		const edge = findEditorCameraTimelineEdge(timeline, connectionId);
+		if (!edge) return false;
+		const clampedProgress = Math.min(
+			edge.endSeconds / timeline.durationSeconds,
+			Math.max(edge.startSeconds / timeline.durationSeconds, progress)
+		);
+		const edgePlayhead = cameraTimelineEdgePlayheadAtProgress(
+			timeline,
+			connectionId,
+			direction,
+			clampedProgress
+		);
+		if (edgePlayhead === null) return false;
+		const movedTimeline =
+			Math.abs(this.cameraTimelinePlayhead - clampedProgress) > 1e-6;
+		const selected = this.selectCameraConnectionDirection(connectionId, direction);
+		this.cameraTimelinePlayhead = clampedProgress;
+		const shown = this.#showCameraTimelineConnectionPose(
+			connectionId,
+			direction,
+			edgePlayhead
+		);
+		return movedTimeline || selected || shown;
+	}
+
+	/** Select one occurrence of a guided node and sample its exact authored pose. */
+	selectCameraTimelineNode(nodeId: string, boundaryIndex: number) {
+		if (!this.#canSeekCameraTimeline() || !Number.isInteger(boundaryIndex)) return false;
+		const timeline = this.#readCameraTimeline();
+		const boundary = timeline?.nodeBoundaries[boundaryIndex];
+		if (!timeline || boundary?.nodeId !== nodeId) return false;
+		const movedTimeline =
+			Math.abs(this.cameraTimelinePlayhead - boundary.progress) > 1e-6;
+		const selected = this.selectNavigationNode(nodeId);
+		this.cameraTimelinePlayhead = boundary.progress;
+		const shown = this.#showCameraTimelineNodePose(nodeId);
+		return movedTimeline || selected || shown;
+	}
+
+	/** Select a directional key and seek its exact shared-motion sample. */
+	selectCameraTimelineViewKeyframe(
+		connectionId: string,
+		direction: CameraConnectionDirection,
+		keyframeId: string
+	) {
+		if (!this.#canSeekCameraTimeline()) return false;
+		const keyframe = findSceneCameraViewKeyframe(
+			this.document,
+			connectionId,
+			direction,
+			keyframeId
+		);
+		const timeline = this.#readCameraTimeline();
+		if (!keyframe || !timeline) return false;
+		const timelineProgress = cameraTimelineProgressAtEdgeProgress(
+			timeline,
+			connectionId,
+			direction,
+			keyframe.progress
+		);
+		const edge = findEditorCameraTimelineEdge(timeline, connectionId);
+		if (timelineProgress === null || !edge) return false;
+		const edgePlayhead = cameraMotionProgressAtEdgeProgress(
+			edge.motions[direction],
+			0,
+			keyframe.progress
+		);
+		const movedTimeline =
+			Math.abs(this.cameraTimelinePlayhead - timelineProgress) > 1e-6;
+		const selected = this.selectViewKeyframe(connectionId, direction, keyframeId);
+		this.cameraTimelinePlayhead = timelineProgress;
+		const shown = this.#showCameraTimelineConnectionPose(
+			connectionId,
+			direction,
+			edgePlayhead
+		);
+		return movedTimeline || selected || shown;
+	}
+
+	#getCameraTimelineKeyBoundaries(
+		timeline: EditorCameraTimeline
+	): EditorCameraTimelineCue[] {
+		const cues: EditorCameraTimelineCue[] = timeline.nodeBoundaries.map((boundary) => ({
+				kind: 'node',
+				progress: boundary.progress,
+				boundary
+			}));
+		for (const edge of timeline.edges) {
+			const direction =
+				this.activeCameraConnectionId === edge.connectionId
+					? this.activeCameraDirection
+					: edge.direction;
+			const connection = this.document.connections.find(
+				(candidate) => candidate.id === edge.connectionId
+			);
+			for (const keyframe of connection?.viewTracks?.[direction] ?? []) {
+				const progress = cameraTimelineProgressAtEdgeProgress(
+					timeline,
+					edge.connectionId,
+					direction,
+					keyframe.progress
+				);
+				if (progress === null) continue;
+				cues.push({
+					kind: 'view-keyframe',
+					progress,
+					connectionId: edge.connectionId,
+					direction,
+					keyframeId: keyframe.id
+				});
+			}
+		}
+		return cues.sort((left, right) => left.progress - right.progress);
+	}
+
+	/** Seek the previous/next guided node or visible directional framing key. */
+	stepCameraTimeline(direction: -1 | 1) {
+		if (!this.#canSeekCameraTimeline()) return false;
+		const timeline = this.#readCameraTimeline();
+		if (!timeline) return false;
+		const cues = this.#getCameraTimelineKeyBoundaries(timeline);
+		const epsilon = 1e-6;
+		const cue =
+			direction < 0
+				? [...cues]
+						.reverse()
+						.find((candidate) => candidate.progress < this.cameraTimelinePlayhead - epsilon) ??
+					cues[0]
+				: cues.find(
+						(candidate) => candidate.progress > this.cameraTimelinePlayhead + epsilon
+					) ?? cues.at(-1);
+		if (!cue) return false;
+		return cue.kind === 'node'
+			? this.selectCameraTimelineNode(
+					cue.boundary.nodeId,
+					cue.boundary.boundaryIndex
+			  )
+			: this.selectCameraTimelineViewKeyframe(
+					cue.connectionId,
+					cue.direction,
+					cue.keyframeId
+			  );
 	}
 
 	focusNavigationNode(id: string) {
@@ -1403,6 +1768,7 @@ export class MuseumEditorStore {
 			playhead: 0,
 			startedAtMs: null
 		};
+		this.#syncCameraTimelineForNode(nodeId);
 		this.timelineExpanded = true;
 		return true;
 	}
@@ -1508,6 +1874,7 @@ export class MuseumEditorStore {
 			playhead: 0,
 			startedAtMs: null
 		};
+		this.#syncCameraTimelineForConnection(connection.id, direction, 0);
 		this.timelineExpanded = true;
 		return true;
 	}
@@ -1575,13 +1942,21 @@ export class MuseumEditorStore {
 			runId,
 			route: cloneResolvedCameraRoute(route)
 		};
+		const playhead = preview.transport === 'complete' ? 0 : preview.playhead;
 		this.cameraPreview = {
 			...preview,
 			transport: 'playing',
 			runId,
-			playhead: preview.transport === 'complete' ? 0 : preview.playhead,
+			playhead,
 			startedAtMs: null
 		};
+		if (preview.kind === 'connection') {
+			this.#syncCameraTimelineForConnection(
+				preview.connectionId,
+				preview.direction,
+				playhead
+			);
+		}
 		return true;
 	}
 
@@ -1612,6 +1987,13 @@ export class MuseumEditorStore {
 				? { transport: 'paused' as const, startedAtMs: null }
 				: {})
 		};
+		if (preview.kind === 'connection') {
+			this.#syncCameraTimelineForConnection(
+				preview.connectionId,
+				preview.direction,
+				playhead
+			);
+		}
 		return true;
 	}
 
@@ -1693,6 +2075,13 @@ export class MuseumEditorStore {
 			playhead: 1,
 			startedAtMs: null
 		};
+		if (preview.kind === 'connection') {
+			this.#syncCameraTimelineForConnection(
+				preview.connectionId,
+				preview.direction,
+				1
+			);
+		}
 		return true;
 	}
 

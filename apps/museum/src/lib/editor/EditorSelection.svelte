@@ -371,7 +371,7 @@
 			} else if (result.selection.kind === 'anchor') {
 				store.selectAnchor(result.selection.connectionId, result.selection.anchorId);
 			} else if (result.selection.kind === 'view-keyframe') {
-				store.selectViewKeyframe(
+				store.selectCameraTimelineViewKeyframe(
 					result.selection.connectionId,
 					result.selection.direction,
 					result.selection.keyframeId

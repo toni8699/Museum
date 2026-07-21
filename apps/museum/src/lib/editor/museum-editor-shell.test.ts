@@ -9,6 +9,7 @@ describe('MuseumEditorStore Phase 1 shell session state', () => {
 		expect(store.timelineExpanded).toBe(false);
 		expect(store.sceneTimelineExpanded).toBe(false);
 		expect(store.timelineHeight).toBe(280);
+		expect(store.cameraTimelinePlayhead).toBe(0);
 		expect(store.transformGizmoVisible).toBe(true);
 		expect(store.transformSpace).toBe('world');
 		expect(store.treeExpandedRoomIds).toEqual(['paris']);
@@ -235,6 +236,7 @@ describe('MuseumEditorStore Phase 1 shell session state', () => {
 		store.setLeftPanel('assets');
 		store.toggleTimeline();
 		store.setTimelineHeight(300);
+		store.seekCameraTimeline(0.25);
 		store.setTransformTool('select');
 		store.setTransformSpace('local');
 		store.toggleRoomTreeExpansion('paris');
@@ -248,6 +250,7 @@ describe('MuseumEditorStore Phase 1 shell session state', () => {
 		expect(after).not.toContain('timelineExpanded');
 		expect(after).not.toContain('sceneTimelineExpanded');
 		expect(after).not.toContain('timelineHeight');
+		expect(after).not.toContain('cameraTimelinePlayhead');
 		expect(after).not.toContain('transformGizmoVisible');
 		expect(after).not.toContain('transformSpace');
 		expect(after).not.toContain('treeExpandedRoomIds');

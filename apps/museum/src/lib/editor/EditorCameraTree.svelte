@@ -282,9 +282,9 @@
 														type="button"
 														class="tree-row keyframe-row"
 														class:tree-row--selected={isKeyframeSelected(keyframe)}
-														onclick={() =>
-															store.selectViewKeyframe(
-																keyframe.connectionId,
+												onclick={() =>
+													store.selectCameraTimelineViewKeyframe(
+														keyframe.connectionId,
 																keyframe.direction,
 																keyframe.id
 															)}

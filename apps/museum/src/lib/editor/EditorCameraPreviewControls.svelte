@@ -3,11 +3,6 @@
 
 	let { store }: { store: MuseumEditorStore } = $props();
 	const preview = $derived(store.cameraPreview);
-
-	function scrub(event: Event) {
-		const input = event.currentTarget as HTMLInputElement;
-		store.setCameraPreviewPlayhead(Number(input.value));
-	}
 </script>
 
 {#if preview}
@@ -18,13 +13,13 @@
 				class:active={preview.mode === 'director'}
 				aria-pressed={preview.mode === 'director'}
 				onclick={() => store.setCameraPreviewMode('director')}
-			>Director</button>
+			>Observer</button>
 			<button
 				type="button"
 				class:active={preview.mode === 'visitor'}
 				aria-pressed={preview.mode === 'visitor'}
 				onclick={() => store.setCameraPreviewMode('visitor')}
-			>Visitor</button>
+			>Through Camera</button>
 		</div>
 		<p role="status">
 			{preview.kind === 'node'
@@ -32,35 +27,13 @@
 				: `${preview.transport} · ${(preview.playhead * 100).toFixed(1)}%`}
 		</p>
 		{#if preview.kind !== 'node'}
-			<label>
-				<span>Playhead</span>
-				<input
-					type="range"
-					min="0"
-					max="1"
-					step="0.001"
-					value={preview.playhead}
-					disabled={preview.transport === 'playing'}
-					oninput={scrub}
-				/>
-			</label>
 			<div class="transport">
-				<button type="button" disabled={preview.mode !== 'director' || preview.transport === 'playing'} onclick={() => store.stepCameraPreview(-1)}>Previous</button>
 				{#if preview.transport === 'playing'}
 					<button type="button" class="active" onclick={() => store.pauseCameraPreview()}>Pause</button>
 				{:else}
-					<button type="button" class="active" onclick={() => store.playCameraPreview()}>Play</button>
+					<button type="button" class="active" onclick={() => store.playCameraPreview()}>Play selected edge</button>
 				{/if}
-				<button type="button" disabled={preview.mode !== 'director' || preview.transport === 'playing'} onclick={() => store.stepCameraPreview(1)}>Next</button>
 			</div>
-			{#if preview.kind === 'connection' && preview.mode === 'director'}
-				<button
-					type="button"
-					class="add-view"
-					disabled={!store.canAddViewKeyframeAtPlayhead}
-					onclick={() => store.addViewKeyframeAtPlayhead()}
-				>Add view breakpoint at playhead</button>
-			{/if}
 		{/if}
 		{#if preview.mode === 'director'}
 			<div class="director">
@@ -80,20 +53,17 @@
 <style>
 	.preview-transport { display: flex; flex-wrap: wrap; align-items: center; gap: 0.55rem; }
 	.modes, .director { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.35rem; min-width: 12rem; }
-	.transport { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.35rem; min-width: 16rem; }
+	.transport { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.35rem; min-width: 8rem; }
 	p { flex: 0 0 8rem; margin: 0; color: #8d887f; font-size: 0.68rem; text-transform: capitalize; }
-	label { display: flex; flex: 1 1 18rem; flex-direction: column; gap: 0.25rem; color: #8f8a82; font-size: 0.67rem; letter-spacing: 0.04em; text-transform: uppercase; }
-	input { width: 100%; margin: 0; }
 	button { padding: 0.42rem 0.4rem; border: 1px solid #3a3a46; border-radius: 0.3rem; background: #1a1a22; color: #ddd6ca; font: inherit; font-size: 0.72rem; cursor: pointer; }
-	button.active, button.stop, button.add-view { border-color: #d6b35f; background: #2a2618; color: #fff2c7; }
-	button:disabled, input:disabled { opacity: 0.42; cursor: default; }
+	button.active, button.stop { border-color: #d6b35f; background: #2a2618; color: #fff2c7; }
+	button:disabled { opacity: 0.42; cursor: default; }
 	.stop { margin-left: auto; }
 
 	@media (max-width: 44rem) {
 		.preview-transport { align-items: stretch; }
 		.modes, .director, .transport { min-width: 0; flex: 1 1 100%; }
 		p { flex-basis: auto; }
-		label { flex-basis: 100%; }
 		.stop { width: 100%; margin-left: 0; }
 	}
 </style>

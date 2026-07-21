@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
-	import EditorCameraPreviewControls from './EditorCameraPreviewControls.svelte';
+	import EditorCameraTimelinePanel from './EditorCameraTimelinePanel.svelte';
 	import {
 		EDITOR_TIMELINE_COLLAPSED_HEIGHT,
 		EDITOR_TIMELINE_MAX_HEIGHT,
@@ -82,7 +82,7 @@
 	<header>
 		<div class="heading">
 			<span class="legend">Camera timeline</span>
-			<span class="phase-label">Transport only · tracks arrive in Phase 2</span>
+			<span class="phase-label">Guided tour · exact shared motion</span>
 		</div>
 		{#if store.cameraPreview}
 			<span class="preview-badge">Preview active</span>
@@ -100,14 +100,7 @@
 
 	{#if expanded}
 		<div class="content">
-			{#if store.cameraPreview}
-				<EditorCameraPreviewControls {store} />
-			{:else}
-				<div class="empty-state">
-					<strong>No camera preview running</strong>
-					<p>Select a camera node or connection, then start a Director or Visitor preview from the inspector.</p>
-				</div>
-			{/if}
+			<EditorCameraTimelinePanel {store} />
 		</div>
 	{/if}
 </section>
@@ -192,19 +185,6 @@
 		overflow: auto;
 		padding: 0.75rem 0.9rem 0.9rem;
 	}
-	.empty-state {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		height: 100%;
-		min-height: 7rem;
-		color: #a8a29a;
-		text-align: center;
-	}
-	.empty-state strong { color: #d5cec2; font-size: 0.78rem; }
-	.empty-state p { max-width: 34rem; margin: 0.35rem 0 0; font-size: 0.68rem; line-height: 1.4; }
-
 	@media (max-width: 44rem) {
 		header { gap: 0.45rem; padding-inline: 0.6rem; }
 		.phase-label, .workspace-label { display: none; }

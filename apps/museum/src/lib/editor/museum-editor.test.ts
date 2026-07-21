@@ -1847,3 +1847,262 @@ describe('editor-selection helpers', () => {
 		]);
 	});
 });
+
+describe('MuseumEditorStore Phase 2.1 persistent camera discovery', () => {
+	function importWithViewKeys() {
+		const imported = cloneMuseumSceneDocument(museumSceneDocument);
+		const connection = imported.connections[0]!;
+		connection.viewTracks = {
+			forward: [
+				{
+					id: `${connection.id}-view-forward-01`,
+					progress: 0.42,
+					roomId: 'entrance',
+					cameraTarget: [1, 1.4, -2],
+					fov: 48
+				}
+			],
+			reverse: [
+				{
+					id: `${connection.id}-view-reverse-01`,
+					progress: 0.66,
+					cameraTarget: [4, 1.6, 1],
+					fov: 56
+				}
+			]
+		};
+		return imported;
+	}
+
+	it('defaults to the Cameras filter with no active connection', () => {
+		const store = createMuseumEditorStore();
+		expect(store.cameraTreeFilter).toBe('cameras');
+		expect(store.activeCameraConnectionId).toBeNull();
+		expect(store.activeCameraDirection).toBe('forward');
+	});
+
+	it('selects a connection, persists its direction, and remembers it after a no-op toggle', () => {
+		const store = createMuseumEditorStore();
+		const connectionId = store.document.connections[0]!.id;
+
+		expect(store.selectConnection(connectionId)).toBe(true);
+		expect(store.activeCameraConnectionId).toBe(connectionId);
+		expect(store.activeCameraDirection).toBe('forward');
+		expect(store.navigationSelection).toEqual({
+			kind: 'connection',
+			connectionId
+		});
+		expect(store.treeExpandedCameraConnectionIds).toContain(connectionId);
+		expect(store.treeExpandedCameraDirectionKeys).toContain(
+			`${connectionId}:forward`
+		);
+
+		expect(store.selectConnection(connectionId)).toBe(false);
+		expect(store.activeCameraConnectionId).toBe(connectionId);
+	});
+
+	it('switches direction with selectCameraConnectionDirection and stays idempotent', () => {
+		const store = createMuseumEditorStore();
+		const connectionId = store.document.connections[0]!.id;
+
+		expect(store.selectCameraConnectionDirection(connectionId, 'reverse')).toBe(true);
+		expect(store.activeCameraConnectionId).toBe(connectionId);
+		expect(store.activeCameraDirection).toBe('reverse');
+		expect(store.treeExpandedCameraDirectionKeys).toContain(
+			`${connectionId}:reverse`
+		);
+
+		expect(store.selectCameraConnectionDirection(connectionId, 'reverse')).toBe(false);
+		expect(store.activeCameraDirection).toBe('reverse');
+	});
+
+	it('anchor selection adopts the active direction and reveals it in the tree', () => {
+		const store = createMuseumEditorStore();
+		const connection = store.document.connections.find(
+			(candidate) => candidate.positionPath.anchors.length > 0
+		)!;
+		const anchor = connection.positionPath.anchors[0]!;
+
+		expect(store.selectCameraConnectionDirection(connection.id, 'reverse')).toBe(true);
+		expect(store.selectAnchor(connection.id, anchor.id)).toBe(true);
+		expect(store.navigationSelection).toEqual({
+			kind: 'anchor',
+			connectionId: connection.id,
+			anchorId: anchor.id
+		});
+		expect(store.activeCameraConnectionId).toBe(connection.id);
+		expect(store.activeCameraDirection).toBe('reverse');
+	});
+
+	it('anchor selection defaults to forward when switching connections', () => {
+		const store = createMuseumEditorStore();
+		const connections = store.document.connections.filter(
+			(candidate) => candidate.positionPath.anchors.length > 0
+		);
+		const first = connections[0]!;
+		const second = connections[1]!;
+
+		expect(store.selectCameraConnectionDirection(first.id, 'reverse')).toBe(true);
+		expect(
+			store.selectAnchor(second.id, second.positionPath.anchors[0]!.id)
+		).toBe(true);
+		expect(store.activeCameraConnectionId).toBe(second.id);
+		expect(store.activeCameraDirection).toBe('forward');
+		expect(store.treeExpandedCameraDirectionKeys).toContain(
+			`${second.id}:forward`
+		);
+	});
+
+	it('selecting a camera key establishes the persistent trio and auto-expands its direction', () => {
+		const store = createMuseumEditorStore();
+		expect(store.importDocument(importWithViewKeys())).toBe(true);
+		const connectionId = store.document.connections[0]!.id;
+		const forwardId = store.document.connections[0]!.viewTracks!.forward[0]!.id;
+
+		expect(store.selectViewKeyframe(connectionId, 'forward', forwardId)).toBe(true);
+		expect(store.activeCameraConnectionId).toBe(connectionId);
+		expect(store.activeCameraDirection).toBe('forward');
+		expect(store.treeExpandedCameraConnectionIds).toContain(connectionId);
+		expect(store.treeExpandedCameraDirectionKeys).toContain(
+			`${connectionId}:forward`
+		);
+	});
+
+	it('Done editing view keeps the active connection and its direction', () => {
+		const store = createMuseumEditorStore();
+		expect(store.importDocument(importWithViewKeys())).toBe(true);
+		const connectionId = store.document.connections[0]!.id;
+		const reverseId = store.document.connections[0]!.viewTracks!.reverse[0]!.id;
+
+		expect(store.selectViewKeyframe(connectionId, 'reverse', reverseId)).toBe(true);
+		expect(store.finishViewKeyframeEditing()).toBe(true);
+		expect(store.activeCameraConnectionId).toBe(connectionId);
+		expect(store.activeCameraDirection).toBe('reverse');
+		expect(store.navigationSelection).toEqual({
+			kind: 'connection',
+			connectionId
+		});
+	});
+
+	it('Preview Stop preserves the active connection and direction', () => {
+		const store = createMuseumEditorStore();
+		expect(store.importDocument(importWithViewKeys())).toBe(true);
+		const connectionId = store.document.connections[0]!.id;
+		const forwardId = store.document.connections[0]!.viewTracks!.forward[0]!.id;
+
+		expect(store.selectViewKeyframe(connectionId, 'forward', forwardId)).toBe(true);
+		expect(store.previewSelectedConnection('forward', 'director')).toBe(true);
+		expect(store.cameraPreview).not.toBeNull();
+		expect(store.stopCameraPreview()).toBe(true);
+		expect(store.cameraPreview).toBeNull();
+		expect(store.activeCameraConnectionId).toBe(connectionId);
+		expect(store.activeCameraDirection).toBe('forward');
+		expect(store.navigationSelection).toEqual({
+			kind: 'view-keyframe',
+			connectionId,
+			direction: 'forward',
+			keyframeId: forwardId
+		});
+	});
+
+	it('connection preview adopts its traversal direction and preserves it after Stop', () => {
+		const store = createMuseumEditorStore();
+		expect(store.importDocument(importWithViewKeys())).toBe(true);
+		const connectionId = store.document.connections[0]!.id;
+		const forwardId = store.document.connections[0]!.viewTracks!.forward[0]!.id;
+
+		expect(store.selectViewKeyframe(connectionId, 'forward', forwardId)).toBe(true);
+		expect(store.previewSelectedConnection('reverse', 'director')).toBe(true);
+		expect(store.activeCameraConnectionId).toBe(connectionId);
+		expect(store.activeCameraDirection).toBe('reverse');
+		expect(store.treeExpandedCameraDirectionKeys).toContain(
+			`${connectionId}:reverse`
+		);
+		expect(store.navigationSelection).toEqual({
+			kind: 'connection',
+			connectionId
+		});
+
+		expect(store.stopCameraPreview()).toBe(true);
+		expect(store.activeCameraConnectionId).toBe(connectionId);
+		expect(store.activeCameraDirection).toBe('reverse');
+	});
+
+	it('clear camera-key helpers visibility across Camera, Scene, and visitor preview', () => {
+		const store = createMuseumEditorStore();
+		const connectionId = store.document.connections[0]!.id;
+		expect(store.setWorkspace('camera')).toBe(true);
+		expect(store.selectCameraConnectionDirection(connectionId, 'forward')).toBe(true);
+		expect(store.isCameraKeyHelpersActive).toBe(true);
+
+		expect(store.setWorkspace('scene')).toBe(true);
+		expect(store.isCameraKeyHelpersActive).toBe(false);
+
+		expect(store.setWorkspace('camera')).toBe(true);
+		expect(store.isCameraKeyHelpersActive).toBe(true);
+
+		expect(store.selectNavigationNode('paris-seat')).toBe(true);
+		expect(store.previewSelectedNode()).toBe(true);
+		expect(store.isCameraKeyHelpersActive).toBe(false);
+		expect(store.stopCameraPreview()).toBe(true);
+		// selectNavigationNode cleared the active connection focus, so the helpers stay
+		// hidden after Stop. The user can re-select a connection/key to bring them back.
+		expect(store.isCameraKeyHelpersActive).toBe(false);
+	});
+
+	it('camera filter is session-only and Scene workspace ignores it', () => {
+		const store = createMuseumEditorStore();
+		expect(store.cameraTreeFilter).toBe('cameras');
+		expect(store.setCameraTreeFilter('all')).toBe(true);
+		expect(store.cameraTreeFilter).toBe('all');
+
+		expect(store.setWorkspace('camera')).toBe(true);
+		expect(store.cameraTreeFilter).toBe('all');
+		expect(store.setWorkspace('scene')).toBe(true);
+		expect(store.cameraTreeFilter).toBe('all');
+		expect(store.setWorkspace('camera')).toBe(true);
+		expect(store.cameraTreeFilter).toBe('all');
+		expect(store.setCameraTreeFilter('all')).toBe(false);
+	});
+
+	it('camera connection and direction expansion toggle independently and persist', () => {
+		const store = createMuseumEditorStore();
+		const connectionId = store.document.connections[0]!.id;
+		expect(store.toggleCameraConnectionTreeExpansion(connectionId)).toBe(true);
+		expect(store.treeExpandedCameraConnectionIds).toContain(connectionId);
+		expect(store.toggleCameraDirectionTreeExpansion(connectionId, 'reverse')).toBe(
+			true
+		);
+		expect(store.treeExpandedCameraDirectionKeys).toContain(
+			`${connectionId}:reverse`
+		);
+		expect(store.toggleCameraConnectionTreeExpansion(connectionId)).toBe(true);
+		expect(store.treeExpandedCameraConnectionIds).not.toContain(connectionId);
+		expect(store.toggleCameraDirectionTreeExpansion(connectionId, 'reverse')).toBe(
+			true
+		);
+		expect(store.treeExpandedCameraDirectionKeys).not.toContain(
+			`${connectionId}:reverse`
+		);
+	});
+
+	it('selecting a node or placement clears the active connection discovery', () => {
+		const store = createMuseumEditorStore();
+		const connectionId = store.document.connections[0]!.id;
+		const placement = store.document.objects[0]!;
+
+		store.selectCameraConnectionDirection(connectionId, 'reverse');
+		expect(store.activeCameraConnectionId).toBe(connectionId);
+
+		expect(store.selectNavigationNode('paris-seat')).toBe(true);
+		expect(store.activeCameraConnectionId).toBeNull();
+		expect(store.activeCameraDirection).toBe('forward');
+
+		store.selectCameraConnectionDirection(connectionId, 'forward');
+		store.selectRoom('paris');
+		expect(store.selectPlacement(placement.id)).toBe(true);
+		expect(store.activeCameraConnectionId).toBeNull();
+		expect(store.deselect()).toBe(true);
+		expect(store.activeCameraConnectionId).toBeNull();
+	});
+});

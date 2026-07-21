@@ -180,15 +180,14 @@
 	}
 
 	$effect(() => {
-		const hidden = Boolean(
-			store.isVisitorCameraPreview ||
-			store.pendingPlacementAssetId ||
-			store.pendingNavigationCommand
-		);
+		const hidden = !store.isCameraKeyHelpersActive;
 		const document = store.document;
 		const selection = store.navigationSelection;
-		const connection = store.selectedConnection;
-		const direction = store.activeViewKeyframeDirection;
+		const activeConnectionId = store.activeCameraConnectionId;
+		const direction = activeConnectionId ? store.activeCameraDirection : null;
+		const connection = activeConnectionId
+			? document.connections.find((candidate) => candidate.id === activeConnectionId)
+			: undefined;
 		if (hidden || !connection || !direction) {
 			disposeAll();
 			return;

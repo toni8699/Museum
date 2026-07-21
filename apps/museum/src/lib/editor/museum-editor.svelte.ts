@@ -160,6 +160,12 @@ export type EditorWorkspace = 'scene' | 'camera';
 /** Scene-workspace sidebar choice; Camera temporarily replaces it without changing it. */
 export type EditorLeftPanel = 'scene' | 'assets';
 
+/**
+ * Phase 2.1 Camera workspace filter. `[ All ] [ Cameras ]`. Scene workspace ignores it
+ * and continues to show its Scene/Assets tabs.
+ */
+export type EditorCameraTreeFilter = 'all' | 'cameras';
+
 export type EditorPlacementTreeSelectionOptions = {
 	additive?: boolean;
 	focus?: boolean;
@@ -202,6 +208,14 @@ function viewKeyframeHelperKey(
 	keyframeId: string
 ) {
 	return [connectionId, direction, keyframeId].join(CAMERA_HELPER_KEY_SEPARATOR);
+}
+
+/** Stable ${connectionId}:${direction} key for Camera workspace tree expansion. */
+function cameraDirectionTreeKey(
+	connectionId: string,
+	direction: CameraConnectionDirection
+) {
+	return `${connectionId}${CAMERA_HELPER_KEY_SEPARATOR}${direction}`;
 }
 
 function vec3Matches(a: Vec3, b: Vec3) {
@@ -335,6 +349,21 @@ export class MuseumEditorStore {
 	treeExpandedClusterIds = $state<string[]>([]);
 	pendingFramePlacementIds = $state<string[]>([]);
 	pendingFrameVersion = $state(0);
+
+	/**
+	 * Phase 2.1 persistent camera-key discovery — the connection currently exposed for
+	 * selection/scrub plus the directional focus track. Independent of any active
+	 * Director preview so keys stay reachable after Stop or Done editing view.
+	 */
+	activeCameraConnectionId = $state<string | null>(null);
+	activeCameraDirection = $state<CameraConnectionDirection>('forward');
+	treeExpandedCameraConnectionIds = $state<string[]>([]);
+	treeExpandedCameraDirectionKeys = $state<string[]>([]);
+	/**
+	 * Phase 2.1 camera filter — `[ All ] [ Cameras ]` inside the Camera workspace; the
+	 * Scene workspace keeps Scene/Assets tabs and ignores this state.
+	 */
+	cameraTreeFilter = $state<EditorCameraTreeFilter>('cameras');
 
 	/** Session-only asset placement and pointer/shortcut coordination. */
 	pendingPlacementAssetId = $state<string | null>(null);
@@ -481,6 +510,25 @@ export class MuseumEditorStore {
 		}
 		const selection = this.navigationSelection;
 		return selection?.kind === 'view-keyframe' ? selection.direction : null;
+	}
+
+	/**
+	 * Phase 2.1 — does the Camera workspace currently focus a real connection so the
+	 * 3D keyframe markers (markers / target / connector) should stay on screen?
+	 */
+	get isCameraKeyHelpersActive() {
+		if (!this.activeCameraConnectionId) return false;
+		if (
+			this.isVisitorCameraPreview ||
+			this.pendingPlacementAssetId ||
+			this.pendingNavigationCommand
+		) {
+			return false;
+		}
+		if (this.currentWorkspace !== 'camera') return false;
+		return this.document.connections.some(
+			(connection) => connection.id === this.activeCameraConnectionId
+		);
 	}
 
 	get selectedCameraPoint(): Vec3 | undefined {
@@ -658,6 +706,9 @@ export class MuseumEditorStore {
 		this.cancelPendingFrame();
 		this.#clearPlacementSelection();
 		this.navigationSelection = { kind: 'node', nodeId: id, handle: 'position' };
+		// Phase 2.1: leaving a connection focus cancels the persistent camera discovery.
+		this.activeCameraConnectionId = null;
+		this.activeCameraDirection = 'forward';
 
 		if (current?.nodeId !== id) this.focusNavigationNode(id);
 		return true;
@@ -672,23 +723,71 @@ export class MuseumEditorStore {
 			nodeId: selection.nodeId,
 			handle
 		};
+		// Phase 2.1: switching to camera-handle (eye/target) editing clears the persistent
+		// connection focus so the framing helpers don't stale-render next to the gizmo.
+		this.activeCameraConnectionId = null;
+		this.activeCameraDirection = 'forward';
 		return true;
 	}
 
 	selectConnection(connectionId: string) {
+		return this.selectCameraConnectionDirection(connectionId, this.#defaultCameraDirection(connectionId));
+	}
+
+	/**
+	 * Phase 2.1 primary entry for selecting a connection. Establishes both
+	 * `activeCameraConnectionId` and `activeCameraDirection` so the connection's
+	 * keyframe markers stay reachable through tree, timeline, and 3D pickers.
+	 */
+	selectCameraConnectionDirection(
+		connectionId: string,
+		direction: CameraConnectionDirection
+	) {
 		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive || this.pendingNavigationCommand) {
 			return false;
 		}
 		if (!this.document.connections.some((connection) => connection.id === connectionId)) {
 			return false;
 		}
-		const current = this.navigationSelection;
-		if (current?.kind === 'connection' && current.connectionId === connectionId) return false;
+		if (
+			this.activeCameraConnectionId === connectionId &&
+			this.activeCameraDirection === direction &&
+			this.navigationSelection?.kind === 'connection'
+		) {
+			return false;
+		}
 		this.cancelAssetPlacement();
 		this.cancelPendingFrame();
 		this.#clearPlacementSelection();
 		this.navigationSelection = { kind: 'connection', connectionId };
+		this.activeCameraConnectionId = connectionId;
+		this.activeCameraDirection = direction;
+		this.#expandActiveCameraDirection(direction);
 		return true;
+	}
+
+	#defaultCameraDirection(connectionId: string): CameraConnectionDirection {
+		if (
+			this.activeCameraConnectionId === connectionId &&
+			(this.navigationSelection?.kind === 'connection' ||
+				this.navigationSelection?.kind === 'anchor' ||
+				this.navigationSelection?.kind === 'view-keyframe')
+		) {
+			return this.activeCameraDirection;
+		}
+		return 'forward';
+	}
+
+	#expandActiveCameraDirection(direction: CameraConnectionDirection) {
+		const id = this.activeCameraConnectionId;
+		if (!id) return;
+		if (!this.treeExpandedCameraConnectionIds.includes(id)) {
+			this.treeExpandedCameraConnectionIds = [...this.treeExpandedCameraConnectionIds, id];
+		}
+		const key = cameraDirectionTreeKey(id, direction);
+		if (!this.treeExpandedCameraDirectionKeys.includes(key)) {
+			this.treeExpandedCameraDirectionKeys = [...this.treeExpandedCameraDirectionKeys, key];
+		}
 	}
 
 	selectAnchor(connectionId: string, anchorId: string) {
@@ -709,10 +808,14 @@ export class MuseumEditorStore {
 		) {
 			return false;
 		}
+		const direction = this.#defaultCameraDirection(connectionId);
 		this.cancelAssetPlacement();
 		this.cancelPendingFrame();
 		this.#clearPlacementSelection();
 		this.navigationSelection = { kind: 'anchor', connectionId, anchorId };
+		this.activeCameraConnectionId = connectionId;
+		this.activeCameraDirection = direction;
+		this.#expandActiveCameraDirection(direction);
 		return true;
 	}
 
@@ -730,6 +833,8 @@ export class MuseumEditorStore {
 			return false;
 		}
 		this.navigationSelection = { kind: 'connection', connectionId: connection.id };
+		this.activeCameraConnectionId = connection.id;
+		this.#expandActiveCameraDirection(this.activeCameraDirection);
 		return true;
 	}
 
@@ -770,6 +875,9 @@ export class MuseumEditorStore {
 				direction,
 				keyframeId
 			};
+			this.activeCameraConnectionId = connectionId;
+			this.activeCameraDirection = direction;
+			this.#expandActiveCameraDirection(direction);
 		}
 
 		const preview = this.cameraPreview;
@@ -823,6 +931,9 @@ export class MuseumEditorStore {
 			kind: 'connection',
 			connectionId: connection.id
 		};
+		this.activeCameraConnectionId = connection.id;
+		this.activeCameraDirection = selection.direction;
+		this.#expandActiveCameraDirection(selection.direction);
 		return true;
 	}
 
@@ -1375,6 +1486,20 @@ export class MuseumEditorStore {
 			return false;
 		}
 		if (!this.#prepareCameraPreview()) return false;
+		this.activeCameraConnectionId = connection.id;
+		this.activeCameraDirection = direction;
+		this.#expandActiveCameraDirection(direction);
+		const selection = this.navigationSelection;
+		if (
+			selection?.kind === 'view-keyframe' &&
+			selection.connectionId === connection.id &&
+			selection.direction !== direction
+		) {
+			this.navigationSelection = {
+				kind: 'connection',
+				connectionId: connection.id
+			};
+		}
 		const runId = this.#nextCameraPreviewRunId++;
 		this.#capturedCameraPreviewRoute = {
 			runId,
@@ -1588,6 +1713,8 @@ export class MuseumEditorStore {
 		this.cameraPreview = null;
 		this.#capturedCameraPreviewRoute = null;
 		this.cameraPreviewFollowEnabled = true;
+		// Phase 2.1: Preview Stop preserves the active connection + direction so any
+		// previously-selected keyframe remains reachable through tree/timeline/3D.
 		return true;
 	}
 
@@ -1831,6 +1958,40 @@ export class MuseumEditorStore {
 		if (!this.treeExpandedClusterIds.includes(clusterId)) {
 			this.treeExpandedClusterIds = [...this.treeExpandedClusterIds, clusterId];
 		}
+		return true;
+	}
+
+	/**
+	 * Phase 2.1 — switch the Camera workspace sidebar filter. The Scene workspace
+	 * ignores this state and keeps its Scene/Assets tabs.
+	 */
+	setCameraTreeFilter(value: EditorCameraTreeFilter) {
+		if (this.cameraTreeFilter === value) return false;
+		this.cameraTreeFilter = value;
+		return true;
+	}
+
+	/** Phase 2.1 — toggle a connection's collapsible body in the Camera sidebar tree. */
+	toggleCameraConnectionTreeExpansion(connectionId: string) {
+		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
+		this.treeExpandedCameraConnectionIds = this.treeExpandedCameraConnectionIds.includes(
+			connectionId
+		)
+			? this.treeExpandedCameraConnectionIds.filter((candidate) => candidate !== connectionId)
+			: [...this.treeExpandedCameraConnectionIds, connectionId];
+		return true;
+	}
+
+	/** Phase 2.1 — toggle a Forward/Reverse subsection under a connection. */
+	toggleCameraDirectionTreeExpansion(
+		connectionId: string,
+		direction: CameraConnectionDirection
+	) {
+		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
+		const key = cameraDirectionTreeKey(connectionId, direction);
+		this.treeExpandedCameraDirectionKeys = this.treeExpandedCameraDirectionKeys.includes(key)
+			? this.treeExpandedCameraDirectionKeys.filter((candidate) => candidate !== key)
+			: [...this.treeExpandedCameraDirectionKeys, key];
 		return true;
 	}
 
@@ -2206,6 +2367,9 @@ export class MuseumEditorStore {
 		}
 		this.cancelPendingFrame();
 		this.navigationSelection = null;
+		// Phase 2.1: leaving a connection focus resets the persistent camera discovery.
+		this.activeCameraConnectionId = null;
+		this.activeCameraDirection = 'forward';
 		if (this.selectedPlacementId !== id) this.transformMode = 'rotate';
 		this.selectedPlacementIds = [id];
 		this.selectedClusterId = null;
@@ -2221,6 +2385,9 @@ export class MuseumEditorStore {
 		}
 		this.cancelPendingFrame();
 		this.navigationSelection = null;
+		// Phase 2.1: leaving a connection focus resets the persistent camera discovery.
+		this.activeCameraConnectionId = null;
+		this.activeCameraDirection = 'forward';
 		this.selectedPlacementIds = next;
 		this.selectedClusterId = null;
 		this.transformMode = 'rotate';
@@ -2233,6 +2400,9 @@ export class MuseumEditorStore {
 		}
 		this.cancelPendingFrame();
 		this.navigationSelection = null;
+		// Phase 2.1: leaving a connection focus resets the persistent camera discovery.
+		this.activeCameraConnectionId = null;
+		this.activeCameraDirection = 'forward';
 		this.selectedClusterId = null;
 		if (this.selectedPlacementIds.includes(id)) {
 			this.selectedPlacementIds = this.selectedPlacementIds.filter(
@@ -2250,6 +2420,9 @@ export class MuseumEditorStore {
 		if (!cluster || cluster.roomId !== this.selectedRoomId) return false;
 		this.cancelPendingFrame();
 		this.navigationSelection = null;
+		// Phase 2.1: leaving a connection focus resets the persistent camera discovery.
+		this.activeCameraConnectionId = null;
+		this.activeCameraDirection = 'forward';
 		this.selectedClusterId = cluster.id;
 		this.selectedPlacementIds = [...cluster.memberIds];
 		this.transformMode = 'rotate';
@@ -2285,10 +2458,14 @@ export class MuseumEditorStore {
 		const changed =
 			this.selectedPlacementIds.length > 0 ||
 			this.selectedClusterId !== null ||
-			this.navigationSelection !== null;
+			this.navigationSelection !== null ||
+			this.activeCameraConnectionId !== null;
 		this.cancelPendingFrame();
 		this.#clearPlacementSelection();
 		this.navigationSelection = null;
+		// Phase 2.1: dropping the active connection surfaces an empty camera workspace.
+		this.activeCameraConnectionId = null;
+		this.activeCameraDirection = 'forward';
 		return changed;
 	}
 

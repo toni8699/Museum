@@ -18,6 +18,10 @@
 	function switchLeftPanel(panel: 'scene' | 'assets') {
 		store.setLeftPanel(panel);
 	}
+
+	function switchCameraFilter(filter: 'all' | 'cameras') {
+		store.setCameraTreeFilter(filter);
+	}
 </script>
 
 <aside
@@ -56,8 +60,30 @@
 		<header class="camera-workspace-header">
 			<h1>Camera Tour</h1>
 		</header>
+
+		<div class="panel-tabs" role="tablist" aria-label="Camera filter">
+			<button
+				type="button"
+				role="tab"
+				aria-selected={store.cameraTreeFilter === 'all'}
+				class:active={store.cameraTreeFilter === 'all'}
+				onclick={() => switchCameraFilter('all')}
+			>All</button>
+			<button
+				type="button"
+				role="tab"
+				aria-selected={store.cameraTreeFilter === 'cameras'}
+				class:active={store.cameraTreeFilter === 'cameras'}
+				onclick={() => switchCameraFilter('cameras')}
+			>Cameras</button>
+		</div>
+
 		<div class="panel-content">
-			<EditorCameraTree {store} />
+			{#if store.cameraTreeFilter === 'all'}
+				<EditorSceneTree {store} />
+			{:else}
+				<EditorCameraTree {store} />
+			{/if}
 		</div>
 	{/if}
 

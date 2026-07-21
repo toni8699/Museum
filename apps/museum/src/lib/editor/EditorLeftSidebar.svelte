@@ -43,11 +43,12 @@
 		>Assets</button>
 	</div>
 
-	{#if store.leftPanel === 'scene'}
+	<div class="panel-content" hidden={store.leftPanel !== 'scene'}>
 		<EditorSceneTree {store} />
-	{:else}
+	</div>
+	<div class="panel-content" hidden={store.leftPanel !== 'assets'}>
 		<EditorAssetLibrary {store} onselectionchange={onAssetSelection} />
-	{/if}
+	</div>
 
 	<a class="back" href="/museum">Back to museum</a>
 </aside>
@@ -65,6 +66,15 @@
 	.panel-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 0.3rem; }
 	.panel-tabs button { padding: 0.42rem; border: 1px solid #3a3a46; border-radius: 0.32rem; background: #1a1a22; color: #a8a29a; font: inherit; font-size: 0.73rem; cursor: pointer; }
 	.panel-tabs button.active { border-color: #d6b35f; background: #2a2618; color: #fff2c7; }
+	.panel-content { display: contents; }
+	.panel-content[hidden] { display: none; }
 	.back { margin-top: auto; color: #d6c7a8; font-size: 0.85rem; text-decoration: none; }
 	.back:hover { text-decoration: underline; }
+
+	@media (max-width: 62rem) {
+		.panel { min-height: 0; max-height: 34rem; border-top: 1px solid #2a2a33; }
+	}
+	@media (max-width: 44rem) {
+		.panel { max-height: 30rem; border-right: 0; }
+	}
 </style>

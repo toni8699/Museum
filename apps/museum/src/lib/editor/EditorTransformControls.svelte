@@ -4,7 +4,7 @@
 	import { useOrbitControls } from '@threlte/extras';
 	import { roomLocalPoint } from '$lib/content/rooms';
 	import type { Vec3 } from '$lib/types/museum';
-	import { Group, Matrix4, Vector3 } from 'three';
+	import { Group, Matrix4, Quaternion, Vector3 } from 'three';
 	import { TransformControls as ThreeTransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 	import {
 		applyRigidPivotDelta,
@@ -94,7 +94,9 @@
 	const activeTarget = $derived.by(() =>
 		getActiveTransformTarget({
 			previewActive:
-				store.isDocumentMutationBlocked || store.directPathInteractionActive,
+				store.isDocumentMutationBlocked ||
+				store.directPathInteractionActive ||
+				!store.transformGizmoVisible,
 			pendingPlacement: Boolean(
 				store.pendingPlacementAssetId || store.pendingNavigationCommand
 			),
@@ -114,6 +116,15 @@
 			? rotationSnapRadians(store.rotationSnapDegrees)
 			: null
 	);
+
+	function resetPivot(roots = selectedRoots) {
+		if (!resetSessionPivot(pivot, roots)) return false;
+		if (store.transformSpace === 'local' && roots.length === 1) {
+			pivot.quaternion.copy(roots[0]!.getWorldQuaternion(new Quaternion()));
+			pivot.updateMatrixWorld(true);
+		}
+		return true;
+	}
 
 	$effect(() => {
 		transformControls.camera = threlteCamera.current;
@@ -137,7 +148,7 @@
 			activeTarget?.kind === 'anchor' ||
 			activeTarget?.kind === 'view-target';
 		transformControls.mode = navigationTarget ? 'translate' : store.transformMode;
-		transformControls.space = 'world';
+		transformControls.space = navigationTarget ? 'world' : store.transformSpace;
 		transformControls.translationSnap = null;
 		transformControls.rotationSnap =
 			navigationTarget ? null : effectiveRotationSnap;
@@ -149,7 +160,7 @@
 		void store.registryVersion;
 		void store.historyVersion;
 		if (session) return;
-		resetSessionPivot(pivot, selectedRoots);
+		resetPivot();
 	});
 
 	function beginTransform() {
@@ -326,7 +337,7 @@
 		session = null;
 		store.setTransformInteractionActive(false);
 		store.commitDocumentTransaction();
-		resetSessionPivot(pivot, store.getPlacementRoots());
+		resetPivot(store.getPlacementRoots());
 		restoreOrbitAfterTransform(active);
 	}
 
@@ -352,7 +363,7 @@
 		store.setTransformInteractionActive(false);
 		store.cancelDocumentTransaction();
 		transformControls.pointerUp(null);
-		resetSessionPivot(pivot, store.getPlacementRoots());
+		resetPivot(store.getPlacementRoots());
 		restoreOrbitAfterTransform(active);
 		return true;
 	}

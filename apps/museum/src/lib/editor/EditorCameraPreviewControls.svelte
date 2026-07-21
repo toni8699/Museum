@@ -78,14 +78,22 @@
 {/if}
 
 <style>
-	.preview-transport { display: flex; flex-direction: column; gap: 0.45rem; padding-top: 0.2rem; }
-	.modes, .director { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.35rem; }
-	.transport { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.35rem; }
-	p { margin: 0; color: #8d887f; font-size: 0.68rem; text-transform: capitalize; }
-	label { display: flex; flex-direction: column; gap: 0.25rem; color: #8f8a82; font-size: 0.67rem; letter-spacing: 0.04em; text-transform: uppercase; }
+	.preview-transport { display: flex; flex-wrap: wrap; align-items: center; gap: 0.55rem; }
+	.modes, .director { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.35rem; min-width: 12rem; }
+	.transport { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.35rem; min-width: 16rem; }
+	p { flex: 0 0 8rem; margin: 0; color: #8d887f; font-size: 0.68rem; text-transform: capitalize; }
+	label { display: flex; flex: 1 1 18rem; flex-direction: column; gap: 0.25rem; color: #8f8a82; font-size: 0.67rem; letter-spacing: 0.04em; text-transform: uppercase; }
 	input { width: 100%; margin: 0; }
 	button { padding: 0.42rem 0.4rem; border: 1px solid #3a3a46; border-radius: 0.3rem; background: #1a1a22; color: #ddd6ca; font: inherit; font-size: 0.72rem; cursor: pointer; }
 	button.active, button.stop, button.add-view { border-color: #d6b35f; background: #2a2618; color: #fff2c7; }
 	button:disabled, input:disabled { opacity: 0.42; cursor: default; }
-	.stop { align-self: flex-start; }
+	.stop { margin-left: auto; }
+
+	@media (max-width: 44rem) {
+		.preview-transport { align-items: stretch; }
+		.modes, .director, .transport { min-width: 0; flex: 1 1 100%; }
+		p { flex-basis: auto; }
+		label { flex-basis: 100%; }
+		.stop { width: 100%; margin-left: 0; }
+	}
 </style>

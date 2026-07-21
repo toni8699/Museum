@@ -160,7 +160,7 @@
 </script>
 
 <main class="page" class:previewing={store.isDocumentMutationBlocked}>
-	<EditorAppBar {store} />
+	<EditorAppBar {store} {confirmDiscardUnsavedChanges} />
 	<EditorLeftSidebar
 		{store}
 		bind:outlinerElement
@@ -181,7 +181,6 @@
 	<EditorInspector
 		{store}
 		{selectedAsset}
-		{confirmDiscardUnsavedChanges}
 		bind:clusterNameInput
 	/>
 	<EditorCameraTimelineFrame {store} />
@@ -198,10 +197,45 @@
 			'left center right'
 			'bottom bottom bottom';
 		height: 100vh;
+		height: 100dvh;
+		overflow: hidden;
 		background: #0b0b10;
 		color: #f4efe4;
 		font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
 	}
 	.center { min-width: 0; min-height: 0; outline: none; }
 	.center:focus-visible { box-shadow: inset 0 0 0 1px #d6b35f; }
+
+	@media (max-width: 78rem) {
+		.page { grid-template-columns: minmax(14rem, 22vw) minmax(0, 1fr) minmax(14rem, 24vw); }
+	}
+
+	@media (max-width: 62rem) {
+		.page {
+			grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+			grid-template-rows: auto minmax(24rem, 58vh) auto minmax(16rem, 34rem);
+			grid-template-areas:
+				'top top'
+				'center center'
+				'bottom bottom'
+				'left right';
+			height: auto;
+			min-height: 100vh;
+			min-height: 100dvh;
+			overflow-y: auto;
+		}
+	}
+
+	@media (max-width: 44rem) {
+		.page {
+			grid-template-columns: minmax(0, 1fr);
+			grid-template-rows: auto minmax(22rem, 55vh) auto minmax(16rem, 30rem) minmax(18rem, 30rem);
+			grid-template-areas:
+				'top'
+				'center'
+				'bottom'
+				'left'
+				'right';
+		}
+	}
 </style>

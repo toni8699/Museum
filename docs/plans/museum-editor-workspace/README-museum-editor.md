@@ -1,7 +1,7 @@
 # Museum Editor Workspace Releases
 
-**Status:** Proposed implementation authority after Phase 6.6 Slice 6.  
-**Baseline:** current Phase 6.6 work is staged and uncommitted. Preserve it. Do not commit unless requested.  
+**Status:** Active release authority. Phase 1 completed on 2026-07-21; Phase 2 is next.
+**Baseline:** `main` at `26ce3a4`; Phase 1.3 and 1.4 are uncommitted. Preserve them. Do not commit unless requested.
 **Locked decisions:** one looped guided tour; `Scene` and `Camera` workspaces; camera placement accepts any tagged room floor.
 
 ## Main Problem
@@ -151,9 +151,9 @@ Camera-key position remains derived from exact connection-path progress. Never p
 ## Read First
 
 1. `AGENTS.md`
-2. `docs/agent-handoffs/phase-6.6-slice-6.md`
+2. `docs/agent-handoffs/CURRENT.md`
 3. This README
-4. The selected phase plan
+4. The selected phase plan and its latest handoff
 5. `docs/CAMERA_AND_LAYOUT.md`
 6. `docs/plans/camera-path-authoring.md`
 7. `docs/plans/camera-view-authoring.md`

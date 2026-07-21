@@ -1,34 +1,40 @@
 import { describe, expect, it } from 'vitest';
 import { createMuseumEditorStore } from './museum-editor.svelte';
 
-describe('MuseumEditorStore Phase 1.1 persistent shell session state', () => {
+describe('MuseumEditorStore Phase 1 shell session state', () => {
 	it('defaults workspace, panel, and timeline to the documented initial values', () => {
 		const store = createMuseumEditorStore();
 		expect(store.currentWorkspace).toBe('scene');
 		expect(store.leftPanel).toBe('scene');
 		expect(store.timelineExpanded).toBe(false);
+		expect(store.sceneTimelineExpanded).toBe(false);
 		expect(store.timelineHeight).toBe(280);
+		expect(store.transformGizmoVisible).toBe(true);
+		expect(store.transformSpace).toBe('world');
 		expect(store.treeExpandedRoomIds).toEqual(['paris']);
 		expect(store.treeExpandedClusterIds).toEqual([]);
 	});
 
-	it('auto-expands the timeline only when transitioning scene → camera with the panel collapsed', () => {
+	it('auto-expands Camera while restoring Scene\'s remembered timeline choice', () => {
 		const store = createMuseumEditorStore();
 		expect(store.setWorkspace('camera')).toBe(true);
 		expect(store.currentWorkspace).toBe('camera');
 		expect(store.timelineExpanded).toBe(true);
 
-		// Entering with timeline already true keeps it true (no-op on the timeline field).
-		store.setWorkspace('scene');
+		// Scene started collapsed and restores that preference after Camera forced the panel open.
+		expect(store.setWorkspace('scene')).toBe(true);
+		expect(store.timelineExpanded).toBe(false);
+
+		// A user choice made in Scene survives a full Camera round trip.
+		store.toggleTimeline();
 		expect(store.timelineExpanded).toBe(true);
+		expect(store.sceneTimelineExpanded).toBe(true);
 		expect(store.setWorkspace('camera')).toBe(true);
 		expect(store.timelineExpanded).toBe(true);
-
-		// After a full leave/enter with timeline collapsed, the rule re-fires.
-		expect(store.setWorkspace('scene')).toBe(true);
 		store.toggleTimeline();
 		expect(store.timelineExpanded).toBe(false);
-		expect(store.setWorkspace('camera')).toBe(true);
+		expect(store.sceneTimelineExpanded).toBe(true);
+		expect(store.setWorkspace('scene')).toBe(true);
 		expect(store.timelineExpanded).toBe(true);
 	});
 
@@ -46,6 +52,7 @@ describe('MuseumEditorStore Phase 1.1 persistent shell session state', () => {
 		store.selectNavigationNode('paris-seat');
 		expect(store.previewSelectedNode('director')).toBe(true);
 		expect(store.cameraPreview).not.toBeNull();
+		expect(store.timelineExpanded).toBe(true);
 
 		// Entering Camera with a preview already running keeps the preview untouched.
 		expect(store.setWorkspace('camera')).toBe(true);
@@ -76,7 +83,10 @@ describe('MuseumEditorStore Phase 1.1 persistent shell session state', () => {
 	it('rejects every other shell-state change during interaction or modal preview', () => {
 		const store = createMuseumEditorStore();
 		store.toggleClusterTreeExpansion('cluster-a');
-		const expectShellStateToRemainUnchanged = () => {
+		const expectShellStateToRemainUnchanged = (timelineExpanded: boolean) => {
+			expect(store.setTransformTool('select')).toBe(false);
+			expect(store.setTransformSpace('local')).toBe(false);
+			expect(store.toggleActiveTransformSnap()).toBe(false);
 			expect(store.setLeftPanel('assets')).toBe(false);
 			expect(store.setTimelineExpanded(true)).toBe(false);
 			expect(store.setTimelineHeight(320)).toBe(false);
@@ -87,21 +97,47 @@ describe('MuseumEditorStore Phase 1.1 persistent shell session state', () => {
 			expect(store.ensureRoomTreeExpanded('entrance')).toBe(false);
 			expect(store.ensureClusterTreeExpanded('cluster-b')).toBe(false);
 			expect(store.leftPanel).toBe('scene');
-			expect(store.timelineExpanded).toBe(false);
+			expect(store.timelineExpanded).toBe(timelineExpanded);
 			expect(store.timelineHeight).toBe(280);
+			expect(store.transformGizmoVisible).toBe(true);
+			expect(store.transformSpace).toBe('world');
 			expect(store.treeExpandedRoomIds).toEqual(['paris']);
 			expect(store.treeExpandedClusterIds).toEqual(['cluster-a']);
 		};
 
 		expect(store.beginDocumentTransaction()).toBe(true);
 		store.setTransformInteractionActive(true, 'placement');
-		expectShellStateToRemainUnchanged();
+		expectShellStateToRemainUnchanged(false);
 		store.setTransformInteractionActive(false);
 		expect(store.cancelDocumentTransaction()).toBe(true);
 
 		store.selectNavigationNode('paris-seat');
 		expect(store.previewSelectedNode('visitor')).toBe(true);
-		expectShellStateToRemainUnchanged();
+		expectShellStateToRemainUnchanged(true);
+	});
+
+	it('keeps viewport transform tools session-only and toggles snap for the active mode', () => {
+		const store = createMuseumEditorStore();
+		const before = store.canonicalJson;
+
+		expect(store.setTransformTool('select')).toBe(true);
+		expect(store.transformGizmoVisible).toBe(false);
+		expect(store.toggleActiveTransformSnap()).toBe(false);
+
+		expect(store.setTransformTool('translate')).toBe(true);
+		expect(store.transformMode).toBe('translate');
+		expect(store.transformGizmoVisible).toBe(true);
+		expect(store.toggleActiveTransformSnap()).toBe(true);
+		expect(store.translationSnapEnabled).toBe(false);
+
+		expect(store.setTransformSpace('local')).toBe(true);
+		expect(store.transformSpace).toBe('local');
+		expect(store.setTransformTool('scale')).toBe(true);
+		expect(store.toggleActiveTransformSnap()).toBe(false);
+
+		expect(store.canonicalJson).toBe(before);
+		expect(store.isDirty).toBe(false);
+		expect(store.canUndo).toBe(false);
 	});
 
 	it('cancels asset placement when the user navigates back from Assets to Scene', () => {
@@ -180,6 +216,8 @@ describe('MuseumEditorStore Phase 1.1 persistent shell session state', () => {
 		store.setLeftPanel('assets');
 		store.toggleTimeline();
 		store.setTimelineHeight(300);
+		store.setTransformTool('select');
+		store.setTransformSpace('local');
 		store.toggleRoomTreeExpansion('paris');
 		store.toggleClusterTreeExpansion('cluster-x');
 		store.removeClusterTreeExpansion('cluster-y');
@@ -189,7 +227,10 @@ describe('MuseumEditorStore Phase 1.1 persistent shell session state', () => {
 		expect(after).not.toContain('currentWorkspace');
 		expect(after).not.toContain('leftPanel');
 		expect(after).not.toContain('timelineExpanded');
+		expect(after).not.toContain('sceneTimelineExpanded');
 		expect(after).not.toContain('timelineHeight');
+		expect(after).not.toContain('transformGizmoVisible');
+		expect(after).not.toContain('transformSpace');
 		expect(after).not.toContain('treeExpandedRoomIds');
 		expect(after).not.toContain('treeExpandedClusterIds');
 		expect(store.isDirty).toBe(false);

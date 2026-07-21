@@ -59,19 +59,6 @@
 			<span>Room-local</span>
 		</div>
 
-		<div class="modes" aria-label="Transform mode">
-			{#each ['translate', 'rotate', 'scale'] as mode}
-				<button
-					type="button"
-					class:active={store.transformMode === mode}
-					aria-pressed={store.transformMode === mode}
-					onclick={() => (store.transformMode = mode as typeof store.transformMode)}
-				>
-					{mode[0]!.toUpperCase() + mode.slice(1)}
-				</button>
-			{/each}
-		</div>
-
 		<div class="axis-legend" aria-label="Gizmo axis colors">
 			<span class="x">X</span><span>Red</span>
 			<span class="y">Y</span><span>Green</span>
@@ -158,29 +145,6 @@
 	.section-heading span {
 		color: #8d887f;
 		font-size: 0.68rem;
-	}
-
-	.modes {
-		display: grid;
-		grid-template-columns: repeat(3, 1fr);
-		gap: 0.35rem;
-	}
-
-	.modes button {
-		padding: 0.42rem 0.3rem;
-		border: 1px solid #3a3a46;
-		border-radius: 0.3rem;
-		background: #1a1a22;
-		color: #ddd6ca;
-		font: inherit;
-		font-size: 0.72rem;
-		cursor: pointer;
-	}
-
-	.modes button.active {
-		border-color: #d6b35f;
-		background: #2a2618;
-		color: #fff2c7;
 	}
 
 	.axis-legend {

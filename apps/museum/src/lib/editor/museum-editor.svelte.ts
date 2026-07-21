@@ -160,6 +160,9 @@ export type EditorWorkspace = 'scene' | 'camera';
 /** Phase 1.1 persistent shell — left panel always offers Scene tree or Asset library. */
 export type EditorLeftPanel = 'scene' | 'assets';
 
+/** Session-only viewport transform presentation. */
+export type EditorTransformSpace = 'local' | 'world';
+
 /** Bottom-panel frame measurements. Session-only, never serialized. */
 export const EDITOR_TIMELINE_COLLAPSED_HEIGHT = 36;
 export const EDITOR_TIMELINE_MIN_HEIGHT = 220;
@@ -293,6 +296,8 @@ export class MuseumEditorStore {
 	cameraPreviewFollowEnabled = $state(true);
 	cameraPreviewRecenterVersion = $state(0);
 	transformMode = $state<EditorTransformMode>('rotate');
+	transformGizmoVisible = $state(true);
+	transformSpace = $state<EditorTransformSpace>('world');
 	cameraFocusVersion = $state(0);
 	cameraFocusKind = $state<
 		'room' | 'placement' | 'selection' | 'navigation-node' | null
@@ -310,6 +315,8 @@ export class MuseumEditorStore {
 	currentWorkspace = $state<EditorWorkspace>('scene');
 	leftPanel = $state<EditorLeftPanel>('scene');
 	timelineExpanded = $state(false);
+	/** Scene workspace preference is restored after Camera forces the panel open. */
+	sceneTimelineExpanded = $state(false);
 	timelineHeight = $state(EDITOR_TIMELINE_DEFAULT_HEIGHT);
 	/**
 	 * Phase 1.1 sidebar tree expansion — owned by the store so the inspector's grouping
@@ -1287,6 +1294,7 @@ export class MuseumEditorStore {
 			playhead: 0,
 			startedAtMs: null
 		};
+		this.timelineExpanded = true;
 		return true;
 	}
 
@@ -1330,6 +1338,7 @@ export class MuseumEditorStore {
 			playhead: 0,
 			startedAtMs: null
 		};
+		this.timelineExpanded = true;
 		return true;
 	}
 
@@ -1376,6 +1385,7 @@ export class MuseumEditorStore {
 			playhead: 0,
 			startedAtMs: null
 		};
+		this.timelineExpanded = true;
 		return true;
 	}
 
@@ -1673,6 +1683,43 @@ export class MuseumEditorStore {
 		return true;
 	}
 
+	/** Phase 1.3 — choose a viewport tool without entering document history. */
+	setTransformTool(tool: 'select' | EditorTransformMode) {
+		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
+		if (tool === 'select') {
+			if (!this.transformGizmoVisible) return false;
+			this.transformGizmoVisible = false;
+			return true;
+		}
+		const changed = !this.transformGizmoVisible || this.transformMode !== tool;
+		this.transformMode = tool;
+		this.transformGizmoVisible = true;
+		return changed;
+	}
+
+	/** Phase 1.3 — local/world affects placement gizmos only; camera helpers remain world-space. */
+	setTransformSpace(space: EditorTransformSpace) {
+		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
+		if (space === this.transformSpace) return false;
+		this.transformSpace = space;
+		return true;
+	}
+
+	/** Toggle the snap mode relevant to the active translate/rotate tool. */
+	toggleActiveTransformSnap() {
+		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
+		if (!this.transformGizmoVisible) return false;
+		if (this.transformMode === 'translate') {
+			this.translationSnapEnabled = !this.translationSnapEnabled;
+			return true;
+		}
+		if (this.transformMode === 'rotate') {
+			this.rotationSnapEnabled = !this.rotationSnapEnabled;
+			return true;
+		}
+		return false;
+	}
+
 	/** Phase 1.1 — switch editor workspace. Stops any active camera preview when leaving Camera. */
 	setWorkspace(workspace: EditorWorkspace) {
 		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
@@ -1681,9 +1728,7 @@ export class MuseumEditorStore {
 			this.stopCameraPreview();
 		}
 		this.currentWorkspace = workspace;
-		if (workspace === 'camera' && !this.timelineExpanded) {
-			this.timelineExpanded = true;
-		}
+		this.timelineExpanded = workspace === 'camera' ? true : this.sceneTimelineExpanded;
 		return true;
 	}
 
@@ -1702,6 +1747,9 @@ export class MuseumEditorStore {
 	setTimelineExpanded(value: boolean) {
 		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
 		this.timelineExpanded = Boolean(value);
+		if (this.currentWorkspace === 'scene') {
+			this.sceneTimelineExpanded = this.timelineExpanded;
+		}
 		return true;
 	}
 
@@ -1719,6 +1767,9 @@ export class MuseumEditorStore {
 	toggleTimeline() {
 		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
 		this.timelineExpanded = !this.timelineExpanded;
+		if (this.currentWorkspace === 'scene') {
+			this.sceneTimelineExpanded = this.timelineExpanded;
+		}
 		return true;
 	}
 

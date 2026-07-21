@@ -11,6 +11,7 @@
 	import EditorSelection from './EditorSelection.svelte';
 	import EditorSelectionHelper from './EditorSelectionHelper.svelte';
 	import EditorTransformControls from './EditorTransformControls.svelte';
+	import EditorViewportToolbar from './EditorViewportToolbar.svelte';
 	import type { MuseumEditorStore } from './museum-editor.svelte';
 	import type { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 
@@ -34,6 +35,7 @@
 	class:bending={Boolean(store.hoveredConnectionId || store.hoveredAnchorId)}
 	aria-label="Museum editor viewport"
 >
+	<EditorViewportToolbar {store} />
 	<Canvas dpr={[1, 1.5]} shadows>
 		<MuseumScene
 			scene={store.scene}

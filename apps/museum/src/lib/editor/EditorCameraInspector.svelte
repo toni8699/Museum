@@ -137,11 +137,6 @@
 			<button
 				type="button"
 				disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
-				onclick={() => store.beginConnectedNodePlacement()}
-			>Add connected node</button>
-			<button
-				type="button"
-				disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
 				onclick={() => store.beginConnectExistingNodes()}
 			>Connect existing</button>
 		</div>
@@ -315,7 +310,8 @@
 	.id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
 	.label-field { display: flex; flex-direction: column; gap: 0.3rem; }
 	.label-field input { width: 100%; box-sizing: border-box; padding: 0.42rem; border: 1px solid #3a3a46; border-radius: 0.3rem; background: #101016; color: #f4efe4; }
-	.handles, .topology, .preview div, .copy-track { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.35rem; }
+	.handles, .preview div, .copy-track { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.35rem; }
+	.topology { display: grid; grid-template-columns: 1fr; gap: 0.35rem; }
 	button { padding: 0.42rem 0.4rem; border: 1px solid #3a3a46; border-radius: 0.3rem; background: #1a1a22; color: #ddd6ca; font: inherit; font-size: 0.72rem; cursor: pointer; }
 	button.active, button.done { border-color: #d6b35f; background: #2a2618; color: #fff2c7; }
 	button.danger { border-color: #744; color: #f1b1aa; }

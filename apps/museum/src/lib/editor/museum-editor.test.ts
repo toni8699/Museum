@@ -1226,40 +1226,96 @@ describe('MuseumEditorStore Phase 6.5 camera paths', () => {
 		expect(store.selectedConnection?.positionPath.anchors).toHaveLength(originalCount);
 	});
 
-	it('creates a free-only node and first smooth edge in one transaction', () => {
+	it('keeps an any-room camera pending until its first smooth edge commits atomically', () => {
 		const store = createMuseumEditorStore();
-		store.selectRoom('paris');
-		store.selectNavigationNode('paris-seat');
 		const originalNodeCount = store.document.navigationNodes.length;
 		const originalConnectionCount = store.document.connections.length;
+		const originalJson = store.canonicalJson;
 
-		expect(store.beginConnectedNodePlacement()).toBe(true);
+		expect(store.beginCameraPlacement()).toBe(true);
 		const nodeId = store.createPendingNavigationNodeAt(
-			roomPoint('paris', [0, 0, 0]),
+			'workshop',
+			roomPoint('workshop', [1, 0, 2]),
 			[0, 0, -1]
 		);
 		expect(nodeId).toBe('camera-node-1');
-		const node = store.document.navigationNodes.find((candidate) => candidate.id === nodeId)!;
+		expect(store.document.navigationNodes).toHaveLength(originalNodeCount);
+		expect(store.document.connections).toHaveLength(originalConnectionCount);
+		expect(store.canonicalJson).toBe(originalJson);
+		expect(store.canUndo).toBe(false);
+
+		const node = store.pendingNavigationNode!;
 		expect(node.label).toBe('Camera Node 1');
+		expect(node.roomId).toBe('workshop');
+		expect(node.position[0]).toBeCloseTo(1);
+		expect(node.position[1]).toBeCloseTo(1.65);
+		expect(node.position[2]).toBeCloseTo(2);
+		const floorWorld = roomPoint('workshop', [1, 0, 2]);
+		const targetWorld = roomPoint('workshop', node.cameraTarget);
+		expect(targetWorld[0]).toBeCloseTo(floorWorld[0]);
+		expect(targetWorld[1]).toBeCloseTo(floorWorld[1] + 1.25);
+		expect(targetWorld[2]).toBeCloseTo(floorWorld[2] - 3);
 		expect(node.fov).toBe(54);
-		expect(node.connectedNodeIds).toEqual(['paris-seat']);
+		expect(node.connectedNodeIds).toEqual([]);
 		expect(node.nextNodeId).toBeUndefined();
 		expect(node.previousNodeId).toBeUndefined();
+		expect(store.commitSelectedNodeLabel('  Workshop close-up  ')).toBe(true);
+		expect(store.commitSelectedNodeFov(62)).toBe(true);
+		expect(
+			store.commitNavigationNodePoint(nodeId!, 'position', [1.5, 1.7, 2.25])
+		).toBe(true);
+		expect(store.canUndo).toBe(false);
+
+		expect(store.selectNavigationNode('workshop-desk')).toBe(true);
 		expect(store.document.navigationNodes).toHaveLength(originalNodeCount + 1);
 		expect(store.document.connections).toHaveLength(originalConnectionCount + 1);
-		expect(store.document.connections.at(-1)?.positionPath).toEqual({
+		const committed = store.document.navigationNodes.find(
+			(candidate) => candidate.id === nodeId
+		)!;
+		expect(committed.label).toBe('Workshop close-up');
+		expect(committed.fov).toBe(62);
+		expect(committed.position).toEqual([1.5, 1.7, 2.25]);
+		expect(committed.connectedNodeIds).toEqual(['workshop-desk']);
+		const connection = store.document.connections.at(-1)!;
+		expect(connection.fromNodeId).toBe('workshop-desk');
+		expect(connection.toNodeId).toBe(nodeId);
+		expect(connection.positionPath).toEqual({
 			kind: 'auto-bezier',
 			anchors: []
 		});
 		expect(store.navigationSelection).toEqual({
-			kind: 'node',
-			nodeId,
-			handle: 'position'
+			kind: 'connection',
+			connectionId: connection.id
 		});
+		expect(store.pendingNavigationCommand).toBeNull();
 
 		expect(store.undo()).toBe(true);
 		expect(store.document.navigationNodes).toHaveLength(originalNodeCount);
 		expect(store.document.connections).toHaveLength(originalConnectionCount);
+	});
+
+	it('cancels a pending camera and all pose edits without document or history mutation', () => {
+		const store = createMuseumEditorStore();
+		store.setWorkspace('camera');
+		store.selectNavigationNode('paris-seat');
+		const selectionBefore = store.navigationSelection;
+		const jsonBefore = store.canonicalJson;
+
+		expect(store.beginCameraPlacement()).toBe(true);
+		const nodeId = store.createPendingNavigationNodeAt(
+			'legacy',
+			roomPoint('legacy', [0.5, 0, -1]),
+			[1, 0, 0]
+		)!;
+		expect(store.commitSelectedNodeFov(80)).toBe(true);
+		expect(store.selectCameraHandle('target')).toBe(true);
+		expect(store.commitNavigationNodePoint(nodeId, 'target', [2, 1.4, -1])).toBe(true);
+		expect(store.cancelPendingNavigation()).toBe(true);
+
+		expect(store.pendingNavigationCommand).toBeNull();
+		expect(store.canonicalJson).toBe(jsonBefore);
+		expect(store.canUndo).toBe(false);
+		expect(store.navigationSelection).toEqual(selectionBefore);
 	});
 
 	it('connects existing nodes symmetrically and rejects self or duplicate edges', () => {

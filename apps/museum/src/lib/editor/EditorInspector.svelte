@@ -102,7 +102,7 @@
 		{#if showAssetInspector}
 			<p>{selectedAsset ? 'Asset library selection' : 'No asset matches the current filters.'}</p>
 		{:else if selectedNavigation?.kind === 'node' && selectedCameraNode}
-			<p class="id">{selectedCameraNode.id} · {store.cameraSelection?.handle}</p>
+			<p class="id">{selectedCameraNode.id} · {store.isPendingNavigationNode(selectedCameraNode.id) ? 'pending' : store.cameraSelection?.handle}</p>
 		{:else if selectedNavigation?.kind === 'connection'}
 			<p class="id">{selectedNavigation.connectionId} · connection</p>
 		{:else if selectedNavigation?.kind === 'anchor'}

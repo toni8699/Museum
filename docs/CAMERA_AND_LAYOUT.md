@@ -266,13 +266,16 @@ Helper sampling is `8 samples/m`, clamped to `32–512`. Nearest insertion uses 
 
 ### Creating topology
 
-**Add Connected Camera Node** requires selected source node and active editable room (currently Paris):
+**Add → Camera** begins without a selected source node or room:
 
-- Valid room-floor click creates node plus first connection in one transaction; no isolated committed node.
+- Click any placeable floor carrying valid `editorSurface.roomId` metadata; the hit infers room ownership.
+- Floor click creates a session-only pending camera ghost. It does not change the document, dirty state, or history.
 - Defaults: eye `1.65 m`, target `1.25 m`, horizontal target distance `3 m`, clearance `0.35 m`.
-- Eye/target persist room-local; initial connection is straight `auto-bezier` with no interior anchors.
-- Symmetric adjacency is updated. Guided links remain absent, so new node is free-only.
-- IDs use smallest free `camera-node-N`; label defaults `Camera Node N`; connection ID starts from `${sourceId}-${destinationId}` and resolves collisions.
+- Eye, target, label, and FOV can be adjusted while pending through the existing helpers, gizmo, and inspector without history.
+- Choose any existing node in the viewport or Camera Tour to commit node, symmetric adjacency, and one straight `auto-bezier` connection atomically.
+- Eye/target persist room-local. Guided links remain absent, so the new node is free-only.
+- Escape, Cancel, workspace switch, or Undo before connection discards the draft and restores prior selection.
+- IDs use smallest free `camera-node-N`; label defaults `Camera Node N`; connection ID starts from `${existingNodeId}-${newNodeId}` and resolves collisions.
 
 **Connect Existing Nodes** captures selected source and accepts a valid distinct unconnected destination. It creates one straight auto connection, updates adjacency symmetrically, leaves guided links unchanged, and commits once.
 
@@ -290,8 +293,8 @@ Alt is placement-only. Curves/anchors ignore Alt. Visitor preview and pending pl
 - Timeline Play, top-bar Preview Tour, and bottom transport Play promote the current global playhead into whole-tour playback. Pause/resume retain position; completed playback restarts at zero.
 - Preview adds no history and restores exact pre-preview Orbit/camera state on Stop, Escape, completion teardown, or repeated cycles.
 - Editor session is a deep clone. One transaction creates at most one history entry; invalid/no-op/cancel creates none.
-- Browser Copy/Download exports canonical v2 but never writes repository files or clears dirty state.
-- Valid v1/v2 import normalizes to v2. Replace checked-in JSON manually, then test/build.
+- Browser Copy/Download exports canonical v3 but never writes repository files or clears dirty state.
+- Valid v1/v2/v3 import normalizes to v3. Replace checked-in JSON manually, then test/build.
 
 ### Camera-key progress dragging
 
@@ -364,7 +367,7 @@ After architecture, scene, or camera edits:
 | Fix travel clipping | Select connection; move/add stable anchors |
 | Preserve old path behavior | Keep `rounded-polyline` |
 | Smooth a connection | Convert/bend to `auto-bezier`; preview both ways |
-| Add free-only stop | **Add Connected Camera Node** |
+| Add free-only stop | **Add → Camera**, place draft, choose first connection |
 | Connect existing stops | **Connect Existing Nodes** |
 | Change guided order | Manual schema edit only; UI deferred |
 | Change route traversal | `camera-route.ts` |

@@ -22,6 +22,7 @@ import {
 	rotationSnapRadians,
 	snapRoomLocalPosition
 } from './editor-placement';
+import { museumRooms } from '$lib/content/rooms';
 
 function makeFloor(y = 0, roomId?: string) {
 	const mesh = new Mesh(new PlaneGeometry(20, 20), new MeshBasicMaterial());
@@ -88,8 +89,29 @@ describe('findPlaceableFloorIntersection', () => {
 			[hit(otherFloor, 1, 0.5), hit(child, 2, 0.01)],
 			'paris'
 		);
-		expect(result?.object).toBe(parisFloor);
-		expect(result?.point.y).toBeCloseTo(0.01);
+		expect(result?.intersection.object).toBe(child);
+		expect(result?.intersection.point.y).toBeCloseTo(0.01);
+		expect(result?.roomId).toBe('paris');
+	});
+
+	it('accepts any tagged museum floor when roomId is omitted', () => {
+		const workshopFloor = makeFloor(0.5, 'workshop');
+		const parisFloor = makeFloor(0.01, 'paris');
+		const result = findPlaceableFloorIntersection([
+			hit(workshopFloor, 1, 0.5),
+			hit(parisFloor, 2, 0.01)
+		]);
+		expect(result?.intersection.object).toBe(workshopFloor);
+		expect(result?.roomId).toBe('workshop');
+	});
+
+	it('resolves room ownership for every tagged museum floor', () => {
+		for (const room of museumRooms) {
+			const floor = makeFloor(0, room.id);
+			expect(findPlaceableFloorIntersection([hit(floor, 1, 0)])?.roomId).toBe(
+				room.id
+			);
+		}
 	});
 
 	it('rejects inferred floors without the complete semantic contract', () => {
@@ -98,6 +120,11 @@ describe('findPlaceableFloorIntersection', () => {
 		namedFloor.userData.surfaceType = 'floor';
 		namedFloor.userData.editorSurface = { type: 'floor', placeable: true };
 		expect(findPlaceableFloorIntersection([hit(namedFloor, 1, 0)], 'paris')).toBeNull();
+	});
+
+	it('rejects unknown room metadata', () => {
+		const floor = makeFloor(0, 'attic');
+		expect(findPlaceableFloorIntersection([hit(floor, 1, 0)])).toBeNull();
 	});
 });
 

@@ -54,6 +54,8 @@
 		handle: 'position' | 'target';
 		root: Group;
 		startWorldPosition: Vector3;
+		startLocalPoint: Vec3;
+		pending: boolean;
 		orbitWasEnabled: boolean | null;
 	};
 
@@ -99,7 +101,9 @@
 				store.viewKeyframeProgressDrag !== null ||
 				!store.transformGizmoVisible,
 			pendingPlacement: Boolean(
-				store.pendingPlacementAssetId || store.pendingNavigationCommand
+				store.pendingPlacementAssetId ||
+				(store.pendingNavigationCommand &&
+					store.pendingNavigationCommand.kind !== 'connect-pending-node')
 			),
 			placementKey: store.selectionKey,
 			placementObject:
@@ -167,7 +171,9 @@
 	function beginTransform() {
 		const target = activeTarget;
 		if (!target) return;
-		if (!store.beginDocumentTransaction()) return;
+		const pendingCamera =
+			target.kind === 'camera' && store.isPendingNavigationNode(target.nodeId);
+		if (!pendingCamera && !store.beginDocumentTransaction()) return;
 
 		if (
 			target.kind === 'camera' ||
@@ -180,12 +186,20 @@
 			const root = target.object as Group;
 			const startWorldPosition = target.object.getWorldPosition(new Vector3());
 			if (target.kind === 'camera') {
+				const node = store.selectedNavigationNode;
+				if (!node || node.id !== target.nodeId) {
+					if (!pendingCamera) store.cancelDocumentTransaction();
+					store.setTransformInteractionActive(false);
+					return;
+				}
 				session = {
 					kind: 'camera',
 					nodeId: target.nodeId,
 					handle: target.handle,
 					root,
 					startWorldPosition,
+					startLocalPoint: [...(target.handle === 'position' ? node.position : node.cameraTarget)],
+					pending: pendingCamera,
 					orbitWasEnabled
 				};
 			} else if (target.kind === 'anchor') {
@@ -239,9 +253,11 @@
 		if (!active) return;
 		if (active.kind === 'camera') {
 			if (!active.nodeId || !active.handle) return;
-			const node = store.document.navigationNodes.find(
-				(candidate) => candidate.id === active.nodeId
-			);
+			const node = store.isPendingNavigationNode(active.nodeId)
+				? store.pendingNavigationNode
+				: store.document.navigationNodes.find(
+						(candidate) => candidate.id === active.nodeId
+					);
 			if (!node) return;
 			const world = active.root.getWorldPosition(new Vector3()).toArray() as Vec3;
 			store.updateNavigationNodePoint(
@@ -302,6 +318,10 @@
 		) {
 			session = null;
 			store.setTransformInteractionActive(false);
+			if (active.kind === 'camera' && active.pending) {
+				restoreOrbitAfterTransform(active);
+				return;
+			}
 			if (
 				(active.kind === 'anchor' || active.kind === 'view-target') &&
 				active.root
@@ -348,7 +368,20 @@
 		transformControls.reset();
 		session = null;
 		store.setTransformInteractionActive(false);
-		store.cancelDocumentTransaction();
+		if (active.kind === 'camera' && active.pending) {
+			store.navigationSelection = {
+				kind: 'node',
+				nodeId: active.nodeId,
+				handle: active.handle
+			};
+			store.updateNavigationNodePoint(
+				active.nodeId,
+				active.handle,
+				active.startLocalPoint
+			);
+		} else {
+			store.cancelDocumentTransaction();
+		}
 		active.root.position.copy(active.startWorldPosition);
 		transformControls.pointerUp(null);
 		restoreOrbitAfterTransform(active);
@@ -406,7 +439,9 @@
 		if (session) {
 			const active = session;
 			session = null;
-			store.cancelDocumentTransaction();
+			if (!(active.kind === 'camera' && active.pending)) {
+				store.cancelDocumentTransaction();
+			}
 			restoreOrbitAfterTransform(active);
 		}
 		transformControls.removeEventListener('change', onTransformChange);

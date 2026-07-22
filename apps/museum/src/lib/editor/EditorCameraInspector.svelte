@@ -10,6 +10,7 @@
 
 	const selection = $derived(store.navigationSelection);
 	const node = $derived(store.selectedNavigationNode);
+	const pendingNode = $derived(node ? store.isPendingNavigationNode(node.id) : false);
 	const point = $derived(store.selectedCameraPoint);
 	const connection = $derived(store.selectedConnection);
 	const anchor = $derived(store.selectedAnchor);
@@ -84,8 +85,8 @@
 {#if selection?.kind === 'node' && node && point}
 	<section class="camera-node" aria-label="Camera node editor">
 		<div class="section-heading">
-			<h2>Camera node</h2>
-			<span>Room-local</span>
+			<h2>{pendingNode ? 'Pending camera' : 'Camera node'}</h2>
+			<span>{pendingNode ? 'Not saved' : 'Room-local'}</span>
 		</div>
 
 		<label class="label-field">
@@ -133,15 +134,27 @@
 			oncommit={(fov) => store.commitSelectedNodeFov(fov)}
 		/>
 
-		<div class="topology" aria-label="Camera topology commands">
-			<button
-				type="button"
-				disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
-				onclick={() => store.beginConnectExistingNodes()}
-			>Connect existing</button>
-		</div>
+		{#if pendingNode}
+			<div class="topology" aria-label="Pending camera actions">
+				<p>Choose any existing camera node in viewport or Camera Tour to create first connection.</p>
+				<button
+					type="button"
+					class="danger"
+					disabled={store.isEditorInteractionActive}
+					onclick={() => store.cancelPendingNavigation('Camera placement cancelled')}
+				>Cancel camera</button>
+			</div>
+		{:else}
+			<div class="topology" aria-label="Camera topology commands">
+				<button
+					type="button"
+					disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
+					onclick={() => store.beginConnectExistingNodes()}
+				>Connect existing</button>
+			</div>
+		{/if}
 
-		{#if !store.cameraPreview}
+		{#if !pendingNode && !store.cameraPreview}
 			<div class="preview" aria-label="Camera preview controls">
 				<div>
 					<button type="button" disabled={store.isEditorInteractionActive} onclick={() => store.previewSelectedNode('director')}>Director node</button>

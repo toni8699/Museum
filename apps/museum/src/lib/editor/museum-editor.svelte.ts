@@ -6,6 +6,7 @@ import {
 	type MuseumSceneDocument,
 	type NavigationGraph,
 	type SceneCameraViewKeyframe,
+	type SceneNavigationNode,
 	type RuntimeMuseumScene,
 	type SceneObjectCluster,
 	type SceneObjectPlacement
@@ -158,9 +159,11 @@ export type EditorCameraPreview =
 export type EditorPendingNavigationCommand =
 	| null
 	| {
-			kind: 'place-connected-node';
-			sourceNodeId: string;
-			roomId: MuseumRoomId;
+			kind: 'place-camera';
+	  }
+	| {
+			kind: 'connect-pending-node';
+			node: SceneNavigationNode;
 	  }
 	| {
 			kind: 'connect-existing';
@@ -422,6 +425,11 @@ export class MuseumEditorStore {
 	#cameraTimelineGraph: NavigationGraph | null = null;
 	#cameraTimelineCache: EditorCameraTimeline | null = null;
 	#viewKeyframeProgressDragInitialProgress: number | null = null;
+	#pendingNavigationSelectionBefore: EditorNavigationSelection = null;
+	#pendingNavigationActiveConnectionBefore: string | null = null;
+	#pendingNavigationDirectionBefore: CameraConnectionDirection = 'forward';
+	#pendingNavigationPlacementIdsBefore: string[] = [];
+	#pendingNavigationClusterBefore: string | null = null;
 	registryVersion = $state(0);
 
 	#past: MuseumSceneDocument[] = [];
@@ -484,16 +492,44 @@ export class MuseumEditorStore {
 		const id = this.navigationSelection?.kind === 'node'
 			? this.navigationSelection.nodeId
 			: null;
-		return id
-			? this.document.navigationNodes.find((node) => node.id === id)
-			: undefined;
+		if (!id) return undefined;
+		if (
+			this.pendingNavigationCommand?.kind === 'connect-pending-node' &&
+			this.pendingNavigationCommand.node.id === id
+		) {
+			return this.pendingNavigationCommand.node;
+		}
+		return this.document.navigationNodes.find((node) => node.id === id);
 	}
 
 	get selectedRuntimeNavigationNode() {
 		const id = this.navigationSelection?.kind === 'node'
 			? this.navigationSelection.nodeId
 			: null;
-		return id ? this.scene.navigationNodes.find((node) => node.id === id) : undefined;
+		return id ? this.getRuntimeNavigationNode(id) : undefined;
+	}
+
+	get pendingNavigationNode() {
+		return this.pendingNavigationCommand?.kind === 'connect-pending-node'
+			? this.pendingNavigationCommand.node
+			: undefined;
+	}
+
+	isPendingNavigationNode(nodeId: string) {
+		return this.pendingNavigationNode?.id === nodeId;
+	}
+
+	getRuntimeNavigationNode(nodeId: string) {
+		const pending = this.pendingNavigationNode;
+		if (pending?.id === nodeId) {
+			return {
+				...pending,
+				position: roomPoint(pending.roomId, pending.position),
+				cameraTarget: roomPoint(pending.roomId, pending.cameraTarget),
+				connectedNodeIds: [...pending.connectedNodeIds]
+			};
+		}
+		return this.scene.navigationNodes.find((node) => node.id === nodeId);
 	}
 
 	get selectedConnection() {
@@ -669,12 +705,18 @@ export class MuseumEditorStore {
 
 	get canUndo() {
 		void this.historyVersion;
-		return !this.isDocumentMutationBlocked && !this.isEditorInteractionActive && this.#past.length > 0;
+		return !this.isDocumentMutationBlocked &&
+			!this.isEditorInteractionActive &&
+			!this.pendingNavigationCommand &&
+			this.#past.length > 0;
 	}
 
 	get canRedo() {
 		void this.historyVersion;
-		return !this.isDocumentMutationBlocked && !this.isEditorInteractionActive && this.#future.length > 0;
+		return !this.isDocumentMutationBlocked &&
+			!this.isEditorInteractionActive &&
+			!this.pendingNavigationCommand &&
+			this.#future.length > 0;
 	}
 
 	get isDirty() {
@@ -743,11 +785,17 @@ export class MuseumEditorStore {
 
 	selectNavigationNode(id: string) {
 		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
-		if (this.pendingNavigationCommand?.kind === 'connect-existing') {
+		if (
+			this.pendingNavigationCommand?.kind === 'connect-existing' ||
+			(this.pendingNavigationCommand?.kind === 'connect-pending-node' &&
+				this.pendingNavigationCommand.node.id !== id)
+		) {
 			return this.connectPendingNavigationNode(id);
 		}
-		if (this.pendingNavigationCommand) return false;
-		const node = this.document.navigationNodes.find((candidate) => candidate.id === id);
+		if (this.pendingNavigationCommand?.kind === 'place-camera') return false;
+		const node = this.isPendingNavigationNode(id)
+			? this.pendingNavigationNode
+			: this.document.navigationNodes.find((candidate) => candidate.id === id);
 		if (!node) return false;
 
 		const current = this.cameraSelection;
@@ -761,7 +809,9 @@ export class MuseumEditorStore {
 		this.activeCameraConnectionId = null;
 		this.activeCameraDirection = 'forward';
 
-		if (this.currentWorkspace === 'camera') {
+		if (this.isPendingNavigationNode(id)) {
+			this.setStatusMessage('Adjust camera pose, then choose its first connection');
+		} else if (this.currentWorkspace === 'camera') {
 			this.#syncCameraTimelineForNode(id);
 			this.#showCameraTimelineNodePose(id);
 		} else if (current?.nodeId !== id) {
@@ -771,7 +821,11 @@ export class MuseumEditorStore {
 	}
 
 	selectCameraHandle(handle: EditorCameraHandle) {
-		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive || this.pendingNavigationCommand) return false;
+		if (
+			this.isDocumentMutationBlocked ||
+			this.isEditorInteractionActive ||
+			(this.pendingNavigationCommand && !this.pendingNavigationNode)
+		) return false;
 		const selection = this.cameraSelection;
 		if (!selection || selection.handle === handle) return false;
 		this.navigationSelection = {
@@ -1356,12 +1410,16 @@ export class MuseumEditorStore {
 		handle: EditorCameraHandle,
 		point: Vec3
 	) {
-		if (this.isDocumentMutationBlocked || !this.#transactionBefore || !isFiniteVec3(point)) {
+		if (this.isDocumentMutationBlocked || !isFiniteVec3(point)) {
 			return false;
 		}
 		const selection = this.cameraSelection;
 		if (selection?.nodeId !== nodeId || selection.handle !== handle) return false;
-		const node = this.document.navigationNodes.find((candidate) => candidate.id === nodeId);
+		const pending = this.isPendingNavigationNode(nodeId);
+		if (!pending && !this.#transactionBefore) return false;
+		const node = pending
+			? this.pendingNavigationNode
+			: this.document.navigationNodes.find((candidate) => candidate.id === nodeId);
 		if (!node) return false;
 		const current = handle === 'position' ? node.position : node.cameraTarget;
 		if (vec3Matches(current, point)) return false;
@@ -1376,6 +1434,9 @@ export class MuseumEditorStore {
 		point: Vec3
 	) {
 		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
+		if (this.isPendingNavigationNode(nodeId)) {
+			return this.updateNavigationNodePoint(nodeId, handle, point);
+		}
 		if (!this.beginDocumentTransaction()) return false;
 		if (!this.updateNavigationNodePoint(nodeId, handle, point)) {
 			this.cancelDocumentTransaction();
@@ -1487,6 +1548,10 @@ export class MuseumEditorStore {
 		const node = this.selectedNavigationNode;
 		const next = label.trim();
 		if (!node || !next || next === node.label) return false;
+		if (this.isPendingNavigationNode(node.id)) {
+			node.label = next;
+			return true;
+		}
 		if (!this.beginDocumentTransaction()) return false;
 		node.label = next;
 		return this.commitDocumentTransaction();
@@ -1504,6 +1569,10 @@ export class MuseumEditorStore {
 		}
 		const node = this.selectedNavigationNode;
 		if (!node || Math.abs(node.fov - fov) <= 1e-6) return false;
+		if (this.isPendingNavigationNode(node.id)) {
+			node.fov = fov;
+			return true;
+		}
 		if (!this.beginDocumentTransaction()) return false;
 		node.fov = fov;
 		return this.commitDocumentTransaction();
@@ -2577,6 +2646,9 @@ export class MuseumEditorStore {
 		}
 		if (this.isEditorInteractionActive) return false;
 		if (workspace === this.currentWorkspace) return false;
+		if (this.pendingNavigationCommand) {
+			this.cancelPendingNavigation('Camera placement cancelled');
+		}
 		if (this.currentWorkspace === 'camera' && this.cameraPreview) {
 			this.stopCameraPreview();
 		}
@@ -2839,32 +2911,43 @@ export class MuseumEditorStore {
 		return id;
 	}
 
-	beginConnectedNodePlacement() {
-		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
-		const source = this.selectedNavigationNode;
-		const roomId = this.selectedRoomId;
-		if (!source) {
-			this.setStatusMessage('Select a source camera node');
-			return false;
-		}
-		if (!roomId) {
-			this.setStatusMessage('Select the editable Paris room first');
-			return false;
-		}
+	beginCameraPlacement() {
+		if (
+			this.isDocumentMutationBlocked ||
+			this.isEditorInteractionActive ||
+			this.pendingNavigationCommand
+		) return false;
 		this.cancelAssetPlacement();
 		this.cancelPendingFrame();
+		this.setWorkspace('camera');
+		this.#pendingNavigationSelectionBefore = this.navigationSelection;
+		this.#pendingNavigationActiveConnectionBefore = this.activeCameraConnectionId;
+		this.#pendingNavigationDirectionBefore = this.activeCameraDirection;
+		this.#pendingNavigationPlacementIdsBefore = [...this.selectedPlacementIds];
+		this.#pendingNavigationClusterBefore = this.selectedClusterId;
+		this.#clearPlacementSelection();
+		this.navigationSelection = null;
+		this.activeCameraConnectionId = null;
+		this.activeCameraDirection = 'forward';
 		this.pendingNavigationCommand = {
-			kind: 'place-connected-node',
-			sourceNodeId: source.id,
-			roomId
+			kind: 'place-camera'
 		};
 		this.setNavigationHover(null);
-		this.setStatusMessage(`Click the ${roomId} floor to add a connected camera node`);
+		this.setStatusMessage('Click any tagged room floor to place a camera');
 		return true;
 	}
 
+	/** Compatibility alias retained for callers from the pre-3.2 connected-camera flow. */
+	beginConnectedNodePlacement() {
+		return this.beginCameraPlacement();
+	}
+
 	beginConnectExistingNodes() {
-		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
+		if (
+			this.isDocumentMutationBlocked ||
+			this.isEditorInteractionActive ||
+			this.pendingNavigationCommand
+		) return false;
 		const source = this.selectedNavigationNode;
 		if (!source) {
 			this.setStatusMessage('Select a source camera node');
@@ -2872,6 +2955,11 @@ export class MuseumEditorStore {
 		}
 		this.cancelAssetPlacement();
 		this.cancelPendingFrame();
+		this.#pendingNavigationSelectionBefore = this.navigationSelection;
+		this.#pendingNavigationActiveConnectionBefore = this.activeCameraConnectionId;
+		this.#pendingNavigationDirectionBefore = this.activeCameraDirection;
+		this.#pendingNavigationPlacementIdsBefore = [...this.selectedPlacementIds];
+		this.#pendingNavigationClusterBefore = this.selectedClusterId;
 		this.pendingNavigationCommand = {
 			kind: 'connect-existing',
 			sourceNodeId: source.id
@@ -2882,28 +2970,34 @@ export class MuseumEditorStore {
 	}
 
 	cancelPendingNavigation(message?: string) {
-		const changed = this.pendingNavigationCommand !== null;
+		const pending = this.pendingNavigationCommand;
+		const changed = pending !== null;
 		this.pendingNavigationCommand = null;
+		if (changed) {
+			this.navigationSelection = this.#pendingNavigationSelectionBefore;
+			this.activeCameraConnectionId = this.#pendingNavigationActiveConnectionBefore;
+			this.activeCameraDirection = this.#pendingNavigationDirectionBefore;
+			this.selectedPlacementIds = [...this.#pendingNavigationPlacementIdsBefore];
+			this.selectedClusterId = this.#pendingNavigationClusterBefore;
+			this.#clearPendingNavigationSnapshot();
+		}
 		if (message) this.setStatusMessage(message);
 		return changed;
 	}
 
-	createPendingNavigationNodeAt(floorWorld: Vec3, cameraForwardWorld: Vec3) {
+	createPendingNavigationNodeAt(
+		roomId: MuseumRoomId,
+		floorWorld: Vec3,
+		cameraForwardWorld: Vec3
+	) {
 		const pending = this.pendingNavigationCommand;
 		if (
 			this.isDocumentMutationBlocked ||
 			this.isEditorInteractionActive ||
-			pending?.kind !== 'place-connected-node' ||
+			pending?.kind !== 'place-camera' ||
 			!isFiniteVec3(floorWorld) ||
 			!isFiniteVec3(cameraForwardWorld)
 		) {
-			return null;
-		}
-		const source = this.document.navigationNodes.find(
-			(node) => node.id === pending.sourceNodeId
-		);
-		if (!source) {
-			this.cancelPendingNavigation('Source camera node no longer exists');
 			return null;
 		}
 
@@ -2911,8 +3005,8 @@ export class MuseumEditorStore {
 		let forwardZ = cameraForwardWorld[2];
 		let forwardLength = Math.hypot(forwardX, forwardZ);
 		if (forwardLength <= 1e-6) {
-			const origin = roomPoint(pending.roomId, [0, 0, 0]);
-			const fallback = roomPoint(pending.roomId, [0, 0, -1]);
+			const origin = roomPoint(roomId, [0, 0, 0]);
+			const fallback = roomPoint(roomId, [0, 0, -1]);
 			forwardX = fallback[0] - origin[0];
 			forwardZ = fallback[2] - origin[2];
 			forwardLength = Math.hypot(forwardX, forwardZ);
@@ -2942,39 +3036,22 @@ export class MuseumEditorStore {
 			floorWorld[1] + CAMERA_NODE_CREATION_DEFAULTS.targetHeight,
 			floorWorld[2] + forwardZ * CAMERA_NODE_CREATION_DEFAULTS.targetDistance
 		];
-		const connectionId = reserveEntityId(
-			`${source.id}-${nodeId}`,
-			new Set(this.document.connections.map((connection) => connection.id))
-		);
-
-		if (!this.beginDocumentTransaction()) return null;
-		this.document.navigationNodes.push({
+		const node: SceneNavigationNode = {
 			id: nodeId,
-			roomId: pending.roomId,
+			roomId,
 			label: `Camera Node ${number}`,
-			position: roomLocalPoint(pending.roomId, eyeWorld),
-			cameraTarget: roomLocalPoint(pending.roomId, targetWorld),
+			position: roomLocalPoint(roomId, eyeWorld),
+			cameraTarget: roomLocalPoint(roomId, targetWorld),
 			fov: CAMERA_NODE_CREATION_DEFAULTS.fov,
-			connectedNodeIds: [source.id]
-		});
-		if (!source.connectedNodeIds.includes(nodeId)) source.connectedNodeIds.push(nodeId);
-		this.document.connections.push({
-			id: connectionId,
-			fromNodeId: source.id,
-			toNodeId: nodeId,
-			clearance: CAMERA_NODE_CREATION_DEFAULTS.clearance,
-			positionPath: { kind: 'auto-bezier', anchors: [] }
-		});
-		if (!this.commitDocumentTransaction()) return null;
-
-		this.pendingNavigationCommand = null;
+			connectedNodeIds: []
+		};
+		this.pendingNavigationCommand = { kind: 'connect-pending-node', node };
 		this.navigationSelection = {
 			kind: 'node',
 			nodeId,
 			handle: 'position'
 		};
-		this.focusNavigationNode(nodeId);
-		this.setStatusMessage(`Added Camera Node ${number}`);
+		this.setStatusMessage('Adjust camera pose, then choose an existing node');
 		return nodeId;
 	}
 
@@ -2983,9 +3060,51 @@ export class MuseumEditorStore {
 		if (
 			this.isDocumentMutationBlocked ||
 			this.isEditorInteractionActive ||
-			pending?.kind !== 'connect-existing'
+			(pending?.kind !== 'connect-existing' &&
+				pending?.kind !== 'connect-pending-node')
 		) {
 			return false;
+		}
+		if (pending.kind === 'connect-pending-node') {
+			const destination = this.document.navigationNodes.find(
+				(node) => node.id === destinationNodeId
+			);
+			if (!destination) {
+				this.setStatusMessage('Destination camera node is unavailable');
+				return false;
+			}
+			const node = pending.node;
+			const connectionId = reserveEntityId(
+				`${destination.id}-${node.id}`,
+				new Set(this.document.connections.map((connection) => connection.id))
+			);
+			if (!this.beginDocumentTransaction()) return false;
+			this.document.navigationNodes.push({
+				...node,
+				position: [...node.position],
+				cameraTarget: [...node.cameraTarget],
+				connectedNodeIds: [destination.id]
+			});
+			if (!destination.connectedNodeIds.includes(node.id)) {
+				destination.connectedNodeIds.push(node.id);
+			}
+			this.document.connections.push({
+				id: connectionId,
+				fromNodeId: destination.id,
+				toNodeId: node.id,
+				clearance: CAMERA_NODE_CREATION_DEFAULTS.clearance,
+				positionPath: { kind: 'auto-bezier', anchors: [] }
+			});
+			if (!this.commitDocumentTransaction()) return false;
+
+			this.pendingNavigationCommand = null;
+			this.#clearPendingNavigationSnapshot();
+			this.navigationSelection = { kind: 'connection', connectionId };
+			this.activeCameraConnectionId = connectionId;
+			this.activeCameraDirection = 'forward';
+			this.#expandActiveCameraDirection('forward');
+			this.setStatusMessage(`Added ${node.label} and its first connection`);
+			return true;
 		}
 		const source = this.document.navigationNodes.find(
 			(node) => node.id === pending.sourceNodeId
@@ -3032,9 +3151,18 @@ export class MuseumEditorStore {
 		if (!this.commitDocumentTransaction()) return false;
 
 		this.pendingNavigationCommand = null;
+		this.#clearPendingNavigationSnapshot();
 		this.navigationSelection = { kind: 'connection', connectionId };
 		this.setStatusMessage('Connected camera nodes');
 		return true;
+	}
+
+	#clearPendingNavigationSnapshot() {
+		this.#pendingNavigationSelectionBefore = null;
+		this.#pendingNavigationActiveConnectionBefore = null;
+		this.#pendingNavigationDirectionBefore = 'forward';
+		this.#pendingNavigationPlacementIdsBefore = [];
+		this.#pendingNavigationClusterBefore = null;
 	}
 
 	isPlacementSelectable(id: string) {
@@ -3508,6 +3636,9 @@ export class MuseumEditorStore {
 	}
 
 	undo() {
+		if (this.pendingNavigationCommand) {
+			return this.cancelPendingNavigation('Camera placement cancelled');
+		}
 		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive || this.#transactionBefore || this.#past.length === 0) return false;
 		this.cancelPendingFrame();
 		this.cancelPendingNavigation();
@@ -3521,6 +3652,9 @@ export class MuseumEditorStore {
 	}
 
 	redo() {
+		if (this.pendingNavigationCommand) {
+			return this.cancelPendingNavigation('Camera placement cancelled');
+		}
 		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive || this.#transactionBefore || this.#future.length === 0) return false;
 		this.cancelPendingFrame();
 		this.cancelPendingNavigation();

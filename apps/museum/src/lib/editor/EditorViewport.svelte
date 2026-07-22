@@ -30,7 +30,7 @@
 	class="viewport"
 	class:placing={Boolean(
 		store.pendingPlacementAssetId ||
-		store.pendingNavigationCommand?.kind === 'place-connected-node'
+		store.pendingNavigationCommand?.kind === 'place-camera'
 	)}
 	class:bending={Boolean(store.hoveredConnectionId || store.hoveredAnchorId)}
 	class:dragging-camera-key={store.viewKeyframeProgressDrag !== null}
@@ -57,10 +57,13 @@
 		<EditorGrid visible={store.gridVisible && !store.isVisitorCameraPreview} />
 		<EditorCameraPathHelpers {store} />
 		<EditorCameraViewHelpers {store} />
-		{#if store.pendingNavigationCommand?.kind === 'connect-existing' && !store.isDocumentMutationBlocked}
+		{#if (store.pendingNavigationCommand?.kind === 'connect-existing' || store.pendingNavigationCommand?.kind === 'connect-pending-node') && !store.isDocumentMutationBlocked}
 			{#each store.document.navigationNodes as node (node.id)}
 				<EditorCameraHelpers {store} nodeId={node.id} positionOnly />
 			{/each}
+			{#if store.pendingNavigationCommand?.kind === 'connect-pending-node'}
+				<EditorCameraHelpers {store} nodeId={store.pendingNavigationCommand.node.id} />
+			{/if}
 		{:else if store.cameraSelection && !store.pendingPlacementAssetId && !store.isDocumentMutationBlocked}
 			{#key store.cameraSelection.nodeId}
 				<EditorCameraHelpers {store} nodeId={store.cameraSelection.nodeId} />
@@ -86,9 +89,13 @@
 			Click a Paris floor to place · Escape cancels
 		</div>
 	{/if}
-	{#if store.pendingNavigationCommand?.kind === 'place-connected-node'}
+	{#if store.pendingNavigationCommand?.kind === 'place-camera'}
 		<div class="placement-hint" role="status">
-			Click the {store.pendingNavigationCommand.roomId} floor to place · Escape cancels
+			Click any tagged room floor to place · Escape cancels
+		</div>
+	{:else if store.pendingNavigationCommand?.kind === 'connect-pending-node'}
+		<div class="placement-hint" role="status">
+			Adjust pose or choose an existing camera node · Escape cancels
 		</div>
 	{:else if store.pendingNavigationCommand?.kind === 'connect-existing'}
 		<div class="placement-hint" role="status">

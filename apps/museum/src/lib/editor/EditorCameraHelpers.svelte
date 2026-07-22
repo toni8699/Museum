@@ -82,10 +82,8 @@
 		editorStore.registerCameraHelperRoot(helperNodeId, 'target', targetRoot);
 	}
 
-	function syncFromCommittedScene() {
-		const node = editorStore.scene.navigationNodes.find(
-			(candidate) => candidate.id === helperNodeId
-		);
+	function syncFromStore() {
+		const node = editorStore.getRuntimeNavigationNode(helperNodeId);
 		if (!node) return;
 		positionRoot.position.set(...node.position);
 		targetRoot.position.set(...node.cameraTarget);
@@ -104,6 +102,7 @@
 	$effect(() => {
 		void editorStore.scene;
 		void editorStore.historyVersion;
+		void editorStore.pendingNavigationCommand;
 		if (
 			editorStore.transformInteractionActive &&
 			editorStore.transformInteractionKind === 'camera' &&
@@ -111,7 +110,7 @@
 		) {
 			return;
 		}
-		syncFromCommittedScene();
+		syncFromStore();
 		updateConnector();
 	});
 

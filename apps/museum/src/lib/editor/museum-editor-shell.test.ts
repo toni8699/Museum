@@ -176,6 +176,25 @@ describe('MuseumEditorStore Phase 1 shell session state', () => {
 		expect(store.pendingPlacementAssetId).toBeNull();
 	});
 
+	it('cancels pending camera placement on workspace switch without touching history', () => {
+		const store = createMuseumEditorStore();
+		store.setWorkspace('camera');
+		store.selectNavigationNode('paris-seat');
+		const before = store.canonicalJson;
+
+		expect(store.beginCameraPlacement()).toBe(true);
+		expect(store.pendingNavigationCommand?.kind).toBe('place-camera');
+		expect(store.setWorkspace('scene')).toBe(true);
+		expect(store.pendingNavigationCommand).toBeNull();
+		expect(store.navigationSelection).toEqual({
+			kind: 'node',
+			nodeId: 'paris-seat',
+			handle: 'position'
+		});
+		expect(store.canonicalJson).toBe(before);
+		expect(store.canUndo).toBe(false);
+	});
+
 	it('clamps timeline height into the documented range and rejects non-finite values', () => {
 		const store = createMuseumEditorStore();
 		expect(store.setTimelineHeight(150)).toBe(true);

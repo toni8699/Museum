@@ -16,9 +16,8 @@
 		store.navigationSelection?.kind === 'anchor' ||
 		store.navigationSelection?.kind === 'view-keyframe'
 	);
-	const canAddConnectedCamera = $derived(
+	const canAddCamera = $derived(
 		!disabled &&
-		store.navigationSelection?.kind === 'node' &&
 		!store.pendingPlacementAssetId &&
 		!store.pendingNavigationCommand
 	);
@@ -48,8 +47,8 @@
 		return hasNavigationTransform ? mode === 'translate' : store.transformMode === mode;
 	}
 
-	function addConnectedCamera() {
-		if (!store.beginConnectedNodePlacement()) return;
+	function addCamera() {
+		if (!store.beginCameraPlacement()) return;
 		addMenuOpen = false;
 	}
 
@@ -119,11 +118,11 @@
 				<button
 					type="button"
 					role="menuitem"
-					disabled={!canAddConnectedCamera}
-					onclick={addConnectedCamera}
-				>Add connected camera</button>
-				{#if !canAddConnectedCamera}
-					<p>Select a camera node to add a connected camera.</p>
+					disabled={!canAddCamera}
+					onclick={addCamera}
+				>Camera</button>
+				{#if !canAddCamera}
+					<p>Finish or cancel current interaction first.</p>
 				{/if}
 			</div>
 		{/if}

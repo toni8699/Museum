@@ -128,7 +128,7 @@
 	function isFloorPlacementActive() {
 		return Boolean(
 			store.pendingPlacementAssetId ||
-				store.pendingNavigationCommand?.kind === 'place-connected-node'
+				store.pendingNavigationCommand?.kind === 'place-camera'
 		);
 	}
 
@@ -432,18 +432,16 @@
 
 		const intersections = raycast(event);
 		const pendingNavigation = store.pendingNavigationCommand;
-		if (pendingNavigation?.kind === 'place-connected-node') {
-			const floorHit = findPlaceableFloorIntersection(
-				intersections,
-				pendingNavigation.roomId
-			);
+		if (pendingNavigation?.kind === 'place-camera') {
+			const floorHit = findPlaceableFloorIntersection(intersections);
 			if (!floorHit) {
-				store.setStatusMessage(`Click a placeable ${pendingNavigation.roomId} floor`);
+				store.setStatusMessage('Click a tagged museum-room floor');
 				return;
 			}
 			currentCamera.getWorldDirection(cameraForward);
 			store.createPendingNavigationNodeAt(
-				floorHit.point.toArray() as Vec3,
+				floorHit.roomId,
+				floorHit.intersection.point.toArray() as Vec3,
 				cameraForward.toArray() as Vec3
 			);
 			return;
@@ -455,7 +453,7 @@
 				store.setStatusMessage('Click a placeable Paris floor');
 				return;
 			}
-			const worldPoint = floorHit.point.toArray() as Vec3;
+			const worldPoint = floorHit.intersection.point.toArray() as Vec3;
 			store.createPendingPlacementAt(roomLocalPoint('paris', worldPoint));
 			return;
 		}

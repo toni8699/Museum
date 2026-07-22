@@ -150,7 +150,13 @@
 					type="button"
 					disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
 					onclick={() => store.beginConnectExistingNodes()}
-				>Connect existing</button>
+				>Connect to another node</button>
+				<button
+					type="button"
+					class="danger"
+					disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
+					onclick={() => store.deleteNavigationNode(node.id)}
+				>Delete camera node</button>
 			</div>
 		{/if}
 
@@ -197,6 +203,12 @@
 				onclick={() => store.copySelectedConnectionViewTrack('reverse')}
 			>Copy reverse → forward</button>
 		</div>
+		<button
+			type="button"
+			class="danger"
+			disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
+			onclick={() => store.deleteConnection(connection.id)}
+		>Delete camera connection</button>
 		{#if !store.cameraPreview}
 			<div class="preview">
 				<div>

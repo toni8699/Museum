@@ -85,6 +85,11 @@ import {
 	type EditorCameraTimeline,
 	type EditorCameraTimelineNodeBoundary
 } from './editor-camera-timeline';
+import {
+	validateConnectionCreation,
+	validateConnectionDeletion,
+	validateNavigationNodeDeletion
+} from './editor-navigation-graph';
 
 const HISTORY_LIMIT = 100;
 const STATUS_MESSAGE_MS = 2500;
@@ -3103,33 +3108,44 @@ export class MuseumEditorStore {
 			this.activeCameraConnectionId = connectionId;
 			this.activeCameraDirection = 'forward';
 			this.#expandActiveCameraDirection('forward');
+			if (this.currentWorkspace === 'camera') {
+				this.#syncCameraTimelineForConnection(connectionId, 'forward', 0);
+				this.#showCameraTimelineConnectionPose(connectionId, 'forward', 0);
+			}
 			this.setStatusMessage(`Added ${node.label} and its first connection`);
 			return true;
 		}
-		const source = this.document.navigationNodes.find(
-			(node) => node.id === pending.sourceNodeId
-		);
-		const destination = this.document.navigationNodes.find(
-			(node) => node.id === destinationNodeId
-		);
-		if (!source || !destination) {
-			this.setStatusMessage('Destination camera node is unavailable');
-			return false;
-		}
-		if (source.id === destination.id) {
-			this.setStatusMessage('A camera node cannot connect to itself');
-			return false;
-		}
-		const duplicate = this.document.connections.some(
-			(connection) =>
-				(connection.fromNodeId === source.id && connection.toNodeId === destination.id) ||
-				(connection.fromNodeId === destination.id && connection.toNodeId === source.id)
-		);
-		if (duplicate) {
-			this.setStatusMessage('These camera nodes are already connected');
-			return false;
-		}
+		return this.connectNavigationNodes(pending.sourceNodeId, destinationNodeId);
+	}
 
+	/** Commit one standalone undirected edge and symmetric adjacency transaction. */
+	connectNavigationNodes(sourceNodeId: string, destinationNodeId: string) {
+		if (this.isDocumentMutationBlocked) {
+			this.setStatusMessage('Camera graph changes are blocked during active playback');
+			return false;
+		}
+		if (this.isEditorInteractionActive || this.isDocumentTransactionActive) {
+			this.setStatusMessage('Finish the active editor interaction before connecting camera nodes');
+			return false;
+		}
+		if (
+			this.pendingNavigationCommand &&
+			(this.pendingNavigationCommand.kind !== 'connect-existing' ||
+				this.pendingNavigationCommand.sourceNodeId !== sourceNodeId)
+		) {
+			this.setStatusMessage('Finish or cancel the current camera command first');
+			return false;
+		}
+		const validation = validateConnectionCreation(
+			this.document,
+			sourceNodeId,
+			destinationNodeId
+		);
+		if (!validation.ok) {
+			this.setStatusMessage(validation.message);
+			return false;
+		}
+		const { sourceNode: source, destinationNode: destination } = validation;
 		const connectionId = reserveEntityId(
 			`${source.id}-${destination.id}`,
 			new Set(this.document.connections.map((connection) => connection.id))
@@ -3150,11 +3166,185 @@ export class MuseumEditorStore {
 		});
 		if (!this.commitDocumentTransaction()) return false;
 
-		this.pendingNavigationCommand = null;
-		this.#clearPendingNavigationSnapshot();
+		if (this.pendingNavigationCommand?.kind === 'connect-existing') {
+			this.pendingNavigationCommand = null;
+			this.#clearPendingNavigationSnapshot();
+		}
 		this.navigationSelection = { kind: 'connection', connectionId };
+		this.activeCameraConnectionId = connectionId;
+		this.activeCameraDirection = 'forward';
+		this.#expandActiveCameraDirection('forward');
+		if (this.currentWorkspace === 'camera') {
+			this.#syncCameraTimelineForConnection(connectionId, 'forward', 0);
+			this.#showCameraTimelineConnectionPose(connectionId, 'forward', 0);
+		}
 		this.setStatusMessage('Connected camera nodes');
 		return true;
+	}
+
+	/** Delete one non-guided, non-bridge edge and both directional view tracks. */
+	deleteConnection(connectionId: string) {
+		if (!this.#canRunTopologyDeletion('connection')) return false;
+		const validation = validateConnectionDeletion(this.document, connectionId);
+		if (!validation.ok) {
+			this.setStatusMessage(validation.message);
+			return false;
+		}
+		const connection = validation.connection;
+		if (
+			!this.#releasePausedPreviewForTopology(
+				new Set(),
+				new Set([connection.id])
+			)
+		) {
+			return false;
+		}
+
+		if (!this.beginDocumentTransaction()) return false;
+		this.document.connections = this.document.connections.filter(
+			(candidate) => candidate.id !== connection.id
+		);
+		for (const node of this.document.navigationNodes) {
+			if (node.id === connection.fromNodeId) {
+				node.connectedNodeIds = node.connectedNodeIds.filter(
+					(id) => id !== connection.toNodeId
+				);
+			} else if (node.id === connection.toNodeId) {
+				node.connectedNodeIds = node.connectedNodeIds.filter(
+					(id) => id !== connection.fromNodeId
+				);
+			}
+		}
+		if (!this.commitDocumentTransaction()) return false;
+		this.#clearDeletedConnectionSessionState(new Set([connection.id]));
+		this.setStatusMessage(`Deleted camera connection ${connection.id}`);
+		return true;
+	}
+
+	/** Delete one free node, or splice one guided node across an existing direct edge. */
+	deleteNavigationNode(nodeId: string) {
+		if (!this.#canRunTopologyDeletion('node')) return false;
+		const validation = validateNavigationNodeDeletion(this.document, nodeId);
+		if (!validation.ok) {
+			this.setStatusMessage(validation.message);
+			return false;
+		}
+		const incidentConnectionIds = new Set(validation.incidentConnectionIds);
+		if (
+			!this.#releasePausedPreviewForTopology(
+				new Set([validation.node.id]),
+				incidentConnectionIds
+			)
+		) {
+			return false;
+		}
+
+		if (!this.beginDocumentTransaction()) return false;
+		if (validation.predecessorNodeId && validation.successorNodeId) {
+			const predecessor = this.document.navigationNodes.find(
+				(node) => node.id === validation.predecessorNodeId
+			);
+			const successor = this.document.navigationNodes.find(
+				(node) => node.id === validation.successorNodeId
+			);
+			if (!predecessor || !successor) {
+				this.cancelDocumentTransaction();
+				this.setStatusMessage('The guided deletion plan became unavailable');
+				return false;
+			}
+			predecessor.nextNodeId = successor.id;
+			successor.previousNodeId = predecessor.id;
+		}
+		this.document.navigationNodes = this.document.navigationNodes
+			.filter((node) => node.id !== validation.node.id)
+			.map((node) => ({
+				...node,
+				connectedNodeIds: node.connectedNodeIds.filter(
+					(connectedNodeId) => connectedNodeId !== validation.node.id
+				)
+			}));
+		this.document.connections = this.document.connections.filter(
+			(connection) => !incidentConnectionIds.has(connection.id)
+		);
+		if (!this.commitDocumentTransaction()) return false;
+		this.#clearDeletedConnectionSessionState(incidentConnectionIds);
+		this.setStatusMessage(`Deleted camera node ${validation.node.label}`);
+		return true;
+	}
+
+	#canRunTopologyDeletion(entity: 'node' | 'connection') {
+		if (this.isDocumentMutationBlocked) {
+			this.setStatusMessage(
+				`Cannot delete a camera ${entity} during active camera playback`
+			);
+			return false;
+		}
+		if (this.isEditorInteractionActive || this.isDocumentTransactionActive) {
+			this.setStatusMessage(
+				`Cannot delete a camera ${entity} while an editor interaction is active`
+			);
+			return false;
+		}
+		if (this.pendingNavigationCommand) {
+			this.setStatusMessage('Finish or cancel the current camera command first');
+			return false;
+		}
+		return true;
+	}
+
+	#releasePausedPreviewForTopology(
+		nodeIds: ReadonlySet<string>,
+		connectionIds: ReadonlySet<string>
+	) {
+		const preview = this.cameraPreview;
+		if (!preview) return true;
+		let touchesDeletedTopology = false;
+		if (preview.kind === 'node') {
+			touchesDeletedTopology = nodeIds.has(preview.nodeId);
+		} else if (preview.kind === 'connection') {
+			touchesDeletedTopology =
+				connectionIds.has(preview.connectionId) ||
+				nodeIds.has(preview.fromNodeId) ||
+				nodeIds.has(preview.toNodeId);
+		} else if (preview.kind === 'transition') {
+			touchesDeletedTopology =
+				nodeIds.has(preview.fromNodeId) || nodeIds.has(preview.toNodeId);
+			const captured = this.#capturedCameraPreviewRoute;
+			if (captured?.runId === preview.runId) {
+				touchesDeletedTopology ||=
+					captured.route.nodeIds.some((id) => nodeIds.has(id)) ||
+					captured.route.edges.some((edge) => connectionIds.has(edge.connectionId));
+			}
+		} else {
+			const timeline = this.getCameraTimeline();
+			touchesDeletedTopology = Boolean(
+				timeline &&
+					(timeline.nodeBoundaries.some((boundary) => nodeIds.has(boundary.nodeId)) ||
+						timeline.edges.some((edge) => connectionIds.has(edge.connectionId)))
+			);
+		}
+		if (!touchesDeletedTopology) return true;
+		if (this.stopCameraPreview()) return true;
+		this.setStatusMessage('Stop the camera preview before deleting its topology');
+		return false;
+	}
+
+	#clearDeletedConnectionSessionState(connectionIds: ReadonlySet<string>) {
+		if (
+			this.activeCameraConnectionId &&
+			connectionIds.has(this.activeCameraConnectionId)
+		) {
+			this.activeCameraConnectionId = null;
+			this.activeCameraDirection = 'forward';
+		}
+		this.treeExpandedCameraConnectionIds =
+			this.treeExpandedCameraConnectionIds.filter((id) => !connectionIds.has(id));
+		this.treeExpandedCameraDirectionKeys =
+			this.treeExpandedCameraDirectionKeys.filter((key) => {
+				const separatorIndex = key.lastIndexOf(CAMERA_HELPER_KEY_SEPARATOR);
+				const connectionId = separatorIndex < 0 ? key : key.slice(0, separatorIndex);
+				return !connectionIds.has(connectionId);
+			});
 	}
 
 	#clearPendingNavigationSnapshot() {

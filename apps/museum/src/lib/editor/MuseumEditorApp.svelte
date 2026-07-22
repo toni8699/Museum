@@ -35,6 +35,15 @@
 		);
 	}
 
+	function editorOwnsCameraShortcuts() {
+		if (store.currentWorkspace !== 'camera') return false;
+		const active = document.activeElement;
+		if (!active) return false;
+		return Boolean(
+			viewportElement?.contains(active) || outlinerElement?.contains(active)
+		);
+	}
+
 	function isEditableTarget(target: EventTarget | null) {
 		if (!(target instanceof HTMLElement)) return false;
 		if (target.isContentEditable) return true;
@@ -76,6 +85,7 @@
 			const modifier = event.metaKey || event.ctrlKey;
 			const key = event.key.toLowerCase();
 			const sceneOwnsShortcuts = editorOwnsSceneShortcuts();
+			const cameraOwnsShortcuts = editorOwnsCameraShortcuts();
 
 			if (modifier && key === 'z') {
 				event.preventDefault();
@@ -105,6 +115,23 @@
 				event.preventDefault();
 				event.stopPropagation();
 				store.selectAllInRoom();
+			} else if (
+				!modifier &&
+				!event.altKey &&
+				(event.key === 'Delete' || event.key === 'Backspace') &&
+				cameraOwnsShortcuts
+			) {
+				const selection = store.navigationSelection;
+				const deleted =
+					selection?.kind === 'node' && !store.isPendingNavigationNode(selection.nodeId)
+						? store.deleteNavigationNode(selection.nodeId)
+						: selection?.kind === 'connection'
+							? store.deleteConnection(selection.connectionId)
+							: false;
+				if (deleted) {
+					event.preventDefault();
+					event.stopPropagation();
+				}
 			} else if (
 				!modifier &&
 				!event.altKey &&

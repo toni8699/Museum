@@ -277,7 +277,15 @@ Helper sampling is `8 samples/m`, clamped to `32–512`. Nearest insertion uses 
 - Escape, Cancel, workspace switch, or Undo before connection discards the draft and restores prior selection.
 - IDs use smallest free `camera-node-N`; label defaults `Camera Node N`; connection ID starts from `${existingNodeId}-${newNodeId}` and resolves collisions.
 
-**Connect Existing Nodes** captures selected source and accepts a valid distinct unconnected destination. It creates one straight auto connection, updates adjacency symmetrically, leaves guided links unchanged, and commits once.
+**Connect to another node** captures the selected source and accepts a valid distinct unconnected destination from the viewport or Camera Tour. It rejects self/duplicate edges without mutation, creates one straight `auto-bezier` connection with zero interior anchors, updates adjacency symmetrically, selects the new connection, and commits once.
+
+Selected camera nodes and connections expose guarded Delete commands (also available through Delete/Backspace while the Camera tree or viewport owns focus):
+
+- A connection can be deleted only when it is not required by guided order and the remaining graph stays connected.
+- A free node can be deleted only when the remaining graph stays connected.
+- A guided node additionally requires a direct predecessor → successor edge, a valid resulting reciprocal cycle, and at least two remaining guided nodes.
+- Node deletion removes every incident connection and both directional view tracks. Connection deletion removes its directional view tracks. Each succeeds as one undoable transaction.
+- Active interaction/playback blocks deletion. Every failed invariant reports its specific reason and leaves the document/history unchanged.
 
 ### Pointer and modal ownership
 
@@ -326,7 +334,7 @@ Alt is placement-only. Curves/anchors ignore Alt. Visitor preview and pending pl
 | No tangent handles | Exact tangent shaping unavailable | Add/move pass-through anchors |
 | No per-edge timing | Long/short edges share global speed policy | Keep current global motion constants |
 | Guided order not editable | New nodes are free-only | Use free mode; future guided-order workflow required |
-| No node/connection deletion | Topology cleanup requires future tooling/manual JSON | Validate exported scene before replacing checked-in file |
+| Guarded topology deletion only | Bridge/guided edges and articulation nodes cannot be removed directly | Add the required alternate edge first, then retry deletion |
 | One active editable room | New room-local entities scoped to Paris | Extend editor room context deliberately |
 | Free-look only at stable Paris stop | Eye fixed; yaw/pitch clamped | Extend Director without adding second camera |
 | Far plane 90 / fog 22–54 | Distant geometry fades | Raise fog/far if world grows |
@@ -368,7 +376,8 @@ After architecture, scene, or camera edits:
 | Preserve old path behavior | Keep `rounded-polyline` |
 | Smooth a connection | Convert/bend to `auto-bezier`; preview both ways |
 | Add free-only stop | **Add → Camera**, place draft, choose first connection |
-| Connect existing stops | **Connect Existing Nodes** |
+| Connect existing stops | Select source → **Connect to another node** → choose destination |
+| Delete a stop or edge | Select it → guarded **Delete** command |
 | Change guided order | Manual schema edit only; UI deferred |
 | Change route traversal | `camera-route.ts` |
 | Change curve/timing/easing/projection | `camera-motion.ts` |

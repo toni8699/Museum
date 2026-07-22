@@ -1337,12 +1337,201 @@ describe('MuseumEditorStore Phase 6.5 camera paths', () => {
 			store.document.navigationNodes.find((node) => node.id === 'paris-seat')
 				?.connectedNodeIds
 		).toContain('entrance-start');
+		expect(store.navigationSelection).toEqual({
+			kind: 'connection',
+			connectionId: connection.id
+		});
+		expect(store.activeCameraConnectionId).toBe(connection.id);
+		expect(store.activeCameraDirection).toBe('forward');
 
 		expect(store.undo()).toBe(true);
 		store.selectNavigationNode('entrance-start');
 		expect(store.beginConnectExistingNodes()).toBe(true);
 		expect(store.selectNavigationNode('poland-threshold')).toBe(false);
 		expect(store.statusMessage).toContain('already connected');
+	});
+
+	it('deletes a redundant connection and both view tracks in one undoable transaction', () => {
+		const store = createMuseumEditorStore();
+		expect(
+			store.connectNavigationNodes('entrance-start', 'departure-corridor')
+		).toBe(true);
+		const connection = store.document.connections.find(
+			(candidate) => candidate.id === 'entrance-start-departure-corridor'
+		)!;
+		connection.viewTracks = {
+			forward: [
+				{
+					id: 'forward-key',
+					progress: 0.4,
+					cameraTarget: [100, 1.25, 100],
+					fov: 54
+				}
+			],
+			reverse: [
+				{
+					id: 'reverse-key',
+					progress: 0.6,
+					cameraTarget: [-100, 1.25, -100],
+					fov: 54
+				}
+			]
+		};
+		const historyBeforeDelete = store.historyVersion;
+
+		expect(store.deleteConnection(connection.id)).toBe(true);
+		expect(store.historyVersion).toBe(historyBeforeDelete + 1);
+		expect(
+			store.document.connections.some((candidate) => candidate.id === connection.id)
+		).toBe(false);
+		expect(
+			store.document.navigationNodes.find((node) => node.id === 'entrance-start')
+				?.connectedNodeIds
+		).not.toContain('departure-corridor');
+		expect(store.activeCameraConnectionId).toBeNull();
+		expect(store.navigationSelection).toBeNull();
+
+		expect(store.undo()).toBe(true);
+		const restored = store.document.connections.find(
+			(candidate) => candidate.id === connection.id
+		)!;
+		expect(restored.viewTracks?.forward.map((key) => key.id)).toEqual([
+			'forward-key'
+		]);
+		expect(restored.viewTracks?.reverse.map((key) => key.id)).toEqual([
+			'reverse-key'
+		]);
+		expect(
+			store.document.navigationNodes.find((node) => node.id === 'entrance-start')
+				?.connectedNodeIds
+		).toContain('departure-corridor');
+	});
+
+	it('rejects guided and disconnecting connection deletion without mutation or history', () => {
+		const store = createMuseumEditorStore();
+		const before = store.canonicalJson;
+		const historyBefore = store.historyVersion;
+		expect(store.deleteConnection('entrance-poland')).toBe(false);
+		expect(store.statusMessage).toContain('guided order requires');
+		expect(store.canonicalJson).toBe(before);
+		expect(store.historyVersion).toBe(historyBefore);
+
+		expect(store.beginCameraPlacement()).toBe(true);
+		const nodeId = store.createPendingNavigationNodeAt(
+			'paris',
+			roomPoint('paris', [0, 0, 0]),
+			[0, 0, -1]
+		)!;
+		expect(store.selectNavigationNode('paris-seat')).toBe(true);
+		const leafConnectionId = store.document.connections.at(-1)!.id;
+		const leafBefore = store.canonicalJson;
+		const leafHistoryBefore = store.historyVersion;
+		expect(store.deleteConnection(leafConnectionId)).toBe(false);
+		expect(store.statusMessage).toContain('would become disconnected');
+		expect(store.document.navigationNodes.some((node) => node.id === nodeId)).toBe(true);
+		expect(store.canonicalJson).toBe(leafBefore);
+		expect(store.historyVersion).toBe(leafHistoryBefore);
+	});
+
+	it('deletes free nodes with incident paths and keys, then restores them with one undo', () => {
+		const store = createMuseumEditorStore();
+		expect(store.beginCameraPlacement()).toBe(true);
+		const nodeId = store.createPendingNavigationNodeAt(
+			'workshop',
+			roomPoint('workshop', [1, 0, 1]),
+			[0, 0, -1]
+		)!;
+		expect(store.selectNavigationNode('workshop-desk')).toBe(true);
+		const incident = store.document.connections.at(-1)!;
+		incident.viewTracks = {
+			forward: [
+				{
+					id: 'incident-view',
+					progress: 0.5,
+					cameraTarget: [100, 1.25, 100],
+					fov: 54
+				}
+			],
+			reverse: []
+		};
+		const historyBeforeDelete = store.historyVersion;
+
+		expect(store.deleteNavigationNode(nodeId)).toBe(true);
+		expect(store.historyVersion).toBe(historyBeforeDelete + 1);
+		expect(store.document.navigationNodes.some((node) => node.id === nodeId)).toBe(false);
+		expect(
+			store.document.connections.some((connection) => connection.id === incident.id)
+		).toBe(false);
+		expect(
+			store.document.navigationNodes.find((node) => node.id === 'workshop-desk')
+				?.connectedNodeIds
+		).not.toContain(nodeId);
+
+		expect(store.undo()).toBe(true);
+		expect(store.document.navigationNodes.some((node) => node.id === nodeId)).toBe(true);
+		expect(
+			store.document.connections.find((connection) => connection.id === incident.id)
+				?.viewTracks?.forward[0]?.id
+		).toBe('incident-view');
+	});
+
+	it('splices a guided node only across an existing direct edge and rejects otherwise', () => {
+		const rejected = createMuseumEditorStore();
+		const before = rejected.canonicalJson;
+		expect(rejected.deleteNavigationNode('poland-threshold')).toBe(false);
+		expect(rejected.statusMessage).toContain('need a direct connection');
+		expect(rejected.canonicalJson).toBe(before);
+		expect(rejected.canUndo).toBe(false);
+
+		const store = createMuseumEditorStore();
+		expect(
+			store.connectNavigationNodes('entrance-start', 'departure-corridor')
+		).toBe(true);
+		const historyBeforeDelete = store.historyVersion;
+		expect(store.deleteNavigationNode('poland-threshold')).toBe(true);
+		expect(store.historyVersion).toBe(historyBeforeDelete + 1);
+		expect(
+			store.document.navigationNodes.some((node) => node.id === 'poland-threshold')
+		).toBe(false);
+		expect(
+			store.document.navigationNodes.find((node) => node.id === 'entrance-start')
+				?.nextNodeId
+		).toBe('departure-corridor');
+		expect(
+			store.document.navigationNodes.find((node) => node.id === 'departure-corridor')
+				?.previousNodeId
+		).toBe('entrance-start');
+		expect(
+			store.document.connections.some((connection) => connection.id === 'entrance-poland')
+		).toBe(false);
+		expect(
+			store.document.connections.some((connection) => connection.id === 'poland-departure')
+		).toBe(false);
+		expect(store.validation.success).toBe(true);
+
+		expect(store.undo()).toBe(true);
+		expect(
+			store.document.navigationNodes.find((node) => node.id === 'poland-threshold')
+				?.nextNodeId
+		).toBe('departure-corridor');
+	});
+
+	it('blocks topology deletion while an interaction or playback owns the document', () => {
+		const store = createMuseumEditorStore();
+		const before = store.canonicalJson;
+		expect(store.beginDocumentTransaction()).toBe(true);
+		store.setTransformInteractionActive(true, 'camera');
+		expect(store.deleteConnection('entrance-poland')).toBe(false);
+		expect(store.statusMessage).toContain('editor interaction is active');
+		store.setTransformInteractionActive(false);
+		expect(store.cancelDocumentTransaction()).toBe(true);
+
+		store.selectConnection('entrance-poland');
+		expect(store.previewSelectedConnection('forward', 'visitor')).toBe(true);
+		expect(store.deleteConnection('entrance-poland')).toBe(false);
+		expect(store.statusMessage).toContain('active camera playback');
+		expect(store.canonicalJson).toBe(before);
+		expect(store.canUndo).toBe(false);
 	});
 
 	it('edits labels and previews exact connections without history', () => {

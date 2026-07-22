@@ -2048,7 +2048,13 @@ describe('MuseumEditorStore Phase 2.1 persistent camera discovery', () => {
 		expect(store.isCameraKeyHelpersActive).toBe(true);
 
 		expect(store.selectNavigationNode('paris-seat')).toBe(true);
-		expect(store.previewSelectedNode()).toBe(true);
+		expect(store.cameraPreview).toMatchObject({
+			kind: 'node',
+			nodeId: 'paris-seat',
+			mode: 'director',
+			transport: 'paused'
+		});
+		expect(store.setCameraPreviewMode('visitor')).toBe(true);
 		expect(store.isCameraKeyHelpersActive).toBe(false);
 		expect(store.stopCameraPreview()).toBe(true);
 		// selectNavigationNode cleared the active connection focus, so the helpers stay
@@ -2317,7 +2323,7 @@ describe('MuseumEditorStore Phase 2.3 whole guided-tour playback', () => {
 			kind: 'tour',
 			mode: 'director',
 			transport: 'playing',
-			playhead: 0
+			playhead: 0.38
 		});
 		expect(store.pauseCameraPreview()).toBe(true);
 		expect(store.setCameraPreviewPlayhead(0.41)).toBe(true);
@@ -2343,6 +2349,161 @@ describe('MuseumEditorStore Phase 2.3 whole guided-tour playback', () => {
 		expect(store.previewGuidedTour()).toBe(false);
 		expect(store.cameraPreview).toBeNull();
 		expect(store.statusMessage).toMatch(/not reciprocal/);
+	});
+});
+
+describe('MuseumEditorStore Phase 3.1 selection and primary Play parity', () => {
+	it('seeks Camera-workspace node selection, hard-recenters on identity, and ignores re-clicks', () => {
+		const store = createMuseumEditorStore();
+		store.setWorkspace('camera');
+		const timeline = store.getCameraTimeline()!;
+
+		expect(store.selectNavigationNode('paris-seat')).toBe(true);
+		const boundary = timeline.nodeBoundaries
+			.filter((candidate) => candidate.nodeId === 'paris-seat')
+			.reduce((nearest, candidate) =>
+				Math.abs(candidate.progress) < Math.abs(nearest.progress)
+					? candidate
+					: nearest
+			);
+		expect(store.cameraTimelinePlayhead).toBe(boundary.progress);
+		expect(store.cameraPreview).toMatchObject({
+			kind: 'node',
+			nodeId: 'paris-seat',
+			mode: 'director',
+			transport: 'paused'
+		});
+		expect(store.cameraFocusKind).toBeNull();
+		const runId = store.cameraPreview!.runId;
+		const recenterVersion = store.cameraPreviewRecenterVersion;
+
+		expect(store.selectNavigationNode('paris-seat')).toBe(false);
+		expect(store.cameraPreview!.runId).toBe(runId);
+		expect(store.cameraPreviewRecenterVersion).toBe(recenterVersion);
+
+		expect(store.selectNavigationNode('workshop-desk')).toBe(true);
+		expect(store.cameraPreview).toMatchObject({
+			kind: 'node',
+			nodeId: 'workshop-desk',
+			mode: 'director',
+			transport: 'paused'
+		});
+		expect(store.cameraPreviewRecenterVersion).toBe(recenterVersion + 1);
+	});
+
+	it('seeks connection starts and hard-recenters only when connection identity changes', () => {
+		const store = createMuseumEditorStore();
+		store.setWorkspace('camera');
+		const connection = store.document.connections[0]!;
+
+		expect(
+			store.selectCameraConnectionDirection(connection.id, 'forward')
+		).toBe(true);
+		expect(store.cameraPreview).toMatchObject({
+			kind: 'connection',
+			connectionId: connection.id,
+			direction: 'forward',
+			mode: 'director',
+			transport: 'paused',
+			playhead: 0
+		});
+		const runId = store.cameraPreview!.runId;
+		const recenterVersion = store.cameraPreviewRecenterVersion;
+
+		expect(
+			store.selectCameraConnectionDirection(connection.id, 'forward')
+		).toBe(false);
+		expect(store.cameraPreview!.runId).toBe(runId);
+		expect(store.cameraPreviewRecenterVersion).toBe(recenterVersion);
+
+		expect(
+			store.selectCameraConnectionDirection(connection.id, 'reverse')
+		).toBe(true);
+		expect(store.cameraPreview).toMatchObject({
+			kind: 'connection',
+			connectionId: connection.id,
+			direction: 'reverse',
+			playhead: 0
+		});
+		expect(store.cameraPreviewRecenterVersion).toBe(recenterVersion + 1);
+
+		const timeline = store.getCameraTimeline()!;
+		const edge = timeline.edges.find(
+			(candidate) => candidate.connectionId === connection.id
+		)!;
+		const edgeMiddle = (edge.startSeconds + edge.endSeconds) /
+			(2 * timeline.durationSeconds);
+		const directionRecenterVersion = store.cameraPreviewRecenterVersion;
+		expect(
+			store.selectCameraTimelineEdge(connection.id, 'reverse', edgeMiddle)
+		).toBe(true);
+		expect(store.cameraPreviewRecenterVersion).toBe(directionRecenterVersion);
+
+		const otherEdge = timeline.edges.find(
+			(candidate) => candidate.connectionId !== connection.id
+		)!;
+		expect(
+			store.selectCameraTimelineEdge(
+				otherEdge.connectionId,
+				otherEdge.direction,
+				otherEdge.startSeconds / timeline.durationSeconds
+			)
+		).toBe(true);
+		expect(store.cameraPreviewRecenterVersion).toBe(directionRecenterVersion + 1);
+
+		store.stopCameraPreview();
+		expect(store.focusNavigationNode('paris-seat')).toBe(true);
+		expect(store.cameraFocusKind).toBe('navigation-node');
+		expect(
+			store.selectCameraConnectionDirection(connection.id, 'forward')
+		).toBe(true);
+		expect(store.cameraFocusKind).toBeNull();
+	});
+
+	it('promotes paused selection and stopped playheads into the whole tour without resetting', () => {
+		const store = createMuseumEditorStore();
+		store.setWorkspace('camera');
+
+		expect(store.seekCameraTimeline(0.38)).toBe(true);
+		expect(store.previewGuidedTour()).toBe(true);
+		expect(store.cameraPreview).toMatchObject({
+			kind: 'tour',
+			mode: 'director',
+			transport: 'playing',
+			playhead: 0.38
+		});
+
+		expect(store.pauseCameraPreview()).toBe(true);
+		expect(store.setCameraPreviewPlayhead(0.46)).toBe(true);
+		expect(store.previewGuidedTour('visitor')).toBe(true);
+		expect(store.cameraPreview).toMatchObject({
+			kind: 'tour',
+			mode: 'director',
+			transport: 'playing',
+			playhead: 0.46
+		});
+
+		const runId = store.cameraPreview!.runId;
+		expect(store.markCameraPreviewStarted(runId, 100)).toBe(true);
+		expect(store.completeCameraPreview(runId)).toBe(true);
+		expect(store.previewGuidedTour()).toBe(true);
+		expect(store.cameraPreview).toMatchObject({
+			kind: 'tour',
+			mode: 'director',
+			transport: 'playing',
+			playhead: 0
+		});
+
+		expect(store.stopCameraPreview()).toBe(true);
+		expect(store.seekCameraTimeline(0.62)).toBe(true);
+		expect(store.stopCameraPreview()).toBe(true);
+		expect(store.previewGuidedTour()).toBe(true);
+		expect(store.cameraPreview).toMatchObject({
+			kind: 'tour',
+			mode: 'visitor',
+			transport: 'playing',
+			playhead: 0.62
+		});
 	});
 });
 

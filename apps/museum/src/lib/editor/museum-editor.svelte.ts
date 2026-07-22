@@ -761,7 +761,12 @@ export class MuseumEditorStore {
 		this.activeCameraConnectionId = null;
 		this.activeCameraDirection = 'forward';
 
-		if (current?.nodeId !== id) this.focusNavigationNode(id);
+		if (this.currentWorkspace === 'camera') {
+			this.#syncCameraTimelineForNode(id);
+			this.#showCameraTimelineNodePose(id);
+		} else if (current?.nodeId !== id) {
+			this.focusNavigationNode(id);
+		}
 		return true;
 	}
 
@@ -814,6 +819,10 @@ export class MuseumEditorStore {
 		this.activeCameraConnectionId = connectionId;
 		this.activeCameraDirection = direction;
 		this.#expandActiveCameraDirection(direction);
+		if (this.currentWorkspace === 'camera') {
+			this.#syncCameraTimelineForConnection(connectionId, direction, 0);
+			this.#showCameraTimelineConnectionPose(connectionId, direction, 0);
+		}
 		return true;
 	}
 
@@ -1046,6 +1055,12 @@ export class MuseumEditorStore {
 		);
 	}
 
+	#clearCameraFocusRequest() {
+		this.cameraFocusKind = null;
+		this.cameraFocusPlacementId = null;
+		this.cameraFocusNodeId = null;
+	}
+
 	#showCameraTimelineNodePose(nodeId: string) {
 		if (!this.#canSeekCameraTimeline()) return false;
 		if (!this.scene.navigationNodes.some((node) => node.id === nodeId)) return false;
@@ -1055,15 +1070,15 @@ export class MuseumEditorStore {
 			this.cameraPreview.mode === 'director' &&
 			this.cameraPreview.transport === 'paused'
 		) {
+			this.#clearCameraFocusRequest();
 			return false;
 		}
 		const hadPreview = this.cameraPreview !== null;
 		if (!hadPreview && !this.#prepareCameraPreview()) return false;
 		this.#capturedCameraPreviewRoute = null;
-		if (!hadPreview) {
-			this.cameraPreviewFollowEnabled = true;
-			this.cameraPreviewRecenterVersion += 1;
-		}
+		this.#clearCameraFocusRequest();
+		this.cameraPreviewFollowEnabled = true;
+		this.cameraPreviewRecenterVersion += 1;
 		this.cameraPreview = {
 			kind: 'node',
 			nodeId,
@@ -1091,6 +1106,7 @@ export class MuseumEditorStore {
 			preview.mode === 'director' &&
 			preview.transport === 'paused'
 		) {
+			this.#clearCameraFocusRequest();
 			return this.setCameraPreviewPlayhead(playhead, preview.runId);
 		}
 		const connection = this.document.connections.find(
@@ -1113,10 +1129,9 @@ export class MuseumEditorStore {
 			runId,
 			route: cloneResolvedCameraRoute(route)
 		};
-		if (!hadPreview) {
-			this.cameraPreviewFollowEnabled = true;
-			this.cameraPreviewRecenterVersion += 1;
-		}
+		this.#clearCameraFocusRequest();
+		this.cameraPreviewFollowEnabled = true;
+		this.cameraPreviewRecenterVersion += 1;
 		const fromNodeId =
 			direction === 'forward' ? connection.fromNodeId : connection.toNodeId;
 		const toNodeId =
@@ -1149,12 +1164,12 @@ export class MuseumEditorStore {
 			location.edge.connectionId,
 			location.edge.direction
 		);
-		this.cameraTimelinePlayhead = location.progress;
 		const shown = this.#showCameraTimelineConnectionPose(
 			location.edge.connectionId,
 			location.edge.direction,
 			location.playhead
 		);
+		this.cameraTimelinePlayhead = location.progress;
 		return movedTimeline || selected || shown;
 	}
 
@@ -1183,12 +1198,12 @@ export class MuseumEditorStore {
 		const movedTimeline =
 			Math.abs(this.cameraTimelinePlayhead - clampedProgress) > 1e-6;
 		const selected = this.selectCameraConnectionDirection(connectionId, direction);
-		this.cameraTimelinePlayhead = clampedProgress;
 		const shown = this.#showCameraTimelineConnectionPose(
 			connectionId,
 			direction,
 			edgePlayhead
 		);
+		this.cameraTimelinePlayhead = clampedProgress;
 		return movedTimeline || selected || shown;
 	}
 
@@ -1237,12 +1252,12 @@ export class MuseumEditorStore {
 		const movedTimeline =
 			Math.abs(this.cameraTimelinePlayhead - timelineProgress) > 1e-6;
 		const selected = this.selectViewKeyframe(connectionId, direction, keyframeId);
-		this.cameraTimelinePlayhead = timelineProgress;
 		const shown = this.#showCameraTimelineConnectionPose(
 			connectionId,
 			direction,
 			edgePlayhead
 		);
+		this.cameraTimelinePlayhead = timelineProgress;
 		return movedTimeline || selected || shown;
 	}
 
@@ -1991,7 +2006,7 @@ export class MuseumEditorStore {
 		return this.commitDocumentTransaction();
 	}
 
-	/** Phase 2.3 — preview one complete reciprocal guided cycle. */
+	/** Phase 3.1 — primary Play promotes the current global ruler into one guided cycle. */
 	previewGuidedTour(mode: EditorCameraPreviewMode = 'visitor') {
 		if (this.isEditorInteractionActive || this.isDocumentTransactionActive) {
 			return false;
@@ -1999,22 +2014,16 @@ export class MuseumEditorStore {
 		const current = this.cameraPreview;
 		if (current?.kind === 'tour') {
 			if (current.transport === 'playing') return false;
-			if (current.mode !== mode && !this.setCameraPreviewMode(mode)) return false;
 			if (this.cameraPreview?.transport === 'complete') {
 				this.setCameraPreviewPlayhead(0, this.cameraPreview.runId);
 			}
 			return this.playCameraPreview();
 		}
-		if (
-			current &&
-			(current.mode !== 'director' || current.transport !== 'paused')
-		) {
-			return false;
-		}
+		if (current?.transport === 'playing') return false;
 
 		const timeline = this.#readCameraTimeline();
 		if (!timeline) return false;
-		if (!this.#prepareCameraPreview()) return false;
+		if (!current && !this.#prepareCameraPreview()) return false;
 
 		const runId = this.#nextCameraPreviewRunId++;
 		this.#capturedCameraPreviewRoute = null;
@@ -2022,14 +2031,14 @@ export class MuseumEditorStore {
 			this.cameraPreviewFollowEnabled = true;
 			this.cameraPreviewRecenterVersion += 1;
 		}
-		this.cameraTimelinePlayhead = 0;
+		const playhead = Math.min(1, Math.max(0, this.cameraTimelinePlayhead));
 		this.cameraPreview = {
 			kind: 'tour',
 			startNodeId: timeline.startNodeId,
-			mode,
+			mode: current?.mode ?? mode,
 			transport: 'playing',
 			runId,
-			playhead: 0,
+			playhead,
 			startedAtMs: null
 		};
 		this.timelineExpanded = true;

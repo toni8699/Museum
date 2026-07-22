@@ -280,12 +280,14 @@ Helper sampling is `8 samples/m`, clamped to `32–512`. Nearest insertion uses 
 
 Priority: preview/modal shield → TransformControls → active direct-path drag → pending creation/placement → node/anchor helpers → curve picking → Orbit → placement selection.
 
-Alt is placement-only. Curves/anchors ignore Alt. Preview and pending placement/connection modes hide all path helpers. One persistent gizmo detaches before changing targets; anchor/node targets never inherit placement snap, rotate, scale, or grounding.
+Alt is placement-only. Curves/anchors ignore Alt. Visitor preview and pending placement/connection modes hide path helpers; paused Director preview keeps authoring helpers available. One persistent gizmo detaches before changing targets; anchor/node targets never inherit placement snap, rotate, scale, or grounding.
 
 ### Preview and persistence
 
 - Node and exact-edge preview use an immutable committed graph and shared `CameraMotion`.
 - Whole-tour preview advances the global ruler across those same exact per-connection motions in guided order. It does not compile a second route-wide curve, so room-boundary position, look target, FOV, easing, turns, and backtracking match `/museum`.
+- In Camera workspace, selecting a node or connection direction seeks its paused Director pose. Node or connection/direction identity changes hard-recenter the observer; same-row re-clicks and same-edge scrubs do not.
+- Timeline Play, top-bar Preview Tour, and bottom transport Play promote the current global playhead into whole-tour playback. Pause/resume retain position; completed playback restarts at zero.
 - Preview adds no history and restores exact pre-preview Orbit/camera state on Stop, Escape, completion teardown, or repeated cycles.
 - Editor session is a deep clone. One transaction creates at most one history entry; invalid/no-op/cancel creates none.
 - Browser Copy/Download exports canonical v2 but never writes repository files or clears dirty state.

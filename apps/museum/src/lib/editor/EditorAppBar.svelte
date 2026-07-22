@@ -22,11 +22,7 @@
 	const canPreviewTour = $derived(
 		!store.isEditorInteractionActive &&
 		!store.isDocumentTransactionActive &&
-		(!store.cameraPreview ||
-			(store.cameraPreview.kind === 'tour' &&
-				store.cameraPreview.transport !== 'playing') ||
-			(store.cameraPreview.mode === 'director' &&
-				store.cameraPreview.transport === 'paused'))
+		(!store.cameraPreview || store.cameraPreview.transport !== 'playing')
 	);
 	let projectMenuOpen = $state(false);
 	let projectMenuElement = $state<HTMLElement>();

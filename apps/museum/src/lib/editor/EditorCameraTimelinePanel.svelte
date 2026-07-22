@@ -30,17 +30,10 @@
 					store.cameraPreview.transport !== 'paused')
 		)
 	);
-	const tourPlaying = $derived(
-		preview?.kind === 'tour' && preview.transport === 'playing'
-	);
+	const previewPlaying = $derived(preview?.transport === 'playing');
 	const tourTransportDisabled = $derived(
 		store.isEditorInteractionActive ||
-		store.isDocumentTransactionActive ||
-		Boolean(
-			preview &&
-				preview.kind !== 'tour' &&
-				(preview.mode !== 'director' || preview.transport !== 'paused')
-		)
+		store.isDocumentTransactionActive
 	);
 	const selected = $derived(store.navigationSelection);
 	let framingTrackElement = $state<HTMLElement>();
@@ -110,9 +103,8 @@
 	}
 
 	function toggleTourPlayback() {
-		if (preview?.kind === 'tour') {
-			if (preview.transport === 'playing') store.pauseCameraPreview();
-			else store.playCameraPreview();
+		if (preview?.transport === 'playing') {
+			store.pauseCameraPreview();
 			return;
 		}
 		store.previewGuidedTour('director');
@@ -273,12 +265,12 @@
 			>│◀</button>
 			<button
 				type="button"
-				class:active={tourPlaying}
-				aria-label={tourPlaying ? 'Pause guided tour' : 'Play guided tour'}
-				title={tourPlaying ? 'Pause guided tour' : 'Play the complete guided tour'}
+				class:active={previewPlaying}
+				aria-label={previewPlaying ? 'Pause' : 'Play guided tour'}
+				title={previewPlaying ? 'Pause' : 'Play the complete guided tour'}
 				disabled={tourTransportDisabled}
 				onclick={toggleTourPlayback}
-			>{tourPlaying ? '❚❚' : '▶'}</button>
+			>{previewPlaying ? '❚❚' : '▶'}</button>
 			<button
 				type="button"
 				aria-label="Next camera boundary"

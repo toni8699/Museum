@@ -30,6 +30,11 @@
 					store.cameraPreview.transport !== 'paused')
 		)
 	);
+	const scrubDisabled = $derived(
+		store.isEditorInteractionActive ||
+		store.isDocumentTransactionActive ||
+		Boolean(store.cameraPreview && store.cameraPreview.transport !== 'paused')
+	);
 	const previewPlaying = $derived(preview?.transport === 'playing');
 	const tourTransportDisabled = $derived(
 		store.isEditorInteractionActive ||
@@ -288,7 +293,7 @@
 					max="1"
 					step="0.0005"
 					value={store.cameraTimelinePlayhead}
-					disabled={disabled}
+					disabled={scrubDisabled}
 					oninput={scrub}
 				/>
 			</label>

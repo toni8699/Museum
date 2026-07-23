@@ -88,6 +88,10 @@ import {
 import {
 	validateConnectionCreation,
 	validateConnectionDeletion,
+	validateCurrentGuidedTourOrder,
+	validateGuidedTourInsertion,
+	validateGuidedTourOrder,
+	validateGuidedTourRemoval,
 	validateNavigationNodeDeletion
 } from './editor-navigation-graph';
 
@@ -485,6 +489,11 @@ export class MuseumEditorStore {
 		return this.document.navigationNodes.length;
 	}
 
+	get guidedTourNodeIds() {
+		const validation = validateCurrentGuidedTourOrder(this.document);
+		return validation.ok ? validation.nodeIds : [];
+	}
+
 	/** Node-only compatibility view used by existing camera helper components. */
 	get cameraSelection(): EditorCameraSelection | null {
 		const selection = this.navigationSelection;
@@ -856,9 +865,16 @@ export class MuseumEditorStore {
 	 */
 	selectCameraConnectionDirection(
 		connectionId: string,
-		direction: CameraConnectionDirection
+		direction: CameraConnectionDirection,
+		options: { preservePreviewObserver?: boolean } = {}
 	) {
-		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive || this.pendingNavigationCommand) {
+		const allowPausedPreviewScrub =
+			options.preservePreviewObserver && this.cameraPreview?.transport === 'paused';
+		if (
+			(this.isDocumentMutationBlocked && !allowPausedPreviewScrub) ||
+			this.isEditorInteractionActive ||
+			this.pendingNavigationCommand
+		) {
 			return false;
 		}
 		if (!this.document.connections.some((connection) => connection.id === connectionId)) {
@@ -878,7 +894,7 @@ export class MuseumEditorStore {
 		this.activeCameraConnectionId = connectionId;
 		this.activeCameraDirection = direction;
 		this.#expandActiveCameraDirection(direction);
-		if (this.currentWorkspace === 'camera') {
+		if (this.currentWorkspace === 'camera' && !options.preservePreviewObserver) {
 			this.#syncCameraTimelineForConnection(connectionId, direction, 0);
 			this.#showCameraTimelineConnectionPose(connectionId, direction, 0);
 		}
@@ -1110,7 +1126,7 @@ export class MuseumEditorStore {
 			this.isEditorInteractionActive ||
 			this.pendingNavigationCommand ||
 			this.isDocumentTransactionActive ||
-			(preview && (preview.mode !== 'director' || preview.transport !== 'paused'))
+			(preview && preview.transport !== 'paused')
 		);
 	}
 
@@ -1154,7 +1170,8 @@ export class MuseumEditorStore {
 	#showCameraTimelineConnectionPose(
 		connectionId: string,
 		direction: CameraConnectionDirection,
-		playhead: number
+		playhead: number,
+		options: { preservePreviewObserver?: boolean } = {}
 	) {
 		if (!this.#canSeekCameraTimeline() || !Number.isFinite(playhead)) return false;
 		const preview = this.cameraPreview;
@@ -1162,7 +1179,6 @@ export class MuseumEditorStore {
 			preview?.kind === 'connection' &&
 			preview.connectionId === connectionId &&
 			preview.direction === direction &&
-			preview.mode === 'director' &&
 			preview.transport === 'paused'
 		) {
 			this.#clearCameraFocusRequest();
@@ -1189,8 +1205,10 @@ export class MuseumEditorStore {
 			route: cloneResolvedCameraRoute(route)
 		};
 		this.#clearCameraFocusRequest();
-		this.cameraPreviewFollowEnabled = true;
-		this.cameraPreviewRecenterVersion += 1;
+		if (!options.preservePreviewObserver || !hadPreview) {
+			this.cameraPreviewFollowEnabled = true;
+			this.cameraPreviewRecenterVersion += 1;
+		}
 		const fromNodeId =
 			direction === 'forward' ? connection.fromNodeId : connection.toNodeId;
 		const toNodeId =
@@ -1201,7 +1219,7 @@ export class MuseumEditorStore {
 			direction,
 			fromNodeId,
 			toNodeId,
-			mode: 'director',
+			mode: preview?.mode ?? 'director',
 			transport: 'paused',
 			runId,
 			playhead: Math.min(1, Math.max(0, playhead)),
@@ -1221,12 +1239,14 @@ export class MuseumEditorStore {
 			Math.abs(this.cameraTimelinePlayhead - location.progress) > 1e-6;
 		const selected = this.selectCameraConnectionDirection(
 			location.edge.connectionId,
-			location.edge.direction
+			location.edge.direction,
+			{ preservePreviewObserver: true }
 		);
 		const shown = this.#showCameraTimelineConnectionPose(
 			location.edge.connectionId,
 			location.edge.direction,
-			location.playhead
+			location.playhead,
+			{ preservePreviewObserver: true }
 		);
 		this.cameraTimelinePlayhead = location.progress;
 		return movedTimeline || selected || shown;
@@ -3179,6 +3199,87 @@ export class MuseumEditorStore {
 			this.#showCameraTimelineConnectionPose(connectionId, 'forward', 0);
 		}
 		this.setStatusMessage('Connected camera nodes');
+		return true;
+	}
+
+	/** Rewrite one complete reciprocal guided cycle without creating graph edges. */
+	setGuidedTourOrder(nodeIds: readonly string[]) {
+		if (!this.#canEditGuidedTour()) return false;
+		const validation = validateGuidedTourOrder(this.document, nodeIds);
+		if (!validation.ok) {
+			this.setStatusMessage(validation.message);
+			return false;
+		}
+		const committed = this.#applyGuidedTourOrder(validation.nodeIds);
+		if (committed) this.setStatusMessage('Updated guided tour order');
+		return committed;
+	}
+
+	/** Insert one free camera node into an existing guided gap. */
+	insertNodeIntoGuidedTour(nodeId: string, index: number) {
+		if (!this.#canEditGuidedTour()) return false;
+		const validation = validateGuidedTourInsertion(this.document, nodeId, index);
+		if (!validation.ok) {
+			this.setStatusMessage(validation.message);
+			return false;
+		}
+		const node = this.document.navigationNodes.find(
+			(candidate) => candidate.id === nodeId
+		)!;
+		const committed = this.#applyGuidedTourOrder(validation.nodeIds);
+		if (committed) this.setStatusMessage(`Added ${node.label} to the guided tour`);
+		return committed;
+	}
+
+	/** Remove one non-start node from the guided cycle while retaining graph topology. */
+	removeNodeFromGuidedTour(nodeId: string) {
+		if (!this.#canEditGuidedTour()) return false;
+		const validation = validateGuidedTourRemoval(this.document, nodeId);
+		if (!validation.ok) {
+			this.setStatusMessage(validation.message);
+			return false;
+		}
+		const node = this.document.navigationNodes.find(
+			(candidate) => candidate.id === nodeId
+		)!;
+		const committed = this.#applyGuidedTourOrder(validation.nodeIds);
+		if (committed) this.setStatusMessage(`Removed ${node.label} from the guided tour`);
+		return committed;
+	}
+
+	#applyGuidedTourOrder(nodeIds: readonly string[]) {
+		if (!this.beginDocumentTransaction()) return false;
+		const guidedIndexById = new Map(
+			nodeIds.map((nodeId, index) => [nodeId, index])
+		);
+		for (const node of this.document.navigationNodes) {
+			const index = guidedIndexById.get(node.id);
+			if (index === undefined) {
+				delete node.nextNodeId;
+				delete node.previousNodeId;
+				continue;
+			}
+			node.previousNodeId = nodeIds[(index - 1 + nodeIds.length) % nodeIds.length]!;
+			node.nextNodeId = nodeIds[(index + 1) % nodeIds.length]!;
+		}
+		return this.commitDocumentTransaction();
+	}
+
+	#canEditGuidedTour() {
+		if (this.isDocumentMutationBlocked) {
+			this.setStatusMessage('Cannot edit guided order during active camera playback');
+			return false;
+		}
+		if (this.isEditorInteractionActive || this.isDocumentTransactionActive) {
+			this.setStatusMessage(
+				'Finish the active editor interaction before editing guided order'
+			);
+			return false;
+		}
+		if (this.pendingNavigationCommand) {
+			this.setStatusMessage('Finish or cancel the current camera command first');
+			return false;
+		}
 		return true;
 	}
 

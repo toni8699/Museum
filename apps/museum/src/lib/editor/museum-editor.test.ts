@@ -2407,6 +2407,56 @@ describe('MuseumEditorStore Phase 2.2 timeline selection and scrub', () => {
 		expect(store.canUndo).toBe(false);
 	});
 
+	it('keeps observer framing and Follow state while scrub crosses connection sections', () => {
+		const store = createMuseumEditorStore();
+		store.setWorkspace('camera');
+		const timeline = store.getCameraTimeline()!;
+		const firstEdge = timeline.edges[0]!;
+		const secondEdge = timeline.edges[1]!;
+
+		expect(store.seekCameraTimeline(firstEdge.startSeconds / timeline.durationSeconds + 0.01)).toBe(true);
+		expect(store.toggleCameraPreviewFollow()).toBe(true);
+		expect(store.cameraPreviewFollowEnabled).toBe(false);
+		const recenterVersion = store.cameraPreviewRecenterVersion;
+		const nextProgress =
+			(secondEdge.startSeconds + secondEdge.durationSeconds * 0.35) /
+			timeline.durationSeconds;
+
+		expect(store.seekCameraTimeline(nextProgress)).toBe(true);
+		expect(store.cameraPreviewFollowEnabled).toBe(false);
+		expect(store.cameraPreviewRecenterVersion).toBe(recenterVersion);
+		expect(store.cameraPreview).toMatchObject({
+			kind: 'connection',
+			connectionId: secondEdge.connectionId,
+			direction: secondEdge.direction
+		});
+	});
+
+	it('allows timeline knob scrubbing while paused in Through Camera mode', () => {
+		const store = createMuseumEditorStore();
+		store.setWorkspace('camera');
+		const timeline = store.getCameraTimeline()!;
+		const firstProgress =
+			(timeline.edges[0]!.startSeconds + timeline.edges[0]!.durationSeconds * 0.2) /
+			timeline.durationSeconds;
+		const secondProgress =
+			(timeline.edges[1]!.startSeconds + timeline.edges[1]!.durationSeconds * 0.4) /
+			timeline.durationSeconds;
+
+		expect(store.seekCameraTimeline(firstProgress)).toBe(true);
+		expect(store.setCameraPreviewMode('visitor')).toBe(true);
+		expect(store.cameraPreview).toMatchObject({ mode: 'visitor', transport: 'paused' });
+
+		expect(store.seekCameraTimeline(secondProgress)).toBe(true);
+		expect(store.cameraTimelinePlayhead).toBe(secondProgress);
+		expect(store.cameraPreview).toMatchObject({
+			kind: 'connection',
+			mode: 'visitor',
+			transport: 'paused',
+			connectionId: timeline.edges[1]!.connectionId
+		});
+	});
+
 	it('selects either occurrence of the loop start as an exact node boundary', () => {
 		const store = createMuseumEditorStore();
 		store.setWorkspace('camera');
@@ -2921,6 +2971,207 @@ describe('MuseumEditorStore Phase 2.4 camera-key progress drag', () => {
 		expect(store.isDocumentTransactionActive).toBe(false);
 		expect(store.selectedViewKeyframe!.progress).toBe(0.3);
 		expect(store.cameraPreview).toBeNull();
+		expect(store.canUndo).toBe(false);
+	});
+});
+
+describe('MuseumEditorStore Phase 3.4 guided-order editing', () => {
+	const checkedInOrder = [
+		'entrance-start',
+		'poland-threshold',
+		'departure-corridor',
+		'paris-seat',
+		'workshop-desk',
+		'music-entry',
+		'music-center',
+		'legacy-return'
+	];
+
+	function addDocumentConnection(
+		document: MuseumSceneDocument,
+		fromNodeId: string,
+		toNodeId: string,
+		id: string
+	) {
+		const from = document.navigationNodes.find((node) => node.id === fromNodeId)!;
+		const to = document.navigationNodes.find((node) => node.id === toNodeId)!;
+		from.connectedNodeIds.push(to.id);
+		to.connectedNodeIds.push(from.id);
+		document.connections.push({
+			id,
+			fromNodeId,
+			toNodeId,
+			clearance: 0.35,
+			positionPath: { kind: 'auto-bezier', anchors: [] }
+		});
+	}
+
+	function documentWithFreeInsertableNode() {
+		const document = cloneMuseumSceneDocument(museumSceneDocument);
+		const template = document.navigationNodes.find(
+			(node) => node.id === 'paris-seat'
+		)!;
+		document.navigationNodes.push({
+			...template,
+			id: 'free-tour-node',
+			label: 'Free Tour Node',
+			connectedNodeIds: []
+		});
+		const free = document.navigationNodes.at(-1)!;
+		delete free.nextNodeId;
+		delete free.previousNodeId;
+		addDocumentConnection(
+			document,
+			'departure-corridor',
+			free.id,
+			'departure-free-tour'
+		);
+		addDocumentConnection(document, free.id, 'paris-seat', 'free-tour-paris');
+		return document;
+	}
+
+	it('exposes the reciprocal display order pinned to entrance-start', () => {
+		const store = createMuseumEditorStore();
+		expect(store.guidedTourNodeIds).toEqual(checkedInOrder);
+	});
+
+	it('rewrites one complete reciprocal cycle in one undoable transaction', () => {
+		const document = cloneMuseumSceneDocument(museumSceneDocument);
+		addDocumentConnection(
+			document,
+			'entrance-start',
+			'departure-corridor',
+			'entrance-departure'
+		);
+		addDocumentConnection(document, 'poland-threshold', 'paris-seat', 'poland-paris');
+		const store = createMuseumEditorStore();
+		expect(store.importDocument(document)).toBe(true);
+		const reordered = [
+			'entrance-start',
+			'departure-corridor',
+			'poland-threshold',
+			'paris-seat',
+			...checkedInOrder.slice(4)
+		];
+		const historyBefore = store.historyVersion;
+
+		expect(store.setGuidedTourOrder(reordered)).toBe(true);
+		expect(store.guidedTourNodeIds).toEqual(reordered);
+		expect(store.historyVersion).toBe(historyBefore + 1);
+		for (const [index, nodeId] of reordered.entries()) {
+			const node = store.document.navigationNodes.find(
+				(candidate) => candidate.id === nodeId
+			)!;
+			expect(node.previousNodeId).toBe(
+				reordered[(index - 1 + reordered.length) % reordered.length]
+			);
+			expect(node.nextNodeId).toBe(reordered[(index + 1) % reordered.length]);
+		}
+		expect(store.validation.success).toBe(true);
+
+		expect(store.undo()).toBe(true);
+		expect(store.guidedTourNodeIds).toEqual(checkedInOrder);
+	});
+
+	it('rejects invalid reorder without mutation, history, or auto-created edges', () => {
+		const store = createMuseumEditorStore();
+		const before = store.canonicalJson;
+		const connectionCount = store.document.connections.length;
+		const invalid = [
+			'entrance-start',
+			'departure-corridor',
+			'poland-threshold',
+			...checkedInOrder.slice(3)
+		];
+
+		expect(store.setGuidedTourOrder(invalid)).toBe(false);
+		expect(store.statusMessage).toContain('need a direct connection');
+		expect(store.canonicalJson).toBe(before);
+		expect(store.document.connections).toHaveLength(connectionCount);
+		expect(store.canUndo).toBe(false);
+		expect(store.setGuidedTourOrder(checkedInOrder)).toBe(false);
+		expect(store.canUndo).toBe(false);
+	});
+
+	it('inserts and removes a free node while retaining all graph connections', () => {
+		const store = createMuseumEditorStore();
+		expect(store.importDocument(documentWithFreeInsertableNode())).toBe(true);
+		const connectionIds = store.document.connections.map((connection) => connection.id);
+		const historyBefore = store.historyVersion;
+
+		expect(store.insertNodeIntoGuidedTour('free-tour-node', 3)).toBe(true);
+		expect(store.guidedTourNodeIds).toEqual([
+			...checkedInOrder.slice(0, 3),
+			'free-tour-node',
+			...checkedInOrder.slice(3)
+		]);
+		expect(store.historyVersion).toBe(historyBefore + 1);
+		expect(store.document.connections.map((connection) => connection.id)).toEqual(
+			connectionIds
+		);
+
+		expect(store.removeNodeFromGuidedTour('free-tour-node')).toBe(true);
+		const free = store.document.navigationNodes.find(
+			(node) => node.id === 'free-tour-node'
+		)!;
+		expect(free.nextNodeId).toBeUndefined();
+		expect(free.previousNodeId).toBeUndefined();
+		expect(store.guidedTourNodeIds).toEqual(checkedInOrder);
+		expect(store.document.connections.map((connection) => connection.id)).toEqual(
+			connectionIds
+		);
+		expect(store.validation.success).toBe(true);
+	});
+
+	it('requires a retained bridge when removing a guided node and pins the start', () => {
+		const rejected = createMuseumEditorStore();
+		expect(rejected.removeNodeFromGuidedTour('poland-threshold')).toBe(false);
+		expect(rejected.statusMessage).toContain('need a direct connection');
+		expect(rejected.removeNodeFromGuidedTour('entrance-start')).toBe(false);
+		expect(rejected.statusMessage).toContain('display start is pinned');
+		expect(rejected.canUndo).toBe(false);
+
+		const document = cloneMuseumSceneDocument(museumSceneDocument);
+		addDocumentConnection(
+			document,
+			'entrance-start',
+			'departure-corridor',
+			'entrance-departure'
+		);
+		const store = createMuseumEditorStore();
+		expect(store.importDocument(document)).toBe(true);
+		expect(store.removeNodeFromGuidedTour('poland-threshold')).toBe(true);
+		const poland = store.document.navigationNodes.find(
+			(node) => node.id === 'poland-threshold'
+		)!;
+		expect(poland.nextNodeId).toBeUndefined();
+		expect(poland.previousNodeId).toBeUndefined();
+		expect(store.document.connections.some((edge) => edge.id === 'entrance-poland')).toBe(
+			true
+		);
+		expect(store.validation.success).toBe(true);
+	});
+
+	it('blocks guided-order writes during interaction, playback, and pending commands', () => {
+		const store = createMuseumEditorStore();
+		const before = store.canonicalJson;
+		expect(store.beginDocumentTransaction()).toBe(true);
+		store.setTransformInteractionActive(true, 'camera');
+		expect(store.setGuidedTourOrder(checkedInOrder)).toBe(false);
+		expect(store.statusMessage).toContain('active editor interaction');
+		store.setTransformInteractionActive(false);
+		expect(store.cancelDocumentTransaction()).toBe(true);
+
+		store.selectNavigationNode('paris-seat');
+		expect(store.previewSelectedNode('visitor')).toBe(true);
+		expect(store.removeNodeFromGuidedTour('paris-seat')).toBe(false);
+		expect(store.statusMessage).toContain('active camera playback');
+		expect(store.stopCameraPreview()).toBe(true);
+
+		expect(store.beginCameraPlacement()).toBe(true);
+		expect(store.setGuidedTourOrder(checkedInOrder)).toBe(false);
+		expect(store.statusMessage).toContain('Finish or cancel');
+		expect(store.canonicalJson).toBe(before);
 		expect(store.canUndo).toBe(false);
 	});
 });

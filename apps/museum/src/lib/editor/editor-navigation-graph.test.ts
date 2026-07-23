@@ -7,6 +7,10 @@ import {
 import {
 	validateConnectionCreation,
 	validateConnectionDeletion,
+	validateCurrentGuidedTourOrder,
+	validateGuidedTourInsertion,
+	validateGuidedTourOrder,
+	validateGuidedTourRemoval,
 	validateNavigationNodeDeletion
 } from './editor-navigation-graph';
 
@@ -196,5 +200,132 @@ describe('editor camera graph command validation', () => {
 		expect(
 			validateNavigationNodeDeletion(disconnected, 'poland-threshold')
 		).toEqual(expect.objectContaining({ ok: false, code: 'disconnected_graph' }));
+	});
+});
+
+describe('editor guided-tour order validation', () => {
+	const checkedInOrder = [
+		'entrance-start',
+		'poland-threshold',
+		'departure-corridor',
+		'paris-seat',
+		'workshop-desk',
+		'music-entry',
+		'music-center',
+		'legacy-return'
+	];
+
+	it('reads one reciprocal cycle pinned to entrance-start', () => {
+		expect(validateCurrentGuidedTourOrder(documentClone())).toEqual({
+			ok: true,
+			nodeIds: checkedInOrder
+		});
+
+		const broken = documentClone();
+		broken.navigationNodes.find((node) => node.id === 'music-entry')!.previousNodeId =
+			'paris-seat';
+		expect(validateCurrentGuidedTourOrder(broken)).toEqual(
+			expect.objectContaining({ ok: false, code: 'invalid_guided_cycle' })
+		);
+	});
+
+	it('rejects short, duplicate, unknown, unpinned, and missing-edge orders', () => {
+		const document = documentClone();
+		expect(validateGuidedTourOrder(document, ['entrance-start'])).toEqual(
+			expect.objectContaining({ ok: false, code: 'minimum_guided_nodes' })
+		);
+		expect(
+			validateGuidedTourOrder(document, [
+				'entrance-start',
+				'poland-threshold',
+				'poland-threshold'
+			])
+		).toEqual(expect.objectContaining({ ok: false, code: 'duplicate_guided_node' }));
+		expect(
+			validateGuidedTourOrder(document, ['entrance-start', 'missing'])
+		).toEqual(expect.objectContaining({ ok: false, code: 'unknown_node' }));
+		expect(validateGuidedTourOrder(document, checkedInOrder.slice(1))).toEqual(
+			expect.objectContaining({ ok: false, code: 'missing_guided_start' })
+		);
+		expect(
+			validateGuidedTourOrder(document, [
+				'poland-threshold',
+				'entrance-start',
+				...checkedInOrder.slice(2)
+			])
+		).toEqual(expect.objectContaining({ ok: false, code: 'guided_start_not_first' }));
+		expect(
+			validateGuidedTourOrder(document, [
+				'entrance-start',
+				'departure-corridor',
+				...checkedInOrder.slice(3),
+				'poland-threshold'
+			])
+		).toEqual(expect.objectContaining({ ok: false, code: 'missing_guided_connection' }));
+	});
+
+	it('accepts reorder only after every consecutive and return edge exists', () => {
+		const document = documentClone();
+		addConnection(document, 'entrance-start', 'departure-corridor', 'entrance-departure');
+		addConnection(document, 'poland-threshold', 'paris-seat', 'poland-paris');
+		const reordered = [
+			'entrance-start',
+			'departure-corridor',
+			'poland-threshold',
+			'paris-seat',
+			...checkedInOrder.slice(4)
+		];
+		expect(validateGuidedTourOrder(document, reordered)).toEqual({
+			ok: true,
+			nodeIds: reordered
+		});
+	});
+
+	it('plans free-node insertion only across two existing edges', () => {
+		const missing = documentClone();
+		addFreeNode(missing, 'free-node', 'paris-seat');
+		expect(validateGuidedTourInsertion(missing, 'free-node', 4)).toEqual(
+			expect.objectContaining({ ok: false, code: 'missing_guided_connection' })
+		);
+
+		const insertable = documentClone();
+		addFreeNode(insertable, 'free-node', 'departure-corridor');
+		addConnection(insertable, 'free-node', 'paris-seat', 'free-paris');
+		expect(validateGuidedTourInsertion(insertable, 'free-node', 3)).toEqual({
+			ok: true,
+			nodeIds: [
+				...checkedInOrder.slice(0, 3),
+				'free-node',
+				...checkedInOrder.slice(3)
+			]
+		});
+		expect(validateGuidedTourInsertion(insertable, 'entrance-start', 2)).toEqual(
+			expect.objectContaining({ ok: false, code: 'node_already_guided' })
+		);
+		expect(validateGuidedTourInsertion(insertable, 'free-node', 0)).toEqual(
+			expect.objectContaining({ ok: false, code: 'invalid_guided_index' })
+		);
+	});
+
+	it('plans removal only when the predecessor-successor edge exists', () => {
+		const missing = documentClone();
+		expect(validateGuidedTourRemoval(missing, 'poland-threshold')).toEqual(
+			expect.objectContaining({ ok: false, code: 'missing_guided_connection' })
+		);
+		expect(validateGuidedTourRemoval(missing, 'entrance-start')).toEqual(
+			expect.objectContaining({ ok: false, code: 'protected_guided_start' })
+		);
+
+		const removable = documentClone();
+		addConnection(
+			removable,
+			'entrance-start',
+			'departure-corridor',
+			'entrance-departure'
+		);
+		expect(validateGuidedTourRemoval(removable, 'poland-threshold')).toEqual({
+			ok: true,
+			nodeIds: checkedInOrder.filter((nodeId) => nodeId !== 'poland-threshold')
+		});
 	});
 });

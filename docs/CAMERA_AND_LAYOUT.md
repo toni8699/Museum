@@ -185,7 +185,7 @@ entrance-start → poland-threshold → departure-corridor → paris-seat
 → entrance-start
 ```
 
-Editor-created nodes deliberately omit guided links. They are free-only until a future guided-order workflow exists.
+Editor-created nodes deliberately omit guided links. They stay free-only until inserted through the Camera Tour guided-order workflow.
 
 ### Eligibility
 
@@ -287,6 +287,15 @@ Selected camera nodes and connections expose guarded Delete commands (also avail
 - Node deletion removes every incident connection and both directional view tracks. Connection deletion removes its directional view tracks. Each succeeds as one undoable transaction.
 - Active interaction/playback blocks deletion. Every failed invariant reports its specific reason and leaves the document/history unchanged.
 
+**Guided Tour** order is edited directly in the Camera Tour tree:
+
+- Display order is pinned to `entrance-start`; the start cannot move or leave the guided subset.
+- Guided rows provide earlier/later/remove controls and list drag reorder. Selecting a free node exposes every insertion gap; free rows may also be dragged into a gap.
+- Reorder validates every consecutive direct connection, including the final return to start. Insert requires existing edges to both neighbors. Remove requires the retained predecessor-successor edge and at least two remaining guided nodes.
+- `setGuidedTourOrder`, `insertNodeIntoGuidedTour`, and `removeNodeFromGuidedTour` call pure validation first, then rewrite all reciprocal `nextNodeId` / `previousNodeId` links in one transaction.
+- List/API order edits never create an edge. Nodes removed from the order become free-only; connections, paths, and view tracks remain intact.
+- Active interaction/playback and pending camera commands block order mutation. A rejected or no-op edit creates no history.
+
 ### Pointer and modal ownership
 
 Priority: preview/modal shield → TransformControls → active direct-path drag → pending creation/placement → node/anchor helpers → curve picking → Orbit → placement selection.
@@ -333,7 +342,7 @@ Alt is placement-only. Curves/anchors ignore Alt. Visitor preview and pending pl
 | Auto edges C0 across connections | Multi-hop direction can kink at a node | Align nearby anchors and preview multi-hop route |
 | No tangent handles | Exact tangent shaping unavailable | Add/move pass-through anchors |
 | No per-edge timing | Long/short edges share global speed policy | Keep current global motion constants |
-| Guided order not editable | New nodes are free-only | Use free mode; future guided-order workflow required |
+| Timeline drag-connect unavailable | Guided list insertion requires both neighbor edges first | Connect both edges, then insert; atomic drag-connect is Phase 3.5 |
 | Guarded topology deletion only | Bridge/guided edges and articulation nodes cannot be removed directly | Add the required alternate edge first, then retry deletion |
 | One active editable room | New room-local entities scoped to Paris | Extend editor room context deliberately |
 | Free-look only at stable Paris stop | Eye fixed; yaw/pitch clamped | Extend Director without adding second camera |
@@ -378,7 +387,7 @@ After architecture, scene, or camera edits:
 | Add free-only stop | **Add → Camera**, place draft, choose first connection |
 | Connect existing stops | Select source → **Connect to another node** → choose destination |
 | Delete a stop or edge | Select it → guarded **Delete** command |
-| Change guided order | Manual schema edit only; UI deferred |
+| Change guided order | Camera Tour tree reorder/insert/remove controls |
 | Change route traversal | `camera-route.ts` |
 | Change curve/timing/easing/projection | `camera-motion.ts` |
 | Change navigation eligibility | `museum-state.svelte.ts` |

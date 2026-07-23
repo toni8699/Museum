@@ -276,6 +276,21 @@ describe('findFloorBelowPlacement', () => {
 
 		expect(findFloorBelowPlacement(root, [scene])).toBeNull();
 	});
+
+	it('does not raycast non-floor editor helpers', () => {
+		const root = makeBoxPlacement({ position: [0, 2, 0] });
+		const floor = makeFloor(0.01);
+		const helper = new Mesh(new PlaneGeometry(20, 20), new MeshBasicMaterial());
+		helper.raycast = () => {
+			throw new Error('non-floor helper should not be raycast');
+		};
+		const scene = new Group();
+		scene.add(floor, helper, root);
+		scene.updateMatrixWorld(true);
+
+		expect(() => findFloorBelowPlacement(root, [scene])).not.toThrow();
+		expect(findFloorBelowPlacement(root, [scene])?.point.y).toBeCloseTo(0.01, 3);
+	});
 });
 
 describe('applyWorldYDeltaToPlacement / snapRoomLocalPosition', () => {

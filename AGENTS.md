@@ -156,6 +156,6 @@ apps/museum/src/
 
 ## Known limitations (do not assume fixed)
 
-No collision/navmesh · synthesized look path only · fixed-eye free-look only at Paris stop · selective shadows/GLTF assets only in Paris · no exhibit interaction · no spatial audio · no tangent handles · no per-edge timing · no guided-order editing · guarded topology deletion only · `targetWaypoints` typed but unused · `lockInteraction` unused in checked-in data · mobile hides route list · curves can clip walls if anchors are wrong.
+No collision/navmesh · synthesized look path only · fixed-eye free-look only at Paris stop · selective shadows/GLTF assets only in Paris · no exhibit interaction · no spatial audio · no tangent handles · no per-edge timing · no timeline drag-connect · guarded topology deletion only · `targetWaypoints` typed but unused · `lockInteraction` unused in checked-in data · mobile hides route list · curves can clip walls if anchors are wrong.
 
 Full authoring checklist and limits: [`docs/CAMERA_AND_LAYOUT.md`](./docs/CAMERA_AND_LAYOUT.md).

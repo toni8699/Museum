@@ -150,6 +150,20 @@ function collectRayOrigins(bounds: Box3): Vector3[] {
 	];
 }
 
+/**
+ * Limit grounding raycasts to tagged floor subtrees. The editor scene also contains
+ * screen-space Line2 helpers whose raycast implementation requires a camera.
+ */
+function collectPlaceableFloorRaycastTargets(targets: Object3D[]): Object3D[] {
+	const floorTargets: Object3D[] = [];
+	for (const target of targets) {
+		target.traverse((object) => {
+			if (getEditorPlaceableFloor(object)) floorTargets.push(object);
+		});
+	}
+	return floorTargets;
+}
+
 function bestValidFloorHit(
 	hits: Intersection[],
 	excludedRoots: Object3D[],
@@ -190,6 +204,8 @@ export function findFloorBelowBounds(
 	raycaster = new Raycaster()
 ): FloorHit | null {
 	if (bounds.isEmpty()) return null;
+	const floorTargets = collectPlaceableFloorRaycastTargets(targets);
+	if (floorTargets.length === 0) return null;
 
 	const down = new Vector3(0, -1, 0);
 	let best: FloorHit | null = null;
@@ -197,7 +213,7 @@ export function findFloorBelowBounds(
 	for (const origin of collectRayOrigins(bounds)) {
 		raycaster.set(origin, down);
 		raycaster.far = MAX_DROP_DISTANCE;
-		const hits = raycaster.intersectObjects(targets, true);
+		const hits = raycaster.intersectObjects(floorTargets, false);
 		const candidate = bestValidFloorHit(hits, excludedRoots, preferredRoomId);
 		if (!candidate) continue;
 		const candidateRoomId =

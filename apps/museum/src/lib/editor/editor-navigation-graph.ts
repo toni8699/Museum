@@ -15,7 +15,15 @@ export type EditorNavigationGraphFailureCode =
 	| 'unknown_node'
 	| 'minimum_guided_nodes'
 	| 'missing_guided_bridge'
-	| 'invalid_guided_cycle';
+	| 'invalid_guided_cycle'
+	| 'duplicate_guided_node'
+	| 'missing_guided_start'
+	| 'guided_start_not_first'
+	| 'missing_guided_connection'
+	| 'node_already_guided'
+	| 'node_not_guided'
+	| 'protected_guided_start'
+	| 'invalid_guided_index';
 
 export type EditorNavigationGraphFailure = {
 	ok: false;
@@ -41,6 +49,13 @@ export type EditorNavigationNodeDeletionPlan = {
 	predecessorNodeId?: string;
 	successorNodeId?: string;
 };
+
+export type EditorGuidedTourOrderPlan = {
+	ok: true;
+	nodeIds: string[];
+};
+
+export const EDITOR_GUIDED_TOUR_START_NODE_ID = 'entrance-start';
 
 function fail(
 	code: EditorNavigationGraphFailureCode,
@@ -159,6 +174,159 @@ function guidedCycleRemainsValid(
 		cursor = nextNodeId ? guidedById.get(nextNodeId) : undefined;
 	}
 	return visited.size === guidedNodes.length && cursor?.id === start.id;
+}
+
+/**
+ * Read and validate the document's existing reciprocal guided cycle. The
+ * returned display order is pinned to entrance-start whenever that node is
+ * guided; no document state is changed.
+ */
+export function validateCurrentGuidedTourOrder(
+	document: MuseumSceneDocument
+): EditorGuidedTourOrderPlan | EditorNavigationGraphFailure {
+	const guidedNodes = document.navigationNodes.filter(isGuidedNode);
+	if (guidedNodes.length < 2) {
+		return fail(
+			'minimum_guided_nodes',
+			'The guided tour must contain at least two camera nodes'
+		);
+	}
+	const guidedById = new Map(guidedNodes.map((node) => [node.id, node]));
+	const start =
+		guidedById.get(EDITOR_GUIDED_TOUR_START_NODE_ID) ?? guidedNodes[0]!;
+	const nodeIds: string[] = [];
+	const visited = new Set<string>();
+	let cursor: SceneNavigationNode | undefined = start;
+	while (cursor && !visited.has(cursor.id)) {
+		visited.add(cursor.id);
+		nodeIds.push(cursor.id);
+		const nextNodeId: string | undefined = cursor.nextNodeId;
+		const next: SceneNavigationNode | undefined = nextNodeId
+			? guidedById.get(nextNodeId)
+			: undefined;
+		if (!next || next.previousNodeId !== cursor.id) {
+			return fail(
+				'invalid_guided_cycle',
+				'The current guided tour is not one reciprocal cycle'
+			);
+		}
+		cursor = next;
+	}
+	if (cursor?.id !== start.id || visited.size !== guidedNodes.length) {
+		return fail(
+			'invalid_guided_cycle',
+			'The current guided tour is not one reciprocal cycle'
+		);
+	}
+	return validateGuidedTourOrder(document, nodeIds);
+}
+
+/** Pure validation for one complete guided display order and its return edge. */
+export function validateGuidedTourOrder(
+	document: MuseumSceneDocument,
+	nodeIds: readonly string[]
+): EditorGuidedTourOrderPlan | EditorNavigationGraphFailure {
+	if (nodeIds.length < 2) {
+		return fail(
+			'minimum_guided_nodes',
+			'The guided tour must contain at least two camera nodes'
+		);
+	}
+	const uniqueNodeIds = new Set(nodeIds);
+	if (uniqueNodeIds.size !== nodeIds.length) {
+		return fail(
+			'duplicate_guided_node',
+			'A camera node can appear only once in the guided tour'
+		);
+	}
+	const nodeById = new Map(
+		document.navigationNodes.map((node) => [node.id, node])
+	);
+	for (const nodeId of nodeIds) {
+		if (!nodeById.has(nodeId)) {
+			return fail('unknown_node', `Camera node is unavailable: ${nodeId}`);
+		}
+	}
+	if (nodeById.has(EDITOR_GUIDED_TOUR_START_NODE_ID)) {
+		if (!uniqueNodeIds.has(EDITOR_GUIDED_TOUR_START_NODE_ID)) {
+			return fail(
+				'missing_guided_start',
+				`The guided tour must include ${EDITOR_GUIDED_TOUR_START_NODE_ID}`
+			);
+		}
+		if (nodeIds[0] !== EDITOR_GUIDED_TOUR_START_NODE_ID) {
+			return fail(
+				'guided_start_not_first',
+				`Guided display order must start at ${EDITOR_GUIDED_TOUR_START_NODE_ID}`
+			);
+		}
+	}
+
+	for (let index = 0; index < nodeIds.length; index += 1) {
+		const from = nodeById.get(nodeIds[index]!)!;
+		const to = nodeById.get(nodeIds[(index + 1) % nodeIds.length]!)!;
+		if (!findConnectionBetween(document, from.id, to.id)) {
+			return fail(
+				'missing_guided_connection',
+				`Guided neighbors ${nodeName(from)} and ${nodeName(to)} need a direct connection`
+			);
+		}
+	}
+	return { ok: true, nodeIds: [...nodeIds] };
+}
+
+/** Pure plan for inserting one free node at a display-order gap. */
+export function validateGuidedTourInsertion(
+	document: MuseumSceneDocument,
+	nodeId: string,
+	index: number
+): EditorGuidedTourOrderPlan | EditorNavigationGraphFailure {
+	const node = document.navigationNodes.find((candidate) => candidate.id === nodeId);
+	if (!node) return fail('unknown_node', `Camera node is unavailable: ${nodeId}`);
+	const current = validateCurrentGuidedTourOrder(document);
+	if (!current.ok) return current;
+	if (current.nodeIds.includes(node.id)) {
+		return fail(
+			'node_already_guided',
+			`${nodeName(node)} is already in the guided tour`
+		);
+	}
+	if (!Number.isInteger(index) || index < 1 || index > current.nodeIds.length) {
+		return fail(
+			'invalid_guided_index',
+			'Choose a guided-tour gap after the pinned start'
+		);
+	}
+	const nodeIds = [...current.nodeIds];
+	nodeIds.splice(index, 0, node.id);
+	return validateGuidedTourOrder(document, nodeIds);
+}
+
+/** Pure plan for removing one non-start guided node. */
+export function validateGuidedTourRemoval(
+	document: MuseumSceneDocument,
+	nodeId: string
+): EditorGuidedTourOrderPlan | EditorNavigationGraphFailure {
+	const node = document.navigationNodes.find((candidate) => candidate.id === nodeId);
+	if (!node) return fail('unknown_node', `Camera node is unavailable: ${nodeId}`);
+	const current = validateCurrentGuidedTourOrder(document);
+	if (!current.ok) return current;
+	if (!current.nodeIds.includes(node.id)) {
+		return fail(
+			'node_not_guided',
+			`${nodeName(node)} is not in the guided tour`
+		);
+	}
+	if (node.id === current.nodeIds[0]) {
+		return fail(
+			'protected_guided_start',
+			`Cannot remove ${nodeName(node)}: the guided display start is pinned`
+		);
+	}
+	return validateGuidedTourOrder(
+		document,
+		current.nodeIds.filter((candidate) => candidate !== node.id)
+	);
 }
 
 /** Pure validation for one new undirected camera connection. */

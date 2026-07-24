@@ -1,5 +1,7 @@
 # Phase 3 — Camera Graph Authoring
 
+**Status:** Complete through Slice 3.5. Next: Slice 3.6 framing controls.
+
 **Goal:** complete the camera workflow: unify selection/Play with the timeline, define nodes, connect them, order the guided tour (including timeline drag-connect), frame any point, then author timing.
 
 **Dependency:** Phase 2 complete.

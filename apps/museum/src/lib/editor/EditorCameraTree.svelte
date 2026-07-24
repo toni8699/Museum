@@ -122,6 +122,7 @@
 			return;
 		}
 		draggedNodeId = nodeId;
+		event.dataTransfer?.setData('application/x-museum-camera-node', nodeId);
 		event.dataTransfer?.setData('text/plain', nodeId);
 		if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
 	}

@@ -11,7 +11,8 @@ import {
 	validateGuidedTourInsertion,
 	validateGuidedTourOrder,
 	validateGuidedTourRemoval,
-	validateNavigationNodeDeletion
+	validateNavigationNodeDeletion,
+	validateTimelineGuidedTourDrop
 } from './editor-navigation-graph';
 
 function documentClone(): MuseumSceneDocument {
@@ -327,5 +328,109 @@ describe('editor guided-tour order validation', () => {
 			ok: true,
 			nodeIds: checkedInOrder.filter((nodeId) => nodeId !== 'poland-threshold')
 		});
+	});
+
+	it('plans one atomic timeline insertion with exactly one missing straight edge', () => {
+		const document = documentClone();
+		addFreeNode(document, 'free-node', 'paris-seat');
+
+		expect(
+			validateTimelineGuidedTourDrop(
+				document,
+				'free-node',
+				'departure-corridor',
+				'paris-seat'
+			)
+		).toEqual({
+			ok: true,
+			nodeIds: [
+				...checkedInOrder.slice(0, 3),
+				'free-node',
+				...checkedInOrder.slice(3)
+			],
+			missingConnection: {
+				fromNodeId: 'departure-corridor',
+				toNodeId: 'free-node'
+			},
+			focusConnection: {
+				fromNodeId: 'departure-corridor',
+				toNodeId: 'free-node'
+			}
+		});
+	});
+
+	it('uses existing edges and rejects self, invalid-gap, and multi-edge drops', () => {
+		const insertable = documentClone();
+		addFreeNode(insertable, 'free-node', 'departure-corridor');
+		addConnection(insertable, 'free-node', 'paris-seat', 'free-paris');
+		expect(
+			validateTimelineGuidedTourDrop(
+				insertable,
+				'free-node',
+				'departure-corridor',
+				'paris-seat'
+			)
+		).toEqual(
+			expect.objectContaining({ ok: true, missingConnection: null })
+		);
+
+		const document = documentClone();
+		expect(
+			validateTimelineGuidedTourDrop(
+				document,
+				'poland-threshold',
+				'poland-threshold',
+				'departure-corridor'
+			)
+		).toEqual(expect.objectContaining({ ok: false, code: 'guided_self_drop' }));
+		expect(
+			validateTimelineGuidedTourDrop(
+				document,
+				'poland-threshold',
+				'departure-corridor',
+				'workshop-desk'
+			)
+		).toEqual(expect.objectContaining({ ok: false, code: 'invalid_guided_gap' }));
+
+		addFreeNode(document, 'free-node', 'music-center');
+		expect(
+			validateTimelineGuidedTourDrop(
+				document,
+				'free-node',
+				'departure-corridor',
+				'paris-seat'
+			)
+		).toEqual(
+			expect.objectContaining({
+				ok: false,
+				code: 'too_many_missing_guided_connections'
+			})
+		);
+	});
+
+	it('moves a guided node when final order needs at most one new edge', () => {
+		const document = documentClone();
+		addConnection(document, 'entrance-start', 'departure-corridor', 'entrance-departure');
+		const result = validateTimelineGuidedTourDrop(
+			document,
+			'poland-threshold',
+			'departure-corridor',
+			'paris-seat'
+		);
+		expect(result).toEqual(
+			expect.objectContaining({
+				ok: true,
+				missingConnection: {
+					fromNodeId: 'poland-threshold',
+					toNodeId: 'paris-seat'
+				}
+			})
+		);
+		expect(result.ok ? result.nodeIds : []).toEqual([
+			'entrance-start',
+			'departure-corridor',
+			'poland-threshold',
+			...checkedInOrder.slice(3)
+		]);
 	});
 });

@@ -296,6 +296,15 @@ Selected camera nodes and connections expose guarded Delete commands (also avail
 - List/API order edits never create an edge. Nodes removed from the order become free-only; connections, paths, and view tracks remain intact.
 - Active interaction/playback and pending camera commands block order mutation. A rejected or no-op edit creates no history.
 
+**Timeline drag-connect** is the one edge-creation exception:
+
+- Drag any non-start timeline node boundary, or a free/guided Camera-tree node chip, onto a directed Guided Route edge.
+- The edge represents its exact consecutive-node gap, including the final return-to-start gap.
+- The pure planner proposes the final reciprocal cycle and permits at most one missing consecutive edge.
+- That missing edge uses the shared straight-connection transaction: `auto-bezier`, no interior anchors, and `0.35 m` clearance.
+- Edge creation and the full link rewrite commit as one undo entry. Two or more missing edges, self-drops, invalid gaps, disconnected input, interaction/playback, and pending commands reject without partial mutation.
+- Success selects the oriented new/existing connection for immediate path fine-tuning.
+
 ### Pointer and modal ownership
 
 Priority: preview/modal shield → TransformControls → active direct-path drag → pending creation/placement → node/anchor helpers → curve picking → Orbit → placement selection.
@@ -342,7 +351,7 @@ Alt is placement-only. Curves/anchors ignore Alt. Visitor preview and pending pl
 | Auto edges C0 across connections | Multi-hop direction can kink at a node | Align nearby anchors and preview multi-hop route |
 | No tangent handles | Exact tangent shaping unavailable | Add/move pass-through anchors |
 | No per-edge timing | Long/short edges share global speed policy | Keep current global motion constants |
-| Timeline drag-connect unavailable | Guided list insertion requires both neighbor edges first | Connect both edges, then insert; atomic drag-connect is Phase 3.5 |
+| Timeline drag-connect creates at most one edge | A proposed final cycle needing two or more new edges rejects | Add one required edge with Connect, then retry the timeline drop |
 | Guarded topology deletion only | Bridge/guided edges and articulation nodes cannot be removed directly | Add the required alternate edge first, then retry deletion |
 | One active editable room | New room-local entities scoped to Paris | Extend editor room context deliberately |
 | Free-look only at stable Paris stop | Eye fixed; yaw/pitch clamped | Extend Director without adding second camera |
@@ -360,6 +369,7 @@ After architecture, scene, or camera edits:
 - [ ] Stable anchor IDs remain unique within each connection
 - [ ] `connectedNodeIds` exactly match undirected connection edges
 - [ ] Guided nodes define reciprocal next/previous links; free-only nodes define neither
+- [ ] Timeline drag-connect creates at most one empty `auto-bezier` edge and one undo entry
 - [ ] Entire graph remains connected
 - [ ] Curves enter/exit through openings and clear walls/ceilings
 - [ ] Every edited edge previewed forward and reverse
@@ -388,6 +398,7 @@ After architecture, scene, or camera edits:
 | Connect existing stops | Select source → **Connect to another node** → choose destination |
 | Delete a stop or edge | Select it → guarded **Delete** command |
 | Change guided order | Camera Tour tree reorder/insert/remove controls |
+| Insert/move with one missing edge | Drag a Camera-tree/timeline node onto a Guided Route edge |
 | Change route traversal | `camera-route.ts` |
 | Change curve/timing/easing/projection | `camera-motion.ts` |
 | Change navigation eligibility | `museum-state.svelte.ts` |

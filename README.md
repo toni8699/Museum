@@ -27,6 +27,16 @@ npm run dev
 
 Open the local URL and visit `/museum`.
 
+### Load editor JSON into the live museum
+
+The visitor experience at `/museum` reads the checked-in scene document. There is no runtime “open file” path.
+
+1. In `/dev/museum-editor`, use **Copy JSON** or **Download JSON** to export the canonical scene document.
+2. Replace [`apps/museum/src/lib/content/museum-scene.json`](./apps/museum/src/lib/content/museum-scene.json) with that export (overwrite the file in place).
+3. Restart or refresh the dev server if needed, then open `/museum` to see the updated tour, nodes, connections, and placements.
+
+Do not put exported JSON under `static/` or elsewhere — only that content file is loaded by the live museum.
+
 Useful commands:
 
 ```bash

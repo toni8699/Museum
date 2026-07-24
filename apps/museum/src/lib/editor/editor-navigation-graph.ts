@@ -23,7 +23,10 @@ export type EditorNavigationGraphFailureCode =
 	| 'node_already_guided'
 	| 'node_not_guided'
 	| 'protected_guided_start'
-	| 'invalid_guided_index';
+	| 'invalid_guided_index'
+	| 'invalid_guided_gap'
+	| 'guided_self_drop'
+	| 'too_many_missing_guided_connections';
 
 export type EditorNavigationGraphFailure = {
 	ok: false;
@@ -53,6 +56,11 @@ export type EditorNavigationNodeDeletionPlan = {
 export type EditorGuidedTourOrderPlan = {
 	ok: true;
 	nodeIds: string[];
+};
+
+export type EditorTimelineGuidedTourDropPlan = EditorGuidedTourOrderPlan & {
+	missingConnection: { fromNodeId: string; toNodeId: string } | null;
+	focusConnection: { fromNodeId: string; toNodeId: string };
 };
 
 export const EDITOR_GUIDED_TOUR_START_NODE_ID = 'entrance-start';
@@ -327,6 +335,96 @@ export function validateGuidedTourRemoval(
 		document,
 		current.nodeIds.filter((candidate) => candidate !== node.id)
 	);
+}
+
+/**
+ * Pure plan for dropping one existing node onto one directed guided-route gap.
+ * Unlike list/API order editing, this authoring path may supply exactly one
+ * missing straight edge so connection creation and reciprocal-link rewrite can
+ * commit together.
+ */
+export function validateTimelineGuidedTourDrop(
+	document: MuseumSceneDocument,
+	nodeId: string,
+	gapFromNodeId: string,
+	gapToNodeId: string
+): EditorTimelineGuidedTourDropPlan | EditorNavigationGraphFailure {
+	if (!graphRemainsConnected(document, new Set(), new Set())) {
+		return fail(
+			'disconnected_graph',
+			'The navigation graph must be connected before editing the guided route'
+		);
+	}
+	const current = validateCurrentGuidedTourOrder(document);
+	if (!current.ok) return current;
+	const node = document.navigationNodes.find((candidate) => candidate.id === nodeId);
+	if (!node) return fail('unknown_node', `Camera node is unavailable: ${nodeId}`);
+	if (node.id === EDITOR_GUIDED_TOUR_START_NODE_ID) {
+		return fail(
+			'protected_guided_start',
+			`Cannot move ${nodeName(node)}: the guided display start is pinned`
+		);
+	}
+	if (node.id === gapFromNodeId || node.id === gapToNodeId) {
+		return fail(
+			'guided_self_drop',
+			`Cannot drop ${nodeName(node)} onto its own guided-route boundary`
+		);
+	}
+
+	const gapIndex = current.nodeIds.findIndex(
+		(candidate, index) =>
+			candidate === gapFromNodeId &&
+			current.nodeIds[(index + 1) % current.nodeIds.length] === gapToNodeId
+	);
+	if (gapIndex < 0) {
+		return fail(
+			'invalid_guided_gap',
+			'Choose a gap between consecutive guided camera nodes'
+		);
+	}
+
+	const nodeIds = current.nodeIds.filter((candidate) => candidate !== node.id);
+	const insertionIndex = nodeIds.indexOf(gapToNodeId);
+	if (insertionIndex < 0) {
+		return fail(
+			'invalid_guided_gap',
+			'The guided-route gap became unavailable'
+		);
+	}
+	nodeIds.splice(insertionIndex === 0 ? nodeIds.length : insertionIndex, 0, node.id);
+
+	const nodeById = new Map(
+		document.navigationNodes.map((candidate) => [candidate.id, candidate])
+	);
+	const missingConnections: Array<{ fromNodeId: string; toNodeId: string }> = [];
+	for (let index = 0; index < nodeIds.length; index += 1) {
+		const fromNodeId = nodeIds[index]!;
+		const toNodeId = nodeIds[(index + 1) % nodeIds.length]!;
+		if (!nodeById.has(fromNodeId) || !nodeById.has(toNodeId)) {
+			return fail('unknown_node', 'The guided tour contains an unavailable camera node');
+		}
+		if (!findConnectionBetween(document, fromNodeId, toNodeId)) {
+			missingConnections.push({ fromNodeId, toNodeId });
+		}
+	}
+	if (missingConnections.length > 1) {
+		return fail(
+			'too_many_missing_guided_connections',
+			'Timeline drag-connect can create only one missing guided connection'
+		);
+	}
+
+	const missingConnection = missingConnections[0] ?? null;
+	return {
+		ok: true,
+		nodeIds,
+		missingConnection,
+		focusConnection: missingConnection ?? {
+			fromNodeId: gapFromNodeId,
+			toNodeId: node.id
+		}
+	};
 }
 
 /** Pure validation for one new undirected camera connection. */

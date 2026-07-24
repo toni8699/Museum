@@ -1,7 +1,7 @@
 # Museum Editor Workspace Releases
 
-**Status:** Active release authority. Phase 3 is complete through Slice 3.4.
-**Baseline:** `main` at `8a36e28`; Phase 3.4 is uncommitted. Preserve it. Do not commit unless requested.
+**Status:** Active release authority. Phase 3 is complete through Slice 3.5.
+**Baseline:** `main` at `0538a5b`; Phase 3.5 is uncommitted. Preserve it. Do not commit unless requested.
 **Locked decisions:** one looped guided tour; `Scene` and `Camera` workspaces; camera placement accepts any tagged room floor.
 
 ## Main Problem

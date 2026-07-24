@@ -6,6 +6,7 @@ import {
 	type MuseumSceneDocument,
 	type NavigationGraph,
 	type SceneCameraViewKeyframe,
+	type SceneConnection,
 	type SceneNavigationNode,
 	type RuntimeMuseumScene,
 	type SceneObjectCluster,
@@ -92,7 +93,8 @@ import {
 	validateGuidedTourInsertion,
 	validateGuidedTourOrder,
 	validateGuidedTourRemoval,
-	validateNavigationNodeDeletion
+	validateNavigationNodeDeletion,
+	validateTimelineGuidedTourDrop
 } from './editor-navigation-graph';
 
 const HISTORY_LIMIT = 100;
@@ -3104,22 +3106,14 @@ export class MuseumEditorStore {
 				new Set(this.document.connections.map((connection) => connection.id))
 			);
 			if (!this.beginDocumentTransaction()) return false;
-			this.document.navigationNodes.push({
+			const committedNode: SceneNavigationNode = {
 				...node,
 				position: [...node.position],
 				cameraTarget: [...node.cameraTarget],
 				connectedNodeIds: [destination.id]
-			});
-			if (!destination.connectedNodeIds.includes(node.id)) {
-				destination.connectedNodeIds.push(node.id);
-			}
-			this.document.connections.push({
-				id: connectionId,
-				fromNodeId: destination.id,
-				toNodeId: node.id,
-				clearance: CAMERA_NODE_CREATION_DEFAULTS.clearance,
-				positionPath: { kind: 'auto-bezier', anchors: [] }
-			});
+			};
+			this.document.navigationNodes.push(committedNode);
+			this.#appendStraightConnection(destination, committedNode, connectionId);
 			if (!this.commitDocumentTransaction()) return false;
 
 			this.pendingNavigationCommand = null;
@@ -3171,19 +3165,7 @@ export class MuseumEditorStore {
 			new Set(this.document.connections.map((connection) => connection.id))
 		);
 		if (!this.beginDocumentTransaction()) return false;
-		if (!source.connectedNodeIds.includes(destination.id)) {
-			source.connectedNodeIds.push(destination.id);
-		}
-		if (!destination.connectedNodeIds.includes(source.id)) {
-			destination.connectedNodeIds.push(source.id);
-		}
-		this.document.connections.push({
-			id: connectionId,
-			fromNodeId: source.id,
-			toNodeId: destination.id,
-			clearance: CAMERA_NODE_CREATION_DEFAULTS.clearance,
-			positionPath: { kind: 'auto-bezier', anchors: [] }
-		});
+		this.#appendStraightConnection(source, destination, connectionId);
 		if (!this.commitDocumentTransaction()) return false;
 
 		if (this.pendingNavigationCommand?.kind === 'connect-existing') {
@@ -3200,6 +3182,24 @@ export class MuseumEditorStore {
 		}
 		this.setStatusMessage('Connected camera nodes');
 		return true;
+	}
+
+	#appendStraightConnection(
+		from: SceneNavigationNode,
+		to: SceneNavigationNode,
+		connectionId: string
+	) {
+		if (!from.connectedNodeIds.includes(to.id)) from.connectedNodeIds.push(to.id);
+		if (!to.connectedNodeIds.includes(from.id)) to.connectedNodeIds.push(from.id);
+		const connection: SceneConnection = {
+			id: connectionId,
+			fromNodeId: from.id,
+			toNodeId: to.id,
+			clearance: CAMERA_NODE_CREATION_DEFAULTS.clearance,
+			positionPath: { kind: 'auto-bezier', anchors: [] }
+		};
+		this.document.connections.push(connection);
+		return connection;
 	}
 
 	/** Rewrite one complete reciprocal guided cycle without creating graph edges. */
@@ -3247,8 +3247,88 @@ export class MuseumEditorStore {
 		return committed;
 	}
 
+	/**
+	 * Phase 3.5 — move an existing node onto one guided timeline edge. The
+	 * reciprocal cycle rewrite and optional single straight edge commit once.
+	 */
+	timelineDragConnectNode(
+		nodeId: string,
+		gapFromNodeId: string,
+		gapToNodeId: string
+	) {
+		if (!this.#canEditGuidedTour()) return false;
+		const validation = validateTimelineGuidedTourDrop(
+			this.document,
+			nodeId,
+			gapFromNodeId,
+			gapToNodeId
+		);
+		if (!validation.ok) {
+			this.setStatusMessage(validation.message);
+			return false;
+		}
+
+		const missing = validation.missingConnection;
+		const connectionId = missing
+			? reserveEntityId(
+					`${missing.fromNodeId}-${missing.toNodeId}`,
+					new Set(this.document.connections.map((connection) => connection.id))
+			  )
+			: this.document.connections.find(
+					(connection) =>
+						(connection.fromNodeId === validation.focusConnection.fromNodeId &&
+							connection.toNodeId === validation.focusConnection.toNodeId) ||
+						(connection.fromNodeId === validation.focusConnection.toNodeId &&
+							connection.toNodeId === validation.focusConnection.fromNodeId)
+			  )?.id;
+		if (!connectionId) {
+			this.setStatusMessage('The guided connection selected for fine-tuning is unavailable');
+			return false;
+		}
+
+		if (!this.beginDocumentTransaction()) return false;
+		if (missing) {
+			const from = this.document.navigationNodes.find(
+				(node) => node.id === missing.fromNodeId
+			);
+			const to = this.document.navigationNodes.find(
+				(node) => node.id === missing.toNodeId
+			);
+			if (!from || !to) {
+				this.cancelDocumentTransaction();
+				this.setStatusMessage('The timeline drag-connect endpoints became unavailable');
+				return false;
+			}
+			this.#appendStraightConnection(from, to, connectionId);
+		}
+		this.#rewriteGuidedTourOrder(validation.nodeIds);
+		if (!this.commitDocumentTransaction()) return false;
+
+		const connection = this.document.connections.find(
+			(candidate) => candidate.id === connectionId
+		)!;
+		const direction: CameraConnectionDirection =
+			connection.fromNodeId === validation.focusConnection.fromNodeId &&
+			connection.toNodeId === validation.focusConnection.toNodeId
+				? 'forward'
+				: 'reverse';
+		this.selectCameraConnectionDirection(connection.id, direction);
+		const node = this.document.navigationNodes.find((candidate) => candidate.id === nodeId)!;
+		this.setStatusMessage(
+			missing
+				? `Added ${node.label} to the guided tour with one straight connection`
+				: `Moved ${node.label} in the guided tour`
+		);
+		return true;
+	}
+
 	#applyGuidedTourOrder(nodeIds: readonly string[]) {
 		if (!this.beginDocumentTransaction()) return false;
+		this.#rewriteGuidedTourOrder(nodeIds);
+		return this.commitDocumentTransaction();
+	}
+
+	#rewriteGuidedTourOrder(nodeIds: readonly string[]) {
 		const guidedIndexById = new Map(
 			nodeIds.map((nodeId, index) => [nodeId, index])
 		);
@@ -3262,7 +3342,6 @@ export class MuseumEditorStore {
 			node.previousNodeId = nodeIds[(index - 1 + nodeIds.length) % nodeIds.length]!;
 			node.nextNodeId = nodeIds[(index + 1) % nodeIds.length]!;
 		}
-		return this.commitDocumentTransaction();
 	}
 
 	#canEditGuidedTour() {

@@ -3175,3 +3175,205 @@ describe('MuseumEditorStore Phase 3.4 guided-order editing', () => {
 		expect(store.canUndo).toBe(false);
 	});
 });
+
+describe('MuseumEditorStore Phase 3.5 timeline drag-connect', () => {
+	const checkedInOrder = [
+		'entrance-start',
+		'poland-threshold',
+		'departure-corridor',
+		'paris-seat',
+		'workshop-desk',
+		'music-entry',
+		'music-center',
+		'legacy-return'
+	];
+
+	function addDocumentConnection(
+		document: MuseumSceneDocument,
+		fromNodeId: string,
+		toNodeId: string,
+		id: string
+	) {
+		const from = document.navigationNodes.find((node) => node.id === fromNodeId)!;
+		const to = document.navigationNodes.find((node) => node.id === toNodeId)!;
+		from.connectedNodeIds.push(to.id);
+		to.connectedNodeIds.push(from.id);
+		document.connections.push({
+			id,
+			fromNodeId,
+			toNodeId,
+			clearance: 0.35,
+			positionPath: { kind: 'auto-bezier', anchors: [] }
+		});
+	}
+
+	function documentWithFreeNode(connectedNodeId: string) {
+		const document = cloneMuseumSceneDocument(museumSceneDocument);
+		const template = document.navigationNodes.find((node) => node.id === 'paris-seat')!;
+		document.navigationNodes.push({
+			...template,
+			id: 'timeline-free-node',
+			label: 'Timeline Free Node',
+			connectedNodeIds: []
+		});
+		const free = document.navigationNodes.at(-1)!;
+		delete free.nextNodeId;
+		delete free.previousNodeId;
+		addDocumentConnection(
+			document,
+			connectedNodeId,
+			free.id,
+			`${connectedNodeId}-timeline-free`
+		);
+		return document;
+	}
+
+	it('creates one straight edge and rewrites guided links in one undo entry', () => {
+		const document = documentWithFreeNode('paris-seat');
+		const store = createMuseumEditorStore();
+		expect(store.importDocument(document)).toBe(true);
+		store.setWorkspace('camera');
+		const before = store.canonicalJson;
+		const historyBefore = store.historyVersion;
+		const connectionCount = store.document.connections.length;
+
+		expect(
+			store.timelineDragConnectNode(
+				'timeline-free-node',
+				'departure-corridor',
+				'paris-seat'
+			)
+		).toBe(true);
+		expect(store.historyVersion).toBe(historyBefore + 1);
+		expect(store.document.connections).toHaveLength(connectionCount + 1);
+		const connection = store.document.connections.find(
+			(candidate) =>
+				candidate.fromNodeId === 'departure-corridor' &&
+				candidate.toNodeId === 'timeline-free-node'
+		)!;
+		expect(connection).toMatchObject({
+			clearance: 0.35,
+			positionPath: { kind: 'auto-bezier', anchors: [] }
+		});
+		expect(
+			store.document.navigationNodes.find((node) => node.id === 'departure-corridor')!
+				.connectedNodeIds
+		).toContain('timeline-free-node');
+		expect(store.guidedTourNodeIds).toEqual([
+			...checkedInOrder.slice(0, 3),
+			'timeline-free-node',
+			...checkedInOrder.slice(3)
+		]);
+		expect(store.navigationSelection).toEqual({
+			kind: 'connection',
+			connectionId: connection.id
+		});
+		expect(store.activeCameraDirection).toBe('forward');
+		expect(store.validation.success).toBe(true);
+
+		expect(store.undo()).toBe(true);
+		expect(store.canonicalJson).toBe(before);
+	});
+
+	it('uses existing paths without creating a connection', () => {
+		const document = documentWithFreeNode('departure-corridor');
+		addDocumentConnection(
+			document,
+			'timeline-free-node',
+			'paris-seat',
+			'timeline-free-paris'
+		);
+		const store = createMuseumEditorStore();
+		expect(store.importDocument(document)).toBe(true);
+		store.setWorkspace('camera');
+		const connectionIds = store.document.connections.map((connection) => connection.id);
+
+		expect(
+			store.timelineDragConnectNode(
+				'timeline-free-node',
+				'departure-corridor',
+				'paris-seat'
+			)
+		).toBe(true);
+		expect(store.document.connections.map((connection) => connection.id)).toEqual(
+			connectionIds
+		);
+		expect(store.activeCameraConnectionId).toBe('departure-corridor-timeline-free');
+		expect(store.activeCameraDirection).toBe('forward');
+		expect(store.canUndo).toBe(true);
+	});
+
+	it('rejects self, invalid-gap, and multi-edge drops without partial writes', () => {
+		const store = createMuseumEditorStore();
+		const before = store.canonicalJson;
+		expect(
+			store.timelineDragConnectNode(
+				'poland-threshold',
+				'poland-threshold',
+				'departure-corridor'
+			)
+		).toBe(false);
+		expect(store.statusMessage).toContain('own guided-route boundary');
+		expect(
+			store.timelineDragConnectNode(
+				'poland-threshold',
+				'departure-corridor',
+				'workshop-desk'
+			)
+		).toBe(false);
+		expect(store.statusMessage).toContain('consecutive guided');
+		expect(store.canonicalJson).toBe(before);
+		expect(store.canUndo).toBe(false);
+
+		const multiEdge = createMuseumEditorStore();
+		expect(multiEdge.importDocument(documentWithFreeNode('music-center'))).toBe(true);
+		const imported = multiEdge.canonicalJson;
+		expect(
+			multiEdge.timelineDragConnectNode(
+				'timeline-free-node',
+				'departure-corridor',
+				'paris-seat'
+			)
+		).toBe(false);
+		expect(multiEdge.statusMessage).toContain('only one missing guided connection');
+		expect(multiEdge.canonicalJson).toBe(imported);
+		expect(multiEdge.canUndo).toBe(false);
+	});
+
+	it('blocks timeline drops during playback, interaction, and pending commands', () => {
+		const store = createMuseumEditorStore();
+		const before = store.canonicalJson;
+		store.selectNavigationNode('paris-seat');
+		expect(store.previewSelectedNode('visitor')).toBe(true);
+		expect(
+			store.timelineDragConnectNode(
+				'poland-threshold',
+				'departure-corridor',
+				'paris-seat'
+			)
+		).toBe(false);
+		expect(store.statusMessage).toContain('active camera playback');
+		expect(store.stopCameraPreview()).toBe(true);
+
+		store.setTransformInteractionActive(true, 'camera');
+		expect(
+			store.timelineDragConnectNode(
+				'poland-threshold',
+				'departure-corridor',
+				'paris-seat'
+			)
+		).toBe(false);
+		store.setTransformInteractionActive(false);
+
+		expect(store.beginCameraPlacement()).toBe(true);
+		expect(
+			store.timelineDragConnectNode(
+				'poland-threshold',
+				'departure-corridor',
+				'paris-seat'
+			)
+		).toBe(false);
+		expect(store.canonicalJson).toBe(before);
+		expect(store.canUndo).toBe(false);
+	});
+});

@@ -28,8 +28,8 @@ describe('editor camera timeline index', () => {
 		const timeline = createEditorCameraTimeline(graph);
 
 		expect(timeline.startNodeId).toBe('entrance-start');
-		expect(timeline.edges).toHaveLength(8);
-		expect(timeline.nodeBoundaries).toHaveLength(9);
+		expect(timeline.edges).toHaveLength(9);
+		expect(timeline.nodeBoundaries).toHaveLength(10);
 		expect(timeline.nodeBoundaries[0]).toMatchObject({
 			nodeId: 'entrance-start',
 			progress: 0

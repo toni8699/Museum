@@ -902,6 +902,7 @@ describe('getGuidedCameraRoute', () => {
       'poland-threshold',
       'departure-corridor',
       'paris-seat',
+      'camera-node-1',
       'workshop-desk',
       'music-entry',
       'music-center',
@@ -912,16 +913,17 @@ describe('getGuidedCameraRoute', () => {
       'entrance-poland',
       'poland-departure',
       'departure-paris',
-      'paris-workshop',
+      'paris-seat-camera-node-1',
+      'camera-node-1-workshop-desk',
       'workshop-music-entry',
       'music-entry-center',
       'music-center-legacy',
       'legacy-entrance'
     ]);
     expect(route.edges.map((edge) => edge.direction)).toEqual(
-      Array.from({ length: 8 }, () => 'forward')
+      Array.from({ length: 9 }, () => 'forward')
     );
-    expect(createCameraMotion(route).positionEdgeSpans).toHaveLength(8);
+    expect(createCameraMotion(route).positionEdgeSpans).toHaveLength(9);
     const finalSample = sampleRoute(route, 1);
     expectTupleClose(
       finalSample.position,
@@ -960,7 +962,7 @@ describe('getGuidedCameraRoute', () => {
       toNodeId: 'poland-threshold'
     });
     expect(route.edges.slice(1).map((edge) => edge.direction)).toEqual(
-      Array.from({ length: 7 }, () => 'forward')
+      Array.from({ length: 8 }, () => 'forward')
     );
   });
 
@@ -969,8 +971,8 @@ describe('getGuidedCameraRoute', () => {
 
     expect(route.nodeIds[0]).toBe('paris-seat');
     expect(route.nodeIds.at(-1)).toBe('paris-seat');
-    expect(route.edges).toHaveLength(8);
-    expect(new Set(route.edges.map((edge) => edge.connectionId)).size).toBe(8);
+    expect(route.edges).toHaveLength(9);
+    expect(new Set(route.edges.map((edge) => edge.connectionId)).size).toBe(9);
   });
 
   it('rejects broken reciprocal links and missing direct guided edges', () => {

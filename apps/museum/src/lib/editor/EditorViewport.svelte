@@ -81,9 +81,13 @@
 		{/if}
 		<EditorTransformControls {store} bind:controls={transformControls} />
 	</Canvas>
-	{#if store.isVisitorCameraPreview && !store.isCameraPreviewPaused}
+	{#if store.isCameraPreviewPlaying}
 		<div class="preview-shield" role="status">
-			Visitor preview · Stop or press Escape to return
+			{#if store.isVisitorCameraPreview}
+				Visitor preview · Stop or press Escape to return
+			{:else}
+				Director playback · Stop or press Escape to return
+			{/if}
 		</div>
 	{/if}
 	{#if store.pendingPlacementAssetId}

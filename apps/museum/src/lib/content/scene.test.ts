@@ -9,15 +9,65 @@ import {
   type MuseumSceneDocument
 } from './scene';
 
+const PRE_CAMERA_NODE_ID = 'camera-node-1';
+const PRE_CAMERA_CONNECTION_IDS = new Set([
+  'paris-seat-camera-node-1',
+  'camera-node-1-workshop-desk'
+]);
+
+/**
+ * Phase 3.6 inserts `camera-node-1` as a seam between `paris-seat` and
+ * `workshop-desk`. To compare the canonical 9-node document against the
+ * frozen 8-cycle legacy fixture, this helper both filters the seam
+ * (node + two new connections) *and* structurally rewires the two
+ * surviving nav nodes whose `nextNodeId` / `previousNodeId` previously
+ * detoured through it, restoring the direct paris-seat ↔ workshop-desk
+ * ring that existed pre-Phase-3.6.
+ */
+const LEGACY_CYCLE_OVERRIDES: Record<
+  string,
+  { nextNodeId?: string; previousNodeId?: string }
+> = {
+  'paris-seat': { nextNodeId: 'workshop-desk' },
+  'workshop-desk': { previousNodeId: 'paris-seat' }
+};
+
+function reduceCanonicalToLegacyOrigin(resolved: ReturnType<typeof resolveSceneDocument>) {
+  return {
+    ...resolved,
+    navigationNodes: resolved.navigationNodes
+      .filter((node) => node.id !== PRE_CAMERA_NODE_ID)
+      .map((node) => ({
+        ...node,
+        connectedNodeIds: node.connectedNodeIds.filter(
+          (id) => id !== PRE_CAMERA_NODE_ID
+        ),
+        nextNodeId:
+          node.nextNodeId === PRE_CAMERA_NODE_ID
+            ? LEGACY_CYCLE_OVERRIDES[node.id]?.nextNodeId
+            : node.nextNodeId,
+        previousNodeId:
+          node.previousNodeId === PRE_CAMERA_NODE_ID
+            ? LEGACY_CYCLE_OVERRIDES[node.id]?.previousNodeId
+            : node.previousNodeId
+      })),
+    connections: resolved.connections.filter(
+      (connection) => !PRE_CAMERA_CONNECTION_IDS.has(connection.id)
+    )
+  };
+}
+
 function versionOneDocument(): unknown {
 	return {
 		...museumSceneDocument,
 		version: 1,
 		navigationNodes: museumSceneDocument.navigationNodes.map(({ fov: _fov, ...node }) => node),
-    connections: museumSceneDocument.connections.map(({ positionPath, ...connection }) => ({
-      ...connection,
-      positionWaypoints: positionPath.anchors.map(({ id: _id, ...waypoint }) => waypoint)
-    }))
+    connections: museumSceneDocument.connections.map(
+      ({ positionPath, viewTracks: _viewTracks, targetWaypoints: _targetWaypoints, ...connection }) => ({
+        ...connection,
+        positionWaypoints: positionPath.anchors.map(({ id: _id, ...waypoint }) => waypoint)
+      })
+    )
   };
 }
 
@@ -39,11 +89,13 @@ describe('resolveSceneDocument', () => {
     expect(() => resolveSceneDocument(invalid)).toThrow(/invalid_fallback/);
   });
 
-  it('matches the frozen pre-migration runtime exactly', () => {
-    const resolved = resolveSceneDocument(museumSceneDocument);
-    const legacyObjectShape = resolved.objects.map(({ roomId: _roomId, ...placement }) => placement);
-    const legacyNavigationNodeShape = resolved.navigationNodes.map(({ fov: _fov, ...node }) => node);
-    const legacyConnectionShape = resolved.connections.map(
+  it('matches the frozen pre-migration origin (camera-node-1 seam detached)', () => {
+    const preFiltered = reduceCanonicalToLegacyOrigin(
+      resolveSceneDocument(museumSceneDocument)
+    );
+    const legacyObjectShape = preFiltered.objects.map(({ roomId: _roomId, ...placement }) => placement);
+    const legacyNavigationNodeShape = preFiltered.navigationNodes.map(({ fov: _fov, ...node }) => node);
+    const legacyConnectionShape = preFiltered.connections.map(
       ({ positionPath, ...connection }) => ({
         ...connection,
         positionWaypoints: positionPath.anchors.map((anchor) => anchor.position)
@@ -61,14 +113,14 @@ describe('resolveSceneDocument', () => {
     const resolved = resolveSceneDocument(museumSceneDocument);
 
     expect(museumSceneDocument.objects).toHaveLength(21);
-    expect(museumSceneDocument.navigationNodes).toHaveLength(8);
-    expect(museumSceneDocument.connections).toHaveLength(8);
+    expect(museumSceneDocument.navigationNodes).toHaveLength(9);
+    expect(museumSceneDocument.connections).toHaveLength(10);
     expect(
       museumSceneDocument.connections.reduce(
         (count, connection) => count + connection.positionPath.anchors.length,
         0
       )
-    ).toBe(41);
+    ).toBe(45);
 
     for (const [index, node] of museumSceneDocument.navigationNodes.entries()) {
       expect(resolved.navigationNodes[index].position).toEqual(
@@ -131,11 +183,31 @@ describe('resolveSceneDocument', () => {
     expect(resolveSceneDocument(roundTripped)).toEqual(resolveSceneDocument(museumSceneDocument));
   });
 
-  it('resolves a valid version 1 document to the exact migrated runtime', () => {
+  it('resolves a valid version 1 document to the migrated runtime (modulo v3-only refinements)', () => {
     const legacy = versionOneDocument();
     const before = JSON.stringify(legacy);
 
-    expect(resolveSceneDocument(legacy)).toEqual(resolveSceneDocument(museumSceneDocument));
+    // v1 schema cannot carry viewTracks, targetWaypoints, positionPath.kind, or
+    // per-node fov, so v1 → v3 migration fills them with defaults. The fields
+    // the comparison *does* strictly assert (positions, anchors, generated
+    // endpoints, navigation adjacency, room-coord transforms) are the ones v1
+    // *does* carry. Custom fov / auto-bezier paths are verified in the
+    // dedicated graph and timeline tests downstream.
+    const expected = resolveSceneDocument(museumSceneDocument);
+    // Guardrail: resolver must hand back an independently-allocated runtime
+    // instance, so mutating `expected` here cannot bleed into other tests.
+    expect(expected).not.toBe(resolveSceneDocument(museumSceneDocument));
+
+    for (const connection of expected.connections) {
+      if ('viewTracks' in connection) delete connection.viewTracks;
+      if ('targetWaypoints' in connection) delete connection.targetWaypoints;
+      connection.positionPath.kind = 'rounded-polyline';
+    }
+    for (const node of expected.navigationNodes) {
+      node.fov = 54;
+    }
+
+    expect(resolveSceneDocument(legacy)).toEqual(expected);
     expect(JSON.stringify(legacy)).toBe(before);
   });
 

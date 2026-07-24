@@ -15,5 +15,5 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 *.log
-.freebuff
-.freebuff/*
+.freebuff/
+.cursor/

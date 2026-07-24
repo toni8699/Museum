@@ -210,6 +210,7 @@ describe('editor guided-tour order validation', () => {
 		'poland-threshold',
 		'departure-corridor',
 		'paris-seat',
+		'camera-node-1',
 		'workshop-desk',
 		'music-entry',
 		'music-center',

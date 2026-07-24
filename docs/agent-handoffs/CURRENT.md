@@ -1,11 +1,11 @@
 # Current Museum Agent Handoff
 
-- **Current completed slice:** Museum Editor Phase 3.5 — timeline drag-connect + one straight auto path.
-- **Latest handoff:** [`phase-3.5-timeline-drag-connect.md`](./phase-3.5-timeline-drag-connect.md)
-- **Previous slice handoff:** [`phase-3.4-guided-order.md`](./phase-3.4-guided-order.md)
+- **Current completed slice:** Museum Editor Phase 3.6 — finite frustum, aim/FOV handles, and paused Through-Camera editing.
+- **Latest handoff:** [`phase-3.6.md`](./phase-3.6.md)
+- **Previous slice handoffs:** [`phase-3.5-timeline-drag-connect.md`](./phase-3.5-timeline-drag-connect.md), [`phase-3.4-guided-order.md`](./phase-3.4-guided-order.md), [`phase-3.3-connect-delete.md`](./phase-3.3-connect-delete.md).
 - **Active release index:** [`../plans/museum-editor-workspace/README-museum-editor.md`](../plans/museum-editor-workspace/README-museum-editor.md)
-- **Next recommended slice:** Phase 3.6 — finite frustum, aim/FOV handles, and paused Through-Camera editing. Then 3.7 timing per [`phase-3-camera-graph-authoring.md`](../plans/museum-editor-workspace/phase-3-camera-graph-authoring.md).
-- **Branch / baseline:** `main` at `0538a5b`; Phase 3.5 is uncommitted.
+- **Next recommended slice:** Phase 3.7 — per-edge timing. Anchor plan in [`phase-3-camera-graph-authoring.md`](../plans/museum-editor-workspace/phase-3-camera-graph-authoring.md).
+- **Branch / baseline:** `main` at `bde77f1` ("3.6 part 1"); Phase 3.6 close-out edits are uncommitted.
 - **Do not commit** unless the user requests it.
 
 Historical pre–workspace-release handoffs and superseded plans live under [`../archive/`](../archive/README.md). The pre-overhaul current snapshot is [`../archive/agent-handoffs/CURRENT-pre-editor-ui.md`](../archive/agent-handoffs/CURRENT-pre-editor-ui.md).

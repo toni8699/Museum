@@ -965,7 +965,7 @@ describe('MuseumEditorStore Phase 6 camera nodes', () => {
 		expect(preview).toMatchObject({
 			kind: 'transition',
 			fromNodeId: 'paris-seat',
-			toNodeId: 'workshop-desk',
+			toNodeId: 'camera-node-1',
 			startedAtMs: null,
 			transport: 'playing'
 		});
@@ -1054,7 +1054,9 @@ describe('MuseumEditorStore Phase 6 camera nodes', () => {
 		expect(store.redo()).toBe(false);
 		expect(store.beginDocumentTransaction()).toBe(false);
 		expect(store.selectNavigationNode('workshop-desk')).toBe(false);
-		expect(store.selectCameraHandle('target')).toBe(false);
+		// Phase 3.6 unlocks framing handle edits while Through Camera is paused.
+		// The 'target' handle is only blocked while transport !== 'paused'.
+		expect(store.selectCameraHandle('target')).toBe(true);
 		expect(store.selectRoom('paris')).toBe(false);
 		expect(store.selectPlacement(placementId)).toBe(false);
 		expect(store.selectPlacements([placementId])).toBe(false);
@@ -1238,14 +1240,14 @@ describe('MuseumEditorStore Phase 6.5 camera paths', () => {
 			roomPoint('workshop', [1, 0, 2]),
 			[0, 0, -1]
 		);
-		expect(nodeId).toBe('camera-node-1');
+		expect(nodeId).toBe('camera-node-2');
 		expect(store.document.navigationNodes).toHaveLength(originalNodeCount);
 		expect(store.document.connections).toHaveLength(originalConnectionCount);
 		expect(store.canonicalJson).toBe(originalJson);
 		expect(store.canUndo).toBe(false);
 
 		const node = store.pendingNavigationNode!;
-		expect(node.label).toBe('Camera Node 1');
+		expect(node.label).toBe('Camera Node 2');
 		expect(node.roomId).toBe('workshop');
 		expect(node.position[0]).toBeCloseTo(1);
 		expect(node.position[1]).toBeCloseTo(1.65);
@@ -2586,8 +2588,8 @@ describe('MuseumEditorStore Phase 2.3 whole guided-tour playback', () => {
 		const timeline = store.getCameraTimeline()!;
 		expect(timeline.nodeBoundaries[0]!.nodeId).toBe('entrance-start');
 		expect(timeline.nodeBoundaries.at(-1)!.nodeId).toBe('entrance-start');
-		expect(timeline.edges).toHaveLength(8);
-		expect(new Set(timeline.edges.map((edge) => edge.connectionId)).size).toBe(8);
+		expect(timeline.edges).toHaveLength(9);
+		expect(new Set(timeline.edges.map((edge) => edge.connectionId)).size).toBe(9);
 
 		expect(store.markCameraPreviewStarted(runId, 100)).toBe(true);
 		expect(store.setCameraPreviewPlayhead(0.63, runId)).toBe(true);
@@ -2975,17 +2977,17 @@ describe('MuseumEditorStore Phase 2.4 camera-key progress drag', () => {
 	});
 });
 
-describe('MuseumEditorStore Phase 3.4 guided-order editing', () => {
-	const checkedInOrder = [
-		'entrance-start',
-		'poland-threshold',
-		'departure-corridor',
-		'paris-seat',
-		'workshop-desk',
-		'music-entry',
-		'music-center',
-		'legacy-return'
-	];
+describe('MuseumEditorStore Phase 3.4 guided-order editing', () => {		const checkedInOrder = [
+			'entrance-start',
+			'poland-threshold',
+			'departure-corridor',
+			'paris-seat',
+			'camera-node-1',
+			'workshop-desk',
+			'music-entry',
+			'music-center',
+			'legacy-return'
+		];
 
 	function addDocumentConnection(
 		document: MuseumSceneDocument,
@@ -3176,17 +3178,17 @@ describe('MuseumEditorStore Phase 3.4 guided-order editing', () => {
 	});
 });
 
-describe('MuseumEditorStore Phase 3.5 timeline drag-connect', () => {
-	const checkedInOrder = [
-		'entrance-start',
-		'poland-threshold',
-		'departure-corridor',
-		'paris-seat',
-		'workshop-desk',
-		'music-entry',
-		'music-center',
-		'legacy-return'
-	];
+describe('MuseumEditorStore Phase 3.5 timeline drag-connect', () => {		const checkedInOrder = [
+			'entrance-start',
+			'poland-threshold',
+			'departure-corridor',
+			'paris-seat',
+			'camera-node-1',
+			'workshop-desk',
+			'music-entry',
+			'music-center',
+			'legacy-return'
+		];
 
 	function addDocumentConnection(
 		document: MuseumSceneDocument,

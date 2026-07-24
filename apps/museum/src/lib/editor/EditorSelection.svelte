@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { useThrelte } from '@threlte/core';
 	import { useOrbitControls } from '@threlte/extras';
-	import { roomLocalPoint } from '$lib/content/rooms';
+	import { roomLocalPoint, roomPoint } from '$lib/content/rooms';
 	import type { Vec3 } from '$lib/types/museum';
 	import { Plane, Raycaster, Vector2, Vector3, type Intersection } from 'three';
 	import type { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
@@ -15,6 +15,16 @@
 		getScenePathAnchorWorldPosition
 	} from './editor-camera-path';
 	import {
+		createEditorCameraFramingBasis,
+		clampEditorCameraFrustumDepth,
+		EDITOR_CAMERA_FRAMING_FOV_EPSILON,
+		EDITOR_CAMERA_FRAMING_MOVE_EPSILON,
+		verticalFovFromEditorCameraFrustumPoint
+	} from './editor-camera-framing';
+	import {
+		findCameraFovHandleFromObject,
+		findCameraSelectionFromObject,
+		findCameraViewKeyframeHandleFromObject,
 		findPriorityCameraViewKeyframeHandle,
 		findNavigationSelectionFromObject,
 		resolveNormalSelection,
@@ -22,6 +32,10 @@
 		uniquePlacementIdsInOrder,
 		type EditorNavigationSelection
 	} from './editor-selection';
+	import {
+		getSceneCameraViewKeyframeWorldPosition,
+		getSceneCameraViewKeyframeWorldTarget
+	} from './editor-camera-view';
 	import { findPlaceableFloorIntersection } from './editor-placement';
 
 	let {
@@ -90,10 +104,36 @@
 		orbitWasEnabled: boolean | null;
 	};
 
+	type FramingOwner =
+		| { owner: 'node'; nodeId: string }
+		| {
+				owner: 'view-keyframe';
+				connectionId: string;
+				direction: 'forward' | 'reverse';
+				keyframeId: string;
+		  };
+
+	type FramingPointerSession = {
+		kind: 'framing';
+		interaction: 'target' | 'fov';
+		owner: FramingOwner;
+		pointerId: number;
+		startX: number;
+		startY: number;
+		dragging: boolean;
+		pending: boolean;
+		initialTarget: Vec3;
+		initialFov: number;
+		lastTarget: Vec3;
+		lastFov: number;
+		orbitWasEnabled: boolean | null;
+	};
+
 	let pointerSession:
 		| NormalPointerSession
 		| PathPointerSession
 		| ViewKeyframePointerSession
+		| FramingPointerSession
 		| null = null;
 	let externalKeyDragOrbitWasEnabled: boolean | null = null;
 
@@ -177,8 +217,241 @@
 		return true;
 	}
 
+	function restorePendingFraming(active: FramingPointerSession) {
+		if (!active.pending || active.owner.owner !== 'node') return;
+		const node = store.selectedNavigationNode;
+		if (!node || node.id !== active.owner.nodeId) return;
+		if (active.interaction === 'target') {
+			store.updateNavigationNodePoint(
+				node.id,
+				'target',
+				roomLocalPoint(node.roomId, active.initialTarget)
+			);
+		} else {
+			store.updateSelectedNodeFov(active.initialFov);
+		}
+	}
+
+	function cancelFramingDrag() {
+		const active = pointerSession;
+		if (!active || active.kind !== 'framing') return false;
+		pointerSession = null;
+		if (active.dragging) {
+			if (active.pending) restorePendingFraming(active);
+			else store.cancelDocumentTransaction();
+			store.setDirectFramingInteractionActive(false);
+		}
+		releaseCapture(active.pointerId);
+		restoreOrbit(active);
+		return true;
+	}
+
 	function cancelDirectDrag() {
-		return cancelViewKeyframeDrag() || cancelPathDrag();
+		return cancelFramingDrag() || cancelViewKeyframeDrag() || cancelPathDrag();
+	}
+
+	function activeFramingHandleHit(event: PointerEvent) {
+		if (
+			event.altKey ||
+			store.currentWorkspace !== 'camera' ||
+			store.isCameraFramingMutationBlocked ||
+			store.isEditorInteractionActive ||
+			store.pendingPlacementAssetId ||
+			(store.pendingNavigationCommand &&
+				store.pendingNavigationCommand.kind !== 'connect-pending-node')
+		) {
+			return null;
+		}
+		const objects = raycast(event).map((hit) => hit.object);
+		for (const object of objects) {
+			const camera = findCameraSelectionFromObject(object);
+			if (camera?.handle === 'target') {
+				return {
+					interaction: 'target' as const,
+					owner: { owner: 'node' as const, nodeId: camera.nodeId }
+				};
+			}
+			const keyframe = findCameraViewKeyframeHandleFromObject(object);
+			if (keyframe?.viewHandle === 'target') {
+				return {
+					interaction: 'target' as const,
+					owner: {
+						owner: 'view-keyframe' as const,
+						connectionId: keyframe.connectionId,
+						direction: keyframe.direction,
+						keyframeId: keyframe.keyframeId
+					}
+				};
+			}
+		}
+		for (const object of objects) {
+			const fov = findCameraFovHandleFromObject(object);
+			if (!fov) continue;
+			return {
+				interaction: 'fov' as const,
+				owner:
+					fov.owner === 'node'
+						? { owner: 'node' as const, nodeId: fov.nodeId }
+						: {
+								owner: 'view-keyframe' as const,
+								connectionId: fov.connectionId,
+								direction: fov.direction,
+								keyframeId: fov.keyframeId
+						  }
+			};
+		}
+		return null;
+	}
+
+	function framingPose(owner: FramingOwner) {
+		if (owner.owner === 'node') {
+			const node = store.selectedNavigationNode;
+			if (!node || node.id !== owner.nodeId) return null;
+			return {
+				position: roomPoint(node.roomId, node.position),
+				target: roomPoint(node.roomId, node.cameraTarget),
+				fov: node.fov,
+				pending: store.isPendingNavigationNode(node.id)
+			};
+		}
+		const selection = store.navigationSelection;
+		const keyframe = store.selectedViewKeyframe;
+		if (
+			selection?.kind !== 'view-keyframe' ||
+			selection.connectionId !== owner.connectionId ||
+			selection.direction !== owner.direction ||
+			selection.keyframeId !== owner.keyframeId ||
+			!keyframe
+		) {
+			return null;
+		}
+		return {
+			position: getSceneCameraViewKeyframeWorldPosition(
+				store.document,
+				owner.connectionId,
+				owner.direction,
+				keyframe.progress
+			),
+			target: getSceneCameraViewKeyframeWorldTarget(keyframe),
+			fov: keyframe.fov,
+			pending: false
+		};
+	}
+
+	function beginFramingPointer(
+		event: PointerEvent,
+		hit: NonNullable<ReturnType<typeof activeFramingHandleHit>>
+	) {
+		if (hit.owner.owner === 'node') {
+			if (store.cameraSelection?.nodeId !== hit.owner.nodeId) return false;
+			if (hit.interaction === 'target') store.selectCameraHandle('target');
+		}
+		const pose = framingPose(hit.owner);
+		if (!pose) return false;
+		const currentCamera = camera.current;
+		if (!currentCamera) return false;
+		if (hit.interaction === 'target') {
+			currentCamera.getWorldDirection(viewDragPlaneNormal).normalize();
+			viewDragPlane.setFromNormalAndCoplanarPoint(
+				viewDragPlaneNormal,
+				new Vector3(...pose.target)
+			);
+		} else {
+			const basis = createEditorCameraFramingBasis(
+				new Vector3(...pose.position),
+				new Vector3(...pose.target)
+			);
+			const depth = clampEditorCameraFrustumDepth(
+				new Vector3(...pose.position).distanceTo(new Vector3(...pose.target))
+			);
+			const center = basis.eye.clone().addScaledVector(basis.forward, depth);
+			viewDragPlane.setFromNormalAndCoplanarPoint(basis.forward, center);
+		}
+		const orbitWasEnabled = editorOrbitControls.current?.enabled ?? null;
+		if (editorOrbitControls.current) editorOrbitControls.current.enabled = false;
+		pointerSession = {
+			kind: 'framing',
+			interaction: hit.interaction,
+			owner: hit.owner,
+			pointerId: event.pointerId,
+			startX: event.clientX,
+			startY: event.clientY,
+			dragging: false,
+			pending: pose.pending,
+			initialTarget: [...pose.target],
+			initialFov: pose.fov,
+			lastTarget: [...pose.target],
+			lastFov: pose.fov,
+			orbitWasEnabled
+		};
+		canvas.setPointerCapture(event.pointerId);
+		event.preventDefault();
+		event.stopImmediatePropagation();
+		return true;
+	}
+
+	function beginDirectFramingDrag(active: FramingPointerSession) {
+		if (!active.pending && !store.beginCameraFramingTransaction()) return false;
+		active.dragging = true;
+		store.setDirectFramingInteractionActive(true);
+		return true;
+	}
+
+	function dragFramingToPointer(event: PointerEvent, active: FramingPointerSession) {
+		const currentCamera = camera.current;
+		const pose = framingPose(active.owner);
+		if (!currentCamera || !pose) return;
+		toNdc(event);
+		raycaster.setFromCamera(pointerNdc, currentCamera);
+		if (!raycaster.ray.intersectPlane(viewDragPlane, dragIntersection)) return;
+		if (active.interaction === 'target') {
+			const worldTarget = dragIntersection.toArray() as Vec3;
+			const changed =
+				active.owner.owner === 'node'
+					? store.updateNavigationNodePoint(
+							active.owner.nodeId,
+							'target',
+							roomLocalPoint(
+								store.selectedNavigationNode!.roomId,
+								worldTarget
+							)
+					  )
+					: store.updateSelectedViewKeyframeTargetWorldPoint(worldTarget);
+			if (changed) active.lastTarget = [...worldTarget];
+			return;
+		}
+		const fov = verticalFovFromEditorCameraFrustumPoint(
+			new Vector3(...pose.position),
+			new Vector3(...pose.target),
+			dragIntersection
+		);
+		const changed =
+			active.owner.owner === 'node'
+				? store.updateSelectedNodeFov(fov)
+				: store.updateSelectedViewKeyframeFov(fov);
+		if (changed) active.lastFov = fov;
+	}
+
+	function finishFramingPointer(active: FramingPointerSession) {
+		pointerSession = null;
+		if (active.dragging) {
+			const changed =
+				active.interaction === 'target'
+					? Math.hypot(
+							active.lastTarget[0] - active.initialTarget[0],
+							active.lastTarget[1] - active.initialTarget[1],
+							active.lastTarget[2] - active.initialTarget[2]
+					  ) > EDITOR_CAMERA_FRAMING_MOVE_EPSILON
+					: Math.abs(active.lastFov - active.initialFov) >
+						EDITOR_CAMERA_FRAMING_FOV_EPSILON;
+			store.setDirectFramingInteractionActive(false);
+			if (!active.pending) {
+				if (changed) store.commitDocumentTransaction();
+				else store.cancelDocumentTransaction();
+			}
+		}
+		releaseCapture(active.pointerId);
+		restoreOrbit(active);
 	}
 
 	function activeViewKeyframeHit(event: PointerEvent) {
@@ -293,7 +566,8 @@
 	function updateHover(event: PointerEvent) {
 		if (
 			pointerSession?.kind === 'path' ||
-			pointerSession?.kind === 'view-keyframe'
+			pointerSession?.kind === 'view-keyframe' ||
+			pointerSession?.kind === 'framing'
 		) return;
 		const result = activePathHit(event);
 		if (!result) {
@@ -498,15 +772,23 @@
 	}
 
 	function onPointerDown(event: PointerEvent) {
-		if (store.isDocumentMutationBlocked || event.button !== 0) return;
+		if (event.button !== 0) return;
 		if (transformControls?.axis || transformControls?.dragging) return;
 		if (pointerSession) {
-			if (pointerSession.kind === 'path' || pointerSession.kind === 'view-keyframe') {
+			if (
+				pointerSession.kind === 'path' ||
+				pointerSession.kind === 'view-keyframe' ||
+				pointerSession.kind === 'framing'
+			) {
 				cancelDirectDrag();
 			}
 			else clearPointerSession();
 			return;
 		}
+
+		const framingHit = activeFramingHandleHit(event);
+		if (framingHit && beginFramingPointer(event, framingHit)) return;
+		if (store.isDocumentMutationBlocked) return;
 
 		const viewKeyframeHit = activeViewKeyframeHit(event);
 		if (
@@ -553,6 +835,18 @@
 
 		event.preventDefault();
 		event.stopImmediatePropagation();
+		if (active.kind === 'framing') {
+			if (
+				!active.dragging &&
+				crossedThreshold &&
+				!beginDirectFramingDrag(active)
+			) {
+				cancelFramingDrag();
+				return;
+			}
+			if (active.dragging) dragFramingToPointer(event, active);
+			return;
+		}
 		if (active.kind === 'view-keyframe') {
 			if (crossedThreshold) active.dragging = true;
 			if (active.dragging) dragViewKeyframeToPointer(event);
@@ -569,6 +863,12 @@
 		if (event.button !== 0) return;
 		const active = pointerSession;
 		if (!active || event.pointerId !== active.pointerId) return;
+		if (active.kind === 'framing') {
+			event.preventDefault();
+			event.stopImmediatePropagation();
+			finishFramingPointer(active);
+			return;
+		}
 		if (active.kind === 'path') {
 			event.preventDefault();
 			event.stopImmediatePropagation();
@@ -598,7 +898,11 @@
 
 	function onPointerCancel(event: PointerEvent) {
 		if (pointerSession?.pointerId !== event.pointerId) return;
-		if (pointerSession.kind === 'path' || pointerSession.kind === 'view-keyframe') {
+		if (
+			pointerSession.kind === 'path' ||
+			pointerSession.kind === 'view-keyframe' ||
+			pointerSession.kind === 'framing'
+		) {
 			cancelDirectDrag();
 		}
 		else clearPointerSession();
@@ -606,7 +910,11 @@
 
 	function onLostPointerCapture(event: PointerEvent) {
 		if (pointerSession?.pointerId !== event.pointerId) return;
-		if (pointerSession.kind === 'path' || pointerSession.kind === 'view-keyframe') {
+		if (
+			pointerSession.kind === 'path' ||
+			pointerSession.kind === 'view-keyframe' ||
+			pointerSession.kind === 'framing'
+		) {
 			cancelDirectDrag();
 		}
 		else {
@@ -625,7 +933,8 @@
 	function onWindowBlur() {
 		if (
 			pointerSession?.kind === 'path' ||
-			pointerSession?.kind === 'view-keyframe'
+			pointerSession?.kind === 'view-keyframe' ||
+			pointerSession?.kind === 'framing'
 		) cancelDirectDrag();
 		else if (pointerSession?.kind === 'normal' && pointerSession.orbitWasEnabled !== null) {
 			clearPointerSession();
@@ -676,7 +985,8 @@
 		return () => {
 			if (
 				pointerSession?.kind === 'path' ||
-				pointerSession?.kind === 'view-keyframe'
+				pointerSession?.kind === 'view-keyframe' ||
+				pointerSession?.kind === 'framing'
 			) cancelDirectDrag();
 			else clearPointerSession();
 			if (

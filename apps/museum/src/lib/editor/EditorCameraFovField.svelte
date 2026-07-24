@@ -74,7 +74,7 @@
 				type="number"
 				min={MUSEUM_CAMERA_FOV.min}
 				max={MUSEUM_CAMERA_FOV.max}
-				step="1"
+				step="0.1"
 				value={draft}
 				onfocus={() => (editing = true)}
 				oninput={updateDraft}
@@ -88,7 +88,7 @@
 			aria-label="Vertical FOV range"
 			min={MUSEUM_CAMERA_FOV.min}
 			max={MUSEUM_CAMERA_FOV.max}
-			step="1"
+			step="0.1"
 			value={draft || value}
 			oninput={updateDraft}
 			onchange={commit}

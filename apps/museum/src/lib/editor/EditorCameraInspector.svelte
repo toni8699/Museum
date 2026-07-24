@@ -110,7 +110,9 @@
 					type="button"
 					class:active={selection.handle === handle}
 					aria-pressed={selection.handle === handle}
-					disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
+					disabled={(handle === 'target'
+						? store.isCameraFramingMutationBlocked
+						: store.isDocumentMutationBlocked) || store.isEditorInteractionActive}
 					onclick={() => selectHandle(handle as EditorCameraHandle)}
 				>
 					{handle === 'position' ? 'Position' : 'Target'}
@@ -123,14 +125,16 @@
 				legend={`${selection.handle === 'position' ? 'Position' : 'Target'} (m)`}
 				value={point}
 				step={0.01}
-				disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
+				disabled={(selection.handle === 'target'
+					? store.isCameraFramingMutationBlocked
+					: store.isDocumentMutationBlocked) || store.isEditorInteractionActive}
 				oncommit={commitNodePoint}
 			/>
 		{/key}
 
 		<EditorCameraFovField
 			value={node.fov}
-			disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
+			disabled={store.isCameraFramingMutationBlocked || store.isEditorInteractionActive}
 			oncommit={(fov) => store.commitSelectedNodeFov(fov)}
 		/>
 
@@ -242,13 +246,13 @@
 				legend="Look target (m)"
 				value={viewKeyframe.cameraTarget}
 				step={0.01}
-				disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
+				disabled={store.isCameraFramingMutationBlocked || store.isEditorInteractionActive}
 				oncommit={commitViewTarget}
 			/>
 		{/key}
 		<EditorCameraFovField
 			value={viewKeyframe.fov}
-			disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
+			disabled={store.isCameraFramingMutationBlocked || store.isEditorInteractionActive}
 			oncommit={(fov) => store.commitSelectedViewKeyframeFov(fov)}
 		/>
 		<button

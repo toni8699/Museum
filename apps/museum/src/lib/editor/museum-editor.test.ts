@@ -3377,3 +3377,86 @@ describe('MuseumEditorStore Phase 3.5 timeline drag-connect', () => {
 		expect(store.canUndo).toBe(false);
 	});
 });
+
+describe('MuseumEditorStore Phase 3.6 framing controls', () => {
+	it('commits node framing while Through Camera is paused and blocks it while playing', () => {
+		const store = createMuseumEditorStore();
+		store.setWorkspace('camera');
+		expect(store.selectNavigationNode('paris-seat')).toBe(true);
+		expect(store.setCameraPreviewMode('visitor')).toBe(true);
+		expect(store.cameraPreview).toMatchObject({
+			kind: 'node',
+			mode: 'visitor',
+			transport: 'paused'
+		});
+		expect(store.isDocumentMutationBlocked).toBe(true);
+		expect(store.isCameraFramingMutationBlocked).toBe(false);
+		const initialFov = store.selectedNavigationNode!.fov;
+		expect(store.commitSelectedNodeFov(initialFov - 0.1)).toBe(true);
+		expect(store.selectedNavigationNode!.fov).toBeCloseTo(initialFov - 0.1);
+		expect(store.stopCameraPreview()).toBe(true);
+		expect(store.undo()).toBe(true);
+		expect(store.selectedNavigationNode!.fov).toBe(initialFov);
+
+		expect(store.previewSelectedTransition('visitor')).toBe(true);
+		expect(store.isCameraPreviewPlaying).toBe(true);
+		expect(store.isCameraFramingMutationBlocked).toBe(true);
+		expect(store.commitSelectedNodeFov(initialFov - 1)).toBe(false);
+	});
+
+	it('keeps one live target/FOV drag in one undo entry during paused Through Camera', () => {
+		const document = cloneMuseumSceneDocument(museumSceneDocument);
+		const connection = document.connections[0]!;
+		connection.viewTracks = {
+			forward: [
+				{
+					id: `${connection.id}-view-forward-01`,
+					progress: 0.4,
+					cameraTarget: [2, 1.5, 3],
+					fov: 48
+				}
+			],
+			reverse: []
+		};
+		const store = createMuseumEditorStore();
+		expect(store.importDocument(document)).toBe(true);
+		store.setWorkspace('camera');
+		const keyframeId = connection.viewTracks.forward[0]!.id;
+		expect(
+			store.selectCameraTimelineViewKeyframe(
+				connection.id,
+				'forward',
+				keyframeId
+			)
+		).toBe(true);
+		expect(store.setCameraPreviewMode('visitor')).toBe(true);
+		expect(store.isCameraKeyHelpersActive).toBe(true);
+		const initialTarget = [...store.selectedViewKeyframe!.cameraTarget] as [
+			number,
+			number,
+			number
+		];
+		const initialFov = store.selectedViewKeyframe!.fov;
+
+		expect(store.beginCameraFramingTransaction()).toBe(true);
+		store.setDirectFramingInteractionActive(true);
+		expect(
+			store.updateSelectedViewKeyframeTargetWorldPoint([3, 2, 4])
+		).toBe(true);
+		expect(store.updateSelectedViewKeyframeFov(52.4)).toBe(true);
+		store.setDirectFramingInteractionActive(false);
+		expect(store.commitDocumentTransaction()).toBe(true);
+		expect(store.selectedViewKeyframe).toMatchObject({
+			id: keyframeId,
+			cameraTarget: [3, 2, 4],
+			fov: 52.4
+		});
+		expect(store.stopCameraPreview()).toBe(true);
+		expect(store.undo()).toBe(true);
+		expect(store.selectedViewKeyframe).toMatchObject({
+			id: keyframeId,
+			cameraTarget: initialTarget,
+			fov: initialFov
+		});
+	});
+});

@@ -416,6 +416,7 @@ export class MuseumEditorStore {
 		'placement' | 'camera' | 'anchor' | 'view-target' | null
 	>(null);
 	directPathInteractionActive = $state(false);
+	directFramingInteractionActive = $state(false);
 	/** Phase 2.4 progress drag. The original progress stays private with the transaction. */
 	viewKeyframeProgressDrag = $state<EditorViewKeyframeProgressDragSelection | null>(
 		null
@@ -446,6 +447,7 @@ export class MuseumEditorStore {
 	#past: MuseumSceneDocument[] = [];
 	#future: MuseumSceneDocument[] = [];
 	#transactionBefore: MuseumSceneDocument | null = null;
+	#cameraFramingTransaction = false;
 	historyVersion = $state(0);
 
 	/** Session-only; never written to museum-scene.json. */
@@ -605,7 +607,7 @@ export class MuseumEditorStore {
 	get isCameraKeyHelpersActive() {
 		if (!this.activeCameraConnectionId) return false;
 		if (
-			this.isVisitorCameraPreview ||
+			this.isCameraPreviewPlaying ||
 			this.pendingPlacementAssetId ||
 			this.pendingNavigationCommand
 		) {
@@ -641,8 +643,7 @@ export class MuseumEditorStore {
 	}
 
 	get isCameraPreviewPaused() {
-		return this.cameraPreview?.mode === 'director' &&
-			this.cameraPreview.transport === 'paused';
+		return this.cameraPreview?.transport === 'paused';
 	}
 
 	get canAddViewKeyframeAtPlayhead() {
@@ -694,10 +695,17 @@ export class MuseumEditorStore {
 		);
 	}
 
+	/** Framing is editable through either camera while paused, but never during playback. */
+	get isCameraFramingMutationBlocked() {
+		const preview = this.cameraPreview;
+		return Boolean(preview && preview.transport !== 'paused');
+	}
+
 	get isEditorInteractionActive() {
 		return (
 			this.transformInteractionActive ||
 			this.directPathInteractionActive ||
+			this.directFramingInteractionActive ||
 			this.viewKeyframeProgressDrag !== null
 		);
 	}
@@ -838,7 +846,9 @@ export class MuseumEditorStore {
 
 	selectCameraHandle(handle: EditorCameraHandle) {
 		if (
-			this.isDocumentMutationBlocked ||
+			(handle === 'target'
+				? this.isCameraFramingMutationBlocked
+				: this.isDocumentMutationBlocked) ||
 			this.isEditorInteractionActive ||
 			(this.pendingNavigationCommand && !this.pendingNavigationNode)
 		) return false;
@@ -1437,7 +1447,11 @@ export class MuseumEditorStore {
 		handle: EditorCameraHandle,
 		point: Vec3
 	) {
-		if (this.isDocumentMutationBlocked || !isFiniteVec3(point)) {
+		const mutationBlocked =
+			handle === 'target'
+				? this.isCameraFramingMutationBlocked
+				: this.isDocumentMutationBlocked;
+		if (mutationBlocked || !isFiniteVec3(point)) {
 			return false;
 		}
 		const selection = this.cameraSelection;
@@ -1460,11 +1474,21 @@ export class MuseumEditorStore {
 		handle: EditorCameraHandle,
 		point: Vec3
 	) {
-		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
+		const mutationBlocked =
+			handle === 'target'
+				? this.isCameraFramingMutationBlocked
+				: this.isDocumentMutationBlocked;
+		if (mutationBlocked || this.isEditorInteractionActive) return false;
 		if (this.isPendingNavigationNode(nodeId)) {
 			return this.updateNavigationNodePoint(nodeId, handle, point);
 		}
-		if (!this.beginDocumentTransaction()) return false;
+		if (
+			!(handle === 'target'
+				? this.beginCameraFramingTransaction()
+				: this.beginDocumentTransaction())
+		) {
+			return false;
+		}
 		if (!this.updateNavigationNodePoint(nodeId, handle, point)) {
 			this.cancelDocumentTransaction();
 			return false;
@@ -1586,7 +1610,7 @@ export class MuseumEditorStore {
 
 	commitSelectedNodeFov(fov: number) {
 		if (
-			this.isDocumentMutationBlocked ||
+			this.isCameraFramingMutationBlocked ||
 			this.isEditorInteractionActive ||
 			!Number.isFinite(fov) ||
 			fov < MUSEUM_CAMERA_FOV.min ||
@@ -1600,9 +1624,27 @@ export class MuseumEditorStore {
 			node.fov = fov;
 			return true;
 		}
-		if (!this.beginDocumentTransaction()) return false;
+		if (!this.beginCameraFramingTransaction()) return false;
 		node.fov = fov;
 		return this.commitDocumentTransaction();
+	}
+
+	updateSelectedNodeFov(fov: number) {
+		if (
+			this.isCameraFramingMutationBlocked ||
+			!Number.isFinite(fov) ||
+			fov < MUSEUM_CAMERA_FOV.min ||
+			fov > MUSEUM_CAMERA_FOV.max
+		) {
+			return false;
+		}
+		const node = this.selectedNavigationNode;
+		if (!node || (!this.isPendingNavigationNode(node.id) && !this.#cameraFramingTransaction)) {
+			return false;
+		}
+		if (Math.abs(node.fov - fov) <= 1e-6) return false;
+		node.fov = fov;
+		return true;
 	}
 
 	#getViewKeyframeAuthoringSample(
@@ -1727,7 +1769,7 @@ export class MuseumEditorStore {
 
 	commitSelectedViewKeyframeTarget(target: Vec3) {
 		if (
-			this.isDocumentMutationBlocked ||
+			this.isCameraFramingMutationBlocked ||
 			this.isEditorInteractionActive ||
 			!isFiniteVec3(target)
 		) {
@@ -1741,14 +1783,14 @@ export class MuseumEditorStore {
 		) {
 			return false;
 		}
-		if (!this.beginDocumentTransaction()) return false;
+		if (!this.beginCameraFramingTransaction()) return false;
 		keyframe.cameraTarget = [...target];
 		return this.commitDocumentTransaction();
 	}
 
 	commitSelectedViewKeyframeFov(fov: number) {
 		if (
-			this.isDocumentMutationBlocked ||
+			this.isCameraFramingMutationBlocked ||
 			this.isEditorInteractionActive ||
 			!Number.isFinite(fov) ||
 			fov < MUSEUM_CAMERA_FOV.min ||
@@ -1758,9 +1800,25 @@ export class MuseumEditorStore {
 		}
 		const keyframe = this.selectedViewKeyframe;
 		if (!keyframe || Math.abs(keyframe.fov - fov) <= 1e-6) return false;
-		if (!this.beginDocumentTransaction()) return false;
+		if (!this.beginCameraFramingTransaction()) return false;
 		keyframe.fov = fov;
 		return this.commitDocumentTransaction();
+	}
+
+	updateSelectedViewKeyframeFov(fov: number) {
+		if (
+			this.isCameraFramingMutationBlocked ||
+			!this.#cameraFramingTransaction ||
+			!Number.isFinite(fov) ||
+			fov < MUSEUM_CAMERA_FOV.min ||
+			fov > MUSEUM_CAMERA_FOV.max
+		) {
+			return false;
+		}
+		const keyframe = this.selectedViewKeyframe;
+		if (!keyframe || Math.abs(keyframe.fov - fov) <= 1e-6) return false;
+		keyframe.fov = fov;
+		return true;
 	}
 
 	commitSelectedViewKeyframeProgress(progress: number) {
@@ -2813,6 +2871,10 @@ export class MuseumEditorStore {
 
 	setDirectPathInteractionActive(active: boolean) {
 		this.directPathInteractionActive = active;
+	}
+
+	setDirectFramingInteractionActive(active: boolean) {
+		this.directFramingInteractionActive = active;
 	}
 
 	setNavigationHover(connectionId: string | null, anchorId: string | null = null) {
@@ -3906,6 +3968,14 @@ export class MuseumEditorStore {
 	beginDocumentTransaction() {
 		if (this.isDocumentMutationBlocked || this.#transactionBefore) return false;
 		this.#transactionBefore = cloneMuseumSceneDocument(this.document);
+		this.#cameraFramingTransaction = false;
+		return true;
+	}
+
+	beginCameraFramingTransaction() {
+		if (this.isCameraFramingMutationBlocked || this.#transactionBefore) return false;
+		this.#transactionBefore = cloneMuseumSceneDocument(this.document);
+		this.#cameraFramingTransaction = true;
 		return true;
 	}
 
@@ -3927,12 +3997,18 @@ export class MuseumEditorStore {
 	}
 
 	commitDocumentTransaction() {
-		if (this.isDocumentMutationBlocked) return false;
+		if (
+			this.isDocumentMutationBlocked &&
+			!this.#cameraFramingTransaction
+		) {
+			return false;
+		}
 		const before = this.#transactionBefore;
 		if (!before) return false;
 
 		if (documentsMatch(before, this.document)) {
 			this.#transactionBefore = null;
+			this.#cameraFramingTransaction = false;
 			return false;
 		}
 
@@ -3941,6 +4017,7 @@ export class MuseumEditorStore {
 			nextScene = resolveSceneDocument(this.document);
 		} catch (error) {
 			this.#transactionBefore = null;
+			this.#cameraFramingTransaction = false;
 			this.#replaceDocument(before);
 			this.setStatusMessage(
 				error instanceof Error ? error.message : 'Scene document validation failed'
@@ -3949,6 +4026,7 @@ export class MuseumEditorStore {
 		}
 
 		this.#transactionBefore = null;
+		this.#cameraFramingTransaction = false;
 		this.#past.push(before);
 		if (this.#past.length > HISTORY_LIMIT) this.#past.shift();
 		this.#future = [];
@@ -3962,6 +4040,7 @@ export class MuseumEditorStore {
 		const before = this.#transactionBefore;
 		if (!before) return false;
 		this.#transactionBefore = null;
+		this.#cameraFramingTransaction = false;
 		this.#replaceDocument(before);
 		return true;
 	}

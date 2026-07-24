@@ -3,6 +3,7 @@
 	import MuseumScene from '$lib/museum/MuseumScene.svelte';
 	import type { EditorPlacementRegistry } from '$lib/museum/placement-registry';
 	import EditorCameraHelpers from './EditorCameraHelpers.svelte';
+	import EditorCameraFramingHelpers from './EditorCameraFramingHelpers.svelte';
 	import EditorGrid from './EditorGrid.svelte';
 	import EditorCameraPathHelpers from './EditorCameraPathHelpers.svelte';
 	import EditorCameraViewHelpers from './EditorCameraViewHelpers.svelte';
@@ -57,6 +58,7 @@
 		<EditorGrid visible={store.gridVisible && !store.isVisitorCameraPreview} />
 		<EditorCameraPathHelpers {store} />
 		<EditorCameraViewHelpers {store} />
+		<EditorCameraFramingHelpers {store} />
 		{#if (store.pendingNavigationCommand?.kind === 'connect-existing' || store.pendingNavigationCommand?.kind === 'connect-pending-node') && !store.isDocumentMutationBlocked}
 			{#each store.document.navigationNodes as node (node.id)}
 				<EditorCameraHelpers {store} nodeId={node.id} positionOnly />
@@ -64,7 +66,7 @@
 			{#if store.pendingNavigationCommand?.kind === 'connect-pending-node'}
 				<EditorCameraHelpers {store} nodeId={store.pendingNavigationCommand.node.id} />
 			{/if}
-		{:else if store.cameraSelection && !store.pendingPlacementAssetId && !store.isDocumentMutationBlocked}
+		{:else if store.cameraSelection && !store.pendingPlacementAssetId && !store.isCameraFramingMutationBlocked}
 			{#key store.cameraSelection.nodeId}
 				<EditorCameraHelpers {store} nodeId={store.cameraSelection.nodeId} />
 			{/key}
@@ -79,7 +81,7 @@
 		{/if}
 		<EditorTransformControls {store} bind:controls={transformControls} />
 	</Canvas>
-	{#if store.isVisitorCameraPreview}
+	{#if store.isVisitorCameraPreview && !store.isCameraPreviewPaused}
 		<div class="preview-shield" role="status">
 			Visitor preview · Stop or press Escape to return
 		</div>

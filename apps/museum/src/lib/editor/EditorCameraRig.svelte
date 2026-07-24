@@ -2,7 +2,7 @@
 	import { onDestroy } from 'svelte';
 	import { getNode } from '$lib/content/scene';
 	import type { NavigationGraph } from '$lib/content/scene';
-	import { getRoom } from '$lib/content/rooms';
+	import { getRoom, roomPoint } from '$lib/content/rooms';
 	import {
 		CAMERA_FOV_UPDATE_EPSILON,
 		VISITOR_CAMERA_PROJECTION,
@@ -43,6 +43,10 @@
 		type EditorOrbitPose
 	} from './editor-camera';
 	import { sampleEditorCameraTimeline } from './editor-camera-timeline';
+	import {
+		getSceneCameraViewKeyframeWorldPosition,
+		getSceneCameraViewKeyframeWorldTarget
+	} from './editor-camera-view';
 	import type {
 		EditorCameraPreview,
 		EditorCameraPreviewMode,
@@ -110,6 +114,52 @@
 		if (!activeMotion) return false;
 		sampleCameraMotion(activeMotion, playhead, previewSample);
 		return true;
+	}
+
+	function applyPausedFramingOverride(preview: ActiveCameraPreview) {
+		if (preview.transport !== 'paused') return;
+		const selection = store.navigationSelection;
+		if (
+			selection?.kind === 'node' &&
+			preview.kind === 'node' &&
+			preview.nodeId === selection.nodeId
+		) {
+			const node = store.selectedNavigationNode;
+			if (!node) return;
+			previewPosition.set(...roomPoint(node.roomId, node.position));
+			previewTarget.set(...roomPoint(node.roomId, node.cameraTarget));
+			previewSample.fov = node.fov;
+			return;
+		}
+		if (
+			selection?.kind === 'view-keyframe' &&
+			preview.kind === 'connection' &&
+			preview.connectionId === selection.connectionId &&
+			preview.direction === selection.direction
+		) {
+			const keyframe = store.selectedViewKeyframe;
+			if (!keyframe || keyframe.id !== selection.keyframeId) return;
+			previewPosition.set(
+				...getSceneCameraViewKeyframeWorldPosition(
+					store.document,
+					selection.connectionId,
+					selection.direction,
+					keyframe.progress
+				)
+			);
+			previewTarget.set(...getSceneCameraViewKeyframeWorldTarget(keyframe));
+			previewSample.fov = keyframe.fov;
+		}
+	}
+
+	function showLegacyDirectorHelper(preview: ActiveCameraPreview) {
+		const selection = store.navigationSelection;
+		const selectedFraming =
+			selection?.kind === 'node' || selection?.kind === 'view-keyframe';
+		return (
+			preview.mode === 'director' &&
+			(preview.transport === 'playing' || !selectedFraming)
+		);
 	}
 
 	function applyPreviewPose(currentCamera: PerspectiveCamera) {
@@ -278,8 +328,9 @@
 				}
 			}
 			activePreviewMode = preview.mode;
-			if (virtualCameraHelper) virtualCameraHelper.visible = preview.mode === 'director';
-			if (virtualCameraBody) virtualCameraBody.visible = preview.mode === 'director';
+			const showLegacyHelper = showLegacyDirectorHelper(preview);
+			if (virtualCameraHelper) virtualCameraHelper.visible = showLegacyHelper;
+			if (virtualCameraBody) virtualCameraBody.visible = showLegacyHelper;
 
 			if (activePreviewRunId === preview.runId) return;
 			activePreviewRunId = preview.runId;
@@ -300,6 +351,7 @@
 				activeMotion = createCameraMotion(route);
 				samplePreviewMotion(preview, preview.playhead);
 			}
+			applyPausedFramingOverride(preview);
 			applyVirtualPose();
 			if (preview.mode === 'visitor') applyPreviewPose(currentCamera);
 			else syncDirectorObserver(currentCamera, controls);
@@ -422,6 +474,10 @@
 				}
 				samplePreviewMotion(preview, progress);
 			}
+			applyPausedFramingOverride(preview);
+			const showLegacyHelper = showLegacyDirectorHelper(preview);
+			if (virtualCameraHelper) virtualCameraHelper.visible = showLegacyHelper;
+			if (virtualCameraBody) virtualCameraBody.visible = showLegacyHelper;
 			applyVirtualPose();
 			if (preview.mode === 'visitor') applyPreviewPose(currentCamera);
 			else syncDirectorObserver(currentCamera, controls);

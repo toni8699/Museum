@@ -68,6 +68,36 @@ export type EditorCameraViewKeyframeHandle = {
 	viewHandle: 'position' | 'target';
 };
 
+export type EditorCameraFovHandleUserData =
+	| {
+			editorEntity: 'camera-fov-handle';
+			owner: 'node';
+			nodeId: string;
+			side: 'top' | 'bottom';
+	  }
+	| {
+			editorEntity: 'camera-fov-handle';
+			owner: 'view-keyframe';
+			connectionId: string;
+			direction: CameraConnectionDirection;
+			keyframeId: string;
+			side: 'top' | 'bottom';
+	  };
+
+export type EditorCameraFovHandle =
+	| {
+			owner: 'node';
+			nodeId: string;
+			side: 'top' | 'bottom';
+	  }
+	| {
+			owner: 'view-keyframe';
+			connectionId: string;
+			direction: CameraConnectionDirection;
+			keyframeId: string;
+			side: 'top' | 'bottom';
+	  };
+
 export type SelectionHitInfo = {
 	/** Effective opacity of the hit material (1 if unknown / non-mesh). */
 	opacity: number;
@@ -142,6 +172,26 @@ export function isEditorCameraViewKeyframeUserData(
 	);
 }
 
+export function isEditorCameraFovHandleUserData(
+	value: unknown
+): value is EditorCameraFovHandleUserData {
+	if (!value || typeof value !== 'object') return false;
+	const data = value as Record<string, unknown>;
+	if (
+		data.editorEntity !== 'camera-fov-handle' ||
+		(data.side !== 'top' && data.side !== 'bottom')
+	) {
+		return false;
+	}
+	if (data.owner === 'node') return typeof data.nodeId === 'string';
+	return (
+		data.owner === 'view-keyframe' &&
+		typeof data.connectionId === 'string' &&
+		(data.direction === 'forward' || data.direction === 'reverse') &&
+		typeof data.keyframeId === 'string'
+	);
+}
+
 /** Climb parents for `userData.editorEntity === 'placement'`. */
 export function findPlacementIdFromObject(object: Object3D | null): string | null {
 	let current: Object3D | null = object;
@@ -184,6 +234,20 @@ export function findCameraViewKeyframeHandleFromObject(
 				keyframeId: current.userData.keyframeId,
 				viewHandle: current.userData.viewHandle
 			};
+		}
+		current = current.parent;
+	}
+	return null;
+}
+
+export function findCameraFovHandleFromObject(
+	object: Object3D | null
+): EditorCameraFovHandle | null {
+	let current: Object3D | null = object;
+	while (current) {
+		if (isEditorCameraFovHandleUserData(current.userData)) {
+			const { editorEntity: _, ...handle } = current.userData;
+			return handle;
 		}
 		current = current.parent;
 	}

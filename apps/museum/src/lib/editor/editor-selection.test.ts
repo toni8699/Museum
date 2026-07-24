@@ -2,12 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { Object3D, type Intersection } from 'three';
 import {
 	findCameraSelectionFromObject,
+	findCameraFovHandleFromObject,
 	findCameraViewKeyframeHandleFromObject,
 	findNavigationSelectionFromObject,
 	findPriorityCameraViewKeyframeHandle,
 	isEditorCameraAnchorUserData,
 	isEditorCameraConnectionUserData,
 	isEditorCameraHandleUserData,
+	isEditorCameraFovHandleUserData,
 	isEditorCameraViewKeyframeUserData,
 	resolveNormalSelection,
 	selectionHitFromIntersection,
@@ -24,6 +26,34 @@ function hit(
 }
 
 describe('editor camera-helper selection', () => {
+	it('recognizes and climbs node and key FOV side handles', () => {
+		const nodeRoot = new Object3D();
+		nodeRoot.userData = {
+			editorEntity: 'camera-fov-handle',
+			owner: 'node',
+			nodeId: 'paris-seat',
+			side: 'top'
+		};
+		const child = new Object3D();
+		nodeRoot.add(child);
+		expect(isEditorCameraFovHandleUserData(nodeRoot.userData)).toBe(true);
+		expect(findCameraFovHandleFromObject(child)).toEqual({
+			owner: 'node',
+			nodeId: 'paris-seat',
+			side: 'top'
+		});
+		expect(
+			isEditorCameraFovHandleUserData({
+				editorEntity: 'camera-fov-handle',
+				owner: 'view-keyframe',
+				connectionId: 'a-b',
+				direction: 'sideways',
+				keyframeId: 'key-1',
+				side: 'bottom'
+			})
+		).toBe(false);
+	});
+
 	it('recognizes only complete camera-handle userData tags', () => {
 		expect(
 			isEditorCameraHandleUserData({

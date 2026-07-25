@@ -18,7 +18,9 @@ import {
 	cloneMuseumSceneDocument,
 	createMuseumEditorStore,
 	EDITOR_BRIGHT_LIGHTING,
-	EDITOR_VISITOR_LIGHTING
+	EDITOR_VISITOR_LIGHTING,
+	MuseumEditorStore,
+	type EditorCameraPreview
 } from './museum-editor.svelte';
 import { serializeSceneDocument } from '$lib/content/scene-codec';
 import { createEditorRoomCameraFrame } from './editor-camera';
@@ -1027,7 +1029,7 @@ describe('MuseumEditorStore Phase 6 camera nodes', () => {
 		expect(store.stopCameraPreview()).toBe(true);
 	});
 
-	it('guards every document and editor-command category while preview is modal', () => {
+	it('guards every document and editor-command category while preview is playing', () => {
 		const store = createMuseumEditorStore();
 		const placementId = store.document.objects[0]!.id;
 		store.selectNavigationNode('paris-seat');
@@ -1041,7 +1043,7 @@ describe('MuseumEditorStore Phase 6 camera nodes', () => {
 		).toBe(true);
 		expect(store.undo()).toBe(true);
 		expect(store.canRedo).toBe(true);
-		expect(store.previewSelectedNode()).toBe(true);
+		expect(store.previewSelectedTransition()).toBe(true);
 
 		const documentBefore = JSON.stringify(store.document);
 		const dropRequestBefore = store.dropToFloorRequestId;
@@ -1055,8 +1057,8 @@ describe('MuseumEditorStore Phase 6 camera nodes', () => {
 		expect(store.beginDocumentTransaction()).toBe(false);
 		expect(store.selectNavigationNode('workshop-desk')).toBe(false);
 		// Phase 3.6 unlocks framing handle edits while Through Camera is paused.
-		// The 'target' handle is only blocked while transport !== 'paused'.
-		expect(store.selectCameraHandle('target')).toBe(true);
+		// While the preview plays, even the 'target' handle is locked down.
+		expect(store.selectCameraHandle('target')).toBe(false);
 		expect(store.selectRoom('paris')).toBe(false);
 		expect(store.selectPlacement(placementId)).toBe(false);
 		expect(store.selectPlacements([placementId])).toBe(false);
@@ -3460,5 +3462,171 @@ describe('MuseumEditorStore Phase 3.6 framing controls', () => {
 			cameraTarget: initialTarget,
 			fov: initialFov
 		});
+	});
+});
+
+describe('MuseumEditorStore Phase 3.6 history + framing-drag cleanup', () => {
+	function makeHistory(store: MuseumEditorStore) {
+		const id = store.document.objects[0]!.id;
+		store.selectRoom('paris');
+		store.selectPlacement(id);
+		expect(store.beginDocumentTransaction()).toBe(true);
+		store.document.objects[0]!.position[0] += 1;
+		expect(store.commitDocumentTransaction()).toBe(true);
+	}
+
+	function installPausedVisitorNodePreview(store: MuseumEditorStore, nodeId: string) {
+		const preview: EditorCameraPreview = {
+			kind: 'node',
+			nodeId,
+			mode: 'visitor',
+			transport: 'paused',
+			runId: 9999,
+			playhead: 0,
+			startedAtMs: null
+		};
+		(store as unknown as { cameraPreview: EditorCameraPreview }).cameraPreview =
+			preview;
+		return preview;
+	}
+
+	it('undo/redo work while Visitor preview is paused with framing history', () => {
+		const store = createMuseumEditorStore();
+		makeHistory(store);
+		installPausedVisitorNodePreview(
+			store,
+			store.document.navigationNodes[0]!.id
+		);
+
+		expect(store.isVisitorCameraPreview).toBe(true);
+		expect(store.isCameraPreviewPaused).toBe(true);
+		expect(store.canUndo).toBe(true);
+		expect(store.canRedo).toBe(false);
+
+		expect(store.undo()).toBe(true);
+		expect(store.cameraPreview).not.toBeNull();
+		expect(store.canRedo).toBe(true);
+
+		expect(store.redo()).toBe(true);
+		expect(store.cameraPreview).not.toBeNull();
+	});
+
+	it('auto-stops preview when undo invalidates the referenced node', () => {
+		const store = createMuseumEditorStore();
+		makeHistory(store);
+		installPausedVisitorNodePreview(store, 'missing-node-id');
+		expect(store.canUndo).toBe(true);
+		expect(store.undo()).toBe(true);
+		expect(store.cameraPreview).toBeNull();
+	});
+
+	it('auto-stops tour preview when undo invalidates the start node', () => {
+		const store = createMuseumEditorStore();
+		makeHistory(store);
+		const tourPreview: EditorCameraPreview = {
+			kind: 'tour',
+			startNodeId: 'missing-tour-node',
+			mode: 'director',
+			transport: 'paused',
+			runId: 9998,
+			playhead: 0,
+			startedAtMs: null
+		};
+		(store as unknown as { cameraPreview: EditorCameraPreview }).cameraPreview =
+			tourPreview;
+		expect(store.undo()).toBe(true);
+		expect(store.cameraPreview).toBeNull();
+	});
+
+	it('stopCameraPreview clears directFramingInteractionActive via the canceler', () => {
+		const store = createMuseumEditorStore();
+		let cancelCalls = 0;
+		store.setDirectFramingDragCanceler(() => {
+			cancelCalls += 1;
+			return true;
+		});
+		installPausedVisitorNodePreview(
+			store,
+			store.document.navigationNodes[0]!.id
+		);
+		store.setDirectFramingInteractionActive(true);
+
+		expect(store.stopCameraPreview()).toBe(true);
+		expect(cancelCalls).toBe(1);
+		expect(store.directFramingInteractionActive).toBe(false);
+		expect(store.cameraPreview).toBeNull();
+	});
+
+	it('stopCameraPreview refuses when the framing canceler returns false', () => {
+		const store = createMuseumEditorStore();
+		let cancelCalls = 0;
+		store.setDirectFramingDragCanceler(() => {
+			cancelCalls += 1;
+			return false;
+		});
+		installPausedVisitorNodePreview(
+			store,
+			store.document.navigationNodes[0]!.id
+		);
+		store.setDirectFramingInteractionActive(true);
+
+		expect(store.stopCameraPreview()).toBe(false);
+		expect(cancelCalls).toBe(1);
+		expect(store.directFramingInteractionActive).toBe(true);
+		expect(store.cameraPreview).not.toBeNull();
+	});
+
+	it('importDocument clears directFramingInteractionActive via the canceler', () => {
+		const store = createMuseumEditorStore();
+		let cancelCalls = 0;
+		store.setDirectFramingDragCanceler(() => {
+			cancelCalls += 1;
+			return true;
+		});
+		store.setDirectFramingInteractionActive(true);
+
+		expect(store.importDocument(museumSceneDocument)).toBe(true);
+		expect(cancelCalls).toBe(1);
+		expect(store.directFramingInteractionActive).toBe(false);
+	});
+
+	it('cancelDocumentTransaction releases the framing-drag lock on success', () => {
+		const store = createMuseumEditorStore();
+		expect(store.selectNavigationNode('paris-seat')).toBe(true);
+		let cancelCalls = 0;
+		store.setDirectFramingDragCanceler(() => {
+			cancelCalls += 1;
+			return true;
+		});
+		const node = store.selectedNavigationNode!;
+		const originalFov = node.fov;
+		expect(store.beginCameraFramingTransaction()).toBe(true);
+		store.setDirectFramingInteractionActive(true);
+		expect(store.updateSelectedNodeFov(originalFov - 0.1)).toBe(true);
+		expect(store.cancelDocumentTransaction()).toBe(true);
+		expect(cancelCalls).toBe(1);
+		expect(store.directFramingInteractionActive).toBe(false);
+		expect(store.selectedNavigationNode!.fov).toBeCloseTo(originalFov);
+	});
+
+	it('cancelDocumentTransaction refuses without rolling back when the framing canceler refuses', () => {
+		const store = createMuseumEditorStore();
+		expect(store.selectNavigationNode('paris-seat')).toBe(true);
+		let cancelCalls = 0;
+		store.setDirectFramingDragCanceler(() => {
+			cancelCalls += 1;
+			return false;
+		});
+		const node = store.selectedNavigationNode!;
+		const originalFov = node.fov;
+		expect(store.beginCameraFramingTransaction()).toBe(true);
+		store.setDirectFramingInteractionActive(true);
+		expect(store.updateSelectedNodeFov(originalFov - 0.1)).toBe(true);
+		const documentBefore = JSON.stringify(store.document);
+		expect(store.cancelDocumentTransaction()).toBe(false);
+		expect(cancelCalls).toBe(1);
+		expect(store.directFramingInteractionActive).toBe(true);
+		expect(store.statusMessage).toContain('framing drag');
+		expect(JSON.stringify(store.document)).toBe(documentBefore);
 	});
 });

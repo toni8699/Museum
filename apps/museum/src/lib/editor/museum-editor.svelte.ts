@@ -428,6 +428,7 @@ export class MuseumEditorStore {
 	#viewKeyframeTargetHelperRoots = new Map<string, Object3D>();
 	#cancelTransform: (() => boolean) | null = null;
 	#cancelDirectPathDrag: (() => boolean) | null = null;
+	#cancelDirectFramingDrag: (() => boolean) | null = null;
 	#restoreCameraPreview: (() => boolean) | null = null;
 	#capturedCameraPreviewRoute: {
 		runId: number;
@@ -710,6 +711,60 @@ export class MuseumEditorStore {
 		);
 	}
 
+	/** History is only blocked while a preview is playing or a drag/transaction is live. Paused Visitor previews do not lock undo. */
+	get isDocumentUndoBlocked() {
+		const preview = this.cameraPreview;
+		return Boolean(
+			this.isEditorInteractionActive ||
+				this.#transactionBefore !== null ||
+				(preview && preview.transport !== 'paused')
+		);
+	}
+
+	/**
+	 * Refuse / clear the active direct-framing drag. Returns true when no drag is active or when the
+	 * registered canceler accepts; returns false when a canceler registered and refused, leaving the
+	 * flag and caller state intact so callers can retry.
+	 */
+	#cancelDirectFramingDragOrFail(): boolean {
+		if (!this.directFramingInteractionActive) return true;
+		if (this.#cancelDirectFramingDrag && !this.#cancelDirectFramingDrag()) {
+			return false;
+		}
+		this.directFramingInteractionActive = false;
+		return true;
+	}
+
+	/** Stop any active camera preview whose node/connection no longer exists in the document. */
+	#pruneInvalidCameraPreview() {
+		const preview = this.cameraPreview;
+		if (!preview) return;
+		const nodes = this.document.navigationNodes;
+		const connections = this.document.connections;
+		const hasNode = (id: string) => nodes.some((node) => node.id === id);
+		const hasConnection = (id: string) =>
+			connections.some((connection) => connection.id === id);
+		let valid = true;
+		switch (preview.kind) {
+			case 'node':
+				valid = hasNode(preview.nodeId);
+				break;
+			case 'connection':
+				valid =
+					hasConnection(preview.connectionId) &&
+					hasNode(preview.fromNodeId) &&
+					hasNode(preview.toNodeId);
+				break;
+			case 'transition':
+				valid = hasNode(preview.fromNodeId) && hasNode(preview.toNodeId);
+				break;
+			case 'tour':
+				valid = hasNode(preview.startNodeId);
+				break;
+		}
+		if (!valid) this.stopCameraPreview();
+	}
+
 	get selectedObject() {
 		const id = this.selectedPlacementId;
 		if (!id) return undefined;
@@ -729,18 +784,12 @@ export class MuseumEditorStore {
 
 	get canUndo() {
 		void this.historyVersion;
-		return !this.isDocumentMutationBlocked &&
-			!this.isEditorInteractionActive &&
-			!this.pendingNavigationCommand &&
-			this.#past.length > 0;
+		return !this.isDocumentUndoBlocked && !this.pendingNavigationCommand && this.#past.length > 0;
 	}
 
 	get canRedo() {
 		void this.historyVersion;
-		return !this.isDocumentMutationBlocked &&
-			!this.isEditorInteractionActive &&
-			!this.pendingNavigationCommand &&
-			this.#future.length > 0;
+		return !this.isDocumentUndoBlocked && !this.pendingNavigationCommand && this.#future.length > 0;
 	}
 
 	get isDirty() {
@@ -795,6 +844,10 @@ export class MuseumEditorStore {
 
 	setDirectPathDragCanceler(cancel: (() => boolean) | null) {
 		this.#cancelDirectPathDrag = cancel;
+	}
+
+	setDirectFramingDragCanceler(cancel: (() => boolean) | null) {
+		this.#cancelDirectFramingDrag = cancel;
 	}
 
 	/** @deprecated Use setTransformCanceler; retained for Phase 6 integration tests. */
@@ -2568,6 +2621,7 @@ export class MuseumEditorStore {
 			this.cancelViewKeyframeProgressDrag();
 		}
 		if (!this.cameraPreview) return false;
+		if (!this.#cancelDirectFramingDragOrFail()) return false;
 		if (this.#restoreCameraPreview && !this.#restoreCameraPreview()) return false;
 		this.cameraPreview = null;
 		this.#capturedCameraPreviewRoute = null;
@@ -4039,6 +4093,11 @@ export class MuseumEditorStore {
 	cancelDocumentTransaction() {
 		const before = this.#transactionBefore;
 		if (!before) return false;
+		// Cancel the framing drag first so a refused canceler leaves the transaction intact for retry.
+		if (!this.#cancelDirectFramingDragOrFail()) {
+			this.setStatusMessage('Cancel the framing drag before aborting this transaction');
+			return false;
+		}
 		this.#transactionBefore = null;
 		this.#cameraFramingTransaction = false;
 		this.#replaceDocument(before);
@@ -4077,6 +4136,7 @@ export class MuseumEditorStore {
 
 	#prepareDocumentReplacement() {
 		if (this.viewKeyframeProgressDrag) this.cancelViewKeyframeProgressDrag();
+		if (!this.#cancelDirectFramingDragOrFail()) return false;
 		if (this.cameraPreview && !this.stopCameraPreview()) return false;
 		if (this.transformInteractionActive && !this.#cancelTransform?.()) return false;
 		if (this.directPathInteractionActive && !this.#cancelDirectPathDrag?.()) return false;
@@ -4088,7 +4148,7 @@ export class MuseumEditorStore {
 		if (this.pendingNavigationCommand) {
 			return this.cancelPendingNavigation('Camera placement cancelled');
 		}
-		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive || this.#transactionBefore || this.#past.length === 0) return false;
+		if (this.isDocumentUndoBlocked || this.#past.length === 0) return false;
 		this.cancelPendingFrame();
 		this.cancelPendingNavigation();
 		const previous = this.#past.pop();
@@ -4097,6 +4157,7 @@ export class MuseumEditorStore {
 		if (this.#future.length > HISTORY_LIMIT) this.#future.shift();
 		this.#replaceDocument(previous);
 		this.#bumpHistoryVersion();
+		this.#pruneInvalidCameraPreview();
 		return true;
 	}
 
@@ -4104,7 +4165,7 @@ export class MuseumEditorStore {
 		if (this.pendingNavigationCommand) {
 			return this.cancelPendingNavigation('Camera placement cancelled');
 		}
-		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive || this.#transactionBefore || this.#future.length === 0) return false;
+		if (this.isDocumentUndoBlocked || this.#future.length === 0) return false;
 		this.cancelPendingFrame();
 		this.cancelPendingNavigation();
 		const next = this.#future.pop();
@@ -4113,6 +4174,7 @@ export class MuseumEditorStore {
 		if (this.#past.length > HISTORY_LIMIT) this.#past.shift();
 		this.#replaceDocument(next);
 		this.#bumpHistoryVersion();
+		this.#pruneInvalidCameraPreview();
 		return true;
 	}
 

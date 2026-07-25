@@ -197,12 +197,31 @@
 
   @media (max-width: 720px) {
     .hud {
-      inset: auto 0.75rem 0.75rem;
-      width: auto;
+      inset: 0.75rem auto 0.75rem 0.75rem;
+      width: min(23rem, calc(100vw - 1.5rem));
+      gap: 0.5rem;
+    }
+
+    .title-panel {
+      padding: 0.75rem;
+    }
+
+    .controls,
+    .route {
+      padding: 0.5rem;
     }
 
     .route {
-      display: none;
+      max-height: min(36vh, 20rem);
+    }
+
+    h1 {
+      font-size: clamp(1.4rem, 6vw, 2rem);
+    }
+
+    button {
+      padding: 0.5rem 0.6rem;
+      font-size: 0.8rem;
     }
   }
 </style>

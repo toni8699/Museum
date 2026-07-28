@@ -5,6 +5,7 @@ import type {
 	MuseumSceneDocument,
 	SceneCameraViewKeyframe,
 	SceneConnection,
+	SceneConnectionTimingPair,
 	SceneConnectionViewTracks,
 	SceneNavigationNode,
 	SceneObjectCluster,
@@ -12,7 +13,15 @@ import type {
 	ScenePathAnchor,
 	SceneWaypoint
 } from './scene';
-import { MUSEUM_CAMERA_FOV, type MuseumRoomId, type Vec3 } from '$lib/types/museum';
+import {
+	MUSEUM_CAMERA_EASING,
+	MUSEUM_CAMERA_FOV,
+	type CameraEasing,
+	type MuseumRoomId,
+	type SceneConnectionTiming,
+	type SceneViewKeyframeTiming,
+	type Vec3
+} from '$lib/types/museum';
 
 export type SceneDocumentIssue = {
 	path: string;
@@ -394,6 +403,90 @@ function parseNodeV3(
 	};
 }
 
+function parseNodeV4(
+	input: unknown,
+	path: string,
+	issues: SceneDocumentIssue[]
+): SceneNavigationNode | undefined {
+	if (!isRecord(input)) {
+		addIssue(issues, path, 'invalid_type', 'Expected a navigation node object');
+		return undefined;
+	}
+	assertAllowedKeys(
+		input,
+		[
+			'id',
+			'roomId',
+			'label',
+			'position',
+			'cameraTarget',
+			'fov',
+			'connectedNodeIds',
+			'nextNodeId',
+			'previousNodeId',
+			'lockInteraction',
+			'holdSeconds'
+		],
+		path,
+		issues
+	);
+	const id = readRequiredString(input, 'id', path, issues);
+	const roomId = readRoomId(input, 'roomId', path, issues);
+	const label = readRequiredString(input, 'label', path, issues);
+	const position = readVec3(input.position, `${path}.position`, issues);
+	const cameraTarget = readVec3(input.cameraTarget, `${path}.cameraTarget`, issues);
+	const fov = readRequiredNumber(input, 'fov', path, issues);
+	if (
+		fov !== undefined &&
+		(fov < MUSEUM_CAMERA_FOV.min || fov > MUSEUM_CAMERA_FOV.max)
+	) {
+		addIssue(
+			issues,
+			`${path}.fov`,
+			'invalid_fov',
+			`FOV must be between ${MUSEUM_CAMERA_FOV.min} and ${MUSEUM_CAMERA_FOV.max} degrees`
+		);
+	}
+	const connectedNodeIds = readStringArray(
+		input.connectedNodeIds,
+		`${path}.connectedNodeIds`,
+		issues
+	);
+	const nextNodeId = readOptionalString(input, 'nextNodeId', path, issues);
+	const previousNodeId = readOptionalString(input, 'previousNodeId', path, issues);
+	let lockInteraction: boolean | undefined;
+	if ('lockInteraction' in input) {
+		lockInteraction = readRequiredBoolean(input, 'lockInteraction', path, issues);
+	}
+	const holdSeconds = readHoldSeconds(input, 'holdSeconds', path, issues);
+	if (
+		!id ||
+		!roomId ||
+		!label ||
+		!position ||
+		!cameraTarget ||
+		fov === undefined ||
+		fov < MUSEUM_CAMERA_FOV.min ||
+		fov > MUSEUM_CAMERA_FOV.max ||
+		!connectedNodeIds
+	) {
+		return undefined;
+	}
+	return {
+		id,
+		roomId,
+		label,
+		position,
+		cameraTarget,
+		fov,
+		connectedNodeIds,
+		...(nextNodeId === undefined ? {} : { nextNodeId }),
+		...(previousNodeId === undefined ? {} : { previousNodeId }),
+		...(lockInteraction === undefined ? {} : { lockInteraction }),
+		...(holdSeconds === undefined ? {} : { holdSeconds })
+	};
+}
+
 function parseWaypoint(
 	input: unknown,
 	path: string,
@@ -549,13 +642,17 @@ function parsePositionPath(
 function parseViewKeyframe(
 	input: unknown,
 	path: string,
-	issues: SceneDocumentIssue[]
+	issues: SceneDocumentIssue[],
+	options: { allowTiming: boolean }
 ): SceneCameraViewKeyframe | undefined {
 	if (!isRecord(input)) {
 		addIssue(issues, path, 'invalid_type', 'Expected a camera view keyframe object');
 		return undefined;
 	}
-	assertAllowedKeys(input, ['id', 'progress', 'cameraTarget', 'roomId', 'fov'], path, issues);
+	const allowedKeys = options.allowTiming
+		? ['id', 'progress', 'cameraTarget', 'roomId', 'fov', 'holdSeconds', 'easing']
+		: ['id', 'progress', 'cameraTarget', 'roomId', 'fov'];
+	assertAllowedKeys(input, allowedKeys, path, issues);
 	const id = readRequiredString(input, 'id', path, issues);
 	const progress = readRequiredNumber(input, 'progress', path, issues);
 	if (progress !== undefined && (progress <= 0 || progress >= 1)) {
@@ -581,6 +678,25 @@ function parseViewKeyframe(
 			`FOV must be between ${MUSEUM_CAMERA_FOV.min} and ${MUSEUM_CAMERA_FOV.max} degrees`
 		);
 	}
+	let holdSeconds: number | undefined;
+	let easing: CameraEasing | undefined;
+	if (options.allowTiming) {
+		if ('holdSeconds' in input) {
+			holdSeconds = readRequiredNumber(input, 'holdSeconds', path, issues);
+			if (holdSeconds !== undefined && (!Number.isFinite(holdSeconds) || holdSeconds < 0)) {
+				addIssue(
+					issues,
+					`${path}.holdSeconds`,
+					'invalid_view_hold_seconds',
+					'View keyframe holdSeconds must be a finite non-negative number'
+				);
+				holdSeconds = undefined;
+			}
+		}
+		if ('easing' in input) {
+			easing = readEasing(input, 'easing', path, issues);
+		}
+	}
 	if (
 		!id ||
 		progress === undefined ||
@@ -598,21 +714,24 @@ function parseViewKeyframe(
 		progress,
 		cameraTarget,
 		...(roomId === undefined ? {} : { roomId }),
-		fov
+		fov,
+		...(holdSeconds === undefined ? {} : { holdSeconds }),
+		...(easing === undefined ? {} : { easing })
 	};
 }
 
 function parseViewTrack(
 	input: unknown,
 	path: string,
-	issues: SceneDocumentIssue[]
+	issues: SceneDocumentIssue[],
+	options: { allowTiming: boolean }
 ) {
 	if (!Array.isArray(input)) {
 		addIssue(issues, path, 'invalid_type', 'Expected an array');
 		return undefined;
 	}
 	const parsed = input.map((keyframe, index) =>
-		parseViewKeyframe(keyframe, `${path}[${index}]`, issues)
+		parseViewKeyframe(keyframe, `${path}[${index}]`, issues, options)
 	);
 	return parsed.every(
 		(keyframe): keyframe is SceneCameraViewKeyframe => keyframe !== undefined
@@ -624,17 +743,149 @@ function parseViewTrack(
 function parseViewTracks(
 	input: unknown,
 	path: string,
-	issues: SceneDocumentIssue[]
+	issues: SceneDocumentIssue[],
+	options: { allowTiming: boolean }
 ): SceneConnectionViewTracks | undefined {
 	if (!isRecord(input)) {
 		addIssue(issues, path, 'invalid_type', 'Expected a camera view tracks object');
 		return undefined;
 	}
 	assertAllowedKeys(input, ['forward', 'reverse'], path, issues);
-	const forward = parseViewTrack(input.forward, `${path}.forward`, issues);
-	const reverse = parseViewTrack(input.reverse, `${path}.reverse`, issues);
+	const forward = parseViewTrack(input.forward, `${path}.forward`, issues, options);
+	const reverse = parseViewTrack(input.reverse, `${path}.reverse`, issues, options);
 	if (!forward || !reverse) return undefined;
 	return { forward, reverse };
+}
+
+function readHoldSeconds(
+	value: JsonRecord,
+	key: string,
+	path: string,
+	issues: SceneDocumentIssue[]
+): number | undefined {
+	if (!(key in value)) return undefined;
+	const candidate = readRequiredNumber(value, key, path, issues);
+	if (candidate !== undefined && (!Number.isFinite(candidate) || candidate < 0)) {
+		addIssue(
+			issues,
+			`${path}.${key}`,
+			'invalid_hold_seconds',
+			'holdSeconds must be a finite non-negative number'
+		);
+		return undefined;
+	}
+	return candidate;
+}
+
+function readEasing(
+	value: JsonRecord,
+	key: string,
+	path: string,
+	issues: SceneDocumentIssue[]
+): CameraEasing | undefined {
+	if (!(key in value)) return undefined;
+	const candidate = readRequiredString(value, key, path, issues);
+	if (candidate === undefined) return undefined;
+	const normalised = candidate === 'ease-in-out' ? 'smoothstep' : candidate;
+	if (!MUSEUM_CAMERA_EASING.includes(normalised as CameraEasing)) {
+		addIssue(
+			issues,
+			`${path}.${key}`,
+			'invalid_easing',
+			`Expected easing ${MUSEUM_CAMERA_EASING.join(', ')}, received: ${stringifyUnknown(candidate)}`
+		);
+		return undefined;
+	}
+	return normalised as CameraEasing;
+}
+
+/**
+ * Public validation helper used by both the codec and the editor setters.
+ *
+ * Returns the user-facing failure reason string for an authored timing
+ * object, or `null` when the object is valid. Keeps the editor's status
+ * messages in lock-step with what `parseConnectionTiming` would surface.
+ */
+export function cameraSceneConnectionTimingFailureReason(
+	timing: SceneConnectionTiming
+): string | null {
+	if (
+		timing.durationSeconds !== undefined &&
+		(!Number.isFinite(timing.durationSeconds) || timing.durationSeconds <= 0)
+	) {
+		return 'durationSeconds must be a finite positive number';
+	}
+	if (timing.easing !== undefined && !MUSEUM_CAMERA_EASING.includes(timing.easing)) {
+		return `easing must be one of ${MUSEUM_CAMERA_EASING.join(', ')}`;
+	}
+	return null;
+}
+
+function stringifyUnknown(value: unknown) {
+	return typeof value === 'string' ? value : String(value);
+}
+
+function parseConnectionTiming(
+	input: unknown,
+	path: string,
+	issues: SceneDocumentIssue[]
+): SceneConnectionTiming | undefined {
+	if (!isRecord(input)) {
+		addIssue(issues, path, 'invalid_type', 'Expected a connection timing object');
+		return undefined;
+	}
+	assertAllowedKeys(input, ['durationSeconds', 'easing'], path, issues);
+	let durationSeconds: number | undefined;
+	if ('durationSeconds' in input) {
+		durationSeconds = readRequiredNumber(input, 'durationSeconds', path, issues);
+		if (
+			durationSeconds !== undefined &&
+			(!Number.isFinite(durationSeconds) || durationSeconds <= 0)
+		) {
+			addIssue(
+				issues,
+				`${path}.durationSeconds`,
+				'invalid_duration_seconds',
+				'durationSeconds must be a finite positive number'
+			);
+			durationSeconds = undefined;
+		}
+	}
+	const easing = readEasing(input, 'easing', path, issues);
+	if (durationSeconds === undefined && easing === undefined) return undefined;
+	return {
+		...(durationSeconds === undefined ? {} : { durationSeconds }),
+		...(easing === undefined ? {} : { easing })
+	};
+}
+
+function parseConnectionTimingPair(
+	value: unknown,
+	path: string,
+	issues: SceneDocumentIssue[]
+): SceneConnectionTimingPair | undefined {
+	if (value === undefined) return undefined;
+	if (!isRecord(value)) {
+		addIssue(issues, path, 'invalid_type', 'Expected a connection timing pair');
+		return undefined;
+	}
+	assertAllowedKeys(value, ['forward', 'reverse'], path, issues);
+	const forward = 'forward' in value
+		? parseConnectionTiming(value.forward, `${path}.forward`, issues)
+		: undefined;
+	const reverse = 'reverse' in value
+		? parseConnectionTiming(value.reverse, `${path}.reverse`, issues)
+		: undefined;
+	if (
+		('forward' in value && forward === undefined) ||
+		('reverse' in value && reverse === undefined)
+	) {
+		return undefined;
+	}
+	return {
+		...(forward === undefined ? {} : { forward }),
+		...(reverse === undefined ? {} : { reverse })
+	};
 }
 
 function parseConnectionV2(
@@ -674,7 +925,7 @@ function parseConnectionV3(
 	if (!base) return undefined;
 	const positionPath = parsePositionPath(base.input.positionPath, `${path}.positionPath`, issues);
 	const viewTracks = 'viewTracks' in base.input
-		? parseViewTracks(base.input.viewTracks, `${path}.viewTracks`, issues)
+		? parseViewTracks(base.input.viewTracks, `${path}.viewTracks`, issues, { allowTiming: false })
 		: undefined;
 	if (!positionPath || ('viewTracks' in base.input && !viewTracks)) return undefined;
 	const { input: _input, ...connection } = base;
@@ -682,6 +933,45 @@ function parseConnectionV3(
 		...connection,
 		positionPath,
 		...(viewTracks === undefined ? {} : { viewTracks })
+	};
+}
+
+function parseConnectionV4(
+	input: unknown,
+	path: string,
+	issues: SceneDocumentIssue[]
+): SceneConnection | undefined {
+	const base = parseConnectionBase(input, path, issues, [
+		'id',
+		'fromNodeId',
+		'toNodeId',
+		'clearance',
+		'positionPath',
+		'viewTracks',
+		'targetWaypoints',
+		'timing'
+	]);
+	if (!base) return undefined;
+	const positionPath = parsePositionPath(base.input.positionPath, `${path}.positionPath`, issues);
+	const viewTracks = 'viewTracks' in base.input
+		? parseViewTracks(base.input.viewTracks, `${path}.viewTracks`, issues, { allowTiming: true })
+		: undefined;
+	const timing = 'timing' in base.input
+		? parseConnectionTimingPair(base.input.timing, `${path}.timing`, issues)
+		: undefined;
+	if (
+		!positionPath ||
+		('viewTracks' in base.input && !viewTracks) ||
+		('timing' in base.input && timing === undefined)
+	) {
+		return undefined;
+	}
+	const { input: _input, ...connection } = base;
+	return {
+		...connection,
+		positionPath,
+		...(viewTracks === undefined ? {} : { viewTracks }),
+		...(timing === undefined ? {} : { timing })
 	};
 }
 
@@ -812,7 +1102,7 @@ function validateSemantics(document: ParsedMuseumSceneDocument, issues: SceneDoc
 		}
 	}
 
-	if (document.version === 3) {
+	if (document.version === 3 || document.version === 4) {
 		validateViewKeyframePoses(
 			document,
 			new Map(document.navigationNodes.map((node) => [node.id, node])),
@@ -1034,16 +1324,39 @@ function cloneViewKeyframe(
 		progress: value.progress,
 		...(value.roomId === undefined ? {} : { roomId: value.roomId }),
 		cameraTarget: [...value.cameraTarget],
-		fov: value.fov
+		fov: value.fov,
+		...(value.holdSeconds === undefined ? {} : { holdSeconds: value.holdSeconds }),
+		...(value.easing === undefined ? {} : { easing: value.easing })
 	};
 }
 
+function documentHasTimingFields(
+	document: MuseumSceneDocument
+): boolean {
+	for (const node of document.navigationNodes) {
+		if (node.holdSeconds !== undefined) return true;
+	}
+	for (const connection of document.connections) {
+		if (connection.timing) return true;
+		if (connection.viewTracks) {
+			for (const direction of ['forward', 'reverse'] as const) {
+				for (const keyframe of connection.viewTracks[direction]) {
+					if (keyframe.holdSeconds !== undefined) return true;
+					if (keyframe.easing !== undefined) return true;
+				}
+			}
+		}
+	}
+	return false;
+}
+
 function canonicalDocument(document: MuseumSceneDocument): MuseumSceneDocument {
+	const version: 3 | 4 = documentHasTimingFields(document) ? 4 : 3;
 	return {
-		version: 3,
+		version,
 		objects: document.objects.map((object) => ({ id: object.id, roomId: object.roomId, assetId: object.assetId, fallback: object.fallback, position: [...object.position], rotation: [...object.rotation], ...(object.scale === undefined ? {} : { scale: object.scale }) })),
 		...(document.clusters === undefined ? {} : { clusters: document.clusters.map((cluster) => ({ id: cluster.id, name: cluster.name, roomId: cluster.roomId, memberIds: [...cluster.memberIds] })) }),
-		navigationNodes: document.navigationNodes.map((node) => ({ id: node.id, roomId: node.roomId, label: node.label, position: [...node.position], cameraTarget: [...node.cameraTarget], fov: node.fov, connectedNodeIds: [...node.connectedNodeIds], ...(node.nextNodeId === undefined ? {} : { nextNodeId: node.nextNodeId }), ...(node.previousNodeId === undefined ? {} : { previousNodeId: node.previousNodeId }), ...(node.lockInteraction === undefined ? {} : { lockInteraction: node.lockInteraction }) })),
+		navigationNodes: document.navigationNodes.map((node) => ({ id: node.id, roomId: node.roomId, label: node.label, position: [...node.position], cameraTarget: [...node.cameraTarget], fov: node.fov, connectedNodeIds: [...node.connectedNodeIds], ...(node.nextNodeId === undefined ? {} : { nextNodeId: node.nextNodeId }), ...(node.previousNodeId === undefined ? {} : { previousNodeId: node.previousNodeId }), ...(node.lockInteraction === undefined ? {} : { lockInteraction: node.lockInteraction }), ...(node.holdSeconds === undefined ? {} : { holdSeconds: node.holdSeconds }) })),
 		connections: document.connections.map((connection) => ({
 			id: connection.id,
 			fromNodeId: connection.fromNodeId,
@@ -1066,7 +1379,19 @@ function canonicalDocument(document: MuseumSceneDocument): MuseumSceneDocument {
 					}),
 			...(connection.targetWaypoints === undefined
 				? {}
-				: { targetWaypoints: connection.targetWaypoints.map(cloneWaypoint) })
+				: { targetWaypoints: connection.targetWaypoints.map(cloneWaypoint) }),
+			...(connection.timing === undefined
+				? {}
+				: {
+						timing: {
+							...(connection.timing.forward === undefined
+								? {}
+								: { forward: { ...connection.timing.forward } }),
+							...(connection.timing.reverse === undefined
+								? {}
+								: { reverse: { ...connection.timing.reverse } })
+						}
+					})
 		}))
 	};
 }
@@ -1107,16 +1432,19 @@ function migrateVersionTwoDocument(document: MuseumSceneDocumentV2): MuseumScene
 		})),
 		connections: document.connections
 	};
-}
-
-export function validateSceneDocument(input: unknown): SceneDocumentValidationResult {
+}export function validateSceneDocument(input: unknown): SceneDocumentValidationResult {
 	const issues: SceneDocumentIssue[] = [];
 	if (!isRecord(input)) {
 		addIssue(issues, '$', 'invalid_type', 'Expected a scene document object');
 		return { success: false, issues };
 	}
 	assertAllowedKeys(input, ['version', 'objects', 'clusters', 'navigationNodes', 'connections'], '$', issues);
-	if (input.version !== 1 && input.version !== 2 && input.version !== 3) {
+	if (
+		input.version !== 1 &&
+		input.version !== 2 &&
+		input.version !== 3 &&
+		input.version !== 4
+	) {
 		addIssue(
 			issues,
 			'$.version',
@@ -1138,8 +1466,11 @@ export function validateSceneDocument(input: unknown): SceneDocumentValidationRe
 	const legacyNavigationNodes = input.version === 1 || input.version === 2
 		? parseArray('navigationNodes', parseNodeV1V2)
 		: undefined;
-	const currentNavigationNodes = input.version === 3
+	const versionThreeNavigationNodes = input.version === 3
 		? parseArray('navigationNodes', parseNodeV3)
+		: undefined;
+	const versionFourNavigationNodes = input.version === 4
+		? parseArray('navigationNodes', parseNodeV4)
 		: undefined;
 	const legacyConnections = input.version === 1
 		? parseArray('connections', parseLegacyConnection)
@@ -1147,19 +1478,30 @@ export function validateSceneDocument(input: unknown): SceneDocumentValidationRe
 	const versionTwoConnections = input.version === 2
 		? parseArray('connections', parseConnectionV2)
 		: undefined;
-	const currentConnections = input.version === 3
+	const versionThreeConnections = input.version === 3
 		? parseArray('connections', parseConnectionV3)
+		: undefined;
+	const versionFourConnections = input.version === 4
+		? parseArray('connections', parseConnectionV4)
 		: undefined;
 	if (
 		!objects ||
 		(input.version === 1 || input.version === 2
 			? !legacyNavigationNodes
-			: !currentNavigationNodes) ||
+			: input.version === 3
+				? !versionThreeNavigationNodes
+				: input.version === 4
+					? !versionFourNavigationNodes
+					: true) ||
 		(input.version === 1
 			? !legacyConnections
 			: input.version === 2
 				? !versionTwoConnections
-				: !currentConnections) ||
+				: input.version === 3
+					? !versionThreeConnections
+					: input.version === 4
+						? !versionFourConnections
+						: true) ||
 		('clusters' in input && !clusters) ||
 		issues.length
 	) {
@@ -1168,26 +1510,26 @@ export function validateSceneDocument(input: unknown): SceneDocumentValidationRe
 	const document: ParsedMuseumSceneDocument =
 		input.version === 1
 			? {
-				version: 1,
-				objects,
-				...(clusters === undefined ? {} : { clusters }),
-				navigationNodes: legacyNavigationNodes!,
-				connections: legacyConnections!
-			}
+					version: 1,
+					objects,
+					...(clusters === undefined ? {} : { clusters }),
+					navigationNodes: legacyNavigationNodes!,
+					connections: legacyConnections!
+				}
 			: input.version === 2
 				? {
-				version: 2,
-				objects,
-				...(clusters === undefined ? {} : { clusters }),
-				navigationNodes: legacyNavigationNodes!,
-				connections: versionTwoConnections!
-				}
-				: {
-						version: 3,
+						version: 2,
 						objects,
 						...(clusters === undefined ? {} : { clusters }),
-						navigationNodes: currentNavigationNodes!,
-						connections: currentConnections!
+						navigationNodes: legacyNavigationNodes!,
+						connections: versionTwoConnections!
+					}
+				: {
+						version: input.version === 4 ? 4 : 3,
+						objects,
+						...(clusters === undefined ? {} : { clusters }),
+						navigationNodes: input.version === 4 ? versionFourNavigationNodes! : versionThreeNavigationNodes!,
+						connections: input.version === 4 ? versionFourConnections! : versionThreeConnections!
 					};
 	validateSemantics(document, issues);
 	if (issues.length) return { success: false, issues };

@@ -10,32 +10,56 @@ import {
 } from '$lib/museum/navigation/camera-motion';
 import {
 	getCameraConnectionRoute,
+	getCameraMotionOptions,
 	getGuidedCameraRoute
 } from '$lib/museum/navigation/camera-route';
 
 const TIMELINE_EPSILON = 1e-9;
 
+/**
+ * One guided edge in the timeline.
+ *
+ * Each edge owns a `motionStartSeconds`/`motionEndSeconds`/derived
+ * `motionDurationSeconds` range covering the camera transition **only**.
+ * The destination node's authored `holdSeconds` forms a zero-position-motion
+ * tail that ends at `holdEndSeconds`.
+ */
 export type EditorCameraTimelineEdge = {
 	connectionId: string;
 	direction: CameraConnectionDirection;
 	fromNodeId: string;
 	toNodeId: string;
-	startSeconds: number;
-	endSeconds: number;
-	durationSeconds: number;
+	motionStartSeconds: number;
+	motionEndSeconds: number;
+	/** Derived: {@link motionEndSeconds} - {@link motionStartSeconds}. */
+	motionDurationSeconds: number;
+	holdSeconds: number;
+	holdEndSeconds: number;
 	motions: Record<CameraConnectionDirection, CameraMotion>;
 };
+
+/** Read the per-edge motion span as a single scalar. */
+function edgeMotionDuration(edge: EditorCameraTimelineEdge) {
+	return edge.motionEndSeconds - edge.motionStartSeconds;
+}
 
 export type EditorCameraTimelineNodeBoundary = {
 	nodeId: string;
 	boundaryIndex: number;
 	timeSeconds: number;
 	progress: number;
+	/** The edge this boundary lands after; undefined only for the tour-start boundary. */
+	edgeId?: string;
 };
 
 export type EditorCameraTimeline = {
 	startNodeId: string;
+	/** Total seconds including every authored hold. Reduced motion collapses this to Σ(motionSpanSeconds). */
 	durationSeconds: number;
+	/** Total motion span seconds, excluding holds. */
+	motionDurationSeconds: number;
+	/** Sum of all destination hold seconds across the cycle. */
+	totalHoldSeconds: number;
 	edges: EditorCameraTimelineEdge[];
 	nodeBoundaries: EditorCameraTimelineNodeBoundary[];
 };
@@ -45,6 +69,19 @@ export type EditorCameraTimelineLocation = {
 	edgeIndex: number;
 	playhead: number;
 	progress: number;
+};
+
+export type EditorCameraScheduleLocation = {
+	edge: EditorCameraTimelineEdge;
+	edgeIndex: number;
+	/** Progress within the edge's motion span (0..1). May be 1 once we are inside the destination hold. */
+	edgePlayhead: number;
+	progress: number;
+	/** True while `seconds` is inside the destination hold span (zero-position-motion). */
+	isHolding: boolean;
+	holdingNodeId: string | null;
+	/** Progress within the active hold span (0..1). Zero outside the hold. */
+	holdProgress: number;
 };
 
 function clamp01(value: number) {
@@ -70,17 +107,21 @@ function findGuidedStart(graph: NavigationGraph, preferredStartNodeId: string) {
 }
 
 /**
- * Build timeline timing from exact oriented connection routes. This indexes the
- * checked graph; route geometry and sampling remain owned by camera-route/motion.
+ * Build timeline timing from exact oriented connection routes. The per-edge
+ * schedule composes motion + the destination node's authored hold into one
+ * deterministic global ruler; reduced-motion playback collapses each motion
+ * span to its end pose.
  */
 export function createEditorCameraTimeline(
 	graph: NavigationGraph,
 	preferredStartNodeId = 'entrance-start'
 ): EditorCameraTimeline {
 	const start = findGuidedStart(graph, preferredStartNodeId);
-	const guidedRoute = getGuidedCameraRoute(start.id, graph);
+	const guidedRoute = getGuidedCameraRoute(start.id,graph);
+	const nodeById = graph.nodeById;
 	const edges: EditorCameraTimelineEdge[] = [];
-	let elapsedSeconds = 0;
+	let motionElapsedSeconds = 0;
+	let totalElapsedSeconds = 0;
 
 	for (const routeEdge of guidedRoute.edges) {
 		const connection = graph.connections.find(
@@ -90,48 +131,79 @@ export function createEditorCameraTimeline(
 			throw new Error(`Unknown camera connection: ${routeEdge.connectionId}`);
 		}
 		const forwardMotion = createCameraMotion(
-			getCameraConnectionRoute(connection.id, 'forward', graph)
+			getCameraConnectionRoute(connection.id, 'forward', graph),
+			undefined,
+			getCameraMotionOptions(connection, 'forward')
 		);
 		const reverseMotion = createCameraMotion(
-			getCameraConnectionRoute(connection.id, 'reverse', graph)
+			getCameraConnectionRoute(connection.id, 'reverse', graph),
+			undefined,
+			getCameraMotionOptions(connection, 'reverse')
 		);
 		const motion =
 			routeEdge.direction === 'forward' ? forwardMotion : reverseMotion;
 		const durationSeconds = motion.durationSeconds;
+		const destination = nodeById.get(routeEdge.toNodeId);
+		const holdSeconds = destination?.holdSeconds ?? 0;
+		const motionStart = totalElapsedSeconds;
+		const motionEnd = motionStart + durationSeconds;
+		const holdEnd = motionEnd + holdSeconds;
 		edges.push({
 			connectionId: connection.id,
 			direction: routeEdge.direction,
 			fromNodeId: routeEdge.fromNodeId,
 			toNodeId: routeEdge.toNodeId,
-			startSeconds: elapsedSeconds,
-			endSeconds: elapsedSeconds + durationSeconds,
-			durationSeconds,
+			motionStartSeconds: motionStart,
+			motionEndSeconds: motionEnd,
+			motionDurationSeconds: durationSeconds,
+			holdSeconds,
+			holdEndSeconds: holdEnd,
 			motions: { forward: forwardMotion, reverse: reverseMotion }
 		});
-		elapsedSeconds += durationSeconds;
+		motionElapsedSeconds += durationSeconds;
+		totalElapsedSeconds = holdEnd;
 	}
 
-	const nodeBoundaries = guidedRoute.nodeIds.map(
+	const nodeBoundaries: EditorCameraTimelineNodeBoundary[] = guidedRoute.nodeIds.map(
 		(nodeId, boundaryIndex): EditorCameraTimelineNodeBoundary => {
-			const timeSeconds =
-				boundaryIndex === edges.length
-					? elapsedSeconds
-					: edges[boundaryIndex]?.startSeconds ?? 0;
+			if (boundaryIndex === 0) {
+				return {
+					nodeId,
+					boundaryIndex,
+					timeSeconds: 0,
+					progress: 0
+				};
+			}
+			const previousEdge = edges[boundaryIndex - 1];
+			const landingEdgeId = previousEdge?.connectionId;
+			if (boundaryIndex === edges.length) {
+				return {
+					nodeId,
+					boundaryIndex,
+					timeSeconds: totalElapsedSeconds,
+					progress: 1,
+					...((landingEdgeId ?? '').length ? { edgeId: landingEdgeId } : {})
+				};
+			}
+			const landing = previousEdge?.motionEndSeconds ?? 0;
 			return {
 				nodeId,
 				boundaryIndex,
-				timeSeconds,
+				timeSeconds: landing,
 				progress:
-					elapsedSeconds <= TIMELINE_EPSILON
+					totalElapsedSeconds <= TIMELINE_EPSILON
 						? boundaryIndex / Math.max(1, edges.length)
-						: timeSeconds / elapsedSeconds
+						: landing / totalElapsedSeconds,
+				...((landingEdgeId ?? '').length ? { edgeId: landingEdgeId } : {})
 			};
 		}
 	);
 
 	return {
 		startNodeId: start.id,
-		durationSeconds: elapsedSeconds,
+		durationSeconds: totalElapsedSeconds,
+		motionDurationSeconds: motionElapsedSeconds,
+		totalHoldSeconds: totalElapsedSeconds - motionElapsedSeconds,
 		edges,
 		nodeBoundaries
 	};
@@ -156,26 +228,88 @@ export function getEditorCameraTimelineLocation(
 	}
 	const clamped = clamp01(progress);
 	const seconds = clamped * timeline.durationSeconds;
-	let edgeIndex = timeline.edges.findIndex(
-		(edge) => seconds < edge.endSeconds - TIMELINE_EPSILON
-	);
-	if (edgeIndex < 0) edgeIndex = timeline.edges.length - 1;
-	const edge = timeline.edges[edgeIndex];
+	const edgeIndex = findMotionSpanEdgeIndex(timeline, seconds);
+	const edge = timeline.edges[edgeIndex]!;
+	const edgeDuration = edgeMotionDuration(edge);
 	const playhead =
-		edge.durationSeconds <= TIMELINE_EPSILON
+		edgeDuration <= TIMELINE_EPSILON
 			? clamped >= 1
 				? 1
 				: 0
-			: clamp01((seconds - edge.startSeconds) / edge.durationSeconds);
+			: clamp01((seconds - edge.motionStartSeconds) / edgeDuration);
 	return { edge, edgeIndex, playhead, progress: clamped };
 }
 
-/** Sample the exact oriented connection motion used at this guided-tour time. */
+/** Walk the schedule at a real-time seconds offset, including hold tails. */
+export function getEditorCameraScheduleLocation(
+	timeline: EditorCameraTimeline,
+	seconds: number,
+	reducedMotion = false
+): EditorCameraScheduleLocation {
+	if (!Number.isFinite(seconds)) {
+		throw new Error('Camera schedule seconds must be finite');
+	}
+	if (timeline.edges.length === 0) {
+		throw new Error('The camera timeline has no guided edges');
+	}
+	const reduced = reducedMotion || timeline.totalHoldSeconds <= TIMELINE_EPSILON;
+	const epsilon = TIMELINE_EPSILON;
+	let activeIndex = timeline.edges.length - 1;
+	for (const [index, edge] of timeline.edges.entries()) {
+		activeIndex = index;
+		const upper = reduced ? edge.motionEndSeconds : edge.holdEndSeconds;
+		if (seconds <= upper + epsilon) break;
+	}
+	const edge = timeline.edges[activeIndex]!;
+	const edgeDuration = edgeMotionDuration(edge);
+	const inMotionSpan =
+		seconds <= edge.motionEndSeconds + epsilon ||
+		edgeDuration <= TIMELINE_EPSILON;
+	const edgePlayhead = reduced
+		? 1
+		: inMotionSpan
+			? edgeDuration <= TIMELINE_EPSILON
+				? 1
+				: clamp01((seconds - edge.motionStartSeconds) / edgeDuration)
+			: 1;
+	const isHolding = !reduced && !inMotionSpan && edge.holdSeconds > TIMELINE_EPSILON;
+	const holdProgress = isHolding
+		? clamp01((seconds - edge.motionEndSeconds) / edge.holdSeconds)
+		: 0;
+	const progress = timelineProgressAtSeconds(timeline, seconds);
+	return {
+		edge,
+		edgeIndex: activeIndex,
+		edgePlayhead,
+		progress,
+		isHolding,
+		holdingNodeId: edge.toNodeId,
+		holdProgress
+	};
+}
+
+/** Sample the schedule with optional reduced-motion collapse. */
+export function sampleEditorCameraSchedule(
+	timeline: EditorCameraTimeline,
+	seconds: number,
+	output: CameraMotionSample,
+	reducedMotion = false
+): EditorCameraScheduleLocation {
+	const location = getEditorCameraScheduleLocation(timeline, seconds, reducedMotion);
+	sampleCameraMotion(
+		location.edge.motions[location.edge.direction],
+		location.edgePlayhead,
+		output
+	);
+	return location;
+}
+
+/** Sample the exact oriented connection motion used at this guided-tour progress. */
 export function sampleEditorCameraTimeline(
 	timeline: EditorCameraTimeline,
 	progress: number,
 	output: CameraMotionSample
-) {
+): EditorCameraTimelineLocation {
 	const location = getEditorCameraTimelineLocation(timeline, progress);
 	sampleCameraMotion(
 		location.edge.motions[location.edge.direction],
@@ -212,7 +346,7 @@ export function cameraTimelineProgressAtEdgePlayhead(
 	);
 	return timelineProgressAtSeconds(
 		timeline,
-		edge.startSeconds + guidedPlayhead * edge.durationSeconds
+		edge.motionStartSeconds + guidedPlayhead * edgeMotionDuration(edge)
 	);
 }
 
@@ -251,10 +385,11 @@ export function cameraTimelineEdgePlayheadAtProgress(
 	const edge = findEditorCameraTimelineEdge(timeline, connectionId);
 	if (!edge) return null;
 	const seconds = clamp01(progress) * timeline.durationSeconds;
+	const edgeDuration = edgeMotionDuration(edge);
 	const guidedPlayhead =
-		edge.durationSeconds <= TIMELINE_EPSILON
+		edgeDuration <= TIMELINE_EPSILON
 			? 0
-			: clamp01((seconds - edge.startSeconds) / edge.durationSeconds);
+			: clamp01((seconds - edge.motionStartSeconds) / edgeDuration);
 	const guidedEdgeProgress = cameraMotionEdgeProgressAtProgress(
 		edge.motions[edge.direction],
 		0,
@@ -289,4 +424,19 @@ export function cameraTimelineEdgeProgressAtProgress(
 		0,
 		playhead
 	);
+}
+
+function findMotionSpanEdgeIndex(timeline: EditorCameraTimeline, seconds: number) {
+	const epsilon = TIMELINE_EPSILON;
+	const candidate = timeline.edges.findIndex(
+		(edge) => seconds < edge.motionEndSeconds - epsilon
+	);
+	if (candidate >= 0) return candidate;
+	const lastIndex = timeline.edges.length - 1;
+	if (seconds >= timeline.edges[lastIndex]!.motionEndSeconds - epsilon) return lastIndex;
+	for (let index = timeline.edges.length - 1; index >= 0; index -= 1) {
+		const edge = timeline.edges[index]!;
+		if (seconds >= edge.motionStartSeconds - epsilon) return index;
+	}
+	return lastIndex;
 }

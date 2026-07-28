@@ -127,8 +127,8 @@
 		const localProgress = rect.width > 0
 			? Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width))
 			: 0;
-		const start = edge.startSeconds / timeline.durationSeconds;
-		const end = edge.endSeconds / timeline.durationSeconds;
+		const start = edge.motionStartSeconds / timeline.durationSeconds;
+		const end = edge.motionEndSeconds / timeline.durationSeconds;
 		store.selectCameraTimelineEdge(
 			edge.connectionId,
 			edge.direction,
@@ -368,8 +368,8 @@
 			<div class="track route-track" aria-label="Guided Route">
 				<div class="rail"></div>
 				{#each timeline.edges as edge (edge.connectionId)}
-					{@const start = edge.startSeconds / timeline.durationSeconds}
-					{@const end = edge.endSeconds / timeline.durationSeconds}
+					{@const start = edge.motionStartSeconds / timeline.durationSeconds}
+					{@const end = edge.motionEndSeconds / timeline.durationSeconds}
 					<button
 						type="button"
 						class="edge"

@@ -10,6 +10,7 @@ import type {
 } from '$lib/types/museum';
 export type { CameraConnectionDirection } from '$lib/types/museum';
 import type {
+  CameraMotionOptions,
   CameraPositionPathPart,
   CameraRoute,
   CameraRouteEdge,
@@ -432,4 +433,21 @@ export function getGuidedCameraRoute(
   }
 
   return buildResolvedRoute(start.id, start.id, path, graph);
+}
+
+/** Phase 3.7: project a connection's authored timing pair onto per-direction motion options consumed by `createCameraMotion`. */
+export function getCameraMotionOptions(
+  connection: MuseumConnection,
+  direction: CameraConnectionDirection
+): CameraMotionOptions {
+  const timing = connection.timing?.[direction];
+  if (!timing) return {};
+  const options: CameraMotionOptions = {};
+  if (typeof timing.durationSeconds === 'number') {
+    options.durationSeconds = timing.durationSeconds;
+  }
+  if (timing.easing !== undefined) {
+    options.easing = timing.easing;
+  }
+  return options;
 }

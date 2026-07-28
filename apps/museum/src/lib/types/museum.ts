@@ -19,6 +19,38 @@ export const MUSEUM_CAMERA_FOV = {
 
 export type CameraConnectionDirection = 'forward' | 'reverse';
 
+/** Phase 3.7 authored camera easing for position/hold schedules. */
+export type CameraEasing =
+  | 'linear'
+  | 'smoothstep'
+  | 'smootherstep'
+  | 'ease-in'
+  | 'ease-out'
+  | 'ease-in-out';
+
+export const MUSEUM_CAMERA_EASING: readonly CameraEasing[] = [
+  'linear',
+  'smoothstep',
+  'smootherstep',
+  'ease-in',
+  'ease-out',
+  'ease-in-out'
+] as const;
+
+export type SceneConnectionTiming = {
+  /** Motion duration in seconds. Clamped to a small positive minimum at apply-time. */
+  durationSeconds?: number;
+  /** Easing applied across the motion span. */
+  easing?: CameraEasing;
+};
+
+export type SceneViewKeyframeTiming = {
+  /** Optional zero-position-motion hold in seconds after this key, before the next. */
+  holdSeconds?: number;
+  /** Optional easing to apply up to the next framing sample (or end if last). */
+  easing?: CameraEasing;
+};
+
 export type RoomOpeningSide = 'neg-x' | 'pos-x' | 'neg-z' | 'pos-z';
 
 export type RoomOpening = {
@@ -43,6 +75,8 @@ export type NavigationNodeData = {
   nextNodeId?: string;
   previousNodeId?: string;
   lockInteraction?: boolean;
+  /** Phase 3.7 authored camera timing: zero-position-motion hold in seconds when this node is the destination of a guided edge. */
+  holdSeconds?: number;
 };
 
 export type RuntimeCameraViewKeyframe = {
@@ -53,6 +87,10 @@ export type RuntimeCameraViewKeyframe = {
   cameraTarget: Vec3;
   /** Vertical PerspectiveCamera field of view in degrees. */
   fov: number;
+  /** Phase 3.7 authored post-key hold in seconds; never applies in reduced motion. */
+  holdSeconds?: number;
+  /** Phase 3.7 authored easing for the arc up to the next framing sample. */
+  easing?: CameraEasing;
 };
 
 export type RuntimeConnectionViewTracks = Record<
@@ -86,6 +124,11 @@ export type MuseumConnection = {
   viewTracks?: RuntimeConnectionViewTracks;
   targetWaypoints?: Vec3[];
   clearance: number;
+  /** Phase 3.7 authored timing: connection-spanning motion duration + easing; per-direction. */
+  timing?: {
+    forward?: SceneConnectionTiming;
+    reverse?: SceneConnectionTiming;
+  };
 };
 
 export type MuseumRoom = {

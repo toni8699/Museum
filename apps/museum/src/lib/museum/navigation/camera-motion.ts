@@ -7,8 +7,10 @@ import {
   Vector3
 } from 'three';
 import {
+  MUSEUM_CAMERA_EASING,
   MUSEUM_CAMERA_FOV,
-  type CameraConnectionDirection
+  type CameraConnectionDirection,
+  type CameraEasing
 } from '$lib/types/museum';
 
 export type Vector3Like =
@@ -102,6 +104,16 @@ export type CameraMotion = {
   readonly startFov: number;
   readonly endFov: number;
   readonly durationSeconds: number;
+  /** Phase 3.7 authored easing applied across the motion span. */
+  readonly easing: CameraEasing;
+};
+
+/** Phase 3.7 authored overrides for one direction of a connection. */
+export type CameraMotionOptions = {
+  /** Exactly replace the formula-derived motion duration (no clamp). */
+  durationSeconds?: number;
+  /** Override the default easing applied to the motion span. */
+  easing?: CameraEasing;
 };
 
 export type CameraPositionDistanceSpan = {
@@ -134,6 +146,9 @@ export const CAMERA_MOTION_TIMING = {
   minDurationSeconds: 1.25,
   maxDurationSeconds: 4.8
 } as const;
+
+/** Default easing used when a motion has no authored override. */
+export const CAMERA_MOTION_DEFAULT_EASING: CameraEasing = 'smootherstep';
 
 export const CAMERA_MOTION_PATH = {
   positionCornerRadius: 0.42,
@@ -859,7 +874,8 @@ function validateAuthoredViewPoses(
 
 export function createCameraMotion(
   route: CameraRoute,
-  optionalStartPose?: CameraPose
+  optionalStartPose?: CameraPose,
+  options?: CameraMotionOptions
 ): CameraMotion {
   const positionParts = preparePositionParts(route.positionParts);
   const positionPointCount = countOrderedPositionPoints(positionParts);
@@ -941,14 +957,12 @@ export function createCameraMotion(
   targetPath.getLength();
   targetPath.getLengths();
 
-  const durationSeconds =
-    positionPointCount === 1
-      ? 0
-      : MathUtils.clamp(
-          positionLength / CAMERA_MOTION_TIMING.unitsPerSecond,
-          CAMERA_MOTION_TIMING.minDurationSeconds,
-          CAMERA_MOTION_TIMING.maxDurationSeconds
-        );
+  const durationSeconds = resolveCameraMotionDuration(
+    options?.durationSeconds,
+    positionLength,
+    positionPointCount
+  );
+  const easing = resolveCameraMotionEasing(options?.easing);
 
   return {
     positionPath,
@@ -959,7 +973,8 @@ export function createCameraMotion(
     usesLegacyTargetPath,
     startFov,
     endFov,
-    durationSeconds
+    durationSeconds,
+    easing
   };
 }
 
@@ -993,6 +1008,87 @@ function inverseSmootherstep01(progress: number) {
   return (lower + upper) / 2;
 }
 
+function smoothstep(progress: number) {
+  return progress * progress * (3 - 2 * progress);
+}
+
+function inverseSmoothstep(progress: number) {
+  const target = MathUtils.clamp(progress, 0, 1);
+  if (target === 0 || target === 1) return target;
+  let lower = 0;
+  let upper = 1;
+  for (let iteration = 0; iteration < 40; iteration += 1) {
+    const midpoint = (lower + upper) / 2;
+    if (smoothstep(midpoint) < target) lower = midpoint;
+    else upper = midpoint;
+  }
+  return (lower + upper) / 2;
+}
+
+/** Phase 3.7 easing helpers. Linear-affine and polynomial forms use closed-form inverses; smoothstep relies on bisection. */
+export function cameraApplyEasing(
+  easing: CameraEasing,
+  progress: number
+): number {
+  const clamped = MathUtils.clamp(progress, 0, 1);
+  switch (easing) {
+    case 'linear':
+      return clamped;
+    case 'smoothstep':
+    case 'ease-in-out':
+      return smoothstep(clamped);
+    case 'smootherstep':
+      return smootherstep01(clamped);
+    case 'ease-in':
+      return clamped * clamped;
+    case 'ease-out':
+      return 1 - (1 - clamped) * (1 - clamped);
+  }
+}
+
+export function cameraInverseEasing(
+  easing: CameraEasing,
+  progress: number
+): number {
+  const clamped = MathUtils.clamp(progress, 0, 1);
+  switch (easing) {
+    case 'linear':
+      return clamped;
+    case 'smoothstep':
+    case 'ease-in-out':
+      return inverseSmoothstep(clamped);
+    case 'smootherstep':
+      return inverseSmootherstep01(clamped);
+    case 'ease-in':
+      return Math.sqrt(clamped);
+    case 'ease-out':
+      return 1 - Math.sqrt(1 - clamped);
+  }
+}
+
+export function resolveCameraMotionEasing(
+  easing: CameraEasing | undefined
+): CameraEasing {
+  if (easing === undefined) return CAMERA_MOTION_DEFAULT_EASING;
+  return easing === 'ease-in-out' ? 'smoothstep' : easing;
+}
+
+export function resolveCameraMotionDuration(
+  overridingDuration: number | undefined,
+  positionLength: number,
+  positionPointCount: number
+): number {
+  if (typeof overridingDuration === 'number' && Number.isFinite(overridingDuration) && overridingDuration > 0) {
+    return overridingDuration;
+  }
+  if (positionPointCount === 1) return 0;
+  return MathUtils.clamp(
+    positionLength / CAMERA_MOTION_TIMING.unitsPerSecond,
+    CAMERA_MOTION_TIMING.minDurationSeconds,
+    CAMERA_MOTION_TIMING.maxDurationSeconds
+  );
+}
+
 /** Map exact edge-local distance progress back to raw transition/playhead progress. */
 export function cameraMotionProgressAtEdgeProgress(
   motion: CameraMotion,
@@ -1015,7 +1111,7 @@ export function cameraMotionProgressAtEdgeProgress(
     );
   }
   const distance = span.startDistance + span.length * localProgress;
-  return inverseSmootherstep01(distance / motion.totalPositionDistance);
+  return cameraInverseEasing(motion.easing, distance / motion.totalPositionDistance);
 }
 
 /** Map raw transition/playhead progress to exact edge-local distance progress. */
@@ -1033,7 +1129,7 @@ export function cameraMotionEdgeProgressAtProgress(
   return getEdgeLocalProgress(
     motion,
     edgeIndex,
-    smootherstep01(MathUtils.clamp(progress, 0, 1))
+    cameraApplyEasing(motion.easing, MathUtils.clamp(progress, 0, 1))
   );
 }
 
@@ -1078,6 +1174,7 @@ function getEdgeLocalProgress(
 function sampleAuthoredView(
   edgeView: CameraMotionEdgeView,
   localProgress: number,
+  easing: CameraEasing,
   output: CameraMotionSample
 ) {
   const points = edgeView.points;
@@ -1099,7 +1196,7 @@ function sampleAuthoredView(
           0,
           1
         );
-  const easedIntervalProgress = smootherstep01(intervalProgress);
+  const easedIntervalProgress = cameraApplyEasing(easing, intervalProgress);
   output.target
     .copy(start.cameraTarget)
     .lerp(end.cameraTarget, easedIntervalProgress);
@@ -1116,7 +1213,7 @@ export function sampleCameraMotion(
   }
 
   const clampedProgress = MathUtils.clamp(progress, 0, 1);
-  const easedProgress = smootherstep01(clampedProgress);
+  const easedProgress = cameraApplyEasing(motion.easing, clampedProgress);
 
   motion.positionPath.getPointAt(easedProgress, output.position);
 
@@ -1127,7 +1224,7 @@ export function sampleCameraMotion(
   if (motion.usesLegacyTargetPath || !edgeView) {
     motion.targetPath.getPointAt(easedProgress, output.target);
   } else if (edgeView.hasAuthoredKeyframes) {
-    sampleAuthoredView(edgeView, localProgress, output);
+    sampleAuthoredView(edgeView, localProgress, motion.easing, output);
     return;
   } else if (edgeView.automaticTargetPath) {
     edgeView.automaticTargetPath.getPointAt(localProgress, output.target);
@@ -1141,13 +1238,13 @@ export function sampleCameraMotion(
     output.fov = MathUtils.lerp(
       start.fov,
       end.fov,
-      smootherstep01(localProgress)
+      cameraApplyEasing(motion.easing, localProgress)
     );
   } else {
     output.fov = MathUtils.lerp(
       motion.startFov,
       motion.endFov,
-      smootherstep01(easedProgress)
+      cameraApplyEasing(motion.easing, easedProgress)
     );
   }
 }

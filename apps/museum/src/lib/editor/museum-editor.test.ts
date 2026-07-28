@@ -2388,7 +2388,7 @@ describe('MuseumEditorStore Phase 2.2 timeline selection and scrub', () => {
 		expect(store.seekCameraTimeline(progress)).toBe(true);
 		const seconds = progress * timeline.durationSeconds;
 		const edge = timeline.edges.find(
-			(candidate) => seconds < candidate.endSeconds
+			(candidate) => seconds < candidate.motionEndSeconds
 		)!;
 		expect(store.cameraTimelinePlayhead).toBe(progress);
 		expect(store.navigationSelection).toEqual({
@@ -2418,12 +2418,12 @@ describe('MuseumEditorStore Phase 2.2 timeline selection and scrub', () => {
 		const firstEdge = timeline.edges[0]!;
 		const secondEdge = timeline.edges[1]!;
 
-		expect(store.seekCameraTimeline(firstEdge.startSeconds / timeline.durationSeconds + 0.01)).toBe(true);
+		expect(store.seekCameraTimeline(firstEdge.motionStartSeconds / timeline.durationSeconds + 0.01)).toBe(true);
 		expect(store.toggleCameraPreviewFollow()).toBe(true);
 		expect(store.cameraPreviewFollowEnabled).toBe(false);
 		const recenterVersion = store.cameraPreviewRecenterVersion;
 		const nextProgress =
-			(secondEdge.startSeconds + secondEdge.durationSeconds * 0.35) /
+			(secondEdge.motionStartSeconds + secondEdge.motionDurationSeconds * 0.35) /
 			timeline.durationSeconds;
 
 		expect(store.seekCameraTimeline(nextProgress)).toBe(true);
@@ -2441,10 +2441,10 @@ describe('MuseumEditorStore Phase 2.2 timeline selection and scrub', () => {
 		store.setWorkspace('camera');
 		const timeline = store.getCameraTimeline()!;
 		const firstProgress =
-			(timeline.edges[0]!.startSeconds + timeline.edges[0]!.durationSeconds * 0.2) /
+			(timeline.edges[0]!.motionStartSeconds + timeline.edges[0]!.motionDurationSeconds * 0.2) /
 			timeline.durationSeconds;
 		const secondProgress =
-			(timeline.edges[1]!.startSeconds + timeline.edges[1]!.durationSeconds * 0.4) /
+			(timeline.edges[1]!.motionStartSeconds + timeline.edges[1]!.motionDurationSeconds * 0.4) /
 			timeline.durationSeconds;
 
 		expect(store.seekCameraTimeline(firstProgress)).toBe(true);
@@ -2523,7 +2523,7 @@ describe('MuseumEditorStore Phase 2.2 timeline selection and scrub', () => {
 		});
 		expect(store.cameraTimelinePlayhead).toBeGreaterThan(0);
 		expect(store.cameraTimelinePlayhead).toBeLessThan(
-			edge.endSeconds / timeline.durationSeconds
+			edge.motionEndSeconds / timeline.durationSeconds
 		);
 	});
 
@@ -2730,7 +2730,7 @@ describe('MuseumEditorStore Phase 3.1 selection and primary Play parity', () => 
 		const edge = timeline.edges.find(
 			(candidate) => candidate.connectionId === connection.id
 		)!;
-		const edgeMiddle = (edge.startSeconds + edge.endSeconds) /
+		const edgeMiddle = (edge.motionStartSeconds + edge.motionEndSeconds) /
 			(2 * timeline.durationSeconds);
 		const directionRecenterVersion = store.cameraPreviewRecenterVersion;
 		expect(
@@ -2744,8 +2744,7 @@ describe('MuseumEditorStore Phase 3.1 selection and primary Play parity', () => 
 		expect(
 			store.selectCameraTimelineEdge(
 				otherEdge.connectionId,
-				otherEdge.direction,
-				otherEdge.startSeconds / timeline.durationSeconds
+				otherEdge.direction,    otherEdge.motionStartSeconds / timeline.durationSeconds
 			)
 		).toBe(true);
 		expect(store.cameraPreviewRecenterVersion).toBe(directionRecenterVersion + 1);

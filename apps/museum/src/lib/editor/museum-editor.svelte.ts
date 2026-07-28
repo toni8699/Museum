@@ -13,6 +13,7 @@ import {
 	type SceneObjectPlacement
 } from '$lib/content/scene';
 import {
+	cameraSceneConnectionTimingFailureReason,
 	serializeSceneDocument,
 	validateSceneDocument,
 	type SceneDocumentValidationResult
@@ -28,9 +29,12 @@ import {
 	sampleCameraMotion
 } from '$lib/museum/navigation/camera-motion';
 import {
+	MUSEUM_CAMERA_EASING,
 	MUSEUM_CAMERA_FOV,
 	type CameraConnectionDirection,
+	type CameraEasing,
 	type MuseumRoomId,
+	type SceneConnectionTiming,
 	type Vec3
 } from '$lib/types/museum';
 import {
@@ -1329,8 +1333,8 @@ export class MuseumEditorStore {
 		const edge = findEditorCameraTimelineEdge(timeline, connectionId);
 		if (!edge) return false;
 		const clampedProgress = Math.min(
-			edge.endSeconds / timeline.durationSeconds,
-			Math.max(edge.startSeconds / timeline.durationSeconds, progress)
+			edge.motionEndSeconds / timeline.durationSeconds,
+			Math.max(edge.motionStartSeconds / timeline.durationSeconds, progress)
 		);
 		const edgePlayhead = cameraTimelineEdgePlayheadAtProgress(
 			timeline,
@@ -4453,8 +4457,151 @@ export class MuseumEditorStore {
 				)
 			: undefined;
 	}
+
+	/** Phase 3.7: write connection timing (duration + easing) for one direction. */
+	setConnectionTiming(
+		connectionId: string,
+		direction: CameraConnectionDirection,
+		timing: SceneConnectionTiming | null
+	): boolean {
+		if (this.isDocumentMutationBlocked) return false;
+		const connection = this.document.connections.find(
+			(candidate) => candidate.id === connectionId
+		);
+		if (!connection) {
+			this.setStatusMessage(`Unknown connection: ${connectionId}`);
+			return false;
+		}
+		if (timing === null && !connection.timing) return false;
+		if (!this.beginDocumentTransaction()) return false;
+		if (timing === null) {
+			const current = connection.timing;
+			if (!current) {
+				return this.commitDocumentTransaction();
+			}
+			delete current[direction];
+			if (
+				current.forward === undefined &&
+				current.reverse === undefined
+			) {
+				delete connection.timing;
+			}
+		} else {
+			const validated = validateSceneConnectionTiming(timing);
+			if (validated === null) {
+				this.cancelDocumentTransaction();
+				const reason = cameraSceneConnectionTimingFailureReason(timing) ?? 'unknown';
+				this.setStatusMessage(`Invalid connection timing: ${reason}`);
+				return false;
+			}
+			connection.timing = connection.timing ?? {};
+			connection.timing[direction] = validated;
+		}
+		return this.commitDocumentTransaction();
+	}
+
+	/** Phase 3.7: write a destination hold in seconds; pass `null` to clear. */
+	setNodeHoldSeconds(nodeId: string, holdSeconds: number | null): boolean {
+		if (this.isDocumentMutationBlocked) return false;
+		const node = this.document.navigationNodes.find(
+			(candidate) => candidate.id === nodeId
+		);
+		if (!node) {
+			this.setStatusMessage(`Unknown navigation node: ${nodeId}`);
+			return false;
+		}
+		if (holdSeconds === null && node.holdSeconds === undefined) return false;
+		if (!this.beginDocumentTransaction()) return false;
+		if (holdSeconds === null) {
+			delete node.holdSeconds;
+		} else {
+			if (!Number.isFinite(holdSeconds) || holdSeconds < 0) {
+				this.cancelDocumentTransaction();
+				this.setStatusMessage('Hold seconds must be a finite non-negative number');
+				return false;
+			}
+			node.holdSeconds = holdSeconds;
+		}
+		return this.commitDocumentTransaction();
+	}
+
+	/** Phase 3.7: write authored hold + easing for one view keyframe, or `null` to clear each field individually. */
+	setViewKeyframeTiming(
+		connectionId: string,
+		direction: CameraConnectionDirection,
+		keyframeId: string,
+		holdSeconds: number | null,
+		easing: CameraEasing | null
+	): boolean {
+		if (this.isDocumentMutationBlocked) return false;
+		const connection = this.document.connections.find(
+			(candidate) => candidate.id === connectionId
+		);
+		if (!connection?.viewTracks) {
+			this.setStatusMessage(`Unknown view keyframe: ${connectionId}:${keyframeId}`);
+			return false;
+		}
+		const track = connection.viewTracks[direction];
+		const keyframe = track.find((candidate) => candidate.id === keyframeId);
+		if (!keyframe) {
+			this.setStatusMessage(`Unknown view keyframe: ${connectionId}:${keyframeId}`);
+			return false;
+		}
+		const noHoldToWrite = holdSeconds !== null && keyframe.holdSeconds === holdSeconds;
+		const noEasingToWrite = easing !== null && keyframe.easing === easing;
+		if (noHoldToWrite && noEasingToWrite) return false;
+		if (
+			holdSeconds === null &&
+			easing === null &&
+			keyframe.holdSeconds === undefined &&
+			keyframe.easing === undefined
+		) {
+			return false;
+		}
+		if (!this.beginDocumentTransaction()) return false;
+		if (holdSeconds !== null) {
+			if (!Number.isFinite(holdSeconds) || holdSeconds < 0) {
+				this.cancelDocumentTransaction();
+				this.setStatusMessage(
+					'View keyframe holdSeconds must be a finite non-negative number'
+				);
+				return false;
+			}
+			keyframe.holdSeconds = holdSeconds;
+		} else {
+			delete keyframe.holdSeconds;
+		}
+		if (easing !== null) {
+			if (!MUSEUM_CAMERA_EASING.includes(easing)) {
+				this.cancelDocumentTransaction();
+				this.setStatusMessage(
+					`Easing must be one of ${MUSEUM_CAMERA_EASING.join(', ')}`
+				);
+				return false;
+			}
+			keyframe.easing = easing;
+		} else {
+			delete keyframe.easing;
+		}
+		return this.commitDocumentTransaction();
+	}
 }
 
+/** Phase 3.7: validate a timing payload; returns the cloned object or `null` on failure. */
+export function validateSceneConnectionTiming(
+	timing: SceneConnectionTiming
+): SceneConnectionTiming | null {
+	if (
+		timing.durationSeconds !== undefined &&
+		(!Number.isFinite(timing.durationSeconds) || timing.durationSeconds <= 0)
+	) {
+		return null;
+	}
+	if (timing.easing !== undefined && !MUSEUM_CAMERA_EASING.includes(timing.easing)) {
+		return null;
+	}
+	return { ...timing };
+}
 export function createMuseumEditorStore() {
 	return new MuseumEditorStore();
 }

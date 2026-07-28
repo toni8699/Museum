@@ -6,11 +6,14 @@ import {
 } from './scene-codec';
 import type { AssetPlacement } from '$lib/types/assets';
 import type {
+  CameraEasing,
   MuseumConnection,
   MuseumRoomId,
   NavigationNodeData,
   RuntimeCameraViewKeyframe,
   RuntimePathAnchor,
+  SceneConnectionTiming,
+  SceneViewKeyframeTiming,
   Vec3
 } from '$lib/types/museum';
 
@@ -45,11 +48,20 @@ export type SceneCameraViewKeyframe = {
   roomId?: MuseumRoomId;
   /** Vertical PerspectiveCamera field of view in degrees. */
   fov: number;
+  /** Phase 3.7 authored post-key timing. */
+  holdSeconds?: number;
+  /** Phase 3.7 authored easing to the next framing sample. */
+  easing?: CameraEasing;
 };
 
 export type SceneConnectionViewTracks = {
   forward: SceneCameraViewKeyframe[];
   reverse: SceneCameraViewKeyframe[];
+};
+
+export type SceneConnectionTimingPair = {
+  forward?: SceneConnectionTiming;
+  reverse?: SceneConnectionTiming;
 };
 
 export type SceneWaypoint = {
@@ -75,7 +87,7 @@ export type ScenePositionPath =
 
 export type SceneConnection = Omit<
   MuseumConnection,
-  'positionPath' | 'viewTracks' | 'targetWaypoints'
+  'positionPath' | 'viewTracks' | 'targetWaypoints' | 'timing'
 > & {
   /** Interior anchors only; the resolver inserts fresh node endpoints. */
   positionPath: ScenePositionPath;
@@ -83,16 +95,24 @@ export type SceneConnection = Omit<
   viewTracks?: SceneConnectionViewTracks;
   /** Interior look waypoints only; currently unused by camera-route. */
   targetWaypoints?: SceneWaypoint[];
+  /** Phase 3.7 authored connection timing, applied per direction. */
+  timing?: SceneConnectionTimingPair;
 };
 
+/** Current scene schema version. Documents without timing canonicalise to v3. */
+export const MUSEUM_SCENE_SCHEMA_VERSION = 4 as const;
+
 export type MuseumSceneDocument = {
-  version: 3;
+  version: 3 | 4;
   objects: SceneObjectPlacement[];
   /** Editor-only hierarchy metadata. Visitor rendering intentionally stays flat. */
   clusters?: SceneObjectCluster[];
   navigationNodes: SceneNavigationNode[];
   connections: SceneConnection[];
 };
+
+/** Runtime type that the document parser canonicalises into. */
+export type CanonicalMuseumSceneDocument = MuseumSceneDocument;
 
 export type RuntimeMuseumScene = {
   /** Room-local placements, mounted beneath room transforms. */
@@ -128,7 +148,9 @@ function resolveViewKeyframe(
     cameraTarget: keyframe.roomId
       ? roomPoint(keyframe.roomId, keyframe.cameraTarget)
       : cloneVec3(keyframe.cameraTarget),
-    fov: keyframe.fov
+    fov: keyframe.fov,
+    ...(keyframe.holdSeconds === undefined ? {} : { holdSeconds: keyframe.holdSeconds }),
+    ...(keyframe.easing === undefined ? {} : { easing: keyframe.easing })
   };
 }
 
@@ -141,7 +163,8 @@ export function resolveSceneDocument(input: unknown): RuntimeMuseumScene {
     ...node,
     position: roomPoint(node.roomId, node.position),
     cameraTarget: roomPoint(node.roomId, node.cameraTarget),
-    connectedNodeIds: [...node.connectedNodeIds]
+    connectedNodeIds: [...node.connectedNodeIds],
+    ...(node.holdSeconds === undefined ? {} : { holdSeconds: node.holdSeconds })
   }));
   const resolvedNodeById = new Map(navigationNodes.map((node) => [node.id, node]));
 
@@ -187,6 +210,17 @@ export function resolveSceneDocument(input: unknown): RuntimeMuseumScene {
       resolved.viewTracks = {
         forward: connection.viewTracks.forward.map(resolveViewKeyframe),
         reverse: connection.viewTracks.reverse.map(resolveViewKeyframe)
+      };
+    }
+
+    const timing = connection.timing;
+    if (
+      (timing?.forward !== undefined) ||
+      (timing?.reverse !== undefined)
+    ) {
+      resolved.timing = {
+        ...(timing?.forward === undefined ? {} : { forward: { ...timing.forward } }),
+        ...(timing?.reverse === undefined ? {} : { reverse: { ...timing.reverse } })
       };
     }
 

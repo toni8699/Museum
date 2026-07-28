@@ -8,6 +8,7 @@ import {
   resolveSceneDocument,
   type MuseumSceneDocument
 } from './scene';
+import { validateSceneDocument } from './scene-codec';
 
 const PRE_CAMERA_NODE_ID = 'camera-node-1';
 const PRE_CAMERA_CONNECTION_IDS = new Set([
@@ -334,28 +335,101 @@ describe('resolveSceneDocument', () => {
     expect(resolved.objects[0]).toEqual(document.objects[0]);
     expect(resolved.objects[0]).not.toBe(document.objects[0]);
     expect(resolved.objects[0].position).not.toBe(document.objects[0].position);
+  });  it('rejects unsupported versions, duplicate ids, and unknown endpoints', () => {
+		const cloneDocument = () =>
+			JSON.parse(JSON.stringify(museumSceneDocument)) as MuseumSceneDocument;
+		const unsupported = cloneDocument();
+		(unsupported as unknown as { version: number }).version = 5;
+		expect(() => resolveSceneDocument(unsupported)).toThrow(
+			'Unsupported museum scene document version: 5'
+		);
+
+		const duplicate = cloneDocument();
+		duplicate.objects.push({ ...duplicate.objects[0] });
+		expect(() => resolveSceneDocument(duplicate)).toThrow(
+			`Duplicate scene object id: ${duplicate.objects[0].id}`
+		);
+
+		const unknownEndpoint = cloneDocument();
+		unknownEndpoint.connections[0].toNodeId = 'missing-node';
+		expect(() => resolveSceneDocument(unknownEndpoint)).toThrow(
+			'Unknown navigation node: missing-node'
+		);
+	});
+
+  it('keeps the canonical version pinned to 3 for the v3 input without timing fields', () => {
+    const clone = JSON.parse(JSON.stringify(museumSceneDocument)) as MuseumSceneDocument;
+    expect(clone.version).toBe(3);
+    const validation = validateSceneDocument(clone);
+    expect(validation.success).toBe(true);
+    if (validation.success) {
+      expect(validation.document.version).toBe(3);
+      expect(validation.document).toEqual(clone);
+    }
   });
 
-  it('rejects unsupported versions, duplicate ids, and unknown endpoints', () => {
-    const cloneDocument = () =>
-      JSON.parse(JSON.stringify(museumSceneDocument)) as MuseumSceneDocument;
-    const unsupported = cloneDocument();
-    (unsupported as unknown as { version: number }).version = 4;
-    expect(() => resolveSceneDocument(unsupported)).toThrow(
-      'Unsupported museum scene document version: 4'
-    );
+  it('accepts authored v4 timing and projects it onto runtime scene/instances', () => {
+    const v4: MuseumSceneDocument = {
+      version: 4,
+      objects: museumSceneDocument.objects.slice(0, 1),
+      navigationNodes: museumSceneDocument.navigationNodes.map((node, index) =>
+        index === 1
+          ? { ...node, holdSeconds: 2.5 }
+          : node
+      ),
+      connections: [
+        {
+          ...museumSceneDocument.connections[0]!,
+          timing: {
+            forward: { durationSeconds: 3.2, easing: 'ease-in-out' }
+          },
+          viewTracks: {
+            forward: [
+              {
+                id: museumSceneDocument.connections[0]!.viewTracks?.forward[0]?.id ?? 'kf-1',
+                progress: 0.5,
+                cameraTarget: [1, 1.4, -2],
+                fov: 48,
+                holdSeconds: 1.0,
+                easing: 'ease-in'
+              }
+            ],
+            reverse: []
+          }
+        },
+        ...museumSceneDocument.connections.slice(1).map((connection) => ({
+          ...connection,
+          ...(connection.viewTracks ? { viewTracks: connection.viewTracks } : {})
+        }))
+      ]
+    };
+    const resolved = resolveSceneDocument(v4);
+    const paris = resolved.navigationNodes.find(
+      (node) => node.id === 'poland-threshold'
+    )!;
+    expect(paris.holdSeconds).toBe(2.5);
+    const connection = resolved.connections[0]!;
+    expect(connection.timing?.forward?.durationSeconds).toBe(3.2);		expect(connection.timing?.forward?.easing).toBe('smoothstep');
+    expect(connection.viewTracks?.forward[0]?.holdSeconds).toBe(1.0);
+    expect(connection.viewTracks?.forward[0]?.easing).toBe('ease-in');
+  });
 
-    const duplicate = cloneDocument();
-    duplicate.objects.push({ ...duplicate.objects[0] });
-    expect(() => resolveSceneDocument(duplicate)).toThrow(
-      `Duplicate scene object id: ${duplicate.objects[0].id}`
-    );
-
-    const unknownEndpoint = cloneDocument();
-    unknownEndpoint.connections[0].toNodeId = 'missing-node';
-    expect(() => resolveSceneDocument(unknownEndpoint)).toThrow(
-      'Unknown navigation node: missing-node'
-    );
+  it('rejects v4 documents with malformed timing payloads', () => {
+    const v4: MuseumSceneDocument = {
+      version: 4,
+      objects: museumSceneDocument.objects.slice(0, 1),
+      navigationNodes: museumSceneDocument.navigationNodes,
+      connections: [
+        {
+          ...museumSceneDocument.connections[0]!,
+          timing: {
+            forward: { durationSeconds: 0 }
+          }
+        },
+        ...museumSceneDocument.connections.slice(1)
+      ]
+    };
+    expect(() => resolveSceneDocument(v4)).toThrow(/invalid_duration_seconds/);
   });
 
   it('validates editor clusters while keeping runtime rendering flat', () => {

@@ -18,7 +18,9 @@ import {
 	cameraTimelineEdgeProgressAtProgress,
 	cameraTimelineProgressAtEdgeProgress,
 	createEditorCameraTimeline,
+	getEditorCameraScheduleLocation,
 	getEditorCameraTimelineLocation,
+	sampleEditorCameraSchedule,
 	sampleEditorCameraTimeline
 } from './editor-camera-timeline';
 
@@ -45,11 +47,13 @@ describe('editor camera timeline index', () => {
 		expect(timeline.durationSeconds).toBeGreaterThan(0);
 
 		for (const [index, edge] of timeline.edges.entries()) {
-			expect(edge.startSeconds).toBe(
-				index === 0 ? 0 : timeline.edges[index - 1]!.endSeconds
+			expect(edge.motionStartSeconds).toBe(
+				index === 0 ? 0 : timeline.edges[index - 1]!.motionEndSeconds
 			);
-			expect(edge.durationSeconds).toBeGreaterThan(0);
-			expect(edge.endSeconds).toBe(edge.startSeconds + edge.durationSeconds);
+			expect(edge.motionDurationSeconds).toBeGreaterThan(0);
+			expect(edge.motionEndSeconds).toBe(
+				edge.motionStartSeconds + edge.motionDurationSeconds
+			);
 		}
 	});
 
@@ -267,5 +271,101 @@ describe('editor camera timeline index', () => {
 		};
 
 		expect(() => createEditorCameraTimeline(graph)).toThrow(/not reciprocal/);
+	});
+
+	it('extends the schedule with destination-node holds and respects authored overrides', () => {
+		const document = cloneMuseumSceneDocument(museumSceneDocument);
+		(document as { version: 4 }).version = 4;
+		const target = document.navigationNodes.find((node) => node.id === 'poland-threshold')!;
+		target.holdSeconds = 14.5;
+		const first = document.connections.find((c) => c.id === 'entrance-poland')!;
+		first.timing = { forward: { durationSeconds: 9.25, easing: 'ease-in' } };
+
+		const timeline = createEditorCameraTimeline(
+			createNavigationGraph(resolveSceneDocument(document))
+		);
+
+		const firstEdge = timeline.edges[0]!;
+		expect(firstEdge.motionDurationSeconds).toBe(9.25);
+		expect(firstEdge.holdSeconds).toBe(14.5);
+		expect(firstEdge.motionEndSeconds - firstEdge.motionStartSeconds).toBe(9.25);
+		expect(firstEdge.holdEndSeconds).toBe(firstEdge.motionEndSeconds + 14.5);
+		expect(timeline.totalHoldSeconds).toBeGreaterThanOrEqual(14.5);
+		expect(timeline.durationSeconds).toBe(
+			timeline.motionDurationSeconds + timeline.totalHoldSeconds
+		);
+		expect(timeline.nodeBoundaries[0]?.progress).toBe(0);
+		expect(timeline.nodeBoundaries.at(-1)?.progress).toBe(1);
+	});
+
+	it('lands on the destination pose and reports a zero-progress hold tail without movement', () => {
+		const document = cloneMuseumSceneDocument(museumSceneDocument);
+		(document as { version: 4 }).version = 4;
+		const poland = document.navigationNodes.find((node) => node.id === 'poland-threshold')!;
+		poland.holdSeconds = 6;
+		const timeline = createEditorCameraTimeline(
+			createNavigationGraph(resolveSceneDocument(document))
+		);
+		const firstEdge = timeline.edges[0]!;
+		const intoHold = firstEdge.motionEndSeconds + 2;
+		const location = getEditorCameraScheduleLocation(timeline, intoHold);
+		expect(location.isHolding).toBe(true);
+		expect(location.holdingNodeId).toBe('poland-threshold');
+		expect(location.edgePlayhead).toBe(1);
+		expect(location.holdProgress).toBeCloseTo(2 / 6, 8);
+
+		const before = createCameraMotionSample();
+		const after = createCameraMotionSample();
+		sampleEditorCameraSchedule(timeline, firstEdge.motionEndSeconds, before);
+		sampleEditorCameraSchedule(timeline, firstEdge.motionEndSeconds + 5.9, after);
+		for (const [index] of before.position.toArray().entries()) {
+			expect(after.position.getComponent(index)).toBeCloseTo(
+				before.position.getComponent(index),
+				10
+			);
+		}
+		for (const [index] of before.target.toArray().entries()) {
+			expect(after.target.getComponent(index)).toBeCloseTo(
+				before.target.getComponent(index),
+				10
+			);
+		}
+		expect(after.fov).toBeCloseTo(before.fov, 10);
+	});
+
+	it('collapses every motion span to its end pose under reduced motion', () => {
+		const document = cloneMuseumSceneDocument(museumSceneDocument);
+		(document as { version: 4 }).version = 4;
+		document.navigationNodes.forEach((node, index) => {
+			if (index % 2 === 0) node.holdSeconds = 4;
+		});
+		const timeline = createEditorCameraTimeline(
+			createNavigationGraph(resolveSceneDocument(document))
+		);
+		const sample = createCameraMotionSample();
+		const midMotion = createCameraMotionSample();
+
+		offTheEnd: {
+			const oob = getEditorCameraScheduleLocation(
+				timeline,
+				timeline.motionDurationSeconds + 1000,
+				true
+			);
+			expect(oob.edgeIndex).toBe(timeline.edges.length - 1);
+			expect(oob.edgePlayhead).toBe(1);
+			expect(oob.isHolding).toBe(false);
+		}
+
+		for (const [edgeIndex, edge] of timeline.edges.entries()) {
+			sampleEditorCameraSchedule(timeline, edge.motionEndSeconds, sample, true);
+			sampleCameraMotion(edge.motions[edge.direction], 1, midMotion);
+			expect(sample.position.toArray()).toEqual(midMotion.position.toArray());
+			expect(sample.target.toArray()).toEqual(midMotion.target.toArray());
+			expect(sample.fov).toBeCloseTo(midMotion.fov, 10);
+			const reduced = getEditorCameraScheduleLocation(timeline, edge.motionEndSeconds + edge.holdSeconds + 1, true);
+			expect(reduced.isHolding).toBe(false);
+			expect(reduced.edgePlayhead).toBe(1);
+			expect(reduced.edgeIndex).toBeGreaterThanOrEqual(edgeIndex);
+		}
 	});
 });

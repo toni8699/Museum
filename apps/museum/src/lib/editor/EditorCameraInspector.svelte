@@ -5,6 +5,8 @@
 	import EditorProgressField from './EditorProgressField.svelte';
 	import type { EditorCameraHandle } from './editor-selection';
 	import type { MuseumEditorStore } from './museum-editor.svelte';
+	import { getNodeConnections } from './editor-camera-connections';
+	import { formatCameraNodeLabel } from './editor-outliner';
 
 	let { store }: { store: MuseumEditorStore } = $props();
 
@@ -33,6 +35,17 @@
 					(candidate) => candidate.id === connection.toNodeId
 				)
 			: undefined
+	);
+	const nodeConnections = $derived(
+		node && !pendingNode ? getNodeConnections(store.document, node.id) : null
+	);
+	const partnerLabels = $derived(
+		new Map(
+			store.document.navigationNodes.map((candidate) => [
+				candidate.id,
+				formatCameraNodeLabel(candidate.label, candidate.id)
+			])
+		)
 	);
 
 	let labelDraft = $state('');
@@ -173,6 +186,77 @@
 					<button type="button" disabled={store.isEditorInteractionActive} onclick={() => store.previewSelectedTransition('visitor')}>Visitor → {nextNode?.label ?? 'Unavailable'}</button>
 				</div>
 			</div>
+		{/if}
+
+		{#if !pendingNode && nodeConnections}
+			<section class="connections" aria-label="Node connections">
+				<div class="section-heading">
+					<h3>Connections</h3>
+					<span>{nodeConnections.outgoing.length + nodeConnections.incoming.length}</span>
+				</div>
+				{#if nodeConnections.outgoing.length === 0 && nodeConnections.incoming.length === 0}
+					<p class="connections-empty">No connections</p>
+				{:else}
+					<ul class="connection-list">
+						{#each nodeConnections.outgoing as row (row.connectionId)}
+							<li class="connection-row outgoing" title="{row.anchorsCount} anchors · {row.kind} · {row.clearance.toFixed(2)} m clearance · {row.keyCounts.forward}+{row.keyCounts.reverse} view keys ({row.keyCounts.total} total)">
+								<div class="connection-line">
+									<span class="badge" aria-hidden="true">▶</span>
+									<span class="partner" title={partnerLabels.get(row.partnerId) ?? row.partnerId}>
+										{partnerLabels.get(row.partnerId) ?? row.partnerId}
+									</span>
+									{#if row.partnerRoomId !== node.roomId}
+										<span class="room">{row.partnerRoomId}</span>
+									{/if}
+								</div>
+								<div class="connection-actions">
+									<button
+										type="button"
+										title="Open forward direction for {row.connectionId}"
+										onclick={() => store.selectCameraConnectionDirection(row.connectionId, 'forward')}
+									>Forward</button>
+									<button
+										type="button"
+										title="Open reverse direction for {row.connectionId}"
+										onclick={() => store.selectCameraConnectionDirection(row.connectionId, 'reverse')}
+									>Reverse</button>
+								</div>
+							</li>
+						{/each}
+						{#each nodeConnections.incoming as row (row.connectionId)}
+							<li class="connection-row incoming" title="{row.anchorsCount} anchors · {row.kind} · {row.clearance.toFixed(2)} m clearance · {row.keyCounts.forward}+{row.keyCounts.reverse} view keys ({row.keyCounts.total} total)">
+								<div class="connection-line">
+									<span class="badge" aria-hidden="true">◀</span>
+									<span class="partner" title={partnerLabels.get(row.partnerId) ?? row.partnerId}>
+										{partnerLabels.get(row.partnerId) ?? row.partnerId}
+									</span>
+									{#if row.partnerRoomId !== node.roomId}
+										<span class="room">{row.partnerRoomId}</span>
+									{/if}
+								</div>
+								<div class="connection-actions">
+									<button
+										type="button"
+										title="Open forward direction for {row.connectionId}"
+										onclick={() => store.selectCameraConnectionDirection(row.connectionId, 'forward')}
+									>Forward</button>
+									<button
+										type="button"
+										title="Open reverse direction for {row.connectionId}"
+										onclick={() => store.selectCameraConnectionDirection(row.connectionId, 'reverse')}
+									>Reverse</button>
+								</div>
+							</li>
+						{/each}
+						{#if nodeConnections.outgoing.length === 0}
+							<li class="connection-empty" aria-hidden="false">No outgoing connections</li>
+						{/if}
+						{#if nodeConnections.incoming.length === 0}
+							<li class="connection-empty" aria-hidden="false">No incoming connections</li>
+						{/if}
+					</ul>
+				{/if}
+			</section>
 		{/if}
 	</section>
 {:else if selection?.kind === 'connection' && connection}
@@ -346,4 +430,19 @@
 	button.danger { border-color: #744; color: #f1b1aa; }
 	button:disabled, input:disabled { opacity: 0.42; cursor: default; }
 	.preview { display: flex; flex-direction: column; gap: 0.45rem; padding-top: 0.2rem; }
+	.connections { display: flex; flex-direction: column; gap: 0.45rem; padding-top: 0.4rem; border-top: 1px solid #2a2a33; }
+	.connections h3 { margin: 0; font-size: 0.78rem; letter-spacing: 0.02em; color: #d6c7a8; }
+	.connections-empty { margin: 0; color: #918c84; font-size: 0.7rem; }
+	.connection-list { display: flex; flex-direction: column; gap: 0.28rem; margin: 0; padding: 0; list-style: none; }
+	.connection-row { display: flex; flex-direction: column; gap: 0.25rem; padding: 0.3rem 0.4rem; border: 1px solid #2f2f38; border-radius: 0.28rem; background: #15151c; }
+	.connection-row.outgoing { border-left: 2px solid #d6b35f; }
+	.connection-row.incoming { border-left: 2px solid #6e8aa6; }
+	.connection-line { display: grid; grid-template-columns: 1rem minmax(0, 1fr) auto; gap: 0.5rem; align-items: center; }
+	.badge { color: #d6b35f; font: 0.7rem/1 ui-monospace, SFMono-Regular, Menlo, monospace; text-align: center; }
+	.connection-row.incoming .badge { color: #6e8aa6; }
+	.partner { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.72rem; color: #f4efe4; }
+	.room { color: #918c84; font: 0.6rem/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
+	.connection-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.3rem; }
+	.connection-actions button { padding: 0.28rem 0.32rem; font-size: 0.66rem; }
+	.connection-empty { list-style: none; color: #918c84; font-size: 0.66rem; padding: 0.18rem 0.4rem; }
 </style>

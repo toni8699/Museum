@@ -6,6 +6,7 @@
 	let { store }: { store: MuseumEditorStore } = $props();
 
 	let addMenuOpen = $state(false);
+	let viewMenuOpen = $state(false);
 	let toolbarElement = $state<HTMLElement>();
 	const disabled = $derived(
 		store.isDocumentMutationBlocked || store.isEditorInteractionActive
@@ -52,9 +53,16 @@
 		addMenuOpen = false;
 	}
 
+	function toggleViewMenu() {
+		if (store.currentWorkspace !== 'camera') return;
+		viewMenuOpen = !viewMenuOpen;
+	}
+
 	onMount(() => {
 		const closeMenu = (event: PointerEvent) => {
-			if (!toolbarElement?.contains(event.target as Node)) addMenuOpen = false;
+			if (toolbarElement?.contains(event.target as Node)) return;
+			addMenuOpen = false;
+			viewMenuOpen = false;
 		};
 		window.addEventListener('pointerdown', closeMenu);
 		return () => window.removeEventListener('pointerdown', closeMenu);
@@ -127,6 +135,60 @@
 			</div>
 		{/if}
 	</div>
+
+	{#if store.currentWorkspace === 'camera'}
+		<div class="tool-group" aria-label="Viewport helper visibility">
+			<button
+				type="button"
+				class:active={viewMenuOpen}
+				aria-haspopup="menu"
+				aria-expanded={viewMenuOpen}
+				disabled={disabled}
+				title="Toggle viewport helper visibility"
+				onclick={toggleViewMenu}
+			>View <span aria-hidden="true">▾</span></button>
+			{#if viewMenuOpen}
+				<div
+					class="add-menu"
+					role="menu"
+					tabindex="-1"
+					aria-label="Viewport helpers"
+					onpointerdown={(event) => event.stopPropagation()}
+				>
+					<button
+						type="button"
+						role="menuitemcheckbox"
+						aria-checked={store.viewportShowNodes}
+						class="toggle-row"
+						onclick={() => store.toggleViewportShowNodes()}
+					>
+						<span class="check" aria-hidden="true">{store.viewportShowNodes ? '✓' : '○'}</span>
+						<span>Node handles</span>
+					</button>
+					<button
+						type="button"
+						role="menuitemcheckbox"
+						aria-checked={store.viewportShowPaths}
+						class="toggle-row"
+						onclick={() => store.toggleViewportShowPaths()}
+					>
+						<span class="check" aria-hidden="true">{store.viewportShowPaths ? '✓' : '○'}</span>
+						<span>Tour paths</span>
+					</button>
+					<button
+						type="button"
+						role="menuitemcheckbox"
+						aria-checked={store.viewportShowFraming}
+						class="toggle-row"
+						onclick={() => store.toggleViewportShowFraming()}
+					>
+						<span class="check" aria-hidden="true">{store.viewportShowFraming ? '✓' : '○'}</span>
+						<span>Framing &amp; FOV</span>
+					</button>
+				</div>
+			{/if}
+		</div>
+	{/if}
 </div>
 
 <style>
@@ -186,6 +248,8 @@
 		color: #8f8a82;
 		font: 0.64rem/1.35 ui-sans-serif, system-ui, sans-serif;
 	}
+	.toggle-row { display: flex; align-items: center; gap: 0.55rem; }
+	.toggle-row .check { width: 0.85rem; color: #d6b35f; font: inherit; font-size: 0.78rem; }
 
 	@media (max-width: 44rem) {
 		.toolbar {

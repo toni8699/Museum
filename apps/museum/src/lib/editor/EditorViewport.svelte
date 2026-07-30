@@ -56,20 +56,26 @@
 			{/snippet}
 		</MuseumScene>
 		<EditorGrid visible={store.gridVisible && !store.isVisitorCameraPreview} />
-		<EditorCameraPathHelpers {store} />
-		<EditorCameraViewHelpers {store} />
-		<EditorCameraFramingHelpers {store} />
-		{#if (store.pendingNavigationCommand?.kind === 'connect-existing' || store.pendingNavigationCommand?.kind === 'connect-pending-node') && !store.isDocumentMutationBlocked}
-			{#each store.document.navigationNodes as node (node.id)}
-				<EditorCameraHelpers {store} nodeId={node.id} positionOnly />
-			{/each}
-			{#if store.pendingNavigationCommand?.kind === 'connect-pending-node'}
-				<EditorCameraHelpers {store} nodeId={store.pendingNavigationCommand.node.id} />
+		{#if store.viewportShowPaths}
+			<EditorCameraPathHelpers {store} />
+		{/if}
+		{#if store.viewportShowFraming}
+			<EditorCameraViewHelpers {store} />
+			<EditorCameraFramingHelpers {store} />
+		{/if}
+		{#if store.viewportShowNodes || store.forceMountCameraNodeHandles}
+			{#if (store.pendingNavigationCommand?.kind === 'connect-existing' || store.pendingNavigationCommand?.kind === 'connect-pending-node') && !store.isDocumentMutationBlocked}
+				{#each store.document.navigationNodes as node (node.id)}
+					<EditorCameraHelpers {store} nodeId={node.id} positionOnly />
+				{/each}
+				{#if store.pendingNavigationCommand?.kind === 'connect-pending-node'}
+					<EditorCameraHelpers {store} nodeId={store.pendingNavigationCommand.node.id} />
+				{/if}
+			{:else if store.cameraSelection && !store.pendingPlacementAssetId && !store.isCameraFramingMutationBlocked}
+				{#key store.cameraSelection.nodeId}
+					<EditorCameraHelpers {store} nodeId={store.cameraSelection.nodeId} />
+				{/key}
 			{/if}
-		{:else if store.cameraSelection && !store.pendingPlacementAssetId && !store.isCameraFramingMutationBlocked}
-			{#key store.cameraSelection.nodeId}
-				<EditorCameraHelpers {store} nodeId={store.cameraSelection.nodeId} />
-			{/key}
 		{/if}
 		<EditorSelection {store} {transformControls} />
 		<EditorPlacementTools {store} />

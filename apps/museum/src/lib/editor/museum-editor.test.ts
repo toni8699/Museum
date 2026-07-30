@@ -3629,3 +3629,51 @@ describe('MuseumEditorStore Phase 3.6 history + framing-drag cleanup', () => {
 		expect(JSON.stringify(store.document)).toBe(documentBefore);
 	});
 });
+
+describe('viewport visibility flags', () => {
+	it('default to true and never touch the document or history on toggle', () => {
+		const store = createMuseumEditorStore();
+		expect(store.viewportShowNodes).toBe(true);
+		expect(store.viewportShowPaths).toBe(true);
+		expect(store.viewportShowFraming).toBe(true);
+		expect(store.forceMountCameraNodeHandles).toBe(false);
+
+		const snapshotBeforeHistory = store.historyVersion;
+		const documentBefore = serializeSceneDocument(store.document);
+
+		store.toggleViewportShowNodes();
+		store.toggleViewportShowPaths();
+		store.toggleViewportShowFraming();
+		expect(store.viewportShowNodes).toBe(false);
+		expect(store.viewportShowPaths).toBe(false);
+		expect(store.viewportShowFraming).toBe(false);
+		expect(store.historyVersion).toBe(snapshotBeforeHistory);
+		expect(store.isDirty).toBe(false);
+		expect(serializeSceneDocument(store.document)).toBe(documentBefore);
+
+		store.toggleViewportShowNodes();
+		store.toggleViewportShowPaths();
+		store.toggleViewportShowFraming();
+		expect(store.viewportShowNodes).toBe(true);
+		expect(store.viewportShowPaths).toBe(true);
+		expect(store.viewportShowFraming).toBe(true);
+	});
+
+	it('forceMountCameraNodeHandles is true only for connect-* commands', () => {
+		const store = createMuseumEditorStore();
+		expect(store.forceMountCameraNodeHandles).toBe(false);
+
+		// beginConnectExistingNodes needs a node selection to seed sourceNodeId.
+		expect(store.selectNavigationNode(store.document.navigationNodes[0]!.id)).toBe(true);
+		expect(store.beginConnectExistingNodes()).toBe(true);
+		expect(store.forceMountCameraNodeHandles).toBe(true);
+		store.cancelPendingNavigation('reset');
+		expect(store.forceMountCameraNodeHandles).toBe(false);
+
+		// Pending placement alone must NOT force-mount nodes.
+		expect(store.beginCameraPlacement()).toBe(true);
+		expect(store.forceMountCameraNodeHandles).toBe(false);
+		store.cancelPendingNavigation('reset');
+		expect(store.forceMountCameraNodeHandles).toBe(false);
+	});
+});

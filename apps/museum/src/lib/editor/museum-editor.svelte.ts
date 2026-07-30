@@ -470,11 +470,33 @@ export class MuseumEditorStore {
 	keepOnFloor = $state(false);
 	statusMessage = $state<string | null>(null);
 	dropToFloorRequestId = $state(0);
+	/** Session-only viewport helper visibility. Refresh wipes. */
+	viewportShowNodes = $state(true);
+	viewportShowPaths = $state(true);
+	viewportShowFraming = $state(true);
 
 	#statusMessageTimer: ReturnType<typeof setTimeout> | null = null;
 
 	get objectCount() {
 		return this.document.objects.length;
+	}
+
+	toggleViewportShowNodes() {
+		this.viewportShowNodes = !this.viewportShowNodes;
+	}
+
+	toggleViewportShowPaths() {
+		this.viewportShowPaths = !this.viewportShowPaths;
+	}
+
+	toggleViewportShowFraming() {
+		this.viewportShowFraming = !this.viewportShowFraming;
+	}
+
+	/** Force-mount node helpers during connect-* commands so picking keeps working when nodes are hidden. */
+	get forceMountCameraNodeHandles() {
+		const kind = this.pendingNavigationCommand?.kind;
+		return kind === 'connect-existing' || kind === 'connect-pending-node';
 	}
 
 	get clusters(): SceneObjectCluster[] {

@@ -344,7 +344,7 @@
 	) {
 		if (hit.owner.owner === 'node') {
 			if (store.cameraSelection?.nodeId !== hit.owner.nodeId) return false;
-			if (hit.interaction === 'target') store.selectCameraHandle('target');
+			if (hit.interaction === 'target') store.selectionActions.selectCameraHandle('target');
 		}
 		const pose = framingPose(hit.owner);
 		if (!pose) return false;
@@ -633,7 +633,7 @@
 	function beginDirectPathDrag(active: PathPointerSession) {
 		if (!store.beginDocumentTransaction()) return false;
 		if (!active.anchorId) {
-			store.selectConnection(active.connectionId);
+			store.selectionActions.selectConnection(active.connectionId);
 			store.convertConnectionDraft(active.connectionId);
 			const smoothPath = createDraftConnectionPositionPath(
 				store.document,
@@ -654,7 +654,7 @@
 				return false;
 			}
 		} else {
-			store.selectAnchor(active.connectionId, active.anchorId);
+			store.selectionActions.selectAnchor(active.connectionId, active.anchorId);
 		}
 		active.dragging = true;
 		store.setDirectPathInteractionActive(true);
@@ -679,8 +679,8 @@
 	function finishPathPointer(active: PathPointerSession) {
 		pointerSession = null;
 		if (!active.dragging) {
-			if (active.anchorId) store.selectAnchor(active.connectionId, active.anchorId);
-			else store.selectConnection(active.connectionId);
+			if (active.anchorId) store.selectionActions.selectAnchor(active.connectionId, active.anchorId);
+			else store.selectionActions.selectConnection(active.connectionId);
 		} else {
 			const moved = Math.hypot(
 				active.lastWorld[0] - active.initialWorld[0],
@@ -742,14 +742,14 @@
 		const result = resolveNormalSelection(hits);
 		if (result.action === 'select-camera') {
 			if (store.cameraSelection?.nodeId !== result.selection.nodeId) {
-				store.selectNavigationNode(result.selection.nodeId);
+				store.selectionActions.selectNavigationNode(result.selection.nodeId);
 			}
-			store.selectCameraHandle(result.selection.handle);
+			store.selectionActions.selectCameraHandle(result.selection.handle);
 		} else if (result.action === 'select-navigation') {
 			if (result.selection.kind === 'connection') {
-				store.selectConnection(result.selection.connectionId);
+				store.selectionActions.selectConnection(result.selection.connectionId);
 			} else if (result.selection.kind === 'anchor') {
-				store.selectAnchor(result.selection.connectionId, result.selection.anchorId);
+				store.selectionActions.selectAnchor(result.selection.connectionId, result.selection.anchorId);
 			} else if (result.selection.kind === 'view-keyframe') {
 				store.selectCameraTimelineViewKeyframe(
 					result.selection.connectionId,
@@ -757,17 +757,17 @@
 					result.selection.keyframeId
 				);
 			} else {
-				store.selectNavigationNode(result.selection.nodeId);
-				store.selectCameraHandle(result.selection.handle);
+				store.selectionActions.selectNavigationNode(result.selection.nodeId);
+				store.selectionActions.selectCameraHandle(result.selection.handle);
 			}
 		} else if (result.action === 'select') {
 			if (event.shiftKey) {
-				store.togglePlacement(result.id);
+				store.selectionActions.togglePlacement(result.id);
 			} else {
-				store.selectPlacement(result.id);
+				store.selectionActions.selectPlacement(result.id);
 			}
 		} else if (!event.shiftKey) {
-			store.deselect();
+			store.selectionActions.deselect();
 		}
 	}
 

@@ -102,7 +102,7 @@ describe('createMuseumEditorStore', () => {
 	it('tracks canonical baselines across edits, imports, undo, and reset', () => {
 		const store = createMuseumEditorStore();
 		expect(store.isDirty).toBe(false);
-		store.selectRoom('paris');
+		store.selectionActions.selectRoom('paris');
 		const placement = store.document.objects[0]!;
 		expect(
 			store.commitPlacementTransform(placement.id, {
@@ -167,7 +167,7 @@ describe('createMuseumEditorStore', () => {
 		expect(store.canonicalJson).toContain('"entrance-poland-view-reverse-01"');
 
 		const connectionId = imported.connections[0]!.id;
-		store.selectConnection(connectionId);
+		store.selectionActions.selectConnection(connectionId);
 		expect(store.previewSelectedConnection('forward')).toBe(true);
 		const runId = store.cameraPreview!.runId;
 		const captured = store.getCapturedCameraPreviewRoute(runId)!;
@@ -207,7 +207,7 @@ describe('MuseumEditorStore selection', () => {
 		const anchor = connection.positionPath.anchors[0]!;
 		const before = serializeSceneDocument(store.document);
 
-		expect(store.selectAnchor(connection.id, anchor.id)).toBe(true);
+		expect(store.selectionActions.selectAnchor(connection.id, anchor.id)).toBe(true);
 		expect(store.finishAnchorEditing()).toBe(true);
 		expect(store.navigationSelection).toEqual({ kind: 'connection', connectionId: connection.id });
 		expect(serializeSceneDocument(store.document)).toBe(before);
@@ -230,11 +230,11 @@ describe('MuseumEditorStore selection', () => {
 		const store = createMuseumEditorStore();
 		const id = store.document.objects[0]!.id;
 
-		store.selectPlacement(id);
+		store.selectionActions.selectPlacement(id);
 		expect(store.selectedPlacementId).toBeNull();
 
-		store.selectRoom('paris');
-		store.selectPlacement(id);
+		store.selectionActions.selectRoom('paris');
+		store.selectionActions.selectPlacement(id);
 
 		expect(store.selectedPlacementId).toBe(id);
 		expect(store.getPlacementRoot(id)).toBeUndefined();
@@ -245,14 +245,14 @@ describe('MuseumEditorStore selection', () => {
 		const store = createMuseumEditorStore();
 		const placement = store.document.objects.find((object) => object.roomId === 'paris')!;
 		store.toggleRoomTreeExpansion('paris');
-		store.selectNavigationNode('departure-corridor');
+		store.selectionActions.selectNavigationNode('departure-corridor');
 		const beforeFocus = store.cameraFocusVersion;
 		const beforeHistory = store.historyVersion;
 		const beforeJson = store.canonicalJson;
 
 		expect(store.selectedRoomId).toBeNull();
 		expect(store.treeExpandedRoomIds).not.toContain('paris');
-		expect(store.selectPlacementFromTree(placement.id)).toBe(true);
+		expect(store.selectionActions.selectPlacementFromTree(placement.id)).toBe(true);
 
 		expect(store.selectedRoomId).toBe('paris');
 		expect(store.treeExpandedRoomIds).toContain('paris');
@@ -272,13 +272,13 @@ describe('MuseumEditorStore selection', () => {
 		const store = createMuseumEditorStore();
 		const [first, second] = store.document.objects.filter((object) => object.roomId === 'paris');
 		store.toggleRoomTreeExpansion('paris');
-		store.selectNavigationNode('departure-corridor');
+		store.selectionActions.selectNavigationNode('departure-corridor');
 		store.consumeCameraFocus(store.cameraFocusVersion);
 		const beforeFocus = store.cameraFocusVersion;
 		const beforeHistory = store.historyVersion;
 		const beforeJson = store.canonicalJson;
 
-		expect(store.selectPlacementFromTree(first.id, { additive: true })).toBe(true);
+		expect(store.selectionActions.selectPlacementFromTree(first.id, { additive: true })).toBe(true);
 		expect(store.selectedRoomId).toBe('paris');
 		expect(store.treeExpandedRoomIds).toContain('paris');
 		expect(store.selectedPlacementIds).toEqual([first.id]);
@@ -286,7 +286,7 @@ describe('MuseumEditorStore selection', () => {
 		expect(store.cameraFocusVersion).toBe(beforeFocus);
 		expect(store.cameraFocusKind).toBeNull();
 
-		expect(store.selectPlacementFromTree(second.id, { additive: true })).toBe(true);
+		expect(store.selectionActions.selectPlacementFromTree(second.id, { additive: true })).toBe(true);
 		expect(store.selectedPlacementIds).toEqual([first.id, second.id]);
 		expect(store.cameraFocusVersion).toBe(beforeFocus);
 		expect(store.historyVersion).toBe(beforeHistory);
@@ -297,19 +297,19 @@ describe('MuseumEditorStore selection', () => {
 	it('ignores unknown ids without clearing the current selection', () => {
 		const store = createMuseumEditorStore();
 		const id = store.document.objects[0]!.id;
-		store.selectRoom('paris');
-		store.selectPlacement(id);
+		store.selectionActions.selectRoom('paris');
+		store.selectionActions.selectPlacement(id);
 
-		store.selectPlacement('not-a-real-placement');
+		store.selectionActions.selectPlacement('not-a-real-placement');
 
 		expect(store.selectedPlacementId).toBe(id);
 	});
 
 	it('deselects the current placement', () => {
 		const store = createMuseumEditorStore();
-		store.selectRoom('paris');
-		store.selectPlacement(store.document.objects[0]!.id);
-		store.deselect();
+		store.selectionActions.selectRoom('paris');
+		store.selectionActions.selectPlacement(store.document.objects[0]!.id);
+		store.selectionActions.deselect();
 		expect(store.selectedPlacementId).toBeNull();
 		expect(store.selectedRoomId).toBe('paris');
 	});
@@ -323,8 +323,8 @@ describe('MuseumEditorStore selection', () => {
 		store.cyclePlacement([]);
 		expect(store.selectedPlacementId).toBeNull();
 
-		store.selectRoom('paris');
-		store.selectPlacement(a);
+		store.selectionActions.selectRoom('paris');
+		store.selectionActions.selectPlacement(a);
 		store.cyclePlacement([b, c]);
 		expect(store.selectedPlacementId).toBe(b);
 
@@ -339,14 +339,14 @@ describe('MuseumEditorStore selection', () => {
 		const store = createMuseumEditorStore();
 		const a = store.document.objects[0]!.id;
 		const b = store.document.objects[1]!.id;
-		store.selectRoom('paris');
+		store.selectionActions.selectRoom('paris');
 
-		store.selectPlacement(a);
+		store.selectionActions.selectPlacement(a);
 		store.transformMode = 'translate';
-		store.selectPlacement(a);
+		store.selectionActions.selectPlacement(a);
 		expect(store.transformMode).toBe('translate');
 
-		store.selectPlacement(b);
+		store.selectionActions.selectPlacement(b);
 		expect(store.selectedPlacementId).toBe(b);
 		expect(store.selectedObject?.id).toBe(b);
 		expect(store.transformMode).toBe('rotate');
@@ -381,16 +381,16 @@ describe('MuseumEditorStore selection', () => {
 	it('keeps ordered multi-selection as the only mutable selection source', () => {
 		const store = createMuseumEditorStore();
 		const [a, b, c] = store.document.objects;
-		store.selectRoom('paris');
-		store.selectPlacement(a.id);
-		store.togglePlacement(b.id);
-		store.togglePlacement(c.id);
+		store.selectionActions.selectRoom('paris');
+		store.selectionActions.selectPlacement(a.id);
+		store.selectionActions.togglePlacement(b.id);
+		store.selectionActions.togglePlacement(c.id);
 		expect(store.selectedPlacementIds).toEqual([a.id, b.id, c.id]);
 		expect(store.primaryPlacementId).toBe(c.id);
 
-		store.togglePlacement(b.id);
+		store.selectionActions.togglePlacement(b.id);
 		expect(store.selectedPlacementIds).toEqual([a.id, c.id]);
-		store.selectPlacement(b.id);
+		store.selectionActions.selectPlacement(b.id);
 		expect(store.selectedPlacementIds).toEqual([b.id]);
 	});
 });
@@ -399,14 +399,14 @@ describe('MuseumEditorStore clusters', () => {
 	it('selects, reveals, and frames a cluster from the tree without room preselection', () => {
 		const store = createMuseumEditorStore();
 		const [first, second] = store.document.objects.filter((object) => object.roomId === 'paris');
-		store.selectRoom('paris');
-		store.selectPlacements([first.id, second.id]);
+		store.selectionActions.selectRoom('paris');
+		store.selectionActions.selectPlacements([first.id, second.id]);
 		const clusterId = store.createCluster('Tree cluster')!;
 		const beforeJson = store.canonicalJson;
 		const beforeHistory = store.historyVersion;
 		const beforeDirty = store.isDirty;
 
-		store.selectNavigationNode('departure-corridor');
+		store.selectionActions.selectNavigationNode('departure-corridor');
 		expect(store.selectedClusterId).toBeNull();
 		expect(store.selectedPlacementIds).toEqual([]);
 		store.consumeCameraFocus(store.cameraFocusVersion);
@@ -414,7 +414,7 @@ describe('MuseumEditorStore clusters', () => {
 		store.toggleRoomTreeExpansion('paris');
 		const beforeFocus = store.cameraFocusVersion;
 
-		expect(store.selectClusterFromTree(clusterId)).toBe(true);
+		expect(store.selectionActions.selectClusterFromTree(clusterId)).toBe(true);
 		expect(store.selectedRoomId).toBe('paris');
 		expect(store.treeExpandedRoomIds).toContain('paris');
 		expect(store.treeExpandedClusterIds).toContain(clusterId);
@@ -431,8 +431,8 @@ describe('MuseumEditorStore clusters', () => {
 	it('creates, selects, renames, and ungroups through document history', () => {
 		const store = createMuseumEditorStore();
 		const [a, b] = store.document.objects;
-		store.selectRoom('paris');
-		store.selectPlacements([a.id, b.id]);
+		store.selectionActions.selectRoom('paris');
+		store.selectionActions.selectPlacements([a.id, b.id]);
 		const clusterId = store.createCluster('Salon pair');
 		expect(clusterId).toBeTruthy();
 		expect(store.selectedClusterId).toBe(clusterId);
@@ -456,8 +456,8 @@ describe('MuseumEditorStore clusters', () => {
 	it('rejects empty and unchanged rename attempts without adding history', () => {
 		const store = createMuseumEditorStore();
 		const [a, b] = store.document.objects;
-		store.selectRoom('paris');
-		store.selectPlacements([a.id, b.id]);
+		store.selectionActions.selectRoom('paris');
+		store.selectionActions.selectPlacements([a.id, b.id]);
 		const clusterId = store.createCluster('Piano grouping')!;
 
 		expect(store.renameCluster(clusterId, '   ')).toBe(false);
@@ -472,14 +472,14 @@ describe('MuseumEditorStore clusters', () => {
 	it('clears cluster identity when a member is toggled and reconciles deleted clusters on undo', () => {
 		const store = createMuseumEditorStore();
 		const [a, b] = store.document.objects;
-		store.selectRoom('paris');
-		store.selectPlacements([a.id, b.id]);
+		store.selectionActions.selectRoom('paris');
+		store.selectionActions.selectPlacements([a.id, b.id]);
 		const clusterId = store.createCluster()!;
-		store.togglePlacement(a.id);
+		store.selectionActions.togglePlacement(a.id);
 		expect(store.selectedClusterId).toBeNull();
 		expect(store.selectedPlacementIds).toEqual([b.id]);
 
-		store.selectCluster(clusterId);
+		store.selectionActions.selectCluster(clusterId);
 		expect(store.undo()).toBe(true);
 		expect(store.clusters).toHaveLength(0);
 		expect(store.selectedClusterId).toBeNull();
@@ -489,13 +489,13 @@ describe('MuseumEditorStore clusters', () => {
 	it('adds and removes members with one-cluster ownership and auto-ungroup rules', () => {
 		const store = createMuseumEditorStore();
 		const [a, b, c, d] = store.document.objects;
-		store.selectRoom('paris');
-		store.selectPlacements([a.id, b.id]);
+		store.selectionActions.selectRoom('paris');
+		store.selectionActions.selectPlacements([a.id, b.id]);
 		const firstCluster = store.createCluster()!;
 		expect(store.addMemberToCluster(firstCluster, c.id)).toBe(true);
 		expect(store.clusters[0]?.memberIds).toEqual([a.id, b.id, c.id]);
 
-		store.selectPlacements([c.id, d.id]);
+		store.selectionActions.selectPlacements([c.id, d.id]);
 		expect(store.createCluster()).toBeNull();
 		expect(store.clusters).toHaveLength(1);
 
@@ -507,8 +507,8 @@ describe('MuseumEditorStore clusters', () => {
 	it('auto-ungroups when deletion leaves one member and restores everything on undo', () => {
 		const store = createMuseumEditorStore();
 		const [a, b] = store.document.objects;
-		store.selectRoom('paris');
-		store.selectPlacements([a.id, b.id]);
+		store.selectionActions.selectRoom('paris');
+		store.selectionActions.selectPlacements([a.id, b.id]);
 		store.createCluster();
 		expect(store.deletePlacement(a.id)).toBe(true);
 		expect(store.document.objects.some((object) => object.id === a.id)).toBe(false);
@@ -523,8 +523,8 @@ describe('MuseumEditorStore clusters', () => {
 		const store = createMuseumEditorStore();
 		const [a, b] = store.document.objects;
 		const originalX = a.position[0];
-		store.selectRoom('paris');
-		store.selectPlacements([a.id, b.id]);
+		store.selectionActions.selectRoom('paris');
+		store.selectionActions.selectPlacements([a.id, b.id]);
 		expect(store.beginDocumentTransaction()).toBe(true);
 		(store.document.clusters ??= []).push({
 			id: 'combined-snapshot',
@@ -564,7 +564,7 @@ describe('MuseumEditorStore Phase 5 placement commands', () => {
 
 	it('creates explicit scene fields with reserved IDs and one undo entry', () => {
 		const store = createMuseumEditorStore();
-		store.selectRoom('paris');
+		store.selectionActions.selectRoom('paris');
 		const focusVersion = store.cameraFocusVersion;
 		expect(store.beginAssetPlacement('paris-salon-chair')).toBe(true);
 		const firstId = store.createPendingPlacementAt([1, 0.01, 2]);
@@ -606,11 +606,11 @@ describe('MuseumEditorStore Phase 5 placement commands', () => {
 
 	it('duplicates selected sources with batch-safe IDs and preserves the first copy as primary', () => {
 		const store = createMuseumEditorStore();
-		store.selectRoom('paris');
+		store.selectionActions.selectRoom('paris');
 		const [first, second] = store.document.objects.filter(
 			(object) => object.assetId === 'paris-salon-chair'
 		);
-		store.selectPlacements([first.id, second.id]);
+		store.selectionActions.selectPlacements([first.id, second.id]);
 		const originalCount = store.objectCount;
 		expect(store.duplicateSelection()).toBe(true);
 		const copyIds = store.document.objects.slice(originalCount).map((object) => object.id);
@@ -628,16 +628,16 @@ describe('MuseumEditorStore Phase 5 placement commands', () => {
 	it('recreates complete flat clusters with collision-safe cluster IDs', () => {
 		const store = createMuseumEditorStore();
 		const [a, b, c, d] = store.document.objects;
-		store.selectRoom('paris');
-		store.selectPlacements([a.id, b.id]);
+		store.selectionActions.selectRoom('paris');
+		store.selectionActions.selectPlacements([a.id, b.id]);
 		const sourceClusterId = store.createCluster('Salon pair')!;
-		store.selectPlacements([c.id, d.id]);
+		store.selectionActions.selectPlacements([c.id, d.id]);
 		const occupiedClusterId = store.createCluster('Occupied')!;
 		expect(store.beginDocumentTransaction()).toBe(true);
 		store.clusters.find((cluster) => cluster.id === occupiedClusterId)!.id = `${sourceClusterId}-copy`;
 		expect(store.commitDocumentTransaction()).toBe(true);
 
-		store.selectCluster(sourceClusterId);
+		store.selectionActions.selectCluster(sourceClusterId);
 		expect(store.duplicateSelection()).toBe(true);
 		const copiedCluster = store.clusters.find(
 			(cluster) => cluster.id === `${sourceClusterId}-copy-2`
@@ -650,11 +650,11 @@ describe('MuseumEditorStore Phase 5 placement commands', () => {
 	it('does not reconstruct a partially selected source cluster', () => {
 		const store = createMuseumEditorStore();
 		const [a, b] = store.document.objects;
-		store.selectRoom('paris');
-		store.selectPlacements([a.id, b.id]);
+		store.selectionActions.selectRoom('paris');
+		store.selectionActions.selectPlacements([a.id, b.id]);
 		store.createCluster('Pair');
 		const beforeClusters = store.clusters.length;
-		store.selectPlacement(a.id);
+		store.selectionActions.selectPlacement(a.id);
 		expect(store.duplicateSelection()).toBe(true);
 		expect(store.clusters).toHaveLength(beforeClusters);
 	});
@@ -662,11 +662,11 @@ describe('MuseumEditorStore Phase 5 placement commands', () => {
 	it('deletes cluster members with stable cleanup rules and undo restoration', () => {
 		const store = createMuseumEditorStore();
 		const [a, b, c] = store.document.objects;
-		store.selectRoom('paris');
-		store.selectPlacements([a.id, b.id, c.id]);
+		store.selectionActions.selectRoom('paris');
+		store.selectionActions.selectPlacements([a.id, b.id, c.id]);
 		const clusterId = store.createCluster('Trio')!;
 
-		store.selectPlacement(a.id);
+		store.selectionActions.selectPlacement(a.id);
 		expect(store.deleteSelection()).toBe(true);
 		expect(store.clusters.find((cluster) => cluster.id === clusterId)?.memberIds).toEqual([
 			b.id,
@@ -679,8 +679,8 @@ describe('MuseumEditorStore Phase 5 placement commands', () => {
 			c.id
 		]);
 
-		store.selectPlacement(a.id);
-		store.selectPlacements([a.id, b.id]);
+		store.selectionActions.selectPlacement(a.id);
+		store.selectionActions.selectPlacements([a.id, b.id]);
 		expect(store.deleteSelection()).toBe(true);
 		expect(store.clusters.some((cluster) => cluster.id === clusterId)).toBe(false);
 	});
@@ -701,13 +701,13 @@ describe('MuseumEditorStore Phase 5 placement commands', () => {
 
 	it('replaces and cancels delayed frame requests on selection changes', () => {
 		const store = createMuseumEditorStore();
-		store.selectRoom('paris');
+		store.selectionActions.selectRoom('paris');
 		const [a, b] = store.document.objects;
-		store.selectPlacement(a.id);
+		store.selectionActions.selectPlacement(a.id);
 		expect(store.requestPlacementFrame([a.id])).toBe(true);
 		store.requestPlacementFrame([b.id]);
 		expect(store.pendingFramePlacementIds).toEqual([b.id]);
-		store.selectPlacement(a.id);
+		store.selectionActions.selectPlacement(a.id);
 		expect(store.pendingFramePlacementIds).toEqual([]);
 	});
 });
@@ -738,16 +738,16 @@ describe('MuseumEditorStore Phase 6 camera nodes', () => {
 		const store = createMuseumEditorStore();
 		const nodeId = 'paris-seat';
 
-		expect(store.selectNavigationNode(nodeId)).toBe(true);
+		expect(store.selectionActions.selectNavigationNode(nodeId)).toBe(true);
 		expect(store.cameraSelection).toEqual({ nodeId, handle: 'position' });
 		const focusVersion = store.cameraFocusVersion;
-		expect(store.selectNavigationNode(nodeId)).toBe(false);
+		expect(store.selectionActions.selectNavigationNode(nodeId)).toBe(false);
 		expect(store.cameraFocusVersion).toBe(focusVersion);
 		expect(store.canUndo).toBe(false);
 
-		expect(store.selectCameraHandle('target')).toBe(true);
+		expect(store.selectionActions.selectCameraHandle('target')).toBe(true);
 		expect(store.cameraSelection).toEqual({ nodeId, handle: 'target' });
-		expect(store.selectNavigationNode(nodeId)).toBe(true);
+		expect(store.selectionActions.selectNavigationNode(nodeId)).toBe(true);
 		expect(store.cameraSelection).toEqual({ nodeId, handle: 'position' });
 		expect(store.cameraFocusVersion).toBe(focusVersion);
 	});
@@ -757,25 +757,25 @@ describe('MuseumEditorStore Phase 6 camera nodes', () => {
 		const placement = store.document.objects.find((object) => object.roomId === 'paris')!;
 
 		expect(store.setWorkspace('camera')).toBe(true);
-		expect(store.selectPlacementFromTree(placement.id)).toBe(true);
+		expect(store.selectionActions.selectPlacementFromTree(placement.id)).toBe(true);
 		expect(store.currentWorkspace).toBe('camera');
 
 		expect(store.setWorkspace('scene')).toBe(true);
-		expect(store.selectNavigationNode('paris-seat')).toBe(true);
+		expect(store.selectionActions.selectNavigationNode('paris-seat')).toBe(true);
 		expect(store.currentWorkspace).toBe('scene');
 	});
 
 	it('clears placement and cluster selection without changing workspace or redundant focus', () => {
 		const store = createMuseumEditorStore();
 		const [first, second] = store.document.objects.filter((object) => object.roomId === 'paris');
-		store.selectRoom('paris');
-		store.selectPlacements([first.id, second.id]);
+		store.selectionActions.selectRoom('paris');
+		store.selectionActions.selectPlacements([first.id, second.id]);
 		const clusterId = store.createCluster('Camera handoff')!;
 		expect(store.selectedClusterId).toBe(clusterId);
 		expect(store.setWorkspace('camera')).toBe(true);
 		const beforeHistory = store.historyVersion;
 
-		expect(store.selectNavigationNode('paris-seat')).toBe(true);
+		expect(store.selectionActions.selectNavigationNode('paris-seat')).toBe(true);
 		expect(store.currentWorkspace).toBe('camera');
 		expect(store.navigationSelection).toEqual({
 			kind: 'node',
@@ -785,7 +785,7 @@ describe('MuseumEditorStore Phase 6 camera nodes', () => {
 		expect(store.selectedPlacementIds).toEqual([]);
 		expect(store.selectedClusterId).toBeNull();
 		const focusVersion = store.cameraFocusVersion;
-		expect(store.selectNavigationNode('paris-seat')).toBe(false);
+		expect(store.selectionActions.selectNavigationNode('paris-seat')).toBe(false);
 		expect(store.cameraFocusVersion).toBe(focusVersion);
 		expect(store.currentWorkspace).toBe('camera');
 		expect(store.historyVersion).toBe(beforeHistory);
@@ -793,7 +793,7 @@ describe('MuseumEditorStore Phase 6 camera nodes', () => {
 
 	it('consumes an applied camera focus request exactly once', () => {
 		const store = createMuseumEditorStore();
-		store.selectNavigationNode('paris-seat');
+		store.selectionActions.selectNavigationNode('paris-seat');
 		const version = store.cameraFocusVersion;
 
 		expect(store.consumeCameraFocus(version - 1)).toBe(false);
@@ -807,17 +807,17 @@ describe('MuseumEditorStore Phase 6 camera nodes', () => {
 	it('keeps camera and placement selection mutually exclusive while asset placement is latent', () => {
 		const store = createMuseumEditorStore();
 		const placementId = store.document.objects[0]!.id;
-		store.selectNavigationNode('departure-corridor');
+		store.selectionActions.selectNavigationNode('departure-corridor');
 		expect(store.beginAssetPlacement('paris-salon-chair')).toBe(true);
 		expect(store.cameraSelection?.nodeId).toBe('departure-corridor');
 		expect(store.pendingPlacementAssetId).toBe('paris-salon-chair');
 
 		store.cancelAssetPlacement();
-		store.selectPlacement(placementId);
+		store.selectionActions.selectPlacement(placementId);
 		expect(store.cameraSelection).toBeNull();
 		expect(store.selectedPlacementId).toBe(placementId);
 
-		store.selectNavigationNode('paris-seat');
+		store.selectionActions.selectNavigationNode('paris-seat');
 		expect(store.selectedPlacementIds).toEqual([]);
 		expect(store.cameraSelection).toEqual({ nodeId: 'paris-seat', handle: 'position' });
 	});
@@ -830,7 +830,7 @@ describe('MuseumEditorStore Phase 6 camera nodes', () => {
 		expect(store.registryVersion).toBe(version + 1);
 		expect(store.getCameraHelperRoot('paris-seat', 'position')).toBe(root);
 
-		store.selectNavigationNode('paris-seat');
+		store.selectionActions.selectNavigationNode('paris-seat');
 		expect(store.getSelectedCameraHelperRoot()).toBe(root);
 		expect(JSON.stringify(store.document)).not.toContain('camera-handle');
 
@@ -856,7 +856,7 @@ describe('MuseumEditorStore Phase 6 camera nodes', () => {
 			originalPosition[2] - 0.5
 		];
 
-		store.selectNavigationNode(nodeId);
+		store.selectionActions.selectNavigationNode(nodeId);
 		expect(store.commitNavigationNodePoint(nodeId, 'position', nextPosition)).toBe(true);
 		expect(store.selectedNavigationNode?.position).toEqual(nextPosition);
 		const runtimeNode = store.scene.navigationNodes.find((node) => node.id === nodeId)!;
@@ -884,8 +884,8 @@ describe('MuseumEditorStore Phase 6 camera nodes', () => {
 	it('updates camera targets without changing any connection position path', () => {
 		const store = createMuseumEditorStore();
 		const nodeId = 'departure-corridor';
-		store.selectNavigationNode(nodeId);
-		store.selectCameraHandle('target');
+		store.selectionActions.selectNavigationNode(nodeId);
+		store.selectionActions.selectCameraHandle('target');
 		const beforePaths = store.scene.connections.map((connection) =>
 			connection.positionPath.anchors.map((anchor) => [...anchor.position])
 		);
@@ -910,7 +910,7 @@ describe('MuseumEditorStore Phase 6 camera nodes', () => {
 	it('collapses camera drag previews into one history entry and suppresses no movement', () => {
 		const store = createMuseumEditorStore();
 		const nodeId = 'workshop-desk';
-		store.selectNavigationNode(nodeId);
+		store.selectionActions.selectNavigationNode(nodeId);
 		const original = [...store.selectedNavigationNode!.position] as [number, number, number];
 
 		expect(store.beginDocumentTransaction()).toBe(true);
@@ -932,7 +932,7 @@ describe('MuseumEditorStore Phase 6 camera nodes', () => {
 	it('refuses live camera writes outside a document transaction', () => {
 		const store = createMuseumEditorStore();
 		const nodeId = 'workshop-desk';
-		store.selectNavigationNode(nodeId);
+		store.selectionActions.selectNavigationNode(nodeId);
 		const documentPosition = [...store.selectedNavigationNode!.position];
 		const runtimePosition = [...store.selectedRuntimeNavigationNode!.position];
 
@@ -945,7 +945,7 @@ describe('MuseumEditorStore Phase 6 camera nodes', () => {
 	it('creates modal node and transition previews without document history', () => {
 		const store = createMuseumEditorStore();
 		const placementId = store.document.objects[0]!.id;
-		store.selectNavigationNode('paris-seat');
+		store.selectionActions.selectNavigationNode('paris-seat');
 		store.beginAssetPlacement('paris-salon-chair');
 		store.requestPlacementFrame([placementId]);
 
@@ -955,7 +955,7 @@ describe('MuseumEditorStore Phase 6 camera nodes', () => {
 		expect(store.pendingFramePlacementIds).toEqual([]);
 		expect(store.cameraFocusKind).toBeNull();
 		expect(store.canUndo).toBe(false);
-		expect(store.selectPlacement(placementId)).toBe(false);
+		expect(store.selectionActions.selectPlacement(placementId)).toBe(false);
 		expect(store.beginAssetPlacement('paris-salon-chair')).toBe(false);
 		expect(store.requestPlacementFrame([placementId])).toBe(false);
 		expect(store.commitNavigationNodePoint('paris-seat', 'position', [0, 1, 0])).toBe(false);
@@ -983,13 +983,13 @@ describe('MuseumEditorStore Phase 6 camera nodes', () => {
 
 	it('restores camera ownership before releasing preview modal guards', () => {
 		const store = createMuseumEditorStore();
-		store.selectNavigationNode('paris-seat');
+		store.selectionActions.selectNavigationNode('paris-seat');
 		expect(store.previewSelectedNode()).toBe(true);
 
 		const events: string[] = [];
 		store.setCameraPreviewRestorer(() => {
 			expect(store.cameraPreview).not.toBeNull();
-			expect(store.selectNavigationNode('workshop-desk')).toBe(false);
+			expect(store.selectionActions.selectNavigationNode('workshop-desk')).toBe(false);
 			events.push('restore');
 			return true;
 		});
@@ -1008,11 +1008,11 @@ describe('MuseumEditorStore Phase 6 camera nodes', () => {
 
 	it('blocks selection changes during a camera drag and cancels it before preview', () => {
 		const store = createMuseumEditorStore();
-		store.selectNavigationNode('paris-seat');
+		store.selectionActions.selectNavigationNode('paris-seat');
 		expect(store.beginDocumentTransaction()).toBe(true);
 		store.setTransformInteractionActive(true, 'camera');
-		expect(store.selectCameraHandle('target')).toBe(false);
-		expect(store.selectNavigationNode('workshop-desk')).toBe(false);
+		expect(store.selectionActions.selectCameraHandle('target')).toBe(false);
+		expect(store.selectionActions.selectNavigationNode('workshop-desk')).toBe(false);
 
 		let cancelCount = 0;
 		store.setCameraTransformCanceler(() => {
@@ -1032,7 +1032,7 @@ describe('MuseumEditorStore Phase 6 camera nodes', () => {
 	it('guards every document and editor-command category while preview is playing', () => {
 		const store = createMuseumEditorStore();
 		const placementId = store.document.objects[0]!.id;
-		store.selectNavigationNode('paris-seat');
+		store.selectionActions.selectNavigationNode('paris-seat');
 		const position = [...store.selectedNavigationNode!.position] as [number, number, number];
 		expect(
 			store.commitNavigationNodePoint('paris-seat', 'position', [
@@ -1055,17 +1055,17 @@ describe('MuseumEditorStore Phase 6 camera nodes', () => {
 		expect(store.undo()).toBe(false);
 		expect(store.redo()).toBe(false);
 		expect(store.beginDocumentTransaction()).toBe(false);
-		expect(store.selectNavigationNode('workshop-desk')).toBe(false);
+		expect(store.selectionActions.selectNavigationNode('workshop-desk')).toBe(false);
 		// Phase 3.6 unlocks framing handle edits while Through Camera is paused.
 		// While the preview plays, even the 'target' handle is locked down.
-		expect(store.selectCameraHandle('target')).toBe(false);
-		expect(store.selectRoom('paris')).toBe(false);
-		expect(store.selectPlacement(placementId)).toBe(false);
-		expect(store.selectPlacements([placementId])).toBe(false);
-		expect(store.togglePlacement(placementId)).toBe(false);
+		expect(store.selectionActions.selectCameraHandle('target')).toBe(false);
+		expect(store.selectionActions.selectRoom('paris')).toBe(false);
+		expect(store.selectionActions.selectPlacement(placementId)).toBe(false);
+		expect(store.selectionActions.selectPlacements([placementId])).toBe(false);
+		expect(store.selectionActions.togglePlacement(placementId)).toBe(false);
 		expect(store.cyclePlacement([placementId])).toBe(false);
-		expect(store.selectAllInRoom()).toBe(false);
-		expect(store.deselect()).toBe(false);
+		expect(store.selectionActions.selectAllInRoom()).toBe(false);
+		expect(store.selectionActions.deselect()).toBe(false);
 		expect(store.focusNavigationNode('paris-seat')).toBe(false);
 		expect(store.focusRoom('paris')).toBe(false);
 		expect(store.focusPlacement(placementId)).toBe(false);
@@ -1095,7 +1095,7 @@ describe('MuseumEditorStore Phase 6 camera nodes', () => {
 	it('rejects invalid outgoing transitions without entering preview', () => {
 		const store = createMuseumEditorStore();
 		const nodeId = 'music-entry';
-		store.selectNavigationNode(nodeId);
+		store.selectionActions.selectNavigationNode(nodeId);
 		expect(store.beginDocumentTransaction()).toBe(true);
 		store.document.navigationNodes.find((node) => node.id === nodeId)!.nextNodeId = 'missing';
 		expect(store.commitDocumentTransaction()).toBe(false);
@@ -1108,7 +1108,7 @@ describe('MuseumEditorStore Phase 6 camera nodes', () => {
 
 	it('reports missing and unroutable next nodes without starting preview', () => {
 		const missingStore = createMuseumEditorStore();
-		missingStore.selectNavigationNode('music-entry');
+		missingStore.selectionActions.selectNavigationNode('music-entry');
 		expect(missingStore.beginDocumentTransaction()).toBe(true);
 		delete missingStore.document.navigationNodes.find(
 			(node) => node.id === 'music-entry'
@@ -1120,7 +1120,7 @@ describe('MuseumEditorStore Phase 6 camera nodes', () => {
 		expect(missingStore.statusMessage).toContain('free-only node');
 
 		const unroutableStore = createMuseumEditorStore();
-		unroutableStore.selectNavigationNode('music-entry');
+		unroutableStore.selectionActions.selectNavigationNode('music-entry');
 		expect(unroutableStore.beginDocumentTransaction()).toBe(true);
 		unroutableStore.document.connections = [];
 		expect(unroutableStore.commitDocumentTransaction()).toBe(false);
@@ -1137,14 +1137,14 @@ describe('MuseumEditorStore Phase 6.5 camera paths', () => {
 		const connection = store.document.connections[0]!;
 		const anchor = connection.positionPath.anchors[0]!;
 
-		expect(store.selectConnection(connection.id)).toBe(true);
+		expect(store.selectionActions.selectConnection(connection.id)).toBe(true);
 		expect(store.navigationSelection).toEqual({
 			kind: 'connection',
 			connectionId: connection.id
 		});
 		expect(store.cameraFocusKind).toBeNull();
 
-		expect(store.selectAnchor(connection.id, anchor.id)).toBe(true);
+		expect(store.selectionActions.selectAnchor(connection.id, anchor.id)).toBe(true);
 		expect(store.navigationSelection).toEqual({
 			kind: 'anchor',
 			connectionId: connection.id,
@@ -1157,7 +1157,7 @@ describe('MuseumEditorStore Phase 6.5 camera paths', () => {
 		const store = createMuseumEditorStore();
 		const connection = store.document.connections[0]!;
 		const anchorId = connection.positionPath.anchors[0]!.id;
-		store.selectConnection(connection.id);
+		store.selectionActions.selectConnection(connection.id);
 
 		expect(connection.positionPath.kind).toBe('rounded-polyline');
 		expect(store.convertSelectedConnectionToSmooth()).toBe(true);
@@ -1178,8 +1178,8 @@ describe('MuseumEditorStore Phase 6.5 camera paths', () => {
 		const anchor = connection.positionPath.anchors.find((candidate) => candidate.roomId)!;
 		const original = [...anchor.position] as [number, number, number];
 		const next: [number, number, number] = [original[0] + 0.25, original[1], original[2] - 0.5];
-		store.selectConnection(connection.id);
-		store.selectAnchor(connection.id, anchor.id);
+		store.selectionActions.selectConnection(connection.id);
+		store.selectionActions.selectAnchor(connection.id, anchor.id);
 
 		expect(store.commitSelectedAnchorPoint(next)).toBe(true);
 		expect(store.selectedAnchor?.roomId).toBe(anchor.roomId);
@@ -1206,7 +1206,7 @@ describe('MuseumEditorStore Phase 6.5 camera paths', () => {
 		const store = createMuseumEditorStore();
 		const connection = store.document.connections[0]!;
 		const originalCount = connection.positionPath.anchors.length;
-		store.selectConnection(connection.id);
+		store.selectionActions.selectConnection(connection.id);
 
 		expect(store.beginDocumentTransaction()).toBe(true);
 		const anchorId = store.insertConnectionAnchorAtWorldPoint(
@@ -1270,7 +1270,7 @@ describe('MuseumEditorStore Phase 6.5 camera paths', () => {
 		).toBe(true);
 		expect(store.canUndo).toBe(false);
 
-		expect(store.selectNavigationNode('workshop-desk')).toBe(true);
+		expect(store.selectionActions.selectNavigationNode('workshop-desk')).toBe(true);
 		expect(store.document.navigationNodes).toHaveLength(originalNodeCount + 1);
 		expect(store.document.connections).toHaveLength(originalConnectionCount + 1);
 		const committed = store.document.navigationNodes.find(
@@ -1301,7 +1301,7 @@ describe('MuseumEditorStore Phase 6.5 camera paths', () => {
 	it('cancels a pending camera and all pose edits without document or history mutation', () => {
 		const store = createMuseumEditorStore();
 		store.setWorkspace('camera');
-		store.selectNavigationNode('paris-seat');
+		store.selectionActions.selectNavigationNode('paris-seat');
 		const selectionBefore = store.navigationSelection;
 		const jsonBefore = store.canonicalJson;
 
@@ -1312,7 +1312,7 @@ describe('MuseumEditorStore Phase 6.5 camera paths', () => {
 			[1, 0, 0]
 		)!;
 		expect(store.commitSelectedNodeFov(80)).toBe(true);
-		expect(store.selectCameraHandle('target')).toBe(true);
+		expect(store.selectionActions.selectCameraHandle('target')).toBe(true);
 		expect(store.commitNavigationNodePoint(nodeId, 'target', [2, 1.4, -1])).toBe(true);
 		expect(store.cancelPendingNavigation()).toBe(true);
 
@@ -1324,11 +1324,11 @@ describe('MuseumEditorStore Phase 6.5 camera paths', () => {
 
 	it('connects existing nodes symmetrically and rejects self or duplicate edges', () => {
 		const store = createMuseumEditorStore();
-		store.selectNavigationNode('entrance-start');
+		store.selectionActions.selectNavigationNode('entrance-start');
 		expect(store.beginConnectExistingNodes()).toBe(true);
-		expect(store.selectNavigationNode('entrance-start')).toBe(false);
+		expect(store.selectionActions.selectNavigationNode('entrance-start')).toBe(false);
 		expect(store.statusMessage).toContain('cannot connect to itself');
-		expect(store.selectNavigationNode('paris-seat')).toBe(true);
+		expect(store.selectionActions.selectNavigationNode('paris-seat')).toBe(true);
 		const connection = store.document.connections.find(
 			(candidate) => candidate.id === 'entrance-start-paris-seat'
 		)!;
@@ -1349,9 +1349,9 @@ describe('MuseumEditorStore Phase 6.5 camera paths', () => {
 		expect(store.activeCameraDirection).toBe('forward');
 
 		expect(store.undo()).toBe(true);
-		store.selectNavigationNode('entrance-start');
+		store.selectionActions.selectNavigationNode('entrance-start');
 		expect(store.beginConnectExistingNodes()).toBe(true);
-		expect(store.selectNavigationNode('poland-threshold')).toBe(false);
+		expect(store.selectionActions.selectNavigationNode('poland-threshold')).toBe(false);
 		expect(store.statusMessage).toContain('already connected');
 	});
 
@@ -1426,7 +1426,7 @@ describe('MuseumEditorStore Phase 6.5 camera paths', () => {
 			roomPoint('paris', [0, 0, 0]),
 			[0, 0, -1]
 		)!;
-		expect(store.selectNavigationNode('paris-seat')).toBe(true);
+		expect(store.selectionActions.selectNavigationNode('paris-seat')).toBe(true);
 		const leafConnectionId = store.document.connections.at(-1)!.id;
 		const leafBefore = store.canonicalJson;
 		const leafHistoryBefore = store.historyVersion;
@@ -1445,7 +1445,7 @@ describe('MuseumEditorStore Phase 6.5 camera paths', () => {
 			roomPoint('workshop', [1, 0, 1]),
 			[0, 0, -1]
 		)!;
-		expect(store.selectNavigationNode('workshop-desk')).toBe(true);
+		expect(store.selectionActions.selectNavigationNode('workshop-desk')).toBe(true);
 		const incident = store.document.connections.at(-1)!;
 		incident.viewTracks = {
 			forward: [
@@ -1530,7 +1530,7 @@ describe('MuseumEditorStore Phase 6.5 camera paths', () => {
 		store.setTransformInteractionActive(false);
 		expect(store.cancelDocumentTransaction()).toBe(true);
 
-		store.selectConnection('entrance-poland');
+		store.selectionActions.selectConnection('entrance-poland');
 		expect(store.previewSelectedConnection('forward', 'visitor')).toBe(true);
 		expect(store.deleteConnection('entrance-poland')).toBe(false);
 		expect(store.statusMessage).toContain('active camera playback');
@@ -1540,13 +1540,13 @@ describe('MuseumEditorStore Phase 6.5 camera paths', () => {
 
 	it('edits labels and previews exact connections without history', () => {
 		const store = createMuseumEditorStore();
-		store.selectNavigationNode('paris-seat');
+		store.selectionActions.selectNavigationNode('paris-seat');
 		expect(store.commitSelectedNodeLabel('  Salon Close-up  ')).toBe(true);
 		expect(store.selectedNavigationNode?.label).toBe('Salon Close-up');
 		expect(store.undo()).toBe(true);
 
 		const connectionId = store.document.connections[0]!.id;
-		store.selectConnection(connectionId);
+		store.selectionActions.selectConnection(connectionId);
 		expect(store.previewSelectedConnection('reverse')).toBe(true);
 		const runId = store.cameraPreview!.runId;
 		const captured = store.getCapturedCameraPreviewRoute(runId)!;
@@ -1580,8 +1580,8 @@ describe('MuseumEditorStore Phase 6.5 camera paths', () => {
 		const anchor = connection.positionPath.anchors[0]!;
 		const root = new Object3D();
 		store.registerAnchorHelperRoot(connection.id, anchor.id, root);
-		store.selectConnection(connection.id);
-		store.selectAnchor(connection.id, anchor.id);
+		store.selectionActions.selectConnection(connection.id);
+		store.selectionActions.selectAnchor(connection.id, anchor.id);
 		expect(store.getSelectedAnchorHelperRoot()).toBe(root);
 		expect(JSON.stringify(store.document)).not.toContain('camera-anchor');
 		store.unregisterAnchorHelperRoot(connection.id, anchor.id, root);
@@ -1596,7 +1596,7 @@ describe('MuseumEditorStore Director preview', () => {
 		const source = store.document.navigationNodes.find(
 			(node) => node.id === connection.fromNodeId
 		)!;
-		store.selectConnection(connection.id);
+		store.selectionActions.selectConnection(connection.id);
 
 		expect(store.previewSelectedConnection('forward', 'director')).toBe(true);
 		expect(store.cameraPreview).toMatchObject({
@@ -1629,18 +1629,18 @@ describe('MuseumEditorStore Director preview', () => {
 	it('blocks mutations while Director plays and throughout Visitor mode', () => {
 		const store = createMuseumEditorStore();
 		const connection = store.document.connections[0]!;
-		store.selectConnection(connection.id);
+		store.selectionActions.selectConnection(connection.id);
 		expect(store.previewSelectedConnection('forward', 'director')).toBe(true);
 
 		expect(store.playCameraPreview()).toBe(true);
 		expect(store.cameraPreview?.transport).toBe('playing');
 		expect(store.isDocumentMutationBlocked).toBe(true);
 		expect(store.beginDocumentTransaction()).toBe(false);
-		expect(store.selectNavigationNode(connection.fromNodeId)).toBe(false);
+		expect(store.selectionActions.selectNavigationNode(connection.fromNodeId)).toBe(false);
 
 		expect(store.pauseCameraPreview()).toBe(true);
 		expect(store.isDocumentMutationBlocked).toBe(false);
-		expect(store.selectNavigationNode(connection.fromNodeId)).toBe(true);
+		expect(store.selectionActions.selectNavigationNode(connection.fromNodeId)).toBe(true);
 		expect(store.setCameraPreviewMode('visitor')).toBe(true);
 		expect(store.cameraPreview).toMatchObject({ mode: 'visitor', transport: 'paused' });
 		expect(store.isDocumentMutationBlocked).toBe(true);
@@ -1667,7 +1667,7 @@ describe('MuseumEditorStore Director preview', () => {
 			reverse: []
 		};
 		expect(store.importDocument(imported)).toBe(true);
-		store.selectConnection(connection.id);
+		store.selectionActions.selectConnection(connection.id);
 		expect(store.previewSelectedConnection('forward', 'director')).toBe(true);
 
 		expect(store.stepCameraPreview(1)).toBe(true);
@@ -1694,7 +1694,7 @@ describe('MuseumEditorStore camera view authoring', () => {
 		const store = createMuseumEditorStore();
 		const connection = store.document.connections[0]!;
 		const positionPathBefore = JSON.stringify(connection.positionPath);
-		store.selectConnection(connection.id);
+		store.selectionActions.selectConnection(connection.id);
 		expect(store.previewSelectedConnection('forward', 'director')).toBe(true);
 		expect(store.canAddViewKeyframeAtPlayhead).toBe(false);
 		expect(store.setCameraPreviewPlayhead(0.42)).toBe(true);
@@ -1740,7 +1740,7 @@ describe('MuseumEditorStore camera view authoring', () => {
 		const store = createMuseumEditorStore();
 		const connection = store.document.connections[0]!;
 		const anchor = connection.positionPath.anchors[0]!;
-		store.selectAnchor(connection.id, anchor.id);
+		store.selectionActions.selectAnchor(connection.id, anchor.id);
 		expect(store.previewSelectedConnection('forward', 'director')).toBe(true);
 		expect(store.cameraPreview?.playhead).toBe(0);
 		expect(store.canAddViewKeyframeAtPlayhead).toBe(true);
@@ -1755,7 +1755,7 @@ describe('MuseumEditorStore camera view authoring', () => {
 	it('edits target, FOV, and progress atomically while preserving stable selection', () => {
 		const store = createMuseumEditorStore();
 		const connection = store.document.connections[0]!;
-		store.selectConnection(connection.id);
+		store.selectionActions.selectConnection(connection.id);
 		store.previewSelectedConnection('forward', 'director');
 		store.setCameraPreviewPlayhead(0.35);
 		store.addViewKeyframeAtPlayhead();
@@ -1801,7 +1801,7 @@ describe('MuseumEditorStore camera view authoring', () => {
 	it('copies directions with mirrored progress, world framing, fresh IDs, and one undo', () => {
 		const store = createMuseumEditorStore();
 		const connection = store.document.connections[0]!;
-		store.selectConnection(connection.id);
+		store.selectionActions.selectConnection(connection.id);
 		store.previewSelectedConnection('forward', 'director');
 		store.setCameraPreviewPlayhead(0.3);
 		store.addViewKeyframeAtPlayhead();
@@ -1838,7 +1838,7 @@ describe('MuseumEditorStore camera view authoring', () => {
 	it('owns one view-target helper, supports world gizmo drafts, and reconciles deletion', () => {
 		const store = createMuseumEditorStore();
 		const connection = store.document.connections[0]!;
-		store.selectConnection(connection.id);
+		store.selectionActions.selectConnection(connection.id);
 		store.previewSelectedConnection('forward', 'director');
 		store.setCameraPreviewPlayhead(0.5);
 		store.addViewKeyframeAtPlayhead();
@@ -1875,7 +1875,7 @@ describe('MuseumEditorStore camera view authoring', () => {
 
 	it('edits node FOV once and exposes view Done as selection-only', () => {
 		const store = createMuseumEditorStore();
-		store.selectNavigationNode('paris-seat');
+		store.selectionActions.selectNavigationNode('paris-seat');
 		const initialFov = store.selectedNavigationNode!.fov;
 		expect(store.commitSelectedNodeFov(initialFov - 3)).toBe(true);
 		expect(store.selectedNavigationNode?.fov).toBe(initialFov - 3);
@@ -1884,7 +1884,7 @@ describe('MuseumEditorStore camera view authoring', () => {
 		expect(store.selectedNavigationNode?.fov).toBe(initialFov);
 
 		const connection = store.document.connections[0]!;
-		store.selectConnection(connection.id);
+		store.selectionActions.selectConnection(connection.id);
 		store.previewSelectedConnection('forward', 'director');
 		store.setCameraPreviewPlayhead(0.5);
 		store.addViewKeyframeAtPlayhead();
@@ -1942,8 +1942,8 @@ describe('MuseumEditorStore history', () => {
 		const store = createMuseumEditorStore();
 		const id = store.document.objects[0]!.id;
 		const originalX = store.document.objects[0]!.position[0];
-		store.selectRoom('paris');
-		store.selectPlacement(id);
+		store.selectionActions.selectRoom('paris');
+		store.selectionActions.selectPlacement(id);
 
 		expect(store.beginDocumentTransaction()).toBe(true);
 		store.updatePlacementTransform(id, translatedTransform(store, 2));
@@ -1966,7 +1966,7 @@ describe('MuseumEditorStore history', () => {
 	it('suppresses no-ops and clears redo after a divergent edit', () => {
 		const store = createMuseumEditorStore();
 		const id = store.document.objects[0]!.id;
-		store.selectRoom('paris');
+		store.selectionActions.selectRoom('paris');
 
 		store.beginDocumentTransaction();
 		expect(store.commitDocumentTransaction()).toBe(false);
@@ -1982,7 +1982,7 @@ describe('MuseumEditorStore history', () => {
 	it('keeps at most 100 undoable document commits', () => {
 		const store = createMuseumEditorStore();
 		const id = store.document.objects[0]!.id;
-		store.selectRoom('paris');
+		store.selectionActions.selectRoom('paris');
 
 		for (let index = 1; index <= 105; index += 1) {
 			store.commitPlacementTransform(id, translatedTransform(store, index));
@@ -2004,7 +2004,7 @@ describe('MuseumEditorStore placement settings', () => {
 		expect(store.keepOnFloor).toBe(false);
 
 		const id = store.document.objects[0]!.id;
-		store.selectRoom('paris');
+		store.selectionActions.selectRoom('paris');
 		store.translationSnapEnabled = false;
 		store.rotationSnapDegrees = 45;
 		store.keepOnFloor = true;
@@ -2025,8 +2025,8 @@ describe('MuseumEditorStore placement settings', () => {
 		const store = createMuseumEditorStore();
 		const id = store.document.objects[0]!.id;
 		const originalY = store.document.objects[0]!.position[1];
-		store.selectRoom('paris');
-		store.selectPlacement(id);
+		store.selectionActions.selectRoom('paris');
+		store.selectionActions.selectPlacement(id);
 
 		const transform = placementTransformFromDocument(store.document.objects[0]!);
 		transform.position[1] = originalY + 1.5;
@@ -2049,8 +2049,8 @@ describe('MuseumEditorStore placement settings', () => {
 		expect(store.statusMessage).toBe('Select a placement to drop to floor');
 
 		const id = store.document.objects[0]!.id;
-		store.selectRoom('paris');
-		store.selectPlacement(id);
+		store.selectionActions.selectRoom('paris');
+		store.selectionActions.selectPlacement(id);
 		store.requestDropToFloor();
 		expect(store.dropToFloorRequestId).toBe(1);
 	});
@@ -2140,7 +2140,7 @@ describe('MuseumEditorStore Phase 2.1 persistent camera discovery', () => {
 		const store = createMuseumEditorStore();
 		const connectionId = store.document.connections[0]!.id;
 
-		expect(store.selectConnection(connectionId)).toBe(true);
+		expect(store.selectionActions.selectConnection(connectionId)).toBe(true);
 		expect(store.activeCameraConnectionId).toBe(connectionId);
 		expect(store.activeCameraDirection).toBe('forward');
 		expect(store.navigationSelection).toEqual({
@@ -2149,10 +2149,10 @@ describe('MuseumEditorStore Phase 2.1 persistent camera discovery', () => {
 		});
 		expect(store.treeExpandedCameraConnectionIds).toContain(connectionId);
 		expect(store.treeExpandedCameraDirectionKeys).toContain(
-			`${connectionId}:forward`
+			`${connectionId}::forward`
 		);
 
-		expect(store.selectConnection(connectionId)).toBe(false);
+		expect(store.selectionActions.selectConnection(connectionId)).toBe(false);
 		expect(store.activeCameraConnectionId).toBe(connectionId);
 	});
 
@@ -2160,14 +2160,14 @@ describe('MuseumEditorStore Phase 2.1 persistent camera discovery', () => {
 		const store = createMuseumEditorStore();
 		const connectionId = store.document.connections[0]!.id;
 
-		expect(store.selectCameraConnectionDirection(connectionId, 'reverse')).toBe(true);
+		expect(store.selectionActions.selectCameraConnectionDirection(connectionId, 'reverse')).toBe(true);
 		expect(store.activeCameraConnectionId).toBe(connectionId);
 		expect(store.activeCameraDirection).toBe('reverse');
 		expect(store.treeExpandedCameraDirectionKeys).toContain(
-			`${connectionId}:reverse`
+			`${connectionId}::reverse`
 		);
 
-		expect(store.selectCameraConnectionDirection(connectionId, 'reverse')).toBe(false);
+		expect(store.selectionActions.selectCameraConnectionDirection(connectionId, 'reverse')).toBe(false);
 		expect(store.activeCameraDirection).toBe('reverse');
 	});
 
@@ -2178,8 +2178,8 @@ describe('MuseumEditorStore Phase 2.1 persistent camera discovery', () => {
 		)!;
 		const anchor = connection.positionPath.anchors[0]!;
 
-		expect(store.selectCameraConnectionDirection(connection.id, 'reverse')).toBe(true);
-		expect(store.selectAnchor(connection.id, anchor.id)).toBe(true);
+		expect(store.selectionActions.selectCameraConnectionDirection(connection.id, 'reverse')).toBe(true);
+		expect(store.selectionActions.selectAnchor(connection.id, anchor.id)).toBe(true);
 		expect(store.navigationSelection).toEqual({
 			kind: 'anchor',
 			connectionId: connection.id,
@@ -2197,14 +2197,14 @@ describe('MuseumEditorStore Phase 2.1 persistent camera discovery', () => {
 		const first = connections[0]!;
 		const second = connections[1]!;
 
-		expect(store.selectCameraConnectionDirection(first.id, 'reverse')).toBe(true);
+		expect(store.selectionActions.selectCameraConnectionDirection(first.id, 'reverse')).toBe(true);
 		expect(
-			store.selectAnchor(second.id, second.positionPath.anchors[0]!.id)
+			store.selectionActions.selectAnchor(second.id, second.positionPath.anchors[0]!.id)
 		).toBe(true);
 		expect(store.activeCameraConnectionId).toBe(second.id);
 		expect(store.activeCameraDirection).toBe('forward');
 		expect(store.treeExpandedCameraDirectionKeys).toContain(
-			`${second.id}:forward`
+			`${second.id}::forward`
 		);
 	});
 
@@ -2214,12 +2214,12 @@ describe('MuseumEditorStore Phase 2.1 persistent camera discovery', () => {
 		const connectionId = store.document.connections[0]!.id;
 		const forwardId = store.document.connections[0]!.viewTracks!.forward[0]!.id;
 
-		expect(store.selectViewKeyframe(connectionId, 'forward', forwardId)).toBe(true);
+		expect(store.selectionActions.selectViewKeyframe(connectionId, 'forward', forwardId)).toBe(true);
 		expect(store.activeCameraConnectionId).toBe(connectionId);
 		expect(store.activeCameraDirection).toBe('forward');
 		expect(store.treeExpandedCameraConnectionIds).toContain(connectionId);
 		expect(store.treeExpandedCameraDirectionKeys).toContain(
-			`${connectionId}:forward`
+			`${connectionId}::forward`
 		);
 	});
 
@@ -2229,7 +2229,7 @@ describe('MuseumEditorStore Phase 2.1 persistent camera discovery', () => {
 		const connectionId = store.document.connections[0]!.id;
 		const reverseId = store.document.connections[0]!.viewTracks!.reverse[0]!.id;
 
-		expect(store.selectViewKeyframe(connectionId, 'reverse', reverseId)).toBe(true);
+		expect(store.selectionActions.selectViewKeyframe(connectionId, 'reverse', reverseId)).toBe(true);
 		expect(store.finishViewKeyframeEditing()).toBe(true);
 		expect(store.activeCameraConnectionId).toBe(connectionId);
 		expect(store.activeCameraDirection).toBe('reverse');
@@ -2245,7 +2245,7 @@ describe('MuseumEditorStore Phase 2.1 persistent camera discovery', () => {
 		const connectionId = store.document.connections[0]!.id;
 		const forwardId = store.document.connections[0]!.viewTracks!.forward[0]!.id;
 
-		expect(store.selectViewKeyframe(connectionId, 'forward', forwardId)).toBe(true);
+		expect(store.selectionActions.selectViewKeyframe(connectionId, 'forward', forwardId)).toBe(true);
 		expect(store.previewSelectedConnection('forward', 'director')).toBe(true);
 		expect(store.cameraPreview).not.toBeNull();
 		expect(store.stopCameraPreview()).toBe(true);
@@ -2266,12 +2266,12 @@ describe('MuseumEditorStore Phase 2.1 persistent camera discovery', () => {
 		const connectionId = store.document.connections[0]!.id;
 		const forwardId = store.document.connections[0]!.viewTracks!.forward[0]!.id;
 
-		expect(store.selectViewKeyframe(connectionId, 'forward', forwardId)).toBe(true);
+		expect(store.selectionActions.selectViewKeyframe(connectionId, 'forward', forwardId)).toBe(true);
 		expect(store.previewSelectedConnection('reverse', 'director')).toBe(true);
 		expect(store.activeCameraConnectionId).toBe(connectionId);
 		expect(store.activeCameraDirection).toBe('reverse');
 		expect(store.treeExpandedCameraDirectionKeys).toContain(
-			`${connectionId}:reverse`
+			`${connectionId}::reverse`
 		);
 		expect(store.navigationSelection).toEqual({
 			kind: 'connection',
@@ -2287,7 +2287,7 @@ describe('MuseumEditorStore Phase 2.1 persistent camera discovery', () => {
 		const store = createMuseumEditorStore();
 		const connectionId = store.document.connections[0]!.id;
 		expect(store.setWorkspace('camera')).toBe(true);
-		expect(store.selectCameraConnectionDirection(connectionId, 'forward')).toBe(true);
+		expect(store.selectionActions.selectCameraConnectionDirection(connectionId, 'forward')).toBe(true);
 		expect(store.isCameraKeyHelpersActive).toBe(true);
 
 		expect(store.setWorkspace('scene')).toBe(true);
@@ -2296,7 +2296,7 @@ describe('MuseumEditorStore Phase 2.1 persistent camera discovery', () => {
 		expect(store.setWorkspace('camera')).toBe(true);
 		expect(store.isCameraKeyHelpersActive).toBe(true);
 
-		expect(store.selectNavigationNode('paris-seat')).toBe(true);
+		expect(store.selectionActions.selectNavigationNode('paris-seat')).toBe(true);
 		expect(store.cameraPreview).toMatchObject({
 			kind: 'node',
 			nodeId: 'paris-seat',
@@ -2320,7 +2320,7 @@ describe('MuseumEditorStore Phase 2.1 persistent camera discovery', () => {
 			true
 		);
 		expect(store.treeExpandedCameraDirectionKeys).toContain(
-			`${connectionId}:reverse`
+			`${connectionId}::reverse`
 		);
 		expect(store.toggleCameraConnectionTreeExpansion(connectionId)).toBe(true);
 		expect(store.treeExpandedCameraConnectionIds).not.toContain(connectionId);
@@ -2328,7 +2328,7 @@ describe('MuseumEditorStore Phase 2.1 persistent camera discovery', () => {
 			true
 		);
 		expect(store.treeExpandedCameraDirectionKeys).not.toContain(
-			`${connectionId}:reverse`
+			`${connectionId}::reverse`
 		);
 	});
 
@@ -2337,18 +2337,18 @@ describe('MuseumEditorStore Phase 2.1 persistent camera discovery', () => {
 		const connectionId = store.document.connections[0]!.id;
 		const placement = store.document.objects[0]!;
 
-		store.selectCameraConnectionDirection(connectionId, 'reverse');
+		store.selectionActions.selectCameraConnectionDirection(connectionId, 'reverse');
 		expect(store.activeCameraConnectionId).toBe(connectionId);
 
-		expect(store.selectNavigationNode('paris-seat')).toBe(true);
+		expect(store.selectionActions.selectNavigationNode('paris-seat')).toBe(true);
 		expect(store.activeCameraConnectionId).toBeNull();
 		expect(store.activeCameraDirection).toBe('forward');
 
-		store.selectCameraConnectionDirection(connectionId, 'forward');
-		store.selectRoom('paris');
-		expect(store.selectPlacement(placement.id)).toBe(true);
+		store.selectionActions.selectCameraConnectionDirection(connectionId, 'forward');
+		store.selectionActions.selectRoom('paris');
+		expect(store.selectionActions.selectPlacement(placement.id)).toBe(true);
 		expect(store.activeCameraConnectionId).toBeNull();
-		expect(store.deselect()).toBe(true);
+		expect(store.selectionActions.deselect()).toBe(true);
 		expect(store.activeCameraConnectionId).toBeNull();
 	});
 });
@@ -2657,7 +2657,7 @@ describe('MuseumEditorStore Phase 3.1 selection and primary Play parity', () => 
 		store.setWorkspace('camera');
 		const timeline = store.getCameraTimeline()!;
 
-		expect(store.selectNavigationNode('paris-seat')).toBe(true);
+		expect(store.selectionActions.selectNavigationNode('paris-seat')).toBe(true);
 		const boundary = timeline.nodeBoundaries
 			.filter((candidate) => candidate.nodeId === 'paris-seat')
 			.reduce((nearest, candidate) =>
@@ -2676,11 +2676,11 @@ describe('MuseumEditorStore Phase 3.1 selection and primary Play parity', () => 
 		const runId = store.cameraPreview!.runId;
 		const recenterVersion = store.cameraPreviewRecenterVersion;
 
-		expect(store.selectNavigationNode('paris-seat')).toBe(false);
+		expect(store.selectionActions.selectNavigationNode('paris-seat')).toBe(false);
 		expect(store.cameraPreview!.runId).toBe(runId);
 		expect(store.cameraPreviewRecenterVersion).toBe(recenterVersion);
 
-		expect(store.selectNavigationNode('workshop-desk')).toBe(true);
+		expect(store.selectionActions.selectNavigationNode('workshop-desk')).toBe(true);
 		expect(store.cameraPreview).toMatchObject({
 			kind: 'node',
 			nodeId: 'workshop-desk',
@@ -2696,7 +2696,7 @@ describe('MuseumEditorStore Phase 3.1 selection and primary Play parity', () => 
 		const connection = store.document.connections[0]!;
 
 		expect(
-			store.selectCameraConnectionDirection(connection.id, 'forward')
+			store.selectionActions.selectCameraConnectionDirection(connection.id, 'forward')
 		).toBe(true);
 		expect(store.cameraPreview).toMatchObject({
 			kind: 'connection',
@@ -2710,13 +2710,13 @@ describe('MuseumEditorStore Phase 3.1 selection and primary Play parity', () => 
 		const recenterVersion = store.cameraPreviewRecenterVersion;
 
 		expect(
-			store.selectCameraConnectionDirection(connection.id, 'forward')
+			store.selectionActions.selectCameraConnectionDirection(connection.id, 'forward')
 		).toBe(false);
 		expect(store.cameraPreview!.runId).toBe(runId);
 		expect(store.cameraPreviewRecenterVersion).toBe(recenterVersion);
 
 		expect(
-			store.selectCameraConnectionDirection(connection.id, 'reverse')
+			store.selectionActions.selectCameraConnectionDirection(connection.id, 'reverse')
 		).toBe(true);
 		expect(store.cameraPreview).toMatchObject({
 			kind: 'connection',
@@ -2753,7 +2753,7 @@ describe('MuseumEditorStore Phase 3.1 selection and primary Play parity', () => 
 		expect(store.focusNavigationNode('paris-seat')).toBe(true);
 		expect(store.cameraFocusKind).toBe('navigation-node');
 		expect(
-			store.selectCameraConnectionDirection(connection.id, 'forward')
+			store.selectionActions.selectCameraConnectionDirection(connection.id, 'forward')
 		).toBe(true);
 		expect(store.cameraFocusKind).toBeNull();
 	});
@@ -3165,7 +3165,7 @@ describe('MuseumEditorStore Phase 3.4 guided-order editing', () => {		const chec
 		store.setTransformInteractionActive(false);
 		expect(store.cancelDocumentTransaction()).toBe(true);
 
-		store.selectNavigationNode('paris-seat');
+		store.selectionActions.selectNavigationNode('paris-seat');
 		expect(store.previewSelectedNode('visitor')).toBe(true);
 		expect(store.removeNodeFromGuidedTour('paris-seat')).toBe(false);
 		expect(store.statusMessage).toContain('active camera playback');
@@ -3346,7 +3346,7 @@ describe('MuseumEditorStore Phase 3.5 timeline drag-connect', () => {		const che
 	it('blocks timeline drops during playback, interaction, and pending commands', () => {
 		const store = createMuseumEditorStore();
 		const before = store.canonicalJson;
-		store.selectNavigationNode('paris-seat');
+		store.selectionActions.selectNavigationNode('paris-seat');
 		expect(store.previewSelectedNode('visitor')).toBe(true);
 		expect(
 			store.timelineDragConnectNode(
@@ -3385,7 +3385,7 @@ describe('MuseumEditorStore Phase 3.6 framing controls', () => {
 	it('commits node framing while Through Camera is paused and blocks it while playing', () => {
 		const store = createMuseumEditorStore();
 		store.setWorkspace('camera');
-		expect(store.selectNavigationNode('paris-seat')).toBe(true);
+		expect(store.selectionActions.selectNavigationNode('paris-seat')).toBe(true);
 		expect(store.setCameraPreviewMode('visitor')).toBe(true);
 		expect(store.cameraPreview).toMatchObject({
 			kind: 'node',
@@ -3467,8 +3467,8 @@ describe('MuseumEditorStore Phase 3.6 framing controls', () => {
 describe('MuseumEditorStore Phase 3.6 history + framing-drag cleanup', () => {
 	function makeHistory(store: MuseumEditorStore) {
 		const id = store.document.objects[0]!.id;
-		store.selectRoom('paris');
-		store.selectPlacement(id);
+		store.selectionActions.selectRoom('paris');
+		store.selectionActions.selectPlacement(id);
 		expect(store.beginDocumentTransaction()).toBe(true);
 		store.document.objects[0]!.position[0] += 1;
 		expect(store.commitDocumentTransaction()).toBe(true);
@@ -3591,7 +3591,7 @@ describe('MuseumEditorStore Phase 3.6 history + framing-drag cleanup', () => {
 
 	it('cancelDocumentTransaction releases the framing-drag lock on success', () => {
 		const store = createMuseumEditorStore();
-		expect(store.selectNavigationNode('paris-seat')).toBe(true);
+		expect(store.selectionActions.selectNavigationNode('paris-seat')).toBe(true);
 		let cancelCalls = 0;
 		store.setDirectFramingDragCanceler(() => {
 			cancelCalls += 1;
@@ -3610,7 +3610,7 @@ describe('MuseumEditorStore Phase 3.6 history + framing-drag cleanup', () => {
 
 	it('cancelDocumentTransaction refuses without rolling back when the framing canceler refuses', () => {
 		const store = createMuseumEditorStore();
-		expect(store.selectNavigationNode('paris-seat')).toBe(true);
+		expect(store.selectionActions.selectNavigationNode('paris-seat')).toBe(true);
 		let cancelCalls = 0;
 		store.setDirectFramingDragCanceler(() => {
 			cancelCalls += 1;
@@ -3664,7 +3664,7 @@ describe('viewport visibility flags', () => {
 		expect(store.forceMountCameraNodeHandles).toBe(false);
 
 		// beginConnectExistingNodes needs a node selection to seed sourceNodeId.
-		expect(store.selectNavigationNode(store.document.navigationNodes[0]!.id)).toBe(true);
+		expect(store.selectionActions.selectNavigationNode(store.document.navigationNodes[0]!.id)).toBe(true);
 		expect(store.beginConnectExistingNodes()).toBe(true);
 		expect(store.forceMountCameraNodeHandles).toBe(true);
 		store.cancelPendingNavigation('reset');

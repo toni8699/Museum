@@ -23,19 +23,19 @@
 
 	function selectParisRoom() {
 		if (store.isDocumentMutationBlocked) return;
-		store.selectRoom('paris');
+		store.selectionActions.selectRoom('paris');
 		store.focusRoom('paris');
 	}
 
 	function selectObject(id: string, event?: MouseEvent) {
-		store.selectPlacementFromTree(id, {
+		store.selectionActions.selectPlacementFromTree(id, {
 			additive: event?.shiftKey ?? false,
 			focus: !(event?.shiftKey ?? false)
 		});
 	}
 
 	function selectCluster(id: string) {
-		store.selectClusterFromTree(id);
+		store.selectionActions.selectClusterFromTree(id);
 	}
 </script>
 

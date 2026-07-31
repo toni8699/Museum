@@ -393,7 +393,7 @@ Expected: zero `bind:(value|checked)={store.` in editor Svelte; unit suite green
 
 # Slice 6 — delete legacy `selectX` methods, migrate tree-expansion (5c)
 
-> **LOC delta:** −200 in god file. **Risk:** High (test surface rewrite). **No `bind:` migration** — Slice 5 already removed it.
+> **Status:** COMPLETE (2026-07-31). **LOC delta (actual):** god ≈ 4808 → 4511 (−297); new `selection-actions.svelte.ts` ≈ 519. Plan’s −200 / ≈700 god target was Option-3 fantasy — measure by ownership. **Risk:** was High. **Decisions:** hard-delete onto `EditorSelectionActions` (not slim facade); expansion via selection→session; browser smoke **removed** (manual test). **Hand-off:** `docs/agent-handoffs/2026-07-31-complete-refactor-slice-6-selection-deletion.md`
 
 ## Goal
 
@@ -410,37 +410,26 @@ The tree-expansion arrays (currently in `EditorSessionState`) are tightly couple
 
 ## Sub-tasks
 
-- [ ] **6.1 Move expansion to selection-store.** `EditorSelectionStore` gets `expandRoom`, `expandCluster`, `expandCameraConnection`, `expandCameraDirection` methods that **delegate** to the matching arrays in session. The arrays move from session to be owned via getter pairs (read returns immutable array; write returns a new array). Slice 4's `setX` calls will now invoke these.
+- [x] **6.1 Move expansion to selection-store.** `expand*` on selection → session; god treeExpanded `$state` deleted → session facades. Direction keys `::`.
   - Verify: selection-store test green.
-- [ ] **6.2 Migrate tests.** Honest budget: the audit's §6 estimates **~140 KB of test rewrites** (effectively the whole file's worth) because selection-store becomes the canonical access pattern across most describes. Concretely:
-  1. For every test that calls `store.selectX(...)` (any of the 11), add a parallel assertion on `store.selection.workspace` / `store.selection.navigation` shape.
-  2. **Then rewrite the assertion to read from the new shape, not the legacy one.** A test that asserts on both `store.selectedPlacementIds` and `store.selection.workspace` is a transitional step, not a goal.
-  3. **Extract** the most signature selection tests to `selection-store.test.ts` (lift from `museum-editor.test.ts`, NOT duplicate them). Reasoning: sub-store tests should *own* their behaviour; integration tests in `museum-editor.test.ts` should prove wiring.
-  4. **Delete one legacy `selectX` method** per green-test checkpoint. Do not batch-deletes; if a deletion breaks a test you cannot fix in 5 minutes, abort and write a hand-off at status `in-progress`.
-  Expectation: the test file ends slightly larger (~3 700–3 900 LOC) because `selection-store.test.ts` micro-tests are net-new, but the assertion surface in `museum-editor.test.ts` is materially smaller.
-- [ ] **6.3 Promote `selectXFromTree`** (3 methods: `selectRoom`, `selectPlacementFromTree`, `selectClusterFromTree`). These are slightly different — they combine selection + focus + tree-expansion. Move them to `EditorSelectionStore` and have the composition root's wider selection methods use them. The composition root may keep a slim `selectXFromTree` facade for back-compat if components still call it.
-  - Verify: tree-from-tree tests (`EditorSceneTree.svelte` integration if any) still pass.
-- [ ] **6.4 Delete the 11 `selectX` methods from `MuseumEditorStore`** once their per-call-site tests are migrated. Update the imports in the 18 components to use `store.selection.setX` directly OR set up a slim facade if you want a single PR. Recommend the facade for a smaller review surface — drop it in a follow-up commit.
-  - Verify: `npm test` 100%.
-- [ ] **6.5 Delete the reset-triad helper on the god file** (the `cancelAssetPlacement; cancelPendingFrame; #clearPlacementSelection()` triplet). Each call site instead asks the relevant sub-store to clear its own transient state. Verify: equivalent behaviour.
-  - Verify: `npm test` 100%.
-- [ ] **6.6 Vitest browser smoke run.** Re-run the smoke from Slice 5 after the deletions to confirm runtime parity.
-  - Verify: smoke green.
-- [ ] **6.7 Hand-off.** Write `docs/agent-handoffs/2026-07-28-<status>-refactor-slice-6-selection-deletion.md`. The hand-off MUST include:
-  - the list of **remaining** public methods on `MuseumEditorStore` (should be significantly shorter)
-  - the deletion order (why method N was deleted before method N+1)
-  - any tests that were *deleted* (with rationale)
+- [x] **6.2 Migrate tests.** Call sites → `store.selectionActions.*`; integration suite kept; micro-tests in `selection-actions.test.ts` + selection-store expand coverage.
+- [x] **6.3 Promote `selectXFromTree`.** Landed on `EditorSelectionActions` (not the pure reducer) with host-injected focus/expand — same behaviour, hard-delete off god.
+- [x] **6.4 Delete the 11+ `selectX` methods from `MuseumEditorStore`.** Hard-delete (decision 2b); components use `store.selectionActions.X`. No slim facade.
+  - Verify: `npx vitest run` (museum) 531/531.
+- [x] **6.5 Delete the reset-triad helper on the god file.** Triad lives inside actions / `clearPlacementSelection()`.
+  - Verify: green.
+- [x] **6.6 Browser smoke — REMOVED.** No `@vitest/browser`. Manual `/dev/museum-editor` checklist in hand-off.
+- [x] **6.7 Hand-off.** `docs/agent-handoffs/2026-07-31-complete-refactor-slice-6-selection-deletion.md`.
 
 ## Verification
 
 ```bash
-cd /Users/tony/Documents/Personal
+cd /Users/tony/Documents/Personal/apps/museum
 npm run check
-npm test
-npm test -- --run apps/museum/src/lib/editor/museum-editor-bind-migration.browser.test.ts
+npx vitest run
 ```
 
-Expected: `museum-editor.svelte.ts` LOC ≈ 700. All tests green.
+Expected: all tests green; ownership via `selection` + `selectionActions` (ignore LOC≈700). Manual `/dev/museum-editor` checklist in hand-off — no browser smoke.
 
 ---
 

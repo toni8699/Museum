@@ -100,6 +100,10 @@ import { EditorDocumentStore } from './store/document-store.svelte';
 import { EditorCameraPreviewController } from './store/camera-preview-controller.svelte';
 import { EditorHistoryController } from './store/history-controller.svelte';
 import { EditorSelectionStore } from './store/selection-store.svelte';
+import {
+	EditorSelectionActions,
+	type EditorSelectionActionsHost
+} from './store/selection-actions.svelte';
 import { runOrFail } from './helpers/validators-runner';
 
 /**
@@ -213,8 +217,6 @@ import type {
 	EditorPendingNavigationCommand,
 	EditorWorkspace,
 	EditorLeftPanel,
-	EditorPlacementTreeSelectionOptions,
-	EditorClusterTreeSelectionOptions,
 	EditorViewKeyframeProgressDragSelection,
 	EditorTransformSpace,
 	EditorCameraFocusKind,
@@ -225,11 +227,11 @@ import type {
 import {
 	anchorHelperKey,
 	cameraHelperKey,
-	CAMERA_HELPER_KEY_SEPARATOR,
 	viewKeyframeHelperKey
 } from './helpers/scene-keys';
 
 const STATUS_MESSAGE_MS = 2500;
+const CAMERA_DIRECTION_TREE_KEY_SEPARATOR = '::';
 
 /** Deep-clone a scene document so the session never mutates the checked-in JSON singleton. */
 export function cloneMuseumSceneDocument(
@@ -314,12 +316,12 @@ export const CAMERA_NODE_CREATION_DEFAULTS = {
 	clearance: 0.35
 } as const;
 
-/** Stable ${connectionId}:${direction} key for Camera workspace tree expansion. */
+/** Stable `${connectionId}::${direction}` key for Camera workspace tree expansion. */
 function cameraDirectionTreeKey(
 	connectionId: string,
 	direction: CameraConnectionDirection
 ) {
-	return `${connectionId}${CAMERA_HELPER_KEY_SEPARATOR}${direction}`;
+	return `${connectionId}${CAMERA_DIRECTION_TREE_KEY_SEPARATOR}${direction}`;
 }
 
 function vec3Matches(a: Vec3, b: Vec3) {
@@ -497,7 +499,95 @@ export class MuseumEditorStore {
 		return this.historyController.version;
 	}
 
+	#createSelectionHost(): EditorSelectionActionsHost {
+		const self = this;
+		return {
+			get isDocumentMutationBlocked() {
+				return self.isDocumentMutationBlocked;
+			},
+			get isEditorInteractionActive() {
+				return self.isEditorInteractionActive;
+			},
+			get isCameraFramingMutationBlocked() {
+				return self.isCameraFramingMutationBlocked;
+			},
+			get pendingNavigationCommand() {
+				return self.pendingNavigationCommand;
+			},
+			get pendingNavigationNode() {
+				return self.pendingNavigationNode;
+			},
+			get document() {
+				return self.document;
+			},
+			get cameraSelection() {
+				return self.cameraSelection;
+			},
+			get currentWorkspace() {
+				return self.currentWorkspace;
+			},
+			get cameraPreview() {
+				return self.cameraPreview;
+			},
+			get activeCameraConnectionId() {
+				return self.activeCameraConnectionId;
+			},
+			get activeCameraDirection() {
+				return self.activeCameraDirection;
+			},
+			get navigationSelection() {
+				return self.navigationSelection;
+			},
+			get selectedRoomId() {
+				return self.selectedRoomId;
+			},
+			get selectedPlacementId() {
+				return self.selectedPlacementId;
+			},
+			get selectedPlacementIds() {
+				return self.selectedPlacementIds;
+			},
+			get selectedClusterId() {
+				return self.selectedClusterId;
+			},
+			get clusters() {
+				return self.clusters;
+			},
+			get transformMode() {
+				return self.transformMode;
+			},
+			set transformMode(value) {
+				self.transformMode = value;
+			},
+			isPendingNavigationNode: (nodeId) => self.isPendingNavigationNode(nodeId),
+			connectPendingNavigationNode: (destinationNodeId) =>
+				self.connectPendingNavigationNode(destinationNodeId),
+			cancelAssetPlacement: (message) => self.cancelAssetPlacement(message),
+			cancelPendingFrame: () => self.cancelPendingFrame(),
+			setStatusMessage: (message) => self.setStatusMessage(message),
+			focusNavigationNode: (id) => self.focusNavigationNode(id),
+			focusPlacement: (id) => self.focusPlacement(id),
+			focusSelection: () => self.focusSelection(),
+			ensureRoomTreeExpanded: (roomId) => self.ensureRoomTreeExpanded(roomId),
+			ensureClusterTreeExpanded: (clusterId) => self.ensureClusterTreeExpanded(clusterId),
+			isPlacementSelectable: (id) => self.isPlacementSelectable(id),
+			getCapturedCameraPreviewRoute: (runId) => self.getCapturedCameraPreviewRoute(runId),
+			setCameraPreviewPlayhead: (progress) => self.setCameraPreviewPlayhead(progress),
+			syncCameraTimelineForNode: (id) => self.#syncCameraTimelineForNode(id),
+			showCameraTimelineNodePose: (id) => self.#showCameraTimelineNodePose(id),
+			syncCameraTimelineForConnection: (connectionId, direction, playhead) =>
+				self.#syncCameraTimelineForConnection(connectionId, direction, playhead),
+			showCameraTimelineConnectionPose: (connectionId, direction, playhead) =>
+				self.#showCameraTimelineConnectionPose(connectionId, direction, playhead)
+		};
+	}
+
 	constructor() {
+		this.selectionActions = new EditorSelectionActions(
+			this.selectionStore,
+			this.#createSelectionHost()
+		);
+		this.selectionStore.bindSession(this.session);
 		// Sub-store selection reconciliation (defect #2 fix). Closes the
 		// pre-slice gap where #reconcileSelection() only ran via the explicit
 		// #replaceDocument() callers — now fires on every document swap.
@@ -609,12 +699,6 @@ export class MuseumEditorStore {
 	timelineHeight = $state(EDITOR_TIMELINE_DEFAULT_HEIGHT);
 	/** Phase 2.2 global guided-tour ruler. Session-only and normalized to [0, 1]. */
 	cameraTimelinePlayhead = $state(0);
-	/**
-	 * Phase 1.1 sidebar tree expansion — owned by the store so the inspector's grouping
-	 * helpers can ask the tree to reveal a freshly created cluster.
-	 */
-	treeExpandedRoomIds = $state<MuseumRoomId[]>(['paris']);
-	treeExpandedClusterIds = $state<string[]>([]);
 	pendingFramePlacementIds = $state<string[]>([]);
 	pendingFrameVersion = $state(0);
 
@@ -635,9 +719,6 @@ export class MuseumEditorStore {
 	set activeCameraDirection(value: CameraConnectionDirection) {
 		this.selectionStore.setDiscovery(this.activeCameraConnectionId, value);
 	}
-	treeExpandedCameraConnectionIds = $state<string[]>([]);
-	treeExpandedCameraDirectionKeys = $state<string[]>([]);
-
 	/** Session-only asset placement and pointer/shortcut coordination. */
 	pendingPlacementAssetId = $state<string | null>(null);
 	pendingNavigationCommand = $state<EditorPendingNavigationCommand>(null);
@@ -668,6 +749,14 @@ export class MuseumEditorStore {
 	get selection(): EditorSelectionStore {
 		return this.selectionStore;
 	}
+
+	/**
+	 * Slice 6 (2b) — selection orchestration controller. Owns the `selectX`
+	 * methods hard-deleted from this composition root. Call sites use
+	 * `store.selectionActions.selectPlacement(...)` etc.; the reducer stays
+	 * pure in `selection-store.svelte.ts`.
+	 */
+	readonly selectionActions: EditorSelectionActions;
 
 	/** Slice 2 — registry of every Object3D helper + placement root. */
 	private readonly roots = new EditorSceneRoots();
@@ -749,6 +838,32 @@ export class MuseumEditorStore {
 	}
 	get dropToFloorRequestId(): number {
 		return this.session.dropToFloorRequestId;
+	}
+
+	/** Slice 6.1 — tree expansion is canonical session state. */
+	get treeExpandedRoomIds(): MuseumRoomId[] {
+		return this.session.treeExpandedRoomIds;
+	}
+	set treeExpandedRoomIds(value: MuseumRoomId[]) {
+		this.session.treeExpandedRoomIds = value;
+	}
+	get treeExpandedClusterIds(): string[] {
+		return this.session.treeExpandedClusterIds;
+	}
+	set treeExpandedClusterIds(value: string[]) {
+		this.session.treeExpandedClusterIds = value;
+	}
+	get treeExpandedCameraConnectionIds(): string[] {
+		return this.session.treeExpandedCameraConnectionIds;
+	}
+	set treeExpandedCameraConnectionIds(value: string[]) {
+		this.session.treeExpandedCameraConnectionIds = value;
+	}
+	get treeExpandedCameraDirectionKeys(): string[] {
+		return this.session.treeExpandedCameraDirectionKeys;
+	}
+	set treeExpandedCameraDirectionKeys(value: string[]) {
+		this.session.treeExpandedCameraDirectionKeys = value;
 	}
 
 	/** Slice 1 — session-only volatile state lives in this sub-store. */
@@ -1172,159 +1287,6 @@ export class MuseumEditorStore {
 		this.#restoreCameraPreview = restore;
 	}
 
-	selectNavigationNode(id: string) {
-		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
-		if (
-			this.pendingNavigationCommand?.kind === 'connect-existing' ||
-			(this.pendingNavigationCommand?.kind === 'connect-pending-node' &&
-				this.pendingNavigationCommand.node.id !== id)
-		) {
-			return this.connectPendingNavigationNode(id);
-		}
-		if (this.pendingNavigationCommand?.kind === 'place-camera') return false;
-		const node = this.isPendingNavigationNode(id)
-			? this.pendingNavigationNode
-			: this.document.navigationNodes.find((candidate) => candidate.id === id);
-		if (!node) return false;
-
-		const current = this.cameraSelection;
-		if (current?.nodeId === id && current.handle === 'position') return false;
-
-		this.cancelAssetPlacement();
-		this.cancelPendingFrame();
-		// Slice 4: selectionStore.setNavigation clears workspace + nav-driven discovery.
-		// For 'node' kind, discovery auto-nulls inside the reducer.
-		this.selection.setNavigation({ kind: 'node', nodeId: id, handle: 'position' });
-
-		if (this.isPendingNavigationNode(id)) {
-			this.setStatusMessage('Adjust camera pose, then choose its first connection');
-		} else if (this.currentWorkspace === 'camera') {
-			this.#syncCameraTimelineForNode(id);
-			this.#showCameraTimelineNodePose(id);
-		} else if (current?.nodeId !== id) {
-			this.focusNavigationNode(id);
-		}
-		return true;
-	}
-
-	selectCameraHandle(handle: EditorCameraHandle) {
-		if (
-			(handle === 'target'
-				? this.isCameraFramingMutationBlocked
-				: this.isDocumentMutationBlocked) ||
-			this.isEditorInteractionActive ||
-			(this.pendingNavigationCommand && !this.pendingNavigationNode)
-		) return false;
-		const selection = this.cameraSelection;
-		if (!selection || selection.handle === handle) return false;
-		// Slice 4: selectionStore.setNavigation(..., 'node') auto-clears discovery.
-		this.selection.setNavigation({
-			kind: 'node',
-			nodeId: selection.nodeId,
-			handle
-		});
-		return true;
-	}
-
-	selectConnection(connectionId: string) {
-		return this.selectCameraConnectionDirection(connectionId, this.#defaultCameraDirection(connectionId));
-	}
-
-	/**
-	 * Phase 2.1 primary entry for selecting a connection. Establishes both
-	 * `activeCameraConnectionId` and `activeCameraDirection` so the connection's
-	 * keyframe markers stay reachable through tree, timeline, and 3D pickers.
-	 */
-	selectCameraConnectionDirection(
-		connectionId: string,
-		direction: CameraConnectionDirection,
-		options: { preservePreviewObserver?: boolean } = {}
-	) {
-		const allowPausedPreviewScrub =
-			options.preservePreviewObserver && this.cameraPreview?.transport === 'paused';
-		if (
-			(this.isDocumentMutationBlocked && !allowPausedPreviewScrub) ||
-			this.isEditorInteractionActive ||
-			this.pendingNavigationCommand
-		) {
-			return false;
-		}
-		if (!this.document.connections.some((connection) => connection.id === connectionId)) {
-			return false;
-		}
-		// Slice 4 — discovery auto-mirrors to the connection inside setNavigation,
-		// so a single reducer call replaces the four pre-slice state writes.
-		if (
-			this.selectionStore.discoveryConnectionId === connectionId &&
-			this.selectionStore.discoveryDirection === direction &&
-			this.selectionStore.navigation.kind === 'connection'
-		) {
-			return false;
-		}
-		this.cancelAssetPlacement();
-		this.cancelPendingFrame();
-		this.selection.setNavigation({ kind: 'connection', connectionId, direction });
-		this.#expandActiveCameraDirection(direction);
-		if (this.currentWorkspace === 'camera' && !options.preservePreviewObserver) {
-			this.#syncCameraTimelineForConnection(connectionId, direction, 0);
-			this.#showCameraTimelineConnectionPose(connectionId, direction, 0);
-		}
-		return true;
-	}
-
-	#defaultCameraDirection(connectionId: string): CameraConnectionDirection {
-		if (
-			this.activeCameraConnectionId === connectionId &&
-			(this.navigationSelection?.kind === 'connection' ||
-				this.navigationSelection?.kind === 'anchor' ||
-				this.navigationSelection?.kind === 'view-keyframe')
-		) {
-			return this.activeCameraDirection;
-		}
-		return 'forward';
-	}
-
-	#expandActiveCameraDirection(direction: CameraConnectionDirection) {
-		const id = this.activeCameraConnectionId;
-		if (!id) return;
-		if (!this.treeExpandedCameraConnectionIds.includes(id)) {
-			this.treeExpandedCameraConnectionIds = [...this.treeExpandedCameraConnectionIds, id];
-		}
-		const key = cameraDirectionTreeKey(id, direction);
-		if (!this.treeExpandedCameraDirectionKeys.includes(key)) {
-			this.treeExpandedCameraDirectionKeys = [...this.treeExpandedCameraDirectionKeys, key];
-		}
-	}
-
-	selectAnchor(connectionId: string, anchorId: string) {
-		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive || this.pendingNavigationCommand) {
-			return false;
-		}
-		const connection = this.document.connections.find(
-			(candidate) => candidate.id === connectionId
-		);
-		if (!connection?.positionPath.anchors.some((anchor) => anchor.id === anchorId)) {
-			return false;
-		}
-		// Slice 4: navigation discrimination replaces the legacy readonly.
-		const current = this.selectionStore.navigation;
-		if (
-			current.kind === 'anchor' &&
-			current.connectionId === connectionId &&
-			current.anchorId === anchorId
-		) {
-			return false;
-		}
-		const direction = this.#defaultCameraDirection(connectionId);
-		this.cancelAssetPlacement();
-		this.cancelPendingFrame();
-		this.selection.setNavigation({ kind: 'anchor', connectionId, anchorId });
-		// Switching connections defaults discovery to forward via #defaultCameraDirection.
-		this.selection.setDiscovery(connectionId, direction);
-		this.#expandActiveCameraDirection(direction);
-		return true;
-	}
-
 	/** Leave an anchor without changing the document or its history. */
 	finishAnchorEditing() {
 		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive || this.pendingNavigationCommand) {
@@ -1344,69 +1306,8 @@ export class MuseumEditorStore {
 			connectionId: connection.id,
 			direction: this.selectionStore.discoveryDirection
 		});
-		this.#expandActiveCameraDirection(this.selectionStore.discoveryDirection);
+		this.selectionActions.expandActiveCameraDirection(this.selectionStore.discoveryDirection);
 		return true;
-	}
-
-	selectViewKeyframe(
-		connectionId: string,
-		direction: CameraConnectionDirection,
-		keyframeId: string
-	) {
-		if (
-			this.isDocumentMutationBlocked ||
-			this.isEditorInteractionActive ||
-			this.pendingNavigationCommand
-		) {
-			return false;
-		}
-		const keyframe = findSceneCameraViewKeyframe(
-			this.document,
-			connectionId,
-			direction,
-			keyframeId
-		);
-		if (!keyframe) return false;
-
-		const current = this.selectionStore.navigation;
-		const changed = !(
-			current.kind === 'view-keyframe' &&
-			current.connectionId === connectionId &&
-			current.direction === direction &&
-			current.keyframeId === keyframeId
-		);
-		if (changed) {
-			this.cancelAssetPlacement();
-			this.cancelPendingFrame();
-			this.selection.setNavigation({
-				kind: 'view-keyframe',
-				connectionId,
-				direction,
-				keyframeId
-			});
-			this.#expandActiveCameraDirection(direction);
-		}
-
-		const preview = this.cameraPreview;
-		let movedPlayhead = false;
-		if (
-			preview?.kind === 'connection' &&
-			preview.mode === 'director' &&
-			preview.transport === 'paused' &&
-			preview.connectionId === connectionId &&
-			preview.direction === direction
-		) {
-			const route = this.getCapturedCameraPreviewRoute(preview.runId);
-			if (route) {
-				const progress = cameraMotionProgressAtEdgeProgress(
-					createCameraMotion(route),
-					0,
-					keyframe.progress
-				);
-				movedPlayhead = this.setCameraPreviewPlayhead(progress);
-			}
-		}
-		return changed || movedPlayhead;
 	}
 
 	/** Leave a view key without changing the document or history. */
@@ -1439,7 +1340,7 @@ export class MuseumEditorStore {
 			connectionId: connection.id,
 			direction: selection.direction
 		});
-		this.#expandActiveCameraDirection(selection.direction);
+		this.selectionActions.expandActiveCameraDirection(selection.direction);
 		return true;
 	}
 
@@ -1605,7 +1506,7 @@ export class MuseumEditorStore {
 		const location = getEditorCameraTimelineLocation(timeline, progress);
 		const movedTimeline =
 			Math.abs(this.cameraTimelinePlayhead - location.progress) > 1e-6;
-		const selected = this.selectCameraConnectionDirection(
+		const selected = this.selectionActions.selectCameraConnectionDirection(
 			location.edge.connectionId,
 			location.edge.direction,
 			{ preservePreviewObserver: true }
@@ -1644,7 +1545,7 @@ export class MuseumEditorStore {
 		if (edgePlayhead === null) return false;
 		const movedTimeline =
 			Math.abs(this.cameraTimelinePlayhead - clampedProgress) > 1e-6;
-		const selected = this.selectCameraConnectionDirection(connectionId, direction);
+		const selected = this.selectionActions.selectCameraConnectionDirection(connectionId, direction);
 		const shown = this.#showCameraTimelineConnectionPose(
 			connectionId,
 			direction,
@@ -1662,7 +1563,7 @@ export class MuseumEditorStore {
 		if (!timeline || boundary?.nodeId !== nodeId) return false;
 		const movedTimeline =
 			Math.abs(this.cameraTimelinePlayhead - boundary.progress) > 1e-6;
-		const selected = this.selectNavigationNode(nodeId);
+		const selected = this.selectionActions.selectNavigationNode(nodeId);
 		this.cameraTimelinePlayhead = boundary.progress;
 		const shown = this.#showCameraTimelineNodePose(nodeId);
 		return movedTimeline || selected || shown;
@@ -1698,7 +1599,7 @@ export class MuseumEditorStore {
 		);
 		const movedTimeline =
 			Math.abs(this.cameraTimelinePlayhead - timelineProgress) > 1e-6;
-		const selected = this.selectViewKeyframe(connectionId, direction, keyframeId);
+		const selected = this.selectionActions.selectViewKeyframe(connectionId, direction, keyframeId);
 		const shown = this.#showCameraTimelineConnectionPose(
 			connectionId,
 			direction,
@@ -2664,7 +2565,7 @@ export class MuseumEditorStore {
 		} else {
 			this.selection.setDiscovery(connection.id, direction);
 		}
-		this.#expandActiveCameraDirection(direction);
+		this.selectionActions.expandActiveCameraDirection(direction);
 		const runId = this.previewController.allocRunId();
 		this.previewController.setCapturedRoute(runId, route);
 		this.previewController.followEnabled = true;
@@ -2957,22 +2858,6 @@ export class MuseumEditorStore {
 		this.session.requestDropToFloor();
 	}
 
-	selectRoom(id: MuseumRoomId) {
-		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive || id !== 'paris') return false;
-		const changed = this.selectedRoomId !== id;
-		if (!changed) return false;
-		this.#clearPlacementSelection();
-		// Slice 4: model 'room-only' as `kind:'placement', ids:[]` so the
-		// reducer-driven workspace side-effect matches pre-slice semantics.
-		this.selection.setWorkspace({
-			kind: 'placement',
-			ids: [],
-			clusterId: null,
-			roomId: id
-		});
-		return true;
-	}
-
 	focusRoom(id: MuseumRoomId) {
 		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive || id !== 'paris') return false;
 		this.cancelPendingFrame();
@@ -3133,26 +3018,22 @@ export class MuseumEditorStore {
 	/** Phase 1.1 — toggle a room card's expansion in the sidebar tree. */
 	toggleRoomTreeExpansion(roomId: MuseumRoomId) {
 		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
-		this.treeExpandedRoomIds = this.treeExpandedRoomIds.includes(roomId)
-			? this.treeExpandedRoomIds.filter((candidate) => candidate !== roomId)
-			: [...this.treeExpandedRoomIds, roomId];
+		this.session.toggleRoomExpanded(roomId);
 		return true;
 	}
 
 	/** Phase 1.1 — toggle a cluster row's expansion in the sidebar tree. */
 	toggleClusterTreeExpansion(clusterId: string) {
 		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
-		this.treeExpandedClusterIds = this.treeExpandedClusterIds.includes(clusterId)
-			? this.treeExpandedClusterIds.filter((candidate) => candidate !== clusterId)
-			: [...this.treeExpandedClusterIds, clusterId];
+		this.session.toggleClusterExpanded(clusterId);
 		return true;
 	}
 
 	/** Phase 1.1 — collapse a cluster row without affecting other rows. */
 	removeClusterTreeExpansion(clusterId: string) {
 		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
-		if (this.treeExpandedClusterIds.includes(clusterId)) {
-			this.treeExpandedClusterIds = this.treeExpandedClusterIds.filter(
+		if (this.session.treeExpandedClusterIds.includes(clusterId)) {
+			this.session.treeExpandedClusterIds = this.session.treeExpandedClusterIds.filter(
 				(candidate) => candidate !== clusterId
 			);
 		}
@@ -3167,29 +3048,24 @@ export class MuseumEditorStore {
 	/** Phase 1.1 — additive helper for inspector grouping actions that need to reveal a cluster. */
 	ensureRoomTreeExpanded(roomId: MuseumRoomId) {
 		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
-		if (!this.treeExpandedRoomIds.includes(roomId)) {
-			this.treeExpandedRoomIds = [...this.treeExpandedRoomIds, roomId];
-		}
+		this.selection.expandRoom(roomId);
 		return true;
 	}
 
 	/** Phase 1.1 — additive helper for inspector grouping actions that need to reveal a cluster. */
 	ensureClusterTreeExpanded(clusterId: string) {
 		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
-		if (!this.treeExpandedClusterIds.includes(clusterId)) {
-			this.treeExpandedClusterIds = [...this.treeExpandedClusterIds, clusterId];
-		}
+		this.selection.expandCluster(clusterId);
 		return true;
 	}
 
 	/** Phase 2.1 — toggle a connection's collapsible body in the Camera sidebar tree. */
 	toggleCameraConnectionTreeExpansion(connectionId: string) {
 		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
-		this.treeExpandedCameraConnectionIds = this.treeExpandedCameraConnectionIds.includes(
-			connectionId
-		)
-			? this.treeExpandedCameraConnectionIds.filter((candidate) => candidate !== connectionId)
-			: [...this.treeExpandedCameraConnectionIds, connectionId];
+		const expanded = this.session.treeExpandedCameraConnectionIds;
+		this.session.treeExpandedCameraConnectionIds = expanded.includes(connectionId)
+			? expanded.filter((candidate) => candidate !== connectionId)
+			: [...expanded, connectionId];
 		return true;
 	}
 
@@ -3200,9 +3076,10 @@ export class MuseumEditorStore {
 	) {
 		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
 		const key = cameraDirectionTreeKey(connectionId, direction);
-		this.treeExpandedCameraDirectionKeys = this.treeExpandedCameraDirectionKeys.includes(key)
-			? this.treeExpandedCameraDirectionKeys.filter((candidate) => candidate !== key)
-			: [...this.treeExpandedCameraDirectionKeys, key];
+		const expanded = this.session.treeExpandedCameraDirectionKeys;
+		this.session.treeExpandedCameraDirectionKeys = expanded.includes(key)
+			? expanded.filter((candidate) => candidate !== key)
+			: [...expanded, key];
 		return true;
 	}
 
@@ -3291,7 +3168,7 @@ export class MuseumEditorStore {
 		}
 
 		this.cancelPendingNavigation();
-		this.selectRoom('paris');
+		this.selectionActions.selectRoom('paris');
 		this.pendingPlacementAssetId = asset.id;
 		this.setNavigationHover(null);
 		this.setStatusMessage(`Click the Paris floor to place ${asset.name}`);
@@ -3342,7 +3219,7 @@ export class MuseumEditorStore {
 		if (!this.commitDocumentTransaction()) return null;
 
 		this.pendingPlacementAssetId = null;
-		this.selectPlacement(id);
+		this.selectionActions.selectPlacement(id);
 		this.setStatusMessage(`Placed ${asset.name}`);
 		return id;
 	}
@@ -3364,7 +3241,7 @@ export class MuseumEditorStore {
 		this.#pendingNavigationDirectionBefore = this.activeCameraDirection;
 		this.#pendingNavigationPlacementIdsBefore = [...this.selectedPlacementIds];
 		this.#pendingNavigationClusterBefore = this.selectedClusterId;
-		this.#clearPlacementSelection();
+		this.selectionActions.clearPlacementSelection();
 		this.navigationSelection = null;
 		this.activeCameraConnectionId = null;
 		this.activeCameraDirection = 'forward';
@@ -3536,7 +3413,7 @@ export class MuseumEditorStore {
 				connectionId,
 				direction: 'forward'
 			});
-			this.#expandActiveCameraDirection('forward');
+			this.selectionActions.expandActiveCameraDirection('forward');
 			if (this.currentWorkspace === 'camera') {
 				this.#syncCameraTimelineForConnection(connectionId, 'forward', 0);
 				this.#showCameraTimelineConnectionPose(connectionId, 'forward', 0);
@@ -3585,7 +3462,7 @@ export class MuseumEditorStore {
 		this.navigationSelection = { kind: 'connection', connectionId };
 		this.activeCameraConnectionId = connectionId;
 		this.activeCameraDirection = 'forward';
-		this.#expandActiveCameraDirection('forward');
+		this.selectionActions.expandActiveCameraDirection('forward');
 		if (this.currentWorkspace === 'camera') {
 			this.#syncCameraTimelineForConnection(connectionId, 'forward', 0);
 			this.#showCameraTimelineConnectionPose(connectionId, 'forward', 0);
@@ -3713,7 +3590,7 @@ export class MuseumEditorStore {
 			connection.toNodeId === dropPlan.focusConnection.toNodeId
 				? 'forward'
 				: 'reverse';
-		this.selectCameraConnectionDirection(connection.id, direction);
+		this.selectionActions.selectCameraConnectionDirection(connection.id, direction);
 		const node = this.document.navigationNodes.find((candidate) => candidate.id === nodeId)!;
 		this.setStatusMessage(
 			missing
@@ -3916,11 +3793,11 @@ export class MuseumEditorStore {
 			this.activeCameraConnectionId = null;
 			this.activeCameraDirection = 'forward';
 		}
-		this.treeExpandedCameraConnectionIds =
-			this.treeExpandedCameraConnectionIds.filter((id) => !connectionIds.has(id));
-		this.treeExpandedCameraDirectionKeys =
-			this.treeExpandedCameraDirectionKeys.filter((key) => {
-				const separatorIndex = key.lastIndexOf(CAMERA_HELPER_KEY_SEPARATOR);
+		this.session.treeExpandedCameraConnectionIds =
+			this.session.treeExpandedCameraConnectionIds.filter((id) => !connectionIds.has(id));
+		this.session.treeExpandedCameraDirectionKeys =
+			this.session.treeExpandedCameraDirectionKeys.filter((key) => {
+				const separatorIndex = key.lastIndexOf(CAMERA_DIRECTION_TREE_KEY_SEPARATOR);
 				const connectionId = separatorIndex < 0 ? key : key.slice(0, separatorIndex);
 				return !connectionIds.has(connectionId);
 			});
@@ -3941,186 +3818,12 @@ export class MuseumEditorStore {
 		);
 	}
 
-	/** Select a placement from the tree without requiring a separate room-row click first. */
-	selectPlacementFromTree(
-		placementId: string,
-		options: EditorPlacementTreeSelectionOptions = {}
-	) {
-		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
-		const placement = this.document.objects.find((object) => object.id === placementId);
-		if (!placement) return false;
-
-		this.selectRoom(placement.roomId);
-		if (this.selectedRoomId !== placement.roomId) return false;
-		this.ensureRoomTreeExpanded(placement.roomId);
-
-		const additive = options.additive ?? false;
-		const selected = additive
-			? this.togglePlacement(placementId)
-			: this.selectPlacement(placementId);
-		if (!selected) return false;
-
-		const shouldFocus = options.focus ?? !additive;
-		if (shouldFocus) this.focusPlacement(placementId);
-		return true;
-	}
-
-	selectPlacement(id: string) {
-		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive || !this.isPlacementSelectable(id)) {
-			return false;
-		}
-		this.cancelPendingFrame();
-		const placement = this.document.objects.find((object) => object.id === id);
-		if (!placement) return false;
-		const previousId = this.selectedPlacementId;
-		// Slice 4: setWorkspace auto-cross-clears nav; reducer model.
-		this.selection.setWorkspace({
-			kind: 'placement',
-			ids: [id],
-			clusterId: null,
-			roomId: placement.roomId as MuseumRoomId
-		});
-		if (previousId !== id) this.transformMode = 'rotate';
-		return true;
-	}
-
-	selectPlacements(ids: string[]) {
-		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
-		const next = [...new Set(ids)].filter((id) => this.isPlacementSelectable(id));
-		if (next.length === 0) {
-			this.deselect();
-			return false;
-		}
-		this.cancelPendingFrame();
-		// Disambiguate roomId: read from the first selected object's roomId (each
-		// placement shares a room in practice but we honour the document truth).
-		const firstPlacement = this.document.objects.find((object) => object.id === next[0]);
-		if (!firstPlacement) return false;
-		this.selection.setWorkspace({
-			kind: 'placement',
-			ids: next,
-			clusterId: null,
-			roomId: firstPlacement.roomId as MuseumRoomId
-		});
-		this.transformMode = 'rotate';
-		return true;
-	}
-
-	togglePlacement(id: string) {
-		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive || !this.isPlacementSelectable(id)) {
-			return false;
-		}
-		this.cancelPendingFrame();
-		const placement = this.document.objects.find((object) => object.id === id);
-		if (!placement) return false;
-		// Facade returns cluster member ids when workspace.kind === 'cluster'.
-		const currentIds = this.selectedPlacementIds;
-		const nextIds = currentIds.includes(id)
-			? currentIds.filter((memberId) => memberId !== id)
-			: [...currentIds, id];
-		this.selection.setWorkspace({
-			kind: 'placement',
-			ids: nextIds,
-			clusterId: null,
-			roomId: placement.roomId as MuseumRoomId
-		});
-		return true;
-	}
-
-	selectCluster(id: string) {
-		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
-		const cluster = this.clusters.find((candidate) => candidate.id === id);
-		if (!cluster || cluster.roomId !== this.selectedRoomId) return false;
-		this.cancelPendingFrame();
-		this.selection.setWorkspace({
-			kind: 'cluster',
-			clusterId: cluster.id,
-			roomId: cluster.roomId
-		});
-		this.transformMode = 'rotate';
-		return true;
-	}
-
-	/** Select and reveal a valid cluster from the tree using its authored room ownership. */
-	selectClusterFromTree(
-		clusterId: string,
-		options: EditorClusterTreeSelectionOptions = {}
-	) {
-		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
-		const cluster = this.clusters.find((candidate) => candidate.id === clusterId);
-		if (!cluster || cluster.memberIds.length === 0) return false;
-		const ownsEveryMember = cluster.memberIds.every((memberId) =>
-			this.document.objects.some(
-				(object) => object.id === memberId && object.roomId === cluster.roomId
-			)
-		);
-		if (!ownsEveryMember) return false;
-
-		this.selectRoom(cluster.roomId);
-		if (this.selectedRoomId !== cluster.roomId) return false;
-		this.ensureRoomTreeExpanded(cluster.roomId);
-		this.ensureClusterTreeExpanded(cluster.id);
-		if (!this.selectCluster(cluster.id)) return false;
-		if (options.focus ?? true) this.focusSelection();
-		return true;
-	}
-
-	deselect() {
-		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
-		const changed =
-			this.selectedPlacementIds.length > 0 ||
-			this.selectedClusterId !== null ||
-			this.navigationSelection !== null ||
-			this.activeCameraConnectionId !== null;
-		this.cancelPendingFrame();
-		const roomId = this.selectedRoomId;
-		// Clear nav/discovery; keep room context (pre-slice deselect semantics).
-		this.selection.setNavigation({ kind: 'none' });
-		this.selection.setWorkspace(
-			roomId === null
-				? { kind: 'none' }
-				: {
-						kind: 'placement',
-						ids: [],
-						clusterId: null,
-						roomId
-				  }
-		);
-		return changed;
-	}
-
-	#clearPlacementSelection() {
-		// Keep room context — pre-slice cleared ids/cluster only.
-		const roomId = this.selectedRoomId;
-		this.selection.setWorkspace(
-			roomId === null
-				? { kind: 'none' }
-				: {
-						kind: 'placement',
-						ids: [],
-						clusterId: null,
-						roomId
-				  }
-		);
-	}
-
 	cyclePlacement(ids: string[]) {
 		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
 		const selectableIds = ids.filter((id) => this.isPlacementSelectable(id));
 		const next = nextPlacementCycleId(this.selectedPlacementId, selectableIds);
 		if (next === undefined) return false;
-		return this.selectPlacement(next);
-	}
-
-	selectAllInRoom() {
-		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
-		const roomId = this.selectedRoomId;
-		if (!roomId) return false;
-		return this.selectPlacements(
-			this.document.objects
-				.filter((object) => object.roomId === roomId)
-				.map((object) => object.id)
-		);
+		return this.selectionActions.selectPlacement(next);
 	}
 
 	createCluster(name?: string) {
@@ -4160,7 +3863,7 @@ export class MuseumEditorStore {
 		this.document.clusters ??= [];
 		this.document.clusters.push(cluster);
 		if (!this.commitDocumentTransaction()) return null;
-		this.selectCluster(cluster.id);
+		this.selectionActions.selectCluster(cluster.id);
 		this.setStatusMessage(`Grouped ${memberIds.length} objects`);
 		return cluster.id;
 	}
@@ -4188,7 +3891,7 @@ export class MuseumEditorStore {
 		if (!this.beginDocumentTransaction()) return false;
 		cluster.memberIds.push(memberId);
 		const committed = this.commitDocumentTransaction();
-		if (committed && this.selectedClusterId === clusterId) this.selectCluster(clusterId);
+		if (committed && this.selectedClusterId === clusterId) this.selectionActions.selectCluster(clusterId);
 		return committed;
 	}
 
@@ -4206,10 +3909,10 @@ export class MuseumEditorStore {
 		const committed = this.commitDocumentTransaction();
 		if (!committed) return false;
 		if (wasSelectedCluster && this.clusters.some((candidate) => candidate.id === clusterId)) {
-			this.selectCluster(clusterId);
+			this.selectionActions.selectCluster(clusterId);
 		} else if (wasSelectedCluster) {
 			this.selectedClusterId = null;
-			this.selectPlacements(cluster.memberIds);
+			this.selectionActions.selectPlacements(cluster.memberIds);
 		}
 		return true;
 	}
@@ -4223,7 +3926,7 @@ export class MuseumEditorStore {
 		const wasSelected = this.selectedClusterId === id;
 		this.document.clusters?.splice(index, 1);
 		const committed = this.commitDocumentTransaction();
-		if (committed && wasSelected) this.selectPlacements(memberIds);
+		if (committed && wasSelected) this.selectionActions.selectPlacements(memberIds);
 		return committed;
 	}
 
@@ -4283,7 +3986,7 @@ export class MuseumEditorStore {
 
 		const copyIds = copies.map((copy) => copy.id);
 		// Primary is the final selection entry; rotate the first-created copy there.
-		this.selectPlacements([...copyIds.slice(1), copyIds[0]!]);
+		this.selectionActions.selectPlacements([...copyIds.slice(1), copyIds[0]!]);
 		this.requestPlacementFrame(copyIds);
 		this.setStatusMessage(`Duplicated ${copies.length} object${copies.length === 1 ? '' : 's'}`);
 		return true;
@@ -4319,7 +4022,7 @@ export class MuseumEditorStore {
 			return false;
 		}
 		if (!this.deletePlacements(ids)) return false;
-		this.deselect();
+		this.selectionActions.deselect();
 		this.setStatusMessage(`Deleted ${ids.length} object${ids.length === 1 ? '' : 's'}`);
 		return true;
 	}
@@ -4399,7 +4102,7 @@ export class MuseumEditorStore {
 		this.cancelAssetPlacement();
 		this.cancelPendingNavigation();
 		this.cancelPendingFrame();
-		this.#clearPlacementSelection();
+		this.selectionActions.clearPlacementSelection();
 		this.navigationSelection = null;
 		this.selectedRoomId = null;
 		this.cameraFocusKind = null;
@@ -4509,7 +4212,7 @@ export class MuseumEditorStore {
 				(candidate) => candidate.id === this.selectedClusterId
 			);
 			if (!cluster || cluster.roomId !== this.selectedRoomId) {
-				this.#clearPlacementSelection();
+				this.selectionActions.clearPlacementSelection();
 				return;
 			}
 			// Cluster member ids come from the document via the facade getter —

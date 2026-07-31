@@ -29,6 +29,7 @@ import type {
 	NavigationSelection,
 	WorkspaceSelection
 } from '../museum-editor.types';
+import type { EditorSessionState } from './session-state.svelte';
 import type { CameraConnectionDirection, MuseumRoomId } from '$lib/types/museum';
 
 function roomOnly(roomId: MuseumRoomId): WorkspaceSelection {
@@ -47,6 +48,8 @@ function hasRealWorkspacePick(workspace: WorkspaceSelection): boolean {
 }
 
 export class EditorSelectionStore {
+	#session: EditorSessionState | null = null;
+
 	workspace = $state<WorkspaceSelection>({ kind: 'none' });
 
 	navigation = $state<NavigationSelection>({ kind: 'none' });
@@ -54,6 +57,29 @@ export class EditorSelectionStore {
 	discoveryConnectionId = $state<string | null>(null);
 
 	discoveryDirection = $state<CameraConnectionDirection>('forward');
+
+	bindSession(session: EditorSessionState) {
+		this.#session = session;
+	}
+
+	expandRoom(roomId: MuseumRoomId): boolean {
+		return this.#requireSession().expandRoom(roomId);
+	}
+
+	expandCluster(clusterId: string): boolean {
+		return this.#requireSession().expandCluster(clusterId);
+	}
+
+	expandCameraConnection(connectionId: string): boolean {
+		return this.#requireSession().expandCameraConnection(connectionId);
+	}
+
+	expandCameraDirection(
+		connectionId: string,
+		direction: CameraConnectionDirection
+	): boolean {
+		return this.#requireSession().expandCameraDirection(connectionId, direction);
+	}
 
 	setWorkspace(s: WorkspaceSelection) {
 		this.workspace = s;
@@ -95,5 +121,12 @@ export class EditorSelectionStore {
 			const roomId = workspaceRoomId(this.workspace);
 			this.workspace = roomId ? roomOnly(roomId) : { kind: 'none' };
 		}
+	}
+
+	#requireSession(): EditorSessionState {
+		if (!this.#session) {
+			throw new Error('EditorSelectionStore requires a bound EditorSessionState');
+		}
+		return this.#session;
 	}
 }

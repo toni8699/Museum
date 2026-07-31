@@ -114,7 +114,7 @@
 			} else if (modifier && key === 'a' && sceneOwnsShortcuts) {
 				event.preventDefault();
 				event.stopPropagation();
-				store.selectAllInRoom();
+				store.selectionActions.selectAllInRoom();
 			} else if (
 				!modifier &&
 				!event.altKey &&
@@ -167,7 +167,7 @@
 					event.preventDefault();
 					return;
 				}
-				if (sceneOwnsShortcuts) store.deselect();
+				if (sceneOwnsShortcuts) store.selectionActions.deselect();
 			}
 		};
 

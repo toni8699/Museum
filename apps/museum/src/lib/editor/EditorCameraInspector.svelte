@@ -54,7 +54,7 @@
 	});
 
 	function selectHandle(handle: EditorCameraHandle) {
-		store.selectCameraHandle(handle);
+		store.selectionActions.selectCameraHandle(handle);
 	}
 
 	function commitNodePoint(next: Vec3) {
@@ -213,12 +213,12 @@
 									<button
 										type="button"
 										title="Open forward direction for {row.connectionId}"
-										onclick={() => store.selectCameraConnectionDirection(row.connectionId, 'forward')}
+										onclick={() => store.selectionActions.selectCameraConnectionDirection(row.connectionId, 'forward')}
 									>Forward</button>
 									<button
 										type="button"
 										title="Open reverse direction for {row.connectionId}"
-										onclick={() => store.selectCameraConnectionDirection(row.connectionId, 'reverse')}
+										onclick={() => store.selectionActions.selectCameraConnectionDirection(row.connectionId, 'reverse')}
 									>Reverse</button>
 								</div>
 							</li>
@@ -238,12 +238,12 @@
 									<button
 										type="button"
 										title="Open forward direction for {row.connectionId}"
-										onclick={() => store.selectCameraConnectionDirection(row.connectionId, 'forward')}
+										onclick={() => store.selectionActions.selectCameraConnectionDirection(row.connectionId, 'forward')}
 									>Forward</button>
 									<button
 										type="button"
 										title="Open reverse direction for {row.connectionId}"
-										onclick={() => store.selectCameraConnectionDirection(row.connectionId, 'reverse')}
+										onclick={() => store.selectionActions.selectCameraConnectionDirection(row.connectionId, 'reverse')}
 									>Reverse</button>
 								</div>
 							</li>

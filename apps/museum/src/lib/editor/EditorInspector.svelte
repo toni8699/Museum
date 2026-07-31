@@ -205,7 +205,7 @@
 		{#if !store.selectedCluster && store.selectedPlacementIds.length > 1}
 			<section class="selection" aria-label="Multiple selection">
 				<p>{store.selectedPlacementIds.length} objects selected. Numeric transforms are available for a single object.</p>
-				<button type="button" class="deselect" onclick={() => store.deselect()}>Clear selection</button>
+				<button type="button" class="deselect" onclick={() => store.selectionActions.deselect()}>Clear selection</button>
 			</section>
 		{:else if singleEditableObject}
 			<section class="selection" aria-label="Selection">
@@ -213,7 +213,7 @@
 					<div><dt>Room</dt><dd>{singleEditableObject.roomId}</dd></div>
 					<div><dt>Asset</dt><dd class="id">{singleEditableObject.assetId}</dd></div>
 				</dl>
-				<button type="button" class="deselect" onclick={() => store.deselect()}>Deselect object</button>
+				<button type="button" class="deselect" onclick={() => store.selectionActions.deselect()}>Deselect object</button>
 			</section>
 			{#key singleEditableObject.id}<EditorTransformInspector {store} />{/key}
 		{/if}

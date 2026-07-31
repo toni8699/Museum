@@ -184,7 +184,7 @@
 								type="button"
 								class="tree-row"
 								class:tree-row--selected={isNodeSelected(node.id)}
-								onclick={() => store.selectNavigationNode(node.id)}
+								onclick={() => store.selectionActions.selectNavigationNode(node.id)}
 							>
 								<span class="tree-row__sequence" aria-hidden="true">
 									{String(index + 1).padStart(2, '0')}
@@ -274,7 +274,7 @@
 							type="button"
 							class="tree-row"
 							class:tree-row--selected={isNodeSelected(node.id)}
-							onclick={() => store.selectNavigationNode(node.id)}
+							onclick={() => store.selectionActions.selectNavigationNode(node.id)}
 						>
 							<span class="tree-row__diamond" aria-hidden="true">◆</span>
 							<span class="tree-row__label" title={formatCameraNodeLabel(node.label, node.id)}>
@@ -318,7 +318,7 @@
 							class="tree-row connection-row"
 							class:tree-row--selected={isConnectionHeaderSelected(connection.id)}
 							onclick={() =>
-								store.selectCameraConnectionDirection(connection.id, 'forward')}
+								store.selectionActions.selectCameraConnectionDirection(connection.id, 'forward')}
 							title={connection.id}
 						>
 							<span class="tree-row__label" title={connection.id}>{connection.id}</span>
@@ -355,7 +355,7 @@
 											)}
 											class:direction-row--empty={keyframes.length === 0}
 											onclick={() =>
-												store.selectCameraConnectionDirection(connection.id, direction)}
+												store.selectionActions.selectCameraConnectionDirection(connection.id, direction)}
 										>
 											<span class="direction-badge">{direction === 'forward' ? '▶' : '◀'}</span>
 											<span class="tree-row__label">{direction}</span>

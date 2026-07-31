@@ -69,7 +69,7 @@ describe('MuseumEditorStore Phase 1 shell session state', () => {
 
 	it('stops an active camera preview only when leaving Camera', () => {
 		const store = createMuseumEditorStore();
-		store.selectNavigationNode('paris-seat');
+		store.selectionActions.selectNavigationNode('paris-seat');
 		expect(store.previewSelectedNode('director')).toBe(true);
 		expect(store.cameraPreview).not.toBeNull();
 		expect(store.timelineExpanded).toBe(true);
@@ -85,7 +85,7 @@ describe('MuseumEditorStore Phase 1 shell session state', () => {
 
 	it('rejects workspace switches during interaction or modal preview', () => {
 		const store = createMuseumEditorStore();
-		store.selectNavigationNode('paris-seat');
+		store.selectionActions.selectNavigationNode('paris-seat');
 		expect(store.beginDocumentTransaction()).toBe(true);
 		store.setTransformInteractionActive(true, 'camera');
 		expect(store.setWorkspace('camera')).toBe(false);
@@ -131,7 +131,7 @@ describe('MuseumEditorStore Phase 1 shell session state', () => {
 		store.setTransformInteractionActive(false);
 		expect(store.cancelDocumentTransaction()).toBe(true);
 
-		store.selectNavigationNode('paris-seat');
+		store.selectionActions.selectNavigationNode('paris-seat');
 		expect(store.previewSelectedNode('visitor')).toBe(true);
 		expectShellStateToRemainUnchanged(true);
 	});
@@ -179,7 +179,7 @@ describe('MuseumEditorStore Phase 1 shell session state', () => {
 	it('cancels pending camera placement on workspace switch without touching history', () => {
 		const store = createMuseumEditorStore();
 		store.setWorkspace('camera');
-		store.selectNavigationNode('paris-seat');
+		store.selectionActions.selectNavigationNode('paris-seat');
 		const before = store.canonicalJson;
 
 		expect(store.beginCameraPlacement()).toBe(true);

@@ -1,8 +1,25 @@
 import { describe, expect, it } from 'vitest';
 
 import { EditorSelectionStore } from './selection-store.svelte';
+import { EditorSessionState } from './session-state.svelte';
 
 describe('EditorSelectionStore', () => {
+	it('delegates tree expansion to its bound session', () => {
+		const selection = new EditorSelectionStore();
+		const session = new EditorSessionState();
+		selection.bindSession(session);
+
+		expect(selection.expandRoom('music-chamber')).toBe(true);
+		expect(selection.expandCluster('cluster-1')).toBe(true);
+		expect(selection.expandCameraConnection('connection-1')).toBe(true);
+		expect(selection.expandCameraDirection('connection-1', 'reverse')).toBe(true);
+
+		expect(session.treeExpandedRoomIds).toContain('music-chamber');
+		expect(session.treeExpandedClusterIds).toContain('cluster-1');
+		expect(session.treeExpandedCameraConnectionIds).toContain('connection-1');
+		expect(session.treeExpandedCameraDirectionKeys).toContain('connection-1::reverse');
+	});
+
 	it('setNavigation(connection) mirrors connectionId and direction into discovery', () => {
 		const selection = new EditorSelectionStore();
 		selection.setNavigation({

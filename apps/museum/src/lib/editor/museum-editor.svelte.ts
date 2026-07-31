@@ -4,11 +4,10 @@ import {
 	museumSceneDocument,
 	resolveSceneDocument,
 	type MuseumSceneDocument,
-	type NavigationGraph,
+	type RuntimeMuseumScene,
 	type SceneCameraViewKeyframe,
 	type SceneConnection,
 	type SceneNavigationNode,
-	type RuntimeMuseumScene,
 	type SceneObjectCluster,
 	type SceneObjectPlacement
 } from '$lib/content/scene';
@@ -20,7 +19,7 @@ import {
 } from '$lib/content/scene-codec';
 import { getAssetById, resolveAssetFallback } from '$lib/content/assets';
 import { roomLocalPoint, roomPoint } from '$lib/content/rooms';
-import { createMuseumState, type MuseumStateStore } from '$lib/state/museum-state.svelte';
+import type { MuseumStateStore } from '$lib/state/museum-state.svelte';
 import {
 	cameraMotionEdgeProgressAtProgress,
 	cameraMotionProgressAtEdgeProgress,
@@ -43,7 +42,6 @@ import {
 	type ResolvedCameraRoute
 } from '$lib/museum/navigation/camera-route';
 import type { Vector3Like } from '$lib/museum/navigation/camera-motion';
-import { untrack } from 'svelte';
 import type { Object3D } from 'three';
 import {
 	nextPlacementCycleId,
@@ -102,6 +100,9 @@ import {
 } from './editor-navigation-graph';
 import { EditorSessionState } from './store/session-state.svelte';
 import { EditorSceneRoots } from './store/scene-roots.svelte';
+import { EditorDocumentStore } from './store/document-store.svelte';
+import { EditorCameraPreviewController } from './store/camera-preview-controller.svelte';
+import { EditorHistoryController } from './store/history-controller.svelte';
 import {
 	anchorHelperKey,
 	cameraHelperKey,
@@ -109,7 +110,6 @@ import {
 	viewKeyframeHelperKey
 } from './helpers/scene-keys';
 
-const HISTORY_LIMIT = 100;
 const STATUS_MESSAGE_MS = 2500;
 
 /** Deep-clone a scene document so the session never mutates the checked-in JSON singleton. */
@@ -268,9 +268,11 @@ function isFiniteVec3(value: Vec3) {
 	return value.every(Number.isFinite);
 }
 
-function documentsMatch(a: MuseumSceneDocument, b: MuseumSceneDocument) {
-	return JSON.stringify(a) === JSON.stringify(b);
-}
+// Slice 3 v2 sub-task 3.4 deleted the pre-slice helper `documentsMatch` because
+// EditorDocumentStore now exposes a public static of the same name
+// (EditorDocumentStore.documentsMatch) and the god file's caller migrated to it
+// during sub-task 3.4 (line ~4142). The two helpers were JSON-stringify
+// equality — single source of truth on the sub-store now.
 
 function isRoutePointTuple(
 	point: Vector3Like
@@ -341,21 +343,110 @@ function cloneResolvedCameraRoute(route: ResolvedCameraRoute): ResolvedCameraRou
 }
 
 export class MuseumEditorStore {
-	document = $state(cloneMuseumSceneDocument(museumSceneDocument));
-	validation = $derived<SceneDocumentValidationResult>(validateSceneDocument(this.document));
-	baselineCanonicalJson = $state(serializeSceneDocument(museumSceneDocument));
-	scene = $state.raw<RuntimeMuseumScene>(resolveSceneDocument(this.document));
-	state = $state.raw<MuseumStateStore>(
-		createMuseumState(createNavigationGraph(this.scene), 'paris-seat')
+	// Sub-store composition (Slice 3 v2 sub-task 3.4, Option 3 pragmatic facade).
+	// The MuseDoc lives on the sub-store (`documentStore.document`); the 9 facade
+	// getters below preserve the pre-slice call-site surface so the 16 consumer
+	// components (e.g. EditorViewport, EditorTransformControls, EditorSelection)
+	// and the 163-block integration suite stay green untouched.
+	//
+	// Plan deviation: the field is named `documentStore` (private) + `get document()`
+	// facade (read-only), instead of plan-literal `private readonly document =
+	// new EditorDocumentStore();` (which would force 16-file sed churn on consumer
+	// reads of `store.document.X` / `store.scene` / `store.state`). The architecture
+	// still moves document ownership into the sub-store; only the field-name choice
+	// differs.
+	//
+	// `get isDirty()` preserves the original `!validation.success || …` semantics
+	// (the sub-store's isDirty drops the validation pre-check — a behavioural
+	// regression caught by the review pass, see defect #1).
+	//
+	// The constructor registers selection-reconcile as an after-replace listener so
+	// the coherence reset fires on every document swap (undo, redo, importDocument,
+	// `EditorDocumentStore.replace` from any caller), not just the explicit
+	// `#replaceDocument()` path (closes pre-slice defect #2).
+	private readonly documentStore = new EditorDocumentStore();
+	get document(): MuseumSceneDocument {
+		return this.documentStore.document;
+	}
+	get scene(): RuntimeMuseumScene {
+		return this.documentStore.scene;
+	}
+	get state(): MuseumStateStore {
+		return this.documentStore.state;
+	}
+	get validation(): SceneDocumentValidationResult {
+		return this.documentStore.validation;
+	}
+	get baselineCanonicalJson(): string {
+		return this.documentStore.baselineCanonicalJson;
+	}
+	get canonicalJson(): string | null {
+		const v = this.validation;
+		return v.success ? v.canonicalJson : null;
+	}
+	get isDirty(): boolean {
+		// Pre-slice semantics: an invalid document is "dirty" regardless of
+		// baseline comparison because the user-facing save flow blocks on a
+		// validation failure but the dirty indicator must still flip.
+		const v = this.validation;
+		return !v.success || v.canonicalJson !== this.baselineCanonicalJson;
+	}
+	get canExport(): boolean {
+		return this.validation.success && !this.isDocumentTransactionActive;
+	}
+	get validationIssues() {
+		const v = this.validation;
+		return v.success ? [] : v.issues;
+	}
+	// Slice 3 v2 sub-task 3.5 — preview FSM ownership (Option 3 pragmatic facade).
+	// State lives on `previewController`; getters below preserve `store.cameraPreview`
+	// / `store.cameraPreviewFollowEnabled` / `store.cameraPreviewRecenterVersion`
+	// consumer reads. Internal writes go through `this.previewController.*`.
+	private readonly previewController = new EditorCameraPreviewController(this.documentStore);
+	get cameraPreview(): EditorCameraPreview {
+		// Controller redeclares preview types locally (Slice 6 collapses). Structural match.
+		return this.previewController.preview as EditorCameraPreview;
+	}
+	/** Test/harness writes + rare internal installs. Prefer FSM methods for real transitions. */
+	set cameraPreview(value: EditorCameraPreview) {
+		this.previewController.preview = value as typeof this.previewController.preview;
+	}
+	get cameraPreviewFollowEnabled(): boolean {
+		return this.previewController.followEnabled;
+	}
+	set cameraPreviewFollowEnabled(value: boolean) {
+		this.previewController.followEnabled = value;
+	}
+	get cameraPreviewRecenterVersion(): number {
+		return this.previewController.recenterVersion;
+	}
+
+	// Slice 3 v2 sub-task 3.6 — history + peer-link (Option 3).
+	// Instantiated after previewController so the peer-link ctor arg exists.
+	private readonly historyController = new EditorHistoryController(
+		this.documentStore,
+		this.previewController
 	);
+	get historyVersion(): number {
+		return this.historyController.version;
+	}
+
+	constructor() {
+		// Sub-store selection reconciliation (defect #2 fix). Closes the
+		// pre-slice gap where #reconcileSelection() only ran via the explicit
+		// #replaceDocument() callers — now fires on every document swap.
+		this.documentStore.addAfterReplaceListener(() => this.#reconcileSelection());
+		// Preview after-replace listeners (Slice 3.5). Order: reconcile first
+		// (lowest-latency selection coherence), then preview refresh/prune/graph.
+		this.documentStore.addAfterReplaceListener(() => this.previewController.refreshPausedDirector());
+		this.documentStore.addAfterReplaceListener(() => this.previewController.pruneIfStale());
+		this.documentStore.addAfterReplaceListener(() => this.previewController.invalidateGraph());
+	}
 
 	selectedRoomId = $state<MuseumRoomId | null>(null);
 	selectedPlacementIds = $state<string[]>([]);
 	selectedClusterId = $state<string | null>(null);
 	navigationSelection = $state<EditorNavigationSelection>(null);
-	cameraPreview = $state<EditorCameraPreview>(null);
-	cameraPreviewFollowEnabled = $state(true);
-	cameraPreviewRecenterVersion = $state(0);
 	transformMode = $state<EditorTransformMode>('rotate');
 	transformGizmoVisible = $state(true);
 	transformSpace = $state<EditorTransformSpace>('world');
@@ -422,13 +513,6 @@ export class MuseumEditorStore {
 	#cancelDirectPathDrag: (() => boolean) | null = null;
 	#cancelDirectFramingDrag: (() => boolean) | null = null;
 	#restoreCameraPreview: (() => boolean) | null = null;
-	#capturedCameraPreviewRoute: {
-		runId: number;
-		route: ResolvedCameraRoute;
-	} | null = null;
-	#nextCameraPreviewRunId = 1;
-	#cameraTimelineGraph: NavigationGraph | null = null;
-	#cameraTimelineCache: EditorCameraTimeline | null = null;
 	#viewKeyframeProgressDragInitialProgress: number | null = null;
 	#pendingNavigationSelectionBefore: EditorNavigationSelection = null;
 	#pendingNavigationActiveConnectionBefore: string | null = null;
@@ -436,11 +520,6 @@ export class MuseumEditorStore {
 	#pendingNavigationPlacementIdsBefore: string[] = [];
 	#pendingNavigationClusterBefore: string | null = null;
 
-	#past: MuseumSceneDocument[] = [];
-	#future: MuseumSceneDocument[] = [];
-	#transactionBefore: MuseumSceneDocument | null = null;
-	#cameraFramingTransaction = false;
-	historyVersion = $state(0);
 
 	/** Session-only; never written to museum-scene.json. */
 	ambientIntensity = $state<number>(EDITOR_BRIGHT_LIGHTING.ambientIntensity);
@@ -723,15 +802,7 @@ export class MuseumEditorStore {
 
 	/** Build the current timeline index from the resolved graph and shared motion compiler. */
 	getCameraTimeline(): EditorCameraTimeline | null {
-		const graph = this.state.graph;
-		if (this.#cameraTimelineGraph === graph) return this.#cameraTimelineCache;
-		this.#cameraTimelineGraph = graph;
-		try {
-			this.#cameraTimelineCache = createEditorCameraTimeline(graph);
-		} catch {
-			this.#cameraTimelineCache = null;
-		}
-		return this.#cameraTimelineCache;
+		return this.previewController.getTimeline();
 	}
 
 	/** Visitor and active Director transport own immutable document state. */
@@ -762,7 +833,7 @@ export class MuseumEditorStore {
 		const preview = this.cameraPreview;
 		return Boolean(
 			this.isEditorInteractionActive ||
-				this.#transactionBefore !== null ||
+				this.historyController.isDocumentUndoBlocked ||
 				(preview && preview.transport !== 'paused')
 		);
 	}
@@ -781,8 +852,14 @@ export class MuseumEditorStore {
 		return true;
 	}
 
-	/** Stop any active camera preview whose node/connection no longer exists in the document. */
+	/**
+	 * Stop any active camera preview whose node/connection no longer exists.
+	 * Uses the controller prune for graph/node staleness, then applies the
+	 * stricter connection/transition endpoint checks the composition root owns
+	 * (controller.pruneIfStale is intentionally narrower — see Slice 3 hand-off).
+	 */
 	#pruneInvalidCameraPreview() {
+		this.previewController.pruneIfStale();
 		const preview = this.cameraPreview;
 		if (!preview) return;
 		const nodes = this.document.navigationNodes;
@@ -830,35 +907,30 @@ export class MuseumEditorStore {
 
 	get canUndo() {
 		void this.historyVersion;
-		return !this.isDocumentUndoBlocked && !this.pendingNavigationCommand && this.#past.length > 0;
+		return (
+			!this.isDocumentUndoBlocked &&
+			!this.pendingNavigationCommand &&
+			this.historyController.pastDepth > 0
+		);
 	}
 
 	get canRedo() {
 		void this.historyVersion;
-		return !this.isDocumentUndoBlocked && !this.pendingNavigationCommand && this.#future.length > 0;
+		return (
+			!this.isDocumentUndoBlocked &&
+			!this.pendingNavigationCommand &&
+			this.historyController.futureDepth > 0
+		);
 	}
 
-	get isDirty() {
-		const validation = this.validation;
-		return !validation.success || validation.canonicalJson !== this.baselineCanonicalJson;
-	}
-
-	get canExport() {
-		return this.validation.success && !this.isDocumentTransactionActive;
-	}
-
-	get validationIssues() {
-		const validation = this.validation;
-		return validation.success ? [] : validation.issues;
-	}
-
-	get canonicalJson() {
-		const validation = this.validation;
-		return validation.success ? validation.canonicalJson : null;
-	}
+	// Pre-slice duplicate getters isDirty / canExport / validationIssues / canonicalJson
+	// were DELETED in Slice 3 v2 sub-task 3.4; the facade versions live at lines ~360–395
+	// with the same semantics + the validation.success pre-check intact. Read these
+	// via `store.isDirty` / `store.canExport` / `store.validationIssues` / `store.canonicalJson`
+	// — the facade is the canonical access pattern.
 
 	get isDocumentTransactionActive() {
-		return this.#transactionBefore !== null;
+		return this.historyController.isDocumentUndoBlocked;
 	}
 
 	applyLightingPreset(preset: EditorLightingSettings) {
@@ -1252,16 +1324,16 @@ export class MuseumEditorStore {
 		}
 		const hadPreview = this.cameraPreview !== null;
 		if (!hadPreview && !this.#prepareCameraPreview()) return false;
-		this.#capturedCameraPreviewRoute = null;
+		this.previewController.clearCapturedRoute();
 		this.#clearCameraFocusRequest();
-		this.cameraPreviewFollowEnabled = true;
-		this.cameraPreviewRecenterVersion += 1;
-		this.cameraPreview = {
+		this.previewController.followEnabled = true;
+		this.previewController.recenterVersion += 1;
+		this.previewController.preview = {
 			kind: 'node',
 			nodeId,
 			mode: 'director',
 			transport: 'paused',
-			runId: this.#nextCameraPreviewRunId++,
+			runId: this.previewController.allocRunId(),
 			playhead: 0,
 			startedAtMs: null
 		};
@@ -1301,21 +1373,18 @@ export class MuseumEditorStore {
 		}
 		const hadPreview = this.cameraPreview !== null;
 		if (!hadPreview && !this.#prepareCameraPreview()) return false;
-		const runId = this.#nextCameraPreviewRunId++;
-		this.#capturedCameraPreviewRoute = {
-			runId,
-			route: cloneResolvedCameraRoute(route)
-		};
+		const runId = this.previewController.allocRunId();
+		this.previewController.setCapturedRoute(runId, route);
 		this.#clearCameraFocusRequest();
 		if (!options.preservePreviewObserver || !hadPreview) {
-			this.cameraPreviewFollowEnabled = true;
-			this.cameraPreviewRecenterVersion += 1;
+			this.previewController.followEnabled = true;
+			this.previewController.recenterVersion += 1;
 		}
 		const fromNodeId =
 			direction === 'forward' ? connection.fromNodeId : connection.toNodeId;
 		const toNodeId =
 			direction === 'forward' ? connection.toNodeId : connection.fromNodeId;
-		this.cameraPreview = {
+		this.previewController.preview = {
 			kind: 'connection',
 			connectionId,
 			direction,
@@ -1547,7 +1616,7 @@ export class MuseumEditorStore {
 		const selection = this.cameraSelection;
 		if (selection?.nodeId !== nodeId || selection.handle !== handle) return false;
 		const pending = this.isPendingNavigationNode(nodeId);
-		if (!pending && !this.#transactionBefore) return false;
+		if (!pending && !this.historyController.isDocumentUndoBlocked) return false;
 		const node = pending
 			? this.pendingNavigationNode
 			: this.document.navigationNodes.find((candidate) => candidate.id === nodeId);
@@ -1587,7 +1656,7 @@ export class MuseumEditorStore {
 	}
 
 	convertConnectionDraft(connectionId: string) {
-		if (!this.#transactionBefore) return false;
+		if (!this.historyController.isDocumentUndoBlocked) return false;
 		const connection = this.document.connections.find(
 			(candidate) => candidate.id === connectionId
 		);
@@ -1613,7 +1682,7 @@ export class MuseumEditorStore {
 		interiorIndex: number,
 		worldPosition: Vec3
 	) {
-		if (!this.#transactionBefore || !isFiniteVec3(worldPosition)) return null;
+		if (!this.historyController.isDocumentUndoBlocked || !isFiniteVec3(worldPosition)) return null;
 		const connection = this.document.connections.find(
 			(candidate) => candidate.id === connectionId
 		);
@@ -1642,7 +1711,7 @@ export class MuseumEditorStore {
 		anchorId: string,
 		worldPosition: Vec3
 	) {
-		if (!this.#transactionBefore || !isFiniteVec3(worldPosition)) return false;
+		if (!this.historyController.isDocumentUndoBlocked || !isFiniteVec3(worldPosition)) return false;
 		const anchor = findScenePathAnchor(this.document, connectionId, anchorId);
 		if (!anchor) return false;
 		const current = getScenePathAnchorWorldPosition(anchor);
@@ -1729,7 +1798,7 @@ export class MuseumEditorStore {
 			return false;
 		}
 		const node = this.selectedNavigationNode;
-		if (!node || (!this.isPendingNavigationNode(node.id) && !this.#cameraFramingTransaction)) {
+		if (!node || (!this.isPendingNavigationNode(node.id) && !this.historyController.isFramingTransactionActive)) {
 			return false;
 		}
 		if (Math.abs(node.fov - fov) <= 1e-6) return false;
@@ -1848,7 +1917,7 @@ export class MuseumEditorStore {
 	}
 
 	updateSelectedViewKeyframeTargetWorldPoint(worldTarget: Vec3) {
-		if (!this.#transactionBefore || !isFiniteVec3(worldTarget)) return false;
+		if (!this.historyController.isDocumentUndoBlocked || !isFiniteVec3(worldTarget)) return false;
 		const keyframe = this.selectedViewKeyframe;
 		if (!keyframe) return false;
 		const current = getSceneCameraViewKeyframeWorldTarget(keyframe);
@@ -1898,7 +1967,7 @@ export class MuseumEditorStore {
 	updateSelectedViewKeyframeFov(fov: number) {
 		if (
 			this.isCameraFramingMutationBlocked ||
-			!this.#cameraFramingTransaction ||
+			!this.historyController.isFramingTransactionActive ||
 			!Number.isFinite(fov) ||
 			fov < MUSEUM_CAMERA_FOV.min ||
 			fov > MUSEUM_CAMERA_FOV.max
@@ -1981,13 +2050,10 @@ export class MuseumEditorStore {
 		);
 		if (!connection) throw new Error('The camera connection is unavailable');
 
-		const runId = this.#nextCameraPreviewRunId++;
-		this.#capturedCameraPreviewRoute = {
-			runId,
-			route: cloneResolvedCameraRoute(route)
-		};
+		const runId = this.previewController.allocRunId();
+		this.previewController.setCapturedRoute(runId, route);
 		this.cameraTimelinePlayhead = timelineProgress;
-		this.cameraPreview = {
+		this.previewController.preview = {
 			kind: 'connection',
 			connectionId: connection.id,
 			direction: selection.direction,
@@ -2055,7 +2121,7 @@ export class MuseumEditorStore {
 	 */
 	updateViewKeyframeProgressDrag(progressOrWorldPoint: number | Vector3Like) {
 		const selection = this.viewKeyframeProgressDrag;
-		if (!selection || !this.#transactionBefore) return false;
+		if (!selection || !this.historyController.isDocumentUndoBlocked) return false;
 		const keyframe = findSceneCameraViewKeyframe(
 			this.document,
 			selection.connectionId,
@@ -2269,14 +2335,14 @@ export class MuseumEditorStore {
 		if (!timeline) return false;
 		if (!current && !this.#prepareCameraPreview()) return false;
 
-		const runId = this.#nextCameraPreviewRunId++;
-		this.#capturedCameraPreviewRoute = null;
+		const runId = this.previewController.allocRunId();
+		this.previewController.clearCapturedRoute();
 		if (!current) {
-			this.cameraPreviewFollowEnabled = true;
-			this.cameraPreviewRecenterVersion += 1;
+			this.previewController.followEnabled = true;
+			this.previewController.recenterVersion += 1;
 		}
 		const playhead = Math.min(1, Math.max(0, this.cameraTimelinePlayhead));
-		this.cameraPreview = {
+		this.previewController.preview = {
 			kind: 'tour',
 			startNodeId: timeline.startNodeId,
 			mode: current?.mode ?? mode,
@@ -2297,15 +2363,15 @@ export class MuseumEditorStore {
 			return false;
 		}
 		if (!this.#prepareCameraPreview()) return false;
-		this.#capturedCameraPreviewRoute = null;
-		this.cameraPreviewFollowEnabled = true;
-		this.cameraPreviewRecenterVersion += 1;
-		this.cameraPreview = {
+		this.previewController.clearCapturedRoute();
+		this.previewController.followEnabled = true;
+		this.previewController.recenterVersion += 1;
+		this.previewController.preview = {
 			kind: 'node',
 			nodeId,
 			mode,
 			transport: 'paused',
-			runId: this.#nextCameraPreviewRunId++,
+			runId: this.previewController.allocRunId(),
 			playhead: 0,
 			startedAtMs: null
 		};
@@ -2337,14 +2403,11 @@ export class MuseumEditorStore {
 		}
 
 		if (!this.#prepareCameraPreview()) return false;
-		const runId = this.#nextCameraPreviewRunId++;
-		this.#capturedCameraPreviewRoute = {
-			runId,
-			route: cloneResolvedCameraRoute(route)
-		};
-		this.cameraPreviewFollowEnabled = true;
-		this.cameraPreviewRecenterVersion += 1;
-		this.cameraPreview = {
+		const runId = this.previewController.allocRunId();
+		this.previewController.setCapturedRoute(runId, route);
+		this.previewController.followEnabled = true;
+		this.previewController.recenterVersion += 1;
+		this.previewController.preview = {
 			kind: 'transition',
 			fromNodeId: nodeId,
 			toNodeId,
@@ -2396,14 +2459,11 @@ export class MuseumEditorStore {
 				connectionId: connection.id
 			};
 		}
-		const runId = this.#nextCameraPreviewRunId++;
-		this.#capturedCameraPreviewRoute = {
-			runId,
-			route: cloneResolvedCameraRoute(route)
-		};
-		this.cameraPreviewFollowEnabled = true;
-		this.cameraPreviewRecenterVersion += 1;
-		this.cameraPreview = {
+		const runId = this.previewController.allocRunId();
+		this.previewController.setCapturedRoute(runId, route);
+		this.previewController.followEnabled = true;
+		this.previewController.recenterVersion += 1;
+		this.previewController.preview = {
 			kind: 'connection',
 			connectionId: connection.id,
 			direction,
@@ -2441,11 +2501,10 @@ export class MuseumEditorStore {
 				return false;
 			}
 		}
-		const runId = this.#nextCameraPreviewRunId++;
-		this.#capturedCameraPreviewRoute = route
-			? { runId, route: cloneResolvedCameraRoute(route) }
-			: null;
-		this.cameraPreview = {
+		const runId = this.previewController.allocRunId();
+		if (route) this.previewController.setCapturedRoute(runId, route);
+		else this.previewController.clearCapturedRoute();
+		this.previewController.preview = {
 			...preview,
 			mode,
 			transport: mode === 'director' ? 'paused' : preview.transport,
@@ -2482,12 +2541,11 @@ export class MuseumEditorStore {
 				return false;
 			}
 		}
-		const runId = this.#nextCameraPreviewRunId++;
-		this.#capturedCameraPreviewRoute = route
-			? { runId, route: cloneResolvedCameraRoute(route) }
-			: null;
+		const runId = this.previewController.allocRunId();
+		if (route) this.previewController.setCapturedRoute(runId, route);
+		else this.previewController.clearCapturedRoute();
 		const playhead = preview.transport === 'complete' ? 0 : preview.playhead;
-		this.cameraPreview = {
+		this.previewController.preview = {
 			...preview,
 			transport: 'playing',
 			runId,
@@ -2507,14 +2565,7 @@ export class MuseumEditorStore {
 	}
 
 	pauseCameraPreview() {
-		const preview = this.cameraPreview;
-		if (!preview || preview.transport !== 'playing') return false;
-		this.cameraPreview = {
-			...preview,
-			transport: 'paused',
-			startedAtMs: null
-		};
-		return true;
+		return this.previewController.pause();
 	}
 
 	setCameraPreviewPlayhead(progress: number, runId = this.cameraPreview?.runId) {
@@ -2526,7 +2577,7 @@ export class MuseumEditorStore {
 		if (Math.abs(preview.playhead - playhead) <= 1e-6 && preview.transport !== 'complete') {
 			return false;
 		}
-		this.cameraPreview = {
+		this.previewController.preview = {
 			...preview,
 			playhead,
 			...(preview.transport === 'complete'
@@ -2597,31 +2648,15 @@ export class MuseumEditorStore {
 	}
 
 	toggleCameraPreviewFollow() {
-		if (!this.isDirectorCameraPreview) return false;
-		this.cameraPreviewFollowEnabled = !this.cameraPreviewFollowEnabled;
-		return true;
+		return this.previewController.toggleFollow();
 	}
 
 	recenterCameraPreview() {
-		if (!this.isDirectorCameraPreview) return false;
-		this.cameraPreviewRecenterVersion += 1;
-		return true;
+		return this.previewController.recenter();
 	}
 
 	markCameraPreviewStarted(runId: number, startedAtMs: number) {
-		const preview = this.cameraPreview;
-		if (
-			!preview ||
-			preview.kind === 'node' ||
-			preview.runId !== runId ||
-			preview.transport !== 'playing' ||
-			preview.startedAtMs !== null ||
-			!Number.isFinite(startedAtMs)
-		) {
-			return false;
-		}
-		this.cameraPreview = { ...preview, startedAtMs };
-		return true;
+		return this.previewController.markStarted(runId, startedAtMs);
 	}
 
 	completeCameraPreview(runId: number) {
@@ -2635,7 +2670,7 @@ export class MuseumEditorStore {
 		) {
 			return false;
 		}
-		this.cameraPreview = {
+		this.previewController.preview = {
 			...preview,
 			transport: 'complete',
 			playhead: 1,
@@ -2660,19 +2695,16 @@ export class MuseumEditorStore {
 		if (!this.cameraPreview) return false;
 		if (!this.#cancelDirectFramingDragOrFail()) return false;
 		if (this.#restoreCameraPreview && !this.#restoreCameraPreview()) return false;
-		this.cameraPreview = null;
-		this.#capturedCameraPreviewRoute = null;
-		this.cameraPreviewFollowEnabled = true;
+		this.previewController.preview = null;
+		this.previewController.clearCapturedRoute();
+		this.previewController.followEnabled = true;
 		// Phase 2.1: Preview Stop preserves the active connection + direction so any
 		// previously-selected keyframe remains reachable through tree/timeline/3D.
 		return true;
 	}
 
 	getCapturedCameraPreviewRoute(runId: number) {
-		const capture = this.#capturedCameraPreviewRoute;
-		return capture?.runId === runId
-			? cloneResolvedCameraRoute(capture.route)
-			: null;
+		return this.previewController.getCapturedRoute(runId);
 	}
 
 	#resolveCameraPreviewRoute(preview: Exclude<EditorCameraPreview, null>) {
@@ -3642,11 +3674,11 @@ export class MuseumEditorStore {
 		} else if (preview.kind === 'transition') {
 			touchesDeletedTopology =
 				nodeIds.has(preview.fromNodeId) || nodeIds.has(preview.toNodeId);
-			const captured = this.#capturedCameraPreviewRoute;
-			if (captured?.runId === preview.runId) {
+			const captured = this.previewController.getCapturedRoute(preview.runId);
+			if (captured) {
 				touchesDeletedTopology ||=
-					captured.route.nodeIds.some((id) => nodeIds.has(id)) ||
-					captured.route.edges.some((edge) => connectionIds.has(edge.connectionId));
+					captured.nodeIds.some((id) => nodeIds.has(id)) ||
+					captured.edges.some((edge) => connectionIds.has(edge.connectionId));
 			}
 		} else {
 			const timeline = this.getCameraTimeline();
@@ -4057,17 +4089,20 @@ export class MuseumEditorStore {
 	}
 
 	beginDocumentTransaction() {
-		if (this.isDocumentMutationBlocked || this.#transactionBefore) return false;
-		this.#transactionBefore = cloneMuseumSceneDocument(this.document);
-		this.#cameraFramingTransaction = false;
-		return true;
+		if (this.isDocumentMutationBlocked || this.historyController.isDocumentUndoBlocked) {
+			return false;
+		}
+		return this.historyController.beginDocument();
 	}
 
 	beginCameraFramingTransaction() {
-		if (this.isCameraFramingMutationBlocked || this.#transactionBefore) return false;
-		this.#transactionBefore = cloneMuseumSceneDocument(this.document);
-		this.#cameraFramingTransaction = true;
-		return true;
+		if (
+			this.isCameraFramingMutationBlocked ||
+			this.historyController.isDocumentUndoBlocked
+		) {
+			return false;
+		}
+		return this.historyController.beginFraming();
 	}
 
 	updatePlacementTransform(id: string, transform: PlacementTransform) {
@@ -4090,55 +4125,26 @@ export class MuseumEditorStore {
 	commitDocumentTransaction() {
 		if (
 			this.isDocumentMutationBlocked &&
-			!this.#cameraFramingTransaction
+			!this.historyController.isFramingTransactionActive
 		) {
 			return false;
 		}
-		const before = this.#transactionBefore;
-		if (!before) return false;
-
-		if (documentsMatch(before, this.document)) {
-			this.#transactionBefore = null;
-			this.#cameraFramingTransaction = false;
-			return false;
+		if (!this.historyController.isDocumentUndoBlocked) return false;
+		const result = this.historyController.commit(this.document);
+		if (result.error) {
+			this.setStatusMessage(result.error.message);
 		}
-
-		let nextScene: RuntimeMuseumScene;
-		try {
-			nextScene = resolveSceneDocument(this.document);
-		} catch (error) {
-			this.#transactionBefore = null;
-			this.#cameraFramingTransaction = false;
-			this.#replaceDocument(before);
-			this.setStatusMessage(
-				error instanceof Error ? error.message : 'Scene document validation failed'
-			);
-			return false;
-		}
-
-		this.#transactionBefore = null;
-		this.#cameraFramingTransaction = false;
-		this.#past.push(before);
-		if (this.#past.length > HISTORY_LIMIT) this.#past.shift();
-		this.#future = [];
-		this.#replaceRuntime(nextScene);
-		this.#reconcileSelection();
-		this.#bumpHistoryVersion();
-		return true;
+		return result.changed;
 	}
 
 	cancelDocumentTransaction() {
-		const before = this.#transactionBefore;
-		if (!before) return false;
+		if (!this.historyController.isDocumentUndoBlocked) return false;
 		// Cancel the framing drag first so a refused canceler leaves the transaction intact for retry.
 		if (!this.#cancelDirectFramingDragOrFail()) {
 			this.setStatusMessage('Cancel the framing drag before aborting this transaction');
 			return false;
 		}
-		this.#transactionBefore = null;
-		this.#cameraFramingTransaction = false;
-		this.#replaceDocument(before);
-		return true;
+		return this.historyController.cancel();
 	}
 
 	/** Replace the authoring document only after any live editor ownership is released. */
@@ -4159,11 +4165,9 @@ export class MuseumEditorStore {
 		this.cameraFocusKind = null;
 		this.cameraFocusPlacementId = null;
 		this.cameraFocusNodeId = null;
-		this.#replaceDocument(validation.document);
-		this.baselineCanonicalJson = validation.canonicalJson;
-		this.#past = [];
-		this.#future = [];
-		this.#bumpHistoryVersion();
+		this.documentStore.replace(validation.document);
+		this.documentStore.setBaseline(validation.canonicalJson);
+		this.historyController.clear();
 		return true;
 	}
 
@@ -4177,7 +4181,7 @@ export class MuseumEditorStore {
 		if (this.cameraPreview && !this.stopCameraPreview()) return false;
 		if (this.transformInteractionActive && !this.#cancelTransform?.()) return false;
 		if (this.directPathInteractionActive && !this.#cancelDirectPathDrag?.()) return false;
-		if (this.#transactionBefore) this.cancelDocumentTransaction();
+		if (this.historyController.isDocumentUndoBlocked) this.cancelDocumentTransaction();
 		return true;
 	}
 
@@ -4185,41 +4189,29 @@ export class MuseumEditorStore {
 		if (this.pendingNavigationCommand) {
 			return this.cancelPendingNavigation('Camera placement cancelled');
 		}
-		if (this.isDocumentUndoBlocked || this.#past.length === 0) return false;
+		if (this.isDocumentUndoBlocked || this.historyController.pastDepth === 0) return false;
 		this.cancelPendingFrame();
 		this.cancelPendingNavigation();
-		const previous = this.#past.pop();
-		if (!previous) return false;
-		this.#future.push(cloneMuseumSceneDocument(this.document));
-		if (this.#future.length > HISTORY_LIMIT) this.#future.shift();
-		this.#replaceDocument(previous);
-		this.#bumpHistoryVersion();
-		this.#pruneInvalidCameraPreview();
-		return true;
+		const ok = this.historyController.undo();
+		if (ok) this.#pruneInvalidCameraPreview();
+		return ok;
 	}
 
 	redo() {
 		if (this.pendingNavigationCommand) {
 			return this.cancelPendingNavigation('Camera placement cancelled');
 		}
-		if (this.isDocumentUndoBlocked || this.#future.length === 0) return false;
+		if (this.isDocumentUndoBlocked || this.historyController.futureDepth === 0) return false;
 		this.cancelPendingFrame();
 		this.cancelPendingNavigation();
-		const next = this.#future.pop();
-		if (!next) return false;
-		this.#past.push(cloneMuseumSceneDocument(this.document));
-		if (this.#past.length > HISTORY_LIMIT) this.#past.shift();
-		this.#replaceDocument(next);
-		this.#bumpHistoryVersion();
-		this.#pruneInvalidCameraPreview();
-		return true;
+		const ok = this.historyController.redo();
+		if (ok) this.#pruneInvalidCameraPreview();
+		return ok;
 	}
 
-	#replaceDocument(document: MuseumSceneDocument) {
-		this.document = cloneMuseumSceneDocument(document);
-		this.#rebuildRuntime();
-		this.#reconcileSelection();
-	}
+	// Sub-store replace is owned by EditorDocumentStore / HistoryController
+	// (Slice 3.4–3.6). Composition-root callers go through history or
+	// documentStore.replace directly; the private #replaceDocument shim is gone.
 
 	#reconcileSelection() {
 		const navigationSelection = this.navigationSelection;
@@ -4297,54 +4289,39 @@ export class MuseumEditorStore {
 		}
 	}
 
-	#rebuildRuntime() {
-		const nextScene = resolveSceneDocument(this.document);
-		this.#replaceRuntime(nextScene);
-	}
-
-	#replaceRuntime(nextScene: RuntimeMuseumScene) {
-		const initialNodeId = nextScene.navigationNodes.some((node) => node.id === 'paris-seat')
-			? 'paris-seat'
-			: nextScene.navigationNodes[0]?.id;
-		if (!initialNodeId) throw new Error('A museum scene needs at least one navigation node');
-		const nextState = createMuseumState(createNavigationGraph(nextScene), initialNodeId);
-		this.scene = nextScene;
-		this.state = nextState;
-		this.#refreshPausedDirectorPreview();
-	}
-
+	// Slice 3 v2 sub-task 3.4 deleted the pre-slice #rebuildRuntime and #replaceRuntime
+	// lifecycle helpers. Their sole infrastructure-run consumers moved into
+	// EditorDocumentStore.#rebuildRuntime() (via sub-store #replace()) and the
+	// after-replace listener chain. (Defect #3 cleanup.)
+	//
+	// Slice 3.5: field-level view-keyframe mutations bypass `documentStore.replace()`,
+	// so callers still invoke this helper directly. Body mutates via
+	// `previewController` (ownership) but keeps pre-slice catch semantics
+	// (status message, preview kept). The after-replace listener uses
+	// `previewController.refreshPausedDirector()` which clears on route failure.
 	#refreshPausedDirectorPreview() {
 		const preview = this.cameraPreview;
 		if (!preview || preview.mode !== 'director' || preview.transport !== 'paused') return;
-		const runId = this.#nextCameraPreviewRunId++;
+		const runId = this.previewController.allocRunId();
 		if (preview.kind === 'node') {
-			this.#capturedCameraPreviewRoute = null;
-			this.cameraPreview = { ...preview, runId };
+			this.previewController.clearCapturedRoute();
+			this.previewController.preview = { ...preview, runId };
 			return;
 		}
 		if (preview.kind === 'tour') {
-			this.#capturedCameraPreviewRoute = null;
-			if (this.#readCameraTimeline()) this.cameraPreview = { ...preview, runId };
+			this.previewController.clearCapturedRoute();
+			if (this.#readCameraTimeline()) this.previewController.preview = { ...preview, runId };
 			return;
 		}
 		try {
 			const route = this.#resolveCameraPreviewRoute(preview);
-			this.#capturedCameraPreviewRoute = {
-				runId,
-				route: cloneResolvedCameraRoute(route)
-			};
-			this.cameraPreview = { ...preview, runId };
+			this.previewController.setCapturedRoute(runId, route);
+			this.previewController.preview = { ...preview, runId };
 		} catch (error) {
 			this.setStatusMessage(
 				error instanceof Error ? error.message : 'Camera preview route is unavailable'
 			);
 		}
-	}
-
-	#bumpHistoryVersion() {
-		untrack(() => {
-			this.historyVersion += 1;
-		});
 	}
 
 	registerPlacementRoot(id: string, root: Object3D) {

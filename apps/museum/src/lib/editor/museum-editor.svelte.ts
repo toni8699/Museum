@@ -51,10 +51,6 @@ import {
 } from './editor-selection';
 import { reserveEntityId } from './editor-assets';
 import {
-	DEFAULT_ROTATION_SNAP_DEGREES,
-	DEFAULT_TRANSLATION_SNAP
-} from './editor-placement';
-import {
 	placementTransformFromDocument,
 	type EditorTransformMode,
 	type PlacementTransform,
@@ -716,13 +712,44 @@ export class MuseumEditorStore {
 		return this.session.fogFar;
 	}
 
-	/** Session-only placement tools; excluded from document snapshots and visitor JSON. */
-	translationSnapEnabled = $state(true);
-	translationSnap = $state(DEFAULT_TRANSLATION_SNAP);
-	rotationSnapEnabled = $state(true);
-	rotationSnapDegrees = $state(DEFAULT_ROTATION_SNAP_DEGREES);
-	keepOnFloor = $state(false);
-	dropToFloorRequestId = $state(0);
+	/**
+	 * Slice 5 Phase B — placement snap / keep-on-floor. Session owns canonical
+	 * `$state`; facade getters (+ setters for test/JS writes) forward.
+	 * Component checkboxes use `sessionView.setX` (no `bind:checked`).
+	 */
+	get translationSnapEnabled(): boolean {
+		return this.session.translationSnapEnabled;
+	}
+	set translationSnapEnabled(value: boolean) {
+		this.session.setTranslationSnapEnabled(value);
+	}
+	get translationSnap(): number {
+		return this.session.translationSnap;
+	}
+	set translationSnap(value: number) {
+		this.session.setTranslationSnap(value);
+	}
+	get rotationSnapEnabled(): boolean {
+		return this.session.rotationSnapEnabled;
+	}
+	set rotationSnapEnabled(value: boolean) {
+		this.session.setRotationSnapEnabled(value);
+	}
+	get rotationSnapDegrees(): number {
+		return this.session.rotationSnapDegrees;
+	}
+	set rotationSnapDegrees(value: number) {
+		this.session.setRotationSnapDegrees(value);
+	}
+	get keepOnFloor(): boolean {
+		return this.session.keepOnFloor;
+	}
+	set keepOnFloor(value: boolean) {
+		this.session.setKeepOnFloor(value);
+	}
+	get dropToFloorRequestId(): number {
+		return this.session.dropToFloorRequestId;
+	}
 
 	/** Slice 1 — session-only volatile state lives in this sub-store. */
 	private readonly session = new EditorSessionState();
@@ -2927,7 +2954,7 @@ export class MuseumEditorStore {
 			this.setStatusMessage('Select a placement to drop to floor');
 			return;
 		}
-		this.dropToFloorRequestId += 1;
+		this.session.requestDropToFloor();
 	}
 
 	selectRoom(id: MuseumRoomId) {
@@ -3023,11 +3050,11 @@ export class MuseumEditorStore {
 		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
 		if (!this.transformGizmoVisible) return false;
 		if (this.transformMode === 'translate') {
-			this.translationSnapEnabled = !this.translationSnapEnabled;
+			this.session.toggleTranslationSnap();
 			return true;
 		}
 		if (this.transformMode === 'rotate') {
-			this.rotationSnapEnabled = !this.rotationSnapEnabled;
+			this.session.toggleRotationSnap();
 			return true;
 		}
 		return false;

@@ -11,12 +11,28 @@
 
 	function onTranslationStepChange(event: Event) {
 		const value = Number((event.currentTarget as HTMLSelectElement).value);
-		if (Number.isFinite(value)) store.translationSnap = value;
+		if (Number.isFinite(value)) store.sessionView.setTranslationSnap(value);
 	}
 
 	function onRotationStepChange(event: Event) {
 		const value = Number((event.currentTarget as HTMLSelectElement).value);
-		if (Number.isFinite(value)) store.rotationSnapDegrees = value;
+		if (Number.isFinite(value)) store.sessionView.setRotationSnapDegrees(value);
+	}
+
+	function onTranslationSnapEnabledChange(event: Event) {
+		store.sessionView.setTranslationSnapEnabled(
+			(event.currentTarget as HTMLInputElement).checked
+		);
+	}
+
+	function onRotationSnapEnabledChange(event: Event) {
+		store.sessionView.setRotationSnapEnabled(
+			(event.currentTarget as HTMLInputElement).checked
+		);
+	}
+
+	function onKeepOnFloorChange(event: Event) {
+		store.sessionView.setKeepOnFloor((event.currentTarget as HTMLInputElement).checked);
 	}
 </script>
 
@@ -27,7 +43,11 @@
 	</div>
 
 	<label class="checkbox">
-		<input type="checkbox" bind:checked={store.translationSnapEnabled} />
+		<input
+			type="checkbox"
+			checked={store.translationSnapEnabled}
+			onchange={onTranslationSnapEnabledChange}
+		/>
 		<span>Translation snap {store.translationSnapEnabled ? 'on' : 'off'}</span>
 	</label>
 	<label class="field">
@@ -45,7 +65,11 @@
 	</label>
 
 	<label class="checkbox">
-		<input type="checkbox" bind:checked={store.rotationSnapEnabled} />
+		<input
+			type="checkbox"
+			checked={store.rotationSnapEnabled}
+			onchange={onRotationSnapEnabledChange}
+		/>
 		<span>Rotation snap {store.rotationSnapEnabled ? 'on' : 'off'}</span>
 	</label>
 	<label class="field">
@@ -63,8 +87,12 @@
 	</label>
 
 	<label class="checkbox">
-		<input type="checkbox" bind:checked={store.keepOnFloor} />
-		<span>Keep {store.selectedPlacementIds.length > 1 ? 'group' : 'selection'} on floor {store.keepOnFloor ? 'on' : 'off'}</span>
+		<input type="checkbox" checked={store.keepOnFloor} onchange={onKeepOnFloorChange} />
+		<span
+			>Keep {store.selectedPlacementIds.length > 1 ? 'group' : 'selection'} on floor {store.keepOnFloor
+				? 'on'
+				: 'off'}</span
+		>
 	</label>
 
 	<button

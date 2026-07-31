@@ -30,13 +30,15 @@ import type {
 	EditorLightingSettings
 } from '../museum-editor.types';
 import type { EditorTransformMode } from '../editor-transform';
+import {
+	DEFAULT_ROTATION_SNAP_DEGREES,
+	DEFAULT_TRANSLATION_SNAP
+} from '../editor-placement';
 import type { CameraConnectionDirection, MuseumRoomId } from '$lib/types/museum';
 
 const STATUS_MESSAGE_MS = 2500;
 
 const DEFAULT_TIMELINE_HEIGHT = 280;
-const DEFAULT_SNAP_TRANSLATION = 0.5;
-// Allow ZERO_ROTATION to be overridden; god file currently sets DEFAULT_ROTATION_SNAP_DEGREES = 15.
 
 type TransformInteractionKind = EditorTransformInteractionKind;
 
@@ -209,11 +211,16 @@ export class EditorSessionState {
 	// ============================================================
 
 	translationSnapEnabled = $state(true);
-	translationSnap = $state(DEFAULT_SNAP_TRANSLATION);
+	translationSnap = $state(DEFAULT_TRANSLATION_SNAP);
 	rotationSnapEnabled = $state(true);
-	rotationSnapDegrees = $state<number>(15);
+	rotationSnapDegrees = $state(DEFAULT_ROTATION_SNAP_DEGREES);
 	keepOnFloor = $state(false);
 	dropToFloorRequestId = $state(0);
+
+	/** Slice 5 — checkbox `onchange` write path (set, not toggle). */
+	setTranslationSnapEnabled(value: boolean) {
+		this.translationSnapEnabled = value;
+	}
 
 	toggleTranslationSnap() {
 		this.translationSnapEnabled = !this.translationSnapEnabled;
@@ -223,12 +230,20 @@ export class EditorSessionState {
 		this.translationSnap = value;
 	}
 
+	setRotationSnapEnabled(value: boolean) {
+		this.rotationSnapEnabled = value;
+	}
+
 	toggleRotationSnap() {
 		this.rotationSnapEnabled = !this.rotationSnapEnabled;
 	}
 
 	setRotationSnapDegrees(value: number) {
 		this.rotationSnapDegrees = value;
+	}
+
+	setKeepOnFloor(value: boolean) {
+		this.keepOnFloor = value;
 	}
 
 	toggleKeepOnFloor() {

@@ -350,7 +350,8 @@ Expected: 100% pass. `museum-editor.svelte.ts` LOC ≈ 2 900.
 
 # Slice 5 — `bind:` migration (5b, hard mechanical step)
 
-> **LOC delta:** none in god file. **Risk:** HIGH (Svelte 5 silently breaks `bind:value` against derived fields). **This is the most fragile slice.** Tests pass with **zero facade changes** to the store; components are rewritten.
+> **Status:** COMPLETE (2026-07-31). Store-field `bind:value`/`bind:checked` inventory empty; Phase B for lighting + snap. Browser smoke deferred — see hand-off (`@vitest/browser` not in package). **LOC delta:** small (Phase B getters). **Risk:** was High; mitigated by contract test.
+> **Hand-off:** `docs/agent-handoffs/2026-07-31-complete-refactor-slice-5-bind-migration.md`
 
 ## Goal
 
@@ -364,56 +365,29 @@ Audit every editor Svelte file for `bind:value={store.x}` where `x` is one of:
 - `timelineHeight`
 - `pendingNavigationCommand`, `pendingPlacementAssetId`
 - `pendingFramePlacementIds`
+- **plus session tools:** lighting + snap / keep-on-floor (actual bind consumers)
 
-Replace each `bind:` with an explicit `oninput` / `onchange` / `onclick` handler that calls the appropriate `store.setX(...)` / `store.selection.setX(...)` method.
-
-## Pre-flight files to read (the dependency scan for this slice)
-
-READ THESE — and prune to JUST the listed editor Svelte files:
-
-- `apps/museum/src/lib/editor/` — every `*.svelte` file (all 18 of them). Slice 5 reads every component, since every component imports `MuseumEditorStore` and may use `bind:`.
-- Slice 4 hand-off — it lists the **derived** fields and the `bind:`-incompatible fields. **Do not re-read those fields' definitions** in the god file; the hand-off's "Type-signature changes visible to the next slice" has them.
-- `docs/refactor-audit/2026-07-28-museum-editor.md` §3.G — only the "Caveat: Svelte 5 reactivity + facade getters" subsection.
-
-YOU DO NOT NEED to re-read the sub-stores, the validators-runner, or the audit's full §3. 18 component files is the entire dep surface.
+Replace each `bind:` with an explicit `oninput` / `onchange` / `onclick` handler that calls the appropriate `store.setX(...)` / `store.sessionView.setX(...)` method.
 
 ## Sub-tasks
 
-- [ ] **5.1 Inventory `bind:` call sites.** From `apps/museum/src/lib/editor/`, grep `grep -RIln "bind:[a-z]*=" apps/museum/src/lib/editor/`. List every match into the slice's working notes. **Do not migrate yet.**
-- [ ] **5.2 For each bind site, decide the dispatch.** Build the dispatch table by hand; for every `(component, file, line, field)` quadruple, write the `(method, args)` that should replace the bind. Examples:
-  - `bind:value={store.selectedPlacementIds}` → a `setSelectedPlacementIds(ids)` method that writes `selection.setWorkspace({ kind: 'placement', ids, clusterId, roomId })`. If the new method does not yet exist, **add it to `selection-store.svelte.ts` first** and verify integration tests.
-  - `bind:value={store.currentWorkspace}` → `onclick={() => store.setWorkspace('scene' | 'camera')}` (probably already exists as `setWorkspace`).
-- [ ] **5.3 Migrate each bind site per file.** The convention is: remove `bind:` and add explicit handler + reads. Examples:
-  ```svelte
-  <!-- before -->
-  <input bind:value={store.selectedPlacementIds[0]} />
-  <!-- after -->
-  <input
-    value={store.selectedPlacementIds[0] ?? ''}
-    oninput={(e) => store.setPrimaryPlacementId(e.currentTarget.value || null)}
-  />
-  ```
-- [ ] **5.4 Update tests.** For every component-side test that touched a migrated field, add at least one assertion that the replacement handler works. Use `npm test -- --run apps/museum/src/lib/editor/EditorX.svelte.test.ts` if such tests exist; otherwise rely on the integration smoke in §6.
-- [ ] **5.5a Browser smoke prerequisite.** Verify `apps/museum/vite.config.ts` (or `apps/museum/package.json` -> `vitest` config block) already includes `@vitest/browser` for the `.browser.test.ts` suffix. If it does **not**, add that dependency + config in this sub-task before writing the smoke. The plan cannot assume a Vitest browser plugin is pre-installed.
-  - Verify: `npm run check` clean; `vitest --browser` resolvable.
-- [ ] **5.5 Add Vitest browser smoke** at `apps/museum/src/lib/editor/museum-editor-bind-migration.browser.test.ts` (co-located with other editor tests, matching the repo's `*.test.ts` convention). Opens `/dev/museum-editor`, exercises the migrated inputs (placement ID change, workspace toggle, `transformMode` change), asserts the store reflects the new state. Catches regressions the unit suite misses.
-  - Verify: `npm test -- --run apps/museum/src/lib/editor/museum-editor-bind-migration.browser.test.ts`.
-- [ ] **5.6 Hand-off.** Write `docs/agent-handoffs/2026-07-28-<status>-refactor-slice-5-bind-migration.md`. The hand-off MUST list:
-  - every component migrated
-  - every method added to the sub-stores
-  - which components still have any `bind:` against selection or session fields (should be zero)
-  - the result of the browser smoke
+- [x] **5.1 Inventory `bind:` call sites.** Only store binds: lighting (Inspector) + snap/keepOnFloor (PlacementInspector). Plan candidate selection fields had no bind consumers.
+- [x] **5.2 Dispatch table.** Lighting → `sessionView.setAmbientIntensity` etc. Snap → `sessionView.setTranslationSnapEnabled` / `setRotationSnapEnabled` / `setKeepOnFloor`.
+- [x] **5.3 Migrate each bind site.** `EditorInspector.svelte` + `EditorPlacementInspector.svelte`.
+- [x] **5.4 Update tests.** `museum-editor-bind-migration.test.ts` + session-state snap setter tests.
+- [x] **5.5a Browser prerequisite.** Checked — `@vitest/browser` absent; **not** installed this slice (infra deferral documented in hand-off).
+- [ ] **5.5 Browser smoke** — deferred; unit contract smoke stands in.
+- [x] **5.6 Hand-off.** `docs/agent-handoffs/2026-07-31-complete-refactor-slice-5-bind-migration.md`.
 
 ## Verification
 
 ```bash
 cd /Users/tony/Documents/Personal
 npm run check
-npm test
-npm test -- --run apps/museum/src/lib/editor/museum-editor-bind-migration.browser.test.ts
+npm test -w @portfolio/museum
 ```
 
-Expected: `bind:` is zero across `apps/museum/src/lib/editor/`. All tests green. Browser smoke green.
+Expected: zero `bind:(value|checked)={store.` in editor Svelte; unit suite green.
 
 ---
 

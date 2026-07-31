@@ -204,6 +204,22 @@ describe('EditorSessionState', () => {
 	});
 
 	describe('snap + keep-on-floor', () => {
+		it('defaults match editor-placement constants', () => {
+			expect(session.translationSnap).toBe(0.1);
+			expect(session.rotationSnapDegrees).toBe(15);
+			expect(session.translationSnapEnabled).toBe(true);
+			expect(session.keepOnFloor).toBe(false);
+		});
+
+		it('setTranslationSnapEnabled / setKeepOnFloor write absolute values', () => {
+			session.setTranslationSnapEnabled(false);
+			session.setRotationSnapEnabled(false);
+			session.setKeepOnFloor(true);
+			expect(session.translationSnapEnabled).toBe(false);
+			expect(session.rotationSnapEnabled).toBe(false);
+			expect(session.keepOnFloor).toBe(true);
+		});
+
 		it('toggleTranslationSnap flips the flag', () => {
 			session.toggleTranslationSnap();
 			expect(session.translationSnapEnabled).toBe(false);

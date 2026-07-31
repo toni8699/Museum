@@ -113,14 +113,19 @@ import { runOrFail } from './helpers/validators-runner';
  * pre-slice writes (`this.navigationSelection = …`) into the new model.
  */
 function navigationStateFromLegacy(
-	value: EditorNavigationSelection
+	value: EditorNavigationSelection,
+	direction: CameraConnectionDirection = 'forward'
 ): NavigationSelection {
 	if (value === null) return { kind: 'none' };
 	switch (value.kind) {
 		case 'node':
 			return { kind: 'node', nodeId: value.nodeId, handle: value.handle };
 		case 'connection':
-			return { kind: 'connection', connectionId: value.connectionId };
+			return {
+				kind: 'connection',
+				connectionId: value.connectionId,
+				direction
+			};
 		case 'anchor':
 			return {
 				kind: 'anchor',
@@ -149,7 +154,11 @@ function cloneNavigation(state: NavigationSelection): NavigationSelection {
 		case 'node':
 			return { kind: 'node', nodeId: state.nodeId, handle: state.handle };
 		case 'connection':
-			return { kind: 'connection', connectionId: state.connectionId };
+			return {
+				kind: 'connection',
+				connectionId: state.connectionId,
+				direction: state.direction
+			};
 		case 'anchor':
 			return {
 				kind: 'anchor',
@@ -172,7 +181,7 @@ function cloneNavigation(state: NavigationSelection): NavigationSelection {
  * Kept at module scope to avoid re-creating the closure per call.
  */
 function navigationSelectionFromState(
-	state: { kind: 'none' } | { kind: 'node'; nodeId: string; handle: 'position' | 'target' } | { kind: 'connection'; connectionId: string } | { kind: 'anchor'; connectionId: string; anchorId: string } | { kind: 'view-keyframe'; connectionId: string; direction: 'forward' | 'reverse'; keyframeId: string }
+	state: NavigationSelection
 ): EditorNavigationSelection {
 	switch (state.kind) {
 		case 'none':
@@ -180,6 +189,7 @@ function navigationSelectionFromState(
 		case 'node':
 			return { kind: 'node', nodeId: state.nodeId, handle: state.handle };
 		case 'connection':
+			// Legacy public surface omits direction — discovery owns it.
 			return { kind: 'connection', connectionId: state.connectionId };
 		case 'anchor':
 			return {
@@ -530,15 +540,21 @@ export class MuseumEditorStore {
 	}
 	get selectedPlacementIds(): string[] {
 		const w = this.selectionStore.workspace;
-		return w.kind === 'placement' ? w.ids : [];
+		if (w.kind === 'placement') return w.ids;
+		if (w.kind === 'cluster') {
+			const cluster = this.clusters.find((candidate) => candidate.id === w.clusterId);
+			return cluster ? [...cluster.memberIds] : [];
+		}
+		return [];
 	}
 	set selectedPlacementIds(value: string[]) {
 		const roomId = this.selectedRoomId;
 		if (roomId === null) return;
+		// Writing placement ids exits cluster mode (toggle / reconcile paths).
 		this.selectionStore.setWorkspace({
 			kind: 'placement',
 			ids: value,
-			clusterId: this.selectedClusterId,
+			clusterId: null,
 			roomId
 		});
 	}
@@ -559,7 +575,9 @@ export class MuseumEditorStore {
 		return navigationSelectionFromState(this.selectionStore.navigation);
 	}
 	set navigationSelection(value: EditorNavigationSelection) {
-		this.selectionStore.setNavigation(navigationStateFromLegacy(value));
+		this.selectionStore.setNavigation(
+			navigationStateFromLegacy(value, this.selectionStore.discoveryDirection)
+		);
 	}
 	get selectedPlacementId(): string | null {
 		return this.selectedPlacementIds.at(-1) ?? null;
@@ -1218,7 +1236,7 @@ export class MuseumEditorStore {
 		}
 		this.cancelAssetPlacement();
 		this.cancelPendingFrame();
-		this.selection.setNavigation({ kind: 'connection', connectionId });
+		this.selection.setNavigation({ kind: 'connection', connectionId, direction });
 		this.#expandActiveCameraDirection(direction);
 		if (this.currentWorkspace === 'camera' && !options.preservePreviewObserver) {
 			this.#syncCameraTimelineForConnection(connectionId, direction, 0);
@@ -1274,7 +1292,8 @@ export class MuseumEditorStore {
 		this.cancelAssetPlacement();
 		this.cancelPendingFrame();
 		this.selection.setNavigation({ kind: 'anchor', connectionId, anchorId });
-		// Discover mirror: with kind='anchor' the reducer sets discovery=connectionId.
+		// Switching connections defaults discovery to forward via #defaultCameraDirection.
+		this.selection.setDiscovery(connectionId, direction);
 		this.#expandActiveCameraDirection(direction);
 		return true;
 	}
@@ -1293,7 +1312,11 @@ export class MuseumEditorStore {
 			return false;
 		}
 		// Slice 4: finishing anchor editing rolls back to a connection selection.
-		this.selection.setNavigation({ kind: 'connection', connectionId: connection.id });
+		this.selection.setNavigation({
+			kind: 'connection',
+			connectionId: connection.id,
+			direction: this.selectionStore.discoveryDirection
+		});
 		this.#expandActiveCameraDirection(this.selectionStore.discoveryDirection);
 		return true;
 	}
@@ -1386,7 +1409,8 @@ export class MuseumEditorStore {
 		}
 		this.selection.setNavigation({
 			kind: 'connection',
-			connectionId: connection.id
+			connectionId: connection.id,
+			direction: selection.direction
 		});
 		this.#expandActiveCameraDirection(selection.direction);
 		return true;
@@ -2591,20 +2615,29 @@ export class MuseumEditorStore {
 			return false;
 		}
 		if (!this.#prepareCameraPreview()) return false;
-		this.activeCameraConnectionId = connection.id;
-		this.activeCameraDirection = direction;
-		this.#expandActiveCameraDirection(direction);
-		const selection = this.navigationSelection;
+		const prior = this.selectionStore.navigation;
+		// Pre-slice: only downgrade view-keyframe when preview direction differs.
+		// Anchor selection must survive so nearest-curve authoring still works.
 		if (
-			selection?.kind === 'view-keyframe' &&
-			selection.connectionId === connection.id &&
-			selection.direction !== direction
+			prior.kind === 'view-keyframe' &&
+			prior.connectionId === connection.id &&
+			prior.direction !== direction
 		) {
-			this.navigationSelection = {
+			this.selection.setNavigation({
 				kind: 'connection',
-				connectionId: connection.id
-			};
+				connectionId: connection.id,
+				direction
+			});
+		} else if (prior.kind === 'connection') {
+			this.selection.setNavigation({
+				kind: 'connection',
+				connectionId: connection.id,
+				direction
+			});
+		} else {
+			this.selection.setDiscovery(connection.id, direction);
 		}
+		this.#expandActiveCameraDirection(direction);
 		const runId = this.previewController.allocRunId();
 		this.previewController.setCapturedRoute(runId, route);
 		this.previewController.followEnabled = true;
@@ -3296,10 +3329,9 @@ export class MuseumEditorStore {
 		this.cancelAssetPlacement();
 		this.cancelPendingFrame();
 		this.setWorkspace('camera');
-		// Slice 4 — capture parallel-tuple nav shape for restore. The legacy
-		// `this.navigationSelection` is bridged through `navigationStateFromLegacy`.
-		this.#pendingNavigationSelectionBefore = navigationStateFromLegacy(
-			this.navigationSelection
+		// Slice 4 — capture parallel-tuple nav shape for restore (keeps connection direction).
+		this.#pendingNavigationSelectionBefore = cloneNavigation(
+			this.selectionStore.navigation
 		);
 		this.#pendingNavigationActiveConnectionBefore = this.activeCameraConnectionId;
 		this.#pendingNavigationDirectionBefore = this.activeCameraDirection;
@@ -3335,8 +3367,8 @@ export class MuseumEditorStore {
 		}
 		this.cancelAssetPlacement();
 		this.cancelPendingFrame();
-		this.#pendingNavigationSelectionBefore = navigationStateFromLegacy(
-			this.navigationSelection
+		this.#pendingNavigationSelectionBefore = cloneNavigation(
+			this.selectionStore.navigation
 		);
 		this.#pendingNavigationActiveConnectionBefore = this.activeCameraConnectionId;
 		this.#pendingNavigationDirectionBefore = this.activeCameraDirection;
@@ -3472,7 +3504,11 @@ export class MuseumEditorStore {
 
 			this.pendingNavigationCommand = null;
 			this.#clearPendingNavigationSnapshot();
-			this.selection.setNavigation({ kind: 'connection', connectionId });
+			this.selection.setNavigation({
+				kind: 'connection',
+				connectionId,
+				direction: 'forward'
+			});
 			this.#expandActiveCameraDirection('forward');
 			if (this.currentWorkspace === 'camera') {
 				this.#syncCameraTimelineForConnection(connectionId, 'forward', 0);
@@ -3909,6 +3945,7 @@ export class MuseumEditorStore {
 		this.cancelPendingFrame();
 		const placement = this.document.objects.find((object) => object.id === id);
 		if (!placement) return false;
+		const previousId = this.selectedPlacementId;
 		// Slice 4: setWorkspace auto-cross-clears nav; reducer model.
 		this.selection.setWorkspace({
 			kind: 'placement',
@@ -3916,7 +3953,7 @@ export class MuseumEditorStore {
 			clusterId: null,
 			roomId: placement.roomId as MuseumRoomId
 		});
-		if (this.selectedPlacementId !== id) this.transformMode = 'rotate';
+		if (previousId !== id) this.transformMode = 'rotate';
 		return true;
 	}
 
@@ -3949,10 +3986,8 @@ export class MuseumEditorStore {
 		this.cancelPendingFrame();
 		const placement = this.document.objects.find((object) => object.id === id);
 		if (!placement) return false;
-		const currentIds =
-			this.selectionStore.workspace.kind === 'placement'
-				? this.selectionStore.workspace.ids
-				: [];
+		// Facade returns cluster member ids when workspace.kind === 'cluster'.
+		const currentIds = this.selectedPlacementIds;
 		const nextIds = currentIds.includes(id)
 			? currentIds.filter((memberId) => memberId !== id)
 			: [...currentIds, id];
@@ -4011,18 +4046,35 @@ export class MuseumEditorStore {
 			this.navigationSelection !== null ||
 			this.activeCameraConnectionId !== null;
 		this.cancelPendingFrame();
-		// Slice 4: redactor surface — setNavigation({kind:'none'}) auto-clears
-		// discovery AND clears any non-empty workspace (workspace was set via
-		// deselect's symmetric intent).
+		const roomId = this.selectedRoomId;
+		// Clear nav/discovery; keep room context (pre-slice deselect semantics).
 		this.selection.setNavigation({ kind: 'none' });
-		this.selection.setWorkspace({ kind: 'none' });
+		this.selection.setWorkspace(
+			roomId === null
+				? { kind: 'none' }
+				: {
+						kind: 'placement',
+						ids: [],
+						clusterId: null,
+						roomId
+				  }
+		);
 		return changed;
 	}
 
 	#clearPlacementSelection() {
-		// Slice 4 — selection store owns workspace; clearing is a reducer
-		// one-liner. Cross-clears nav per audit §3.D invariant.
-		this.selection.setWorkspace({ kind: 'none' });
+		// Keep room context — pre-slice cleared ids/cluster only.
+		const roomId = this.selectedRoomId;
+		this.selection.setWorkspace(
+			roomId === null
+				? { kind: 'none' }
+				: {
+						kind: 'placement',
+						ids: [],
+						clusterId: null,
+						roomId
+				  }
+		);
 	}
 
 	cyclePlacement(ids: string[]) {
@@ -4433,7 +4485,8 @@ export class MuseumEditorStore {
 				this.#clearPlacementSelection();
 				return;
 			}
-			this.selectedPlacementIds = [...cluster.memberIds];
+			// Cluster member ids come from the document via the facade getter —
+			// no write needed (writing would exit cluster mode).
 			return;
 		}
 		this.selectedPlacementIds = this.selectedPlacementIds.filter((id) =>

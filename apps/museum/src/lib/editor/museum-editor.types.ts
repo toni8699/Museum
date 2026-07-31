@@ -182,6 +182,7 @@ export type NavigationSelection =
 	| {
 			kind: 'connection';
 			connectionId: string;
+			direction: CameraConnectionDirection;
 	  }
 	| {
 			kind: 'anchor';

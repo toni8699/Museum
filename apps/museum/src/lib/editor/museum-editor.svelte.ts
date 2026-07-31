@@ -100,6 +100,14 @@ import {
 	validateNavigationNodeDeletion,
 	validateTimelineGuidedTourDrop
 } from './editor-navigation-graph';
+import { EditorSessionState } from './store/session-state.svelte';
+import { EditorSceneRoots } from './store/scene-roots.svelte';
+import {
+	anchorHelperKey,
+	cameraHelperKey,
+	CAMERA_HELPER_KEY_SEPARATOR,
+	viewKeyframeHelperKey
+} from './helpers/scene-keys';
 
 const HISTORY_LIMIT = 100;
 const STATUS_MESSAGE_MS = 2500;
@@ -239,24 +247,6 @@ export const CAMERA_NODE_CREATION_DEFAULTS = {
 	fov: MUSEUM_CAMERA_FOV.default,
 	clearance: 0.35
 } as const;
-
-const CAMERA_HELPER_KEY_SEPARATOR = ':';
-
-function cameraHelperKey(nodeId: string, handle: EditorCameraHandle) {
-	return `${nodeId}${CAMERA_HELPER_KEY_SEPARATOR}${handle}`;
-}
-
-function anchorHelperKey(connectionId: string, anchorId: string) {
-	return `${connectionId}${CAMERA_HELPER_KEY_SEPARATOR}${anchorId}`;
-}
-
-function viewKeyframeHelperKey(
-	connectionId: string,
-	direction: CameraConnectionDirection,
-	keyframeId: string
-) {
-	return [connectionId, direction, keyframeId].join(CAMERA_HELPER_KEY_SEPARATOR);
-}
 
 /** Stable ${connectionId}:${direction} key for Camera workspace tree expansion. */
 function cameraDirectionTreeKey(
@@ -426,10 +416,8 @@ export class MuseumEditorStore {
 		null
 	);
 
-	#placementRoots = new Map<string, Object3D>();
-	#cameraHelperRoots = new Map<string, Object3D>();
-	#anchorHelperRoots = new Map<string, Object3D>();
-	#viewKeyframeTargetHelperRoots = new Map<string, Object3D>();
+	/** Slice 2 — registry of every Object3D helper + placement root. */
+	private readonly roots = new EditorSceneRoots();
 	#cancelTransform: (() => boolean) | null = null;
 	#cancelDirectPathDrag: (() => boolean) | null = null;
 	#cancelDirectFramingDrag: (() => boolean) | null = null;
@@ -447,7 +435,6 @@ export class MuseumEditorStore {
 	#pendingNavigationDirectionBefore: CameraConnectionDirection = 'forward';
 	#pendingNavigationPlacementIdsBefore: string[] = [];
 	#pendingNavigationClusterBefore: string | null = null;
-	registryVersion = $state(0);
 
 	#past: MuseumSceneDocument[] = [];
 	#future: MuseumSceneDocument[] = [];
@@ -468,29 +455,62 @@ export class MuseumEditorStore {
 	rotationSnapEnabled = $state(true);
 	rotationSnapDegrees = $state(DEFAULT_ROTATION_SNAP_DEGREES);
 	keepOnFloor = $state(false);
-	statusMessage = $state<string | null>(null);
 	dropToFloorRequestId = $state(0);
-	/** Session-only viewport helper visibility. Refresh wipes. */
-	viewportShowNodes = $state(true);
-	viewportShowPaths = $state(true);
-	viewportShowFraming = $state(true);
 
-	#statusMessageTimer: ReturnType<typeof setTimeout> | null = null;
+	/** Slice 1 — session-only volatile state lives in this sub-store. */
+	private readonly session = new EditorSessionState();
+
+	get statusMessage() {
+		return this.session.statusMessage;
+	}
+	get viewportShowNodes() {
+		return this.session.viewportShowNodes;
+	}
+	get viewportShowPaths() {
+		return this.session.viewportShowPaths;
+	}
+	get viewportShowFraming() {
+		return this.session.viewportShowFraming;
+	}
+
+	/**
+	 * Plan §3.C API shape — a single read-only face over the volatile
+	 * session slots. Slice 1 v1 also exposes the four extracted slots as
+	 * standalone getters for ergonomic reads and one-line forwarder parity
+	 * with the pre-slice names; consumers that want the planned shape can
+	 * import this and access `.sessionView.statusMessage`, etc.
+	 */
+	get sessionView() {
+		return this.session;
+	}
+
+	/**
+	 * Slice 2 compat shim — the pre-slice `$state(0)` field
+	 * `registryVersion` was read by `void store.registryVersion;` in three
+	 * `.svelte` components (`EditorCameraRig`, `EditorTransformControls`,
+	 * tests). Routing those reads through this getter means we keep the
+	 * erased-field public API stable and the deferred `$derived` works as
+	 * expected — Svelte 5 still re-runs dependents because `roots.version`
+	 * is itself `$state`.
+	 */
+	get registryVersion() {
+		return this.roots.version;
+	}
 
 	get objectCount() {
 		return this.document.objects.length;
 	}
 
 	toggleViewportShowNodes() {
-		this.viewportShowNodes = !this.viewportShowNodes;
+		this.session.toggleViewportShowNodes();
 	}
 
 	toggleViewportShowPaths() {
-		this.viewportShowPaths = !this.viewportShowPaths;
+		this.session.toggleViewportShowPaths();
 	}
 
 	toggleViewportShowFraming() {
-		this.viewportShowFraming = !this.viewportShowFraming;
+		this.session.toggleViewportShowFraming();
 	}
 
 	/** Force-mount node helpers during connect-* commands so picking keeps working when nodes are hidden. */
@@ -852,16 +872,7 @@ export class MuseumEditorStore {
 	}
 
 	setStatusMessage(message: string | null) {
-		if (this.#statusMessageTimer) {
-			clearTimeout(this.#statusMessageTimer);
-			this.#statusMessageTimer = null;
-		}
-		this.statusMessage = message;
-		if (!message) return;
-		this.#statusMessageTimer = setTimeout(() => {
-			this.statusMessage = null;
-			this.#statusMessageTimer = null;
-		}, STATUS_MESSAGE_MS);
+		this.session.setStatusMessage(message);
 	}
 
 	setTransformCanceler(cancel: (() => boolean) | null) {
@@ -4336,38 +4347,27 @@ export class MuseumEditorStore {
 		});
 	}
 
-	#bumpRegistryVersion() {
-		untrack(() => {
-			this.registryVersion += 1;
-		});
-	}
-
 	registerPlacementRoot(id: string, root: Object3D) {
-		if (this.#placementRoots.get(id) === root) return;
-		this.#placementRoots.set(id, root);
-		this.#bumpRegistryVersion();
+		this.roots.registerPlacementRoot(id, root);
 	}
 
 	unregisterPlacementRoot(id: string, root: Object3D) {
-		if (this.#placementRoots.get(id) !== root) return;
-		this.#placementRoots.delete(id);
-		this.#bumpRegistryVersion();
+		this.roots.unregisterPlacementRoot(id, root);
 	}
 
 	notifyPlacementRootChanged(id: string) {
-		if (!this.#placementRoots.has(id)) return;
-		this.#bumpRegistryVersion();
+		this.roots.notifyPlacementRootChanged(id);
 	}
 
 	getPlacementRoot(id: string): Object3D | undefined {
-		void this.registryVersion;
-		return this.#placementRoots.get(id);
+		void this.roots.version;
+		return this.roots.getPlacementRoot(id);
 	}
 
 	getPlacementRoots(ids = this.selectedPlacementIds): Object3D[] {
-		void this.registryVersion;
+		void this.roots.version;
 		return ids
-			.map((id) => this.#placementRoots.get(id))
+			.map((id) => this.roots.getPlacementRoot(id))
 			.filter((root): root is Object3D => root != null);
 	}
 
@@ -4376,10 +4376,7 @@ export class MuseumEditorStore {
 		handle: EditorCameraHandle,
 		root: Object3D
 	) {
-		const key = cameraHelperKey(nodeId, handle);
-		if (this.#cameraHelperRoots.get(key) === root) return;
-		this.#cameraHelperRoots.set(key, root);
-		this.#bumpRegistryVersion();
+		this.roots.registerCameraHelperRoot(nodeId, handle, root);
 	}
 
 	unregisterCameraHelperRoot(
@@ -4387,18 +4384,15 @@ export class MuseumEditorStore {
 		handle: EditorCameraHandle,
 		root: Object3D
 	) {
-		const key = cameraHelperKey(nodeId, handle);
-		if (this.#cameraHelperRoots.get(key) !== root) return;
-		this.#cameraHelperRoots.delete(key);
-		this.#bumpRegistryVersion();
+		this.roots.unregisterCameraHelperRoot(nodeId, handle, root);
 	}
 
 	getCameraHelperRoot(
 		nodeId: string,
 		handle: EditorCameraHandle
 	): Object3D | undefined {
-		void this.registryVersion;
-		return this.#cameraHelperRoots.get(cameraHelperKey(nodeId, handle));
+		void this.roots.version;
+		return this.roots.getCameraHelperRoot(nodeId, handle);
 	}
 
 	getSelectedCameraHelperRoot(): Object3D | undefined {
@@ -4409,22 +4403,16 @@ export class MuseumEditorStore {
 	}
 
 	registerAnchorHelperRoot(connectionId: string, anchorId: string, root: Object3D) {
-		const key = anchorHelperKey(connectionId, anchorId);
-		if (this.#anchorHelperRoots.get(key) === root) return;
-		this.#anchorHelperRoots.set(key, root);
-		this.#bumpRegistryVersion();
+		this.roots.registerAnchorHelperRoot(connectionId, anchorId, root);
 	}
 
 	unregisterAnchorHelperRoot(connectionId: string, anchorId: string, root: Object3D) {
-		const key = anchorHelperKey(connectionId, anchorId);
-		if (this.#anchorHelperRoots.get(key) !== root) return;
-		this.#anchorHelperRoots.delete(key);
-		this.#bumpRegistryVersion();
+		this.roots.unregisterAnchorHelperRoot(connectionId, anchorId, root);
 	}
 
 	getAnchorHelperRoot(connectionId: string, anchorId: string): Object3D | undefined {
-		void this.registryVersion;
-		return this.#anchorHelperRoots.get(anchorHelperKey(connectionId, anchorId));
+		void this.roots.version;
+		return this.roots.getAnchorHelperRoot(connectionId, anchorId);
 	}
 
 	getSelectedAnchorHelperRoot(): Object3D | undefined {
@@ -4440,10 +4428,12 @@ export class MuseumEditorStore {
 		keyframeId: string,
 		root: Object3D
 	) {
-		const key = viewKeyframeHelperKey(connectionId, direction, keyframeId);
-		if (this.#viewKeyframeTargetHelperRoots.get(key) === root) return;
-		this.#viewKeyframeTargetHelperRoots.set(key, root);
-		this.#bumpRegistryVersion();
+		this.roots.registerViewKeyframeTargetHelperRoot(
+			connectionId,
+			direction,
+			keyframeId,
+			root
+		);
 	}
 
 	unregisterViewKeyframeTargetHelperRoot(
@@ -4452,10 +4442,12 @@ export class MuseumEditorStore {
 		keyframeId: string,
 		root: Object3D
 	) {
-		const key = viewKeyframeHelperKey(connectionId, direction, keyframeId);
-		if (this.#viewKeyframeTargetHelperRoots.get(key) !== root) return;
-		this.#viewKeyframeTargetHelperRoots.delete(key);
-		this.#bumpRegistryVersion();
+		this.roots.unregisterViewKeyframeTargetHelperRoot(
+			connectionId,
+			direction,
+			keyframeId,
+			root
+		);
 	}
 
 	getViewKeyframeTargetHelperRoot(
@@ -4463,9 +4455,11 @@ export class MuseumEditorStore {
 		direction: CameraConnectionDirection,
 		keyframeId: string
 	): Object3D | undefined {
-		void this.registryVersion;
-		return this.#viewKeyframeTargetHelperRoots.get(
-			viewKeyframeHelperKey(connectionId, direction, keyframeId)
+		void this.roots.version;
+		return this.roots.getViewKeyframeTargetHelperRoot(
+			connectionId,
+			direction,
+			keyframeId
 		);
 	}
 

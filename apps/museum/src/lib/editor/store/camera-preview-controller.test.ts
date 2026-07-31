@@ -161,7 +161,7 @@ describe('EditorCameraPreviewController', () => {
 		expect(preview.preview?.mode).toBe('director');
 		expect(preview.preview?.transport).toBe('paused');
 		const initialRunId = preview.preview?.runId ?? 0;
-		preview.refreshPausedDirector();
+		expect(preview.refreshPausedDirector()).toBeNull();
 		// Node kind → capturedRoute cleared, runId bumped.
 		expect(preview.preview?.runId).toBeGreaterThan(initialRunId);
 		expect(preview.preview?.kind).toBe('node');
@@ -171,8 +171,30 @@ describe('EditorCameraPreviewController', () => {
 		const { preview } = makeControllers();
 		preview.startNode('paris-seat', 'visitor');
 		const initialRunId = preview.preview?.runId ?? 0;
-		preview.refreshPausedDirector();
+		expect(preview.refreshPausedDirector()).toBeNull();
 		// Visitor mode → early return, runId unchanged.
 		expect(preview.preview?.runId).toBe(initialRunId);
+	});
+
+	it('refreshPausedDirector() keeps preview and returns Error on route failure', () => {
+		const { preview } = makeControllers();
+		preview.startTransition('paris-seat', 'director');
+		expect(preview.preview?.kind).toBe('transition');
+		const before = preview.preview;
+		// Force a resolve failure by pointing at a missing destination.
+		preview.preview = {
+			...before!,
+			kind: 'transition',
+			fromNodeId: 'paris-seat',
+			toNodeId: 'no-such-node'
+		};
+		const error = preview.refreshPausedDirector();
+		expect(error).toBeInstanceOf(Error);
+		expect(preview.preview).toEqual({
+			...before!,
+			kind: 'transition',
+			fromNodeId: 'paris-seat',
+			toNodeId: 'no-such-node'
+		});
 	});
 });

@@ -15,7 +15,8 @@
  * **Document coupling.** Takes the document store in the constructor and
  * reads `document.state.graph` for route resolution. The composition root
  * registers two `afterReplace` listeners on the document store: this
- * controller's `refreshPausedDirector()` (re-resolves the captured route
+ * controller's `refreshPausedDirector()` (re-resolves the captured route;
+ * on failure keeps the preview and returns Error for the root status channel)
  * if the document changes mid-pause) and `pruneIfStale()` (drops the FSM
  * to idle when the source node no longer exists).
  *
@@ -578,30 +579,37 @@ export class EditorCameraPreviewController {
 	 * the document is swapped. Re-resolves the captured route (or nulls
 	 * the preview) when topology changed under a paused director preview.
 	 */
-	refreshPausedDirector(): void {
+	/**
+	 * Re-resolve a paused Director preview after a document swap.
+	 * Pre-slice semantics: on route failure **keep** the preview and return
+	 * the error so the composition root can `setStatusMessage`. Do not clear.
+	 */
+	refreshPausedDirector(): Error | null {
 		this.invalidateGraph();
 		const preview = this.preview;
-		if (!preview || preview.mode !== 'director' || preview.transport !== 'paused') return;
+		if (!preview || preview.mode !== 'director' || preview.transport !== 'paused') return null;
 		const runId = this.#nextRunId++;
 		if (preview.kind === 'node') {
 			this.#capturedRoute = null;
 			this.preview = { ...preview, runId };
-			return;
+			return null;
 		}
 		if (preview.kind === 'tour') {
 			this.#capturedRoute = null;
 			this.#timelineCache = null;
 			this.#timelineGraph = null;
 			if (this.#readCameraTimeline()) this.preview = { ...preview, runId };
-			return;
+			return null;
 		}
 		try {
 			const route = this.#resolveRoute(preview);
 			this.#capturedRoute = { runId, route: cloneResolvedCameraRoute(route) };
 			this.preview = { ...preview, runId };
-		} catch {
-			this.preview = null;
-			this.#capturedRoute = null;
+			return null;
+		} catch (error) {
+			return error instanceof Error
+				? error
+				: new Error('Camera preview route is unavailable');
 		}
 	}
 

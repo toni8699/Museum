@@ -25,8 +25,6 @@
  * sub-store owns its own local definition. Slice 6 collapses them.
  */
 
-import { untrack } from 'svelte';
-
 import {
 	serializeSceneDocument,
 	validateSceneDocument,

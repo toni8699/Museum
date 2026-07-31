@@ -438,7 +438,12 @@ export class MuseumEditorStore {
 		this.documentStore.addAfterReplaceListener(() => this.#reconcileSelection());
 		// Preview after-replace listeners (Slice 3.5). Order: reconcile first
 		// (lowest-latency selection coherence), then preview refresh/prune/graph.
-		this.documentStore.addAfterReplaceListener(() => this.previewController.refreshPausedDirector());
+		// refreshPausedDirector keeps preview on route failure (pre-slice) and
+		// returns the error for the session status channel.
+		this.documentStore.addAfterReplaceListener(() => {
+			const error = this.previewController.refreshPausedDirector();
+			if (error) this.setStatusMessage(error.message);
+		});
 		this.documentStore.addAfterReplaceListener(() => this.previewController.pruneIfStale());
 		this.documentStore.addAfterReplaceListener(() => this.previewController.invalidateGraph());
 	}
@@ -4286,41 +4291,6 @@ export class MuseumEditorStore {
 			)
 		) {
 			this.cancelPendingFrame();
-		}
-	}
-
-	// Slice 3 v2 sub-task 3.4 deleted the pre-slice #rebuildRuntime and #replaceRuntime
-	// lifecycle helpers. Their sole infrastructure-run consumers moved into
-	// EditorDocumentStore.#rebuildRuntime() (via sub-store #replace()) and the
-	// after-replace listener chain. (Defect #3 cleanup.)
-	//
-	// Slice 3.5: field-level view-keyframe mutations bypass `documentStore.replace()`,
-	// so callers still invoke this helper directly. Body mutates via
-	// `previewController` (ownership) but keeps pre-slice catch semantics
-	// (status message, preview kept). The after-replace listener uses
-	// `previewController.refreshPausedDirector()` which clears on route failure.
-	#refreshPausedDirectorPreview() {
-		const preview = this.cameraPreview;
-		if (!preview || preview.mode !== 'director' || preview.transport !== 'paused') return;
-		const runId = this.previewController.allocRunId();
-		if (preview.kind === 'node') {
-			this.previewController.clearCapturedRoute();
-			this.previewController.preview = { ...preview, runId };
-			return;
-		}
-		if (preview.kind === 'tour') {
-			this.previewController.clearCapturedRoute();
-			if (this.#readCameraTimeline()) this.previewController.preview = { ...preview, runId };
-			return;
-		}
-		try {
-			const route = this.#resolveCameraPreviewRoute(preview);
-			this.previewController.setCapturedRoute(runId, route);
-			this.previewController.preview = { ...preview, runId };
-		} catch (error) {
-			this.setStatusMessage(
-				error instanceof Error ? error.message : 'Camera preview route is unavailable'
-			);
 		}
 	}
 

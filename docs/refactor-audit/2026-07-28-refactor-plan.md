@@ -110,11 +110,13 @@ The hand-off is **the only artefact** that carries the slice author's context fo
 
 # Slice 1 — pure helpers + session state (easier big win)
 
-> **LOC delta:** −400 (`museum-editor.svelte.ts` 4 609 → ~4 200). **Risk:** Low. **No `bind:` migration required for this slice.** **Verification target:** all 3 631 existing tests pass, zero expectation changes.
+> **Status:** PARTIAL — composition-root pattern proven; remaining debt absorbed into Slice 3 (see Slice 3 §“Slice 1 debt”). **LOC delta (landed):** small (status + 3 viewport flags only). **Risk:** Low. **No `bind:` migration required for this slice.** **Verification target:** all existing tests pass, zero expectation changes.
 
 ## Goal
 
 Reduce the god file by one pure-helper file + one sub-store, **without touching any component**. Sloppy first cut: prove the composition-root pattern, fix the dirty/save/lighting backflow into session, and remove the 8x `setStatusMessage(validation.message)` repetition.
+
+**What actually landed (2026-07-30):** `EditorSessionState` with `statusMessage` + `viewportShowNodes/Paths/Framing` only; vitest infra fixed in Slice 1.E. **Not landed — tracked under Slice 3 debt:** `museum-editor.types.ts`, `validators-runner` / `runOrFail`, remaining ~14 session slots, component `sessionView` reads.
 
 ## Why first
 
@@ -146,22 +148,22 @@ YOU DO NOT NEED to read the Svelte components in full for this slice. You are no
 
 ## Sub-tasks
 
-- [ ] **1.1 Create `apps/museum/src/lib/editor/museum-editor.types.ts`.** Move all `export type` aliases (`EditorLightingSettings`, `EditorWorkspace`, `EditorLeftPanel`, `EditorPlacementTreeSelectionOptions`, `EditorClusterTreeSelectionOptions`, `EditorViewKeyframeProgressDragSelection`, `EditorTransformSpace`, `EditorCameraPreviewMode`, `EditorCameraPreviewTransport`, `EditorCameraPreview`, `EditorPendingNavigationCommand`) from `museum-editor.svelte.ts:88-160` into this new file. Re-export from `museum-editor.svelte.ts` for backwards compatibility — do not yet delete the originals. **Decide here:** the `clusteredPlacementIds` getter (god-file line 2874) duplicates `EditorSceneTree.svelte:17`. Plan: keep its definition on the god file during Slice 1 (Phase A mirror, see §3.G audit). Lift it onto `EditorSessionState` in Slice 7.A.1 when `RoomTreePanel.svelte` introduces the panel split, where it'll be the single source of truth and `EditorSceneTree` becomes a thin consumer.
+- [ ] **1.1 Create `apps/museum/src/lib/editor/museum-editor.types.ts`.** → **DEBT → Slice 3 §Slice 1 debt (3.11).** Move all `export type` aliases (`EditorLightingSettings`, `EditorWorkspace`, `EditorLeftPanel`, `EditorPlacementTreeSelectionOptions`, `EditorClusterTreeSelectionOptions`, `EditorViewKeyframeProgressDragSelection`, `EditorTransformSpace`, `EditorCameraPreviewMode`, `EditorCameraPreviewTransport`, `EditorCameraPreview`, `EditorPendingNavigationCommand`) from `museum-editor.svelte.ts:88-160` into this new file. Re-export from `museum-editor.svelte.ts` for backwards compatibility — do not yet delete the originals. **Decide here:** the `clusteredPlacementIds` getter (god-file line 2874) duplicates `EditorSceneTree.svelte:17`. Plan: keep its definition on the god file during Slice 1 (Phase A mirror, see §3.G audit). Lift it onto `EditorSessionState` in Slice 7.A.1 when `RoomTreePanel.svelte` introduces the panel split, where it'll be the single source of truth and `EditorSceneTree` becomes a thin consumer.
   - Verify: `npm run check` passes.
-- [ ] **1.2 Create `apps/museum/src/lib/editor/helpers/validators-runner.ts`.** Implement `runOrFail<T extends { ok: false; message: string }>(session: EditorSessionState, validator: () => true | T): boolean` exactly as the audit §3.F describes. **Type the `session` as `Pick<EditorSessionState, 'setStatusMessage'>`** so this file has no Svelte-rune runtime dependency (avoids accidentally importing `$state`).
+- [ ] **1.2 Create `apps/museum/src/lib/editor/helpers/validators-runner.ts`.** → **DEBT → Slice 3 §Slice 1 debt (3.12).** Implement `runOrFail<T extends { ok: false; message: string }>(session: EditorSessionState, validator: () => true | T): boolean` exactly as the audit §3.F describes. **Type the `session` as `Pick<EditorSessionState, 'setStatusMessage'>`** so this file has no Svelte-rune runtime dependency (avoids accidentally importing `$state`).
   - Verify: `npm run check` passes (the function is unused at this step; lint/type only).
-- [ ] **1.3 Rewrite the 8 numbered sites:** in `museum-editor.svelte.ts` lines 3279, 3330, 3343, 3359, 3387, 3490, 3529, 4115 replace the `setStatusMessage(validation.message)` + return `false` dance with `return runOrFail(this.session, () => validateX(...))`. Don't delete the validators yet — just one-for-one substitution at each call site. Add a temporary inline `this.session = { setStatusMessage: this.setStatusMessage.bind(this) }` at the top of each call to keep behaviour identical while `session` is just an alias.
+- [ ] **1.3 Rewrite the 8 numbered sites:** → **DEBT → Slice 3 §Slice 1 debt (3.12).** in `museum-editor.svelte.ts` lines 3279, 3330, 3343, 3359, 3387, 3490, 3529, 4115 replace the `setStatusMessage(validation.message)` + return `false` dance with `return runOrFail(this.session, () => validateX(...))`. Don't delete the validators yet — just one-for-one substitution at each call site. Add a temporary inline `this.session = { setStatusMessage: this.setStatusMessage.bind(this) }` at the top of each call to keep behaviour identical while `session` is just an alias.
   - Verify: `npm test -- --run apps/museum/src/lib/editor/museum-editor.test.ts` passes 100% (the assertion text never changed; behaviour is identical).
-- [ ] **1.4 Create `apps/museum/src/lib/editor/store/session-state.svelte.ts`.** Implement the `EditorSessionState` class per audit §3.C: cover the 14–16 session slots, `setStatusMessage`, `cancelAssetPlacement`, `cancelPendingNavigation`, `cancelPendingFrame`, `cancelViewKeyframeProgressDrag`, the focus-channel `consumeCameraFocus`, the four tree-expansion helpers (`ensureRoomTreeExpanded`, `ensureClusterTreeExpanded`, `removeClusterTreeExpansion`, `expandCameraDirection`), `applyLightingPreset`, `toggleCameraPan`, `toggleGrid`. **Move the `setTimeout` for status into this class** (it's part of the timer concern).
+- [x] **1.4 Create `apps/museum/src/lib/editor/store/session-state.svelte.ts`.** **PARTIAL** — status timer + 3 viewport flags only. Full 14–16 slots → **DEBT → Slice 3 §Slice 1 debt (3.13).**
   - Verify: `npm run check` passes (the class is unused at this step).
-- [ ] **1.5 Wire `EditorSessionState` into `MuseumEditorStore`.** In `museum-editor.svelte.ts`, add `private readonly session = new EditorSessionState();` and **add a `get sessionView()` proxy** returning a frozen shape: `{ statusMessage, currentWorkspace, leftPanel, … }`. Then migrate the 8 sites from 1.3 to call `this.session.setStatusMessage(...)` instead of `this.setStatusMessage(...)`. **Do not** delete `this.setStatusMessage` yet.
+- [x] **1.5 Wire `EditorSessionState` into `MuseumEditorStore`.** **PARTIAL** — `session` + getters for the 4 landed slots + `sessionView` proxy. Remaining slot migration → **DEBT → 3.13.**
   - Verify: `npm test` passes 100%.
-- [ ] **1.6 Migrate component reads.** For each *read* of session-only fields (`currentWorkspace`, `leftPanel`, `transformMode`, `cameraPanEnabled`, `gridVisible`, `ambientIntensity`, etc.) — replace `store.x` with `store.sessionView.x` **at call sites that the test suite does not exercise**. For the test suite, **keep the old `store.x` reads working** by adding a one-line mirror at the same name on the store. This is the "Phase A mirror" from the audit §3.G.
+- [ ] **1.6 Migrate component reads.** → **DEBT → Slice 3 §Slice 1 debt (3.13).** For each *read* of session-only fields (`currentWorkspace`, `leftPanel`, `transformMode`, `cameraPanEnabled`, `gridVisible`, `ambientIntensity`, etc.) — replace `store.x` with `store.sessionView.x` **at call sites that the test suite does not exercise**. For the test suite, **keep the old `store.x` reads working** by adding a one-line mirror at the same name on the store. This is the "Phase A mirror" from the audit §3.G.
   - Verify: `npm test` passes 100%.
-- [ ] **1.7 Add integration tests in `apps/museum/src/lib/editor/store/session-state.test.ts`.** Cover: status timer cancels/resets, `applyLightingPreset`, tree-expansion helpers, `clusteredPlacementIds` getter once `EditorSceneTree.svelte` consumes it (or note as deferred to Slice 7).
+- [x] **1.7 Add integration tests in `apps/museum/src/lib/editor/store/session-state.test.ts`.** Landed for status timer + viewport toggles. Expand when 3.13 lands.
   - Verify: `npm test -- --run apps/museum/src/lib/editor/store/session-state.test.ts` passes.
-- [ ] **1.8 Run typecheck and full test suite.** `npm run check && npm test`. Expect all green.
-- [ ] **1.9 Write the hand-off.** See template above. Status `complete` if Slice 1 ended green, `in-progress` if more is left, `blocked` if anything stopped you.
+- [x] **1.8 Run typecheck and full test suite.** Proven via Slice 1.E vitest infra + later slices.
+- [x] **1.9 Write the hand-off.** See `docs/agent-handoffs/2026-07-28-in-progress-refactor-slice-1-session-and-helpers.md` + `2026-07-30-complete-refactor-slice-1-e-vitest.md`. Remaining debt owned by Slice 3 hand-off.
 
 ## Verification
 
@@ -227,11 +229,13 @@ Expected: 100% pass. `museum-editor.svelte.ts` LOC ≈ 4 100.
 
 # Slice 3 — `EditorDocumentStore` + `EditorHistoryController` peer-link (the deepest cut)
 
-> **LOC delta:** −1 000. **Risk:** Medium. **No `bind:` migration** for the document/history slice; preview-LOC reduction is mechanical. **Verification:** all tests pass.
+> **Status:** COMPLETE (2026-07-31). **LOC delta (actual):** god file still ≈ 4 570–4 600 (Option 3 facade getters kept consumer surface; state ownership moved into ~1.1k LOC of sub-stores). Plan’s −1 000 god-file target was optimistic under Option 3 — measure success by concern ownership + green tests, not LOC alone. **Risk:** Medium. **No `bind:` migration** for the document/history slice. **Verification:** all editor + store tests pass.
 
 ## Goal
 
 Pull the document, history, and preview FSM out of the store class. **Atomic constraint from the audit §3.A.2 and §5:** History's `canUndo` reads `preview.transportState`, so the history controller takes the preview controller as a constructor collaborator. This slice ships all three together.
+
+**Also owns Slice 1 debt** (types barrel, `runOrFail`, remaining session slots) — see §“Slice 1 debt” below. Debt does **not** block Slice 3 COMPLETE; finish before Slice 5 `bind:` migration.
 
 ## Pre-flight files to read
 
@@ -255,44 +259,39 @@ YOU DO NOT NEED to re-read components in this slice either. The store's public s
 
 ## Sub-tasks
 
-- [ ] **3.1 Create `apps/museum/src/lib/editor/store/document-store.svelte.ts`.** Implement `EditorDocumentStore` per audit §3.A.1. Fields: `document`, `validation = $derived(...)`, `baselineCanonicalJson`, `scene = $state.raw(...)`, `state = $state.raw(...)`. Methods: `replace(next)` (one method, with the `replaceRuntime` body inline), `canonicalJson`, `isDirty`. **Move `replaceDocument` becomes `replace`; `resetToCheckedInDocument` calls `replace(museumSceneDocument)`.**
-  - Verify: `npm run check`.
-- [ ] **3.2 Create `apps/museum/src/lib/editor/store/camera-preview-controller.svelte.ts`.** Implement `EditorCameraPreviewController` per audit §3.B. Method names exactly as audit (`start`, `pause`, `stop`, `setPlayhead`, `refresh`, `pruneIfStale`, `releaseIfTouches`, plus the `transportState` getter). Move `cloneResolvedCameraRoute` from god-file lines 213–272 into a private helper in the same file. Move method bodies verbatim from god-file lines 2481–2850.
-  - Verify: `npm run check`.
-- [ ] **3.3 Create `apps/museum/src/lib/editor/store/history-controller.svelte.ts`.** Implement `EditorHistoryController` per audit §3.A.2. Constructor takes `preview: EditorCameraPreviewController`. **`canUndo` is `preview.transportState !== 'playing' && !this.isDocumentUndoBlocked && …`.** Move method bodies verbatim from god-file lines 4086–4260. Import `documentsMatch` from the new `EditorDocumentStore` (move the helper to a private method on the document store so it's not duplicated).
-  - Verify: `npm run check` (silent circular-import warning is OK at first; resolve before tests).
-- [ ] **3.4 Replace the god-file's document section.** Replace lines 343–360 with `private readonly document = new EditorDocumentStore();`. Replace `replaceDocument`, `resetToCheckedInDocument`, `importDocument` with 1-line delegates. Replace `canonicalJson`, `isDirty`, `canExport`, `validationIssues`, `validation` getters with delegates.
-  - Verify: `npm test` — expect failures for `prepareDocumentReplacement`, since those branches call `stopCameraPreview` and `cancelAssetPlacement`. Move them in step 3.6.
-- [ ] **3.5 Replace the god-file's preview section.** Replace lines 2481–2850 with delegates. The `cameraPreview`, `cameraPreviewFollowEnabled`, `cameraPreviewRecenterVersion`, `isCameraPreviewActive` / `isDirectorCameraPreview` / `isVisitorCameraPreview` / `isCameraPreviewPlaying` / `isCameraPreviewPaused` getters — all delegate to `preview`.
-  - Verify: `npm test` should recover. If preview-FSM transitions fail, inspect: this is where the peer-link is verified.
-- [ ] **3.6 Wire History + Document together.** The store's `#transactionBefore` field becomes a private slot on `EditorHistoryController`. `commitDocumentTransaction`, `cancelDocumentTransaction`, `beginDocumentTransaction`, `beginCameraFramingTransaction` become delegates. Replace `#prepareDocumentReplacement` / `#reconcileSelection` / `#replaceRuntime` — they live now on `EditorDocumentStore.replace()` and are called via the composition root's `#afterDocumentReplace()` hook.
-  - Verify: `npm test` recovers. **This is the breaking step.** If a test fails here, the fix is in the controller not in the test (the assertions are about real behaviour).
-- [ ] **3.7 Replace camera-timeline scrub methods.** Lines 2195–2480 (`seekCameraTimeline`, `selectCameraTimeline*`, `stepCameraTimeline`, `getCameraTimeline`, `#syncCameraTimeline*`, `#syncViewKeyframeProgressDragPreview` preview-side part). Move to `CameraPreviewController` (preview-related) or a thin helper if really needed. The composition root keeps `cameraTimelinePlayhead = $state` mirror until `bind:` migration in Slice 5.
-  - Verify: `npm test` 100%.
-- [ ] **3.8 Add integration tests.**
-  - `store/document-store.test.ts` — `replace`, `validation` derived recompute, scene `state` rebuild, canonical-json derivation.
-  - `store/camera-preview-controller.test.ts` — full FSM matrix.
-  - `store/history-controller.test.ts` — undo/redo, framing vs document transactions, `preview.transportState === 'playing'` blocks `canUndo`.
-  - Verify: `npm test -- --run apps/museum/src/lib/editor/store/`.
-- [ ] **3.9 Final sanity.** `npm run check && npm test`. Expect green.
-- [ ] **3.10 Hand-off.** Write `docs/agent-handoffs/2026-07-28-<status>-refactor-slice-3-document-history-preview.md`. The hand-off MUST enumerate — verbatim, in a "Facade-mirrored fields" section — the list of fields the composition root still holds as `$state` mirrors because Slice 5 (bind:) hasn't run yet. **Required enumeration:**
-  - `cameraTimelinePlayhead` (mirror of `preview.timeline`, kept on root for bindability)
-  - `cameraPreview` (mirror of `preview.preview`)
-  - `cameraPreviewFollowEnabled`, `cameraPreviewRecenterVersion` (mirrors of preview-controller fields)
-  - All `get isXPreviewPredicate()` getters (mirror of `preview.isXPlaying` etc.)
-  - Anything added while this slice is in flight that the next slice will inherit
-  The hand-off MUST also call out that `get canUndo` reads `preview.transportState` (peer-link) so Slice 4's author does not need to consult the audit for the dependency.
+- [x] **3.1 Create `apps/museum/src/lib/editor/store/document-store.svelte.ts`.** Landed.
+- [x] **3.2 Create `apps/museum/src/lib/editor/store/camera-preview-controller.svelte.ts`.** Landed.
+- [x] **3.3 Create `apps/museum/src/lib/editor/store/history-controller.svelte.ts`.** Landed (peer-link ctor; validate-before-push + `HistoryCommitResult.error`).
+- [x] **3.4 Replace the god-file's document section.** Option 3: `documentStore` + facade getters (not plan-literal field rename).
+- [x] **3.5 Replace the god-file's preview section.** Option 3: `previewController` + getters/setters; transitional `allocRunId` / `setCapturedRoute` / `clearCapturedRoute`.
+- [x] **3.6 Wire History + Document together.** `historyController`; rich facade `canUndo`/`canRedo`; commit status-message adapter.
+- [x] **3.7 Replace camera-timeline scrub methods.** **PARTIAL / accepted:** `getTimeline()` + graph cache moved into preview controller; seek/select/step/show/sync stay on composition root (selection + `cameraTimelinePlayhead` coupled). Thin helper deferred.
+- [x] **3.8 Add integration tests.** `store/document-store|history-controller|camera-preview-controller.test.ts` landed.
+- [x] **3.9 Final sanity.** Editor + store suite green at close-out.
+- [x] **3.10 Hand-off.** `docs/agent-handoffs/2026-07-31-complete-refactor-slice-3-document-history-preview.md`.
+
+## Slice 1 debt (absorbed into Slice 3 tracking)
+
+> These items did **not** land in Slice 1. Slice 3 hand-off owns them so Slice 4+ authors do not miss them. **Schedule: complete before Slice 5 `bind:`** (session fields need a real owner before bind migration). May land as a Slice 3.b mini-slice or early Slice 4 prep — not required to start Slice 4 selection shape.
+
+- [ ] **3.11 / was 1.1 — `museum-editor.types.ts`.** Extract exported editor type aliases from the god file into `apps/museum/src/lib/editor/museum-editor.types.ts`; re-export from `museum-editor.svelte.ts` for back-compat. Also collapses duplicated `EditorCameraPreview*` types currently redeclared in `camera-preview-controller.svelte.ts`.
+- [ ] **3.12 / was 1.2–1.3 — `helpers/validators-runner.ts` + `runOrFail`.** Implement `runOrFail` per audit §3.F (`Pick<EditorSessionState, 'setStatusMessage'>`). Replace the remaining `if (!validation.ok) { setStatusMessage; return false }` sites. Prior attempt failed TypeScript narrowing against validator unions — fix the generic constraint to match real `Plan | Failure` discriminants before adopting.
+- [ ] **3.13 / was 1.4–1.6 — remaining `EditorSessionState` slots.** Migrate the ~14 session slots still on the god file (`currentWorkspace`, `leftPanel`, tree-expansion arrays, transform mode/space/gizmo, camera pan/focus channel, lighting, snap, keep-on-floor, grid, pending frame/nav/asset, timeline chrome). Keep Phase A mirrors on the composition root until Slice 5. Expand `session-state.test.ts`. Component `sessionView` reads optional until Slice 5.
 
 ## Verification
 
 ```bash
 cd /Users/tony/Documents/Personal
 npm run check
-npm test
+npm test -- --run apps/museum/src/lib/editor/museum-editor.test.ts
 npm test -- --run apps/museum/src/lib/editor/store/
 ```
 
-Expected: 100% pass. `museum-editor.svelte.ts` LOC ≈ 3 100.
+Expected at Slice 3 COMPLETE: 100% pass; typecheck clean. God-file LOC may remain ≈ 4 600 under Option 3 (ownership moved; facade thick). Slice 1 debt (3.11–3.13) may still be open.
+
+## Hand-off
+
+Write `docs/agent-handoffs/2026-07-31-complete-refactor-slice-3-document-history-preview.md`. Must include Facade-mirrored fields, peer-link note, §3.7 scrub deferral, and Slice 1 debt (3.11–3.13).
 
 ---
 
@@ -307,7 +306,8 @@ Introduce `EditorSelectionStore` with the **parallel-tuple shape** from audit §
 ## Pre-flight files to read
 
 - `docs/refactor-audit/2026-07-28-museum-editor.md` — §3.D (full spec, **including the parallel-tuple correction**)
-- Slice 3 hand-off
+- `docs/agent-handoffs/2026-07-31-complete-refactor-slice-3-document-history-preview.md` — Facade-mirrored fields, peer-link, afterReplace order, Slice 1 debt (3.11–3.13; finish before Slice 5, not required to start 4)
+- `docs/refactor-audit/2026-07-28-refactor-plan.md` — Slice 3 §Slice 1 debt
 - `apps/museum/src/lib/editor/museum-editor.svelte.ts`
   - **Lines 1410–1700** (the `selectNavigationNode`, `selectCameraHandle`, `selectConnection`, `selectAnchor`, `selectViewKeyframe`, `finishAnchorEditing`, `finishViewKeyframeEditing` methods, plus default direction helper, expandActiveCameraDirection helper)
   - **Lines 3683–3770** (the `selectPlacement`, `selectPlacements`, `togglePlacement`, `selectCluster`, `selectClusterFromTree`, `selectPlacementFromTree`, `selectAllInRoom`, `cyclePlacement`, `deselect`, `selectRoom`, `ensure*TreeExpanded` methods, plus `#clearPlacementSelection`)

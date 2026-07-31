@@ -435,6 +435,8 @@ Expected: all tests green; ownership via `selection` + `selectionActions` (ignor
 
 # Slice 7 — split `EditorSelection.svelte` and `EditorCameraTree.svelte` (panel gods)
 
+> **Status:** **7.B COMPLETE** (2026-07-31). **7.A SKIPPED** — left sidebar already decomposed (`EditorLeftSidebar` → SceneTree / AssetLibrary / CameraTree); `EditorSelection.svelte` god remains if later scoped. **Hand-off:** `docs/agent-handoffs/2026-07-31-complete-refactor-slice-7b-camera-tree-panels.md`
+>
 > **LOC delta:** none in store. **Risk:** HIGH (snapshot churn). **No `bind:` migration** (Slice 5 already done).
 
 ## Goal
@@ -453,6 +455,8 @@ After Slice 6, selection state is owned by `EditorSelectionStore`. The two bigge
 
 ### 7.A Split `EditorSelection.svelte`
 
+> **SKIPPED (2026-07-31):** sidebar already decomposed via `EditorLeftSidebar`. Leave unchecked for optional later carve of `EditorSelection.svelte` (~1011).
+
 - [ ] **7.A.1 Create `RoomTreePanel.svelte`** with: rooms + placements, drag/drop, focus button. **Inputs:** `selectedRoomId`, `selectedPlacementIds`, `treeExpandedRoomIds`, `parisObjects`, `clusteredPlacementIds`. **Outputs:** callbacks for `selectRoom`, `selectPlacement`, `togglePlacement`, `selectAllInRoom`.
 - [ ] **7.A.2 Create `ClusterTreePanel.svelte`** with: cluster member rows, rename inline, group/ungroup buttons. Inputs: `clusters`, `selectedClusterId`, `selectedPlacementIds`, `treeExpandedClusterIds`. Outputs: callbacks for `createCluster`, `renameCluster`, `ungroupCluster`, `selectCluster`.
 - [ ] **7.A.3 Create `CameraWorkspaceTree.svelte`** with: connection list + direction toggles + directional keyframe rows. Inputs: `connections`, `activeCameraConnectionId`, `activeCameraDirection`, `treeExpandedCameraConnectionIds`, `treeExpandedCameraDirectionKeys`. Outputs: callbacks for `selectCameraConnectionDirection`, `selectAnchor`, `selectViewKeyframe`.
@@ -463,14 +467,14 @@ After Slice 6, selection state is owned by `EditorSelectionStore`. The two bigge
 
 ### 7.B Split `EditorCameraTree.svelte`
 
-- [ ] **7.B.1 Create `ConnectionListPanel.svelte`**: connection rows + direction toggles.
-- [ ] **7.B.2 Create `DirectionalKeyframeList.svelte`**: forward/reverse keyframe rows with drag connectors.
-- [ ] **7.B.3 Create `TreeShortcuts.svelte`**: keyboard handlers, kill-switch route list.
-- [ ] **7.B.4 Slim `EditorCameraTree.svelte`** to < 100 LOC: composes the three, owns the local store-prop pass-through.
-- [ ] **7.B.5 Update snapshot tests** for `EditorCameraTree.svelte`.
-- [ ] **7.B.6 Vitest browser smoke re-run.**
+- [x] **7.B.1 Create `ConnectionListPanel.svelte`**: connection rows + direction toggles.
+- [x] **7.B.2 Create `DirectionalKeyframeList.svelte`**: forward/reverse keyframe rows (nested under direction; no keyframe drag connectors in current UI).
+- [x] **7.B.3 Create `GuidedTourPanel.svelte`** (plan said `TreeShortcuts` — actual UI is guided tour + free nodes; keyboard shortcuts stay Slice 8).
+- [x] **7.B.4 Slim `EditorCameraTree.svelte`** to < 100 LOC: **33 LOC** composer.
+- [x] **7.B.5 Snapshot tests** — none existed; N/A.
+- [x] **7.B.6 Browser smoke** — still manual only (Slice 6); checklist in 7.B HO.
 
-- [ ] **7.9 Hand-off.** Write `docs/agent-handoffs/2026-07-28-<status>-refactor-slice-7-panel-splits.md`.
+- [x] **7.9 Hand-off.** `docs/agent-handoffs/2026-07-31-complete-refactor-slice-7b-camera-tree-panels.md`.
 
 ## Verification
 

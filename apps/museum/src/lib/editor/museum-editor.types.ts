@@ -1,0 +1,196 @@
+/**
+ * `museum-editor.types.ts` — editor-wide type aliases barrel.
+ *
+ * Slice 3 debt 3.11 (formerly Slice 1.1): type-only exports previously inlined
+ * in `museum-editor.svelte.ts:140-220`. The barrel also collapses the locally
+ * redeclared `EditorCameraPreview*` variants that `camera-preview-controller.svelte.ts`
+ * advertises as "Slice 6 collapses these" — collapsing them here closes the
+ * todo one slice ahead of plan.
+ *
+ * **Architectural intent.** Anything shared between sub-stores, helpers, and
+ * the composition root passes through this file. Re-exports from
+ * `museum-editor.svelte.ts` keep the pre-slice call sites compiling unchanged
+ * (Phase A mirror for back-compat, deleted by Slice 6).
+ *
+ * **No `$state` runes here.** This file is purely a types module; it imports
+ * no Svelte runtime. Sub-stores and helpers consume `EditorSessionState`'s
+ * `setStatusMessage` shape via `Pick<…>` to avoid an accidental rune dep.
+ */
+
+import type { CameraConnectionDirection, MuseumRoomId } from '$lib/types/museum';
+import type { SceneNavigationNode } from '$lib/content/scene';
+import type { EditorCameraHandle } from './editor-selection';
+
+// =====================================================================
+// Lighting preset slot shape (god file lines 141-147).
+// =====================================================================
+
+export type EditorLightingSettings = {
+	ambientIntensity: number;
+	directionalIntensity: number;
+	fogEnabled: boolean;
+	fogNear: number;
+	fogFar: number;
+};
+
+// =====================================================================
+// Camera preview FSM types (god file lines 148-181 + controller mirror).
+//
+// The previous controller redeclaration listed four distinct `CameraPreview*`
+// interfaces. Barrel exposes them as named members of the discriminated union
+// so both the composition root and the controller can write each `kind`
+// case as a single structural type.
+// =====================================================================
+
+export type EditorCameraPreviewMode = 'director' | 'visitor';
+
+export type EditorCameraPreviewTransport = 'paused' | 'playing' | 'complete';
+
+export interface EditorCameraPreviewState {
+	mode: EditorCameraPreviewMode;
+	transport: EditorCameraPreviewTransport;
+	runId: number;
+	playhead: number;
+	startedAtMs: number | null;
+}
+
+export type CameraPreviewNode = EditorCameraPreviewState & {
+	kind: 'node';
+	nodeId: string;
+};
+
+export type CameraPreviewTransition = EditorCameraPreviewState & {
+	kind: 'transition';
+	fromNodeId: string;
+	toNodeId: string;
+};
+
+export type CameraPreviewConnection = EditorCameraPreviewState & {
+	kind: 'connection';
+	connectionId: string;
+	direction: CameraConnectionDirection;
+	fromNodeId: string;
+	toNodeId: string;
+};
+
+export type CameraPreviewTour = EditorCameraPreviewState & {
+	kind: 'tour';
+	startNodeId: string;
+};
+
+export type EditorCameraPreview =
+	| null
+	| CameraPreviewNode
+	| CameraPreviewTransition
+	| CameraPreviewConnection
+	| CameraPreviewTour;
+
+// =====================================================================
+// Pending navigation command + workspace + panel chrome (god file lines
+// 182-203). Single discriminated union; "kind === 'place-camera'" lives at
+// the top so visit/dismiss logic stays short.
+// =====================================================================
+
+export type EditorPendingNavigationCommand =
+	| null
+	| {
+			kind: 'place-camera';
+	  }
+	| {
+			kind: 'connect-pending-node';
+			node: SceneNavigationNode;
+	  }
+	| {
+			kind: 'connect-existing';
+			sourceNodeId: string;
+	  };
+
+export type EditorWorkspace = 'scene' | 'camera';
+
+export type EditorLeftPanel = 'scene' | 'assets';
+
+export type EditorPlacementTreeSelectionOptions = {
+	additive?: boolean;
+	focus?: boolean;
+};
+
+export type EditorClusterTreeSelectionOptions = {
+	focus?: boolean;
+};
+
+// =====================================================================
+// Drag + transform session slots (god file lines 214-221).
+// =====================================================================
+
+export type EditorViewKeyframeProgressDragSelection = {
+	connectionId: string;
+	direction: CameraConnectionDirection;
+	keyframeId: string;
+};
+
+export type EditorTransformSpace = 'local' | 'world';
+
+/** Stable identity for one focused camera navigator target. */
+export type EditorCameraFocusKind =
+	| 'room'
+	| 'placement'
+	| 'selection'
+	| 'navigation-node'
+	| null;
+
+/** Stable identity for one in-flight transform interaction. */
+export type EditorTransformInteractionKind =
+	| 'placement'
+	| 'camera'
+	| 'anchor'
+	| 'view-target'
+	| null;
+
+// =====================================================================
+// Selection reducer parallel-tuple shape (audit §3.D, Slice 4).
+//
+// Workspaces and navigations are two parallel state slots owned by
+// `EditorSelectionStore` so the god file's `selectX` methods collapse into
+// one reducer-call per site. The cross-clearing invariants (leaving nav
+// clears persisted discovery; entering nav clears the workspace selection;
+// entering a workspace selection closes any open navigation) are encoded
+// inside the reducer and the *derived* `discoveryConnectionId` slot mirrors
+// the connection shape when nav.kind ∈ {connection, anchor, view-keyframe}.
+// =====================================================================
+
+export type WorkspaceSelection =
+	| { kind: 'none' }
+	| {
+			kind: 'placement';
+			ids: string[];
+			clusterId: string | null;
+			roomId: MuseumRoomId;
+	  }
+	| {
+			kind: 'cluster';
+			clusterId: string;
+			roomId: MuseumRoomId;
+	  };
+
+export type NavigationSelection =
+	| { kind: 'none' }
+	| {
+			kind: 'node';
+			nodeId: string;
+			handle: EditorCameraHandle;
+	  }
+	| {
+			kind: 'connection';
+			connectionId: string;
+	  }
+	| {
+			kind: 'anchor';
+			connectionId: string;
+			anchorId: string;
+	  }
+	| {
+			kind: 'view-keyframe';
+			connectionId: string;
+			direction: CameraConnectionDirection;
+			keyframeId: string;
+	  };

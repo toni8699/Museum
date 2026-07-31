@@ -103,6 +103,119 @@ import { EditorSceneRoots } from './store/scene-roots.svelte';
 import { EditorDocumentStore } from './store/document-store.svelte';
 import { EditorCameraPreviewController } from './store/camera-preview-controller.svelte';
 import { EditorHistoryController } from './store/history-controller.svelte';
+import { EditorSelectionStore } from './store/selection-store.svelte';
+import { runOrFail } from './helpers/validators-runner';
+
+/**
+ * Slice 4 helper — translate the legacy `EditorNavigationSelection` shape
+ * (null for "no selection") into the parallel-tuple `NavigationSelection`
+ * shape consumed by the reducer. Used by the legacy setter that bridges
+ * pre-slice writes (`this.navigationSelection = …`) into the new model.
+ */
+function navigationStateFromLegacy(
+	value: EditorNavigationSelection
+): NavigationSelection {
+	if (value === null) return { kind: 'none' };
+	switch (value.kind) {
+		case 'node':
+			return { kind: 'node', nodeId: value.nodeId, handle: value.handle };
+		case 'connection':
+			return { kind: 'connection', connectionId: value.connectionId };
+		case 'anchor':
+			return {
+				kind: 'anchor',
+				connectionId: value.connectionId,
+				anchorId: value.anchorId
+			};
+		case 'view-keyframe':
+			return {
+				kind: 'view-keyframe',
+				connectionId: value.connectionId,
+				direction: value.direction,
+				keyframeId: value.keyframeId
+			};
+	}
+}
+
+/**
+ * Slice 4 helper — clone a parallel-tuple nav state so it survives across
+ * pending-nav commit (mutations on selectionStore wrap the value in a Svelte
+ * proxy; structuralClone avoids pinning the proxy).
+ */
+function cloneNavigation(state: NavigationSelection): NavigationSelection {
+	switch (state.kind) {
+		case 'none':
+			return { kind: 'none' };
+		case 'node':
+			return { kind: 'node', nodeId: state.nodeId, handle: state.handle };
+		case 'connection':
+			return { kind: 'connection', connectionId: state.connectionId };
+		case 'anchor':
+			return {
+				kind: 'anchor',
+				connectionId: state.connectionId,
+				anchorId: state.anchorId
+			};
+		case 'view-keyframe':
+			return {
+				kind: 'view-keyframe',
+				connectionId: state.connectionId,
+				direction: state.direction,
+				keyframeId: state.keyframeId
+			};
+	}
+}
+
+/**
+ * Slice 4 helper — translate the parallel-tuple NavigationSelection into the
+ * legacy `EditorNavigationSelection` shape that the editor's 3D picker uses.
+ * Kept at module scope to avoid re-creating the closure per call.
+ */
+function navigationSelectionFromState(
+	state: { kind: 'none' } | { kind: 'node'; nodeId: string; handle: 'position' | 'target' } | { kind: 'connection'; connectionId: string } | { kind: 'anchor'; connectionId: string; anchorId: string } | { kind: 'view-keyframe'; connectionId: string; direction: 'forward' | 'reverse'; keyframeId: string }
+): EditorNavigationSelection {
+	switch (state.kind) {
+		case 'none':
+			return null;
+		case 'node':
+			return { kind: 'node', nodeId: state.nodeId, handle: state.handle };
+		case 'connection':
+			return { kind: 'connection', connectionId: state.connectionId };
+		case 'anchor':
+			return {
+				kind: 'anchor',
+				connectionId: state.connectionId,
+				anchorId: state.anchorId
+			};
+		case 'view-keyframe':
+			return {
+				kind: 'view-keyframe',
+				connectionId: state.connectionId,
+				direction: state.direction,
+				keyframeId: state.keyframeId
+			};
+	}
+}
+
+import type {
+	EditorCameraPreviewMode,
+	EditorCameraPreviewTransport,
+	EditorCameraPreviewState,
+	EditorCameraPreview,
+	CameraPreviewTransition,
+	CameraPreviewTour,
+	EditorPendingNavigationCommand,
+	EditorWorkspace,
+	EditorLeftPanel,
+	EditorPlacementTreeSelectionOptions,
+	EditorClusterTreeSelectionOptions,
+	EditorViewKeyframeProgressDragSelection,
+	EditorTransformSpace,
+	EditorCameraFocusKind,
+	EditorTransformInteractionKind,
+	NavigationSelection
+} from './museum-editor.types';
+// Re-exports below keep the pre-slice public surface compiling unchanged.
 import {
 	anchorHelperKey,
 	cameraHelperKey,
@@ -145,80 +258,27 @@ export type EditorLightingSettings = {
 	fogFar: number;
 };
 
-export type EditorCameraPreviewMode = 'director' | 'visitor';
-export type EditorCameraPreviewTransport = 'paused' | 'playing' | 'complete';
-
-type EditorCameraPreviewState = {
-	mode: EditorCameraPreviewMode;
-	transport: EditorCameraPreviewTransport;
-	runId: number;
-	playhead: number;
-	startedAtMs: number | null;
-};
-
-export type EditorCameraPreview =
-	| null
-	| (EditorCameraPreviewState & {
-			kind: 'node';
-			nodeId: string;
-	  })
-	| (EditorCameraPreviewState & {
-			kind: 'transition';
-			fromNodeId: string;
-			toNodeId: string;
-	  })
-	| (EditorCameraPreviewState & {
-			kind: 'connection';
-			connectionId: string;
-			direction: 'forward' | 'reverse';
-			fromNodeId: string;
-			toNodeId: string;
-	  })
-	| (EditorCameraPreviewState & {
-			kind: 'tour';
-			startNodeId: string;
-	  });
-
-export type EditorPendingNavigationCommand =
-	| null
-	| {
-			kind: 'place-camera';
-	  }
-	| {
-			kind: 'connect-pending-node';
-			node: SceneNavigationNode;
-	  }
-	| {
-			kind: 'connect-existing';
-			sourceNodeId: string;
-	  };
-
-/**
- * Phase 1.1 persistent shell — Scene keeps placement tools; Camera keeps camera tools and the timeline.
- */
-export type EditorWorkspace = 'scene' | 'camera';
-
-/** Scene-workspace sidebar choice; Camera temporarily replaces it without changing it. */
-export type EditorLeftPanel = 'scene' | 'assets';
-
-export type EditorPlacementTreeSelectionOptions = {
-	additive?: boolean;
-	focus?: boolean;
-};
-
-export type EditorClusterTreeSelectionOptions = {
-	focus?: boolean;
-};
-
-/** Stable identity for one directional camera framing key. */
-export type EditorViewKeyframeProgressDragSelection = {
-	connectionId: string;
-	direction: CameraConnectionDirection;
-	keyframeId: string;
-};
-
-/** Session-only viewport transform presentation. */
-export type EditorTransformSpace = 'local' | 'world';
+// Slice 3 debt 3.11 — types now live in `museum-editor.types.ts`. Re-exported here
+// so consumers keep working unchanged until Slice 6 collapses them.
+export type {
+	EditorCameraPreviewMode,
+	EditorCameraPreviewTransport,
+	EditorCameraPreviewState,
+	EditorCameraPreview,
+	CameraPreviewNode,
+	CameraPreviewTransition,
+	CameraPreviewConnection,
+	CameraPreviewTour,
+	EditorPendingNavigationCommand,
+	EditorWorkspace,
+	EditorLeftPanel,
+	EditorPlacementTreeSelectionOptions,
+	EditorClusterTreeSelectionOptions,
+	EditorViewKeyframeProgressDragSelection,
+	EditorTransformSpace,
+	EditorCameraFocusKind,
+	EditorTransformInteractionKind
+} from './museum-editor.types';
 
 type EditorCameraTimelineCue =
 	| {
@@ -448,10 +508,68 @@ export class MuseumEditorStore {
 		this.documentStore.addAfterReplaceListener(() => this.previewController.invalidateGraph());
 	}
 
-	selectedRoomId = $state<MuseumRoomId | null>(null);
-	selectedPlacementIds = $state<string[]>([]);
-	selectedClusterId = $state<string | null>(null);
-	navigationSelection = $state<EditorNavigationSelection>(null);
+	// Slice 4 — selection parallel-tuple. Reads are derived from `selectionStore`;
+	// setters forward to the reducer (used by legacy call sites that haven't
+	// been migrated; once Slice 5 lands these setters return to read-only
+	// derived getters). Bind: will silently fail until Slice 5 migrates.
+	get selectedRoomId(): MuseumRoomId | null {
+		const w = this.selectionStore.workspace;
+		return w.kind === 'none' ? null : w.roomId;
+	}
+	set selectedRoomId(value: MuseumRoomId | null) {
+		this.selectionStore.setWorkspace(
+			value === null
+				? { kind: 'none' }
+				: {
+						kind: 'placement',
+						ids: this.selectedPlacementIds,
+						clusterId: this.selectedClusterId,
+						roomId: value
+				  }
+		);
+	}
+	get selectedPlacementIds(): string[] {
+		const w = this.selectionStore.workspace;
+		return w.kind === 'placement' ? w.ids : [];
+	}
+	set selectedPlacementIds(value: string[]) {
+		const roomId = this.selectedRoomId;
+		if (roomId === null) return;
+		this.selectionStore.setWorkspace({
+			kind: 'placement',
+			ids: value,
+			clusterId: this.selectedClusterId,
+			roomId
+		});
+	}
+	get selectedClusterId(): string | null {
+		const w = this.selectionStore.workspace;
+		return w.kind === 'cluster' ? w.clusterId : null;
+	}
+	set selectedClusterId(value: string | null) {
+		const roomId = this.selectedRoomId;
+		if (roomId === null) return;
+		this.selectionStore.setWorkspace(
+			value === null
+				? { kind: 'none' }
+				: { kind: 'cluster', clusterId: value, roomId }
+		);
+	}
+	get navigationSelection(): EditorNavigationSelection {
+		return navigationSelectionFromState(this.selectionStore.navigation);
+	}
+	set navigationSelection(value: EditorNavigationSelection) {
+		this.selectionStore.setNavigation(navigationStateFromLegacy(value));
+	}
+	get selectedPlacementId(): string | null {
+		return this.selectedPlacementIds.at(-1) ?? null;
+	}
+	get cameraSelection(): EditorCameraSelection | null {
+		const n = this.selectionStore.navigation;
+		return n.kind === 'node'
+			? { nodeId: n.nodeId, handle: n.handle }
+			: null;
+	}
 	transformMode = $state<EditorTransformMode>('rotate');
 	transformGizmoVisible = $state(true);
 	transformSpace = $state<EditorTransformSpace>('world');
@@ -491,8 +609,18 @@ export class MuseumEditorStore {
 	 * selection/scrub plus the directional focus track. Independent of any active
 	 * Director preview so keys stay reachable after Stop or Done editing view.
 	 */
-	activeCameraConnectionId = $state<string | null>(null);
-	activeCameraDirection = $state<CameraConnectionDirection>('forward');
+	get activeCameraConnectionId(): string | null {
+		return this.selectionStore.discoveryConnectionId;
+	}
+	set activeCameraConnectionId(value: string | null) {
+		this.selectionStore.setDiscovery(value, this.activeCameraDirection);
+	}
+	get activeCameraDirection(): CameraConnectionDirection {
+		return this.selectionStore.discoveryDirection;
+	}
+	set activeCameraDirection(value: CameraConnectionDirection) {
+		this.selectionStore.setDiscovery(this.activeCameraConnectionId, value);
+	}
 	treeExpandedCameraConnectionIds = $state<string[]>([]);
 	treeExpandedCameraDirectionKeys = $state<string[]>([]);
 
@@ -512,6 +640,21 @@ export class MuseumEditorStore {
 		null
 	);
 
+	/**
+	 * Slice 4 — selection is owned by a parallel-tuple sub-store. The six
+	 * `$state` slots that used to live here (`selectedRoomId`,
+	 * `selectedPlacementIds`, `selectedClusterId`, `navigationSelection`,
+	 * `activeCameraConnectionId`, `activeCameraDirection`) are now derived
+	 * getters backed by this store; binds against them silently stop
+	 * writing (Phase A accept, per audit §3.G caveat — Slice 5 migrates).
+	 */
+	private readonly selectionStore = new EditorSelectionStore();
+
+	/** Slice 4 public face — components can read `store.selection.workspace.kind`. */
+	get selection(): EditorSelectionStore {
+		return this.selectionStore;
+	}
+
 	/** Slice 2 — registry of every Object3D helper + placement root. */
 	private readonly roots = new EditorSceneRoots();
 	#cancelTransform: (() => boolean) | null = null;
@@ -519,19 +662,41 @@ export class MuseumEditorStore {
 	#cancelDirectFramingDrag: (() => boolean) | null = null;
 	#restoreCameraPreview: (() => boolean) | null = null;
 	#viewKeyframeProgressDragInitialProgress: number | null = null;
-	#pendingNavigationSelectionBefore: EditorNavigationSelection = null;
+	// Slice 4 — pending-nav restore slots. Capture from selectionStore on commit,
+	// restore via setWorkspace / setNavigation / setDiscovery on cancel.
+	// Slice 4 — pending-nav restore slots are captured from selectionStore and
+	// re-applied via the reducer. Type-matching the parallel-tuple selection
+	// shape so we don't keep EditorNavigationSelection state alive.
+	#pendingNavigationSelectionBefore: NavigationSelection = { kind: 'none' };
 	#pendingNavigationActiveConnectionBefore: string | null = null;
 	#pendingNavigationDirectionBefore: CameraConnectionDirection = 'forward';
 	#pendingNavigationPlacementIdsBefore: string[] = [];
 	#pendingNavigationClusterBefore: string | null = null;
 
 
-	/** Session-only; never written to museum-scene.json. */
-	ambientIntensity = $state<number>(EDITOR_BRIGHT_LIGHTING.ambientIntensity);
-	directionalIntensity = $state<number>(EDITOR_BRIGHT_LIGHTING.directionalIntensity);
-	fogEnabled = $state<boolean>(EDITOR_BRIGHT_LIGHTING.fogEnabled);
-	fogNear = $state<number>(EDITOR_BRIGHT_LIGHTING.fogNear);
-	fogFar = $state<number>(EDITOR_BRIGHT_LIGHTING.fogFar);
+	/**
+	 * Slice 5 — bind-migration Phase B (audit §3.G). Canonical owners are
+	 * `EditorSessionState.ambientIntensity` etc., below; these readonly
+	 * getters forward reads. Writes go through `store.session.applyLighting(preset)`
+	 * (batch), or `store.session.setAmbientIntensity(v)` (per-field, used
+	 * by `EditorInspector.svelte`'s `oninput` handler — the component no
+	 * longer has any `bind:value` against these slots).
+	 */
+	get ambientIntensity(): number {
+		return this.session.ambientIntensity;
+	}
+	get directionalIntensity(): number {
+		return this.session.directionalIntensity;
+	}
+	get fogEnabled(): boolean {
+		return this.session.fogEnabled;
+	}
+	get fogNear(): number {
+		return this.session.fogNear;
+	}
+	get fogFar(): number {
+		return this.session.fogFar;
+	}
 
 	/** Session-only placement tools; excluded from document snapshots and visitor JSON. */
 	translationSnapEnabled = $state(true);
@@ -558,11 +723,12 @@ export class MuseumEditorStore {
 	}
 
 	/**
-	 * Plan §3.C API shape — a single read-only face over the volatile
-	 * session slots. Slice 1 v1 also exposes the four extracted slots as
-	 * standalone getters for ergonomic reads and one-line forwarder parity
-	 * with the pre-slice names; consumers that want the planned shape can
-	 * import this and access `.sessionView.statusMessage`, etc.
+	 * Plan §3.C API shape — the single public face over the volatile
+	 * session slots. Slice 5 expanded it to include per-field setter
+	 * methods (`setAmbientIntensity`, `setFogEnabled`, …) so bind:
+	 * migration routes writes through this getter instead of a former
+	 * god-file parallel `$state` mirror. Slice 6 may collapse the
+	 * `sessionView` alias with a public `get session()` for ergonomics.
 	 */
 	get sessionView() {
 		return this.session;
@@ -607,11 +773,7 @@ export class MuseumEditorStore {
 		return this.document.clusters ?? [];
 	}
 
-	/** Compatibility getter. The ordered selection array is the only mutable source. */
-	get selectedPlacementId() {
-		return this.selectedPlacementIds.at(-1) ?? null;
-	}
-
+	/** Compatibility getter — kept on the slice-4 accessor pair. */
 	get primaryPlacementId() {
 		return this.selectedPlacementId;
 	}
@@ -627,14 +789,6 @@ export class MuseumEditorStore {
 	get guidedTourNodeIds() {
 		const validation = validateCurrentGuidedTourOrder(this.document);
 		return validation.ok ? validation.nodeIds : [];
-	}
-
-	/** Node-only compatibility view used by existing camera helper components. */
-	get cameraSelection(): EditorCameraSelection | null {
-		const selection = this.navigationSelection;
-		return selection?.kind === 'node'
-			? { nodeId: selection.nodeId, handle: selection.handle }
-			: null;
 	}
 
 	get selectedNavigationNode() {
@@ -940,11 +1094,10 @@ export class MuseumEditorStore {
 
 	applyLightingPreset(preset: EditorLightingSettings) {
 		if (this.isVisitorCameraPreview) return false;
-		this.ambientIntensity = preset.ambientIntensity;
-		this.directionalIntensity = preset.directionalIntensity;
-		this.fogEnabled = preset.fogEnabled;
-		this.fogNear = preset.fogNear;
-		this.fogFar = preset.fogFar;
+		// Slice 5 — session owns the canonical lighting state. The five mirrors
+		// were dropped in Phase B; the single `applyLighting` call below mirrors
+		// all five fields atomically.
+		this.session.applyLighting(preset);
 		return true;
 	}
 
@@ -994,11 +1147,9 @@ export class MuseumEditorStore {
 
 		this.cancelAssetPlacement();
 		this.cancelPendingFrame();
-		this.#clearPlacementSelection();
-		this.navigationSelection = { kind: 'node', nodeId: id, handle: 'position' };
-		// Phase 2.1: leaving a connection focus cancels the persistent camera discovery.
-		this.activeCameraConnectionId = null;
-		this.activeCameraDirection = 'forward';
+		// Slice 4: selectionStore.setNavigation clears workspace + nav-driven discovery.
+		// For 'node' kind, discovery auto-nulls inside the reducer.
+		this.selection.setNavigation({ kind: 'node', nodeId: id, handle: 'position' });
 
 		if (this.isPendingNavigationNode(id)) {
 			this.setStatusMessage('Adjust camera pose, then choose its first connection');
@@ -1021,15 +1172,12 @@ export class MuseumEditorStore {
 		) return false;
 		const selection = this.cameraSelection;
 		if (!selection || selection.handle === handle) return false;
-		this.navigationSelection = {
+		// Slice 4: selectionStore.setNavigation(..., 'node') auto-clears discovery.
+		this.selection.setNavigation({
 			kind: 'node',
 			nodeId: selection.nodeId,
 			handle
-		};
-		// Phase 2.1: switching to camera-handle (eye/target) editing clears the persistent
-		// connection focus so the framing helpers don't stale-render next to the gizmo.
-		this.activeCameraConnectionId = null;
-		this.activeCameraDirection = 'forward';
+		});
 		return true;
 	}
 
@@ -1059,19 +1207,18 @@ export class MuseumEditorStore {
 		if (!this.document.connections.some((connection) => connection.id === connectionId)) {
 			return false;
 		}
+		// Slice 4 — discovery auto-mirrors to the connection inside setNavigation,
+		// so a single reducer call replaces the four pre-slice state writes.
 		if (
-			this.activeCameraConnectionId === connectionId &&
-			this.activeCameraDirection === direction &&
-			this.navigationSelection?.kind === 'connection'
+			this.selectionStore.discoveryConnectionId === connectionId &&
+			this.selectionStore.discoveryDirection === direction &&
+			this.selectionStore.navigation.kind === 'connection'
 		) {
 			return false;
 		}
 		this.cancelAssetPlacement();
 		this.cancelPendingFrame();
-		this.#clearPlacementSelection();
-		this.navigationSelection = { kind: 'connection', connectionId };
-		this.activeCameraConnectionId = connectionId;
-		this.activeCameraDirection = direction;
+		this.selection.setNavigation({ kind: 'connection', connectionId });
 		this.#expandActiveCameraDirection(direction);
 		if (this.currentWorkspace === 'camera' && !options.preservePreviewObserver) {
 			this.#syncCameraTimelineForConnection(connectionId, direction, 0);
@@ -1114,9 +1261,10 @@ export class MuseumEditorStore {
 		if (!connection?.positionPath.anchors.some((anchor) => anchor.id === anchorId)) {
 			return false;
 		}
-		const current = this.navigationSelection;
+		// Slice 4: navigation discrimination replaces the legacy readonly.
+		const current = this.selectionStore.navigation;
 		if (
-			current?.kind === 'anchor' &&
+			current.kind === 'anchor' &&
 			current.connectionId === connectionId &&
 			current.anchorId === anchorId
 		) {
@@ -1125,10 +1273,8 @@ export class MuseumEditorStore {
 		const direction = this.#defaultCameraDirection(connectionId);
 		this.cancelAssetPlacement();
 		this.cancelPendingFrame();
-		this.#clearPlacementSelection();
-		this.navigationSelection = { kind: 'anchor', connectionId, anchorId };
-		this.activeCameraConnectionId = connectionId;
-		this.activeCameraDirection = direction;
+		this.selection.setNavigation({ kind: 'anchor', connectionId, anchorId });
+		// Discover mirror: with kind='anchor' the reducer sets discovery=connectionId.
 		this.#expandActiveCameraDirection(direction);
 		return true;
 	}
@@ -1138,17 +1284,17 @@ export class MuseumEditorStore {
 		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive || this.pendingNavigationCommand) {
 			return false;
 		}
-		const selection = this.navigationSelection;
-		if (selection?.kind !== 'anchor') return false;
+		const selection = this.selectionStore.navigation;
+		if (selection.kind !== 'anchor') return false;
 		const connection = this.document.connections.find(
 			(candidate) => candidate.id === selection.connectionId
 		);
 		if (!connection?.positionPath.anchors.some((anchor) => anchor.id === selection.anchorId)) {
 			return false;
 		}
-		this.navigationSelection = { kind: 'connection', connectionId: connection.id };
-		this.activeCameraConnectionId = connection.id;
-		this.#expandActiveCameraDirection(this.activeCameraDirection);
+		// Slice 4: finishing anchor editing rolls back to a connection selection.
+		this.selection.setNavigation({ kind: 'connection', connectionId: connection.id });
+		this.#expandActiveCameraDirection(this.selectionStore.discoveryDirection);
 		return true;
 	}
 
@@ -1172,9 +1318,9 @@ export class MuseumEditorStore {
 		);
 		if (!keyframe) return false;
 
-		const current = this.navigationSelection;
+		const current = this.selectionStore.navigation;
 		const changed = !(
-			current?.kind === 'view-keyframe' &&
+			current.kind === 'view-keyframe' &&
 			current.connectionId === connectionId &&
 			current.direction === direction &&
 			current.keyframeId === keyframeId
@@ -1182,15 +1328,12 @@ export class MuseumEditorStore {
 		if (changed) {
 			this.cancelAssetPlacement();
 			this.cancelPendingFrame();
-			this.#clearPlacementSelection();
-			this.navigationSelection = {
+			this.selection.setNavigation({
 				kind: 'view-keyframe',
 				connectionId,
 				direction,
 				keyframeId
-			};
-			this.activeCameraConnectionId = connectionId;
-			this.activeCameraDirection = direction;
+			});
 			this.#expandActiveCameraDirection(direction);
 		}
 
@@ -1225,8 +1368,8 @@ export class MuseumEditorStore {
 		) {
 			return false;
 		}
-		const selection = this.navigationSelection;
-		if (selection?.kind !== 'view-keyframe') return false;
+		const selection = this.selectionStore.navigation;
+		if (selection.kind !== 'view-keyframe') return false;
 		const connection = this.document.connections.find(
 			(candidate) => candidate.id === selection.connectionId
 		);
@@ -1241,12 +1384,10 @@ export class MuseumEditorStore {
 		) {
 			return false;
 		}
-		this.navigationSelection = {
+		this.selection.setNavigation({
 			kind: 'connection',
 			connectionId: connection.id
-		};
-		this.activeCameraConnectionId = connection.id;
-		this.activeCameraDirection = selection.direction;
+		});
 		this.#expandActiveCameraDirection(selection.direction);
 		return true;
 	}
@@ -2759,9 +2900,17 @@ export class MuseumEditorStore {
 	selectRoom(id: MuseumRoomId) {
 		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive || id !== 'paris') return false;
 		const changed = this.selectedRoomId !== id;
-		this.selectedRoomId = id;
-		if (changed) this.#clearPlacementSelection();
-		return changed;
+		if (!changed) return false;
+		this.#clearPlacementSelection();
+		// Slice 4: model 'room-only' as `kind:'placement', ids:[]` so the
+		// reducer-driven workspace side-effect matches pre-slice semantics.
+		this.selection.setWorkspace({
+			kind: 'placement',
+			ids: [],
+			clusterId: null,
+			roomId: id
+		});
+		return true;
 	}
 
 	focusRoom(id: MuseumRoomId) {
@@ -2866,6 +3015,7 @@ export class MuseumEditorStore {
 			this.stopCameraPreview();
 		}
 		this.currentWorkspace = workspace;
+		this.session.setWorkspace(workspace);
 		this.timelineExpanded = workspace === 'camera' ? true : this.sceneTimelineExpanded;
 		return true;
 	}
@@ -2878,6 +3028,7 @@ export class MuseumEditorStore {
 			this.cancelAssetPlacement();
 		}
 		this.leftPanel = panel;
+		this.session.setLeftPanel(panel);
 		return true;
 	}
 
@@ -2888,6 +3039,9 @@ export class MuseumEditorStore {
 		if (this.currentWorkspace === 'scene') {
 			this.sceneTimelineExpanded = this.timelineExpanded;
 		}
+		this.session.setTimelineExpanded(this.timelineExpanded);
+		if (this.currentWorkspace === 'scene')
+			this.session.setSceneTimelineExpanded(this.sceneTimelineExpanded);
 		return true;
 	}
 
@@ -2895,10 +3049,12 @@ export class MuseumEditorStore {
 	setTimelineHeight(value: number) {
 		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
 		if (typeof value !== 'number' || !Number.isFinite(value)) return false;
-		this.timelineHeight = Math.min(
+		const nextHeight = Math.min(
 			EDITOR_TIMELINE_MAX_HEIGHT,
 			Math.max(EDITOR_TIMELINE_MIN_HEIGHT, Math.round(value))
 		);
+		this.timelineHeight = nextHeight;
+		this.session.setTimelineHeight(nextHeight);
 		return true;
 	}
 
@@ -2908,6 +3064,9 @@ export class MuseumEditorStore {
 		if (this.currentWorkspace === 'scene') {
 			this.sceneTimelineExpanded = this.timelineExpanded;
 		}
+		this.session.setTimelineExpanded(this.timelineExpanded);
+		if (this.currentWorkspace === 'scene')
+			this.session.setSceneTimelineExpanded(this.sceneTimelineExpanded);
 		return true;
 	}
 
@@ -3137,7 +3296,11 @@ export class MuseumEditorStore {
 		this.cancelAssetPlacement();
 		this.cancelPendingFrame();
 		this.setWorkspace('camera');
-		this.#pendingNavigationSelectionBefore = this.navigationSelection;
+		// Slice 4 — capture parallel-tuple nav shape for restore. The legacy
+		// `this.navigationSelection` is bridged through `navigationStateFromLegacy`.
+		this.#pendingNavigationSelectionBefore = navigationStateFromLegacy(
+			this.navigationSelection
+		);
 		this.#pendingNavigationActiveConnectionBefore = this.activeCameraConnectionId;
 		this.#pendingNavigationDirectionBefore = this.activeCameraDirection;
 		this.#pendingNavigationPlacementIdsBefore = [...this.selectedPlacementIds];
@@ -3172,7 +3335,9 @@ export class MuseumEditorStore {
 		}
 		this.cancelAssetPlacement();
 		this.cancelPendingFrame();
-		this.#pendingNavigationSelectionBefore = this.navigationSelection;
+		this.#pendingNavigationSelectionBefore = navigationStateFromLegacy(
+			this.navigationSelection
+		);
 		this.#pendingNavigationActiveConnectionBefore = this.activeCameraConnectionId;
 		this.#pendingNavigationDirectionBefore = this.activeCameraDirection;
 		this.#pendingNavigationPlacementIdsBefore = [...this.selectedPlacementIds];
@@ -3191,11 +3356,10 @@ export class MuseumEditorStore {
 		const changed = pending !== null;
 		this.pendingNavigationCommand = null;
 		if (changed) {
-			this.navigationSelection = this.#pendingNavigationSelectionBefore;
-			this.activeCameraConnectionId = this.#pendingNavigationActiveConnectionBefore;
-			this.activeCameraDirection = this.#pendingNavigationDirectionBefore;
-			this.selectedPlacementIds = [...this.#pendingNavigationPlacementIdsBefore];
-			this.selectedClusterId = this.#pendingNavigationClusterBefore;
+			// Slice 4 — restore via reducer. setNavigation auto-restores discovery
+			// for non-'none' / non-'node' kinds; the reducer's selectionStore
+			// sets the mirrored discovery from the saved nav shape.
+			this.selection.setNavigation(this.#pendingNavigationSelectionBefore);
 			this.#clearPendingNavigationSnapshot();
 		}
 		if (message) this.setStatusMessage(message);
@@ -3263,11 +3427,11 @@ export class MuseumEditorStore {
 			connectedNodeIds: []
 		};
 		this.pendingNavigationCommand = { kind: 'connect-pending-node', node };
-		this.navigationSelection = {
+		this.selection.setNavigation({
 			kind: 'node',
 			nodeId,
 			handle: 'position'
-		};
+		});
 		this.setStatusMessage('Adjust camera pose, then choose an existing node');
 		return nodeId;
 	}
@@ -3308,9 +3472,7 @@ export class MuseumEditorStore {
 
 			this.pendingNavigationCommand = null;
 			this.#clearPendingNavigationSnapshot();
-			this.navigationSelection = { kind: 'connection', connectionId };
-			this.activeCameraConnectionId = connectionId;
-			this.activeCameraDirection = 'forward';
+			this.selection.setNavigation({ kind: 'connection', connectionId });
 			this.#expandActiveCameraDirection('forward');
 			if (this.currentWorkspace === 'camera') {
 				this.#syncCameraTimelineForConnection(connectionId, 'forward', 0);
@@ -3340,16 +3502,11 @@ export class MuseumEditorStore {
 			this.setStatusMessage('Finish or cancel the current camera command first');
 			return false;
 		}
-		const validation = validateConnectionCreation(
-			this.document,
-			sourceNodeId,
-			destinationNodeId
+		const connectionPlan = runOrFail(this.session, () =>
+			validateConnectionCreation(this.document, sourceNodeId, destinationNodeId)
 		);
-		if (!validation.ok) {
-			this.setStatusMessage(validation.message);
-			return false;
-		}
-		const { sourceNode: source, destinationNode: destination } = validation;
+		if (!connectionPlan) return false;
+		const { sourceNode: source, destinationNode: destination } = connectionPlan;
 		const connectionId = reserveEntityId(
 			`${source.id}-${destination.id}`,
 			new Set(this.document.connections.map((connection) => connection.id))
@@ -3395,12 +3552,11 @@ export class MuseumEditorStore {
 	/** Rewrite one complete reciprocal guided cycle without creating graph edges. */
 	setGuidedTourOrder(nodeIds: readonly string[]) {
 		if (!this.#canEditGuidedTour()) return false;
-		const validation = validateGuidedTourOrder(this.document, nodeIds);
-		if (!validation.ok) {
-			this.setStatusMessage(validation.message);
-			return false;
-		}
-		const committed = this.#applyGuidedTourOrder(validation.nodeIds);
+		const orderPlan = runOrFail(this.session, () =>
+			validateGuidedTourOrder(this.document, nodeIds)
+		);
+		if (!orderPlan) return false;
+		const committed = this.#applyGuidedTourOrder(orderPlan.nodeIds);
 		if (committed) this.setStatusMessage('Updated guided tour order');
 		return committed;
 	}
@@ -3408,15 +3564,14 @@ export class MuseumEditorStore {
 	/** Insert one free camera node into an existing guided gap. */
 	insertNodeIntoGuidedTour(nodeId: string, index: number) {
 		if (!this.#canEditGuidedTour()) return false;
-		const validation = validateGuidedTourInsertion(this.document, nodeId, index);
-		if (!validation.ok) {
-			this.setStatusMessage(validation.message);
-			return false;
-		}
+		const insertionPlan = runOrFail(this.session, () =>
+			validateGuidedTourInsertion(this.document, nodeId, index)
+		);
+		if (!insertionPlan) return false;
 		const node = this.document.navigationNodes.find(
 			(candidate) => candidate.id === nodeId
 		)!;
-		const committed = this.#applyGuidedTourOrder(validation.nodeIds);
+		const committed = this.#applyGuidedTourOrder(insertionPlan.nodeIds);
 		if (committed) this.setStatusMessage(`Added ${node.label} to the guided tour`);
 		return committed;
 	}
@@ -3424,15 +3579,14 @@ export class MuseumEditorStore {
 	/** Remove one non-start node from the guided cycle while retaining graph topology. */
 	removeNodeFromGuidedTour(nodeId: string) {
 		if (!this.#canEditGuidedTour()) return false;
-		const validation = validateGuidedTourRemoval(this.document, nodeId);
-		if (!validation.ok) {
-			this.setStatusMessage(validation.message);
-			return false;
-		}
+		const removalPlan = runOrFail(this.session, () =>
+			validateGuidedTourRemoval(this.document, nodeId)
+		);
+		if (!removalPlan) return false;
 		const node = this.document.navigationNodes.find(
 			(candidate) => candidate.id === nodeId
 		)!;
-		const committed = this.#applyGuidedTourOrder(validation.nodeIds);
+		const committed = this.#applyGuidedTourOrder(removalPlan.nodeIds);
 		if (committed) this.setStatusMessage(`Removed ${node.label} from the guided tour`);
 		return committed;
 	}
@@ -3447,18 +3601,12 @@ export class MuseumEditorStore {
 		gapToNodeId: string
 	) {
 		if (!this.#canEditGuidedTour()) return false;
-		const validation = validateTimelineGuidedTourDrop(
-			this.document,
-			nodeId,
-			gapFromNodeId,
-			gapToNodeId
+		const dropPlan = runOrFail(this.session, () =>
+			validateTimelineGuidedTourDrop(this.document, nodeId, gapFromNodeId, gapToNodeId)
 		);
-		if (!validation.ok) {
-			this.setStatusMessage(validation.message);
-			return false;
-		}
+		if (!dropPlan) return false;
 
-		const missing = validation.missingConnection;
+		const missing = dropPlan.missingConnection;
 		const connectionId = missing
 			? reserveEntityId(
 					`${missing.fromNodeId}-${missing.toNodeId}`,
@@ -3466,10 +3614,10 @@ export class MuseumEditorStore {
 			  )
 			: this.document.connections.find(
 					(connection) =>
-						(connection.fromNodeId === validation.focusConnection.fromNodeId &&
-							connection.toNodeId === validation.focusConnection.toNodeId) ||
-						(connection.fromNodeId === validation.focusConnection.toNodeId &&
-							connection.toNodeId === validation.focusConnection.fromNodeId)
+						(connection.fromNodeId === dropPlan.focusConnection.fromNodeId &&
+							connection.toNodeId === dropPlan.focusConnection.toNodeId) ||
+						(connection.fromNodeId === dropPlan.focusConnection.toNodeId &&
+							connection.toNodeId === dropPlan.focusConnection.fromNodeId)
 			  )?.id;
 		if (!connectionId) {
 			this.setStatusMessage('The guided connection selected for fine-tuning is unavailable');
@@ -3491,15 +3639,15 @@ export class MuseumEditorStore {
 			}
 			this.#appendStraightConnection(from, to, connectionId);
 		}
-		this.#rewriteGuidedTourOrder(validation.nodeIds);
+		this.#rewriteGuidedTourOrder(dropPlan.nodeIds);
 		if (!this.commitDocumentTransaction()) return false;
 
 		const connection = this.document.connections.find(
 			(candidate) => candidate.id === connectionId
 		)!;
 		const direction: CameraConnectionDirection =
-			connection.fromNodeId === validation.focusConnection.fromNodeId &&
-			connection.toNodeId === validation.focusConnection.toNodeId
+			connection.fromNodeId === dropPlan.focusConnection.fromNodeId &&
+			connection.toNodeId === dropPlan.focusConnection.toNodeId
 				? 'forward'
 				: 'reverse';
 		this.selectCameraConnectionDirection(connection.id, direction);
@@ -3555,12 +3703,11 @@ export class MuseumEditorStore {
 	/** Delete one non-guided, non-bridge edge and both directional view tracks. */
 	deleteConnection(connectionId: string) {
 		if (!this.#canRunTopologyDeletion('connection')) return false;
-		const validation = validateConnectionDeletion(this.document, connectionId);
-		if (!validation.ok) {
-			this.setStatusMessage(validation.message);
-			return false;
-		}
-		const connection = validation.connection;
+		const deletionPlan = runOrFail(this.session, () =>
+			validateConnectionDeletion(this.document, connectionId)
+		);
+		if (!deletionPlan) return false;
+		const connection = deletionPlan.connection;
 		if (
 			!this.#releasePausedPreviewForTopology(
 				new Set(),
@@ -3594,15 +3741,14 @@ export class MuseumEditorStore {
 	/** Delete one free node, or splice one guided node across an existing direct edge. */
 	deleteNavigationNode(nodeId: string) {
 		if (!this.#canRunTopologyDeletion('node')) return false;
-		const validation = validateNavigationNodeDeletion(this.document, nodeId);
-		if (!validation.ok) {
-			this.setStatusMessage(validation.message);
-			return false;
-		}
-		const incidentConnectionIds = new Set(validation.incidentConnectionIds);
+		const nodePlan = runOrFail(this.session, () =>
+			validateNavigationNodeDeletion(this.document, nodeId)
+		);
+		if (!nodePlan) return false;
+		const incidentConnectionIds = new Set(nodePlan.incidentConnectionIds);
 		if (
 			!this.#releasePausedPreviewForTopology(
-				new Set([validation.node.id]),
+				new Set([nodePlan.node.id]),
 				incidentConnectionIds
 			)
 		) {
@@ -3610,12 +3756,12 @@ export class MuseumEditorStore {
 		}
 
 		if (!this.beginDocumentTransaction()) return false;
-		if (validation.predecessorNodeId && validation.successorNodeId) {
+		if (nodePlan.predecessorNodeId && nodePlan.successorNodeId) {
 			const predecessor = this.document.navigationNodes.find(
-				(node) => node.id === validation.predecessorNodeId
+				(node) => node.id === nodePlan.predecessorNodeId
 			);
 			const successor = this.document.navigationNodes.find(
-				(node) => node.id === validation.successorNodeId
+				(node) => node.id === nodePlan.successorNodeId
 			);
 			if (!predecessor || !successor) {
 				this.cancelDocumentTransaction();
@@ -3626,11 +3772,11 @@ export class MuseumEditorStore {
 			successor.previousNodeId = predecessor.id;
 		}
 		this.document.navigationNodes = this.document.navigationNodes
-			.filter((node) => node.id !== validation.node.id)
+			.filter((node) => node.id !== nodePlan.node.id)
 			.map((node) => ({
 				...node,
 				connectedNodeIds: node.connectedNodeIds.filter(
-					(connectedNodeId) => connectedNodeId !== validation.node.id
+					(connectedNodeId) => connectedNodeId !== nodePlan.node.id
 				)
 			}));
 		this.document.connections = this.document.connections.filter(
@@ -3638,7 +3784,7 @@ export class MuseumEditorStore {
 		);
 		if (!this.commitDocumentTransaction()) return false;
 		this.#clearDeletedConnectionSessionState(incidentConnectionIds);
-		this.setStatusMessage(`Deleted camera node ${validation.node.label}`);
+		this.setStatusMessage(`Deleted camera node ${nodePlan.node.label}`);
 		return true;
 	}
 
@@ -3718,7 +3864,7 @@ export class MuseumEditorStore {
 	}
 
 	#clearPendingNavigationSnapshot() {
-		this.#pendingNavigationSelectionBefore = null;
+		this.#pendingNavigationSelectionBefore = { kind: 'none' };
 		this.#pendingNavigationActiveConnectionBefore = null;
 		this.#pendingNavigationDirectionBefore = 'forward';
 		this.#pendingNavigationPlacementIdsBefore = [];
@@ -3761,13 +3907,16 @@ export class MuseumEditorStore {
 			return false;
 		}
 		this.cancelPendingFrame();
-		this.navigationSelection = null;
-		// Phase 2.1: leaving a connection focus resets the persistent camera discovery.
-		this.activeCameraConnectionId = null;
-		this.activeCameraDirection = 'forward';
+		const placement = this.document.objects.find((object) => object.id === id);
+		if (!placement) return false;
+		// Slice 4: setWorkspace auto-cross-clears nav; reducer model.
+		this.selection.setWorkspace({
+			kind: 'placement',
+			ids: [id],
+			clusterId: null,
+			roomId: placement.roomId as MuseumRoomId
+		});
 		if (this.selectedPlacementId !== id) this.transformMode = 'rotate';
-		this.selectedPlacementIds = [id];
-		this.selectedClusterId = null;
 		return true;
 	}
 
@@ -3779,12 +3928,16 @@ export class MuseumEditorStore {
 			return false;
 		}
 		this.cancelPendingFrame();
-		this.navigationSelection = null;
-		// Phase 2.1: leaving a connection focus resets the persistent camera discovery.
-		this.activeCameraConnectionId = null;
-		this.activeCameraDirection = 'forward';
-		this.selectedPlacementIds = next;
-		this.selectedClusterId = null;
+		// Disambiguate roomId: read from the first selected object's roomId (each
+		// placement shares a room in practice but we honour the document truth).
+		const firstPlacement = this.document.objects.find((object) => object.id === next[0]);
+		if (!firstPlacement) return false;
+		this.selection.setWorkspace({
+			kind: 'placement',
+			ids: next,
+			clusterId: null,
+			roomId: firstPlacement.roomId as MuseumRoomId
+		});
 		this.transformMode = 'rotate';
 		return true;
 	}
@@ -3794,18 +3947,21 @@ export class MuseumEditorStore {
 			return false;
 		}
 		this.cancelPendingFrame();
-		this.navigationSelection = null;
-		// Phase 2.1: leaving a connection focus resets the persistent camera discovery.
-		this.activeCameraConnectionId = null;
-		this.activeCameraDirection = 'forward';
-		this.selectedClusterId = null;
-		if (this.selectedPlacementIds.includes(id)) {
-			this.selectedPlacementIds = this.selectedPlacementIds.filter(
-				(memberId) => memberId !== id
-			);
-		} else {
-			this.selectedPlacementIds = [...this.selectedPlacementIds, id];
-		}
+		const placement = this.document.objects.find((object) => object.id === id);
+		if (!placement) return false;
+		const currentIds =
+			this.selectionStore.workspace.kind === 'placement'
+				? this.selectionStore.workspace.ids
+				: [];
+		const nextIds = currentIds.includes(id)
+			? currentIds.filter((memberId) => memberId !== id)
+			: [...currentIds, id];
+		this.selection.setWorkspace({
+			kind: 'placement',
+			ids: nextIds,
+			clusterId: null,
+			roomId: placement.roomId as MuseumRoomId
+		});
 		return true;
 	}
 
@@ -3814,12 +3970,11 @@ export class MuseumEditorStore {
 		const cluster = this.clusters.find((candidate) => candidate.id === id);
 		if (!cluster || cluster.roomId !== this.selectedRoomId) return false;
 		this.cancelPendingFrame();
-		this.navigationSelection = null;
-		// Phase 2.1: leaving a connection focus resets the persistent camera discovery.
-		this.activeCameraConnectionId = null;
-		this.activeCameraDirection = 'forward';
-		this.selectedClusterId = cluster.id;
-		this.selectedPlacementIds = [...cluster.memberIds];
+		this.selection.setWorkspace({
+			kind: 'cluster',
+			clusterId: cluster.id,
+			roomId: cluster.roomId
+		});
 		this.transformMode = 'rotate';
 		return true;
 	}
@@ -3856,17 +4011,18 @@ export class MuseumEditorStore {
 			this.navigationSelection !== null ||
 			this.activeCameraConnectionId !== null;
 		this.cancelPendingFrame();
-		this.#clearPlacementSelection();
-		this.navigationSelection = null;
-		// Phase 2.1: dropping the active connection surfaces an empty camera workspace.
-		this.activeCameraConnectionId = null;
-		this.activeCameraDirection = 'forward';
+		// Slice 4: redactor surface — setNavigation({kind:'none'}) auto-clears
+		// discovery AND clears any non-empty workspace (workspace was set via
+		// deselect's symmetric intent).
+		this.selection.setNavigation({ kind: 'none' });
+		this.selection.setWorkspace({ kind: 'none' });
 		return changed;
 	}
 
 	#clearPlacementSelection() {
-		this.selectedPlacementIds = [];
-		this.selectedClusterId = null;
+		// Slice 4 — selection store owns workspace; clearing is a reducer
+		// one-liner. Cross-clears nav per audit §3.D invariant.
+		this.selection.setWorkspace({ kind: 'none' });
 	}
 
 	cyclePlacement(ids: string[]) {

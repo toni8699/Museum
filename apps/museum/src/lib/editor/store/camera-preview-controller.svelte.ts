@@ -47,8 +47,19 @@ import {
 } from '$lib/content/scene';
 
 import type { CameraConnectionDirection, Vec3 } from '$lib/types/museum';
+// `CameraConnectionDirection` is needed here for the `startConnection` method
+// parameter; mode + transport literals come from the barrel instead.
 
 import type { EditorDocumentStore } from './document-store.svelte';
+import type {
+	CameraPreviewConnection,
+	CameraPreviewNode,
+	CameraPreviewTour,
+	CameraPreviewTransition,
+	EditorCameraPreview,
+	EditorCameraPreviewMode,
+	EditorCameraPreviewTransport
+} from '../museum-editor.types';
 
 function cloneRoutePoint(point: Vector3Like): Vec3 {
 	if (Array.isArray(point)) {
@@ -112,65 +123,16 @@ function cloneResolvedCameraRoute(route: ResolvedCameraRoute): ResolvedCameraRou
 				  })
 		}))
 	};
-}
-
-// =====================================================================
+}// =====================================================================
 // Locally-redeclared preview types (mirror god-file lines 76-89).
-// Slice 6 collapses these into a single `$lib/types/museum.ts` declaration.
+// Slice 3 debt 3.11 collapses them into the `museum-editor.types.ts` barrel
+// (lands in this slice). The four `kind`-tagged variant interfaces are
+// imported here so the discriminated union is composable from one source.
 // =====================================================================
 
-export interface CameraPreviewNode {
-	kind: 'node';
-	nodeId: string;
-	mode: 'director' | 'visitor';
-	transport: 'paused' | 'playing' | 'complete';
-	runId: number;
-	playhead: number;
-	startedAtMs: number | null;
-}
-
-export interface CameraPreviewTransition {
-	kind: 'transition';
-	fromNodeId: string;
-	toNodeId: string;
-	mode: 'director' | 'visitor';
-	transport: 'paused' | 'playing' | 'complete';
-	runId: number;
-	playhead: number;
-	startedAtMs: number | null;
-}
-
-export interface CameraPreviewConnection {
-	kind: 'connection';
-	connectionId: string;
-	direction: CameraConnectionDirection;
-	fromNodeId: string;
-	toNodeId: string;
-	mode: 'director' | 'visitor';
-	transport: 'paused' | 'playing' | 'complete';
-	runId: number;
-	playhead: number;
-	startedAtMs: number | null;
-}
-
-export interface CameraPreviewTour {
-	kind: 'tour';
-	startNodeId: string;
-	mode: 'director' | 'visitor';
-	transport: 'paused' | 'playing' | 'complete';
-	runId: number;
-	playhead: number;
-	startedAtMs: number | null;
-}
-
-export type EditorCameraPreview =
-	| CameraPreviewNode
-	| CameraPreviewTransition
-	| CameraPreviewConnection
-	| CameraPreviewTour;
-
-export type EditorCameraPreviewMode = 'director' | 'visitor';
-export type EditorCameraPreviewTransport = 'paused' | 'playing' | 'complete';
+// Re-export from the barrel so any internal caller (tests, mocks) that still
+// imports `CameraPreviewNode` from the controller keeps compiling.
+export type { CameraPreviewNode, CameraPreviewTransition, CameraPreviewConnection, CameraPreviewTour };
 
 export class EditorCameraPreviewController {
 	/** The active preview, or null when FSM is idle. */

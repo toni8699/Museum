@@ -250,12 +250,12 @@
 			<button type="button" disabled={store.isVisitorCameraPreview} onclick={() => store.applyLightingPreset(EDITOR_BRIGHT_LIGHTING)}>Bright</button>
 			<button type="button" disabled={store.isVisitorCameraPreview} onclick={() => store.applyLightingPreset(EDITOR_VISITOR_LIGHTING)}>Visitor</button>
 		</div>
-		<label><span>Ambient {store.ambientIntensity.toFixed(2)}</span><input type="range" min="0" max="2" step="0.05" disabled={store.isVisitorCameraPreview} bind:value={store.ambientIntensity} /></label>
-		<label><span>Directional {store.directionalIntensity.toFixed(2)}</span><input type="range" min="0" max="3" step="0.05" disabled={store.isVisitorCameraPreview} bind:value={store.directionalIntensity} /></label>
-		<label class="checkbox"><input type="checkbox" disabled={store.isVisitorCameraPreview} bind:checked={store.fogEnabled} /><span>Fog</span></label>
+		<label><span>Ambient {store.ambientIntensity.toFixed(2)}</span><input type="range" min="0" max="2" step="0.05" disabled={store.isVisitorCameraPreview} value={store.ambientIntensity} oninput={(event) => store.sessionView.setAmbientIntensity(+event.currentTarget.value)} /></label>
+		<label><span>Directional {store.directionalIntensity.toFixed(2)}</span><input type="range" min="0" max="3" step="0.05" disabled={store.isVisitorCameraPreview} value={store.directionalIntensity} oninput={(event) => store.sessionView.setDirectionalIntensity(+event.currentTarget.value)} /></label>
+		<label class="checkbox"><input type="checkbox" disabled={store.isVisitorCameraPreview} checked={store.fogEnabled} onchange={(event) => store.sessionView.setFogEnabled(event.currentTarget.checked)} /><span>Fog</span></label>
 		{#if store.fogEnabled}
-			<label><span>Fog near {store.fogNear.toFixed(0)}</span><input type="range" min="1" max="80" step="1" disabled={store.isVisitorCameraPreview} bind:value={store.fogNear} /></label>
-			<label><span>Fog far {store.fogFar.toFixed(0)}</span><input type="range" min="5" max="120" step="1" disabled={store.isVisitorCameraPreview} bind:value={store.fogFar} /></label>
+			<label><span>Fog near {store.fogNear.toFixed(0)}</span><input type="range" min="1" max="80" step="1" disabled={store.isVisitorCameraPreview} value={store.fogNear} oninput={(event) => store.sessionView.setFogNear(+event.currentTarget.value)} /></label>
+			<label><span>Fog far {store.fogFar.toFixed(0)}</span><input type="range" min="5" max="120" step="1" disabled={store.isVisitorCameraPreview} value={store.fogFar} oninput={(event) => store.sessionView.setFogFar(+event.currentTarget.value)} /></label>
 		{/if}
 	</section>
 

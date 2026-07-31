@@ -2,23 +2,49 @@
  * Editor session state — the Svelte 5 sub-store that owns volatile UI state
  * that lives only for the current editor session (refresh wipes).
  *
- * Slice 1 of the museum-editor refactor plan proves the composition-root
- * pattern for this concern. The full slot list from audit §3.C is broader;
- * this initial slice owns:
+ * Slice 1 of the museum-editor refactor plan proved the composition-root
+ * pattern with status + viewport flags. Slice 3 debt 3.13 expands the surface
+ * to the full **22 slot** set named in audit §3.C. Every slot is a real
+ * `$state` on the sub-store so Slice 5's `bind:` migration can delete the
+ * god file's parallel $state mirrors in one pass.
  *
- *  - `statusMessage`              — toast message + auto-clear timer
- *  - `viewportShowNodes`          — session-only viewport visibility flags
- *  - `viewportShowPaths`           (just landed in the viewport-toggles spec)
- *  - `viewportShowFraming`
+ * **Phase A mirror.** The composition root keeps its own `$state` field for
+ * each slot so existing `bind:value={store.foo}` reads keep working until
+ * Slice 5. Each setter method on the composition root is mirrored to its
+ * session-side twin (`this.session.X = v`) so the sub-store owns the value
+ * for reads-from-`sessionView` consumers.
  *
- * Other session slots (`currentWorkspace`, `leftPanel`, transform-mode /
- * tree-expansion / lighting / snap / keep-on-floor / focus-channel) remain on
- * the god file for Slice 1 and will migrate in later slices.
+ * **No document reads.** This sub-store deliberately does not import the
+ * document store, the navigation graph, or any validator. Its only contract
+ * with the rest of the editor is "expose volatile UI state".
  */
+
+import type {
+	EditorCameraFocusKind,
+	EditorLeftPanel,
+	EditorPendingNavigationCommand,
+	EditorTransformInteractionKind,
+	EditorTransformSpace,
+	EditorViewKeyframeProgressDragSelection,
+	EditorWorkspace,
+	EditorLightingSettings
+} from '../museum-editor.types';
+import type { EditorTransformMode } from '../editor-transform';
+import type { CameraConnectionDirection, MuseumRoomId } from '$lib/types/museum';
 
 const STATUS_MESSAGE_MS = 2500;
 
+const DEFAULT_TIMELINE_HEIGHT = 280;
+const DEFAULT_SNAP_TRANSLATION = 0.5;
+// Allow ZERO_ROTATION to be overridden; god file currently sets DEFAULT_ROTATION_SNAP_DEGREES = 15.
+
+type TransformInteractionKind = EditorTransformInteractionKind;
+
 export class EditorSessionState {
+	// ============================================================
+	// Status message + viewport toggles (Slice 1 v1 — landed before debt).
+	// ============================================================
+
 	statusMessage = $state<string | null>(null);
 	viewportShowNodes = $state(true);
 	viewportShowPaths = $state(true);
@@ -49,5 +75,289 @@ export class EditorSessionState {
 
 	toggleViewportShowFraming() {
 		this.viewportShowFraming = !this.viewportShowFraming;
+	}
+
+	// ============================================================
+	// Workspace chrome (audit §3.C).
+	// ============================================================
+
+	currentWorkspace = $state<EditorWorkspace>('scene');
+	leftPanel = $state<EditorLeftPanel>('scene');
+	timelineExpanded = $state(false);
+	sceneTimelineExpanded = $state(false);
+	timelineHeight = $state(DEFAULT_TIMELINE_HEIGHT);
+
+	setWorkspace(value: EditorWorkspace) {
+		this.currentWorkspace = value;
+	}
+
+	setLeftPanel(value: EditorLeftPanel) {
+		this.leftPanel = value;
+	}
+
+	setTimelineExpanded(value: boolean) {
+		this.timelineExpanded = value;
+	}
+
+	setSceneTimelineExpanded(value: boolean) {
+		this.sceneTimelineExpanded = value;
+	}
+
+	setTimelineHeight(value: number) {
+		this.timelineHeight = value;
+	}
+
+	// ============================================================
+	// Transform controls (audit §3.C).
+	// ============================================================
+
+	transformMode = $state<EditorTransformMode>('rotate');
+	transformGizmoVisible = $state(true);
+	transformSpace = $state<EditorTransformSpace>('world');
+
+	setTransformMode(value: EditorTransformMode) {
+		this.transformMode = value;
+	}
+
+	setTransformSpace(value: EditorTransformSpace) {
+		this.transformSpace = value;
+	}
+
+	setTransformGizmoVisible(value: boolean) {
+		this.transformGizmoVisible = value;
+	}
+
+	// ============================================================
+	// Camera focus + viewport pan + grid (audit §3.C).
+	// ============================================================
+
+	cameraFocusVersion = $state(0);
+	cameraFocusKind = $state<EditorCameraFocusKind>(null);
+	cameraFocusPlacementId = $state<string | null>(null);
+	cameraFocusNodeId = $state<string | null>(null);
+	cameraPanEnabled = $state(true);
+	gridVisible = $state(false);
+
+	setCameraFocus(kind: EditorCameraFocusKind, placementId: string | null, nodeId: string | null) {
+		this.cameraFocusKind = kind;
+		this.cameraFocusPlacementId = placementId;
+		this.cameraFocusNodeId = nodeId;
+		this.cameraFocusVersion += 1;
+	}
+
+	clearCameraFocus() {
+		this.cameraFocusKind = null;
+		this.cameraFocusPlacementId = null;
+		this.cameraFocusNodeId = null;
+		this.cameraFocusVersion += 1;
+	}
+
+	/** Bumps the version without changing the focus target (idempotent consumer-side reads). */
+	bumpCameraFocusVersion() {
+		this.cameraFocusVersion += 1;
+	}
+
+	toggleCameraPan() {
+		this.cameraPanEnabled = !this.cameraPanEnabled;
+	}
+
+	toggleGrid() {
+		this.gridVisible = !this.gridVisible;
+	}
+
+	// ============================================================
+	// Lighting + fog (audit §3.C / §3.F11).
+	// ============================================================
+
+	ambientIntensity = $state<number>(0.65);
+	directionalIntensity = $state<number>(1.15);
+	fogEnabled = $state<boolean>(false);
+	fogNear = $state<number>(22);
+	fogFar = $state<number>(54);
+
+	applyLighting(preset: EditorLightingSettings) {
+		this.ambientIntensity = preset.ambientIntensity;
+		this.directionalIntensity = preset.directionalIntensity;
+		this.fogEnabled = preset.fogEnabled;
+		this.fogNear = preset.fogNear;
+		this.fogFar = preset.fogFar;
+	}
+
+	// Slice 5 — bind-migration helper setters. Per-field writes from
+	// EditorInspector.svelte now route here so Phase B in the audit §3.G
+	// can delete the god-file's parallel `$state` mirrors for the same
+	// slots. Each setter is the canonical write path; `applyLighting()`
+	// remains for batch preset changes (preset buttons).
+	setAmbientIntensity(value: number) {
+		this.ambientIntensity = value;
+	}
+	setDirectionalIntensity(value: number) {
+		this.directionalIntensity = value;
+	}
+	setFogEnabled(value: boolean) {
+		this.fogEnabled = value;
+	}
+	setFogNear(value: number) {
+		this.fogNear = value;
+	}
+	setFogFar(value: number) {
+		this.fogFar = value;
+	}
+
+	// ============================================================
+	// Snap + keep-on-floor + drop-to-floor (audit §3.C).
+	// ============================================================
+
+	translationSnapEnabled = $state(true);
+	translationSnap = $state(DEFAULT_SNAP_TRANSLATION);
+	rotationSnapEnabled = $state(true);
+	rotationSnapDegrees = $state<number>(15);
+	keepOnFloor = $state(false);
+	dropToFloorRequestId = $state(0);
+
+	toggleTranslationSnap() {
+		this.translationSnapEnabled = !this.translationSnapEnabled;
+	}
+
+	setTranslationSnap(value: number) {
+		this.translationSnap = value;
+	}
+
+	toggleRotationSnap() {
+		this.rotationSnapEnabled = !this.rotationSnapEnabled;
+	}
+
+	setRotationSnapDegrees(value: number) {
+		this.rotationSnapDegrees = value;
+	}
+
+	toggleKeepOnFloor() {
+		this.keepOnFloor = !this.keepOnFloor;
+	}
+
+	requestDropToFloor() {
+		this.dropToFloorRequestId += 1;
+	}
+
+	// ============================================================
+	// Pending frame / nav / asset (audit §3.C).
+	// ============================================================
+
+	pendingFramePlacementIds = $state<string[]>([]);
+	pendingFrameVersion = $state(0);
+	pendingNavigationCommand = $state<EditorPendingNavigationCommand>(null);
+	pendingPlacementAssetId = $state<string | null>(null);
+
+	setPendingFramePlacementIds(ids: string[]) {
+		this.pendingFramePlacementIds = ids;
+		this.pendingFrameVersion += 1;
+	}
+
+	clearPendingFramePlacementIds() {
+		this.pendingFramePlacementIds = [];
+		this.pendingFrameVersion += 1;
+	}
+
+	setPendingNavigationCommand(command: EditorPendingNavigationCommand) {
+		this.pendingNavigationCommand = command;
+	}
+
+	setPendingPlacementAssetId(assetId: string | null) {
+		this.pendingPlacementAssetId = assetId;
+	}
+
+	// ============================================================
+	// Tree expansion (audit §3.C).
+	// ============================================================
+
+	treeExpandedRoomIds = $state<MuseumRoomId[]>(['paris']);
+	treeExpandedClusterIds = $state<string[]>([]);
+	treeExpandedCameraConnectionIds = $state<string[]>([]);
+	treeExpandedCameraDirectionKeys = $state<string[]>([]);
+
+	expandRoom(roomId: MuseumRoomId): boolean {
+		if (this.treeExpandedRoomIds.includes(roomId)) return false;
+		this.treeExpandedRoomIds = [...this.treeExpandedRoomIds, roomId];
+		return true;
+	}
+
+	collapseRoom(roomId: MuseumRoomId): boolean {
+		if (!this.treeExpandedRoomIds.includes(roomId)) return false;
+		this.treeExpandedRoomIds = this.treeExpandedRoomIds.filter((id) => id !== roomId);
+		return true;
+	}
+
+	toggleRoomExpanded(roomId: MuseumRoomId): boolean {
+		return this.treeExpandedRoomIds.includes(roomId)
+			? this.collapseRoom(roomId)
+			: this.expandRoom(roomId);
+	}
+
+	expandCluster(clusterId: string): boolean {
+		if (this.treeExpandedClusterIds.includes(clusterId)) return false;
+		this.treeExpandedClusterIds = [...this.treeExpandedClusterIds, clusterId];
+		return true;
+	}
+
+	ensureClusterExpanded(clusterId: string): boolean {
+		return this.expandCluster(clusterId);
+	}
+
+	toggleClusterExpanded(clusterId: string): boolean {
+		return this.treeExpandedClusterIds.includes(clusterId)
+			? (this.treeExpandedClusterIds = this.treeExpandedClusterIds.filter(
+					(id) => id !== clusterId
+			  ),
+				true)
+			: this.expandCluster(clusterId);
+	}
+
+	expandCameraConnection(connectionId: string): boolean {
+		if (this.treeExpandedCameraConnectionIds.includes(connectionId)) return false;
+		this.treeExpandedCameraConnectionIds = [
+			...this.treeExpandedCameraConnectionIds,
+			connectionId
+		];
+		return true;
+	}
+
+	expandCameraDirection(connectionId: string, direction: CameraConnectionDirection): boolean {
+		const key = `${connectionId}::${direction}`;
+		if (this.treeExpandedCameraDirectionKeys.includes(key)) return false;
+		this.treeExpandedCameraDirectionKeys = [...this.treeExpandedCameraDirectionKeys, key];
+		return true;
+	}
+
+	// ============================================================
+	// Pointer / drag interaction flags + canceller slots (audit §3.C).
+	// Selected `viewKeyframeProgressDrag` identity lives here; canceller
+	// callbacks remain private to the composition root.
+	// ============================================================
+
+	transformInteractionActive = $state(false);
+	transformInteractionKind = $state<TransformInteractionKind>(null);
+	directPathInteractionActive = $state(false);
+	directFramingInteractionActive = $state(false);
+	viewKeyframeProgressDrag = $state<EditorViewKeyframeProgressDragSelection | null>(null);
+
+	setTransformInteraction(active: boolean, kind: TransformInteractionKind) {
+		this.transformInteractionActive = active;
+		this.transformInteractionKind = active ? kind : null;
+	}
+
+	setDirectPathInteraction(active: boolean) {
+		this.directPathInteractionActive = active;
+	}
+
+	setDirectFramingInteraction(active: boolean) {
+		this.directFramingInteractionActive = active;
+	}
+
+	startViewKeyframeProgressDrag(selection: EditorViewKeyframeProgressDragSelection) {
+		this.viewKeyframeProgressDrag = { ...selection };
+	}
+
+	cancelViewKeyframeProgressDrag() {
+		this.viewKeyframeProgressDrag = null;
 	}
 }

@@ -1,12 +1,13 @@
 <script lang="ts">
 	import { beforeNavigate } from '$app/navigation';
 	import type { MuseumAsset } from '$lib/types/assets';
-	import { onMount, tick } from 'svelte';
+	import { onMount } from 'svelte';
 	import EditorAppBar from './EditorAppBar.svelte';
 	import EditorCameraTimelineFrame from './EditorCameraTimelineFrame.svelte';
 	import EditorInspector from './EditorInspector.svelte';
 	import EditorLeftSidebar from './EditorLeftSidebar.svelte';
 	import EditorViewport from './EditorViewport.svelte';
+	import { registerEditorShortcuts } from './hooks/shortcuts.svelte';
 	import { createMuseumEditorStore } from './museum-editor.svelte';
 
 	const store = createMuseumEditorStore();
@@ -24,156 +25,13 @@
 		if (!confirmDiscardUnsavedChanges()) navigation.cancel();
 	});
 
-	function editorOwnsSceneShortcuts() {
-		const active = document.activeElement;
-		if (!active) return false;
-		if (viewportElement?.contains(active)) return true;
-		return Boolean(
-			store.currentWorkspace === 'scene' &&
-				store.leftPanel === 'scene' &&
-				outlinerElement?.contains(active)
-		);
-	}
-
-	function editorOwnsCameraShortcuts() {
-		if (store.currentWorkspace !== 'camera') return false;
-		const active = document.activeElement;
-		if (!active) return false;
-		return Boolean(
-			viewportElement?.contains(active) || outlinerElement?.contains(active)
-		);
-	}
-
-	function isEditableTarget(target: EventTarget | null) {
-		if (!(target instanceof HTMLElement)) return false;
-		if (target.isContentEditable) return true;
-		return ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName);
-	}
-
-	function ungroupSelection() {
-		const cluster = store.selectedCluster;
-		if (!cluster || !store.ungroupCluster(cluster.id)) return;
-		store.removeClusterTreeExpansion(cluster.id);
-		store.setStatusMessage(`Ungrouped ${cluster.name}`);
-	}
-
-	async function groupSelection() {
-		const clusterId = store.createCluster();
-		if (!clusterId) return;
-		store.ensureRoomTreeExpanded('paris');
-		store.ensureClusterTreeExpanded(clusterId);
-		store.focusSelection();
-		await tick();
-		if (store.selectedClusterId !== clusterId) return;
-		clusterNameInput?.focus();
-		clusterNameInput?.select();
-	}
-
-	onMount(() => {
-		const onKeyDown = (event: KeyboardEvent) => {
-			if (event.defaultPrevented) return;
-			if (store.cameraPreview) {
-				if (event.key === 'Escape') {
-					event.preventDefault();
-					event.stopPropagation();
-					store.stopCameraPreview();
-					return;
-				}
-				if (store.isDocumentMutationBlocked) return;
-			}
-			if (isEditableTarget(event.target)) return;
-			const modifier = event.metaKey || event.ctrlKey;
-			const key = event.key.toLowerCase();
-			const sceneOwnsShortcuts = editorOwnsSceneShortcuts();
-			const cameraOwnsShortcuts = editorOwnsCameraShortcuts();
-
-			if (modifier && key === 'z') {
-				event.preventDefault();
-				if (event.shiftKey) store.redo();
-				else store.undo();
-			} else if (modifier && event.ctrlKey && key === 'y') {
-				event.preventDefault();
-				store.redo();
-			} else if (
-				modifier &&
-				!event.shiftKey &&
-				!event.altKey &&
-				key === 'd' &&
-				sceneOwnsShortcuts &&
-				store.selectedPlacementIds.length > 0
-			) {
-				if (store.duplicateSelection()) {
-					event.preventDefault();
-					event.stopPropagation();
-				}
-			} else if (modifier && key === 'g' && sceneOwnsShortcuts) {
-				event.preventDefault();
-				event.stopPropagation();
-				if (event.shiftKey) ungroupSelection();
-				else void groupSelection();
-			} else if (modifier && key === 'a' && sceneOwnsShortcuts) {
-				event.preventDefault();
-				event.stopPropagation();
-				store.selectionActions.selectAllInRoom();
-			} else if (
-				!modifier &&
-				!event.altKey &&
-				(event.key === 'Delete' || event.key === 'Backspace') &&
-				cameraOwnsShortcuts
-			) {
-				const selection = store.navigationSelection;
-				const deleted =
-					selection?.kind === 'node' && !store.isPendingNavigationNode(selection.nodeId)
-						? store.deleteNavigationNode(selection.nodeId)
-						: selection?.kind === 'connection'
-							? store.deleteConnection(selection.connectionId)
-							: false;
-				if (deleted) {
-					event.preventDefault();
-					event.stopPropagation();
-				}
-			} else if (
-				!modifier &&
-				!event.altKey &&
-				(event.key === 'Delete' || event.key === 'Backspace') &&
-				sceneOwnsShortcuts &&
-				store.selectedPlacementIds.length > 0
-			) {
-				if (store.deleteSelection()) {
-					event.preventDefault();
-					event.stopPropagation();
-				}
-			} else if (!modifier && !event.altKey && event.key === 'End' && sceneOwnsShortcuts) {
-				event.preventDefault();
-				store.requestDropToFloor();
-			} else if (!modifier && !event.altKey && key === 'f' && sceneOwnsShortcuts) {
-				event.preventDefault();
-				store.focusSelection();
-			} else if (!modifier && !event.altKey && event.key === 'Escape') {
-				if (store.transformInteractionActive) return;
-				if (store.cancelPendingNavigation('Camera command cancelled')) {
-					event.preventDefault();
-					return;
-				}
-				if (store.cancelAssetPlacement('Placement cancelled')) {
-					event.preventDefault();
-					return;
-				}
-				if (store.finishAnchorEditing()) {
-					event.preventDefault();
-					return;
-				}
-				if (store.finishViewKeyframeEditing()) {
-					event.preventDefault();
-					return;
-				}
-				if (sceneOwnsShortcuts) store.selectionActions.deselect();
-			}
-		};
-
-		window.addEventListener('keydown', onKeyDown);
-		return () => window.removeEventListener('keydown', onKeyDown);
-	});
+	onMount(() =>
+		registerEditorShortcuts(store, {
+			getViewportElement: () => viewportElement,
+			getOutlinerElement: () => outlinerElement,
+			getClusterNameInput: () => clusterNameInput
+		})
+	);
 
 	$effect(() => {
 		if (!store.isDirty) return;

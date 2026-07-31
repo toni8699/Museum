@@ -1,5 +1,31 @@
 import { describe, expect, it } from 'vitest';
+import { createEditorShortcutHandler } from './hooks/shortcuts.svelte';
 import { createMuseumEditorStore } from './museum-editor.svelte';
+
+function makeKeyEvent(key: string): KeyboardEvent {
+	let defaultPrevented = false;
+	return {
+		key,
+		metaKey: false,
+		ctrlKey: false,
+		altKey: false,
+		shiftKey: false,
+		target: null,
+		get defaultPrevented() {
+			return defaultPrevented;
+		},
+		preventDefault() {
+			defaultPrevented = true;
+		},
+		stopPropagation() {}
+	} as KeyboardEvent;
+}
+
+const nullShortcutHost = {
+	getViewportElement: () => null,
+	getOutlinerElement: () => null,
+	getClusterNameInput: () => null
+};
 
 describe('MuseumEditorStore Phase 1 shell session state', () => {
 	it('defaults workspace, panel, and timeline to the documented initial values', () => {
@@ -276,5 +302,31 @@ describe('MuseumEditorStore Phase 1 shell session state', () => {
 		expect(after).not.toContain('treeExpandedClusterIds');
 		expect(store.isDirty).toBe(false);
 		expect(store.canUndo).toBe(false);
+	});
+});
+
+describe('registerEditorShortcuts Escape cascade', () => {
+	it('stops an active camera preview on Escape before later cancel paths', () => {
+		const store = createMuseumEditorStore();
+		store.selectionActions.selectNavigationNode('paris-seat');
+		expect(store.previewSelectedNode('director')).toBe(true);
+		expect(store.cameraPreview).not.toBeNull();
+
+		const handler = createEditorShortcutHandler(store, nullShortcutHost);
+		handler(makeKeyEvent('Escape'));
+
+		expect(store.cameraPreview).toBeNull();
+	});
+
+	it('cancels pending navigation on Escape when no preview is active', () => {
+		const store = createMuseumEditorStore();
+		expect(store.beginCameraPlacement()).toBe(true);
+		expect(store.pendingNavigationCommand).not.toBeNull();
+
+		const handler = createEditorShortcutHandler(store, nullShortcutHost);
+		handler(makeKeyEvent('Escape'));
+
+		expect(store.pendingNavigationCommand).toBeNull();
+		expect(store.statusMessage).toBe('Camera command cancelled');
 	});
 });

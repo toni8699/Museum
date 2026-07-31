@@ -512,15 +512,15 @@ Three final polish steps from audit §4.C / 4.D / 4.G / 4.H:
 
 ## Sub-tasks
 
-- [ ] **8.1 Create `apps/museum/src/lib/editor/hooks/use-camera-preview.svelte.ts`.** Exports `useDirectorPreview`, `useVisitorPreview`. Hooks read from `store.preview` (now on `EditorCameraPreviewController`).
-- [ ] **8.2 Create `apps/museum/src/lib/editor/hooks/use-camera-timeline.svelte.ts`.** Exports `useCameraTimeline`. Reads `store.preview` + a derived selection of `cameraTimelinePlayhead`.
-- [ ] **8.3 Create `apps/museum/src/lib/editor/hooks/shortcuts.svelte.ts`.** Exports `registerEditorShortcuts(store)` that registers the keydown cascade in audit §7 #4. Returns an unregister function. Spec in `muse-editor-shell.test.ts` (extend).
-- [ ] **8.4 Refactor `EditorCameraRig.svelte`** to use the hooks. The component shrinks to ~300 LOC.
-- [ ] **8.5 Refactor `EditorCameraTimelinePanel.svelte`** to use the hooks. Splits into `EditorCameraTimelineRuler.svelte` + `EditorCameraTimelineDots.svelte` per audit §4.D.
-- [ ] **8.6 Extract `EditorProjectMenu.svelte`** from `EditorAppBar.svelte`. ~110 LOC.
-- [ ] **8.7 Refactor `MuseumEditorApp.svelte`** to call `registerEditorShortcuts(store)`. The inline handler goes away.
-- [ ] **8.8 Run smoke + all tests + typecheck.**
-- [ ] **8.9 Hand-off.** Write `docs/agent-handoffs/2026-07-28-<status>-refactor-slice-8-polish.md`. **Final hand-off**, so it should also include a closing summary of post-refactor LOC and known residual smells.
+- [x] **8.1 Create `apps/museum/src/lib/editor/hooks/use-camera-preview.svelte.ts`.** Exports `useDirectorPreview`, `useVisitorPreview`. Reads facade `cameraPreview*` (composition root still owns getters).
+- [x] **8.2 Create `apps/museum/src/lib/editor/hooks/use-camera-timeline.svelte.ts`.** Exports `useCameraTimeline`. Reads `cameraPreview` + `cameraTimelinePlayhead`.
+- [x] **8.3 Create `apps/museum/src/lib/editor/hooks/shortcuts.svelte.ts`.** Exports `registerEditorShortcuts(store, host)` + `createEditorShortcutHandler`. Spec extended in `museum-editor-shell.test.ts`.
+- [x] **8.4 Refactor `EditorCameraRig.svelte`** to use the hooks. ~511 LOC (Three.js runtime stays; sampling/follow/recenter via hooks).
+- [x] **8.5 Refactor `EditorCameraTimelinePanel.svelte`** → composer + `EditorCameraTimelineRuler` + `EditorCameraTimelineDots`.
+- [x] **8.6 Extract `EditorProjectMenu.svelte`** from `EditorAppBar.svelte`.
+- [x] **8.7 Refactor `MuseumEditorApp.svelte`** to call `registerEditorShortcuts(store, host)`.
+- [x] **8.8 Run smoke + all tests + typecheck.** Browser smoke still removed (Slice 6).
+- [x] **8.9 Hand-off.** `docs/agent-handoffs/2026-07-31-complete-refactor-slice-8-polish.md`.
 
 ## Verification
 

@@ -7,8 +7,6 @@
 		CAMERA_FOV_UPDATE_EPSILON,
 		VISITOR_CAMERA_PROJECTION,
 		createCameraMotion,
-		createCameraMotionSample,
-		sampleCameraMotion,
 		type CameraMotion
 	} from '$lib/museum/navigation/camera-motion';
 	import { T, useTask, useThrelte } from '@threlte/core';
@@ -36,17 +34,18 @@
 		EDITOR_NEUTRAL_CAMERA_TARGET,
 		EDITOR_NEUTRAL_MAX_DISTANCE,
 		EDITOR_NEUTRAL_MIN_DISTANCE,
-		followEditorDirectorObserver,
 		prepareEditorCameraPreview,
-		recenterEditorDirectorObserver,
 		restoreEditorOrbitPose,
 		type EditorOrbitPose
 	} from './editor-camera';
-	import { sampleEditorCameraTimeline } from './editor-camera-timeline';
 	import {
 		getSceneCameraViewKeyframeWorldPosition,
 		getSceneCameraViewKeyframeWorldTarget
 	} from './editor-camera-view';
+	import {
+		useDirectorPreview,
+		useVisitorPreview
+	} from './hooks/use-camera-preview.svelte';
 	import type {
 		EditorCameraPreview,
 		EditorCameraPreviewMode,
@@ -60,6 +59,15 @@
 		store: MuseumEditorStore;
 		graph: NavigationGraph;
 	} = $props();
+
+	// Store instance is stable for the editor session; hooks close over field getters.
+	// svelte-ignore state_referenced_locally
+	const director = useDirectorPreview(store);
+	// svelte-ignore state_referenced_locally
+	const visitor = useVisitorPreview(store, director);
+	const previewSample = director.sample;
+	const previewPosition = director.position;
+	const previewTarget = director.target;
 
 	const { scene, invalidate } = useThrelte();
 	const editorMouseButtons = {
@@ -83,38 +91,11 @@
 	let virtualCameraBody: Mesh | null = null;
 	let handledRecenterVersion = -1;
 	let hasLastVirtualPosition = false;
-	const previewSample = createCameraMotionSample();
-	const previewPosition = previewSample.position;
-	const previewTarget = previewSample.target;
 	const lastVirtualPosition = new Vector3();
 	const followDelta = new Vector3();
 	const framedNodePosition = new Vector3();
 	const framedNodeTarget = new Vector3();
 	type ActiveCameraPreview = Exclude<EditorCameraPreview, null>;
-
-	function previewDurationSeconds(
-		preview: ActiveCameraPreview,
-		motion: CameraMotion | null
-	) {
-		return preview.kind === 'tour'
-			? (store.getCameraTimeline()?.durationSeconds ?? 0)
-			: (motion?.durationSeconds ?? 0);
-	}
-
-	function samplePreviewMotion(
-		preview: ActiveCameraPreview,
-		playhead: number
-	) {
-		if (preview.kind === 'tour') {
-			const timeline = store.getCameraTimeline();
-			if (!timeline) return false;
-			sampleEditorCameraTimeline(timeline, playhead, previewSample);
-			return true;
-		}
-		if (!activeMotion) return false;
-		sampleCameraMotion(activeMotion, playhead, previewSample);
-		return true;
-	}
 
 	function applyPausedFramingOverride(preview: ActiveCameraPreview) {
 		if (preview.transport !== 'paused') return;
@@ -179,21 +160,20 @@
 	}
 
 	function syncDirectorObserver(currentCamera: PerspectiveCamera, controls: ThreeOrbitControls) {
-		if (handledRecenterVersion !== store.cameraPreviewRecenterVersion) {
-			recenterEditorDirectorObserver(currentCamera, controls, previewPosition);
-			handledRecenterVersion = store.cameraPreviewRecenterVersion;
+		if (handledRecenterVersion !== director.recenterVersion) {
+			director.recenter(currentCamera, controls);
+			handledRecenterVersion = director.recenterVersion;
 			hasLastVirtualPosition = true;
 			lastVirtualPosition.copy(previewPosition);
 			invalidate();
 			return;
 		}
-		if (store.cameraPreviewFollowEnabled && hasLastVirtualPosition) {
+		if (director.followEnabled && hasLastVirtualPosition) {
 			if (
-				followEditorDirectorObserver(
+				director.follow(
 					currentCamera,
 					controls,
 					lastVirtualPosition,
-					previewPosition,
 					followDelta
 				)
 			) {
@@ -292,8 +272,8 @@
 	});
 
 	$effect(() => {
-		const preview = store.cameraPreview;
-		const reducedMotion = store.state.reducedMotion;
+		const preview = director.preview;
+		const reducedMotion = visitor.reducedMotion;
 		const currentCamera = camera;
 		const currentVirtualCamera = virtualCamera;
 		const controls = orbitControls;
@@ -321,7 +301,7 @@
 					restoreEditorOrbitPose(currentCamera, controls, observerPose);
 					orbitDampingTaskEnabled = observerPose.enableDamping;
 					handledRecenterVersion = directorOrbitPose
-						? store.cameraPreviewRecenterVersion
+						? director.recenterVersion
 						: -1;
 				} else {
 					handledRecenterVersion = -1;
@@ -342,14 +322,14 @@
 				activeMotion = null;
 			} else if (preview.kind === 'tour') {
 				activeMotion = null;
-				if (!samplePreviewMotion(preview, preview.playhead)) {
+				if (!director.sampleMotion(preview, preview.playhead, activeMotion)) {
 					throw new Error('The guided camera timeline is unavailable');
 				}
 			} else {
 				const route = store.getCapturedCameraPreviewRoute(preview.runId);
 				if (!route) throw new Error('Camera preview route capture is unavailable');
 				activeMotion = createCameraMotion(route);
-				samplePreviewMotion(preview, preview.playhead);
+				director.sampleMotion(preview, preview.playhead, activeMotion);
 			}
 			applyPausedFramingOverride(preview);
 			applyVirtualPose();
@@ -357,9 +337,9 @@
 			else syncDirectorObserver(currentCamera, controls);
 
 			if (preview.kind !== 'node' && preview.transport === 'playing') {
-				const durationSeconds = previewDurationSeconds(preview, activeMotion);
+				const durationSeconds = director.durationSeconds(preview, activeMotion);
 				if (durationSeconds === 0 || reducedMotion) {
-					if (!samplePreviewMotion(preview, 1)) {
+					if (!director.sampleMotion(preview, 1, activeMotion)) {
 						throw new Error('Camera preview motion is unavailable');
 					}
 					applyVirtualPose();
@@ -386,10 +366,10 @@
 		const cameraFocusVersion = store.cameraFocusVersion;
 		void store.registryVersion;
 		void store.pendingFrameVersion;
-		void store.cameraPreview;
+		void director.preview;
 		const currentCamera = camera;
 		const controls = orbitControls;
-		if (!currentCamera || !controls || store.cameraPreview) return;
+		if (!currentCamera || !controls || director.preview) return;
 
 		let frame = null;
 		const pendingFrameIds = [...store.pendingFramePlacementIds];
@@ -455,13 +435,13 @@
 		const controls = orbitControls;
 		if (!currentCamera || !controls) return;
 
-		const preview = store.cameraPreview;
+		const preview = director.preview;
 		if (preview && activePreviewRunId === preview.runId) {
 			let reachedEnd = false;
 			if (preview.kind !== 'node') {
 				let progress = preview.playhead;
 				if (preview.transport === 'playing' && preview.startedAtMs !== null) {
-					const durationSeconds = previewDurationSeconds(preview, activeMotion);
+					const durationSeconds = director.durationSeconds(preview, activeMotion);
 					progress = durationSeconds === 0
 						? 1
 						: (performance.now() - preview.startedAtMs) /
@@ -472,7 +452,7 @@
 					}
 					store.setCameraPreviewPlayhead(progress, preview.runId);
 				}
-				samplePreviewMotion(preview, progress);
+				director.sampleMotion(preview, progress, activeMotion);
 			}
 			applyPausedFramingOverride(preview);
 			const showLegacyHelper = showLegacyDirectorHelper(preview);
@@ -498,7 +478,7 @@
 
 	onDestroy(() => {
 		const restored = restoreOrbitIfNeeded();
-		if (restored && store.cameraPreview) store.stopCameraPreview();
+		if (restored && director.preview) store.stopCameraPreview();
 		store.setCameraPreviewRestorer(null);
 		disposeVirtualCameraHelper();
 	});

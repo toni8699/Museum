@@ -1,5 +1,4 @@
 <script lang="ts">
-	import ConnectionListPanel from './ConnectionListPanel.svelte';
 	import GuidedTourPanel from './GuidedTourPanel.svelte';
 	import type { MuseumEditorStore } from './museum-editor.svelte';
 
@@ -8,7 +7,6 @@
 
 <section class="camera-tree" aria-label="Camera tree">
 	<GuidedTourPanel {store} />
-	<ConnectionListPanel {store} />
 	{#if store.document.navigationNodes.length === 0 && store.document.connections.length === 0}
 		<p class="empty"><strong>No cameras</strong></p>
 	{/if}

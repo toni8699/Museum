@@ -68,6 +68,9 @@ import {
 import {
 	allocateCameraViewKeyframeId,
 	createSceneCameraViewKeyframeAtWorldTarget,
+	mirrorCameraViewTrack,
+	seedEmptyReverseViewTrack,
+	syncReverseViewTrackFromForward,
 	EDITOR_CAMERA_VIEW_MOVE_EPSILON,
 	EDITOR_CAMERA_VIEW_PROGRESS_EPSILON,
 	findSceneCameraViewKeyframe,
@@ -1504,21 +1507,113 @@ export class MuseumEditorStore {
 		const timeline = this.#readCameraTimeline();
 		if (!timeline) return false;
 		const location = getEditorCameraTimelineLocation(timeline, progress);
+		const direction = this.#timelineTravelDirection(
+			location.edge.connectionId,
+			location.edge.direction
+		);
+		const edgePlayhead =
+			cameraTimelineEdgePlayheadAtProgress(
+				timeline,
+				location.edge.connectionId,
+				direction,
+				location.progress
+			) ?? location.playhead;
 		const movedTimeline =
 			Math.abs(this.cameraTimelinePlayhead - location.progress) > 1e-6;
 		const selected = this.selectionActions.selectCameraConnectionDirection(
 			location.edge.connectionId,
-			location.edge.direction,
+			direction,
 			{ preservePreviewObserver: true }
 		);
 		const shown = this.#showCameraTimelineConnectionPose(
 			location.edge.connectionId,
-			location.edge.direction,
-			location.playhead,
+			direction,
+			edgePlayhead,
 			{ preservePreviewObserver: true }
 		);
 		this.cameraTimelinePlayhead = location.progress;
 		return movedTimeline || selected || shown;
+	}
+
+	/**
+	 * While Reverse is toggled on the active connection, keep scrubbing that edge
+	 * in reverse; leaving the edge falls back to the guided travel direction.
+	 */
+	#timelineTravelDirection(
+		connectionId: string,
+		guidedDirection: CameraConnectionDirection
+	): CameraConnectionDirection {
+		if (
+			this.activeCameraDirection === 'reverse' &&
+			this.activeCameraConnectionId === connectionId
+		) {
+			return 'reverse';
+		}
+		return guidedDirection;
+	}
+
+	/** Toggle reverse travel on the active connection (scrub/play/keys follow). */
+	toggleCameraEdgeReverse() {
+		const connectionId = this.activeCameraConnectionId;
+		if (!connectionId || this.isEditorInteractionActive || this.isDocumentTransactionActive) {
+			return false;
+		}
+		const next: CameraConnectionDirection =
+			this.activeCameraDirection === 'reverse' ? 'forward' : 'reverse';
+		return this.setCameraEdgeTravel(next);
+	}
+
+	/**
+	 * Set forward/reverse travel for the active connection, preserving the
+	 * current timeline playhead (remapped onto the chosen direction).
+	 */
+	setCameraEdgeTravel(direction: CameraConnectionDirection) {
+		const connectionId = this.activeCameraConnectionId;
+		if (!connectionId || this.isEditorInteractionActive || this.isDocumentTransactionActive) {
+			return false;
+		}
+		const connection = this.document.connections.find(
+			(candidate) => candidate.id === connectionId
+		);
+		if (!connection) return false;
+
+		if (direction === 'reverse') {
+			const needsSeed =
+				(connection.viewTracks?.forward.length ?? 0) > 0 &&
+				(connection.viewTracks?.reverse.length ?? 0) === 0;
+			if (needsSeed) {
+				if (this.isDocumentMutationBlocked || !this.beginDocumentTransaction()) {
+					return false;
+				}
+				seedEmptyReverseViewTrack(connection);
+				if (!this.commitDocumentTransaction()) return false;
+			}
+		}
+
+		const timeline = this.#readCameraTimeline();
+		const edgePlayhead =
+			timeline
+				? (cameraTimelineEdgePlayheadAtProgress(
+						timeline,
+						connectionId,
+						direction,
+						this.cameraTimelinePlayhead
+					) ?? 0)
+				: 0;
+
+		if (
+			this.selection.discoveryConnectionId === connectionId &&
+			this.selection.discoveryDirection === direction &&
+			this.selection.navigation.kind === 'connection'
+		) {
+			return this.#showCameraTimelineConnectionPose(connectionId, direction, edgePlayhead);
+		}
+
+		this.cancelAssetPlacement();
+		this.cancelPendingFrame();
+		this.selection.setNavigation({ kind: 'connection', connectionId, direction });
+		this.selectionActions.expandActiveCameraDirection(direction);
+		return this.#showCameraTimelineConnectionPose(connectionId, direction, edgePlayhead);
 	}
 
 	/** Select a guided edge and seek to the pointer's nearest global ruler point. */
@@ -2005,6 +2100,9 @@ export class MuseumEditorStore {
 		connection.viewTracks[preview.direction].sort(
 			(left, right) => left.progress - right.progress
 		);
+		if (preview.direction === 'forward') {
+			syncReverseViewTrackFromForward(connection);
+		}
 		this.navigationSelection = {
 			kind: 'view-keyframe',
 			connectionId: connection.id,
@@ -2042,6 +2140,7 @@ export class MuseumEditorStore {
 		}
 		if (!this.beginCameraFramingTransaction()) return false;
 		keyframe.cameraTarget = [...target];
+		this.#seedEmptyReverseForSelectedForwardTrack();
 		return this.commitDocumentTransaction();
 	}
 
@@ -2059,6 +2158,7 @@ export class MuseumEditorStore {
 		if (!keyframe || Math.abs(keyframe.fov - fov) <= 1e-6) return false;
 		if (!this.beginCameraFramingTransaction()) return false;
 		keyframe.fov = fov;
+		this.#seedEmptyReverseForSelectedForwardTrack();
 		return this.commitDocumentTransaction();
 	}
 
@@ -2115,6 +2215,9 @@ export class MuseumEditorStore {
 		if (!this.beginDocumentTransaction()) return false;
 		keyframe.progress = progress;
 		track.sort((left, right) => left.progress - right.progress);
+		if (selection.direction === 'forward') {
+			syncReverseViewTrackFromForward(connection);
+		}
 		return this.commitDocumentTransaction();
 	}
 
@@ -2312,6 +2415,12 @@ export class MuseumEditorStore {
 
 		this.viewKeyframeProgressDrag = null;
 		this.#viewKeyframeProgressDragInitialProgress = null;
+		if (selection.direction === 'forward') {
+			const connection = this.document.connections.find(
+				(candidate) => candidate.id === selection.connectionId
+			);
+			if (connection) syncReverseViewTrackFromForward(connection);
+		}
 		const committed = this.commitDocumentTransaction();
 		if (!committed) {
 			this.selectCameraTimelineViewKeyframe(
@@ -2356,6 +2465,13 @@ export class MuseumEditorStore {
 		);
 		if (index < 0 || !this.beginDocumentTransaction()) return false;
 		track.splice(index, 1);
+		// Seeded reverse is derived from forward; drop it when forward is emptied.
+		if (
+			selection.direction === 'forward' &&
+			connection.viewTracks.forward.length === 0
+		) {
+			connection.viewTracks.reverse = [];
+		}
 		if (
 			connection.viewTracks.forward.length === 0 &&
 			connection.viewTracks.reverse.length === 0
@@ -2387,21 +2503,12 @@ export class MuseumEditorStore {
 				...(connection.viewTracks?.reverse ?? [])
 			].map((keyframe) => keyframe.id)
 		);
-		const copied = [...sourceTrack].reverse().map((keyframe) => {
-			const id = allocateCameraViewKeyframeId(
-				connection.id,
-				destination,
-				occupied
-			);
-			occupied.add(id);
-			return {
-				id,
-				progress: 1 - keyframe.progress,
-				cameraTarget: [...keyframe.cameraTarget] as Vec3,
-				...(keyframe.roomId === undefined ? {} : { roomId: keyframe.roomId }),
-				fov: keyframe.fov
-			};
-		});
+		const copied = mirrorCameraViewTrack(
+			connection.id,
+			sourceTrack,
+			destination,
+			occupied
+		);
 		if (!this.beginDocumentTransaction()) return false;
 		connection.viewTracks ??= { forward: [], reverse: [] };
 		connection.viewTracks[destination] = copied;
@@ -2412,6 +2519,128 @@ export class MuseumEditorStore {
 			delete connection.viewTracks;
 		}
 		return this.commitDocumentTransaction();
+	}
+
+	/**
+	 * Play the active connection edge in the current travel direction (forward or
+	 * reverse). Seeds empty reverse from forward when needed. Used by ▶ while
+	 * Reverse is toggled; guided-tour play remains previewGuidedTour.
+	 */
+	playActiveConnectionEdge(mode?: EditorCameraPreviewMode) {
+		const connectionId = this.activeCameraConnectionId;
+		const direction = this.activeCameraDirection;
+		if (!connectionId || this.isEditorInteractionActive || this.isDocumentTransactionActive) {
+			return false;
+		}
+		const connection = this.document.connections.find(
+			(candidate) => candidate.id === connectionId
+		);
+		if (!connection) return false;
+
+		if (direction === 'reverse') {
+			const needsSeed =
+				(connection.viewTracks?.forward.length ?? 0) > 0 &&
+				(connection.viewTracks?.reverse.length ?? 0) === 0;
+			if (needsSeed) {
+				if (this.isDocumentMutationBlocked || !this.beginDocumentTransaction()) {
+					return false;
+				}
+				seedEmptyReverseViewTrack(connection);
+				if (!this.commitDocumentTransaction()) return false;
+			}
+		}
+
+		const preview = this.cameraPreview;
+		const resolvedMode =
+			mode ??
+			(preview?.mode === 'director' || preview?.mode === 'visitor'
+				? preview.mode
+				: 'director');
+		if (
+			preview?.kind === 'connection' &&
+			preview.connectionId === connectionId &&
+			preview.direction === direction &&
+			preview.transport === 'paused'
+		) {
+			if (preview.mode !== resolvedMode) {
+				this.setCameraPreviewMode(resolvedMode);
+			}
+			return this.playCameraPreview();
+		}
+
+		let route: ResolvedCameraRoute;
+		try {
+			route = getCameraConnectionRoute(connection.id, direction, this.state.graph);
+		} catch (error) {
+			this.setStatusMessage(
+				error instanceof Error ? error.message : 'Camera connection is unavailable'
+			);
+			return false;
+		}
+		if (!this.#prepareCameraPreview()) return false;
+
+		this.selection.setNavigation({
+			kind: 'connection',
+			connectionId: connection.id,
+			direction
+		});
+		this.selectionActions.expandActiveCameraDirection(direction);
+
+		const fromNodeId =
+			direction === 'forward' ? connection.fromNodeId : connection.toNodeId;
+		const toNodeId =
+			direction === 'forward' ? connection.toNodeId : connection.fromNodeId;
+		const timeline = this.#readCameraTimeline();
+		const playhead =
+			timeline
+				? (cameraTimelineEdgePlayheadAtProgress(
+						timeline,
+						connectionId,
+						direction,
+						this.cameraTimelinePlayhead
+					) ?? 0)
+				: 0;
+		const runId = this.previewController.allocRunId();
+		this.previewController.setCapturedRoute(runId, route);
+		this.previewController.followEnabled = true;
+		this.previewController.recenterVersion += 1;
+		this.previewController.preview = {
+			kind: 'connection',
+			connectionId: connection.id,
+			direction,
+			fromNodeId,
+			toNodeId,
+			mode: resolvedMode,
+			transport: 'playing',
+			runId,
+			playhead,
+			startedAtMs: null
+		};
+		this.#syncCameraTimelineForConnection(connection.id, direction, playhead);
+		this.timelineExpanded = true;
+		return true;
+	}
+
+	/**
+	 * @deprecated Prefer toggleCameraEdgeReverse + playActiveConnectionEdge.
+	 * Kept for tests: seeds empty reverse and plays reverse edge from the start.
+	 */
+	previewActiveConnectionReverse(mode: EditorCameraPreviewMode = 'director') {
+		if (!this.setCameraEdgeTravel('reverse')) return false;
+		const connectionId = this.activeCameraConnectionId;
+		if (!connectionId) return false;
+		this.#showCameraTimelineConnectionPose(connectionId, 'reverse', 0);
+		this.#syncCameraTimelineForConnection(connectionId, 'reverse', 0);
+		return this.playActiveConnectionEdge(mode);
+	}
+
+	#seedEmptyReverseForSelectedForwardTrack() {
+		const selection = this.navigationSelection;
+		const connection = this.selectedConnection;
+		if (selection?.kind !== 'view-keyframe' || selection.direction !== 'forward' || !connection) {
+			return false;
+		}
+		return syncReverseViewTrackFromForward(connection);
 	}
 
 	/** Phase 3.1 — primary Play promotes the current global ruler into one guided cycle. */
@@ -2614,7 +2843,13 @@ export class MuseumEditorStore {
 		this.previewController.preview = {
 			...preview,
 			mode,
-			transport: mode === 'director' ? 'paused' : preview.transport,
+			// Keep playing reverse/tour edges when switching Observer ↔ Through Camera.
+			transport:
+				preview.transport === 'playing'
+					? 'playing'
+					: mode === 'director'
+						? 'paused'
+						: preview.transport,
 			runId,
 			startedAtMs: null
 		};
@@ -4073,6 +4308,9 @@ export class MuseumEditorStore {
 			return false;
 		}
 		if (!this.historyController.isDocumentUndoBlocked) return false;
+		if (this.historyController.isFramingTransactionActive) {
+			this.#seedEmptyReverseForSelectedForwardTrack();
+		}
 		const result = this.historyController.commit(this.document);
 		if (result.error) {
 			this.setStatusMessage(result.error.message);

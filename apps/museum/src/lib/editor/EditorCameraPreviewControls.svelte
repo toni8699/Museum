@@ -24,7 +24,13 @@
 		<p role="status">
 			{preview.kind === 'node'
 				? 'Holding authored node pose'
-				: `${preview.kind === 'tour' ? 'Guided tour · ' : ''}${preview.transport} · ${(preview.playhead * 100).toFixed(1)}%`}
+				: preview.kind === 'tour'
+					? `Guided tour · ${preview.transport} · ${(preview.playhead * 100).toFixed(1)}%`
+					: preview.kind === 'connection' && preview.direction === 'reverse'
+						? `Reverse edge · ${preview.transport} · ${(preview.playhead * 100).toFixed(1)}%`
+						: preview.kind === 'connection'
+							? `Forward edge · ${preview.transport} · ${(preview.playhead * 100).toFixed(1)}%`
+							: `${preview.transport} · ${(preview.playhead * 100).toFixed(1)}%`}
 		</p>
 		<div class="transport">
 			{#if preview.transport === 'playing'}

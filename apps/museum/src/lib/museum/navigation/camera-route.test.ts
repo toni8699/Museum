@@ -876,6 +876,21 @@ describe('getCameraConnectionRoute', () => {
     ).toEqual([]);
   });
 
+  it('uses travel-facing reverse look-ahead when reverse has no authored keys', () => {
+    const graph = createNavigationGraph({
+      objects: [],
+      navigationNodes: nodes.slice(0, 2),
+      connections: [connections[0]]
+    });
+    const reverse = getCameraConnectionRoute('a-b', 'reverse', graph);
+    const targets = reverse.edges[0]!.automaticTargetPoints!;
+    const start = targets[0] as Vec3;
+    const bLook = nodes[1]!.cameraTarget;
+    // Start look faces travel (toward A), not B's authored room look-at.
+    expect(start).not.toEqual(bLook);
+    expect(start[2]).toBeLessThan(bLook[2]);
+  });
+
   it('rejects unknown connection ids', () => {
     expect(() =>
       getCameraConnectionRoute('missing', 'forward', customGraph)

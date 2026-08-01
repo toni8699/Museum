@@ -17,11 +17,6 @@
 	const connection = $derived(store.selectedConnection);
 	const anchor = $derived(store.selectedAnchor);
 	const viewKeyframe = $derived(store.selectedViewKeyframe);
-	const nextNode = $derived(
-		node?.nextNodeId
-			? store.document.navigationNodes.find((candidate) => candidate.id === node.nextNodeId)
-			: undefined
-	);
 	const fromNode = $derived(
 		connection
 			? store.document.navigationNodes.find(
@@ -177,17 +172,6 @@
 			</div>
 		{/if}
 
-		{#if !pendingNode && !store.cameraPreview}
-			<div class="preview" aria-label="Camera preview controls">
-				<div>
-					<button type="button" disabled={store.isEditorInteractionActive} onclick={() => store.previewSelectedNode('director')}>Director node</button>
-					<button type="button" disabled={store.isEditorInteractionActive} onclick={() => store.previewSelectedNode('visitor')}>Visitor node</button>
-					<button type="button" disabled={store.isEditorInteractionActive} onclick={() => store.previewSelectedTransition('director')}>Director → {nextNode?.label ?? 'Unavailable'}</button>
-					<button type="button" disabled={store.isEditorInteractionActive} onclick={() => store.previewSelectedTransition('visitor')}>Visitor → {nextNode?.label ?? 'Unavailable'}</button>
-				</div>
-			</div>
-		{/if}
-
 		{#if !pendingNode && nodeConnections}
 			<section class="connections" aria-label="Node connections">
 				<div class="section-heading">
@@ -208,18 +192,7 @@
 									{#if row.partnerRoomId !== node.roomId}
 										<span class="room">{row.partnerRoomId}</span>
 									{/if}
-								</div>
-								<div class="connection-actions">
-									<button
-										type="button"
-										title="Open forward direction for {row.connectionId}"
-										onclick={() => store.selectionActions.selectCameraConnectionDirection(row.connectionId, 'forward')}
-									>Forward</button>
-									<button
-										type="button"
-										title="Open reverse direction for {row.connectionId}"
-										onclick={() => store.selectionActions.selectCameraConnectionDirection(row.connectionId, 'reverse')}
-									>Reverse</button>
+									<span class="keys">{row.keyCounts.total}</span>
 								</div>
 							</li>
 						{/each}
@@ -233,27 +206,10 @@
 									{#if row.partnerRoomId !== node.roomId}
 										<span class="room">{row.partnerRoomId}</span>
 									{/if}
-								</div>
-								<div class="connection-actions">
-									<button
-										type="button"
-										title="Open forward direction for {row.connectionId}"
-										onclick={() => store.selectionActions.selectCameraConnectionDirection(row.connectionId, 'forward')}
-									>Forward</button>
-									<button
-										type="button"
-										title="Open reverse direction for {row.connectionId}"
-										onclick={() => store.selectionActions.selectCameraConnectionDirection(row.connectionId, 'reverse')}
-									>Reverse</button>
+									<span class="keys">{row.keyCounts.total}</span>
 								</div>
 							</li>
 						{/each}
-						{#if nodeConnections.outgoing.length === 0}
-							<li class="connection-empty" aria-hidden="false">No outgoing connections</li>
-						{/if}
-						{#if nodeConnections.incoming.length === 0}
-							<li class="connection-empty" aria-hidden="false">No incoming connections</li>
-						{/if}
 					</ul>
 				{/if}
 			</section>
@@ -279,34 +235,12 @@
 			disabled={connection.positionPath.kind === 'auto-bezier' || store.isEditorInteractionActive || store.isDocumentMutationBlocked}
 			onclick={() => store.convertSelectedConnectionToSmooth()}
 		>Convert to Smooth Curve</button>
-		<div class="copy-track" aria-label="Copy directional camera view track">
-			<button
-				type="button"
-				disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive || (connection.viewTracks?.forward.length ?? 0) === 0}
-				onclick={() => store.copySelectedConnectionViewTrack('forward')}
-			>Copy forward → reverse</button>
-			<button
-				type="button"
-				disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive || (connection.viewTracks?.reverse.length ?? 0) === 0}
-				onclick={() => store.copySelectedConnectionViewTrack('reverse')}
-			>Copy reverse → forward</button>
-		</div>
 		<button
 			type="button"
 			class="danger"
 			disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
 			onclick={() => store.deleteConnection(connection.id)}
 		>Delete camera connection</button>
-		{#if !store.cameraPreview}
-			<div class="preview">
-				<div>
-					<button type="button" onclick={() => store.previewSelectedConnection('forward', 'director')}>Director {fromNode?.label ?? 'A'} → {toNode?.label ?? 'B'}</button>
-					<button type="button" onclick={() => store.previewSelectedConnection('reverse', 'director')}>Director {toNode?.label ?? 'B'} → {fromNode?.label ?? 'A'}</button>
-					<button type="button" onclick={() => store.previewSelectedConnection('forward', 'visitor')}>Visitor {fromNode?.label ?? 'A'} → {toNode?.label ?? 'B'}</button>
-					<button type="button" onclick={() => store.previewSelectedConnection('reverse', 'visitor')}>Visitor {toNode?.label ?? 'B'} → {fromNode?.label ?? 'A'}</button>
-				</div>
-			</div>
-		{/if}
 	</section>
 {:else if selection?.kind === 'view-keyframe' && connection && viewKeyframe}
 	<section class="camera-node" aria-label="Camera view breakpoint editor">
@@ -351,16 +285,6 @@
 			disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
 			onclick={finishViewKeyframeEditing}
 		>Done editing view</button>
-		{#if !store.cameraPreview}
-			<div class="preview" aria-label="Parent connection preview controls">
-				<div>
-					<button type="button" onclick={() => store.previewSelectedConnection('forward', 'director')}>Director {fromNode?.label ?? 'A'} → {toNode?.label ?? 'B'}</button>
-					<button type="button" onclick={() => store.previewSelectedConnection('reverse', 'director')}>Director {toNode?.label ?? 'B'} → {fromNode?.label ?? 'A'}</button>
-					<button type="button" onclick={() => store.previewSelectedConnection('forward', 'visitor')}>Visitor {fromNode?.label ?? 'A'} → {toNode?.label ?? 'B'}</button>
-					<button type="button" onclick={() => store.previewSelectedConnection('reverse', 'visitor')}>Visitor {toNode?.label ?? 'B'} → {fromNode?.label ?? 'A'}</button>
-				</div>
-			</div>
-		{/if}
 	</section>
 {:else if selection?.kind === 'anchor' && connection && anchor}
 	<section class="camera-node" aria-label="Camera path anchor editor">
@@ -393,16 +317,6 @@
 			disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
 			onclick={finishAnchorEditing}
 		>Done editing anchor</button>
-		{#if !store.cameraPreview}
-			<div class="preview" aria-label="Parent connection preview controls">
-				<div>
-					<button type="button" onclick={() => store.previewSelectedConnection('forward', 'director')}>Director {fromNode?.label ?? 'A'} → {toNode?.label ?? 'B'}</button>
-					<button type="button" onclick={() => store.previewSelectedConnection('reverse', 'director')}>Director {toNode?.label ?? 'B'} → {fromNode?.label ?? 'A'}</button>
-					<button type="button" onclick={() => store.previewSelectedConnection('forward', 'visitor')}>Visitor {fromNode?.label ?? 'A'} → {toNode?.label ?? 'B'}</button>
-					<button type="button" onclick={() => store.previewSelectedConnection('reverse', 'visitor')}>Visitor {toNode?.label ?? 'B'} → {fromNode?.label ?? 'A'}</button>
-				</div>
-			</div>
-		{/if}
 	</section>
 {/if}
 
@@ -423,13 +337,12 @@
 	.id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
 	.label-field { display: flex; flex-direction: column; gap: 0.3rem; }
 	.label-field input { width: 100%; box-sizing: border-box; padding: 0.42rem; border: 1px solid #3a3a46; border-radius: 0.3rem; background: #101016; color: #f4efe4; }
-	.handles, .preview div, .copy-track { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.35rem; }
+	.handles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.35rem; }
 	.topology { display: grid; grid-template-columns: 1fr; gap: 0.35rem; }
 	button { padding: 0.42rem 0.4rem; border: 1px solid #3a3a46; border-radius: 0.3rem; background: #1a1a22; color: #ddd6ca; font: inherit; font-size: 0.72rem; cursor: pointer; }
 	button.active, button.done { border-color: #d6b35f; background: #2a2618; color: #fff2c7; }
 	button.danger { border-color: #744; color: #f1b1aa; }
 	button:disabled, input:disabled { opacity: 0.42; cursor: default; }
-	.preview { display: flex; flex-direction: column; gap: 0.45rem; padding-top: 0.2rem; }
 	.connections { display: flex; flex-direction: column; gap: 0.45rem; padding-top: 0.4rem; border-top: 1px solid #2a2a33; }
 	.connections h3 { margin: 0; font-size: 0.78rem; letter-spacing: 0.02em; color: #d6c7a8; }
 	.connections-empty { margin: 0; color: #918c84; font-size: 0.7rem; }
@@ -437,12 +350,10 @@
 	.connection-row { display: flex; flex-direction: column; gap: 0.25rem; padding: 0.3rem 0.4rem; border: 1px solid #2f2f38; border-radius: 0.28rem; background: #15151c; }
 	.connection-row.outgoing { border-left: 2px solid #d6b35f; }
 	.connection-row.incoming { border-left: 2px solid #6e8aa6; }
-	.connection-line { display: grid; grid-template-columns: 1rem minmax(0, 1fr) auto; gap: 0.5rem; align-items: center; }
+	.connection-line { display: grid; grid-template-columns: 1rem minmax(0, 1fr) auto auto; gap: 0.5rem; align-items: center; }
 	.badge { color: #d6b35f; font: 0.7rem/1 ui-monospace, SFMono-Regular, Menlo, monospace; text-align: center; }
 	.connection-row.incoming .badge { color: #6e8aa6; }
 	.partner { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.72rem; color: #f4efe4; }
 	.room { color: #918c84; font: 0.6rem/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
-	.connection-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.3rem; }
-	.connection-actions button { padding: 0.28rem 0.32rem; font-size: 0.66rem; }
-	.connection-empty { list-style: none; color: #918c84; font-size: 0.66rem; padding: 0.18rem 0.4rem; }
+	.keys { color: #918c84; font: 0.6rem/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
 </style>

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import NodeConnectionsPanel from './NodeConnectionsPanel.svelte';
 	import { formatCameraNodeLabel } from './editor-outliner';
 	import type { MuseumEditorStore } from './museum-editor.svelte';
 
@@ -22,6 +23,7 @@
 			store.pendingNavigationCommand !== null
 	);
 	let draggedNodeId = $state<string | null>(null);
+	let expandedNodeIds = $state<string[]>([]);
 
 	function isNodeSelected(nodeId: string) {
 		return (
@@ -29,6 +31,52 @@
 			store.navigationSelection.nodeId === nodeId
 		);
 	}
+
+	function isNodeExpanded(nodeId: string) {
+		return expandedNodeIds.includes(nodeId);
+	}
+
+	function toggleNodeConnections(nodeId: string) {
+		if (expandedNodeIds.includes(nodeId)) {
+			expandedNodeIds = expandedNodeIds.filter((id) => id !== nodeId);
+			return;
+		}
+		expandedNodeIds = [...expandedNodeIds, nodeId];
+	}
+
+	function expandNode(nodeId: string) {
+		if (!expandedNodeIds.includes(nodeId)) {
+			expandedNodeIds = [...expandedNodeIds, nodeId];
+		}
+	}
+
+	function selectNode(nodeId: string) {
+		expandNode(nodeId);
+		store.selectionActions.selectNavigationNode(nodeId);
+	}
+
+	$effect(() => {
+		const selection = store.navigationSelection;
+		if (selection?.kind === 'node') {
+			expandNode(selection.nodeId);
+			return;
+		}
+		if (
+			selection?.kind === 'connection' ||
+			selection?.kind === 'anchor' ||
+			selection?.kind === 'view-keyframe'
+		) {
+			const connection = store.document.connections.find(
+				(candidate) => candidate.id === selection.connectionId
+			);
+			if (!connection) return;
+			const focusNodeId =
+				store.activeCameraDirection === 'reverse'
+					? connection.toNodeId
+					: connection.fromNodeId;
+			expandNode(focusNodeId);
+		}
+	});
 
 	function beginNodeDrag(event: DragEvent, nodeId: string) {
 		if (guidedEditingBlocked) {
@@ -86,6 +134,7 @@
 			{#if node}
 				<li
 					role="treeitem"
+					aria-expanded={isNodeExpanded(node.id)}
 					aria-selected={isNodeSelected(node.id)}
 					aria-grabbed={draggedNodeId === node.id}
 					draggable={index > 0 && !guidedEditingBlocked}
@@ -95,9 +144,18 @@
 					<div class="guided-line">
 						<button
 							type="button"
+							class="tree-row__chevron"
+							aria-label={`${isNodeExpanded(node.id) ? 'Collapse' : 'Expand'} connections for ${node.label}`}
+							aria-expanded={isNodeExpanded(node.id)}
+							onclick={() => toggleNodeConnections(node.id)}
+						>
+							<span class="chevron" class:open={isNodeExpanded(node.id)}>›</span>
+						</button>
+						<button
+							type="button"
 							class="tree-row"
 							class:tree-row--selected={isNodeSelected(node.id)}
-							onclick={() => store.selectionActions.selectNavigationNode(node.id)}
+							onclick={() => selectNode(node.id)}
 						>
 							<span class="tree-row__sequence" aria-hidden="true">
 								{String(index + 1).padStart(2, '0')}
@@ -132,6 +190,9 @@
 							>×</button>
 						</div>
 					</div>
+					{#if isNodeExpanded(node.id)}
+						<NodeConnectionsPanel {store} nodeId={node.id} />
+					{/if}
 				</li>
 				{#if draggedNodeId || selectedFreeNodeId}
 					<li
@@ -177,24 +238,39 @@
 			{#if node}
 				<li
 					role="treeitem"
+					aria-expanded={isNodeExpanded(node.id)}
 					aria-selected={isNodeSelected(node.id)}
 					aria-grabbed={draggedNodeId === node.id}
 					draggable={!guidedEditingBlocked}
 					ondragstart={(event) => beginNodeDrag(event, node.id)}
 					ondragend={finishNodeDrag}
 				>
-					<button
-						type="button"
-						class="tree-row"
-						class:tree-row--selected={isNodeSelected(node.id)}
-						onclick={() => store.selectionActions.selectNavigationNode(node.id)}
-					>
-						<span class="tree-row__diamond" aria-hidden="true">◆</span>
-						<span class="tree-row__label" title={formatCameraNodeLabel(node.label, node.id)}>
-							{formatCameraNodeLabel(node.label, node.id)}
-						</span>
-						<span class="tree-row__meta">Drag to guided</span>
-					</button>
+					<div class="free-line">
+						<button
+							type="button"
+							class="tree-row__chevron"
+							aria-label={`${isNodeExpanded(node.id) ? 'Collapse' : 'Expand'} connections for ${node.label}`}
+							aria-expanded={isNodeExpanded(node.id)}
+							onclick={() => toggleNodeConnections(node.id)}
+						>
+							<span class="chevron" class:open={isNodeExpanded(node.id)}>›</span>
+						</button>
+						<button
+							type="button"
+							class="tree-row"
+							class:tree-row--selected={isNodeSelected(node.id)}
+							onclick={() => selectNode(node.id)}
+						>
+							<span class="tree-row__diamond" aria-hidden="true">◆</span>
+							<span class="tree-row__label" title={formatCameraNodeLabel(node.label, node.id)}>
+								{formatCameraNodeLabel(node.label, node.id)}
+							</span>
+							<span class="tree-row__meta">Drag to guided</span>
+						</button>
+					</div>
+					{#if isNodeExpanded(node.id)}
+						<NodeConnectionsPanel {store} nodeId={node.id} />
+					{/if}
 				</li>
 			{/if}
 		{/each}
@@ -236,8 +312,14 @@
 	.guided-line {
 		display: grid;
 		min-width: 0;
-		grid-template-columns: minmax(0, 1fr) auto;
-		gap: 0.16rem;
+		grid-template-columns: 1.7rem minmax(0, 1fr) auto;
+		gap: 0.1rem;
+	}
+	.free-line {
+		display: grid;
+		min-width: 0;
+		grid-template-columns: 1.7rem minmax(0, 1fr);
+		gap: 0.1rem;
 	}
 	.guided-actions {
 		display: flex;
@@ -347,6 +429,32 @@
 	}
 	.tree-row--selected .tree-row__meta {
 		color: #e8d5a3;
+	}
+	.tree-row__chevron {
+		display: grid;
+		width: 1.7rem;
+		min-height: 2rem;
+		place-items: center;
+		padding: 0;
+		border: 1px solid transparent;
+		border-radius: 0.28rem;
+		background: transparent;
+		color: #d6b35f;
+		cursor: pointer;
+	}
+	.tree-row__chevron:hover {
+		border-color: #3a3a46;
+		background: #202029;
+	}
+	.chevron {
+		display: block;
+		font-size: 1rem;
+		line-height: 1;
+		transform: rotate(0);
+		transition: transform 120ms ease;
+	}
+	.chevron.open {
+		transform: rotate(90deg);
 	}
 	.empty {
 		color: #918c84;

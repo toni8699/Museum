@@ -1811,6 +1811,11 @@ describe('MuseumEditorStore camera view authoring', () => {
 			...keyframe,
 			cameraTarget: [...keyframe.cameraTarget] as [number, number, number]
 		}));
+		// Forward edits keep reverse mirrored to the full forward track.
+		expect(store.selectedConnection?.viewTracks?.reverse).toHaveLength(2);
+		const syncedReverseIds = store.selectedConnection!.viewTracks!.reverse.map(
+			(keyframe) => keyframe.id
+		);
 
 		expect(store.copySelectedConnectionViewTrack('forward')).toBe(true);
 		const reverse = store.selectedConnection!.viewTracks!.reverse;
@@ -1828,13 +1833,130 @@ describe('MuseumEditorStore camera view authoring', () => {
 		expect(
 			new Set([...forward, ...reverse].map((keyframe) => keyframe.id)).size
 		).toBe(4);
+		expect(reverse.map((keyframe) => keyframe.id)).not.toEqual(syncedReverseIds);
 
 		expect(store.undo()).toBe(true);
-		expect(store.selectedConnection?.viewTracks?.reverse).toEqual([]);
+		expect(store.selectedConnection?.viewTracks?.reverse.map((keyframe) => keyframe.id)).toEqual(
+			syncedReverseIds
+		);
 		expect(store.redo()).toBe(true);
 		expect(store.selectedConnection?.viewTracks?.reverse).toHaveLength(2);
 	});
 
+	it('seeds empty reverse from forward when adding a forward view key', () => {
+		const store = createMuseumEditorStore();
+		const connection = store.document.connections[0]!;
+		store.selectionActions.selectConnection(connection.id);
+		store.previewSelectedConnection('forward', 'director');
+		store.setCameraPreviewPlayhead(0.4);
+		expect(store.addViewKeyframeAtPlayhead()).toBe(true);
+		const forward = store.selectedConnection!.viewTracks!.forward;
+		const reverse = store.selectedConnection!.viewTracks!.reverse;
+		expect(forward).toHaveLength(1);
+		expect(reverse).toHaveLength(1);
+		expect(reverse[0]!.progress).toBeCloseTo(1 - forward[0]!.progress, 6);
+		expect(reverse[0]!.cameraTarget).toEqual(forward[0]!.cameraTarget);
+		expect(reverse[0]!.fov).toBe(forward[0]!.fov);
+	});
+
+	it('re-syncs reverse from forward when additional forward keys are added', () => {
+		const store = createMuseumEditorStore();
+		const connection = store.document.connections[0]!;
+		store.selectionActions.selectConnection(connection.id);
+		store.previewSelectedConnection('forward', 'director');
+		store.setCameraPreviewPlayhead(0.35);
+		expect(store.addViewKeyframeAtPlayhead()).toBe(true);
+		store.selectedConnection!.viewTracks!.reverse[0]!.cameraTarget = [9, 9, 9];
+
+		store.setCameraPreviewPlayhead(0.65);
+		expect(store.addViewKeyframeAtPlayhead()).toBe(true);
+		const forward = store.selectedConnection!.viewTracks!.forward;
+		const reverse = store.selectedConnection!.viewTracks!.reverse;
+		expect(forward).toHaveLength(2);
+		expect(reverse).toHaveLength(2);
+		expect(reverse.map((keyframe) => keyframe.cameraTarget)).toEqual(
+			[...forward].reverse().map((keyframe) => keyframe.cameraTarget)
+		);
+	});
+
+	it('previewActiveConnectionReverse seeds empty reverse and plays the reverse edge', () => {
+		const store = createMuseumEditorStore();
+		const connection = store.document.connections[0]!;
+		connection.viewTracks = {
+			forward: [
+				{
+					id: `${connection.id}-view-forward-01`,
+					progress: 0.4,
+					cameraTarget: [1, 2, 3],
+					fov: 48
+				}
+			],
+			reverse: []
+		};
+		store.setWorkspace('camera');
+		store.selectionActions.selectCameraConnectionDirection(connection.id, 'forward');
+		expect(store.previewActiveConnectionReverse('visitor')).toBe(true);
+		expect(store.activeCameraDirection).toBe('reverse');
+		expect(store.selectedConnection?.viewTracks?.reverse).toHaveLength(1);
+		expect(store.cameraPreview).toMatchObject({
+			kind: 'connection',
+			connectionId: connection.id,
+			direction: 'reverse',
+			mode: 'visitor',
+			transport: 'playing',
+			playhead: 0
+		});
+		expect(store.setCameraPreviewMode('director')).toBe(true);
+		expect(store.cameraPreview).toMatchObject({
+			mode: 'director',
+			transport: 'playing'
+		});
+		expect(store.setCameraPreviewMode('visitor')).toBe(true);
+		expect(store.cameraPreview).toMatchObject({
+			mode: 'visitor',
+			transport: 'playing'
+		});
+	});
+
+	it('toggleCameraEdgeReverse keeps scrub on reverse travel until leaving the edge', () => {
+		const store = createMuseumEditorStore();
+		store.setWorkspace('camera');
+		const connection = store.document.connections[0]!;
+		store.selectionActions.selectCameraConnectionDirection(connection.id, 'forward');
+		const timeline = store.getCameraTimeline()!;
+		const edge = timeline.edges.find((candidate) => candidate.connectionId === connection.id)!;
+		const mid =
+			(edge.motionStartSeconds + edge.motionEndSeconds) / (2 * timeline.durationSeconds);
+
+		expect(store.toggleCameraEdgeReverse()).toBe(true);
+		expect(store.activeCameraDirection).toBe('reverse');
+		expect(store.seekCameraTimeline(mid)).toBe(true);
+		expect(store.activeCameraDirection).toBe('reverse');
+		expect(store.cameraPreview).toMatchObject({
+			kind: 'connection',
+			connectionId: connection.id,
+			direction: 'reverse',
+			transport: 'paused'
+		});
+
+		expect(store.playActiveConnectionEdge('director')).toBe(true);
+		expect(store.cameraPreview).toMatchObject({
+			direction: 'reverse',
+			mode: 'director',
+			transport: 'playing'
+		});
+		expect(store.pauseCameraPreview()).toBe(true);
+
+		const otherEdge = timeline.edges.find(
+			(candidate) => candidate.connectionId !== connection.id
+		)!;
+		const otherMid =
+			(otherEdge.motionStartSeconds + otherEdge.motionEndSeconds) /
+			(2 * timeline.durationSeconds);
+		expect(store.seekCameraTimeline(otherMid)).toBe(true);
+		expect(store.activeCameraConnectionId).toBe(otherEdge.connectionId);
+		expect(store.activeCameraDirection).toBe(otherEdge.direction);
+	});
 	it('owns one view-target helper, supports world gizmo drafts, and reconciles deletion', () => {
 		const store = createMuseumEditorStore();
 		const connection = store.document.connections[0]!;
@@ -2854,9 +2976,6 @@ describe('MuseumEditorStore Phase 2.4 camera-key progress drag', () => {
 		const positionPathBefore = JSON.stringify(store.document.connections[0]!.positionPath);
 		const targetBefore = [...keyframe.cameraTarget];
 		const fovBefore = keyframe.fov;
-		const reverseTrackBefore = JSON.stringify(
-			store.document.connections[0]!.viewTracks!.reverse
-		);
 
 		expect(store.beginViewKeyframeProgressDrag(selection)).toBe(true);
 		expect(store.isDocumentTransactionActive).toBe(true);
@@ -2891,8 +3010,14 @@ describe('MuseumEditorStore Phase 2.4 camera-key progress drag', () => {
 			fov: fovBefore
 		});
 		expect(JSON.stringify(store.selectedConnection!.positionPath)).toBe(positionPathBefore);
-		expect(JSON.stringify(store.selectedConnection!.viewTracks!.reverse)).toBe(
-			reverseTrackBefore
+		const forward = store.selectedConnection!.viewTracks!.forward;
+		const reverse = store.selectedConnection!.viewTracks!.reverse;
+		expect(reverse).toHaveLength(forward.length);
+		expect(reverse.map((keyframe) => keyframe.progress)).toEqual(
+			[...forward].reverse().map((keyframe) => 1 - keyframe.progress)
+		);
+		expect(reverse.map((keyframe) => keyframe.cameraTarget)).toEqual(
+			[...forward].reverse().map((keyframe) => [...keyframe.cameraTarget])
 		);
 
 		expect(store.undo()).toBe(true);

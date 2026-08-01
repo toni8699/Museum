@@ -5,9 +5,22 @@
 		SceneConnectionViewTracks
 	} from '$lib/content/scene';
 	import DirectionalKeyframeList from './DirectionalKeyframeList.svelte';
+	import { getNodeConnections } from './editor-camera-connections';
+	import { formatCameraNodeLabel } from './editor-outliner';
 	import type { MuseumEditorStore } from './museum-editor.svelte';
 
-	let { store }: { store: MuseumEditorStore } = $props();
+	let { store, nodeId }: { store: MuseumEditorStore; nodeId: string } = $props();
+
+	const nodeConnections = $derived(getNodeConnections(store.document, nodeId));
+	const rows = $derived([...nodeConnections.outgoing, ...nodeConnections.incoming]);
+	const partnerLabels = $derived(
+		new Map(
+			store.document.navigationNodes.map((candidate) => [
+				candidate.id,
+				formatCameraNodeLabel(candidate.label, candidate.id)
+			])
+		)
+	);
 
 	function readKeyframes(
 		tracks: SceneConnectionViewTracks | undefined,
@@ -57,55 +70,65 @@
 			store.activeCameraDirection === direction
 		);
 	}
+
+	function travelAwayDirection(bucket: 'outgoing' | 'incoming'): CameraConnectionDirection {
+		return bucket === 'outgoing' ? 'forward' : 'reverse';
+	}
 </script>
 
-<div class="sidebar-section-header">
-	<h2>Connections</h2>
-	<span aria-label={`${store.document.connections.length} connections`}
-		>{store.document.connections.length}</span
-	>
-</div>
-{#if store.document.connections.length > 0}
-	<ul class="connections" role="tree" aria-label="Camera connections and view keys">
-		{#each store.document.connections as connection (connection.id)}
-			{@const forwardCount = keyframeCount(connection.id, 'forward')}
-			{@const reverseCount = keyframeCount(connection.id, 'reverse')}
+{#if rows.length === 0}
+	<p class="empty">No connections</p>
+{:else}
+	<ul class="connections" role="group" aria-label={`Connections for ${nodeId}`}>
+		{#each rows as row (row.connectionId)}
+			{@const forwardCount = keyframeCount(row.connectionId, 'forward')}
+			{@const reverseCount = keyframeCount(row.connectionId, 'reverse')}
+			{@const partnerLabel = partnerLabels.get(row.partnerId) ?? row.partnerId}
+			{@const travelDirection = travelAwayDirection(row.bucket)}
 			<li
 				role="treeitem"
-				aria-expanded={isConnectionExpanded(connection.id)}
-				aria-selected={isConnectionHeaderSelected(connection.id)}
+				aria-expanded={isConnectionExpanded(row.connectionId)}
+				aria-selected={isConnectionHeaderSelected(row.connectionId)}
 			>
 				<div class="connection-line">
 					<button
 						type="button"
 						class="tree-row__chevron"
-						aria-label={`${isConnectionExpanded(connection.id) ? 'Collapse' : 'Expand'} ${connection.id}`}
-						aria-expanded={isConnectionExpanded(connection.id)}
-						onclick={() => store.toggleCameraConnectionTreeExpansion(connection.id)}
+						aria-label={`${isConnectionExpanded(row.connectionId) ? 'Collapse' : 'Expand'} ${partnerLabel}`}
+						aria-expanded={isConnectionExpanded(row.connectionId)}
+						onclick={() => store.toggleCameraConnectionTreeExpansion(row.connectionId)}
 					>
-						<span class="chevron" class:open={isConnectionExpanded(connection.id)}>›</span>
+						<span class="chevron" class:open={isConnectionExpanded(row.connectionId)}>›</span>
 					</button>
 					<button
 						type="button"
 						class="tree-row connection-row"
-						class:tree-row--selected={isConnectionHeaderSelected(connection.id)}
+						class:tree-row--selected={isConnectionHeaderSelected(row.connectionId)}
+						class:outgoing={row.bucket === 'outgoing'}
+						class:incoming={row.bucket === 'incoming'}
 						onclick={() =>
-							store.selectionActions.selectCameraConnectionDirection(connection.id, 'forward')}
-						title={connection.id}
+							store.selectionActions.selectCameraConnectionDirection(
+								row.connectionId,
+								travelDirection
+							)}
+						title={`${row.connectionId} · ${row.bucket}`}
 					>
-						<span class="tree-row__label" title={connection.id}>{connection.id}</span>
+						<span class="direction-badge" aria-hidden="true"
+							>{row.bucket === 'outgoing' ? '▶' : '◀'}</span
+						>
+						<span class="tree-row__label" title={partnerLabel}>{partnerLabel}</span>
 						<span class="tree-row__meta">{forwardCount + reverseCount}</span>
 					</button>
 				</div>
-				{#if isConnectionExpanded(connection.id)}
+				{#if isConnectionExpanded(row.connectionId)}
 					<ul class="direction-group" role="group">
-						{#each ['forward', 'reverse'] as const as direction (directionTreeKey(connection.id, direction))}
-							{@const expanded = isDirectionExpanded(connection.id, direction)}
+						{#each ['forward', 'reverse'] as const as direction (directionTreeKey(row.connectionId, direction))}
+							{@const expanded = isDirectionExpanded(row.connectionId, direction)}
 							{@const count = direction === 'forward' ? forwardCount : reverseCount}
 							<li
 								role="treeitem"
 								aria-expanded={expanded}
-								aria-selected={isDirectionSelected(connection.id, direction)}
+								aria-selected={isDirectionSelected(row.connectionId, direction)}
 							>
 								<div class="direction-line">
 									<button
@@ -114,18 +137,18 @@
 										aria-label={`${expanded ? 'Collapse' : 'Expand'} ${direction} keys`}
 										aria-expanded={expanded}
 										onclick={() =>
-											store.toggleCameraDirectionTreeExpansion(connection.id, direction)}
+											store.toggleCameraDirectionTreeExpansion(row.connectionId, direction)}
 									>
 										<span class="chevron" class:open={expanded}>›</span>
 									</button>
 									<button
 										type="button"
 										class="tree-row direction-row"
-										class:tree-row--selected={isDirectionSelected(connection.id, direction)}
+										class:tree-row--selected={isDirectionSelected(row.connectionId, direction)}
 										class:direction-row--empty={count === 0}
 										onclick={() =>
 											store.selectionActions.selectCameraConnectionDirection(
-												connection.id,
+												row.connectionId,
 												direction
 											)}
 									>
@@ -137,7 +160,7 @@
 								{#if expanded}
 									<DirectionalKeyframeList
 										{store}
-										connectionId={connection.id}
+										connectionId={row.connectionId}
 										{direction}
 									/>
 								{/if}
@@ -148,33 +171,9 @@
 			</li>
 		{/each}
 	</ul>
-{:else}
-	<p class="empty"><strong>No connections</strong></p>
 {/if}
 
 <style>
-	.sidebar-section-header {
-		display: flex;
-		min-width: 0;
-		align-items: center;
-		justify-content: space-between;
-		gap: 0.75rem;
-		min-height: 2rem;
-	}
-	.sidebar-section-header h2 {
-		min-width: 0;
-		margin: 0;
-		font-size: 0.78rem;
-		font-weight: 650;
-		letter-spacing: 0.02em;
-		color: #d6c7a8;
-	}
-	.sidebar-section-header span {
-		flex: 0 0 auto;
-		color: #918c84;
-		font-size: 0.66rem;
-		font-variant-numeric: tabular-nums;
-	}
 	ul {
 		display: flex;
 		min-width: 0;
@@ -186,6 +185,9 @@
 	}
 	.connections {
 		gap: 0.16rem;
+		margin: 0.12rem 0 0.22rem 0.85rem;
+		padding-left: 0.65rem;
+		border-left: 1px solid #36323a;
 	}
 	.connection-line,
 	.direction-line {
@@ -231,6 +233,9 @@
 		flex: 0 0 1.1rem;
 		color: #d6b35f;
 		font-size: 0.7rem;
+	}
+	.connection-row.incoming .direction-badge {
+		color: #6e8aa6;
 	}
 	.tree-row--selected .direction-badge {
 		color: #fff2c7;
@@ -284,12 +289,8 @@
 		font-style: italic;
 	}
 	.empty {
+		margin: 0.12rem 0 0.22rem 1.5rem;
 		color: #918c84;
-		font-size: 0.7rem;
-		padding: 0.4rem 0.45rem;
-	}
-	.empty strong {
-		color: #d6d0c4;
-		font-size: 0.76rem;
+		font-size: 0.66rem;
 	}
 </style>

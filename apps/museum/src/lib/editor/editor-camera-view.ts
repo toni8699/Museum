@@ -5,7 +5,8 @@ import {
 } from '$lib/content/rooms';
 import type {
 	MuseumSceneDocument,
-	SceneCameraViewKeyframe
+	SceneCameraViewKeyframe,
+	SceneConnection
 } from '$lib/content/scene';
 import type {
 	CameraConnectionDirection,
@@ -17,6 +18,60 @@ import { createDraftConnectionPositionPath } from './editor-camera-path';
 
 export const EDITOR_CAMERA_VIEW_PROGRESS_EPSILON = 1e-6;
 export const EDITOR_CAMERA_VIEW_MOVE_EPSILON = 1e-4;
+
+/**
+ * Mirror a directional view track onto the opposite travel: reverse key order,
+ * remap progress → 1 - progress, copy look-at / FOV / room ownership, fresh IDs.
+ */
+export function mirrorCameraViewTrack(
+	connectionId: string,
+	sourceTrack: readonly SceneCameraViewKeyframe[],
+	destination: CameraConnectionDirection,
+	occupiedIds: Iterable<string>
+): SceneCameraViewKeyframe[] {
+	const occupied = new Set(occupiedIds);
+	return [...sourceTrack].reverse().map((keyframe) => {
+		const id = allocateCameraViewKeyframeId(connectionId, destination, occupied);
+		occupied.add(id);
+		return {
+			id,
+			progress: 1 - keyframe.progress,
+			cameraTarget: [...keyframe.cameraTarget] as Vec3,
+			...(keyframe.roomId === undefined ? {} : { roomId: keyframe.roomId }),
+			fov: keyframe.fov
+		};
+	});
+}
+
+/**
+ * Seed reverse from forward when reverse is empty and forward has keys.
+ * Mutates `connection` in place; caller must own the document transaction.
+ * Returns true when reverse was written.
+ */
+export function seedEmptyReverseViewTrack(connection: SceneConnection): boolean {
+	const forward = connection.viewTracks?.forward ?? [];
+	const reverse = connection.viewTracks?.reverse ?? [];
+	if (forward.length === 0 || reverse.length > 0) return false;
+	return syncReverseViewTrackFromForward(connection);
+}
+
+/**
+ * Replace reverse with a full mirror of the current forward track.
+ * Mutates `connection` in place; caller must own the document transaction.
+ */
+export function syncReverseViewTrackFromForward(connection: SceneConnection): boolean {
+	const forward = connection.viewTracks?.forward ?? [];
+	if (forward.length === 0) return false;
+	const occupied = new Set(forward.map((keyframe) => keyframe.id));
+	connection.viewTracks ??= { forward: [], reverse: [] };
+	connection.viewTracks.reverse = mirrorCameraViewTrack(
+		connection.id,
+		forward,
+		'reverse',
+		occupied
+	);
+	return true;
+}
 
 function isVectorTuple(
 	value: Vector3Like

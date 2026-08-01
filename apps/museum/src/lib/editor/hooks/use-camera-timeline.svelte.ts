@@ -42,6 +42,37 @@ export function useCameraTimeline(store: MuseumEditorStore) {
 		get canAddViewKeyframeAtPlayhead() {
 			return store.canAddViewKeyframeAtPlayhead;
 		},
+		get reverseEdgeActive() {
+			return store.activeCameraDirection === 'reverse' && Boolean(store.activeCameraConnectionId);
+		},
+		get reverseEdgeDisabled() {
+			return (
+				!store.activeCameraConnectionId ||
+				store.isEditorInteractionActive ||
+				store.isDocumentTransactionActive
+			);
+		},
+		get reverseEdgeLabel() {
+			const connectionId = store.activeCameraConnectionId;
+			const connection = connectionId
+				? store.document.connections.find((candidate) => candidate.id === connectionId)
+				: undefined;
+			if (!connection) return 'Reverse edge travel';
+			const from =
+				store.document.navigationNodes.find((node) => node.id === connection.toNodeId)
+					?.label ?? connection.toNodeId;
+			const to =
+				store.document.navigationNodes.find((node) => node.id === connection.fromNodeId)
+					?.label ?? connection.fromNodeId;
+			return `Reverse · ${from} → ${to}`;
+		},
+		get playLabel() {
+			if (store.cameraPreview?.transport === 'playing') return 'Pause';
+			if (store.activeCameraDirection === 'reverse' && store.activeCameraConnectionId) {
+				return 'Play reverse edge';
+			}
+			return 'Play guided tour';
+		},
 		seek(progress: number) {
 			store.seekCameraTimeline(progress);
 		},
@@ -53,7 +84,14 @@ export function useCameraTimeline(store: MuseumEditorStore) {
 				store.pauseCameraPreview();
 				return;
 			}
+			if (store.activeCameraDirection === 'reverse' && store.activeCameraConnectionId) {
+				store.playActiveConnectionEdge();
+				return;
+			}
 			store.previewGuidedTour('director');
+		},
+		toggleReverse() {
+			store.toggleCameraEdgeReverse();
 		},
 		addViewKeyframeAtPlayhead() {
 			store.addViewKeyframeAtPlayhead();

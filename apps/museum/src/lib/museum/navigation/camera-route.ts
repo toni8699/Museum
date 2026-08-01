@@ -128,21 +128,42 @@ function flattenOrderedPoints(parts: readonly CameraPositionPathPart[]) {
   return points;
 }
 
+function travelFacingTarget(positions: readonly Vec3[], index: number): Vec3 {
+	const lastIndex = positions.length - 1;
+	const position = positions[index]!;
+	if (index < lastIndex) {
+		const lookAhead = positions[Math.min(lastIndex, index + 2)]!;
+		return [lookAhead[0], Math.min(position[1], 1.5), lookAhead[2]];
+	}
+	// Past the final sample: keep facing the last travel direction.
+	const from = positions[Math.max(0, lastIndex - 2)]!;
+	return [
+		position[0] + (position[0] - from[0]),
+		Math.min(position[1], 1.5),
+		position[2] + (position[2] - from[2])
+	];
+}
+
 function buildLookAheadTargets(
-  fromNodeId: string,
-  toNodeId: string,
-  positions: readonly Vec3[],
-  graph: NavigationGraph
+	fromNodeId: string,
+	toNodeId: string,
+	positions: readonly Vec3[],
+	graph: NavigationGraph,
+	options: { travelFacingEnds?: boolean } = {}
 ): Vec3[] {
-  const lastIndex = positions.length - 1;
+	const lastIndex = positions.length - 1;
+	const travelFacingEnds = options.travelFacingEnds === true;
 
-  return positions.map((position, index) => {
-    if (index === 0) return [...getNode(fromNodeId, graph).cameraTarget];
-    if (index === lastIndex) return [...getNode(toNodeId, graph).cameraTarget];
+	return positions.map((position, index) => {
+		if (travelFacingEnds) {
+			return travelFacingTarget(positions, index);
+		}
+		if (index === 0) return [...getNode(fromNodeId, graph).cameraTarget];
+		if (index === lastIndex) return [...getNode(toNodeId, graph).cameraTarget];
 
-    const lookAhead = positions[Math.min(lastIndex, index + 2)];
-    return [lookAhead[0], Math.min(position[1], 1.5), lookAhead[2]];
-  });
+		const lookAhead = positions[Math.min(lastIndex, index + 2)]!;
+		return [lookAhead[0], Math.min(position[1], 1.5), lookAhead[2]];
+	});
 }
 
 function buildOrientedViewTrack(
@@ -255,7 +276,14 @@ function buildPositionParts(
         edge.fromNodeId,
         edge.toNodeId,
         points,
-        graph
+        graph,
+        {
+          // Reverse with no authored reverse keys should face travel (go backward),
+          // not snap to node look-ats (which reads as a turn-around at the start).
+          travelFacingEnds:
+            edge.reversed &&
+            (edge.connection.viewTracks?.reverse.length ?? 0) === 0
+        }
       )
     });
   }

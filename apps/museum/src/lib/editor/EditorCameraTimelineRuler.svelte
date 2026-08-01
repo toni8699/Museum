@@ -12,6 +12,10 @@
 	const disabled = $derived(timelineApi.disabled);
 	const scrubDisabled = $derived(timelineApi.scrubDisabled);
 	const tourTransportDisabled = $derived(timelineApi.tourTransportDisabled);
+	const reverseLabel = $derived(timelineApi.reverseEdgeLabel);
+	const reverseDisabled = $derived(timelineApi.reverseEdgeDisabled);
+	const reverseActive = $derived(timelineApi.reverseEdgeActive);
+	const playLabel = $derived(timelineApi.playLabel);
 
 	function formatTime(seconds: number) {
 		const safe = Math.max(0, seconds);
@@ -36,8 +40,8 @@
 		<button
 			type="button"
 			class:active={previewPlaying}
-			aria-label={previewPlaying ? 'Pause' : 'Play guided tour'}
-			title={previewPlaying ? 'Pause' : 'Play the complete guided tour'}
+			aria-label={playLabel}
+			title={playLabel}
 			disabled={tourTransportDisabled}
 			onclick={() => timelineApi.toggleTourPlayback()}
 		>{previewPlaying ? '❚❚' : '▶'}</button>
@@ -47,11 +51,21 @@
 			disabled={disabled || playhead >= 1}
 			onclick={() => timelineApi.step(1)}
 		>▶│</button>
+		<button
+			type="button"
+			class="reverse"
+			class:active={reverseActive}
+			aria-pressed={reverseActive}
+			aria-label={reverseLabel}
+			title={`${reverseLabel}. When on, scrub and play travel this edge in reverse.`}
+			disabled={reverseDisabled}
+			onclick={() => timelineApi.toggleReverse()}
+		>Reverse</button>
 		<output aria-label="Camera timeline time">
 			{formatTime(timeline.durationSeconds * playhead)}
 		</output>
 		<label class="scrubber">
-			<span>Tour playhead</span>
+			<span>{reverseActive ? 'Reverse playhead' : 'Tour playhead'}</span>
 			<input
 				type="range"
 				min="0"

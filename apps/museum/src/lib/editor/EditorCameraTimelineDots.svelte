@@ -104,7 +104,10 @@
 		const end = edge.motionEndSeconds / timeline.durationSeconds;
 		store.selectCameraTimelineEdge(
 			edge.connectionId,
-			edge.direction,
+			store.activeCameraDirection === 'reverse' &&
+				store.activeCameraConnectionId === edge.connectionId
+				? 'reverse'
+				: edge.direction,
 			start + (end - start) * localProgress
 		);
 	}

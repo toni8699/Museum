@@ -10,6 +10,15 @@ import type { EditorCameraHandle } from '../editor-selection';
  */
 export const CAMERA_HELPER_KEY_SEPARATOR = ':';
 
+/**
+ * Separator used to compose Camera-workspace tree expansion keys
+ * (`${connectionId}::${direction}`). Distinct from the Object3D registry
+ * separator above. Shared by `MuseumEditorStore.cameraDirectionTreeKey` (tree
+ * expand writes) and `EditorNavigationGraphMutator` (delete-time key parsing),
+ * so it lives here as the single source of truth.
+ */
+export const CAMERA_DIRECTION_TREE_KEY_SEPARATOR = '::';
+
 /** Stable string key for one camera-handle helper (`nodeId:handle`). */
 export function cameraHelperKey(nodeId: string, handle: EditorCameraHandle) {
 	return `${nodeId}${CAMERA_HELPER_KEY_SEPARATOR}${handle}`;

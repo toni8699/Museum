@@ -8,11 +8,8 @@
  * `$state` on the sub-store so Slice 5's `bind:` migration can delete the
  * god file's parallel $state mirrors in one pass.
  *
- * **Phase A mirror.** The composition root keeps its own `$state` field for
- * each slot so existing `bind:value={store.foo}` reads keep working until
- * Slice 5. Each setter method on the composition root is mirrored to its
- * session-side twin (`this.session.X = v`) so the sub-store owns the value
- * for reads-from-`sessionView` consumers.
+ * **Phase 9.1:** composition-root parallel `$state` twins are deleted. Facade
+ * getters/setters read and write through this store only.
  *
  * **No document reads.** This sub-store deliberately does not import the
  * document store, the navigation graph, or any validator. Its only contract
@@ -152,6 +149,16 @@ export class EditorSessionState {
 		this.cameraFocusPlacementId = null;
 		this.cameraFocusNodeId = null;
 		this.cameraFocusVersion += 1;
+	}
+
+	/**
+	 * Clear focus target without bumping version — used by preview pose paths
+	 * so `EditorCameraRig` does not treat the clear as a new focus request.
+	 */
+	clearCameraFocusRequest() {
+		this.cameraFocusKind = null;
+		this.cameraFocusPlacementId = null;
+		this.cameraFocusNodeId = null;
 	}
 
 	/** Bumps the version without changing the focus target (idempotent consumer-side reads). */

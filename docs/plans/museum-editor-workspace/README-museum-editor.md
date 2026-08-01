@@ -1,8 +1,8 @@
 # Museum Editor Workspace Releases
 
-**Status:** Active release authority. Phase 3 is complete through Slice 3.5.
-**Baseline:** `main` at `0538a5b`; Phase 3.5 is uncommitted. Preserve it. Do not commit unless requested.
+**Status:** Active release authority. Phases 1–3 complete (through 3.6). Complete-refactor slices 1–9.5 landed. **Next gate: Phase 4.**
 **Locked decisions:** one looped guided tour; `Scene` and `Camera` workspaces; camera placement accepts any tagged room floor.
+**History:** completed phase 1–3 plans and handoffs live under [`../../archive/`](../../archive/README.md).
 
 ## Main Problem
 
@@ -19,9 +19,9 @@ They now ship as five ordered releases. Each release has its own gate and handof
 
 | Phase | Release | Outcome | Complexity | Recommended model | Reasoning |
 |---:|---|---|---:|---|---|
-| 1 | [Editor layout](./phase-1-editor-layout.md) | Persistent shell; no schema or camera behavior change | High | `gpt-5.6-sol` | High |
-| 2 | [Camera editing MVP](./phase-2-camera-editing-mvp.md) | Discover, scrub, preview, and drag existing camera keys | Very High | `gpt-5.6-sol` | XHigh |
-| 3 | [Camera graph authoring](./phase-3-camera-graph-authoring.md) | Selection/Play parity; add/connect/delete/reorder; timeline drag-connect; framing; timing last | Extreme | `gpt-5.6-sol` | Max |
+| 1 | [Editor layout](../../archive/plans/museum-editor-workspace/phase-1-editor-layout.md) *(archived)* | Persistent shell; no schema or camera behavior change | High | `gpt-5.6-sol` | High |
+| 2 | [Camera editing MVP](../../archive/plans/museum-editor-workspace/phase-2-camera-editing-mvp.md) *(archived)* | Discover, scrub, preview, and drag existing camera keys | Very High | `gpt-5.6-sol` | XHigh |
+| 3 | [Camera graph authoring](../../archive/plans/museum-editor-workspace/phase-3-camera-graph-authoring.md) *(archived)* | Selection/Play parity; add/connect/delete/reorder; timeline drag-connect; framing; timing last | Extreme | `gpt-5.6-sol` | Max |
 | 4 | [Scene creation](./phase-4-scene-creation.md) | Real primitive/light entities and schema migration | Extreme | `gpt-5.6-sol` | Max |
 | 5 | [Textures](./phase-5-textures.md) | Texture/material MVP; package export as follow-on | Extreme | `gpt-5.6-sol` | Max |
 
@@ -158,7 +158,7 @@ Camera-key position remains derived from exact connection-path progress. Never p
 4. The selected phase plan and its latest handoff
 5. `docs/CAMERA_AND_LAYOUT.md`
 
-Historical path/view authoring plans (pre–workspace-release) are archived under `docs/archive/plans/` and are not required reading for new work.
+Completed phases 1–3, path/view authoring plans, and the complete-refactor diary live under `docs/archive/` and are not required reading for Phase 4+.
 
 ## Release Gate
 

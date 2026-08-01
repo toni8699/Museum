@@ -1,6 +1,6 @@
 # Phase 1 — Editor Layout
 
-**Status:** Complete. Final handoff: [`../../agent-handoffs/phase-1-editor-ui-overhaul.md`](../../agent-handoffs/phase-1-editor-ui-overhaul.md).
+**Status:** Complete. Final handoff: [`../../agent-handoffs/workspace-phases/phase-1-editor-ui-overhaul.md`](../../agent-handoffs/workspace-phases/phase-1-editor-ui-overhaul.md).
 
 **Goal:** replace the busy page with a persistent editor shell without changing scene schema or camera behavior.
 

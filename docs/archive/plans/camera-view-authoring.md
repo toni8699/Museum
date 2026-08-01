@@ -1,6 +1,6 @@
 # Archived Plan — Phase 6.6 Camera View Authoring and Director Preview
 
-**Archived:** 2026-07-21. Remaining camera UI / scene overhaul work is owned by the workspace release map, starting at Phase 2 ([`../../plans/museum-editor-workspace/phase-2-camera-editing-mvp.md`](../../plans/museum-editor-workspace/phase-2-camera-editing-mvp.md)).
+**Archived:** 2026-07-21. Workspace Phase 2 plan: [`museum-editor-workspace/phase-2-camera-editing-mvp.md`](./museum-editor-workspace/phase-2-camera-editing-mvp.md). Active gate is Phase 4: [`../../plans/museum-editor-workspace/phase-4-scene-creation.md`](../../plans/museum-editor-workspace/phase-4-scene-creation.md).
 
 **Original status:** Proposed. No Phase 6.6 implementation exists yet.
 

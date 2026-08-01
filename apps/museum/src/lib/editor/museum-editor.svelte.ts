@@ -4,15 +4,13 @@ import {
 	type MuseumSceneDocument,
 	type RuntimeMuseumScene,
 	type SceneCameraViewKeyframe,
-	type SceneObjectCluster,
-	type SceneObjectPlacement
+	type SceneObjectCluster
 } from '$lib/content/scene';
 import {
 	serializeSceneDocument,
 	validateSceneDocument,
 	type SceneDocumentValidationResult
 } from '$lib/content/scene-codec';
-import { getAssetById, resolveAssetFallback } from '$lib/content/assets';
 import { roomPoint } from '$lib/content/rooms';
 import type { MuseumStateStore } from '$lib/state/museum-state.svelte';
 import {
@@ -21,7 +19,6 @@ import {
 } from '$lib/museum/navigation/camera-motion';
 import {
 	MUSEUM_CAMERA_EASING,
-	MUSEUM_CAMERA_FOV,
 	type CameraConnectionDirection,
 	type CameraEasing,
 	type MuseumRoomId,
@@ -41,20 +38,11 @@ import {
 	type EditorCameraSelection,
 	type EditorNavigationSelection
 } from './editor-selection';
-import { reserveEntityId } from './editor-assets';
 import {
 	placementTransformFromDocument,
 	type EditorTransformMode,
-	type PlacementTransform,
-	writePlacementTransform
+	type PlacementTransform
 } from './editor-transform';
-import {
-	allocateCameraPathAnchorId,
-	createScenePathAnchorAtWorldPoint,
-	findScenePathAnchor,
-	getScenePathAnchorWorldPosition,
-	writeScenePathAnchorWorldPosition
-} from './editor-camera-path';
 import {
 	seedEmptyReverseViewTrack,
 	syncReverseViewTrackFromForward,
@@ -92,6 +80,14 @@ import {
 	EditorCameraTimelineController,
 	type EditorCameraTimelineControllerHost
 } from './store/camera-timeline-controller.svelte';
+import {
+	EditorPlacementClusterMutator,
+	type EditorPlacementClusterMutatorHost
+} from './store/placement-cluster-mutator.svelte';
+import {
+	EditorPathAnchorMutator,
+	type EditorPathAnchorMutatorHost
+} from './store/path-anchor-mutator.svelte';
 
 /**
  * Slice 4 helper — translate the legacy `EditorNavigationSelection` shape
@@ -261,13 +257,8 @@ function cameraDirectionTreeKey(
 	return `${connectionId}${CAMERA_DIRECTION_TREE_KEY_SEPARATOR}${direction}`;
 }
 
-function vec3Matches(a: Vec3, b: Vec3) {
-	return a[0] === b[0] && a[1] === b[1] && a[2] === b[2];
-}
-
-function isFiniteVec3(value: Vec3) {
-	return value.every(Number.isFinite);
-}
+// Phase 9.5 — `vec3Matches` / `isFiniteVec3` live on path-anchor / view-key
+// controllers; no remaining facade callers.
 
 // Slice 3 v2 sub-task 3.4 deleted the pre-slice helper `documentsMatch` because
 // EditorDocumentStore now exposes a public static of the same name
@@ -790,6 +781,108 @@ export class MuseumEditorStore {
 		};
 	}
 
+
+	#createPlacementClusterMutatorHost(): EditorPlacementClusterMutatorHost {
+		const self = this;
+		return {
+			get isDocumentMutationBlocked() {
+				return self.isDocumentMutationBlocked;
+			},
+			get isEditorInteractionActive() {
+				return self.isEditorInteractionActive;
+			},
+			get document() {
+				return self.document;
+			},
+			get selectedRoomId() {
+				return self.selectedRoomId;
+			},
+			get selectedPlacementIds() {
+				return self.selectedPlacementIds;
+			},
+			get primaryPlacementId() {
+				return self.primaryPlacementId;
+			},
+			get clusters() {
+				return self.clusters;
+			},
+			get selectedClusterId() {
+				return self.selectedClusterId;
+			},
+			set selectedClusterId(value) {
+				self.selectedClusterId = value;
+			},
+			get pendingPlacementAssetId() {
+				return self.pendingPlacementAssetId;
+			},
+			set pendingPlacementAssetId(value) {
+				self.pendingPlacementAssetId = value;
+			},
+			setStatusMessage: (message) => self.setStatusMessage(message),
+			setNavigationHover: (connectionId, anchorId) =>
+				self.setNavigationHover(connectionId, anchorId ?? null),
+			cancelPendingNavigation: (message) => self.cancelPendingNavigation(message),
+			requestPlacementFrame: (ids) => self.requestPlacementFrame(ids),
+			sessionRequestDropToFloor: () => self.session.requestDropToFloor(),
+			beginDocumentTransaction: () => self.beginDocumentTransaction(),
+			commitDocumentTransaction: () => self.commitDocumentTransaction(),
+			cancelDocumentTransaction: () => self.cancelDocumentTransaction()
+		};
+	}
+
+	#createPathAnchorMutatorHost(): EditorPathAnchorMutatorHost {
+		const self = this;
+		return {
+			get isDocumentMutationBlocked() {
+				return self.isDocumentMutationBlocked;
+			},
+			get isCameraFramingMutationBlocked() {
+				return self.isCameraFramingMutationBlocked;
+			},
+			get isEditorInteractionActive() {
+				return self.isEditorInteractionActive;
+			},
+			get historyDocumentUndoBlocked() {
+				return self.historyController.isDocumentUndoBlocked;
+			},
+			get historyFramingTransactionActive() {
+				return self.historyController.isFramingTransactionActive;
+			},
+			get document() {
+				return self.document;
+			},
+			get cameraSelection() {
+				return self.cameraSelection;
+			},
+			get selectedNavigationNode() {
+				return self.selectedNavigationNode;
+			},
+			get selectedConnection() {
+				return self.selectedConnection;
+			},
+			get selectedAnchor() {
+				return self.selectedAnchor;
+			},
+			get selectedRoomId() {
+				return self.selectedRoomId;
+			},
+			get pendingNavigationNode() {
+				return self.pendingNavigationNode;
+			},
+			get navigationSelection() {
+				return self.navigationSelection;
+			},
+			set navigationSelection(value) {
+				self.navigationSelection = value;
+			},
+			isPendingNavigationNode: (nodeId) => self.isPendingNavigationNode(nodeId),
+			beginDocumentTransaction: () => self.beginDocumentTransaction(),
+			beginCameraFramingTransaction: () => self.beginCameraFramingTransaction(),
+			commitDocumentTransaction: () => self.commitDocumentTransaction(),
+			cancelDocumentTransaction: () => self.cancelDocumentTransaction()
+		};
+	}
+
 	constructor() {
 		const self = this;
 		this.mutationGuards = new EditorMutationGuards({
@@ -827,6 +920,13 @@ export class MuseumEditorStore {
 		this.cameraTimelineController = new EditorCameraTimelineController(
 			this.selectionActions,
 			this.#createCameraTimelineControllerHost()
+		);
+		this.placementClusterMutator = new EditorPlacementClusterMutator(
+			this.selectionActions,
+			this.#createPlacementClusterMutatorHost()
+		);
+		this.pathAnchorMutator = new EditorPathAnchorMutator(
+			this.#createPathAnchorMutatorHost()
 		);
 		this.selectionStore.bindSession(this.session);
 		// Sub-store selection reconciliation (defect #2 fix). Closes the
@@ -1131,6 +1231,18 @@ export class MuseumEditorStore {
 	 * live here; preview start/play/pause/stop stay on the facade.
 	 */
 	readonly cameraTimelineController: EditorCameraTimelineController;
+
+	/**
+	 * Phase 9.5 — placement / cluster / asset-drop mutation controller.
+	 * Facade methods below delegate to it.
+	 */
+	readonly placementClusterMutator: EditorPlacementClusterMutator;
+
+	/**
+	 * Phase 9.5 — nav-node point/FOV/label + connection path-anchor mutator.
+	 * Split from nav-graph mutator because that controller already exceeds 600 LOC.
+	 */
+	readonly pathAnchorMutator: EditorPathAnchorMutator;
 
 	/** Slice 2 — registry of every Object3D helper + placement root. */
 	private readonly roots = new EditorSceneRoots();
@@ -1723,26 +1835,7 @@ export class MuseumEditorStore {
 		handle: EditorCameraHandle,
 		point: Vec3
 	) {
-		const mutationBlocked =
-			handle === 'target'
-				? this.isCameraFramingMutationBlocked
-				: this.isDocumentMutationBlocked;
-		if (mutationBlocked || !isFiniteVec3(point)) {
-			return false;
-		}
-		const selection = this.cameraSelection;
-		if (selection?.nodeId !== nodeId || selection.handle !== handle) return false;
-		const pending = this.isPendingNavigationNode(nodeId);
-		if (!pending && !this.historyController.isDocumentUndoBlocked) return false;
-		const node = pending
-			? this.pendingNavigationNode
-			: this.document.navigationNodes.find((candidate) => candidate.id === nodeId);
-		if (!node) return false;
-		const current = handle === 'position' ? node.position : node.cameraTarget;
-		if (vec3Matches(current, point)) return false;
-		if (handle === 'position') node.position = [...point];
-		else node.cameraTarget = [...point];
-		return true;
+		return this.pathAnchorMutator.updateNavigationNodePoint(nodeId, handle, point);
 	}
 
 	commitNavigationNodePoint(
@@ -1750,48 +1843,15 @@ export class MuseumEditorStore {
 		handle: EditorCameraHandle,
 		point: Vec3
 	) {
-		const mutationBlocked =
-			handle === 'target'
-				? this.isCameraFramingMutationBlocked
-				: this.isDocumentMutationBlocked;
-		if (mutationBlocked || this.isEditorInteractionActive) return false;
-		if (this.isPendingNavigationNode(nodeId)) {
-			return this.updateNavigationNodePoint(nodeId, handle, point);
-		}
-		if (
-			!(handle === 'target'
-				? this.beginCameraFramingTransaction()
-				: this.beginDocumentTransaction())
-		) {
-			return false;
-		}
-		if (!this.updateNavigationNodePoint(nodeId, handle, point)) {
-			this.cancelDocumentTransaction();
-			return false;
-		}
-		return this.commitDocumentTransaction();
+		return this.pathAnchorMutator.commitNavigationNodePoint(nodeId, handle, point);
 	}
 
 	convertConnectionDraft(connectionId: string) {
-		if (!this.historyController.isDocumentUndoBlocked) return false;
-		const connection = this.document.connections.find(
-			(candidate) => candidate.id === connectionId
-		);
-		if (!connection || connection.positionPath.kind === 'auto-bezier') return false;
-		connection.positionPath = {
-			kind: 'auto-bezier',
-			anchors: connection.positionPath.anchors
-		};
-		return true;
+		return this.pathAnchorMutator.convertConnectionDraft(connectionId);
 	}
 
 	convertSelectedConnectionToSmooth() {
-		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
-		const connection = this.selectedConnection;
-		if (!connection || connection.positionPath.kind === 'auto-bezier') return false;
-		if (!this.beginDocumentTransaction()) return false;
-		this.convertConnectionDraft(connection.id);
-		return this.commitDocumentTransaction();
+		return this.pathAnchorMutator.convertSelectedConnectionToSmooth();
 	}
 
 	insertConnectionAnchorAtWorldPoint(
@@ -1799,28 +1859,11 @@ export class MuseumEditorStore {
 		interiorIndex: number,
 		worldPosition: Vec3
 	) {
-		if (!this.historyController.isDocumentUndoBlocked || !isFiniteVec3(worldPosition)) return null;
-		const connection = this.document.connections.find(
-			(candidate) => candidate.id === connectionId
-		);
-		if (!connection) return null;
-		this.convertConnectionDraft(connectionId);
-		const id = allocateCameraPathAnchorId(
+		return this.pathAnchorMutator.insertConnectionAnchorAtWorldPoint(
 			connectionId,
-			connection.positionPath.anchors.map((anchor) => anchor.id)
+			interiorIndex,
+			worldPosition
 		);
-		const anchor = createScenePathAnchorAtWorldPoint(
-			id,
-			worldPosition,
-			this.selectedRoomId
-		);
-		const index = Math.max(
-			0,
-			Math.min(connection.positionPath.anchors.length, Math.trunc(interiorIndex))
-		);
-		connection.positionPath.anchors.splice(index, 0, anchor);
-		this.navigationSelection = { kind: 'anchor', connectionId, anchorId: id };
-		return id;
 	}
 
 	updateConnectionAnchorWorldPoint(
@@ -1828,99 +1871,31 @@ export class MuseumEditorStore {
 		anchorId: string,
 		worldPosition: Vec3
 	) {
-		if (!this.historyController.isDocumentUndoBlocked || !isFiniteVec3(worldPosition)) return false;
-		const anchor = findScenePathAnchor(this.document, connectionId, anchorId);
-		if (!anchor) return false;
-		const current = getScenePathAnchorWorldPosition(anchor);
-		if (vec3Matches(current, worldPosition)) return false;
-		this.convertConnectionDraft(connectionId);
-		writeScenePathAnchorWorldPosition(anchor, worldPosition);
-		return true;
+		return this.pathAnchorMutator.updateConnectionAnchorWorldPoint(
+			connectionId,
+			anchorId,
+			worldPosition
+		);
 	}
 
 	commitSelectedAnchorPoint(point: Vec3) {
-		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive || !isFiniteVec3(point)) {
-			return false;
-		}
-		const selection = this.navigationSelection;
-		const anchor = this.selectedAnchor;
-		if (selection?.kind !== 'anchor' || !anchor || vec3Matches(anchor.position, point)) {
-			return false;
-		}
-		if (!this.beginDocumentTransaction()) return false;
-		this.convertConnectionDraft(selection.connectionId);
-		anchor.position = [...point];
-		return this.commitDocumentTransaction();
+		return this.pathAnchorMutator.commitSelectedAnchorPoint(point);
 	}
 
 	deleteSelectedAnchor() {
-		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
-		const selection = this.navigationSelection;
-		const connection = this.selectedConnection;
-		if (selection?.kind !== 'anchor' || !connection) return false;
-		const index = connection.positionPath.anchors.findIndex(
-			(anchor) => anchor.id === selection.anchorId
-		);
-		if (index < 0 || !this.beginDocumentTransaction()) return false;
-		connection.positionPath.anchors.splice(index, 1);
-		this.navigationSelection = {
-			kind: 'connection',
-			connectionId: connection.id
-		};
-		return this.commitDocumentTransaction();
+		return this.pathAnchorMutator.deleteSelectedAnchor();
 	}
 
 	commitSelectedNodeLabel(label: string) {
-		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
-		const node = this.selectedNavigationNode;
-		const next = label.trim();
-		if (!node || !next || next === node.label) return false;
-		if (this.isPendingNavigationNode(node.id)) {
-			node.label = next;
-			return true;
-		}
-		if (!this.beginDocumentTransaction()) return false;
-		node.label = next;
-		return this.commitDocumentTransaction();
+		return this.pathAnchorMutator.commitSelectedNodeLabel(label);
 	}
 
 	commitSelectedNodeFov(fov: number) {
-		if (
-			this.isCameraFramingMutationBlocked ||
-			this.isEditorInteractionActive ||
-			!Number.isFinite(fov) ||
-			fov < MUSEUM_CAMERA_FOV.min ||
-			fov > MUSEUM_CAMERA_FOV.max
-		) {
-			return false;
-		}
-		const node = this.selectedNavigationNode;
-		if (!node || Math.abs(node.fov - fov) <= 1e-6) return false;
-		if (this.isPendingNavigationNode(node.id)) {
-			node.fov = fov;
-			return true;
-		}
-		if (!this.beginCameraFramingTransaction()) return false;
-		node.fov = fov;
-		return this.commitDocumentTransaction();
+		return this.pathAnchorMutator.commitSelectedNodeFov(fov);
 	}
 
 	updateSelectedNodeFov(fov: number) {
-		if (
-			this.isCameraFramingMutationBlocked ||
-			!Number.isFinite(fov) ||
-			fov < MUSEUM_CAMERA_FOV.min ||
-			fov > MUSEUM_CAMERA_FOV.max
-		) {
-			return false;
-		}
-		const node = this.selectedNavigationNode;
-		if (!node || (!this.isPendingNavigationNode(node.id) && !this.historyController.isFramingTransactionActive)) {
-			return false;
-		}
-		if (Math.abs(node.fov - fov) <= 1e-6) return false;
-		node.fov = fov;
-		return true;
+		return this.pathAnchorMutator.updateSelectedNodeFov(fov);
 	}
 
 	addViewKeyframeAtPlayhead() {
@@ -2562,12 +2537,7 @@ export class MuseumEditorStore {
 	}
 
 	requestDropToFloor() {
-		if (this.isDocumentMutationBlocked) return;
-		if (this.selectedPlacementIds.length === 0) {
-			this.setStatusMessage('Select a placement to drop to floor');
-			return;
-		}
-		this.session.requestDropToFloor();
+		return this.placementClusterMutator.requestDropToFloor();
 	}
 
 	focusRoom(id: MuseumRoomId) {
@@ -2839,80 +2809,15 @@ export class MuseumEditorStore {
 	}
 
 	beginAssetPlacement(assetId: string) {
-		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
-		const asset = getAssetById(assetId);
-		if (!asset) {
-			this.cancelAssetPlacement();
-			this.setStatusMessage(`Unknown museum asset: ${assetId}`);
-			return false;
-		}
-		if (asset.placementSurface !== 'floor') {
-			this.setStatusMessage(`${asset.name} requires ${asset.placementSurface} placement`);
-			return false;
-		}
-		try {
-			resolveAssetFallback(asset);
-		} catch (error) {
-			this.cancelAssetPlacement();
-			this.setStatusMessage(error instanceof Error ? error.message : 'Invalid asset fallback');
-			return false;
-		}
-
-		this.cancelPendingNavigation();
-		this.selectionActions.selectRoom('paris');
-		this.pendingPlacementAssetId = asset.id;
-		this.setNavigationHover(null);
-		this.setStatusMessage(`Click the Paris floor to place ${asset.name}`);
-		return true;
+		return this.placementClusterMutator.beginAssetPlacement(assetId);
 	}
 
 	cancelAssetPlacement(message?: string) {
-		if (this.isDocumentMutationBlocked) return false;
-		const changed = this.pendingPlacementAssetId !== null;
-		this.pendingPlacementAssetId = null;
-		if (message) this.setStatusMessage(message);
-		return changed;
+		return this.placementClusterMutator.cancelAssetPlacement(message);
 	}
 
 	createPendingPlacementAt(position: Vec3) {
-		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return null;
-		const assetId = this.pendingPlacementAssetId;
-		if (!assetId) return null;
-		const asset = getAssetById(assetId);
-		if (!asset || asset.placementSurface !== 'floor') {
-			this.cancelAssetPlacement('Pending asset is no longer available for floor placement');
-			return null;
-		}
-
-		let fallback;
-		try {
-			fallback = resolveAssetFallback(asset);
-		} catch (error) {
-			this.cancelAssetPlacement(
-				error instanceof Error ? error.message : 'Pending asset has no valid fallback'
-			);
-			return null;
-		}
-
-		const reservedIds = new Set(this.document.objects.map((object) => object.id));
-		const id = reserveEntityId(`${asset.id}-placement`, reservedIds);
-		const placement: SceneObjectPlacement = {
-			id,
-			roomId: 'paris',
-			assetId: asset.id,
-			fallback,
-			position: [...position],
-			rotation: [0, 0, 0]
-		};
-
-		if (!this.beginDocumentTransaction()) return null;
-		this.document.objects.push(placement);
-		if (!this.commitDocumentTransaction()) return null;
-
-		this.pendingPlacementAssetId = null;
-		this.selectionActions.selectPlacement(id);
-		this.setStatusMessage(`Placed ${asset.name}`);
-		return id;
+		return this.placementClusterMutator.createPendingPlacementAt(position);
 	}
 
 	beginCameraPlacement() {
@@ -2998,10 +2903,7 @@ export class MuseumEditorStore {
 	}
 
 	isPlacementSelectable(id: string) {
-		if (!this.selectedRoomId) return false;
-		return this.document.objects.some(
-			(object) => object.id === id && object.roomId === this.selectedRoomId
-		);
+		return this.placementClusterMutator.isPlacementSelectable(id);
 	}
 
 	cyclePlacement(ids: string[]) {
@@ -3013,208 +2915,39 @@ export class MuseumEditorStore {
 	}
 
 	createCluster(name?: string) {
-		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return null;
-		const memberIds = [...this.selectedPlacementIds];
-		if (memberIds.length < 2) {
-			this.setStatusMessage('Select at least two placements to create a cluster');
-			return null;
-		}
-
-		const placements = memberIds.map((id) =>
-			this.document.objects.find((object) => object.id === id)
-		);
-		const roomId = placements[0]?.roomId;
-		if (!roomId || placements.some((placement) => placement?.roomId !== roomId)) {
-			this.setStatusMessage('Cluster members must be in the same room');
-			return null;
-		}
-
-		const occupiedIds = new Set(this.clusters.flatMap((cluster) => cluster.memberIds));
-		if (memberIds.some((id) => occupiedIds.has(id))) {
-			this.setStatusMessage('A placement can belong to only one cluster');
-			return null;
-		}
-
-		const existingIds = new Set(this.clusters.map((cluster) => cluster.id));
-		let suffix = this.clusters.length + 1;
-		while (existingIds.has(`cluster-${suffix}`)) suffix += 1;
-		const cluster: SceneObjectCluster = {
-			id: `cluster-${suffix}`,
-			name: name?.trim() || `Cluster ${suffix}`,
-			roomId,
-			memberIds
-		};
-
-		if (!this.beginDocumentTransaction()) return null;
-		this.document.clusters ??= [];
-		this.document.clusters.push(cluster);
-		if (!this.commitDocumentTransaction()) return null;
-		this.selectionActions.selectCluster(cluster.id);
-		this.setStatusMessage(`Grouped ${memberIds.length} objects`);
-		return cluster.id;
+		return this.placementClusterMutator.createCluster(name);
 	}
 
 	renameCluster(id: string, name: string) {
-		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
-		const cluster = this.clusters.find((candidate) => candidate.id === id);
-		const nextName = name.trim();
-		if (!cluster || !nextName || cluster.name === nextName) return false;
-		if (!this.beginDocumentTransaction()) return false;
-		cluster.name = nextName;
-		return this.commitDocumentTransaction();
+		return this.placementClusterMutator.renameCluster(id, name);
 	}
 
 	addMemberToCluster(clusterId: string, memberId: string) {
-		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
-		const cluster = this.clusters.find((candidate) => candidate.id === clusterId);
-		const placement = this.document.objects.find((object) => object.id === memberId);
-		if (!cluster || !placement || placement.roomId !== cluster.roomId) return false;
-		if (cluster.memberIds.includes(memberId)) return false;
-		if (this.clusters.some((candidate) => candidate.memberIds.includes(memberId))) {
-			this.setStatusMessage('A placement can belong to only one cluster');
-			return false;
-		}
-		if (!this.beginDocumentTransaction()) return false;
-		cluster.memberIds.push(memberId);
-		const committed = this.commitDocumentTransaction();
-		if (committed && this.selectedClusterId === clusterId) this.selectionActions.selectCluster(clusterId);
-		return committed;
+		return this.placementClusterMutator.addMemberToCluster(clusterId, memberId);
 	}
 
 	removeMemberFromCluster(clusterId: string, memberId: string) {
-		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
-		const clusterIndex = this.clusters.findIndex((candidate) => candidate.id === clusterId);
-		const cluster = this.clusters[clusterIndex];
-		if (!cluster || !cluster.memberIds.includes(memberId)) return false;
-		const wasSelectedCluster = this.selectedClusterId === clusterId;
-		if (!this.beginDocumentTransaction()) return false;
-		cluster.memberIds = cluster.memberIds.filter((id) => id !== memberId);
-		if (cluster.memberIds.length < 2) {
-			this.document.clusters?.splice(clusterIndex, 1);
-		}
-		const committed = this.commitDocumentTransaction();
-		if (!committed) return false;
-		if (wasSelectedCluster && this.clusters.some((candidate) => candidate.id === clusterId)) {
-			this.selectionActions.selectCluster(clusterId);
-		} else if (wasSelectedCluster) {
-			this.selectedClusterId = null;
-			this.selectionActions.selectPlacements(cluster.memberIds);
-		}
-		return true;
+		return this.placementClusterMutator.removeMemberFromCluster(clusterId, memberId);
 	}
 
 	ungroupCluster(id = this.selectedClusterId) {
-		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
-		if (!id) return false;
-		const index = this.clusters.findIndex((cluster) => cluster.id === id);
-		if (index === -1 || !this.beginDocumentTransaction()) return false;
-		const memberIds = [...this.clusters[index]!.memberIds];
-		const wasSelected = this.selectedClusterId === id;
-		this.document.clusters?.splice(index, 1);
-		const committed = this.commitDocumentTransaction();
-		if (committed && wasSelected) this.selectionActions.selectPlacements(memberIds);
-		return committed;
+		return this.placementClusterMutator.ungroupCluster(id);
 	}
 
 	duplicateSelection() {
-		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
-		const selectedIds = [...this.selectedPlacementIds];
-		const primaryId = this.primaryPlacementId;
-		if (!primaryId || selectedIds.length === 0) {
-			this.setStatusMessage('Select one or more placements to duplicate');
-			return false;
-		}
-
-		const sourceById = new Map(this.document.objects.map((object) => [object.id, object]));
-		if (selectedIds.some((id) => !sourceById.has(id))) {
-			this.setStatusMessage('Selection contains an unavailable placement');
-			return false;
-		}
-
-		// The current primary is copied first. Remaining sources retain selection order.
-		const sourceOrder = [primaryId, ...selectedIds.filter((id) => id !== primaryId)];
-		const reservedPlacementIds = new Set(this.document.objects.map((object) => object.id));
-		const copyIdBySourceId = new Map<string, string>();
-		const copies: SceneObjectPlacement[] = [];
-
-		for (const sourceId of sourceOrder) {
-			const source = sourceById.get(sourceId);
-			if (!source) return false;
-			const copyId = reserveEntityId(`${source.id}-copy`, reservedPlacementIds);
-			copyIdBySourceId.set(source.id, copyId);
-			copies.push({
-				...source,
-				id: copyId,
-				position: [source.position[0] + 0.5, source.position[1], source.position[2] + 0.5],
-				rotation: [...source.rotation]
-			});
-		}
-
-		const selectedSet = new Set(selectedIds);
-		const reservedClusterIds = new Set(this.clusters.map((cluster) => cluster.id));
-		const copiedClusters: SceneObjectCluster[] = [];
-		for (const cluster of this.clusters) {
-			if (!cluster.memberIds.every((id) => selectedSet.has(id))) continue;
-			const memberIds = cluster.memberIds.map((id) => copyIdBySourceId.get(id));
-			if (memberIds.some((id) => !id)) continue;
-			copiedClusters.push({
-				id: reserveEntityId(`${cluster.id}-copy`, reservedClusterIds),
-				name: `${cluster.name} Copy`,
-				roomId: cluster.roomId,
-				memberIds: memberIds as string[]
-			});
-		}
-
-		if (!this.beginDocumentTransaction()) return false;
-		this.document.objects.push(...copies);
-		(this.document.clusters ??= []).push(...copiedClusters);
-		if (!this.commitDocumentTransaction()) return false;
-
-		const copyIds = copies.map((copy) => copy.id);
-		// Primary is the final selection entry; rotate the first-created copy there.
-		this.selectionActions.selectPlacements([...copyIds.slice(1), copyIds[0]!]);
-		this.requestPlacementFrame(copyIds);
-		this.setStatusMessage(`Duplicated ${copies.length} object${copies.length === 1 ? '' : 's'}`);
-		return true;
+		return this.placementClusterMutator.duplicateSelection();
 	}
 
 	deletePlacements(ids: string[]) {
-		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
-		const deleteIds = new Set(ids);
-		if (
-			deleteIds.size === 0 ||
-			![...deleteIds].every((id) => this.document.objects.some((object) => object.id === id))
-		) {
-			return false;
-		}
-		if (!this.beginDocumentTransaction()) return false;
-
-		this.document.objects = this.document.objects.filter((object) => !deleteIds.has(object.id));
-		this.document.clusters = this.clusters
-			.map((cluster) => ({
-				...cluster,
-				memberIds: cluster.memberIds.filter((id) => !deleteIds.has(id))
-			}))
-			.filter((cluster) => cluster.memberIds.length >= 2);
-
-		return this.commitDocumentTransaction();
+		return this.placementClusterMutator.deletePlacements(ids);
 	}
 
 	deleteSelection() {
-		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
-		const ids = [...this.selectedPlacementIds];
-		if (ids.length === 0) {
-			this.setStatusMessage('Select one or more placements to delete');
-			return false;
-		}
-		if (!this.deletePlacements(ids)) return false;
-		this.selectionActions.deselect();
-		this.setStatusMessage(`Deleted ${ids.length} object${ids.length === 1 ? '' : 's'}`);
-		return true;
+		return this.placementClusterMutator.deleteSelection();
 	}
 
 	deletePlacement(id: string) {
-		return this.deletePlacements([id]);
+		return this.placementClusterMutator.deletePlacement(id);
 	}
 
 	beginDocumentTransaction() {
@@ -3235,20 +2968,11 @@ export class MuseumEditorStore {
 	}
 
 	updatePlacementTransform(id: string, transform: PlacementTransform) {
-		if (this.isDocumentMutationBlocked) return false;
-		const placement = this.document.objects.find((object) => object.id === id);
-		if (!placement || !this.isPlacementSelectable(id)) return false;
-		return writePlacementTransform(placement, transform);
+		return this.placementClusterMutator.updatePlacementTransform(id, transform);
 	}
 
 	commitPlacementTransform(id: string, transform: PlacementTransform) {
-		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
-		if (!this.beginDocumentTransaction()) return false;
-		if (!this.updatePlacementTransform(id, transform)) {
-			this.cancelDocumentTransaction();
-			return false;
-		}
-		return this.commitDocumentTransaction();
+		return this.placementClusterMutator.commitPlacementTransform(id, transform);
 	}
 
 	commitDocumentTransaction() {

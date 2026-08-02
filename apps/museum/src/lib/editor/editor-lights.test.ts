@@ -89,7 +89,7 @@ describe('editor-lights', () => {
 		expect(applyLightFieldPatch(light, { intensity: 2.5, angle: Math.PI / 4 })).toBeNull();
 		expect(light).toMatchObject({ intensity: 2.5, angle: Math.PI / 4 });
 		expect(applyLightFieldPatch(light, { range: -1 })).toMatch(/greater than zero/);
-		expect(light.range).toBe(DEFAULT_LIGHT_RANGE);
+		expect(light).toMatchObject({ range: DEFAULT_LIGHT_RANGE });
 	});
 
 	it('rejects invalid optional overrides at create time', () => {

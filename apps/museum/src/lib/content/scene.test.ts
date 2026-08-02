@@ -23,7 +23,12 @@ function fixtureDocument(): MuseumSceneDocument {
 }
 
 function versionOneFrom(document: MuseumSceneDocument): unknown {
-	const { entities, ...rest } = document;
+	const {
+		entities,
+		textures: _textures,
+		materials: _materials,
+		...rest
+	} = document;
 	return {
 		...rest,
 		version: 1,
@@ -49,7 +54,12 @@ function versionOneFrom(document: MuseumSceneDocument): unknown {
 }
 
 function versionThreeFrom(document: MuseumSceneDocument): unknown {
-	const { entities, ...rest } = document;
+	const {
+		entities,
+		textures: _textures,
+		materials: _materials,
+		...rest
+	} = document;
 	return {
 		...rest,
 		version: 3,
@@ -92,7 +102,7 @@ describe('checked-in museum-scene.json smoke', () => {
 		expect(resolved.entities).toHaveLength(museumSceneDocument.entities.length);
 
 		const json = serializeSceneDocument(museumSceneDocument);
-		expect(json).toMatch(/^\{\n  "version": 5,\n/);
+		expect(json).toMatch(/^\{\n  "version": 6,\n/);
 		expect(JSON.stringify(museumSceneDocument)).toBe(before);
 	});
 
@@ -229,6 +239,21 @@ describe('resolveSceneDocument', () => {
 
 	it('is deterministic, non-mutating, and independently allocated', () => {
 		const document = fixtureDocument();
+		document.textures.push({
+			id: 'runtime-texture',
+			name: 'Runtime Texture',
+			uri: '/museum/textures/runtime.webp'
+		});
+		document.materials.push({
+			id: 'runtime-material',
+			name: 'Runtime Material',
+			baseMaterialId: 'plaster-warm',
+			baseTextureId: 'runtime-texture',
+			roughness: 0.6
+		});
+		const renderable = document.entities[0]!;
+		if (renderable.kind === 'light') throw new Error('Fixture needs a renderable entity');
+		renderable.materialInstanceId = 'runtime-material';
 		const serializedBefore = JSON.stringify(document);
 		const first = resolveSceneDocument(document);
 		const second = resolveSceneDocument(document);
@@ -236,6 +261,13 @@ describe('resolveSceneDocument', () => {
 		expect(JSON.stringify(document)).toBe(serializedBefore);
 		expect(first).toEqual(second);
 		expect(first).not.toBe(second);
+		expect(first.textures).toEqual(document.textures);
+		expect(first.materials).toEqual(document.materials);
+		expect(first.textures).not.toBe(document.textures);
+		expect(first.materials).not.toBe(document.materials);
+		expect(first.textures[0]).not.toBe(document.textures[0]);
+		expect(first.materials[0]).not.toBe(document.materials[0]);
+		expect(first.entities[0]).toHaveProperty('materialInstanceId', 'runtime-material');
 		expect(first.objects[0]).not.toBe(second.objects[0]);
 		expect(first.navigationNodes[0].position).not.toBe(second.navigationNodes[0].position);
 		expect(first.connections[0].positionPath).not.toBe(second.connections[0].positionPath);
@@ -296,7 +328,9 @@ describe('resolveSceneDocument', () => {
 
 	it('resolves mixed-space position and target waypoints with fresh endpoints', () => {
 		const document: MuseumSceneDocument = {
-			version: 5,
+			version: 6,
+			textures: [],
+			materials: [],
 			entities: [
 				{
 					kind: 'model',
@@ -424,9 +458,9 @@ describe('resolveSceneDocument', () => {
 	it('rejects unsupported versions, duplicate ids, and unknown endpoints', () => {
 		const cloneDocument = () => fixtureDocument();
 		const unsupported = cloneDocument();
-		(unsupported as unknown as { version: number }).version = 6;
+		(unsupported as unknown as { version: number }).version = 7;
 		expect(() => resolveSceneDocument(unsupported)).toThrow(
-			'Unsupported museum scene document version: 6'
+			'Unsupported museum scene document version: 7'
 		);
 
 		const duplicate = cloneDocument();
@@ -442,14 +476,14 @@ describe('resolveSceneDocument', () => {
 		);
 	});
 
-	it('migrates v3 input without timing fields to canonical v5', () => {
+	it('migrates v3 input without timing fields to canonical v6', () => {
 		const document = fixtureDocument();
 		const clone = versionThreeFrom(document);
 		expect((clone as { version: number }).version).toBe(3);
 		const validation = validateSceneDocument(clone);
 		expect(validation.success).toBe(true);
 		if (validation.success) {
-			expect(validation.document.version).toBe(5);
+			expect(validation.document.version).toBe(6);
 			expect(validation.document.entities).toHaveLength(document.entities.length);
 			expect(validation.document.entities[0]).toMatchObject({
 				kind: 'model',

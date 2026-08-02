@@ -13,6 +13,7 @@ import type {
 	SceneEntity,
 	SceneLightEntity,
 	SceneLightKind,
+	SceneMaterialInstance,
 	SceneModelEntity,
 	SceneNavigationNode,
 	SceneObjectCluster,
@@ -22,6 +23,7 @@ import type {
 	ScenePrimitiveEntity,
 	ScenePrimitiveKind,
 	SceneSphereDimensions,
+	SceneTextureAsset,
 	SceneWaypoint
 } from './scene';
 import {
@@ -75,6 +77,14 @@ type MuseumSceneDocumentV3V4 = MuseumSceneDocumentWithObjects & {
 	version: 3 | 4;
 };
 
+/** v5 has canonical entities but predates texture/material resources. */
+type MuseumSceneDocumentV5 = Omit<
+	MuseumSceneDocument,
+	'version' | 'textures' | 'materials'
+> & {
+	version: 5;
+};
+
 type MuseumSceneDocumentV2 = {
 	version: 2;
 	objects: SceneObjectPlacement[];
@@ -94,6 +104,7 @@ type LegacyMuseumSceneDocument = Omit<MuseumSceneDocumentV2, 'version' | 'connec
 
 type ParsedMuseumSceneDocument =
 	| MuseumSceneDocument
+	| MuseumSceneDocumentV5
 	| MuseumSceneDocumentV3V4
 	| MuseumSceneDocumentV2
 	| LegacyMuseumSceneDocument;
@@ -207,6 +218,145 @@ function readRequiredNumber(
 		return undefined;
 	}
 	return candidate;
+}
+
+function readUnitInterval(
+	value: JsonRecord,
+	key: 'roughness' | 'metalness',
+	path: string,
+	issues: SceneDocumentIssue[]
+): number | undefined {
+	if (!(key in value)) return undefined;
+	const candidate = readRequiredNumber(value, key, path, issues);
+	if (candidate === undefined) return undefined;
+	if (candidate < 0 || candidate > 1) {
+		addIssue(
+			issues,
+			`${path}.${key}`,
+			`invalid_${key}`,
+			`${key} must be between zero and one`
+		);
+		return undefined;
+	}
+	return candidate;
+}
+
+function isSafeTextureUri(uri: string): boolean {
+	if (
+		!uri.startsWith('/') ||
+		uri.startsWith('//') ||
+		uri.includes('\\') ||
+		uri.includes('?') ||
+		uri.includes('#')
+	) {
+		return false;
+	}
+	let decoded = uri;
+	let stable = false;
+	for (let depth = 0; depth < 8; depth += 1) {
+		let next: string;
+		try {
+			next = decodeURIComponent(decoded);
+		} catch {
+			return false;
+		}
+		if (next === decoded) {
+			stable = true;
+			break;
+		}
+		decoded = next;
+	}
+	if (!stable) return false;
+	if (
+		!decoded.startsWith('/') ||
+		decoded.startsWith('//') ||
+		decoded.includes('\\') ||
+		decoded.includes('?') ||
+		decoded.includes('#') ||
+		/[\u0000-\u001f\u007f]/.test(decoded)
+	) {
+		return false;
+	}
+	const segments = decoded.split('/');
+	return segments.every((segment) => segment !== '.' && segment !== '..');
+}
+
+function parseTextureAsset(
+	input: unknown,
+	path: string,
+	issues: SceneDocumentIssue[]
+): SceneTextureAsset | undefined {
+	if (!isRecord(input)) {
+		addIssue(issues, path, 'invalid_type', 'Expected a texture asset object');
+		return undefined;
+	}
+	assertAllowedKeys(input, ['id', 'name', 'uri'], path, issues);
+	const id = readRequiredString(input, 'id', path, issues);
+	const name = readRequiredString(input, 'name', path, issues);
+	const uri = readRequiredString(input, 'uri', path, issues);
+	if (uri && !isSafeTextureUri(uri)) {
+		addIssue(
+			issues,
+			`${path}.uri`,
+			'unsafe_texture_uri',
+			'Texture URI must be a safe root-relative public path'
+		);
+	}
+	if (!id || !name || !uri || !isSafeTextureUri(uri)) return undefined;
+	return { id, name, uri };
+}
+
+function parseMaterialInstance(
+	input: unknown,
+	path: string,
+	issues: SceneDocumentIssue[]
+): SceneMaterialInstance | undefined {
+	if (!isRecord(input)) {
+		addIssue(issues, path, 'invalid_type', 'Expected a material instance object');
+		return undefined;
+	}
+	assertAllowedKeys(
+		input,
+		['id', 'name', 'baseMaterialId', 'baseTextureId', 'roughness', 'metalness'],
+		path,
+		issues
+	);
+	const id = readRequiredString(input, 'id', path, issues);
+	const name = readRequiredString(input, 'name', path, issues);
+	const baseMaterialIdRaw = readRequiredString(input, 'baseMaterialId', path, issues);
+	const baseMaterialId =
+		baseMaterialIdRaw && isMaterialId(baseMaterialIdRaw)
+			? (baseMaterialIdRaw as MaterialId)
+			: undefined;
+	if (baseMaterialIdRaw && !baseMaterialId) {
+		addIssue(
+			issues,
+			`${path}.baseMaterialId`,
+			'unknown_material',
+			`Unknown museum material: ${baseMaterialIdRaw}`
+		);
+	}
+	const baseTextureId = readOptionalString(input, 'baseTextureId', path, issues);
+	const roughness = readUnitInterval(input, 'roughness', path, issues);
+	const metalness = readUnitInterval(input, 'metalness', path, issues);
+	if (
+		!id ||
+		!name ||
+		!baseMaterialId ||
+		('baseTextureId' in input && !baseTextureId) ||
+		('roughness' in input && roughness === undefined) ||
+		('metalness' in input && metalness === undefined)
+	) {
+		return undefined;
+	}
+	return {
+		id,
+		name,
+		baseMaterialId,
+		...(baseTextureId === undefined ? {} : { baseTextureId }),
+		...(roughness === undefined ? {} : { roughness }),
+		...(metalness === undefined ? {} : { metalness })
+	};
 }
 
 function readVec3(
@@ -390,11 +540,23 @@ function parseEntityTransform(
 function parseModelEntity(
 	input: JsonRecord,
 	path: string,
-	issues: SceneDocumentIssue[]
+	issues: SceneDocumentIssue[],
+	options: { allowMaterialInstance: boolean }
 ): SceneModelEntity | undefined {
 	assertAllowedKeys(
 		input,
-		['kind', 'id', 'name', 'roomId', 'assetId', 'fallback', 'position', 'rotation', 'scale'],
+		[
+			'kind',
+			'id',
+			'name',
+			'roomId',
+			'assetId',
+			'fallback',
+			'position',
+			'rotation',
+			'scale',
+			...(options.allowMaterialInstance ? ['materialInstanceId'] : [])
+		],
 		path,
 		issues
 	);
@@ -409,8 +571,21 @@ function parseModelEntity(
 	if (fallback && !isSceneObjectFallback(fallback)) {
 		addIssue(issues, `${path}.fallback`, 'invalid_fallback', `Invalid fallback: ${fallback}`);
 	}
+	const materialInstanceId = options.allowMaterialInstance
+		? readOptionalString(input, 'materialInstanceId', path, issues)
+		: undefined;
 	const transform = parseEntityTransform(input, path, issues);
-	if (!id || !name || !roomId || !assetId || !fallback || !transform) return undefined;
+	if (
+		!id ||
+		!name ||
+		!roomId ||
+		!assetId ||
+		!fallback ||
+		!transform ||
+		(options.allowMaterialInstance && 'materialInstanceId' in input && !materialInstanceId)
+	) {
+		return undefined;
+	}
 	return {
 		kind: 'model',
 		id,
@@ -418,14 +593,16 @@ function parseModelEntity(
 		roomId,
 		assetId,
 		fallback: fallback as SceneModelEntity['fallback'],
-		...transform
+		...transform,
+		...(materialInstanceId === undefined ? {} : { materialInstanceId })
 	};
 }
 
 function parsePrimitiveEntity(
 	input: JsonRecord,
 	path: string,
-	issues: SceneDocumentIssue[]
+	issues: SceneDocumentIssue[],
+	options: { allowMaterialInstance: boolean }
 ): ScenePrimitiveEntity | undefined {
 	assertAllowedKeys(
 		input,
@@ -441,7 +618,8 @@ function parsePrimitiveEntity(
 			'receiveShadow',
 			'position',
 			'rotation',
-			'scale'
+			'scale',
+			...(options.allowMaterialInstance ? ['materialInstanceId'] : [])
 		],
 		path,
 		issues
@@ -469,6 +647,9 @@ function parsePrimitiveEntity(
 	}
 	const castShadow = readRequiredBoolean(input, 'castShadow', path, issues);
 	const receiveShadow = readRequiredBoolean(input, 'receiveShadow', path, issues);
+	const materialInstanceId = options.allowMaterialInstance
+		? readOptionalString(input, 'materialInstanceId', path, issues)
+		: undefined;
 	const transform = parseEntityTransform(input, path, issues);
 	if (
 		!id ||
@@ -479,7 +660,8 @@ function parsePrimitiveEntity(
 		!materialId ||
 		castShadow === undefined ||
 		receiveShadow === undefined ||
-		!transform
+		!transform ||
+		(options.allowMaterialInstance && 'materialInstanceId' in input && !materialInstanceId)
 	) {
 		return undefined;
 	}
@@ -493,7 +675,8 @@ function parsePrimitiveEntity(
 		materialId,
 		castShadow,
 		receiveShadow,
-		...transform
+		...transform,
+		...(materialInstanceId === undefined ? {} : { materialInstanceId })
 	} as ScenePrimitiveEntity;
 }
 
@@ -651,15 +834,16 @@ function parseLightEntity(
 function parseEntity(
 	input: unknown,
 	path: string,
-	issues: SceneDocumentIssue[]
+	issues: SceneDocumentIssue[],
+	options: { allowMaterialInstance: boolean }
 ): SceneEntity | undefined {
 	if (!isRecord(input)) {
 		addIssue(issues, path, 'invalid_type', 'Expected a scene entity object');
 		return undefined;
 	}
 	const kind = readRequiredString(input, 'kind', path, issues);
-	if (kind === 'model') return parseModelEntity(input, path, issues);
-	if (kind === 'primitive') return parsePrimitiveEntity(input, path, issues);
+	if (kind === 'model') return parseModelEntity(input, path, issues, options);
+	if (kind === 'primitive') return parsePrimitiveEntity(input, path, issues, options);
 	if (kind === 'light') return parseLightEntity(input, path, issues);
 	if (kind !== undefined) {
 		addIssue(issues, `${path}.kind`, 'invalid_entity_kind', `Invalid scene entity kind: ${kind}`);
@@ -1396,6 +1580,36 @@ function validateSemantics(document: ParsedMuseumSceneDocument, issues: SceneDoc
 	assertUnique(document.navigationNodes, 'navigation node', '$.navigationNodes', issues);
 	assertUnique(document.connections, 'connection', '$.connections', issues);
 	assertUnique(document.clusters ?? [], 'scene cluster', '$.clusters', issues);
+	if ('textures' in document) {
+		assertUnique(document.textures, 'texture asset', '$.textures', issues);
+		assertUnique(document.materials, 'material instance', '$.materials', issues);
+		const textureIds = new Set(document.textures.map((texture) => texture.id));
+		for (const [index, material] of document.materials.entries()) {
+			if (material.baseTextureId && !textureIds.has(material.baseTextureId)) {
+				addIssue(
+					issues,
+					`$.materials[${index}].baseTextureId`,
+					'unknown_texture',
+					`Unknown texture asset: ${material.baseTextureId}`
+				);
+			}
+		}
+		const materialIds = new Set(document.materials.map((material) => material.id));
+		for (const [index, entity] of entities.entries()) {
+			if (
+				'materialInstanceId' in entity &&
+				entity.materialInstanceId !== undefined &&
+				!materialIds.has(entity.materialInstanceId)
+			) {
+				addIssue(
+					issues,
+					`$.entities[${index}].materialInstanceId`,
+					'unknown_material_instance',
+					`Unknown material instance: ${entity.materialInstanceId}`
+				);
+			}
+		}
+	}
 
 	const entityById = new Map(entities.map((entity) => [entity.id, entity]));
 	const clusteredIds = new Set<string>();
@@ -1501,7 +1715,12 @@ function validateSemantics(document: ParsedMuseumSceneDocument, issues: SceneDoc
 		}
 	}
 
-	if (document.version === 3 || document.version === 4 || document.version === 5) {
+	if (
+		document.version === 3 ||
+		document.version === 4 ||
+		document.version === 5 ||
+		document.version === 6
+	) {
 		validateViewKeyframePoses(
 			document,
 			new Map(document.navigationNodes.map((node) => [node.id, node])),
@@ -1541,7 +1760,8 @@ function validateSemantics(document: ParsedMuseumSceneDocument, issues: SceneDoc
 		document.version === 2 ||
 		document.version === 3 ||
 		document.version === 4 ||
-		document.version === 5
+		document.version === 5 ||
+		document.version === 6
 	) {
 		validateVersionTwoTour(document.navigationNodes, nodeById, issues);
 		return;
@@ -1745,7 +1965,10 @@ function cloneEntity(entity: SceneEntity): SceneEntity {
 			fallback: entity.fallback,
 			position: [...entity.position],
 			rotation: [...entity.rotation],
-			...(entity.scale === undefined ? {} : { scale: entity.scale })
+			...(entity.scale === undefined ? {} : { scale: entity.scale }),
+			...(entity.materialInstanceId === undefined
+				? {}
+				: { materialInstanceId: entity.materialInstanceId })
 		};
 	}
 	if (entity.kind === 'primitive') {
@@ -1761,7 +1984,10 @@ function cloneEntity(entity: SceneEntity): SceneEntity {
 			receiveShadow: entity.receiveShadow,
 			position: [...entity.position],
 			rotation: [...entity.rotation],
-			...(entity.scale === undefined ? {} : { scale: entity.scale })
+			...(entity.scale === undefined ? {} : { scale: entity.scale }),
+			...(entity.materialInstanceId === undefined
+				? {}
+				: { materialInstanceId: entity.materialInstanceId })
 		} as ScenePrimitiveEntity;
 	}
 	if (entity.light === 'spot') {
@@ -1815,7 +2041,22 @@ function cloneEntity(entity: SceneEntity): SceneEntity {
 
 function canonicalDocument(document: MuseumSceneDocument): MuseumSceneDocument {
 	return {
-		version: 5,
+		version: 6,
+		textures: document.textures.map((texture) => ({
+			id: texture.id,
+			name: texture.name,
+			uri: texture.uri
+		})),
+		materials: document.materials.map((material) => ({
+			id: material.id,
+			name: material.name,
+			baseMaterialId: material.baseMaterialId,
+			...(material.baseTextureId === undefined
+				? {}
+				: { baseTextureId: material.baseTextureId }),
+			...(material.roughness === undefined ? {} : { roughness: material.roughness }),
+			...(material.metalness === undefined ? {} : { metalness: material.metalness })
+		})),
 		entities: document.entities.map(cloneEntity),
 		...(document.clusters === undefined ? {} : { clusters: document.clusters.map((cluster) => ({ id: cluster.id, name: cluster.name, roomId: cluster.roomId, memberIds: [...cluster.memberIds] })) }),
 		navigationNodes: document.navigationNodes.map((node) => ({ id: node.id, roomId: node.roomId, label: node.label, position: [...node.position], cameraTarget: [...node.cameraTarget], fov: node.fov, connectedNodeIds: [...node.connectedNodeIds], ...(node.nextNodeId === undefined ? {} : { nextNodeId: node.nextNodeId }), ...(node.previousNodeId === undefined ? {} : { previousNodeId: node.previousNodeId }), ...(node.lockInteraction === undefined ? {} : { lockInteraction: node.lockInteraction }), ...(node.holdSeconds === undefined ? {} : { holdSeconds: node.holdSeconds }) })),
@@ -1898,10 +2139,22 @@ function migrateVersionTwoDocument(document: MuseumSceneDocumentV2): MuseumScene
 
 function migrateToVersionFive(
 	document: MuseumSceneDocumentWithObjects
-): MuseumSceneDocument {
+): MuseumSceneDocumentV5 {
 	return {
 		version: 5,
 		entities: document.objects.map((object) => modelEntityFromPlacement(object)),
+		...(document.clusters === undefined ? {} : { clusters: document.clusters }),
+		navigationNodes: document.navigationNodes,
+		connections: document.connections
+	};
+}
+
+function migrateToVersionSix(document: MuseumSceneDocumentV5): MuseumSceneDocument {
+	return {
+		version: 6,
+		textures: [],
+		materials: [],
+		entities: document.entities,
 		...(document.clusters === undefined ? {} : { clusters: document.clusters }),
 		navigationNodes: document.navigationNodes,
 		connections: document.connections
@@ -1920,7 +2173,8 @@ export function validateSceneDocument(input: unknown): SceneDocumentValidationRe
 		version !== 2 &&
 		version !== 3 &&
 		version !== 4 &&
-		version !== 5
+		version !== 5 &&
+		version !== 6
 	) {
 		addIssue(
 			issues,
@@ -1931,7 +2185,17 @@ export function validateSceneDocument(input: unknown): SceneDocumentValidationRe
 		return { success: false, issues };
 	}
 	const rootKeys =
-		version === 5
+		version === 6
+			? ([
+					'version',
+					'textures',
+					'materials',
+					'entities',
+					'clusters',
+					'navigationNodes',
+					'connections'
+				] as const)
+			: version === 5
 			? (['version', 'entities', 'clusters', 'navigationNodes', 'connections'] as const)
 			: (['version', 'objects', 'clusters', 'navigationNodes', 'connections'] as const);
 	assertAllowedKeys(input, rootKeys, '$', issues);
@@ -1948,7 +2212,16 @@ export function validateSceneDocument(input: unknown): SceneDocumentValidationRe
 		version === 1 || version === 2 || version === 3 || version === 4
 			? parseArray('objects', parsePlacement)
 			: undefined;
-	const entities = version === 5 ? parseArray('entities', parseEntity) : undefined;
+	const textures =
+		version === 6 ? parseArray('textures', parseTextureAsset) : undefined;
+	const materials =
+		version === 6 ? parseArray('materials', parseMaterialInstance) : undefined;
+	const entities =
+		version === 5 || version === 6
+			? parseArray('entities', (value, path, target) =>
+					parseEntity(value, path, target, { allowMaterialInstance: version === 6 })
+				)
+			: undefined;
 	const clusters = 'clusters' in input ? parseArray('clusters', parseCluster) : undefined;
 	const legacyNavigationNodes = version === 1 || version === 2
 		? parseArray('navigationNodes', parseNodeV1V2)
@@ -1957,7 +2230,7 @@ export function validateSceneDocument(input: unknown): SceneDocumentValidationRe
 		? parseArray('navigationNodes', parseNodeV3)
 		: undefined;
 	const versionFourPlusNavigationNodes =
-		version === 4 || version === 5
+		version === 4 || version === 5 || version === 6
 			? parseArray('navigationNodes', parseNodeV4)
 			: undefined;
 	const legacyConnections = version === 1
@@ -1970,17 +2243,21 @@ export function validateSceneDocument(input: unknown): SceneDocumentValidationRe
 		? parseArray('connections', parseConnectionV3)
 		: undefined;
 	const versionFourPlusConnections =
-		version === 4 || version === 5
+		version === 4 || version === 5 || version === 6
 			? parseArray('connections', parseConnectionV4)
 			: undefined;
 	const missingEntitiesOrObjects =
-		version === 5 ? !entities : version === 1 || version === 2 || version === 3 || version === 4 ? !objects : true;
+		version === 5 || version === 6
+			? !entities
+			: version === 1 || version === 2 || version === 3 || version === 4
+				? !objects
+				: true;
 	const missingNodes =
 		version === 1 || version === 2
 			? !legacyNavigationNodes
 			: version === 3
 				? !versionThreeNavigationNodes
-				: version === 4 || version === 5
+				: version === 4 || version === 5 || version === 6
 					? !versionFourPlusNavigationNodes
 					: true;
 	const missingConnections =
@@ -1990,13 +2267,14 @@ export function validateSceneDocument(input: unknown): SceneDocumentValidationRe
 				? !versionTwoConnections
 				: version === 3
 					? !versionThreeConnections
-					: version === 4 || version === 5
+					: version === 4 || version === 5 || version === 6
 						? !versionFourPlusConnections
 						: true;
 	if (
 		missingEntitiesOrObjects ||
 		missingNodes ||
 		missingConnections ||
+		(version === 6 && (!textures || !materials)) ||
 		('clusters' in input && !clusters) ||
 		issues.length
 	) {
@@ -2019,33 +2297,55 @@ export function validateSceneDocument(input: unknown): SceneDocumentValidationRe
 						navigationNodes: legacyNavigationNodes!,
 						connections: versionTwoConnections!
 					}
-				: version === 5
+				: version === 6
 					? {
-							version: 5,
+							version: 6,
+							textures: textures!,
+							materials: materials!,
 							entities: entities!,
 							...(clusters === undefined ? {} : { clusters }),
 							navigationNodes: versionFourPlusNavigationNodes!,
 							connections: versionFourPlusConnections!
 						}
-					: {
-							version: version === 4 ? 4 : 3,
-							objects: objects!,
-							...(clusters === undefined ? {} : { clusters }),
-							navigationNodes:
-								version === 4 ? versionFourPlusNavigationNodes! : versionThreeNavigationNodes!,
-							connections:
-								version === 4 ? versionFourPlusConnections! : versionThreeConnections!
-						};
+					: version === 5
+						? {
+								version: 5,
+								entities: entities!,
+								...(clusters === undefined ? {} : { clusters }),
+								navigationNodes: versionFourPlusNavigationNodes!,
+								connections: versionFourPlusConnections!
+							}
+						: {
+								version: version === 4 ? 4 : 3,
+								objects: objects!,
+								...(clusters === undefined ? {} : { clusters }),
+								navigationNodes:
+									version === 4
+										? versionFourPlusNavigationNodes!
+										: versionThreeNavigationNodes!,
+								connections:
+									version === 4
+										? versionFourPlusConnections!
+										: versionThreeConnections!
+							};
 	validateSemantics(document, issues);
 	if (issues.length) return { success: false, issues };
 	const normalized = canonicalDocument(
 		document.version === 1
-			? migrateToVersionFive(migrateVersionTwoDocument(migrateVersionOneDocument(document)))
+			? migrateToVersionSix(
+					migrateToVersionFive(
+						migrateVersionTwoDocument(migrateVersionOneDocument(document))
+					)
+				)
 			: document.version === 2
-				? migrateToVersionFive(migrateVersionTwoDocument(document))
-				: document.version === 5
+				? migrateToVersionSix(
+						migrateToVersionFive(migrateVersionTwoDocument(document))
+					)
+				: document.version === 6
 					? document
-					: migrateToVersionFive(document)
+					: document.version === 5
+						? migrateToVersionSix(document)
+						: migrateToVersionSix(migrateToVersionFive(document))
 	);
 	return { success: true, document: normalized, canonicalJson: JSON.stringify(normalized, null, 2) + '\n' };
 }

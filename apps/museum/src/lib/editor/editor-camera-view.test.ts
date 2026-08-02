@@ -15,7 +15,9 @@ import {
 
 function createDocument(): MuseumSceneDocument {
 	return {
-		version: 5,
+		version: 6,
+		textures: [],
+		materials: [],
 		entities: [],
 		navigationNodes: [
 			{

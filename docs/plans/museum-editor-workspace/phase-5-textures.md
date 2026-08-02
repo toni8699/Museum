@@ -4,6 +4,8 @@
 
 **Dependency:** Phase 4 complete, including schema v5 entities.
 
+**Status:** Slice 5.1 complete. Canonical v6 schema and v1–v5 migration landed; next is 5.2 import/library/assignment.
+
 ## Release Split
 
 Phase 5 has two gates:

@@ -103,6 +103,8 @@ const connections: MuseumConnection[] = [
 ];
 
 const customScene: RuntimeMuseumScene = {
+  textures: [],
+  materials: [],
   entities: [],
   objects: [],
   navigationNodes: nodes,

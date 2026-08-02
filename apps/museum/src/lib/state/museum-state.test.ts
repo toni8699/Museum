@@ -3,6 +3,8 @@ import { createNavigationGraph, type RuntimeMuseumScene } from '$lib/content/sce
 import { createMuseumState } from './museum-state.svelte';
 
 const scene: RuntimeMuseumScene = {
+  textures: [],
+  materials: [],
   entities: [],
   objects: [],
   navigationNodes: [

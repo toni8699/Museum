@@ -32,7 +32,7 @@ flowchart TB
   Route --> Graph["resolved navigation graph"]
   State --> Graph
   Graph --> Resolver["scene.ts resolver"]
-  Resolver --> Document["museum-scene.json v2"]
+  Resolver --> Document["museum-scene.json v6"]
   Resolver --> Architecture["rooms.ts transforms"]
   Document --> Session["editor session clone/export"]
   Editor["/dev/museum-editor"] --> Session
@@ -44,7 +44,7 @@ flowchart TB
 
 **Static architecture source:** `apps/museum/src/lib/content/rooms.ts`. It owns room poses, dimensions, openings, colors, and local/world yaw transforms. It does not own placements, navigation nodes, or connections.
 
-**Scene boundary:** `scene-codec.ts` strictly accepts v1/v2 and returns canonical v2; `scene.ts` resolves room-local values and inserts fresh connection endpoints. Never persist generated endpoint anchors.
+**Scene boundary:** `scene-codec.ts` strictly accepts v1–v6 and returns canonical v6; `scene.ts` resolves room-local values and inserts fresh connection endpoints. Never persist generated endpoint anchors.
 
 **Architecture materials:** `apps/museum/src/lib/content/materials.ts` + `MuseumMaterial.svelte` (texture cache/variants). Preview at `/dev/materials`. Shell floors/walls/ceilings use semantic `Floor` / `Wall` / `Ceiling` planes — do not reintroduce large textured boxes for major faces.
 
@@ -56,8 +56,8 @@ For the asset handoff workflow and optimization checklist, see [`docs/ASSET_WORK
 |---------|-------|
 | Room poses, dimensions, openings, colors | `rooms.ts` → `museumRooms` |
 | Local ↔ world yaw transforms / room containment | `rooms.ts` |
-| Placements, nodes, tour links, connection paths | `museum-scene.json` v5 (`entities`) |
-| Strict v1/v2 validation, migration, serialization | `scene-codec.ts` |
+| Textures, material instances, entities, nodes, tour links, connection paths | `museum-scene.json` v6 |
+| Strict v1–v6 validation, migration, serialization | `scene-codec.ts` |
 | Runtime local → world resolution + generated endpoints | `scene.ts` |
 | Shared PBR catalogue + tile sizes | `materials.ts` |
 | Model provenance, defaults, licence status | `assets.ts` |
@@ -81,8 +81,8 @@ apps/museum/src/
   routes/dev/assets/+page.svelte      model preview / inspector
   routes/dev/museum-editor/+page.svelte development-only editor
   lib/content/rooms.ts                DATA: static room architecture/transforms
-  lib/content/museum-scene.json       DATA: entities + navigation schema v5
-  lib/content/scene-codec.ts          strict v1/v2 codec + v1 migration
+  lib/content/museum-scene.json       DATA: resources + entities + navigation schema v6
+  lib/content/scene-codec.ts          strict v1–v6 codec + deterministic migration
   lib/content/scene.ts                document types + runtime resolver/graph
   lib/content/materials.ts            DATA: PBR material catalogue
   lib/content/assets.ts               DATA: model manifest + licence metadata
@@ -118,7 +118,7 @@ apps/museum/src/
 
 ## Scene and path contracts
 
-- Scene JSON v2 connections persist only stable-ID **interior** anchors under `positionPath`.
+- Scene JSON v2+ connections persist only stable-ID **interior** anchors under `positionPath`.
 - `rounded-polyline` preserves legacy line/quadratic fillet motion; `clearance` caps its corner radius.
 - `auto-bezier` passes through endpoints/interior anchors with derived centripetal Catmull–Rom tangents. Controls are not persisted or exposed.
 - Anchors with `roomId` are room-local; anchors without it are world-space.
@@ -131,7 +131,7 @@ apps/museum/src/
 
 - **Guided mode:** only `nextNodeId`, or `previousNodeId` if that room was visited.
 - **Free mode:** any other node; routes still follow graph edges through multi-hop BFS.
-- **Free-only nodes:** v2 nodes with neither guided link remain graph-reachable in free mode. Nodes must define both `nextNodeId` and `previousNodeId`, or neither; guided nodes form one reciprocal cycle.
+- **Free-only nodes:** v2+ nodes with neither guided link remain graph-reachable in free mode. Nodes must define both `nextNodeId` and `previousNodeId`, or neither; guided nodes form one reciprocal cycle.
 - **During transition:** no new navigation (`isTransitioning`).
 - **Reduced motion:** skip path animation (instant).
 - Visitor `/museum` renders no route ribbons, path lines, anchors, or editor helpers.

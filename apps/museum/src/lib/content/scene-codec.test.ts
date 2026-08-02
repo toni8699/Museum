@@ -24,7 +24,12 @@ function modelPlacementsFromDocument(document: MuseumSceneDocument) {
 
 function versionTwoDocument(): unknown {
 	const document = cloneDocument();
-	const { entities: _entities, ...rest } = document;
+	const {
+		entities: _entities,
+		textures: _textures,
+		materials: _materials,
+		...rest
+	} = document;
 	return {
 		...rest,
 		version: 2,
@@ -53,6 +58,44 @@ function versionOneDocument(): unknown {
 	};
 }
 
+function versionFiveDocument(): unknown {
+	const document = cloneDocument();
+	const {
+		textures: _textures,
+		materials: _materials,
+		...rest
+	} = document;
+	return {
+		...rest,
+		version: 5,
+		entities: document.entities.map((entity) => {
+			const { materialInstanceId: _materialInstanceId, ...legacyEntity } =
+				entity as typeof entity & { materialInstanceId?: string };
+			return legacyEntity;
+		})
+	};
+}
+
+function versionSixDocument(): {
+	version: number;
+	textures: Array<Record<string, unknown>>;
+	materials: Array<Record<string, unknown>>;
+	entities: Array<Record<string, unknown>>;
+	[key: string]: unknown;
+} {
+	const document = cloneDocument() as unknown as {
+		version: number;
+		entities: Array<Record<string, unknown>>;
+		[key: string]: unknown;
+	};
+	return {
+		...document,
+		version: 6,
+		textures: [],
+		materials: []
+	};
+}
+
 function expectIssue(input: unknown, code: string, path?: string) {
 	const result = validateSceneDocument(input);
 	expect(result.success).toBe(false);
@@ -68,7 +111,9 @@ describe('scene document codec', () => {
 		const json = serializeSceneDocument(museumSceneDocument);
 		const parsed = parseSceneDocumentJson(json);
 
-		expect(json).toMatch(/^\{\n  "version": 5,\n  "entities": \[/);
+		expect(json).toMatch(
+			/^\{\n  "version": 6,\n  "textures": \[\],\n  "materials": \[\],\n  "entities": \[/
+		);
 		expect(json).toContain('\n  "navigationNodes": [');
 		expect(json).not.toContain('\n  "clusters":');
 		expect(json.endsWith('\n')).toBe(true);
@@ -146,7 +191,7 @@ describe('scene document codec', () => {
 		if (!result.success) expect(result.issues).toContainEqual(expect.objectContaining({ code: 'invalid_tour_cycle' }));
 	});
 
-	it('strictly validates version 1 before deterministic migration to canonical version 5', () => {
+	it('strictly validates version 1 before deterministic migration to canonical version 6', () => {
 		const legacy = versionOneDocument() as {
 			connections: Array<Record<string, unknown>>;
 		};
@@ -159,7 +204,9 @@ describe('scene document codec', () => {
 		expect(result.success).toBe(true);
 		if (!result.success) return;
 		expect(JSON.stringify(legacy)).toBe(before);
-		expect(result.document.version).toBe(5);
+		expect(result.document.version).toBe(6);
+		expect(result.document.textures).toEqual([]);
+		expect(result.document.materials).toEqual([]);
 		expect(result.document.entities.every((entity) => entity.kind === 'model')).toBe(true);
 		expect(result.document.navigationNodes.every((node) => node.fov === 54)).toBe(true);
 		expect(result.document.connections.every((connection) => connection.positionPath.kind === 'rounded-polyline')).toBe(true);
@@ -171,7 +218,7 @@ describe('scene document codec', () => {
 				connection.positionPath.anchors.map((anchor) => anchor.id)
 			)
 		).toEqual(fixtureAnchorIds);
-		expect(result.canonicalJson).toContain('"version": 5');
+		expect(result.canonicalJson).toContain('"version": 6');
 		expect(result.canonicalJson).not.toContain('positionWaypoints');
 		expect(result.document.connections[0]!.targetWaypoints).toEqual(
 			legacy.connections[0]!.targetWaypoints
@@ -182,7 +229,7 @@ describe('scene document codec', () => {
 		expect(repeated).toEqual(result);
 	});
 
-	it('migrates version 2 directly to v5 while preserving dormant target waypoints', () => {
+	it('migrates version 2 directly to v6 while preserving dormant target waypoints', () => {
 		const legacy = versionTwoDocument() as {
 			connections: Array<Record<string, unknown>>;
 		};
@@ -196,7 +243,7 @@ describe('scene document codec', () => {
 		expect(result.success).toBe(true);
 		if (!result.success) return;
 		expect(JSON.stringify(legacy)).toBe(before);
-		expect(result.document.version).toBe(5);
+		expect(result.document.version).toBe(6);
 		expect(result.document.navigationNodes.every((node) => node.fov === 54)).toBe(true);
 		expect(result.document.connections.every((connection) => !connection.viewTracks)).toBe(true);
 		expect(result.document.connections[0]!.targetWaypoints).toEqual(
@@ -557,7 +604,7 @@ describe('scene document codec', () => {
 		}
 	});
 
-	it('validates and round-trips primitive and light entities on v5', () => {
+	it('validates and round-trips primitive and light entities on v6', () => {
 		const document = cloneDocument();
 		document.entities.push(
 			{
@@ -593,7 +640,7 @@ describe('scene document codec', () => {
 		const result = validateSceneDocument(document);
 		expect(result.success).toBe(true);
 		if (!result.success) return;
-		expect(result.document.version).toBe(5);
+		expect(result.document.version).toBe(6);
 		expect(result.document.entities.some((entity) => entity.kind === 'primitive')).toBe(true);
 		expect(result.document.entities.some((entity) => entity.kind === 'light')).toBe(true);
 		expect(serializeSceneDocument(result.document)).toBe(result.canonicalJson);
@@ -636,6 +683,204 @@ describe('scene document codec', () => {
 			badLight,
 			'unexpected_property',
 			`$.entities[${badLight.entities.length - 1}].range`
+		);
+	});
+
+	it('migrates canonical v5 input to deterministic v6 empty resource arrays', () => {
+		const legacy = versionFiveDocument();
+		const before = JSON.stringify(legacy);
+		const first = validateSceneDocument(legacy);
+		const second = validateSceneDocument(legacy);
+
+		expect(first.success).toBe(true);
+		if (!first.success) return;
+		expect(first.document.version).toBe(6);
+		expect(first.document.textures).toEqual([]);
+		expect(first.document.materials).toEqual([]);
+		expect(first.canonicalJson).toMatch(
+			/^\{\n  "version": 6,\n  "textures": \[\],\n  "materials": \[\],\n  "entities": \[/
+		);
+		expect(second).toEqual(first);
+		expect(JSON.stringify(legacy)).toBe(before);
+	});
+
+	it('round-trips stable v6 texture and material instance IDs with renderable references', () => {
+		const document = versionSixDocument();
+		document.textures = [
+			{
+				id: 'texture-wall-detail',
+				name: 'Wall Detail',
+				uri: '/museum/textures/wall-detail.webp'
+			}
+		];
+		document.materials = [
+			{
+				id: 'material-wall-detail',
+				name: 'Wall Detail',
+				baseMaterialId: 'plaster-warm',
+				baseTextureId: 'texture-wall-detail',
+				roughness: 0.7,
+				metalness: 0.1
+			}
+		];
+		document.entities[0]!.materialInstanceId = 'material-wall-detail';
+		document.entities.push({
+			kind: 'primitive',
+			id: 'textured-box',
+			name: 'Textured Box',
+			roomId: 'paris',
+			primitive: 'box',
+			dimensions: { width: 1, height: 1, depth: 1 },
+			materialId: 'wood-walnut',
+			materialInstanceId: 'material-wall-detail',
+			castShadow: true,
+			receiveShadow: true,
+			position: [0, 0.5, 0],
+			rotation: [0, 0, 0]
+		});
+		const before = JSON.stringify(document);
+
+		const result = validateSceneDocument(document);
+
+		expect(result.success).toBe(true);
+		if (!result.success) return;
+		expect(result.document.textures).toEqual(document.textures);
+		expect(result.document.materials).toEqual(document.materials);
+		expect(result.document.textures).not.toBe(document.textures);
+		expect(result.document.materials).not.toBe(document.materials);
+		expect(result.document.entities[0]).toHaveProperty(
+			'materialInstanceId',
+			'material-wall-detail'
+		);
+		expect(result.document.entities.at(-1)).toHaveProperty(
+			'materialInstanceId',
+			'material-wall-detail'
+		);
+		expect(parseSceneDocumentJson(result.canonicalJson)).toEqual(result);
+		expect(JSON.stringify(document)).toBe(before);
+	});
+
+	it.each([
+		'blob:https://museum.test/texture',
+		'data:image/png;base64,AAAA',
+		'https://museum.test/texture.png',
+		'file:///tmp/texture.png',
+		'//museum.test/texture.png',
+		'/../texture.png',
+		'/%2e%2e/texture.png',
+		'/%252e%252e/texture.png',
+		'/textures\\texture.png',
+		'/textures/texture.png?cache=1',
+		'/textures/texture.png#preview'
+	])('rejects unsafe texture URI %s', (uri) => {
+		const document = versionSixDocument();
+		document.textures = [{ id: 'unsafe-texture', name: 'Unsafe', uri }];
+
+		expectIssue(document, 'unsafe_texture_uri', '$.textures[0].uri');
+	});
+
+	it('rejects duplicate resources and unresolved material references', () => {
+		const duplicateTextures = versionSixDocument();
+		duplicateTextures.textures = [
+			{ id: 'same-texture', name: 'First', uri: '/textures/first.png' },
+			{ id: 'same-texture', name: 'Second', uri: '/textures/second.png' }
+		];
+		expectIssue(duplicateTextures, 'duplicate_id', '$.textures[1].id');
+
+		const duplicateMaterials = versionSixDocument();
+		duplicateMaterials.materials = [
+			{ id: 'same-material', name: 'First', baseMaterialId: 'plaster-warm' },
+			{ id: 'same-material', name: 'Second', baseMaterialId: 'wood-walnut' }
+		];
+		expectIssue(duplicateMaterials, 'duplicate_id', '$.materials[1].id');
+
+		const unknownTexture = versionSixDocument();
+		unknownTexture.materials = [
+			{
+				id: 'unknown-texture-material',
+				name: 'Unknown Texture',
+				baseMaterialId: 'plaster-warm',
+				baseTextureId: 'missing-texture'
+			}
+		];
+		expectIssue(unknownTexture, 'unknown_texture', '$.materials[0].baseTextureId');
+
+		const unknownMaterial = versionSixDocument();
+		unknownMaterial.entities[0]!.materialInstanceId = 'missing-material';
+		expectIssue(
+			unknownMaterial,
+			'unknown_material_instance',
+			'$.entities[0].materialInstanceId'
+		);
+	});
+
+	it('rejects invalid material bases, overrides, and light material references', () => {
+		const unknownBase = versionSixDocument();
+		unknownBase.materials = [
+			{ id: 'bad-base', name: 'Bad Base', baseMaterialId: 'missing-material' }
+		];
+		expectIssue(unknownBase, 'unknown_material', '$.materials[0].baseMaterialId');
+
+		for (const [key, value] of [
+			['roughness', -0.01],
+			['roughness', 1.01],
+			['metalness', -0.01],
+			['metalness', 1.01]
+		] as const) {
+			const invalidOverride = versionSixDocument();
+			invalidOverride.materials = [
+				{
+					id: `bad-${key}-${value}`,
+					name: 'Bad Override',
+					baseMaterialId: 'plaster-warm',
+					[key]: value
+				}
+			];
+			expectIssue(invalidOverride, `invalid_${key}`, `$.materials[0].${key}`);
+		}
+
+		const lightReference = versionSixDocument();
+		lightReference.entities.push({
+			kind: 'light',
+			id: 'material-light',
+			name: 'Material Light',
+			roomId: 'paris',
+			light: 'point',
+			color: '#ffffff',
+			intensity: 1,
+			castShadow: false,
+			position: [0, 2, 0],
+			rotation: [0, 0, 0],
+			materialInstanceId: 'missing-material'
+		});
+		expectIssue(
+			lightReference,
+			'unknown_property',
+			`$.entities[${lightReference.entities.length - 1}].materialInstanceId`
+		);
+	});
+
+	it('requires v6 resource arrays and keeps v6-only fields out of v5', () => {
+		const missingTextures = versionSixDocument();
+		delete (missingTextures as Partial<typeof missingTextures>).textures;
+		expectIssue(missingTextures, 'invalid_type', '$.textures');
+
+		const missingMaterials = versionSixDocument();
+		delete (missingMaterials as Partial<typeof missingMaterials>).materials;
+		expectIssue(missingMaterials, 'invalid_type', '$.materials');
+
+		const legacyRoot = versionFiveDocument() as Record<string, unknown>;
+		legacyRoot.textures = [];
+		expectIssue(legacyRoot, 'unknown_property', '$.textures');
+
+		const legacyEntity = versionFiveDocument() as {
+			entities: Array<Record<string, unknown>>;
+		};
+		legacyEntity.entities[0]!.materialInstanceId = 'material-wall-detail';
+		expectIssue(
+			legacyEntity,
+			'unknown_property',
+			'$.entities[0].materialInstanceId'
 		);
 	});
 });

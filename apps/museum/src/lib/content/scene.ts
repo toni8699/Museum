@@ -31,6 +31,21 @@ export type SceneObjectCluster = {
   memberIds: string[];
 };
 
+export type SceneTextureAsset = {
+  id: string;
+  name: string;
+  uri: string;
+};
+
+export type SceneMaterialInstance = {
+  id: string;
+  name: string;
+  baseMaterialId: MaterialId;
+  baseTextureId?: string;
+  roughness?: number;
+  metalness?: number;
+};
+
 export type ScenePrimitiveKind = 'box' | 'plane' | 'cylinder' | 'sphere';
 export type SceneLightKind = 'point' | 'spot' | 'directional';
 
@@ -46,7 +61,11 @@ export type SceneEntityBase = SceneEntityTransform & {
   roomId: MuseumRoomId;
 };
 
-export type SceneModelEntity = SceneEntityBase & {
+export type SceneRenderableEntityBase = SceneEntityBase & {
+  materialInstanceId?: string;
+};
+
+export type SceneModelEntity = SceneRenderableEntityBase & {
   kind: 'model';
   assetId: AssetId;
   fallback: SceneObjectFallback;
@@ -79,7 +98,7 @@ export type ScenePrimitiveDimensions =
   | SceneSphereDimensions;
 
 export type ScenePrimitiveEntity =
-	| (SceneEntityBase & {
+	| (SceneRenderableEntityBase & {
 			kind: 'primitive';
 			primitive: 'box';
 			dimensions: SceneBoxDimensions;
@@ -87,7 +106,7 @@ export type ScenePrimitiveEntity =
 			castShadow: boolean;
 			receiveShadow: boolean;
 	  })
-	| (SceneEntityBase & {
+	| (SceneRenderableEntityBase & {
 			kind: 'primitive';
 			primitive: 'plane';
 			dimensions: ScenePlaneDimensions;
@@ -95,7 +114,7 @@ export type ScenePrimitiveEntity =
 			castShadow: boolean;
 			receiveShadow: boolean;
 	  })
-	| (SceneEntityBase & {
+	| (SceneRenderableEntityBase & {
 			kind: 'primitive';
 			primitive: 'cylinder';
 			dimensions: SceneCylinderDimensions;
@@ -103,7 +122,7 @@ export type ScenePrimitiveEntity =
 			castShadow: boolean;
 			receiveShadow: boolean;
 	  })
-	| (SceneEntityBase & {
+	| (SceneRenderableEntityBase & {
 			kind: 'primitive';
 			primitive: 'sphere';
 			dimensions: SceneSphereDimensions;
@@ -212,11 +231,13 @@ export type SceneConnection = Omit<
   timing?: SceneConnectionTimingPair;
 };
 
-/** Current scene schema version. v1–v4 migrate to canonical v5 entities. */
-export const MUSEUM_SCENE_SCHEMA_VERSION = 5 as const;
+/** Current scene schema version. v1–v5 migrate to canonical v6 resources. */
+export const MUSEUM_SCENE_SCHEMA_VERSION = 6 as const;
 
 export type MuseumSceneDocument = {
-  version: 5;
+  version: 6;
+  textures: SceneTextureAsset[];
+  materials: SceneMaterialInstance[];
   entities: SceneEntity[];
   /** Editor-only hierarchy metadata. Visitor rendering intentionally stays flat. */
   clusters?: SceneObjectCluster[];
@@ -228,6 +249,10 @@ export type MuseumSceneDocument = {
 export type CanonicalMuseumSceneDocument = MuseumSceneDocument;
 
 export type RuntimeMuseumScene = {
+  /** Registered texture assets; rendering support lands in Phase 5.3. */
+  textures: SceneTextureAsset[];
+  /** Material instances; rendering support lands in Phase 5.3. */
+  materials: SceneMaterialInstance[];
   /**
    * All scene entities with room-local transforms (cloned from the document).
    * MuseumEntities dispatches by `kind` for shared visitor/editor rendering.
@@ -292,7 +317,10 @@ export function cloneSceneEntity(entity: SceneEntity): SceneEntity {
       ...transform,
       kind: 'model',
       assetId: entity.assetId,
-      fallback: entity.fallback
+      fallback: entity.fallback,
+      ...(entity.materialInstanceId === undefined
+        ? {}
+        : { materialInstanceId: entity.materialInstanceId })
     };
   }
 
@@ -304,7 +332,10 @@ export function cloneSceneEntity(entity: SceneEntity): SceneEntity {
       dimensions: { ...entity.dimensions },
       materialId: entity.materialId,
       castShadow: entity.castShadow,
-      receiveShadow: entity.receiveShadow
+      receiveShadow: entity.receiveShadow,
+      ...(entity.materialInstanceId === undefined
+        ? {}
+        : { materialInstanceId: entity.materialInstanceId })
     } as ScenePrimitiveEntity;
   }
 
@@ -467,6 +498,8 @@ export function resolveSceneDocument(input: unknown): RuntimeMuseumScene {
   });
 
   const entities = document.entities.map(cloneSceneEntity);
+  const textures = document.textures.map((texture) => ({ ...texture }));
+  const materials = document.materials.map((material) => ({ ...material }));
   const objects = listSceneModelEntities(document).map(
     (entity): SceneObjectPlacement => ({
       ...modelEntityToPlacement(entity),
@@ -475,10 +508,14 @@ export function resolveSceneDocument(input: unknown): RuntimeMuseumScene {
     })
   );
 
-  return { entities, objects, navigationNodes, connections };
+  return { textures, materials, entities, objects, navigationNodes, connections };
 }
 
-export function createNavigationGraph(scene: RuntimeMuseumScene): NavigationGraph {
+export function createNavigationGraph<
+  T extends Pick<RuntimeMuseumScene, 'navigationNodes' | 'connections'>
+>(
+  scene: T
+): NavigationGraph {
   return {
     navigationNodes: scene.navigationNodes,
     connections: scene.connections,

@@ -25,7 +25,9 @@ function createDocument(
 	kind: 'rounded-polyline' | 'auto-bezier' = 'rounded-polyline'
 ): MuseumSceneDocument {
 	return {
-		version: 5,
+		version: 6,
+		textures: [],
+		materials: [],
 		entities: [],
 		navigationNodes: [
 			{

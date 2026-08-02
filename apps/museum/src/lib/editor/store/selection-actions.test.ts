@@ -19,7 +19,9 @@ function createHarness(objects: Array<{ id: string; roomId: string }> = []) {
 	selection.bindSession(new EditorSessionState());
 
 	const document = {
-		version: 5,
+		version: 6,
+		textures: [],
+		materials: [],
 		entities: objects.map((object) => ({
 			kind: 'model' as const,
 			name: object.id,

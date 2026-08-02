@@ -1,13 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { museumNavigationGraph, type SceneObjectPlacement } from '$lib/content/scene';
+import { type SceneObjectPlacement } from '$lib/content/scene';
+import { loadFixtureScene } from '$lib/content/__fixtures__/load-fixture-scene';
 import {
   getParisAssetActivation,
   isSceneObjectEnabled,
   type MuseumNavigationStatus
 } from './paris-activation';
 
+const { graph: fixtureGraph } = loadFixtureScene();
+
 function activation(status: MuseumNavigationStatus) {
-  return getParisAssetActivation(status, museumNavigationGraph);
+  return getParisAssetActivation(status, fixtureGraph);
 }
 
 describe('Paris asset activation parity', () => {
@@ -15,7 +18,7 @@ describe('Paris asset activation parity', () => {
     expect(
       activation({
         currentRoomId: 'entrance',
-        activeNodeId: 'entrance-start',
+        activeNodeId: 'tour-a',
         targetNodeId: null
       })
     ).toEqual({
@@ -27,7 +30,7 @@ describe('Paris asset activation parity', () => {
 
   it('uses the hero gate only for the Paris piano placement', () => {
     const piano = {
-      id: 'piano',
+      id: 'fixture-piano',
       roomId: 'paris',
       assetId: 'paris-grand-piano',
       fallback: 'piano',
@@ -35,7 +38,7 @@ describe('Paris asset activation parity', () => {
       rotation: [0, 0, 0]
     } satisfies SceneObjectPlacement;
     const chair = {
-      id: 'chair',
+      id: 'fixture-chair',
       roomId: 'paris',
       assetId: 'paris-salon-chair',
       fallback: 'chair',
@@ -69,7 +72,7 @@ describe('Paris asset activation parity', () => {
     expect(
       activation({
         currentRoomId: 'departure',
-        activeNodeId: 'departure-corridor',
+        activeNodeId: 'tour-b',
         targetNodeId: null
       })
     ).toEqual({
@@ -83,8 +86,8 @@ describe('Paris asset activation parity', () => {
     expect(
       activation({
         currentRoomId: 'departure',
-        activeNodeId: 'departure-corridor',
-        targetNodeId: 'workshop-desk'
+        activeNodeId: 'tour-b',
+        targetNodeId: 'tour-paris'
       })
     ).toEqual({
       routePassesParis: true,
@@ -97,8 +100,8 @@ describe('Paris asset activation parity', () => {
     expect(
       activation({
         currentRoomId: 'paris',
-        activeNodeId: 'paris-seat',
-        targetNodeId: 'workshop-desk'
+        activeNodeId: 'tour-paris',
+        targetNodeId: 'tour-d'
       })
     ).toEqual({
       routePassesParis: true,
@@ -111,8 +114,8 @@ describe('Paris asset activation parity', () => {
     expect(
       activation({
         currentRoomId: 'entrance',
-        activeNodeId: 'entrance-start',
-        targetNodeId: 'departure-corridor'
+        activeNodeId: 'tour-a',
+        targetNodeId: 'tour-b'
       })
     ).toEqual({
       routePassesParis: false,

@@ -54,9 +54,20 @@ export function cloneMuseumSceneDocument(doc: MuseumSceneDocument): MuseumSceneD
 	return JSON.parse(JSON.stringify(doc)) as MuseumSceneDocument;
 }
 
+/** Prefer Paris seat when present; otherwise first navigation node. */
+export function pickInitialNavigationNodeId(scene: RuntimeMuseumScene): string {
+	const preferred = scene.navigationNodes.some((node) => node.id === 'paris-seat')
+		? 'paris-seat'
+		: scene.navigationNodes[0]?.id;
+	if (!preferred) {
+		throw new Error('A museum scene needs at least one navigation node');
+	}
+	return preferred;
+}
+
 export class EditorDocumentStore {
 	/** Authoring document. The source of truth; everything else is derived. */
-	document = $state<MuseumSceneDocument>(cloneMuseumSceneDocument(museumSceneDocument));
+	document = $state<MuseumSceneDocument>(null!);
 
 	/** Validator re-runs on every document change. */
 	validation = $derived<SceneDocumentValidationResult>(
@@ -69,7 +80,7 @@ export class EditorDocumentStore {
 	 * `importDocument(...)`. `isDirty` compares against this; `canonicalJson`
 	 * echoes it from the live document.
 	 */
-	baselineCanonicalJson = $state(serializeSceneDocument(museumSceneDocument));
+	baselineCanonicalJson = $state('');
 
 	/**
 	 * Resolved runtime scene. `$state.raw` (audit §8 "Do NOT" recommend-
@@ -77,15 +88,13 @@ export class EditorDocumentStore {
 	 * every dependent read would recompute the full topology. Recomputed
 	 * lazily by `replace()`.
 	 */
-	scene = $state.raw<RuntimeMuseumScene>(resolveSceneDocument(this.document));
+	scene = $state.raw<RuntimeMuseumScene>(null!);
 
 	/**
 	 * Visitor-FSM store clone. Same `$state.raw` discipline as `scene`.
 	 * Recomputed lazily by `replace()` after the scene rebuild.
 	 */
-	state = $state.raw<MuseumStateStore>(
-		createMuseumState(createNavigationGraph(this.scene), 'paris-seat')
-	);
+	state = $state.raw<MuseumStateStore>(null!);
 
 	/**
 	 * Listeners invoked at the end of every successful `replace()`. The
@@ -96,6 +105,13 @@ export class EditorDocumentStore {
 	 * signature once the session error channel stabilises).
 	 */
 	#afterReplaceListeners = new Set<AfterReplaceListener>();
+
+	constructor(initialDocument: MuseumSceneDocument = museumSceneDocument) {
+		const cloned = cloneMuseumSceneDocument(initialDocument);
+		this.document = cloned;
+		this.baselineCanonicalJson = serializeSceneDocument(cloned);
+		this.#rebuildRuntime();
+	}
 
 	/**
 	 * Replace the authoring document. Validation runs first; on success we
@@ -148,12 +164,7 @@ export class EditorDocumentStore {
 
 	#rebuildRuntime() {
 		const nextScene = resolveSceneDocument(this.document);
-		const initialNodeId = nextScene.navigationNodes.some((node) => node.id === 'paris-seat')
-			? 'paris-seat'
-			: nextScene.navigationNodes[0]?.id;
-		if (!initialNodeId) {
-			throw new Error('A museum scene needs at least one navigation node');
-		}
+		const initialNodeId = pickInitialNavigationNodeId(nextScene);
 		const nextState = createMuseumState(createNavigationGraph(nextScene), initialNodeId);
 		// Re-assigning `$state.raw` outside an `untrack` wrap inside the
 		// sub-store is safe; the watcher pipeline ignores `$state.raw`

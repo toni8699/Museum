@@ -1,8 +1,11 @@
 import {
 	createNavigationGraph,
-	museumSceneDocument,
 	resolveSceneDocument
 } from '$lib/content/scene';
+import {
+	cloneFixtureDocument,
+	loadFixtureScene
+} from '$lib/content/__fixtures__/load-fixture-scene';
 import {
 	cameraMotionEdgeProgressAtProgress,
 	cameraMotionProgressAtEdgeProgress,
@@ -12,7 +15,6 @@ import {
 } from '$lib/museum/navigation/camera-motion';
 import { getCameraRoute } from '$lib/museum/navigation/camera-route';
 import { describe, expect, it } from 'vitest';
-import { cloneMuseumSceneDocument } from './museum-editor.svelte';
 import {
 	cameraTimelineEdgePlayheadAtProgress,
 	cameraTimelineEdgeProgressAtProgress,
@@ -26,23 +28,23 @@ import {
 
 describe('editor camera timeline index', () => {
 	it('indexes one complete guided cycle including the final return edge', () => {
-		const graph = createNavigationGraph(resolveSceneDocument(museumSceneDocument));
+		const { graph } = loadFixtureScene();
 		const timeline = createEditorCameraTimeline(graph);
 
-		expect(timeline.startNodeId).toBe('entrance-start');
-		expect(timeline.edges).toHaveLength(9);
-		expect(timeline.nodeBoundaries).toHaveLength(10);
+		expect(timeline.startNodeId).toBe('tour-a');
+		expect(timeline.edges).toHaveLength(4);
+		expect(timeline.nodeBoundaries).toHaveLength(5);
 		expect(timeline.nodeBoundaries[0]).toMatchObject({
-			nodeId: 'entrance-start',
+			nodeId: 'tour-a',
 			progress: 0
 		});
 		expect(timeline.nodeBoundaries.at(-1)).toMatchObject({
-			nodeId: 'entrance-start',
+			nodeId: 'tour-a',
 			progress: 1
 		});
 		expect(timeline.edges.at(-1)).toMatchObject({
-			fromNodeId: 'legacy-return',
-			toNodeId: 'entrance-start'
+			fromNodeId: 'tour-d',
+			toNodeId: 'tour-a'
 		});
 		expect(timeline.durationSeconds).toBeGreaterThan(0);
 
@@ -58,7 +60,7 @@ describe('editor camera timeline index', () => {
 	});
 
 	it('maps forward and reverse key progress onto the same physical ruler point', () => {
-		const graph = createNavigationGraph(resolveSceneDocument(museumSceneDocument));
+		const { graph } = loadFixtureScene();
 		const timeline = createEditorCameraTimeline(graph);
 		const connectionId = timeline.edges[0]!.connectionId;
 		const forward = cameraTimelineProgressAtEdgeProgress(
@@ -92,7 +94,7 @@ describe('editor camera timeline index', () => {
 	});
 
 	it('maps timeline drag positions back to directional persisted edge progress', () => {
-		const graph = createNavigationGraph(resolveSceneDocument(museumSceneDocument));
+		const { graph } = loadFixtureScene();
 		const timeline = createEditorCameraTimeline(graph);
 		const connectionId = timeline.edges[0]!.connectionId;
 
@@ -115,7 +117,7 @@ describe('editor camera timeline index', () => {
 	});
 
 	it('samples an authored framing key through the shared motion compiler', () => {
-		const document = cloneMuseumSceneDocument(museumSceneDocument);
+		const document = cloneFixtureDocument();
 		const connection = document.connections[0]!;
 		connection.viewTracks = {
 			forward: [
@@ -156,7 +158,7 @@ describe('editor camera timeline index', () => {
 	});
 
 	it('samples the same exact connection motion used by the live visitor', () => {
-		const document = cloneMuseumSceneDocument(museumSceneDocument);
+		const document = cloneFixtureDocument();
 		const connection = document.connections[0]!;
 		connection.viewTracks = {
 			forward: [
@@ -207,7 +209,7 @@ describe('editor camera timeline index', () => {
 	});
 
 	it('lands on each authored node pose before the next exact edge starts', () => {
-		const graph = createNavigationGraph(resolveSceneDocument(museumSceneDocument));
+		const { graph } = loadFixtureScene();
 		const timeline = createEditorCameraTimeline(graph);
 		const sample = createCameraMotionSample();
 
@@ -225,7 +227,7 @@ describe('editor camera timeline index', () => {
 	});
 
 	it('matches live visitor sampling across every guided connection', () => {
-		const graph = createNavigationGraph(resolveSceneDocument(museumSceneDocument));
+		const { graph } = loadFixtureScene();
 		const timeline = createEditorCameraTimeline(graph);
 		const timelineSample = createCameraMotionSample();
 		const visitorSample = createCameraMotionSample();
@@ -255,15 +257,15 @@ describe('editor camera timeline index', () => {
 	});
 
 	it('rejects a broken reciprocal guided link instead of guessing', () => {
-		const scene = resolveSceneDocument(museumSceneDocument);
+		const { scene } = loadFixtureScene();
 		const navigationNodes = scene.navigationNodes.map((node) => ({
 			...node,
 			position: [...node.position] as [number, number, number],
 			cameraTarget: [...node.cameraTarget] as [number, number, number],
 			connectedNodeIds: [...node.connectedNodeIds]
 		}));
-		const poland = navigationNodes.find((node) => node.id === 'poland-threshold')!;
-		poland.previousNodeId = 'legacy-return';
+		const tourB = navigationNodes.find((node) => node.id === 'tour-b')!;
+		tourB.previousNodeId = 'tour-d';
 		const graph = {
 			navigationNodes,
 			connections: scene.connections,
@@ -274,10 +276,10 @@ describe('editor camera timeline index', () => {
 	});
 
 	it('extends the schedule with destination-node holds and respects authored overrides', () => {
-		const document = cloneMuseumSceneDocument(museumSceneDocument);
-		const target = document.navigationNodes.find((node) => node.id === 'poland-threshold')!;
+		const document = cloneFixtureDocument();
+		const target = document.navigationNodes.find((node) => node.id === 'tour-b')!;
 		target.holdSeconds = 14.5;
-		const first = document.connections.find((c) => c.id === 'entrance-poland')!;
+		const first = document.connections.find((c) => c.id === 'tour-a-b')!;
 		first.timing = { forward: { durationSeconds: 9.25, easing: 'ease-in' } };
 
 		const timeline = createEditorCameraTimeline(
@@ -289,7 +291,7 @@ describe('editor camera timeline index', () => {
 		expect(firstEdge.holdSeconds).toBe(14.5);
 		expect(firstEdge.motionEndSeconds - firstEdge.motionStartSeconds).toBe(9.25);
 		expect(firstEdge.holdEndSeconds).toBe(firstEdge.motionEndSeconds + 14.5);
-		expect(timeline.totalHoldSeconds).toBeGreaterThanOrEqual(14.5);
+		expect(timeline.totalHoldSeconds).toBeCloseTo(14.5, 10);
 		expect(timeline.durationSeconds).toBe(
 			timeline.motionDurationSeconds + timeline.totalHoldSeconds
 		);
@@ -298,9 +300,9 @@ describe('editor camera timeline index', () => {
 	});
 
 	it('lands on the destination pose and reports a zero-progress hold tail without movement', () => {
-		const document = cloneMuseumSceneDocument(museumSceneDocument);
-		const poland = document.navigationNodes.find((node) => node.id === 'poland-threshold')!;
-		poland.holdSeconds = 6;
+		const document = cloneFixtureDocument();
+		const tourB = document.navigationNodes.find((node) => node.id === 'tour-b')!;
+		tourB.holdSeconds = 6;
 		const timeline = createEditorCameraTimeline(
 			createNavigationGraph(resolveSceneDocument(document))
 		);
@@ -308,7 +310,7 @@ describe('editor camera timeline index', () => {
 		const intoHold = firstEdge.motionEndSeconds + 2;
 		const location = getEditorCameraScheduleLocation(timeline, intoHold);
 		expect(location.isHolding).toBe(true);
-		expect(location.holdingNodeId).toBe('poland-threshold');
+		expect(location.holdingNodeId).toBe('tour-b');
 		expect(location.edgePlayhead).toBe(1);
 		expect(location.holdProgress).toBeCloseTo(2 / 6, 8);
 
@@ -332,7 +334,7 @@ describe('editor camera timeline index', () => {
 	});
 
 	it('collapses every motion span to its end pose under reduced motion', () => {
-		const document = cloneMuseumSceneDocument(museumSceneDocument);
+		const document = cloneFixtureDocument();
 		document.navigationNodes.forEach((node, index) => {
 			if (index % 2 === 0) node.holdSeconds = 4;
 		});

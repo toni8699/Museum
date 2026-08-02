@@ -1,0 +1,157 @@
+{
+  "version": 5,
+  "entities": [
+    {
+      "kind": "model",
+      "id": "fixture-piano",
+      "name": "Paris Salon Grand Piano",
+      "roomId": "paris",
+      "assetId": "paris-grand-piano",
+      "fallback": "piano",
+      "position": [0, 0, 0],
+      "rotation": [0, 0, 0]
+    },
+    {
+      "kind": "model",
+      "id": "fixture-chair",
+      "name": "Upholstered Paris Salon Chair",
+      "roomId": "paris",
+      "assetId": "paris-salon-chair",
+      "fallback": "chair",
+      "position": [-2, 0, 1],
+      "rotation": [0, 0, 0]
+    }
+  ],
+  "navigationNodes": [
+    {
+      "id": "tour-a",
+      "roomId": "entrance",
+      "label": "Tour A: Entrance",
+      "position": [0, 1.65, 0],
+      "cameraTarget": [0, 1.25, -3],
+      "fov": 54,
+      "connectedNodeIds": ["tour-d", "tour-b"],
+      "nextNodeId": "tour-b",
+      "previousNodeId": "tour-d"
+    },
+    {
+      "id": "tour-b",
+      "roomId": "departure",
+      "label": "Tour B: Departure",
+      "position": [0, 1.65, 0],
+      "cameraTarget": [0, 1.25, -3],
+      "fov": 54,
+      "connectedNodeIds": ["tour-a", "tour-paris"],
+      "nextNodeId": "tour-paris",
+      "previousNodeId": "tour-a"
+    },
+    {
+      "id": "tour-paris",
+      "roomId": "paris",
+      "label": "Tour Paris",
+      "position": [0, 1.65, 0],
+      "cameraTarget": [1.4, 1.25, 0],
+      "fov": 54,
+      "connectedNodeIds": ["tour-b", "tour-d"],
+      "nextNodeId": "tour-d",
+      "previousNodeId": "tour-b"
+    },
+    {
+      "id": "tour-d",
+      "roomId": "workshop",
+      "label": "Tour D: Workshop",
+      "position": [0, 1.65, 0],
+      "cameraTarget": [0, 1.25, -3],
+      "fov": 54,
+      "connectedNodeIds": ["tour-paris", "tour-a"],
+      "nextNodeId": "tour-a",
+      "previousNodeId": "tour-paris"
+    }
+  ],
+  "connections": [
+    {
+      "id": "tour-a-b",
+      "fromNodeId": "tour-a",
+      "toNodeId": "tour-b",
+      "clearance": 0.35,
+      "positionPath": {
+        "kind": "rounded-polyline",
+        "anchors": [
+          {
+            "id": "tour-a-b-anchor-01",
+            "roomId": "entrance",
+            "position": [-2, 1.65, 0]
+          },
+          {
+            "id": "tour-a-b-anchor-02",
+            "roomId": "departure",
+            "position": [2, 1.65, 0]
+          }
+        ]
+      }
+    },
+    {
+      "id": "tour-b-paris",
+      "fromNodeId": "tour-b",
+      "toNodeId": "tour-paris",
+      "clearance": 0.35,
+      "positionPath": {
+        "kind": "rounded-polyline",
+        "anchors": [
+          {
+            "id": "tour-b-paris-anchor-01",
+            "roomId": "departure",
+            "position": [-2, 1.65, -2]
+          },
+          {
+            "id": "tour-b-paris-anchor-02",
+            "roomId": "paris",
+            "position": [3, 1.65, 2]
+          }
+        ]
+      }
+    },
+    {
+      "id": "tour-paris-d",
+      "fromNodeId": "tour-paris",
+      "toNodeId": "tour-d",
+      "clearance": 0.35,
+      "positionPath": {
+        "kind": "rounded-polyline",
+        "anchors": [
+          {
+            "id": "tour-paris-d-anchor-01",
+            "roomId": "paris",
+            "position": [-3, 1.65, 2]
+          },
+          {
+            "id": "tour-paris-d-anchor-02",
+            "roomId": "workshop",
+            "position": [3, 1.65, 2]
+          }
+        ]
+      }
+    },
+    {
+      "id": "tour-d-a",
+      "fromNodeId": "tour-d",
+      "toNodeId": "tour-a",
+      "clearance": 0.35,
+      "positionPath": {
+        "kind": "rounded-polyline",
+        "anchors": [
+          {
+            "id": "tour-d-a-anchor-01",
+            "roomId": "workshop",
+            "position": [0, 1.65, -2]
+          },
+          {
+            "id": "tour-d-a-anchor-02",
+            "roomId": "entrance",
+            "position": [2, 1.65, 2]
+          }
+        ]
+      }
+    }
+  ]
+}

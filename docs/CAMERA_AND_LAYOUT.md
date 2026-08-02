@@ -82,13 +82,15 @@ Current shell supports one opening per wall side. Extend `MuseumShell` before re
 4. Place connection anchors through actual door openings with visible clearance.
 5. Preview every affected connection in both directions and test multi-hop visitor travel.
 
+Replacing `museum-scene.json` with a different valid topology does **not** require retuning the Vitest suite: route/timeline goldens and most editor tests load `apps/museum/src/lib/content/__fixtures__/tour-minimal.json` via `loadFixtureScene()`. Live JSON only gets thin invariant smoke (validate/resolve/serialize + guided-cycle checks). Update the fixture (and regenerate fixture midpoints in `camera-route.test.ts`) only when changing golden path coverage on purpose.
+
 Architecture and navigation remain separate sources. Moving/rotating a room automatically moves room-local nodes/anchors, but world-space anchors must be checked manually.
 
 ---
 
 ## 3. Scene document v2
 
-`apps/museum/src/lib/content/museum-scene.json` is the checked-in editable source for placements and navigation.
+`apps/museum/src/lib/content/museum-scene.json` is the checked-in editable source for placements and navigation. Test goldens that need a stable tour topology use `__fixtures__/tour-minimal.json` instead of the live file.
 
 ### Connection shape
 

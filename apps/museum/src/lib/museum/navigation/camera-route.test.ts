@@ -5,12 +5,12 @@ import {
   museumScene,
   type RuntimeMuseumScene
 } from '$lib/content/scene';
+import { loadFixtureScene } from '$lib/content/__fixtures__/load-fixture-scene';
 import type {
   MuseumConnection,
   NavigationNodeData,
   Vec3
 } from '$lib/types/museum';
-import { Vector3 } from 'three';
 import {
   CAMERA_MOTION_TIMING,
   createCameraMotion,
@@ -22,6 +22,8 @@ import {
   getCameraRoute,
   getGuidedCameraRoute
 } from './camera-route';
+
+const { graph: fixtureGraph } = loadFixtureScene();
 
 const nodes: NavigationNodeData[] = [
   {
@@ -108,7 +110,8 @@ const customScene: RuntimeMuseumScene = {
 };
 const customGraph = createNavigationGraph(customScene);
 
-const PHASE_SIX_EDGE_MIDPOINTS: Array<{
+/** Fixture tour edge midpoints — regenerate via loadFixtureScene + sampleCameraMotion(0.5). */
+const FIXTURE_EDGE_MIDPOINTS: Array<{
   id: string;
   duration: number;
   position: Vec3;
@@ -116,105 +119,77 @@ const PHASE_SIX_EDGE_MIDPOINTS: Array<{
   reverseTarget: Vec3;
 }> = [
   {
-    id: 'entrance-poland',
-    duration: 2.621279562648275,
-    position: [-6.902731043055389, 1.65, 16.41935069083306],
-    forwardTarget: [-8.069453639463351, 1.5, 15.759473370965573],
-    reverseTarget: [-5.166354185611171, 1.5, 17.318309651340886]
+    id: 'tour-a-b',
+    duration: 4.1711491619918535,
+    position: [-9.501975209857097, 1.65, 9.997893109485766],
+    forwardTarget: [-6.999999999999998, 1.25, 7.500000000000002],
+    reverseTarget: [-7.0000000000000036, 1.25, 7.4999999999999964]
   },
   {
-    id: 'poland-departure',
-    duration: 2.4884923981310987,
-    position: [-16.270738758760515, 1.65, 6.538599396867829],
-    forwardTarget: [-16.923349106569347, 1.5, 4.28526272865614],
-    reverseTarget: [-15.698355745264491, 1.5, 8.037954820726634]
+    id: 'tour-b-paris',
+    duration: 2.7666819277203705,
+    position: [-14.25351582135361, 1.65, -7.7241269842340365],
+    forwardTarget: [-12.554836792373221, 1.25, -6.073202467405213],
+    reverseTarget: [-12.55483679237322, 1.25, -6.073202467405215]
   },
   {
-    id: 'departure-paris',
+    id: 'tour-paris-d',
+    duration: 3.987604149935301,
+    position: [0, 1.65, -16.41438026075828],
+    forwardTarget: [-1.4694029336477836, 1.25, -11.384266483748316],
+    reverseTarget: [-1.4694029336477339, 1.25, -11.384266483748313]
+  },
+  {
+    id: 'tour-d-a',
     duration: 4.8,
-    position: [-13.297075206035123, 1.65, -6.207447585300129],
-    forwardTarget: [-16.764431142787974, 1.5, -12.212304362009139],
-    reverseTarget: [-14.31588931431527, 1.5, -7.279883488752916]
-  },
-  {
-    id: 'paris-workshop',
-    duration: 4.202122491669538,
-    position: [0.1497328690470181, 1.65, -19.296753629915564],
-    forwardTarget: [1.8434945769679407, 1.5, -19.273011487594875],
-    reverseTarget: [-0.9188798365883082, 1.5, -19.279623120988383]
-  },
-  {
-    id: 'workshop-music-entry',
-    duration: 3.0440874871987953,
-    position: [4.696781287568541, 1.65, -10.417315781019129],
-    forwardTarget: [4.524241260102292, 1.5, -6.192886192108908],
-    reverseTarget: [4.453097354533614, 1.4998699101073787, -8.203678316587908]
-  },
-  {
-    id: 'music-entry-center',
-    duration: 1.25,
-    position: [3.3683773167799846, 1.65, 0.400465812228886],
-    forwardTarget: [0, 1.175, 0],
-    reverseTarget: [0, 1.175, 0]
-  },
-  {
-    id: 'music-center-legacy',
-    duration: 2.4983333161460313,
-    position: [8.458987790738268, 1.65, 6.412708294008823],
-    forwardTarget: [6.4622651791490435, 1.5, 4.548342454368116],
-    reverseTarget: [5.958608144204856, 1.5, 4.02867351695642]
-  },
-  {
-    id: 'legacy-entrance',
-    duration: 4.304337431021139,
-    position: [12.373306778717218, 1.65, 16.224406858350623],
-    forwardTarget: [7.755569993235693, 1.5, 18.372215003382156],
-    reverseTarget: [14.263762800185729, 1.5, 14.91759614650124]
+    position: [5.327234105432248, 1.65, 4.584761510378474],
+    forwardTarget: [4.085433858725455, 1.25, 2.18893598365692],
+    reverseTarget: [4.085433858725469, 1.25, 2.1889359836568776]
   }
 ];
 
-const PHASE_SIX_MULTI_HOP = [
+const FIXTURE_MULTI_HOP = [
   {
-    from: 'entrance-start',
-    to: 'paris-seat',
+    from: 'tour-a',
+    to: 'tour-paris',
     duration: 4.8,
     samples: [
       {
         progress: 0.25,
-        position: [-6.324462126338117, 1.65, 16.746604519483263] as Vec3,
-        target: [-7.1421178677072605, 1.5, 16.283876947335898] as Vec3
+        position: [-3.7014311754302955, 1.65, 16.185140079541018] as Vec3,
+        target: [-2.9877394836913584, 1.2939373453484024, 12.363759279095861] as Vec3
       },
       {
         progress: 0.5,
-        position: [-16.970071776025556, 1.65, 3] as Vec3,
-        target: [-14.836476258959307, 1.5, 3] as Vec3
+        position: [-15.352793102120025, 1.65, 3.7570206910719737] as Vec3,
+        target: [-14.43134543066014, 1.4622256680979433, 2.2664599141234074] as Vec3
       },
       {
         progress: 0.75,
-        position: [-12.695228782987266, 1.65, -15.973276156734942] as Vec3,
-        target: [-10.336133195451932, 1.5, -17.787965070223663] as Vec3
+        position: [-13.72034928028996, 1.65, -11.812509661449276] as Vec3,
+        target: [-13.799658516831052, 1.5, -11.20435726656925] as Vec3
       }
     ]
   },
   {
-    from: 'paris-seat',
-    to: 'entrance-start',
+    from: 'tour-paris',
+    to: 'tour-a',
     duration: 4.8,
     samples: [
       {
         progress: 0.25,
-        position: [-12.695228782987282, 1.65, -15.97327615673493] as Vec3,
-        target: [-16.85334400441098, 1.5, -11.426156996187961] as Vec3
+        position: [-13.720349280289964, 1.65, -11.81250966144925] as Vec3,
+        target: [-12.966418396196588, 1.3288048352737265, -8.31762317458757] as Vec3
       },
       {
         progress: 0.5,
-        position: [-16.970071776025573, 1.65, 3] as Vec3,
-        target: [-21.172058717789554, 1.5, 3.0000000000000004] as Vec3
+        position: [-15.352793102120007, 1.65, 3.7570206910719923] as Vec3,
+        target: [-13.506540224841634, 1.5, 5.726357093502257] as Vec3
       },
       {
         progress: 0.75,
-        position: [-6.324462126338102, 1.65, 16.74660451948327] as Vec3,
-        target: [-3.605021620872647, 1.4999999999999998, 17.973637854318742] as Vec3
+        position: [-3.7014311754302955, 1.65, 16.185140079541018] as Vec3,
+        target: [-2.3574990998526513, 1.5, 17.61866762682384] as Vec3
       }
     ]
   }
@@ -260,10 +235,10 @@ function expectedRouteEdge(
 }
 
 describe('getCameraRoute', () => {
-  it.each(PHASE_SIX_MULTI_HOP)(
-    'preserves frozen Phase 6 multi-hop motion from $from to $to',
+  it.each(FIXTURE_MULTI_HOP)(
+    'preserves fixture multi-hop motion from $from to $to',
     ({ from, to, duration, samples }) => {
-      const route = getCameraRoute(from, to);
+      const route = getCameraRoute(from, to, fixtureGraph);
       const motion = createCameraMotion(route);
       expect(motion.durationSeconds).toBeCloseTo(duration, 12);
 
@@ -345,13 +320,12 @@ describe('getCameraRoute', () => {
   });
 
   it('retains contiguous exact distance spans on a representative multi-hop route', () => {
-    const route = getCameraRoute('entrance-start', 'paris-seat');
+    const route = getCameraRoute('tour-a', 'tour-paris', fixtureGraph);
     const motion = createCameraMotion(route);
 
     expect(route.edges.map((edge) => edge.connectionId)).toEqual([
-      'entrance-poland',
-      'poland-departure',
-      'departure-paris'
+      'tour-a-b',
+      'tour-b-paris'
     ]);
     expect(motion.positionEdgeSpans).toHaveLength(route.edges.length);
     expect(motion.positionEdgeSpans[0].startDistance).toBe(0);
@@ -662,25 +636,26 @@ describe('getCameraRoute', () => {
     );
   });
 
-  it('keeps checked-in scene as default graph and preserves Paris node traversal data', () => {
-    expect(getCameraRoute('entrance-start', 'music-center')).toEqual(
-      getCameraRoute('entrance-start', 'music-center', museumNavigationGraph)
+  it('keeps checked-in scene as default graph (identity smoke)', () => {
+    const start = museumNavigationGraph.navigationNodes[0]!;
+    const neighbor = start.connectedNodeIds[0];
+    if (!neighbor) {
+      expect(museumNavigationGraph.connections.length).toBeGreaterThan(0);
+      return;
+    }
+    expect(getCameraRoute(start.id, neighbor)).toEqual(
+      getCameraRoute(start.id, neighbor, museumNavigationGraph)
     );
-    expect(getCameraRoute('entrance-start', 'music-center').nodeIds).toEqual([
-      'entrance-start',
-      'legacy-return',
-      'music-center'
-    ]);
     expect(museumNavigationGraph.navigationNodes).toBe(museumScene.navigationNodes);
   });
 });
 
 describe('getCameraConnectionRoute', () => {
-  it.each(PHASE_SIX_EDGE_MIDPOINTS)(
-    'preserves frozen Phase 6 motion for $id in both directions',
+  it.each(FIXTURE_EDGE_MIDPOINTS)(
+    'preserves fixture motion for $id in both directions',
     ({ id, duration, position, forwardTarget, reverseTarget }) => {
-      const forward = sampleRoute(getCameraConnectionRoute(id, 'forward'), 0.5);
-      const reverse = sampleRoute(getCameraConnectionRoute(id, 'reverse'), 0.5);
+      const forward = sampleRoute(getCameraConnectionRoute(id, 'forward', fixtureGraph), 0.5);
+      const reverse = sampleRoute(getCameraConnectionRoute(id, 'reverse', fixtureGraph), 0.5);
 
       expect(forward.motion.durationSeconds).toBeCloseTo(duration, 12);
       expect(reverse.motion.durationSeconds).toBeCloseTo(duration, 12);
@@ -918,52 +893,42 @@ describe('getCameraConnectionRoute', () => {
 
 describe('getGuidedCameraRoute', () => {
   it('resolves every guided edge exactly once including the return to start', () => {
-    const route = getGuidedCameraRoute('entrance-start');
+    const route = getGuidedCameraRoute('tour-a', fixtureGraph);
 
     expect(route.nodeIds).toEqual([
-      'entrance-start',
-      'poland-threshold',
-      'departure-corridor',
-      'paris-seat',
-      'camera-node-1',
-      'workshop-desk',
-      'music-entry',
-      'music-center',
-      'legacy-return',
-      'entrance-start'
+      'tour-a',
+      'tour-b',
+      'tour-paris',
+      'tour-d',
+      'tour-a'
     ]);
     expect(route.edges.map((edge) => edge.connectionId)).toEqual([
-      'entrance-poland',
-      'poland-departure',
-      'departure-paris',
-      'paris-seat-camera-node-1',
-      'camera-node-1-workshop-desk',
-      'workshop-music-entry',
-      'music-entry-center',
-      'music-center-legacy',
-      'legacy-entrance'
+      'tour-a-b',
+      'tour-b-paris',
+      'tour-paris-d',
+      'tour-d-a'
     ]);
     expect(route.edges.map((edge) => edge.direction)).toEqual(
-      Array.from({ length: 9 }, () => 'forward')
+      Array.from({ length: 4 }, () => 'forward')
     );
-    expect(createCameraMotion(route).positionEdgeSpans).toHaveLength(9);
+    expect(createCameraMotion(route).positionEdgeSpans).toHaveLength(4);
     const finalSample = sampleRoute(route, 1);
     expectTupleClose(
       finalSample.position,
-      museumNavigationGraph.nodeById.get('entrance-start')!.position
+      fixtureGraph.nodeById.get('tour-a')!.position
     );
     expectTupleClose(
       finalSample.target,
-      museumNavigationGraph.nodeById.get('entrance-start')!.cameraTarget
+      fixtureGraph.nodeById.get('tour-a')!.cameraTarget
     );
   });
 
   it('retains reverse traversal when a guided connection is authored backwards', () => {
-    const reversedConnection = museumNavigationGraph.connections[0];
+    const reversedConnection = fixtureGraph.connections[0]!;
     const graph = createNavigationGraph({
       entities: [],
-  objects: [],
-      navigationNodes: [...museumNavigationGraph.navigationNodes],
+      objects: [],
+      navigationNodes: [...fixtureGraph.navigationNodes],
       connections: [
         {
           ...reversedConnection,
@@ -974,58 +939,58 @@ describe('getGuidedCameraRoute', () => {
             anchors: [...reversedConnection.positionPath.anchors].reverse()
           }
         },
-        ...museumNavigationGraph.connections.slice(1)
+        ...fixtureGraph.connections.slice(1)
       ]
     });
 
-    const route = getGuidedCameraRoute('entrance-start', graph);
+    const route = getGuidedCameraRoute('tour-a', graph);
     expect(route.edges[0]).toMatchObject({
-      connectionId: 'entrance-poland',
+      connectionId: 'tour-a-b',
       direction: 'reverse',
-      fromNodeId: 'entrance-start',
-      toNodeId: 'poland-threshold'
+      fromNodeId: 'tour-a',
+      toNodeId: 'tour-b'
     });
     expect(route.edges.slice(1).map((edge) => edge.direction)).toEqual(
-      Array.from({ length: 8 }, () => 'forward')
+      Array.from({ length: 3 }, () => 'forward')
     );
   });
 
   it('rotates the same reciprocal cycle from another guided start', () => {
-    const route = getGuidedCameraRoute('paris-seat');
+    const route = getGuidedCameraRoute('tour-paris', fixtureGraph);
 
-    expect(route.nodeIds[0]).toBe('paris-seat');
-    expect(route.nodeIds.at(-1)).toBe('paris-seat');
-    expect(route.edges).toHaveLength(9);
-    expect(new Set(route.edges.map((edge) => edge.connectionId)).size).toBe(9);
+    expect(route.nodeIds[0]).toBe('tour-paris');
+    expect(route.nodeIds.at(-1)).toBe('tour-paris');
+    expect(route.edges).toHaveLength(4);
+    expect(new Set(route.edges.map((edge) => edge.connectionId)).size).toBe(4);
   });
 
   it('rejects broken reciprocal links and missing direct guided edges', () => {
-    const navigationNodes = museumNavigationGraph.navigationNodes.map((node) => ({
+    const navigationNodes = fixtureGraph.navigationNodes.map((node) => ({
       ...node,
       position: [...node.position] as Vec3,
       cameraTarget: [...node.cameraTarget] as Vec3,
       connectedNodeIds: [...node.connectedNodeIds]
     }));
-    const poland = navigationNodes.find((node) => node.id === 'poland-threshold')!;
-    poland.previousNodeId = 'legacy-return';
+    const tourB = navigationNodes.find((node) => node.id === 'tour-b')!;
+    tourB.previousNodeId = 'tour-d';
     const brokenReciprocal = {
       navigationNodes,
-      connections: museumNavigationGraph.connections,
+      connections: fixtureGraph.connections,
       nodeById: new Map(navigationNodes.map((node) => [node.id, node]))
     };
-    expect(() => getGuidedCameraRoute('entrance-start', brokenReciprocal)).toThrow(
+    expect(() => getGuidedCameraRoute('tour-a', brokenReciprocal)).toThrow(
       /not reciprocal/
     );
 
     const missingEdge = {
-      navigationNodes: museumNavigationGraph.navigationNodes,
-      connections: museumNavigationGraph.connections.filter(
-        (connection) => connection.id !== 'entrance-poland'
+      navigationNodes: fixtureGraph.navigationNodes,
+      connections: fixtureGraph.connections.filter(
+        (connection) => connection.id !== 'tour-a-b'
       ),
-      nodeById: museumNavigationGraph.nodeById
+      nodeById: fixtureGraph.nodeById
     };
-    expect(() => getGuidedCameraRoute('entrance-start', missingEdge)).toThrow(
-      'missing a connection from entrance-start to poland-threshold'
+    expect(() => getGuidedCameraRoute('tour-a', missingEdge)).toThrow(
+      'missing a connection from tour-a to tour-b'
     );
   });
 

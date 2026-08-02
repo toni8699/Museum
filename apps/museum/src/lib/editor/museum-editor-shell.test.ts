@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
+import { cloneFixtureDocument } from '$lib/content/__fixtures__/load-fixture-scene';
 import { createEditorShortcutHandler } from './hooks/shortcuts.svelte';
 import { createMuseumEditorStore } from './museum-editor.svelte';
+
+function createFixtureEditorStore() {
+	return createMuseumEditorStore({ document: cloneFixtureDocument() });
+}
 
 function makeKeyEvent(key: string): KeyboardEvent {
 	let defaultPrevented = false;
@@ -29,7 +34,7 @@ const nullShortcutHost = {
 
 describe('MuseumEditorStore Phase 1 shell session state', () => {
 	it('defaults workspace, panel, and timeline to the documented initial values', () => {
-		const store = createMuseumEditorStore();
+		const store = createFixtureEditorStore();
 		expect(store.currentWorkspace).toBe('scene');
 		expect(store.leftPanel).toBe('scene');
 		expect(store.timelineExpanded).toBe(false);
@@ -43,7 +48,7 @@ describe('MuseumEditorStore Phase 1 shell session state', () => {
 	});
 
 	it('auto-expands Camera while restoring Scene\'s remembered timeline choice', () => {
-		const store = createMuseumEditorStore();
+		const store = createFixtureEditorStore();
 		expect(store.setWorkspace('camera')).toBe(true);
 		expect(store.currentWorkspace).toBe('camera');
 		expect(store.timelineExpanded).toBe(true);
@@ -66,7 +71,7 @@ describe('MuseumEditorStore Phase 1 shell session state', () => {
 	});
 
 	it('keeps the Scene sidebar tab choice across workspace switches without document history', () => {
-		const store = createMuseumEditorStore();
+		const store = createFixtureEditorStore();
 		expect(store.setLeftPanel('assets')).toBe(true);
 		const beforeJson = store.canonicalJson;
 		const beforeHistory = store.historyVersion;
@@ -85,7 +90,7 @@ describe('MuseumEditorStore Phase 1 shell session state', () => {
 	});
 
 	it('makes setWorkspace a no-op when the requested workspace equals the current one', () => {
-		const store = createMuseumEditorStore();
+		const store = createFixtureEditorStore();
 		store.setWorkspace('camera');
 		const version = store.historyVersion;
 		expect(store.setWorkspace('camera')).toBe(false);
@@ -94,8 +99,8 @@ describe('MuseumEditorStore Phase 1 shell session state', () => {
 	});
 
 	it('stops an active camera preview only when leaving Camera', () => {
-		const store = createMuseumEditorStore();
-		store.selectionActions.selectNavigationNode('paris-seat');
+		const store = createFixtureEditorStore();
+		store.selectionActions.selectNavigationNode('tour-paris');
 		expect(store.previewSelectedNode('director')).toBe(true);
 		expect(store.cameraPreview).not.toBeNull();
 		expect(store.timelineExpanded).toBe(true);
@@ -110,8 +115,8 @@ describe('MuseumEditorStore Phase 1 shell session state', () => {
 	});
 
 	it('rejects workspace switches during interaction or modal preview', () => {
-		const store = createMuseumEditorStore();
-		store.selectionActions.selectNavigationNode('paris-seat');
+		const store = createFixtureEditorStore();
+		store.selectionActions.selectNavigationNode('tour-paris');
 		expect(store.beginDocumentTransaction()).toBe(true);
 		store.setTransformInteractionActive(true, 'camera');
 		expect(store.setWorkspace('camera')).toBe(false);
@@ -127,7 +132,7 @@ describe('MuseumEditorStore Phase 1 shell session state', () => {
 	});
 
 	it('rejects every other shell-state change during interaction or modal preview', () => {
-		const store = createMuseumEditorStore();
+		const store = createFixtureEditorStore();
 		store.toggleClusterTreeExpansion('cluster-a');
 		const expectShellStateToRemainUnchanged = (timelineExpanded: boolean) => {
 			expect(store.setTransformTool('select')).toBe(false);
@@ -157,13 +162,13 @@ describe('MuseumEditorStore Phase 1 shell session state', () => {
 		store.setTransformInteractionActive(false);
 		expect(store.cancelDocumentTransaction()).toBe(true);
 
-		store.selectionActions.selectNavigationNode('paris-seat');
+		store.selectionActions.selectNavigationNode('tour-paris');
 		expect(store.previewSelectedNode('visitor')).toBe(true);
 		expectShellStateToRemainUnchanged(true);
 	});
 
 	it('keeps viewport transform tools session-only and toggles snap for the active mode', () => {
-		const store = createMuseumEditorStore();
+		const store = createFixtureEditorStore();
 		const before = store.canonicalJson;
 
 		expect(store.setTransformTool('select')).toBe(true);
@@ -187,7 +192,7 @@ describe('MuseumEditorStore Phase 1 shell session state', () => {
 	});
 
 	it('cancels asset placement when the user navigates back from Assets to Scene', () => {
-		const store = createMuseumEditorStore();
+		const store = createFixtureEditorStore();
 		store.setLeftPanel('assets');
 		expect(store.leftPanel).toBe('assets');
 		expect(store.beginAssetPlacement('paris-salon-chair')).toBe(true);
@@ -203,9 +208,9 @@ describe('MuseumEditorStore Phase 1 shell session state', () => {
 	});
 
 	it('cancels pending camera placement on workspace switch without touching history', () => {
-		const store = createMuseumEditorStore();
+		const store = createFixtureEditorStore();
 		store.setWorkspace('camera');
-		store.selectionActions.selectNavigationNode('paris-seat');
+		store.selectionActions.selectNavigationNode('tour-paris');
 		const before = store.canonicalJson;
 
 		expect(store.beginCameraPlacement()).toBe(true);
@@ -214,7 +219,7 @@ describe('MuseumEditorStore Phase 1 shell session state', () => {
 		expect(store.pendingNavigationCommand).toBeNull();
 		expect(store.navigationSelection).toEqual({
 			kind: 'node',
-			nodeId: 'paris-seat',
+			nodeId: 'tour-paris',
 			handle: 'position'
 		});
 		expect(store.canonicalJson).toBe(before);
@@ -222,7 +227,7 @@ describe('MuseumEditorStore Phase 1 shell session state', () => {
 	});
 
 	it('clamps timeline height into the documented range and rejects non-finite values', () => {
-		const store = createMuseumEditorStore();
+		const store = createFixtureEditorStore();
 		expect(store.setTimelineHeight(150)).toBe(true);
 		expect(store.timelineHeight).toBe(220);
 		expect(store.setTimelineHeight(500)).toBe(true);
@@ -234,7 +239,7 @@ describe('MuseumEditorStore Phase 1 shell session state', () => {
 	});
 
 	it('toggles room and cluster expansion additively without duplicates', () => {
-		const store = createMuseumEditorStore();
+		const store = createFixtureEditorStore();
 		expect(store.treeExpandedRoomIds).toEqual(['paris']);
 
 		store.toggleRoomTreeExpansion('paris');
@@ -260,7 +265,7 @@ describe('MuseumEditorStore Phase 1 shell session state', () => {
 	});
 
 	it('collapses a cluster row through removeClusterTreeExpansion without toggling others', () => {
-		const store = createMuseumEditorStore();
+		const store = createFixtureEditorStore();
 		store.toggleClusterTreeExpansion('cluster-a');
 		store.toggleClusterTreeExpansion('cluster-b');
 		expect(store.treeExpandedClusterIds).toEqual(['cluster-a', 'cluster-b']);
@@ -274,7 +279,7 @@ describe('MuseumEditorStore Phase 1 shell session state', () => {
 	});
 
 	it('keeps shell session state and tree expansion out of the canonical JSON', () => {
-		const store = createMuseumEditorStore();
+		const store = createFixtureEditorStore();
 		const before = store.canonicalJson;
 
 		store.setWorkspace('camera');
@@ -307,8 +312,8 @@ describe('MuseumEditorStore Phase 1 shell session state', () => {
 
 describe('registerEditorShortcuts Escape cascade', () => {
 	it('stops an active camera preview on Escape before later cancel paths', () => {
-		const store = createMuseumEditorStore();
-		store.selectionActions.selectNavigationNode('paris-seat');
+		const store = createFixtureEditorStore();
+		store.selectionActions.selectNavigationNode('tour-paris');
 		expect(store.previewSelectedNode('director')).toBe(true);
 		expect(store.cameraPreview).not.toBeNull();
 
@@ -319,7 +324,7 @@ describe('registerEditorShortcuts Escape cascade', () => {
 	});
 
 	it('cancels pending navigation on Escape when no preview is active', () => {
-		const store = createMuseumEditorStore();
+		const store = createFixtureEditorStore();
 		expect(store.beginCameraPlacement()).toBe(true);
 		expect(store.pendingNavigationCommand).not.toBeNull();
 

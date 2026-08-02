@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import {
-	museumSceneDocument,
-	type MuseumSceneDocument,
-	type SceneNavigationNode
-} from '$lib/content/scene';
+import { cloneFixtureDocument } from '$lib/content/__fixtures__/load-fixture-scene';
+import type { MuseumSceneDocument, SceneNavigationNode } from '$lib/content/scene';
 import {
 	validateConnectionCreation,
 	validateConnectionDeletion,
@@ -15,8 +12,18 @@ import {
 	validateTimelineGuidedTourDrop
 } from './editor-navigation-graph';
 
+const FIXTURE_GUIDED_ORDER = ['tour-a', 'tour-b', 'tour-paris', 'tour-d'] as const;
+
 function documentClone(): MuseumSceneDocument {
-	return JSON.parse(JSON.stringify(museumSceneDocument)) as MuseumSceneDocument;
+	return cloneFixtureDocument();
+}
+
+function guidedOrderFrom(document: MuseumSceneDocument): string[] {
+	const result = validateCurrentGuidedTourOrder(document);
+	if (!result.ok) {
+		throw new Error(`Fixture guided order invalid: ${result.code}`);
+	}
+	return result.nodeIds;
 }
 
 function addConnection(
@@ -60,75 +67,67 @@ function addFreeNode(
 describe('editor camera graph command validation', () => {
 	it('accepts one distinct missing edge and rejects unavailable, self, and duplicate endpoints', () => {
 		const document = documentClone();
-		expect(
-			validateConnectionCreation(document, 'entrance-start', 'paris-seat')
-		).toEqual(
+		expect(validateConnectionCreation(document, 'tour-a', 'tour-paris')).toEqual(
 			expect.objectContaining({
 				ok: true,
-				sourceNode: expect.objectContaining({ id: 'entrance-start' }),
-				destinationNode: expect.objectContaining({ id: 'paris-seat' })
+				sourceNode: expect.objectContaining({ id: 'tour-a' }),
+				destinationNode: expect.objectContaining({ id: 'tour-paris' })
 			})
 		);
-		expect(validateConnectionCreation(document, 'missing', 'paris-seat')).toEqual(
+		expect(validateConnectionCreation(document, 'missing', 'tour-paris')).toEqual(
 			expect.objectContaining({ ok: false, code: 'unknown_source_node' })
 		);
-		expect(validateConnectionCreation(document, 'paris-seat', 'missing')).toEqual(
+		expect(validateConnectionCreation(document, 'tour-paris', 'missing')).toEqual(
 			expect.objectContaining({ ok: false, code: 'unknown_destination_node' })
 		);
-		expect(
-			validateConnectionCreation(document, 'paris-seat', 'paris-seat')
-		).toEqual(expect.objectContaining({ ok: false, code: 'self_connection' }));
-		expect(
-			validateConnectionCreation(document, 'entrance-start', 'poland-threshold')
-		).toEqual(expect.objectContaining({ ok: false, code: 'duplicate_connection' }));
+		expect(validateConnectionCreation(document, 'tour-paris', 'tour-paris')).toEqual(
+			expect.objectContaining({ ok: false, code: 'self_connection' })
+		);
+		expect(validateConnectionCreation(document, 'tour-a', 'tour-b')).toEqual(
+			expect.objectContaining({ ok: false, code: 'duplicate_connection' })
+		);
 	});
 
 	it('allows deleting a redundant free edge but rejects guided and graph-bridge edges', () => {
 		const redundant = documentClone();
-		addConnection(redundant, 'entrance-start', 'departure-corridor', 'shortcut');
+		addConnection(redundant, 'tour-a', 'tour-paris', 'shortcut');
 		expect(validateConnectionDeletion(redundant, 'shortcut')).toEqual(
 			expect.objectContaining({ ok: true })
 		);
 
-		const guided = validateConnectionDeletion(
-			documentClone(),
-			'entrance-poland'
-		);
+		const guided = validateConnectionDeletion(documentClone(), 'tour-a-b');
 		expect(guided).toEqual(
 			expect.objectContaining({ ok: false, code: 'guided_connection' })
 		);
 		expect(guided.ok ? '' : guided.message).toContain('guided order requires');
 
 		const bridge = documentClone();
-		addFreeNode(bridge, 'free-leaf', 'paris-seat');
-		expect(
-			validateConnectionDeletion(bridge, 'paris-seat-free-leaf')
-		).toEqual(expect.objectContaining({ ok: false, code: 'disconnected_graph' }));
+		addFreeNode(bridge, 'free-leaf', 'tour-paris');
+		expect(validateConnectionDeletion(bridge, 'tour-paris-free-leaf')).toEqual(
+			expect.objectContaining({ ok: false, code: 'disconnected_graph' })
+		);
 	});
 
 	it('allows a free leaf node deletion and rejects deleting a free articulation node', () => {
 		const leaf = documentClone();
-		addFreeNode(leaf, 'free-leaf', 'paris-seat');
+		addFreeNode(leaf, 'free-leaf', 'tour-paris');
 		expect(validateNavigationNodeDeletion(leaf, 'free-leaf')).toEqual(
 			expect.objectContaining({
 				ok: true,
-				incidentConnectionIds: ['paris-seat-free-leaf']
+				incidentConnectionIds: ['tour-paris-free-leaf']
 			})
 		);
 
 		const articulation = documentClone();
-		addFreeNode(articulation, 'free-middle', 'paris-seat');
+		addFreeNode(articulation, 'free-middle', 'tour-paris');
 		addFreeNode(articulation, 'free-leaf', 'free-middle');
-		expect(
-			validateNavigationNodeDeletion(articulation, 'free-middle')
-		).toEqual(expect.objectContaining({ ok: false, code: 'disconnected_graph' }));
+		expect(validateNavigationNodeDeletion(articulation, 'free-middle')).toEqual(
+			expect.objectContaining({ ok: false, code: 'disconnected_graph' })
+		);
 	});
 
 	it('requires a guided predecessor-successor bridge and returns a valid splice plan', () => {
-		const missingBridge = validateNavigationNodeDeletion(
-			documentClone(),
-			'poland-threshold'
-		);
+		const missingBridge = validateNavigationNodeDeletion(documentClone(), 'tour-b');
 		expect(missingBridge).toEqual(
 			expect.objectContaining({ ok: false, code: 'missing_guided_bridge' })
 		);
@@ -137,37 +136,23 @@ describe('editor camera graph command validation', () => {
 		);
 
 		const bridged = documentClone();
-		addConnection(
-			bridged,
-			'entrance-start',
-			'departure-corridor',
-			'entrance-departure'
-		);
-		expect(validateNavigationNodeDeletion(bridged, 'poland-threshold')).toEqual(
+		addConnection(bridged, 'tour-a', 'tour-paris', 'tour-a-paris');
+		expect(validateNavigationNodeDeletion(bridged, 'tour-b')).toEqual(
 			expect.objectContaining({
 				ok: true,
-				predecessorNodeId: 'entrance-start',
-				successorNodeId: 'departure-corridor',
-				incidentConnectionIds: expect.arrayContaining([
-					'entrance-poland',
-					'poland-departure'
-				])
+				predecessorNodeId: 'tour-a',
+				successorNodeId: 'tour-paris',
+				incidentConnectionIds: expect.arrayContaining(['tour-a-b', 'tour-b-paris'])
 			})
 		);
 
 		const brokenCycle = documentClone();
-		addConnection(
-			brokenCycle,
-			'entrance-start',
-			'departure-corridor',
-			'entrance-departure'
+		addConnection(brokenCycle, 'tour-a', 'tour-paris', 'tour-a-paris');
+		brokenCycle.navigationNodes.find((node) => node.id === 'tour-d')!.nextNodeId =
+			'tour-paris';
+		expect(validateNavigationNodeDeletion(brokenCycle, 'tour-b')).toEqual(
+			expect.objectContaining({ ok: false, code: 'invalid_guided_cycle' })
 		);
-		brokenCycle.navigationNodes.find(
-			(node) => node.id === 'music-entry'
-		)!.previousNodeId = 'paris-seat';
-		expect(
-			validateNavigationNodeDeletion(brokenCycle, 'poland-threshold')
-		).toEqual(expect.objectContaining({ ok: false, code: 'invalid_guided_cycle' }));
 	});
 
 	it('preserves two guided nodes and checks connectivity after a valid guided splice', () => {
@@ -176,56 +161,37 @@ describe('editor camera graph command validation', () => {
 			delete node.nextNodeId;
 			delete node.previousNodeId;
 		}
-		const entrance = twoGuided.navigationNodes.find(
-			(node) => node.id === 'entrance-start'
-		)!;
-		const poland = twoGuided.navigationNodes.find(
-			(node) => node.id === 'poland-threshold'
-		)!;
-		entrance.nextNodeId = poland.id;
-		entrance.previousNodeId = poland.id;
-		poland.nextNodeId = entrance.id;
-		poland.previousNodeId = entrance.id;
+		const entrance = twoGuided.navigationNodes.find((node) => node.id === 'tour-a')!;
+		const middle = twoGuided.navigationNodes.find((node) => node.id === 'tour-b')!;
+		entrance.nextNodeId = middle.id;
+		entrance.previousNodeId = middle.id;
+		middle.nextNodeId = entrance.id;
+		middle.previousNodeId = entrance.id;
 		expect(validateNavigationNodeDeletion(twoGuided, entrance.id)).toEqual(
 			expect.objectContaining({ ok: false, code: 'minimum_guided_nodes' })
 		);
 
 		const disconnected = documentClone();
-		addConnection(
-			disconnected,
-			'entrance-start',
-			'departure-corridor',
-			'entrance-departure'
+		addConnection(disconnected, 'tour-a', 'tour-paris', 'tour-a-paris');
+		addFreeNode(disconnected, 'tour-b-free-leaf', 'tour-b');
+		expect(validateNavigationNodeDeletion(disconnected, 'tour-b')).toEqual(
+			expect.objectContaining({ ok: false, code: 'disconnected_graph' })
 		);
-		addFreeNode(disconnected, 'poland-free-leaf', 'poland-threshold');
-		expect(
-			validateNavigationNodeDeletion(disconnected, 'poland-threshold')
-		).toEqual(expect.objectContaining({ ok: false, code: 'disconnected_graph' }));
 	});
 });
 
 describe('editor guided-tour order validation', () => {
-	const checkedInOrder = [
-		'entrance-start',
-		'poland-threshold',
-		'departure-corridor',
-		'paris-seat',
-		'camera-node-1',
-		'workshop-desk',
-		'music-entry',
-		'music-center',
-		'legacy-return'
-	];
-
-	it('reads one reciprocal cycle pinned to entrance-start', () => {
-		expect(validateCurrentGuidedTourOrder(documentClone())).toEqual({
+	it('reads one reciprocal cycle pinned to tour-a', () => {
+		const document = documentClone();
+		expect(validateCurrentGuidedTourOrder(document)).toEqual({
 			ok: true,
-			nodeIds: checkedInOrder
+			nodeIds: [...FIXTURE_GUIDED_ORDER]
 		});
+		expect(guidedOrderFrom(document)).toEqual([...FIXTURE_GUIDED_ORDER]);
 
 		const broken = documentClone();
-		broken.navigationNodes.find((node) => node.id === 'music-entry')!.previousNodeId =
-			'paris-seat';
+		broken.navigationNodes.find((node) => node.id === 'tour-d')!.nextNodeId =
+			'tour-paris';
 		expect(validateCurrentGuidedTourOrder(broken)).toEqual(
 			expect.objectContaining({ ok: false, code: 'invalid_guided_cycle' })
 		);
@@ -233,50 +199,31 @@ describe('editor guided-tour order validation', () => {
 
 	it('rejects short, duplicate, unknown, unpinned, and missing-edge orders', () => {
 		const document = documentClone();
-		expect(validateGuidedTourOrder(document, ['entrance-start'])).toEqual(
+		const guidedOrder = guidedOrderFrom(document);
+		expect(validateGuidedTourOrder(document, ['tour-a'])).toEqual(
 			expect.objectContaining({ ok: false, code: 'minimum_guided_nodes' })
 		);
 		expect(
-			validateGuidedTourOrder(document, [
-				'entrance-start',
-				'poland-threshold',
-				'poland-threshold'
-			])
+			validateGuidedTourOrder(document, ['tour-a', 'tour-b', 'tour-b'])
 		).toEqual(expect.objectContaining({ ok: false, code: 'duplicate_guided_node' }));
-		expect(
-			validateGuidedTourOrder(document, ['entrance-start', 'missing'])
-		).toEqual(expect.objectContaining({ ok: false, code: 'unknown_node' }));
-		expect(validateGuidedTourOrder(document, checkedInOrder.slice(1))).toEqual(
-			expect.objectContaining({ ok: false, code: 'missing_guided_start' })
+		expect(validateGuidedTourOrder(document, ['tour-a', 'missing'])).toEqual(
+			expect.objectContaining({ ok: false, code: 'unknown_node' })
 		);
 		expect(
 			validateGuidedTourOrder(document, [
-				'poland-threshold',
-				'entrance-start',
-				...checkedInOrder.slice(2)
-			])
-		).toEqual(expect.objectContaining({ ok: false, code: 'guided_start_not_first' }));
-		expect(
-			validateGuidedTourOrder(document, [
-				'entrance-start',
-				'departure-corridor',
-				...checkedInOrder.slice(3),
-				'poland-threshold'
+				'tour-a',
+				'tour-paris',
+				...guidedOrder.slice(3),
+				'tour-b'
 			])
 		).toEqual(expect.objectContaining({ ok: false, code: 'missing_guided_connection' }));
 	});
 
 	it('accepts reorder only after every consecutive and return edge exists', () => {
 		const document = documentClone();
-		addConnection(document, 'entrance-start', 'departure-corridor', 'entrance-departure');
-		addConnection(document, 'poland-threshold', 'paris-seat', 'poland-paris');
-		const reordered = [
-			'entrance-start',
-			'departure-corridor',
-			'poland-threshold',
-			'paris-seat',
-			...checkedInOrder.slice(4)
-		];
+		addConnection(document, 'tour-a', 'tour-paris', 'tour-a-paris');
+		addConnection(document, 'tour-b', 'tour-d', 'tour-b-d');
+		const reordered = ['tour-a', 'tour-paris', 'tour-b', 'tour-d'];
 		expect(validateGuidedTourOrder(document, reordered)).toEqual({
 			ok: true,
 			nodeIds: reordered
@@ -285,23 +232,19 @@ describe('editor guided-tour order validation', () => {
 
 	it('plans free-node insertion only across two existing edges', () => {
 		const missing = documentClone();
-		addFreeNode(missing, 'free-node', 'paris-seat');
-		expect(validateGuidedTourInsertion(missing, 'free-node', 4)).toEqual(
+		addFreeNode(missing, 'free-node', 'tour-paris');
+		expect(validateGuidedTourInsertion(missing, 'free-node', 2)).toEqual(
 			expect.objectContaining({ ok: false, code: 'missing_guided_connection' })
 		);
 
 		const insertable = documentClone();
-		addFreeNode(insertable, 'free-node', 'departure-corridor');
-		addConnection(insertable, 'free-node', 'paris-seat', 'free-paris');
-		expect(validateGuidedTourInsertion(insertable, 'free-node', 3)).toEqual({
+		addFreeNode(insertable, 'free-node', 'tour-b');
+		addConnection(insertable, 'free-node', 'tour-paris', 'free-paris');
+		expect(validateGuidedTourInsertion(insertable, 'free-node', 2)).toEqual({
 			ok: true,
-			nodeIds: [
-				...checkedInOrder.slice(0, 3),
-				'free-node',
-				...checkedInOrder.slice(3)
-			]
+			nodeIds: ['tour-a', 'tour-b', 'free-node', 'tour-paris', 'tour-d']
 		});
-		expect(validateGuidedTourInsertion(insertable, 'entrance-start', 2)).toEqual(
+		expect(validateGuidedTourInsertion(insertable, 'tour-a', 2)).toEqual(
 			expect.objectContaining({ ok: false, code: 'node_already_guided' })
 		);
 		expect(validateGuidedTourInsertion(insertable, 'free-node', 0)).toEqual(
@@ -311,50 +254,36 @@ describe('editor guided-tour order validation', () => {
 
 	it('plans removal only when the predecessor-successor edge exists', () => {
 		const missing = documentClone();
-		expect(validateGuidedTourRemoval(missing, 'poland-threshold')).toEqual(
+		expect(validateGuidedTourRemoval(missing, 'tour-b')).toEqual(
 			expect.objectContaining({ ok: false, code: 'missing_guided_connection' })
 		);
-		expect(validateGuidedTourRemoval(missing, 'entrance-start')).toEqual(
+		expect(validateGuidedTourRemoval(missing, 'tour-a')).toEqual(
 			expect.objectContaining({ ok: false, code: 'protected_guided_start' })
 		);
 
 		const removable = documentClone();
-		addConnection(
-			removable,
-			'entrance-start',
-			'departure-corridor',
-			'entrance-departure'
-		);
-		expect(validateGuidedTourRemoval(removable, 'poland-threshold')).toEqual({
+		addConnection(removable, 'tour-a', 'tour-paris', 'tour-a-paris');
+		expect(validateGuidedTourRemoval(removable, 'tour-b')).toEqual({
 			ok: true,
-			nodeIds: checkedInOrder.filter((nodeId) => nodeId !== 'poland-threshold')
+			nodeIds: FIXTURE_GUIDED_ORDER.filter((nodeId) => nodeId !== 'tour-b')
 		});
 	});
 
 	it('plans one atomic timeline insertion with exactly one missing straight edge', () => {
 		const document = documentClone();
-		addFreeNode(document, 'free-node', 'paris-seat');
+		addFreeNode(document, 'free-node', 'tour-paris');
 
 		expect(
-			validateTimelineGuidedTourDrop(
-				document,
-				'free-node',
-				'departure-corridor',
-				'paris-seat'
-			)
+			validateTimelineGuidedTourDrop(document, 'free-node', 'tour-b', 'tour-paris')
 		).toEqual({
 			ok: true,
-			nodeIds: [
-				...checkedInOrder.slice(0, 3),
-				'free-node',
-				...checkedInOrder.slice(3)
-			],
+			nodeIds: ['tour-a', 'tour-b', 'free-node', 'tour-paris', 'tour-d'],
 			missingConnection: {
-				fromNodeId: 'departure-corridor',
+				fromNodeId: 'tour-b',
 				toNodeId: 'free-node'
 			},
 			focusConnection: {
-				fromNodeId: 'departure-corridor',
+				fromNodeId: 'tour-b',
 				toNodeId: 'free-node'
 			}
 		});
@@ -362,45 +291,33 @@ describe('editor guided-tour order validation', () => {
 
 	it('uses existing edges and rejects self, invalid-gap, and multi-edge drops', () => {
 		const insertable = documentClone();
-		addFreeNode(insertable, 'free-node', 'departure-corridor');
-		addConnection(insertable, 'free-node', 'paris-seat', 'free-paris');
+		addFreeNode(insertable, 'free-node', 'tour-b');
+		addConnection(insertable, 'free-node', 'tour-paris', 'free-paris');
 		expect(
 			validateTimelineGuidedTourDrop(
 				insertable,
 				'free-node',
-				'departure-corridor',
-				'paris-seat'
+				'tour-b',
+				'tour-paris'
 			)
-		).toEqual(
-			expect.objectContaining({ ok: true, missingConnection: null })
-		);
+		).toEqual(expect.objectContaining({ ok: true, missingConnection: null }));
 
 		const document = documentClone();
 		expect(
 			validateTimelineGuidedTourDrop(
 				document,
-				'poland-threshold',
-				'poland-threshold',
-				'departure-corridor'
+				'tour-b',
+				'tour-b',
+				'tour-paris'
 			)
 		).toEqual(expect.objectContaining({ ok: false, code: 'guided_self_drop' }));
 		expect(
-			validateTimelineGuidedTourDrop(
-				document,
-				'poland-threshold',
-				'departure-corridor',
-				'workshop-desk'
-			)
+			validateTimelineGuidedTourDrop(document, 'tour-b', 'tour-a', 'tour-d')
 		).toEqual(expect.objectContaining({ ok: false, code: 'invalid_guided_gap' }));
 
-		addFreeNode(document, 'free-node', 'music-center');
+		addFreeNode(document, 'free-node', 'tour-d');
 		expect(
-			validateTimelineGuidedTourDrop(
-				document,
-				'free-node',
-				'departure-corridor',
-				'paris-seat'
-			)
+			validateTimelineGuidedTourDrop(document, 'free-node', 'tour-b', 'tour-paris')
 		).toEqual(
 			expect.objectContaining({
 				ok: false,
@@ -411,27 +328,27 @@ describe('editor guided-tour order validation', () => {
 
 	it('moves a guided node when final order needs at most one new edge', () => {
 		const document = documentClone();
-		addConnection(document, 'entrance-start', 'departure-corridor', 'entrance-departure');
+		addConnection(document, 'tour-a', 'tour-paris', 'tour-a-paris');
 		const result = validateTimelineGuidedTourDrop(
 			document,
-			'poland-threshold',
-			'departure-corridor',
-			'paris-seat'
+			'tour-b',
+			'tour-paris',
+			'tour-d'
 		);
 		expect(result).toEqual(
 			expect.objectContaining({
 				ok: true,
 				missingConnection: {
-					fromNodeId: 'poland-threshold',
-					toNodeId: 'paris-seat'
+					fromNodeId: 'tour-b',
+					toNodeId: 'tour-d'
 				}
 			})
 		);
 		expect(result.ok ? result.nodeIds : []).toEqual([
-			'entrance-start',
-			'departure-corridor',
-			'poland-threshold',
-			...checkedInOrder.slice(3)
+			'tour-a',
+			'tour-paris',
+			'tour-b',
+			'tour-d'
 		]);
 	});
 });

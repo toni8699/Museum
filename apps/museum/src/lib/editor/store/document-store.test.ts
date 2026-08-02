@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
+import { cloneFixtureDocument } from '$lib/content/__fixtures__/load-fixture-scene';
 import { serializeSceneDocument } from '$lib/content/scene-codec';
 import { museumSceneDocument, type MuseumSceneDocument } from '$lib/content/scene';
 
 import {
 	cloneMuseumSceneDocument,
-	EditorDocumentStore
+	EditorDocumentStore,
+	pickInitialNavigationNodeId
 } from './document-store.svelte';
 
 /**
@@ -16,7 +18,7 @@ import {
 function fingerprint(doc: MuseumSceneDocument): MuseumSceneDocument {
 	const next = cloneMuseumSceneDocument(doc);
 	const first = next.entities[0];
-	if (!first) throw new Error('museumSceneDocument has no entities');
+	if (!first) throw new Error('scene document has no entities');
 	first.rotation = [
 		first.rotation[0],
 		first.rotation[1] + 0.001,
@@ -30,6 +32,10 @@ describe('EditorDocumentStore', () => {
 		const store = new EditorDocumentStore();
 		expect(store.document).toEqual(museumSceneDocument);
 		expect(store.validation.success).toBe(true);
+		expect(
+			store.document.navigationNodes.some((node) => node.id === store.state.activeNodeId)
+		).toBe(true);
+		expect(store.state.activeNodeId).toBe(pickInitialNavigationNodeId(store.scene));
 	});
 
 	it('reports not-dirty at boot (baseline matches live canonical JSON)', () => {
@@ -39,49 +45,49 @@ describe('EditorDocumentStore', () => {
 	});
 
 	it('replace(next) swaps the document and rebuilds validation/scene/state', () => {
-		const store = new EditorDocumentStore();
-		const next = fingerprint(museumSceneDocument);
+		const seed = cloneFixtureDocument();
+		const store = new EditorDocumentStore(seed);
+		const next = fingerprint(seed);
 		store.replace(next);
-		expect(store.document.entities[0]!.rotation[1]).not.toBe(
-			museumSceneDocument.entities[0]!.rotation[1]
-		);
+		expect(store.document.entities[0]!.rotation[1]).not.toBe(seed.entities[0]!.rotation[1]);
 		expect(store.isDirty).toBe(true);
 		expect(store.canonicalJson).not.toBe(store.baselineCanonicalJson);
 	});
 
 	it('setBaseline(json) resets the dirty comparison', () => {
-		const store = new EditorDocumentStore();
-		store.replace(fingerprint(museumSceneDocument));
+		const seed = cloneFixtureDocument();
+		const store = new EditorDocumentStore(seed);
+		store.replace(fingerprint(seed));
 		expect(store.isDirty).toBe(true);
 		store.setBaseline(serializeSceneDocument(store.document));
 		expect(store.isDirty).toBe(false);
 	});
 
 	it('replace(next) fires every afterReplace listener in registration order', () => {
-		const store = new EditorDocumentStore();
+		const store = new EditorDocumentStore(cloneFixtureDocument());
 		const calls: string[] = [];
 		store.addAfterReplaceListener(() => calls.push('a'));
 		store.addAfterReplaceListener(() => calls.push('b'));
 		store.addAfterReplaceListener(() => calls.push('c'));
-		store.replace(fingerprint(museumSceneDocument));
+		store.replace(fingerprint(store.document));
 		expect(calls).toEqual(['a', 'b', 'c']);
 	});
 
 	it('addAfterReplaceListener returns an unsubscribe handle', () => {
-		const store = new EditorDocumentStore();
+		const store = new EditorDocumentStore(cloneFixtureDocument());
 		const calls: string[] = [];
 		const unsub = store.addAfterReplaceListener(() => calls.push('keep'));
 		const unsubDrop = store.addAfterReplaceListener(() => calls.push('drop'));
 		unsubDrop();
-		store.replace(fingerprint(museumSceneDocument));
+		store.replace(fingerprint(store.document));
 		expect(calls).toEqual(['keep']);
 		unsub();
-		store.replace(fingerprint(museumSceneDocument));
+		store.replace(fingerprint(store.document));
 		expect(calls).toEqual(['keep']);
 	});
 
 	it('listener exceptions are caught and logged without aborting the chain', () => {
-		const store = new EditorDocumentStore();
+		const store = new EditorDocumentStore(cloneFixtureDocument());
 		const calls: string[] = [];
 		const originalError = console.error;
 		console.error = () => undefined;
@@ -90,7 +96,7 @@ describe('EditorDocumentStore', () => {
 				throw new Error('listener kaboom');
 			});
 			store.addAfterReplaceListener(() => calls.push('survivor'));
-			store.replace(fingerprint(museumSceneDocument));
+			store.replace(fingerprint(store.document));
 			expect(calls).toEqual(['survivor']);
 		} finally {
 			console.error = originalError;
@@ -98,18 +104,20 @@ describe('EditorDocumentStore', () => {
 	});
 
 	it('documentsMatch(a, b) reflects JSON-shape equality', () => {
-		const a = cloneMuseumSceneDocument(museumSceneDocument);
-		const b = cloneMuseumSceneDocument(museumSceneDocument);
+		const seed = cloneFixtureDocument();
+		const a = cloneMuseumSceneDocument(seed);
+		const b = cloneMuseumSceneDocument(seed);
 		expect(EditorDocumentStore.documentsMatch(a, b)).toBe(true);
-		const another = fingerprint(museumSceneDocument);
+		const another = fingerprint(seed);
 		expect(EditorDocumentStore.documentsMatch(a, another)).toBe(false);
 	});
 
 	it('cloneMuseumSceneDocument returns a deep-clone (not the same reference)', () => {
-		const cloned = cloneMuseumSceneDocument(museumSceneDocument);
-		expect(cloned).toEqual(museumSceneDocument);
-		expect(cloned).not.toBe(museumSceneDocument);
+		const seed = cloneFixtureDocument();
+		const cloned = cloneMuseumSceneDocument(seed);
+		expect(cloned).toEqual(seed);
+		expect(cloned).not.toBe(seed);
 		cloned.entities[0]!.rotation[1] = 999;
-		expect(museumSceneDocument.entities[0]!.rotation[1]).not.toBe(999);
+		expect(seed.entities[0]!.rotation[1]).not.toBe(999);
 	});
 });

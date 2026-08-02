@@ -361,7 +361,7 @@ export class MuseumEditorStore {
 	// the coherence reset fires on every document swap (undo, redo, importDocument,
 	// `EditorDocumentStore.replace` from any caller), not just the explicit
 	// `#replaceDocument()` path (closes pre-slice defect #2).
-	private readonly documentStore = new EditorDocumentStore();
+	private readonly documentStore: EditorDocumentStore;
 	get document(): MuseumSceneDocument {
 		return this.documentStore.document;
 	}
@@ -399,7 +399,7 @@ export class MuseumEditorStore {
 	// State lives on `previewController`; getters below preserve `store.cameraPreview`
 	// / `store.cameraPreviewFollowEnabled` / `store.cameraPreviewRecenterVersion`
 	// consumer reads. Internal writes go through `this.previewController.*`.
-	private readonly previewController = new EditorCameraPreviewController(this.documentStore);
+	private readonly previewController: EditorCameraPreviewController;
 	get cameraPreview(): EditorCameraPreview {
 		// Controller redeclares preview types locally (Slice 6 collapses). Structural match.
 		return this.previewController.preview as EditorCameraPreview;
@@ -420,10 +420,7 @@ export class MuseumEditorStore {
 
 	// Slice 3 v2 sub-task 3.6 — history + peer-link (Option 3).
 	// Instantiated after previewController so the peer-link ctor arg exists.
-	private readonly historyController = new EditorHistoryController(
-		this.documentStore,
-		this.previewController
-	);
+	private readonly historyController: EditorHistoryController;
 	get historyVersion(): number {
 		return this.historyController.version;
 	}
@@ -900,7 +897,13 @@ export class MuseumEditorStore {
 		};
 	}
 
-	constructor() {
+	constructor(options: MuseumEditorStoreOptions = {}) {
+		this.documentStore = new EditorDocumentStore(options.document);
+		this.previewController = new EditorCameraPreviewController(this.documentStore);
+		this.historyController = new EditorHistoryController(
+			this.documentStore,
+			this.previewController
+		);
 		const self = this;
 		this.mutationGuards = new EditorMutationGuards({
 			get cameraPreview() {
@@ -3395,8 +3398,13 @@ export class MuseumEditorStore {
 	}
 }
 
-export function createMuseumEditorStore() {
-	return new MuseumEditorStore();
+export type MuseumEditorStoreOptions = {
+	/** Optional authoring document seed (defaults to checked-in museum-scene.json). */
+	document?: MuseumSceneDocument;
+};
+
+export function createMuseumEditorStore(options: MuseumEditorStoreOptions = {}) {
+	return new MuseumEditorStore(options);
 }
 
 export type { MuseumSceneDocument, RuntimeMuseumScene };

@@ -10,9 +10,10 @@ import {
 	serializeSceneDocument,
 	validateSceneDocument
 } from './scene-codec';
+import { cloneFixtureDocument } from './__fixtures__/load-fixture-scene';
 
 function cloneDocument() {
-	return JSON.parse(JSON.stringify(museumSceneDocument)) as MuseumSceneDocument;
+	return cloneFixtureDocument('tour-minimal');
 }
 
 function modelPlacementsFromDocument(document: MuseumSceneDocument) {
@@ -162,15 +163,14 @@ describe('scene document codec', () => {
 		expect(result.document.entities.every((entity) => entity.kind === 'model')).toBe(true);
 		expect(result.document.navigationNodes.every((node) => node.fov === 54)).toBe(true);
 		expect(result.document.connections.every((connection) => connection.positionPath.kind === 'rounded-polyline')).toBe(true);
+		const fixtureAnchorIds = cloneDocument().connections.flatMap((connection) =>
+			connection.positionPath.anchors.map((anchor) => anchor.id)
+		);
 		expect(
 			result.document.connections.flatMap((connection) =>
 				connection.positionPath.anchors.map((anchor) => anchor.id)
 			)
-		).toEqual(
-			museumSceneDocument.connections.flatMap((connection) =>
-				connection.positionPath.anchors.map((anchor) => anchor.id)
-			)
-		);
+		).toEqual(fixtureAnchorIds);
 		expect(result.canonicalJson).toContain('"version": 5');
 		expect(result.canonicalJson).not.toContain('positionWaypoints');
 		expect(result.document.connections[0]!.targetWaypoints).toEqual(
@@ -213,14 +213,14 @@ describe('scene document codec', () => {
 		document.connections[0]!.viewTracks = {
 			forward: [
 				{
-					id: 'entrance-poland-view-forward-01',
+					id: 'fixture-view-forward-01',
 					progress: 0.25,
 					roomId: 'entrance',
 					cameraTarget: [1.2, 1.4, -2.1],
 					fov: 42
 				},
 				{
-					id: 'entrance-poland-view-forward-02',
+					id: 'fixture-view-forward-02',
 					progress: 0.75,
 					cameraTarget: [100, 2, 100],
 					fov: 60
@@ -612,7 +612,11 @@ describe('scene document codec', () => {
 			position: [0, 0, 0],
 			rotation: [0, 0, 0]
 		});
-		expectIssue(badBox, 'invalid_dimension', '$.entities[21].dimensions.width');
+		expectIssue(
+			badBox,
+			'invalid_dimension',
+			`$.entities[${badBox.entities.length - 1}].dimensions.width`
+		);
 
 		const badLight = cloneDocument();
 		badLight.entities.push({
@@ -628,6 +632,10 @@ describe('scene document codec', () => {
 			position: [0, 4, 0],
 			rotation: [0, 0, 0]
 		} as never);
-		expectIssue(badLight, 'unexpected_property', '$.entities[21].range');
+		expectIssue(
+			badLight,
+			'unexpected_property',
+			`$.entities[${badLight.entities.length - 1}].range`
+		);
 	});
 });

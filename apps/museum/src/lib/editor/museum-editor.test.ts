@@ -43,19 +43,19 @@ import {
 describe('cloneMuseumSceneDocument', () => {
 	it('does not mutate the checked-in museumSceneDocument singleton', () => {
 		const clone = cloneMuseumSceneDocument(museumSceneDocument);
-		const originalFirstId = museumSceneDocument.objects[0]?.id;
-		const originalObjectCount = museumSceneDocument.objects.length;
+		const originalFirstId = museumSceneDocument.entities[0]?.id;
+		const originalObjectCount = museumSceneDocument.entities.length;
 
-		clone.objects[0]!.id = 'mutated-placement-id';
-		clone.objects.push({
-			...clone.objects[0]!,
+		clone.entities[0]!.id = 'mutated-placement-id';
+		clone.entities.push({
+			...clone.entities[0]!,
 			id: 'extra-placement'
 		});
 
-		expect(museumSceneDocument.objects[0]?.id).toBe(originalFirstId);
-		expect(museumSceneDocument.objects).toHaveLength(originalObjectCount);
-		expect(clone.objects[0]?.id).toBe('mutated-placement-id');
-		expect(clone.objects).toHaveLength(originalObjectCount + 1);
+		expect(museumSceneDocument.entities[0]?.id).toBe(originalFirstId);
+		expect(museumSceneDocument.entities).toHaveLength(originalObjectCount);
+		expect(clone.entities[0]?.id).toBe('mutated-placement-id');
+		expect(clone.entities).toHaveLength(originalObjectCount + 1);
 	});
 });
 
@@ -64,11 +64,14 @@ describe('createMuseumEditorStore', () => {
 		const store = createMuseumEditorStore();
 
 		expect(store.document).not.toBe(museumSceneDocument);
-		expect(store.document.objects).toHaveLength(museumSceneDocument.objects.length);
+		expect(store.document.entities).toHaveLength(museumSceneDocument.entities.length);
 		expect(store.document.navigationNodes).toHaveLength(
 			museumSceneDocument.navigationNodes.length
 		);
-		expect(store.scene.objects).toHaveLength(museumSceneDocument.objects.length);
+		expect(store.scene.entities).toHaveLength(museumSceneDocument.entities.length);
+		expect(store.scene.objects).toHaveLength(
+			museumSceneDocument.entities.filter((entity) => entity.kind === 'model').length
+		);
 		expect(store.scene.navigationNodes).toHaveLength(
 			museumSceneDocument.navigationNodes.length
 		);
@@ -78,12 +81,12 @@ describe('createMuseumEditorStore', () => {
 
 	it('keeps the checked-in document intact when the session document mutates', () => {
 		const store = createMuseumEditorStore();
-		const originalFirstId = museumSceneDocument.objects[0]?.id;
+		const originalFirstId = museumSceneDocument.entities[0]?.id;
 
-		store.document.objects[0]!.id = 'session-only-id';
+		store.document.entities[0]!.id = 'session-only-id';
 
-		expect(museumSceneDocument.objects[0]?.id).toBe(originalFirstId);
-		expect(store.document.objects[0]?.id).toBe('session-only-id');
+		expect(museumSceneDocument.entities[0]?.id).toBe(originalFirstId);
+		expect(store.document.entities[0]?.id).toBe('session-only-id');
 	});
 
 	it('defaults to bright editor lighting and can restore the visitor preset', () => {
@@ -103,7 +106,7 @@ describe('createMuseumEditorStore', () => {
 		const store = createMuseumEditorStore();
 		expect(store.isDirty).toBe(false);
 		store.selectionActions.selectRoom('paris');
-		const placement = store.document.objects[0]!;
+		const placement = store.document.entities[0]!;
 		expect(
 			store.commitPlacementTransform(placement.id, {
 				position: [placement.position[0] + 1, placement.position[1], placement.position[2]],
@@ -116,11 +119,11 @@ describe('createMuseumEditorStore', () => {
 		expect(store.isDirty).toBe(false);
 
 		const imported = JSON.parse(serializeSceneDocument(museumSceneDocument)) as MuseumSceneDocument;
-		imported.objects[0]!.position[0] += 0.25;
+		imported.entities[0]!.position[0] += 0.25;
 		expect(store.importDocument(imported)).toBe(true);
 		expect(store.isDirty).toBe(false);
 		expect(store.resetToCheckedInDocument()).toBe(true);
-		expect(store.document.objects[0]!.position).toEqual(museumSceneDocument.objects[0]!.position);
+		expect(store.document.entities[0]!.position).toEqual(museumSceneDocument.entities[0]!.position);
 		expect(store.isDirty).toBe(false);
 	});
 
@@ -226,16 +229,14 @@ describe('MuseumEditorStore selection', () => {
 		expect(store.canUndo).toBe(false);
 	});
 
-	it('requires an editable room and selects document ids without a registered root', () => {
+	it('selects document ids and adopts their room without a registered root', () => {
 		const store = createMuseumEditorStore();
-		const id = store.document.objects[0]!.id;
+		const id = store.document.entities[0]!.id;
 
-		store.selectionActions.selectPlacement(id);
-		expect(store.selectedPlacementId).toBeNull();
-
-		store.selectionActions.selectRoom('paris');
+		expect(store.selectedRoomId).toBeNull();
 		store.selectionActions.selectPlacement(id);
 
+		expect(store.selectedRoomId).toBe('paris');
 		expect(store.selectedPlacementId).toBe(id);
 		expect(store.getPlacementRoot(id)).toBeUndefined();
 		expect(store.selectedObject?.id).toBe(id);
@@ -243,7 +244,7 @@ describe('MuseumEditorStore selection', () => {
 
 	it('selects and frames a placement from the tree without room preselection', () => {
 		const store = createMuseumEditorStore();
-		const placement = store.document.objects.find((object) => object.roomId === 'paris')!;
+		const placement = store.document.entities.find((object) => object.roomId === 'paris')!;
 		store.toggleRoomTreeExpansion('paris');
 		store.selectionActions.selectNavigationNode('departure-corridor');
 		const beforeFocus = store.cameraFocusVersion;
@@ -270,7 +271,7 @@ describe('MuseumEditorStore selection', () => {
 
 	it('shift-selects the first tree placement in order without requesting focus', () => {
 		const store = createMuseumEditorStore();
-		const [first, second] = store.document.objects.filter((object) => object.roomId === 'paris');
+		const [first, second] = store.document.entities.filter((object) => object.roomId === 'paris');
 		store.toggleRoomTreeExpansion('paris');
 		store.selectionActions.selectNavigationNode('departure-corridor');
 		store.consumeCameraFocus(store.cameraFocusVersion);
@@ -296,7 +297,7 @@ describe('MuseumEditorStore selection', () => {
 
 	it('ignores unknown ids without clearing the current selection', () => {
 		const store = createMuseumEditorStore();
-		const id = store.document.objects[0]!.id;
+		const id = store.document.entities[0]!.id;
 		store.selectionActions.selectRoom('paris');
 		store.selectionActions.selectPlacement(id);
 
@@ -308,7 +309,7 @@ describe('MuseumEditorStore selection', () => {
 	it('deselects the current placement', () => {
 		const store = createMuseumEditorStore();
 		store.selectionActions.selectRoom('paris');
-		store.selectionActions.selectPlacement(store.document.objects[0]!.id);
+		store.selectionActions.selectPlacement(store.document.entities[0]!.id);
 		store.selectionActions.deselect();
 		expect(store.selectedPlacementId).toBeNull();
 		expect(store.selectedRoomId).toBe('paris');
@@ -316,9 +317,9 @@ describe('MuseumEditorStore selection', () => {
 
 	it('cycles with empty / absent / wrap rules', () => {
 		const store = createMuseumEditorStore();
-		const a = store.document.objects[0]!.id;
-		const b = store.document.objects[1]!.id;
-		const c = store.document.objects[2]!.id;
+		const a = store.document.entities[0]!.id;
+		const b = store.document.entities[1]!.id;
+		const c = store.document.entities[2]!.id;
 
 		store.cyclePlacement([]);
 		expect(store.selectedPlacementId).toBeNull();
@@ -337,8 +338,8 @@ describe('MuseumEditorStore selection', () => {
 
 	it('resets a newly selected placement to rotate but preserves the current mode on reselect', () => {
 		const store = createMuseumEditorStore();
-		const a = store.document.objects[0]!.id;
-		const b = store.document.objects[1]!.id;
+		const a = store.document.entities[0]!.id;
+		const b = store.document.entities[1]!.id;
 		store.selectionActions.selectRoom('paris');
 
 		store.selectionActions.selectPlacement(a);
@@ -362,7 +363,7 @@ describe('MuseumEditorStore selection', () => {
 
 	it('bumps registryVersion on register and unregister', () => {
 		const store = createMuseumEditorStore();
-		const id = store.document.objects[0]!.id;
+		const id = store.document.entities[0]!.id;
 		const root = new Object3D();
 		const version0 = store.registryVersion;
 
@@ -378,9 +379,64 @@ describe('MuseumEditorStore selection', () => {
 		expect(store.getPlacementRoot(id)).toBeUndefined();
 	});
 
+	it('selects and registers primitive/light entities with the same placement root API', () => {
+		const store = createMuseumEditorStore();
+		store.selectionActions.selectRoom('paris');
+
+		const primitiveId = 'phase-4-2-box';
+		const lightId = 'phase-4-2-point';
+		expect(store.beginDocumentTransaction()).toBe(true);
+		store.document.entities.push(
+			{
+				kind: 'primitive',
+				id: primitiveId,
+				name: 'Phase 4.2 Box',
+				roomId: 'paris',
+				position: [0.5, 0.5, -0.5],
+				rotation: [0, 0, 0],
+				primitive: 'sphere',
+				dimensions: { radius: 0.4 },
+				materialId: 'wood-walnut',
+				castShadow: false,
+				receiveShadow: true
+			},
+			{
+				kind: 'light',
+				id: lightId,
+				name: 'Phase 4.2 Point',
+				roomId: 'paris',
+				position: [0, 2.2, 0],
+				rotation: [0, 0, 0],
+				light: 'point',
+				color: '#ffd9a0',
+				intensity: 1,
+				castShadow: false
+			}
+		);
+		expect(store.commitDocumentTransaction()).toBe(true);
+
+		expect(store.scene.entities.some((entity) => entity.id === primitiveId)).toBe(true);
+		expect(store.scene.entities.some((entity) => entity.id === lightId)).toBe(true);
+		expect(store.scene.objects.some((object) => object.id === primitiveId)).toBe(false);
+
+		const primitiveRoot = new Object3D();
+		const lightRoot = new Object3D();
+		store.registerPlacementRoot(primitiveId, primitiveRoot);
+		store.registerPlacementRoot(lightId, lightRoot);
+
+		expect(store.selectionActions.selectPlacement(primitiveId)).toBe(true);
+		expect(store.selectedObject?.kind).toBe('primitive');
+		expect(store.getPlacementRoot(primitiveId)).toBe(primitiveRoot);
+		expect(store.getPlacementRoots()).toEqual([primitiveRoot]);
+
+		expect(store.selectionActions.selectPlacement(lightId)).toBe(true);
+		expect(store.selectedObject?.kind).toBe('light');
+		expect(store.getPlacementRoots()).toEqual([lightRoot]);
+	});
+
 	it('keeps ordered multi-selection as the only mutable selection source', () => {
 		const store = createMuseumEditorStore();
-		const [a, b, c] = store.document.objects;
+		const [a, b, c] = store.document.entities;
 		store.selectionActions.selectRoom('paris');
 		store.selectionActions.selectPlacement(a.id);
 		store.selectionActions.togglePlacement(b.id);
@@ -398,7 +454,7 @@ describe('MuseumEditorStore selection', () => {
 describe('MuseumEditorStore clusters', () => {
 	it('selects, reveals, and frames a cluster from the tree without room preselection', () => {
 		const store = createMuseumEditorStore();
-		const [first, second] = store.document.objects.filter((object) => object.roomId === 'paris');
+		const [first, second] = store.document.entities.filter((object) => object.roomId === 'paris');
 		store.selectionActions.selectRoom('paris');
 		store.selectionActions.selectPlacements([first.id, second.id]);
 		const clusterId = store.createCluster('Tree cluster')!;
@@ -430,7 +486,7 @@ describe('MuseumEditorStore clusters', () => {
 
 	it('creates, selects, renames, and ungroups through document history', () => {
 		const store = createMuseumEditorStore();
-		const [a, b] = store.document.objects;
+		const [a, b] = store.document.entities;
 		store.selectionActions.selectRoom('paris');
 		store.selectionActions.selectPlacements([a.id, b.id]);
 		const clusterId = store.createCluster('Salon pair');
@@ -455,7 +511,7 @@ describe('MuseumEditorStore clusters', () => {
 
 	it('rejects empty and unchanged rename attempts without adding history', () => {
 		const store = createMuseumEditorStore();
-		const [a, b] = store.document.objects;
+		const [a, b] = store.document.entities;
 		store.selectionActions.selectRoom('paris');
 		store.selectionActions.selectPlacements([a.id, b.id]);
 		const clusterId = store.createCluster('Piano grouping')!;
@@ -471,7 +527,7 @@ describe('MuseumEditorStore clusters', () => {
 
 	it('clears cluster identity when a member is toggled and reconciles deleted clusters on undo', () => {
 		const store = createMuseumEditorStore();
-		const [a, b] = store.document.objects;
+		const [a, b] = store.document.entities;
 		store.selectionActions.selectRoom('paris');
 		store.selectionActions.selectPlacements([a.id, b.id]);
 		const clusterId = store.createCluster()!;
@@ -488,7 +544,7 @@ describe('MuseumEditorStore clusters', () => {
 
 	it('adds and removes members with one-cluster ownership and auto-ungroup rules', () => {
 		const store = createMuseumEditorStore();
-		const [a, b, c, d] = store.document.objects;
+		const [a, b, c, d] = store.document.entities;
 		store.selectionActions.selectRoom('paris');
 		store.selectionActions.selectPlacements([a.id, b.id]);
 		const firstCluster = store.createCluster()!;
@@ -506,22 +562,22 @@ describe('MuseumEditorStore clusters', () => {
 
 	it('auto-ungroups when deletion leaves one member and restores everything on undo', () => {
 		const store = createMuseumEditorStore();
-		const [a, b] = store.document.objects;
+		const [a, b] = store.document.entities;
 		store.selectionActions.selectRoom('paris');
 		store.selectionActions.selectPlacements([a.id, b.id]);
 		store.createCluster();
 		expect(store.deletePlacement(a.id)).toBe(true);
-		expect(store.document.objects.some((object) => object.id === a.id)).toBe(false);
+		expect(store.document.entities.some((object) => object.id === a.id)).toBe(false);
 		expect(store.clusters).toHaveLength(0);
 
 		expect(store.undo()).toBe(true);
-		expect(store.document.objects.some((object) => object.id === a.id)).toBe(true);
+		expect(store.document.entities.some((object) => object.id === a.id)).toBe(true);
 		expect(store.clusters[0]?.memberIds).toEqual([a.id, b.id]);
 	});
 
 	it('restores cluster membership and transforms together from one snapshot', () => {
 		const store = createMuseumEditorStore();
-		const [a, b] = store.document.objects;
+		const [a, b] = store.document.entities;
 		const originalX = a.position[0];
 		store.selectionActions.selectRoom('paris');
 		store.selectionActions.selectPlacements([a.id, b.id]);
@@ -539,7 +595,7 @@ describe('MuseumEditorStore clusters', () => {
 
 		expect(store.undo()).toBe(true);
 		expect(store.clusters).toHaveLength(0);
-		expect(store.document.objects.find((object) => object.id === a.id)?.position[0]).toBe(originalX);
+		expect(store.document.entities.find((object) => object.id === a.id)?.position[0]).toBe(originalX);
 	});
 });
 
@@ -569,7 +625,7 @@ describe('MuseumEditorStore Phase 5 placement commands', () => {
 		expect(store.beginAssetPlacement('paris-salon-chair')).toBe(true);
 		const firstId = store.createPendingPlacementAt([1, 0.01, 2]);
 		expect(firstId).toBe('paris-salon-chair-placement');
-		const first = store.document.objects.find((object) => object.id === firstId);
+		const first = store.document.entities.find((object) => object.id === firstId);
 		expect(first).toMatchObject({
 			roomId: 'paris',
 			assetId: 'paris-salon-chair',
@@ -582,7 +638,7 @@ describe('MuseumEditorStore Phase 5 placement commands', () => {
 		expect(store.cameraFocusVersion).toBe(focusVersion);
 
 		expect(store.undo()).toBe(true);
-		expect(store.document.objects.some((object) => object.id === firstId)).toBe(false);
+		expect(store.document.entities.some((object) => object.id === firstId)).toBe(false);
 		expect(store.pendingFramePlacementIds).toEqual([]);
 
 		expect(store.redo()).toBe(true);
@@ -597,7 +653,7 @@ describe('MuseumEditorStore Phase 5 placement commands', () => {
 		const local = roomLocalPoint('paris', world);
 		store.beginAssetPlacement('paris-salon-table');
 		const id = store.createPendingPlacementAt(local)!;
-		const documentPosition = store.document.objects.find((object) => object.id === id)!.position;
+		const documentPosition = store.document.entities.find((object) => object.id === id)!.position;
 		const runtimePosition = store.scene.objects.find((object) => object.id === id)!.position;
 		expect(documentPosition[0]).toBeCloseTo(expectedLocal[0], 8);
 		expect(documentPosition[2]).toBeCloseTo(expectedLocal[2], 8);
@@ -607,18 +663,18 @@ describe('MuseumEditorStore Phase 5 placement commands', () => {
 	it('duplicates selected sources with batch-safe IDs and preserves the first copy as primary', () => {
 		const store = createMuseumEditorStore();
 		store.selectionActions.selectRoom('paris');
-		const [first, second] = store.document.objects.filter(
-			(object) => object.assetId === 'paris-salon-chair'
+		const [first, second] = store.document.entities.filter(
+			(object) => object.kind === 'model' && object.assetId === 'paris-salon-chair'
 		);
 		store.selectionActions.selectPlacements([first.id, second.id]);
 		const originalCount = store.objectCount;
 		expect(store.duplicateSelection()).toBe(true);
-		const copyIds = store.document.objects.slice(originalCount).map((object) => object.id);
+		const copyIds = store.document.entities.slice(originalCount).map((object) => object.id);
 		expect(new Set(copyIds).size).toBe(2);
 		expect(copyIds).toEqual([`${second.id}-copy`, `${first.id}-copy`]);
 		expect(store.primaryPlacementId).toBe(copyIds[0]);
-		for (const copy of store.document.objects.slice(originalCount)) {
-			const sourceId = [...store.document.objects]
+		for (const copy of store.document.entities.slice(originalCount)) {
+			const sourceId = [...store.document.entities]
 				.filter((object) => !copyIds.includes(object.id))
 				.find((object) => `${object.id}-copy` === copy.id)?.id;
 			expect(sourceId).toBeTruthy();
@@ -627,7 +683,7 @@ describe('MuseumEditorStore Phase 5 placement commands', () => {
 
 	it('recreates complete flat clusters with collision-safe cluster IDs', () => {
 		const store = createMuseumEditorStore();
-		const [a, b, c, d] = store.document.objects;
+		const [a, b, c, d] = store.document.entities;
 		store.selectionActions.selectRoom('paris');
 		store.selectionActions.selectPlacements([a.id, b.id]);
 		const sourceClusterId = store.createCluster('Salon pair')!;
@@ -649,7 +705,7 @@ describe('MuseumEditorStore Phase 5 placement commands', () => {
 
 	it('does not reconstruct a partially selected source cluster', () => {
 		const store = createMuseumEditorStore();
-		const [a, b] = store.document.objects;
+		const [a, b] = store.document.entities;
 		store.selectionActions.selectRoom('paris');
 		store.selectionActions.selectPlacements([a.id, b.id]);
 		store.createCluster('Pair');
@@ -661,7 +717,7 @@ describe('MuseumEditorStore Phase 5 placement commands', () => {
 
 	it('deletes cluster members with stable cleanup rules and undo restoration', () => {
 		const store = createMuseumEditorStore();
-		const [a, b, c] = store.document.objects;
+		const [a, b, c] = store.document.entities;
 		store.selectionActions.selectRoom('paris');
 		store.selectionActions.selectPlacements([a.id, b.id, c.id]);
 		const clusterId = store.createCluster('Trio')!;
@@ -689,8 +745,10 @@ describe('MuseumEditorStore Phase 5 placement commands', () => {
 		const store = createMuseumEditorStore();
 		const before = JSON.stringify(store.document);
 		expect(store.beginDocumentTransaction()).toBe(true);
-		store.document.objects.push({
-			...store.document.objects[0]!,
+		const source = store.document.entities[0]!;
+		if (source.kind !== 'model') throw new Error('expected model entity');
+		store.document.entities.push({
+			...source,
 			id: 'invalid-placement',
 			fallback: 'invalid' as never
 		});
@@ -702,13 +760,129 @@ describe('MuseumEditorStore Phase 5 placement commands', () => {
 	it('replaces and cancels delayed frame requests on selection changes', () => {
 		const store = createMuseumEditorStore();
 		store.selectionActions.selectRoom('paris');
-		const [a, b] = store.document.objects;
+		const [a, b] = store.document.entities;
 		store.selectionActions.selectPlacement(a.id);
 		expect(store.requestPlacementFrame([a.id])).toBe(true);
 		store.requestPlacementFrame([b.id]);
 		expect(store.pendingFramePlacementIds).toEqual([b.id]);
 		store.selectionActions.selectPlacement(a.id);
 		expect(store.pendingFramePlacementIds).toEqual([]);
+	});
+});
+
+describe('MuseumEditorStore Phase 4.3 primitive creation', () => {
+	it('arms primitive placement for any room floor and clears asset pending', () => {
+		const store = createMuseumEditorStore();
+		expect(store.beginAssetPlacement('paris-salon-chair')).toBe(true);
+		expect(store.beginPrimitivePlacement('box')).toBe(true);
+		expect(store.pendingPlacementAssetId).toBeNull();
+		expect(store.pendingPlacementPrimitiveKind).toBe('box');
+		expect(store.statusMessage).toMatch(/floor/i);
+	});
+
+	it('creates room-local primitives with defaults and one undo entry', () => {
+		const store = createMuseumEditorStore();
+		expect(store.beginPrimitivePlacement('cylinder')).toBe(true);
+		const id = store.createPendingPrimitiveAt('workshop', [1.25, 0.01, -0.5]);
+		expect(id).toBe('cylinder-placement');
+		const entity = store.document.entities.find((candidate) => candidate.id === id);
+		expect(entity).toMatchObject({
+			kind: 'primitive',
+			primitive: 'cylinder',
+			name: 'Cylinder',
+			roomId: 'workshop',
+			position: [1.25, 0.01, -0.5],
+			rotation: [0, 0, 0],
+			dimensions: { radius: 0.5, height: 1 },
+			materialId: 'wood-walnut',
+			castShadow: true,
+			receiveShadow: true
+		});
+		expect(store.pendingPlacementPrimitiveKind).toBeNull();
+		expect(store.primaryPlacementId).toBe(id);
+		expect(store.selectedRoomId).toBe('workshop');
+
+		expect(store.undo()).toBe(true);
+		expect(store.document.entities.some((candidate) => candidate.id === id)).toBe(false);
+		expect(store.redo()).toBe(true);
+		expect(store.document.entities.some((candidate) => candidate.id === id)).toBe(true);
+	});
+
+	it('preserves yawed-room local coordinates across create', () => {
+		const store = createMuseumEditorStore();
+		const expectedLocal: [number, number, number] = [1.5, 0.01, -1];
+		const world = roomPoint('paris', expectedLocal);
+		const local = roomLocalPoint('paris', world);
+		store.beginPrimitivePlacement('sphere');
+		const id = store.createPendingPrimitiveAt('paris', local)!;
+		const documentPosition = store.document.entities.find((entity) => entity.id === id)!
+			.position;
+		expect(documentPosition[0]).toBeCloseTo(expectedLocal[0], 8);
+		expect(documentPosition[2]).toBeCloseTo(expectedLocal[2], 8);
+	});
+
+	it('commits name, dimensions, material, and shadows as atomic history entries', () => {
+		const store = createMuseumEditorStore();
+		store.beginPrimitivePlacement('box');
+		const id = store.createPendingPrimitiveAt('paris', [0, 0.01, 0])!;
+
+		expect(store.updatePrimitiveName(id, 'Salon Box')).toBe(true);
+		expect(store.document.entities.find((entity) => entity.id === id)?.name).toBe('Salon Box');
+		expect(store.updatePrimitiveDimensions(id, { width: 2, height: 0.5, depth: 1.25 })).toBe(
+			true
+		);
+		expect(store.updatePrimitiveMaterial(id, 'marble-light')).toBe(true);
+		expect(store.updatePrimitiveShadows(id, { castShadow: false, receiveShadow: true })).toBe(
+			true
+		);
+
+		const entity = store.document.entities.find((candidate) => candidate.id === id);
+		expect(entity).toMatchObject({
+			name: 'Salon Box',
+			dimensions: { width: 2, height: 0.5, depth: 1.25 },
+			materialId: 'marble-light',
+			castShadow: false,
+			receiveShadow: true
+		});
+
+		expect(store.updatePrimitiveDimensions(id, { width: 0, height: 1, depth: 1 })).toBe(false);
+		expect(store.document.entities.find((candidate) => candidate.id === id)).toMatchObject({
+			dimensions: { width: 2, height: 0.5, depth: 1.25 }
+		});
+
+		expect(store.undo()).toBe(true);
+		expect(store.document.entities.find((candidate) => candidate.id === id)).toMatchObject({
+			castShadow: true
+		});
+	});
+
+	it('duplicates primitives with offset copies and undo', () => {
+		const store = createMuseumEditorStore();
+		store.beginPrimitivePlacement('plane');
+		const id = store.createPendingPrimitiveAt('paris', [0, 0.01, 0])!;
+		store.selectionActions.selectPlacement(id);
+		expect(store.duplicateSelection()).toBe(true);
+		const copy = store.document.entities.find((entity) => entity.id === `${id}-copy`);
+		expect(copy).toMatchObject({
+			kind: 'primitive',
+			primitive: 'plane',
+			position: [0.5, 0.01, 0.5]
+		});
+		expect(store.undo()).toBe(true);
+		expect(store.document.entities.some((entity) => entity.id === `${id}-copy`)).toBe(false);
+	});
+
+	it('cancels primitive placement on escape path and nav select', () => {
+		const store = createMuseumEditorStore();
+		expect(store.beginPrimitivePlacement('box')).toBe(true);
+		expect(store.cancelPrimitivePlacement('Placement cancelled')).toBe(true);
+		expect(store.pendingPlacementPrimitiveKind).toBeNull();
+		expect(store.statusMessage).toBe('Placement cancelled');
+
+		store.beginPrimitivePlacement('sphere');
+		store.beginAssetPlacement('paris-salon-chair');
+		expect(store.pendingPlacementPrimitiveKind).toBeNull();
+		expect(store.pendingPlacementAssetId).toBe('paris-salon-chair');
 	});
 });
 
@@ -754,7 +928,7 @@ describe('MuseumEditorStore Phase 6 camera nodes', () => {
 
 	it('never changes workspace in response to placement or camera selection', () => {
 		const store = createMuseumEditorStore();
-		const placement = store.document.objects.find((object) => object.roomId === 'paris')!;
+		const placement = store.document.entities.find((object) => object.roomId === 'paris')!;
 
 		expect(store.setWorkspace('camera')).toBe(true);
 		expect(store.selectionActions.selectPlacementFromTree(placement.id)).toBe(true);
@@ -767,7 +941,7 @@ describe('MuseumEditorStore Phase 6 camera nodes', () => {
 
 	it('clears placement and cluster selection without changing workspace or redundant focus', () => {
 		const store = createMuseumEditorStore();
-		const [first, second] = store.document.objects.filter((object) => object.roomId === 'paris');
+		const [first, second] = store.document.entities.filter((object) => object.roomId === 'paris');
 		store.selectionActions.selectRoom('paris');
 		store.selectionActions.selectPlacements([first.id, second.id]);
 		const clusterId = store.createCluster('Camera handoff')!;
@@ -806,7 +980,7 @@ describe('MuseumEditorStore Phase 6 camera nodes', () => {
 
 	it('keeps camera and placement selection mutually exclusive while asset placement is latent', () => {
 		const store = createMuseumEditorStore();
-		const placementId = store.document.objects[0]!.id;
+		const placementId = store.document.entities[0]!.id;
 		store.selectionActions.selectNavigationNode('departure-corridor');
 		expect(store.beginAssetPlacement('paris-salon-chair')).toBe(true);
 		expect(store.cameraSelection?.nodeId).toBe('departure-corridor');
@@ -944,7 +1118,7 @@ describe('MuseumEditorStore Phase 6 camera nodes', () => {
 
 	it('creates modal node and transition previews without document history', () => {
 		const store = createMuseumEditorStore();
-		const placementId = store.document.objects[0]!.id;
+		const placementId = store.document.entities[0]!.id;
 		store.selectionActions.selectNavigationNode('paris-seat');
 		store.beginAssetPlacement('paris-salon-chair');
 		store.requestPlacementFrame([placementId]);
@@ -1031,7 +1205,7 @@ describe('MuseumEditorStore Phase 6 camera nodes', () => {
 
 	it('guards every document and editor-command category while preview is playing', () => {
 		const store = createMuseumEditorStore();
-		const placementId = store.document.objects[0]!.id;
+		const placementId = store.document.entities[0]!.id;
 		store.selectionActions.selectNavigationNode('paris-seat');
 		const position = [...store.selectedNavigationNode!.position] as [number, number, number];
 		expect(
@@ -2042,7 +2216,7 @@ describe('editor placement transforms', () => {
 	});
 
 	it('omits unit scale and rejects invalid transform values', () => {
-		const placement = cloneMuseumSceneDocument(museumSceneDocument).objects[0]!;
+		const placement = cloneMuseumSceneDocument(museumSceneDocument).entities[0]!;
 		const transform = placementTransformFromDocument(placement);
 		transform.scale = 1;
 		expect(writePlacementTransform(placement, transform)).toBe(true);
@@ -2055,15 +2229,15 @@ describe('editor placement transforms', () => {
 
 describe('MuseumEditorStore history', () => {
 	function translatedTransform(store: ReturnType<typeof createMuseumEditorStore>, x: number) {
-		const transform = placementTransformFromDocument(store.document.objects[0]!);
+		const transform = placementTransformFromDocument(store.document.entities[0]!);
 		transform.position[0] = x;
 		return transform;
 	}
 
 	it('collapses previews into one commit and restores scene/state identity', () => {
 		const store = createMuseumEditorStore();
-		const id = store.document.objects[0]!.id;
-		const originalX = store.document.objects[0]!.position[0];
+		const id = store.document.entities[0]!.id;
+		const originalX = store.document.entities[0]!.position[0];
 		store.selectionActions.selectRoom('paris');
 		store.selectionActions.selectPlacement(id);
 
@@ -2072,22 +2246,22 @@ describe('MuseumEditorStore history', () => {
 		store.updatePlacementTransform(id, translatedTransform(store, 3));
 		expect(store.commitDocumentTransaction()).toBe(true);
 		expect(store.canUndo).toBe(true);
-		expect(store.document.objects[0]!.position[0]).toBe(3);
+		expect(store.document.entities[0]!.position[0]).toBe(3);
 		assertNavigationGraphMatchesScene(store.state.graph, store.scene);
 
 		expect(store.undo()).toBe(true);
-		expect(store.document.objects[0]!.position[0]).toBe(originalX);
+		expect(store.document.entities[0]!.position[0]).toBe(originalX);
 		expect(store.selectedPlacementId).toBe(id);
 		assertNavigationGraphMatchesScene(store.state.graph, store.scene);
 
 		expect(store.redo()).toBe(true);
-		expect(store.document.objects[0]!.position[0]).toBe(3);
+		expect(store.document.entities[0]!.position[0]).toBe(3);
 		assertNavigationGraphMatchesScene(store.state.graph, store.scene);
 	});
 
 	it('suppresses no-ops and clears redo after a divergent edit', () => {
 		const store = createMuseumEditorStore();
-		const id = store.document.objects[0]!.id;
+		const id = store.document.entities[0]!.id;
 		store.selectionActions.selectRoom('paris');
 
 		store.beginDocumentTransaction();
@@ -2103,7 +2277,7 @@ describe('MuseumEditorStore history', () => {
 
 	it('keeps at most 100 undoable document commits', () => {
 		const store = createMuseumEditorStore();
-		const id = store.document.objects[0]!.id;
+		const id = store.document.entities[0]!.id;
 		store.selectionActions.selectRoom('paris');
 
 		for (let index = 1; index <= 105; index += 1) {
@@ -2125,13 +2299,13 @@ describe('MuseumEditorStore placement settings', () => {
 		expect(store.rotationSnapDegrees).toBe(15);
 		expect(store.keepOnFloor).toBe(false);
 
-		const id = store.document.objects[0]!.id;
+		const id = store.document.entities[0]!.id;
 		store.selectionActions.selectRoom('paris');
 		store.translationSnapEnabled = false;
 		store.rotationSnapDegrees = 45;
 		store.keepOnFloor = true;
 
-		const transform = placementTransformFromDocument(store.document.objects[0]!);
+		const transform = placementTransformFromDocument(store.document.entities[0]!);
 		transform.position[1] = 1.25;
 		store.commitPlacementTransform(id, transform);
 		expect(store.undo()).toBe(true);
@@ -2145,21 +2319,21 @@ describe('MuseumEditorStore placement settings', () => {
 
 	it('records one history entry when a grounded Y change is committed', () => {
 		const store = createMuseumEditorStore();
-		const id = store.document.objects[0]!.id;
-		const originalY = store.document.objects[0]!.position[1];
+		const id = store.document.entities[0]!.id;
+		const originalY = store.document.entities[0]!.position[1];
 		store.selectionActions.selectRoom('paris');
 		store.selectionActions.selectPlacement(id);
 
-		const transform = placementTransformFromDocument(store.document.objects[0]!);
+		const transform = placementTransformFromDocument(store.document.entities[0]!);
 		transform.position[1] = originalY + 1.5;
 		expect(store.commitPlacementTransform(id, transform)).toBe(true);
-		expect(store.document.objects[0]!.position[1]).toBeCloseTo(originalY + 1.5);
+		expect(store.document.entities[0]!.position[1]).toBeCloseTo(originalY + 1.5);
 
 		expect(store.undo()).toBe(true);
-		expect(store.document.objects[0]!.position[1]).toBeCloseTo(originalY);
+		expect(store.document.entities[0]!.position[1]).toBeCloseTo(originalY);
 
 		expect(store.redo()).toBe(true);
-		expect(store.document.objects[0]!.position[1]).toBeCloseTo(originalY + 1.5);
+		expect(store.document.entities[0]!.position[1]).toBeCloseTo(originalY + 1.5);
 	});
 
 	it('bumps drop requests only when a placement is selected', () => {
@@ -2170,7 +2344,7 @@ describe('MuseumEditorStore placement settings', () => {
 		expect(store.dropToFloorRequestId).toBe(0);
 		expect(store.statusMessage).toBe('Select a placement to drop to floor');
 
-		const id = store.document.objects[0]!.id;
+		const id = store.document.entities[0]!.id;
 		store.selectionActions.selectRoom('paris');
 		store.selectionActions.selectPlacement(id);
 		store.requestDropToFloor();
@@ -2457,7 +2631,7 @@ describe('MuseumEditorStore Phase 2.1 persistent camera discovery', () => {
 	it('selecting a node or placement clears the active connection discovery', () => {
 		const store = createMuseumEditorStore();
 		const connectionId = store.document.connections[0]!.id;
-		const placement = store.document.objects[0]!;
+		const placement = store.document.entities[0]!;
 
 		store.selectionActions.selectCameraConnectionDirection(connectionId, 'reverse');
 		expect(store.activeCameraConnectionId).toBe(connectionId);
@@ -3591,11 +3765,11 @@ describe('MuseumEditorStore Phase 3.6 framing controls', () => {
 
 describe('MuseumEditorStore Phase 3.6 history + framing-drag cleanup', () => {
 	function makeHistory(store: MuseumEditorStore) {
-		const id = store.document.objects[0]!.id;
+		const id = store.document.entities[0]!.id;
 		store.selectionActions.selectRoom('paris');
 		store.selectionActions.selectPlacement(id);
 		expect(store.beginDocumentTransaction()).toBe(true);
-		store.document.objects[0]!.position[0] += 1;
+		store.document.entities[0]!.position[0] += 1;
 		expect(store.commitDocumentTransaction()).toBe(true);
 	}
 

@@ -326,7 +326,7 @@ export class EditorSelectionActions {
 	// ===================================================================
 
 	selectRoom(id: MuseumRoomId) {
-		if (this.host.isDocumentMutationBlocked || this.host.isEditorInteractionActive || id !== 'paris') return false;
+		if (this.host.isDocumentMutationBlocked || this.host.isEditorInteractionActive) return false;
 		const changed = this.host.selectedRoomId !== id;
 		if (!changed) return false;
 		this.clearPlacementSelection();
@@ -347,7 +347,7 @@ export class EditorSelectionActions {
 		options: EditorPlacementTreeSelectionOptions = {}
 	) {
 		if (this.host.isDocumentMutationBlocked || this.host.isEditorInteractionActive) return false;
-		const placement = this.host.document.objects.find((object) => object.id === placementId);
+		const placement = this.host.document.entities.find((object) => object.id === placementId);
 		if (!placement) return false;
 
 		this.selectRoom(placement.roomId);
@@ -366,12 +366,16 @@ export class EditorSelectionActions {
 	}
 
 	selectPlacement(id: string) {
-		if (this.host.isDocumentMutationBlocked || this.host.isEditorInteractionActive || !this.host.isPlacementSelectable(id)) {
+		if (this.host.isDocumentMutationBlocked || this.host.isEditorInteractionActive) {
 			return false;
 		}
 		this.host.cancelPendingFrame();
-		const placement = this.host.document.objects.find((object) => object.id === id);
+		const placement = this.host.document.entities.find((object) => object.id === id);
 		if (!placement) return false;
+		if (this.host.selectedRoomId !== placement.roomId) {
+			this.selectRoom(placement.roomId as MuseumRoomId);
+		}
+		if (!this.host.isPlacementSelectable(id)) return false;
 		const previousId = this.host.selectedPlacementId;
 		// setWorkspace auto-cross-clears nav; reducer model.
 		this.selection.setWorkspace({
@@ -394,7 +398,7 @@ export class EditorSelectionActions {
 		this.host.cancelPendingFrame();
 		// Disambiguate roomId: read from the first selected object's roomId (each
 		// placement shares a room in practice but we honour the document truth).
-		const firstPlacement = this.host.document.objects.find((object) => object.id === next[0]);
+		const firstPlacement = this.host.document.entities.find((object) => object.id === next[0]);
 		if (!firstPlacement) return false;
 		this.selection.setWorkspace({
 			kind: 'placement',
@@ -411,7 +415,7 @@ export class EditorSelectionActions {
 			return false;
 		}
 		this.host.cancelPendingFrame();
-		const placement = this.host.document.objects.find((object) => object.id === id);
+		const placement = this.host.document.entities.find((object) => object.id === id);
 		if (!placement) return false;
 		// Facade returns cluster member ids when workspace.kind === 'cluster'.
 		const currentIds = this.host.selectedPlacementIds;
@@ -450,7 +454,7 @@ export class EditorSelectionActions {
 		const cluster = this.host.clusters.find((candidate) => candidate.id === clusterId);
 		if (!cluster || cluster.memberIds.length === 0) return false;
 		const ownsEveryMember = cluster.memberIds.every((memberId) =>
-			this.host.document.objects.some(
+			this.host.document.entities.some(
 				(object) => object.id === memberId && object.roomId === cluster.roomId
 			)
 		);
@@ -470,7 +474,7 @@ export class EditorSelectionActions {
 		const roomId = this.host.selectedRoomId;
 		if (!roomId) return false;
 		return this.selectPlacements(
-			this.host.document.objects
+			this.host.document.entities
 				.filter((object) => object.roomId === roomId)
 				.map((object) => object.id)
 		);

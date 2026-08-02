@@ -72,6 +72,10 @@ export function getMaterial(id: MaterialId): MaterialDefinition {
   return material;
 }
 
+export function isMaterialId(id: string): id is MaterialId {
+  return materialById.has(id as MaterialId);
+}
+
 export function computeTextureRepeat(
   surfaceSize: [number, number],
   tileSize: [number, number] = [1, 1]

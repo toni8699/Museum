@@ -102,6 +102,7 @@
 				!store.transformGizmoVisible,
 			pendingPlacement: Boolean(
 				store.pendingPlacementAssetId ||
+				store.pendingPlacementPrimitiveKind ||
 				(store.pendingNavigationCommand &&
 					store.pendingNavigationCommand.kind !== 'connect-pending-node')
 			),

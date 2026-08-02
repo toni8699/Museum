@@ -1,9 +1,11 @@
 <script lang="ts">
 	import { resolveAssetFallback } from '$lib/content/assets';
+	import { isSceneModelEntity, isScenePrimitiveEntity } from '$lib/content/scene';
 	import type { MuseumAsset } from '$lib/types/assets';
 	import { tick } from 'svelte';
 	import EditorCameraInspector from './EditorCameraInspector.svelte';
 	import EditorPlacementInspector from './EditorPlacementInspector.svelte';
+	import EditorPrimitiveInspector from './EditorPrimitiveInspector.svelte';
 	import EditorTransformInspector from './EditorTransformInspector.svelte';
 	import {
 		EDITOR_BRIGHT_LIGHTING,
@@ -28,9 +30,21 @@
 	const showAssetInspector = $derived(
 		store.currentWorkspace === 'scene' && store.leftPanel === 'assets'
 	);
-	const singleEditableObject = $derived(
-		store.selectedPlacementIds.length === 1 && !store.selectedClusterId
+	const singleSelectedEntity = $derived(
+		store.selectedPlacementIds.length === 1 &&
+			!store.selectedClusterId &&
+			store.selectedObject
 			? store.selectedObject
+			: undefined
+	);
+	const singleEditableObject = $derived(
+		singleSelectedEntity && isSceneModelEntity(singleSelectedEntity)
+			? singleSelectedEntity
+			: undefined
+	);
+	const singlePrimitive = $derived(
+		singleSelectedEntity && isScenePrimitiveEntity(singleSelectedEntity)
+			? singleSelectedEntity
 			: undefined
 	);
 	const selectionContainsClusteredPlacement = $derived(
@@ -43,6 +57,13 @@
 	);
 	const hasPlacementSelection = $derived(
 		Boolean(store.selectedCluster) || store.selectedPlacementIds.length > 0
+	);
+	const canDuplicateSelection = $derived(
+		store.selectedPlacementIds.length > 0 &&
+			store.selectedPlacementIds.every((id) => {
+				const entity = store.document.entities.find((candidate) => candidate.id === id);
+				return entity ? entity.kind !== 'light' : false;
+			})
 	);
 
 	$effect(() => {
@@ -115,10 +136,10 @@
 			<p>{store.selectedPlacementIds.length} selected</p>
 		{:else if selectedObject}
 			<p class="id">{selectedObject.id}</p>
-		{:else if store.selectedRoomId === 'paris'}
-			<p>Paris is centered. Select an object or camera to edit it.</p>
+		{:else if store.selectedRoomId}
+			<p>{store.selectedRoomId} centered. Select an object or camera to edit it.</p>
 		{:else}
-			<p>Select Paris Salon to begin editing.</p>
+			<p>Select a room or place a shape to begin editing.</p>
 		{/if}
 	</header>
 
@@ -157,7 +178,7 @@
 			</section>
 		{:else}
 			<section class="empty-selection" aria-label="No asset selection">
-				<p>Adjust the asset filters to choose an available item.</p>
+				<p>Choose a model, or open Assets → Shapes to place a primitive.</p>
 			</section>
 		{/if}
 	{:else if selectedNavigation}
@@ -216,12 +237,30 @@
 				<button type="button" class="deselect" onclick={() => store.selectionActions.deselect()}>Deselect object</button>
 			</section>
 			{#key singleEditableObject.id}<EditorTransformInspector {store} />{/key}
+		{:else if singlePrimitive}
+			<section class="selection" aria-label="Selection">
+				<button type="button" class="deselect" onclick={() => store.selectionActions.deselect()}>Deselect object</button>
+			</section>
+			{#key singlePrimitive.id}
+				<EditorPrimitiveInspector {store} />
+				<EditorTransformInspector {store} />
+			{/key}
+		{:else if singleSelectedEntity}
+			<section class="selection" aria-label="Selection">
+				<dl>
+					<div><dt>Room</dt><dd>{singleSelectedEntity.roomId}</dd></div>
+					<div><dt>Kind</dt><dd>{singleSelectedEntity.kind}</dd></div>
+					<div><dt>Name</dt><dd>{singleSelectedEntity.name}</dd></div>
+				</dl>
+				<button type="button" class="deselect" onclick={() => store.selectionActions.deselect()}>Deselect object</button>
+			</section>
+			{#key singleSelectedEntity.id}<EditorTransformInspector {store} />{/key}
 		{/if}
 
 		<section class="placement-actions" aria-label="Placement actions">
 			<h2>Placement actions</h2>
 			<div>
-				<button type="button" onclick={() => store.duplicateSelection()}>Duplicate{store.selectedPlacementIds.length > 1 ? ` ${store.selectedPlacementIds.length}` : ''}</button>
+				<button type="button" disabled={!canDuplicateSelection} onclick={() => store.duplicateSelection()}>Duplicate{store.selectedPlacementIds.length > 1 ? ` ${store.selectedPlacementIds.length}` : ''}</button>
 				<button type="button" class="delete" onclick={() => store.deleteSelection()}>Delete{store.selectedPlacementIds.length > 1 ? ` ${store.selectedPlacementIds.length}` : ''}</button>
 			</div>
 			<p>Cmd/Ctrl+D duplicates · Delete removes · Undo restores</p>

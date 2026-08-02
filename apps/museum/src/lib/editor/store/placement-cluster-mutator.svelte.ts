@@ -18,13 +18,26 @@
  */
 
 import { getAssetById, resolveAssetFallback } from '$lib/content/assets';
+import { isMaterialId } from '$lib/content/materials';
 import type {
 	MuseumSceneDocument,
+	SceneEntity,
+	SceneModelEntity,
 	SceneObjectCluster,
-	SceneObjectPlacement
+	ScenePrimitiveDimensions,
+	ScenePrimitiveEntity,
+	ScenePrimitiveKind
 } from '$lib/content/scene';
+import { cloneSceneEntity, isScenePrimitiveEntity } from '$lib/content/scene';
+import type { MaterialId } from '$lib/types/materials';
 import type { MuseumRoomId, Vec3 } from '$lib/types/museum';
 import { reserveEntityId } from '../editor-assets';
+import {
+	createPrimitiveEntity,
+	normalizePrimitiveDimensions,
+	primitiveDisplayName,
+	validatePrimitiveDimensions
+} from '../editor-primitives';
 import {
 	type PlacementTransform,
 	writePlacementTransform
@@ -51,6 +64,7 @@ export interface EditorPlacementClusterMutatorHost {
 
 	selectedClusterId: string | null;
 	pendingPlacementAssetId: string | null;
+	pendingPlacementPrimitiveKind: ScenePrimitiveKind | null;
 
 	// Status + session glue.
 	setStatusMessage(message: string | null): void;
@@ -78,7 +92,7 @@ export class EditorPlacementClusterMutator {
 
 	isPlacementSelectable(id: string) {
 		if (!this.host.selectedRoomId) return false;
-		return this.host.document.objects.some(
+		return this.host.document.entities.some(
 			(object) => object.id === id && object.roomId === this.host.selectedRoomId
 		);
 	}
@@ -110,6 +124,7 @@ export class EditorPlacementClusterMutator {
 		}
 
 		this.host.cancelPendingNavigation();
+		this.host.pendingPlacementPrimitiveKind = null;
 		this.selectionActions.selectRoom('paris');
 		this.host.pendingPlacementAssetId = asset.id;
 		this.host.setNavigationHover(null);
@@ -119,10 +134,31 @@ export class EditorPlacementClusterMutator {
 
 	cancelAssetPlacement(message?: string) {
 		if (this.host.isDocumentMutationBlocked) return false;
-		const changed = this.host.pendingPlacementAssetId !== null;
+		const changed =
+			this.host.pendingPlacementAssetId !== null ||
+			this.host.pendingPlacementPrimitiveKind !== null;
 		this.host.pendingPlacementAssetId = null;
+		this.host.pendingPlacementPrimitiveKind = null;
 		if (message) this.host.setStatusMessage(message);
 		return changed;
+	}
+
+	beginPrimitivePlacement(kind: ScenePrimitiveKind) {
+		if (this.host.isDocumentMutationBlocked || this.host.isEditorInteractionActive) {
+			return false;
+		}
+		this.host.cancelPendingNavigation();
+		this.host.pendingPlacementAssetId = null;
+		this.host.pendingPlacementPrimitiveKind = kind;
+		this.host.setNavigationHover(null);
+		this.host.setStatusMessage(
+			`Click a tagged museum-room floor to place ${primitiveDisplayName(kind)}`
+		);
+		return true;
+	}
+
+	cancelPrimitivePlacement(message?: string) {
+		return this.cancelAssetPlacement(message);
 	}
 
 	createPendingPlacementAt(position: Vec3) {
@@ -149,10 +185,12 @@ export class EditorPlacementClusterMutator {
 			return null;
 		}
 
-		const reservedIds = new Set(this.host.document.objects.map((object) => object.id));
+		const reservedIds = new Set(this.host.document.entities.map((object) => object.id));
 		const id = reserveEntityId(`${asset.id}-placement`, reservedIds);
-		const placement: SceneObjectPlacement = {
+		const placement: SceneModelEntity = {
+			kind: 'model',
 			id,
+			name: asset.name,
 			roomId: 'paris',
 			assetId: asset.id,
 			fallback,
@@ -161,13 +199,114 @@ export class EditorPlacementClusterMutator {
 		};
 
 		if (!this.host.beginDocumentTransaction()) return null;
-		this.host.document.objects.push(placement);
+		this.host.document.entities.push(placement);
 		if (!this.host.commitDocumentTransaction()) return null;
 
 		this.host.pendingPlacementAssetId = null;
 		this.selectionActions.selectPlacement(id);
 		this.host.setStatusMessage(`Placed ${asset.name}`);
 		return id;
+	}
+
+	createPendingPrimitiveAt(roomId: MuseumRoomId, position: Vec3) {
+		if (this.host.isDocumentMutationBlocked || this.host.isEditorInteractionActive) {
+			return null;
+		}
+		const kind = this.host.pendingPlacementPrimitiveKind;
+		if (!kind) return null;
+
+		const reservedIds = new Set(this.host.document.entities.map((object) => object.id));
+		const id = reserveEntityId(`${kind}-placement`, reservedIds);
+		const placement = createPrimitiveEntity({
+			id,
+			kind,
+			roomId,
+			position
+		});
+
+		if (!this.host.beginDocumentTransaction()) return null;
+		this.host.document.entities.push(placement);
+		if (!this.host.commitDocumentTransaction()) return null;
+
+		this.host.pendingPlacementPrimitiveKind = null;
+		this.selectionActions.selectPlacementFromTree(id, { focus: false });
+		this.host.setStatusMessage(`Placed ${placement.name}`);
+		return id;
+	}
+
+	updatePrimitiveName(id: string, name: string) {
+		if (this.host.isDocumentMutationBlocked || this.host.isEditorInteractionActive) {
+			return false;
+		}
+		const nextName = name.trim();
+		if (!nextName) {
+			this.host.setStatusMessage('Primitive name cannot be empty');
+			return false;
+		}
+		const entity = this.findPrimitive(id);
+		if (!entity || entity.name === nextName) return false;
+		if (!this.host.beginDocumentTransaction()) return false;
+		entity.name = nextName;
+		return this.host.commitDocumentTransaction();
+	}
+
+	updatePrimitiveDimensions(id: string, dimensions: ScenePrimitiveDimensions) {
+		if (this.host.isDocumentMutationBlocked || this.host.isEditorInteractionActive) {
+			return false;
+		}
+		const entity = this.findPrimitive(id);
+		if (!entity) return false;
+		const next = normalizePrimitiveDimensions(entity.primitive, dimensions);
+		if (!next) {
+			this.host.setStatusMessage(
+				validatePrimitiveDimensions(entity.primitive, dimensions) ??
+					'Invalid primitive dimensions'
+			);
+			return false;
+		}
+		if (!this.host.beginDocumentTransaction()) return false;
+		entity.dimensions = next as typeof entity.dimensions;
+		return this.host.commitDocumentTransaction();
+	}
+
+	updatePrimitiveMaterial(id: string, materialId: MaterialId | string) {
+		if (this.host.isDocumentMutationBlocked || this.host.isEditorInteractionActive) {
+			return false;
+		}
+		if (!isMaterialId(materialId)) {
+			this.host.setStatusMessage(`Unknown museum material: ${materialId}`);
+			return false;
+		}
+		const entity = this.findPrimitive(id);
+		if (!entity || entity.materialId === materialId) return false;
+		if (!this.host.beginDocumentTransaction()) return false;
+		entity.materialId = materialId;
+		return this.host.commitDocumentTransaction();
+	}
+
+	updatePrimitiveShadows(
+		id: string,
+		shadows: { castShadow?: boolean; receiveShadow?: boolean }
+	) {
+		if (this.host.isDocumentMutationBlocked || this.host.isEditorInteractionActive) {
+			return false;
+		}
+		const entity = this.findPrimitive(id);
+		if (!entity) return false;
+		const nextCast = shadows.castShadow ?? entity.castShadow;
+		const nextReceive = shadows.receiveShadow ?? entity.receiveShadow;
+		if (entity.castShadow === nextCast && entity.receiveShadow === nextReceive) {
+			return false;
+		}
+		if (!this.host.beginDocumentTransaction()) return false;
+		entity.castShadow = nextCast;
+		entity.receiveShadow = nextReceive;
+		return this.host.commitDocumentTransaction();
+	}
+
+	private findPrimitive(id: string): ScenePrimitiveEntity | undefined {
+		const entity = this.host.document.entities.find((candidate) => candidate.id === id);
+		return entity && isScenePrimitiveEntity(entity) ? entity : undefined;
 	}
 
 	requestDropToFloor() {
@@ -194,7 +333,7 @@ export class EditorPlacementClusterMutator {
 		}
 
 		const placements = memberIds.map((id) =>
-			this.host.document.objects.find((object) => object.id === id)
+			this.host.document.entities.find((object) => object.id === id)
 		);
 		const roomId = placements[0]?.roomId;
 		if (!roomId || placements.some((placement) => placement?.roomId !== roomId)) {
@@ -246,7 +385,7 @@ export class EditorPlacementClusterMutator {
 			return false;
 		}
 		const cluster = this.host.clusters.find((candidate) => candidate.id === clusterId);
-		const placement = this.host.document.objects.find((object) => object.id === memberId);
+		const placement = this.host.document.entities.find((object) => object.id === memberId);
 		if (!cluster || !placement || placement.roomId !== cluster.roomId) return false;
 		if (cluster.memberIds.includes(memberId)) return false;
 		if (this.host.clusters.some((candidate) => candidate.memberIds.includes(memberId))) {
@@ -322,7 +461,7 @@ export class EditorPlacementClusterMutator {
 		}
 
 		const sourceById = new Map(
-			this.host.document.objects.map((object) => [object.id, object])
+			this.host.document.entities.map((object) => [object.id, object])
 		);
 		if (selectedIds.some((id) => !sourceById.has(id))) {
 			this.host.setStatusMessage('Selection contains an unavailable placement');
@@ -332,22 +471,23 @@ export class EditorPlacementClusterMutator {
 		// The current primary is copied first. Remaining sources retain selection order.
 		const sourceOrder = [primaryId, ...selectedIds.filter((id) => id !== primaryId)];
 		const reservedPlacementIds = new Set(
-			this.host.document.objects.map((object) => object.id)
+			this.host.document.entities.map((object) => object.id)
 		);
 		const copyIdBySourceId = new Map<string, string>();
-		const copies: SceneObjectPlacement[] = [];
+		const copies: SceneEntity[] = [];
 
 		for (const sourceId of sourceOrder) {
 			const source = sourceById.get(sourceId);
-			if (!source) return false;
+			if (!source || source.kind === 'light') {
+				this.host.setStatusMessage('Selection contains an unsupported entity');
+				return false;
+			}
 			const copyId = reserveEntityId(`${source.id}-copy`, reservedPlacementIds);
 			copyIdBySourceId.set(source.id, copyId);
-			copies.push({
-				...source,
-				id: copyId,
-				position: [source.position[0] + 0.5, source.position[1], source.position[2] + 0.5],
-				rotation: [...source.rotation]
-			});
+			const copy = cloneSceneEntity(source);
+			copy.id = copyId;
+			copy.position = [source.position[0] + 0.5, source.position[1], source.position[2] + 0.5];
+			copies.push(copy);
 		}
 
 		const selectedSet = new Set(selectedIds);
@@ -366,7 +506,7 @@ export class EditorPlacementClusterMutator {
 		}
 
 		if (!this.host.beginDocumentTransaction()) return false;
-		this.host.document.objects.push(...copies);
+		this.host.document.entities.push(...copies);
 		(this.host.document.clusters ??= []).push(...copiedClusters);
 		if (!this.host.commitDocumentTransaction()) return false;
 
@@ -388,14 +528,14 @@ export class EditorPlacementClusterMutator {
 		if (
 			deleteIds.size === 0 ||
 			![...deleteIds].every((id) =>
-				this.host.document.objects.some((object) => object.id === id)
+				this.host.document.entities.some((object) => object.id === id)
 			)
 		) {
 			return false;
 		}
 		if (!this.host.beginDocumentTransaction()) return false;
 
-		this.host.document.objects = this.host.document.objects.filter(
+		this.host.document.entities = this.host.document.entities.filter(
 			(object) => !deleteIds.has(object.id)
 		);
 		this.host.document.clusters = this.host.clusters
@@ -431,7 +571,7 @@ export class EditorPlacementClusterMutator {
 
 	updatePlacementTransform(id: string, transform: PlacementTransform) {
 		if (this.host.isDocumentMutationBlocked) return false;
-		const placement = this.host.document.objects.find((object) => object.id === id);
+		const placement = this.host.document.entities.find((object) => object.id === id);
 		if (!placement || !this.isPlacementSelectable(id)) return false;
 		return writePlacementTransform(placement, transform);
 	}

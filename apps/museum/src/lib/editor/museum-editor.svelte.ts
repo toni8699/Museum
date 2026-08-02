@@ -4,7 +4,9 @@ import {
 	type MuseumSceneDocument,
 	type RuntimeMuseumScene,
 	type SceneCameraViewKeyframe,
-	type SceneObjectCluster
+	type SceneObjectCluster,
+	type ScenePrimitiveDimensions,
+	type ScenePrimitiveKind
 } from '$lib/content/scene';
 import {
 	serializeSceneDocument,
@@ -12,6 +14,7 @@ import {
 	type SceneDocumentValidationResult
 } from '$lib/content/scene-codec';
 import { roomPoint } from '$lib/content/rooms';
+import type { MaterialId } from '$lib/types/materials';
 import type { MuseumStateStore } from '$lib/state/museum-state.svelte';
 import {
 	cameraMotionProgressAtEdgeProgress,
@@ -818,6 +821,12 @@ export class MuseumEditorStore {
 			set pendingPlacementAssetId(value) {
 				self.pendingPlacementAssetId = value;
 			},
+			get pendingPlacementPrimitiveKind() {
+				return self.pendingPlacementPrimitiveKind;
+			},
+			set pendingPlacementPrimitiveKind(value) {
+				self.pendingPlacementPrimitiveKind = value;
+			},
 			setStatusMessage: (message) => self.setStatusMessage(message),
 			setNavigationHover: (connectionId, anchorId) =>
 				self.setNavigationHover(connectionId, anchorId ?? null),
@@ -1140,6 +1149,12 @@ export class MuseumEditorStore {
 	set pendingPlacementAssetId(value: string | null) {
 		this.session.setPendingPlacementAssetId(value);
 	}
+	get pendingPlacementPrimitiveKind(): ScenePrimitiveKind | null {
+		return this.session.pendingPlacementPrimitiveKind;
+	}
+	set pendingPlacementPrimitiveKind(value: ScenePrimitiveKind | null) {
+		this.session.setPendingPlacementPrimitiveKind(value);
+	}
 	get pendingNavigationCommand(): EditorPendingNavigationCommand {
 		return this.session.pendingNavigationCommand;
 	}
@@ -1387,7 +1402,7 @@ export class MuseumEditorStore {
 	}
 
 	get objectCount() {
-		return this.document.objects.length;
+		return this.document.entities.length;
 	}
 
 	toggleViewportShowNodes() {
@@ -1533,6 +1548,7 @@ export class MuseumEditorStore {
 		if (
 			this.isCameraPreviewPlaying ||
 			this.pendingPlacementAssetId ||
+			this.pendingPlacementPrimitiveKind ||
 			this.pendingNavigationCommand
 		) {
 			return false;
@@ -1651,7 +1667,7 @@ export class MuseumEditorStore {
 	get selectedObject() {
 		const id = this.selectedPlacementId;
 		if (!id) return undefined;
-		return this.document.objects.find((object) => object.id === id);
+		return this.document.entities.find((object) => object.id === id);
 	}
 
 	get selectedCluster() {
@@ -2766,7 +2782,12 @@ export class MuseumEditorStore {
 	}
 
 	setNavigationHover(connectionId: string | null, anchorId: string | null = null) {
-		if (this.isDocumentMutationBlocked || this.pendingPlacementAssetId || this.pendingNavigationCommand) {
+		if (
+			this.isDocumentMutationBlocked ||
+			this.pendingPlacementAssetId ||
+			this.pendingPlacementPrimitiveKind ||
+			this.pendingNavigationCommand
+		) {
 			connectionId = null;
 			anchorId = null;
 		}
@@ -2784,7 +2805,7 @@ export class MuseumEditorStore {
 	requestPlacementFrame(ids: string[]) {
 		if (this.isDocumentMutationBlocked) return false;
 		const next = [...new Set(ids)].filter((id) =>
-			this.document.objects.some((object) => object.id === id)
+			this.document.entities.some((object) => object.id === id)
 		);
 		if (next.length === 0) return false;
 		this.session.setPendingFramePlacementIds(next);
@@ -2818,6 +2839,37 @@ export class MuseumEditorStore {
 
 	createPendingPlacementAt(position: Vec3) {
 		return this.placementClusterMutator.createPendingPlacementAt(position);
+	}
+
+	beginPrimitivePlacement(kind: ScenePrimitiveKind) {
+		return this.placementClusterMutator.beginPrimitivePlacement(kind);
+	}
+
+	cancelPrimitivePlacement(message?: string) {
+		return this.placementClusterMutator.cancelPrimitivePlacement(message);
+	}
+
+	createPendingPrimitiveAt(roomId: MuseumRoomId, position: Vec3) {
+		return this.placementClusterMutator.createPendingPrimitiveAt(roomId, position);
+	}
+
+	updatePrimitiveName(id: string, name: string) {
+		return this.placementClusterMutator.updatePrimitiveName(id, name);
+	}
+
+	updatePrimitiveDimensions(id: string, dimensions: ScenePrimitiveDimensions) {
+		return this.placementClusterMutator.updatePrimitiveDimensions(id, dimensions);
+	}
+
+	updatePrimitiveMaterial(id: string, materialId: MaterialId | string) {
+		return this.placementClusterMutator.updatePrimitiveMaterial(id, materialId);
+	}
+
+	updatePrimitiveShadows(
+		id: string,
+		shadows: { castShadow?: boolean; receiveShadow?: boolean }
+	) {
+		return this.placementClusterMutator.updatePrimitiveShadows(id, shadows);
 	}
 
 	beginCameraPlacement() {
@@ -3137,7 +3189,7 @@ export class MuseumEditorStore {
 			this.pendingFramePlacementIds.some(
 				(id) =>
 					!this.selectedPlacementIds.includes(id) ||
-					!this.document.objects.some((object) => object.id === id)
+					!this.document.entities.some((object) => object.id === id)
 			)
 		) {
 			this.cancelPendingFrame();

@@ -10,13 +10,13 @@ import {
 
 /**
  * Mutate a leaf of the scene document in a way the validator will accept
- * and that produces a distinct canonical JSON. `objects[0].rotation[1]` is
+ * and that produces a distinct canonical JSON. `entities[0].rotation[1]` is
  * a float angle; nudging it 0.001 keeps the value plausible.
  */
 function fingerprint(doc: MuseumSceneDocument): MuseumSceneDocument {
 	const next = cloneMuseumSceneDocument(doc);
-	const first = next.objects[0];
-	if (!first) throw new Error('museumSceneDocument has no objects');
+	const first = next.entities[0];
+	if (!first) throw new Error('museumSceneDocument has no entities');
 	first.rotation = [
 		first.rotation[0],
 		first.rotation[1] + 0.001,
@@ -42,8 +42,8 @@ describe('EditorDocumentStore', () => {
 		const store = new EditorDocumentStore();
 		const next = fingerprint(museumSceneDocument);
 		store.replace(next);
-		expect(store.document.objects[0]!.rotation[1]).not.toBe(
-			museumSceneDocument.objects[0]!.rotation[1]
+		expect(store.document.entities[0]!.rotation[1]).not.toBe(
+			museumSceneDocument.entities[0]!.rotation[1]
 		);
 		expect(store.isDirty).toBe(true);
 		expect(store.canonicalJson).not.toBe(store.baselineCanonicalJson);
@@ -109,7 +109,7 @@ describe('EditorDocumentStore', () => {
 		const cloned = cloneMuseumSceneDocument(museumSceneDocument);
 		expect(cloned).toEqual(museumSceneDocument);
 		expect(cloned).not.toBe(museumSceneDocument);
-		cloned.objects[0]!.rotation[1] = 999;
-		expect(museumSceneDocument.objects[0]!.rotation[1]).not.toBe(999);
+		cloned.entities[0]!.rotation[1] = 999;
+		expect(museumSceneDocument.entities[0]!.rotation[1]).not.toBe(999);
 	});
 });

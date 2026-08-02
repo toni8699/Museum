@@ -1,16 +1,27 @@
 import { getAssetById, isSceneObjectFallback } from './assets';
+import { isMaterialId } from './materials';
 import { getRoom, roomPoint } from './rooms';
 import { createCameraPositionPath } from '$lib/museum/navigation/camera-motion';
 import type {
 	MuseumSceneDocument,
+	SceneBoxDimensions,
 	SceneCameraViewKeyframe,
 	SceneConnection,
 	SceneConnectionTimingPair,
 	SceneConnectionViewTracks,
+	SceneCylinderDimensions,
+	SceneEntity,
+	SceneLightEntity,
+	SceneLightKind,
+	SceneModelEntity,
 	SceneNavigationNode,
 	SceneObjectCluster,
 	SceneObjectPlacement,
 	ScenePathAnchor,
+	ScenePlaneDimensions,
+	ScenePrimitiveEntity,
+	ScenePrimitiveKind,
+	SceneSphereDimensions,
 	SceneWaypoint
 } from './scene';
 import {
@@ -22,6 +33,7 @@ import {
 	type SceneViewKeyframeTiming,
 	type Vec3
 } from '$lib/types/museum';
+import type { MaterialId } from '$lib/types/materials';
 
 export type SceneDocumentIssue = {
 	path: string;
@@ -51,11 +63,22 @@ type SceneNavigationNodeV1V2 = Omit<SceneNavigationNode, 'fov'>;
 
 type SceneConnectionV2 = Omit<SceneConnection, 'viewTracks'>;
 
-type MuseumSceneDocumentV2 = Omit<
-	MuseumSceneDocument,
-	'version' | 'navigationNodes' | 'connections'
-> & {
+/** Pre-v5 document shape: model placements live under `objects`. */
+type MuseumSceneDocumentWithObjects = {
+	objects: SceneObjectPlacement[];
+	clusters?: SceneObjectCluster[];
+	navigationNodes: SceneNavigationNode[];
+	connections: SceneConnection[];
+};
+
+type MuseumSceneDocumentV3V4 = MuseumSceneDocumentWithObjects & {
+	version: 3 | 4;
+};
+
+type MuseumSceneDocumentV2 = {
 	version: 2;
+	objects: SceneObjectPlacement[];
+	clusters?: SceneObjectCluster[];
 	navigationNodes: SceneNavigationNodeV1V2[];
 	connections: SceneConnectionV2[];
 };
@@ -64,20 +87,42 @@ type LegacySceneConnection = Omit<SceneConnectionV2, 'positionPath'> & {
 	positionWaypoints: SceneWaypoint[];
 };
 
-type LegacyMuseumSceneDocument = Omit<
-	MuseumSceneDocumentV2,
-	'version' | 'connections'
-> & {
+type LegacyMuseumSceneDocument = Omit<MuseumSceneDocumentV2, 'version' | 'connections'> & {
 	version: 1;
 	connections: LegacySceneConnection[];
 };
 
 type ParsedMuseumSceneDocument =
 	| MuseumSceneDocument
+	| MuseumSceneDocumentV3V4
 	| MuseumSceneDocumentV2
 	| LegacyMuseumSceneDocument;
 
 type ParsedSceneNavigationNode = SceneNavigationNode | SceneNavigationNodeV1V2;
+
+const SCENE_PRIMITIVE_KINDS = ['box', 'plane', 'cylinder', 'sphere'] as const;
+const SCENE_LIGHT_KINDS = ['point', 'spot', 'directional'] as const;
+const HEX_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
+
+function modelEntityFromPlacement(placement: SceneObjectPlacement): SceneModelEntity {
+	const assetName = getAssetById(placement.assetId)?.name;
+	return {
+		kind: 'model',
+		id: placement.id,
+		name: assetName || placement.id,
+		roomId: placement.roomId,
+		assetId: placement.assetId,
+		fallback: placement.fallback,
+		position: placement.position,
+		rotation: placement.rotation,
+		...(placement.scale === undefined ? {} : { scale: placement.scale })
+	};
+}
+
+function documentEntities(document: ParsedMuseumSceneDocument): SceneEntity[] {
+	if ('entities' in document) return document.entities;
+	return document.objects.map((object) => modelEntityFromPlacement(object));
+}
 
 function isRecord(value: unknown): value is JsonRecord {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -268,6 +313,358 @@ function parsePlacement(
 		rotation,
 		...(scale === undefined ? {} : { scale })
 	};
+}
+
+function readPositiveDimension(
+	value: JsonRecord,
+	key: string,
+	path: string,
+	issues: SceneDocumentIssue[]
+): number | undefined {
+	const number = readRequiredNumber(value, key, path, issues);
+	if (number === undefined) return undefined;
+	if (!Number.isFinite(number) || number <= 0) {
+		addIssue(issues, `${path}.${key}`, 'invalid_dimension', `${key} must be a finite number greater than zero`);
+		return undefined;
+	}
+	return number;
+}
+
+function parsePrimitiveDimensions(
+	primitive: ScenePrimitiveKind,
+	input: unknown,
+	path: string,
+	issues: SceneDocumentIssue[]
+): ScenePrimitiveEntity['dimensions'] | undefined {
+	if (!isRecord(input)) {
+		addIssue(issues, path, 'invalid_type', 'Expected a dimensions object');
+		return undefined;
+	}
+	if (primitive === 'box') {
+		assertAllowedKeys(input, ['width', 'height', 'depth'], path, issues);
+		const width = readPositiveDimension(input, 'width', path, issues);
+		const height = readPositiveDimension(input, 'height', path, issues);
+		const depth = readPositiveDimension(input, 'depth', path, issues);
+		if (width === undefined || height === undefined || depth === undefined) return undefined;
+		return { width, height, depth } satisfies SceneBoxDimensions;
+	}
+	if (primitive === 'plane') {
+		assertAllowedKeys(input, ['width', 'height'], path, issues);
+		const width = readPositiveDimension(input, 'width', path, issues);
+		const height = readPositiveDimension(input, 'height', path, issues);
+		if (width === undefined || height === undefined) return undefined;
+		return { width, height } satisfies ScenePlaneDimensions;
+	}
+	if (primitive === 'cylinder') {
+		assertAllowedKeys(input, ['radius', 'height'], path, issues);
+		const radius = readPositiveDimension(input, 'radius', path, issues);
+		const height = readPositiveDimension(input, 'height', path, issues);
+		if (radius === undefined || height === undefined) return undefined;
+		return { radius, height } satisfies SceneCylinderDimensions;
+	}
+	assertAllowedKeys(input, ['radius'], path, issues);
+	const radius = readPositiveDimension(input, 'radius', path, issues);
+	if (radius === undefined) return undefined;
+	return { radius } satisfies SceneSphereDimensions;
+}
+
+function parseEntityTransform(
+	input: JsonRecord,
+	path: string,
+	issues: SceneDocumentIssue[]
+): { position: Vec3; rotation: Vec3; scale?: number } | undefined {
+	const position = readVec3(input.position, `${path}.position`, issues);
+	const rotation = readVec3(input.rotation, `${path}.rotation`, issues);
+	let scale: number | undefined;
+	if ('scale' in input) {
+		scale = readRequiredNumber(input, 'scale', path, issues);
+		if (scale !== undefined && scale <= 0) {
+			addIssue(issues, `${path}.scale`, 'invalid_scale', 'Scale must be greater than zero');
+			scale = undefined;
+		}
+	}
+	if (!position || !rotation || ('scale' in input && scale === undefined)) return undefined;
+	return { position, rotation, ...(scale === undefined ? {} : { scale }) };
+}
+
+function parseModelEntity(
+	input: JsonRecord,
+	path: string,
+	issues: SceneDocumentIssue[]
+): SceneModelEntity | undefined {
+	assertAllowedKeys(
+		input,
+		['kind', 'id', 'name', 'roomId', 'assetId', 'fallback', 'position', 'rotation', 'scale'],
+		path,
+		issues
+	);
+	const id = readRequiredString(input, 'id', path, issues);
+	const name = readRequiredString(input, 'name', path, issues);
+	const roomId = readRoomId(input, 'roomId', path, issues);
+	const assetId = readRequiredString(input, 'assetId', path, issues);
+	if (assetId && !getAssetById(assetId)) {
+		addIssue(issues, `${path}.assetId`, 'unknown_asset', `Unknown museum asset: ${assetId}`);
+	}
+	const fallback = readRequiredString(input, 'fallback', path, issues);
+	if (fallback && !isSceneObjectFallback(fallback)) {
+		addIssue(issues, `${path}.fallback`, 'invalid_fallback', `Invalid fallback: ${fallback}`);
+	}
+	const transform = parseEntityTransform(input, path, issues);
+	if (!id || !name || !roomId || !assetId || !fallback || !transform) return undefined;
+	return {
+		kind: 'model',
+		id,
+		name,
+		roomId,
+		assetId,
+		fallback: fallback as SceneModelEntity['fallback'],
+		...transform
+	};
+}
+
+function parsePrimitiveEntity(
+	input: JsonRecord,
+	path: string,
+	issues: SceneDocumentIssue[]
+): ScenePrimitiveEntity | undefined {
+	assertAllowedKeys(
+		input,
+		[
+			'kind',
+			'id',
+			'name',
+			'roomId',
+			'primitive',
+			'dimensions',
+			'materialId',
+			'castShadow',
+			'receiveShadow',
+			'position',
+			'rotation',
+			'scale'
+		],
+		path,
+		issues
+	);
+	const id = readRequiredString(input, 'id', path, issues);
+	const name = readRequiredString(input, 'name', path, issues);
+	const roomId = readRoomId(input, 'roomId', path, issues);
+	const primitiveRaw = readRequiredString(input, 'primitive', path, issues);
+	const primitive =
+		primitiveRaw && (SCENE_PRIMITIVE_KINDS as readonly string[]).includes(primitiveRaw)
+			? (primitiveRaw as ScenePrimitiveKind)
+			: undefined;
+	if (primitiveRaw && !primitive) {
+		addIssue(issues, `${path}.primitive`, 'invalid_primitive', `Invalid primitive kind: ${primitiveRaw}`);
+	}
+	const dimensions =
+		primitive === undefined
+			? undefined
+			: parsePrimitiveDimensions(primitive, input.dimensions, `${path}.dimensions`, issues);
+	const materialIdRaw = readRequiredString(input, 'materialId', path, issues);
+	const materialId =
+		materialIdRaw && isMaterialId(materialIdRaw) ? (materialIdRaw as MaterialId) : undefined;
+	if (materialIdRaw && !materialId) {
+		addIssue(issues, `${path}.materialId`, 'unknown_material', `Unknown museum material: ${materialIdRaw}`);
+	}
+	const castShadow = readRequiredBoolean(input, 'castShadow', path, issues);
+	const receiveShadow = readRequiredBoolean(input, 'receiveShadow', path, issues);
+	const transform = parseEntityTransform(input, path, issues);
+	if (
+		!id ||
+		!name ||
+		!roomId ||
+		!primitive ||
+		!dimensions ||
+		!materialId ||
+		castShadow === undefined ||
+		receiveShadow === undefined ||
+		!transform
+	) {
+		return undefined;
+	}
+	return {
+		kind: 'primitive',
+		id,
+		name,
+		roomId,
+		primitive,
+		dimensions,
+		materialId,
+		castShadow,
+		receiveShadow,
+		...transform
+	} as ScenePrimitiveEntity;
+}
+
+function parseLightEntity(
+	input: JsonRecord,
+	path: string,
+	issues: SceneDocumentIssue[]
+): SceneLightEntity | undefined {
+	assertAllowedKeys(
+		input,
+		[
+			'kind',
+			'id',
+			'name',
+			'roomId',
+			'light',
+			'color',
+			'intensity',
+			'range',
+			'angle',
+			'penumbra',
+			'castShadow',
+			'position',
+			'rotation',
+			'scale'
+		],
+		path,
+		issues
+	);
+	const id = readRequiredString(input, 'id', path, issues);
+	const name = readRequiredString(input, 'name', path, issues);
+	const roomId = readRoomId(input, 'roomId', path, issues);
+	const lightRaw = readRequiredString(input, 'light', path, issues);
+	const light =
+		lightRaw && (SCENE_LIGHT_KINDS as readonly string[]).includes(lightRaw)
+			? (lightRaw as SceneLightKind)
+			: undefined;
+	if (lightRaw && !light) {
+		addIssue(issues, `${path}.light`, 'invalid_light', `Invalid light kind: ${lightRaw}`);
+	}
+	const color = readRequiredString(input, 'color', path, issues);
+	if (color && !HEX_COLOR_PATTERN.test(color)) {
+		addIssue(issues, `${path}.color`, 'invalid_color', 'Expected a #rrggbb color string');
+	}
+	const intensity = readRequiredNumber(input, 'intensity', path, issues);
+	if (intensity !== undefined && (!Number.isFinite(intensity) || intensity < 0)) {
+		addIssue(issues, `${path}.intensity`, 'invalid_intensity', 'Intensity must be a finite number ≥ 0');
+	}
+	let range: number | undefined;
+	if ('range' in input) {
+		range = readRequiredNumber(input, 'range', path, issues);
+		if (range !== undefined && (!Number.isFinite(range) || range <= 0)) {
+			addIssue(issues, `${path}.range`, 'invalid_range', 'Range must be a finite number greater than zero');
+			range = undefined;
+		}
+	}
+	let angle: number | undefined;
+	if ('angle' in input) {
+		angle = readRequiredNumber(input, 'angle', path, issues);
+		if (angle !== undefined && (!Number.isFinite(angle) || angle <= 0 || angle > Math.PI)) {
+			addIssue(issues, `${path}.angle`, 'invalid_angle', 'Angle must be in (0, π] radians');
+			angle = undefined;
+		}
+	}
+	let penumbra: number | undefined;
+	if ('penumbra' in input) {
+		penumbra = readRequiredNumber(input, 'penumbra', path, issues);
+		if (penumbra !== undefined && (!Number.isFinite(penumbra) || penumbra < 0 || penumbra > 1)) {
+			addIssue(issues, `${path}.penumbra`, 'invalid_penumbra', 'Penumbra must be in [0, 1]');
+			penumbra = undefined;
+		}
+	}
+	if (light === 'directional') {
+		if ('range' in input) addIssue(issues, `${path}.range`, 'unexpected_property', 'Directional lights do not use range');
+		if ('angle' in input) addIssue(issues, `${path}.angle`, 'unexpected_property', 'Directional lights do not use angle');
+		if ('penumbra' in input) {
+			addIssue(issues, `${path}.penumbra`, 'unexpected_property', 'Directional lights do not use penumbra');
+		}
+	} else if (light === 'point') {
+		if ('angle' in input) addIssue(issues, `${path}.angle`, 'unexpected_property', 'Point lights do not use angle');
+		if ('penumbra' in input) {
+			addIssue(issues, `${path}.penumbra`, 'unexpected_property', 'Point lights do not use penumbra');
+		}
+	} else if (light === 'spot') {
+		if (!('angle' in input)) {
+			addIssue(issues, `${path}.angle`, 'missing_property', 'Spot lights require angle');
+		}
+	}
+	const castShadow = readRequiredBoolean(input, 'castShadow', path, issues);
+	const transform = parseEntityTransform(input, path, issues);
+	const colorValid = Boolean(color && HEX_COLOR_PATTERN.test(color));
+	const intensityValid = intensity !== undefined && Number.isFinite(intensity) && intensity >= 0;
+	const rangeOk = !('range' in input) || range !== undefined;
+	const angleOk =
+		light === 'spot' ? angle !== undefined : !('angle' in input) || angle !== undefined;
+	const penumbraOk = !('penumbra' in input) || penumbra !== undefined;
+	if (
+		!id ||
+		!name ||
+		!roomId ||
+		!light ||
+		!colorValid ||
+		!intensityValid ||
+		castShadow === undefined ||
+		!transform ||
+		!rangeOk ||
+		!angleOk ||
+		!penumbraOk
+	) {
+		return undefined;
+	}
+	if (light === 'spot') {
+		return {
+			kind: 'light',
+			id,
+			name,
+			roomId,
+			light: 'spot',
+			color: color!,
+			intensity: intensity!,
+			angle: angle!,
+			castShadow,
+			...transform,
+			...(range === undefined ? {} : { range }),
+			...(penumbra === undefined ? {} : { penumbra })
+		};
+	}
+	if (light === 'point') {
+		return {
+			kind: 'light',
+			id,
+			name,
+			roomId,
+			light: 'point',
+			color: color!,
+			intensity: intensity!,
+			castShadow,
+			...transform,
+			...(range === undefined ? {} : { range })
+		};
+	}
+	return {
+		kind: 'light',
+		id,
+		name,
+		roomId,
+		light: 'directional',
+		color: color!,
+		intensity: intensity!,
+		castShadow,
+		...transform
+	};
+}
+
+function parseEntity(
+	input: unknown,
+	path: string,
+	issues: SceneDocumentIssue[]
+): SceneEntity | undefined {
+	if (!isRecord(input)) {
+		addIssue(issues, path, 'invalid_type', 'Expected a scene entity object');
+		return undefined;
+	}
+	const kind = readRequiredString(input, 'kind', path, issues);
+	if (kind === 'model') return parseModelEntity(input, path, issues);
+	if (kind === 'primitive') return parsePrimitiveEntity(input, path, issues);
+	if (kind === 'light') return parseLightEntity(input, path, issues);
+	if (kind !== undefined) {
+		addIssue(issues, `${path}.kind`, 'invalid_entity_kind', `Invalid scene entity kind: ${kind}`);
+	}
+	return undefined;
 }
 
 function parseCluster(
@@ -993,12 +1390,14 @@ function distance(a: Vec3, b: Vec3) {
 }
 
 function validateSemantics(document: ParsedMuseumSceneDocument, issues: SceneDocumentIssue[]) {
-	assertUnique(document.objects, 'scene object', '$.objects', issues);
+	const entities = documentEntities(document);
+	const entitiesPath = 'entities' in document ? '$.entities' : '$.objects';
+	assertUnique(entities, 'scene entity', entitiesPath, issues);
 	assertUnique(document.navigationNodes, 'navigation node', '$.navigationNodes', issues);
 	assertUnique(document.connections, 'connection', '$.connections', issues);
 	assertUnique(document.clusters ?? [], 'scene cluster', '$.clusters', issues);
 
-	const objectById = new Map(document.objects.map((object) => [object.id, object]));
+	const entityById = new Map(entities.map((entity) => [entity.id, entity]));
 	const clusteredIds = new Set<string>();
 	for (const [clusterIndex, cluster] of (document.clusters ?? []).entries()) {
 		if (cluster.memberIds.length < 2) addIssue(issues, `$.clusters[${clusterIndex}].memberIds`, 'cluster_too_small', 'Scene cluster must contain at least two members');
@@ -1007,10 +1406,10 @@ function validateSemantics(document: ParsedMuseumSceneDocument, issues: SceneDoc
 			const path = `$.clusters[${clusterIndex}].memberIds[${memberIndex}]`;
 			if (memberIds.has(memberId)) addIssue(issues, path, 'duplicate_cluster_member', `Duplicate member in scene cluster ${cluster.id}: ${memberId}`);
 			memberIds.add(memberId);
-			const placement = objectById.get(memberId);
-			if (!placement) addIssue(issues, path, 'unknown_cluster_member', `Unknown member in scene cluster ${cluster.id}: ${memberId}`);
-			else if (placement.roomId !== cluster.roomId) addIssue(issues, path, 'cross_room_cluster_member', `Cross-room member in scene cluster ${cluster.id}: ${memberId}`);
-			if (clusteredIds.has(memberId)) addIssue(issues, path, 'multiple_cluster_membership', `Scene object belongs to multiple clusters: ${memberId}`);
+			const entity = entityById.get(memberId);
+			if (!entity) addIssue(issues, path, 'unknown_cluster_member', `Unknown member in scene cluster ${cluster.id}: ${memberId}`);
+			else if (entity.roomId !== cluster.roomId) addIssue(issues, path, 'cross_room_cluster_member', `Cross-room member in scene cluster ${cluster.id}: ${memberId}`);
+			if (clusteredIds.has(memberId)) addIssue(issues, path, 'multiple_cluster_membership', `Scene entity belongs to multiple clusters: ${memberId}`);
 			clusteredIds.add(memberId);
 		}
 	}
@@ -1102,7 +1501,7 @@ function validateSemantics(document: ParsedMuseumSceneDocument, issues: SceneDoc
 		}
 	}
 
-	if (document.version === 3 || document.version === 4) {
+	if (document.version === 3 || document.version === 4 || document.version === 5) {
 		validateViewKeyframePoses(
 			document,
 			new Map(document.navigationNodes.map((node) => [node.id, node])),
@@ -1138,7 +1537,12 @@ function validateSemantics(document: ParsedMuseumSceneDocument, issues: SceneDoc
 		return;
 	}
 
-	if (document.version === 2 || document.version === 3) {
+	if (
+		document.version === 2 ||
+		document.version === 3 ||
+		document.version === 4 ||
+		document.version === 5
+	) {
 		validateVersionTwoTour(document.navigationNodes, nodeById, issues);
 		return;
 	}
@@ -1258,7 +1662,7 @@ function validateVersionTwoTour(
 }
 
 function validateViewKeyframePoses(
-	document: MuseumSceneDocument,
+	document: Pick<MuseumSceneDocument, 'connections' | 'navigationNodes'>,
 	nodeById: ReadonlyMap<string, SceneNavigationNode>,
 	issues: SceneDocumentIssue[]
 ) {
@@ -1330,31 +1734,89 @@ function cloneViewKeyframe(
 	};
 }
 
-function documentHasTimingFields(
-	document: MuseumSceneDocument
-): boolean {
-	for (const node of document.navigationNodes) {
-		if (node.holdSeconds !== undefined) return true;
+function cloneEntity(entity: SceneEntity): SceneEntity {
+	if (entity.kind === 'model') {
+		return {
+			kind: 'model',
+			id: entity.id,
+			name: entity.name,
+			roomId: entity.roomId,
+			assetId: entity.assetId,
+			fallback: entity.fallback,
+			position: [...entity.position],
+			rotation: [...entity.rotation],
+			...(entity.scale === undefined ? {} : { scale: entity.scale })
+		};
 	}
-	for (const connection of document.connections) {
-		if (connection.timing) return true;
-		if (connection.viewTracks) {
-			for (const direction of ['forward', 'reverse'] as const) {
-				for (const keyframe of connection.viewTracks[direction]) {
-					if (keyframe.holdSeconds !== undefined) return true;
-					if (keyframe.easing !== undefined) return true;
-				}
-			}
-		}
+	if (entity.kind === 'primitive') {
+		return {
+			kind: 'primitive',
+			id: entity.id,
+			name: entity.name,
+			roomId: entity.roomId,
+			primitive: entity.primitive,
+			dimensions: { ...entity.dimensions },
+			materialId: entity.materialId,
+			castShadow: entity.castShadow,
+			receiveShadow: entity.receiveShadow,
+			position: [...entity.position],
+			rotation: [...entity.rotation],
+			...(entity.scale === undefined ? {} : { scale: entity.scale })
+		} as ScenePrimitiveEntity;
 	}
-	return false;
+	if (entity.light === 'spot') {
+		return {
+			kind: 'light',
+			id: entity.id,
+			name: entity.name,
+			roomId: entity.roomId,
+			light: 'spot',
+			color: entity.color,
+			intensity: entity.intensity,
+			angle: entity.angle,
+			castShadow: entity.castShadow,
+			position: [...entity.position],
+			rotation: [...entity.rotation],
+			...(entity.scale === undefined ? {} : { scale: entity.scale }),
+			...(entity.range === undefined ? {} : { range: entity.range }),
+			...(entity.penumbra === undefined ? {} : { penumbra: entity.penumbra })
+		};
+	}
+	if (entity.light === 'point') {
+		return {
+			kind: 'light',
+			id: entity.id,
+			name: entity.name,
+			roomId: entity.roomId,
+			light: 'point',
+			color: entity.color,
+			intensity: entity.intensity,
+			castShadow: entity.castShadow,
+			position: [...entity.position],
+			rotation: [...entity.rotation],
+			...(entity.scale === undefined ? {} : { scale: entity.scale }),
+			...(entity.range === undefined ? {} : { range: entity.range })
+		};
+	}
+	return {
+		kind: 'light',
+		id: entity.id,
+		name: entity.name,
+		roomId: entity.roomId,
+		light: 'directional',
+		color: entity.color,
+		intensity: entity.intensity,
+		castShadow: entity.castShadow,
+		position: [...entity.position],
+		rotation: [...entity.rotation],
+		...(entity.scale === undefined ? {} : { scale: entity.scale })
+	};
 }
 
 function canonicalDocument(document: MuseumSceneDocument): MuseumSceneDocument {
-	const version: 3 | 4 = documentHasTimingFields(document) ? 4 : 3;
 	return {
-		version,
-		objects: document.objects.map((object) => ({ id: object.id, roomId: object.roomId, assetId: object.assetId, fallback: object.fallback, position: [...object.position], rotation: [...object.rotation], ...(object.scale === undefined ? {} : { scale: object.scale }) })),
+		version: 5,
+		entities: document.entities.map(cloneEntity),
 		...(document.clusters === undefined ? {} : { clusters: document.clusters.map((cluster) => ({ id: cluster.id, name: cluster.name, roomId: cluster.roomId, memberIds: [...cluster.memberIds] })) }),
 		navigationNodes: document.navigationNodes.map((node) => ({ id: node.id, roomId: node.roomId, label: node.label, position: [...node.position], cameraTarget: [...node.cameraTarget], fov: node.fov, connectedNodeIds: [...node.connectedNodeIds], ...(node.nextNodeId === undefined ? {} : { nextNodeId: node.nextNodeId }), ...(node.previousNodeId === undefined ? {} : { previousNodeId: node.previousNodeId }), ...(node.lockInteraction === undefined ? {} : { lockInteraction: node.lockInteraction }), ...(node.holdSeconds === undefined ? {} : { holdSeconds: node.holdSeconds }) })),
 		connections: document.connections.map((connection) => ({
@@ -1421,7 +1883,7 @@ function migrateVersionOneDocument(document: LegacyMuseumSceneDocument): MuseumS
 	};
 }
 
-function migrateVersionTwoDocument(document: MuseumSceneDocumentV2): MuseumSceneDocument {
+function migrateVersionTwoDocument(document: MuseumSceneDocumentV2): MuseumSceneDocumentV3V4 {
 	return {
 		version: 3,
 		objects: document.objects,
@@ -1432,26 +1894,47 @@ function migrateVersionTwoDocument(document: MuseumSceneDocumentV2): MuseumScene
 		})),
 		connections: document.connections
 	};
-}export function validateSceneDocument(input: unknown): SceneDocumentValidationResult {
+}
+
+function migrateToVersionFive(
+	document: MuseumSceneDocumentWithObjects
+): MuseumSceneDocument {
+	return {
+		version: 5,
+		entities: document.objects.map((object) => modelEntityFromPlacement(object)),
+		...(document.clusters === undefined ? {} : { clusters: document.clusters }),
+		navigationNodes: document.navigationNodes,
+		connections: document.connections
+	};
+}
+
+export function validateSceneDocument(input: unknown): SceneDocumentValidationResult {
 	const issues: SceneDocumentIssue[] = [];
 	if (!isRecord(input)) {
 		addIssue(issues, '$', 'invalid_type', 'Expected a scene document object');
 		return { success: false, issues };
 	}
-	assertAllowedKeys(input, ['version', 'objects', 'clusters', 'navigationNodes', 'connections'], '$', issues);
+	const version = input.version;
 	if (
-		input.version !== 1 &&
-		input.version !== 2 &&
-		input.version !== 3 &&
-		input.version !== 4
+		version !== 1 &&
+		version !== 2 &&
+		version !== 3 &&
+		version !== 4 &&
+		version !== 5
 	) {
 		addIssue(
 			issues,
 			'$.version',
 			'unsupported_version',
-			`Unsupported museum scene document version: ${String(input.version)}`
+			`Unsupported museum scene document version: ${String(version)}`
 		);
+		return { success: false, issues };
 	}
+	const rootKeys =
+		version === 5
+			? (['version', 'entities', 'clusters', 'navigationNodes', 'connections'] as const)
+			: (['version', 'objects', 'clusters', 'navigationNodes', 'connections'] as const);
+	assertAllowedKeys(input, rootKeys, '$', issues);
 	const parseArray = <T>(key: string, parser: (value: unknown, path: string, target: SceneDocumentIssue[]) => T | undefined) => {
 		const value = input[key];
 		if (!Array.isArray(value)) {
@@ -1461,84 +1944,108 @@ function migrateVersionTwoDocument(document: MuseumSceneDocumentV2): MuseumScene
 		const values = value.map((item, index) => parser(item, `$.${key}[${index}]`, issues));
 		return values.every((item): item is T => item !== undefined) ? values : undefined;
 	};
-	const objects = parseArray('objects', parsePlacement);
+	const objects =
+		version === 1 || version === 2 || version === 3 || version === 4
+			? parseArray('objects', parsePlacement)
+			: undefined;
+	const entities = version === 5 ? parseArray('entities', parseEntity) : undefined;
 	const clusters = 'clusters' in input ? parseArray('clusters', parseCluster) : undefined;
-	const legacyNavigationNodes = input.version === 1 || input.version === 2
+	const legacyNavigationNodes = version === 1 || version === 2
 		? parseArray('navigationNodes', parseNodeV1V2)
 		: undefined;
-	const versionThreeNavigationNodes = input.version === 3
+	const versionThreeNavigationNodes = version === 3
 		? parseArray('navigationNodes', parseNodeV3)
 		: undefined;
-	const versionFourNavigationNodes = input.version === 4
-		? parseArray('navigationNodes', parseNodeV4)
-		: undefined;
-	const legacyConnections = input.version === 1
+	const versionFourPlusNavigationNodes =
+		version === 4 || version === 5
+			? parseArray('navigationNodes', parseNodeV4)
+			: undefined;
+	const legacyConnections = version === 1
 		? parseArray('connections', parseLegacyConnection)
 		: undefined;
-	const versionTwoConnections = input.version === 2
+	const versionTwoConnections = version === 2
 		? parseArray('connections', parseConnectionV2)
 		: undefined;
-	const versionThreeConnections = input.version === 3
+	const versionThreeConnections = version === 3
 		? parseArray('connections', parseConnectionV3)
 		: undefined;
-	const versionFourConnections = input.version === 4
-		? parseArray('connections', parseConnectionV4)
-		: undefined;
-	if (
-		!objects ||
-		(input.version === 1 || input.version === 2
+	const versionFourPlusConnections =
+		version === 4 || version === 5
+			? parseArray('connections', parseConnectionV4)
+			: undefined;
+	const missingEntitiesOrObjects =
+		version === 5 ? !entities : version === 1 || version === 2 || version === 3 || version === 4 ? !objects : true;
+	const missingNodes =
+		version === 1 || version === 2
 			? !legacyNavigationNodes
-			: input.version === 3
+			: version === 3
 				? !versionThreeNavigationNodes
-				: input.version === 4
-					? !versionFourNavigationNodes
-					: true) ||
-		(input.version === 1
+				: version === 4 || version === 5
+					? !versionFourPlusNavigationNodes
+					: true;
+	const missingConnections =
+		version === 1
 			? !legacyConnections
-			: input.version === 2
+			: version === 2
 				? !versionTwoConnections
-				: input.version === 3
+				: version === 3
 					? !versionThreeConnections
-					: input.version === 4
-						? !versionFourConnections
-						: true) ||
+					: version === 4 || version === 5
+						? !versionFourPlusConnections
+						: true;
+	if (
+		missingEntitiesOrObjects ||
+		missingNodes ||
+		missingConnections ||
 		('clusters' in input && !clusters) ||
 		issues.length
 	) {
 		return { success: false, issues };
 	}
 	const document: ParsedMuseumSceneDocument =
-		input.version === 1
+		version === 1
 			? {
 					version: 1,
-					objects,
+					objects: objects!,
 					...(clusters === undefined ? {} : { clusters }),
 					navigationNodes: legacyNavigationNodes!,
 					connections: legacyConnections!
 				}
-			: input.version === 2
+			: version === 2
 				? {
 						version: 2,
-						objects,
+						objects: objects!,
 						...(clusters === undefined ? {} : { clusters }),
 						navigationNodes: legacyNavigationNodes!,
 						connections: versionTwoConnections!
 					}
-				: {
-						version: input.version === 4 ? 4 : 3,
-						objects,
-						...(clusters === undefined ? {} : { clusters }),
-						navigationNodes: input.version === 4 ? versionFourNavigationNodes! : versionThreeNavigationNodes!,
-						connections: input.version === 4 ? versionFourConnections! : versionThreeConnections!
-					};
+				: version === 5
+					? {
+							version: 5,
+							entities: entities!,
+							...(clusters === undefined ? {} : { clusters }),
+							navigationNodes: versionFourPlusNavigationNodes!,
+							connections: versionFourPlusConnections!
+						}
+					: {
+							version: version === 4 ? 4 : 3,
+							objects: objects!,
+							...(clusters === undefined ? {} : { clusters }),
+							navigationNodes:
+								version === 4 ? versionFourPlusNavigationNodes! : versionThreeNavigationNodes!,
+							connections:
+								version === 4 ? versionFourPlusConnections! : versionThreeConnections!
+						};
 	validateSemantics(document, issues);
 	if (issues.length) return { success: false, issues };
 	const normalized = canonicalDocument(
 		document.version === 1
-			? migrateVersionTwoDocument(migrateVersionOneDocument(document))
+			? migrateToVersionFive(migrateVersionTwoDocument(migrateVersionOneDocument(document)))
 			: document.version === 2
-				? migrateVersionTwoDocument(document)
-				: document
+				? migrateToVersionFive(migrateVersionTwoDocument(document))
+				: document.version === 5
+					? document
+					: migrateToVersionFive(document)
 	);
 	return { success: true, document: normalized, canonicalJson: JSON.stringify(normalized, null, 2) + '\n' };
 }

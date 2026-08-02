@@ -1,30 +1,45 @@
 <script lang="ts">
 	import { getMuseumAsset } from '$lib/content/assets';
 	import { museumRooms } from '$lib/content/rooms';
+	import {
+		isSceneModelEntity,
+		type SceneEntity
+	} from '$lib/content/scene';
+	import type { MuseumRoomId } from '$lib/types/museum';
 	import { formatPlacementLabel } from './editor-outliner';
 	import type { MuseumEditorStore } from './museum-editor.svelte';
 
 	let { store }: { store: MuseumEditorStore } = $props();
 
-	const parisOpen = $derived(store.treeExpandedRoomIds.includes('paris'));
 	const openClusterIds = $derived(store.treeExpandedClusterIds);
-	const parisObjects = $derived(
-		store.document.objects.filter((object) => object.roomId === 'paris')
-	);
-	const parisClusters = $derived(
-		(store.document.clusters ?? []).filter((cluster) => cluster.roomId === 'paris')
-	);
 	const clusteredPlacementIds = $derived(
 		new Set((store.document.clusters ?? []).flatMap((cluster) => cluster.memberIds))
 	);
-	const ungroupedParisObjects = $derived(
-		parisObjects.filter((object) => !clusteredPlacementIds.has(object.id))
-	);
 
-	function selectParisRoom() {
+	function roomEntities(roomId: MuseumRoomId) {
+		return store.document.entities.filter((entity) => entity.roomId === roomId);
+	}
+
+	function roomClusters(roomId: MuseumRoomId) {
+		return (store.document.clusters ?? []).filter((cluster) => cluster.roomId === roomId);
+	}
+
+	function ungroupedEntities(roomId: MuseumRoomId) {
+		return roomEntities(roomId).filter((entity) => !clusteredPlacementIds.has(entity.id));
+	}
+
+	function roomOpen(roomId: MuseumRoomId) {
+		return store.treeExpandedRoomIds.includes(roomId);
+	}
+
+	function roomHasContent(roomId: MuseumRoomId) {
+		return roomEntities(roomId).length > 0 || roomClusters(roomId).length > 0;
+	}
+
+	function selectRoom(roomId: MuseumRoomId) {
 		if (store.isDocumentMutationBlocked) return;
-		store.selectionActions.selectRoom('paris');
-		store.focusRoom('paris');
+		store.selectionActions.selectRoom(roomId);
+		if (roomId === 'paris') store.focusRoom('paris');
 	}
 
 	function selectObject(id: string, event?: MouseEvent) {
@@ -37,6 +52,18 @@
 	function selectCluster(id: string) {
 		store.selectionActions.selectClusterFromTree(id);
 	}
+
+	function entityLabel(entity: SceneEntity) {
+		return entity.name.trim() || formatPlacementLabel(entity.id);
+	}
+
+	function entityMeta(entity: SceneEntity) {
+		if (isSceneModelEntity(entity)) {
+			return formatPlacementLabel(getMuseumAsset(entity.assetId).category);
+		}
+		if (entity.kind === 'primitive') return formatPlacementLabel(entity.primitive);
+		return formatPlacementLabel(entity.light);
+	}
 </script>
 
 <section aria-label="Scene hierarchy">
@@ -45,36 +72,44 @@
 	</div>
 	<ul class="rooms" role="tree" aria-label="Museum rooms and objects">
 		{#each museumRooms as room (room.id)}
+			{@const open = roomOpen(room.id)}
+			{@const entities = roomEntities(room.id)}
+			{@const clusters = roomClusters(room.id)}
+			{@const ungrouped = ungroupedEntities(room.id)}
+			{@const editable = room.id === 'paris' || roomHasContent(room.id)}
 			<li
 				role="treeitem"
-				aria-expanded={room.id === 'paris' ? parisOpen : undefined}
+				aria-expanded={editable ? open : undefined}
 				aria-selected={store.selectedRoomId === room.id}
-				aria-disabled={room.id === 'paris' ? undefined : true}
+				aria-disabled={editable ? undefined : true}
 			>
-				{#if room.id === 'paris'}
+				{#if editable}
 					<div class="room-line">
 						<button
 							type="button"
 							class="tree-row__chevron"
-							aria-label={`${parisOpen ? 'Collapse' : 'Expand'} ${room.title}`}
-							aria-expanded={parisOpen}
-							onclick={() => store.toggleRoomTreeExpansion('paris')}
+							aria-label={`${open ? 'Collapse' : 'Expand'} ${room.title}`}
+							aria-expanded={open}
+							onclick={() => store.toggleRoomTreeExpansion(room.id)}
 						>
-							<span class="chevron" class:open={parisOpen}>›</span>
+							<span class="chevron" class:open={open}>›</span>
 						</button>
 						<button
 							type="button"
 							class="tree-row room-row"
 							class:tree-row--selected={store.selectedRoomId === room.id}
-							onclick={selectParisRoom}
+							onclick={() => selectRoom(room.id)}
 						>
 							<span class="tree-row__label" title={room.title}>{room.title}</span>
+							{#if room.id !== 'paris'}
+								<span class="tree-row__meta">{entities.length}</span>
+							{/if}
 						</button>
 					</div>
 
-					{#if parisOpen}
-						<ul class="objects" role="group" aria-label="Paris Salon objects">
-							{#each parisClusters as cluster (cluster.id)}
+					{#if open}
+						<ul class="objects" role="group" aria-label={`${room.title} objects`}>
+							{#each clusters as cluster (cluster.id)}
 								<li
 									class="cluster-item"
 									role="treeitem"
@@ -107,7 +142,7 @@
 									{#if openClusterIds.includes(cluster.id)}
 										<ul class="cluster-members" role="group">
 											{#each cluster.memberIds as memberId (memberId)}
-												{@const object = parisObjects.find((candidate) => candidate.id === memberId)}
+												{@const object = entities.find((candidate) => candidate.id === memberId)}
 												{#if object}
 													<li
 														class="member-line tree-child"
@@ -120,13 +155,13 @@
 															class:tree-row--selected={store.selectedPlacementIds.includes(object.id)}
 															onclick={(event) => selectObject(object.id, event)}
 														>
-															<span class="tree-row__label" title={formatPlacementLabel(object.id)}>{formatPlacementLabel(object.id)}</span>
-															<span class="tree-row__meta" title={formatPlacementLabel(getMuseumAsset(object.assetId).category)}>{formatPlacementLabel(getMuseumAsset(object.assetId).category)}</span>
+															<span class="tree-row__label" title={entityLabel(object)}>{entityLabel(object)}</span>
+															<span class="tree-row__meta" title={entityMeta(object)}>{entityMeta(object)}</span>
 														</button>
 														<button
 															class="mini-action"
 															type="button"
-															aria-label={`Remove ${formatPlacementLabel(object.id)} from ${cluster.name}`}
+															aria-label={`Remove ${entityLabel(object)} from ${cluster.name}`}
 															onclick={() => store.removeMemberFromCluster(cluster.id, object.id)}
 														>−</button>
 													</li>
@@ -136,24 +171,24 @@
 									{/if}
 								</li>
 							{/each}
-							{#each ungroupedParisObjects as object (object.id)}
-								<li role="treeitem" aria-selected={store.selectedPlacementIds.includes(object.id)}>
+							{#each ungrouped as entity (entity.id)}
+								<li role="treeitem" aria-selected={store.selectedPlacementIds.includes(entity.id)}>
 									<div class="member-line">
 										<button
 											type="button"
 											class="tree-row object-row"
-											class:tree-row--selected={store.selectedPlacementIds.includes(object.id)}
-											onclick={(event) => selectObject(object.id, event)}
+											class:tree-row--selected={store.selectedPlacementIds.includes(entity.id)}
+											onclick={(event) => selectObject(entity.id, event)}
 										>
-											<span class="tree-row__label" title={formatPlacementLabel(object.id)}>{formatPlacementLabel(object.id)}</span>
-											<span class="tree-row__meta" title={formatPlacementLabel(getMuseumAsset(object.assetId).category)}>{formatPlacementLabel(getMuseumAsset(object.assetId).category)}</span>
+											<span class="tree-row__label" title={entityLabel(entity)}>{entityLabel(entity)}</span>
+											<span class="tree-row__meta" title={entityMeta(entity)}>{entityMeta(entity)}</span>
 										</button>
-										{#if store.selectedClusterId}
+										{#if store.selectedClusterId && isSceneModelEntity(entity) && room.id === 'paris'}
 											<button
 												class="mini-action"
 												type="button"
-												aria-label={`Add ${formatPlacementLabel(object.id)} to selected cluster`}
-												onclick={() => store.addMemberToCluster(store.selectedClusterId!, object.id)}
+												aria-label={`Add ${entityLabel(entity)} to selected cluster`}
+												onclick={() => store.addMemberToCluster(store.selectedClusterId!, entity.id)}
 											>+</button>
 										{/if}
 									</div>

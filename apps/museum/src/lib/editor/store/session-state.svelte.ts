@@ -32,6 +32,7 @@ import {
 	DEFAULT_TRANSLATION_SNAP
 } from '../editor-placement';
 import type { CameraConnectionDirection, MuseumRoomId } from '$lib/types/museum';
+import type { ScenePrimitiveKind } from '$lib/content/scene';
 
 const STATUS_MESSAGE_MS = 2500;
 
@@ -269,6 +270,7 @@ export class EditorSessionState {
 	pendingFrameVersion = $state(0);
 	pendingNavigationCommand = $state<EditorPendingNavigationCommand>(null);
 	pendingPlacementAssetId = $state<string | null>(null);
+	pendingPlacementPrimitiveKind = $state<ScenePrimitiveKind | null>(null);
 
 	setPendingFramePlacementIds(ids: string[]) {
 		this.pendingFramePlacementIds = ids;
@@ -286,6 +288,10 @@ export class EditorSessionState {
 
 	setPendingPlacementAssetId(assetId: string | null) {
 		this.pendingPlacementAssetId = assetId;
+	}
+
+	setPendingPlacementPrimitiveKind(kind: ScenePrimitiveKind | null) {
+		this.pendingPlacementPrimitiveKind = kind;
 	}
 
 	// ============================================================

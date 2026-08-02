@@ -101,6 +101,7 @@ const connections: MuseumConnection[] = [
 ];
 
 const customScene: RuntimeMuseumScene = {
+  entities: [],
   objects: [],
   navigationNodes: nodes,
   connections
@@ -423,7 +424,8 @@ describe('getCameraRoute', () => {
       }
     ];
     const graph = createNavigationGraph({
-      objects: [],
+      entities: [],
+  objects: [],
       navigationNodes: coincidentNodes,
       connections: [
         {
@@ -508,7 +510,8 @@ describe('getCameraRoute', () => {
       }
     ];
     const graph = createNavigationGraph({
-      objects: [],
+      entities: [],
+  objects: [],
       navigationNodes: mixedNodes,
       connections: mixedConnections
     });
@@ -627,7 +630,8 @@ describe('getCameraRoute', () => {
 
   it('rejects non-contiguous connection joins before motion compilation', () => {
     const graph = createNavigationGraph({
-      objects: [],
+      entities: [],
+  objects: [],
       navigationNodes: nodes.slice(0, 3),
       connections: [
         {
@@ -718,7 +722,8 @@ describe('getCameraConnectionRoute', () => {
       }
     ];
     const graph = createNavigationGraph({
-      objects: [],
+      entities: [],
+  objects: [],
       navigationNodes: nodes.slice(0, 2),
       connections: parallelConnections
     });
@@ -797,7 +802,8 @@ describe('getCameraConnectionRoute', () => {
       }
     };
     const graph = createNavigationGraph({
-      objects: [],
+      entities: [],
+  objects: [],
       navigationNodes: directionalNodes,
       connections: [directionalConnection]
     });
@@ -846,7 +852,8 @@ describe('getCameraConnectionRoute', () => {
 
   it('does not reuse a forward view track as a reverse fallback', () => {
     const graph = createNavigationGraph({
-      objects: [],
+      entities: [],
+  objects: [],
       navigationNodes: nodes.slice(0, 2),
       connections: [
         {
@@ -878,7 +885,8 @@ describe('getCameraConnectionRoute', () => {
 
   it('uses travel-facing reverse look-ahead when reverse has no authored keys', () => {
     const graph = createNavigationGraph({
-      objects: [],
+      entities: [],
+  objects: [],
       navigationNodes: nodes.slice(0, 2),
       connections: [connections[0]]
     });
@@ -953,7 +961,8 @@ describe('getGuidedCameraRoute', () => {
   it('retains reverse traversal when a guided connection is authored backwards', () => {
     const reversedConnection = museumNavigationGraph.connections[0];
     const graph = createNavigationGraph({
-      objects: [],
+      entities: [],
+  objects: [],
       navigationNodes: [...museumNavigationGraph.navigationNodes],
       connections: [
         {

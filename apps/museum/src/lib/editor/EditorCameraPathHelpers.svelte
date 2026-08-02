@@ -169,6 +169,7 @@
 		const hidden = Boolean(
 			store.isVisitorCameraPreview ||
 			store.pendingPlacementAssetId ||
+			store.pendingPlacementPrimitiveKind ||
 			store.pendingNavigationCommand
 		);
 		const document = store.document;

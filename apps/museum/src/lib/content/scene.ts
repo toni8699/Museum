@@ -1,10 +1,12 @@
 import rawMuseumSceneDocument from './museum-scene.json';
+import { getAssetById } from './assets';
 import { roomPoint } from './rooms';
 import {
   SceneDocumentValidationError,
   validateSceneDocument
 } from './scene-codec';
-import type { AssetPlacement } from '$lib/types/assets';
+import type { AssetId, AssetPlacement, SceneObjectFallback } from '$lib/types/assets';
+import type { MaterialId } from '$lib/types/materials';
 import type {
   CameraEasing,
   MuseumConnection,
@@ -17,6 +19,7 @@ import type {
   Vec3
 } from '$lib/types/museum';
 
+/** Runtime / editor projection of a model entity (no kind/name). */
 export type SceneObjectPlacement = AssetPlacement & {
   roomId: MuseumRoomId;
 };
@@ -27,6 +30,116 @@ export type SceneObjectCluster = {
   roomId: MuseumRoomId;
   memberIds: string[];
 };
+
+export type ScenePrimitiveKind = 'box' | 'plane' | 'cylinder' | 'sphere';
+export type SceneLightKind = 'point' | 'spot' | 'directional';
+
+export type SceneEntityTransform = {
+  position: Vec3;
+  rotation: Vec3;
+  scale?: number;
+};
+
+export type SceneEntityBase = SceneEntityTransform & {
+  id: string;
+  name: string;
+  roomId: MuseumRoomId;
+};
+
+export type SceneModelEntity = SceneEntityBase & {
+  kind: 'model';
+  assetId: AssetId;
+  fallback: SceneObjectFallback;
+};
+
+export type SceneBoxDimensions = {
+  width: number;
+  height: number;
+  depth: number;
+};
+
+export type ScenePlaneDimensions = {
+  width: number;
+  height: number;
+};
+
+export type SceneCylinderDimensions = {
+  radius: number;
+  height: number;
+};
+
+export type SceneSphereDimensions = {
+  radius: number;
+};
+
+export type ScenePrimitiveDimensions =
+  | SceneBoxDimensions
+  | ScenePlaneDimensions
+  | SceneCylinderDimensions
+  | SceneSphereDimensions;
+
+export type ScenePrimitiveEntity =
+	| (SceneEntityBase & {
+			kind: 'primitive';
+			primitive: 'box';
+			dimensions: SceneBoxDimensions;
+			materialId: MaterialId;
+			castShadow: boolean;
+			receiveShadow: boolean;
+	  })
+	| (SceneEntityBase & {
+			kind: 'primitive';
+			primitive: 'plane';
+			dimensions: ScenePlaneDimensions;
+			materialId: MaterialId;
+			castShadow: boolean;
+			receiveShadow: boolean;
+	  })
+	| (SceneEntityBase & {
+			kind: 'primitive';
+			primitive: 'cylinder';
+			dimensions: SceneCylinderDimensions;
+			materialId: MaterialId;
+			castShadow: boolean;
+			receiveShadow: boolean;
+	  })
+	| (SceneEntityBase & {
+			kind: 'primitive';
+			primitive: 'sphere';
+			dimensions: SceneSphereDimensions;
+			materialId: MaterialId;
+			castShadow: boolean;
+			receiveShadow: boolean;
+	  });
+
+export type SceneLightEntity =
+	| (SceneEntityBase & {
+			kind: 'light';
+			light: 'point';
+			color: string;
+			intensity: number;
+			range?: number;
+			castShadow: boolean;
+	  })
+	| (SceneEntityBase & {
+			kind: 'light';
+			light: 'spot';
+			color: string;
+			intensity: number;
+			range?: number;
+			angle: number;
+			penumbra?: number;
+			castShadow: boolean;
+	  })
+	| (SceneEntityBase & {
+			kind: 'light';
+			light: 'directional';
+			color: string;
+			intensity: number;
+			castShadow: boolean;
+	  });
+
+export type SceneEntity = SceneModelEntity | ScenePrimitiveEntity | SceneLightEntity;
 
 export type SceneNavigationNode = Omit<
   NavigationNodeData,
@@ -99,12 +212,12 @@ export type SceneConnection = Omit<
   timing?: SceneConnectionTimingPair;
 };
 
-/** Current scene schema version. Documents without timing canonicalise to v3. */
-export const MUSEUM_SCENE_SCHEMA_VERSION = 4 as const;
+/** Current scene schema version. v1–v4 migrate to canonical v5 entities. */
+export const MUSEUM_SCENE_SCHEMA_VERSION = 5 as const;
 
 export type MuseumSceneDocument = {
-  version: 3 | 4;
-  objects: SceneObjectPlacement[];
+  version: 5;
+  entities: SceneEntity[];
   /** Editor-only hierarchy metadata. Visitor rendering intentionally stays flat. */
   clusters?: SceneObjectCluster[];
   navigationNodes: SceneNavigationNode[];
@@ -115,13 +228,139 @@ export type MuseumSceneDocument = {
 export type CanonicalMuseumSceneDocument = MuseumSceneDocument;
 
 export type RuntimeMuseumScene = {
-  /** Room-local placements, mounted beneath room transforms. */
+  /**
+   * All scene entities with room-local transforms (cloned from the document).
+   * MuseumEntities dispatches by `kind` for shared visitor/editor rendering.
+   */
+  entities: SceneEntity[];
+  /**
+   * Model placements only, projected from `kind: 'model'` entities.
+   * Kept for Paris activation and legacy callers that still key off `objects`.
+   */
   objects: SceneObjectPlacement[];
   /** World-space camera poses. */
   navigationNodes: NavigationNodeData[];
   /** World-space waypoints, including fresh node endpoints. */
   connections: MuseumConnection[];
 };
+
+export function isSceneModelEntity(entity: SceneEntity): entity is SceneModelEntity {
+  return entity.kind === 'model';
+}
+
+export function isScenePrimitiveEntity(
+  entity: SceneEntity
+): entity is ScenePrimitiveEntity {
+  return entity.kind === 'primitive';
+}
+
+export function isSceneLightEntity(entity: SceneEntity): entity is SceneLightEntity {
+  return entity.kind === 'light';
+}
+
+export function listSceneModelEntities(
+  document: MuseumSceneDocument
+): SceneModelEntity[] {
+  return document.entities.filter(isSceneModelEntity);
+}
+
+export function modelEntityToPlacement(entity: SceneModelEntity): SceneObjectPlacement {
+  return {
+    id: entity.id,
+    roomId: entity.roomId,
+    assetId: entity.assetId,
+    fallback: entity.fallback,
+    position: entity.position,
+    rotation: entity.rotation,
+    ...(entity.scale === undefined ? {} : { scale: entity.scale })
+  };
+}
+
+/** Deep-clone one entity for runtime resolution (room-local poses preserved). */
+export function cloneSceneEntity(entity: SceneEntity): SceneEntity {
+  const transform = {
+    id: entity.id,
+    name: entity.name,
+    roomId: entity.roomId,
+    position: cloneVec3(entity.position),
+    rotation: cloneVec3(entity.rotation),
+    ...(entity.scale === undefined ? {} : { scale: entity.scale })
+  };
+
+  if (entity.kind === 'model') {
+    return {
+      ...transform,
+      kind: 'model',
+      assetId: entity.assetId,
+      fallback: entity.fallback
+    };
+  }
+
+  if (entity.kind === 'primitive') {
+    return {
+      ...transform,
+      kind: 'primitive',
+      primitive: entity.primitive,
+      dimensions: { ...entity.dimensions },
+      materialId: entity.materialId,
+      castShadow: entity.castShadow,
+      receiveShadow: entity.receiveShadow
+    } as ScenePrimitiveEntity;
+  }
+
+  if (entity.light === 'point') {
+    return {
+      ...transform,
+      kind: 'light',
+      light: 'point',
+      color: entity.color,
+      intensity: entity.intensity,
+      castShadow: entity.castShadow,
+      ...(entity.range === undefined ? {} : { range: entity.range })
+    };
+  }
+
+  if (entity.light === 'spot') {
+    return {
+      ...transform,
+      kind: 'light',
+      light: 'spot',
+      color: entity.color,
+      intensity: entity.intensity,
+      angle: entity.angle,
+      castShadow: entity.castShadow,
+      ...(entity.range === undefined ? {} : { range: entity.range }),
+      ...(entity.penumbra === undefined ? {} : { penumbra: entity.penumbra })
+    };
+  }
+
+  return {
+    ...transform,
+    kind: 'light',
+    light: 'directional',
+    color: entity.color,
+    intensity: entity.intensity,
+    castShadow: entity.castShadow
+  };
+}
+
+export function placementToModelEntity(
+  placement: SceneObjectPlacement,
+  name?: string
+): SceneModelEntity {
+  const assetName = getAssetById(placement.assetId)?.name;
+  return {
+    kind: 'model',
+    id: placement.id,
+    name: name?.trim() || assetName || placement.id,
+    roomId: placement.roomId,
+    assetId: placement.assetId,
+    fallback: placement.fallback,
+    position: placement.position,
+    rotation: placement.rotation,
+    ...(placement.scale === undefined ? {} : { scale: placement.scale })
+  };
+}
 
 export type NavigationGraph = {
   navigationNodes: readonly NavigationNodeData[];
@@ -227,13 +466,16 @@ export function resolveSceneDocument(input: unknown): RuntimeMuseumScene {
     return resolved;
   });
 
-  const objects = document.objects.map((object): SceneObjectPlacement => ({
-    ...object,
-    position: cloneVec3(object.position),
-    rotation: cloneVec3(object.rotation)
-  }));
+  const entities = document.entities.map(cloneSceneEntity);
+  const objects = listSceneModelEntities(document).map(
+    (entity): SceneObjectPlacement => ({
+      ...modelEntityToPlacement(entity),
+      position: cloneVec3(entity.position),
+      rotation: cloneVec3(entity.rotation)
+    })
+  );
 
-  return { objects, navigationNodes, connections };
+  return { entities, objects, navigationNodes, connections };
 }
 
 export function createNavigationGraph(scene: RuntimeMuseumScene): NavigationGraph {

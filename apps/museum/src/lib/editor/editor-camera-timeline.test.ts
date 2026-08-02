@@ -275,7 +275,6 @@ describe('editor camera timeline index', () => {
 
 	it('extends the schedule with destination-node holds and respects authored overrides', () => {
 		const document = cloneMuseumSceneDocument(museumSceneDocument);
-		(document as { version: 4 }).version = 4;
 		const target = document.navigationNodes.find((node) => node.id === 'poland-threshold')!;
 		target.holdSeconds = 14.5;
 		const first = document.connections.find((c) => c.id === 'entrance-poland')!;
@@ -300,7 +299,6 @@ describe('editor camera timeline index', () => {
 
 	it('lands on the destination pose and reports a zero-progress hold tail without movement', () => {
 		const document = cloneMuseumSceneDocument(museumSceneDocument);
-		(document as { version: 4 }).version = 4;
 		const poland = document.navigationNodes.find((node) => node.id === 'poland-threshold')!;
 		poland.holdSeconds = 6;
 		const timeline = createEditorCameraTimeline(
@@ -335,7 +333,6 @@ describe('editor camera timeline index', () => {
 
 	it('collapses every motion span to its end pose under reduced motion', () => {
 		const document = cloneMuseumSceneDocument(museumSceneDocument);
-		(document as { version: 4 }).version = 4;
 		document.navigationNodes.forEach((node, index) => {
 			if (index % 2 === 0) node.holdSeconds = 4;
 		});

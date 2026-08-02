@@ -168,6 +168,7 @@
 	function isFloorPlacementActive() {
 		return Boolean(
 			store.pendingPlacementAssetId ||
+				store.pendingPlacementPrimitiveKind ||
 				store.pendingNavigationCommand?.kind === 'place-camera'
 		);
 	}
@@ -257,6 +258,7 @@
 			store.isCameraFramingMutationBlocked ||
 			store.isEditorInteractionActive ||
 			store.pendingPlacementAssetId ||
+			store.pendingPlacementPrimitiveKind ||
 			(store.pendingNavigationCommand &&
 				store.pendingNavigationCommand.kind !== 'connect-pending-node')
 		) {
@@ -461,6 +463,7 @@
 			store.isDocumentMutationBlocked ||
 			store.isEditorInteractionActive ||
 			store.pendingPlacementAssetId ||
+			store.pendingPlacementPrimitiveKind ||
 			store.pendingNavigationCommand
 		) {
 			return null;
@@ -532,6 +535,7 @@
 			event.altKey ||
 			store.isDocumentMutationBlocked ||
 			store.pendingPlacementAssetId ||
+			store.pendingPlacementPrimitiveKind ||
 			store.pendingNavigationCommand
 		) {
 			return null;
@@ -717,6 +721,20 @@
 				floorHit.roomId,
 				floorHit.intersection.point.toArray() as Vec3,
 				cameraForward.toArray() as Vec3
+			);
+			return;
+		}
+
+		if (store.pendingPlacementPrimitiveKind) {
+			const floorHit = findPlaceableFloorIntersection(intersections);
+			if (!floorHit) {
+				store.setStatusMessage('Click a tagged museum-room floor');
+				return;
+			}
+			const worldPoint = floorHit.intersection.point.toArray() as Vec3;
+			store.createPendingPrimitiveAt(
+				floorHit.roomId,
+				roomLocalPoint(floorHit.roomId, worldPoint)
 			);
 			return;
 		}

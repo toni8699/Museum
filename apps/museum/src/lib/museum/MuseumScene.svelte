@@ -19,7 +19,7 @@
   import NavigationNode from './navigation/NavigationNode.svelte';
   import CameraDirector from './navigation/CameraDirector.svelte';
   import { getParisAssetActivation } from './paris-activation';
-  import MuseumAssets from './MuseumAssets.svelte';
+  import MuseumEntities from './MuseumEntities.svelte';
   import EntranceRoom from './rooms/EntranceRoom.svelte';
   import PolandRoom from './rooms/PolandRoom.svelte';
   import DepartureRoom from './rooms/DepartureRoom.svelte';
@@ -95,7 +95,7 @@
 <PolandRoom />
 <DepartureRoom />
 <ParisSalon preloadHero={parisActivation.preloadParisHero} />
-<MuseumAssets
+<MuseumEntities
   {scene}
   preloadParisHero={parisActivation.preloadParisHero}
   loadParisSalon={parisActivation.loadParisSalon}

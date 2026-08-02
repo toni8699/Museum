@@ -20,6 +20,13 @@
 	const canAddCamera = $derived(
 		!disabled &&
 		!store.pendingPlacementAssetId &&
+		!store.pendingPlacementPrimitiveKind &&
+		!store.pendingNavigationCommand
+	);
+	const canAddPrimitive = $derived(
+		!disabled &&
+		!store.pendingPlacementAssetId &&
+		!store.pendingPlacementPrimitiveKind &&
 		!store.pendingNavigationCommand
 	);
 	const activeSnap = $derived(
@@ -50,6 +57,11 @@
 
 	function addCamera() {
 		if (!store.beginCameraPlacement()) return;
+		addMenuOpen = false;
+	}
+
+	function addPrimitive(kind: 'box' | 'plane' | 'cylinder' | 'sphere') {
+		if (!store.beginPrimitivePlacement(kind)) return;
 		addMenuOpen = false;
 	}
 
@@ -129,7 +141,31 @@
 					disabled={!canAddCamera}
 					onclick={addCamera}
 				>Camera</button>
-				{#if !canAddCamera}
+				<button
+					type="button"
+					role="menuitem"
+					disabled={!canAddPrimitive}
+					onclick={() => addPrimitive('box')}
+				>Box</button>
+				<button
+					type="button"
+					role="menuitem"
+					disabled={!canAddPrimitive}
+					onclick={() => addPrimitive('plane')}
+				>Plane</button>
+				<button
+					type="button"
+					role="menuitem"
+					disabled={!canAddPrimitive}
+					onclick={() => addPrimitive('cylinder')}
+				>Cylinder</button>
+				<button
+					type="button"
+					role="menuitem"
+					disabled={!canAddPrimitive}
+					onclick={() => addPrimitive('sphere')}
+				>Sphere</button>
+				{#if !canAddCamera && !canAddPrimitive}
 					<p>Finish or cancel current interaction first.</p>
 				{/if}
 			</div>

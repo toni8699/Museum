@@ -4,9 +4,11 @@ import legacyRuntimeScene from './__fixtures__/legacy-runtime-scene.json';
 import {
   assertNavigationGraphMatchesScene,
   createNavigationGraph,
+  modelEntityToPlacement,
   museumSceneDocument,
   resolveSceneDocument,
-  type MuseumSceneDocument
+  type MuseumSceneDocument,
+  type SceneModelEntity
 } from './scene';
 import { validateSceneDocument } from './scene-codec';
 
@@ -59,12 +61,16 @@ function reduceCanonicalToLegacyOrigin(resolved: ReturnType<typeof resolveSceneD
 }
 
 function versionOneDocument(): unknown {
-	return {
-		...museumSceneDocument,
-		version: 1,
-		navigationNodes: museumSceneDocument.navigationNodes.map(({ fov: _fov, ...node }) => node),
+  const { entities, ...rest } = museumSceneDocument;
+  return {
+    ...rest,
+    version: 1,
+    objects: entities
+      .filter((entity): entity is SceneModelEntity => entity.kind === 'model')
+      .map(({ kind: _kind, name: _name, ...placement }) => placement),
+    navigationNodes: museumSceneDocument.navigationNodes.map(({ fov: _fov, holdSeconds: _hold, ...node }) => node),
     connections: museumSceneDocument.connections.map(
-      ({ positionPath, viewTracks: _viewTracks, targetWaypoints: _targetWaypoints, ...connection }) => ({
+      ({ positionPath, viewTracks: _viewTracks, targetWaypoints: _targetWaypoints, timing: _timing, ...connection }) => ({
         ...connection,
         positionWaypoints: positionPath.anchors.map(({ id: _id, ...waypoint }) => waypoint)
       })
@@ -72,11 +78,22 @@ function versionOneDocument(): unknown {
   };
 }
 
+function versionThreeDocumentFromCanonical(): unknown {
+  const { entities, ...rest } = museumSceneDocument;
+  return {
+    ...rest,
+    version: 3,
+    objects: entities
+      .filter((entity): entity is SceneModelEntity => entity.kind === 'model')
+      .map(({ kind: _kind, name: _name, ...placement }) => placement)
+  };
+}
+
 describe('resolveSceneDocument', () => {
   it('rejects unknown placement asset IDs at the scene boundary', () => {
     const invalid = {
       ...museumSceneDocument,
-      objects: museumSceneDocument.objects.map((object, index) =>
+      entities: museumSceneDocument.entities.map((object, index) =>
         index === 0 ? { ...object, assetId: 'missing-asset' } : object
       )
     };
@@ -86,7 +103,7 @@ describe('resolveSceneDocument', () => {
 
   it('rejects invalid scene-authoritative placement fallbacks', () => {
     const invalid = JSON.parse(JSON.stringify(museumSceneDocument)) as MuseumSceneDocument;
-    (invalid.objects[0] as unknown as { fallback: string }).fallback = 'not-a-fallback';
+    (invalid.entities[0] as unknown as { fallback: string }).fallback = 'not-a-fallback';
     expect(() => resolveSceneDocument(invalid)).toThrow(/invalid_fallback/);
   });
 
@@ -113,9 +130,13 @@ describe('resolveSceneDocument', () => {
   it('resolves the complete checked-in document with room-local objects intact', () => {
     const resolved = resolveSceneDocument(museumSceneDocument);
 
-    expect(museumSceneDocument.objects).toHaveLength(21);
+    expect(museumSceneDocument.entities).toHaveLength(21);
     expect(museumSceneDocument.navigationNodes).toHaveLength(9);
     expect(museumSceneDocument.connections).toHaveLength(10);
+    expect(resolved.entities).toHaveLength(museumSceneDocument.entities.length);
+    expect(resolved.objects).toHaveLength(
+      museumSceneDocument.entities.filter((entity) => entity.kind === 'model').length
+    );
     expect(
       museumSceneDocument.connections.reduce(
         (count, connection) => count + connection.positionPath.anchors.length,
@@ -135,9 +156,62 @@ describe('resolveSceneDocument', () => {
     for (const object of resolved.objects) {
       expect(() => getRoom(object.roomId)).not.toThrow();
       expect(object.position).toEqual(
-        museumSceneDocument.objects.find((candidate) => candidate.id === object.id)?.position
+        museumSceneDocument.entities.find((candidate) => candidate.id === object.id)?.position
       );
     }
+
+    for (const entity of resolved.entities) {
+      expect(entity).not.toBe(
+        museumSceneDocument.entities.find((candidate) => candidate.id === entity.id)
+      );
+      expect(entity.position).toEqual(
+        museumSceneDocument.entities.find((candidate) => candidate.id === entity.id)?.position
+      );
+    }
+  });
+
+  it('projects primitive and light entities into runtime without converting them to objects', () => {
+    const withExtras: MuseumSceneDocument = {
+      ...museumSceneDocument,
+      entities: [
+        ...museumSceneDocument.entities,
+        {
+          kind: 'primitive',
+          id: 'test-box',
+          name: 'Test Box',
+          roomId: 'paris',
+          position: [1, 0.5, -1],
+          rotation: [0, 0.2, 0],
+          primitive: 'box',
+          dimensions: { width: 1, height: 1, depth: 1 },
+          materialId: 'wood-walnut',
+          castShadow: true,
+          receiveShadow: true
+        },
+        {
+          kind: 'light',
+          id: 'test-point',
+          name: 'Test Point',
+          roomId: 'paris',
+          position: [0, 2.4, 0],
+          rotation: [0, 0, 0],
+          light: 'point',
+          color: '#ffffff',
+          intensity: 1.2,
+          range: 8,
+          castShadow: false
+        }
+      ]
+    };
+
+    const resolved = resolveSceneDocument(withExtras);
+    expect(resolved.entities.some((entity) => entity.id === 'test-box')).toBe(true);
+    expect(resolved.entities.some((entity) => entity.id === 'test-point')).toBe(true);
+    expect(resolved.objects.some((object) => object.id === 'test-box')).toBe(false);
+    expect(resolved.objects.some((object) => object.id === 'test-point')).toBe(false);
+    expect(resolved.objects).toHaveLength(
+      museumSceneDocument.entities.filter((entity) => entity.kind === 'model').length
+    );
   });
 
   it('is deterministic, non-mutating, and independently allocated', () => {
@@ -214,10 +288,12 @@ describe('resolveSceneDocument', () => {
 
   it('resolves mixed-space position and target waypoints with fresh endpoints', () => {
     const document: MuseumSceneDocument = {
-      version: 3,
-      objects: [
+      version: 5,
+      entities: [
         {
+          kind: 'model',
           id: 'scaled-object',
+          name: 'Scaled Object',
           roomId: 'paris',
           assetId: 'paris-book',
           fallback: 'books',
@@ -332,22 +408,24 @@ describe('resolveSceneDocument', () => {
       document.connections[0]!.viewTracks?.forward[0]?.cameraTarget
     );
     expect(connection.viewTracks?.forward[0]).not.toHaveProperty('roomId');
-    expect(resolved.objects[0]).toEqual(document.objects[0]);
-    expect(resolved.objects[0]).not.toBe(document.objects[0]);
-    expect(resolved.objects[0].position).not.toBe(document.objects[0].position);
-  });  it('rejects unsupported versions, duplicate ids, and unknown endpoints', () => {
+    expect(resolved.objects[0]).toEqual(modelEntityToPlacement(document.entities[0] as SceneModelEntity));
+    expect(resolved.objects[0]).not.toBe(document.entities[0]);
+    expect(resolved.objects[0].position).not.toBe(document.entities[0].position);
+  });
+
+  it('rejects unsupported versions, duplicate ids, and unknown endpoints', () => {
 		const cloneDocument = () =>
 			JSON.parse(JSON.stringify(museumSceneDocument)) as MuseumSceneDocument;
 		const unsupported = cloneDocument();
-		(unsupported as unknown as { version: number }).version = 5;
+		(unsupported as unknown as { version: number }).version = 6;
 		expect(() => resolveSceneDocument(unsupported)).toThrow(
-			'Unsupported museum scene document version: 5'
+			'Unsupported museum scene document version: 6'
 		);
 
 		const duplicate = cloneDocument();
-		duplicate.objects.push({ ...duplicate.objects[0] });
+		duplicate.entities.push({ ...duplicate.entities[0] });
 		expect(() => resolveSceneDocument(duplicate)).toThrow(
-			`Duplicate scene object id: ${duplicate.objects[0].id}`
+			`Duplicate scene entity id: ${duplicate.entities[0].id}`
 		);
 
 		const unknownEndpoint = cloneDocument();
@@ -357,21 +435,26 @@ describe('resolveSceneDocument', () => {
 		);
 	});
 
-  it('keeps the canonical version pinned to 3 for the v3 input without timing fields', () => {
-    const clone = JSON.parse(JSON.stringify(museumSceneDocument)) as MuseumSceneDocument;
-    expect(clone.version).toBe(3);
+  it('migrates v3 input without timing fields to canonical v5', () => {
+    const clone = versionThreeDocumentFromCanonical();
+    expect((clone as { version: number }).version).toBe(3);
     const validation = validateSceneDocument(clone);
     expect(validation.success).toBe(true);
     if (validation.success) {
-      expect(validation.document.version).toBe(3);
-      expect(validation.document).toEqual(clone);
+      expect(validation.document.version).toBe(5);
+      expect(validation.document.entities).toHaveLength(museumSceneDocument.entities.length);
+      expect(validation.document.entities[0]).toMatchObject({
+        kind: 'model',
+        id: museumSceneDocument.entities[0]!.id
+      });
     }
   });
 
   it('accepts authored v4 timing and projects it onto runtime scene/instances', () => {
-    const v4: MuseumSceneDocument = {
+    const model = museumSceneDocument.entities[0] as SceneModelEntity;
+    const v4 = {
       version: 4,
-      objects: museumSceneDocument.objects.slice(0, 1),
+      objects: [modelEntityToPlacement(model)],
       navigationNodes: museumSceneDocument.navigationNodes.map((node, index) =>
         index === 1
           ? { ...node, holdSeconds: 2.5 }
@@ -415,9 +498,10 @@ describe('resolveSceneDocument', () => {
   });
 
   it('rejects v4 documents with malformed timing payloads', () => {
-    const v4: MuseumSceneDocument = {
+    const model = museumSceneDocument.entities[0] as SceneModelEntity;
+    const v4 = {
       version: 4,
-      objects: museumSceneDocument.objects.slice(0, 1),
+      objects: [modelEntityToPlacement(model)],
       navigationNodes: museumSceneDocument.navigationNodes,
       connections: [
         {
@@ -434,7 +518,7 @@ describe('resolveSceneDocument', () => {
 
   it('validates editor clusters while keeping runtime rendering flat', () => {
 		const document = JSON.parse(JSON.stringify(museumSceneDocument)) as MuseumSceneDocument;
-		const [first, second] = document.objects;
+		const [first, second] = document.entities;
 		document.clusters = [
 			{
 				id: 'cluster-1',
@@ -444,7 +528,7 @@ describe('resolveSceneDocument', () => {
 			}
 		];
 		const resolved = resolveSceneDocument(document);
-		expect(resolved.objects).toHaveLength(document.objects.length);
+		expect(resolved.objects).toHaveLength(document.entities.length);
 		expect(resolved).not.toHaveProperty('clusters');
 
 		const duplicateMember = JSON.parse(JSON.stringify(document)) as MuseumSceneDocument;
@@ -464,7 +548,7 @@ describe('resolveSceneDocument', () => {
 			id: 'cluster-2',
 			name: 'Duplicate ownership',
 			roomId: first.roomId,
-			memberIds: [first.id, document.objects[2]!.id]
+			memberIds: [first.id, document.entities[2]!.id]
 		});
 		expect(() => resolveSceneDocument(multiple)).toThrow('multiple clusters');
 	});

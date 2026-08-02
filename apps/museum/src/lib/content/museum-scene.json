@@ -1,8 +1,10 @@
 {
-  "version": 3,
-  "objects": [
+  "version": 5,
+  "entities": [
     {
+      "kind": "model",
       "id": "main-piano",
+      "name": "Paris Salon Grand Piano",
       "roomId": "paris",
       "assetId": "paris-grand-piano",
       "fallback": "piano",
@@ -18,7 +20,9 @@
       ]
     },
     {
+      "kind": "model",
       "id": "piano-rug",
+      "name": "Paris Salon Rug",
       "roomId": "paris",
       "assetId": "paris-salon-rug",
       "fallback": "rug",
@@ -34,7 +38,9 @@
       ]
     },
     {
+      "kind": "model",
       "id": "salon-chandelier",
+      "name": "Paris Salon Chandelier",
       "roomId": "paris",
       "assetId": "paris-chandelier",
       "fallback": "chandelier",
@@ -50,7 +56,9 @@
       ]
     },
     {
+      "kind": "model",
       "id": "left-wall-sofa",
+      "name": "Paris Salon Sofa 03",
       "roomId": "paris",
       "assetId": "paris-salon-sofa",
       "fallback": "sofa",
@@ -66,7 +74,9 @@
       ]
     },
     {
+      "kind": "model",
       "id": "sofa-table",
+      "name": "Round Paris Salon Table",
       "roomId": "paris",
       "assetId": "paris-salon-table",
       "fallback": "table",
@@ -82,7 +92,9 @@
       ]
     },
     {
+      "kind": "model",
       "id": "sofa-chair-right",
+      "name": "Upholstered Paris Salon Chair",
       "roomId": "paris",
       "assetId": "paris-salon-chair",
       "fallback": "chair",
@@ -98,7 +110,9 @@
       ]
     },
     {
+      "kind": "model",
       "id": "sofa-chair-front",
+      "name": "Upholstered Paris Salon Chair",
       "roomId": "paris",
       "assetId": "paris-salon-chair",
       "fallback": "chair",
@@ -114,7 +128,9 @@
       ]
     },
     {
+      "kind": "model",
       "id": "front-salon-table",
+      "name": "Round Paris Salon Table",
       "roomId": "paris",
       "assetId": "paris-salon-table",
       "fallback": "table",
@@ -130,7 +146,9 @@
       ]
     },
     {
+      "kind": "model",
       "id": "front-chair-left",
+      "name": "Upholstered Paris Salon Chair",
       "roomId": "paris",
       "assetId": "paris-salon-chair",
       "fallback": "chair",
@@ -146,7 +164,9 @@
       ]
     },
     {
+      "kind": "model",
       "id": "front-chair-center",
+      "name": "Upholstered Paris Salon Chair",
       "roomId": "paris",
       "assetId": "paris-salon-chair",
       "fallback": "chair",
@@ -162,7 +182,9 @@
       ]
     },
     {
+      "kind": "model",
       "id": "front-chair-right",
+      "name": "Upholstered Paris Salon Chair",
       "roomId": "paris",
       "assetId": "paris-salon-chair",
       "fallback": "chair",
@@ -178,7 +200,9 @@
       ]
     },
     {
+      "kind": "model",
       "id": "portrait-liszt",
+      "name": "Paris Portrait Frame",
       "roomId": "paris",
       "assetId": "paris-portrait-frame",
       "fallback": "frame",
@@ -194,7 +218,9 @@
       ]
     },
     {
+      "kind": "model",
       "id": "portrait-delacroix",
+      "name": "Paris Portrait Frame",
       "roomId": "paris",
       "assetId": "paris-portrait-frame",
       "fallback": "frame",
@@ -210,7 +236,9 @@
       ]
     },
     {
+      "kind": "model",
       "id": "portrait-viardot",
+      "name": "Paris Portrait Frame",
       "roomId": "paris",
       "assetId": "paris-portrait-frame",
       "fallback": "frame",
@@ -226,7 +254,9 @@
       ]
     },
     {
+      "kind": "model",
       "id": "portrait-sand",
+      "name": "Paris Portrait Frame",
       "roomId": "paris",
       "assetId": "paris-portrait-frame",
       "fallback": "frame",
@@ -242,7 +272,9 @@
       ]
     },
     {
+      "kind": "model",
       "id": "portrait-pleyel",
+      "name": "Paris Portrait Frame",
       "roomId": "paris",
       "assetId": "paris-portrait-frame",
       "fallback": "frame",
@@ -258,7 +290,9 @@
       ]
     },
     {
+      "kind": "model",
       "id": "publisher-desk",
+      "name": "Paris Writing Desk",
       "roomId": "paris",
       "assetId": "paris-writing-desk",
       "fallback": "desk",
@@ -274,7 +308,9 @@
       ]
     },
     {
+      "kind": "model",
       "id": "publisher-lamp",
+      "name": "Victorian Brass Oil Lamp",
       "roomId": "paris",
       "assetId": "paris-table-lamp",
       "fallback": "lamp",
@@ -290,7 +326,9 @@
       ]
     },
     {
+      "kind": "model",
       "id": "publisher-books",
+      "name": "Paris Salon Book",
       "roomId": "paris",
       "assetId": "paris-book",
       "fallback": "books",
@@ -306,7 +344,9 @@
       ]
     },
     {
+      "kind": "model",
       "id": "teaching-books",
+      "name": "Paris Salon Book",
       "roomId": "paris",
       "assetId": "paris-book",
       "fallback": "books",
@@ -323,7 +363,9 @@
       "scale": 0.82
     },
     {
+      "kind": "model",
       "id": "back-wall-clock",
+      "name": "Paris Grandfather Clock",
       "roomId": "paris",
       "assetId": "paris-grandfather-clock",
       "fallback": "clock",

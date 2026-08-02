@@ -22,7 +22,7 @@ flowchart TB
   Scene --> Shell["MuseumShell"]
   Scene --> Center["CentralChamber"]
   Scene --> Rooms["Room props x7"]
-  Scene --> Assets["MuseumAssets"]
+  Scene --> Assets["MuseumEntities"]
   Scene --> Nodes["NavigationNode"]
   Cam --> State["museumState"]
   HUD --> State
@@ -56,7 +56,7 @@ For the asset handoff workflow and optimization checklist, see [`docs/ASSET_WORK
 |---------|-------|
 | Room poses, dimensions, openings, colors | `rooms.ts` → `museumRooms` |
 | Local ↔ world yaw transforms / room containment | `rooms.ts` |
-| Placements, nodes, tour links, connection paths | `museum-scene.json` v2 |
+| Placements, nodes, tour links, connection paths | `museum-scene.json` v5 (`entities`) |
 | Strict v1/v2 validation, migration, serialization | `scene-codec.ts` |
 | Runtime local → world resolution + generated endpoints | `scene.ts` |
 | Shared PBR catalogue + tile sizes | `materials.ts` |
@@ -81,7 +81,7 @@ apps/museum/src/
   routes/dev/assets/+page.svelte      model preview / inspector
   routes/dev/museum-editor/+page.svelte development-only editor
   lib/content/rooms.ts                DATA: static room architecture/transforms
-  lib/content/museum-scene.json       DATA: placements + navigation schema v2
+  lib/content/museum-scene.json       DATA: entities + navigation schema v5
   lib/content/scene-codec.ts          strict v1/v2 codec + v1 migration
   lib/content/scene.ts                document types + runtime resolver/graph
   lib/content/materials.ts            DATA: PBR material catalogue
@@ -92,7 +92,9 @@ apps/museum/src/
   lib/editor/EditorCameraPathHelpers.svelte editor-only curves/anchors/picking
   lib/museum/MuseumCanvas.svelte      Threlte canvas
   lib/museum/MuseumScene.svelte       visitor/editor-shared scene assembly
-  lib/museum/MuseumAssets.svelte      scene placement rendering
+  lib/museum/MuseumEntities.svelte     scene entity renderer (model/primitive/light)
+  lib/museum/MuseumAssets.svelte       thin alias → MuseumEntities
+  lib/museum/entities/                 EntityPrimitive / EntityLight mounts
   lib/museum/materials/
     MuseumMaterial.svelte             shared MeshStandardMaterial + tiling
     texture-cache.ts                  load/cache/clone/release textures
@@ -142,7 +144,7 @@ apps/museum/src/
 
 ## Conventions for agents
 
-1. Edit `rooms.ts` for architecture. Edit/export `museum-scene.json` for placements, nodes, paths, and tour data.
+1. Edit `rooms.ts` for architecture. Edit/export `museum-scene.json` for entities, nodes, paths, and tour data.
 2. Keep persisted connection anchors interior-only and stable-ID based; let resolver derive endpoints.
 3. Prefer room-local anchors for room-owned geometry. Use `roomPoint()` / `roomLocalPoint()`; respect yaw-aware containment.
 4. Eye height is typically **1.65 m**; target height typically **1.25 m**; default target distance **3 m**; default clearance **0.35 m**.

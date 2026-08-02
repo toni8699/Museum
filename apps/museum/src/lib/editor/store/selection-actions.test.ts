@@ -19,7 +19,12 @@ function createHarness(objects: Array<{ id: string; roomId: string }> = []) {
 	selection.bindSession(new EditorSessionState());
 
 	const document = {
-		objects,
+		version: 5,
+		entities: objects.map((object) => ({
+			kind: 'model' as const,
+			name: object.id,
+			...object
+		})),
 		connections: [],
 		navigationNodes: [],
 		clusters: [] as SceneObjectCluster[]
@@ -108,7 +113,7 @@ function createHarness(objects: Array<{ id: string; roomId: string }> = []) {
 		ensureClusterTreeExpanded: () => {},
 		isPlacementSelectable: (id: string) => {
 			const roomId = host.selectedRoomId;
-			return document.objects.some(
+			return document.entities.some(
 				(object) => object.id === id && (object as { roomId: string }).roomId === roomId
 			);
 		},

@@ -15,8 +15,8 @@ import {
 
 function createDocument(): MuseumSceneDocument {
 	return {
-		version: 3,
-		objects: [],
+		version: 5,
+		entities: [],
 		navigationNodes: [
 			{
 				id: 'a',

@@ -15,13 +15,23 @@ function cloneDocument() {
 	return JSON.parse(JSON.stringify(museumSceneDocument)) as MuseumSceneDocument;
 }
 
+function modelPlacementsFromDocument(document: MuseumSceneDocument) {
+	return document.entities
+		.filter((entity): entity is Extract<typeof entity, { kind: 'model' }> => entity.kind === 'model')
+		.map(({ kind: _kind, name: _name, ...placement }) => placement);
+}
+
 function versionTwoDocument(): unknown {
 	const document = cloneDocument();
+	const { entities: _entities, ...rest } = document;
 	return {
-		...document,
+		...rest,
 		version: 2,
-		navigationNodes: document.navigationNodes.map(({ fov: _fov, ...node }) => node),
-		connections: document.connections.map(({ viewTracks: _viewTracks, ...connection }) => connection)
+		objects: modelPlacementsFromDocument(document),
+		navigationNodes: document.navigationNodes.map(({ fov: _fov, holdSeconds: _hold, ...node }) => node),
+		connections: document.connections.map(
+			({ viewTracks: _viewTracks, timing: _timing, ...connection }) => connection
+		)
 	};
 }
 
@@ -57,7 +67,7 @@ describe('scene document codec', () => {
 		const json = serializeSceneDocument(museumSceneDocument);
 		const parsed = parseSceneDocumentJson(json);
 
-		expect(json).toMatch(/^\{\n  "version": 3,\n  "objects": \[/);
+		expect(json).toMatch(/^\{\n  "version": 5,\n  "entities": \[/);
 		expect(json).toContain('\n  "navigationNodes": [');
 		expect(json).not.toContain('\n  "clusters":');
 		expect(json.endsWith('\n')).toBe(true);
@@ -69,13 +79,13 @@ describe('scene document codec', () => {
 	it('canonicalizes numeric spelling while preserving array order and optional empty arrays', () => {
 		const document = cloneDocument();
 		document.clusters = [];
-		document.objects[0]!.position[0] = -0;
+		document.entities[0]!.position[0] = -0;
 		const json = serializeSceneDocument(document);
 		const parsed = JSON.parse(json) as MuseumSceneDocument;
 
 		expect(json).toContain('"clusters": []');
-		expect(Object.is(parsed.objects[0]!.position[0], -0)).toBe(false);
-		expect(parsed.objects.map((object) => object.id)).toEqual(document.objects.map((object) => object.id));
+		expect(Object.is(parsed.entities[0]!.position[0], -0)).toBe(false);
+		expect(parsed.entities.map((object) => object.id)).toEqual(document.entities.map((object) => object.id));
 	});
 
 	it('reports malformed JSON separately and rejects strict unknown or null fields', () => {
@@ -106,8 +116,8 @@ describe('scene document codec', () => {
 			{
 				id: 'empty-name',
 				name: 'Cluster',
-				roomId: document.objects[0]!.roomId,
-				memberIds: [document.objects[0]!.id, document.objects[0]!.id]
+				roomId: document.entities[0]!.roomId,
+				memberIds: [document.entities[0]!.id, document.entities[0]!.id]
 			}
 		];
 		const result = validateSceneDocument(document);
@@ -135,7 +145,7 @@ describe('scene document codec', () => {
 		if (!result.success) expect(result.issues).toContainEqual(expect.objectContaining({ code: 'invalid_tour_cycle' }));
 	});
 
-	it('strictly validates version 1 before deterministic migration to canonical version 3', () => {
+	it('strictly validates version 1 before deterministic migration to canonical version 5', () => {
 		const legacy = versionOneDocument() as {
 			connections: Array<Record<string, unknown>>;
 		};
@@ -148,7 +158,8 @@ describe('scene document codec', () => {
 		expect(result.success).toBe(true);
 		if (!result.success) return;
 		expect(JSON.stringify(legacy)).toBe(before);
-		expect(result.document.version).toBe(3);
+		expect(result.document.version).toBe(5);
+		expect(result.document.entities.every((entity) => entity.kind === 'model')).toBe(true);
 		expect(result.document.navigationNodes.every((node) => node.fov === 54)).toBe(true);
 		expect(result.document.connections.every((connection) => connection.positionPath.kind === 'rounded-polyline')).toBe(true);
 		expect(
@@ -160,7 +171,7 @@ describe('scene document codec', () => {
 				connection.positionPath.anchors.map((anchor) => anchor.id)
 			)
 		);
-		expect(result.canonicalJson).toContain('"version": 3');
+		expect(result.canonicalJson).toContain('"version": 5');
 		expect(result.canonicalJson).not.toContain('positionWaypoints');
 		expect(result.document.connections[0]!.targetWaypoints).toEqual(
 			legacy.connections[0]!.targetWaypoints
@@ -171,7 +182,7 @@ describe('scene document codec', () => {
 		expect(repeated).toEqual(result);
 	});
 
-	it('migrates version 2 directly to v3 while preserving dormant target waypoints', () => {
+	it('migrates version 2 directly to v5 while preserving dormant target waypoints', () => {
 		const legacy = versionTwoDocument() as {
 			connections: Array<Record<string, unknown>>;
 		};
@@ -185,7 +196,7 @@ describe('scene document codec', () => {
 		expect(result.success).toBe(true);
 		if (!result.success) return;
 		expect(JSON.stringify(legacy)).toBe(before);
-		expect(result.document.version).toBe(3);
+		expect(result.document.version).toBe(5);
 		expect(result.document.navigationNodes.every((node) => node.fov === 54)).toBe(true);
 		expect(result.document.connections.every((connection) => !connection.viewTracks)).toBe(true);
 		expect(result.document.connections[0]!.targetWaypoints).toEqual(
@@ -544,5 +555,79 @@ describe('scene document codec', () => {
 				expect.objectContaining({ code: 'invalid_path_kind' })
 			);
 		}
+	});
+
+	it('validates and round-trips primitive and light entities on v5', () => {
+		const document = cloneDocument();
+		document.entities.push(
+			{
+				kind: 'primitive',
+				id: 'box-01',
+				name: 'Box',
+				roomId: 'paris',
+				primitive: 'box',
+				dimensions: { width: 1, height: 0.5, depth: 2 },
+				materialId: 'wood-walnut',
+				castShadow: true,
+				receiveShadow: true,
+				position: [0, 0, 0],
+				rotation: [0, 0, 0]
+			},
+			{
+				kind: 'light',
+				id: 'spot-01',
+				name: 'Spot',
+				roomId: 'paris',
+				light: 'spot',
+				color: '#ffcc88',
+				intensity: 2,
+				range: 8,
+				angle: Math.PI / 6,
+				penumbra: 0.25,
+				castShadow: false,
+				position: [0, 3, 0],
+				rotation: [-0.5, 0, 0]
+			}
+		);
+
+		const result = validateSceneDocument(document);
+		expect(result.success).toBe(true);
+		if (!result.success) return;
+		expect(result.document.version).toBe(5);
+		expect(result.document.entities.some((entity) => entity.kind === 'primitive')).toBe(true);
+		expect(result.document.entities.some((entity) => entity.kind === 'light')).toBe(true);
+		expect(serializeSceneDocument(result.document)).toBe(result.canonicalJson);
+
+		const badBox = cloneDocument();
+		badBox.entities.push({
+			kind: 'primitive',
+			id: 'bad-box',
+			name: 'Bad',
+			roomId: 'paris',
+			primitive: 'box',
+			dimensions: { width: 0, height: 1, depth: 1 },
+			materialId: 'wood-walnut',
+			castShadow: true,
+			receiveShadow: false,
+			position: [0, 0, 0],
+			rotation: [0, 0, 0]
+		});
+		expectIssue(badBox, 'invalid_dimension', '$.entities[21].dimensions.width');
+
+		const badLight = cloneDocument();
+		badLight.entities.push({
+			kind: 'light',
+			id: 'bad-dir',
+			name: 'Dir',
+			roomId: 'paris',
+			light: 'directional',
+			color: '#ffffff',
+			intensity: 1,
+			range: 4,
+			castShadow: true,
+			position: [0, 4, 0],
+			rotation: [0, 0, 0]
+		} as never);
+		expectIssue(badLight, 'unexpected_property', '$.entities[21].range');
 	});
 });

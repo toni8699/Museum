@@ -319,8 +319,8 @@ Alt is placement-only. Curves/anchors ignore Alt. Visitor preview and pending pl
 - Timeline Play, top-bar Preview Tour, and bottom transport Play promote the current global playhead into whole-tour playback. Pause/resume retain position; completed playback restarts at zero.
 - Preview adds no history and restores exact pre-preview Orbit/camera state on Stop, Escape, completion teardown, or repeated cycles.
 - Editor session is a deep clone. One transaction creates at most one history entry; invalid/no-op/cancel creates none.
-- Browser Copy/Download exports canonical v3 but never writes repository files or clears dirty state.
-- Valid v1/v2/v3 import normalizes to v3. Replace checked-in JSON manually, then test/build.
+- Browser Copy/Download exports canonical v5 but never writes repository files or clears dirty state.
+- Valid v1–v5 import normalizes to v5. Replace checked-in JSON manually, then test/build.
 
 ### Camera-key progress dragging
 

@@ -111,7 +111,7 @@ export function degreesToRadians(value: number) {
 }
 
 export function placementTransformFromDocument(
-	placement: SceneObjectPlacement
+	placement: Pick<SceneObjectPlacement, 'position' | 'rotation' | 'scale'>
 ): PlacementTransform {
 	return {
 		position: [...placement.position],
@@ -149,7 +149,7 @@ export function enforceUniformObjectScale(root: Object3D, axis: string | null) {
 }
 
 export function writePlacementTransform(
-	placement: SceneObjectPlacement,
+	placement: Pick<SceneObjectPlacement, 'position' | 'rotation' | 'scale'>,
 	transform: PlacementTransform
 ) {
 	if (!isValidPlacementTransform(transform)) return false;

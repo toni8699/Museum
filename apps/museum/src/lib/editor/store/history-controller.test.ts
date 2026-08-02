@@ -11,8 +11,8 @@ import { EditorHistoryController } from './history-controller.svelte';
 
 function fingerprint(doc: MuseumSceneDocument): MuseumSceneDocument {
 	const next = cloneMuseumSceneDocument(doc);
-	const first = next.objects[0];
-	if (!first) throw new Error('museumSceneDocument has no objects');
+	const first = next.entities[0];
+	if (!first) throw new Error('museumSceneDocument has no entities');
 	first.rotation = [
 		first.rotation[0],
 		first.rotation[1] + 0.001,
@@ -47,8 +47,8 @@ describe('EditorHistoryController', () => {
 		expect(result.type).toBe('doc');
 		expect(history.pastDepth).toBe(1);
 		expect(history.version).toBeGreaterThan(0);
-		expect(document.document.objects[0]!.rotation[1]).not.toBe(
-			museumSceneDocument.objects[0]!.rotation[1]
+		expect(document.document.entities[0]!.rotation[1]).not.toBe(
+			museumSceneDocument.entities[0]!.rotation[1]
 		);
 	});
 
@@ -75,18 +75,18 @@ describe('EditorHistoryController', () => {
 
 	it('undo() restores the previous document, redo() restores the future one', () => {
 		const { document, history } = makeControllers();
-		const originalRotation = museumSceneDocument.objects[0]!.rotation[1];
+		const originalRotation = museumSceneDocument.entities[0]!.rotation[1];
 		// Mutation A
 		expect(history.beginDocument()).toBe(true);
 		history.commit(fingerprint(museumSceneDocument));
-		const aRotation = document.document.objects[0]!.rotation[1];
+		const aRotation = document.document.entities[0]!.rotation[1];
 		expect(aRotation).not.toBe(originalRotation);
 		// Mutation B
 		expect(history.beginDocument()).toBe(true);
 		const b = fingerprint(museumSceneDocument);
-		b.objects[0]!.rotation[1] = aRotation + 0.002;
+		b.entities[0]!.rotation[1] = aRotation + 0.002;
 		history.commit(b);
-		const bRotation = document.document.objects[0]!.rotation[1];
+		const bRotation = document.document.entities[0]!.rotation[1];
 		expect(bRotation).not.toBe(aRotation);
 		expect(history.pastDepth).toBe(2);
 		expect(history.canUndo).toBe(true);
@@ -94,24 +94,24 @@ describe('EditorHistoryController', () => {
 
 		// Undo B → A
 		expect(history.undo()).toBe(true);
-		expect(document.document.objects[0]!.rotation[1]).toBe(aRotation);
+		expect(document.document.entities[0]!.rotation[1]).toBe(aRotation);
 		expect(history.canUndo).toBe(true);
 		expect(history.canRedo).toBe(true);
 
 		// Undo A → original
 		expect(history.undo()).toBe(true);
-		expect(document.document.objects[0]!.rotation[1]).toBe(originalRotation);
+		expect(document.document.entities[0]!.rotation[1]).toBe(originalRotation);
 		expect(history.canUndo).toBe(false);
 		expect(history.canRedo).toBe(true);
 
 		// Redo → A
 		expect(history.redo()).toBe(true);
-		expect(document.document.objects[0]!.rotation[1]).toBe(aRotation);
+		expect(document.document.entities[0]!.rotation[1]).toBe(aRotation);
 	});
 
 	it('cancel() restores the pre-transaction snapshot', () => {
 		const { document, history } = makeControllers();
-		const originalRotation = museumSceneDocument.objects[0]!.rotation[1];
+		const originalRotation = museumSceneDocument.entities[0]!.rotation[1];
 
 		// Sanity: undo is not blocked at the start of a fresh transaction.
 		expect(history.isDocumentUndoBlocked).toBe(false);
@@ -121,10 +121,10 @@ describe('EditorHistoryController', () => {
 		// Mutate externally (simulates the caller doing work between
 		// begin and cancel).
 		document.replace(fingerprint(museumSceneDocument));
-		expect(document.document.objects[0]!.rotation[1]).not.toBe(originalRotation);
+		expect(document.document.entities[0]!.rotation[1]).not.toBe(originalRotation);
 
 		expect(history.cancel()).toBe(true);
-		expect(document.document.objects[0]!.rotation[1]).toBe(originalRotation);
+		expect(document.document.entities[0]!.rotation[1]).toBe(originalRotation);
 		expect(history.isDocumentUndoBlocked).toBe(false);
 	});
 
@@ -159,7 +159,7 @@ describe('EditorHistoryController', () => {
 		history.commit(first);
 		expect(history.beginDocument()).toBe(true);
 		const second = fingerprint(museumSceneDocument);
-		second.objects[0]!.rotation[1] = first.objects[0]!.rotation[1] + 0.005;
+		second.entities[0]!.rotation[1] = first.entities[0]!.rotation[1] + 0.005;
 		history.commit(second);
 		expect(history.pastDepth).toBe(2);
 		expect(history.undo()).toBe(true);
@@ -196,11 +196,11 @@ describe('EditorHistoryController', () => {
 	it('commit without beginDocument refuses (no-op + clears the state)', () => {
 		const { history, document } = makeControllers();
 		// Snapshot the document before the no-op commit.
-		const beforeRotation = document.document.objects[0]!.rotation[1];
+		const beforeRotation = document.document.entities[0]!.rotation[1];
 		const result = history.commit(fingerprint(museumSceneDocument));
 		expect(result).toEqual({ changed: false, type: null, error: null });
 		// No listener fired (no transaction was open), so the document
 		// is unchanged. assert it stayed put.
-		expect(document.document.objects[0]!.rotation[1]).toBe(beforeRotation);
+		expect(document.document.entities[0]!.rotation[1]).toBe(beforeRotation);
 	});
 });

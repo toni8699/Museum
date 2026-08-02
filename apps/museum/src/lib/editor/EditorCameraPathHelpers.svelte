@@ -170,6 +170,7 @@
 			store.isVisitorCameraPreview ||
 			store.pendingPlacementAssetId ||
 			store.pendingPlacementPrimitiveKind ||
+			store.pendingPlacementLightKind ||
 			store.pendingNavigationCommand
 		);
 		const document = store.document;

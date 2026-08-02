@@ -22,16 +22,29 @@ import { isMaterialId } from '$lib/content/materials';
 import type {
 	MuseumSceneDocument,
 	SceneEntity,
+	SceneLightEntity,
+	SceneLightKind,
 	SceneModelEntity,
 	SceneObjectCluster,
 	ScenePrimitiveDimensions,
 	ScenePrimitiveEntity,
 	ScenePrimitiveKind
 } from '$lib/content/scene';
-import { cloneSceneEntity, isScenePrimitiveEntity } from '$lib/content/scene';
+import {
+	cloneSceneEntity,
+	isSceneLightEntity,
+	isScenePrimitiveEntity
+} from '$lib/content/scene';
 import type { MaterialId } from '$lib/types/materials';
 import type { MuseumRoomId, Vec3 } from '$lib/types/museum';
 import { reserveEntityId } from '../editor-assets';
+import {
+	applyLightFieldPatch,
+	createLightEntity,
+	DEFAULT_LIGHT_HEIGHT,
+	lightDisplayName,
+	type LightFieldPatch
+} from '../editor-lights';
 import {
 	createPrimitiveEntity,
 	normalizePrimitiveDimensions,
@@ -65,6 +78,7 @@ export interface EditorPlacementClusterMutatorHost {
 	selectedClusterId: string | null;
 	pendingPlacementAssetId: string | null;
 	pendingPlacementPrimitiveKind: ScenePrimitiveKind | null;
+	pendingPlacementLightKind: SceneLightKind | null;
 
 	// Status + session glue.
 	setStatusMessage(message: string | null): void;
@@ -125,6 +139,7 @@ export class EditorPlacementClusterMutator {
 
 		this.host.cancelPendingNavigation();
 		this.host.pendingPlacementPrimitiveKind = null;
+		this.host.pendingPlacementLightKind = null;
 		this.selectionActions.selectRoom('paris');
 		this.host.pendingPlacementAssetId = asset.id;
 		this.host.setNavigationHover(null);
@@ -136,9 +151,11 @@ export class EditorPlacementClusterMutator {
 		if (this.host.isDocumentMutationBlocked) return false;
 		const changed =
 			this.host.pendingPlacementAssetId !== null ||
-			this.host.pendingPlacementPrimitiveKind !== null;
+			this.host.pendingPlacementPrimitiveKind !== null ||
+			this.host.pendingPlacementLightKind !== null;
 		this.host.pendingPlacementAssetId = null;
 		this.host.pendingPlacementPrimitiveKind = null;
+		this.host.pendingPlacementLightKind = null;
 		if (message) this.host.setStatusMessage(message);
 		return changed;
 	}
@@ -149,6 +166,7 @@ export class EditorPlacementClusterMutator {
 		}
 		this.host.cancelPendingNavigation();
 		this.host.pendingPlacementAssetId = null;
+		this.host.pendingPlacementLightKind = null;
 		this.host.pendingPlacementPrimitiveKind = kind;
 		this.host.setNavigationHover(null);
 		this.host.setStatusMessage(
@@ -158,6 +176,25 @@ export class EditorPlacementClusterMutator {
 	}
 
 	cancelPrimitivePlacement(message?: string) {
+		return this.cancelAssetPlacement(message);
+	}
+
+	beginLightPlacement(kind: SceneLightKind) {
+		if (this.host.isDocumentMutationBlocked || this.host.isEditorInteractionActive) {
+			return false;
+		}
+		this.host.cancelPendingNavigation();
+		this.host.pendingPlacementAssetId = null;
+		this.host.pendingPlacementPrimitiveKind = null;
+		this.host.pendingPlacementLightKind = kind;
+		this.host.setNavigationHover(null);
+		this.host.setStatusMessage(
+			`Click a tagged museum-room floor to place ${lightDisplayName(kind)}`
+		);
+		return true;
+	}
+
+	cancelLightPlacement(message?: string) {
 		return this.cancelAssetPlacement(message);
 	}
 
@@ -307,6 +344,103 @@ export class EditorPlacementClusterMutator {
 	private findPrimitive(id: string): ScenePrimitiveEntity | undefined {
 		const entity = this.host.document.entities.find((candidate) => candidate.id === id);
 		return entity && isScenePrimitiveEntity(entity) ? entity : undefined;
+	}
+
+	createPendingLightAt(roomId: MuseumRoomId, position: Vec3) {
+		if (this.host.isDocumentMutationBlocked || this.host.isEditorInteractionActive) {
+			return null;
+		}
+		const kind = this.host.pendingPlacementLightKind;
+		if (!kind) return null;
+
+		const reservedIds = new Set(this.host.document.entities.map((object) => object.id));
+		const id = reserveEntityId(`${kind}-light-placement`, reservedIds);
+		const placement = createLightEntity({
+			id,
+			kind,
+			roomId,
+			position: [position[0], DEFAULT_LIGHT_HEIGHT, position[2]]
+		});
+
+		if (!this.host.beginDocumentTransaction()) return null;
+		this.host.document.entities.push(placement);
+		if (!this.host.commitDocumentTransaction()) return null;
+
+		this.host.pendingPlacementLightKind = null;
+		this.selectionActions.selectPlacementFromTree(id, { focus: false });
+		this.host.setStatusMessage(`Placed ${placement.name}`);
+		return id;
+	}
+
+	updateLightName(id: string, name: string) {
+		if (this.host.isDocumentMutationBlocked || this.host.isEditorInteractionActive) {
+			return false;
+		}
+		const nextName = name.trim();
+		if (!nextName) {
+			this.host.setStatusMessage('Light name cannot be empty');
+			return false;
+		}
+		const entity = this.findLight(id);
+		if (!entity || entity.name === nextName) return false;
+		if (!this.host.beginDocumentTransaction()) return false;
+		entity.name = nextName;
+		return this.host.commitDocumentTransaction();
+	}
+
+	updateLightFields(id: string, patch: LightFieldPatch) {
+		if (this.host.isDocumentMutationBlocked || this.host.isEditorInteractionActive) {
+			return false;
+		}
+		const entity = this.findLight(id);
+		if (!entity) return false;
+		if (
+			patch.color === undefined &&
+			patch.intensity === undefined &&
+			patch.range === undefined &&
+			patch.angle === undefined &&
+			patch.penumbra === undefined &&
+			patch.castShadow === undefined
+		) {
+			return false;
+		}
+
+		const probe = cloneSceneEntity(entity);
+		if (!isSceneLightEntity(probe)) return false;
+		const error = applyLightFieldPatch(probe, patch);
+		if (error) {
+			this.host.setStatusMessage(error);
+			return false;
+		}
+
+		const same =
+			probe.color === entity.color &&
+			probe.intensity === entity.intensity &&
+			probe.castShadow === entity.castShadow &&
+			((entity.light === 'directional' && probe.light === 'directional') ||
+				(entity.light === 'point' &&
+					probe.light === 'point' &&
+					probe.range === entity.range) ||
+				(entity.light === 'spot' &&
+					probe.light === 'spot' &&
+					probe.range === entity.range &&
+					probe.angle === entity.angle &&
+					probe.penumbra === entity.penumbra));
+		if (same) return false;
+
+		if (!this.host.beginDocumentTransaction()) return false;
+		const applyError = applyLightFieldPatch(entity, patch);
+		if (applyError) {
+			this.host.cancelDocumentTransaction();
+			this.host.setStatusMessage(applyError);
+			return false;
+		}
+		return this.host.commitDocumentTransaction();
+	}
+
+	private findLight(id: string): SceneLightEntity | undefined {
+		const entity = this.host.document.entities.find((candidate) => candidate.id === id);
+		return entity && isSceneLightEntity(entity) ? entity : undefined;
 	}
 
 	requestDropToFloor() {
@@ -478,8 +612,8 @@ export class EditorPlacementClusterMutator {
 
 		for (const sourceId of sourceOrder) {
 			const source = sourceById.get(sourceId);
-			if (!source || source.kind === 'light') {
-				this.host.setStatusMessage('Selection contains an unsupported entity');
+			if (!source) {
+				this.host.setStatusMessage('Selection contains an unavailable placement');
 				return false;
 			}
 			const copyId = reserveEntityId(`${source.id}-copy`, reservedPlacementIds);

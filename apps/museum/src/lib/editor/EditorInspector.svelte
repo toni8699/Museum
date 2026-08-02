@@ -1,9 +1,10 @@
 <script lang="ts">
 	import { resolveAssetFallback } from '$lib/content/assets';
-	import { isSceneModelEntity, isScenePrimitiveEntity } from '$lib/content/scene';
+	import { isSceneLightEntity, isSceneModelEntity, isScenePrimitiveEntity } from '$lib/content/scene';
 	import type { MuseumAsset } from '$lib/types/assets';
 	import { tick } from 'svelte';
 	import EditorCameraInspector from './EditorCameraInspector.svelte';
+	import EditorLightInspector from './EditorLightInspector.svelte';
 	import EditorPlacementInspector from './EditorPlacementInspector.svelte';
 	import EditorPrimitiveInspector from './EditorPrimitiveInspector.svelte';
 	import EditorTransformInspector from './EditorTransformInspector.svelte';
@@ -47,6 +48,11 @@
 			? singleSelectedEntity
 			: undefined
 	);
+	const singleLight = $derived(
+		singleSelectedEntity && isSceneLightEntity(singleSelectedEntity)
+			? singleSelectedEntity
+			: undefined
+	);
 	const selectionContainsClusteredPlacement = $derived(
 		store.selectedPlacementIds.some((id) => store.clusteredPlacementIds.has(id))
 	);
@@ -58,13 +64,7 @@
 	const hasPlacementSelection = $derived(
 		Boolean(store.selectedCluster) || store.selectedPlacementIds.length > 0
 	);
-	const canDuplicateSelection = $derived(
-		store.selectedPlacementIds.length > 0 &&
-			store.selectedPlacementIds.every((id) => {
-				const entity = store.document.entities.find((candidate) => candidate.id === id);
-				return entity ? entity.kind !== 'light' : false;
-			})
-	);
+	const canDuplicateSelection = $derived(store.selectedPlacementIds.length > 0);
 
 	$effect(() => {
 		clusterNameDraft = store.selectedCluster?.name ?? '';
@@ -243,6 +243,14 @@
 			</section>
 			{#key singlePrimitive.id}
 				<EditorPrimitiveInspector {store} />
+				<EditorTransformInspector {store} />
+			{/key}
+		{:else if singleLight}
+			<section class="selection" aria-label="Selection">
+				<button type="button" class="deselect" onclick={() => store.selectionActions.deselect()}>Deselect object</button>
+			</section>
+			{#key singleLight.id}
+				<EditorLightInspector {store} />
 				<EditorTransformInspector {store} />
 			{/key}
 		{:else if singleSelectedEntity}

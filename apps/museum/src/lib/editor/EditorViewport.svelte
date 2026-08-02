@@ -32,6 +32,7 @@
 	class:placing={Boolean(
 		store.pendingPlacementAssetId ||
 		store.pendingPlacementPrimitiveKind ||
+			store.pendingPlacementLightKind ||
 		store.pendingNavigationCommand?.kind === 'place-camera'
 	)}
 	class:bending={Boolean(store.hoveredConnectionId || store.hoveredAnchorId)}
@@ -72,7 +73,7 @@
 				{#if store.pendingNavigationCommand?.kind === 'connect-pending-node'}
 					<EditorCameraHelpers {store} nodeId={store.pendingNavigationCommand.node.id} />
 				{/if}
-			{:else if store.cameraSelection && !store.pendingPlacementAssetId && !store.pendingPlacementPrimitiveKind && !store.isCameraFramingMutationBlocked}
+			{:else if store.cameraSelection && !store.pendingPlacementAssetId && !store.pendingPlacementPrimitiveKind && !store.pendingPlacementLightKind && !store.isCameraFramingMutationBlocked}
 				{#key store.cameraSelection.nodeId}
 					<EditorCameraHelpers {store} nodeId={store.cameraSelection.nodeId} />
 				{/key}
@@ -105,6 +106,11 @@
 	{#if store.pendingPlacementPrimitiveKind}
 		<div class="placement-hint" role="status">
 			Click a tagged room floor to place · Escape cancels
+		</div>
+	{/if}
+	{#if store.pendingPlacementLightKind}
+		<div class="placement-hint" role="status">
+			Click a tagged room floor to place light · Escape cancels
 		</div>
 	{/if}
 	{#if store.pendingNavigationCommand?.kind === 'place-camera'}

@@ -1,6 +1,6 @@
 # Museum Editor Workspace Releases
 
-**Status:** Active release authority. Phases 1–3 complete (through 3.6). Complete-refactor slices 1–9.5 landed. **Phase 4.1–4.3 complete (schema v5 + entity renderer + primitive create).** Next gate: Phase 4.4 light creation.
+**Status:** Active release authority. Phases 1–3 complete (through 3.6). Complete-refactor slices 1–9.5 landed. **Phase 4.1–4.4 complete (schema v5 + entity renderer + primitive/light create).** Next gate: Phase 4.5 browser/production verification.
 **Locked decisions:** one looped guided tour; `Scene` and `Camera` workspaces; camera placement accepts any tagged room floor.
 **History:** completed phase 1–3 plans and handoffs live under [`../../archive/`](../../archive/README.md).
 

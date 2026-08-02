@@ -5,6 +5,7 @@ import {
 	type RuntimeMuseumScene,
 	type SceneCameraViewKeyframe,
 	type SceneObjectCluster,
+	type SceneLightKind,
 	type ScenePrimitiveDimensions,
 	type ScenePrimitiveKind
 } from '$lib/content/scene';
@@ -52,6 +53,7 @@ import {
 	findSceneCameraViewKeyframe,
 	getSceneCameraViewKeyframeWorldTarget
 } from './editor-camera-view';
+import type { LightFieldPatch } from './editor-lights';
 import {
 	cameraTimelineEdgePlayheadAtProgress,
 	cameraTimelineProgressAtEdgeProgress,
@@ -827,6 +829,12 @@ export class MuseumEditorStore {
 			set pendingPlacementPrimitiveKind(value) {
 				self.pendingPlacementPrimitiveKind = value;
 			},
+			get pendingPlacementLightKind() {
+				return self.pendingPlacementLightKind;
+			},
+			set pendingPlacementLightKind(value) {
+				self.pendingPlacementLightKind = value;
+			},
 			setStatusMessage: (message) => self.setStatusMessage(message),
 			setNavigationHover: (connectionId, anchorId) =>
 				self.setNavigationHover(connectionId, anchorId ?? null),
@@ -1154,6 +1162,12 @@ export class MuseumEditorStore {
 	}
 	set pendingPlacementPrimitiveKind(value: ScenePrimitiveKind | null) {
 		this.session.setPendingPlacementPrimitiveKind(value);
+	}
+	get pendingPlacementLightKind(): SceneLightKind | null {
+		return this.session.pendingPlacementLightKind;
+	}
+	set pendingPlacementLightKind(value: SceneLightKind | null) {
+		this.session.setPendingPlacementLightKind(value);
 	}
 	get pendingNavigationCommand(): EditorPendingNavigationCommand {
 		return this.session.pendingNavigationCommand;
@@ -1549,6 +1563,7 @@ export class MuseumEditorStore {
 			this.isCameraPreviewPlaying ||
 			this.pendingPlacementAssetId ||
 			this.pendingPlacementPrimitiveKind ||
+			this.pendingPlacementLightKind ||
 			this.pendingNavigationCommand
 		) {
 			return false;
@@ -2786,6 +2801,7 @@ export class MuseumEditorStore {
 			this.isDocumentMutationBlocked ||
 			this.pendingPlacementAssetId ||
 			this.pendingPlacementPrimitiveKind ||
+			this.pendingPlacementLightKind ||
 			this.pendingNavigationCommand
 		) {
 			connectionId = null;
@@ -2870,6 +2886,26 @@ export class MuseumEditorStore {
 		shadows: { castShadow?: boolean; receiveShadow?: boolean }
 	) {
 		return this.placementClusterMutator.updatePrimitiveShadows(id, shadows);
+	}
+
+	beginLightPlacement(kind: SceneLightKind) {
+		return this.placementClusterMutator.beginLightPlacement(kind);
+	}
+
+	cancelLightPlacement(message?: string) {
+		return this.placementClusterMutator.cancelLightPlacement(message);
+	}
+
+	createPendingLightAt(roomId: MuseumRoomId, position: Vec3) {
+		return this.placementClusterMutator.createPendingLightAt(roomId, position);
+	}
+
+	updateLightName(id: string, name: string) {
+		return this.placementClusterMutator.updateLightName(id, name);
+	}
+
+	updateLightFields(id: string, patch: LightFieldPatch) {
+		return this.placementClusterMutator.updateLightFields(id, patch);
 	}
 
 	beginCameraPlacement() {

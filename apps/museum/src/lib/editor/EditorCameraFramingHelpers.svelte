@@ -87,7 +87,8 @@
 			store.currentWorkspace !== 'camera' ||
 			store.isCameraPreviewPlaying ||
 			store.pendingPlacementAssetId ||
-			store.pendingPlacementPrimitiveKind
+			store.pendingPlacementPrimitiveKind ||
+			store.pendingPlacementLightKind
 		) {
 			return null;
 		}

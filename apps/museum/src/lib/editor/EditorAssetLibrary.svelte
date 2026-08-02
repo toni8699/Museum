@@ -2,6 +2,7 @@
 	import { museumAssets } from '$lib/content/assets';
 	import type { AssetCategory, MuseumAsset } from '$lib/types/assets';
 	import { listAssetLibraryItems, type AssetLibraryStatusFilter } from './editor-assets';
+	import { LIGHT_LIBRARY, type LightLibraryItem } from './editor-lights';
 	import { PRIMITIVE_LIBRARY, type PrimitiveLibraryItem } from './editor-primitives';
 	import type { MuseumEditorStore } from './museum-editor.svelte';
 
@@ -14,12 +15,13 @@
 	} = $props();
 
 	const categories = [...new Set(museumAssets.map((asset) => asset.category))];
-	let libraryTab = $state<'models' | 'shapes'>('models');
+	let libraryTab = $state<'models' | 'shapes' | 'lights'>('models');
 	let query = $state('');
 	let category = $state<AssetCategory | ''>('');
 	let status = $state<AssetLibraryStatusFilter>('usable');
 	let selectedAssetId = $state<string | null>(null);
 	let selectedShapeKind = $state<(typeof PRIMITIVE_LIBRARY)[number]['kind'] | null>(null);
+	let selectedLightKind = $state<(typeof LIGHT_LIBRARY)[number]['kind'] | null>(null);
 
 	const assets = $derived(
 		listAssetLibraryItems({
@@ -43,6 +45,18 @@
 	const selectedShape = $derived(
 		shapes.find((item) => item.kind === selectedShapeKind) ?? shapes[0]
 	);
+	const lights = $derived(
+		LIGHT_LIBRARY.filter((item) => {
+			const needle = query.trim().toLocaleLowerCase();
+			if (!needle) return true;
+			return [item.kind, item.name, item.description].some((value) =>
+				value.toLocaleLowerCase().includes(needle)
+			);
+		})
+	);
+	const selectedLight = $derived(
+		lights.find((item) => item.kind === selectedLightKind) ?? lights[0]
+	);
 
 	$effect(() => {
 		onselectionchange?.(libraryTab === 'models' ? selectedAsset : undefined);
@@ -58,8 +72,17 @@
 		libraryTab = 'shapes';
 	}
 
+	function selectLight(item: LightLibraryItem) {
+		selectedLightKind = item.kind;
+		libraryTab = 'lights';
+	}
+
 	function placeShape(item: PrimitiveLibraryItem) {
 		store.beginPrimitivePlacement(item.kind);
+	}
+
+	function placeLight(item: LightLibraryItem) {
+		store.beginLightPlacement(item.kind);
 	}
 </script>
 
@@ -79,6 +102,13 @@
 			class:active={libraryTab === 'shapes'}
 			onclick={() => (libraryTab = 'shapes')}
 		>Shapes</button>
+		<button
+			type="button"
+			role="tab"
+			aria-selected={libraryTab === 'lights'}
+			class:active={libraryTab === 'lights'}
+			onclick={() => (libraryTab = 'lights')}
+		>Lights</button>
 	</div>
 
 	<div class="filters">
@@ -131,7 +161,7 @@
 		{#if !selectedAsset}
 			<p class="empty">No assets match these filters.</p>
 		{/if}
-	{:else}
+	{:else if libraryTab === 'shapes'}
 		<p class="count">{shapes.length} shape{shapes.length === 1 ? '' : 's'}</p>
 		<ul class="asset-list shape-list">
 			{#each shapes as shape (shape.kind)}
@@ -164,12 +194,45 @@
 		{:else}
 			<p class="empty">No shapes match these filters.</p>
 		{/if}
+	{:else}
+		<p class="count">{lights.length} light{lights.length === 1 ? '' : 's'}</p>
+		<ul class="asset-list shape-list">
+			{#each lights as light (light.kind)}
+				<li>
+					<button
+						type="button"
+						class:selected={selectedLight?.kind === light.kind}
+						class:placing={store.pendingPlacementLightKind === light.kind}
+						onclick={() => selectLight(light)}
+						ondblclick={() => placeLight(light)}
+					>
+						<span class="shape-thumb" data-kind={light.kind} aria-hidden="true"></span>
+						<strong>{light.name}</strong>
+						<span>{light.description}</span>
+					</button>
+				</li>
+			{/each}
+		</ul>
+		{#if selectedLight}
+			<button
+				type="button"
+				class="place"
+				class:active={store.pendingPlacementLightKind === selectedLight.kind}
+				onclick={() => placeLight(selectedLight)}
+			>
+				{store.pendingPlacementLightKind === selectedLight.kind
+					? 'Placing…'
+					: `Place ${selectedLight.name}`}
+			</button>
+		{:else}
+			<p class="empty">No lights match these filters.</p>
+		{/if}
 	{/if}
 </section>
 
 <style>
 	.library, .filters { display: flex; flex-direction: column; gap: 0.65rem; }
-	.library-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 0.3rem; }
+	.library-tabs { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.3rem; }
 	.library-tabs button { padding: 0.42rem; border: 1px solid #3a3a46; border-radius: 0.32rem; background: #1a1a22; color: #a8a29a; font: inherit; font-size: 0.73rem; cursor: pointer; }
 	.library-tabs button.active { border-color: #d6b35f; background: #2a2618; color: #fff2c7; }
 	.filters label { display: flex; flex: 1; flex-direction: column; gap: 0.25rem; color: #a8a29a; font-size: 0.68rem; }
@@ -213,6 +276,21 @@
 	.shape-thumb[data-kind='sphere'] {
 		background: radial-gradient(circle at 35% 30%, #e2d2b0, #8a6d42 55%, #2a2618 100%);
 		border-radius: 999px;
+	}
+	.shape-thumb[data-kind='point'] {
+		background: radial-gradient(circle at center, #fff4e0 0 28%, #d6b35f 29% 42%, transparent 43%), #1a1a22;
+	}
+	.shape-thumb[data-kind='spot'] {
+		background:
+			linear-gradient(180deg, #fff4e0 0 18%, transparent 19%),
+			conic-gradient(from 210deg at 50% 20%, transparent 0 40%, #d6b35f 41% 59%, transparent 60%);
+		background-color: #1a1a22;
+	}
+	.shape-thumb[data-kind='directional'] {
+		background:
+			linear-gradient(135deg, transparent 40%, #d6b35f 41% 59%, transparent 60%),
+			linear-gradient(135deg, #fff4e0, transparent 55%),
+			#1a1a22;
 	}
 	.place {
 		padding: 0.5rem 0.7rem;

@@ -21,14 +21,17 @@
 		!disabled &&
 		!store.pendingPlacementAssetId &&
 		!store.pendingPlacementPrimitiveKind &&
+		!store.pendingPlacementLightKind &&
 		!store.pendingNavigationCommand
 	);
 	const canAddPrimitive = $derived(
 		!disabled &&
 		!store.pendingPlacementAssetId &&
 		!store.pendingPlacementPrimitiveKind &&
+		!store.pendingPlacementLightKind &&
 		!store.pendingNavigationCommand
 	);
+	const canAddLight = $derived(canAddPrimitive);
 	const activeSnap = $derived(
 		hasPlacementSelection &&
 		store.transformGizmoVisible &&
@@ -62,6 +65,11 @@
 
 	function addPrimitive(kind: 'box' | 'plane' | 'cylinder' | 'sphere') {
 		if (!store.beginPrimitivePlacement(kind)) return;
+		addMenuOpen = false;
+	}
+
+	function addLight(kind: 'point' | 'spot' | 'directional') {
+		if (!store.beginLightPlacement(kind)) return;
 		addMenuOpen = false;
 	}
 
@@ -165,6 +173,24 @@
 					disabled={!canAddPrimitive}
 					onclick={() => addPrimitive('sphere')}
 				>Sphere</button>
+				<button
+					type="button"
+					role="menuitem"
+					disabled={!canAddLight}
+					onclick={() => addLight('point')}
+				>Point Light</button>
+				<button
+					type="button"
+					role="menuitem"
+					disabled={!canAddLight}
+					onclick={() => addLight('spot')}
+				>Spot Light</button>
+				<button
+					type="button"
+					role="menuitem"
+					disabled={!canAddLight}
+					onclick={() => addLight('directional')}
+				>Directional Light</button>
 				{#if !canAddCamera && !canAddPrimitive}
 					<p>Finish or cancel current interaction first.</p>
 				{/if}

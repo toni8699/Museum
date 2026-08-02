@@ -886,6 +886,124 @@ describe('MuseumEditorStore Phase 4.3 primitive creation', () => {
 	});
 });
 
+describe('MuseumEditorStore Phase 4.4 light creation', () => {
+	it('arms light placement and clears other pending modes', () => {
+		const store = createMuseumEditorStore();
+		expect(store.beginAssetPlacement('paris-salon-chair')).toBe(true);
+		expect(store.beginLightPlacement('point')).toBe(true);
+		expect(store.pendingPlacementAssetId).toBeNull();
+		expect(store.pendingPlacementPrimitiveKind).toBeNull();
+		expect(store.pendingPlacementLightKind).toBe('point');
+		expect(store.statusMessage).toMatch(/floor/i);
+
+		expect(store.beginPrimitivePlacement('box')).toBe(true);
+		expect(store.pendingPlacementLightKind).toBeNull();
+		expect(store.pendingPlacementPrimitiveKind).toBe('box');
+	});
+
+	it('creates room-local lights with defaults and one undo entry', () => {
+		const store = createMuseumEditorStore();
+		expect(store.beginLightPlacement('spot')).toBe(true);
+		const id = store.createPendingLightAt('workshop', [1.25, 0.01, -0.5]);
+		expect(id).toBe('spot-light-placement');
+		const entity = store.document.entities.find((candidate) => candidate.id === id);
+		expect(entity).toMatchObject({
+			kind: 'light',
+			light: 'spot',
+			name: 'Spot Light',
+			roomId: 'workshop',
+			position: [1.25, 2.5, -0.5],
+			rotation: [0, 0, 0],
+			color: '#fff4e0',
+			intensity: 1,
+			range: 8,
+			angle: Math.PI / 6,
+			penumbra: 0.15,
+			castShadow: false
+		});
+		expect(store.pendingPlacementLightKind).toBeNull();
+		expect(store.primaryPlacementId).toBe(id);
+		expect(store.selectedRoomId).toBe('workshop');
+
+		expect(store.undo()).toBe(true);
+		expect(store.document.entities.some((candidate) => candidate.id === id)).toBe(false);
+		expect(store.redo()).toBe(true);
+		expect(store.document.entities.some((candidate) => candidate.id === id)).toBe(true);
+	});
+
+	it('preserves yawed-room local XZ across create', () => {
+		const store = createMuseumEditorStore();
+		const expectedLocal: [number, number, number] = [1.5, 0.01, -1];
+		const world = roomPoint('paris', expectedLocal);
+		const local = roomLocalPoint('paris', world);
+		store.beginLightPlacement('directional');
+		const id = store.createPendingLightAt('paris', local)!;
+		const documentPosition = store.document.entities.find((entity) => entity.id === id)!
+			.position;
+		expect(documentPosition[0]).toBeCloseTo(expectedLocal[0], 8);
+		expect(documentPosition[1]).toBe(2.5);
+		expect(documentPosition[2]).toBeCloseTo(expectedLocal[2], 8);
+	});
+
+	it('commits name and light fields as atomic history entries', () => {
+		const store = createMuseumEditorStore();
+		store.beginLightPlacement('point');
+		const id = store.createPendingLightAt('paris', [0, 0.01, 0])!;
+
+		expect(store.updateLightName(id, 'Salon Key')).toBe(true);
+		expect(store.updateLightFields(id, { intensity: 2, range: 12, castShadow: true })).toBe(
+			true
+		);
+		expect(store.document.entities.find((entity) => entity.id === id)).toMatchObject({
+			name: 'Salon Key',
+			intensity: 2,
+			range: 12,
+			castShadow: true
+		});
+
+		expect(store.updateLightFields(id, { range: -1 })).toBe(false);
+		expect(store.document.entities.find((candidate) => candidate.id === id)).toMatchObject({
+			range: 12
+		});
+
+		expect(store.undo()).toBe(true);
+		expect(store.document.entities.find((candidate) => candidate.id === id)).toMatchObject({
+			intensity: 1,
+			range: 8,
+			castShadow: false
+		});
+	});
+
+	it('duplicates lights with offset copies and undo', () => {
+		const store = createMuseumEditorStore();
+		store.beginLightPlacement('point');
+		const id = store.createPendingLightAt('paris', [0, 0.01, 0])!;
+		store.selectionActions.selectPlacement(id);
+		expect(store.duplicateSelection()).toBe(true);
+		const copy = store.document.entities.find((entity) => entity.id === `${id}-copy`);
+		expect(copy).toMatchObject({
+			kind: 'light',
+			light: 'point',
+			position: [0.5, 2.5, 0.5]
+		});
+		expect(store.undo()).toBe(true);
+		expect(store.document.entities.some((entity) => entity.id === `${id}-copy`)).toBe(false);
+	});
+
+	it('cancels light placement on escape path and mutual clear', () => {
+		const store = createMuseumEditorStore();
+		expect(store.beginLightPlacement('directional')).toBe(true);
+		expect(store.cancelLightPlacement('Placement cancelled')).toBe(true);
+		expect(store.pendingPlacementLightKind).toBeNull();
+		expect(store.statusMessage).toBe('Placement cancelled');
+
+		store.beginLightPlacement('spot');
+		store.beginAssetPlacement('paris-salon-chair');
+		expect(store.pendingPlacementLightKind).toBeNull();
+		expect(store.pendingPlacementAssetId).toBe('paris-salon-chair');
+	});
+});
+
 describe('editor room camera framing', () => {
 	it('centers the target in Paris and follows its authored yaw', () => {
 		const room = getRoom('paris');

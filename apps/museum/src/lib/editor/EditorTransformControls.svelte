@@ -103,6 +103,7 @@
 			pendingPlacement: Boolean(
 				store.pendingPlacementAssetId ||
 				store.pendingPlacementPrimitiveKind ||
+				store.pendingPlacementLightKind ||
 				(store.pendingNavigationCommand &&
 					store.pendingNavigationCommand.kind !== 'connect-pending-node')
 			),

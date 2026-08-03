@@ -19,7 +19,9 @@
 import type {
 	EditorCameraFocusKind,
 	EditorLeftPanel,
+	EditorPendingMaterialEdit,
 	EditorPendingNavigationCommand,
+	EditorTextureLoadState,
 	EditorTransformInteractionKind,
 	EditorTransformSpace,
 	EditorViewKeyframeProgressDragSelection,
@@ -33,6 +35,9 @@ import {
 } from '../editor-placement';
 import type { CameraConnectionDirection, MuseumRoomId } from '$lib/types/museum';
 import type { SceneLightKind, ScenePrimitiveKind } from '$lib/content/scene';
+
+/** Phase 5.2 — Phase 4.5 gate, fixed cap of recently used texture ids. */
+const RECENT_TEXTURE_ID_LIMIT = 8;
 
 const STATUS_MESSAGE_MS = 2500;
 
@@ -392,5 +397,39 @@ export class EditorSessionState {
 
 	cancelViewKeyframeProgressDrag() {
 		this.viewKeyframeProgressDrag = null;
+	}
+
+	// ============================================================
+	// Phase 5.2: texture load + recently used + pending material edit.
+	// All session-only — reset/import/undo/redo never touch these slots.
+	// ============================================================
+
+	recentTextureIds = $state<string[]>([]);
+	textureLoadStates = $state<Record<string, EditorTextureLoadState>>({});
+	pendingMaterialEdit = $state<EditorPendingMaterialEdit | null>(null);
+
+	markTextureRecentlyUsed(textureId: string) {
+		const trimmed = textureId?.trim();
+		if (!trimmed) return;
+		const existing = this.recentTextureIds;
+		const dedup = existing.filter((id) => id !== trimmed);
+		this.recentTextureIds = [trimmed, ...dedup].slice(0, RECENT_TEXTURE_ID_LIMIT);
+	}
+
+	setTextureLoadState(uri: string, state: EditorTextureLoadState) {
+		const next = { ...this.textureLoadStates };
+		next[uri] = state;
+		this.textureLoadStates = next;
+	}
+
+	clearTextureLoadState(uri: string) {
+		if (!(uri in this.textureLoadStates)) return;
+		const next = { ...this.textureLoadStates };
+		delete next[uri];
+		this.textureLoadStates = next;
+	}
+
+	setPendingMaterialEdit(request: EditorPendingMaterialEdit | null) {
+		this.pendingMaterialEdit = request;
 	}
 }

@@ -20,7 +20,7 @@
 import type { CameraConnectionDirection, MuseumRoomId } from '$lib/types/museum';
 import type { SceneNavigationNode } from '$lib/content/scene';
 import type { EditorCameraHandle } from './editor-selection';
-
+import type { MaterialId } from '$lib/types/materials';
 // =====================================================================
 // Lighting preset slot shape (god file lines 141-147).
 // =====================================================================
@@ -195,3 +195,43 @@ export type NavigationSelection =
 			direction: CameraConnectionDirection;
 			keyframeId: string;
 	  };
+
+// =====================================================================
+// Phase 5.2 session-only material edit + texture load state.
+// =====================================================================
+
+/** Per-field patch a Material inspector / drop sends into the mutator. `null`
+ * removes the optional override. */
+export type MaterialInstancePatch = {
+	baseMaterialId?: MaterialId;
+	baseTextureId?: string | null;
+	roughness?: number | null;
+	metalness?: number | null;
+};
+
+/** Decision the user makes for a shared-first-assignment dialog. */
+export type MaterialShareMode = 'make-unique' | 'edit-shared';
+
+export type MaterialEditDecision = {
+	baseMaterialId?: MaterialId;
+	shareMode?: MaterialShareMode;
+};
+
+/** Why the editor is waiting for user input before committing a material edit. */
+export type EditorPendingMaterialEdit = {
+	entityId: string;
+	/** Model first assignment requires an explicit catalogue base. */
+	needsBaseMaterial: boolean;
+	/** Non-null when the target instance is shared (Make unique / Edit shared). */
+	sharedMaterialInstanceId: string | null;
+	/** Patch the dialog will re-apply on confirm. */
+	patch: MaterialInstancePatch;
+	/** Texture id when this pending edit is a texture assignment (for recents). */
+	recentTextureId: string | null;
+};
+
+/** Browser image load + import status for one safe texture URI. */
+export type EditorTextureLoadState =
+	| { status: 'loading' }
+	| { status: 'ready' }
+	| { status: 'error'; message: string };

@@ -1,9 +1,15 @@
 <script lang="ts">
 	import { museumAssets } from '$lib/content/assets';
 	import type { AssetCategory, MuseumAsset } from '$lib/types/assets';
+	import type { SceneTextureAsset } from '$lib/content/scene';
 	import { listAssetLibraryItems, type AssetLibraryStatusFilter } from './editor-assets';
 	import { LIGHT_LIBRARY, type LightLibraryItem } from './editor-lights';
 	import { PRIMITIVE_LIBRARY, type PrimitiveLibraryItem } from './editor-primitives';
+	import {
+		filterTextureLibraryItems,
+		orderRecentlyUsedTextures,
+		TEXTURE_DRAG_MIME
+	} from './editor-textures';
 	import type { MuseumEditorStore } from './museum-editor.svelte';
 
 	let {
@@ -15,13 +21,17 @@
 	} = $props();
 
 	const categories = [...new Set(museumAssets.map((asset) => asset.category))];
-	let libraryTab = $state<'models' | 'shapes' | 'lights'>('models');
+	let libraryTab = $state<'models' | 'shapes' | 'lights' | 'textures'>('models');
 	let query = $state('');
 	let category = $state<AssetCategory | ''>('');
 	let status = $state<AssetLibraryStatusFilter>('usable');
 	let selectedAssetId = $state<string | null>(null);
 	let selectedShapeKind = $state<(typeof PRIMITIVE_LIBRARY)[number]['kind'] | null>(null);
 	let selectedLightKind = $state<(typeof LIGHT_LIBRARY)[number]['kind'] | null>(null);
+	let selectedTextureId = $state<string | null>(null);
+	let nameDraft = $state('');
+	let uriDraft = $state('');
+	let registering = $state(false);
 
 	const assets = $derived(
 		listAssetLibraryItems({
@@ -58,8 +68,30 @@
 		lights.find((item) => item.kind === selectedLightKind) ?? lights[0]
 	);
 
+	// Phase 5.2 — texture library views. Search spans name + URI; recents are
+	// session-only and filtered to textures still present in the document.
+	const allTextures = $derived(store.document.textures);
+	const textureItems = $derived(filterTextureLibraryItems(allTextures, query));
+	const orderedTextures = $derived(orderRecentlyUsedTextures(textureItems, store.recentTextureIds));
+	const recentTextures = $derived(
+		store.recentTextureIds
+			.map((id) => allTextures.find((texture) => texture.id === id))
+			.filter((texture): texture is SceneTextureAsset => texture !== undefined)
+			.filter((texture) => filterTextureLibraryItems([texture], query).length > 0)
+	);
+
 	$effect(() => {
 		onselectionchange?.(libraryTab === 'models' ? selectedAsset : undefined);
+	});
+
+	// Probe any document texture that has not yet been observed this session.
+	// Failed probes stay session-only; Retry re-probes the same URI.
+	$effect(() => {
+		if (libraryTab !== 'textures') return;
+		for (const texture of allTextures) {
+			const state = store.textureLoadStates[texture.uri];
+			if (!state) void store.probeTexture(texture.id);
+		}
 	});
 
 	function selectAsset(asset: MuseumAsset) {
@@ -77,12 +109,54 @@
 		libraryTab = 'lights';
 	}
 
+	function selectTexture(texture: SceneTextureAsset) {
+		selectedTextureId = texture.id;
+		libraryTab = 'textures';
+	}
+
 	function placeShape(item: PrimitiveLibraryItem) {
 		store.beginPrimitivePlacement(item.kind);
 	}
 
 	function placeLight(item: LightLibraryItem) {
 		store.beginLightPlacement(item.kind);
+	}
+
+	function textureLoadState(texture: SceneTextureAsset) {
+		return store.textureLoadStates[texture.uri];
+	}
+
+	function isTextureReady(texture: SceneTextureAsset) {
+		return store.textureLoadStates[texture.uri]?.status === 'ready';
+	}
+
+	async function submitTextureRegistration(event: SubmitEvent) {
+		event.preventDefault();
+		if (registering) return;
+		registering = true;
+		try {
+			const textureId = await store.registerTexture(nameDraft, uriDraft);
+			if (!textureId) return;
+			selectedTextureId = textureId;
+			nameDraft = '';
+			uriDraft = '';
+		} finally {
+			registering = false;
+		}
+	}
+
+	function retryTextureProbe(texture: SceneTextureAsset) {
+		void store.probeTexture(texture.id);
+	}
+
+	function startTextureDrag(event: DragEvent, texture: SceneTextureAsset) {
+		if (!isTextureReady(texture)) return;
+		const transfer = event.dataTransfer;
+		if (!transfer) return;
+		// Custom MIME only — never publish text/plain so camera-tree and
+		// timeline drop handlers stay untouched.
+		transfer.setData(TEXTURE_DRAG_MIME, texture.id);
+		transfer.effectAllowed = 'copy';
 	}
 </script>
 
@@ -109,12 +183,23 @@
 			class:active={libraryTab === 'lights'}
 			onclick={() => (libraryTab = 'lights')}
 		>Lights</button>
+		<button
+			type="button"
+			role="tab"
+			aria-selected={libraryTab === 'textures'}
+			class:active={libraryTab === 'textures'}
+			onclick={() => (libraryTab = 'textures')}
+		>Textures</button>
 	</div>
 
 	<div class="filters">
 		<label>
 			<span>Search</span>
-			<input bind:value={query} type="search" placeholder="Name, ID, or category" />
+			<input
+				bind:value={query}
+				type="search"
+				placeholder={libraryTab === 'textures' ? 'Name or URI' : 'Name, ID, or category'}
+			/>
 		</label>
 		{#if libraryTab === 'models'}
 			<div class="filter-row">
@@ -194,7 +279,7 @@
 		{:else}
 			<p class="empty">No shapes match these filters.</p>
 		{/if}
-	{:else}
+	{:else if libraryTab === 'lights'}
 		<p class="count">{lights.length} light{lights.length === 1 ? '' : 's'}</p>
 		<ul class="asset-list shape-list">
 			{#each lights as light (light.kind)}
@@ -227,12 +312,94 @@
 		{:else}
 			<p class="empty">No lights match these filters.</p>
 		{/if}
+	{:else}
+		<p class="count">{textureItems.length} texture{textureItems.length === 1 ? '' : 's'}</p>
+
+		<form class="register" onsubmit={submitTextureRegistration}>
+			<label>
+				<span>Name</span>
+				<input
+					bind:value={nameDraft}
+					type="text"
+					placeholder="Warm Stone"
+					autocomplete="off"
+				/>
+			</label>
+			<label>
+				<span>Public URI</span>
+				<input
+					bind:value={uriDraft}
+					type="text"
+					placeholder="/textures/warm-stone/map.png"
+					autocomplete="off"
+				/>
+			</label>
+			<button type="submit" class="register-button" disabled={registering || !uriDraft.trim()}>
+				{registering ? 'Checking…' : 'Register texture'}
+			</button>
+			<p class="hint">Root-relative public paths only. The image must load and decode before it is registered.</p>
+		</form>
+
+		{#if recentTextures.length > 0}
+			<section class="recents" aria-label="Recently used textures">
+				<h3>Recently used</h3>
+				<ul class="recent-list">
+					{#each recentTextures as texture (texture.id)}
+						<li>
+							<button type="button" class:selected={selectedTextureId === texture.id} onclick={() => selectTexture(texture)}>
+								<span class="recent-dot" aria-hidden="true"></span>
+								{texture.name}
+							</button>
+						</li>
+					{/each}
+				</ul>
+			</section>
+		{/if}
+
+		{#if orderedTextures.length > 0}
+			<ul class="texture-grid">
+				{#each orderedTextures as texture (texture.id)}
+					{@const state = textureLoadState(texture)}
+					<li class="texture-card" class:selected={selectedTextureId === texture.id}>
+						<button
+							type="button"
+							class="thumb"
+							class:selected={selectedTextureId === texture.id}
+							onclick={() => selectTexture(texture)}
+							ondragstart={state?.status === 'ready' ? (event) => startTextureDrag(event, texture) : undefined}
+							draggable={state?.status === 'ready'}
+							aria-label={`${texture.name} — ${texture.uri}`}
+						>
+							{#if state?.status === 'loading'}
+								<span class="thumb-status" role="status">Loading…</span>
+							{:else if state?.status === 'error'}
+								<span class="thumb-status error" role="status">Load failed</span>
+							{:else}
+								<img src={texture.uri} alt="" loading="lazy" />
+							{/if}
+							<strong>{texture.name}</strong>
+							<span class="uri">{texture.uri}</span>
+						</button>
+						{#if state?.status === 'error'}
+							<button type="button" class="retry" onclick={() => retryTextureProbe(texture)}>Retry</button>
+						{/if}
+					</li>
+				{/each}
+			</ul>
+			{#if textureItems.length === 0}
+				<p class="empty">No textures match these filters.</p>
+			{/if}
+		{:else}
+			<p class="empty">
+				{textureItems.length === 0 ? 'No textures registered yet — add one above.' : ''}
+			</p>
+		{/if}
 	{/if}
 </section>
 
 <style>
 	.library, .filters { display: flex; flex-direction: column; gap: 0.65rem; }
-	.library-tabs { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.3rem; }
+	.library-tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.3rem; }
 	.library-tabs button { padding: 0.42rem; border: 1px solid #3a3a46; border-radius: 0.32rem; background: #1a1a22; color: #a8a29a; font: inherit; font-size: 0.73rem; cursor: pointer; }
 	.library-tabs button.active { border-color: #d6b35f; background: #2a2618; color: #fff2c7; }
 	.filters label { display: flex; flex: 1; flex-direction: column; gap: 0.25rem; color: #a8a29a; font-size: 0.68rem; }
@@ -303,4 +470,33 @@
 	}
 	.place.active { border-color: #d6b35f; }
 	.place:hover { background: #35301f; }
+
+	/* Phase 5.2 — texture registration + library */
+	.register { display: flex; flex-direction: column; gap: 0.45rem; padding: 0.7rem; border: 1px solid #34313a; border-radius: 0.45rem; background: #17171f; }
+	.register label { display: flex; flex-direction: column; gap: 0.25rem; color: #a8a29a; font-size: 0.68rem; }
+	.register input { min-width: 0; padding: 0.42rem; border: 1px solid #3a3a46; border-radius: 0.32rem; background: #1a1a22; color: #f4efe4; font: inherit; font-size: 0.74rem; }
+	.register input:focus { outline: 1px solid #d6b35f; border-color: #d6b35f; }
+	.register-button { padding: 0.46rem 0.58rem; border: 1px solid #8d753c; border-radius: 0.32rem; background: #242018; color: #fff2c7; font: inherit; font-size: 0.73rem; cursor: pointer; }
+	.register-button:hover:not(:disabled) { background: #35301f; }
+	.register-button:disabled { opacity: 0.45; cursor: default; }
+	.register .hint { margin: 0; color: #918c84; font-size: 0.66rem; line-height: 1.4; }
+	.recents { display: flex; flex-direction: column; gap: 0.35rem; }
+	.recents h3 { margin: 0; font-size: 0.72rem; font-weight: 650; color: #d6c7a8; }
+	.recent-list { display: flex; flex-direction: column; gap: 0.22rem; margin: 0; padding: 0; list-style: none; }
+	.recent-list button { display: flex; align-items: center; gap: 0.4rem; padding: 0.32rem 0.42rem; border: 1px solid transparent; border-radius: 0.3rem; background: #16161d; color: #f4efe4; font: inherit; font-size: 0.72rem; text-align: left; cursor: pointer; }
+	.recent-list button:hover { border-color: #3a3a46; background: #202029; }
+	.recent-list button.selected { border-color: #d6b35f; background: #2a2618; }
+	.recent-dot { width: 0.42rem; height: 0.42rem; border-radius: 999px; background: #d6b35f; }
+	.texture-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.45rem; margin: 0; padding: 0; list-style: none; }
+	.texture-card { display: flex; flex-direction: column; gap: 0.28rem; min-width: 0; }
+	.thumb { display: flex; flex-direction: column; gap: 0.28rem; min-width: 0; padding: 0.4rem; border: 1px solid #3a3a46; border-radius: 0.36rem; background: #16161d; color: #f4efe4; text-align: left; cursor: pointer; }
+	.thumb:hover { border-color: #5b4d2a; background: #1e1e27; }
+	.thumb.selected { border-color: #d6b35f; background: #2a2618; }
+	.thumb img { width: 100%; height: 4.2rem; object-fit: cover; border-radius: 0.24rem; background: #1a1a22; }
+	.thumb-status { display: flex; align-items: center; justify-content: center; width: 100%; height: 4.2rem; border-radius: 0.24rem; background: #1a1a22; color: #918c84; font-size: 0.66rem; }
+	.thumb-status.error { color: #efc7c7; }
+	.thumb strong { font-size: 0.72rem; overflow-wrap: anywhere; }
+	.thumb .uri { color: #918c84; font-size: 0.62rem; overflow-wrap: anywhere; }
+	.retry { align-self: flex-start; padding: 0.26rem 0.5rem; border: 1px solid #684147; border-radius: 0.28rem; background: #21191b; color: #efc7c7; font: inherit; font-size: 0.66rem; cursor: pointer; }
+	.retry:hover { background: #2c1d20; }
 </style>

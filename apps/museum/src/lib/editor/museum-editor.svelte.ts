@@ -93,6 +93,12 @@ import {
 	EditorPathAnchorMutator,
 	type EditorPathAnchorMutatorHost
 } from './store/path-anchor-mutator.svelte';
+import {
+	EditorMaterialResourceMutator,
+	type EditorMaterialResourceMutatorHost
+} from './store/material-resource-mutator.svelte';
+import { createTextureVerifier, type TextureVerifier } from './texture-verifier';
+import { isSafeTextureUri } from '$lib/content/texture-uri';
 
 /**
  * Slice 4 helper — translate the legacy `EditorNavigationSelection` shape
@@ -176,6 +182,10 @@ import type {
 	EditorTransformSpace,
 	EditorCameraFocusKind,
 	EditorTransformInteractionKind,
+	EditorPendingMaterialEdit,
+	EditorTextureLoadState,
+	MaterialEditDecision,
+	MaterialInstancePatch,
 	NavigationSelection
 } from './museum-editor.types';
 // Re-exports below keep the pre-slice public surface compiling unchanged.
@@ -897,6 +907,26 @@ export class MuseumEditorStore {
 		};
 	}
 
+	#createMaterialResourceMutatorHost(): EditorMaterialResourceMutatorHost {
+		const self = this;
+		return {
+			get isDocumentMutationBlocked() {
+				return self.isDocumentMutationBlocked;
+			},
+			get isEditorInteractionActive() {
+				return self.isEditorInteractionActive;
+			},
+			get document() {
+				return self.document;
+			},
+			setStatusMessage: (message) => self.setStatusMessage(message),
+			beginDocumentTransaction: () => self.beginDocumentTransaction(),
+			commitDocumentTransaction: () => self.commitDocumentTransaction(),
+			cancelDocumentTransaction: () => self.cancelDocumentTransaction(),
+			markTextureRecentlyUsed: (textureId) => self.session.markTextureRecentlyUsed(textureId)
+		};
+	}
+
 	constructor(options: MuseumEditorStoreOptions = {}) {
 		this.documentStore = new EditorDocumentStore(options.document);
 		this.previewController = new EditorCameraPreviewController(this.documentStore);
@@ -948,6 +978,10 @@ export class MuseumEditorStore {
 		this.pathAnchorMutator = new EditorPathAnchorMutator(
 			this.#createPathAnchorMutatorHost()
 		);
+		this.materialResourceMutator = new EditorMaterialResourceMutator(
+			this.#createMaterialResourceMutatorHost()
+		);
+		this.textureVerifier = options.textureVerifier ?? createTextureVerifier();
 		this.selectionStore.bindSession(this.session);
 		// Sub-store selection reconciliation (defect #2 fix). Closes the
 		// pre-slice gap where #reconcileSelection() only ran via the explicit
@@ -1276,6 +1310,18 @@ export class MuseumEditorStore {
 	 */
 	readonly pathAnchorMutator: EditorPathAnchorMutator;
 
+	/**
+	 * Phase 5.2 — texture registration / material-instance assignment mutator.
+	 * Facade methods below delegate to it.
+	 */
+	readonly materialResourceMutator: EditorMaterialResourceMutator;
+
+	/**
+	 * Phase 5.2 — editor-only image load/decode verifier. Browser default;
+	 * tests inject a deterministic loader through `MuseumEditorStoreOptions`.
+	 */
+	private readonly textureVerifier: TextureVerifier;
+
 	/** Slice 2 — registry of every Object3D helper + placement root. */
 	private readonly roots = new EditorSceneRoots();
 	#cancelTransform: (() => boolean) | null = null;
@@ -1391,6 +1437,17 @@ export class MuseumEditorStore {
 	}
 	get viewportShowFraming() {
 		return this.session.viewportShowFraming;
+	}
+
+	/** Phase 5.2 — session-only texture library state (never serialized). */
+	get recentTextureIds(): string[] {
+		return this.session.recentTextureIds;
+	}
+	get textureLoadStates(): Record<string, EditorTextureLoadState> {
+		return this.session.textureLoadStates;
+	}
+	get pendingMaterialEdit(): EditorPendingMaterialEdit | null {
+		return this.session.pendingMaterialEdit;
 	}
 
 	/**
@@ -3041,6 +3098,177 @@ export class MuseumEditorStore {
 		return this.placementClusterMutator.deletePlacement(id);
 	}
 
+	// ===================================================================
+	// Phase 5.2 — texture library + material-instance assignment facade
+	// ===================================================================
+
+	/**
+	 * Register a verified public texture URI. Exact trimmed-URI duplicates
+	 * reuse the existing texture with no history. Verification happens
+	 * before any document transaction begins.
+	 */
+	async registerTexture(name: string, uri: string): Promise<string | null> {
+		const trimmedName = name.trim();
+		const trimmedUri = uri.trim();
+		if (!trimmedUri || !isSafeTextureUri(trimmedUri)) {
+			this.setStatusMessage('Texture URI must be a safe root-relative public path');
+			return null;
+		}
+		// Reuse an existing exact URI before verification (no history).
+		const existing = this.document.textures.find((texture) => texture.uri === trimmedUri);
+		if (existing) {
+			this.session.markTextureRecentlyUsed(existing.id);
+			return existing.id;
+		}
+		const verification = await this.textureVerifier(trimmedUri);
+		if (!verification.success) {
+			this.setStatusMessage(verification.message);
+			return null;
+		}
+		// Recheck current state — Reset/Import/Undo/another registration may
+		// have replaced the document while the image loaded.
+		const raced = this.document.textures.find((texture) => texture.uri === trimmedUri);
+		if (raced) {
+			this.session.markTextureRecentlyUsed(raced.id);
+			return raced.id;
+		}
+		const result = this.materialResourceMutator.registerVerifiedTexture(
+			trimmedName,
+			trimmedUri
+		);
+		if (result.status === 'rejected') {
+			this.setStatusMessage(result.reason);
+			return null;
+		}
+		return result.textureId;
+	}
+
+	/**
+	 * Probe one texture's image load state without mutating the document.
+	 * Updates the session-only load-state map and returns load success.
+	 */
+	async probeTexture(textureId: string): Promise<boolean> {
+		const texture = this.document.textures.find((candidate) => candidate.id === textureId);
+		if (!texture) return false;
+		const current = this.session.textureLoadStates[texture.uri];
+		if (current?.status === 'ready') return true;
+		if (current?.status === 'loading') return false;
+		this.session.setTextureLoadState(texture.uri, { status: 'loading' });
+		const verification = await this.textureVerifier(texture.uri);
+		if (verification.success) {
+			this.session.setTextureLoadState(texture.uri, { status: 'ready' });
+			return true;
+		}
+		this.session.setTextureLoadState(texture.uri, {
+			status: 'error',
+			message: verification.message
+		});
+		return false;
+	}
+
+	/**
+	 * Inspector entry — applies one field patch or queues the decision the
+	 * Material inspector needs. Returns true when committed or queued.
+	 */
+	requestMaterialEdit(entityId: string, patch: MaterialInstancePatch): boolean {
+		const result = this.materialResourceMutator.applyMaterialPatch(entityId, patch);
+		if (result.status === 'committed') return true;
+		if (result.status === 'decision-required') {
+			this.session.setPendingMaterialEdit({
+				entityId,
+				needsBaseMaterial: result.needsBaseMaterial,
+				sharedMaterialInstanceId: result.sharedMaterialInstanceId,
+				patch: { ...patch },
+				recentTextureId: typeof patch.baseTextureId === 'string' ? patch.baseTextureId : null
+			});
+			return true;
+		}
+		this.setStatusMessage(result.reason);
+		return false;
+	}
+
+	/**
+	 * Viewport drop entry — assigns one registered texture to a model or
+	 * primitive, queueing the base-material / shared-instance decision when
+	 * required. Successful commits select the target entity.
+	 */
+	requestTextureAssignment(entityId: string, textureId: string): boolean {
+		const result = this.materialResourceMutator.applyMaterialPatch(
+			entityId,
+			{ baseTextureId: textureId },
+			{},
+			'texture-assignment'
+		);
+		if (result.status === 'committed') {
+			this.selectionActions.selectPlacement(entityId);
+			this.session.markTextureRecentlyUsed(textureId);
+			return true;
+		}
+		if (result.status === 'decision-required') {
+			this.session.setPendingMaterialEdit({
+				entityId,
+				needsBaseMaterial: result.needsBaseMaterial,
+				sharedMaterialInstanceId: result.sharedMaterialInstanceId,
+				patch: { baseTextureId: textureId },
+				recentTextureId: textureId
+			});
+			return true;
+		}
+		this.setStatusMessage(result.reason);
+		return false;
+	}
+
+	/**
+	 * Replays a queued pending material edit against current state. Clears
+	 * the request only after commit or definitive rejection; a stale
+	 * re-queued decision stays open with refreshed requirements.
+	 */
+	confirmPendingMaterialEdit(decision: MaterialEditDecision): boolean {
+		const pending = this.pendingMaterialEdit;
+		if (!pending) return false;
+		const source =
+			pending.recentTextureId !== null ? 'texture-assignment' : 'inspector';
+		const result = this.materialResourceMutator.applyMaterialPatch(
+			pending.entityId,
+			pending.patch,
+			decision,
+			source
+		);
+		if (result.status === 'committed') {
+			this.session.setPendingMaterialEdit(null);
+			if (source === 'texture-assignment') {
+				this.selectionActions.selectPlacement(pending.entityId);
+				if (pending.recentTextureId) {
+					this.session.markTextureRecentlyUsed(pending.recentTextureId);
+				}
+			}
+			return true;
+		}
+		if (result.status === 'decision-required') {
+			this.session.setPendingMaterialEdit({
+				...pending,
+				needsBaseMaterial: result.needsBaseMaterial,
+				sharedMaterialInstanceId: result.sharedMaterialInstanceId
+			});
+			return true;
+		}
+		this.session.setPendingMaterialEdit(null);
+		this.setStatusMessage(result.reason);
+		return false;
+	}
+
+	/** Cancel a queued material decision without mutating the document. */
+	cancelPendingMaterialEdit(): boolean {
+		if (!this.pendingMaterialEdit) return false;
+		this.session.setPendingMaterialEdit(null);
+		return true;
+	}
+
+	/** Clone a shared material instance and repoint one entity (one history entry). */
+	makeMaterialInstanceUnique(entityId: string): boolean {
+		return this.materialResourceMutator.makeMaterialInstanceUnique(entityId);
+	}
+
 	beginDocumentTransaction() {
 		if (this.isDocumentMutationBlocked || this.historyController.isDocumentUndoBlocked) {
 			return false;
@@ -3401,6 +3629,8 @@ export class MuseumEditorStore {
 export type MuseumEditorStoreOptions = {
 	/** Optional authoring document seed (defaults to checked-in museum-scene.json). */
 	document?: MuseumSceneDocument;
+	/** Phase 5.2 — injectable texture image verifier (browser default). */
+	textureVerifier?: TextureVerifier;
 };
 
 export function createMuseumEditorStore(options: MuseumEditorStoreOptions = {}) {

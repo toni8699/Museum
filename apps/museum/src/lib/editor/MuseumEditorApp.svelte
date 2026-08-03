@@ -6,6 +6,7 @@
 	import EditorCameraTimelineFrame from './EditorCameraTimelineFrame.svelte';
 	import EditorInspector from './EditorInspector.svelte';
 	import EditorLeftSidebar from './EditorLeftSidebar.svelte';
+	import EditorMaterialChoiceDialog from './EditorMaterialChoiceDialog.svelte';
 	import EditorViewport from './EditorViewport.svelte';
 	import { registerEditorShortcuts } from './hooks/shortcuts.svelte';
 	import { createMuseumEditorStore } from './museum-editor.svelte';
@@ -69,6 +70,8 @@
 		bind:clusterNameInput
 	/>
 	<EditorCameraTimelineFrame {store} />
+	<!-- Phase 5.2 — shared by viewport drops and inspector edits; rendered once outside the canvas. -->
+	<EditorMaterialChoiceDialog {store} />
 </main>
 
 <style>

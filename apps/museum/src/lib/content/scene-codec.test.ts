@@ -769,6 +769,7 @@ describe('scene document codec', () => {
 		'/../texture.png',
 		'/%2e%2e/texture.png',
 		'/%252e%252e/texture.png',
+		'/%E0%A4%A',
 		'/textures\\texture.png',
 		'/textures/texture.png?cache=1',
 		'/textures/texture.png#preview'

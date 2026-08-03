@@ -5,6 +5,7 @@
 	import { tick } from 'svelte';
 	import EditorCameraInspector from './EditorCameraInspector.svelte';
 	import EditorLightInspector from './EditorLightInspector.svelte';
+	import EditorMaterialInspector from './EditorMaterialInspector.svelte';
 	import EditorPlacementInspector from './EditorPlacementInspector.svelte';
 	import EditorPrimitiveInspector from './EditorPrimitiveInspector.svelte';
 	import EditorTransformInspector from './EditorTransformInspector.svelte';
@@ -28,9 +29,6 @@
 	const selectedObject = $derived(store.selectedObject);
 	const selectedCameraNode = $derived(store.selectedNavigationNode);
 	const selectedNavigation = $derived(store.navigationSelection);
-	const showAssetInspector = $derived(
-		store.currentWorkspace === 'scene' && store.leftPanel === 'assets'
-	);
 	const singleSelectedEntity = $derived(
 		store.selectedPlacementIds.length === 1 &&
 			!store.selectedClusterId &&
@@ -52,6 +50,20 @@
 		singleSelectedEntity && isSceneLightEntity(singleSelectedEntity)
 			? singleSelectedEntity
 			: undefined
+	);
+	// Phase 5.2 — one selected model/primitive overrides generic Assets
+	// inspection so viewport drops and entity edits surface the Material
+	// inspector even while the Assets tab stays open.
+	const singleMaterialEntity = $derived(
+		singleSelectedEntity &&
+			(isSceneModelEntity(singleSelectedEntity) || isScenePrimitiveEntity(singleSelectedEntity))
+			? singleSelectedEntity
+			: undefined
+	);
+	const showAssetInspector = $derived(
+		store.currentWorkspace === 'scene' &&
+			store.leftPanel === 'assets' &&
+			!singleMaterialEntity
 	);
 	const selectionContainsClusteredPlacement = $derived(
 		store.selectedPlacementIds.some((id) => store.clusteredPlacementIds.has(id))
@@ -236,13 +248,17 @@
 				</dl>
 				<button type="button" class="deselect" onclick={() => store.selectionActions.deselect()}>Deselect object</button>
 			</section>
-			{#key singleEditableObject.id}<EditorTransformInspector {store} />{/key}
+			{#key singleEditableObject.id}
+				<EditorTransformInspector {store} />
+				<EditorMaterialInspector {store} />
+			{/key}
 		{:else if singlePrimitive}
 			<section class="selection" aria-label="Selection">
 				<button type="button" class="deselect" onclick={() => store.selectionActions.deselect()}>Deselect object</button>
 			</section>
 			{#key singlePrimitive.id}
 				<EditorPrimitiveInspector {store} />
+				<EditorMaterialInspector {store} />
 				<EditorTransformInspector {store} />
 			{/key}
 		{:else if singleLight}

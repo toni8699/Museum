@@ -375,4 +375,82 @@ describe('EditorSessionState', () => {
 			expect(session.pendingFrameVersion).toBeGreaterThan(before);
 		});
 	});
+
+	describe('Phase 5.2 — texture recents + load states + pending material edit', () => {
+		it('starts empty for recents and load states, with no pending edit', () => {
+			expect(session.recentTextureIds).toEqual([]);
+			expect(session.textureLoadStates).toEqual({});
+			expect(session.pendingMaterialEdit).toBe(null);
+		});
+
+		it('markTextureRecentlyUsed prepends, deduplicates, and caps at eight', () => {
+			for (let i = 0; i < 12; i += 1) session.markTextureRecentlyUsed(`t-${i}`);
+			expect(session.recentTextureIds).toEqual([
+				't-11',
+				't-10',
+				't-9',
+				't-8',
+				't-7',
+				't-6',
+				't-5',
+				't-4'
+			]);
+			session.markTextureRecentlyUsed('t-9');
+			expect(session.recentTextureIds[0]).toBe('t-9');
+			expect(session.recentTextureIds.filter((id) => id === 't-9')).toHaveLength(1);
+			expect(session.recentTextureIds).toHaveLength(8);
+		});
+
+		it('ignores blank or whitespace-only texture ids', () => {
+			session.markTextureRecentlyUsed('   ');
+			session.markTextureRecentlyUsed('');
+			expect(session.recentTextureIds).toEqual([]);
+		});
+
+		it('setTextureLoadState writes a fresh reactive record each call', () => {
+			session.setTextureLoadState('/a.png', { status: 'loading' });
+			const before = session.textureLoadStates;
+			session.setTextureLoadState('/a.png', { status: 'ready' });
+			expect(session.textureLoadStates).toEqual({ '/a.png': { status: 'ready' } });
+			expect(session.textureLoadStates).not.toBe(before);
+		});
+
+		it('clearTextureLoadState removes only the keyed URI', () => {
+			session.setTextureLoadState('/a.png', { status: 'ready' });
+			session.setTextureLoadState('/b.png', { status: 'ready' });
+			session.clearTextureLoadState('/a.png');
+			expect(session.textureLoadStates).toEqual({ '/b.png': { status: 'ready' } });
+			// double-clear is stable
+			session.clearTextureLoadState('/a.png');
+			expect(session.textureLoadStates).toEqual({ '/b.png': { status: 'ready' } });
+		});
+
+		it('error load states keep their message verbatim', () => {
+			session.setTextureLoadState('/bad.png', {
+				status: 'error',
+				message: 'Texture image failed to load: /bad.png'
+			});
+			expect(session.textureLoadStates['/bad.png']).toEqual({
+				status: 'error',
+				message: 'Texture image failed to load: /bad.png'
+			});
+		});
+
+		it('setPendingMaterialEdit stores and clears the request without touching other slots', () => {
+			session.setPendingFramePlacementIds(['p-1']);
+			const before = session.pendingFrameVersion;
+			session.setPendingMaterialEdit({
+				entityId: 'm-1',
+				needsBaseMaterial: true,
+				sharedMaterialInstanceId: null,
+				patch: { baseTextureId: 't-wall' },
+				recentTextureId: null
+			});
+			expect(session.pendingMaterialEdit?.entityId).toBe('m-1');
+			expect(session.pendingFramePlacementIds).toEqual(['p-1']);
+			expect(session.pendingFrameVersion).toBe(before);
+			session.setPendingMaterialEdit(null);
+			expect(session.pendingMaterialEdit).toBe(null);
+		});
+	});
 });

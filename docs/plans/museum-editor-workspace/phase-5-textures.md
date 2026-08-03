@@ -4,7 +4,7 @@
 
 **Dependency:** Phase 4 complete, including schema v5 entities.
 
-**Status:** Slice 5.1 complete. Canonical v6 schema and v1–v5 migration landed; next is 5.2 import/library/assignment.
+**Status:** Slice 5.1 complete. **Slice 5.2 complete** (texture library, registration, assignment, viewport drop; 319 focused / 660 full tests, check 0/0, build green). Final handoff: [`../../agent-handoffs/phase-5.2.md`](../../agent-handoffs/phase-5.2.md). Next: Slice 5.3 shared material rendering + cache lifecycle.
 
 ## Release Split
 

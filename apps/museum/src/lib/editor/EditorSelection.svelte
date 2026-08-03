@@ -33,6 +33,10 @@
 		type EditorNavigationSelection
 	} from './editor-selection';
 	import {
+		firstRenderablePlacementId,
+		TEXTURE_DRAG_MIME
+	} from './editor-textures';
+	import {
 		getSceneCameraViewKeyframeWorldPosition,
 		getSceneCameraViewKeyframeWorldTarget
 	} from './editor-camera-view';
@@ -151,13 +155,16 @@
 		);
 	}
 
-	function toNdc(event: PointerEvent) {
+	/** Phase 5.2 — accepts PointerEvent and DragEvent alike. */
+	type PointerLike = { clientX: number; clientY: number };
+
+	function toNdc(event: PointerLike) {
 		const rect = canvas.getBoundingClientRect();
 		pointerNdc.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
 		pointerNdc.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 	}
 
-	function raycast(event: PointerEvent) {
+	function raycast(event: PointerLike) {
 		const currentCamera = camera.current;
 		if (!currentCamera) return [];
 		toNdc(event);
@@ -981,6 +988,34 @@
 		store.setNavigationHover(null);
 	}
 
+	/**
+	 * Phase 5.2 — texture library → viewport drop. Only the custom texture
+	 * MIME participates; camera-tree and timeline drops stay untouched.
+	 */
+	function onDragOver(event: DragEvent) {
+		if (event.dataTransfer?.types.includes(TEXTURE_DRAG_MIME)) {
+			event.preventDefault();
+		}
+	}
+
+	function onTextureDrop(event: DragEvent) {
+		const textureId = event.dataTransfer?.getData(TEXTURE_DRAG_MIME);
+		if (!textureId) return;
+		event.preventDefault();
+		event.stopPropagation();
+		const currentCamera = camera.current;
+		if (!currentCamera) return;
+		const entityId = firstRenderablePlacementId(
+			raycast(event).map(selectionHitFromIntersection),
+			store.document.entities
+		);
+		if (!entityId) {
+			store.setStatusMessage('Drop a texture on a model or primitive');
+			return;
+		}
+		store.requestTextureAssignment(entityId, textureId);
+	}
+
 	$effect(() => {
 		const activeDrag = store.viewKeyframeProgressDrag;
 		const activePointer = pointerSession;
@@ -1015,6 +1050,8 @@
 		canvas.addEventListener('pointercancel', onPointerCancel, true);
 		canvas.addEventListener('lostpointercapture', onLostPointerCapture);
 		canvas.addEventListener('pointerleave', onPointerLeave);
+		canvas.addEventListener('dragover', onDragOver, true);
+		canvas.addEventListener('drop', onTextureDrop, true);
 		window.addEventListener('keydown', onKeyDown, true);
 		window.addEventListener('blur', onWindowBlur);
 
@@ -1040,6 +1077,8 @@
 			canvas.removeEventListener('pointercancel', onPointerCancel, true);
 			canvas.removeEventListener('lostpointercapture', onLostPointerCapture);
 			canvas.removeEventListener('pointerleave', onPointerLeave);
+			canvas.removeEventListener('dragover', onDragOver, true);
+			canvas.removeEventListener('drop', onTextureDrop, true);
 			window.removeEventListener('keydown', onKeyDown, true);
 			window.removeEventListener('blur', onWindowBlur);
 		};

@@ -109,7 +109,7 @@
 			{/each}
 		</div>
 		<label>
-			<span>Material</span>
+			<span>Fallback material</span>
 			<select value={entity.materialId} onchange={commitMaterial}>
 				{#each museumMaterials as material}
 					<option value={material.id}>{material.label}</option>

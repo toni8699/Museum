@@ -1,6 +1,6 @@
 # Museum Editor Workspace Releases
 
-**Status:** Active release authority. Phases 1–3 complete (through 3.6). Complete-refactor slices 1–9.5 landed. **Phase 4 complete. Phase 5.1 complete. Phase 5.2 complete: texture library + assignment landed and gated (319 focused / 660 full tests, check 0/0, build green).** Next slice: Phase 5.3 shared material rendering + cache lifecycle; see [`../../agent-handoffs/phase-5.2.md`](../../agent-handoffs/phase-5.2.md).
+**Status:** Active release authority. Phases 1–3 complete (through 3.6). Complete-refactor slices 1–9.5 landed. **Phase 4 complete. Phase 5.1 complete. Phase 5.2 complete: texture library + assignment landed and gated (319 focused / 660 full tests, check 0/0, build green). Priority-1 file splits final gate complete: `museum-editor.svelte.ts` 3 640 → 2 554, `museum-editor.test.ts` 4 350 → 305 residual + four themed suites, `scene-codec.ts` 2 337 → 9-file directory (274-LOC barrel).** Next slice: Phase 5.3 shared material rendering + cache lifecycle; see [`../../agent-handoffs/phase-5.2.md`](../../agent-handoffs/phase-5.2.md). Final Priority-1 release handoff: [`../../agent-handoffs/2026-08-03-complete-priority-1-splits.md`](../../agent-handoffs/2026-08-03-complete-priority-1-splits.md).
 **Locked decisions:** one looped guided tour; `Scene` and `Camera` workspaces; camera placement accepts any tagged room floor.
 **History:** completed phase 1–3 plans and handoffs live under [`../../archive/`](../../archive/README.md).
 

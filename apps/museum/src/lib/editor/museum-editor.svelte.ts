@@ -66,37 +66,22 @@ import { EditorDocumentStore } from './store/document-store.svelte';
 import { EditorCameraPreviewController } from './store/camera-preview-controller.svelte';
 import { EditorHistoryController } from './store/history-controller.svelte';
 import { EditorSelectionStore } from './store/selection-store.svelte';
-import {
-	EditorSelectionActions,
-	type EditorSelectionActionsHost
-} from './store/selection-actions.svelte';
+import { EditorSelectionActions } from './store/selection-actions.svelte';
 import { EditorMutationGuards } from './store/mutation-guards.svelte';
 import {
 	EditorNavigationGraphMutator,
 	CAMERA_NODE_CREATION_DEFAULTS,
-	validateSceneConnectionTiming,
-	type EditorNavigationGraphMutatorHost
+	validateSceneConnectionTiming
 } from './store/navigation-graph-mutator.svelte';
+import { EditorViewKeyframeController } from './store/view-keyframe-controller.svelte';
+import { EditorCameraTimelineController } from './store/camera-timeline-controller.svelte';
+import { EditorPlacementClusterMutator } from './store/placement-cluster-mutator.svelte';
+import { EditorPathAnchorMutator } from './store/path-anchor-mutator.svelte';
+import { EditorMaterialResourceMutator } from './store/material-resource-mutator.svelte';
 import {
-	EditorViewKeyframeController,
-	type EditorViewKeyframeControllerHost
-} from './store/view-keyframe-controller.svelte';
-import {
-	EditorCameraTimelineController,
-	type EditorCameraTimelineControllerHost
-} from './store/camera-timeline-controller.svelte';
-import {
-	EditorPlacementClusterMutator,
-	type EditorPlacementClusterMutatorHost
-} from './store/placement-cluster-mutator.svelte';
-import {
-	EditorPathAnchorMutator,
-	type EditorPathAnchorMutatorHost
-} from './store/path-anchor-mutator.svelte';
-import {
-	EditorMaterialResourceMutator,
-	type EditorMaterialResourceMutatorHost
-} from './store/material-resource-mutator.svelte';
+	createControllerHosts,
+	type EditorControllerHostSource
+} from './store/controller-hosts';
 import { createTextureVerifier, type TextureVerifier } from './texture-verifier';
 import { isSafeTextureUri } from '$lib/content/texture-uri';
 
@@ -435,497 +420,22 @@ export class MuseumEditorStore {
 		return this.historyController.version;
 	}
 
-	#createSelectionHost(): EditorSelectionActionsHost {
-		const self = this;
-		return {
-			get isDocumentMutationBlocked() {
-				return self.isDocumentMutationBlocked;
-			},
-			get isEditorInteractionActive() {
-				return self.isEditorInteractionActive;
-			},
-			get isCameraFramingMutationBlocked() {
-				return self.isCameraFramingMutationBlocked;
-			},
-			get pendingNavigationCommand() {
-				return self.pendingNavigationCommand;
-			},
-			get pendingNavigationNode() {
-				return self.pendingNavigationNode;
-			},
-			get document() {
-				return self.document;
-			},
-			get cameraSelection() {
-				return self.cameraSelection;
-			},
-			get currentWorkspace() {
-				return self.currentWorkspace;
-			},
-			get cameraPreview() {
-				return self.cameraPreview;
-			},
-			get activeCameraConnectionId() {
-				return self.activeCameraConnectionId;
-			},
-			get activeCameraDirection() {
-				return self.activeCameraDirection;
-			},
-			get navigationSelection() {
-				return self.navigationSelection;
-			},
-			get selectedRoomId() {
-				return self.selectedRoomId;
-			},
-			get selectedPlacementId() {
-				return self.selectedPlacementId;
-			},
-			get selectedPlacementIds() {
-				return self.selectedPlacementIds;
-			},
-			get selectedClusterId() {
-				return self.selectedClusterId;
-			},
-			get clusters() {
-				return self.clusters;
-			},
-			get transformMode() {
-				return self.transformMode;
-			},
-			set transformMode(value) {
-				self.transformMode = value;
-			},
-			isPendingNavigationNode: (nodeId) => self.isPendingNavigationNode(nodeId),
-			connectPendingNavigationNode: (destinationNodeId) =>
-				self.connectPendingNavigationNode(destinationNodeId),
-			cancelAssetPlacement: (message) => self.cancelAssetPlacement(message),
-			cancelPendingFrame: () => self.cancelPendingFrame(),
-			setStatusMessage: (message) => self.setStatusMessage(message),
-			focusNavigationNode: (id) => self.focusNavigationNode(id),
-			focusPlacement: (id) => self.focusPlacement(id),
-			focusSelection: () => self.focusSelection(),
-			ensureRoomTreeExpanded: (roomId) => self.ensureRoomTreeExpanded(roomId),
-			ensureClusterTreeExpanded: (clusterId) => self.ensureClusterTreeExpanded(clusterId),
-			isPlacementSelectable: (id) => self.isPlacementSelectable(id),
-			getCapturedCameraPreviewRoute: (runId) => self.getCapturedCameraPreviewRoute(runId),
-			setCameraPreviewPlayhead: (progress) => self.setCameraPreviewPlayhead(progress),
-			syncCameraTimelineForNode: (id) =>
-				self.cameraTimelineController.syncCameraTimelineForNode(id),
-			showCameraTimelineNodePose: (id) =>
-				self.cameraTimelineController.showCameraTimelineNodePose(id),
-			syncCameraTimelineForConnection: (connectionId, direction, playhead) =>
-				self.cameraTimelineController.syncCameraTimelineForConnection(
-					connectionId,
-					direction,
-					playhead
-				),
-			showCameraTimelineConnectionPose: (connectionId, direction, playhead) =>
-				self.cameraTimelineController.showCameraTimelineConnectionPose(
-					connectionId,
-					direction,
-					playhead
-				)
-		};
-	}
-
-	#createNavigationGraphMutatorHost(): EditorNavigationGraphMutatorHost {
-		const self = this;
-		return {
-			get isDocumentMutationBlocked() {
-				return self.isDocumentMutationBlocked;
-			},
-			get isEditorInteractionActive() {
-				return self.isEditorInteractionActive;
-			},
-			get isDocumentTransactionActive() {
-				return self.isDocumentTransactionActive;
-			},
-			get document() {
-				return self.document;
-			},
-			get selection() {
-				return self.selectionStore;
-			},
-			get currentWorkspace() {
-				return self.currentWorkspace;
-			},
-			get selectedNavigationNode() {
-				return self.selectedNavigationNode;
-			},
-			get selectedPlacementIds() {
-				return self.selectedPlacementIds;
-			},
-			get selectedClusterId() {
-				return self.selectedClusterId;
-			},
-			get cameraPreview() {
-				return self.cameraPreview;
-			},
-			get pendingNavigationCommand() {
-				return self.pendingNavigationCommand;
-			},
-			set pendingNavigationCommand(value) {
-				self.pendingNavigationCommand = value;
-			},
-			get activeCameraConnectionId() {
-				return self.activeCameraConnectionId;
-			},
-			set activeCameraConnectionId(value) {
-				self.activeCameraConnectionId = value;
-			},
-			get activeCameraDirection() {
-				return self.activeCameraDirection;
-			},
-			set activeCameraDirection(value) {
-				self.activeCameraDirection = value;
-			},
-			get navigationSelection() {
-				return self.navigationSelection;
-			},
-			set navigationSelection(value) {
-				self.navigationSelection = value;
-			},
-			get treeExpandedCameraConnectionIds() {
-				return self.treeExpandedCameraConnectionIds;
-			},
-			set treeExpandedCameraConnectionIds(value) {
-				self.treeExpandedCameraConnectionIds = value;
-			},
-			get treeExpandedCameraDirectionKeys() {
-				return self.treeExpandedCameraDirectionKeys;
-			},
-			set treeExpandedCameraDirectionKeys(value) {
-				self.treeExpandedCameraDirectionKeys = value;
-			},
-			setStatusMessage: (message) => self.setStatusMessage(message),
-			setWorkspace: (workspace) => self.setWorkspace(workspace),
-			setNavigationHover: (connectionId, anchorId) =>
-				self.setNavigationHover(connectionId, anchorId ?? null),
-			cancelAssetPlacement: (message) => self.cancelAssetPlacement(message),
-			cancelPendingFrame: () => self.cancelPendingFrame(),
-			beginDocumentTransaction: () => self.beginDocumentTransaction(),
-			commitDocumentTransaction: () => self.commitDocumentTransaction(),
-			cancelDocumentTransaction: () => self.cancelDocumentTransaction(),
-			getCameraTimeline: () => self.cameraTimelineController.getCameraTimeline(),
-			stopCameraPreview: () => self.stopCameraPreview(),
-			getCapturedCameraPreviewRoute: (runId) => self.getCapturedCameraPreviewRoute(runId),
-			syncCameraTimelineForConnection: (connectionId, direction, playhead) =>
-				self.cameraTimelineController.syncCameraTimelineForConnection(
-					connectionId,
-					direction,
-					playhead
-				),
-			showCameraTimelineConnectionPose: (connectionId, direction, playhead) =>
-				self.cameraTimelineController.showCameraTimelineConnectionPose(
-					connectionId,
-					direction,
-					playhead
-				)
-		};
-	}
-
-	#createViewKeyframeControllerHost(): EditorViewKeyframeControllerHost {
-		const self = this;
-		return {
-			get isDocumentMutationBlocked() {
-				return self.isDocumentMutationBlocked;
-			},
-			get isCameraFramingMutationBlocked() {
-				return self.isCameraFramingMutationBlocked;
-			},
-			get isEditorInteractionActive() {
-				return self.isEditorInteractionActive;
-			},
-			get isDocumentTransactionActive() {
-				return self.isDocumentTransactionActive;
-			},
-			get historyDocumentUndoBlocked() {
-				return self.historyController.isDocumentUndoBlocked;
-			},
-			get historyFramingTransactionActive() {
-				return self.historyController.isFramingTransactionActive;
-			},
-			get pendingNavigationCommand() {
-				return self.pendingNavigationCommand;
-			},
-			get document() {
-				return self.document;
-			},
-			get selection() {
-				return self.selectionStore;
-			},
-			get selectedConnection() {
-				return self.selectedConnection;
-			},
-			get selectedAnchor() {
-				return self.selectedAnchor;
-			},
-			get selectedViewKeyframe() {
-				return self.selectedViewKeyframe;
-			},
-			get selectedRoomId() {
-				return self.selectedRoomId;
-			},
-			get cameraPreview() {
-				return self.cameraPreview;
-			},
-			get navigationSelection() {
-				return self.navigationSelection;
-			},
-			set navigationSelection(value) {
-				self.navigationSelection = value;
-			},
-			get viewKeyframeProgressDrag() {
-				return self.viewKeyframeProgressDrag;
-			},
-			set viewKeyframeProgressDrag(value) {
-				self.viewKeyframeProgressDrag = value;
-			},
-			get cameraTimelinePlayhead() {
-				return self.cameraTimelinePlayhead;
-			},
-			set cameraTimelinePlayhead(value) {
-				self.cameraTimelinePlayhead = value;
-			},
-			setStatusMessage: (message) => self.setStatusMessage(message),
-			beginDocumentTransaction: () => self.beginDocumentTransaction(),
-			beginCameraFramingTransaction: () => self.beginCameraFramingTransaction(),
-			commitDocumentTransaction: () => self.commitDocumentTransaction(),
-			cancelDocumentTransaction: () => self.cancelDocumentTransaction(),
+	/**
+	 * Slice 1 (Priority-1 split) — the seven controller host object literals
+	 * moved to `store/controller-hosts.ts`. One factory call builds all seven
+	 * from the structural `EditorControllerHostSource` surface; the two
+	 * ECMAScript-private method bridges (`#prepareCameraPreview`,
+	 * `#seedEmptyReverseForSelectedForwardTrack`) are bound here because they
+	 * are invisible through the structural cast.
+	 */
+	private readonly hosts = createControllerHosts(
+		this as unknown as EditorControllerHostSource,
+		{
+			prepareCameraPreview: () => this.#prepareCameraPreview(),
 			seedEmptyReverseForSelectedForwardTrack: () =>
-				self.#seedEmptyReverseForSelectedForwardTrack(),
-			getCameraTimeline: () => self.cameraTimelineController.getCameraTimeline(),
-			getCapturedCameraPreviewRoute: (runId) => self.getCapturedCameraPreviewRoute(runId),
-			allocPreviewRunId: () => self.previewController.allocRunId(),
-			setCapturedPreviewRoute: (runId, route) =>
-				self.previewController.setCapturedRoute(runId, route),
-			setCameraPreview: (value) => {
-				self.cameraPreview = value;
-			},
-			setCameraPreviewPlayhead: (progress, runId) =>
-				self.setCameraPreviewPlayhead(progress, runId),
-			selectCameraTimelineViewKeyframe: (connectionId, direction, keyframeId) =>
-				self.cameraTimelineController.selectCameraTimelineViewKeyframe(
-					connectionId,
-					direction,
-					keyframeId
-				)
-		};
-	}
-
-	#createCameraTimelineControllerHost(): EditorCameraTimelineControllerHost {
-		const self = this;
-		return {
-			get isEditorInteractionActive() {
-				return self.isEditorInteractionActive;
-			},
-			get isDocumentTransactionActive() {
-				return self.isDocumentTransactionActive;
-			},
-			get isDocumentMutationBlocked() {
-				return self.isDocumentMutationBlocked;
-			},
-			get pendingNavigationCommand() {
-				return self.pendingNavigationCommand;
-			},
-			get document() {
-				return self.document;
-			},
-			get scene() {
-				return self.scene;
-			},
-			get graph() {
-				return self.state.graph;
-			},
-			get selection() {
-				return self.selectionStore;
-			},
-			get cameraPreview() {
-				return self.cameraPreview;
-			},
-			set cameraPreview(value) {
-				self.cameraPreview = value;
-			},
-			get cameraTimelinePlayhead() {
-				return self.cameraTimelinePlayhead;
-			},
-			set cameraTimelinePlayhead(value) {
-				self.cameraTimelinePlayhead = value;
-			},
-			get activeCameraConnectionId() {
-				return self.activeCameraConnectionId;
-			},
-			get activeCameraDirection() {
-				return self.activeCameraDirection;
-			},
-			get timelineExpanded() {
-				return self.timelineExpanded;
-			},
-			set timelineExpanded(value) {
-				self.timelineExpanded = value;
-			},
-			setStatusMessage: (message) => self.setStatusMessage(message),
-			beginDocumentTransaction: () => self.beginDocumentTransaction(),
-			commitDocumentTransaction: () => self.commitDocumentTransaction(),
-			prepareCameraPreview: () => self.#prepareCameraPreview(),
-			allocPreviewRunId: () => self.previewController.allocRunId(),
-			setCapturedRoute: (runId, route) =>
-				self.previewController.setCapturedRoute(runId, route),
-			clearCapturedRoute: () => self.previewController.clearCapturedRoute(),
-			get followEnabled() {
-				return self.previewController.followEnabled;
-			},
-			set followEnabled(value) {
-				self.previewController.followEnabled = value;
-			},
-			get recenterVersion() {
-				return self.previewController.recenterVersion;
-			},
-			set recenterVersion(value) {
-				self.previewController.recenterVersion = value;
-			},
-			setCameraPreviewPlayhead: (progress, runId) =>
-				self.setCameraPreviewPlayhead(progress, runId),
-			getTimeline: () => self.previewController.getTimeline(),
-			cancelAssetPlacement: (message) => self.cancelAssetPlacement(message),
-			cancelPendingFrame: () => self.cancelPendingFrame(),
-			clearCameraFocusRequest: () => self.session.clearCameraFocusRequest()
-		};
-	}
-
-
-	#createPlacementClusterMutatorHost(): EditorPlacementClusterMutatorHost {
-		const self = this;
-		return {
-			get isDocumentMutationBlocked() {
-				return self.isDocumentMutationBlocked;
-			},
-			get isEditorInteractionActive() {
-				return self.isEditorInteractionActive;
-			},
-			get document() {
-				return self.document;
-			},
-			get selectedRoomId() {
-				return self.selectedRoomId;
-			},
-			get selectedPlacementIds() {
-				return self.selectedPlacementIds;
-			},
-			get primaryPlacementId() {
-				return self.primaryPlacementId;
-			},
-			get clusters() {
-				return self.clusters;
-			},
-			get selectedClusterId() {
-				return self.selectedClusterId;
-			},
-			set selectedClusterId(value) {
-				self.selectedClusterId = value;
-			},
-			get pendingPlacementAssetId() {
-				return self.pendingPlacementAssetId;
-			},
-			set pendingPlacementAssetId(value) {
-				self.pendingPlacementAssetId = value;
-			},
-			get pendingPlacementPrimitiveKind() {
-				return self.pendingPlacementPrimitiveKind;
-			},
-			set pendingPlacementPrimitiveKind(value) {
-				self.pendingPlacementPrimitiveKind = value;
-			},
-			get pendingPlacementLightKind() {
-				return self.pendingPlacementLightKind;
-			},
-			set pendingPlacementLightKind(value) {
-				self.pendingPlacementLightKind = value;
-			},
-			setStatusMessage: (message) => self.setStatusMessage(message),
-			setNavigationHover: (connectionId, anchorId) =>
-				self.setNavigationHover(connectionId, anchorId ?? null),
-			cancelPendingNavigation: (message) => self.cancelPendingNavigation(message),
-			requestPlacementFrame: (ids) => self.requestPlacementFrame(ids),
-			sessionRequestDropToFloor: () => self.session.requestDropToFloor(),
-			beginDocumentTransaction: () => self.beginDocumentTransaction(),
-			commitDocumentTransaction: () => self.commitDocumentTransaction(),
-			cancelDocumentTransaction: () => self.cancelDocumentTransaction()
-		};
-	}
-
-	#createPathAnchorMutatorHost(): EditorPathAnchorMutatorHost {
-		const self = this;
-		return {
-			get isDocumentMutationBlocked() {
-				return self.isDocumentMutationBlocked;
-			},
-			get isCameraFramingMutationBlocked() {
-				return self.isCameraFramingMutationBlocked;
-			},
-			get isEditorInteractionActive() {
-				return self.isEditorInteractionActive;
-			},
-			get historyDocumentUndoBlocked() {
-				return self.historyController.isDocumentUndoBlocked;
-			},
-			get historyFramingTransactionActive() {
-				return self.historyController.isFramingTransactionActive;
-			},
-			get document() {
-				return self.document;
-			},
-			get cameraSelection() {
-				return self.cameraSelection;
-			},
-			get selectedNavigationNode() {
-				return self.selectedNavigationNode;
-			},
-			get selectedConnection() {
-				return self.selectedConnection;
-			},
-			get selectedAnchor() {
-				return self.selectedAnchor;
-			},
-			get selectedRoomId() {
-				return self.selectedRoomId;
-			},
-			get pendingNavigationNode() {
-				return self.pendingNavigationNode;
-			},
-			get navigationSelection() {
-				return self.navigationSelection;
-			},
-			set navigationSelection(value) {
-				self.navigationSelection = value;
-			},
-			isPendingNavigationNode: (nodeId) => self.isPendingNavigationNode(nodeId),
-			beginDocumentTransaction: () => self.beginDocumentTransaction(),
-			beginCameraFramingTransaction: () => self.beginCameraFramingTransaction(),
-			commitDocumentTransaction: () => self.commitDocumentTransaction(),
-			cancelDocumentTransaction: () => self.cancelDocumentTransaction()
-		};
-	}
-
-	#createMaterialResourceMutatorHost(): EditorMaterialResourceMutatorHost {
-		const self = this;
-		return {
-			get isDocumentMutationBlocked() {
-				return self.isDocumentMutationBlocked;
-			},
-			get isEditorInteractionActive() {
-				return self.isEditorInteractionActive;
-			},
-			get document() {
-				return self.document;
-			},
-			setStatusMessage: (message) => self.setStatusMessage(message),
-			beginDocumentTransaction: () => self.beginDocumentTransaction(),
-			commitDocumentTransaction: () => self.commitDocumentTransaction(),
-			cancelDocumentTransaction: () => self.cancelDocumentTransaction(),
-			markTextureRecentlyUsed: (textureId) => self.session.markTextureRecentlyUsed(textureId)
-		};
-	}
+				this.#seedEmptyReverseForSelectedForwardTrack()
+		}
+	);
 
 	constructor(options: MuseumEditorStoreOptions = {}) {
 		this.documentStore = new EditorDocumentStore(options.document);
@@ -957,29 +467,27 @@ export class MuseumEditorStore {
 		});
 		this.selectionActions = new EditorSelectionActions(
 			this.selectionStore,
-			this.#createSelectionHost()
+			this.hosts.selection
 		);
 		this.navigationGraphMutator = new EditorNavigationGraphMutator(
 			this.selectionActions,
-			this.#createNavigationGraphMutatorHost()
+			this.hosts.navigationGraph
 		);
 		this.viewKeyframeController = new EditorViewKeyframeController(
 			this.selectionActions,
-			this.#createViewKeyframeControllerHost()
+			this.hosts.viewKeyframe
 		);
 		this.cameraTimelineController = new EditorCameraTimelineController(
 			this.selectionActions,
-			this.#createCameraTimelineControllerHost()
+			this.hosts.cameraTimeline
 		);
 		this.placementClusterMutator = new EditorPlacementClusterMutator(
 			this.selectionActions,
-			this.#createPlacementClusterMutatorHost()
+			this.hosts.placementCluster
 		);
-		this.pathAnchorMutator = new EditorPathAnchorMutator(
-			this.#createPathAnchorMutatorHost()
-		);
+		this.pathAnchorMutator = new EditorPathAnchorMutator(this.hosts.pathAnchor);
 		this.materialResourceMutator = new EditorMaterialResourceMutator(
-			this.#createMaterialResourceMutatorHost()
+			this.hosts.materialResource
 		);
 		this.textureVerifier = options.textureVerifier ?? createTextureVerifier();
 		this.selectionStore.bindSession(this.session);

@@ -6,11 +6,14 @@ import {
 	findCameraViewKeyframeHandleFromObject,
 	findNavigationSelectionFromObject,
 	findPriorityCameraViewKeyframeHandle,
+	filterEffectiveHits,
 	isEditorCameraAnchorUserData,
 	isEditorCameraConnectionUserData,
 	isEditorCameraHandleUserData,
 	isEditorCameraFovHandleUserData,
 	isEditorCameraViewKeyframeUserData,
+	NEAR_INVISIBLE_OPACITY,
+	nextPlacementCycleId,
 	resolveNormalSelection,
 	selectionHitFromIntersection,
 	uniquePlacementIdsInOrder,
@@ -297,5 +300,55 @@ describe('editor camera-helper selection', () => {
 			keyframeId: 'view-01',
 			viewHandle: 'target'
 		});
+	});
+});
+
+// Slice 4 — the `editor-selection helpers` describe block lives on this file
+// now (it tests the pure selection helpers from `./editor-selection`).
+describe('editor-selection helpers', () => {
+	const hits = (entries: Array<[number, string | null]>): SelectionHitInfo[] =>
+		entries.map(([opacity, placementId]) => ({ opacity, placementId }));
+
+	it('filters near-invisible hits for normal selection', () => {
+		expect(
+			resolveNormalSelection(
+				hits([
+					[NEAR_INVISIBLE_OPACITY - 0.01, 'ghost'],
+					[1, 'piano']
+				])
+			)
+		).toEqual({ action: 'select', id: 'piano' });
+
+		expect(resolveNormalSelection(hits([[1, null]]))).toEqual({ action: 'deselect' });
+		expect(resolveNormalSelection(hits([]))).toEqual({ action: 'deselect' });
+	});
+
+	it('dedupes placement ids while preserving hit order', () => {
+		expect(
+			uniquePlacementIdsInOrder(
+				hits([
+					[0.01, 'a'],
+					[1, 'b'],
+					[1, 'c'],
+					[1, 'b'],
+					[1, 'd']
+				])
+			)
+		).toEqual(['b', 'c', 'd']);
+	});
+
+	it('implements cycle next-id rules', () => {
+		expect(nextPlacementCycleId('x', [])).toBeUndefined();
+		expect(nextPlacementCycleId(null, ['a', 'b'])).toBe('a');
+		expect(nextPlacementCycleId('z', ['a', 'b'])).toBe('a');
+		expect(nextPlacementCycleId('a', ['a', 'b'])).toBe('b');
+		expect(nextPlacementCycleId('b', ['a', 'b'])).toBe('a');
+	});
+
+	it('keeps near-invisible hits out of effective lists', () => {
+		expect(filterEffectiveHits(hits([[0.01, 'a'], [0.05, 'b'], [1, 'c']]))).toEqual([
+			{ opacity: 0.05, placementId: 'b' },
+			{ opacity: 1, placementId: 'c' }
+		]);
 	});
 });

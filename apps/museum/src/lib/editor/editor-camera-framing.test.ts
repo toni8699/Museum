@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
+import { getRoom } from '$lib/content/rooms';
 import {
 	clampEditorCameraFrustumDepth,
 	createEditorCameraFramingGeometry,
 	verticalFovFromEditorCameraFrustumPoint
 } from './editor-camera-framing';
+import { createEditorRoomCameraFrame } from './editor-camera';
 
 describe('editor camera framing geometry', () => {
 	it('clamps finite frustum depth without changing authored target distance', () => {
@@ -49,5 +51,29 @@ describe('editor camera framing geometry', () => {
 				[0, 0.001, -4]
 			)
 		).toBe(10);
+	});
+});
+
+// Slice 4 — the `editor room camera framing` describe block (pure helper,
+// invocation-bound to the Paris room from the fixture) lives on this file
+// now alongside the geometry helpers.
+describe('editor room camera framing', () => {
+	it('centers the target in Paris and follows its authored yaw', () => {
+		const room = getRoom('paris');
+		const frame = createEditorRoomCameraFrame(room);
+
+		expect(frame.target).toEqual([
+			room.position[0],
+			room.position[1] + room.dimensions[1] / 2,
+			room.position[2]
+		]);
+		expect(frame.position.every(Number.isFinite)).toBe(true);
+		expect(frame.radius).toBeGreaterThan(0);
+		expect(frame.minDistance).toBe(0.2);
+		expect(frame.minDistance).toBeLessThan(frame.maxDistance);
+
+		const dx = frame.position[0] - frame.target[0];
+		const dz = frame.position[2] - frame.target[2];
+		expect(Math.atan2(dx, dz)).toBeCloseTo(room.rotation[1]);
 	});
 });

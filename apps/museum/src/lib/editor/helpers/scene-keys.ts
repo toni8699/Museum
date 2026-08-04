@@ -39,6 +39,22 @@ export function viewKeyframeHelperKey(
 }
 
 /**
+ * Stable `${connectionId}::${direction}` key for Camera workspace tree
+ * expansion. Single source of truth shared by
+ * `MuseumEditorStore.toggleCameraDirectionTreeExpansion` (tree expand
+ * writes) and `EditorNavigationGraphMutator` (delete-time key parsing).
+ *
+ * Slice 3 of the Priority-1 file-split refactor moves this helper out of
+ * the facade so both call sites import from one place.
+ */
+export function cameraDirectionTreeKey(
+	connectionId: string,
+	direction: CameraConnectionDirection
+) {
+	return `${connectionId}${CAMERA_DIRECTION_TREE_KEY_SEPARATOR}${direction}`;
+}
+
+/**
  * Tag for the four `Map`s owned by `EditorSceneRoots`. Used by `ids(...)`
  * to return only the keys of one family — handy for tests and debugging,
  * not used by the runtime registry path itself.

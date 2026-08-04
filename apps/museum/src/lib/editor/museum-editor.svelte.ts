@@ -75,6 +75,22 @@ import {
 } from './store/navigation-graph-mutator.svelte';
 import { EditorViewKeyframeController } from './store/view-keyframe-controller.svelte';
 import { EditorCameraTimelineController } from './store/camera-timeline-controller.svelte';
+// Slice 2 — preview + timeline playback orchestration controller. The host
+// surface narrows the facade members the orchestration reads/writes; see
+// `store/camera-preview-commands.svelte.ts` for the method list and the plan
+// deviation note (Group A timeline methods stay on the facade as one-line
+// delegates to `cameraTimelineController`).
+import {
+	EditorCameraPreviewCommands,
+	type EditorCameraPreviewCommandsHost
+} from './store/camera-preview-commands.svelte';
+// Slice 3 — Phase 5.2 texture library + material-instance assignment
+// orchestration. The pure mutator (`material-resource-mutator.svelte.ts`)
+// stays put; only the orchestration moves into this controller.
+import {
+	EditorTextureLibraryController,
+	type EditorTextureLibraryControllerHost
+} from './store/texture-library-controller.svelte';
 import { EditorPlacementClusterMutator } from './store/placement-cluster-mutator.svelte';
 import { EditorPathAnchorMutator } from './store/path-anchor-mutator.svelte';
 import { EditorMaterialResourceMutator } from './store/material-resource-mutator.svelte';
@@ -176,10 +192,17 @@ import type {
 // Re-exports below keep the pre-slice public surface compiling unchanged.
 import {
 	anchorHelperKey,
+	cameraDirectionTreeKey,
 	cameraHelperKey,
 	viewKeyframeHelperKey,
 	CAMERA_DIRECTION_TREE_KEY_SEPARATOR
 } from './helpers/scene-keys';
+// Slice 3 — re-export the moved module helpers so the 40 consumer imports
+// (`import { cloneMuseumSceneDocument } from '$lib/editor/museum-editor.svelte'`
+// and any `import { cloneResolvedCameraRoute } ...`) keep compiling unchanged
+// until Slice 6 collapses the facade surface.
+export { cloneMuseumSceneDocument } from './helpers/document-clone';
+export { cloneResolvedCameraRoute } from './helpers/route-clone';
 
 const STATUS_MESSAGE_MS = 2500;
 
@@ -188,12 +211,8 @@ const STATUS_MESSAGE_MS = 2500;
 // pre-9.2 public surface (`museum-editor.svelte` importers) stays stable.
 export { CAMERA_NODE_CREATION_DEFAULTS, validateSceneConnectionTiming };
 
-/** Deep-clone a scene document so the session never mutates the checked-in JSON singleton. */
-export function cloneMuseumSceneDocument(
-	document: MuseumSceneDocument
-): MuseumSceneDocument {
-	return JSON.parse(JSON.stringify(document)) as MuseumSceneDocument;
-}
+// Slice 3 — `cloneMuseumSceneDocument` lives on `helpers/document-clone.ts`
+// now; re-exported above so the 40 consumer imports unchanged.
 
 /** Visitor MuseumScene defaults — used by the editor “Visitor” lighting preset. */
 export const EDITOR_VISITOR_LIGHTING = {
@@ -241,21 +260,17 @@ export type {
 	EditorTransformSpace,
 	EditorCameraFocusKind,
 	EditorTransformInteractionKind
-} from './museum-editor.types';
-
-/** Bottom-panel frame measurements. Session-only, never serialized. */
+} from './museum-editor.types';/** Bottom-panel frame measurements. Session-only, never serialized. */
 export const EDITOR_TIMELINE_COLLAPSED_HEIGHT = 36;
 export const EDITOR_TIMELINE_MIN_HEIGHT = 220;
 export const EDITOR_TIMELINE_MAX_HEIGHT = 360;
 export const EDITOR_TIMELINE_DEFAULT_HEIGHT = 280;
 
-/** Stable `${connectionId}::${direction}` key for Camera workspace tree expansion. */
-function cameraDirectionTreeKey(
-	connectionId: string,
-	direction: CameraConnectionDirection
-) {
-	return `${connectionId}${CAMERA_DIRECTION_TREE_KEY_SEPARATOR}${direction}`;
-}
+// Slice 3 — `cameraDirectionTreeKey` lives on `helpers/scene-keys.ts`
+// (alongside `CAMERA_DIRECTION_TREE_KEY_SEPARATOR`); imported above.
+// `cloneResolvedCameraRoute` + `cloneRoutePoint` + `isRoutePointTuple` live
+// on `helpers/route-clone.ts`; re-exported above for any consumer that
+// imported them from the god file before Slice 3.
 
 // Phase 9.5 — `vec3Matches` / `isFiniteVec3` live on path-anchor / view-key
 // controllers; no remaining facade callers.
@@ -265,74 +280,6 @@ function cameraDirectionTreeKey(
 // (EditorDocumentStore.documentsMatch) and the god file's caller migrated to it
 // during sub-task 3.4 (line ~4142). The two helpers were JSON-stringify
 // equality — single source of truth on the sub-store now.
-
-function isRoutePointTuple(
-	point: Vector3Like
-): point is readonly [number, number, number] {
-	return Array.isArray(point);
-}
-
-function cloneRoutePoint(point: Vector3Like): Vec3 {
-	return isRoutePointTuple(point)
-		? [point[0], point[1], point[2]]
-		: [point.x, point.y, point.z];
-}
-
-function cloneResolvedCameraRoute(route: ResolvedCameraRoute): ResolvedCameraRoute {
-	return {
-		positionParts: route.positionParts.map((part) =>
-			part.kind === 'rounded-polyline'
-				? {
-						kind: part.kind,
-						points: part.points.map(cloneRoutePoint),
-						...(part.clearance === undefined ? {} : { clearance: part.clearance })
-				  }
-				: {
-						kind: part.kind,
-						anchors: part.anchors.map(cloneRoutePoint)
-				  }
-		),
-		targetPoints: route.targetPoints.map(cloneRoutePoint),
-		...(route.startFov === undefined ? {} : { startFov: route.startFov }),
-		...(route.endFov === undefined ? {} : { endFov: route.endFov }),
-		nodeIds: [...route.nodeIds],
-		edges: route.edges.map((edge) => ({
-			connectionId: edge.connectionId,
-			direction: edge.direction,
-			fromNodeId: edge.fromNodeId,
-			toNodeId: edge.toNodeId,
-			positionSpan: {
-				start: { ...edge.positionSpan.start },
-				end: { ...edge.positionSpan.end }
-			},
-			...(edge.viewTrack === undefined
-				? {}
-				: {
-						viewTrack: {
-							start: {
-								cameraTarget: cloneRoutePoint(edge.viewTrack.start.cameraTarget),
-								fov: edge.viewTrack.start.fov
-							},
-							keyframes: edge.viewTrack.keyframes.map((keyframe) => ({
-								id: keyframe.id,
-								progress: keyframe.progress,
-								cameraTarget: cloneRoutePoint(keyframe.cameraTarget),
-								fov: keyframe.fov
-							})),
-							end: {
-								cameraTarget: cloneRoutePoint(edge.viewTrack.end.cameraTarget),
-								fov: edge.viewTrack.end.fov
-							}
-						}
-				  }),
-			...(edge.automaticTargetPoints === undefined
-				? {}
-				: {
-						automaticTargetPoints: edge.automaticTargetPoints.map(cloneRoutePoint)
-				  })
-		}))
-	};
-}
 
 export class MuseumEditorStore {
 	// Sub-store composition (Slice 3 v2 sub-task 3.4, Option 3 pragmatic facade).
@@ -420,6 +367,30 @@ export class MuseumEditorStore {
 		return this.historyController.version;
 	}
 
+	// Slice 2 (Priority-1 file splits) — preview + timeline playback
+	// orchestration. Owns the move of `playActiveConnectionEdge`,
+	// `previewActiveConnectionReverse`, `previewGuidedTour`,
+	// `previewSelectedNode`, `previewSelectedTransition`,
+	// `previewSelectedConnection`, the FSM command zoo
+	// (`setCameraPreviewMode` … `getCapturedCameraPreviewRoute`), and the
+	// private route plumbing (`resolveCameraPreviewRoute`,
+	// `prepareCameraPreview`, `seedEmptyReverseForSelectedForwardTrack`).
+	// Instantiated after `previewController` + `historyController`; the
+	// facade satisfies the host surface structurally via a single cast.
+	private readonly cameraPreviewCommands: EditorCameraPreviewCommands;
+
+	// Slice 3 (Priority-1 file splits) — Phase 5.2 texture library +
+	// material-instance assignment orchestration. Owns the move of the
+	// 7-texture-method facade block (`registerTexture`, `probeTexture`,
+	// `requestMaterialEdit`, `requestTextureAssignment`,
+	// `confirmPendingMaterialEdit`, `cancelPendingMaterialEdit`,
+	// `makeMaterialInstanceUnique`) plus the `textureVerifier` ownership
+	// (the constructor still defaults `options.textureVerifier ??
+	// createTextureVerifier()` and passes the resolved value in).
+	// `recentTextureIds` / `textureLoadStates` / `pendingMaterialEdit`
+	// getters stay on the facade as the public session surface.
+	private readonly textureLibraryController: EditorTextureLibraryController;
+
 	/**
 	 * Slice 1 (Priority-1 split) — the seven controller host object literals
 	 * moved to `store/controller-hosts.ts`. One factory call builds all seven
@@ -431,9 +402,11 @@ export class MuseumEditorStore {
 	private readonly hosts = createControllerHosts(
 		this as unknown as EditorControllerHostSource,
 		{
-			prepareCameraPreview: () => this.#prepareCameraPreview(),
+			// Slice 2 — these used to be ECMAScript-private on this class; they
+			// live on `cameraPreviewCommands` now and the bridges forward.
+			prepareCameraPreview: () => this.cameraPreviewCommands.prepareCameraPreview(),
 			seedEmptyReverseForSelectedForwardTrack: () =>
-				this.#seedEmptyReverseForSelectedForwardTrack()
+				this.cameraPreviewCommands.seedEmptyReverseForSelectedForwardTrack()
 		}
 	);
 
@@ -443,6 +416,12 @@ export class MuseumEditorStore {
 		this.historyController = new EditorHistoryController(
 			this.documentStore,
 			this.previewController
+		);
+		// Slice 2 — instantiate before the controllers whose host literals
+		// forward through the bridges above. The browser-only initialization is
+		// trivial (one structural cast) so this stays cheap.
+		this.cameraPreviewCommands = new EditorCameraPreviewCommands(
+			this as unknown as EditorCameraPreviewCommandsHost
 		);
 		const self = this;
 		this.mutationGuards = new EditorMutationGuards({
@@ -490,6 +469,14 @@ export class MuseumEditorStore {
 			this.hosts.materialResource
 		);
 		this.textureVerifier = options.textureVerifier ?? createTextureVerifier();
+		// Slice 3 — instantiate after `materialResourceMutator` (which the
+		// controller delegates into) + after `textureVerifier` (passed in as
+		// constructor arg). The structural cast reads every facade slot
+		// lazily, so the literal-only field init here is fine.
+		this.textureLibraryController = new EditorTextureLibraryController(
+			this as unknown as EditorTextureLibraryControllerHost,
+			this.textureVerifier
+		);
 		this.selectionStore.bindSession(this.session);
 		// Sub-store selection reconciliation (defect #2 fix). Closes the
 		// pre-slice gap where #reconcileSelection() only ran via the explicit
@@ -1327,6 +1314,49 @@ export class MuseumEditorStore {
 		this.#restoreCameraPreview = restore;
 	}
 
+	// Slice 2 — `@internal` shims the `EditorCameraPreviewCommands` host cast
+	// binds to. Callers distinguish `null` (no canceler / restorer installed)
+	// from `false` (canceler refused) so retry paths in the orchestration
+	// can leave the operation intact. These methods are facade-internal
+	// bridge surface — not part of the public consumer-facing API.
+	/**
+	 * Run the transform canceler if a gizmo drag is live.
+	 * `@internal` bridge — `null` ⇢ no canceler installed; `false` ⇢ refused.
+	 */
+	cancelTransform(): boolean | null {
+		return this.#cancelTransform ? this.#cancelTransform() : null;
+	}
+	/**
+	 * Run the direct path drag canceler if a curve drag is live.
+	 * `@internal` bridge — `null` ⇢ no canceler installed; `false` ⇢ refused.
+	 */
+	cancelDirectPathDrag(): boolean | null {
+		return this.#cancelDirectPathDrag ? this.#cancelDirectPathDrag() : null;
+	}
+	/**
+	 * Cancel any active direct-framing drag. Returns `true` (and clears the
+	 * active flag) when no drag is live or the registered canceler accepts.
+	 * Returns `false` when the canceler refused so the caller can retry.
+	 * `@internal` bridge.
+	 */
+	cancelDirectFramingDragOrFail(): boolean {
+		return this.#cancelDirectFramingDragOrFail();
+	}
+	/**
+	 * Run the camera-preview restorer installed by the camera rig.
+	 * `@internal` bridge — `null` ⇢ no restorer installed; `false` ⇢ refused.
+	 */
+	restoreCameraPreview(): boolean | null {
+		return this.#restoreCameraPreview ? this.#restoreCameraPreview() : null;
+	}
+	/**
+	 * Session silent clear — no focus version bump (9.1 gotcha).
+	 * `@internal` bridge.
+	 */
+	clearCameraFocusRequest(): void {
+		this.session.clearCameraFocusRequest();
+	}
+
 	/** Leave an anchor without changing the document or its history. */
 	finishAnchorEditing() {
 		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive || this.pendingNavigationCommand) {
@@ -1556,583 +1586,91 @@ export class MuseumEditorStore {
 
 	copySelectedConnectionViewTrack(source: CameraConnectionDirection) {
 		return this.viewKeyframeController.copySelectedConnectionViewTrack(source);
-	}
+	}	// Slice 2 — preview + timeline playback orchestration. Each method here is
+	// a one-line delegate to `cameraPreviewCommands`; the controller owns the
+	// verbatim body (see `store/camera-preview-commands.svelte.ts`). Inside
+	// the controller the same-instance calls (`this.setCameraPreviewMode(...)`,
+	// `this.playCameraPreview()`, `this.prepareCameraPreview()`,
+	// `this.setCameraPreviewPlayhead(...)`, etc.) route through the
+	// controller's own methods, not back through the facade — preserves the
+	// pre-slice call graph without an unnecessary endpoint bounce. The Phase
+	// 9.4 timeline ruler methods (`seekCameraTimeline` /
+	// `toggleCameraEdgeReverse` / `setCameraEdgeTravel` /
+	// `selectCameraTimelineEdge` / `selectCameraTimelineNode` /
+	// `selectCameraTimelineViewKeyframe` / `stepCameraTimeline`) stay as
+	// one-line delegates to `cameraTimelineController` further down —
+	// re-routing them through `cameraPreviewCommands` would add an
+	// indirection hop with no architectural benefit.
 
-	/**
-	 * Play the active connection edge in the current travel direction (forward or
-	 * reverse). Seeds empty reverse from forward when needed. Used by ▶ while
-	 * Reverse is toggled; guided-tour play remains previewGuidedTour.
-	 */
 	playActiveConnectionEdge(mode?: EditorCameraPreviewMode) {
-		const connectionId = this.activeCameraConnectionId;
-		const direction = this.activeCameraDirection;
-		if (!connectionId || this.isEditorInteractionActive || this.isDocumentTransactionActive) {
-			return false;
-		}
-		const connection = this.document.connections.find(
-			(candidate) => candidate.id === connectionId
-		);
-		if (!connection) return false;
-
-		if (direction === 'reverse') {
-			const needsSeed =
-				(connection.viewTracks?.forward.length ?? 0) > 0 &&
-				(connection.viewTracks?.reverse.length ?? 0) === 0;
-			if (needsSeed) {
-				if (this.isDocumentMutationBlocked || !this.beginDocumentTransaction()) {
-					return false;
-				}
-				seedEmptyReverseViewTrack(connection);
-				if (!this.commitDocumentTransaction()) return false;
-			}
-		}
-
-		const preview = this.cameraPreview;
-		const resolvedMode =
-			mode ??
-			(preview?.mode === 'director' || preview?.mode === 'visitor'
-				? preview.mode
-				: 'director');
-		if (
-			preview?.kind === 'connection' &&
-			preview.connectionId === connectionId &&
-			preview.direction === direction &&
-			preview.transport === 'paused'
-		) {
-			if (preview.mode !== resolvedMode) {
-				this.setCameraPreviewMode(resolvedMode);
-			}
-			return this.playCameraPreview();
-		}
-
-		let route: ResolvedCameraRoute;
-		try {
-			route = getCameraConnectionRoute(connection.id, direction, this.state.graph);
-		} catch (error) {
-			this.setStatusMessage(
-				error instanceof Error ? error.message : 'Camera connection is unavailable'
-			);
-			return false;
-		}
-		if (!this.#prepareCameraPreview()) return false;
-
-		this.selection.setNavigation({
-			kind: 'connection',
-			connectionId: connection.id,
-			direction
-		});
-		this.selectionActions.expandActiveCameraDirection(direction);
-
-		const fromNodeId =
-			direction === 'forward' ? connection.fromNodeId : connection.toNodeId;
-		const toNodeId =
-			direction === 'forward' ? connection.toNodeId : connection.fromNodeId;
-		const timeline = this.cameraTimelineController.readCameraTimeline();
-		const playhead =
-			timeline
-				? (cameraTimelineEdgePlayheadAtProgress(
-						timeline,
-						connectionId,
-						direction,
-						this.cameraTimelinePlayhead
-					) ?? 0)
-				: 0;
-		const runId = this.previewController.allocRunId();
-		this.previewController.setCapturedRoute(runId, route);
-		this.previewController.followEnabled = true;
-		this.previewController.recenterVersion += 1;
-		this.previewController.preview = {
-			kind: 'connection',
-			connectionId: connection.id,
-			direction,
-			fromNodeId,
-			toNodeId,
-			mode: resolvedMode,
-			transport: 'playing',
-			runId,
-			playhead,
-			startedAtMs: null
-		};
-		this.cameraTimelineController.syncCameraTimelineForConnection(
-			connection.id,
-			direction,
-			playhead
-		);
-		this.timelineExpanded = true;
-		return true;
+		return this.cameraPreviewCommands.playActiveConnectionEdge(mode);
 	}
 
-	/**
-	 * @deprecated Prefer toggleCameraEdgeReverse + playActiveConnectionEdge.
-	 * Kept for tests: seeds empty reverse and plays reverse edge from the start.
-	 */
 	previewActiveConnectionReverse(mode: EditorCameraPreviewMode = 'director') {
-		if (!this.setCameraEdgeTravel('reverse')) return false;
-		const connectionId = this.activeCameraConnectionId;
-		if (!connectionId) return false;
-		this.cameraTimelineController.showCameraTimelineConnectionPose(
-			connectionId,
-			'reverse',
-			0
-		);
-		this.cameraTimelineController.syncCameraTimelineForConnection(
-			connectionId,
-			'reverse',
-			0
-		);
-		return this.playActiveConnectionEdge(mode);
+		return this.cameraPreviewCommands.previewActiveConnectionReverse(mode);
 	}
 
-	#seedEmptyReverseForSelectedForwardTrack() {
-		const selection = this.navigationSelection;
-		const connection = this.selectedConnection;
-		if (selection?.kind !== 'view-keyframe' || selection.direction !== 'forward' || !connection) {
-			return false;
-		}
-		return syncReverseViewTrackFromForward(connection);
-	}
-
-	/** Phase 3.1 — primary Play promotes the current global ruler into one guided cycle. */
 	previewGuidedTour(mode: EditorCameraPreviewMode = 'visitor') {
-		if (this.isEditorInteractionActive || this.isDocumentTransactionActive) {
-			return false;
-		}
-		const current = this.cameraPreview;
-		if (current?.kind === 'tour') {
-			if (current.transport === 'playing') return false;
-			if (this.cameraPreview?.transport === 'complete') {
-				this.setCameraPreviewPlayhead(0, this.cameraPreview.runId);
-			}
-			return this.playCameraPreview();
-		}
-		if (current?.transport === 'playing') return false;
-
-		const timeline = this.cameraTimelineController.readCameraTimeline();
-		if (!timeline) return false;
-		if (!current && !this.#prepareCameraPreview()) return false;
-
-		const runId = this.previewController.allocRunId();
-		this.previewController.clearCapturedRoute();
-		if (!current) {
-			this.previewController.followEnabled = true;
-			this.previewController.recenterVersion += 1;
-		}
-		const playhead = Math.min(1, Math.max(0, this.cameraTimelinePlayhead));
-		this.previewController.preview = {
-			kind: 'tour',
-			startNodeId: timeline.startNodeId,
-			mode: current?.mode ?? mode,
-			transport: 'playing',
-			runId,
-			playhead,
-			startedAtMs: null
-		};
-		this.timelineExpanded = true;
-		return true;
+		return this.cameraPreviewCommands.previewGuidedTour(mode);
 	}
 
 	previewSelectedNode(mode: EditorCameraPreviewMode = 'visitor') {
-		if (this.cameraPreview) return false;
-		const nodeId = this.cameraSelection?.nodeId;
-		if (!nodeId || !this.scene.navigationNodes.some((node) => node.id === nodeId)) {
-			this.setStatusMessage('Select a camera node to preview');
-			return false;
-		}
-		if (!this.#prepareCameraPreview()) return false;
-		this.previewController.clearCapturedRoute();
-		this.previewController.followEnabled = true;
-		this.previewController.recenterVersion += 1;
-		this.previewController.preview = {
-			kind: 'node',
-			nodeId,
-			mode,
-			transport: 'paused',
-			runId: this.previewController.allocRunId(),
-			playhead: 0,
-			startedAtMs: null
-		};
-		this.cameraTimelineController.syncCameraTimelineForNode(nodeId);
-		this.timelineExpanded = true;
-		return true;
+		return this.cameraPreviewCommands.previewSelectedNode(mode);
 	}
 
 	previewSelectedTransition(mode: EditorCameraPreviewMode = 'visitor') {
-		if (this.cameraPreview) return false;
-		const nodeId = this.cameraSelection?.nodeId;
-		if (!nodeId) {
-			this.setStatusMessage('Select a camera node to preview');
-			return false;
-		}
-
-		let toNodeId: string;
-		let route: ResolvedCameraRoute;
-		try {
-			const node = getNode(nodeId, this.state.graph);
-			if (!node.nextNodeId) throw new Error(`Camera node has no nextNodeId: ${nodeId}`);
-			toNodeId = node.nextNodeId;
-			route = getCameraRoute(nodeId, toNodeId, this.state.graph);
-		} catch (error) {
-			this.setStatusMessage(
-				error instanceof Error ? error.message : 'Camera transition is unavailable'
-			);
-			return false;
-		}
-
-		if (!this.#prepareCameraPreview()) return false;
-		const runId = this.previewController.allocRunId();
-		this.previewController.setCapturedRoute(runId, route);
-		this.previewController.followEnabled = true;
-		this.previewController.recenterVersion += 1;
-		this.previewController.preview = {
-			kind: 'transition',
-			fromNodeId: nodeId,
-			toNodeId,
-			mode,
-			transport: mode === 'director' ? 'paused' : 'playing',
-			runId,
-			playhead: 0,
-			startedAtMs: null
-		};
-		this.timelineExpanded = true;
-		return true;
+		return this.cameraPreviewCommands.previewSelectedTransition(mode);
 	}
 
 	previewSelectedConnection(
 		direction: 'forward' | 'reverse',
 		mode: EditorCameraPreviewMode = 'visitor'
 	) {
-		if (this.cameraPreview || this.isEditorInteractionActive) return false;
-		const connection = this.selectedConnection;
-		if (!connection) {
-			this.setStatusMessage('Select a camera connection to preview');
-			return false;
-		}
-		const fromNodeId =
-			direction === 'forward' ? connection.fromNodeId : connection.toNodeId;
-		const toNodeId =
-			direction === 'forward' ? connection.toNodeId : connection.fromNodeId;
-		let route: ResolvedCameraRoute;
-		try {
-			route = getCameraConnectionRoute(connection.id, direction, this.state.graph);
-		} catch (error) {
-			this.setStatusMessage(
-				error instanceof Error ? error.message : 'Camera connection is unavailable'
-			);
-			return false;
-		}
-		if (!this.#prepareCameraPreview()) return false;
-		const prior = this.selectionStore.navigation;
-		// Pre-slice: only downgrade view-keyframe when preview direction differs.
-		// Anchor selection must survive so nearest-curve authoring still works.
-		if (
-			prior.kind === 'view-keyframe' &&
-			prior.connectionId === connection.id &&
-			prior.direction !== direction
-		) {
-			this.selection.setNavigation({
-				kind: 'connection',
-				connectionId: connection.id,
-				direction
-			});
-		} else if (prior.kind === 'connection') {
-			this.selection.setNavigation({
-				kind: 'connection',
-				connectionId: connection.id,
-				direction
-			});
-		} else {
-			this.selection.setDiscovery(connection.id, direction);
-		}
-		this.selectionActions.expandActiveCameraDirection(direction);
-		const runId = this.previewController.allocRunId();
-		this.previewController.setCapturedRoute(runId, route);
-		this.previewController.followEnabled = true;
-		this.previewController.recenterVersion += 1;
-		this.previewController.preview = {
-			kind: 'connection',
-			connectionId: connection.id,
-			direction,
-			fromNodeId,
-			toNodeId,
-			mode,
-			transport: mode === 'director' ? 'paused' : 'playing',
-			runId,
-			playhead: 0,
-			startedAtMs: null
-		};
-		this.cameraTimelineController.syncCameraTimelineForConnection(
-			connection.id,
-			direction,
-			0
-		);
-		this.timelineExpanded = true;
-		return true;
+		return this.cameraPreviewCommands.previewSelectedConnection(direction, mode);
 	}
 
 	setCameraPreviewMode(mode: EditorCameraPreviewMode) {
-		const preview = this.cameraPreview;
-		if (
-			!preview ||
-			preview.mode === mode ||
-			this.isEditorInteractionActive ||
-			this.isDocumentTransactionActive
-		) {
-			return false;
-		}
-		let route: ResolvedCameraRoute | null = null;
-		if (preview.kind !== 'node' && preview.kind !== 'tour') {
-			try {
-				route = this.#resolveCameraPreviewRoute(preview);
-			} catch (error) {
-				this.setStatusMessage(
-					error instanceof Error ? error.message : 'Camera preview route is unavailable'
-				);
-				return false;
-			}
-		}
-		const runId = this.previewController.allocRunId();
-		if (route) this.previewController.setCapturedRoute(runId, route);
-		else this.previewController.clearCapturedRoute();
-		this.previewController.preview = {
-			...preview,
-			mode,
-			// Keep playing reverse/tour edges when switching Observer ↔ Through Camera.
-			transport:
-				preview.transport === 'playing'
-					? 'playing'
-					: mode === 'director'
-						? 'paused'
-						: preview.transport,
-			runId,
-			startedAtMs: null
-		};
-		return true;
+		return this.cameraPreviewCommands.setCameraPreviewMode(mode);
 	}
 
 	playCameraPreview() {
-		const preview = this.cameraPreview;
-		if (
-			!preview ||
-			preview.kind === 'node' ||
-			preview.transport === 'playing' ||
-			this.isEditorInteractionActive ||
-			this.isDocumentTransactionActive
-		) {
-			return false;
-		}
-		let route: ResolvedCameraRoute | null = null;
-		if (preview.kind === 'tour') {
-			if (!this.cameraTimelineController.readCameraTimeline()) return false;
-		} else {
-			try {
-				route = preview.mode === 'director'
-					? this.#resolveCameraPreviewRoute(preview)
-					: this.getCapturedCameraPreviewRoute(preview.runId)!;
-				if (!route) throw new Error('Camera preview route capture is unavailable');
-			} catch (error) {
-				this.setStatusMessage(
-					error instanceof Error ? error.message : 'Camera preview route is unavailable'
-				);
-				return false;
-			}
-		}
-		const runId = this.previewController.allocRunId();
-		if (route) this.previewController.setCapturedRoute(runId, route);
-		else this.previewController.clearCapturedRoute();
-		const playhead = preview.transport === 'complete' ? 0 : preview.playhead;
-		this.previewController.preview = {
-			...preview,
-			transport: 'playing',
-			runId,
-			playhead,
-			startedAtMs: null
-		};
-		if (preview.kind === 'connection') {
-			this.cameraTimelineController.syncCameraTimelineForConnection(
-				preview.connectionId,
-				preview.direction,
-				playhead
-			);
-		} else if (preview.kind === 'tour') {
-			this.cameraTimelinePlayhead = playhead;
-		}
-		return true;
+		return this.cameraPreviewCommands.playCameraPreview();
 	}
 
 	pauseCameraPreview() {
-		return this.previewController.pause();
+		return this.cameraPreviewCommands.pauseCameraPreview();
 	}
 
 	setCameraPreviewPlayhead(progress: number, runId = this.cameraPreview?.runId) {
-		const preview = this.cameraPreview;
-		if (!preview || preview.kind === 'node' || preview.runId !== runId || !Number.isFinite(progress)) {
-			return false;
-		}
-		const playhead = Math.min(1, Math.max(0, progress));
-		if (Math.abs(preview.playhead - playhead) <= 1e-6 && preview.transport !== 'complete') {
-			return false;
-		}
-		this.previewController.preview = {
-			...preview,
-			playhead,
-			...(preview.transport === 'complete'
-				? { transport: 'paused' as const, startedAtMs: null }
-				: {})
-		};
-		if (preview.kind === 'connection') {
-			this.cameraTimelineController.syncCameraTimelineForConnection(
-				preview.connectionId,
-				preview.direction,
-				playhead
-			);
-		} else if (preview.kind === 'tour') {
-			this.cameraTimelinePlayhead = playhead;
-		}
-		return true;
+		return this.cameraPreviewCommands.setCameraPreviewPlayhead(progress, runId);
 	}
 
 	stepCameraPreview(direction: -1 | 1) {
-		const preview = this.cameraPreview;
-		if (
-			!preview ||
-			preview.mode !== 'director' ||
-			preview.kind === 'node' ||
-			preview.transport === 'playing'
-		) {
-			return false;
-		}
-		const breakpoints = [0, 1];
-		if (preview.kind === 'tour') {
-			const timeline = this.cameraTimelineController.readCameraTimeline();
-			if (!timeline) return false;
-			breakpoints.push(...timeline.nodeBoundaries.map((boundary) => boundary.progress));
-			for (const edge of timeline.edges) {
-				const motion = edge.motions[edge.direction];
-				for (const keyframe of motion.positionEdgeSpans[0]?.viewTrack?.keyframes ?? []) {
-					const progress = cameraTimelineProgressAtEdgeProgress(
-						timeline,
-						edge.connectionId,
-						edge.direction,
-						keyframe.progress
-					);
-					if (progress !== null) breakpoints.push(progress);
-				}
-			}
-		} else {
-			const route = this.getCapturedCameraPreviewRoute(preview.runId);
-			if (!route) return false;
-			const motion = createCameraMotion(route);
-			for (const [edgeIndex, edge] of motion.positionEdgeSpans.entries()) {
-				breakpoints.push(cameraMotionProgressAtEdgeProgress(motion, edgeIndex, 0));
-				breakpoints.push(cameraMotionProgressAtEdgeProgress(motion, edgeIndex, 1));
-				for (const keyframe of edge.viewTrack?.keyframes ?? []) {
-					breakpoints.push(
-						cameraMotionProgressAtEdgeProgress(motion, edgeIndex, keyframe.progress)
-					);
-				}
-			}
-		}
-		const ordered = [...new Set(breakpoints.map((value) => value.toFixed(9)))]
-			.map(Number)
-			.sort((left, right) => left - right);
-		const epsilon = 1e-6;
-		const next = direction < 0
-			? [...ordered].reverse().find((value) => value < preview.playhead - epsilon) ?? 0
-			: ordered.find((value) => value > preview.playhead + epsilon) ?? 1;
-		return this.setCameraPreviewPlayhead(next);
+		return this.cameraPreviewCommands.stepCameraPreview(direction);
 	}
 
 	toggleCameraPreviewFollow() {
-		return this.previewController.toggleFollow();
+		return this.cameraPreviewCommands.toggleCameraPreviewFollow();
 	}
 
 	recenterCameraPreview() {
-		return this.previewController.recenter();
+		return this.cameraPreviewCommands.recenterCameraPreview();
 	}
 
 	markCameraPreviewStarted(runId: number, startedAtMs: number) {
-		return this.previewController.markStarted(runId, startedAtMs);
+		return this.cameraPreviewCommands.markCameraPreviewStarted(runId, startedAtMs);
 	}
 
 	completeCameraPreview(runId: number) {
-		const preview = this.cameraPreview;
-		if (
-			!preview ||
-			preview.kind === 'node' ||
-			preview.runId !== runId ||
-			preview.transport !== 'playing' ||
-			preview.startedAtMs === null
-		) {
-			return false;
-		}
-		this.previewController.preview = {
-			...preview,
-			transport: 'complete',
-			playhead: 1,
-			startedAtMs: null
-		};
-		if (preview.kind === 'connection') {
-			this.cameraTimelineController.syncCameraTimelineForConnection(
-				preview.connectionId,
-				preview.direction,
-				1
-			);
-		} else if (preview.kind === 'tour') {
-			this.cameraTimelinePlayhead = 1;
-		}
-		return true;
+		return this.cameraPreviewCommands.completeCameraPreview(runId);
 	}
 
 	stopCameraPreview() {
-		if (this.viewKeyframeProgressDrag) {
-			this.cancelViewKeyframeProgressDrag();
-		}
-		if (!this.cameraPreview) return false;
-		if (!this.#cancelDirectFramingDragOrFail()) return false;
-		if (this.#restoreCameraPreview && !this.#restoreCameraPreview()) return false;
-		this.previewController.preview = null;
-		this.previewController.clearCapturedRoute();
-		this.previewController.followEnabled = true;
-		// Phase 2.1: Preview Stop preserves the active connection + direction so any
-		// previously-selected keyframe remains reachable through tree/timeline/3D.
-		return true;
+		return this.cameraPreviewCommands.stopCameraPreview();
 	}
 
 	getCapturedCameraPreviewRoute(runId: number) {
-		return this.previewController.getCapturedRoute(runId);
-	}
-
-	#resolveCameraPreviewRoute(preview: Exclude<EditorCameraPreview, null>) {
-		if (preview.kind === 'node') {
-			throw new Error('A node preview has no camera route');
-		}
-		if (preview.kind === 'connection') {
-			return getCameraConnectionRoute(
-				preview.connectionId,
-				preview.direction,
-				this.state.graph
-			);
-		}
-		if (preview.kind === 'tour') {
-			throw new Error('Guided tour preview uses exact camera timeline motions');
-		}
-		return getCameraRoute(preview.fromNodeId, preview.toNodeId, this.state.graph);
-	}
-
-	#prepareCameraPreview() {
-		if (this.transformInteractionActive) {
-			if (!this.#cancelTransform?.()) return false;
-		}
-		if (this.directPathInteractionActive && !this.#cancelDirectPathDrag?.()) {
-			return false;
-		}
-		if (this.transformInteractionActive || this.isDocumentTransactionActive) return false;
-		this.cancelAssetPlacement();
-		this.cancelPendingNavigation();
-		this.cancelPendingFrame();
-		this.setNavigationHover(null);
-		this.session.clearCameraFocusRequest();
-		return true;
+		return this.cameraPreviewCommands.getCapturedCameraPreviewRoute(runId);
 	}
 
 	requestDropToFloor() {
@@ -2609,172 +2147,40 @@ export class MuseumEditorStore {
 	// ===================================================================
 	// Phase 5.2 — texture library + material-instance assignment facade
 	// ===================================================================
+	// Slice 3 — every method here is a one-line delegate to the
+	// `textureLibraryController` (see `store/texture-library-controller.svelte.ts`).
+	// The controller owns the verbatim body (URI safety, dedup, async races,
+	// session-cache writes, selection commit hook, decision-pending routing).
+	// The facade still owns the `textureVerifier` field so the constructor's
+	// `options.textureVerifier ?? createTextureVerifier()` defaulting stays
+	// intact.
 
-	/**
-	 * Register a verified public texture URI. Exact trimmed-URI duplicates
-	 * reuse the existing texture with no history. Verification happens
-	 * before any document transaction begins.
-	 */
 	async registerTexture(name: string, uri: string): Promise<string | null> {
-		const trimmedName = name.trim();
-		const trimmedUri = uri.trim();
-		if (!trimmedUri || !isSafeTextureUri(trimmedUri)) {
-			this.setStatusMessage('Texture URI must be a safe root-relative public path');
-			return null;
-		}
-		// Reuse an existing exact URI before verification (no history).
-		const existing = this.document.textures.find((texture) => texture.uri === trimmedUri);
-		if (existing) {
-			this.session.markTextureRecentlyUsed(existing.id);
-			return existing.id;
-		}
-		const verification = await this.textureVerifier(trimmedUri);
-		if (!verification.success) {
-			this.setStatusMessage(verification.message);
-			return null;
-		}
-		// Recheck current state — Reset/Import/Undo/another registration may
-		// have replaced the document while the image loaded.
-		const raced = this.document.textures.find((texture) => texture.uri === trimmedUri);
-		if (raced) {
-			this.session.markTextureRecentlyUsed(raced.id);
-			return raced.id;
-		}
-		const result = this.materialResourceMutator.registerVerifiedTexture(
-			trimmedName,
-			trimmedUri
-		);
-		if (result.status === 'rejected') {
-			this.setStatusMessage(result.reason);
-			return null;
-		}
-		return result.textureId;
+		return this.textureLibraryController.registerTexture(name, uri);
 	}
 
-	/**
-	 * Probe one texture's image load state without mutating the document.
-	 * Updates the session-only load-state map and returns load success.
-	 */
 	async probeTexture(textureId: string): Promise<boolean> {
-		const texture = this.document.textures.find((candidate) => candidate.id === textureId);
-		if (!texture) return false;
-		const current = this.session.textureLoadStates[texture.uri];
-		if (current?.status === 'ready') return true;
-		if (current?.status === 'loading') return false;
-		this.session.setTextureLoadState(texture.uri, { status: 'loading' });
-		const verification = await this.textureVerifier(texture.uri);
-		if (verification.success) {
-			this.session.setTextureLoadState(texture.uri, { status: 'ready' });
-			return true;
-		}
-		this.session.setTextureLoadState(texture.uri, {
-			status: 'error',
-			message: verification.message
-		});
-		return false;
+		return this.textureLibraryController.probeTexture(textureId);
 	}
 
-	/**
-	 * Inspector entry — applies one field patch or queues the decision the
-	 * Material inspector needs. Returns true when committed or queued.
-	 */
 	requestMaterialEdit(entityId: string, patch: MaterialInstancePatch): boolean {
-		const result = this.materialResourceMutator.applyMaterialPatch(entityId, patch);
-		if (result.status === 'committed') return true;
-		if (result.status === 'decision-required') {
-			this.session.setPendingMaterialEdit({
-				entityId,
-				needsBaseMaterial: result.needsBaseMaterial,
-				sharedMaterialInstanceId: result.sharedMaterialInstanceId,
-				patch: { ...patch },
-				recentTextureId: typeof patch.baseTextureId === 'string' ? patch.baseTextureId : null
-			});
-			return true;
-		}
-		this.setStatusMessage(result.reason);
-		return false;
+		return this.textureLibraryController.requestMaterialEdit(entityId, patch);
 	}
 
-	/**
-	 * Viewport drop entry — assigns one registered texture to a model or
-	 * primitive, queueing the base-material / shared-instance decision when
-	 * required. Successful commits select the target entity.
-	 */
 	requestTextureAssignment(entityId: string, textureId: string): boolean {
-		const result = this.materialResourceMutator.applyMaterialPatch(
-			entityId,
-			{ baseTextureId: textureId },
-			{},
-			'texture-assignment'
-		);
-		if (result.status === 'committed') {
-			this.selectionActions.selectPlacement(entityId);
-			this.session.markTextureRecentlyUsed(textureId);
-			return true;
-		}
-		if (result.status === 'decision-required') {
-			this.session.setPendingMaterialEdit({
-				entityId,
-				needsBaseMaterial: result.needsBaseMaterial,
-				sharedMaterialInstanceId: result.sharedMaterialInstanceId,
-				patch: { baseTextureId: textureId },
-				recentTextureId: textureId
-			});
-			return true;
-		}
-		this.setStatusMessage(result.reason);
-		return false;
+		return this.textureLibraryController.requestTextureAssignment(entityId, textureId);
 	}
 
-	/**
-	 * Replays a queued pending material edit against current state. Clears
-	 * the request only after commit or definitive rejection; a stale
-	 * re-queued decision stays open with refreshed requirements.
-	 */
 	confirmPendingMaterialEdit(decision: MaterialEditDecision): boolean {
-		const pending = this.pendingMaterialEdit;
-		if (!pending) return false;
-		const source =
-			pending.recentTextureId !== null ? 'texture-assignment' : 'inspector';
-		const result = this.materialResourceMutator.applyMaterialPatch(
-			pending.entityId,
-			pending.patch,
-			decision,
-			source
-		);
-		if (result.status === 'committed') {
-			this.session.setPendingMaterialEdit(null);
-			if (source === 'texture-assignment') {
-				this.selectionActions.selectPlacement(pending.entityId);
-				if (pending.recentTextureId) {
-					this.session.markTextureRecentlyUsed(pending.recentTextureId);
-				}
-			}
-			return true;
-		}
-		if (result.status === 'decision-required') {
-			this.session.setPendingMaterialEdit({
-				...pending,
-				needsBaseMaterial: result.needsBaseMaterial,
-				sharedMaterialInstanceId: result.sharedMaterialInstanceId
-			});
-			return true;
-		}
-		this.session.setPendingMaterialEdit(null);
-		this.setStatusMessage(result.reason);
-		return false;
+		return this.textureLibraryController.confirmPendingMaterialEdit(decision);
 	}
 
-	/** Cancel a queued material decision without mutating the document. */
 	cancelPendingMaterialEdit(): boolean {
-		if (!this.pendingMaterialEdit) return false;
-		this.session.setPendingMaterialEdit(null);
-		return true;
+		return this.textureLibraryController.cancelPendingMaterialEdit();
 	}
 
-	/** Clone a shared material instance and repoint one entity (one history entry). */
 	makeMaterialInstanceUnique(entityId: string): boolean {
-		return this.materialResourceMutator.makeMaterialInstanceUnique(entityId);
+		return this.textureLibraryController.makeMaterialInstanceUnique(entityId);
 	}
 
 	beginDocumentTransaction() {
@@ -2811,7 +2217,7 @@ export class MuseumEditorStore {
 		}
 		if (!this.historyController.isDocumentUndoBlocked) return false;
 		if (this.historyController.isFramingTransactionActive) {
-			this.#seedEmptyReverseForSelectedForwardTrack();
+			this.cameraPreviewCommands.seedEmptyReverseForSelectedForwardTrack();
 		}
 		const result = this.historyController.commit(this.document);
 		if (result.error) {

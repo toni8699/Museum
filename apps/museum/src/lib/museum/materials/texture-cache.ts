@@ -193,3 +193,119 @@ export function resetTextureCachesForTests() {
   materialLoadPromises.clear();
   sourceCache.clear();
 }
+
+// ---------------------------------------------------------------------------
+// Phase 5.3 — per-effective material-instance variant pool.
+// ---------------------------------------------------------------------------
+
+import type { EffectiveSceneMaterial } from './scene-instance-material';
+
+export type EffectiveLoadResult =
+  | { status: 'ready'; maps: LoadedTextureMaps }
+  | { status: 'partial'; maps: LoadedTextureMaps; failed: string[] }
+  | { status: 'failed'; error: string; maps: LoadedTextureMaps }
+  | { status: 'fallback' };
+
+/**
+ * Source loader reused by both Phase 5.2 catalogue path and Phase 5.3 effective
+ * path. Same URL produces a single `THREE.Texture` instance regardless of caller.
+ */
+export function loadSourceTexture(
+  url: string,
+  slot: MaterialTextureSlot
+): Promise<ThreeTexture> {
+  return loadSource(url, slot, 'effective');
+}
+
+export async function loadEffectiveTextures(
+  effective: EffectiveSceneMaterial
+): Promise<EffectiveLoadResult> {
+  const entries = Object.entries(effective.slotUris) as [MaterialTextureSlot, string][];
+  if (entries.length === 0) {
+    return { status: 'fallback' };
+  }
+
+  const maps: LoadedTextureMaps = {};
+  const failed: string[] = [];
+
+  await Promise.all(
+    entries.map(async ([entrySlot, url]) => {
+      try {
+        maps[entrySlot] = await loadSourceTexture(url, entrySlot);
+      } catch (error) {
+        failed.push(error instanceof Error ? error.message : String(error));
+      }
+    })
+  );
+
+  if (!maps.map) {
+    if (failed.length > 0) {
+      return { status: 'failed', error: failed.join('; '), maps };
+    }
+    return { status: 'fallback' };
+  }
+
+  if (failed.length > 0) return { status: 'partial', maps, failed };
+  return { status: 'ready', maps };
+}
+
+function effectiveVariantKey(
+  seed: string,
+  rx: number,
+  ry: number,
+  rot: number
+): VariantKey {
+  return `eff|${seed}|${rx.toFixed(4)}|${ry.toFixed(4)}|${rot.toFixed(4)}`;
+}
+
+export function acquireEffectiveVariant(
+  effective: EffectiveSceneMaterial,
+  repeatX: number,
+  repeatY: number,
+  rotation = 0
+): LoadedTextureMaps {
+  const key = effectiveVariantKey(effective.variantSeed, repeatX, repeatY, rotation);
+  const existing = variantCache.get(key);
+  if (existing) {
+    existing.refCount += 1;
+    return existing.maps;
+  }
+
+  const maps: LoadedTextureMaps = {};
+  for (const [entrySlot, url] of Object.entries(effective.slotUris) as [
+    MaterialTextureSlot,
+    string
+  ][]) {
+    const cached = sourceCache.get(url);
+    if (!cached?.texture) continue;
+    const source = cached.texture;
+    const clone = source.clone();
+    clone.wrapS = RepeatWrapping;
+    clone.wrapT = RepeatWrapping;
+    clone.colorSpace = source.colorSpace;
+    clone.repeat.set(repeatX, repeatY);
+    clone.rotation = rotation;
+    clone.center.set(0.5, 0.5);
+    clone.needsUpdate = true;
+    maps[entrySlot] = clone;
+  }
+  variantCache.set(key, { maps, refCount: 1 });
+  return maps;
+}
+
+export function releaseEffectiveVariant(
+  seed: string,
+  repeatX: number,
+  repeatY: number,
+  rotation = 0
+): void {
+  const key = effectiveVariantKey(seed, repeatX, repeatY, rotation);
+  const existing = variantCache.get(key);
+  if (!existing) return;
+
+  existing.refCount -= 1;
+  if (existing.refCount > 0) return;
+
+  for (const texture of Object.values(existing.maps)) texture?.dispose();
+  variantCache.delete(key);
+}

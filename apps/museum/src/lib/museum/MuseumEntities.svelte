@@ -1,13 +1,20 @@
 <script lang="ts">
   import { T } from '@threlte/core';
   import { getRoom } from '$lib/content/rooms';
-  import type { RuntimeMuseumScene, SceneEntity } from '$lib/content/scene';
+  import type {
+    MuseumSceneDocument,
+    RuntimeMuseumScene,
+    SceneEntity,
+    SceneModelEntity,
+    ScenePrimitiveEntity
+  } from '$lib/content/scene';
   import {
     isSceneLightEntity,
     isSceneModelEntity,
     isScenePrimitiveEntity,
     modelEntityToPlacement
   } from '$lib/content/scene';
+  import { resolveSceneMaterial } from '$lib/museum/materials/scene-instance-material';
   import type { MuseumRoomId } from '$lib/types/museum';
   import EditorPlacementRoot from './EditorPlacementRoot.svelte';
   import type { EditorPlacementRegistry } from './placement-registry';
@@ -43,6 +50,25 @@
       entities
     }));
   });
+
+  // Phase 5.3 — the resolver only reads materials + textures from a document.
+  // RuntimeMuseumScene carries both at the top level, so we adapt to the
+  // resolver's Pick<MuseumSceneDocument, ...> shape inline.
+  function entityEffective(
+    entity: ScenePrimitiveEntity | SceneModelEntity
+  ): ReturnType<typeof resolveSceneMaterial> {
+    return resolveSceneMaterial(
+      {
+        materials: scene.materials,
+        textures: scene.textures
+      } as Pick<MuseumSceneDocument, 'materials' | 'textures'>,
+      {
+        materialInstanceId: entity.materialInstanceId ?? null,
+        fallbackCatalogueId:
+          entity.kind === 'primitive' ? entity.materialId : 'paper-aged'
+      }
+    );
+  }
 </script>
 
 {#each roomGroups as group (group.room.id)}
@@ -68,9 +94,10 @@
               fallback={entity.fallback}
               {enabled}
               localTransform
+              effective={entity.materialInstanceId ? entityEffective(entity) : null}
             />
           {:else if isScenePrimitiveEntity(entity)}
-            <EntityPrimitive {entity} />
+            <EntityPrimitive {entity} effective={entityEffective(entity)} />
           {:else if isSceneLightEntity(entity)}
             <EntityLight {entity} showPickProxy />
           {/if}
@@ -88,6 +115,7 @@
           scale={entity.scale ?? 1}
           fallback={entity.fallback}
           {enabled}
+          effective={entity.materialInstanceId ? entityEffective(entity) : null}
         />
       {:else if isScenePrimitiveEntity(entity)}
         <T.Group
@@ -95,7 +123,7 @@
           rotation={entity.rotation}
           scale={entity.scale ?? 1}
         >
-          <EntityPrimitive {entity} />
+          <EntityPrimitive {entity} effective={entityEffective(entity)} />
         </T.Group>
       {:else if isSceneLightEntity(entity)}
         <T.Group

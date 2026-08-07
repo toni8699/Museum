@@ -151,10 +151,6 @@
 				<button type="button" class="unique" onclick={makeUnique}>Make unique</button>
 			</p>
 		{/if}
-
-		<p class="phase-note">
-			Assigned materials are saved to the scene document now; viewport rendering arrives in Phase 5.3.
-		</p>
 	</section>
 {/if}
 
@@ -202,5 +198,4 @@
 		cursor: pointer;
 	}
 	.unique:hover { background: #35301f; }
-	.phase-note { margin: 0; color: #918c84; font-size: 0.66rem; line-height: 1.4; }
 </style>

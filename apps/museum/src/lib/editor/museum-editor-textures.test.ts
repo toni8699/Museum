@@ -13,8 +13,8 @@ import type { TextureVerifier } from './texture-verifier';
 describe('MuseumEditorStore Phase 5.2 texture facade', () => {
 	const readyVerifier: TextureVerifier = async (uri) =>
 		uri.includes('missing') || uri.includes('bad')
-			? { success: false, code: 'load-failed', message: `failed: ${uri}` }
-			: { success: true };
+			? { status: 'load-failed', message: `failed: ${uri}` }
+			: { status: 'ready' };
 
 	function createTextureStore(verifier: TextureVerifier = readyVerifier) {
 		const document = cloneFixtureDocument();
@@ -59,7 +59,7 @@ describe('MuseumEditorStore Phase 5.2 texture facade', () => {
 		let loaderCalls = 0;
 		const verifier: TextureVerifier = async (uri) => {
 			loaderCalls += 1;
-			return { success: true };
+			return { status: 'ready' };
 		};
 		const store = createTextureStore(verifier);
 

@@ -1,85 +1,99 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createTextureVerifier } from './texture-verifier';
+import type { Texture as ThreeTexture } from 'three';
+import type { MaterialTextureSlot } from '$lib/types/materials';
 
 const SAFE = '/textures/wall.webp';
 
+function stubTexture(uri: string): ThreeTexture {
+	return {
+		source: { data: null },
+		uuid: uri,
+		image: { complete: true }
+	} as unknown as ThreeTexture;
+}
+
 describe('texture verifier', () => {
 	it('rejects unsafe URIs without invoking the loader', async () => {
-		const load = vi.fn().mockResolvedValue(undefined);
+		const load = vi.fn(
+			async (_uri: string, _slot: MaterialTextureSlot) => stubTexture('x')
+		);
 		const verify = createTextureVerifier(load);
 
 		const result = await verify('https://example.com/x.png');
 
-		expect(result.success).toBe(false);
-		if (result.success === false) expect(result.code).toBe('unsafe-uri');
+		expect(result.status).toBe('unsafe-uri');
 		expect(load).not.toHaveBeenCalled();
 	});
 
-	it('returns success when the loader resolves', async () => {
-		const load = vi.fn().mockResolvedValue(undefined);
+	it('returns ready when the source loader resolves', async () => {
+		const load = vi.fn(
+			async (uri: string, _slot: MaterialTextureSlot) => stubTexture(uri)
+		);
 		const verify = createTextureVerifier(load);
 
-		expect(await verify(SAFE)).toEqual({ success: true });
-		expect(load).toHaveBeenCalledWith(SAFE);
+		expect(await verify(SAFE)).toEqual({ status: 'ready' });
+		expect(load).toHaveBeenCalledWith(SAFE, 'map');
 	});
 
-	it('returns load-failed when the loader rejects', async () => {
-		const load = vi.fn().mockRejectedValue(new Error('boom'));
+	it('returns load-failed when the source loader rejects', async () => {
+		const load = vi.fn(async (_uri: string, _slot: MaterialTextureSlot) =>
+			Promise.reject(new Error('boom'))
+		);
 		const verify = createTextureVerifier(load);
 
 		const result = await verify(SAFE);
 
-		expect(result.success).toBe(false);
-		if (result.success === false) {
-			expect(result.code).toBe('load-failed');
-			expect(result.message).toContain(SAFE);
+		expect(result.status).toBe('load-failed');
+		if (result.status === 'load-failed') {
+			expect(result.message).toContain('boom');
 		}
 	});
 
-	it('shares a single loader invocation per URI across concurrent checks', async () => {
-		const resolvers = new Map<string, () => void>();
-		const load = vi.fn().mockImplementation(
-			(uri: string) =>
-				new Promise<void>((resolve) => {
-					resolvers.set(uri, resolve);
+	it('coalesces concurrent calls to the same URI', async () => {
+		let resolveFirst: (() => void) | undefined;
+		const load = vi.fn(
+			(_uri: string, _slot: MaterialTextureSlot) =>
+				new Promise<ThreeTexture>((resolve) => {
+					resolveFirst = () => resolve(stubTexture('/textures/a.png'));
 				})
 		);
 		const verify = createTextureVerifier(load);
 
 		const first = verify('/textures/a.png');
 		const second = verify('/textures/a.png');
-		const third = verify('/textures/b.png');
 
-		expect(load).toHaveBeenCalledTimes(2);
-		resolvers.get('/textures/a.png')?.();
-		resolvers.get('/textures/b.png')?.();
-		const [a1, a2, b] = await Promise.all([first, second, third]);
-		expect(a1).toEqual({ success: true });
-		expect(a2).toEqual({ success: true });
-		expect(b).toEqual({ success: true });
-		expect(load).toHaveBeenCalledTimes(2);
-	});
-
-	it('drops the pending entry after settlement so retries can run again', async () => {
-		const load = vi
-			.fn()
-			.mockRejectedValueOnce(new Error('first'))
-			.mockResolvedValueOnce(undefined);
-		const verify = createTextureVerifier(load);
-
-		const failed = await verify(SAFE);
-		expect(failed.success).toBe(false);
-
-		const retry = await verify(SAFE);
-		expect(retry).toEqual({ success: true });
-		expect(load).toHaveBeenCalledTimes(2);
+		expect(load).toHaveBeenCalledTimes(1);
+		resolveFirst?.();
+		const [a, b] = await Promise.all([first, second]);
+		expect(a).toEqual({ status: 'ready' });
+		expect(b).toEqual({ status: 'ready' });
 	});
 
 	it('does not coalesce distinct URIs', async () => {
-		const load = vi.fn().mockResolvedValue(undefined);
+		const load = vi.fn(
+			async (uri: string, _slot: MaterialTextureSlot) => stubTexture(uri)
+		);
+		const verify = createTextureVerifier(load);
+		await Promise.all([verify('/textures/a.png'), verify('/textures/b.png')]);
+		expect(load.mock.calls.map((call) => call[0])).toEqual([
+			'/textures/a.png',
+			'/textures/b.png'
+		]);
+	});
+
+	it('retries a failed URI on the next call', async () => {
+		const load = vi
+			.fn()
+			.mockRejectedValueOnce(new Error('first'))
+			.mockResolvedValueOnce(stubTexture(SAFE));
 		const verify = createTextureVerifier(load);
 
-		await Promise.all([verify('/textures/a.png'), verify('/textures/b.png')]);
+		const failed = await verify(SAFE);
+		expect(failed.status).toBe('load-failed');
+
+		const retry = await verify(SAFE);
+		expect(retry).toEqual({ status: 'ready' });
 		expect(load).toHaveBeenCalledTimes(2);
 	});
 });

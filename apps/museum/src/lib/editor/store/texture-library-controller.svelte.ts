@@ -97,7 +97,7 @@ export class EditorTextureLibraryController {
 			return existing.id;
 		}
 		const verification = await this.textureVerifier(trimmedUri);
-		if (!verification.success) {
+		if (verification.status !== 'ready') {
 			host.setStatusMessage(verification.message);
 			return null;
 		}
@@ -132,7 +132,7 @@ export class EditorTextureLibraryController {
 		if (current?.status === 'loading') return false;
 		host.session.setTextureLoadState(texture.uri, { status: 'loading' });
 		const verification = await this.textureVerifier(texture.uri);
-		if (verification.success) {
+		if (verification.status === 'ready') {
 			host.session.setTextureLoadState(texture.uri, { status: 'ready' });
 			return true;
 		}

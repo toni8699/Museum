@@ -29,6 +29,12 @@ export type MaterialDefinition = {
 
 export type MaterialTextureMode = 'auto' | 'off';
 
-export type MaterialLoadStatus = 'idle' | 'loading' | 'ready' | 'failed' | 'fallback';
+export type MaterialLoadStatus =
+	| 'idle'
+	| 'loading'
+	| 'ready'
+	| 'partial'
+	| 'failed'
+	| 'fallback';
 
 export type Vec2 = [number, number];

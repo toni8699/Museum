@@ -11,6 +11,7 @@
     FallbackKind
   } from '$lib/types/assets';
   import type { Vec3 } from '$lib/types/museum';
+  import type { EffectiveSceneMaterial } from '$lib/museum/materials/scene-instance-material';
   import AssetFallback from './AssetFallback.svelte';
   import { assetFallbackDimensions } from './fallbacks';
   import {
@@ -19,11 +20,17 @@
     inspectModel,
     setModelWireframe
   } from './model-utils';
+  import {
+    remapModelMaterials,
+    releaseModelMaterialRemap,
+    type RemapKey
+  } from './instance-material-remap';
 
   const ZERO: Vec3 = [0, 0, 0];
 
   let {
     assetId,
+    effective = null as EffectiveSceneMaterial | null,
     position = ZERO,
     rotation = ZERO,
     scale = 1,
@@ -40,6 +47,8 @@
     error = $bindable<string | undefined>()
   }: {
     assetId: AssetId;
+    /** Phase 5.3 — resolved material to remap onto every GLTF mesh; null skips remap. */
+    effective?: EffectiveSceneMaterial | null;
     position?: Vec3;
     rotation?: Vec3;
     scale?: number;
@@ -62,6 +71,7 @@
   const fallbackKind = $derived(fallback ?? resolveAssetFallback(asset));
 
   let instance = $state<Object3D>();
+  let acquiredRemap = $state<RemapKey | null>(null);
   let rawBounds = $state<Box3>();
   let rawMetrics = $state<AssetMetrics>();
   /** Internal load flag — avoid writing `$bindable status` inside the loader effect. */
@@ -94,6 +104,14 @@
         shadows && asset.castShadow,
         shadows && asset.receiveShadow
       );
+      if (effective) {
+        // Drop any prior remap before re-applying to the new instance.
+        if (acquiredRemap) {
+          releaseModelMaterialRemap(acquiredRemap);
+          acquiredRemap = null;
+        }
+        acquiredRemap = remapModelMaterials(ownedInstance, effective, [1, 1]).acquiredKey;
+      }
       const inspection = inspectModel(
         ownedInstance,
         gltf.animations.map((animation) => animation.name).filter(Boolean)
@@ -120,6 +138,10 @@
       unsubscribeError();
       if (ownedInstance) disposeModelInstance(ownedInstance);
       if (instance === ownedInstance) instance = undefined;
+      if (acquiredRemap) {
+        releaseModelMaterialRemap(acquiredRemap);
+        acquiredRemap = null;
+      }
     };
   });
 
@@ -170,6 +192,25 @@
         ? [0, -assetFallbackDimensions[fallbackKind][1] / 2, 0]
         : [0, assetFallbackDimensions[fallbackKind][1] / 2, 0]
   );
+
+  // Re-apply the remap whenever the effective material changes after the GLTF
+  // instance has already loaded.
+  $effect(() => {
+    const seed = effective?.variantSeed;
+    if (!instance || !effective || seed === undefined) return;
+    if (acquiredRemap && acquiredRemap.seed === seed) return;
+    if (acquiredRemap) {
+      releaseModelMaterialRemap(acquiredRemap);
+      acquiredRemap = null;
+    }
+    acquiredRemap = remapModelMaterials(instance, effective, [1, 1]).acquiredKey;
+    return () => {
+      if (acquiredRemap) {
+        releaseModelMaterialRemap(acquiredRemap);
+        acquiredRemap = null;
+      }
+    };
+  });
 
   const rootPosition = $derived(localTransform ? ZERO : position);
   const rootRotation = $derived(localTransform ? ZERO : rotation);

@@ -10,7 +10,10 @@
 		orderRecentlyUsedTextures,
 		TEXTURE_DRAG_MIME
 	} from './editor-textures';
+	import { sniffImageMime } from '$lib/editor/helpers/mime-sniff';
 	import type { MuseumEditorStore } from './museum-editor.svelte';
+
+	type SourceMode = 'public' | 'local';
 
 	let {
 		store,
@@ -32,6 +35,11 @@
 	let nameDraft = $state('');
 	let uriDraft = $state('');
 	let registering = $state(false);
+	let sourceMode = $state<SourceMode>('public');
+	let localFileName = $state<string | null>(null);
+	let localFileError = $state<string | null>(null);
+	let dropActive = $state(false);
+	let fileInputElement = $state<HTMLInputElement | null>(null);
 
 	const assets = $derived(
 		listAssetLibraryItems({
@@ -134,15 +142,119 @@
 		event.preventDefault();
 		if (registering) return;
 		registering = true;
+		localFileError = null;
 		try {
-			const textureId = await store.registerTexture(nameDraft, uriDraft);
+			let textureId: string | null = null;
+			if (sourceMode === 'public') {
+				textureId = await store.registerTexture(nameDraft, uriDraft);
+			} else if (pendingLocalBytes) {
+				const sniffedMime = sniffImageMime(pendingLocalBytes);
+				if (!sniffedMime) {
+					localFileError = 'Unsupported image format — use PNG, WebP, or JPEG';
+					return;
+				}
+				textureId = await store.registerLocalFileTexture(
+					nameDraft || pendingLocalFileName || 'Texture',
+					pendingLocalBytes,
+					sniffedMime
+				);
+			}
 			if (!textureId) return;
 			selectedTextureId = textureId;
 			nameDraft = '';
 			uriDraft = '';
+			pendingLocalBytes = null;
+			pendingLocalFileName = null;
+			localFileName = null;
 		} finally {
 			registering = false;
 		}
+	}
+
+	let pendingLocalBytes = $state<Uint8Array | null>(null);
+	let pendingLocalFileName = $state<string | null>(null);
+
+	async function readLocalFile(file: File) {
+		localFileError = null;
+		if (!file.type.startsWith('image/')) {
+			localFileError = 'File must be an image (PNG, WebP, or JPEG)';
+			return;
+		}
+		try {
+			const buffer = await file.arrayBuffer();
+			const bytes = new Uint8Array(buffer);
+			const sniffed = sniffImageMime(bytes);
+			if (!sniffed) {
+				localFileError = 'Image magic bytes do not match PNG, WebP, or JPEG';
+				return;
+			}
+			pendingLocalBytes = bytes;
+			pendingLocalFileName = file.name;
+			localFileName = file.name;
+			if (!nameDraft.trim()) {
+				// Pre-fill a sanitized name from the file's stem.
+				const stem = file.name.replace(/\.[^.]+$/, '');
+				nameDraft = stem || 'Texture';
+			}
+		} catch (err) {
+			localFileError = err instanceof Error ? err.message : 'Could not read the file';
+		}
+	}
+
+	async function onLocalFilePickerChange(event: Event) {
+		const input = event.currentTarget as HTMLInputElement;
+		const file = input.files?.[0];
+		input.value = '';
+		if (file) await readLocalFile(file);
+	}
+
+	function dragHasImageType(types: readonly string[]): boolean {
+		return Array.prototype.some.call(
+			types,
+			(t) => typeof t === 'string' && t.startsWith('image/')
+		);
+	}
+
+	function onDropZoneEnter(event: DragEvent) {
+		event.preventDefault();
+		if (sourceMode !== 'local') return;
+		if (!dragHasImageType(event.dataTransfer?.types ?? [])) {
+			if (event.dataTransfer) event.dataTransfer.dropEffect = 'none';
+			return;
+		}
+		dropActive = true;
+		if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
+	}
+
+	function onDropZoneLeave(event: DragEvent) {
+		event.preventDefault();
+		dropActive = false;
+	}
+
+	async function onDropZoneOver(event: DragEvent) {
+		event.preventDefault();
+		if (sourceMode !== 'local') return;
+		if (!dragHasImageType(event.dataTransfer?.types ?? [])) {
+			if (event.dataTransfer) event.dataTransfer.dropEffect = 'none';
+			return;
+		}
+		if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
+	}
+
+	async function onDropZoneDrop(event: DragEvent) {
+		event.preventDefault();
+		dropActive = false;
+		if (sourceMode !== 'local') return;
+		const file = event.dataTransfer?.files?.[0];
+		if (file) await readLocalFile(file);
+	}
+
+	function switchSourceMode(next: SourceMode) {
+		sourceMode = next;
+		localFileError = null;
+		pendingLocalBytes = null;
+		pendingLocalFileName = null;
+		localFileName = null;
 	}
 
 	function retryTextureProbe(texture: SceneTextureAsset) {
@@ -315,16 +427,35 @@
 	{:else}
 		<p class="count">{textureItems.length} texture{textureItems.length === 1 ? '' : 's'}</p>
 
-		<form class="register" onsubmit={submitTextureRegistration}>
-			<label>
-				<span>Name</span>
-				<input
-					bind:value={nameDraft}
-					type="text"
-					placeholder="Warm Stone"
-					autocomplete="off"
-				/>
-			</label>
+	<form class="register" onsubmit={submitTextureRegistration}>
+		<div class="register-source" role="group" aria-label="Texture source">
+			<button
+				type="button"
+				class="source-button"
+				class:active={sourceMode === 'public'}
+				aria-pressed={sourceMode === 'public'}
+				onclick={() => switchSourceMode('public')}
+			>Public URI</button>
+			<button
+				type="button"
+				class="source-button"
+				class:active={sourceMode === 'local'}
+				aria-pressed={sourceMode === 'local'}
+				onclick={() => switchSourceMode('local')}
+			>Local file</button>
+		</div>
+
+		<label>
+			<span>Name</span>
+			<input
+				bind:value={nameDraft}
+				type="text"
+				placeholder="Warm Stone"
+				autocomplete="off"
+			/>
+		</label>
+
+		{#if sourceMode === 'public'}
 			<label>
 				<span>Public URI</span>
 				<input
@@ -334,11 +465,54 @@
 					autocomplete="off"
 				/>
 			</label>
-			<button type="submit" class="register-button" disabled={registering || !uriDraft.trim()}>
+			<button
+				type="submit"
+				class="register-button"
+				disabled={registering || !uriDraft.trim()}
+			>
 				{registering ? 'Checking…' : 'Register texture'}
 			</button>
 			<p class="hint">Root-relative public paths only. The image must load and decode before it is registered.</p>
-		</form>
+		{:else}
+			<div class="dropzone"
+				class:active={dropActive}
+				role="region"
+				aria-label="Drop image files to register"
+				ondragenter={onDropZoneEnter}
+				ondragleave={onDropZoneLeave}
+				ondragover={onDropZoneOver}
+				ondrop={onDropZoneDrop}
+			>
+				<input
+					bind:this={fileInputElement}
+					class="visually-hidden"
+					type="file"
+					accept="image/png,image/webp,image/jpeg"
+					onchange={onLocalFilePickerChange}
+				/>
+				<button
+					type="button"
+					class="pick-file"
+					onclick={() => fileInputElement?.click()}
+					disabled={registering}
+				>
+					{localFileName ? `Replace ${localFileName}` : 'Choose image…'}
+				</button>
+				<p class="dropzone-hint">{dropActive ? 'Drop textures to import' : 'Or drag an image here'}</p>
+			</div>
+			<button
+				type="submit"
+				class="register-button"
+				disabled={registering || !pendingLocalBytes}
+			>
+				{registering ? 'Checking…' : 'Register texture'}
+			</button>
+			<p class="hint">Bytes stay session-only — exporting the project as a package bundles the binary.</p>
+			{#if localFileError}
+				<p class="error" role="alert">{localFileError}</p>
+			{/if}
+		{/if}
+	</form>
 
 		{#if recentTextures.length > 0}
 			<section class="recents" aria-label="Recently used textures">
@@ -498,5 +672,43 @@
 	.thumb strong { font-size: 0.72rem; overflow-wrap: anywhere; }
 	.thumb .uri { color: #918c84; font-size: 0.62rem; overflow-wrap: anywhere; }
 	.retry { align-self: flex-start; padding: 0.26rem 0.5rem; border: 1px solid #684147; border-radius: 0.28rem; background: #21191b; color: #efc7c7; font: inherit; font-size: 0.66rem; cursor: pointer; }
+	/* Phase 5.4 — local-file texture register (Source toggle + drop zone) */
+	.register-source { display: grid; grid-template-columns: 1fr 1fr; gap: 0.3rem; }
+	.source-button {
+		padding: 0.34rem 0.5rem;
+		border: 1px solid #3a3a46;
+		border-radius: 0.3rem;
+		background: #1a1a22;
+		color: #a8a29a;
+		font: inherit;
+		font-size: 0.7rem;
+		cursor: pointer;
+	}
+	.source-button.active { border-color: #d6b35f; background: #2a2618; color: #fff2c7; }
+	.source-button:hover { border-color: #5b4d2a; }
+	.dropzone {
+		display: flex;
+		flex-direction: column;
+		gap: 0.32rem;
+		padding: 0.55rem;
+		border: 1px dashed #4a4638;
+		border-radius: 0.32rem;
+		background: #14141c;
+	}
+	.dropzone.active { border-color: #d6b35f; background: #221d11; }
+	.pick-file {
+		padding: 0.42rem 0.55rem;
+		border: 1px solid #5b4d2a;
+		border-radius: 0.3rem;
+		background: #1f1c14;
+		color: #fff2c7;
+		font: inherit;
+		font-size: 0.7rem;
+		cursor: pointer;
+	}
+	.pick-file:hover { background: #2a2618; }
+	.dropzone-hint { margin: 0; color: #918c84; font-size: 0.64rem; }
+	.register .error { margin: 0; color: #efc7c7; font-size: 0.66rem; }
+	.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; clip-path: inset(50%); }
 	.retry:hover { background: #2c1d20; }
 </style>

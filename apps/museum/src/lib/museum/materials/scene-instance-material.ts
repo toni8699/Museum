@@ -19,10 +19,8 @@ const SLOT_ORDER: MaterialTextureSlot[] = [
 	'metalnessMap'
 ];
 
-// Vite exposes DEV on every import.meta.env (boolean). False already in test/prod modes.
-const isDevEnv = Boolean(
-	(import.meta as { env?: { DEV?: boolean } })?.env?.DEV
-);
+// Static property access required — Vite's module runner rejects dynamic import.meta.env reads.
+const isDevEnv = import.meta.env.DEV;
 
 export type EffectiveSceneMaterial = {
 	catalogue: MaterialId | null;

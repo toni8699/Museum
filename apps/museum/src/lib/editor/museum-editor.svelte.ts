@@ -100,6 +100,16 @@ import {
 } from './store/controller-hosts';
 import { createTextureVerifier, type TextureVerifier } from './texture-verifier';
 import { isSafeTextureUri } from '$lib/content/texture-uri';
+import { BinaryTextureStore } from './store/binary-texture-store.svelte';
+import {
+	buildPackage,
+	type PackageExportResult
+} from './export/package-exporter';
+import { importPackage } from './import/package-importer';
+import {
+	computeProjectExportBlocker,
+	type ProjectExportBlocker
+} from './store/project-export-store.svelte';
 
 /**
  * Slice 4 helper — translate the legacy `EditorNavigationSelection` shape
@@ -336,6 +346,20 @@ export class MuseumEditorStore {
 	get validationIssues() {
 		const v = this.validation;
 		return v.success ? [] : v.issues;
+	}
+	/**
+	 * Phase 5.4 plain-JSON export gate. Reads the document texture list
+	 * against the binary store, then runs the package-rewrite predicate
+	 * (any URI under `/textures/package-<12 hex>/...` is blocked unless
+	 * the binary store has bytes for it). Reactive: every mutation to
+	 * either `document.textures` or `BinaryTextureStore` re-evaluates.
+	 */
+	get projectExportBlocker(): ProjectExportBlocker | null {
+		return computeProjectExportBlocker(this.document, BinaryTextureStore);
+	}
+	/** Count of unresolved textures. Convenience accessor. */
+	get unresolvedTextureCount(): number {
+		return this.projectExportBlocker?.unresolvedTextures.length ?? 0;
 	}
 	// Slice 3 v2 sub-task 3.5 — preview FSM ownership (Option 3 pragmatic facade).
 	// State lives on `previewController`; getters below preserve `store.cameraPreview`
@@ -2157,6 +2181,61 @@ export class MuseumEditorStore {
 
 	async registerTexture(name: string, uri: string): Promise<string | null> {
 		return this.textureLibraryController.registerTexture(name, uri);
+	}
+
+	async registerLocalFileTexture(
+		name: string,
+		bytes: Uint8Array,
+		mime: string
+	): Promise<string | null> {
+		return this.textureLibraryController.registerLocalFileTexture(name, bytes, mime);
+	}
+
+	/**
+	 * Phase 5.4 — export the document as a self-contained `.museumpack.zip`.
+	 * The resolver injects bytes from `BinaryTextureStore`; any texture not
+	 * registered AND not fetchable (a `package-<id>/...` rewrite URI) yields
+	 * `'unresolved-binary'` so the caller knows to resolve it first.
+	 */
+	async exportPackage(
+		options: { now?: Date } = {}
+	): Promise<PackageExportResult> {
+		return buildPackage({
+			document: this.document,
+			resolveBytesByUri: async (uri) =>
+				BinaryTextureStore.has(uri) ? await BinaryTextureStore.resolve(uri) : null,
+			now: options.now
+		});
+	}
+
+	/**
+	 * Phase 5.4 — accept a `.museumpack.zip` byte array, prime the
+	 * binary store with every imported texture, then import the document
+	 * via the existing path. Any previously-tracked object URLs are
+	 * released first to keep the registry from leaking.
+	 */
+	async importPackageArchive(zip: Uint8Array): Promise<
+		| { status: 'ok'; document: MuseumSceneDocument }
+		| { status: 'rejected'; reason: string; detail: string }
+	> {
+		const result = await importPackage(zip);
+		if (result.status !== 'ok') {
+			return { status: 'rejected', reason: result.reason, detail: result.detail };
+		}
+		// Pre-register every imported binary against its rewritten URI so
+		// the texture-cache loader serves blob URLs on first paint.
+		BinaryTextureStore.releaseAllObjectUrls();
+		for (const [uri, blob] of result.binaries) {
+			await BinaryTextureStore.register(uri, blob.bytes, blob.mime);
+		}
+		if (!this.importDocument(result.document)) {
+			return {
+				status: 'rejected',
+				reason: 'import-rejected',
+				detail: 'Project menu refused the imported document — undo history cleared first'
+			};
+		}
+		return { status: 'ok', document: result.document };
 	}
 
 	async probeTexture(textureId: string): Promise<boolean> {

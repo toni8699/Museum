@@ -1,7 +1,10 @@
 <script lang="ts">
 	import { beforeNavigate } from '$app/navigation';
 	import type { MuseumAsset } from '$lib/types/assets';
-	import { onMount } from 'svelte';
+	import type { MaterialTextureSlot } from '$lib/types/materials';
+	import type { Texture as ThreeTexture } from 'three';
+	import { onDestroy, onMount } from 'svelte';
+	import { TextureLoader } from 'three';
 	import EditorAppBar from './EditorAppBar.svelte';
 	import EditorCameraTimelineFrame from './EditorCameraTimelineFrame.svelte';
 	import EditorInspector from './EditorInspector.svelte';
@@ -9,6 +12,11 @@
 	import EditorMaterialChoiceDialog from './EditorMaterialChoiceDialog.svelte';
 	import EditorViewport from './EditorViewport.svelte';
 	import { registerEditorShortcuts } from './hooks/shortcuts.svelte';
+	import {
+		setDefaultTextureSourceLoader,
+		type TextureSourceLoader
+	} from '$lib/museum/materials/texture-cache';
+	import { BinaryTextureStore } from './store/binary-texture-store.svelte';
 	import { createMuseumEditorStore } from './museum-editor.svelte';
 
 	const store = createMuseumEditorStore();
@@ -16,6 +24,39 @@
 	let viewportElement = $state<HTMLElement | null>(null);
 	let clusterNameInput = $state<HTMLInputElement>();
 	let selectedAsset = $state<MuseumAsset>();
+
+	// Phase 5.4 — bind a default source loader that consults the binary
+	// store first, then falls back to the legacy public-fetch path. The
+	// `texture-cache.ts` module exports this setter exactly so we don't
+	// have to import `BinaryTextureStore` from inside `materials/`.
+	const threeTextureLoader = new TextureLoader();
+	const editorSourceLoader: TextureSourceLoader = (uri, _slot) => {
+		const url = BinaryTextureStore.objectUrlFor(uri);
+		if (url) return threeTextureLoader.loadAsync(url);
+		// Fallback: legacy public-fetch path. Synchronous `.load` wrapped
+		// in a promise so the loader's signature stays single-shape.
+		return new Promise<ThreeTexture>((resolve, reject) => {
+			threeTextureLoader.load(uri, resolve, undefined, reject);
+		});
+	};
+
+	onMount(() => {
+		setDefaultTextureSourceLoader(editorSourceLoader);
+		return () => {
+			setDefaultTextureSourceLoader(null);
+		};
+	});
+
+	onDestroy(() => {
+		// App teardown: clear both the object URL registry AND the byte-map
+		// entries. On dev HMR the singleton survives remounts — stale entries
+		// poisoned texture-cache re-acquisition when an in-flight
+		// TextureLoader.loadAsync resolved with a revoked URL. ClearExcept
+		// walks every entry, revokes its object URL, and empties
+		// pendingObjectUrls — the next mount starts cold with no Blob
+		// pointers leaking into the next render cycle.
+		BinaryTextureStore.clearExcept(new Set());
+	});
 
 	function confirmDiscardUnsavedChanges() {
 		return !store.isDirty || window.confirm('Discard unsaved scene changes?');

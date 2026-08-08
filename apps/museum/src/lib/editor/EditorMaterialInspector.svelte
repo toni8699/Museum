@@ -8,6 +8,7 @@
 		type ScenePrimitiveEntity
 	} from '$lib/content/scene';
 	import { materialInstanceUsageCount } from './editor-textures';
+	import { BinaryTextureStore } from './store/binary-texture-store.svelte';
 	import EditorNumberField from './EditorNumberField.svelte';
 	import type { MuseumEditorStore } from './museum-editor.svelte';
 
@@ -35,6 +36,19 @@
 			: 0
 	);
 	const isShared = $derived(usageCount > 1);
+
+	// Phase 5.4 — flag the inspector when the active material instance's base
+	// texture only resolves through the binary store. Reactive: tracks
+	// `BinaryTextureStore` membership changes via the helper's Map read.
+	const assignedTextureUri = $derived.by(() => {
+		const baseTextureId = instance?.baseTextureId;
+		if (!baseTextureId) return null;
+		return store.document.textures.find((t) => t.id === baseTextureId)?.uri ?? null;
+	});
+	const isLocalBinary = $derived(
+		assignedTextureUri !== null && BinaryTextureStore.has(assignedTextureUri)
+	);
+	const packageHelpId = 'material-local-binary-help';
 
 	// Roughness / metalness draft overrides. `undefined` means "Use base".
 	let roughnessDraft = $state<number | undefined>();
@@ -116,6 +130,20 @@
 					<option value={texture.id}>{texture.name}</option>
 				{/each}
 			</select>
+			{#if isLocalBinary}
+				<p
+					class="local-binary"
+					role="status"
+					aria-describedby={packageHelpId}
+				>
+					<span class="local-binary-dot" aria-hidden="true"></span>
+					Local — requires package on save
+					<span id={packageHelpId} class="visually-hidden">
+						Textures registered from a local file are not embedded in plain JSON exports.
+						Use Export package to save a self-contained archive.
+					</span>
+				</p>
+			{/if}
 		</label>
 
 		<div class="overrides">
@@ -198,4 +226,29 @@
 		cursor: pointer;
 	}
 	.unique:hover { background: #35301f; }
+
+	/* Phase 5.4 — local-only-texture chip */
+	.local-binary {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		margin: 0.32rem 0 0;
+		padding: 0.32rem 0.5rem;
+		border: 1px solid #684147;
+		border-radius: 0.3rem;
+		background: #21191b;
+		color: #efc7c7;
+		font-size: 0.66rem;
+		line-height: 1.4;
+	}
+	.local-binary-dot { width: 0.38rem; height: 0.38rem; border-radius: 999px; background: #d96b6b; flex: 0 0 auto; }
+	.visually-hidden {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip: rect(0 0 0 0);
+		white-space: nowrap;
+		clip-path: inset(50%);
+	}
 </style>

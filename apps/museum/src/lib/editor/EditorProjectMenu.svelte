@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { parseSceneDocumentJson } from '$lib/content/scene-codec';
 	import { onMount } from 'svelte';
+	import { acquireObjectUrl, releaseObjectUrl } from './store/binary-texture-store.svelte';
 	import type { MuseumEditorStore } from './museum-editor.svelte';
 
 	let {
@@ -17,9 +18,14 @@
 	const projectMutationBlocked = $derived(
 		store.isDocumentMutationBlocked || store.isEditorInteractionActive
 	);
+	const exportBlocker = $derived(store.projectExportBlocker);
+	const unresolvedCount = $derived(store.unresolvedTextureCount);
+	const plainJsonBlocked = $derived(exportBlocker !== null);
 	let projectMenuElement = $state<HTMLElement>();
 	let importFileInput = $state<HTMLInputElement>();
+	let packageImportInput = $state<HTMLInputElement>();
 	let pastedSceneJson = $state('');
+	let exportInFlight = $state(false);
 
 	function importSceneJson(json: string, clearPasteOnSuccess = false) {
 		const parsed = parseSceneDocumentJson(json);
@@ -76,6 +82,54 @@
 		store.setStatusMessage('Downloaded canonical scene JSON');
 	}
 
+	async function exportPackageArchive() {
+		if (exportInFlight) return;
+		exportInFlight = true;
+		try {
+			const result = await store.exportPackage();
+			if (result.status !== 'ok') {
+				store.setStatusMessage(`Export failed: ${result.detail}`);
+				return;
+			}
+			const url = acquireObjectUrl(result.zip, 'application/zip');
+			const anchor = document.createElement('a');
+			anchor.href = url;
+			anchor.download = result.filename;
+			anchor.style.display = 'none';
+			document.body.append(anchor);
+			anchor.click();
+			anchor.remove();
+			// Belt-and-suspenders: re-release the URL after the browser has had
+			// a tick to start the download. Older Chrome releases can lose the
+			// reference if the GC runs first.
+			window.setTimeout(() => releaseObjectUrl(url), 5_000);
+			store.setStatusMessage(`Exported ${result.filename}`);
+		} finally {
+			exportInFlight = false;
+		}
+	}
+
+	async function importPackageArchive(event: Event) {
+		const input = event.currentTarget as HTMLInputElement;
+		const file = input.files?.[0];
+		input.value = '';
+		if (!file) return;
+		if (!confirmDiscardUnsavedChanges()) return;
+		try {
+			const bytes = new Uint8Array(await file.arrayBuffer());
+			const result = await store.importPackageArchive(bytes);
+			if (result.status === 'rejected') {
+				store.setStatusMessage(`Import failed: ${result.detail}`);
+				return;
+			}
+			store.setStatusMessage('Imported package');
+		} catch (err) {
+			store.setStatusMessage(
+				`Import failed: ${err instanceof Error ? err.message : 'Could not read the file'}`
+			);
+		}
+	}
+
 	function resetScene() {
 		if (!confirmDiscardUnsavedChanges()) return;
 		if (store.resetToCheckedInDocument()) store.setStatusMessage('Reset to checked-in scene');
@@ -114,13 +168,48 @@
 				</div>
 				<span class:dirty class="document-state">{dirty ? 'Unsaved' : 'Saved'}</span>
 			</div>
-			<input bind:this={importFileInput} class="visually-hidden" type="file" accept="application/json,.json" onchange={onImportFileChange} />
-			<div class="project-actions">
-				<button type="button" disabled={projectMutationBlocked} onclick={() => importFileInput?.click()}>Import file</button>
-				<button type="button" disabled={!store.canExport} onclick={copySceneJson}>Copy JSON</button>
-				<button type="button" disabled={!store.canExport} onclick={downloadSceneJson}>Download JSON</button>
-				<button type="button" class="danger" disabled={projectMutationBlocked} onclick={resetScene}>Reset</button>
-			</div>
+		<input bind:this={importFileInput} class="visually-hidden" type="file" accept="application/json,.json" onchange={onImportFileChange} />
+		<input
+			bind:this={packageImportInput}
+			class="visually-hidden"
+			type="file"
+			accept=".zip,.museumpack.zip,application/zip"
+			onchange={importPackageArchive}
+		/>
+		<div class="project-actions">
+			<button type="button" disabled={projectMutationBlocked} onclick={() => importFileInput?.click()}>Import file</button>
+			<button type="button" disabled={projectMutationBlocked} onclick={() => packageImportInput?.click()}>Import package</button>
+			<button
+				type="button"
+				class="primary"
+				disabled={!store.canExport || exportInFlight}
+				onclick={exportPackageArchive}
+			>
+				{exportInFlight ? 'Packaging…' : 'Export package…'}
+			</button>
+		</div>
+		<div class="project-actions">
+			<button
+				type="button"
+				disabled={plainJsonBlocked || !store.canExport}
+				aria-describedby={plainJsonBlocked ? 'project-export-blocker-message' : undefined}
+				onclick={copySceneJson}
+			>Copy JSON</button>
+			<button
+				type="button"
+				disabled={plainJsonBlocked || !store.canExport}
+				aria-describedby={plainJsonBlocked ? 'project-export-blocker-message' : undefined}
+				onclick={downloadSceneJson}
+			>Download JSON</button>
+			<button type="button" class="danger" disabled={projectMutationBlocked} onclick={resetScene}>Reset</button>
+		</div>
+		{#if plainJsonBlocked}
+			<p id="project-export-blocker-message" class="blocker" role="status">
+				<span class="blocker-dot" aria-hidden="true"></span>
+				{unresolvedCount} unresolved texture{unresolvedCount === 1 ? '' : 's'} —
+				<button type="button" class="link" onclick={exportPackageArchive} disabled={exportInFlight}>Export package to save</button>
+			</p>
+		{/if}
 			<label class="paste-import">
 				<span>Paste scene JSON</span>
 				<textarea bind:value={pastedSceneJson} spellcheck="false" placeholder={'{ ... }'}></textarea>
@@ -201,7 +290,35 @@
 	}
 	.project-actions button:disabled { opacity: 0.4; cursor: default; }
 	.project-actions button:hover:not(:disabled) { border-color: #d6b35f; }
+	.project-actions .primary { border-color: #8d753c; background: #242018; color: #fff2c7; }
+	.project-actions .primary:hover:not(:disabled) { background: #35301f; }
 	.project-actions .danger { border-color: #684147; background: #21191b; color: #efc7c7; }
+	.blocker {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		margin: 0.5rem 0 0;
+		padding: 0.42rem 0.55rem;
+		border: 1px solid #684147;
+		border-radius: 0.32rem;
+		background: #21191b;
+		color: #efc7c7;
+		font-size: 0.68rem;
+		line-height: 1.4;
+	}
+	.blocker-dot { width: 0.42rem; height: 0.42rem; border-radius: 999px; background: #d96b6b; flex: 0 0 auto; }
+	.blocker .link {
+		padding: 0;
+		border: none;
+		background: transparent;
+		color: #f4dc9b;
+		font: inherit;
+		font-size: inherit;
+		text-decoration: underline;
+		cursor: pointer;
+	}
+	.blocker .link:hover:not(:disabled) { color: #fff2c7; }
+	.blocker .link:disabled { opacity: 0.45; cursor: default; text-decoration: none; }
 	.paste-import { display: flex; flex-direction: column; gap: 0.3rem; margin-top: 0.7rem; color: #d6d0c4; font-size: 0.68rem; }
 	.paste-import textarea { min-height: 4.5rem; resize: vertical; padding: 0.42rem; border: 1px solid #3a3a46; border-radius: 0.3rem; background: #101016; color: #f4efe4; font: 0.68rem/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; }
 	.paste-action {

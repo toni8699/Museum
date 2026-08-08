@@ -48,6 +48,8 @@ import type { TextureVerifier } from '../texture-verifier';
 import type { EditorSelectionActions } from './selection-actions.svelte';
 import type { EditorSessionState } from './session-state.svelte';
 import type { EditorMaterialResourceMutator } from './material-resource-mutator.svelte';
+import { BinaryTextureStore } from './binary-texture-store.svelte';
+import { extensionForMime, isSupportedMime } from '$lib/content/package-format';
 
 /**
  * Composition-root surface `EditorTextureLibraryController` depends on.
@@ -112,6 +114,53 @@ export class EditorTextureLibraryController {
 			trimmedName,
 			trimmedUri
 		);
+		if (result.status === 'rejected') {
+			host.setStatusMessage(result.reason);
+			return null;
+		}
+		return result.textureId;
+	}
+
+	/**
+	 * Register a local-file texture (Phase 5.4). The bytes never enter the
+	 * canonical JSON; the URI `/local/<randomId>/<stem>.<ext>` is purely
+	 * session-local and gets bundled by the package exporter on save. The
+	 * binary store is primed BEFORE the document mutation so concurrent
+	 * material renders can't fetch the URI before bytes are available.
+	 *
+	 * Returns the new texture id on success, or `null` (with a status
+	 * message) on reject. Re-uploading identical bytes gets a fresh URI
+	 * and a fresh texture asset — concept-of-decoupled-resources.
+	 */
+	async registerLocalFileTexture(
+		name: string,
+		bytes: Uint8Array,
+		mime: string
+	): Promise<string | null> {
+		const host = this.host;
+		const trimmedName = name.trim();
+		if (!trimmedName) {
+			host.setStatusMessage('Texture name is required');
+			return null;
+		}
+		if (!(bytes instanceof Uint8Array) || bytes.byteLength === 0) {
+			host.setStatusMessage('Texture bytes must be a non-empty buffer');
+			return null;
+		}
+		if (!isSupportedMime(mime)) {
+			host.setStatusMessage(`Unsupported MIME type: ${mime}`);
+			return null;
+		}
+		const ext = extensionForMime(mime);
+		const stem = trimmedName
+			.replace(/[^a-z0-9._-]+/gi, '-')
+			.replace(/^-+|-+$/g, '')
+			.toLowerCase() || 'texture';
+		const randomId = createLocalRandomId();
+		const uri = `/local/${randomId}/${stem}${ext}`;
+
+		await BinaryTextureStore.register(uri, bytes, mime);
+		const result = host.materialResourceMutator.registerVerifiedTexture(trimmedName, uri);
 		if (result.status === 'rejected') {
 			host.setStatusMessage(result.reason);
 			return null;
@@ -249,4 +298,14 @@ export class EditorTextureLibraryController {
 	makeMaterialInstanceUnique(entityId: string): boolean {
 		return this.host.materialResourceMutator.makeMaterialInstanceUnique(entityId);
 	}
+}
+
+/** Short, URL-safe, hex-only id used for local-file texture URIs. */
+function createLocalRandomId(): string {
+	if (typeof crypto !== 'undefined' && 'getRandomValues' in crypto) {
+		const bytes = new Uint8Array(6);
+		crypto.getRandomValues(bytes);
+		return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+	}
+	return Math.random().toString(36).slice(2, 14);
 }

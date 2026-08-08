@@ -39,6 +39,32 @@ function applySourceDefaults(texture: ThreeTexture, slot: MaterialTextureSlot) {
   texture.needsUpdate = true;
 }
 
+/**
+ * Phase 5.4 source-loader injection. Editors (the only known callers) wire
+ * a default loader that consults `BinaryTextureStore` first, then falls
+ * back to the legacy public-fetch path. The visitor NEVER sets this; its
+ * legacy fetch path stays untouched.
+ *
+ * Lives at module scope, not a singleton, so multiple editor loads in tests
+ * can swap freely without a class instance. The setter accepts `null` to
+ * restore the legacy path.
+ */
+export type TextureSourceLoader = (
+  uri: string,
+  slot: MaterialTextureSlot
+) => Promise<ThreeTexture>;
+
+let defaultSourceLoader: TextureSourceLoader | null = null;
+
+export function setDefaultTextureSourceLoader(loader: TextureSourceLoader | null): void {
+  defaultSourceLoader = loader;
+}
+
+/** TEST-ONLY: clear any injected loader so legacy path is restored. */
+export function __resetDefaultSourceLoaderForTests(): void {
+  defaultSourceLoader = null;
+}
+
 function loadSource(url: string, slot: MaterialTextureSlot, materialId: string): Promise<ThreeTexture> {
   const existing = sourceCache.get(url);
   if (existing) {
@@ -47,7 +73,20 @@ function loadSource(url: string, slot: MaterialTextureSlot, materialId: string):
     return existing.promise;
   }
 
-  const promise = new Promise<ThreeTexture>((resolve, reject) => {
+  const promise = defaultSourceLoader
+    ? loadViaDefaultSourceLoader(url, slot, materialId)
+    : loadViaTextureLoader(url, slot, materialId);
+
+  sourceCache.set(url, { promise });
+  return promise;
+}
+
+function loadViaTextureLoader(
+  url: string,
+  slot: MaterialTextureSlot,
+  materialId: string
+): Promise<ThreeTexture> {
+  return new Promise<ThreeTexture>((resolve, reject) => {
     loader.load(
       url,
       (texture) => {
@@ -66,9 +105,26 @@ function loadSource(url: string, slot: MaterialTextureSlot, materialId: string):
       }
     );
   });
+}
 
-  sourceCache.set(url, { promise });
-  return promise;
+async function loadViaDefaultSourceLoader(
+  url: string,
+  slot: MaterialTextureSlot,
+  materialId: string
+): Promise<ThreeTexture> {
+  try {
+    const texture = await defaultSourceLoader!(url, slot);
+    applySourceDefaults(texture, slot);
+    const entry = sourceCache.get(url);
+    if (entry) entry.texture = texture;
+    return texture;
+  } catch (event) {
+    const message = `Failed to load texture for material "${materialId}": ${url}`;
+    console.warn(message, event);
+    const entry = sourceCache.get(url);
+    if (entry) entry.error = message;
+    throw new Error(message);
+  }
 }
 
 function variantKey(

@@ -223,10 +223,15 @@ export class EditorSessionState {
 	// Snap + keep-on-floor + drop-to-floor (audit §3.C).
 	// ============================================================
 
-	translationSnapEnabled = $state(true);
+	// Phase 6.1 — snap defaults are off; modifier (Ctrl/Cmd) opt-in via
+	// EditorTransformControls. Each step keeps its historical default: translate
+	// 0.1 m, rotate 15°, scale 0.1.
+	translationSnapEnabled = $state(false);
 	translationSnap = $state(DEFAULT_TRANSLATION_SNAP);
-	rotationSnapEnabled = $state(true);
+	rotationSnapEnabled = $state(false);
 	rotationSnapDegrees = $state(DEFAULT_ROTATION_SNAP_DEGREES);
+	scaleSnapEnabled = $state(false);
+	scaleSnap = $state(0.1);
 	keepOnFloor = $state(false);
 	dropToFloorRequestId = $state(0);
 
@@ -253,6 +258,18 @@ export class EditorSessionState {
 
 	setRotationSnapDegrees(value: number) {
 		this.rotationSnapDegrees = value;
+	}
+
+	setScaleSnapEnabled(value: boolean) {
+		this.scaleSnapEnabled = value;
+	}
+
+	toggleScaleSnap() {
+		this.scaleSnapEnabled = !this.scaleSnapEnabled;
+	}
+
+	setScaleSnap(value: number) {
+		this.scaleSnap = value;
 	}
 
 	setKeepOnFloor(value: boolean) {

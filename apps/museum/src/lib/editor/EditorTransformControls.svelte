@@ -1,10 +1,10 @@
 <script lang="ts">
-	import { onDestroy } from 'svelte';
+	import { onDestroy, getContext } from 'svelte';
 	import { useThrelte } from '@threlte/core';
 	import { useOrbitControls } from '@threlte/extras';
 	import { roomLocalPoint } from '$lib/content/rooms';
 	import type { Vec3 } from '$lib/types/museum';
-	import { Group, Matrix4, Quaternion, Vector3 } from 'three';
+	import { Group, Matrix4, Object3D, Quaternion, Vector3 } from 'three';
 	import { TransformControls as ThreeTransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 	import {
 		applyRigidPivotDelta,
@@ -13,6 +13,10 @@
 		snapPivotRoomLocal,
 		type MemberTransformBaseline
 	} from './editor-cluster-transform';
+	import {
+		resolveMultiSelectPivot,
+		type PivotMode
+	} from './pivot-resolve';
 	import { groundSelectionRigidly, rotationSnapRadians } from './editor-placement';
 	import {
 		enforceUniformObjectScale,
@@ -22,6 +26,10 @@
 	import { EDITOR_CAMERA_PATH_MOVE_EPSILON } from './editor-camera-path';
 	import { EDITOR_CAMERA_VIEW_MOVE_EPSILON } from './editor-camera-view';
 	import type { MuseumEditorStore } from './museum-editor.svelte';
+	import {
+		EDITOR_INTERACTION_STORE_KEY,
+		type EditorInteractionStore
+	} from './store/editor-interaction-store.svelte';
 
 	let {
 		store,
@@ -32,6 +40,9 @@
 	} = $props();
 
 	const { scene, camera: threlteCamera, dom, invalidate } = useThrelte();
+	const interactionStore = getContext<EditorInteractionStore | undefined>(
+		EDITOR_INTERACTION_STORE_KEY
+	);
 	const pivot = new Group();
 	pivot.name = 'EditorSelectionPivot';
 	pivot.userData.editorEntity = 'selection-pivot';
@@ -125,6 +136,35 @@
 	);
 
 	function resetPivot(roots = selectedRoots) {
+		// Active Object multi-select pivot: place pivot at last-selected root's
+		// world position (and orientation under local-space rotate mode).
+		if (roots.length > 1) {
+			const pivotMode: PivotMode = (store as { pivotMode?: PivotMode }).pivotMode ?? 'center';
+			const lastSelectedId = store.lastSelectedId;
+			if (pivotMode === 'active-object' && lastSelectedId) {
+				const rootIdResolver = (root: Object3D): string | null =>
+					(root.userData?.placementId as string | null) ?? null;
+				const resolution = resolveMultiSelectPivot(
+					roots,
+					lastSelectedId,
+					'active-object',
+					rootIdResolver
+				);
+				if (resolution?.kind === 'active-object') {
+					const ref = resolution.root;
+					ref.updateWorldMatrix(true, false);
+					pivot.position.setFromMatrixPosition(ref.matrixWorld);
+					if (store.transformSpace === 'local') {
+						pivot.quaternion.copy(ref.getWorldQuaternion(new Quaternion()));
+					} else {
+						pivot.quaternion.set(0, 0, 0, 1);
+					}
+					pivot.scale.setScalar(1);
+					pivot.updateMatrixWorld(true);
+					return true;
+				}
+			}
+		}
 		if (!resetSessionPivot(pivot, roots)) return false;
 		if (store.transformSpace === 'local' && roots.length === 1) {
 			pivot.quaternion.copy(roots[0]!.getWorldQuaternion(new Quaternion()));
@@ -154,12 +194,30 @@
 			activeTarget?.kind === 'camera' ||
 			activeTarget?.kind === 'anchor' ||
 			activeTarget?.kind === 'view-target';
-		transformControls.mode = navigationTarget ? 'translate' : store.transformMode;
-		transformControls.space = navigationTarget ? 'world' : store.transformSpace;
+		// Phase 6.1 — drive the gizmo's mode/space from the interaction store,
+		// falling back to the existing session-state mirrors if no interaction
+		// store is on context (testing under vitest, for example).
+		const size = store.selectedPlacementIds.length;
+		const interactionMode = interactionStore?.mode ?? store.transformMode;
+		transformControls.mode = navigationTarget ? 'translate' : interactionMode;
+		if (navigationTarget) {
+			transformControls.space = 'world';
+		} else if (size <= 1) {
+			transformControls.space = interactionMode === 'rotate' ? 'local' : 'world';
+		} else {
+			transformControls.space = 'world';
+		}
 		transformControls.translationSnap = null;
 		transformControls.rotationSnap =
 			navigationTarget ? null : effectiveRotationSnap;
 		invalidate();
+	});
+
+	// Phase 6.1 Q5 — every new selection-set boundary resets the gizmo mode
+	// to Translate. Pressing R sticks until the next selection-set change.
+	$effect(() => {
+		void store.selectionKey;
+		interactionStore?.setMode('translate');
 	});
 
 	$effect(() => {
@@ -406,6 +464,30 @@
 
 	function onKeyDown(event: KeyboardEvent) {
 		if (event.key === 'Shift') shiftHeld = true;
+		// Phase 6.1 Q8 — Esc mid-drag reverts + deselects (FSM-owned transition).
+		// EditorTransformControls handles the placement-drag branch because
+		// navigator/anchor/view-target drags use the existing `cancelNavigationTransform`.
+		if (event.key === 'Escape' && interactionStore?.state === 'Dragging') {
+			const snap = interactionStore.dragSnapshot;
+			if (snap) {
+				for (const t of snap.transforms) {
+					const root = store.getPlacementRoot(t.id);
+					if (!root) continue;
+					root.position.copy(t.position);
+					root.quaternion.copy(t.quaternion);
+					root.scale.copy(t.scale);
+				}
+			}
+			// Three's TransformControls lacks a public cancelDrag(); flip the
+			// private flag so it releases pointer capture. Works on r170 today.
+			(transformControls as { dragging?: boolean }).dragging = false;
+			interactionStore.clearDragSnapshot();
+			interactionStore.dispatch({ type: 'ESC' });
+			store.selectionActions.deselect();
+			event.preventDefault();
+			event.stopImmediatePropagation();
+			return;
+		}
 		if (event.key === 'Escape' && cancelNavigationTransform()) {
 			event.preventDefault();
 			event.stopImmediatePropagation();
@@ -416,15 +498,30 @@
 		shiftHeld = false;
 	}
 
+	// Phase 6.1 Q3 — Ctrl/Cmd while dragging enables snap; releasing it disables
+	// snap mid-drag. Snap defaults are off so this is a fully opt-in modifier.
+	function onSnapModifierChange(event: KeyboardEvent) {
+		if (interactionStore?.state !== 'Dragging' && !transformControls.dragging) return;
+		if (event.ctrlKey || event.metaKey) {
+			transformControls.translationSnap = store.translationSnap;
+			transformControls.rotationSnap = (store.rotationSnapDegrees * Math.PI) / 180;
+			transformControls.scaleSnap = store.scaleSnap;
+		} else {
+			transformControls.translationSnap = 0;
+			transformControls.rotationSnap = 0;
+			transformControls.scaleSnap = 0;
+		}
+	}
+
 	$effect(() => {
 		store.setTransformCanceler(cancelTransform);
 		window.addEventListener('keydown', onKeyDown, true);
-		window.addEventListener('keyup', clearShift);
+		window.addEventListener('keyup', onSnapModifierChange);
 		window.addEventListener('blur', clearShift);
 		return () => {
 			store.setTransformCanceler(null);
 			window.removeEventListener('keydown', onKeyDown, true);
-			window.removeEventListener('keyup', clearShift);
+			window.removeEventListener('keyup', onSnapModifierChange);
 			window.removeEventListener('blur', clearShift);
 		};
 	});
@@ -434,6 +531,48 @@
 	transformControls.addEventListener('mouseDown', beginTransform);
 	transformControls.addEventListener('objectChange', previewTransform);
 	transformControls.addEventListener('mouseUp', finishTransform);
+
+	// Phase 6.1 — dragging-changed toggles the FSM Dragging state and captures
+	// the pre-drag transform snapshot for placement drags. The natural mouseup
+	// path (listener above via finishTransform → commitDocumentTransaction)
+	// commits a single history entry per drag.
+	const onDraggingChanged = (event: { value: unknown }) => {
+		const value = event.value === true;
+		if (!interactionStore) return;
+		if (value) {
+			interactionStore.dispatch({ type: 'DRAG_START' });
+			if (store.selectedPlacementIds.length > 0) {
+				const snap = {
+					placementIds: [...store.selectedPlacementIds],
+					transforms: store.selectedPlacementIds.map((id) => {
+						const root = store.getPlacementRoot(id);
+						if (!root) {
+							throw new Error(`EditorTransformControls: missing placement root for ${id}`);
+						}
+						return {
+							id,
+							position: root.position.clone(),
+							quaternion: root.quaternion.clone(),
+							scale: root.scale.clone()
+						};
+					})
+				};
+				interactionStore.captureDragSnapshot(snap);
+			}
+			interactionStore.recomputeCursor(true);
+		} else {
+			// If Esc cleared the snapshot mid-drag, this natural mouseup fires
+			// after the FSM already went to Idle; bail to avoid committing.
+			if (interactionStore.dragSnapshot === null) {
+				interactionStore.recomputeCursor(false);
+				return;
+			}
+			interactionStore.dispatch({ type: 'DRAG_END', cancelled: false });
+			interactionStore.clearDragSnapshot();
+			interactionStore.recomputeCursor(false);
+		}
+	};
+	transformControls.addEventListener('dragging-changed', onDraggingChanged);
 
 	onDestroy(() => {
 		pivot.removeFromParent();
@@ -450,6 +589,7 @@
 		transformControls.removeEventListener('mouseDown', beginTransform);
 		transformControls.removeEventListener('objectChange', previewTransform);
 		transformControls.removeEventListener('mouseUp', finishTransform);
+		transformControls.removeEventListener('dragging-changed', onDraggingChanged);
 		transformControls.detach();
 		transformHelper.removeFromParent();
 		transformControls.dispose();

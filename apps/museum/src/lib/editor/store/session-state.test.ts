@@ -204,12 +204,15 @@ describe('EditorSessionState', () => {
 	});
 
 	describe('snap + keep-on-floor', () => {
-		it('defaults match editor-placement constants', () => {
-			expect(session.translationSnap).toBe(0.1);
-			expect(session.rotationSnapDegrees).toBe(15);
-			expect(session.translationSnapEnabled).toBe(true);
-			expect(session.keepOnFloor).toBe(false);
-		});
+	it('defaults match editor-placement constants', () => {
+		expect(session.translationSnap).toBe(0.1);
+		expect(session.rotationSnapDegrees).toBe(15);
+		expect(session.translationSnapEnabled).toBe(false);
+		expect(session.rotationSnapEnabled).toBe(false);
+		expect(session.scaleSnapEnabled).toBe(false);
+		expect(session.scaleSnap).toBe(0.1);
+		expect(session.keepOnFloor).toBe(false);
+	});
 
 		it('setTranslationSnapEnabled / setKeepOnFloor write absolute values', () => {
 			session.setTranslationSnapEnabled(false);
@@ -220,17 +223,33 @@ describe('EditorSessionState', () => {
 			expect(session.keepOnFloor).toBe(true);
 		});
 
-		it('toggleTranslationSnap flips the flag', () => {
-			session.toggleTranslationSnap();
-			expect(session.translationSnapEnabled).toBe(false);
-			session.toggleTranslationSnap();
-			expect(session.translationSnapEnabled).toBe(true);
-		});
+	it('toggleTranslationSnap flips the flag', () => {
+		session.toggleTranslationSnap();
+		expect(session.translationSnapEnabled).toBe(true);
+		session.toggleTranslationSnap();
+		expect(session.translationSnapEnabled).toBe(false);
+	});
 
-		it('toggleRotationSnap flips the flag', () => {
-			session.toggleRotationSnap();
-			expect(session.rotationSnapEnabled).toBe(false);
-		});
+	it('toggleRotationSnap flips the flag', () => {
+		session.toggleRotationSnap();
+		expect(session.rotationSnapEnabled).toBe(true);
+		session.toggleRotationSnap();
+		expect(session.rotationSnapEnabled).toBe(false);
+	});
+
+	it('toggleScaleSnap flips the flag', () => {
+		session.toggleScaleSnap();
+		expect(session.scaleSnapEnabled).toBe(true);
+		session.toggleScaleSnap();
+		expect(session.scaleSnapEnabled).toBe(false);
+	});
+
+	it('setScaleSnap / setScaleSnapEnabled write absolute values', () => {
+		session.setScaleSnapEnabled(true);
+		session.setScaleSnap(0.05);
+		expect(session.scaleSnapEnabled).toBe(true);
+		expect(session.scaleSnap).toBe(0.05);
+	});
 
 		it('toggleKeepOnFloor flips the flag', () => {
 			session.toggleKeepOnFloor();

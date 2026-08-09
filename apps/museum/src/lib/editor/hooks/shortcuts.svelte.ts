@@ -6,10 +6,10 @@
  * then (when not editing fields):
  * cancelPendingNavigation → cancelAssetPlacement → finishAnchorEditing →
  * finishViewKeyframeEditing → deselect (scene-owned only)
- */
-
-import { tick } from 'svelte';
-import type { MuseumEditorStore } from '../museum-editor.svelte';
+ */import { tick, getContext } from 'svelte';
+	import type { MuseumEditorStore } from '../museum-editor.svelte';
+	import type { EditorInteractionStore } from '../store/editor-interaction-store.svelte';
+	import { EDITOR_OPEN_SETTINGS_KEY, type EditorOpenSettingsHandle } from '../editor-context-keys';
 
 export type EditorShortcutHost = {
 	getViewportElement: () => HTMLElement | null | undefined;
@@ -26,7 +26,8 @@ function isEditableTarget(target: EventTarget | null) {
 
 export function createEditorShortcutHandler(
 	store: MuseumEditorStore,
-	host: EditorShortcutHost
+	host: EditorShortcutHost,
+	interactionStore?: EditorInteractionStore
 ) {
 	function editorOwnsSceneShortcuts() {
 		if (typeof document === 'undefined') return false;
@@ -95,6 +96,16 @@ export function createEditorShortcutHandler(
 			event.preventDefault();
 			if (event.shiftKey) store.redo();
 			else store.undo();
+		} else if (modifier && key === ',') {
+			// Phase 6.2 — Cmd+, opens editor settings popover (macOS convention).
+			const openSettings = getContext<EditorOpenSettingsHandle | undefined>(
+				EDITOR_OPEN_SETTINGS_KEY
+			);
+			if (openSettings) {
+				openSettings.toggle();
+				event.preventDefault();
+				event.stopPropagation();
+			}
 		} else if (modifier && event.ctrlKey && key === 'y') {
 			event.preventDefault();
 			store.redo();
@@ -153,7 +164,35 @@ export function createEditorShortcutHandler(
 		} else if (!modifier && !event.altKey && key === 'f' && sceneOwnsShortcuts) {
 			event.preventDefault();
 			store.focusSelection();
-		} else if (!modifier && !event.altKey && event.key === 'Escape') {
+		} else if (interactionStore && !modifier && !event.altKey && !event.shiftKey) {
+		// Phase 6.1 section 3 — Unity-style gizmo mode keybinds. W = translate,
+		// E = rotate, R = scale, T = translate alias, X = toggle Space.
+		// Bind here BEFORE the long modifier chains so plain key presses resolve.
+		const inPreview = store.cameraPreview !== null;
+		if (key === 'w' || key === 't') {
+			interactionStore.setMode('translate');
+			if (inPreview) return;
+			event.preventDefault();
+			return;
+		}
+		if (key === 'e') {
+			interactionStore.setMode('rotate');
+			if (inPreview) return;
+			event.preventDefault();
+			return;
+		}
+		if (key === 'r') {
+			interactionStore.setMode('scale');
+			if (inPreview) return;
+			event.preventDefault();
+			return;
+		}
+		if (key === 'x') {
+			interactionStore.toggleSpace();
+			event.preventDefault();
+			return;
+		}
+	} else if (!modifier && !event.altKey && event.key === 'Escape') {
 			if (store.transformInteractionActive) return;
 			if (store.cancelPendingNavigation('Camera command cancelled')) {
 				event.preventDefault();
@@ -178,9 +217,10 @@ export function createEditorShortcutHandler(
 
 export function registerEditorShortcuts(
 	store: MuseumEditorStore,
-	host: EditorShortcutHost
+	host: EditorShortcutHost,
+	interactionStore?: EditorInteractionStore
 ) {
-	const onKeyDown = createEditorShortcutHandler(store, host);
+	const onKeyDown = createEditorShortcutHandler(store, host, interactionStore);
 	window.addEventListener('keydown', onKeyDown);
 	return () => window.removeEventListener('keydown', onKeyDown);
 }

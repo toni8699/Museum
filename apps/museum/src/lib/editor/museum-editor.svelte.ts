@@ -582,6 +582,15 @@ export class MuseumEditorStore {
 	get selectedPlacementId(): string | null {
 		return this.selectedPlacementIds.at(-1) ?? null;
 	}
+	/**
+	 * Phase 6.2 — most-recent placement id the user explicitly mutated.
+	 * Drives the multi-select "Active Object" pivot branch. Cleared on
+	 * `deselect()`. Distinct from `selectedPlacementId` (which is the
+	 * array-tail position; `selectAllInRoom` and bulk imports reorder ids).
+	 */
+	get lastSelectedId(): string | null {
+		return this.selectionActions.lastSelectedId;
+	}
 	get cameraSelection(): EditorCameraSelection | null {
 		const n = this.selectionStore.navigation;
 		return n.kind === 'node'
@@ -905,6 +914,18 @@ export class MuseumEditorStore {
 	}
 	set rotationSnapDegrees(value: number) {
 		this.session.setRotationSnapDegrees(value);
+	}
+	get scaleSnapEnabled(): boolean {
+		return this.session.scaleSnapEnabled;
+	}
+	set scaleSnapEnabled(value: boolean) {
+		this.session.setScaleSnapEnabled(value);
+	}
+	get scaleSnap(): number {
+		return this.session.scaleSnap;
+	}
+	set scaleSnap(value: number) {
+		this.session.setScaleSnap(value);
 	}
 	get keepOnFloor(): boolean {
 		return this.session.keepOnFloor;

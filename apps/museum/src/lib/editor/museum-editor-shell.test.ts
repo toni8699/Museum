@@ -179,7 +179,7 @@ describe('MuseumEditorStore Phase 1 shell session state', () => {
 		expect(store.transformMode).toBe('translate');
 		expect(store.transformGizmoVisible).toBe(true);
 		expect(store.toggleActiveTransformSnap()).toBe(true);
-		expect(store.translationSnapEnabled).toBe(false);
+		expect(store.translationSnapEnabled).toBe(true);
 
 		expect(store.setTransformSpace('local')).toBe(true);
 		expect(store.transformSpace).toBe('local');

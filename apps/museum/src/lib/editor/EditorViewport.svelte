@@ -15,8 +15,16 @@
 	import EditorViewportToolbar from './EditorViewportToolbar.svelte';
 	import type { MuseumEditorStore } from './museum-editor.svelte';
 	import type { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
+	import { getContext } from 'svelte';
+	import {
+		EDITOR_INTERACTION_STORE_KEY,
+		type EditorInteractionStore
+	} from './store/editor-interaction-store.svelte';
 
 	let { store }: { store: MuseumEditorStore } = $props();
+	const interactionStore = getContext<EditorInteractionStore | undefined>(
+		EDITOR_INTERACTION_STORE_KEY
+	);
 
 	const placementRegistry: EditorPlacementRegistry = {
 		registerPlacementRoot: (id, root) => store.registerPlacementRoot(id, root),
@@ -37,6 +45,7 @@
 	)}
 	class:bending={Boolean(store.hoveredConnectionId || store.hoveredAnchorId)}
 	class:dragging-camera-key={store.viewKeyframeProgressDrag !== null}
+	style:cursor={interactionStore?.cursor ?? 'default'}
 	aria-label="Museum editor viewport"
 >
 	<EditorViewportToolbar {store} />

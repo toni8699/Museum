@@ -172,14 +172,17 @@ DRAG_END cancelled=true:
 
 ### Esc mid-drag revert — implementation tactic
 
-Three's `TransformControls` does not expose a public `cancelDrag()` method. Phase 6.1 implements revert via:
+Three's `TransformControls` does not expose a public `cancelDrag()` method. Phase 6.1 implements revert via **FSM-owned transition** (the FSM reduces `Dragging + ESC → Idle` and emits `RevertDragSideEffect`). The caller pattern:
 
 1. Restore placement transforms from `dragSnapshot` (the same `transforms` array used in non-cancelled `DRAG_END`).
-2. Set `controls.dragging = false` (private flag on Three's `TransformControls`; works in current Three r170).
-3. Dispatch synthetic `dragging-changed` event with `value: false`, so Three releases pointer capture.
-4. Call `store.deselectAll()` so the FSM transitions to `Idle`.
+2. Set `controls.dragging = false` (private flag on Three's `TransformControls`; works in current Three r170) so Three releases pointer capture.
+3. Clear `interactionStore.dragSnapshot` so any post-Esc natural mouseup listener fires as a no-op.
+4. Dispatch `interactionStore.dispatch({ type: 'ESC' })` — FSM transitions `Dragging → Idle`.
+5. Call `store.deselectAll()` to clear the selection.
 
-Integration test pins `state === 'Idle' AND dragSnapshot transforms restored`. If a future Three release breaks step 2/3, fall back to detach + re-attach (`controls.detach(); controls.attach(newPivot)`); integration test still pins the assertion.
+The `dragging-changed` event listener must early-return when `dragSnapshot === null` to avoid pushing a spurious history entry after Esc restores the snapshot manually.
+
+Integration test pins `state === 'Idle' AND dragSnapshot transforms restored`. If a future Three release breaks step 2, fall back to detach + re-attach (`controls.detach(); controls.attach(newPivot)`); integration test still pins the assertion.
 
 ## Helper visualization
 

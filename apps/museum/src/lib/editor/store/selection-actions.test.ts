@@ -191,3 +191,51 @@ describe('EditorSelectionActions', () => {
 		expect(selection.workspace).toMatchObject({ ids: ['p2'] });
 	});
 });
+
+describe('EditorSelectionActions — lastSelectedId writer hooks', () => {
+	it('selectPlacement writes lastSelectedId', () => {
+		const { actions } = createHarness([
+			{ id: 'p1', roomId: 'paris' },
+			{ id: 'p2', roomId: 'paris' }
+		]);
+		actions.selectRoom('paris');
+		actions.selectPlacement('p1');
+		expect(actions.lastSelectedId).toBe('p1');
+		actions.selectPlacement('p2');
+		expect(actions.lastSelectedId).toBe('p2');
+	});
+
+	it('togglePlacement writes lastSelectedId when added', () => {
+		const { actions } = createHarness([
+			{ id: 'p1', roomId: 'paris' },
+			{ id: 'p2', roomId: 'paris' }
+		]);
+		actions.selectRoom('paris');
+		actions.selectPlacement('p1');
+		actions.togglePlacement('p2');
+		expect(actions.lastSelectedId).toBe('p2');
+		// toggling 'p2' out does not clear the trace
+		actions.togglePlacement('p2');
+		expect(actions.lastSelectedId).toBe('p2');
+	});
+
+	it('selectPlacements writes the last provided id', () => {
+		const { actions } = createHarness([
+			{ id: 'a', roomId: 'paris' },
+			{ id: 'b', roomId: 'paris' },
+			{ id: 'c', roomId: 'paris' }
+		]);
+		actions.selectRoom('paris');
+		actions.selectPlacements(['a', 'b', 'c']);
+		expect(actions.lastSelectedId).toBe('c');
+	});
+
+	it('deselect clears lastSelectedId', () => {
+		const { actions } = createHarness([{ id: 'p1', roomId: 'paris' }]);
+		actions.selectRoom('paris');
+		actions.selectPlacement('p1');
+		expect(actions.lastSelectedId).toBe('p1');
+		actions.deselect();
+		expect(actions.lastSelectedId).toBeNull();
+	});
+});

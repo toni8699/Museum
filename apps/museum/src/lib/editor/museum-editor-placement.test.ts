@@ -428,10 +428,12 @@ describe('MuseumEditorStore Phase 4.4 light creation', () => {
 describe('MuseumEditorStore placement settings', () => {
 	it('defaults snap and keep-on-floor settings outside document history', () => {
 		const store = createFixtureEditorStore();
-		expect(store.translationSnapEnabled).toBe(true);
+		expect(store.translationSnapEnabled).toBe(false);
 		expect(store.translationSnap).toBe(0.1);
-		expect(store.rotationSnapEnabled).toBe(true);
+		expect(store.rotationSnapEnabled).toBe(false);
 		expect(store.rotationSnapDegrees).toBe(15);
+		expect(store.scaleSnapEnabled).toBe(false);
+		expect(store.scaleSnap).toBe(0.1);
 		expect(store.keepOnFloor).toBe(false);
 
 		const id = store.document.entities[0]!.id;

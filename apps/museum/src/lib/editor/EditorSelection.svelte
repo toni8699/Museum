@@ -25,8 +25,9 @@
 		findCameraFovHandleFromObject,
 		findCameraSelectionFromObject,
 		findCameraViewKeyframeHandleFromObject,
-		findPriorityCameraViewKeyframeHandle,
 		findNavigationSelectionFromObject,
+		findPlacementIdFromObject,
+		findPriorityCameraViewKeyframeHandle,
 		resolveNormalSelection,
 		selectionHitFromIntersection,
 		uniquePlacementIdsInOrder,
@@ -41,6 +42,11 @@
 		getSceneCameraViewKeyframeWorldTarget
 	} from './editor-camera-view';
 	import { findPlaceableFloorIntersection } from './editor-placement';
+	import { getContext } from 'svelte';
+	import {
+		EDITOR_INTERACTION_STORE_KEY,
+		type EditorInteractionStore
+	} from './store/editor-interaction-store.svelte';
 
 	let {
 		store,
@@ -52,6 +58,9 @@
 
 	const { camera, scene, canvas } = useThrelte();
 	const editorOrbitControls = useOrbitControls();
+	const interactionStore = getContext<EditorInteractionStore | undefined>(
+		EDITOR_INTERACTION_STORE_KEY
+	);
 	const raycaster = new Raycaster();
 	const pointerNdc = new Vector2();
 	const dragPlane = new Plane();
@@ -579,11 +588,13 @@
 	}
 
 	function updateHover(event: PointerEvent) {
+		updatePlacementHover(event);
 		if (
 			pointerSession?.kind === 'path' ||
 			pointerSession?.kind === 'view-keyframe' ||
 			pointerSession?.kind === 'framing'
-		) return;
+		)
+			return;
 		const result = activePathHit(event);
 		if (!result) {
 			store.setNavigationHover(null);
@@ -593,6 +604,30 @@
 			result.selection.connectionId,
 			result.selection.kind === 'anchor' ? result.selection.anchorId : null
 		);
+	}
+
+	// Phase 6.1 Q4 — placement hover drives the dim-white half-opacity outline.
+	// Raycasts every placement root (selected or not), finds the deepest
+	// intersection, publishes the id to `interactionStore.hoverTargetId`.
+	function updatePlacementHover(event: PointerEvent) {
+		if (!interactionStore) return;
+		const currentCamera = camera.current;
+		if (!currentCamera) {
+			interactionStore.setHoverTarget(null);
+			return;
+		}
+		toNdc(event);
+		raycaster.setFromCamera(pointerNdc, currentCamera);
+		const allIds = store.document.entities.map((entity) => entity.id);
+		const roots = store.getPlacementRoots(allIds);
+		if (roots.length === 0) {
+			if (interactionStore.hoverTargetId !== null) interactionStore.setHoverTarget(null);
+			return;
+		}
+		const intersects = raycaster.intersectObjects(roots, true);
+		const first = intersects[0]?.object ?? null;
+		const id = findPlacementIdFromObject(first);
+		if (id !== interactionStore.hoverTargetId) interactionStore.setHoverTarget(id);
 	}
 
 	function beginPathPointer(event: PointerEvent, result: NonNullable<ReturnType<typeof activePathHit>>) {
@@ -804,13 +839,32 @@
 				store.selectionActions.selectCameraHandle(result.selection.handle);
 			}
 		} else if (result.action === 'select') {
+			// Phase 6.1 section 8 — Unity-grade modifier dispatch:
+			//   shift   → add  (merge with current selection)
+			//   ctrl/cmd → toggle  (add if absent, remove if present)
+			//   none    → select-only
 			if (event.shiftKey) {
+				const next = new Set([...store.selectedPlacementIds, result.id]);
+				store.selectionActions.selectPlacements([...next]);
+			} else if (event.metaKey || event.ctrlKey) {
 				store.selectionActions.togglePlacement(result.id);
 			} else {
 				store.selectionActions.selectPlacement(result.id);
 			}
-		} else if (!event.shiftKey) {
+			interactionStore?.dispatch({
+				type: 'CLICK',
+				target: result.id,
+				shift: event.shiftKey,
+				meta: event.metaKey || event.ctrlKey
+			});
+		} else if (!event.shiftKey && !event.metaKey && !event.ctrlKey) {
 			store.selectionActions.deselect();
+			interactionStore?.dispatch({
+				type: 'CLICK',
+				target: null,
+				shift: false,
+				meta: false
+			});
 		}
 	}
 

@@ -98,6 +98,18 @@ export interface EditorSelectionActionsHost {
 }
 
 export class EditorSelectionActions {
+	/**
+	 * Tracks the most recent placement id the user explicitly mutated.
+	 *
+	 * Distinct from `selectedPlacementIds.at(-1)` because selection-order is
+	 * not necessarily click-order (e.g. `selectAllInRoom` reverses order).
+	 * Phase 6.2's Active Object pivot binds to this and reads it as the
+	 * multi-select pivot root.
+	 *
+	 * Cleared on `deselect()` — never persisted.
+	 */
+	lastSelectedId: string | null = $state(null);
+
 	constructor(
 		private readonly selection: EditorSelectionStore,
 		private readonly host: EditorSelectionActionsHost
@@ -384,6 +396,7 @@ export class EditorSelectionActions {
 			clusterId: null,
 			roomId: placement.roomId as MuseumRoomId
 		});
+		this.lastSelectedId = id;
 		if (previousId !== id) this.host.transformMode = 'rotate';
 		return true;
 	}
@@ -406,6 +419,7 @@ export class EditorSelectionActions {
 			clusterId: null,
 			roomId: firstPlacement.roomId as MuseumRoomId
 		});
+		this.lastSelectedId = next[next.length - 1] ?? null;
 		this.host.transformMode = 'rotate';
 		return true;
 	}
@@ -428,6 +442,7 @@ export class EditorSelectionActions {
 			clusterId: null,
 			roomId: placement.roomId as MuseumRoomId
 		});
+		this.lastSelectedId = id;
 		return true;
 	}
 
@@ -501,6 +516,7 @@ export class EditorSelectionActions {
 						roomId
 				  }
 		);
+		this.lastSelectedId = null;
 		return changed;
 	}
 

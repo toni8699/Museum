@@ -1,9 +1,25 @@
 <script lang="ts">
 	import type { EditorTransformMode } from './editor-transform';
 	import type { MuseumEditorStore } from './museum-editor.svelte';
-	import { onMount } from 'svelte';
+	import { onMount, getContext } from 'svelte';
+	import {
+		EDITOR_INTERACTION_STORE_KEY,
+		type EditorInteractionStore
+	} from './store/editor-interaction-store.svelte';
+	import { EDITOR_OPEN_SETTINGS_KEY, type EditorOpenSettingsHandle } from './editor-context-keys';
+	import {
+		SETTINGS_STORE_KEY,
+		type EditorSettingsStore
+	} from './settings-store.svelte';
+	import type { EditorSettings } from './settings-store.svelte';
 
 	let { store }: { store: MuseumEditorStore } = $props();
+
+	const interactionStore = getContext<EditorInteractionStore | undefined>(
+		EDITOR_INTERACTION_STORE_KEY
+	);
+	const openSettings = getContext<EditorOpenSettingsHandle>(EDITOR_OPEN_SETTINGS_KEY);
+	const settingsStore = getContext<EditorSettingsStore | undefined>(SETTINGS_STORE_KEY);
 
 	let addMenuOpen = $state(false);
 	let viewMenuOpen = $state(false);
@@ -49,13 +65,30 @@
 	);
 
 	function chooseTool(tool: 'select' | EditorTransformMode) {
-		store.setTransformTool(tool);
+		if (tool === 'select') {
+			store.setTransformTool(tool);
+		} else if (interactionStore) {
+			interactionStore.setMode(tool);
+		} else {
+			store.setTransformTool(tool);
+		}
 		addMenuOpen = false;
 	}
 
 	function toolIsActive(mode: EditorTransformMode) {
 		if (!store.transformGizmoVisible) return false;
-		return hasNavigationTransform ? mode === 'translate' : store.transformMode === mode;
+		const effectiveMode = interactionStore?.mode ?? store.transformMode;
+		return hasNavigationTransform ? mode === 'translate' : effectiveMode === mode;
+	}
+
+	function pivotIsActive() {
+		return settingsStore?.settings.pivotMode === 'active-object';
+	}
+
+	function togglePivotMode() {
+		if (!settingsStore) return;
+		const next: EditorSettings['pivotMode'] = pivotIsActive() ? 'center' : 'active-object';
+		settingsStore.set({ pivotMode: next });
 	}
 
 	function addCamera() {
@@ -127,9 +160,29 @@
 			class:active={activeSnap}
 			aria-pressed={activeSnap}
 			disabled={disabled || !hasPlacementSelection || !store.transformGizmoVisible || store.transformMode === 'scale'}
-			title="Hold Shift while dragging to bypass snapping"
+			title="Hold Ctrl/Cmd while dragging to snap"
 			onclick={() => store.toggleActiveTransformSnap()}
 		>{snapLabel}</button>
+		<button
+			type="button"
+			class:active={pivotIsActive()}
+			aria-pressed={pivotIsActive()}
+			disabled={disabled}
+			title="Multi-select pivot (Center vs Active Object)"
+			onclick={togglePivotMode}
+		>{pivotIsActive() ? 'Active' : 'Center'}</button>
+		<button
+			type="button"
+			class:active={openSettings?.open ?? false}
+			aria-haspopup="dialog"
+			aria-expanded={openSettings?.open ?? false}
+			disabled={disabled}
+			title="Editor settings · Cmd+,"
+			onclick={() => openSettings?.toggle()}
+		>
+			<span class="icon-gear" aria-hidden="true">⚙</span>
+			<span class="sr-only">Editor settings</span>
+		</button>
 	</div>
 
 	<div class="add-wrap">
@@ -312,6 +365,19 @@
 	}
 	.toggle-row { display: flex; align-items: center; gap: 0.55rem; }
 	.toggle-row .check { width: 0.85rem; color: #d6b35f; font: inherit; font-size: 0.78rem; }
+
+	.icon-gear { font-size: 0.92rem; line-height: 1; }
+	.sr-only {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		padding: 0;
+		margin: -1px;
+		overflow: hidden;
+		clip: rect(0, 0, 0, 0);
+		white-space: nowrap;
+		border: 0;
+	}
 
 	@media (max-width: 44rem) {
 		.toolbar {

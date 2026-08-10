@@ -4,17 +4,21 @@
 
 **North star:** layout-first / Chopin-as-data — [`../north-star.md`](../north-star.md).  
 **P0:** Layout CAD Foundation — [`../plans/2026-08-10-layout-cad-foundation.md`](../plans/2026-08-10-layout-cad-foundation.md).  
+**Completed:** A0 LayoutDocument codec + B0 Chopin `rooms.ts` compiler.  
 Full-track Phase 2 scene presets = deferred optional.
 
 ## Next slice
 
-**A0 → B0 → A1** (no Bezier before A1):
+**A1** — line rooms, validation, mesh preview, history stub; visitor unchanged. No Bezier before A1.
 
-1. **A0** — Layout types + codec + tests; focused spec/plan: [`../plans/2026-08-10-layout-cad-a0-codec.md`](../plans/2026-08-10-layout-cad-a0-codec.md).  
-2. **B0** — `rooms.ts` → `LayoutDocument` + Chopin golden fixture.  
-3. **A1** — Line rooms, validation, mesh preview, history stub; visitor unchanged.
+A1 consumes the stable types/codec and deterministic Chopin layout compiler completed in A0/B0. Then **C0** project envelope, then **A2** plan UX.
 
-Then **C0** project envelope, then **A2** plan UX.
+## Completed verification
+
+- A0 codec: 20 focused tests passed.
+- B0 compiler: 9 focused tests passed.
+- Full suite: 995 tests passed.
+- `npm run check`: still blocked by 4 pre-existing diagnostics in `MuseumEntities.svelte` and `EditorViewport.svelte`.
 
 ## Locked decisions
 
@@ -35,7 +39,7 @@ Phase 2 Wall presets · Bezier/arches (A3) · semantic room adjacency/portal gra
 1. This file.  
 2. [`../AGENTS.md`](../../AGENTS.md) hard rules.  
 3. [`../architecture.md`](../architecture.md) (layout/`rooms.ts` only).  
-4. For A0, read [`../plans/2026-08-10-layout-cad-a0-codec.md`](../plans/2026-08-10-layout-cad-a0-codec.md); for B0/A1, read only those sections in the foundation plan.  
+4. For A1, read only the A1 section in the foundation plan; A0/B0 contracts are already shipped.  
 5. Skip other `docs/components/*` unless the task touches them.
 
 After shipping: update the **matching** `docs/components/*.md` or `architecture.md` / `north-star.md`; bump hub routing only if needed.

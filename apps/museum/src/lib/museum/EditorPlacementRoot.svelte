@@ -11,7 +11,9 @@
     placementRegistry,
     position = [0, 0, 0] as Vec3,
     rotation = [0, 0, 0] as Vec3,
-    scale = 1,
+    // number = uniform; Vec3 = independent (session vector). Must not be the
+    // visitor scalar average when a non-uniform vector is active.
+    scale = 1 as number | Vec3,
     visible = true,
     children
   }: {
@@ -20,7 +22,7 @@
     placementRegistry: EditorPlacementRegistry;
     position?: Vec3;
     rotation?: Vec3;
-    scale?: number;
+    scale?: number | Vec3;
     visible?: boolean;
     children: Snippet;
   } = $props();

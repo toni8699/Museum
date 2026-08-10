@@ -33,7 +33,7 @@ import {
 	DEFAULT_ROTATION_SNAP_DEGREES,
 	DEFAULT_TRANSLATION_SNAP
 } from '../editor-placement';
-import type { CameraConnectionDirection, MuseumRoomId } from '$lib/types/museum';
+import type { CameraConnectionDirection, MuseumRoomId, Vec3 } from '$lib/types/museum';
 import type { SceneLightKind, ScenePrimitiveKind } from '$lib/content/scene';
 
 /** Phase 5.2 — Phase 4.5 gate, fixed cap of recently used texture ids. */
@@ -448,5 +448,49 @@ export class EditorSessionState {
 
 	setPendingMaterialEdit(request: EditorPendingMaterialEdit | null) {
 		this.pendingMaterialEdit = request;
+	}
+
+	// ============================================================
+	// Phase 1a follow-up: independent per-axis scale memory.
+	// Schema v6 only persists `placement.scale: number`, so the per-axis
+	// vector lives in this session-only Map and is layered back on top of
+	// the document read in `MuseumEditorStore.selectedTransform`. Cleared on
+	// reset; never carries data across sessions.
+	// ============================================================
+
+	#placementScaleVectors = new Map<string, Vec3>();
+	placementScaleVectorVersion = $state(0);
+
+	getPlacementScaleVector(id: string): Vec3 | null {
+		return this.#placementScaleVectors.get(id) ?? null;
+	}
+
+	setPlacementScaleVector(id: string, vector: Vec3 | null): void {
+		if (vector === null) {
+			if (!this.#placementScaleVectors.has(id)) return;
+			this.#placementScaleVectors.delete(id);
+		} else {
+			const existing = this.#placementScaleVectors.get(id);
+			if (
+				existing &&
+				Math.abs(existing[0] - vector[0]) < 1e-6 &&
+				Math.abs(existing[1] - vector[1]) < 1e-6 &&
+				Math.abs(existing[2] - vector[2]) < 1e-6
+			) {
+				return;
+			}
+			this.#placementScaleVectors.set(id, [
+				vector[0],
+				vector[1],
+				vector[2]
+			] as Vec3);
+		}
+		this.placementScaleVectorVersion += 1;
+	}
+
+	clearAllPlacementScaleVectors(): void {
+		if (this.#placementScaleVectors.size === 0) return;
+		this.#placementScaleVectors.clear();
+		this.placementScaleVectorVersion += 1;
 	}
 }

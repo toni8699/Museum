@@ -13,7 +13,9 @@
 	import EditorSelectionHelper from './EditorSelectionHelper.svelte';
 	import EditorTransformControls from './EditorTransformControls.svelte';
 	import EditorViewportToolbar from './EditorViewportToolbar.svelte';
+	import PlacementGhost from './placement-ghost.svelte';
 	import type { MuseumEditorStore } from './museum-editor.svelte';
+	import { resolveEditorPlacementScale } from './scale-vector';
 	import type { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 	import { getContext } from 'svelte';
 	import {
@@ -29,7 +31,20 @@
 	const placementRegistry: EditorPlacementRegistry = {
 		registerPlacementRoot: (id, root) => store.registerPlacementRoot(id, root),
 		unregisterPlacementRoot: (id, root) => store.unregisterPlacementRoot(id, root),
-		notifyPlacementRootChanged: (id) => store.notifyPlacementRootChanged(id)
+		notifyPlacementRootChanged: (id) => store.notifyPlacementRootChanged(id),
+		// Getters keep the registry object identity stable (avoids remounting
+		// EditorPlacementRoot register effects on every independent scale write)
+		// while still exposing reactive session scale memory to MuseumEntities.
+		get scaleVersion() {
+			return store.session.placementScaleVectorVersion;
+		},
+		getPlacementScale: (id) => {
+			const entity = store.document.entities.find((candidate) => candidate.id === id);
+			return resolveEditorPlacementScale(
+				entity?.scale,
+				store.session.getPlacementScaleVector(id)
+			);
+		}
 	};
 
 	let transformControls = $state<TransformControls>();
@@ -97,6 +112,11 @@
 			{/key}
 		{/if}
 		<EditorTransformControls {store} bind:controls={transformControls} />
+		<!-- Phase 1b — placement ghost preview. Renders only while a placement
+		     is armed; pure visual cue, click pipeline stays in EditorSelection. -->
+		{#if !store.isVisitorCameraPreview}
+			<PlacementGhost {store} />
+		{/if}
 	</Canvas>
 	{#if store.isCameraPreviewPlaying}
 		<div class="preview-shield" role="status">

@@ -30,6 +30,7 @@ import type {
 	ScenePrimitiveEntity,
 	ScenePrimitiveKind
 } from '$lib/content/scene';
+import { isUniformVector } from '../scale-vector';
 import {
 	cloneSceneEntity,
 	isSceneLightEntity,
@@ -87,6 +88,13 @@ export interface EditorPlacementClusterMutatorHost {
 	requestPlacementFrame(ids: string[]): boolean;
 	/** Session drop request — not the public mutator entry. */
 	sessionRequestDropToFloor(): void;
+	/**
+	 * Phase 1a follow-up — stash the active placement's per-axis scale vector
+	 * in editor-session memory. Schema v6 only carries a scalar, so the
+	 * inspector reads this Map to know whether to render X/Y/Z or a single
+	 * Scale field. Pass `null` to clear (uniform mode after commit).
+	 */
+	setPlacementScaleVector(id: string, vector: Vec3 | null): void;
 
 	// Document transaction wrappers (guard-aware).
 	beginDocumentTransaction(): boolean;
@@ -707,7 +715,11 @@ export class EditorPlacementClusterMutator {
 		if (this.host.isDocumentMutationBlocked) return false;
 		const placement = this.host.document.entities.find((object) => object.id === id);
 		if (!placement || !this.isPlacementSelectable(id)) return false;
-		return writePlacementTransform(placement, transform);
+		const written = writePlacementTransform(placement, transform);
+		if (written) {
+			this.stashPlacementScaleVector(id, transform);
+		}
+		return written;
 	}
 
 	commitPlacementTransform(id: string, transform: PlacementTransform) {
@@ -720,5 +732,23 @@ export class EditorPlacementClusterMutator {
 			return false;
 		}
 		return this.host.commitDocumentTransaction();
+	}
+
+	/**
+	 * When the user is in independent mode the per-axis vector survives the
+	 * commit in editor-session memory; when uniform we clear it (so the next
+	 * inspector read renders the single Scale field again). All-equal
+	 * independent vectors collapse to uniform + clear.
+	 */
+	private stashPlacementScaleVector(id: string, transform: PlacementTransform): void {
+		if (
+			transform.scaleMode === 'independent' &&
+			transform.scaleVector &&
+			!isUniformVector(transform.scaleVector)
+		) {
+			this.host.setPlacementScaleVector(id, transform.scaleVector);
+		} else {
+			this.host.setPlacementScaleVector(id, null);
+		}
 	}
 }

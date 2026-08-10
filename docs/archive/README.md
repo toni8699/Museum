@@ -36,6 +36,11 @@ Jul 28 museum-editor audit + 9-slice refactor plan. All slices landed; keep for 
 
 - Pre-workspace camera UX specs.
 - `phase-5-textures/` — texture/material/package-export design specs (all shipped; engineering contracts live in code).
+- `museum-editor-full-track/` — Phase 6.5 split plans/specs rolled into [`../../superpowers/specs/2026-08-09-museum-editor-full-track-design.md`](../../superpowers/specs/2026-08-09-museum-editor-full-track-design.md) for archaeology.
+
+### `superpowers/plans/`
+
+- `museum-editor-full-track/` — same rollup as `superpowers/specs/museum-editor-full-track/`.
 
 ## How to read archived material
 

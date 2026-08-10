@@ -20,6 +20,7 @@ import type { FSMState, FSMEvent, PlacementId } from './interaction-fsm';
 import { CommitDragSideEffect, RevertDragSideEffect, reduce } from './interaction-fsm';
 import { type Cursor, type CursorInputs, computeCursor } from '../interaction-cursor';
 import type { Vector3, Quaternion } from 'three';
+import type { ScaleMode } from '../scale-vector';
 
 export type GizmoMode = 'translate' | 'rotate' | 'scale';
 export type GizmoSpace = 'world' | 'local';
@@ -37,6 +38,10 @@ export class EditorInteractionStore {
 	dragSnapshot: DragSnapshot | null = $state(null);
 	cursor: Cursor = $state('default');
 	selectionSize: number = $state(0);
+	// Phase 1a — placement-relative scale mode toggle. Default 'uniform'
+	// preserves today's single-axis gizmo behaviour. Independent mode keeps
+	// gizmo writes per-axis without enforcing all-equal scale.
+	scaleMode: ScaleMode = $state('uniform');
 	private isDraggingCurrently: boolean = false;
 
 	/**
@@ -60,6 +65,14 @@ export class EditorInteractionStore {
 
 	setMode(mode: GizmoMode): void {
 		this.mode = mode;
+	}
+
+	toggleScaleMode(): void {
+		this.scaleMode = this.scaleMode === 'uniform' ? 'independent' : 'uniform';
+	}
+
+	setScaleMode(mode: ScaleMode): void {
+		this.scaleMode = mode;
 	}
 
 	toggleSpace(): void {

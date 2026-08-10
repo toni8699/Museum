@@ -100,7 +100,10 @@ describe('createMuseumEditorStore', () => {
 			store.commitPlacementTransform(placement.id, {
 				position: [placement.position[0] + 1, placement.position[1], placement.position[2]],
 				rotation: [...placement.rotation],
-				scale: placement.scale ?? 1
+				scale: placement.scale ?? 1,
+				scaleScalar: placement.scale ?? 1,
+				scaleVector: null,
+				scaleMode: 'uniform'
 			})
 		).toBe(true);
 		expect(store.isDirty).toBe(true);

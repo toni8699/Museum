@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { getContext } from 'svelte';
 	import EditorNumberField from './EditorNumberField.svelte';
 	import {
 		degreesToRadians,
@@ -6,9 +7,20 @@
 		radiansToDegrees,
 		type PlacementTransform
 	} from './editor-transform';
+	import type { ScaleMode } from './scale-vector';
+	import type { Vec3 } from '$lib/types/museum';
 	import type { MuseumEditorStore } from './museum-editor.svelte';
+	import {
+		EDITOR_INTERACTION_STORE_KEY,
+		type EditorInteractionStore
+	} from './store/editor-interaction-store.svelte';
 
 	let { store }: { store: MuseumEditorStore } = $props();
+
+	const interactionStore = getContext<EditorInteractionStore | undefined>(
+		EDITOR_INTERACTION_STORE_KEY
+	);
+	const scaleMode = $derived<ScaleMode>(interactionStore?.scaleMode ?? 'uniform');
 
 	const selectedObject = $derived(store.selectedObject);
 	const transform = $derived(store.selectedTransform);
@@ -41,14 +53,39 @@
 		commitTransform(next);
 	}
 
-	function setScale(value: number) {
+	function setUniformScale(value: number) {
 		if (!transform) return;
 		commitTransform({
 			...transform,
 			position: [...transform.position],
 			rotation: [...transform.rotation],
-			scale: value
+			scale: value,
+			scaleScalar: value,
+			scaleVector: null,
+			scaleMode: 'uniform'
 		});
+	}
+
+	function setIndependentScale(axis: 0 | 1 | 2, value: number) {
+		if (!transform) return;
+		const current: Vec3 = transform.scaleVector
+			? [...transform.scaleVector]
+			: ([transform.scaleScalar, transform.scaleScalar, transform.scaleScalar] as Vec3);
+		current[axis] = value;
+		const scalar = (current[0] + current[1] + current[2]) / 3;
+		commitTransform({
+			...transform,
+			position: [...transform.position],
+			rotation: [...transform.rotation],
+			scale: scalar,
+			scaleScalar: scalar,
+			scaleVector: current,
+			scaleMode: 'independent'
+		});
+	}
+
+	function toggleChain() {
+		interactionStore?.toggleScaleMode();
 	}
 </script>
 
@@ -117,8 +154,103 @@
 		</fieldset>
 
 		<fieldset>
-			<legend>Uniform scale</legend>
-			<EditorNumberField label="Scale" value={transform.scale} step={0.01} min={MIN_PLACEMENT_SCALE} oncommit={setScale} />
+			<legend>Scale</legend>
+			<div class="scale-row">
+				<button
+					type="button"
+					class="scale-toggle"
+					aria-pressed={scaleMode === 'independent'}
+					aria-label="Toggle uniform / independent scale mode"
+					title={
+						scaleMode === 'uniform'
+							? 'Uniform scale — click to switch to independent (× Y / Z scale separately)'
+							: 'Independent scale — click to switch to uniform (single scale across X / Y / Z)'
+					}
+					disabled={!interactionStore}
+					onclick={toggleChain}
+				>
+				{#if scaleMode === 'uniform'}
+					<!-- Locked link: two interlocked C-curves. Atomic — toggling
+					     the chain breaks the link so X / Y / Z scale independently. -->
+					<svg viewBox="0 0 24 24" aria-hidden="true" width="16" height="16">
+						<g
+							fill="none"
+							stroke="currentColor"
+							stroke-width="1.8"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+						>
+							<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+							<path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+						</g>
+					</svg>
+				{:else}
+					<!-- Unlocked link: same shape with a slash + visible gap, so
+					     the user sees that atomic scale is broken. -->
+					<svg viewBox="0 0 24 24" aria-hidden="true" width="16" height="16">
+						<g
+							fill="none"
+							stroke="currentColor"
+							stroke-width="1.8"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+						>
+							<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+							<path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+						</g>
+						<line
+							x1="5"
+							y1="5"
+							x2="19"
+							y2="19"
+							stroke="currentColor"
+							stroke-width="1.8"
+							stroke-linecap="round"
+						/>
+					</svg>
+				{/if}
+				</button>
+
+				{#if scaleMode === 'uniform'}
+					<EditorNumberField
+						label="Scale"
+						value={transform.scaleScalar}
+						step={0.01}
+						min={MIN_PLACEMENT_SCALE}
+						oncommit={setUniformScale}
+					/>
+				{:else}
+					<div class="field-grid three">
+						<EditorNumberField
+							label="X"
+							value={transform.scaleVector
+								? transform.scaleVector[0]
+								: transform.scaleScalar}
+							step={0.01}
+							min={MIN_PLACEMENT_SCALE}
+							oncommit={(value) => setIndependentScale(0, value)}
+						/>
+						<EditorNumberField
+							label="Y"
+							value={transform.scaleVector
+								? transform.scaleVector[1]
+								: transform.scaleScalar}
+							step={0.01}
+							min={MIN_PLACEMENT_SCALE}
+							oncommit={(value) => setIndependentScale(1, value)}
+						/>
+						<EditorNumberField
+							label="Z"
+							value={transform.scaleVector
+								? transform.scaleVector[2]
+								: transform.scaleScalar}
+							step={0.01}
+							min={MIN_PLACEMENT_SCALE}
+							oncommit={(value) => setIndependentScale(2, value)}
+						/>
+					</div>
+				{/if}
+			</div>
 		</fieldset>
 	</section>
 {/if}
@@ -183,5 +315,45 @@
 		display: grid;
 		grid-template-columns: repeat(3, minmax(0, 1fr));
 		gap: 0.35rem;
+	}
+
+	.field-grid.three {
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+	}
+
+	.scale-row {
+		display: flex;
+		align-items: stretch;
+		gap: 0.4rem;
+	}
+
+	.scale-toggle {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 1.7rem;
+		min-height: 1.7rem;
+		padding: 0;
+		border-radius: 0.3rem;
+		border: 1px solid #3a3644;
+		background: rgba(255, 255, 255, 0.04);
+		color: var(--museum-editor-fg, #e9e3f0);
+		cursor: pointer;
+		transition: background 80ms ease;
+	}
+
+	.scale-toggle:hover:not(:disabled) {
+		background: rgba(255, 255, 255, 0.1);
+	}
+
+	.scale-toggle[aria-pressed='true'] {
+		background: rgba(136, 221, 255, 0.18);
+		color: #88ddff;
+		border-color: rgba(136, 221, 255, 0.5);
+	}
+
+	.scale-toggle:disabled {
+		opacity: 0.45;
+		cursor: not-allowed;
 	}
 </style>

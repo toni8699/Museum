@@ -23,6 +23,24 @@
 			store.navigationSelection?.kind === 'anchor' ||
 			store.navigationSelection?.kind === 'view-keyframe'
 	);
+	const scaleMode = $derived<'uniform' | 'independent'>(
+		interactionStore?.scaleMode ?? 'uniform'
+	);
+	const scaleToolActive = $derived(
+		!hasNavigationTransform &&
+			(interactionStore?.mode ?? store.transformMode) === 'scale'
+	);
+
+	function toggleTopBarChain(event: MouseEvent) {
+		// Only meaningful when the gizmo is in scale mode. Clicking the chain
+		// outside of that is a no-op so the toolbar doesn't surprise the user.
+		event.preventDefault();
+		event.stopPropagation();
+		if (!scaleToolActive) {
+			interactionStore?.setMode('scale');
+		}
+		interactionStore?.toggleScaleMode();
+	}
 
 	function chooseTool(tool: 'select' | EditorTransformMode) {
 		if (tool === 'select') {
@@ -76,6 +94,58 @@
 				onclick={() => chooseTool(mode as EditorTransformMode)}
 			>{label}</button>
 		{/each}
+		<button
+			type="button"
+			class="scale-toggle"
+			aria-pressed={scaleMode === 'independent'}
+			aria-label="Toggle uniform / independent scale mode"
+			title={
+				scaleToolActive
+					? scaleMode === 'uniform'
+						? 'Scale locked — click to switch to independent (× Y / Z scale separately)'
+						: 'Scale unlocked — click to switch to uniform (single scale across X / Y / Z)'
+					: 'Switch to Scale and lock / unlock its chain'
+			}
+			disabled={disabled || !interactionStore}
+			onclick={toggleTopBarChain}
+		>
+			{#if scaleMode === 'uniform'}
+				<svg viewBox="0 0 24 24" aria-hidden="true" width="16" height="16">
+					<g
+						fill="none"
+						stroke="currentColor"
+						stroke-width="1.8"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+					>
+						<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+						<path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+					</g>
+				</svg>
+			{:else}
+				<svg viewBox="0 0 24 24" aria-hidden="true" width="16" height="16">
+					<g
+						fill="none"
+						stroke="currentColor"
+						stroke-width="1.8"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+					>
+						<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+						<path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+					</g>
+					<line
+						x1="5"
+						y1="5"
+						x2="19"
+						y2="19"
+						stroke="currentColor"
+						stroke-width="1.8"
+						stroke-linecap="round"
+					/>
+				</svg>
+			{/if}
+		</button>
 	</div>
 
 	{#if store.currentWorkspace === 'camera'}
@@ -155,6 +225,20 @@
 		gap: 0.22rem;
 		padding-right: 0.32rem;
 		border-right: 1px solid #34343e;
+	}
+
+	.scale-toggle {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 0.38rem 0.45rem;
+		color: inherit;
+	}
+
+	.scale-toggle[aria-pressed='true'] {
+		background: rgba(136, 221, 255, 0.18);
+		border-color: rgba(136, 221, 255, 0.5);
+		color: #88ddff;
 	}
 
 	button {

@@ -308,7 +308,13 @@
 		}
 
 		if (store.transformMode === 'scale') {
-			enforceUniformObjectScale(pivot, transformControls.axis ?? null);
+			// Phase 1a — only enforce single-axis uniform scale when scaleMode
+			// is `'uniform'`. Independent mode keeps the gizmo's per-axis
+			// writes intact; Three's TransformControls writes per-axis values
+			// to pivot.scale, stream unchecked through any axis handle.
+			if (interactionStore?.scaleMode === 'uniform') {
+				enforceUniformObjectScale(pivot, transformControls.axis ?? null);
+			}
 		}
 		if (store.transformMode === 'translate' && store.translationSnapEnabled && !shiftHeld) {
 			snapPivotRoomLocal(
@@ -323,7 +329,8 @@
 		const transforms = applyRigidPivotDelta(
 			active.startPivotWorldMatrix,
 			pivot.matrixWorld,
-			active.members
+			active.members,
+			interactionStore?.scaleMode ?? 'uniform'
 		);
 		for (const [id, transform] of transforms) {
 			store.updatePlacementTransform(id, transform);

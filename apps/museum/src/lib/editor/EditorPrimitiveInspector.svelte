@@ -97,17 +97,14 @@
 			<div><dt>Shape</dt><dd>{entity.primitive}</dd></div>
 			<div><dt>Room</dt><dd>{entity.roomId}</dd></div>
 		</dl>
-		<div class="dims" role="group" aria-label="Dimensions">
-			{#each dimensionFields(entity) as [key, value] (key)}
-				<EditorNumberField
-					label={key[0]!.toUpperCase() + key.slice(1)}
-					{value}
-					step={0.05}
-					min={0.01}
-					oncommit={(next) => commitDimension(key, next)}
-				/>
-			{/each}
-		</div>
+		<!--
+			Phase 1a — per-axis scale on primitives now rides the Transform
+			inspector's chain toggle + X/Y/Z fields. `entity.dimensions` stays
+			in the document untouched; it is just no longer exposed as a
+			manual-input band here (avoids the W/H/D + Scale-X/Y/Z duplication).
+			Call `updatePrimitiveDimensions` from code paths that need to
+			override the parametric size.
+		-->
 		<label>
 			<span>Fallback material</span>
 			<select value={entity.materialId} onchange={commitMaterial}>
@@ -153,7 +150,6 @@
 	dl div { display: grid; grid-template-columns: 5.5rem 1fr; gap: 0.4rem; align-items: baseline; }
 	dt { margin: 0; color: #918c84; font-size: 0.68rem; }
 	dd { margin: 0; color: #f4efe4; font-size: 0.74rem; word-break: break-word; }
-	.dims { display: grid; gap: 0.35rem; }
 	.checkbox { display: flex; align-items: center; gap: 0.45rem; color: #d6c7a8; font-size: 0.74rem; }
 	.checkbox input { accent-color: #d6b35f; }
 </style>

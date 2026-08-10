@@ -72,3 +72,76 @@ describe('session pivot matrix delta', () => {
 		expect(local.y).toBeCloseTo(0.26);
 	});
 });
+
+describe('applyRigidPivotDelta — Phase 1a scaleMode gate', () => {
+	function buildCluster() {
+		const scene = new Group();
+		const room = new Group();
+		scene.add(room);
+		const a = new Group();
+		a.position.set(-0.5, 0, 0);
+		a.add(new Mesh(new BoxGeometry(1, 1, 1)));
+		room.add(a);
+		const b = new Group();
+		b.position.set(0.5, 0, 0);
+		b.add(new Mesh(new BoxGeometry(1, 1, 1)));
+		room.add(b);
+		return { scene, room, members: [{ id: 'a', root: a, startWorldMatrix: a.matrixWorld.clone() }, { id: 'b', root: b, startWorldMatrix: b.matrixWorld.clone() }] };
+	}
+
+	it('uniform mode collapses per-axis pivot scale to scalar', () => {
+		const { scene, members } = buildCluster();
+		scene.updateMatrixWorld(true);
+		const pivot = new Group();
+		pivot.position.set(0, 0.5, 0);
+		scene.add(pivot);
+		scene.updateMatrixWorld(true);
+		const startPivotWorldMatrix = pivot.matrixWorld.clone();
+		pivot.scale.x = 2.5;
+		pivot.scale.y = 0.2;
+		pivot.scale.z = 4;
+		pivot.updateMatrixWorld(true);
+		const result = applyRigidPivotDelta(
+			startPivotWorldMatrix,
+			pivot.matrixWorld,
+			members,
+			'uniform'
+		);
+		for (const id of ['a', 'b']) {
+			const root = members.find((m) => m.id === id)!.root;
+			expect(root.scale.x).toBeCloseTo(root.scale.y, 6);
+			expect(root.scale.y).toBeCloseTo(root.scale.z, 6);
+			const t = result.get(id)!;
+			expect(t.scaleMode).toBe('uniform');
+		}
+	});
+
+	it('independent mode preserves per-axis decomposition on every cluster member', () => {
+		const { scene, members } = buildCluster();
+		scene.updateMatrixWorld(true);
+		const pivot = new Group();
+		pivot.position.set(0, 0.5, 0);
+		scene.add(pivot);
+		scene.updateMatrixWorld(true);
+		const startPivotWorldMatrix = pivot.matrixWorld.clone();
+		pivot.scale.x = 2.5;
+		pivot.scale.y = 0.2;
+		pivot.scale.z = 4;
+		pivot.updateMatrixWorld(true);
+		const result = applyRigidPivotDelta(
+			startPivotWorldMatrix,
+			pivot.matrixWorld,
+			members,
+			'independent'
+		);
+		for (const id of ['a', 'b']) {
+			const root = members.find((m) => m.id === id)!.root;
+			expect(root.scale.x).toBeCloseTo(2.5, 4);
+			expect(root.scale.y).toBeCloseTo(0.2, 4);
+			expect(root.scale.z).toBeCloseTo(4, 4);
+			const t = result.get(id)!;
+			expect(t.scaleMode).toBe('independent');
+			expect(t.scaleVector).toEqual([root.scale.x, root.scale.y, root.scale.z]);
+		}
+	});
+});

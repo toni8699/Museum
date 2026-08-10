@@ -473,3 +473,48 @@ describe('EditorSessionState', () => {
 		});
 	});
 });
+
+describe('EditorSessionState — Phase 1a follow-up scaleVector memory', () => {
+	function build() {
+		return new EditorSessionState();
+	}
+
+	it('returns null when no vector has been stashed', () => {
+		const session = build();
+		expect(session.getPlacementScaleVector('p-1')).toBeNull();
+	});
+
+	it('stashes and reads back an independent vector; bumps the version counter', () => {
+		const session = build();
+		const before = session.placementScaleVectorVersion;
+		session.setPlacementScaleVector('p-1', [5, 3, 0.05]);
+		expect(session.getPlacementScaleVector('p-1')).toEqual([5, 3, 0.05]);
+		expect(session.placementScaleVectorVersion).toBeGreaterThan(before);
+	});
+
+	it('clears the entry when passed null', () => {
+		const session = build();
+		session.setPlacementScaleVector('p-1', [5, 3, 0.05]);
+		session.setPlacementScaleVector('p-1', null);
+		expect(session.getPlacementScaleVector('p-1')).toBeNull();
+	});
+
+	it('skips the version bump when the new vector is identical (within 1e-6)', () => {
+		const session = build();
+		session.setPlacementScaleVector('p-1', [5, 3, 0.05]);
+		const before = session.placementScaleVectorVersion;
+		session.setPlacementScaleVector('p-1', [5, 3, 0.05]);
+		expect(session.placementScaleVectorVersion).toBe(before);
+	});
+
+	it('clearAllPlacementScaleVectors drops every entry + bumps version once', () => {
+		const session = build();
+		session.setPlacementScaleVector('p-1', [5, 3, 0.05]);
+		session.setPlacementScaleVector('p-2', [2, 2, 0.1]);
+		const before = session.placementScaleVectorVersion;
+		session.clearAllPlacementScaleVectors();
+		expect(session.getPlacementScaleVector('p-1')).toBeNull();
+		expect(session.getPlacementScaleVector('p-2')).toBeNull();
+		expect(session.placementScaleVectorVersion).toBeGreaterThan(before);
+	});
+});

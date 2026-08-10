@@ -75,13 +75,21 @@
   <T.Group position={group.room.position} rotation={group.room.rotation}>
     {#each group.entities as entity (entity.id)}
       {#if placementRegistry}
+        {@const _scaleVersion = placementRegistry.scaleVersion ?? 0}
         <EditorPlacementRoot
           placementId={entity.id}
           roomId={entity.roomId}
           {placementRegistry}
           position={entity.position}
           rotation={entity.rotation}
-          scale={entity.scale ?? 1}
+          scale={
+            // `_scaleVersion` keeps this branch reactive when session vectors
+            // change without mutating `entity.scale` identity.
+            (_scaleVersion,
+              placementRegistry.getPlacementScale?.(entity.id) ??
+                entity.scale ??
+                1)
+          }
         >
           {#if isSceneModelEntity(entity)}
             {@const placement = modelEntityToPlacement(entity)}

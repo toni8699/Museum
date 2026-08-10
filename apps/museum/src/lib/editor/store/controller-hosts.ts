@@ -571,6 +571,8 @@ export function createControllerHosts(
 		cancelPendingNavigation: (message?: string) => source.cancelPendingNavigation(message),
 		requestPlacementFrame: (ids: string[]) => source.requestPlacementFrame(ids),
 		sessionRequestDropToFloor: () => source.session.requestDropToFloor(),
+		setPlacementScaleVector: (id: string, vector) =>
+			source.session.setPlacementScaleVector(id, vector),
 		beginDocumentTransaction: () => source.beginDocumentTransaction(),
 		commitDocumentTransaction: () => source.commitDocumentTransaction(),
 		cancelDocumentTransaction: () => source.cancelDocumentTransaction()

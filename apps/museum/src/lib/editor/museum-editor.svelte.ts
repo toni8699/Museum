@@ -1291,9 +1291,12 @@ export class MuseumEditorStore {
 	}
 
 	get selectedTransform() {
-		return this.selectedObject
-			? placementTransformFromDocument(this.selectedObject)
-			: undefined;
+		const target = this.selectedObject;
+		if (!target) return undefined;
+		void this.session.placementScaleVectorVersion;
+		const override =
+			this.session.getPlacementScaleVector(target.id) ?? null;
+		return placementTransformFromDocument(target, override);
 	}
 
 	get canUndo() {
@@ -2352,6 +2355,7 @@ export class MuseumEditorStore {
 		this.navigationSelection = null;
 		this.selectedRoomId = null;
 		this.session.clearCameraFocusRequest();
+		this.session.clearAllPlacementScaleVectors();
 		this.documentStore.replace(validation.document);
 		this.documentStore.setBaseline(validation.canonicalJson);
 		this.historyController.clear();

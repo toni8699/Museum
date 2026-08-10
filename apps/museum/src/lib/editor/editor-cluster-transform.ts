@@ -4,6 +4,8 @@ import {
 	type PlacementTransform
 } from './editor-transform';
 
+const MIN_SCALE = 0.01;
+
 export type MemberTransformBaseline = {
 	id: string;
 	root: Object3D;
@@ -55,11 +57,16 @@ export function calculatePivotMatrixDelta(
 /**
  * Recompute every member from its drag-start world matrix. No preview depends on
  * the previous preview, so long drags cannot accumulate transform drift.
+ *
+ * `scaleMode === 'independent'` keeps the per-axis decomposition so the user
+ * can drag a single axis and watch the cluster stretch / squash along it
+ * without collapsing every axis to the same scalar afterwards.
  */
 export function applyRigidPivotDelta(
 	startPivotWorldMatrix: Matrix4,
 	currentPivotWorldMatrix: Matrix4,
-	members: MemberTransformBaseline[]
+	members: MemberTransformBaseline[],
+	scaleMode: 'uniform' | 'independent' = 'uniform'
 ): Map<string, PlacementTransform> {
 	const delta = calculatePivotMatrixDelta(startPivotWorldMatrix, currentPivotWorldMatrix);
 	const transforms = new Map<string, PlacementTransform>();
@@ -76,11 +83,21 @@ export function applyRigidPivotDelta(
 			member.root.quaternion,
 			member.root.scale
 		);
-		const uniformScale = Math.max(
-			0.01,
-			(member.root.scale.x + member.root.scale.y + member.root.scale.z) / 3
-		);
-		member.root.scale.setScalar(uniformScale);
+
+		// Phase 1a — only enforce single-axis uniform collapse when the user
+		// has the chain locked. With independent mode, every axis of the
+		// decomposed scale survives the pivot-delta compose.
+		if (scaleMode === 'uniform') {
+			const uniformScale = Math.max(
+				MIN_SCALE,
+				(member.root.scale.x + member.root.scale.y + member.root.scale.z) / 3
+			);
+			member.root.scale.setScalar(uniformScale);
+		} else {
+			member.root.scale.x = Math.max(MIN_SCALE, member.root.scale.x);
+			member.root.scale.y = Math.max(MIN_SCALE, member.root.scale.y);
+			member.root.scale.z = Math.max(MIN_SCALE, member.root.scale.z);
+		}
 		member.root.updateMatrixWorld(true);
 		transforms.set(member.id, placementTransformFromObject(member.root));
 	}

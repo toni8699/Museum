@@ -107,6 +107,36 @@ describe('EditorInteractionStore — drag snapshot', () => {
 	});
 });
 
+describe('EditorInteractionStore — Phase 1a scaleMode', () => {
+	it('defaults to uniform', () => {
+		expect(new EditorInteractionStore().scaleMode).toBe('uniform');
+	});
+
+	it('setScaleMode("independent") flips to independent', () => {
+		const store = new EditorInteractionStore();
+		store.setScaleMode('independent');
+		expect(store.scaleMode).toBe('independent');
+		store.setScaleMode('uniform');
+		expect(store.scaleMode).toBe('uniform');
+	});
+
+	it('toggleScaleMode flips value', () => {
+		const store = new EditorInteractionStore();
+		store.toggleScaleMode();
+		expect(store.scaleMode).toBe('independent');
+		store.toggleScaleMode();
+		expect(store.scaleMode).toBe('uniform');
+	});
+
+	it('separate EditorInteractionStore instances do not share scaleMode', () => {
+		const a = new EditorInteractionStore();
+		const b = new EditorInteractionStore();
+		a.setScaleMode('independent');
+		expect(a.scaleMode).toBe('independent');
+		expect(b.scaleMode).toBe('uniform');
+	});
+});
+
 describe('EditorInteractionStore — dispatch side-effects', () => {
 	it('dispatch DRAG_END cancelled=true in Dragging clears dragSnapshot and goes to Selected', () => {
 		// Idle + CLICK → Selected.

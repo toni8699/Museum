@@ -181,15 +181,17 @@ Focused spec/plan: [`2026-08-10-layout-cad-a0-codec.md`](./2026-08-10-layout-cad
 
 **Gate:** focused codec tests + `npm run check`; no visitor or scene behavior changes.
 
-### A1 — Line rooms, validation, mesh preview, history stub *(first vertical slice)*
+### A1 — Line rooms, validation, preview model, transaction stub *(first vertical slice)*
 
-**Create:** `draft-geometry.ts`, `layout-validation.ts`, `layout-mesh-factory.ts`, `LayoutPreview.svelte`, store/mutator stubs, tests.
+Focused spec/plan: [`2026-08-10-layout-cad-a1-line-geometry.md`](./2026-08-10-layout-cad-a1-line-geometry.md).
 
-**Implement:** line-segment eval; closed/zero-length/self-intersection; one or more rectangular openings on line segments (gap walls, no CSG); skinny corridor footprints are ordinary `LayoutRoom` data and may have two geometric cutouts, with no special corridor type or adjacency semantics; floor/ceiling polygon + straight wall prisms; atomic create/update/delete room; begin/commit/cancel; no-op skips history; editor-only preview (keep last valid).
+**Implement:** pure line geometry; endpoint/zero-length/self-intersection validation; Bezier deferral issue; rectangular opening intervals/gaps/lintels; skinny corridor as ordinary `LayoutRoom` with two geometry-only cutouts; floor/ceiling/wall preview data; pure begin/commit/cancel transaction stub.
 
-**Acceptance:** create rectangle and L-shaped rooms; generate floor/walls/ceiling; create a skinny corridor fixture with two rectangular cutouts; undo/redo one transaction; export/import layout JSON; `/museum` and camera behavior unchanged. Cutouts are visual geometry only; no portal or room-adjacency behavior is required.
+**UI boundary:** no editor viewport, toolbar, facade, shortcut, Plan/Museum mode, Svelte preview mount, shared Undo/Redo, layout I/O, or visitor changes. A2 owns first user-facing UI and consumes the A1 `LayoutPreviewModel`.
 
-**Defer to A3:** Bezier sampling, arches, measure polish.
+**Acceptance:** rectangle/L/corridor fixtures produce valid preview data; invalid geometry returns structured issues; one transaction commit/cancel works; A0/B0/full existing tests stay green; `/museum` and camera behavior unchanged.
+
+**Defer to A3:** Bezier sampling, arches, and curve-handle polish.
 
 ### A2 — Plan workspace and drafting interaction
 

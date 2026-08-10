@@ -113,7 +113,7 @@ function compileOpening(
 
 	const segmentLength = distance2(segment.start, segment.end);
 	const centeredOffset = opening.offset ?? 0;
-	const offset = centeredOffsetToDistance(opening.side, centeredOffset, segmentLength);
+	const offset = centeredOffsetToDistance(opening.side, centeredOffset, opening.width, segmentLength);
 
 	return {
 		id: `opening:${room.id}:${opening.id}`,
@@ -130,13 +130,15 @@ function compileOpening(
 function centeredOffsetToDistance(
 	side: RoomOpeningSide,
 	centeredOffset: number,
+	openingWidth: number,
 	segmentLength: number
 ): number {
+	const halfLength = segmentLength / 2;
+	const halfOpening = openingWidth / 2;
 	const fromSegmentStart = side === 'neg-z' || side === 'pos-x';
-	const distance = fromSegmentStart
-		? segmentLength / 2 + centeredOffset
-		: segmentLength / 2 - centeredOffset;
-	return distance;
+	return fromSegmentStart
+		? halfLength + centeredOffset - halfOpening
+		: halfLength - centeredOffset - halfOpening;
 }
 
 function toLayoutPoint(room: MuseumRoom, [x, z]: LocalPoint2): LayoutVec2 {

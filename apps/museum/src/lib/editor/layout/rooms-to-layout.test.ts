@@ -93,10 +93,10 @@ describe('roomsToLayout', () => {
 	});
 
 	it('converts centered shell offsets into non-negative segment distances', () => {
-		expect(compiledOpening('entrance', 'entrance-from-legacy').offset).toBe(6.5);
-		expect(compiledOpening('entrance', 'entrance-to-poland').offset).toBe(4);
-		expect(compiledOpening('departure', 'departure-to-paris').offset).toBe(12.8);
-		expect(compiledOpening('paris', 'paris-to-workshop').offset).toBe(1.5);
+		expect(compiledOpening('entrance', 'entrance-from-legacy').offset).toBeCloseTo(5.3);
+		expect(compiledOpening('entrance', 'entrance-to-poland').offset).toBeCloseTo(2.7);
+		expect(compiledOpening('departure', 'departure-to-paris').offset).toBeCloseTo(11.6);
+		expect(compiledOpening('paris', 'paris-to-workshop').offset).toBeCloseTo(0.2);
 		for (const room of roomsToLayout().floors[0]!.rooms) {
 			for (const opening of room.openings) {
 				expect(opening.offset).toBeGreaterThanOrEqual(0);

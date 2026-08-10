@@ -1,8 +1,11 @@
 # Museum Editor Workspace Releases
 
-**Status:** Active release authority. Phases 1–3 complete (through 3.6). Complete-refactor slices 1–9.5 landed. **Phase 4 complete. Phase 5.1 complete. Phase 5.2 complete. Phase 5.3 complete. Phase 5.4 complete. Phase 5 shipped. Phase 6.1 shipped (gizmo + selection interaction parity). Phase 6.2 shipped (OBB rotation-aware selection outline + Active Object multi-select pivot + editor settings popover with snap step sliders + pivot mode + `museum-editor:settings:v1` localStorage persistence + `Cmd+,` shortcut; toolbar mode/space/pivot chips bound to interaction + settings stores).** Full test count 899 / 899 (+38 over 6.1). Phase 6.2 carries: OBB corners-stream per frame (no edge thickness polish); snap settings UI inline panel only (full settings panel → future); Active Object pivot gates multi-select only (single-select pivots own origin implicitly); Three private-flag workaround for Esc mid-drag revert; settings persist via localStorage v1 (no migration tooling). Marquee/Individual Origins deferred to 6.3. Priority-1 file splits final gate complete. Latest handoff: [`../../agent-handoffs/phase-6.2.md`](../../agent-handoffs/phase-6.2.md).
-**Locked decisions:** one looped guided tour; `Scene` and `Camera` workspaces; camera placement accepts any tagged room floor.
-**History:** completed phase 1–3 plans and handoffs live under [`../../archive/`](../../archive/README.md).
+**Status:** Workspace Phases 1–5 + Phase 6 interaction parity **complete** (archived). Full-track Phase 1 (scale + ghost) shipped.  
+**Active P0 (2026-08-10):** **Layout CAD Foundation** + Chopin-as-data migration — [`../../museum-editor/north-star.md`](../../museum-editor/north-star.md), [`../../superpowers/plans/2026-08-10-layout-cad-foundation.md`](../../superpowers/plans/2026-08-10-layout-cad-foundation.md), handoff [`../../agent-handoffs/CURRENT.md`](../../agent-handoffs/CURRENT.md).  
+**Deferred:** Full-track Phase 2 scene architecture presets (optional dressing only). Phase 3 GLB after layout-backed load preferred.  
+**Locked decisions:** one looped guided tour; `Scene` and `Camera` workspaces; layout mode for CAD; camera placement on tagged floors; layout-first north star (Chopin → serialized project).  
+**History:** completed phase plans/handoffs under [`../../archive/`](../../archive/README.md).
+
 
 ## Main Problem
 
@@ -153,12 +156,15 @@ Camera-key position remains derived from exact connection-path progress. Never p
 ## Read First
 
 1. `AGENTS.md`
-2. `docs/agent-handoffs/CURRENT.md`
-3. This README
-4. The selected phase plan and its latest handoff
-5. `docs/CAMERA_AND_LAYOUT.md`
+2. [`docs/museum-editor/north-star.md`](../../museum-editor/north-star.md) — product vision
+3. [`docs/museum-editor/README.md`](../../museum-editor/README.md) — sectioned durable context
+4. `docs/agent-handoffs/CURRENT.md` — live slice
+5. This README (workspace release history + shell contracts)
+6. Active plan: [`docs/superpowers/plans/2026-08-10-layout-cad-foundation.md`](../../superpowers/plans/2026-08-10-layout-cad-foundation.md)
+7. `docs/CAMERA_AND_LAYOUT.md`
 
-Completed phases 1–3, path/view authoring plans, and the complete-refactor diary live under `docs/archive/` and are not required reading for Phase 4+.
+Completed workspace phases 1–3, path/view authoring plans, and the complete-refactor diary live under `docs/archive/` and are not required reading for active layout CAD work. Full-track Phase 2/3 plans are **deferred** — see banners on those docs.
+
 
 ## Release Gate
 

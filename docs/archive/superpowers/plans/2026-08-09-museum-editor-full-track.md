@@ -1,16 +1,20 @@
 # Museum Editor Full Track Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan phase-by-phase. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **Status (2026-08-10):** **Not active P0.** North star is layout-first / Chopin-as-data — see [`../../museum-editor/north-star.md`](../../museum-editor/north-star.md) and [`./2026-08-10-layout-cad-foundation.md`](./2026-08-10-layout-cad-foundation.md).  
+> **Phase 1** (scale + ghost) remains **shipped**.  
+> **Phase 2** (scene architecture presets) = **deferred optional dressing** — does not author shell; do not start as next work.  
+> **Phase 3** (GLB import) = **deferred until** layout-backed complex load is preferred (post layout dual-read).  
+> Kept for archaeology and optional later dressing/asset tasks only.
 
-> **Vision:** Push the museum editor toward a full-featured single-project museum scene editor — rough architectural layout + per-asset authoring for all 7 rooms, with local GLB import + compression baked in. **Not multi-project.**
+> **Original vision:** Push the museum editor toward a full-featured single-project museum scene editor — rough architectural layout + per-asset authoring for all 7 rooms, with local GLB import + compression baked in. **Superseded** by layout-serialized complexes (Chopin = first data project).
 
-**Goal:** Three phases shipped in sequence:
+**Goal (historical):** Expansion track after shipped Phase 6 interaction parity. Phase 1 done; Phase 2 was next — **now deferred**:
 
-- **Phase 1a — Independent Scale UX.** Uniform ↔ Independent toggle in transform inspector; gizmo + cluster propagation honour the mode. Default `uniform` (existing behavior preserved).
-- **Phase 1b — Placement Ghost Preview.** Wireframe OBB ghost follows cursor once placement is armed. Click on a museum-room floor commits, Escape cancels. Reusable for all placement paths. **Click-based UX for arming and committing — no drag-and-drop.**
-- **Phase 2 — Architecture Shape Catalogue.** Semantic `Wall / Floor / Ceiling / Column / Door` entries layered on existing `box / plane / cylinder`; `Add → Architecture` submenu. Default dimensions + per-axis scale vector on placement. Uses Phase 1b's placement-ghost helper.
-- **Phase 3 — Local Asset Import + Compression Pipeline + Cross-Room Editing.** Click `+ Add asset…` → Browse… opens native file picker (no drop zone); GLB/GLTF stages → gltf-pipeline → catalogue entry → place in any room (via Phase 1b ghost). Lift Paris-only gate; assets load on demand for any room.
-- **Phase 4+ — TBD.** Schema v7 visitor fidelity, multi-opening walls, asset replace flow, persistent scaleMode setting, marquee box-select, toolbar mode chip.
+- **Phase 1a — Independent Scale UX.** ✅ Shipped (working tree; handoff archived). Uniform ↔ Independent toggle; gizmo + cluster honour mode. Default `uniform`.
+- **Phase 1b — Placement Ghost Preview.** ✅ Shipped (working tree; handoff archived). Wireframe OBB ghost; click floor commits; Esc cancels. **No drag-and-drop.**
+- **Phase 2 — Architecture Shape Catalogue + scale gizmo deadstop.** ⏸️ Deferred optional. Semantic `Wall / Floor / Ceiling / Column / Door` as **scene** presets (not layout shell).
+- **Phase 3 — Local Asset Import + Compression Pipeline + Cross-Room Editing.** ⏸️ Deferred until layout-backed load preferred.
+- **Phase 4+ — TBD.** Largely absorbed by layout CAD Tracks B/C + north star; remaining polish (marquee, scaleMode persist, v7 scaleVector) schedule after cutover.
 
 **Architecture:** Pure helpers (`scale-vector.ts`, `architecture-shapes.ts`) decouple decisions from Three. State (`scaleMode`) lives on `EditorInteractionStore`'s reactive surface. Phase 3 splits the import onto a vite dev-only plugin (`asset-import-plugin` + `asset-compress-job`) so production builds never carry the pipeline. State machine in `asset-import-controller.svelte.ts` exposes: `idle → staging → compressing → ready → placed`. Visitor render path unchanged across all three phases (schema v6 only). Cross-room load + Paris gate lifted for editor; visitor stays route-driven + catalogue hint.
 
@@ -35,15 +39,17 @@
 
 Each phase ship-able independently. Each phase leaves a stable state for downstream phases.
 
-- [ ] **Phase 1a — Independent Scale UX** (`#independent-scale-ux`)
-- [ ] **Phase 1b — Placement Ghost Preview** (`#placement-ghost-preview`)
-- [ ] **Phase 2 — Architecture Shape Catalogue** (`#architecture-shape-catalogue`)
-- [ ] **Phase 3 — Local Asset Import + Compression + Cross-Room Editing** (`#asset-import-compression-cross-room`)
-- [ ] **Phase 4+ — TBD** (`#phase-4-tbd`)
+- [x] **Phase 1a — Independent Scale UX** (`#independent-scale-ux`) — shipped; handoff archived
+- [x] **Phase 1b — Placement Ghost Preview** (`#placement-ghost-preview`) — shipped; handoff archived
+- [ ] **Phase 2 — Architecture Shape Catalogue + scale gizmo deadstop** (`#architecture-shape-catalogue`) — ⏸️ deferred optional
+- [ ] **Phase 3 — Local Asset Import + Compression + Cross-Room Editing** (`#asset-import-compression-cross-room`) — ⏸️ deferred
+- [ ] **Phase 4+ — TBD** (`#phase-4-tbd`) — largely superseded by layout CAD Tracks B/C
 
 ---
 
 ## Phase 1a — Independent Scale UX
+
+> **Shipped.** Handoff: [`../../archive/agent-handoffs/museum-editor-full-track/phase-6-full-track-1.md`](../../archive/agent-handoffs/museum-editor-full-track/phase-6-full-track-1.md). Kept below for archaeology.
 
 4 tasks. ~27 new tests. Lands scaleMode toggle, gizmo gating, cluster non-uniform propagation.
 
@@ -117,6 +123,8 @@ Each phase ship-able independently. Each phase leaves a stable state for downstr
 ---
 
 ## Phase 1b — Placement Ghost Preview
+
+> **Shipped.** Same Phase 1 handoff as 1a. Kept below for archaeology.
 
 5 tasks. ~6 new tests. Cross-cutting placement helper used by Phase 1a (existing primitive placement), Phase 2 (architecture shapes), Phase 3 (assets). Click-based UX everywhere.
 
@@ -198,9 +206,24 @@ Each phase ship-able independently. Each phase leaves a stable state for downstr
 
 ---
 
-## Phase 2 — Architecture Shape Catalogue
+## Phase 2 — Architecture Shape Catalogue + scale gizmo deadstop
 
-4 tasks. ~9 new tests. Lands 5 named shape entries, Add menu submenu, preset placement flow.
+5 tasks. ~12 new tests. Lands 5 named shape entries, Add menu submenu, preset placement flow, and scale-axis deadstop (no flip through zero).
+
+#### Task 2.0 — Scale gizmo deadstop (clamp, no reverse)
+
+**Files:**
+- Modify: `apps/museum/src/lib/editor/editor-cluster-transform.ts` and/or `EditorTransformControls.svelte` — after per-axis / uniform scale write, clamp each component to `≥ MIN_PLACEMENT_SCALE`; never allow ≤0 or sign flip.
+- Modify: `apps/museum/src/lib/editor/editor-cluster-transform.test.ts` / `editor-transform.test.ts` — drag-past-min keeps floor; no mirrored negative scale.
+- (Optional, pending CURRENT open Q) same clamp on inspector Scale / X/Y/Z commits.
+
+**Behaviour:** independent or uniform gizmo scale past minimum → axis **deadstops** at `MIN_PLACEMENT_SCALE` (box becomes flat plane on that axis). Must **not** pass through 0 and reverse/mirror.
+
+**Step 1:** Failing tests for clamp-at-min + no negative scale after overshoot.
+
+**Step 2:** Implement clamp on gizmo preview + commit path.
+
+**Step 3:** Verify gates.
 
 #### Task 2.1 — Pure architecture-shapes catalogue
 
@@ -248,14 +271,14 @@ Each phase ship-able independently. Each phase leaves a stable state for downstr
 #### Task 2.4 — Polish — handoff doc + visitor chunk grep + manual checklist
 
 **Files:**
-- Create: `docs/agent-handoffs/phase-6.5-2.md`
-- Modify: `docs/agent-handoffs/CURRENT.md` — point at Phase 6.5.2 handoff; next pointer → Phase 3.
+- Create: `docs/agent-handoffs/phase-full-track-2.md`
+- Modify: `docs/agent-handoffs/CURRENT.md` — point at Phase 2 handoff; next pointer → Phase 3.
 
 **Step 1:** Production build + visitor chunk grep `architecture-shapes`; expect 0 matches.
 
-**Step 2:** Manual walkthrough doc.
+**Step 2:** Manual walkthrough doc (shapes + deadstop).
 
-**Step 3:** Handoff doc mirroring `phase-6.5-1.md` structure.
+**Step 3:** Handoff doc.
 
 **Step 4:** Update CURRENT.
 

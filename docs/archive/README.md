@@ -1,49 +1,48 @@
 # Archived Museum Docs
 
-Historical plans, handoffs, and audits kept for archaeology. **Not active implementation authority.**
+Historical plans, handoffs, specs, and deep guides. **Not active implementation authority.**
 
-## Active authority
+## Live authority
 
-- Release index: [`../plans/museum-editor-workspace/README-museum-editor.md`](../plans/museum-editor-workspace/README-museum-editor.md)
-- Current handoff: [`../agent-handoffs/CURRENT.md`](../agent-handoffs/CURRENT.md)
-- Active specs/plans: [`../superpowers/specs/`](../superpowers/specs/), [`../superpowers/plans/`](../superpowers/plans/)
-- Living contracts: [`../CAMERA_AND_LAYOUT.md`](../CAMERA_AND_LAYOUT.md), [`../ASSET_WORKFLOW.md`](../ASSET_WORKFLOW.md)
+| Doc | Role |
+|-----|------|
+| [`../README.md`](../README.md) | Architecture + component contracts |
+| [`../hand-off/CURRENT.md`](../hand-off/CURRENT.md) | Live slice |
+| [`../plans/2026-08-10-layout-cad-foundation.md`](../plans/2026-08-10-layout-cad-foundation.md) | Active P0 (design + plan merged) |
+
+If archive conflicts with live tree, **live tree wins**.
 
 ## Contents
 
+### Top-level deep guides (moved here 2026-08-10)
+
+- `CAMERA_AND_LAYOUT.md` — long camera/path authoring checklist (contracts summarized in live README).
+- `ASSET_WORKFLOW.md` — Paris GLB optimization checklist (summary in live README).
+
+### `museum-editor/`
+
+Former sectioned durable context (north-star, shell, scene, …). Folded into [`../README.md`](../README.md) 2026-08-10.
+
 ### `agent-handoffs/`
 
-- Pre–workspace-release editor phases (0–7, including old 3.5 / 3.6) and Phase 1 interim slices (1.2 / 1.3).
-- `museum-editor-phases-4-5/` — Phase 4 scene-creation + Phase 5 texture/material/package-export handoffs plus the priority-1 file-split slice handoffs (all shipped, see `phase-4.5.md` and `phase-5.4.md` for gate authorities).
-- `workspace-phases/` — completed Museum Editor Workspace phases 1–3 slice handoffs (through 3.6).
-- `complete-refactor/` — god-file split diary (Jul 28–Aug 1, slices 1–9.5). Done; not Phase 4+ authority.
-- `phase-6.5.md`, `phase-6.6-slice-6.md` — stale path-camera workspace phases that predate the editor rebuild.
+Shipped phase diaries (workspace 1–3, phases 0–7, 4–5, 6.x, full-track Phase 1, complete-refactor slices).
 
 ### `plans/`
 
-- `museum-editor-workspace.md` — old single-file workspace shim.
-- `camera-path-authoring.md` — Phase 6.5 path-authoring plan (shipped; contracts live in code + `../CAMERA_AND_LAYOUT.md`).
-- `camera-view-authoring.md` — Phase 6.6 view-authoring plan (partially delivered).
-- `museum-editor-workspace/` — completed workspace phase plans 1–3.
-- `phase-4-scene-creation/` — Phase 4 release plan + the `museum-editor-workspace/phase-4-scene-creation.md` it absorbed.
-- `phase-5-textures/` — texture/material/package-export release plan + the four phase-5 sub-plans + the priority-1 splits plan it absorbed.
+Completed workspace / phase-4 / phase-5 plans; old camera authoring plans; workspace release index.
 
 ### `refactor-audit/`
 
-Jul 28 museum-editor audit + 9-slice refactor plan. All slices landed; keep for archaeology only.
+Jul 28 museum-editor audit + 9-slice refactor plan. Done.
 
-### `superpowers/specs/`
+### `superpowers/`
 
-- Pre-workspace camera UX specs.
-- `phase-5-textures/` — texture/material/package-export design specs (all shipped; engineering contracts live in code).
-- `museum-editor-full-track/` — Phase 6.5 split plans/specs rolled into [`../../superpowers/specs/2026-08-09-museum-editor-full-track-design.md`](../../superpowers/specs/2026-08-09-museum-editor-full-track-design.md) for archaeology.
+| Subfolder | What |
+|-----------|------|
+| `specs/` | Shipped designs (phase-5 textures, phase-6, full-track, old layout CAD design split) |
+| `plans/` | Shipped/deferred plans (phase-6, full-track Phase 2/3 archaeology) |
+| `reviews/` | Goal-alignment review for layout CAD (decisions now in live plan §12) |
 
-### `superpowers/plans/`
+## How to read
 
-- `museum-editor-full-track/` — same rollup as `superpowers/specs/museum-editor-full-track/`.
-
-## How to read archived material
-
-Find a phase in the table of contents above. Handoffs (`agent-handoffs/`) are post-shipper diaries — they record what landed, deviations, and gates. Plans (`plans/`) are pre-implementation roadmaps. Specs (`superpowers/specs/`) are design decisions carrying the binding requirements for that phase.
-
-If a doc there conflicts with a doc in the live tree, the live tree wins.
+Handoffs = post-ship diaries. Plans = pre-implementation roadmaps. Specs = design for that phase. Prefer live `plans/` when a merged active file exists.

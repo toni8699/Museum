@@ -1,32 +1,30 @@
 # Museum Editor Full Track — Single-Project Editor Vision
 
-**Date:** 2026-08-09
-**Status:** Design in progress (§1–§5 drafted for Phases 1–3; §6 collects TBD pointers)
-**Track:** 6.5+ — broadens Phase 6 interaction parity toward a single-project museum scene editor
-**Plan:** [`../plans/2026-08-09-museum-editor-full-track.md`](../plans/2026-08-09-museum-editor-full-track.md)
-**Predecessor specs:**
-  - [`2026-08-08-phase-6-1-gizmo-parity-design.md`](./2026-08-08-phase-6-1-gizmo-parity-design.md) (shipped)
-  - [`2026-08-08-phase-6-2-obb-pivot-and-settings-design.md`](./2026-08-08-phase-6-2-obb-pivot-and-settings-design.md) (shipped)
-  - [`archive/superpowers/specs/museum-editor-full-track/2026-08-09-phase-6-5-architecture-shaping-design.md`](./archive/superpowers/specs/museum-editor-full-track/2026-08-09-phase-6-5-architecture-shaping-design.md) (rolled into this track)
+**Date:** 2026-08-09  
+**Status (2026-08-10):** **Deferred as P0.** North star is layout-first / Chopin-as-data — [`../../museum-editor/north-star.md`](../../museum-editor/north-star.md). Active plan: [`../plans/2026-08-10-layout-cad-foundation.md`](../plans/2026-08-10-layout-cad-foundation.md).  
+**Phase 1** (independent scale + placement ghost) **shipped**. Phase 2 scene presets + Phase 3 GLB **deferred** (optional / later).  
+**Track:** Historical full-track expansion after Phase 6; kept for archaeology and optional dressing/asset work.
 
 ---
 
 ## §0 — Goal
 
-Push the museum editor from "interaction-parity with translate/rotate/scale + Paris-only asset polish" toward a **full-featured single-project museum scene editor** — rough architectural layout + per-asset authoring for all 7 rooms of the museum project, with local GLB import + compression baked into the editor so the graybox→real-asset loop is closed.
+~~Push the museum editor from "interaction-parity…" toward a full-featured single-project museum scene editor~~  
 
-This is **not** multi-project. The editor stays scoped to this museum (`@portfolio/museum`); it does not become a generic 3D editor. It is the authoring surface for *this* scene, *these* rooms, *this* asset catalogue.
+**Superseded goal:** empty canvas → draw/relocate rooms → serialize project (layout + scene) → load complex → camera on top; Chopin migrates off `rooms.ts`. See north star.
+
+Historical full-track goal (dressing + GLB inside fixed Chopin rooms) remains useful as **content** work after architecture is data-backed—not as the path that creates rooms.
 
 ### Track layout
 
 | Phase | Surface | Status |
 |---|---|---|
-| **1 — Independent Scale UX + Placement Ghost Preview** | (1a) Uniform ↔ Independent toggle in transform inspector; gizmo + cluster propagation honour the mode. Default `uniform`. (1b) Placement Ghost — wireframe OBB preview follows the cursor once placement is armed; click on floor commits, Escape cancels. Click-based UX everywhere. | Designed (1a carry from 6.5.1; 1b new) |
-| **2 — Architecture Shape Catalogue** | Semantic `Wall / Floor / Ceiling / Column / Door` entries layered on existing `box / plane / cylinder`; `Add → Architecture` submenu. Default dimensions + per-axis scale vector on placement. Same Click → ghost → click flow as Phase 1b. | Designed (carry from old Phase 6.5.2) |
-| **3 — Local Asset Import + Compression + Cross-Room Editing** | Click `Add asset → Browse…` opens native file picker (no drag-and-drop); GLB/GLTF stages in `assets-source/`; runs gltf-pipeline with Draco + KTX2; optimized GLB committed to `static/museum/models/`; catalogue entries appear; placeable in any room. Lift Paris-only gate; assets load for any room on demand. | Spec drafted here |
-| **4+ — TBD** | Visitor vector fidelity (schema v7), multi-opening walls, asset-replace flow (graybox → real GLB), path clearance through named architecture, marquee box-select, persistent scaleMode setting, toolbar mode chip. | Pointer §6 |
+| **1 — Independent Scale UX + Placement Ghost Preview** | (1a) Uniform ↔ Independent toggle; gizmo + cluster honour mode. Default `uniform`. (1b) Placement Ghost — click floor commits, Esc cancels. Click-based UX. | **Shipped** (working tree; handoff archived) |
+| **2 — Architecture Shape Catalogue + scale gizmo deadstop** | Semantic `Wall / Floor / Ceiling / Column / Door`; `Add → Architecture` submenu; defaults + per-axis scale. **Plus:** scale gizmo deadstop — clamp at `MIN_PLACEMENT_SCALE`; flatten to plane; never cross 0 / reverse. | **Next** |
+| **3 — Local Asset Import + Compression + Cross-Room Editing** | Click `Add asset → Browse…`; gltf-pipeline Draco + KTX2; place any room. Lift Paris-only gate. | Spec drafted |
+| **4+ — TBD** | Visitor vector fidelity (schema v7), multi-opening walls, asset-replace, marquee, persistent scaleMode, toolbar chip. | Pointer §6 |
 
-Each phase ships standalone. The **placement ghost pattern (Phase 1b)** is cross-cutting — applies to primitive placement today, architecture shapes in Phase 2, asset placement in Phase 3. Phase 1b lands first because every subsequent placement path consumes it.
+Each phase ships standalone. The **placement ghost pattern (Phase 1b)** is cross-cutting — applies to primitive placement today, architecture shapes in Phase 2, asset placement in Phase 3.
 
 ### Placement UX (cross-phase design)
 
@@ -72,7 +70,7 @@ Visitor chunk isolation: Phase 1b adds `placement-ghost` to the keyword blocklis
 
 **Existing primitive placement benefits immediately.** The new `armPlacement` API replaces today's flow but produces the same entity at commit. Every existing primitive kind (`box`, `plane`, `cylinder`, `sphere`) becomes a candidate for ghost preview.
 
-### Phase 2 — Architecture Shape Catalogue
+### Phase 2 — Architecture Shape Catalogue + scale gizmo deadstop
 
 | File | Type | Role |
 |---|---|---|
@@ -81,6 +79,7 @@ Visitor chunk isolation: Phase 1b adds `placement-ghost` to the keyword blocklis
 | `store/placement-cluster-mutator.svelte.ts` | MODIFY | New `beginArchitectureShapePlacement(id)` — looks up entry, calls existing primitive placement flow with preset dimensions + vector. |
 | `museum-editor.svelte.ts` | MODIFY | Facade passthrough. |
 | `EditorPlacementTools.svelte` (or wherever Add lives) | MODIFY | Restore Add menu (current scratch-diff deleted it); add `Add → Architecture` submenu listing the 5 entries. |
+| `editor-cluster-transform.ts` / `EditorTransformControls.svelte` | MODIFY | **Scale gizmo deadstop:** clamp each axis (and uniform scalar) at `MIN_PLACEMENT_SCALE`. Flatten to plane OK; never ≤0 / never sign-flip through zero. Open Q: inspector fields too? |
 
 ### Phase 3 — Local Asset Import + Compression + Cross-Room
 
@@ -161,6 +160,16 @@ Independent + non-uniform → schema fallback: `placement.scale = 1`; editor tra
 | door | box | 0.9 × 2.1 × 0.05 | null (uniform) |
 
 User resizes per axis in Independent mode (Phase 1). Pre-set defaults match Phase‑1 graybox room footprint conventions.
+
+### Phase 2 — Scale gizmo deadstop (in-scope)
+
+**Problem:** Three TransformControls scale can drag through 0 → negative component → mesh **mirrors / reverses** instead of stopping flat.
+
+**Required:** on gizmo scale preview + commit (uniform and independent), clamp every axis to `≥ MIN_PLACEMENT_SCALE` (today `0.01`). Overshoot → deadstop; box becomes a thin plane on that axis; **no** sign flip.
+
+**Open Q (CURRENT.md):**
+1. Inspector Scale / X/Y/Z fields same clamp?
+2. XYZ center handle same rule? (Assume yes.)
 
 ### Phase 3 — Asset import + compression pipeline
 
@@ -534,6 +543,7 @@ Persistence is **commit-time only**. Editor session can hold in-progress imports
 **Phase 2:**
 - `architecture-shapes.test.ts` — pure catalogue, ~6 tests
 - `placement-cluster-mutator.test.ts` (extend) — `beginArchitectureShapePlacement` arms preset, ~3
+- `editor-cluster-transform.test.ts` / `editor-transform.test.ts` (extend) — scale deadstop clamp, no negative after overshoot, ~3
 
 **Phase 3:**
 - `assets.test.ts` (new) — catalogue entry expose, roomHint filter, ~4

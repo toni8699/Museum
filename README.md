@@ -2,7 +2,7 @@
 
 An experimental 3D museum experience about the life and music of Frédéric Chopin. Visitors move through a circular sequence of rooms using guided camera transitions, connecting places such as Poland, Paris, the composer’s workshop, and a central music chamber.
 
-The project is currently a spatial prototype: the layout, pacing, navigation, and atmosphere are being established before the remaining rooms receive final exhibits and artwork.
+The project is currently a spatial prototype: the layout, pacing, navigation, and atmosphere are being established before the remaining rooms receive final exhibits and artwork. Editor direction is layout-first: prove a single-floor room/complex workflow before expanding to multi-story buildings.
 
 ## Features
 
@@ -14,7 +14,7 @@ The project is currently a spatial prototype: the layout, pacing, navigation, an
 - Paris Salon asset slice with furniture, lighting, and decorative GLB models
 - Responsive HUD with room titles, navigation, and tour controls
 - Development previews for materials and assets
-- Development-only scene editor with node, connection, curve-anchor, preview, and JSON import/export workflows
+- Development-only museum editor with scene/tour authoring plus a layout-first CAD workflow in progress
 
 ## Run locally
 
@@ -27,15 +27,20 @@ npm run dev
 
 Open the local URL and visit `/museum`.
 
-### Load editor JSON into the live museum
+### Editor layout and scene exports
 
-The visitor experience at `/museum` reads the checked-in scene document. There is no runtime “open file” path.
+Editor now has two authoring artifacts:
 
-1. In `/dev/museum-editor`, use **Copy JSON** or **Download JSON** to export the canonical scene document.
-2. Replace [`apps/museum/src/lib/content/museum-scene.json`](./apps/museum/src/lib/content/museum-scene.json) with that export (overwrite the file in place).
-3. Restart or refresh the dev server if needed, then open `/museum` to see the updated tour, nodes, connections, and placements.
+- **Layout export** (`museum-layout.json`): rooms, floorplans, walls, openings, and layout placeholders. Editor-only during the current migration phase; `/museum` does not load it yet.
+- **Scene export** (`museum-scene.json`): entities, materials, navigation nodes, connections, and camera paths used by the current visitor experience.
 
-Do not put exported JSON under `static/` or elsewhere — only that content file is loaded by the live museum.
+To update the live museum:
+
+1. In `/dev/museum-editor`, use **Copy JSON** or **Download JSON** for the scene document.
+2. Replace [`apps/museum/src/lib/content/museum-scene.json`](./apps/museum/src/lib/content/museum-scene.json) with that scene export.
+3. Restart or refresh the dev server if needed, then open `/museum`.
+
+Layout exports are not a replacement for `museum-scene.json` yet. Do not put either export under `static/`; only the checked-in scene document is loaded by the current visitor runtime.
 
 Useful commands:
 
@@ -61,4 +66,4 @@ The main application lives in [`apps/museum`](./apps/museum). Additional develop
 
 ## Status
 
-This is an evolving graybox museum and interactive portfolio experiment. The Paris Salon is the first detailed asset slice; exhibit interactions, final artwork, and further room development are still in progress.
+This is an evolving graybox museum and interactive portfolio experiment. The current P0 direction is layout-first: prove a single-floor room/complex drafting workflow, migrate Chopin from `rooms.ts` into serialized layout + scene data, then author camera tours on top. Multi-story buildings and stacked rooms are a later goal, gated on the single-floor workflow becoming reliable and polished. The Paris Salon is the first detailed asset slice; exhibit interactions and final artwork remain in progress.

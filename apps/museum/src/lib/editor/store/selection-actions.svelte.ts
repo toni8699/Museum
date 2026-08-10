@@ -388,7 +388,6 @@ export class EditorSelectionActions {
 			this.selectRoom(placement.roomId as MuseumRoomId);
 		}
 		if (!this.host.isPlacementSelectable(id)) return false;
-		const previousId = this.host.selectedPlacementId;
 		// setWorkspace auto-cross-clears nav; reducer model.
 		this.selection.setWorkspace({
 			kind: 'placement',
@@ -397,7 +396,6 @@ export class EditorSelectionActions {
 			roomId: placement.roomId as MuseumRoomId
 		});
 		this.lastSelectedId = id;
-		if (previousId !== id) this.host.transformMode = 'rotate';
 		return true;
 	}
 
@@ -420,7 +418,6 @@ export class EditorSelectionActions {
 			roomId: firstPlacement.roomId as MuseumRoomId
 		});
 		this.lastSelectedId = next[next.length - 1] ?? null;
-		this.host.transformMode = 'rotate';
 		return true;
 	}
 
@@ -456,7 +453,6 @@ export class EditorSelectionActions {
 			clusterId: cluster.id,
 			roomId: cluster.roomId
 		});
-		this.host.transformMode = 'rotate';
 		return true;
 	}
 

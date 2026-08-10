@@ -116,7 +116,7 @@ export class EditorSessionState {
 	// Transform controls (audit §3.C).
 	// ============================================================
 
-	transformMode = $state<EditorTransformMode>('rotate');
+	transformMode = $state<EditorTransformMode>('translate');
 	transformGizmoVisible = $state(true);
 	transformSpace = $state<EditorTransformSpace>('world');
 

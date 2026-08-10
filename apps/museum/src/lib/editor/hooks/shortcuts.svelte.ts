@@ -9,7 +9,6 @@
  */import { tick, getContext } from 'svelte';
 	import type { MuseumEditorStore } from '../museum-editor.svelte';
 	import type { EditorInteractionStore } from '../store/editor-interaction-store.svelte';
-	import { EDITOR_OPEN_SETTINGS_KEY, type EditorOpenSettingsHandle } from '../editor-context-keys';
 
 export type EditorShortcutHost = {
 	getViewportElement: () => HTMLElement | null | undefined;
@@ -92,20 +91,9 @@ export function createEditorShortcutHandler(
 		const sceneOwnsShortcuts = editorOwnsSceneShortcuts();
 		const cameraOwnsShortcuts = editorOwnsCameraShortcuts();
 
-		if (modifier && key === 'z') {
-			event.preventDefault();
+		if (modifier && key === 'z') {			event.preventDefault();
 			if (event.shiftKey) store.redo();
 			else store.undo();
-		} else if (modifier && key === ',') {
-			// Phase 6.2 — Cmd+, opens editor settings popover (macOS convention).
-			const openSettings = getContext<EditorOpenSettingsHandle | undefined>(
-				EDITOR_OPEN_SETTINGS_KEY
-			);
-			if (openSettings) {
-				openSettings.toggle();
-				event.preventDefault();
-				event.stopPropagation();
-			}
 		} else if (modifier && event.ctrlKey && key === 'y') {
 			event.preventDefault();
 			store.redo();

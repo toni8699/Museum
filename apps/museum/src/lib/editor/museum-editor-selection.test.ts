@@ -148,16 +148,20 @@ describe('MuseumEditorStore selection', () => {
 		expect(store.selectedPlacementId).toBe(b);
 	});
 
-	it('resets a newly selected placement to rotate but preserves the current mode on reselect', () => {
+	it('persists transform mode across reselect (Phase 6.4 — keep action)', () => {
+		// Phase 6.4 drop: selection-mode no longer snaps to rotate on every new
+		// selection set. The user-explicit mode sticks.
 		const store = createFixtureEditorStore();
 		const a = store.document.entities[0]!.id;
 		const b = store.document.entities[1]!.id;
 		store.selectionActions.selectRoom('paris');
 
 		store.selectionActions.selectPlacement(a);
-		store.transformMode = 'translate';
+		expect(store.transformMode).toBe('translate'); // session default
+
+		store.transformMode = 'rotate';
 		store.selectionActions.selectPlacement(a);
-		expect(store.transformMode).toBe('translate');
+		expect(store.transformMode).toBe('rotate');
 
 		store.selectionActions.selectPlacement(b);
 		expect(store.selectedPlacementId).toBe(b);

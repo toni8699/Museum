@@ -10,7 +10,6 @@
 	import EditorInspector from './EditorInspector.svelte';
 	import EditorLeftSidebar from './EditorLeftSidebar.svelte';
 	import EditorMaterialChoiceDialog from './EditorMaterialChoiceDialog.svelte';
-	import EditorSettingsPopover from './EditorSettingsPopover.svelte';
 	import EditorViewport from './EditorViewport.svelte';
 	import { registerEditorShortcuts } from './hooks/shortcuts.svelte';
 	import { setContext } from 'svelte';
@@ -24,56 +23,12 @@
 	} from '$lib/museum/materials/texture-cache';
 	import { BinaryTextureStore } from './store/binary-texture-store.svelte';
 	import { createMuseumEditorStore } from './museum-editor.svelte';
-	import { EditorSettingsStore, SETTINGS_STORE_KEY } from './settings-store.svelte';
-	import { EDITOR_OPEN_SETTINGS_KEY } from './editor-context-keys';
 
 	const store = createMuseumEditorStore();
 	// Phase 6.1 — single shared FSM sub-store. Set on context so every editor
 	// child reads the same reactive state.
 	const interactionStore = new EditorInteractionStore();
 	setContext(EDITOR_INTERACTION_STORE_KEY, interactionStore);
-
-	// Phase 6.2 — settings store (localStorage-backed). Settings propagate
-	// into session-state via a derived $effect; visit artifacts are unaware.
-	const settingsStore = new EditorSettingsStore();
-	setContext(SETTINGS_STORE_KEY, settingsStore);
-
-	let openSettingsState = (false);
-	const openSettings = {
-		get value() {
-			return openSettingsState;
-		},
-		set(v: boolean) {
-			openSettingsState = v;
-		},
-		toggle() {
-			openSettingsState = !openSettingsState;
-		}
-	};
-	setContext(EDITOR_OPEN_SETTINGS_KEY, {
-		get open() {
-			return openSettingsState;
-		},
-		toggle: () => {
-			openSettingsState = !openSettingsState;
-		},
-		set: (value: boolean) => {
-			openSettingsState = value;
-		}
-	});
-
-	$effect(() => {
-		const s = settingsStore.settings;
-		// Mirror settings → session-state so the editor's snap pipeline
-		// (effectiveRotationSnap via snapEnabled) reacts to user-driven
-		// settings changes without doubling the public surface.
-		store.translationSnap = s.translationStep;
-		store.translationSnapEnabled = s.snapDefaultOn;
-		store.rotationSnapDegrees = s.rotationStepDegrees;
-		store.rotationSnapEnabled = s.snapDefaultOn;
-		store.scaleSnap = s.scaleStep;
-		store.scaleSnapEnabled = s.snapDefaultOn;
-	});
 
 	let outlinerElement = $state<HTMLElement | null>(null);
 	let viewportElement = $state<HTMLElement | null>(null);
@@ -168,8 +123,6 @@
 	<EditorCameraTimelineFrame {store} />
 	<!-- Phase 5.2 — shared by viewport drops and inspector edits; rendered once outside the canvas. -->
 	<EditorMaterialChoiceDialog {store} />
-	<!-- Phase 6.2 — settings popover anchored bottom-right of viewport (gear icon). -->
-	<EditorSettingsPopover {settingsStore} />
 </main>
 
 <style>

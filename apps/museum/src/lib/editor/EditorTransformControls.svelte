@@ -13,10 +13,6 @@
 		snapPivotRoomLocal,
 		type MemberTransformBaseline
 	} from './editor-cluster-transform';
-	import {
-		resolveMultiSelectPivot,
-		type PivotMode
-	} from './pivot-resolve';
 	import { groundSelectionRigidly, rotationSnapRadians } from './editor-placement';
 	import {
 		enforceUniformObjectScale,
@@ -136,38 +132,15 @@
 	);
 
 	function resetPivot(roots = selectedRoots) {
-		// Active Object multi-select pivot: place pivot at last-selected root's
-		// world position (and orientation under local-space rotate mode).
-		if (roots.length > 1) {
-			const pivotMode: PivotMode = (store as { pivotMode?: PivotMode }).pivotMode ?? 'center';
-			const lastSelectedId = store.lastSelectedId;
-			if (pivotMode === 'active-object' && lastSelectedId) {
-				const rootIdResolver = (root: Object3D): string | null =>
-					(root.userData?.placementId as string | null) ?? null;
-				const resolution = resolveMultiSelectPivot(
-					roots,
-					lastSelectedId,
-					'active-object',
-					rootIdResolver
-				);
-				if (resolution?.kind === 'active-object') {
-					const ref = resolution.root;
-					ref.updateWorldMatrix(true, false);
-					pivot.position.setFromMatrixPosition(ref.matrixWorld);
-					if (store.transformSpace === 'local') {
-						pivot.quaternion.copy(ref.getWorldQuaternion(new Quaternion()));
-					} else {
-						pivot.quaternion.set(0, 0, 0, 1);
-					}
-					pivot.scale.setScalar(1);
-					pivot.updateMatrixWorld(true);
-					return true;
-				}
-			}
-		}
+		// Phase 6.3 — multi-select gizmo always lands on the centroid
+		// (Active Object pivot removed from the toolbar; Center is the
+		// single behaviour). Single-select pivots on the placement's own
+		// origin so 6.1's local-space rotate intuition is preserved.
 		if (!resetSessionPivot(pivot, roots)) return false;
-		if (store.transformSpace === 'local' && roots.length === 1) {
-			pivot.quaternion.copy(roots[0]!.getWorldQuaternion(new Quaternion()));
+		if (roots.length === 1) {
+			const ref = roots[0]!;
+			ref.updateWorldMatrix(true, false);
+			pivot.quaternion.copy(ref.getWorldQuaternion(new Quaternion()));
 			pivot.updateMatrixWorld(true);
 		}
 		return true;
@@ -194,31 +167,22 @@
 			activeTarget?.kind === 'camera' ||
 			activeTarget?.kind === 'anchor' ||
 			activeTarget?.kind === 'view-target';
-		// Phase 6.1 — drive the gizmo's mode/space from the interaction store,
-		// falling back to the existing session-state mirrors if no interaction
-		// store is on context (testing under vitest, for example).
-		const size = store.selectedPlacementIds.length;
 		const interactionMode = interactionStore?.mode ?? store.transformMode;
 		transformControls.mode = navigationTarget ? 'translate' : interactionMode;
-		if (navigationTarget) {
-			transformControls.space = 'world';
-		} else if (size <= 1) {
-			transformControls.space = interactionMode === 'rotate' ? 'local' : 'world';
-		} else {
-			transformControls.space = 'world';
-		}
+		// Phase 6.3 — placement gizmos always World space; the World ⇄ Local
+		// chip was removed from the toolbar.
+		transformControls.space = 'world';
 		transformControls.translationSnap = null;
 		transformControls.rotationSnap =
 			navigationTarget ? null : effectiveRotationSnap;
 		invalidate();
 	});
 
-	// Phase 6.1 Q5 — every new selection-set boundary resets the gizmo mode
-	// to Translate. Pressing R sticks until the next selection-set change.
-	$effect(() => {
-		void store.selectionKey;
-		interactionStore?.setMode('translate');
-	});
+// Phase 6.4 — gizmo mode persists across selection-set boundaries and
+// across drags. Users explicitly opt into Move / Rotate / Scale via
+// toolbar click or W/E/R shortcuts; the previous behaviour of snapping
+// back to Move after every drag was dropped per user feedback.
+
 
 	$effect(() => {
 		void store.selectionKey;

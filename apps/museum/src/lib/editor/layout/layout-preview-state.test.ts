@@ -2,11 +2,17 @@ import { describe, expect, it } from 'vitest';
 
 import { serializeSceneDocument } from '$lib/content/scene-codec';
 import {
+	captureLayoutPreviewSnapshot,
 	commitLayoutDraftRoom,
+	commitLayoutPathRoom,
 	commitLayoutOpening,
 	commitLayoutRoomEdit,
 	deleteLayoutOpening,
+	deleteLayoutWallInteriorAnchor,
+	insertLayoutWallInteriorAnchor,
+	restoreLayoutPreviewSnapshot,
 	updateLayoutOpeningFields,
+	updateLayoutWallInteriorAnchor,
 	createLayoutPreviewState,
 	loadChopinLayoutPreview,
 	refreshLayoutPreview,
@@ -69,6 +75,93 @@ describe('layout preview state', () => {
 		expect(serializeSceneDocument(state.project.scene)).toBe(sceneJson);
 	});
 
+	it('commits auto-bezier rooms and inserts/moves/deletes interior anchors', () => {
+		const state = createLayoutPreviewState();
+		resetLayoutPreview(state);
+		const segments = [
+			{
+				id: 'curve-a',
+				kind: 'auto-bezier' as const,
+				start: [0, 0] as [number, number],
+				end: [4, 0] as [number, number],
+				interiorAnchors: [{ id: 'curve-a:anchor:1', point: [2, -1] as [number, number] }]
+			},
+			{ id: 'curve-b', kind: 'line' as const, start: [4, 0] as [number, number], end: [4, 4] as [number, number] },
+			{ id: 'curve-c', kind: 'line' as const, start: [4, 4] as [number, number], end: [0, 4] as [number, number] },
+			{ id: 'curve-d', kind: 'line' as const, start: [0, 4] as [number, number], end: [0, 0] as [number, number] }
+		];
+		const lineRoomResult = commitLayoutDraftRoom(state, [[6, 0], [10, 0], [10, 4], [6, 4]]);
+		expect(lineRoomResult.success).toBe(true);
+		const created = commitLayoutPathRoom(state, segments);
+		expect(created.success).toBe(true);
+		if (!created.success) return;
+		const room = state.project.layout.floors[0]!.rooms.find((candidate) => candidate.id === created.roomId)!;
+		expect(room.boundary.segments[0]!.kind).toBe('auto-bezier');
+		expect(state.model.rooms.at(-1)!.walls[0]!.samples.length).toBeGreaterThan(2);
+
+		const lineRoom = state.project.layout.floors[0]!.rooms.find((candidate) => candidate.id !== created.roomId)!;
+		const line = lineRoom.boundary.segments[0]!;
+		if (line.kind !== 'line') return;
+		const before = [line.start, line.end];
+		const midpoint: [number, number] = [
+			(before[0]![0] + before[1]![0]) / 2,
+			(before[0]![1] + before[1]![1]) / 2 - 1
+		];
+		const inserted = insertLayoutWallInteriorAnchor(state, lineRoom.id, line.id, midpoint);
+		expect(inserted).toMatchObject({ success: true });
+		if (!inserted.success) return;
+		const converted = state.project.layout.floors[0]!.rooms.find((candidate) => candidate.id === lineRoom.id)!.boundary.segments[0]!;
+		expect(converted.kind).toBe('auto-bezier');
+		expect([converted.start, converted.end]).toEqual(before);
+		if (converted.kind !== 'auto-bezier') return;
+		expect(converted.interiorAnchors).toHaveLength(1);
+		const anchorId = inserted.anchorId;
+		expect(converted.interiorAnchors[0]!.id).toBe(anchorId);
+		expect(updateLayoutWallInteriorAnchor(state, lineRoom.id, line.id, anchorId, [8, -2])).toEqual({
+			success: true
+		});
+		const moved = state.project.layout.floors[0]!.rooms.find((candidate) => candidate.id === lineRoom.id)!.boundary.segments[0]!;
+		expect(moved.kind === 'auto-bezier' && moved.interiorAnchors[0]!.point).toEqual([8, -2]);
+		expect(deleteLayoutWallInteriorAnchor(state, lineRoom.id, line.id, anchorId)).toEqual({ success: true });
+		const restored = state.project.layout.floors[0]!.rooms.find((candidate) => candidate.id === lineRoom.id)!.boundary.segments[0]!;
+		expect(restored.kind).toBe('line');
+	});
+
+	it('restores a captured preview snapshot after anchor edits', () => {
+		const state = createLayoutPreviewState();
+		resetLayoutPreview(state);
+		const roomResult = commitLayoutDraftRoom(state, [[0, 0], [4, 0], [4, 3], [0, 3]]);
+		expect(roomResult.success).toBe(true);
+		if (!roomResult.success) return;
+		const room = state.project.layout.floors[0]!.rooms.find((candidate) => candidate.id === roomResult.roomId)!;
+		const segment = room.boundary.segments[0]!;
+		const snapshot = captureLayoutPreviewSnapshot(state);
+		expect(insertLayoutWallInteriorAnchor(state, room.id, segment.id, [2, -1]).success).toBe(true);
+		expect(state.project.layout.floors[0]!.rooms.find((candidate) => candidate.id === room.id)!.boundary.segments[0]!.kind).toBe(
+			'auto-bezier'
+		);
+		restoreLayoutPreviewSnapshot(state, snapshot);
+		expect(state.project.layout.floors[0]!.rooms.find((candidate) => candidate.id === room.id)!.boundary.segments[0]!.kind).toBe('line');
+	});
+
+	it('commits auto-bezier rooms with empty interiors', () => {
+		const state = createLayoutPreviewState();
+		resetLayoutPreview(state);
+		const segments = [
+			{
+				id: 'a',
+				kind: 'auto-bezier' as const,
+				start: [0, 0] as [number, number],
+				end: [4, 0] as [number, number],
+				interiorAnchors: []
+			},
+			{ id: 'b', kind: 'line' as const, start: [4, 0] as [number, number], end: [4, 4] as [number, number] },
+			{ id: 'c', kind: 'line' as const, start: [4, 4] as [number, number], end: [0, 4] as [number, number] },
+			{ id: 'd', kind: 'line' as const, start: [0, 4] as [number, number], end: [0, 0] as [number, number] }
+		];
+		expect(commitLayoutPathRoom(state, segments).success).toBe(true);
+	});
+
 	it('rejects invalid drafts without mutating the preview', () => {
 		const state = createLayoutPreviewState();
 		const roomCount = state.project.layout.floors[0]!.rooms.length;
@@ -76,7 +169,7 @@ describe('layout preview state', () => {
 
 		expect(commitLayoutDraftRoom(state, [[0, 0], [4, 0], [4, 0], [0, 3]])).toMatchObject({
 			success: false,
-			message: expect.stringContaining('non-zero length')
+			message: expect.stringContaining('non-zero')
 		});
 		expect(state.project.layout.floors[0]!.rooms).toHaveLength(roomCount);
 		expect(state.previewVersion).toBe(version);
@@ -205,15 +298,17 @@ describe('layout preview state', () => {
 		const state = createLayoutPreviewState();
 		const source = state.project.layout.floors[0]!.rooms[0]!;
 		source.boundary.segments[0] = {
-			...source.boundary.segments[0]!,
-			kind: 'bezier',
-			handleOut: [1, 0],
-			handleIn: [2, 0]
+			id: source.boundary.segments[0]!.id,
+			kind: 'auto-bezier',
+			start: [...source.boundary.segments[0]!.start] as [number, number],
+			end: [...source.boundary.segments[0]!.end] as [number, number],
+			interiorAnchors: [{ id: `${source.boundary.segments[0]!.id}:anchor:1`, point: [1, 0] }]
 		};
 		const before = JSON.stringify(state.project);
 
 		expect(refreshLayoutPreview(state)).toBe(true);
-		expect(state.issues.some((issue) => issue.code === 'bezier-deferred')).toBe(true);
+		expect(state.issues).toEqual([]);
+		expect(state.model.rooms[0]!.walls[0]!.samples.length).toBeGreaterThan(2);
 		expect(JSON.stringify(state.project)).toBe(before);
 	});
 });

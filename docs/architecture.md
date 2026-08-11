@@ -2,7 +2,7 @@
 
 **Read when:** `rooms.ts`, layout CAD, promotion/cutover, ownership disputes.  
 **Skip if:** only editing a scene prop, material, or tour key inside existing rooms.  
-**Last reviewed:** 2026-08-10  
+**Last reviewed:** 2026-08-11
 **Hub:** [`README.md`](./README.md) · **Vision:** [`north-star.md`](./north-star.md)
 
 ---
@@ -40,6 +40,7 @@ flowchart LR
 | **B — Layout authorship** | Draw/relocate rooms in layout data | **North star**; P0 |
 
 - Layout meshes = **previews** until B4/B5. No editor layout UI in visitor chunks.  
+- A3 layout paths accept line + Bezier segments; openings use meter offsets along sampled arc length, while rounded/pointed profiles affect wall elevation only.
 - Corridors = skinny **layout rooms** (or later open wall-strip).  
 - Cutouts = segment-split; no real-time CSG.  
 - **Do not** treat scene Wall presets as shell authorship.

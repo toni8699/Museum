@@ -9,7 +9,8 @@ export type LayoutSelection =
 	| { kind: 'none' }
 	| { kind: 'room'; roomId: string }
 	| { kind: 'wall'; roomId: string; segmentId: string }
-	| { kind: 'opening'; roomId: string; segmentId: string; openingId: string };
+	| { kind: 'opening'; roomId: string; segmentId: string; openingId: string }
+	| { kind: 'interiorAnchor'; roomId: string; segmentId: string; anchorId: string };
 
 export type LayoutInteractionState = {
 	viewMode: LayoutViewMode;
@@ -68,12 +69,7 @@ export function rectanglePoints(state: LayoutInteractionState): LayoutVec2[] | n
 	if (!state.rectangleStart || !state.rectangleCurrent) return null;
 	const [startX, startZ] = state.rectangleStart;
 	const [endX, endZ] = state.rectangleCurrent;
-	return [
-		[startX, startZ],
-		[endX, startZ],
-		[endX, endZ],
-		[startX, endZ]
-	];
+	return [[startX, startZ], [endX, startZ], [endX, endZ], [startX, endZ]];
 }
 
 export function addPolygonPoint(state: LayoutInteractionState, point: LayoutVec2): void {
@@ -94,13 +90,18 @@ export function selectLayoutWall(state: LayoutInteractionState, roomId: string, 
 	cancelRoomEdit(state);
 }
 
-export function selectLayoutOpening(
+export function selectLayoutOpening(state: LayoutInteractionState, roomId: string, segmentId: string, openingId: string): void {
+	state.selection = { kind: 'opening', roomId, segmentId, openingId };
+	cancelRoomEdit(state);
+}
+
+export function selectLayoutInteriorAnchor(
 	state: LayoutInteractionState,
 	roomId: string,
 	segmentId: string,
-	openingId: string
+	anchorId: string
 ): void {
-	state.selection = { kind: 'opening', roomId, segmentId, openingId };
+	state.selection = { kind: 'interiorAnchor', roomId, segmentId, anchorId };
 	cancelRoomEdit(state);
 }
 
@@ -113,42 +114,20 @@ export function selectedLayoutRoomId(state: Pick<LayoutInteractionState, 'select
 	return state.selection.kind === 'none' ? null : state.selection.roomId;
 }
 
-export function beginRoomEdit(
-	state: LayoutInteractionState,
-	mode: LayoutRoomDragMode,
-	roomId: string,
-	startWorld: LayoutVec2,
-	originalPoints: readonly LayoutVec2[],
-	vertexIndex: number | null = null
-): void {
-	state.editing = {
-		mode,
-		vertexIndex,
-		roomId,
-		startWorld: [...startWorld],
-		originalPoints: originalPoints.map((point) => [...point]),
-		currentPoints: originalPoints.map((point) => [...point])
-	};
+export function beginRoomEdit(state: LayoutInteractionState, mode: LayoutRoomDragMode, roomId: string, startWorld: LayoutVec2, originalPoints: readonly LayoutVec2[], vertexIndex: number | null = null): void {
+	state.editing = { mode, vertexIndex, roomId, startWorld: [...startWorld], originalPoints: originalPoints.map((point) => [...point]), currentPoints: originalPoints.map((point) => [...point]) };
 }
 
 export function updateRoomEdit(state: LayoutInteractionState, currentWorld: LayoutVec2): void {
 	const edit = state.editing;
 	if (!edit) return;
-	const delta: LayoutVec2 = [
-		currentWorld[0] - edit.startWorld[0],
-		currentWorld[1] - edit.startWorld[1]
-	];
+	const delta: LayoutVec2 = [currentWorld[0] - edit.startWorld[0], currentWorld[1] - edit.startWorld[1]];
 	if (edit.mode === 'room') {
 		edit.currentPoints = edit.originalPoints.map(([x, z]) => [x + delta[0], z + delta[1]]);
 		return;
 	}
 	edit.currentPoints = edit.originalPoints.map((point) => [...point]);
-	if (edit.vertexIndex !== null) {
-		edit.currentPoints[edit.vertexIndex] = [
-			edit.originalPoints[edit.vertexIndex]![0] + delta[0],
-			edit.originalPoints[edit.vertexIndex]![1] + delta[1]
-		];
-	}
+	if (edit.vertexIndex !== null) edit.currentPoints[edit.vertexIndex] = [edit.originalPoints[edit.vertexIndex]![0] + delta[0], edit.originalPoints[edit.vertexIndex]![1] + delta[1]];
 }
 
 export function cancelRoomEdit(state: LayoutInteractionState): void {

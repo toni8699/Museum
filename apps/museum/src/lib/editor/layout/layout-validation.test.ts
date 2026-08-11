@@ -17,9 +17,39 @@ describe('A1 layout validation', () => {
 		expect(validateLayoutDocumentGeometry(roomsToLayout())).toEqual([]);
 	});
 
-	it('defers Bezier geometry to A3', () => {
-		const issues = validateLayoutDocumentGeometry(createA1BezierDocument());
-		expect(issues.map((issue) => issue.code)).toContain('bezier-deferred');
+	it('accepts a valid closed auto-bezier path', () => {
+		const document = createA1BezierDocument();
+		const room = document.floors[0]!.rooms[0]!;
+		room.boundary.segments = [
+			{
+				id: 'a',
+				kind: 'auto-bezier',
+				start: [0, 0],
+				end: [4, 0],
+				interiorAnchors: [{ id: 'a:anchor:1', point: [2, -1] }]
+			},
+			{ id: 'b', kind: 'line', start: [4, 0], end: [4, 4] },
+			{ id: 'c', kind: 'line', start: [4, 4], end: [0, 4] },
+			{ id: 'd', kind: 'line', start: [0, 4], end: [0, 0] }
+		];
+		expect(validateLayoutDocumentGeometry(document)).toEqual([]);
+	});
+
+	it('detects adjacent curve crossings away from their shared endpoint', () => {
+		const document = createA1BezierDocument();
+		const room = document.floors[0]!.rooms[0]!;
+		room.boundary.segments = [
+			{
+				id: 'a',
+				kind: 'auto-bezier',
+				start: [0, 0],
+				end: [4, 0],
+				interiorAnchors: [{ id: 'a:anchor:1', point: [2, 4] }]
+			},
+			{ id: 'b', kind: 'line', start: [4, 0], end: [0, 4] },
+			{ id: 'c', kind: 'line', start: [0, 4], end: [0, 0] }
+		];
+		expect(validateLayoutDocumentGeometry(document).some((issue) => issue.code === 'self_intersection')).toBe(true);
 	});
 
 	it('rejects disconnected and zero-length boundaries', () => {

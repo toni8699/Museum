@@ -98,7 +98,9 @@
 		layoutInteraction.selection.kind === 'opening' ? layoutInteraction.selection : null
 	);
 	const selectedLayoutWallSelection = $derived(
-		layoutInteraction.selection.kind === 'wall' || layoutInteraction.selection.kind === 'opening'
+		layoutInteraction.selection.kind === 'wall' ||
+			layoutInteraction.selection.kind === 'opening' ||
+			layoutInteraction.selection.kind === 'interiorAnchor'
 			? layoutInteraction.selection
 			: null
 	);
@@ -186,6 +188,14 @@
 		store.setStatusMessage(`Updated opening ${field}`);
 	}
 
+	function updateOpeningProfile(event: Event) {
+		const selection = layoutInteraction.selection;
+		if (selection.kind !== 'opening' || !selectedLayoutOpening) return;
+		const profile = (event.currentTarget as HTMLSelectElement).value as typeof selectedLayoutOpening.profile;
+		const result = updateLayoutOpeningFields(layoutPreview, selection.roomId, selection.openingId, { profile });
+		if (!result.success) store.setStatusMessage(`Opening rejected: ${result.message}`);
+	}
+
 	function removeSelectedOpening() {
 		const selection = layoutInteraction.selection;
 		if (selection.kind !== 'opening') return;
@@ -246,18 +256,25 @@
 					<label>Width (m)<input type="number" min="0.01" step="0.05" value={selectedLayoutOpening.width} onchange={(event) => updateOpeningField('width', event)} /></label>
 					<label>Height (m)<input type="number" min="0.01" step="0.05" value={selectedLayoutOpening.height} onchange={(event) => updateOpeningField('height', event)} /></label>
 					<label>Sill height (m)<input type="number" min="0" step="0.05" value={selectedLayoutOpening.sillHeight} onchange={(event) => updateOpeningField('sillHeight', event)} /></label>
-					<span>Profile: rectangular</span>
+					<label>Profile<select value={selectedLayoutOpening.profile} onchange={updateOpeningProfile}>
+						<option value="rectangular">Rectangular</option>
+						<option value="rounded">Rounded arch</option>
+						<option value="pointed">Pointed arch</option>
+					</select></label>
 					{#if layoutPreview.lastMutationMessage}
 						<p class="layout-opening-warning" role="status">{layoutPreview.lastMutationMessage}</p>
 					{/if}
 					<button type="button" class="layout-danger" onclick={removeSelectedOpening}>Delete opening</button>
 				</div>
-			{:else if selectedLayoutSegment && selectedLayoutRoom && layoutInteraction.selection.kind === 'wall'}
+			{:else if selectedLayoutSegment && selectedLayoutRoom && (layoutInteraction.selection.kind === 'wall' || layoutInteraction.selection.kind === 'interiorAnchor')}
 				<div class="layout-selected-room" aria-label="Selected layout wall">
 					<strong>Wall selected</strong>
 					<span>{selectedLayoutRoom.name} · {selectedLayoutRoom.id}</span>
 					<span>{selectedLayoutSegment.id}</span>
 					<span>Length: {roomEdgeLength(selectedLayoutRoom, selectedLayoutRoom.boundary.segments.indexOf(selectedLayoutSegment)).toFixed(2)} m</span>
+					{#if layoutInteraction.selection.kind === 'interiorAnchor'}
+						<span>Bend anchor: {layoutInteraction.selection.anchorId}</span>
+					{/if}
 					<div class="layout-opening-actions">
 						<button type="button" onclick={() => armOpeningTool('door')}>Door</button>
 						<button type="button" onclick={() => armOpeningTool('window')}>Window</button>

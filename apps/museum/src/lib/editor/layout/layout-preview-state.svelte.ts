@@ -4,8 +4,8 @@ import type { MuseumProject } from '$lib/editor/project/project-types';
 import { createEmptyLayoutDocument } from './layout-codec';
 import { buildLayoutPreviewModel, type LayoutPreviewModel } from './layout-mesh-factory';
 import { layoutPreviewBounds, type LayoutPreviewBounds } from './layout-preview-bounds';
-import type { LayoutOpening, LayoutRoom, LayoutVec2 } from './layout-types';
-import { replaceRoomPoints } from './layout-editing';
+import type { DraftSegment, LayoutOpening, LayoutRoom, LayoutVec2 } from './layout-types';
+import { deleteInteriorAnchorOnSegment, insertInteriorAnchorOnSegment, replaceRoomPoints, updateInteriorAnchorOnSegment } from './layout-editing';
 import {
 	appendRoomOpening,
 	createDefaultOpening,
@@ -17,7 +17,7 @@ import {
 	type LayoutOpeningPatch
 } from './layout-opening-editing';
 import { roomsToLayout } from './rooms-to-layout';
-import { validateLineRoom, type LayoutGeometryIssue } from './layout-validation';
+import { hasBlockingLayoutIssues, validateLineRoom, type LayoutGeometryIssue } from './layout-validation';
 
 export type LayoutPreviewSource = 'chopin-fixture' | 'empty' | 'draft';
 
@@ -38,6 +38,10 @@ export type LayoutDraftCommitResult =
 
 export type LayoutRoomEditResult =
 	| { success: true }
+	| { success: false; message: string };
+
+export type LayoutInteriorAnchorMutationResult =
+	| { success: true; anchorId: string }
 	| { success: false; message: string };
 
 export type LayoutOpeningMutationResult =
@@ -101,7 +105,7 @@ export function commitLayoutOpening(
 	const floor = layout.floors.find((candidate) => candidate.rooms.some((room) => room.id === roomId));
 	const room = floor?.rooms.find((candidate) => candidate.id === roomId);
 	const segment = room?.boundary.segments.find((candidate) => candidate.id === segmentId);
-	if (!floor || !room || !segment || segment.kind !== 'line') {
+	if (!floor || !room || !segment) {
 		return failOpeningMutation(state, 'Wall no longer exists');
 	}
 	const opening: LayoutOpening = createDefaultOpening({
@@ -113,7 +117,7 @@ export function commitLayoutOpening(
 	});
 	const nextRoom = appendRoomOpening(room, opening);
 	const issues = validateLineRoom(nextRoom, floor);
-	if (issues.length > 0) return failOpeningMutation(state, issues[0]!.message);
+	if (hasBlockingLayoutIssues(issues)) return failOpeningMutation(state, issues[0]!.message);
 	floor.rooms = floor.rooms.map((candidate) => (candidate.id === roomId ? nextRoom : candidate));
 	return applyLayoutMutation(state, layout, opening.id);
 }
@@ -132,7 +136,7 @@ export function updateLayoutOpeningFields(
 	const nextOpening = { ...opening, ...patch };
 	const nextRoom = replaceRoomOpening(room, nextOpening);
 	const issues = validateLineRoom(nextRoom, floor);
-	if (issues.length > 0) return failOpeningMutation(state, issues[0]!.message);
+	if (hasBlockingLayoutIssues(issues)) return failOpeningMutation(state, issues[0]!.message);
 	floor.rooms = floor.rooms.map((candidate) => (candidate.id === roomId ? nextRoom : candidate));
 	return applyLayoutMutation(state, layout, openingId);
 }
@@ -151,6 +155,132 @@ export function deleteLayoutOpening(
 	return applyLayoutMutation(state, layout, openingId);
 }
 
+export function insertLayoutWallInteriorAnchor(
+	state: LayoutPreviewState,
+	roomId: string,
+	segmentId: string,
+	point: LayoutVec2
+): LayoutInteriorAnchorMutationResult {
+	const layout = cloneLayout(state.project.layout);
+	const floor = layout.floors.find((candidate) => candidate.rooms.some((room) => room.id === roomId));
+	const room = floor?.rooms.find((candidate) => candidate.id === roomId);
+	const segment = room?.boundary.segments.find((candidate) => candidate.id === segmentId);
+	if (!floor || !room || !segment) return failInteriorAnchorMutation(state, 'Wall no longer exists');
+	const existingIds = new Set(
+		segment.kind === 'auto-bezier' ? segment.interiorAnchors.map((anchor) => anchor.id) : []
+	);
+	const nextSegment = insertInteriorAnchorOnSegment(segment, point);
+	const inserted = nextSegment.interiorAnchors.find((anchor) => !existingIds.has(anchor.id));
+	if (!inserted) return failInteriorAnchorMutation(state, 'Could not insert wall anchor');
+	const nextRoom: LayoutRoom = {
+		...room,
+		boundary: {
+			...room.boundary,
+			segments: room.boundary.segments.map((candidate) => (candidate.id === segmentId ? nextSegment : candidate))
+		}
+	};
+	const issues = validateLineRoom(nextRoom, floor);
+	if (hasBlockingLayoutIssues(issues)) return failInteriorAnchorMutation(state, issues[0]!.message);
+	floor.rooms = floor.rooms.map((candidate) => (candidate.id === roomId ? nextRoom : candidate));
+	const applied = applyLayoutMutation(state, layout);
+	if (!applied.success) return failInteriorAnchorMutation(state, applied.message);
+	return { success: true, anchorId: inserted.id };
+}
+
+export function updateLayoutWallInteriorAnchor(
+	state: LayoutPreviewState,
+	roomId: string,
+	segmentId: string,
+	anchorId: string,
+	point: LayoutVec2
+): LayoutRoomEditResult {
+	const layout = cloneLayout(state.project.layout);
+	const floor = layout.floors.find((candidate) => candidate.rooms.some((room) => room.id === roomId));
+	const room = floor?.rooms.find((candidate) => candidate.id === roomId);
+	const segment = room?.boundary.segments.find((candidate) => candidate.id === segmentId);
+	if (!floor || !room || !segment || segment.kind !== 'auto-bezier') {
+		return failRoomEdit(state, 'Curved wall no longer exists');
+	}
+	if (!segment.interiorAnchors.some((anchor) => anchor.id === anchorId)) {
+		return failRoomEdit(state, 'Interior anchor no longer exists');
+	}
+	const nextSegment = updateInteriorAnchorOnSegment(segment, anchorId, point);
+	const nextRoom: LayoutRoom = {
+		...room,
+		boundary: {
+			...room.boundary,
+			segments: room.boundary.segments.map((candidate) => (candidate.id === segmentId ? nextSegment : candidate))
+		}
+	};
+	const issues = validateLineRoom(nextRoom, floor);
+	if (hasBlockingLayoutIssues(issues)) return failRoomEdit(state, issues[0]!.message);
+	floor.rooms = floor.rooms.map((candidate) => (candidate.id === roomId ? nextRoom : candidate));
+	const applied = applyLayoutMutation(state, layout);
+	if (!applied.success) return failRoomEdit(state, applied.message);
+	return { success: true };
+}
+
+export function deleteLayoutWallInteriorAnchor(
+	state: LayoutPreviewState,
+	roomId: string,
+	segmentId: string,
+	anchorId: string
+): LayoutRoomEditResult {
+	const layout = cloneLayout(state.project.layout);
+	const floor = layout.floors.find((candidate) => candidate.rooms.some((room) => room.id === roomId));
+	const room = floor?.rooms.find((candidate) => candidate.id === roomId);
+	const segment = room?.boundary.segments.find((candidate) => candidate.id === segmentId);
+	if (!floor || !room || !segment || segment.kind !== 'auto-bezier') {
+		return failRoomEdit(state, 'Curved wall no longer exists');
+	}
+	if (!segment.interiorAnchors.some((anchor) => anchor.id === anchorId)) {
+		return failRoomEdit(state, 'Interior anchor no longer exists');
+	}
+	const nextSegment = deleteInteriorAnchorOnSegment(segment, anchorId);
+	const nextRoom: LayoutRoom = {
+		...room,
+		boundary: {
+			...room.boundary,
+			segments: room.boundary.segments.map((candidate) => (candidate.id === segmentId ? nextSegment : candidate))
+		}
+	};
+	const issues = validateLineRoom(nextRoom, floor);
+	if (hasBlockingLayoutIssues(issues)) return failRoomEdit(state, issues[0]!.message);
+	floor.rooms = floor.rooms.map((candidate) => (candidate.id === roomId ? nextRoom : candidate));
+	const applied = applyLayoutMutation(state, layout);
+	if (!applied.success) return failRoomEdit(state, applied.message);
+	return { success: true };
+}
+
+export function commitLayoutPathRoom(
+	state: LayoutPreviewState,
+	segments: readonly DraftSegment[]
+): LayoutDraftCommitResult {
+	if (segments.length < 3) return { success: false, message: 'A room needs at least three segments' };
+	const layout = cloneLayout(state.project.layout);
+	const floor = layout.floors[0] ?? { id: 'floor-ground', name: 'Ground Floor', elevation: 0, height: 3, rooms: [] };
+	if (!layout.floors[0]) layout.floors = [floor];
+	const roomId = nextRoomId(floor.rooms);
+	const room: LayoutRoom = { id: roomId, name: `Draft Room ${floor.rooms.length + 1}`, boundary: { closed: true, segments: segments.map((segment) => structuredClone(segment)) }, wallThickness: 0.16, floorThickness: 0.1, ceilingThickness: 0.1, openings: [] };
+	const geometryIssues = validateLineRoom(room, floor);
+	if (hasBlockingLayoutIssues(geometryIssues)) return { success: false, message: geometryIssues[0]!.message };
+	floor.rooms = [...floor.rooms, room];
+	try {
+		const nextProject = createMuseumProject({ id: state.project.id, name: 'Draft Layout Preview', layout, scene: state.project.scene });
+		const result = buildLayoutPreviewModel(nextProject.layout);
+		state.source = 'draft';
+		state.project = nextProject;
+		state.model = result.model;
+		state.issues = result.issues;
+		state.bounds = layoutPreviewBounds(result.model);
+		state.previewVersion += 1;
+		state.lastMutationMessage = null;
+		return { success: true, roomId };
+	} catch (error) {
+		return { success: false, message: error instanceof Error ? error.message : 'Could not commit room draft' };
+	}
+}
+
 export function commitLayoutRoomEdit(
 	state: LayoutPreviewState,
 	roomId: string,
@@ -165,7 +295,7 @@ export function commitLayoutRoomEdit(
 	}
 	const nextRoom = replaceRoomPoints(room, points);
 	const issues = validateLineRoom(nextRoom, floor);
-	if (issues.length > 0) return failRoomEdit(state, issues[0]!.message);
+	if (hasBlockingLayoutIssues(issues)) return failRoomEdit(state, issues[0]!.message);
 	floor.rooms = floor.rooms.map((candidate) => (candidate.id === roomId ? nextRoom : candidate));
 	try {
 		applyLayoutMutation(state, layout);
@@ -215,7 +345,7 @@ export function commitLayoutDraftRoom(
 		openings: []
 	};
 	const geometryIssues = validateLineRoom(room, floor);
-	if (geometryIssues.length > 0) {
+	if (hasBlockingLayoutIssues(geometryIssues)) {
 		state.lastMutationMessage = `Room draft rejected: ${geometryIssues[0]!.message}`;
 		return {
 			success: false,
@@ -323,6 +453,14 @@ function failRoomEdit(state: LayoutPreviewState, message: string): LayoutRoomEdi
 	return { success: false, message };
 }
 
+function failInteriorAnchorMutation(
+	state: LayoutPreviewState,
+	message: string
+): LayoutInteriorAnchorMutationResult {
+	state.lastMutationMessage = message;
+	return { success: false, message };
+}
+
 function replaceState(target: LayoutPreviewState, next: LayoutPreviewState): void {
 	target.source = next.source;
 	target.project = next.project;
@@ -332,4 +470,42 @@ function replaceState(target: LayoutPreviewState, next: LayoutPreviewState): voi
 	target.previewVersion = next.previewVersion;
 	// Keep layout-local ceiling inspection preference across reload/reset.
 	target.lastMutationMessage = null;
+}
+
+export type LayoutPreviewSnapshot = {
+	source: LayoutPreviewState['source'];
+	project: LayoutPreviewState['project'];
+	model: LayoutPreviewState['model'];
+	issues: LayoutPreviewState['issues'];
+	bounds: LayoutPreviewState['bounds'];
+};
+
+export function captureLayoutPreviewSnapshot(state: LayoutPreviewState): LayoutPreviewSnapshot {
+	return {
+		source: state.source,
+		project: structuredClone(state.project),
+		model: structuredClone(state.model),
+		issues: structuredClone(state.issues),
+		bounds: state.bounds
+			? {
+					min: [state.bounds.min[0], state.bounds.min[1], state.bounds.min[2]],
+					max: [state.bounds.max[0], state.bounds.max[1], state.bounds.max[2]]
+				}
+			: null
+	};
+}
+
+export function restoreLayoutPreviewSnapshot(state: LayoutPreviewState, snapshot: LayoutPreviewSnapshot): void {
+	state.source = snapshot.source;
+	state.project = structuredClone(snapshot.project);
+	state.model = structuredClone(snapshot.model);
+	state.issues = structuredClone(snapshot.issues);
+	state.bounds = snapshot.bounds
+		? {
+				min: [snapshot.bounds.min[0], snapshot.bounds.min[1], snapshot.bounds.min[2]],
+				max: [snapshot.bounds.max[0], snapshot.bounds.max[1], snapshot.bounds.max[2]]
+			}
+		: null;
+	state.previewVersion += 1;
+	state.lastMutationMessage = null;
 }

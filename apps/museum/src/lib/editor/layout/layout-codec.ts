@@ -1,8 +1,10 @@
+import { legacyBezierToAutoBezier } from './layout-auto-bezier';
 import type {
 	DraftPath,
 	DraftSegment,
 	LayoutDocument,
 	LayoutFloor,
+	LayoutInteriorAnchor,
 	LayoutObject,
 	LayoutOpening,
 	LayoutRoom,
@@ -30,7 +32,8 @@ const ROOM_KEYS = [
 ] as const;
 const PATH_KEYS = ['closed', 'segments'] as const;
 const LINE_SEGMENT_KEYS = ['id', 'kind', 'start', 'end'] as const;
-const BEZIER_SEGMENT_KEYS = [
+const AUTO_BEZIER_SEGMENT_KEYS = ['id', 'kind', 'start', 'end', 'interiorAnchors'] as const;
+const LEGACY_BEZIER_SEGMENT_KEYS = [
 	'id',
 	'kind',
 	'start',
@@ -38,6 +41,7 @@ const BEZIER_SEGMENT_KEYS = [
 	'handleIn',
 	'end'
 ] as const;
+const INTERIOR_ANCHOR_KEYS = ['id', 'point'] as const;
 const OPENING_KEYS = [
 	'id',
 	'segmentId',
@@ -312,21 +316,61 @@ function parseSegment(
 		return { id, kind, start, end };
 	}
 
+	if (kind === 'auto-bezier') {
+		assertAllowedKeys(record, AUTO_BEZIER_SEGMENT_KEYS, path, issues);
+		const id = readId(record.id, `${path}.id`, issues);
+		const start = readVec2(record.start, `${path}.start`, issues);
+		const end = readVec2(record.end, `${path}.end`, issues);
+		const interiorAnchors = parseInteriorAnchors(record.interiorAnchors, `${path}.interiorAnchors`, issues);
+		if (!id || !start || !end || !interiorAnchors) return undefined;
+		return { id, kind, start, end, interiorAnchors };
+	}
+
 	if (kind === 'bezier') {
-		assertAllowedKeys(record, BEZIER_SEGMENT_KEYS, path, issues);
+		assertAllowedKeys(record, LEGACY_BEZIER_SEGMENT_KEYS, path, issues);
 		const id = readId(record.id, `${path}.id`, issues);
 		const start = readVec2(record.start, `${path}.start`, issues);
 		const handleOut = readVec2(record.handleOut, `${path}.handleOut`, issues);
 		const handleIn = readVec2(record.handleIn, `${path}.handleIn`, issues);
 		const end = readVec2(record.end, `${path}.end`, issues);
 		if (!id || !start || !handleOut || !handleIn || !end) return undefined;
-		return { id, kind, start, handleOut, handleIn, end };
+		return legacyBezierToAutoBezier({ id, kind: 'bezier', start, handleOut, handleIn, end });
 	}
 
 	if (kind !== undefined) {
 		addIssue(issues, `${path}.kind`, 'unsupported_value', `Unsupported segment kind '${kind}'`);
 	}
 	return undefined;
+}
+
+function parseInteriorAnchors(
+	input: unknown,
+	path: string,
+	issues: LayoutDocumentIssue[]
+): ParsedValue<LayoutInteriorAnchor[]> {
+	const anchors = parseArray(input, path, issues, parseInteriorAnchor);
+	if (!anchors) return undefined;
+	validateUniqueIds(anchors, path, issues, (anchor) => anchor.id);
+	for (const [index, anchor] of anchors.entries()) {
+		if (!anchor.point.every((value) => Number.isFinite(value))) {
+			addIssue(issues, `${path}[${index}].point`, 'invalid_value', 'Interior anchor point must be finite');
+		}
+	}
+	return anchors;
+}
+
+function parseInteriorAnchor(
+	input: unknown,
+	path: string,
+	issues: LayoutDocumentIssue[]
+): ParsedValue<LayoutInteriorAnchor> {
+	const record = readRecord(input, path, issues);
+	if (!record) return undefined;
+	assertAllowedKeys(record, INTERIOR_ANCHOR_KEYS, path, issues);
+	const id = readId(record.id, `${path}.id`, issues);
+	const point = readVec2(record.point, `${path}.point`, issues);
+	if (!id || !point) return undefined;
+	return { id, point };
 }
 
 function parseOpening(

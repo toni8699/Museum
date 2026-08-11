@@ -1,4 +1,6 @@
 import type { DraftSegment, LayoutOpening, LayoutVec2 } from './layout-types';
+import { buildArchProfile, type ArchProfile } from './arch-profile';
+import { sampleSegment, segmentLength } from './curve-geometry';
 
 export const LAYOUT_GEOMETRY_EPSILON = 1e-6;
 
@@ -8,6 +10,7 @@ export type WallOpeningInterval = {
 	endDistance: number;
 	sillHeight: number;
 	height: number;
+	profile: LayoutOpening['profile'];
 };
 
 export type WallPreviewSection = {
@@ -17,6 +20,8 @@ export type WallPreviewSection = {
 	bottomY: number;
 	topY: number;
 	openingId?: string;
+	profile?: ArchProfile;
+	profileBaseY?: number;
 };
 
 export function lineLength(start: LayoutVec2, end: LayoutVec2): number {
@@ -27,14 +32,15 @@ export function openingIntervals(
 	segment: DraftSegment,
 	openings: readonly LayoutOpening[]
 ): WallOpeningInterval[] {
-	if (segment.kind !== 'line') return [];
 	return openings
+		.filter((opening) => opening.segmentId === segment.id)
 		.map((opening) => ({
 			openingId: opening.id,
 			startDistance: opening.offset,
 			endDistance: opening.offset + opening.width,
 			sillHeight: opening.sillHeight,
-			height: opening.height
+			height: opening.height,
+			profile: opening.profile
 		}))
 		.sort((a, b) => a.startDistance - b.startDistance || a.openingId.localeCompare(b.openingId));
 }
@@ -44,9 +50,7 @@ export function splitWallAroundOpenings(
 	openings: readonly LayoutOpening[],
 	wallHeight: number
 ): WallPreviewSection[] {
-	if (segment.kind !== 'line') return [];
-
-	const length = lineLength(segment.start, segment.end);
+	const length = segmentLength(segment);
 	const intervals = openingIntervals(segment, openings);
 	const sections: WallPreviewSection[] = [];
 	let cursor = 0;
@@ -57,13 +61,7 @@ export function splitWallAroundOpenings(
 		if (end <= start + LAYOUT_GEOMETRY_EPSILON) continue;
 
 		if (start > cursor + LAYOUT_GEOMETRY_EPSILON) {
-			sections.push({
-				kind: 'side',
-				startDistance: cursor,
-				endDistance: start,
-				bottomY: 0,
-				topY: wallHeight
-			});
+			sections.push({ kind: 'side', startDistance: cursor, endDistance: start, bottomY: 0, topY: wallHeight });
 		}
 
 		if (interval.sillHeight > LAYOUT_GEOMETRY_EPSILON) {
@@ -77,6 +75,8 @@ export function splitWallAroundOpenings(
 			});
 		}
 
+		const profileResult = buildArchProfile(interval.profile, interval.endDistance - interval.startDistance, interval.height);
+		const profile = interval.profile === 'rectangular' ? undefined : (profileResult.profile ?? undefined);
 		const lintelBottom = Math.min(interval.sillHeight + interval.height, wallHeight);
 		if (lintelBottom < wallHeight - LAYOUT_GEOMETRY_EPSILON) {
 			sections.push({
@@ -85,21 +85,20 @@ export function splitWallAroundOpenings(
 				endDistance: end,
 				bottomY: lintelBottom,
 				topY: wallHeight,
-				openingId: interval.openingId
+				openingId: interval.openingId,
+				...(profile ? { profile, profileBaseY: interval.sillHeight } : {})
 			});
 		}
 		cursor = Math.max(cursor, end);
 	}
 
 	if (cursor < length - LAYOUT_GEOMETRY_EPSILON) {
-		sections.push({
-			kind: 'side',
-			startDistance: cursor,
-			endDistance: length,
-			bottomY: 0,
-			topY: wallHeight
-		});
+		sections.push({ kind: 'side', startDistance: cursor, endDistance: length, bottomY: 0, topY: wallHeight });
 	}
 
 	return sections;
+}
+
+export function sampleWallSegment(segment: DraftSegment) {
+	return sampleSegment(segment);
 }

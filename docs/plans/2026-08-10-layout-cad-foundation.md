@@ -221,13 +221,21 @@ Combine stable meter coordinates/grid/zoom/pan with room selection, whole-room a
 
 Focused plan: [`2026-08-11-layout-cad-a2-3-opening-authoring.md`](./2026-08-11-layout-cad-a2-3-opening-authoring.md).
 
-Choose interaction B: Door/Window tools click any wall with no prior wall selection → edit exact offset/width/height/sill fields (room/edge numeric fields deferred). Inspector actions only arm the tool; selecting a wall first does not constrain the next click. Tagged wall/opening selection; vertex → opening → wall → room hit priority; over-height validation; room edits that break openings fail closed. Regenerate geometry-only wall gaps/lintels through the existing preview adapter. Keep portal adjacency deferred to B4; rounded/pointed profiles and Bezier openings remain A3 work. A2.3 is implemented; next focused slice is A3 Bezier walls and arch profiles.
+Choose interaction B: Door/Window tools click any wall with no prior wall selection → edit exact offset/width/height/sill fields (room/edge numeric fields deferred). Inspector actions only arm the tool; selecting a wall first does not constrain the next click. Tagged wall/opening selection; vertex → opening → wall → room hit priority; over-height validation; room edits that break openings fail closed. Regenerate geometry-only wall gaps/lintels through the existing preview adapter. Keep portal adjacency deferred to B4. A2.3 is implemented; A3 Bezier walls and arch profiles is implemented.
 
-### A3 — Bezier walls and arch profiles
+### A3 — Bezier walls and arch profiles *(implemented)*
 
-Extend geometry/validation/mesh/inspectors for Bezier + `rounded` | `pointed` openings. Adaptive sampling. Distance-along-curve openings.
+Focused plan: [`2026-08-11-layout-cad-a3-bezier-arch-profiles.md`](./2026-08-11-layout-cad-a3-bezier-arch-profiles.md).
 
-### A4 — Objects, inspectors, layout I/O UI
+Extend geometry/validation/mesh/inspectors for Bezier + `rounded` | `pointed` openings. Adaptive sampling. Distance-along-curve openings. A3 openings may attach to Bezier wall segments; their plan span remains a meter interval along the wall, while profile curvature applies only to wall elevation. No curved opening footprint or new schema params before a later explicit migration.
+
+### A3.1 — Camera-style bend + opening viz *(implemented)*
+
+Focused plan: [`2026-08-11-layout-cad-a3-1-camera-style-bend.md`](./2026-08-11-layout-cad-a3-1-camera-style-bend.md).
+
+Replace Bezier-room tool with mid-span interior anchors (`auto-bezier`, pure 2D centripetal). Densify line samples; interval-split Plan/3D opening gaps; Plan opening drag. Legacy authored cubic migrates on codec read.
+
+### A4 — Objects, inspectors, layout I/O UI *(next)*
 
 Ghost place layout objects; room/wall/opening/object inspectors; Project menu Layout Import/Copy/Download/Reset; blank/dirty/imported/invalid status.
 

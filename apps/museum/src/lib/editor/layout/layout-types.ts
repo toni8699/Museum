@@ -32,6 +32,11 @@ export type DraftPath = {
 	segments: DraftSegment[];
 };
 
+export type LayoutInteriorAnchor = {
+	id: string;
+	point: LayoutVec2;
+};
+
 export type DraftSegment =
 	| {
 			id: string;
@@ -41,11 +46,10 @@ export type DraftSegment =
 	  }
 	| {
 			id: string;
-			kind: 'bezier';
+			kind: 'auto-bezier';
 			start: LayoutVec2;
-			handleOut: LayoutVec2;
-			handleIn: LayoutVec2;
 			end: LayoutVec2;
+			interiorAnchors: LayoutInteriorAnchor[];
 	  };
 
 export type LayoutOpening = {

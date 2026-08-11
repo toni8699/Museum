@@ -68,13 +68,14 @@
 
 	let transformControls = $state<TransformControls>();
 
-	function commitDraftRoom(points: [number, number][]) {
+	function commitDraftRoom(points: [number, number][]): boolean {
 		const result = commitLayoutDraftRoom(layoutPreview, points);
 		if (result.success) {
 			store.setStatusMessage(`Created ${result.roomId}`);
 		} else {
 			store.setStatusMessage(`Room draft rejected: ${result.message}`);
 		}
+		return result.success;
 	}
 
 	function createOpening(roomId: string, segmentId: string, kind: LayoutOpeningKind, clickOffset: number) {

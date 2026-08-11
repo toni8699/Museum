@@ -48,12 +48,12 @@ describe('A1 layout preview model', () => {
 			boundary: {
 				closed: true,
 				segments: [
-					{ id: 'bad-a', kind: 'bezier', start: [0, 0], handleOut: [1, 0], handleIn: [2, 0], end: [3, 0] }
+					{ id: 'bad-a', kind: 'auto-bezier', start: [0, 0], end: [3, 0], interiorAnchors: [] }
 				]
 			}
 		});
 		const result = buildLayoutPreviewModel(document);
 		expect(result.model.rooms.map((room) => room.roomId)).toEqual(['room-rectangle']);
-		expect(result.issues.some((issue) => issue.code === 'bezier-deferred')).toBe(true);
+		expect(result.issues.some((issue) => issue.code === 'too_few_segments')).toBe(true);
 	});
 });

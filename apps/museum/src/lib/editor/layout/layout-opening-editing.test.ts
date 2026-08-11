@@ -7,12 +7,15 @@ import {
 	findRoomOpening,
 	nextOpeningId,
 	openingContainsOffset,
+	openingSamplePolyline,
 	projectPointToSegment,
 	removeRoomOpening,
 	replaceRoomOpening,
 	snapSegmentOffset,
-	updateLayoutOpening
+	updateLayoutOpening,
+	wallPolylinesAroundOpenings
 } from './layout-opening-editing';
+import type { CurveSample } from './curve-geometry';
 
 const room = createA1RectangleDocument().floors[0]!.rooms[0]!;
 const segment = room.boundary.segments[0]!;
@@ -77,5 +80,41 @@ describe('A2.3 opening editing', () => {
 		const opening = createDefaultOpening({ id: 'door', segment, kind: 'door', clickOffset: 3 });
 		expect(openingContainsOffset(opening, opening.offset + 0.1)).toBe(true);
 		expect(openingContainsOffset(opening, opening.offset - 0.1)).toBe(false);
+	});
+
+	it('splits wall samples around openings and samples opening paths along the segment', () => {
+		const samples: CurveSample[] = [
+			{ point: [0, 0], distance: 0, tangent: [1, 0], normal: [0, 1], t: 0 },
+			{ point: [1, 0], distance: 1, tangent: [1, 0], normal: [0, 1], t: 0.25 },
+			{ point: [2, 0], distance: 2, tangent: [1, 0], normal: [0, 1], t: 0.5 },
+			{ point: [3, 0], distance: 3, tangent: [1, 0], normal: [0, 1], t: 0.75 },
+			{ point: [4, 0], distance: 4, tangent: [1, 0], normal: [0, 1], t: 1 }
+		];
+		const opening = { offset: 1.5, width: 1 };
+		expect(wallPolylinesAroundOpenings(samples, [opening])).toEqual([
+			[
+				[0, 0],
+				[1, 0],
+				[1.5, 0]
+			],
+			[
+				[2.5, 0],
+				[3, 0],
+				[4, 0]
+			]
+		]);
+		expect(openingSamplePolyline(segment, { offset: 1, width: 2 })[0]).toEqual([1, segment.start[1]]);
+		expect(openingSamplePolyline(segment, { offset: 1, width: 2 }).at(-1)).toEqual([3, segment.start[1]]);
+	});
+
+	it('keeps solid stubs when a centered door would otherwise erase a coarse wall', () => {
+		const samples: CurveSample[] = [
+			{ point: [0, 0], distance: 0, tangent: [1, 0], normal: [0, 1], t: 0 },
+			{ point: [6, 0], distance: 6, tangent: [1, 0], normal: [0, 1], t: 1 }
+		];
+		const polylines = wallPolylinesAroundOpenings(samples, [{ offset: 2.55, width: 0.9 }]);
+		expect(polylines).toHaveLength(2);
+		expect(polylines[0]!.at(-1)![0]).toBeCloseTo(2.55);
+		expect(polylines[1]![0]![0]).toBeCloseTo(3.45);
 	});
 });

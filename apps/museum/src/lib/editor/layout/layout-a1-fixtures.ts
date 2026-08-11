@@ -74,11 +74,10 @@ export function createA1BezierDocument(): LayoutDocument {
 	const segments = document.floors[0]!.rooms[0]!.boundary.segments;
 	segments[0] = {
 		id: segments[0]!.id,
-		kind: 'bezier',
+		kind: 'auto-bezier',
 		start: [0, 0],
-		handleOut: [2, -1],
-		handleIn: [4, -1],
-		end: [6, 0]
+		end: [6, 0],
+		interiorAnchors: [{ id: `${segments[0]!.id}:anchor:1`, point: [3, -1] }]
 	};
 	return document;
 }

@@ -1,12 +1,8 @@
 import type { DraftSegment, LayoutDocument, LayoutFloor, LayoutRoom, LayoutVec2 } from './layout-types';
-import {
-	splitWallAroundOpenings,
-	type WallPreviewSection
-} from './draft-geometry';
-import {
-	validateLineRoom,
-	type LayoutGeometryIssue
-} from './layout-validation';
+import { sampleWallSegment } from './draft-geometry';
+import { type CurveSample } from './curve-geometry';
+import { hasBlockingLayoutIssues, validateLayoutRoomGeometry, type LayoutGeometryIssue } from './layout-validation';
+import { splitWallAroundOpenings } from './draft-geometry';
 
 export type WallPreview = {
 	segmentId: string;
@@ -14,7 +10,9 @@ export type WallPreview = {
 	end: LayoutVec2;
 	height: number;
 	thickness: number;
-	sections: WallPreviewSection[];
+	length: number;
+	samples: CurveSample[];
+	sections: ReturnType<typeof splitWallAroundOpenings>;
 };
 
 export type LayoutRoomPreview = {
@@ -38,50 +36,50 @@ export type LayoutPreviewModelResult = {
 export function buildLayoutPreviewModel(document: LayoutDocument): LayoutPreviewModelResult {
 	const model: LayoutPreviewModel = { rooms: [] };
 	const issues: LayoutGeometryIssue[] = [];
-
 	for (const floor of document.floors) {
 		for (const room of floor.rooms) {
-			const roomIssues = validateLineRoom(room, floor);
-			if (roomIssues.length > 0) {
+			const roomIssues = validateLayoutRoomGeometry(room, floor);
+			if (hasBlockingLayoutIssues(roomIssues)) {
 				issues.push(...roomIssues);
 				continue;
 			}
 			model.rooms.push(buildRoomPreview(room, floor));
 		}
 	}
-
 	return { model, issues };
 }
 
 function buildRoomPreview(room: LayoutRoom, floor: LayoutFloor): LayoutRoomPreview {
-	const lineSegments = room.boundary.segments.filter(
-		(segment): segment is Extract<DraftSegment, { kind: 'line' }> => segment.kind === 'line'
-	);
-	const floorPolygon = lineSegments.map((segment) => [...segment.start] as LayoutVec2);
+	const sampledSegments = room.boundary.segments.map(sampleWallSegment);
+	const floorPolygon = room.boundary.segments.flatMap((segment, index) => {
+		if (segment.kind === 'line') return [[...segment.start] as LayoutVec2];
+		return sampledSegments[index]!.samples.slice(0, -1).map((sample) => [...sample.point] as LayoutVec2);
+	});
 	const openingsBySegment = new Map<string, LayoutRoom['openings']>();
 	for (const opening of room.openings) {
 		const openings = openingsBySegment.get(opening.segmentId) ?? [];
 		openings.push(opening);
 		openingsBySegment.set(opening.segmentId, openings);
 	}
-
+	const walls = room.boundary.segments.map((segment, index) => {
+		const sampled = sampledSegments[index]!;
+		return {
+			segmentId: segment.id,
+			start: [...segment.start] as LayoutVec2,
+			end: [...segment.end] as LayoutVec2,
+			height: floor.height,
+			thickness: room.wallThickness,
+			length: sampled.length,
+			samples: sampled.samples,
+			sections: splitWallAroundOpenings(segment, openingsBySegment.get(segment.id) ?? [], floor.height)
+		};
+	});
 	return {
 		roomId: room.id,
 		floorElevation: floor.elevation,
 		ceilingElevation: floor.elevation + floor.height,
 		floorPolygon,
 		ceilingPolygon: floorPolygon.map(([x, z]) => [x, z] as LayoutVec2),
-		walls: lineSegments.map((segment) => ({
-			segmentId: segment.id,
-			start: [...segment.start] as LayoutVec2,
-			end: [...segment.end] as LayoutVec2,
-			height: floor.height,
-			thickness: room.wallThickness,
-			sections: splitWallAroundOpenings(
-				segment,
-				openingsBySegment.get(segment.id) ?? [],
-				floor.height
-			)
-		}))
+		walls
 	};
 }

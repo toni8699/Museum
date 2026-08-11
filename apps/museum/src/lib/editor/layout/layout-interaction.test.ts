@@ -6,6 +6,7 @@ import {
 	clearLayoutDraft,
 	createLayoutInteractionState,
 	removeLastPolygonPoint,
+	selectLayoutInteriorAnchor,
 	selectLayoutOpening,
 	selectLayoutWall,
 	selectedLayoutRoomId,
@@ -45,13 +46,21 @@ describe('layout interaction', () => {
 		expect(state.rectangleStart).toBeNull();
 	});
 
-	it('tracks mutually exclusive room, wall, and opening selections', () => {
+	it('tracks mutually exclusive room, wall, opening, and interior-anchor selections', () => {
 		const state = createLayoutInteractionState();
 		selectLayoutWall(state, 'room-a', 'wall-a');
 		expect(state.selection).toEqual({ kind: 'wall', roomId: 'room-a', segmentId: 'wall-a' });
 		expect(selectedLayoutRoomId(state)).toBe('room-a');
 		selectLayoutOpening(state, 'room-a', 'wall-a', 'opening-a');
 		expect(state.selection).toEqual({ kind: 'opening', roomId: 'room-a', segmentId: 'wall-a', openingId: 'opening-a' });
+		selectLayoutInteriorAnchor(state, 'room-a', 'wall-a', 'wall-a:anchor:1');
+		expect(state.selection).toEqual({
+			kind: 'interiorAnchor',
+			roomId: 'room-a',
+			segmentId: 'wall-a',
+			anchorId: 'wall-a:anchor:1'
+		});
+		expect(selectedLayoutRoomId(state)).toBe('room-a');
 	});
 
 	it('clears partial drafts explicitly', () => {

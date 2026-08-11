@@ -101,22 +101,46 @@ describe('LayoutDocument codec', () => {
 		expect(successDocument(document)).toEqual(document);
 	});
 
-	it('round-trips a closed Bezier fixture as data', () => {
+	it('round-trips a closed auto-bezier fixture as data', () => {
 		const document = baseDocument();
 		document.floors[0]!.rooms[0]!.boundary.segments = [
 			{
 				id: 'curve-a',
-				kind: 'bezier',
+				kind: 'auto-bezier',
 				start: [0, 0],
-				handleOut: [2, -1],
-				handleIn: [4, -1],
-				end: [6, 0]
+				end: [6, 0],
+				interiorAnchors: [{ id: 'curve-a:anchor:1', point: [3, -1] }]
 			},
 			{ id: 'line-b', kind: 'line', start: [6, 0], end: [6, 4] },
 			{ id: 'line-c', kind: 'line', start: [6, 4], end: [0, 4] },
 			{ id: 'line-d', kind: 'line', start: [0, 4], end: [0, 0] }
 		];
 		expect(successDocument(document)).toEqual(document);
+	});
+
+	it('migrates legacy bezier segments to auto-bezier on read', () => {
+		const document = baseDocument();
+		document.floors[0]!.rooms[0]!.boundary.segments = [
+			{
+				id: 'curve-a',
+				kind: 'bezier',
+				start: [0, 0],
+				handleOut: [1, -2],
+				handleIn: [3, -2],
+				end: [4, 0]
+			},
+			{ id: 'line-b', kind: 'line', start: [4, 0], end: [4, 4] },
+			{ id: 'line-c', kind: 'line', start: [4, 4], end: [0, 4] },
+			{ id: 'line-d', kind: 'line', start: [0, 4], end: [0, 0] }
+		] as never;
+		const parsed = successDocument(document);
+		expect(parsed.floors[0]!.rooms[0]!.boundary.segments[0]).toMatchObject({
+			id: 'curve-a',
+			kind: 'auto-bezier',
+			start: [0, 0],
+			end: [4, 0],
+			interiorAnchors: [{ id: 'curve-a:anchor:1', point: [2, -1.5] }]
+		});
 	});
 
 	it('round-trips multiple rectangular openings on a skinny corridor room', () => {

@@ -23,8 +23,12 @@
 	} from '$lib/museum/materials/texture-cache';
 	import { BinaryTextureStore } from './store/binary-texture-store.svelte';
 	import { createMuseumEditorStore } from './museum-editor.svelte';
+	import { createLayoutInteractionState } from './layout/layout-interaction';
+	import { createLayoutPreviewState } from './layout/layout-preview-state.svelte';
 
 	const store = createMuseumEditorStore();
+	const layoutPreview = $state(createLayoutPreviewState());
+	const layoutInteraction = $state(createLayoutInteractionState());
 	// Phase 6.1 — single shared FSM sub-store. Set on context so every editor
 	// child reads the same reactive state.
 	const interactionStore = new EditorInteractionStore();
@@ -100,6 +104,7 @@
 	<EditorAppBar {store} {confirmDiscardUnsavedChanges} />
 	<EditorLeftSidebar
 		{store}
+		{layoutPreview}
 		bind:outlinerElement
 		onAssetSelection={(asset) => (selectedAsset = asset)}
 	/>
@@ -113,10 +118,11 @@
 		onpointerdown={(event) => event.currentTarget.focus()}
 		style="grid-area: center;"
 	>
-		<EditorViewport {store} />
+		<EditorViewport {store} {layoutPreview} {layoutInteraction} />
 	</div>
 	<EditorInspector
 		{store}
+		{layoutPreview}
 		{selectedAsset}
 		bind:clusterNameInput
 	/>

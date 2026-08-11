@@ -9,6 +9,7 @@
 	import EditorPlacementInspector from './EditorPlacementInspector.svelte';
 	import EditorPrimitiveInspector from './EditorPrimitiveInspector.svelte';
 	import EditorTransformInspector from './EditorTransformInspector.svelte';
+	import type { LayoutPreviewState } from './layout/layout-preview-state.svelte';
 	import {
 		EDITOR_BRIGHT_LIGHTING,
 		EDITOR_VISITOR_LIGHTING,
@@ -17,10 +18,12 @@
 
 	let {
 		store,
+		layoutPreview,
 		selectedAsset,
 		clusterNameInput = $bindable()
 	}: {
 		store: MuseumEditorStore;
+		layoutPreview: LayoutPreviewState;
 		selectedAsset?: MuseumAsset;
 		clusterNameInput?: HTMLInputElement;
 	} = $props();
@@ -132,7 +135,9 @@
 <aside class="panel inspector" aria-label="Inspector" style="grid-area: right;">
 	<header>
 		<h2>Inspector</h2>
-		{#if showAssetInspector}
+		{#if store.currentWorkspace === 'layout'}
+			<p>Generated layout preview · read-only</p>
+		{:else if showAssetInspector}
 			<p>{selectedAsset ? 'Asset library selection' : 'No asset matches the current filters.'}</p>
 		{:else if selectedNavigation?.kind === 'node' && selectedCameraNode}
 			<p class="id">{selectedCameraNode.id} · {store.isPendingNavigationNode(selectedCameraNode.id) ? 'pending' : store.cameraSelection?.handle}</p>
@@ -155,7 +160,27 @@
 		{/if}
 	</header>
 
-	{#if showAssetInspector}
+	{#if store.currentWorkspace === 'layout'}
+		<section class="layout-inspector" aria-label="Layout preview details">
+			<dl>
+				<div><dt>Project</dt><dd>{layoutPreview.project.name}</dd></div>
+				<div><dt>Source</dt><dd>{layoutPreview.source === 'chopin-fixture' ? 'Chopin fixture' : 'Empty layout'}</dd></div>
+				<div><dt>Rooms</dt><dd>{layoutPreview.model.rooms.length}</dd></div>
+				<div><dt>Issues</dt><dd>{layoutPreview.issues.length}</dd></div>
+			</dl>
+			<p class="layout-inspector-note">Openings are geometry-only in this phase. No room adjacency or portal semantics are inferred.</p>
+			{#if layoutPreview.issues.length > 0}
+				<div class="layout-issues" role="alert">
+					<strong>Geometry warnings</strong>
+					<ul>
+						{#each layoutPreview.issues as issue (`${issue.path}:${issue.code}`)}
+							<li><code>{issue.targetId ?? issue.path}</code> — {issue.message}</li>
+						{/each}
+					</ul>
+				</div>
+			{/if}
+		</section>
+	{:else if showAssetInspector}
 		{#if selectedAsset}
 			<section class="asset-details" aria-label="Asset details">
 				<div>
@@ -331,6 +356,15 @@
 	header p { margin: 0.35rem 0 0; color: #a8a29a; font-size: 0.75rem; line-height: 1.4; }
 	section { display: flex; flex-direction: column; gap: 0.55rem; }
 	.id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.75rem; overflow-wrap: anywhere; }
+	.layout-inspector { display: flex; flex-direction: column; gap: 0.8rem; }
+	.layout-inspector dl { display: flex; flex-direction: column; gap: 0.45rem; margin: 0; }
+	.layout-inspector dl div { display: flex; justify-content: space-between; gap: 0.7rem; }
+	.layout-inspector dt { color: #8f8a82; font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.04em; }
+	.layout-inspector dd { margin: 0; color: #f4efe4; font-size: 0.72rem; text-align: right; }
+	.layout-inspector-note { margin: 0; color: #a8a29a; font-size: 0.7rem; line-height: 1.45; }
+	.layout-issues { max-height: 12rem; overflow: auto; padding: 0.55rem; border: 1px solid #684147; border-radius: 0.35rem; background: #21191b; color: #efc7c7; font-size: 0.68rem; line-height: 1.4; }
+	.layout-issues ul { display: flex; flex-direction: column; gap: 0.35rem; margin: 0.4rem 0 0; padding-left: 1rem; }
+	.layout-issues code { color: #f4dc9b; font-size: 0.63rem; }
 	.section-heading { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
 	.asset-details { padding: 0.75rem; border: 1px solid #34313a; border-radius: 0.4rem; background: #17171f; }
 	.asset-details > div > .id { margin: 0.2rem 0 0; color: #918c84; font-size: 0.66rem; }

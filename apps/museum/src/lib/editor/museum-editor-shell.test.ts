@@ -70,6 +70,20 @@ describe('MuseumEditorStore Phase 1 shell session state', () => {
 		expect(store.timelineExpanded).toBe(true);
 	});
 
+	it('enters and leaves Layout without changing scene document history', () => {
+		const store = createFixtureEditorStore();
+		const beforeJson = store.canonicalJson;
+		const beforeHistory = store.historyVersion;
+
+		expect(store.setWorkspace('layout')).toBe(true);
+		expect(store.currentWorkspace).toBe('layout');
+		expect(store.timelineExpanded).toBe(false);
+		expect(store.setWorkspace('scene')).toBe(true);
+		expect(store.canonicalJson).toBe(beforeJson);
+		expect(store.historyVersion).toBe(beforeHistory);
+		expect(store.canUndo).toBe(false);
+	});
+
 	it('keeps the Scene sidebar tab choice across workspace switches without document history', () => {
 		const store = createFixtureEditorStore();
 		expect(store.setLeftPanel('assets')).toBe(true);

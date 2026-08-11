@@ -14,6 +14,12 @@
 	import EditorTransformControls from './EditorTransformControls.svelte';
 	import EditorViewportToolbar from './EditorViewportToolbar.svelte';
 	import PlacementGhost from './placement-ghost.svelte';
+	import LayoutPreviewScene from './layout/LayoutPreviewScene.svelte';
+	import LayoutPlanViewport from './layout/LayoutPlanViewport.svelte';
+	import LayoutDraftToolbar from './layout/LayoutDraftToolbar.svelte';
+	import type { LayoutInteractionState } from './layout/layout-interaction';
+	import type { LayoutPreviewState } from './layout/layout-preview-state.svelte';
+	import { commitLayoutDraftRoom } from './layout/layout-preview-state.svelte';
 	import type { MuseumEditorStore } from './museum-editor.svelte';
 	import { resolveEditorPlacementScale } from './scale-vector';
 	import type { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
@@ -23,7 +29,15 @@
 		type EditorInteractionStore
 	} from './store/editor-interaction-store.svelte';
 
-	let { store }: { store: MuseumEditorStore } = $props();
+	let {
+		store,
+		layoutPreview,
+		layoutInteraction
+	}: {
+		store: MuseumEditorStore;
+		layoutPreview: LayoutPreviewState;
+		layoutInteraction: LayoutInteractionState;
+	} = $props();
 	const interactionStore = getContext<EditorInteractionStore | undefined>(
 		EDITOR_INTERACTION_STORE_KEY
 	);
@@ -48,6 +62,15 @@
 	};
 
 	let transformControls = $state<TransformControls>();
+
+	function commitDraftRoom(points: [number, number][]) {
+		const result = commitLayoutDraftRoom(layoutPreview, points);
+		if (result.success) {
+			store.setStatusMessage(`Created ${result.roomId}`);
+		} else {
+			store.setStatusMessage(`Room draft rejected: ${result.message}`);
+		}
+	}
 </script>
 
 <div
@@ -63,8 +86,21 @@
 	style:cursor={interactionStore?.cursor ?? 'default'}
 	aria-label="Museum editor viewport"
 >
-	<EditorViewportToolbar {store} />
-	<Canvas dpr={[1, 1.5]} shadows>
+	{#if store.currentWorkspace === 'layout'}
+		<LayoutDraftToolbar interaction={layoutInteraction} />
+	{/if}
+	{#if store.currentWorkspace === 'layout' && layoutInteraction.viewMode === 'plan'}
+		<LayoutPlanViewport
+			model={layoutPreview.model}
+			preview={layoutPreview}
+			interaction={layoutInteraction}
+			onCommit={commitDraftRoom}
+		/>
+	{:else}
+		{#if store.currentWorkspace !== 'layout'}
+			<EditorViewportToolbar {store} />
+		{/if}
+		<Canvas dpr={[1, 1.5]} shadows>
 		<MuseumScene
 			scene={store.scene}
 			state={store.state}
@@ -76,20 +112,29 @@
 			fogFar={store.fogFar}
 			{placementRegistry}
 			forceParisAssets
+			showArchitecture={store.currentWorkspace !== 'layout'}
 		>
 			{#snippet camera(graph, _state)}
-				<EditorCameraRig {store} {graph} />
+				<EditorCameraRig
+					{store}
+					{graph}
+					layoutBounds={layoutPreview.bounds}
+					layoutFrameVersion={layoutPreview.previewVersion}
+				/>
 			{/snippet}
 		</MuseumScene>
+		{#if store.currentWorkspace === 'layout'}
+			<LayoutPreviewScene model={layoutPreview.model} />
+		{/if}
 		<EditorGrid visible={store.gridVisible && !store.isVisitorCameraPreview} />
-		{#if store.viewportShowPaths}
+		{#if store.currentWorkspace !== 'layout' && store.viewportShowPaths}
 			<EditorCameraPathHelpers {store} />
 		{/if}
-		{#if store.viewportShowFraming}
+		{#if store.currentWorkspace !== 'layout' && store.viewportShowFraming}
 			<EditorCameraViewHelpers {store} />
 			<EditorCameraFramingHelpers {store} />
 		{/if}
-		{#if store.viewportShowNodes || store.forceMountCameraNodeHandles}
+		{#if store.currentWorkspace !== 'layout' && (store.viewportShowNodes || store.forceMountCameraNodeHandles)}
 			{#if (store.pendingNavigationCommand?.kind === 'connect-existing' || store.pendingNavigationCommand?.kind === 'connect-pending-node') && !store.isDocumentMutationBlocked}
 				{#each store.document.navigationNodes as node (node.id)}
 					<EditorCameraHelpers {store} nodeId={node.id} positionOnly />
@@ -103,21 +148,24 @@
 				{/key}
 			{/if}
 		{/if}
-		<EditorSelection {store} {transformControls} />
-		<EditorPlacementTools {store} />
+		{#if store.currentWorkspace !== 'layout'}
+			<EditorSelection {store} {transformControls} />
+			<EditorPlacementTools {store} />
 		<!-- Selection-bound Three helpers must be disposed and recreated for a new root. -->
-		{#if !store.isVisitorCameraPreview}
-			{#key store.selectionKey}
-				<EditorSelectionHelper {store} />
-			{/key}
+			{#if !store.isVisitorCameraPreview}
+				{#key store.selectionKey}
+					<EditorSelectionHelper {store} />
+				{/key}
+			{/if}
+			<EditorTransformControls {store} bind:controls={transformControls} />
 		{/if}
-		<EditorTransformControls {store} bind:controls={transformControls} />
 		<!-- Phase 1b — placement ghost preview. Renders only while a placement
 		     is armed; pure visual cue, click pipeline stays in EditorSelection. -->
-		{#if !store.isVisitorCameraPreview}
+		{#if store.currentWorkspace !== 'layout' && !store.isVisitorCameraPreview}
 			<PlacementGhost {store} />
 		{/if}
-	</Canvas>
+		</Canvas>
+	{/if}
 	{#if store.isCameraPreviewPlaying}
 		<div class="preview-shield" role="status">
 			{#if store.isVisitorCameraPreview}

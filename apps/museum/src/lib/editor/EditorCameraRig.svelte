@@ -51,13 +51,18 @@
 		EditorCameraPreviewMode,
 		MuseumEditorStore
 	} from './museum-editor.svelte';
+	import type { LayoutPreviewBounds } from './layout/layout-preview-bounds';
 
 	let {
 		store,
-		graph
+		graph,
+		layoutBounds = null,
+		layoutFrameVersion = 0
 	}: {
 		store: MuseumEditorStore;
 		graph: NavigationGraph;
+		layoutBounds?: LayoutPreviewBounds | null;
+		layoutFrameVersion?: number;
 	} = $props();
 
 	// Store instance is stable for the editor session; hooks close over field getters.
@@ -90,6 +95,7 @@
 	let virtualCameraHelper: CameraHelper | null = null;
 	let virtualCameraBody: Mesh | null = null;
 	let handledRecenterVersion = -1;
+	let lastLayoutFrameVersion = -1;
 	let hasLastVirtualPosition = false;
 	const lastVirtualPosition = new Vector3();
 	const followDelta = new Vector3();
@@ -364,6 +370,8 @@
 
 	$effect(() => {
 		const cameraFocusVersion = store.cameraFocusVersion;
+		const currentLayoutBounds = layoutBounds;
+		const currentLayoutFrameVersion = layoutFrameVersion;
 		void store.registryVersion;
 		void store.pendingFrameVersion;
 		void director.preview;
@@ -373,7 +381,20 @@
 
 		let frame = null;
 		const pendingFrameIds = [...store.pendingFramePlacementIds];
-		if (pendingFrameIds.length > 0) {
+		if (store.currentWorkspace === 'layout') {
+			if (currentLayoutBounds && currentLayoutFrameVersion !== lastLayoutFrameVersion) {
+				frame = createEditorBoundsCameraFrame(
+					new Box3(
+						new Vector3(...currentLayoutBounds.min),
+						new Vector3(...currentLayoutBounds.max)
+					),
+					currentCamera.position,
+					controls.target,
+					{ fovDegrees: currentCamera.fov, aspect: currentCamera.aspect }
+				);
+				lastLayoutFrameVersion = currentLayoutFrameVersion;
+			}
+		} else if (pendingFrameIds.length > 0) {
 			const roots = store.getPlacementRoots(pendingFrameIds);
 			if (roots.length !== pendingFrameIds.length) return;
 			const bounds = new Box3();
@@ -419,6 +440,7 @@
 				{ fovDegrees: currentCamera.fov, aspect: currentCamera.aspect }
 			);
 		}
+		if (store.currentWorkspace !== 'layout') lastLayoutFrameVersion = -1;
 		if (!frame) return;
 
 		currentCamera.position.set(...frame.position);
@@ -426,8 +448,10 @@
 		controls.minDistance = frame.minDistance;
 		controls.maxDistance = frame.maxDistance;
 		controls.update();
-		if (pendingFrameIds.length > 0) store.consumePendingFrame(pendingFrameIds);
-		else store.consumeCameraFocus(cameraFocusVersion);
+		if (store.currentWorkspace !== 'layout') {
+			if (pendingFrameIds.length > 0) store.consumePendingFrame(pendingFrameIds);
+			else store.consumeCameraFocus(cameraFocusVersion);
+		}
 	});
 
 	useTask(() => {

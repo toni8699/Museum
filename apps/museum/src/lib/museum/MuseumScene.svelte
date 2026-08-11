@@ -46,7 +46,8 @@
     fogNear = 22,
     fogFar = 54,
     placementRegistry,
-    forceParisAssets = false
+    forceParisAssets = false,
+    showArchitecture = true
   }: {
     scene?: RuntimeMuseumScene;
     state?: MuseumStateStore;
@@ -62,6 +63,8 @@
     placementRegistry?: EditorPlacementRegistry;
     /** Editor overview: load all Paris GLBs regardless of tour room. */
     forceParisAssets?: boolean;
+    /** Editor layout mode can keep the shared camera while hiding scene geometry. */
+    showArchitecture?: boolean;
   } = $props();
 
   const graph = $derived.by(() => {
@@ -88,25 +91,27 @@
 <T.AmbientLight intensity={ambientIntensity} />
 <T.DirectionalLight position={[2, 8, 5]} color="#c9d1df" intensity={directionalIntensity} />
 
-<MuseumShell rooms={museumRooms} />
-<CentralChamber />
+{#if showArchitecture}
+  <MuseumShell rooms={museumRooms} />
+  <CentralChamber />
 
-<EntranceRoom />
-<PolandRoom />
-<DepartureRoom />
-<ParisSalon preloadHero={parisActivation.preloadParisHero} />
-<MuseumEntities
-  {scene}
-  preloadParisHero={parisActivation.preloadParisHero}
-  loadParisSalon={parisActivation.loadParisSalon}
-  {placementRegistry}
-/>
-<WorkshopRoom />
-<MusicChamber />
-<LegacyRoom />
+  <EntranceRoom />
+  <PolandRoom />
+  <DepartureRoom />
+  <ParisSalon preloadHero={parisActivation.preloadParisHero} />
+  <MuseumEntities
+    {scene}
+    preloadParisHero={parisActivation.preloadParisHero}
+    loadParisSalon={parisActivation.loadParisSalon}
+    {placementRegistry}
+  />
+  <WorkshopRoom />
+  <MusicChamber />
+  <LegacyRoom />
 
-{#if showNavigationNodes}
-  {#each scene.navigationNodes as node (node.id)}
-    <NavigationNode {node} {state} />
-  {/each}
+  {#if showNavigationNodes}
+    {#each scene.navigationNodes as node (node.id)}
+      <NavigationNode {node} {state} />
+    {/each}
+  {/if}
 {/if}

@@ -19,6 +19,8 @@ export type WallPreview = {
 
 export type LayoutRoomPreview = {
 	roomId: string;
+	floorElevation: number;
+	ceilingElevation: number;
 	floorPolygon: LayoutVec2[];
 	ceilingPolygon: LayoutVec2[];
 	walls: WallPreview[];
@@ -65,6 +67,8 @@ function buildRoomPreview(room: LayoutRoom, floor: LayoutFloor): LayoutRoomPrevi
 
 	return {
 		roomId: room.id,
+		floorElevation: floor.elevation,
+		ceilingElevation: floor.elevation + floor.height,
 		floorPolygon,
 		ceilingPolygon: floorPolygon.map(([x, z]) => [x, z] as LayoutVec2),
 		walls: lineSegments.map((segment) => ({

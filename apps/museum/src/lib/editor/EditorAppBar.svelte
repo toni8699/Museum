@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { MuseumEditorStore } from './museum-editor.svelte';
+	import type { EditorWorkspace } from './museum-editor.types';
 	import EditorProjectMenu from './EditorProjectMenu.svelte';
 
 	let {
@@ -15,6 +16,7 @@
 		!store.isDocumentMutationBlocked && !store.isEditorInteractionActive
 	);
 	const dirty = $derived(store.isDirty);
+	const sceneHistoryEnabled = $derived(workspace !== 'layout');
 	const canPreviewTour = $derived(
 		!store.isEditorInteractionActive &&
 		!store.isDocumentTransactionActive &&
@@ -22,7 +24,7 @@
 	);
 	let projectMenuOpen = $state(false);
 
-	function switchWorkspace(next: 'scene' | 'camera') {
+	function switchWorkspace(next: EditorWorkspace) {
 		if (store.setWorkspace(next)) return;
 		store.setStatusMessage('Stop the current interaction before switching workspaces');
 	}
@@ -50,14 +52,22 @@
 			disabled={!canSwitchWorkspace}
 			onclick={() => switchWorkspace('camera')}
 		>Camera</button>
+		<button
+			type="button"
+			role="tab"
+			aria-selected={workspace === 'layout'}
+			class:active={workspace === 'layout'}
+			disabled={!canSwitchWorkspace}
+			onclick={() => switchWorkspace('layout')}
+		>Layout</button>
 	</div>
 	<div class="actions">
 		<span class:dirty class="document-state">{dirty ? 'Unsaved' : 'Saved'}</span>
-		<button type="button" disabled={!store.canUndo} onclick={() => store.undo()}>Undo</button>
-		<button type="button" disabled={!store.canRedo} onclick={() => store.redo()}>Redo</button>
+		<button type="button" disabled={!sceneHistoryEnabled || !store.canUndo} onclick={() => store.undo()}>Undo</button>
+		<button type="button" disabled={!sceneHistoryEnabled || !store.canRedo} onclick={() => store.redo()}>Redo</button>
 		{#if workspace === 'scene'}
 			<a class="preview-action" href="/museum" target="_blank" rel="noreferrer">Preview Museum</a>
-		{:else}
+		{:else if workspace === 'camera'}
 			<button
 				type="button"
 				disabled={!canPreviewTour}
@@ -65,11 +75,13 @@
 				onclick={() => store.previewGuidedTour()}
 			>Preview Tour</button>
 		{/if}
-		<EditorProjectMenu
-			{store}
-			{confirmDiscardUnsavedChanges}
-			bind:open={projectMenuOpen}
-		/>
+		{#if workspace !== 'layout'}
+			<EditorProjectMenu
+				{store}
+				{confirmDiscardUnsavedChanges}
+				bind:open={projectMenuOpen}
+			/>
+		{/if}
 	</div>
 </header>
 

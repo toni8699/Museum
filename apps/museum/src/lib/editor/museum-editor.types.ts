@@ -105,7 +105,7 @@ export type EditorPendingNavigationCommand =
 			sourceNodeId: string;
 	  };
 
-export type EditorWorkspace = 'scene' | 'camera';
+export type EditorWorkspace = 'scene' | 'camera' | 'layout';
 
 export type EditorLeftPanel = 'scene' | 'assets';
 

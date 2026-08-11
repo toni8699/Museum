@@ -157,7 +157,7 @@ No real-time CSG. Invalid drafts stay editable with warnings; last valid preview
 
 ```text
 A0 codec → B0 Chopin compile fixture → A1 line rooms+preview
-  → C0 project envelope → A2 plan UX → B1 load Chopin in editor
+  → C0 project envelope → A2 editor preview → A2.1 plan UX → B1 load Chopin in editor
   → A3/A4 Bezier/arches/objects/I/O → B3 relocate → B4 dual-read → B5 cutover
 ```
 
@@ -193,7 +193,15 @@ Focused spec/plan: [`2026-08-10-layout-cad-a1-line-geometry.md`](./2026-08-10-la
 
 **Defer to A3:** Bezier sampling, arches, and curve-handle polish.
 
-### A2 — Plan workspace and drafting interaction
+### A2 — Layout preview in editor *(implemented)*
+
+Focused spec/plan: [`2026-08-10-layout-cad-a2-editor-preview.md`](./2026-08-10-layout-cad-a2-editor-preview.md).
+
+**Implement first:** Layout workspace; validated C0/B0 fixture preview; A1 model → Three adapter; generated floor/ceiling/wall/lintel geometry; existing editor camera framing; read-only source/status panel; scene-tool isolation.
+
+**UI boundary:** A2 preview has no room selection, mutators, snapping, Plan view, drafting tools, layout history, or import/export. A2.1 owns first authoring interaction. A2 preview is implemented; visitor runtime remains unchanged.
+
+### A2.1 — Plan workspace and drafting interaction
 
 **Create:** `EditorPlanViewport.svelte`, `LayoutDraftHelpers.svelte`, `layout-interaction.ts`.
 

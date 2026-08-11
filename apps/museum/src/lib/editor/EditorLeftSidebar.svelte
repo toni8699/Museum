@@ -4,6 +4,7 @@
 	import EditorCameraTree from './EditorCameraTree.svelte';
 	import EditorSceneTree from './EditorSceneTree.svelte';
 	import {
+		layoutPreviewSourceLabel,
 		loadChopinLayoutPreview,
 		resetLayoutPreview,
 		type LayoutPreviewState
@@ -66,7 +67,7 @@
 		</header>
 
 		<section class="layout-preview-summary" aria-label="Layout preview source">
-			<div class="source-badge">{layoutPreview.source === 'chopin-fixture' ? 'Chopin fixture' : 'Empty layout'}</div>
+			<div class="source-badge">{layoutPreviewSourceLabel(layoutPreview.source)}</div>
 			<dl>
 				<div><dt>Rooms</dt><dd>{layoutPreview.model.rooms.length}</dd></div>
 				<div><dt>Floors</dt><dd>{layoutPreview.project.layout.floors.length}</dd></div>
@@ -76,7 +77,7 @@
 				<button type="button" onclick={() => loadChopinLayoutPreview(layoutPreview)}>Reload Chopin preview</button>
 				<button type="button" onclick={() => resetLayoutPreview(layoutPreview)}>Reset empty</button>
 			</div>
-			<p class="layout-note">Drafting tools arrive in A2.1.</p>
+			<p class="layout-note">Plan drafts rooms with Rectangle or Polygon; commits stay in this preview only.</p>
 		</section>
 	{:else}
 		<header class="camera-workspace-header">

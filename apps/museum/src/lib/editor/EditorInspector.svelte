@@ -9,7 +9,7 @@
 	import EditorPlacementInspector from './EditorPlacementInspector.svelte';
 	import EditorPrimitiveInspector from './EditorPrimitiveInspector.svelte';
 	import EditorTransformInspector from './EditorTransformInspector.svelte';
-	import type { LayoutPreviewState } from './layout/layout-preview-state.svelte';
+	import { layoutPreviewSourceLabel, type LayoutPreviewState } from './layout/layout-preview-state.svelte';
 	import {
 		EDITOR_BRIGHT_LIGHTING,
 		EDITOR_VISITOR_LIGHTING,
@@ -164,7 +164,7 @@
 		<section class="layout-inspector" aria-label="Layout preview details">
 			<dl>
 				<div><dt>Project</dt><dd>{layoutPreview.project.name}</dd></div>
-				<div><dt>Source</dt><dd>{layoutPreview.source === 'chopin-fixture' ? 'Chopin fixture' : 'Empty layout'}</dd></div>
+				<div><dt>Source</dt><dd>{layoutPreviewSourceLabel(layoutPreview.source)}</dd></div>
 				<div><dt>Rooms</dt><dd>{layoutPreview.model.rooms.length}</dd></div>
 				<div><dt>Issues</dt><dd>{layoutPreview.issues.length}</dd></div>
 			</dl>

@@ -115,6 +115,12 @@
 		clearLayoutDraft(interaction);
 	}
 
+	function onKeyDown(event: KeyboardEvent) {
+		if (event.key !== 'Escape') return;
+		event.preventDefault();
+		cancelDraft();
+	}
+
 	function distance(a: LayoutVec2, b: LayoutVec2): number {
 		return Math.hypot(a[0] - b[0], a[1] - b[1]);
 	}
@@ -130,17 +136,21 @@
 			Select a drafting tool to begin
 		{/if}
 	</div>
+	<!-- svelte-ignore a11y_no_noninteractive_tabindex (plan surface owns keyboard focus) -->
+	<!-- svelte-ignore a11y_no_noninteractive_element_interactions (plan surface owns pointer and keyboard drafting events) -->
 	<svg
 		bind:this={svgElement}
 		class="plan-canvas"
 		viewBox={viewBox}
 		preserveAspectRatio="none"
 		role="application"
+		tabindex="0"
 		aria-label="2D layout plan"
 		onpointerdown={onPointerDown}
 		onpointermove={onPointerMove}
 		onpointerup={onPointerUp}
 		onclick={onClick}
+		onkeydown={onKeyDown}
 	>
 		<defs>
 			<pattern id="layout-grid" width="1" height="1" patternUnits="userSpaceOnUse">
@@ -185,7 +195,7 @@
 
 <style>
 	.plan-viewport { position: absolute; inset: 0; background: #0d0d12; }
-	.plan-canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: crosshair; }
+	.plan-canvas { display: block; position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: crosshair; outline: none; }
 	.room-fill { fill: #6b6254; fill-opacity: 0.32; }
 	.room-outline { fill: none; stroke: #88b7d6; stroke-width: 0.07; vector-effect: non-scaling-stroke; }
 	.draft-outline { fill: rgba(214, 179, 95, 0.18); stroke: #d6b35f; stroke-width: 0.1; stroke-dasharray: 0.35 0.18; vector-effect: non-scaling-stroke; }

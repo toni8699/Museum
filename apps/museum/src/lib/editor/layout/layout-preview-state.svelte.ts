@@ -6,7 +6,7 @@ import { buildLayoutPreviewModel, type LayoutPreviewModel } from './layout-mesh-
 import { layoutPreviewBounds, type LayoutPreviewBounds } from './layout-preview-bounds';
 import type { LayoutRoom, LayoutVec2 } from './layout-types';
 import { roomsToLayout } from './rooms-to-layout';
-import type { LayoutGeometryIssue } from './layout-validation';
+import { validateLineRoom, type LayoutGeometryIssue } from './layout-validation';
 
 export type LayoutPreviewSource = 'chopin-fixture' | 'empty' | 'draft';
 
@@ -102,6 +102,13 @@ export function commitLayoutDraftRoom(
 		ceilingThickness: 0.1,
 		openings: []
 	};
+	const geometryIssues = validateLineRoom(room, floor);
+	if (geometryIssues.length > 0) {
+		return {
+			success: false,
+			message: `Room draft rejected: ${geometryIssues[0]!.message}`
+		};
+	}
 	floor.rooms = [...floor.rooms, room];
 
 	try {

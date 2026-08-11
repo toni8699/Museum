@@ -201,13 +201,15 @@ Focused spec/plan: [`2026-08-10-layout-cad-a2-editor-preview.md`](./2026-08-10-l
 
 **UI boundary:** A2 preview has no room selection, mutators, snapping, Plan view, drafting tools, layout history, or import/export. A2.1 owns first authoring interaction. A2 preview is implemented; visitor runtime remains unchanged.
 
-### A2.1 — Plan workspace and drafting interaction
+### A2.1 — Plan workspace and drafting interaction *(implemented)*
 
-**Create:** `EditorPlanViewport.svelte`, `LayoutDraftHelpers.svelte`, `layout-interaction.ts`.
+**Create:** `LayoutPlanViewport.svelte`, `LayoutDraftToolbar.svelte`, `layout-interaction.ts`.
 
-**Modify:** viewport toolbar, shortcuts, selection.
+**Modify:** layout preview state and editor viewport/sidebar/inspector wiring.
 
-**Implement:** Plan/3D switch; tools; rectangle click-drag; polygon close; Esc/Backspace; grid + angle snap; mutator-only commits; Layout vs Museum mutex.
+**Implement:** Layout-local Plan/3D switch; Select/Rectangle/Polygon tools; rectangle pointer drag; polygon click-to-add with first-point or Finish close; Escape cancellation; validated layout-only room commits; draft source/status updates; Layout vs Museum mutex.
+
+**Boundary:** grid rendering is present, but angle snapping, Backspace point removal, room selection/handles, openings, shared history, and persistence remain deferred. Draft commits are in-memory preview state only and never mutate scene data.
 
 ### A3 — Bezier walls and arch profiles
 

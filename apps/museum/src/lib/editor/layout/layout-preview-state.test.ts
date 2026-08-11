@@ -144,6 +144,18 @@ describe('layout preview state', () => {
 		expect(state.project.layout.floors[0]!.rooms.find((candidate) => candidate.id === room.id)!.boundary.segments[0]!.kind).toBe('line');
 	});
 
+	it('captures snapshots from reactive proxies (Svelte $state) so Plan bend drag can begin', () => {
+		const state = createLayoutPreviewState();
+		// MuseumEditorApp wraps preview in $state(); structuredClone cannot clone those proxies.
+		state.project = new Proxy(state.project, {});
+		state.model = new Proxy(state.model, {});
+		state.issues = new Proxy(state.issues, {});
+		expect(() => captureLayoutPreviewSnapshot(state)).not.toThrow();
+		const snapshot = captureLayoutPreviewSnapshot(state);
+		expect(snapshot.project.layout.floors[0]!.rooms.length).toBe(state.project.layout.floors[0]!.rooms.length);
+		expect(snapshot.model.rooms.length).toBe(state.model.rooms.length);
+	});
+
 	it('commits auto-bezier rooms with empty interiors', () => {
 		const state = createLayoutPreviewState();
 		resetLayoutPreview(state);

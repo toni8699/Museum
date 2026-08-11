@@ -404,7 +404,12 @@ function createState(
 }
 
 function cloneLayout(layout: MuseumProject['layout']): MuseumProject['layout'] {
-	return JSON.parse(JSON.stringify(layout)) as MuseumProject['layout'];
+	return cloneJson(layout);
+}
+
+/** Deep-clone plain data; safe for Svelte `$state` proxies (unlike `structuredClone`). */
+function cloneJson<T>(value: T): T {
+	return JSON.parse(JSON.stringify(value)) as T;
 }
 
 function nextRoomId(rooms: readonly LayoutRoom[]): string {
@@ -483,9 +488,9 @@ export type LayoutPreviewSnapshot = {
 export function captureLayoutPreviewSnapshot(state: LayoutPreviewState): LayoutPreviewSnapshot {
 	return {
 		source: state.source,
-		project: structuredClone(state.project),
-		model: structuredClone(state.model),
-		issues: structuredClone(state.issues),
+		project: cloneJson(state.project),
+		model: cloneJson(state.model),
+		issues: cloneJson(state.issues),
 		bounds: state.bounds
 			? {
 					min: [state.bounds.min[0], state.bounds.min[1], state.bounds.min[2]],
@@ -497,9 +502,9 @@ export function captureLayoutPreviewSnapshot(state: LayoutPreviewState): LayoutP
 
 export function restoreLayoutPreviewSnapshot(state: LayoutPreviewState, snapshot: LayoutPreviewSnapshot): void {
 	state.source = snapshot.source;
-	state.project = structuredClone(snapshot.project);
-	state.model = structuredClone(snapshot.model);
-	state.issues = structuredClone(snapshot.issues);
+	state.project = cloneJson(snapshot.project);
+	state.model = cloneJson(snapshot.model);
+	state.issues = cloneJson(snapshot.issues);
 	state.bounds = snapshot.bounds
 		? {
 				min: [snapshot.bounds.min[0], snapshot.bounds.min[1], snapshot.bounds.min[2]],

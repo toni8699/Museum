@@ -6,6 +6,9 @@ import {
 	clearLayoutDraft,
 	createLayoutInteractionState,
 	removeLastPolygonPoint,
+	selectLayoutOpening,
+	selectLayoutWall,
+	selectedLayoutRoomId,
 	rectanglePoints,
 	setLayoutDraftTool,
 	setLayoutViewMode,
@@ -40,6 +43,15 @@ describe('layout interaction', () => {
 		setLayoutViewMode(state, '3d');
 		expect(state.polygonPoints).toEqual([]);
 		expect(state.rectangleStart).toBeNull();
+	});
+
+	it('tracks mutually exclusive room, wall, and opening selections', () => {
+		const state = createLayoutInteractionState();
+		selectLayoutWall(state, 'room-a', 'wall-a');
+		expect(state.selection).toEqual({ kind: 'wall', roomId: 'room-a', segmentId: 'wall-a' });
+		expect(selectedLayoutRoomId(state)).toBe('room-a');
+		selectLayoutOpening(state, 'room-a', 'wall-a', 'opening-a');
+		expect(state.selection).toEqual({ kind: 'opening', roomId: 'room-a', segmentId: 'wall-a', openingId: 'opening-a' });
 	});
 
 	it('clears partial drafts explicitly', () => {

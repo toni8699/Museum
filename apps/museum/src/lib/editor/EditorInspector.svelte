@@ -9,8 +9,12 @@
 	import EditorPlacementInspector from './EditorPlacementInspector.svelte';
 	import EditorPrimitiveInspector from './EditorPrimitiveInspector.svelte';
 	import EditorTransformInspector from './EditorTransformInspector.svelte';
-	import { layoutPreviewSourceLabel, type LayoutPreviewState } from './layout/layout-preview-state.svelte';
-	import type { LayoutInteractionState } from './layout/layout-interaction';
+	import { layoutPreviewSourceLabel, updateLayoutOpeningFields, deleteLayoutOpening, type LayoutPreviewState } from './layout/layout-preview-state.svelte';
+	import {
+		selectedLayoutRoomId,
+		setLayoutDraftTool,
+		type LayoutInteractionState
+	} from './layout/layout-interaction';
 	import { roomBounds, roomEdgeLength } from './layout/layout-editing';
 	import {
 		EDITOR_BRIGHT_LIGHTING,
@@ -84,9 +88,28 @@
 		Boolean(store.selectedCluster) || store.selectedPlacementIds.length > 0
 	);
 	const canDuplicateSelection = $derived(store.selectedPlacementIds.length > 0);
+	const layoutRooms = $derived(layoutPreview.project.layout.floors.flatMap((floor) => floor.rooms));
 	const selectedLayoutRoom = $derived(
-		layoutInteraction.selectedRoomId
-			? layoutPreview.project.layout.floors.flatMap((floor) => floor.rooms).find((room) => room.id === layoutInteraction.selectedRoomId)
+		selectedLayoutRoomId(layoutInteraction)
+			? layoutRooms.find((room) => room.id === selectedLayoutRoomId(layoutInteraction))
+			: undefined
+	);
+	const selectedLayoutOpeningSelection = $derived(
+		layoutInteraction.selection.kind === 'opening' ? layoutInteraction.selection : null
+	);
+	const selectedLayoutWallSelection = $derived(
+		layoutInteraction.selection.kind === 'wall' || layoutInteraction.selection.kind === 'opening'
+			? layoutInteraction.selection
+			: null
+	);
+	const selectedLayoutOpening = $derived(
+		selectedLayoutOpeningSelection && selectedLayoutRoom
+			? selectedLayoutRoom.openings.find((opening) => opening.id === selectedLayoutOpeningSelection.openingId)
+			: undefined
+	);
+	const selectedLayoutSegment = $derived(
+		selectedLayoutWallSelection && selectedLayoutRoom
+			? selectedLayoutRoom.boundary.segments.find((segment) => segment.id === selectedLayoutWallSelection.segmentId)
 			: undefined
 	);
 	const selectedLayoutBounds = $derived(selectedLayoutRoom ? roomBounds(selectedLayoutRoom) : null);
@@ -140,6 +163,41 @@
 		clusterNameInput?.select();
 	}
 
+	function armOpeningTool(kind: 'door' | 'window') {
+		setLayoutDraftTool(layoutInteraction, kind);
+	}
+
+	function updateOpeningField(field: 'offset' | 'width' | 'height' | 'sillHeight', event: Event) {
+		const selection = layoutInteraction.selection;
+		if (selection.kind !== 'opening' || !selectedLayoutOpening) return;
+		const input = event.currentTarget as HTMLInputElement;
+		const value = Number(input.value);
+		if (!Number.isFinite(value)) {
+			store.setStatusMessage('Opening value must be a finite number');
+			input.value = String(selectedLayoutOpening[field]);
+			return;
+		}
+		const result = updateLayoutOpeningFields(layoutPreview, selection.roomId, selection.openingId, { [field]: value });
+		if (!result.success) {
+			store.setStatusMessage(`Opening rejected: ${result.message}`);
+			input.value = String(selectedLayoutOpening[field]);
+			return;
+		}
+		store.setStatusMessage(`Updated opening ${field}`);
+	}
+
+	function removeSelectedOpening() {
+		const selection = layoutInteraction.selection;
+		if (selection.kind !== 'opening') return;
+		const result = deleteLayoutOpening(layoutPreview, selection.roomId, selection.openingId);
+		if (!result.success) {
+			store.setStatusMessage(`Opening delete failed: ${result.message}`);
+			return;
+		}
+		layoutInteraction.selection = { kind: 'wall', roomId: selection.roomId, segmentId: selection.segmentId };
+		store.setStatusMessage('Deleted opening');
+	}
+
 </script>
 
 <aside class="panel inspector" aria-label="Inspector" style="grid-area: right;">
@@ -179,7 +237,33 @@
 				<div><dt>Issues</dt><dd>{layoutPreview.issues.length}</dd></div>
 			</dl>
 			<p class="layout-inspector-note">Openings are geometry-only in this phase. No room adjacency or portal semantics are inferred.</p>
-			{#if selectedLayoutRoom && selectedLayoutBounds}
+			{#if selectedLayoutOpening && selectedLayoutSegment && selectedLayoutRoom}
+				<div class="layout-selected-room" aria-label="Selected layout opening">
+					<strong>{selectedLayoutOpening.kind} opening</strong>
+					<span>{selectedLayoutRoom.name} · {selectedLayoutRoom.id}</span>
+					<span>Wall: {selectedLayoutSegment.id} · {roomEdgeLength(selectedLayoutRoom, selectedLayoutRoom.boundary.segments.indexOf(selectedLayoutSegment)).toFixed(2)} m</span>
+					<label>Offset from wall start (m)<input type="number" min="0" step="0.05" value={selectedLayoutOpening.offset} onchange={(event) => updateOpeningField('offset', event)} /></label>
+					<label>Width (m)<input type="number" min="0.01" step="0.05" value={selectedLayoutOpening.width} onchange={(event) => updateOpeningField('width', event)} /></label>
+					<label>Height (m)<input type="number" min="0.01" step="0.05" value={selectedLayoutOpening.height} onchange={(event) => updateOpeningField('height', event)} /></label>
+					<label>Sill height (m)<input type="number" min="0" step="0.05" value={selectedLayoutOpening.sillHeight} onchange={(event) => updateOpeningField('sillHeight', event)} /></label>
+					<span>Profile: rectangular</span>
+					{#if layoutPreview.lastMutationMessage}
+						<p class="layout-opening-warning" role="status">{layoutPreview.lastMutationMessage}</p>
+					{/if}
+					<button type="button" class="layout-danger" onclick={removeSelectedOpening}>Delete opening</button>
+				</div>
+			{:else if selectedLayoutSegment && selectedLayoutRoom && layoutInteraction.selection.kind === 'wall'}
+				<div class="layout-selected-room" aria-label="Selected layout wall">
+					<strong>Wall selected</strong>
+					<span>{selectedLayoutRoom.name} · {selectedLayoutRoom.id}</span>
+					<span>{selectedLayoutSegment.id}</span>
+					<span>Length: {roomEdgeLength(selectedLayoutRoom, selectedLayoutRoom.boundary.segments.indexOf(selectedLayoutSegment)).toFixed(2)} m</span>
+					<div class="layout-opening-actions">
+						<button type="button" onclick={() => armOpeningTool('door')}>Door</button>
+						<button type="button" onclick={() => armOpeningTool('window')}>Window</button>
+					</div>
+				</div>
+			{:else if selectedLayoutRoom && selectedLayoutBounds}
 				<div class="layout-selected-room" aria-label="Selected layout room">
 					<strong>{selectedLayoutRoom.name}</strong>
 					<span>{selectedLayoutRoom.id}</span>
@@ -382,6 +466,13 @@
 	.layout-inspector-note { margin: 0; color: #a8a29a; font-size: 0.7rem; line-height: 1.45; }
 	.layout-selected-room { display: flex; flex-direction: column; gap: 0.2rem; padding: 0.6rem; border: 1px solid #8d753c; border-radius: 0.35rem; background: #211d15; color: #f4efe4; font-size: 0.7rem; }
 	.layout-selected-room span { color: #c4bdaF; font-size: 0.66rem; overflow-wrap: anywhere; }
+	.layout-selected-room label { display: flex; flex-direction: column; gap: 0.25rem; color: #c4bdaF; font-size: 0.66rem; }
+	.layout-selected-room input { box-sizing: border-box; width: 100%; padding: 0.34rem; border: 1px solid #4a4438; border-radius: 0.28rem; background: #17171f; color: #f4efe4; font: inherit; }
+	.layout-selected-room input:focus { outline: 1px solid #d6b35f; border-color: #d6b35f; }
+	.layout-opening-actions { display: flex; gap: 0.35rem; }
+	.layout-opening-actions button, .layout-danger { padding: 0.4rem 0.5rem; border: 1px solid #8d753c; border-radius: 0.28rem; background: #2a2618; color: #fff2c7; font: inherit; font-size: 0.68rem; cursor: pointer; }
+	.layout-danger { border-color: #684147; background: #21191b; color: #efc7c7; }
+	.layout-opening-warning { margin: 0; color: #efc7c7; font-size: 0.66rem; }
 	.layout-issues { max-height: 12rem; overflow: auto; padding: 0.55rem; border: 1px solid #684147; border-radius: 0.35rem; background: #21191b; color: #efc7c7; font-size: 0.68rem; line-height: 1.4; }
 	.layout-issues ul { display: flex; flex-direction: column; gap: 0.35rem; margin: 0.4rem 0 0; padding-left: 1rem; }
 	.layout-issues code { color: #f4dc9b; font-size: 0.63rem; }

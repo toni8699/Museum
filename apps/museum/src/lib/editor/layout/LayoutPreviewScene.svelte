@@ -4,7 +4,17 @@
 	import type { LayoutPreviewModel, LayoutRoomPreview, WallPreview } from './layout-mesh-factory';
 	import { ceilingShapePoints, floorShapePoints } from './layout-preview-geometry';
 
-	let { model, showCeilings = false }: { model: LayoutPreviewModel; showCeilings?: boolean } = $props();
+	let {
+		model,
+		showCeilings = false,
+		selectedSegmentId = null,
+		selectedOpeningId = null
+	}: {
+		model: LayoutPreviewModel;
+		showCeilings?: boolean;
+		selectedSegmentId?: string | null;
+		selectedOpeningId?: string | null;
+	} = $props();
 
 	function polygonShape(points: LayoutRoomPreview['floorPolygon']): Shape {
 		const shape = new Shape();
@@ -76,7 +86,11 @@
 									wall.thickness
 								]}
 							/>
-							<T.MeshStandardMaterial color="#a99d89" roughness={0.82} metalness={0} />
+							<T.MeshStandardMaterial
+								color={section.openingId === selectedOpeningId ? '#f1d99a' : wall.segmentId === selectedSegmentId ? '#d6b35f' : '#a99d89'}
+								roughness={0.82}
+								metalness={0}
+							/>
 						</T.Mesh>
 					{/each}
 				</T.Group>

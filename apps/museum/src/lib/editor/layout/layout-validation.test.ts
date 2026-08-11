@@ -56,6 +56,14 @@ describe('A1 layout validation', () => {
 		expect(codes).toContain('opening_out_of_bounds');
 	});
 
+	it('rejects openings whose sill plus height exceeds floor height', () => {
+		const document = createA1RectangleDocument();
+		document.floors[0]!.rooms[0]!.openings = [
+			{ id: 'opening-high', segmentId: 'room:4:0', kind: 'window', offset: 1, width: 1, height: 2.5, sillHeight: 1, profile: 'rectangular' }
+		];
+		expect(validateLayoutDocumentGeometry(document).map((issue) => issue.code)).toContain('opening_over_height');
+	});
+
 	it('uses endpoint tolerance for room closure', () => {
 		const document = createA1RectangleDocument();
 		const segments = document.floors[0]!.rooms[0]!.boundary.segments;

@@ -217,9 +217,11 @@ Focused plan: [`2026-08-10-layout-cad-a2-2-scale-editing.md`](./2026-08-10-layou
 
 Combine stable meter coordinates/grid/zoom/pan with room selection, whole-room and vertex editing, live dimensions, and layout-local ceiling visibility. First fix the Chopin preview floor coordinate mirror so floor footprints align with wall centerlines. Keep numeric field editing, openings, Bezier, shared history, persistence, and visitor/runtime changes deferred. A2.2 is implemented; next focused slice is A2.3 openings and numeric dimensions.
 
-### A2.3 — Opening authoring and numeric dimensions *(next)*
+### A2.3 — Opening authoring and numeric opening dimensions *(implemented)*
 
-Add wall selection, geometry-only door/window placement, width/height/offset fields, and shared layout mutation tests. Keep portal adjacency deferred to B4.
+Focused plan: [`2026-08-11-layout-cad-a2-3-opening-authoring.md`](./2026-08-11-layout-cad-a2-3-opening-authoring.md).
+
+Choose interaction B: Door/Window tools click any wall with no prior wall selection → edit exact offset/width/height/sill fields (room/edge numeric fields deferred). Inspector actions only arm the tool; selecting a wall first does not constrain the next click. Tagged wall/opening selection; vertex → opening → wall → room hit priority; over-height validation; room edits that break openings fail closed. Regenerate geometry-only wall gaps/lintels through the existing preview adapter. Keep portal adjacency deferred to B4; rounded/pointed profiles and Bezier openings remain A3 work. A2.3 is implemented; next focused slice is A3 Bezier walls and arch profiles.
 
 ### A3 — Bezier walls and arch profiles
 

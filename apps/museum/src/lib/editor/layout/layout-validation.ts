@@ -145,6 +145,18 @@ export function validateLineRoom(
 				targetId: opening.id
 			});
 		}
+		if (
+			Number.isFinite(opening.sillHeight) &&
+			Number.isFinite(opening.height) &&
+			opening.sillHeight + opening.height > floor.height + LAYOUT_GEOMETRY_EPSILON
+		) {
+			issues.push({
+				path: `${path}.openings[${index}]`,
+				code: 'opening_over_height',
+				message: 'Opening top exceeds floor height.',
+				targetId: opening.id
+			});
+		}
 
 		const segmentLength = lineLength(segment.start, segment.end);
 		if (opening.offset + opening.width > segmentLength + LAYOUT_GEOMETRY_EPSILON) {

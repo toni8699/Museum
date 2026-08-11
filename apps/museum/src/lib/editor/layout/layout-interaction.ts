@@ -2,8 +2,14 @@ import type { LayoutVec2 } from './layout-types';
 import { createPlanViewportState, type PlanViewportState } from './layout-plan-transform';
 
 export type LayoutViewMode = 'plan' | '3d';
-export type LayoutDraftTool = 'select' | 'rectangle' | 'polygon';
+export type LayoutDraftTool = 'select' | 'rectangle' | 'polygon' | 'door' | 'window';
 export type LayoutRoomDragMode = 'room' | 'vertex';
+
+export type LayoutSelection =
+	| { kind: 'none' }
+	| { kind: 'room'; roomId: string }
+	| { kind: 'wall'; roomId: string; segmentId: string }
+	| { kind: 'opening'; roomId: string; segmentId: string; openingId: string };
 
 export type LayoutInteractionState = {
 	viewMode: LayoutViewMode;
@@ -11,7 +17,7 @@ export type LayoutInteractionState = {
 	polygonPoints: LayoutVec2[];
 	rectangleStart: LayoutVec2 | null;
 	rectangleCurrent: LayoutVec2 | null;
-	selectedRoomId: string | null;
+	selection: LayoutSelection;
 	planView: PlanViewportState;
 	editing: {
 		mode: LayoutRoomDragMode;
@@ -30,7 +36,7 @@ export function createLayoutInteractionState(): LayoutInteractionState {
 		polygonPoints: [],
 		rectangleStart: null,
 		rectangleCurrent: null,
-		selectedRoomId: null,
+		selection: { kind: 'none' },
 		planView: createPlanViewportState(),
 		editing: null
 	};
@@ -79,8 +85,32 @@ export function removeLastPolygonPoint(state: LayoutInteractionState): void {
 }
 
 export function selectLayoutRoom(state: LayoutInteractionState, roomId: string | null): void {
-	state.selectedRoomId = roomId;
+	state.selection = roomId ? { kind: 'room', roomId } : { kind: 'none' };
 	cancelRoomEdit(state);
+}
+
+export function selectLayoutWall(state: LayoutInteractionState, roomId: string, segmentId: string): void {
+	state.selection = { kind: 'wall', roomId, segmentId };
+	cancelRoomEdit(state);
+}
+
+export function selectLayoutOpening(
+	state: LayoutInteractionState,
+	roomId: string,
+	segmentId: string,
+	openingId: string
+): void {
+	state.selection = { kind: 'opening', roomId, segmentId, openingId };
+	cancelRoomEdit(state);
+}
+
+export function clearLayoutSelection(state: LayoutInteractionState): void {
+	state.selection = { kind: 'none' };
+	cancelRoomEdit(state);
+}
+
+export function selectedLayoutRoomId(state: Pick<LayoutInteractionState, 'selection'>): string | null {
+	return state.selection.kind === 'none' ? null : state.selection.roomId;
 }
 
 export function beginRoomEdit(
@@ -93,8 +123,8 @@ export function beginRoomEdit(
 ): void {
 	state.editing = {
 		mode,
-		roomId,
 		vertexIndex,
+		roomId,
 		startWorld: [...startWorld],
 		originalPoints: originalPoints.map((point) => [...point]),
 		currentPoints: originalPoints.map((point) => [...point])

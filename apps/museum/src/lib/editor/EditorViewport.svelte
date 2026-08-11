@@ -19,7 +19,12 @@
 	import LayoutDraftToolbar from './layout/LayoutDraftToolbar.svelte';
 	import type { LayoutInteractionState } from './layout/layout-interaction';
 	import type { LayoutPreviewState } from './layout/layout-preview-state.svelte';
-	import { commitLayoutDraftRoom } from './layout/layout-preview-state.svelte';
+	import {
+		commitLayoutDraftRoom,
+		commitLayoutOpening,
+		deleteLayoutOpening
+	} from './layout/layout-preview-state.svelte';
+	import type { LayoutOpeningKind } from './layout/layout-opening-editing';
 	import type { MuseumEditorStore } from './museum-editor.svelte';
 	import { resolveEditorPlacementScale } from './scale-vector';
 	import type { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
@@ -71,6 +76,23 @@
 			store.setStatusMessage(`Room draft rejected: ${result.message}`);
 		}
 	}
+
+	function createOpening(roomId: string, segmentId: string, kind: LayoutOpeningKind, clickOffset: number) {
+		const result = commitLayoutOpening(layoutPreview, roomId, segmentId, kind, clickOffset, layoutInteraction.planView.snapEnabled);
+		if (result.success) {
+			layoutInteraction.selection = { kind: 'opening', roomId, segmentId, openingId: result.openingId };
+		}
+		store.setStatusMessage(result.success ? `Created ${kind} opening` : `Opening rejected: ${result.message}`);
+	}
+
+	function deleteOpening(roomId: string, openingId: string) {
+		const selection = layoutInteraction.selection;
+		const result = deleteLayoutOpening(layoutPreview, roomId, openingId);
+		if (result.success && selection.kind === 'opening' && selection.openingId === openingId) {
+			layoutInteraction.selection = { kind: 'wall', roomId: selection.roomId, segmentId: selection.segmentId };
+		}
+		store.setStatusMessage(result.success ? 'Deleted opening' : `Opening delete failed: ${result.message}`);
+	}
 </script>
 
 <div
@@ -95,6 +117,8 @@
 			preview={layoutPreview}
 			interaction={layoutInteraction}
 			onCommit={commitDraftRoom}
+			onOpeningCreate={createOpening}
+			onOpeningDelete={deleteOpening}
 		/>
 	{:else}
 		{#if store.currentWorkspace !== 'layout'}
@@ -124,7 +148,12 @@
 			{/snippet}
 		</MuseumScene>
 		{#if store.currentWorkspace === 'layout'}
-			<LayoutPreviewScene model={layoutPreview.model} showCeilings={layoutPreview.showCeilings} />
+			<LayoutPreviewScene
+				model={layoutPreview.model}
+				showCeilings={layoutPreview.showCeilings}
+				selectedSegmentId={layoutInteraction.selection.kind === 'wall' || layoutInteraction.selection.kind === 'opening' ? layoutInteraction.selection.segmentId : null}
+				selectedOpeningId={layoutInteraction.selection.kind === 'opening' ? layoutInteraction.selection.openingId : null}
+			/>
 		{/if}
 		<EditorGrid visible={store.gridVisible && !store.isVisitorCameraPreview} />
 		{#if store.currentWorkspace !== 'layout' && store.viewportShowPaths}

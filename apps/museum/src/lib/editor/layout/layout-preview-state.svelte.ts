@@ -4,8 +4,18 @@ import type { MuseumProject } from '$lib/editor/project/project-types';
 import { createEmptyLayoutDocument } from './layout-codec';
 import { buildLayoutPreviewModel, type LayoutPreviewModel } from './layout-mesh-factory';
 import { layoutPreviewBounds, type LayoutPreviewBounds } from './layout-preview-bounds';
-import type { LayoutRoom, LayoutVec2 } from './layout-types';
+import type { LayoutOpening, LayoutRoom, LayoutVec2 } from './layout-types';
 import { replaceRoomPoints } from './layout-editing';
+import {
+	appendRoomOpening,
+	createDefaultOpening,
+	findRoomOpening,
+	nextOpeningId,
+	removeRoomOpening,
+	replaceRoomOpening,
+	type LayoutOpeningKind,
+	type LayoutOpeningPatch
+} from './layout-opening-editing';
 import { roomsToLayout } from './rooms-to-layout';
 import { validateLineRoom, type LayoutGeometryIssue } from './layout-validation';
 
@@ -19,6 +29,7 @@ export type LayoutPreviewState = {
 	bounds: LayoutPreviewBounds | null;
 	previewVersion: number;
 	showCeilings: boolean;
+	lastMutationMessage: string | null;
 };
 
 export type LayoutDraftCommitResult =
@@ -27,6 +38,10 @@ export type LayoutDraftCommitResult =
 
 export type LayoutRoomEditResult =
 	| { success: true }
+	| { success: false; message: string };
+
+export type LayoutOpeningMutationResult =
+	| { success: true; openingId: string }
 	| { success: false; message: string };
 
 export function createLayoutPreviewState(): LayoutPreviewState {
@@ -66,11 +81,74 @@ export function refreshLayoutPreview(state: LayoutPreviewState): boolean {
 	state.issues = result.issues;
 	state.bounds = layoutPreviewBounds(result.model);
 	state.previewVersion += 1;
+	state.lastMutationMessage = null;
 	return true;
 }
 
 export function toggleLayoutCeilings(state: LayoutPreviewState): void {
 	state.showCeilings = !state.showCeilings;
+}
+
+export function commitLayoutOpening(
+	state: LayoutPreviewState,
+	roomId: string,
+	segmentId: string,
+	kind: LayoutOpeningKind,
+	clickOffset: number,
+	snapEnabled = true
+): LayoutOpeningMutationResult {
+	const layout = cloneLayout(state.project.layout);
+	const floor = layout.floors.find((candidate) => candidate.rooms.some((room) => room.id === roomId));
+	const room = floor?.rooms.find((candidate) => candidate.id === roomId);
+	const segment = room?.boundary.segments.find((candidate) => candidate.id === segmentId);
+	if (!floor || !room || !segment || segment.kind !== 'line') {
+		return failOpeningMutation(state, 'Wall no longer exists');
+	}
+	const opening: LayoutOpening = createDefaultOpening({
+		id: nextOpeningId(room, kind),
+		segment,
+		kind,
+		clickOffset,
+		snapEnabled
+	});
+	const nextRoom = appendRoomOpening(room, opening);
+	const issues = validateLineRoom(nextRoom, floor);
+	if (issues.length > 0) return failOpeningMutation(state, issues[0]!.message);
+	floor.rooms = floor.rooms.map((candidate) => (candidate.id === roomId ? nextRoom : candidate));
+	return applyLayoutMutation(state, layout, opening.id);
+}
+
+export function updateLayoutOpeningFields(
+	state: LayoutPreviewState,
+	roomId: string,
+	openingId: string,
+	patch: LayoutOpeningPatch
+): LayoutOpeningMutationResult {
+	const layout = cloneLayout(state.project.layout);
+	const floor = layout.floors.find((candidate) => candidate.rooms.some((room) => room.id === roomId));
+	const room = floor?.rooms.find((candidate) => candidate.id === roomId);
+	const opening = room ? findRoomOpening(room, openingId) : undefined;
+	if (!floor || !room || !opening) return failOpeningMutation(state, 'Opening no longer exists');
+	const nextOpening = { ...opening, ...patch };
+	const nextRoom = replaceRoomOpening(room, nextOpening);
+	const issues = validateLineRoom(nextRoom, floor);
+	if (issues.length > 0) return failOpeningMutation(state, issues[0]!.message);
+	floor.rooms = floor.rooms.map((candidate) => (candidate.id === roomId ? nextRoom : candidate));
+	return applyLayoutMutation(state, layout, openingId);
+}
+
+export function deleteLayoutOpening(
+	state: LayoutPreviewState,
+	roomId: string,
+	openingId: string
+): LayoutOpeningMutationResult {
+	const layout = cloneLayout(state.project.layout);
+	const floor = layout.floors.find((candidate) => candidate.rooms.some((room) => room.id === roomId));
+	const room = floor?.rooms.find((candidate) => candidate.id === roomId);
+	if (!floor || !room || !findRoomOpening(room, openingId)) return failOpeningMutation(state, 'Opening no longer exists');
+	const nextRoom = removeRoomOpening(room, openingId);
+	floor.rooms = floor.rooms.map((candidate) => (candidate.id === roomId ? nextRoom : candidate));
+	return applyLayoutMutation(state, layout, openingId);
 }
 
 export function commitLayoutRoomEdit(
@@ -81,31 +159,19 @@ export function commitLayoutRoomEdit(
 	const layout = cloneLayout(state.project.layout);
 	const floor = layout.floors.find((candidate) => candidate.rooms.some((room) => room.id === roomId));
 	const room = floor?.rooms.find((candidate) => candidate.id === roomId);
-	if (!floor || !room) return { success: false, message: 'Room no longer exists' };
+	if (!floor || !room) return failRoomEdit(state, 'Room no longer exists');
 	if (points.length !== room.boundary.segments.length || points.some((point) => point.some((value) => !Number.isFinite(value)))) {
-		return { success: false, message: 'Room edit contains invalid coordinates' };
+		return failRoomEdit(state, 'Room edit contains invalid coordinates');
 	}
 	const nextRoom = replaceRoomPoints(room, points);
 	const issues = validateLineRoom(nextRoom, floor);
-	if (issues.length > 0) return { success: false, message: issues[0]!.message };
+	if (issues.length > 0) return failRoomEdit(state, issues[0]!.message);
 	floor.rooms = floor.rooms.map((candidate) => (candidate.id === roomId ? nextRoom : candidate));
 	try {
-		const nextProject = createMuseumProject({
-			id: state.project.id,
-			name: 'Draft Layout Preview',
-			layout,
-			scene: state.project.scene
-		});
-		const result = buildLayoutPreviewModel(nextProject.layout);
-		state.source = 'draft';
-		state.project = nextProject;
-		state.model = result.model;
-		state.issues = result.issues;
-		state.bounds = layoutPreviewBounds(result.model);
-		state.previewVersion += 1;
+		applyLayoutMutation(state, layout);
 		return { success: true };
 	} catch (error) {
-		return { success: false, message: error instanceof Error ? error.message : 'Could not edit room' };
+		return failRoomEdit(state, error instanceof Error ? error.message : 'Could not edit room');
 	}
 }
 
@@ -150,6 +216,7 @@ export function commitLayoutDraftRoom(
 	};
 	const geometryIssues = validateLineRoom(room, floor);
 	if (geometryIssues.length > 0) {
+		state.lastMutationMessage = `Room draft rejected: ${geometryIssues[0]!.message}`;
 		return {
 			success: false,
 			message: `Room draft rejected: ${geometryIssues[0]!.message}`
@@ -173,9 +240,10 @@ export function commitLayoutDraftRoom(
 		state.previewVersion += 1;
 		return { success: true, roomId };
 	} catch (error) {
+		state.lastMutationMessage = error instanceof Error ? error.message : 'Could not commit room draft';
 		return {
 			success: false,
-			message: error instanceof Error ? error.message : 'Could not commit room draft'
+			message: state.lastMutationMessage
 		};
 	}
 }
@@ -200,7 +268,8 @@ function createState(
 		issues: result.issues,
 		bounds: layoutPreviewBounds(result.model),
 		previewVersion: previousVersion + 1,
-		showCeilings: false
+		showCeilings: false,
+		lastMutationMessage: null
 	};
 }
 
@@ -215,6 +284,45 @@ function nextRoomId(rooms: readonly LayoutRoom[]): string {
 	return `layout-room-${index}`;
 }
 
+function applyLayoutMutation(
+	state: LayoutPreviewState,
+	layout: MuseumProject['layout'],
+	openingId?: string
+): LayoutOpeningMutationResult {
+	try {
+		const nextProject = createMuseumProject({
+			id: state.project.id,
+			name: 'Draft Layout Preview',
+			layout,
+			scene: state.project.scene
+		});
+		const result = buildLayoutPreviewModel(nextProject.layout);
+		state.source = 'draft';
+		state.project = nextProject;
+		state.model = result.model;
+		state.issues = result.issues;
+		state.bounds = layoutPreviewBounds(result.model);
+		state.previewVersion += 1;
+		state.lastMutationMessage = null;
+		return { success: true, openingId: openingId ?? '' };
+	} catch (error) {
+		return failOpeningMutation(state, error instanceof Error ? error.message : 'Could not update layout');
+	}
+}
+
+function failOpeningMutation(
+	state: LayoutPreviewState,
+	message: string
+): LayoutOpeningMutationResult {
+	state.lastMutationMessage = message;
+	return { success: false, message };
+}
+
+function failRoomEdit(state: LayoutPreviewState, message: string): LayoutRoomEditResult {
+	state.lastMutationMessage = message;
+	return { success: false, message };
+}
+
 function replaceState(target: LayoutPreviewState, next: LayoutPreviewState): void {
 	target.source = next.source;
 	target.project = next.project;
@@ -222,4 +330,6 @@ function replaceState(target: LayoutPreviewState, next: LayoutPreviewState): voi
 	target.issues = next.issues;
 	target.bounds = next.bounds;
 	target.previewVersion = next.previewVersion;
+	target.showCeilings = next.showCeilings;
+	target.lastMutationMessage = null;
 }

@@ -3,7 +3,10 @@ import { describe, expect, it } from 'vitest';
 import { serializeSceneDocument } from '$lib/content/scene-codec';
 import {
 	commitLayoutDraftRoom,
+	commitLayoutOpening,
 	commitLayoutRoomEdit,
+	deleteLayoutOpening,
+	updateLayoutOpeningFields,
 	createLayoutPreviewState,
 	loadChopinLayoutPreview,
 	refreshLayoutPreview,
@@ -101,6 +104,92 @@ describe('layout preview state', () => {
 
 		expect(commitLayoutRoomEdit(state, room.id, points).success).toBe(false);
 		expect(JSON.stringify(state.project.layout)).toBe(before);
+	});
+
+	it('creates, updates, and deletes geometry-only openings without changing scene data', () => {
+		const state = createLayoutPreviewState();
+		resetLayoutPreview(state);
+		const sceneJson = serializeSceneDocument(state.project.scene);
+		const roomResult = commitLayoutDraftRoom(state, [[0, 0], [4, 0], [4, 3], [0, 3]]);
+		expect(roomResult.success).toBe(true);
+		if (!roomResult.success) return;
+		const room = state.project.layout.floors[0]!.rooms.find((candidate) => candidate.id === roomResult.roomId)!;
+		const segmentId = room.boundary.segments[0]!.id;
+
+		const created = commitLayoutOpening(state, room.id, segmentId, 'door', 1, true);
+		expect(created).toMatchObject({ success: true });
+		if (!created.success) return;
+		expect(state.project.layout.floors[0]!.rooms.find((candidate) => candidate.id === room.id)!.openings).toHaveLength(1);
+		expect(state.model.rooms.find((candidate) => candidate.roomId === room.id)!.walls[0]!.sections.some((section) => section.openingId === created.openingId)).toBe(true);
+
+		expect(updateLayoutOpeningFields(state, room.id, created.openingId, { width: 1.1, height: 2.2 })).toMatchObject({ success: true });
+		expect(deleteLayoutOpening(state, room.id, created.openingId)).toMatchObject({ success: true });
+		expect(state.project.layout.floors[0]!.rooms.find((candidate) => candidate.id === room.id)!.openings).toEqual([]);
+		expect(serializeSceneDocument(state.project.scene)).toBe(sceneJson);
+	});
+
+	it('rejects invalid opening edits and room edits that would break openings', () => {
+		const state = createLayoutPreviewState();
+		resetLayoutPreview(state);
+		const roomResult = commitLayoutDraftRoom(state, [[0, 0], [4, 0], [4, 3], [0, 3]]);
+		expect(roomResult.success).toBe(true);
+		if (!roomResult.success) return;
+		const room = state.project.layout.floors[0]!.rooms.find((candidate) => candidate.id === roomResult.roomId)!;
+		const segmentId = room.boundary.segments[0]!.id;
+		const created = commitLayoutOpening(state, room.id, segmentId, 'door', 1, false);
+		expect(created.success).toBe(true);
+		if (!created.success) return;
+		const before = JSON.stringify(state.project.layout);
+		const version = state.previewVersion;
+		expect(updateLayoutOpeningFields(state, room.id, created.openingId, { sillHeight: 2, height: 2 }).success).toBe(false);
+		expect(JSON.stringify(state.project.layout)).toBe(before);
+		expect(state.previewVersion).toBe(version);
+		const points = room.boundary.segments.map((segment) => [...segment.start] as [number, number]);
+		points[1] = [0.5, 0];
+		expect(commitLayoutRoomEdit(state, room.id, points).success).toBe(false);
+		expect(JSON.stringify(state.project.layout)).toBe(before);
+	});
+
+	it('rejects overlapping opening creation without advancing preview version', () => {
+		const state = createLayoutPreviewState();
+		resetLayoutPreview(state);
+		const roomResult = commitLayoutDraftRoom(state, [[0, 0], [6, 0], [6, 4], [0, 4]]);
+		expect(roomResult.success).toBe(true);
+		if (!roomResult.success) return;
+		const room = state.project.layout.floors[0]!.rooms.find((candidate) => candidate.id === roomResult.roomId)!;
+		const segmentId = room.boundary.segments[0]!.id;
+		const first = commitLayoutOpening(state, room.id, segmentId, 'door', 2, false);
+		expect(first.success).toBe(true);
+		if (!first.success) return;
+		const before = JSON.stringify(state.project.layout);
+		const version = state.previewVersion;
+		expect(commitLayoutOpening(state, room.id, segmentId, 'window', 2.2, false).success).toBe(false);
+		expect(JSON.stringify(state.project.layout)).toBe(before);
+		expect(state.previewVersion).toBe(version);
+		expect(state.lastMutationMessage).toMatch(/overlap/i);
+	});
+
+	it('keeps openings stable when editing an unrelated room', () => {
+		const state = createLayoutPreviewState();
+		resetLayoutPreview(state);
+		const firstRoom = commitLayoutDraftRoom(state, [[0, 0], [4, 0], [4, 3], [0, 3]]);
+		const secondRoom = commitLayoutDraftRoom(state, [[6, 0], [10, 0], [10, 3], [6, 3]]);
+		expect(firstRoom.success).toBe(true);
+		expect(secondRoom.success).toBe(true);
+		if (!firstRoom.success || !secondRoom.success) return;
+		const roomA = state.project.layout.floors[0]!.rooms.find((candidate) => candidate.id === firstRoom.roomId)!;
+		const roomB = state.project.layout.floors[0]!.rooms.find((candidate) => candidate.id === secondRoom.roomId)!;
+		const created = commitLayoutOpening(state, roomA.id, roomA.boundary.segments[0]!.id, 'door', 1, false);
+		expect(created.success).toBe(true);
+		if (!created.success) return;
+		const openingsBefore = JSON.stringify(
+			state.project.layout.floors[0]!.rooms.find((candidate) => candidate.id === roomA.id)!.openings
+		);
+		const points = roomB.boundary.segments.map((segment) => [segment.start[0] + 1, segment.start[1]] as [number, number]);
+		expect(commitLayoutRoomEdit(state, roomB.id, points)).toEqual({ success: true });
+		expect(
+			JSON.stringify(state.project.layout.floors[0]!.rooms.find((candidate) => candidate.id === roomA.id)!.openings)
+		).toBe(openingsBefore);
 	});
 
 	it('keeps ceiling visibility layout-local', () => {

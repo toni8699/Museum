@@ -241,9 +241,11 @@ Chopin ships as serialized project. `rooms.ts` deprecated or generated. Tour sta
 
 ## 9. Track C — Project envelope
 
-### C0 — `MuseumProject` codec *(after A0, ideally with B0)*
+### C0 — `MuseumProject` codec *(implemented)*
 
-Types/codec + tests: round-trip Chopin-sized fixture (compiled layout + scene v6); reject partial/invalid.
+Focused spec/plan: [`2026-08-10-layout-cad-c0-project-codec.md`](./2026-08-10-layout-cad-c0-project-codec.md).
+
+Implemented pure editor project types/codec for `{ formatVersion, id, name, layout, scene }`. Delegates nested validation/canonicalization to the public layout and scene codecs; prefixes nested issues; canonicalizes scene to v6; rejects partial/unknown envelope data. Tests round-trip an empty project and Chopin-sized compiled-layout + scene-v6 fixture. No UI, package binaries, visitor loading, history integration, or cutover.
 
 ### C1 — Editor open/export project
 

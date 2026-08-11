@@ -9,7 +9,7 @@
 
 **Layout (P0):** `formatVersion: 1`, `units: 'meters'`, floors → rooms → draft paths → openings → layout objects. A1 openings are geometry-only; `offset` is meters along a segment, never a sample index. B4 adds explicit `connectsRoomIds: [string, string]` for interior portals. Visitor ignores layout until B4/B5.
 
-**Project (Track C):** `{ formatVersion, id, name, layout, scene }`.
+**Project (Track C / C0):** `{ formatVersion: 1, id, name, layout, scene }`; pure editor codec plan: [`../plans/2026-08-10-layout-cad-c0-project-codec.md`](../plans/2026-08-10-layout-cad-c0-project-codec.md). Nested layout/scene codecs own validation and canonicalization; project prefixes nested issues and emits canonical scene v6. No assets, binary payloads, UI, history, or visitor loading in C0.
 
 **History:** one undo stack; ops tagged `layout` | `scene`; ~100 cap; validate-on-commit; no-op skips entry.
 

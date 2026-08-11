@@ -54,7 +54,7 @@ Runtime shell = `rooms.ts` until cutover. Scene/tour = v6 JSON. Layout CAD = P0 
 | Schema / I/O / history | [`components/persistence.md`](./components/persistence.md) |
 | Paris GLB / assets | [`components/assets.md`](./components/assets.md) |
 | **What to build now** | [`hand-off/CURRENT.md`](./hand-off/CURRENT.md) |
-| Layout CAD tasks | [`plans/2026-08-10-layout-cad-foundation.md`](./plans/2026-08-10-layout-cad-foundation.md) — task section only; A0/A1 have focused plans [`plans/2026-08-10-layout-cad-a0-codec.md`](./plans/2026-08-10-layout-cad-a0-codec.md) / [`plans/2026-08-10-layout-cad-a1-line-geometry.md`](./plans/2026-08-10-layout-cad-a1-line-geometry.md) |
+| Layout CAD tasks | [`plans/2026-08-10-layout-cad-foundation.md`](./plans/2026-08-10-layout-cad-foundation.md) — task section only; A0/A1/C0 have focused plans [`plans/2026-08-10-layout-cad-a0-codec.md`](./plans/2026-08-10-layout-cad-a0-codec.md) / [`plans/2026-08-10-layout-cad-a1-line-geometry.md`](./plans/2026-08-10-layout-cad-a1-line-geometry.md) / [`plans/2026-08-10-layout-cad-c0-project-codec.md`](./plans/2026-08-10-layout-cad-c0-project-codec.md) |
 | Deep camera dump | [`archive/CAMERA_AND_LAYOUT.md`](./archive/CAMERA_AND_LAYOUT.md) |
 | Asset checklist dump | [`archive/ASSET_WORKFLOW.md`](./archive/ASSET_WORKFLOW.md) |
 

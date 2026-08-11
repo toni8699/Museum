@@ -44,23 +44,27 @@
 				<T.MeshStandardMaterial color="#6b6254" roughness={0.9} metalness={0} />
 			</T.Mesh>
 
-			{#if showCeilings}
 			<T.Mesh
 				name={`LayoutCeiling:${room.roomId}`}
 				position={[0, room.ceilingElevation, 0]}
 				rotation={[Math.PI / 2, 0, 0]}
+				renderOrder={2}
 			>
 				<T.ShapeGeometry args={[polygonShape(ceilingShapePoints(room.ceilingPolygon))]} />
-				<T.MeshStandardMaterial
-					color="#b5a993"
-					transparent
-					opacity={0.12}
-					depthWrite={false}
+				<!--
+					Always mount ceilings. Inside Threlte <Canvas>, `{#if}` / `visible`
+					flips are unreliable; material opacity updates are not.
+					MeshBasicMaterial (unlit) stays readable under low editor ambient.
+					Opaque while on: transparent multi-lid sorting drops most ceilings.
+				-->
+				<T.MeshBasicMaterial
+					color="#d8c9a6"
+					transparent={!showCeilings}
+					opacity={showCeilings ? 1 : 0}
+					depthWrite={showCeilings}
 					side={DoubleSide}
-					roughness={1}
 				/>
 			</T.Mesh>
-			{/if}
 
 			{#each room.walls as wall (wall.segmentId)}
 				<T.Group

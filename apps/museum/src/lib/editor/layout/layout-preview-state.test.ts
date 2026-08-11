@@ -197,6 +197,8 @@ describe('layout preview state', () => {
 		expect(state.showCeilings).toBe(false);
 		toggleLayoutCeilings(state);
 		expect(state.showCeilings).toBe(true);
+		expect(resetLayoutPreview(state)).toBe(true);
+		expect(state.showCeilings).toBe(true);
 	});
 
 	it('refreshes geometry issues without mutating the source document', () => {

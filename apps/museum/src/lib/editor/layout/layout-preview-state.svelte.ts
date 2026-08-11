@@ -330,6 +330,6 @@ function replaceState(target: LayoutPreviewState, next: LayoutPreviewState): voi
 	target.issues = next.issues;
 	target.bounds = next.bounds;
 	target.previewVersion = next.previewVersion;
-	target.showCeilings = next.showCeilings;
+	// Keep layout-local ceiling inspection preference across reload/reset.
 	target.lastMutationMessage = null;
 }

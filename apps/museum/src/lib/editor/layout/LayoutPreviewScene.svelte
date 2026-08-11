@@ -1,9 +1,10 @@
 <script lang="ts">
 	import { T } from '@threlte/core';
-	import { Shape } from 'three';
+	import { DoubleSide, Shape } from 'three';
 	import type { LayoutPreviewModel, LayoutRoomPreview, WallPreview } from './layout-mesh-factory';
+	import { ceilingShapePoints, floorShapePoints } from './layout-preview-geometry';
 
-	let { model }: { model: LayoutPreviewModel } = $props();
+	let { model, showCeilings = false }: { model: LayoutPreviewModel; showCeilings?: boolean } = $props();
 
 	function polygonShape(points: LayoutRoomPreview['floorPolygon']): Shape {
 		const shape = new Shape();
@@ -29,24 +30,27 @@
 				rotation={[-Math.PI / 2, 0, 0]}
 				receiveShadow
 			>
-				<T.ShapeGeometry args={[polygonShape(room.floorPolygon)]} />
+				<T.ShapeGeometry args={[polygonShape(floorShapePoints(room.floorPolygon))]} />
 				<T.MeshStandardMaterial color="#6b6254" roughness={0.9} metalness={0} />
 			</T.Mesh>
 
+			{#if showCeilings}
 			<T.Mesh
 				name={`LayoutCeiling:${room.roomId}`}
 				position={[0, room.ceilingElevation, 0]}
 				rotation={[Math.PI / 2, 0, 0]}
 			>
-				<T.ShapeGeometry args={[polygonShape(room.ceilingPolygon)]} />
+				<T.ShapeGeometry args={[polygonShape(ceilingShapePoints(room.ceilingPolygon))]} />
 				<T.MeshStandardMaterial
 					color="#b5a993"
 					transparent
 					opacity={0.12}
 					depthWrite={false}
+					side={DoubleSide}
 					roughness={1}
 				/>
 			</T.Mesh>
+			{/if}
 
 			{#each room.walls as wall (wall.segmentId)}
 				<T.Group

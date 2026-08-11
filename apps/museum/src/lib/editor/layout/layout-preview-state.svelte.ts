@@ -5,6 +5,7 @@ import { createEmptyLayoutDocument } from './layout-codec';
 import { buildLayoutPreviewModel, type LayoutPreviewModel } from './layout-mesh-factory';
 import { layoutPreviewBounds, type LayoutPreviewBounds } from './layout-preview-bounds';
 import type { LayoutRoom, LayoutVec2 } from './layout-types';
+import { replaceRoomPoints } from './layout-editing';
 import { roomsToLayout } from './rooms-to-layout';
 import { validateLineRoom, type LayoutGeometryIssue } from './layout-validation';
 
@@ -17,10 +18,15 @@ export type LayoutPreviewState = {
 	issues: LayoutGeometryIssue[];
 	bounds: LayoutPreviewBounds | null;
 	previewVersion: number;
+	showCeilings: boolean;
 };
 
 export type LayoutDraftCommitResult =
 	| { success: true; roomId: string }
+	| { success: false; message: string };
+
+export type LayoutRoomEditResult =
+	| { success: true }
 	| { success: false; message: string };
 
 export function createLayoutPreviewState(): LayoutPreviewState {
@@ -61,6 +67,46 @@ export function refreshLayoutPreview(state: LayoutPreviewState): boolean {
 	state.bounds = layoutPreviewBounds(result.model);
 	state.previewVersion += 1;
 	return true;
+}
+
+export function toggleLayoutCeilings(state: LayoutPreviewState): void {
+	state.showCeilings = !state.showCeilings;
+}
+
+export function commitLayoutRoomEdit(
+	state: LayoutPreviewState,
+	roomId: string,
+	points: readonly LayoutVec2[]
+): LayoutRoomEditResult {
+	const layout = cloneLayout(state.project.layout);
+	const floor = layout.floors.find((candidate) => candidate.rooms.some((room) => room.id === roomId));
+	const room = floor?.rooms.find((candidate) => candidate.id === roomId);
+	if (!floor || !room) return { success: false, message: 'Room no longer exists' };
+	if (points.length !== room.boundary.segments.length || points.some((point) => point.some((value) => !Number.isFinite(value)))) {
+		return { success: false, message: 'Room edit contains invalid coordinates' };
+	}
+	const nextRoom = replaceRoomPoints(room, points);
+	const issues = validateLineRoom(nextRoom, floor);
+	if (issues.length > 0) return { success: false, message: issues[0]!.message };
+	floor.rooms = floor.rooms.map((candidate) => (candidate.id === roomId ? nextRoom : candidate));
+	try {
+		const nextProject = createMuseumProject({
+			id: state.project.id,
+			name: 'Draft Layout Preview',
+			layout,
+			scene: state.project.scene
+		});
+		const result = buildLayoutPreviewModel(nextProject.layout);
+		state.source = 'draft';
+		state.project = nextProject;
+		state.model = result.model;
+		state.issues = result.issues;
+		state.bounds = layoutPreviewBounds(result.model);
+		state.previewVersion += 1;
+		return { success: true };
+	} catch (error) {
+		return { success: false, message: error instanceof Error ? error.message : 'Could not edit room' };
+	}
 }
 
 export function commitLayoutDraftRoom(
@@ -153,7 +199,8 @@ function createState(
 		model: result.model,
 		issues: result.issues,
 		bounds: layoutPreviewBounds(result.model),
-		previewVersion: previousVersion + 1
+		previewVersion: previousVersion + 1,
+		showCeilings: false
 	};
 }
 

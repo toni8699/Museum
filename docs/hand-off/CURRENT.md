@@ -4,15 +4,15 @@
 
 **North star:** layout-first / Chopin-as-data — [`../north-star.md`](../north-star.md).  
 **P0:** Layout CAD Foundation — [`../plans/2026-08-10-layout-cad-foundation.md`](../plans/2026-08-10-layout-cad-foundation.md).  
-**Completed:** A0 LayoutDocument codec + B0 Chopin `rooms.ts` compiler + A1 pure line geometry/preview model/transaction stub + C0 `MuseumProject` codec + A2 read-only layout preview workspace + A2.1 rectangle/polygon drafting.
+**Completed:** A0 LayoutDocument codec + B0 Chopin `rooms.ts` compiler + A1 pure line geometry/preview model/transaction stub + C0 `MuseumProject` codec + A2 read-only layout preview workspace + A2.1 rectangle/polygon drafting + A2.2 meter-scale editing and Chopin floor correction.
 
 Full-track Phase 2 scene presets = deferred optional.
 
 ## Next slice
 
-**A2.2** — layout selection and drafting polish: select rooms, inspect draft boundaries, add Backspace point removal, and decide grid/angle snapping before opening authoring.
+**A2.3** — geometry-only door/window openings and numeric dimensions. A2.2 is implemented in [`../plans/2026-08-10-layout-cad-a2-2-scale-editing.md`](../plans/2026-08-10-layout-cad-a2-2-scale-editing.md).
 
-A2.1 now provides Plan/3D switching, rectangle drag, polygon close/Finish, Escape cancellation, and in-memory layout-only room commits. A1 shipped pure line geometry, validation, preview model, and transaction stub. C0 shipped the project envelope. No Bezier before A3.
+A2.1 provides Plan/3D switching, rectangle drag, polygon close/Finish, Escape cancellation, and in-memory layout-only room commits. A2.2 adds stable meter scale, selection/editing, ceiling visibility, and Chopin floor alignment correction. A1 shipped pure line geometry, validation, preview model, and transaction stub. C0 shipped the project envelope. No Bezier before A3.
 
 ## Completed verification
 
@@ -23,9 +23,9 @@ A2.1 now provides Plan/3D switching, rectangle drag, polygon close/Finish, Escap
 - A2 preview focused tests: 28 passed.
 - A2.1 drafting tests: 9 passed.
 - A2.1 focused shell/camera regression set: 117 passed.
-- Full suite: 1037 tests passed.
-- `npm run check`: same 4 baseline diagnostics in `MuseumEntities.svelte` and `EditorViewport.svelte`; no A2.1 diagnostics or warnings.
-- `npm run check`: still blocked by 4 pre-existing diagnostics in `MuseumEntities.svelte` and `EditorViewport.svelte`.
+- A2.2 focused tests: 21 passed.
+- Full suite: 1049 tests passed.
+- `npm run check`: same 4 baseline diagnostics in `MuseumEntities.svelte` and `EditorViewport.svelte`; no A2.2 diagnostics or warnings.
 
 ## Locked decisions
 
@@ -36,6 +36,7 @@ A2.1 now provides Plan/3D switching, rectangle drag, polygon close/Finish, Escap
 - A1 corridor = ordinary skinny `LayoutRoom` with optional two rectangular geometry-only cutouts; no corridor type or adjacency semantics yet.
 - A2 preview renders generated geometry; A2.1 drafts rooms in an isolated in-memory layout preview only.
 - A2.1 does not add shared history, persistence, openings, room selection, or snapping.
+- A2.2 uses layout-local meter coordinates, 0.25 m snap, 15° Shift angle snap, room/vertex edits, and ceiling visibility; no shared history or persistence.
 - A1 preview output is pure data; A2 owns the Three/Svelte rendering adapter.
 - A1 `LayoutOpening.offset` is meters along its segment; B4 adds explicit `connectsRoomIds` for portals.
 - No commits unless user asks.
@@ -49,7 +50,7 @@ Phase 2 Wall presets · Bezier/arches (A3) · semantic room adjacency/portal gra
 1. This file.  
 2. [`../AGENTS.md`](../../AGENTS.md) hard rules.  
 3. [`../architecture.md`](../architecture.md) (layout/`rooms.ts` only).  
-4. For A2.2, read the A2.1 section in the foundation plan + the A1 plan for the preview model contract. A0/B0/A1/C0/A2/A2.1 are shipped.
+4. For A2.3, read the A2.3 section in the foundation plan + the A1 plan for the preview model contract. A0/B0/A1/C0/A2/A2.1/A2.2 are shipped.
 
 5. Skip other `docs/components/*` unless the task touches them.
 

@@ -211,6 +211,16 @@ Focused spec/plan: [`2026-08-10-layout-cad-a2-editor-preview.md`](./2026-08-10-l
 
 **Boundary:** grid rendering is present, but angle snapping, Backspace point removal, room selection/handles, openings, shared history, and persistence remain deferred. Draft commits are in-memory preview state only and never mutate scene data.
 
+### A2.2 — Meter-scale Plan editing and Chopin preview correction *(implemented)*
+
+Focused plan: [`2026-08-10-layout-cad-a2-2-scale-editing.md`](./2026-08-10-layout-cad-a2-2-scale-editing.md).
+
+Combine stable meter coordinates/grid/zoom/pan with room selection, whole-room and vertex editing, live dimensions, and layout-local ceiling visibility. First fix the Chopin preview floor coordinate mirror so floor footprints align with wall centerlines. Keep numeric field editing, openings, Bezier, shared history, persistence, and visitor/runtime changes deferred. A2.2 is implemented; next focused slice is A2.3 openings and numeric dimensions.
+
+### A2.3 — Opening authoring and numeric dimensions *(next)*
+
+Add wall selection, geometry-only door/window placement, width/height/offset fields, and shared layout mutation tests. Keep portal adjacency deferred to B4.
+
 ### A3 — Bezier walls and arch profiles
 
 Extend geometry/validation/mesh/inspectors for Bezier + `rounded` | `pointed` openings. Adaptive sampling. Distance-along-curve openings.

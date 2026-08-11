@@ -3,10 +3,12 @@ import { describe, expect, it } from 'vitest';
 import { serializeSceneDocument } from '$lib/content/scene-codec';
 import {
 	commitLayoutDraftRoom,
+	commitLayoutRoomEdit,
 	createLayoutPreviewState,
 	loadChopinLayoutPreview,
 	refreshLayoutPreview,
-	resetLayoutPreview
+	resetLayoutPreview,
+	toggleLayoutCeilings
 } from './layout-preview-state.svelte';
 
 describe('layout preview state', () => {
@@ -75,6 +77,37 @@ describe('layout preview state', () => {
 		});
 		expect(state.project.layout.floors[0]!.rooms).toHaveLength(roomCount);
 		expect(state.previewVersion).toBe(version);
+	});
+
+	it('edits a committed room without changing scene data or segment ids', () => {
+		const state = createLayoutPreviewState();
+		const room = state.project.layout.floors[0]!.rooms[0]!;
+		const ids = room.boundary.segments.map((segment) => segment.id);
+		const points = room.boundary.segments.map((segment) => [segment.start[0] + 2, segment.start[1] - 1] as [number, number]);
+		const sceneJson = serializeSceneDocument(state.project.scene);
+
+		expect(commitLayoutRoomEdit(state, room.id, points)).toEqual({ success: true });
+		expect(state.project.layout.floors[0]!.rooms[0]!.boundary.segments.map((segment) => segment.id)).toEqual(ids);
+		expect(state.model.rooms[0]!.floorPolygon[0]).toEqual(points[0]);
+		expect(serializeSceneDocument(state.project.scene)).toBe(sceneJson);
+	});
+
+	it('rejects invalid room edits without mutating committed geometry', () => {
+		const state = createLayoutPreviewState();
+		const room = state.project.layout.floors[0]!.rooms[0]!;
+		const before = JSON.stringify(state.project.layout);
+		const points = room.boundary.segments.map((segment) => [...segment.start] as [number, number]);
+		points[1] = points[0]!;
+
+		expect(commitLayoutRoomEdit(state, room.id, points).success).toBe(false);
+		expect(JSON.stringify(state.project.layout)).toBe(before);
+	});
+
+	it('keeps ceiling visibility layout-local', () => {
+		const state = createLayoutPreviewState();
+		expect(state.showCeilings).toBe(false);
+		toggleLayoutCeilings(state);
+		expect(state.showCeilings).toBe(true);
 	});
 
 	it('refreshes geometry issues without mutating the source document', () => {

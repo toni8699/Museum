@@ -123,6 +123,7 @@
 	<EditorInspector
 		{store}
 		{layoutPreview}
+		{layoutInteraction}
 		{selectedAsset}
 		bind:clusterNameInput
 	/>

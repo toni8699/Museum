@@ -87,7 +87,7 @@
 	aria-label="Museum editor viewport"
 >
 	{#if store.currentWorkspace === 'layout'}
-		<LayoutDraftToolbar interaction={layoutInteraction} />
+		<LayoutDraftToolbar interaction={layoutInteraction} preview={layoutPreview} />
 	{/if}
 	{#if store.currentWorkspace === 'layout' && layoutInteraction.viewMode === 'plan'}
 		<LayoutPlanViewport
@@ -124,7 +124,7 @@
 			{/snippet}
 		</MuseumScene>
 		{#if store.currentWorkspace === 'layout'}
-			<LayoutPreviewScene model={layoutPreview.model} />
+			<LayoutPreviewScene model={layoutPreview.model} showCeilings={layoutPreview.showCeilings} />
 		{/if}
 		<EditorGrid visible={store.gridVisible && !store.isVisitorCameraPreview} />
 		{#if store.currentWorkspace !== 'layout' && store.viewportShowPaths}

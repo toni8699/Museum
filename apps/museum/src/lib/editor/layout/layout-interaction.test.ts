@@ -5,6 +5,7 @@ import {
 	beginRectangle,
 	clearLayoutDraft,
 	createLayoutInteractionState,
+	removeLastPolygonPoint,
 	rectanglePoints,
 	setLayoutDraftTool,
 	setLayoutViewMode,
@@ -32,6 +33,9 @@ describe('layout interaction', () => {
 		addPolygonPoint(state, [0, 0]);
 		addPolygonPoint(state, [4, 0]);
 		expect(state.polygonPoints).toEqual([[0, 0], [4, 0]]);
+
+		removeLastPolygonPoint(state);
+		expect(state.polygonPoints).toEqual([[0, 0]]);
 
 		setLayoutViewMode(state, '3d');
 		expect(state.polygonPoints).toEqual([]);

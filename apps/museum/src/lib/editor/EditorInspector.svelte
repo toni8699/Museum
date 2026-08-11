@@ -10,6 +10,8 @@
 	import EditorPrimitiveInspector from './EditorPrimitiveInspector.svelte';
 	import EditorTransformInspector from './EditorTransformInspector.svelte';
 	import { layoutPreviewSourceLabel, type LayoutPreviewState } from './layout/layout-preview-state.svelte';
+	import type { LayoutInteractionState } from './layout/layout-interaction';
+	import { roomBounds, roomEdgeLength } from './layout/layout-editing';
 	import {
 		EDITOR_BRIGHT_LIGHTING,
 		EDITOR_VISITOR_LIGHTING,
@@ -19,11 +21,13 @@
 	let {
 		store,
 		layoutPreview,
+		layoutInteraction,
 		selectedAsset,
 		clusterNameInput = $bindable()
 	}: {
 		store: MuseumEditorStore;
 		layoutPreview: LayoutPreviewState;
+		layoutInteraction: LayoutInteractionState;
 		selectedAsset?: MuseumAsset;
 		clusterNameInput?: HTMLInputElement;
 	} = $props();
@@ -80,6 +84,12 @@
 		Boolean(store.selectedCluster) || store.selectedPlacementIds.length > 0
 	);
 	const canDuplicateSelection = $derived(store.selectedPlacementIds.length > 0);
+	const selectedLayoutRoom = $derived(
+		layoutInteraction.selectedRoomId
+			? layoutPreview.project.layout.floors.flatMap((floor) => floor.rooms).find((room) => room.id === layoutInteraction.selectedRoomId)
+			: undefined
+	);
+	const selectedLayoutBounds = $derived(selectedLayoutRoom ? roomBounds(selectedLayoutRoom) : null);
 
 	$effect(() => {
 		clusterNameDraft = store.selectedCluster?.name ?? '';
@@ -136,7 +146,7 @@
 	<header>
 		<h2>Inspector</h2>
 		{#if store.currentWorkspace === 'layout'}
-			<p>Generated layout preview · read-only</p>
+			<p>Layout Plan editing · preview-only</p>
 		{:else if showAssetInspector}
 			<p>{selectedAsset ? 'Asset library selection' : 'No asset matches the current filters.'}</p>
 		{:else if selectedNavigation?.kind === 'node' && selectedCameraNode}
@@ -169,6 +179,14 @@
 				<div><dt>Issues</dt><dd>{layoutPreview.issues.length}</dd></div>
 			</dl>
 			<p class="layout-inspector-note">Openings are geometry-only in this phase. No room adjacency or portal semantics are inferred.</p>
+			{#if selectedLayoutRoom && selectedLayoutBounds}
+				<div class="layout-selected-room" aria-label="Selected layout room">
+					<strong>{selectedLayoutRoom.name}</strong>
+					<span>{selectedLayoutRoom.id}</span>
+					<span>Bounds: {selectedLayoutBounds.width.toFixed(2)} m × {selectedLayoutBounds.height.toFixed(2)} m</span>
+					<span>Edges: {selectedLayoutRoom.boundary.segments.map((_, index) => `${roomEdgeLength(selectedLayoutRoom, index).toFixed(2)} m`).join(' · ')}</span>
+				</div>
+			{/if}
 			{#if layoutPreview.issues.length > 0}
 				<div class="layout-issues" role="alert">
 					<strong>Geometry warnings</strong>
@@ -362,6 +380,8 @@
 	.layout-inspector dt { color: #8f8a82; font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.04em; }
 	.layout-inspector dd { margin: 0; color: #f4efe4; font-size: 0.72rem; text-align: right; }
 	.layout-inspector-note { margin: 0; color: #a8a29a; font-size: 0.7rem; line-height: 1.45; }
+	.layout-selected-room { display: flex; flex-direction: column; gap: 0.2rem; padding: 0.6rem; border: 1px solid #8d753c; border-radius: 0.35rem; background: #211d15; color: #f4efe4; font-size: 0.7rem; }
+	.layout-selected-room span { color: #c4bdaF; font-size: 0.66rem; overflow-wrap: anywhere; }
 	.layout-issues { max-height: 12rem; overflow: auto; padding: 0.55rem; border: 1px solid #684147; border-radius: 0.35rem; background: #21191b; color: #efc7c7; font-size: 0.68rem; line-height: 1.4; }
 	.layout-issues ul { display: flex; flex-direction: column; gap: 0.35rem; margin: 0.4rem 0 0; padding-left: 1rem; }
 	.layout-issues code { color: #f4dc9b; font-size: 0.63rem; }

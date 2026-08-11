@@ -7,8 +7,10 @@
 		type LayoutDraftTool,
 		type LayoutViewMode
 	} from './layout-interaction';
+	import type { LayoutPreviewState } from './layout-preview-state.svelte';
+	import { toggleLayoutCeilings } from './layout-preview-state.svelte';
 
-	let { interaction }: { interaction: LayoutInteractionState } = $props();
+	let { interaction, preview }: { interaction: LayoutInteractionState; preview: LayoutPreviewState } = $props();
 
 	function chooseView(mode: LayoutViewMode) {
 		setLayoutViewMode(interaction, mode);
@@ -33,6 +35,14 @@
 		<button type="button" class:active={interaction.tool === 'rectangle'} aria-pressed={interaction.tool === 'rectangle'} onclick={() => chooseTool('rectangle')}>Rectangle</button>
 		<button type="button" class:active={interaction.tool === 'polygon'} aria-pressed={interaction.tool === 'polygon'} onclick={() => chooseTool('polygon')}>Polygon</button>
 	</div>
+	{#if interaction.viewMode === 'plan'}
+		<div class="tool-group options" aria-label="Plan options">
+			<button type="button" class:active={interaction.planView.snapEnabled} aria-pressed={interaction.planView.snapEnabled} onclick={() => (interaction.planView.snapEnabled = !interaction.planView.snapEnabled)}>Snap 0.25m</button>
+			<button type="button" class:active={interaction.planView.gridEnabled} aria-pressed={interaction.planView.gridEnabled} onclick={() => (interaction.planView.gridEnabled = !interaction.planView.gridEnabled)}>Grid</button>
+		</div>
+	{:else}
+		<button type="button" class:active={preview.showCeilings} aria-pressed={preview.showCeilings} onclick={() => toggleLayoutCeilings(preview)}>Ceiling</button>
+	{/if}
 	{#if interaction.polygonPoints.length > 0 || interaction.rectangleStart}
 		<button type="button" class="cancel" onclick={cancel}>Cancel</button>
 	{/if}
@@ -41,6 +51,7 @@
 <style>
 	.layout-toolbar { position: absolute; top: 0.75rem; left: 0.75rem; z-index: 4; display: flex; gap: 0.3rem; padding: 0.3rem; border: 1px solid #46444e; border-radius: 0.42rem; background: rgb(19 19 26 / 94%); box-shadow: 0 0.4rem 1.25rem rgb(0 0 0 / 28%); }
 	.tool-group { display: flex; gap: 0.22rem; padding-right: 0.32rem; border-right: 1px solid #34343e; }
+	.tool-group.options { border-right: 0; }
 	button { padding: 0.38rem 0.52rem; border: 1px solid transparent; border-radius: 0.3rem; background: transparent; color: #c9c3b8; font: 600 0.68rem/1 ui-sans-serif, system-ui, sans-serif; cursor: pointer; }
 	button:hover { border-color: #5a5663; color: #fff; }
 	button.active { border-color: #8d753c; background: #2a2618; color: #fff2c7; }

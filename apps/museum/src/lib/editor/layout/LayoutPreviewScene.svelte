@@ -2,6 +2,7 @@
 	import { T } from '@threlte/core';
 	import { DoubleSide, Shape } from 'three';
 	import type { LayoutPreviewModel, LayoutRoomPreview, WallPreview } from './layout-mesh-factory';
+	import type { LayoutInteractionState } from './layout-interaction';
 	import { archProfileTopAt } from './arch-profile';
 	import { ceilingShapePoints, floorShapePoints } from './layout-preview-geometry';
 	import { pointAlongSamples } from './layout-opening-editing';
@@ -9,11 +10,13 @@
 
 	let {
 		model,
+		interaction,
 		showCeilings = false,
 		selectedSegmentId = null,
 		selectedOpeningId = null
 	}: {
 		model: LayoutPreviewModel;
+		interaction: LayoutInteractionState;
 		showCeilings?: boolean;
 		selectedSegmentId?: string | null;
 		selectedOpeningId?: string | null;
@@ -57,14 +60,35 @@
 <T.Group name="LayoutPreviewRoot">
 	{#each model.rooms as room (room.roomId)}
 		<T.Group name={`LayoutRoom:${room.roomId}`}>
-			<T.Mesh name={`LayoutFloor:${room.roomId}`} position={[0, room.floorElevation, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+			<T.Mesh
+				name={`LayoutFloor:${room.roomId}`}
+				position={[0, room.floorElevation, 0]}
+				rotation={[-Math.PI / 2, 0, 0]}
+				receiveShadow
+				userData={{
+					surfaceType: 'floor',
+					roomId: room.roomId,
+					editorSurface: { type: 'floor', placeable: true, roomId: room.roomId }
+				}}
+			>
 				<T.ShapeGeometry args={[polygonShape(floorShapePoints(room.floorPolygon))]} />
 				<T.MeshStandardMaterial color="#6b6254" roughness={0.9} metalness={0} />
 			</T.Mesh>
 
-			<T.Mesh name={`LayoutCeiling:${room.roomId}`} position={[0, room.ceilingElevation, 0]} rotation={[Math.PI / 2, 0, 0]} renderOrder={2}>
+			<T.Mesh
+				name={`LayoutCeiling:${room.roomId}`}
+				position={[0, room.ceilingElevation, 0]}
+				rotation={[Math.PI / 2, 0, 0]}
+				renderOrder={2}
+			>
 				<T.ShapeGeometry args={[polygonShape(ceilingShapePoints(room.ceilingPolygon))]} />
-				<T.MeshBasicMaterial color="#d8c9a6" transparent={!showCeilings} opacity={showCeilings ? 1 : 0} depthWrite={showCeilings} side={DoubleSide} />
+				<T.MeshBasicMaterial
+					color="#d8c9a6"
+					transparent={!showCeilings}
+					opacity={showCeilings ? 1 : 0}
+					depthWrite={showCeilings}
+					side={DoubleSide}
+				/>
 			</T.Mesh>
 
 			{#each room.walls as wall (wall.segmentId)}
@@ -79,13 +103,44 @@
 							{#if section.topY > bottomY + 1e-6}
 								<T.Mesh
 									name={`LayoutWallSection:${wall.segmentId}:${sectionIndex}:${sampleIndex}`}
-									position={[(clipped.startPoint[0] + clipped.endPoint[0]) / 2, room.floorElevation + (bottomY + section.topY) / 2, (clipped.startPoint[1] + clipped.endPoint[1]) / 2]}
-									rotation={[0, -Math.atan2(clipped.endPoint[1] - clipped.startPoint[1], clipped.endPoint[0] - clipped.startPoint[0]), 0]}
+									position={[
+										(clipped.startPoint[0] + clipped.endPoint[0]) / 2,
+										room.floorElevation + (bottomY + section.topY) / 2,
+										(clipped.startPoint[1] + clipped.endPoint[1]) / 2
+									]}
+									rotation={[
+										0,
+										-Math.atan2(
+											clipped.endPoint[1] - clipped.startPoint[1],
+											clipped.endPoint[0] - clipped.startPoint[0]
+										),
+										0
+									]}
 									castShadow
 									receiveShadow
 								>
-									<T.BoxGeometry args={[Math.max(0.001, Math.hypot(clipped.endPoint[0] - clipped.startPoint[0], clipped.endPoint[1] - clipped.startPoint[1])), section.topY - bottomY, wall.thickness]} />
-									<T.MeshStandardMaterial color={section.openingId === selectedOpeningId ? '#f1d99a' : wall.segmentId === selectedSegmentId ? '#d6b35f' : '#a99d89'} roughness={0.82} metalness={0} />
+									<T.BoxGeometry
+										args={[
+											Math.max(
+												0.001,
+												Math.hypot(
+													clipped.endPoint[0] - clipped.startPoint[0],
+													clipped.endPoint[1] - clipped.startPoint[1]
+												)
+											),
+											section.topY - bottomY,
+											wall.thickness
+										]}
+									/>
+									<T.MeshStandardMaterial
+										color={section.openingId === selectedOpeningId
+											? '#f1d99a'
+											: wall.segmentId === selectedSegmentId
+												? '#d6b35f'
+												: '#a99d89'}
+										roughness={0.82}
+										metalness={0}
+									/>
 								</T.Mesh>
 							{/if}
 						{/if}
@@ -94,4 +149,74 @@
 			{/each}
 		</T.Group>
 	{/each}
+
+	{#each model.objects as object (object.objectId)}
+		<T.Group
+			name={`LayoutObject:${object.objectId}`}
+			position={interaction.objectDrag?.objectId === object.objectId
+				? interaction.objectDrag.candidatePosition
+				: object.position}
+			rotation={object.rotation}
+			userData={{ editorEntity: 'layout-object', layoutObjectId: object.objectId }}
+		>
+			<T.Mesh
+				castShadow
+				receiveShadow
+				scale={object.kind === 'sphere'
+					? object.dimensions
+					: object.kind === 'cylinder'
+						? [1, 1, object.dimensions[2] / object.dimensions[0]]
+						: [1, 1, 1]}
+			>
+				{#if object.kind === 'box' || object.kind === 'plane' || object.kind === 'profile'}
+					<T.BoxGeometry args={object.dimensions} />
+				{:else if object.kind === 'cylinder'}
+					<T.CylinderGeometry
+						args={[object.dimensions[0] / 2, object.dimensions[0] / 2, object.dimensions[1], 24]}
+					/>
+				{:else}
+					<T.SphereGeometry args={[0.5, 24, 16]} />
+				{/if}
+				<T.MeshStandardMaterial
+					color={interaction.selection.kind === 'object' &&
+					interaction.selection.objectId === object.objectId
+						? '#d6b35f'
+						: object.readonly
+							? '#756f82'
+							: '#84907b'}
+					roughness={0.78}
+					metalness={0}
+				/>
+			</T.Mesh>
+		</T.Group>
+	{/each}
+
+	{#if interaction.pendingObject?.position}
+		{@const pending = interaction.pendingObject}
+		<T.Group name="LayoutObjectGhost" position={pending.position ?? [0, 0, 0]}>
+			<T.Mesh
+				scale={pending.kind === 'sphere'
+					? pending.dimensions
+					: pending.kind === 'cylinder'
+						? [1, 1, pending.dimensions[2] / pending.dimensions[0]]
+						: [1, 1, 1]}
+			>
+				{#if pending.kind === 'box' || pending.kind === 'plane'}
+					<T.BoxGeometry args={pending.dimensions} />
+				{:else if pending.kind === 'cylinder'}
+					<T.CylinderGeometry
+						args={[pending.dimensions[0] / 2, pending.dimensions[0] / 2, pending.dimensions[1], 24]}
+					/>
+				{:else}
+					<T.SphereGeometry args={[0.5, 24, 16]} />
+				{/if}
+				<T.MeshBasicMaterial
+					color={pending.valid ? '#d6b35f' : '#d96b6b'}
+					transparent
+					opacity={0.45}
+					depthWrite={false}
+				/>
+			</T.Mesh>
+		</T.Group>
+	{/if}
 </T.Group>

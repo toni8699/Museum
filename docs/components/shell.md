@@ -1,7 +1,7 @@
 # Shell and workspaces
 
 **Read when:** app chrome, Scene/Camera switch, Layout mode, top bar, timeline frame, project menu.  
-**Last reviewed:** 2026-08-10
+**Last reviewed:** 2026-08-12
 
 ---
 
@@ -23,6 +23,6 @@ Layout mode (CAD) = selection mutex vs Museum mode (lock before plan UX).
 | Scene | Preview Museum → `/museum` |
 | Camera | Preview Tour → in-editor guided play |
 
-Project menu: Import JSON / paste / `.museumpack.zip` · Export package · Copy/Download JSON · Reset · validation. Layout import/export separate when CAD lands. **No** automatic git Save. Dirty leave prompts.
+Project menu: scene Import/Paste/Copy/Download/Reset plus a separate Layout JSON Import/Paste/Copy/Download/Reset section. Layout status and invalid-import feedback appear in the menu, sidebar, and inspector. Scene and layout replacement confirmations are document-scoped; editor navigation and browser unload protect either dirty document. The top-bar scene dirty badge remains scene-scoped. **No** automatic git Save.
 
 Timeline: collapsed ~36px / open ~220–360px; Camera auto-opens. Lanes: Guided Route · Camera Framing (no independent Pos/Target/FOV curves).

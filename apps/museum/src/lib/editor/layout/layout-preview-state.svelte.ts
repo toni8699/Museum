@@ -1,10 +1,15 @@
 import { museumSceneDocument } from '$lib/content/scene';
 import { createMuseumProject } from '$lib/editor/project/project-codec';
 import type { MuseumProject } from '$lib/editor/project/project-types';
-import { createEmptyLayoutDocument } from './layout-codec';
+import {
+	createEmptyLayoutDocument,
+	parseLayoutDocumentJson,
+	serializeLayoutDocument,
+	validateLayoutDocument
+} from './layout-codec';
 import { buildLayoutPreviewModel, type LayoutPreviewModel } from './layout-mesh-factory';
 import { layoutPreviewBounds, type LayoutPreviewBounds } from './layout-preview-bounds';
-import type { DraftSegment, LayoutOpening, LayoutRoom, LayoutVec2 } from './layout-types';
+import type { DraftSegment, LayoutObject, LayoutOpening, LayoutRoom, LayoutVec2 } from './layout-types';
 import { deleteInteriorAnchorOnSegment, insertInteriorAnchorOnSegment, replaceRoomPoints, updateInteriorAnchorOnSegment } from './layout-editing';
 import {
 	appendRoomOpening,
@@ -17,9 +22,22 @@ import {
 	type LayoutOpeningPatch
 } from './layout-opening-editing';
 import { roomsToLayout } from './rooms-to-layout';
-import { hasBlockingLayoutIssues, validateLineRoom, type LayoutGeometryIssue } from './layout-validation';
+import { hasBlockingLayoutIssues, validateLayoutDocumentGeometry, validateLineRoom, type LayoutGeometryIssue } from './layout-validation';
+import {
+	createLayoutObject,
+	defaultLayoutObjectDimensions,
+	deleteLayoutObject as deleteObjectFromDocument,
+	isKnownLayoutRoomId,
+	nextLayoutObjectId,
+	patchLayoutObject,
+	type AuthoredLayoutObjectKind,
+	type LayoutObjectPatch
+} from './layout-object-editing';
+import type { Vec3 } from '$lib/types/museum';
 
-export type LayoutPreviewSource = 'chopin-fixture' | 'empty' | 'draft';
+export type LayoutPreviewSource = 'chopin-fixture' | 'empty' | 'draft' | 'imported';
+export type LayoutBaselineKind = 'blank' | 'imported';
+export type LayoutSessionStatus = 'blank' | 'dirty' | 'imported';
 
 export type LayoutPreviewState = {
 	source: LayoutPreviewSource;
@@ -30,6 +48,10 @@ export type LayoutPreviewState = {
 	previewVersion: number;
 	showCeilings: boolean;
 	lastMutationMessage: string | null;
+	statusMessage: string | null;
+	importError: string | null;
+	baselineLayoutJson: string;
+	baselineKind: LayoutBaselineKind;
 };
 
 export type LayoutDraftCommitResult =
@@ -48,6 +70,14 @@ export type LayoutOpeningMutationResult =
 	| { success: true; openingId: string }
 	| { success: false; message: string };
 
+export type LayoutObjectMutationResult =
+	| { success: true; objectId: string }
+	| { success: false; message: string };
+
+export type LayoutRoomFieldPatch = Partial<
+	Pick<LayoutRoom, 'name' | 'wallThickness' | 'floorThickness' | 'ceilingThickness'>
+> & { floorHeight?: number };
+
 export function createLayoutPreviewState(): LayoutPreviewState {
 	return createState('chopin-fixture', roomsToLayout(), museumSceneDocument, 0);
 }
@@ -60,7 +90,33 @@ export function layoutPreviewSourceLabel(source: LayoutPreviewSource): string {
 			return 'Empty layout';
 		case 'draft':
 			return 'Draft layout';
+		case 'imported':
+			return 'Imported layout';
 	}
+}
+
+/** Derived — do not store on `$state` objects (getters break Svelte 5 proxies). */
+export function layoutPreviewIsDirty(state: LayoutPreviewState): boolean {
+	return serializeLayoutDocument(state.project.layout) !== state.baselineLayoutJson;
+}
+
+export function layoutPreviewSessionStatus(state: LayoutPreviewState): LayoutSessionStatus {
+	return layoutPreviewIsDirty(state) ? 'dirty' : state.baselineKind;
+}
+
+export function layoutPreviewStatusLabel(state: LayoutPreviewState): string {
+	const status = layoutPreviewSessionStatus(state);
+	return status === 'dirty' ? 'Unsaved' : status === 'blank' ? 'Blank' : 'Imported';
+}
+
+export function layoutPreviewCanonicalJson(state: LayoutPreviewState): string {
+	return serializeLayoutDocument(state.project.layout);
+}
+
+/** Report a failed layout import without changing the committed preview or baseline. */
+export function setLayoutPreviewImportError(state: LayoutPreviewState, message: string): void {
+	state.importError = message;
+	state.statusMessage = `Import failed: ${message}`;
 }
 
 export function loadChopinLayoutPreview(state: LayoutPreviewState): boolean {
@@ -86,11 +142,123 @@ export function refreshLayoutPreview(state: LayoutPreviewState): boolean {
 	state.bounds = layoutPreviewBounds(result.model);
 	state.previewVersion += 1;
 	state.lastMutationMessage = null;
+	state.statusMessage = null;
+	state.importError = null;
 	return true;
 }
 
 export function toggleLayoutCeilings(state: LayoutPreviewState): void {
 	state.showCeilings = !state.showCeilings;
+}
+
+export function importLayoutPreviewJson(state: LayoutPreviewState, json: string): boolean {
+	const parsed = parseLayoutDocumentJson(json);
+	if (!parsed.success) {
+		setLayoutPreviewImportError(state, parsed.issues[0]?.message ?? 'Invalid layout document');
+		return false;
+	}
+	try {
+		const nextProject = createMuseumProject({
+			id: state.project.id,
+			name: state.project.name,
+			layout: parsed.document,
+			scene: state.project.scene
+		});
+		const result = buildLayoutPreviewModel(nextProject.layout);
+		state.source = 'imported';
+		state.project = nextProject;
+		state.model = result.model;
+		state.issues = result.issues;
+		state.bounds = layoutPreviewBounds(result.model);
+		state.previewVersion += 1;
+		state.baselineLayoutJson = parsed.canonicalJson;
+		state.baselineKind = 'imported';
+		state.lastMutationMessage = null;
+		state.statusMessage = 'Imported layout JSON';
+		state.importError = null;
+		return true;
+	} catch (error) {
+		setLayoutPreviewImportError(state, error instanceof Error ? error.message : 'Could not import layout');
+		return false;
+	}
+}
+
+export function updateLayoutRoomFields(
+	state: LayoutPreviewState,
+	roomId: string,
+	patch: LayoutRoomFieldPatch
+): LayoutRoomEditResult {
+	const layout = cloneLayout(state.project.layout);
+	const floor = layout.floors.find((candidate) => candidate.rooms.some((room) => room.id === roomId));
+	const room = floor?.rooms.find((candidate) => candidate.id === roomId);
+	if (!floor || !room) return failRoomEdit(state, 'Room no longer exists');
+	if (patch.name !== undefined && patch.name.trim().length === 0) {
+		return failRoomEdit(state, 'Room name cannot be empty');
+	}
+	const nextRoom: LayoutRoom = {
+		...room,
+		...(patch.name === undefined ? {} : { name: patch.name.trim() }),
+		...(patch.wallThickness === undefined ? {} : { wallThickness: patch.wallThickness }),
+		...(patch.floorThickness === undefined ? {} : { floorThickness: patch.floorThickness }),
+		...(patch.ceilingThickness === undefined ? {} : { ceilingThickness: patch.ceilingThickness })
+	};
+	floor.rooms = floor.rooms.map((candidate) => (candidate.id === roomId ? nextRoom : candidate));
+	if (patch.floorHeight !== undefined) floor.height = patch.floorHeight;
+	const applied = applyLayoutMutation(state, layout);
+	return applied.success ? { success: true } : applied;
+}
+
+export function commitLayoutObject(
+	state: LayoutPreviewState,
+	kind: AuthoredLayoutObjectKind,
+	position: Vec3,
+	roomId?: string
+): LayoutObjectMutationResult {
+	if (!position.every(Number.isFinite)) return failObjectMutation(state, 'Object position must be finite');
+	if (!isKnownLayoutRoomId(state.project.layout, roomId)) {
+		return failObjectMutation(state, `Unknown roomId '${roomId}'`);
+	}
+	const layout = cloneLayout(state.project.layout);
+	const object = createLayoutObject({
+		id: nextLayoutObjectId(layout.objects),
+		kind,
+		position,
+		dimensions: defaultLayoutObjectDimensions(kind),
+		...(roomId ? { roomId } : {})
+	});
+	layout.objects = [...layout.objects, object];
+	const applied = applyLayoutMutation(state, layout);
+	return applied.success ? { success: true, objectId: object.id } : applied;
+}
+
+export function updateLayoutObjectFields(
+	state: LayoutPreviewState,
+	objectId: string,
+	patch: LayoutObjectPatch
+): LayoutObjectMutationResult {
+	const current = state.project.layout.objects.find((object) => object.id === objectId);
+	if (!current) return failObjectMutation(state, 'Object no longer exists');
+	if (current.kind === 'profile') return failObjectMutation(state, 'Profile objects are read-only');
+	if ('roomId' in patch && !isKnownLayoutRoomId(state.project.layout, patch.roomId)) {
+		return failObjectMutation(state, `Unknown roomId '${patch.roomId}'`);
+	}
+	const layout = patchLayoutObject(cloneLayout(state.project.layout), objectId, patch);
+	if (!layout) return failObjectMutation(state, 'Object no longer exists');
+	const applied = applyLayoutMutation(state, layout);
+	return applied.success ? { success: true, objectId } : applied;
+}
+
+export function deleteLayoutObject(
+	state: LayoutPreviewState,
+	objectId: string
+): LayoutObjectMutationResult {
+	const current = state.project.layout.objects.find((object) => object.id === objectId);
+	if (!current) return failObjectMutation(state, 'Object no longer exists');
+	if (current.kind === 'profile') return failObjectMutation(state, 'Profile objects are read-only');
+	const layout = deleteObjectFromDocument(cloneLayout(state.project.layout), objectId);
+	if (!layout) return failObjectMutation(state, 'Object no longer exists');
+	const applied = applyLayoutMutation(state, layout);
+	return applied.success ? { success: true, objectId } : applied;
 }
 
 export function commitLayoutOpening(
@@ -261,7 +429,7 @@ export function commitLayoutPathRoom(
 	const floor = layout.floors[0] ?? { id: 'floor-ground', name: 'Ground Floor', elevation: 0, height: 3, rooms: [] };
 	if (!layout.floors[0]) layout.floors = [floor];
 	const roomId = nextRoomId(floor.rooms);
-	const room: LayoutRoom = { id: roomId, name: `Draft Room ${floor.rooms.length + 1}`, boundary: { closed: true, segments: segments.map((segment) => structuredClone(segment)) }, wallThickness: 0.16, floorThickness: 0.1, ceilingThickness: 0.1, openings: [] };
+	const room: LayoutRoom = { id: roomId, name: `Draft Room ${floor.rooms.length + 1}`, boundary: { closed: true, segments: segments.map((segment) => cloneJson(segment)) }, wallThickness: 0.16, floorThickness: 0.1, ceilingThickness: 0.1, openings: [] };
 	const geometryIssues = validateLineRoom(room, floor);
 	if (hasBlockingLayoutIssues(geometryIssues)) return { success: false, message: geometryIssues[0]!.message };
 	floor.rooms = [...floor.rooms, room];
@@ -272,10 +440,12 @@ export function commitLayoutPathRoom(
 		state.project = nextProject;
 		state.model = result.model;
 		state.issues = result.issues;
-		state.bounds = layoutPreviewBounds(result.model);
-		state.previewVersion += 1;
-		state.lastMutationMessage = null;
-		return { success: true, roomId };
+			state.bounds = layoutPreviewBounds(result.model);
+			state.previewVersion += 1;
+			state.lastMutationMessage = null;
+			state.statusMessage = null;
+			state.importError = null;
+			return { success: true, roomId };
 	} catch (error) {
 		return { success: false, message: error instanceof Error ? error.message : 'Could not commit room draft' };
 	}
@@ -366,9 +536,12 @@ export function commitLayoutDraftRoom(
 		state.project = nextProject;
 		state.model = result.model;
 		state.issues = result.issues;
-		state.bounds = layoutPreviewBounds(result.model);
-		state.previewVersion += 1;
-		return { success: true, roomId };
+			state.bounds = layoutPreviewBounds(result.model);
+			state.previewVersion += 1;
+			state.lastMutationMessage = null;
+			state.statusMessage = null;
+			state.importError = null;
+			return { success: true, roomId };
 	} catch (error) {
 		state.lastMutationMessage = error instanceof Error ? error.message : 'Could not commit room draft';
 		return {
@@ -391,6 +564,8 @@ function createState(
 		scene
 	});
 	const result = buildLayoutPreviewModel(project.layout);
+	const baselineLayoutJson = serializeLayoutDocument(project.layout);
+	const baselineKind: LayoutBaselineKind = source === 'empty' ? 'blank' : 'imported';
 	return {
 		source,
 		project,
@@ -399,7 +574,11 @@ function createState(
 		bounds: layoutPreviewBounds(result.model),
 		previewVersion: previousVersion + 1,
 		showCeilings: false,
-		lastMutationMessage: null
+		lastMutationMessage: null,
+		statusMessage: null,
+		importError: null,
+		baselineLayoutJson,
+		baselineKind
 	};
 }
 
@@ -425,10 +604,16 @@ function applyLayoutMutation(
 	openingId?: string
 ): LayoutOpeningMutationResult {
 	try {
+		const structural = validateLayoutDocument(layout);
+		if (!structural.success) return failOpeningMutation(state, structural.issues[0]!.message);
+		const geometryIssues = validateLayoutDocumentGeometry(structural.document);
+		if (hasBlockingLayoutIssues(geometryIssues)) {
+			return failOpeningMutation(state, geometryIssues[0]!.message);
+		}
 		const nextProject = createMuseumProject({
 			id: state.project.id,
 			name: 'Draft Layout Preview',
-			layout,
+			layout: structural.document,
 			scene: state.project.scene
 		});
 		const result = buildLayoutPreviewModel(nextProject.layout);
@@ -439,6 +624,8 @@ function applyLayoutMutation(
 		state.bounds = layoutPreviewBounds(result.model);
 		state.previewVersion += 1;
 		state.lastMutationMessage = null;
+		state.statusMessage = null;
+		state.importError = null;
 		return { success: true, openingId: openingId ?? '' };
 	} catch (error) {
 		return failOpeningMutation(state, error instanceof Error ? error.message : 'Could not update layout');
@@ -466,6 +653,12 @@ function failInteriorAnchorMutation(
 	return { success: false, message };
 }
 
+function failObjectMutation(state: LayoutPreviewState, message: string): LayoutObjectMutationResult {
+	state.lastMutationMessage = message;
+	state.statusMessage = message;
+	return { success: false, message };
+}
+
 function replaceState(target: LayoutPreviewState, next: LayoutPreviewState): void {
 	target.source = next.source;
 	target.project = next.project;
@@ -475,6 +668,10 @@ function replaceState(target: LayoutPreviewState, next: LayoutPreviewState): voi
 	target.previewVersion = next.previewVersion;
 	// Keep layout-local ceiling inspection preference across reload/reset.
 	target.lastMutationMessage = null;
+	target.statusMessage = null;
+	target.importError = null;
+	target.baselineLayoutJson = next.baselineLayoutJson;
+	target.baselineKind = next.baselineKind;
 }
 
 export type LayoutPreviewSnapshot = {
@@ -483,6 +680,9 @@ export type LayoutPreviewSnapshot = {
 	model: LayoutPreviewState['model'];
 	issues: LayoutPreviewState['issues'];
 	bounds: LayoutPreviewState['bounds'];
+	lastMutationMessage: string | null;
+	statusMessage: string | null;
+	importError: string | null;
 };
 
 export function captureLayoutPreviewSnapshot(state: LayoutPreviewState): LayoutPreviewSnapshot {
@@ -491,6 +691,9 @@ export function captureLayoutPreviewSnapshot(state: LayoutPreviewState): LayoutP
 		project: cloneJson(state.project),
 		model: cloneJson(state.model),
 		issues: cloneJson(state.issues),
+		lastMutationMessage: state.lastMutationMessage,
+		statusMessage: state.statusMessage,
+		importError: state.importError,
 		bounds: state.bounds
 			? {
 					min: [state.bounds.min[0], state.bounds.min[1], state.bounds.min[2]],
@@ -512,5 +715,7 @@ export function restoreLayoutPreviewSnapshot(state: LayoutPreviewState, snapshot
 			}
 		: null;
 	state.previewVersion += 1;
-	state.lastMutationMessage = null;
+	state.lastMutationMessage = snapshot.lastMutationMessage;
+	state.statusMessage = snapshot.statusMessage;
+	state.importError = snapshot.importError;
 }

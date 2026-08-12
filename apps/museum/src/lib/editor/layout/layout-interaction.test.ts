@@ -2,17 +2,26 @@ import { describe, expect, it } from 'vitest';
 
 import {
 	addPolygonPoint,
+	beginLayoutObjectDrag,
+	cancelLayoutObjectDrag,
+	cancelLayoutPendingObject,
 	beginRectangle,
 	clearLayoutDraft,
 	createLayoutInteractionState,
+	LAYOUT_WALL_BEND_DRAG_THRESHOLD_PX,
 	removeLastPolygonPoint,
 	selectLayoutInteriorAnchor,
+	selectLayoutObject,
 	selectLayoutOpening,
 	selectLayoutWall,
 	selectedLayoutRoomId,
+	shouldBeginWallBend,
 	rectanglePoints,
 	setLayoutDraftTool,
+	setLayoutPendingObjectKind,
 	setLayoutViewMode,
+	updateLayoutObjectDrag,
+	updateLayoutPendingObject,
 	updateRectangle
 } from './layout-interaction';
 
@@ -69,5 +78,36 @@ describe('layout interaction', () => {
 		updateRectangle(state, [2, 2]);
 		clearLayoutDraft(state);
 		expect(rectanglePoints(state)).toBeNull();
+	});
+
+	it('starts a wall bend only after the screen drag threshold', () => {
+		const origin: [number, number] = [100, 100];
+		expect(shouldBeginWallBend(origin, [103, 100])).toBe(false);
+		expect(shouldBeginWallBend(origin, [104, 100])).toBe(true);
+		expect(shouldBeginWallBend(origin, [100, 104])).toBe(true);
+		expect(LAYOUT_WALL_BEND_DRAG_THRESHOLD_PX).toBe(4);
+	});
+
+	it('arms layout-local object ghosts and clears them when switching tools', () => {
+		const state = createLayoutInteractionState();
+		setLayoutDraftTool(state, 'object');
+		expect(state.pendingObject).toMatchObject({ kind: 'box', dimensions: [1, 1, 1], valid: false });
+		setLayoutPendingObjectKind(state, 'plane');
+		updateLayoutPendingObject(state, [2, 0.005, 3], 'room-a');
+		expect(state.pendingObject).toMatchObject({ kind: 'plane', position: [2, 0.005, 3], roomId: 'room-a', valid: true });
+		cancelLayoutPendingObject(state);
+		expect(state.tool).toBe('select');
+		expect(state.pendingObject).toBeNull();
+	});
+
+	it('keeps object drag transient and snaps only X/Z', () => {
+		const state = createLayoutInteractionState();
+		selectLayoutObject(state, 'object-a');
+		expect(selectedLayoutRoomId(state)).toBeNull();
+		beginLayoutObjectDrag(state, 'object-a', [1, 2, 3]);
+		updateLayoutObjectDrag(state, [1.12, 3.14], true);
+		expect(state.objectDrag?.candidatePosition).toEqual([1, 2, 3.25]);
+		cancelLayoutObjectDrag(state);
+		expect(state.objectDrag).toBeNull();
 	});
 });

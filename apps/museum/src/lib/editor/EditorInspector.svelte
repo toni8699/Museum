@@ -9,7 +9,17 @@
 	import EditorPlacementInspector from './EditorPlacementInspector.svelte';
 	import EditorPrimitiveInspector from './EditorPrimitiveInspector.svelte';
 	import EditorTransformInspector from './EditorTransformInspector.svelte';
-	import { layoutPreviewSourceLabel, updateLayoutOpeningFields, deleteLayoutOpening, type LayoutPreviewState } from './layout/layout-preview-state.svelte';
+	import {
+		deleteLayoutObject,
+		deleteLayoutOpening,
+		layoutPreviewSourceLabel,
+		layoutPreviewStatusLabel,
+		updateLayoutObjectFields,
+		updateLayoutOpeningFields,
+		updateLayoutRoomFields,
+		type LayoutPreviewState,
+		type LayoutRoomFieldPatch
+	} from './layout/layout-preview-state.svelte';
 	import {
 		selectedLayoutRoomId,
 		setLayoutDraftTool,
@@ -115,6 +125,21 @@
 			: undefined
 	);
 	const selectedLayoutBounds = $derived(selectedLayoutRoom ? roomBounds(selectedLayoutRoom) : null);
+	const selectedLayoutFloor = $derived(
+		selectedLayoutRoom
+			? layoutPreview.project.layout.floors.find((floor) =>
+					floor.rooms.some((room) => room.id === selectedLayoutRoom.id)
+				)
+			: undefined
+	);
+	const selectedLayoutObjectId = $derived(
+		layoutInteraction.selection.kind === 'object' ? layoutInteraction.selection.objectId : null
+	);
+	const selectedLayoutObject = $derived(
+		selectedLayoutObjectId
+			? layoutPreview.project.layout.objects.find((object) => object.id === selectedLayoutObjectId)
+			: undefined
+	);
 
 	$effect(() => {
 		clusterNameDraft = store.selectedCluster?.name ?? '';
@@ -208,6 +233,66 @@
 		store.setStatusMessage('Deleted opening');
 	}
 
+	function updateRoomName(event: Event) {
+		if (!selectedLayoutRoom) return;
+		const input = event.currentTarget as HTMLInputElement;
+		const roomId = selectedLayoutRoom.id;
+		const result = updateLayoutRoomFields(layoutPreview, roomId, { name: input.value });
+		const committed = layoutPreview.project.layout.floors
+			.flatMap((floor) => floor.rooms)
+			.find((room) => room.id === roomId);
+		input.value = committed?.name ?? selectedLayoutRoom.name;
+		store.setStatusMessage(result.success ? 'Updated room name' : `Room rejected: ${result.message}`);
+	}
+
+	function updateRoomNumber(field: keyof LayoutRoomFieldPatch, event: Event) {
+		if (!selectedLayoutRoom || !selectedLayoutFloor) return;
+		const input = event.currentTarget as HTMLInputElement;
+		const value = Number(input.value);
+		const previous = field === 'floorHeight' ? selectedLayoutFloor.height : selectedLayoutRoom[field];
+		if (!Number.isFinite(value)) {
+			input.value = String(previous);
+			store.setStatusMessage('Layout value must be finite');
+			return;
+		}
+		const result = updateLayoutRoomFields(layoutPreview, selectedLayoutRoom.id, { [field]: value });
+		if (!result.success) input.value = String(previous);
+		store.setStatusMessage(result.success ? `Updated ${field}` : `Room rejected: ${result.message}`);
+	}
+
+	function updateObjectVector(
+		field: 'position' | 'rotation' | 'dimensions',
+		index: 0 | 1 | 2,
+		event: Event
+	) {
+		if (!selectedLayoutObject || selectedLayoutObject.kind === 'profile') return;
+		const input = event.currentTarget as HTMLInputElement;
+		const value = Number(input.value);
+		if (!Number.isFinite(value)) {
+			input.value = String(selectedLayoutObject[field][index]);
+			return;
+		}
+		const vector = [...selectedLayoutObject[field]] as [number, number, number];
+		vector[index] = value;
+		const result = updateLayoutObjectFields(layoutPreview, selectedLayoutObject.id, { [field]: vector });
+		if (!result.success) input.value = String(selectedLayoutObject[field][index]);
+		store.setStatusMessage(result.success ? `Updated object ${field}` : `Object rejected: ${result.message}`);
+	}
+
+	function updateObjectRoom(event: Event) {
+		if (!selectedLayoutObject || selectedLayoutObject.kind === 'profile') return;
+		const roomId = (event.currentTarget as HTMLSelectElement).value || undefined;
+		const result = updateLayoutObjectFields(layoutPreview, selectedLayoutObject.id, { roomId });
+		store.setStatusMessage(result.success ? 'Updated object room' : `Object rejected: ${result.message}`);
+	}
+
+	function removeSelectedObject() {
+		if (!selectedLayoutObject) return;
+		const result = deleteLayoutObject(layoutPreview, selectedLayoutObject.id);
+		if (result.success) layoutInteraction.selection = { kind: 'none' };
+		store.setStatusMessage(result.success ? 'Deleted layout object' : `Object delete failed: ${result.message}`);
+	}
+
 </script>
 
 <aside class="panel inspector" aria-label="Inspector" style="grid-area: right;">
@@ -243,11 +328,39 @@
 			<dl>
 				<div><dt>Project</dt><dd>{layoutPreview.project.name}</dd></div>
 				<div><dt>Source</dt><dd>{layoutPreviewSourceLabel(layoutPreview.source)}</dd></div>
+				<div><dt>Status</dt><dd>{layoutPreviewStatusLabel(layoutPreview)}</dd></div>
 				<div><dt>Rooms</dt><dd>{layoutPreview.model.rooms.length}</dd></div>
+				<div><dt>Objects</dt><dd>{layoutPreview.model.objects.length}</dd></div>
 				<div><dt>Issues</dt><dd>{layoutPreview.issues.length}</dd></div>
 			</dl>
+			{#if layoutPreview.importError}<p class="layout-opening-warning" role="alert">Import failed: {layoutPreview.importError}</p>{/if}
 			<p class="layout-inspector-note">Openings are geometry-only in this phase. No room adjacency or portal semantics are inferred.</p>
-			{#if selectedLayoutOpening && selectedLayoutSegment && selectedLayoutRoom}
+			{#if selectedLayoutObject}
+				<div class="layout-selected-room" aria-label="Selected layout object">
+					<strong>{selectedLayoutObject.kind} object</strong>
+					<span>{selectedLayoutObject.id}</span>
+					{#if selectedLayoutObject.kind === 'profile'}
+						<span>Imported profile placeholder · read-only</span>
+					{/if}
+					{#each ['X', 'Y', 'Z'] as axis, index (axis)}
+						<label>Position {axis}<input disabled={selectedLayoutObject.kind === 'profile'} type="number" step="0.05" value={selectedLayoutObject.position[index]} onchange={(event) => updateObjectVector('position', index as 0 | 1 | 2, event)} /></label>
+					{/each}
+					{#each ['X', 'Y', 'Z'] as axis, index (axis)}
+						<label>Rotation {axis} (rad)<input disabled={selectedLayoutObject.kind === 'profile'} type="number" step="0.05" value={selectedLayoutObject.rotation[index]} onchange={(event) => updateObjectVector('rotation', index as 0 | 1 | 2, event)} /></label>
+					{/each}
+					{#each ['X', 'Y', 'Z'] as axis, index (axis)}
+						<label>Dimension {axis}<input disabled={selectedLayoutObject.kind === 'profile'} type="number" min="0.001" step="0.05" value={selectedLayoutObject.dimensions[index]} onchange={(event) => updateObjectVector('dimensions', index as 0 | 1 | 2, event)} /></label>
+					{/each}
+					<label>Room
+						<select disabled={selectedLayoutObject.kind === 'profile'} value={selectedLayoutObject.roomId ?? ''} onchange={updateObjectRoom}>
+							<option value="">Unassigned</option>
+							{#each layoutRooms as room (room.id)}<option value={room.id}>{room.name} · {room.id}</option>{/each}
+						</select>
+					</label>
+					{#if layoutPreview.lastMutationMessage}<p class="layout-opening-warning" role="status">{layoutPreview.lastMutationMessage}</p>{/if}
+					<button type="button" class="layout-danger" disabled={selectedLayoutObject.kind === 'profile'} onclick={removeSelectedObject}>Delete object</button>
+				</div>
+			{:else if selectedLayoutOpening && selectedLayoutSegment && selectedLayoutRoom}
 				<div class="layout-selected-room" aria-label="Selected layout opening">
 					<strong>{selectedLayoutOpening.kind} opening</strong>
 					<span>{selectedLayoutRoom.name} · {selectedLayoutRoom.id}</span>
@@ -275,6 +388,10 @@
 					{#if layoutInteraction.selection.kind === 'interiorAnchor'}
 						<span>Bend anchor: {layoutInteraction.selection.anchorId}</span>
 					{/if}
+					<label>Wall thickness (m)<input type="number" min="0.001" step="0.01" value={selectedLayoutRoom.wallThickness} onchange={(event) => updateRoomNumber('wallThickness', event)} /></label>
+					<label>Floor thickness (m)<input type="number" min="0.001" step="0.01" value={selectedLayoutRoom.floorThickness} onchange={(event) => updateRoomNumber('floorThickness', event)} /></label>
+					<label>Ceiling thickness (m)<input type="number" min="0.001" step="0.01" value={selectedLayoutRoom.ceilingThickness} onchange={(event) => updateRoomNumber('ceilingThickness', event)} /></label>
+					{#if selectedLayoutFloor}<label>Floor height (m)<input type="number" min="0.001" step="0.05" value={selectedLayoutFloor.height} onchange={(event) => updateRoomNumber('floorHeight', event)} /></label>{/if}
 					<div class="layout-opening-actions">
 						<button type="button" onclick={() => armOpeningTool('door')}>Door</button>
 						<button type="button" onclick={() => armOpeningTool('window')}>Window</button>
@@ -286,6 +403,12 @@
 					<span>{selectedLayoutRoom.id}</span>
 					<span>Bounds: {selectedLayoutBounds.width.toFixed(2)} m × {selectedLayoutBounds.height.toFixed(2)} m</span>
 					<span>Edges: {selectedLayoutRoom.boundary.segments.map((_, index) => `${roomEdgeLength(selectedLayoutRoom, index).toFixed(2)} m`).join(' · ')}</span>
+					<label>Name<input type="text" value={selectedLayoutRoom.name} onchange={updateRoomName} /></label>
+					<label>Wall thickness (m)<input type="number" min="0.001" step="0.01" value={selectedLayoutRoom.wallThickness} onchange={(event) => updateRoomNumber('wallThickness', event)} /></label>
+					<label>Floor thickness (m)<input type="number" min="0.001" step="0.01" value={selectedLayoutRoom.floorThickness} onchange={(event) => updateRoomNumber('floorThickness', event)} /></label>
+					<label>Ceiling thickness (m)<input type="number" min="0.001" step="0.01" value={selectedLayoutRoom.ceilingThickness} onchange={(event) => updateRoomNumber('ceilingThickness', event)} /></label>
+					{#if selectedLayoutFloor}<label>Floor height (m)<input type="number" min="0.001" step="0.05" value={selectedLayoutFloor.height} onchange={(event) => updateRoomNumber('floorHeight', event)} /></label>{/if}
+					{#if layoutPreview.lastMutationMessage}<p class="layout-opening-warning" role="status">{layoutPreview.lastMutationMessage}</p>{/if}
 				</div>
 			{/if}
 			{#if layoutPreview.issues.length > 0}
@@ -484,8 +607,9 @@
 	.layout-selected-room { display: flex; flex-direction: column; gap: 0.2rem; padding: 0.6rem; border: 1px solid #8d753c; border-radius: 0.35rem; background: #211d15; color: #f4efe4; font-size: 0.7rem; }
 	.layout-selected-room span { color: #c4bdaF; font-size: 0.66rem; overflow-wrap: anywhere; }
 	.layout-selected-room label { display: flex; flex-direction: column; gap: 0.25rem; color: #c4bdaF; font-size: 0.66rem; }
-	.layout-selected-room input { box-sizing: border-box; width: 100%; padding: 0.34rem; border: 1px solid #4a4438; border-radius: 0.28rem; background: #17171f; color: #f4efe4; font: inherit; }
-	.layout-selected-room input:focus { outline: 1px solid #d6b35f; border-color: #d6b35f; }
+	.layout-selected-room input, .layout-selected-room select { box-sizing: border-box; width: 100%; padding: 0.34rem; border: 1px solid #4a4438; border-radius: 0.28rem; background: #17171f; color: #f4efe4; font: inherit; }
+	.layout-selected-room input:focus, .layout-selected-room select:focus { outline: 1px solid #d6b35f; border-color: #d6b35f; }
+	.layout-selected-room input:disabled, .layout-selected-room select:disabled, .layout-danger:disabled { opacity: 0.48; cursor: default; }
 	.layout-opening-actions { display: flex; gap: 0.35rem; }
 	.layout-opening-actions button, .layout-danger { padding: 0.4rem 0.5rem; border: 1px solid #8d753c; border-radius: 0.28rem; background: #2a2618; color: #fff2c7; font: inherit; font-size: 0.68rem; cursor: pointer; }
 	.layout-danger { border-color: #684147; background: #21191b; color: #efc7c7; }

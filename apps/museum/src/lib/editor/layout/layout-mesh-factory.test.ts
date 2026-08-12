@@ -56,4 +56,20 @@ describe('A1 layout preview model', () => {
 		expect(result.model.rooms.map((room) => room.roomId)).toEqual(['room-rectangle']);
 		expect(result.issues.some((issue) => issue.code === 'too_few_segments')).toBe(true);
 	});
+
+	it('builds object descriptors and room slab thicknesses', () => {
+		const document = createA1RectangleDocument();
+		document.objects.push({
+			id: 'box-a',
+			kind: 'box',
+			position: [2, 0.5, 2],
+			rotation: [0, Math.PI / 4, 0],
+			dimensions: [1, 1, 2],
+			roomId: 'room-rectangle'
+		});
+		const result = buildLayoutPreviewModel(document);
+		expect(result.model.rooms[0]).toMatchObject({ floorThickness: 0.1, ceilingThickness: 0.1 });
+		expect(result.model.objects[0]).toMatchObject({ objectId: 'box-a', roomId: 'room-rectangle', readonly: false });
+		expect(result.model.objects[0]!.planFootprint).toHaveLength(4);
+	});
 });

@@ -23,8 +23,8 @@
 	} from '$lib/museum/materials/texture-cache';
 	import { BinaryTextureStore } from './store/binary-texture-store.svelte';
 	import { createMuseumEditorStore } from './museum-editor.svelte';
+	import { createLayoutPreviewState, layoutPreviewIsDirty } from './layout/layout-preview-state.svelte';
 	import { createLayoutInteractionState } from './layout/layout-interaction';
-	import { createLayoutPreviewState } from './layout/layout-preview-state.svelte';
 
 	const store = createMuseumEditorStore();
 	const layoutPreview = $state(createLayoutPreviewState());
@@ -72,13 +72,23 @@
 		BinaryTextureStore.clearExcept(new Set());
 	});
 
-	function confirmDiscardUnsavedChanges() {
+	function confirmSceneReplacement() {
 		return !store.isDirty || window.confirm('Discard unsaved scene changes?');
 	}
 
+	function confirmLayoutReplacement() {
+		return !layoutPreviewIsDirty(layoutPreview) || window.confirm('Discard unsaved layout changes?');
+	}
+
+	function confirmNavigation() {
+		if (!store.isDirty && !layoutPreviewIsDirty(layoutPreview)) return true;
+		const label = store.isDirty && layoutPreviewIsDirty(layoutPreview) ? 'scene and layout' : store.isDirty ? 'scene' : 'layout';
+		return window.confirm(`Discard unsaved ${label} changes?`);
+	}
+
 	beforeNavigate((navigation) => {
-		if (!store.isDirty || navigation.willUnload) return;
-		if (!confirmDiscardUnsavedChanges()) navigation.cancel();
+		if ((!store.isDirty && !layoutPreviewIsDirty(layoutPreview)) || navigation.willUnload) return;
+		if (!confirmNavigation()) navigation.cancel();
 	});
 
 	onMount(() =>
@@ -90,7 +100,7 @@
 	);
 
 	$effect(() => {
-		if (!store.isDirty) return;
+		if (!store.isDirty && !layoutPreviewIsDirty(layoutPreview)) return;
 		const onBeforeUnload = (event: BeforeUnloadEvent) => {
 			event.preventDefault();
 			event.returnValue = '';
@@ -101,10 +111,11 @@
 </script>
 
 <main class="page" class:previewing={store.isDocumentMutationBlocked}>
-	<EditorAppBar {store} {confirmDiscardUnsavedChanges} />
+	<EditorAppBar {store} {layoutPreview} {confirmSceneReplacement} {confirmLayoutReplacement} />
 	<EditorLeftSidebar
 		{store}
 		{layoutPreview}
+		{confirmLayoutReplacement}
 		bind:outlinerElement
 		onAssetSelection={(asset) => (selectedAsset = asset)}
 	/>

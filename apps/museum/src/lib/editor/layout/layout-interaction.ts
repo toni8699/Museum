@@ -1,16 +1,37 @@
 import type { LayoutVec2 } from './layout-types';
 import { createPlanViewportState, type PlanViewportState } from './layout-plan-transform';
+import type { Vec3 } from '$lib/types/museum';
+import { defaultLayoutObjectDimensions, type AuthoredLayoutObjectKind } from './layout-object-editing';
 
 export type LayoutViewMode = 'plan' | '3d';
-export type LayoutDraftTool = 'select' | 'rectangle' | 'polygon' | 'door' | 'window';
+export type LayoutDraftTool = 'select' | 'rectangle' | 'polygon' | 'door' | 'window' | 'object';
 export type LayoutRoomDragMode = 'room' | 'vertex';
+
+export type LayoutPendingObject = {
+	kind: AuthoredLayoutObjectKind;
+	dimensions: Vec3;
+	position: Vec3 | null;
+	roomId?: string;
+	valid: boolean;
+	message?: string;
+};
+
+export type LayoutObjectDrag = {
+	objectId: string;
+	originalPosition: Vec3;
+	candidatePosition: Vec3;
+};
+
+/** Screen-pixel distance before a wall mid-span drag inserts a bend anchor. */
+export const LAYOUT_WALL_BEND_DRAG_THRESHOLD_PX = 4;
 
 export type LayoutSelection =
 	| { kind: 'none' }
 	| { kind: 'room'; roomId: string }
 	| { kind: 'wall'; roomId: string; segmentId: string }
 	| { kind: 'opening'; roomId: string; segmentId: string; openingId: string }
-	| { kind: 'interiorAnchor'; roomId: string; segmentId: string; anchorId: string };
+	| { kind: 'interiorAnchor'; roomId: string; segmentId: string; anchorId: string }
+	| { kind: 'object'; objectId: string };
 
 export type LayoutInteractionState = {
 	viewMode: LayoutViewMode;
@@ -19,6 +40,8 @@ export type LayoutInteractionState = {
 	rectangleStart: LayoutVec2 | null;
 	rectangleCurrent: LayoutVec2 | null;
 	selection: LayoutSelection;
+	pendingObject: LayoutPendingObject | null;
+	objectDrag: LayoutObjectDrag | null;
 	planView: PlanViewportState;
 	editing: {
 		mode: LayoutRoomDragMode;
@@ -38,6 +61,8 @@ export function createLayoutInteractionState(): LayoutInteractionState {
 		rectangleStart: null,
 		rectangleCurrent: null,
 		selection: { kind: 'none' },
+		pendingObject: null,
+		objectDrag: null,
 		planView: createPlanViewportState(),
 		editing: null
 	};
@@ -53,6 +78,47 @@ export function setLayoutDraftTool(state: LayoutInteractionState, tool: LayoutDr
 	state.tool = tool;
 	clearLayoutDraft(state);
 	cancelRoomEdit(state);
+	state.objectDrag = null;
+	state.pendingObject =
+		tool === 'object'
+			? {
+					kind: 'box',
+					dimensions: defaultLayoutObjectDimensions('box'),
+					position: null,
+					valid: false
+				}
+			: null;
+}
+
+export function setLayoutPendingObjectKind(
+	state: LayoutInteractionState,
+	kind: AuthoredLayoutObjectKind
+): void {
+	if (state.tool !== 'object') state.tool = 'object';
+	state.pendingObject = {
+		kind,
+		dimensions: defaultLayoutObjectDimensions(kind),
+		position: null,
+		valid: false
+	};
+}
+
+export function updateLayoutPendingObject(
+	state: LayoutInteractionState,
+	position: Vec3 | null,
+	roomId?: string,
+	message?: string
+): void {
+	if (!state.pendingObject) return;
+	state.pendingObject.position = position ? [...position] : null;
+	state.pendingObject.roomId = roomId;
+	state.pendingObject.valid = Boolean(position && roomId);
+	state.pendingObject.message = message;
+}
+
+export function cancelLayoutPendingObject(state: LayoutInteractionState): void {
+	state.pendingObject = null;
+	if (state.tool === 'object') state.tool = 'select';
 }
 
 export function beginRectangle(state: LayoutInteractionState, point: LayoutVec2): void {
@@ -110,8 +176,42 @@ export function clearLayoutSelection(state: LayoutInteractionState): void {
 	cancelRoomEdit(state);
 }
 
+export function selectLayoutObject(state: LayoutInteractionState, objectId: string): void {
+	state.selection = { kind: 'object', objectId };
+	cancelRoomEdit(state);
+}
+
 export function selectedLayoutRoomId(state: Pick<LayoutInteractionState, 'selection'>): string | null {
-	return state.selection.kind === 'none' ? null : state.selection.roomId;
+	return state.selection.kind === 'none' || state.selection.kind === 'object'
+		? null
+		: state.selection.roomId;
+}
+
+export function beginLayoutObjectDrag(
+	state: LayoutInteractionState,
+	objectId: string,
+	position: Vec3
+): void {
+	state.objectDrag = {
+		objectId,
+		originalPosition: [...position],
+		candidatePosition: [...position]
+	};
+}
+
+export function updateLayoutObjectDrag(
+	state: LayoutInteractionState,
+	point: LayoutVec2,
+	snapEnabled: boolean
+): void {
+	if (!state.objectDrag) return;
+	const x = snapEnabled ? Math.round(point[0] * 4) / 4 : point[0];
+	const z = snapEnabled ? Math.round(point[1] * 4) / 4 : point[1];
+	state.objectDrag.candidatePosition = [x, state.objectDrag.originalPosition[1], z];
+}
+
+export function cancelLayoutObjectDrag(state: LayoutInteractionState): void {
+	state.objectDrag = null;
 }
 
 export function beginRoomEdit(state: LayoutInteractionState, mode: LayoutRoomDragMode, roomId: string, startWorld: LayoutVec2, originalPoints: readonly LayoutVec2[], vertexIndex: number | null = null): void {
@@ -138,4 +238,16 @@ export function clearLayoutDraft(state: LayoutInteractionState): void {
 	state.polygonPoints = [];
 	state.rectangleStart = null;
 	state.rectangleCurrent = null;
+}
+
+export function screenDistance(a: LayoutVec2, b: LayoutVec2): number {
+	return Math.hypot(a[0] - b[0], a[1] - b[1]);
+}
+
+export function shouldBeginWallBend(
+	originScreen: LayoutVec2,
+	currentScreen: LayoutVec2,
+	thresholdPx = LAYOUT_WALL_BEND_DRAG_THRESHOLD_PX
+): boolean {
+	return screenDistance(originScreen, currentScreen) >= thresholdPx;
 }

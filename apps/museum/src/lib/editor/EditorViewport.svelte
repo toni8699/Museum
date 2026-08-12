@@ -17,6 +17,7 @@
 	import LayoutPreviewScene from './layout/LayoutPreviewScene.svelte';
 	import LayoutPlanViewport from './layout/LayoutPlanViewport.svelte';
 	import LayoutDraftToolbar from './layout/LayoutDraftToolbar.svelte';
+	import LayoutInteraction3D from './layout/LayoutInteraction3D.svelte';
 	import type { LayoutInteractionState } from './layout/layout-interaction';
 	import type { LayoutPreviewState } from './layout/layout-preview-state.svelte';
 	import {
@@ -151,10 +152,12 @@
 		{#if store.currentWorkspace === 'layout'}
 			<LayoutPreviewScene
 				model={layoutPreview.model}
+				interaction={layoutInteraction}
 				showCeilings={layoutPreview.showCeilings}
-				selectedSegmentId={layoutInteraction.selection.kind === 'wall' || layoutInteraction.selection.kind === 'opening' ? layoutInteraction.selection.segmentId : null}
+				selectedSegmentId={layoutInteraction.selection.kind === 'wall' || layoutInteraction.selection.kind === 'opening' || layoutInteraction.selection.kind === 'interiorAnchor' ? layoutInteraction.selection.segmentId : null}
 				selectedOpeningId={layoutInteraction.selection.kind === 'opening' ? layoutInteraction.selection.openingId : null}
 			/>
+			<LayoutInteraction3D preview={layoutPreview} interaction={layoutInteraction} />
 		{/if}
 		<EditorGrid visible={store.gridVisible && !store.isVisitorCameraPreview} />
 		{#if store.currentWorkspace !== 'layout' && store.viewportShowPaths}

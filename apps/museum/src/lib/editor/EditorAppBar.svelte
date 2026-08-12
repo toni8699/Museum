@@ -5,10 +5,14 @@
 
 	let {
 		store,
-		confirmDiscardUnsavedChanges
+		layoutPreview,
+		confirmSceneReplacement,
+		confirmLayoutReplacement
 	}: {
 		store: MuseumEditorStore;
-		confirmDiscardUnsavedChanges: () => boolean;
+		layoutPreview: import('./layout/layout-preview-state.svelte').LayoutPreviewState;
+		confirmSceneReplacement: () => boolean;
+		confirmLayoutReplacement: () => boolean;
 	} = $props();
 
 	const workspace = $derived(store.currentWorkspace);
@@ -75,13 +79,13 @@
 				onclick={() => store.previewGuidedTour()}
 			>Preview Tour</button>
 		{/if}
-		{#if workspace !== 'layout'}
-			<EditorProjectMenu
-				{store}
-				{confirmDiscardUnsavedChanges}
-				bind:open={projectMenuOpen}
-			/>
-		{/if}
+		<EditorProjectMenu
+			{store}
+			{layoutPreview}
+			{confirmSceneReplacement}
+			{confirmLayoutReplacement}
+			bind:open={projectMenuOpen}
+		/>
 	</div>
 </header>
 

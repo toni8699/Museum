@@ -6,20 +6,27 @@ export type LayoutPreviewBounds = {
 };
 
 export function layoutPreviewBounds(model: LayoutPreviewModel): LayoutPreviewBounds | null {
-	if (model.rooms.length === 0) return null;
+	if (model.rooms.length === 0 && model.objects.length === 0) return null;
 
 	const min: [number, number, number] = [Infinity, Infinity, Infinity];
 	const max: [number, number, number] = [-Infinity, -Infinity, -Infinity];
 
 	for (const room of model.rooms) {
-		for (const [x, z] of room.floorPolygon) includePoint(min, max, x, room.floorElevation, z);
-		for (const [x, z] of room.ceilingPolygon) includePoint(min, max, x, room.ceilingElevation, z);
+		for (const [x, z] of room.floorPolygon) includePoint(min, max, x, room.floorElevation - room.floorThickness, z);
+		for (const [x, z] of room.ceilingPolygon) includePoint(min, max, x, room.ceilingElevation + room.ceilingThickness, z);
 
 		for (const wall of room.walls) {
 			const halfThickness = wall.thickness / 2;
-			includePoint(min, max, wall.start[0] - halfThickness, room.floorElevation, wall.start[1] - halfThickness);
-			includePoint(min, max, wall.end[0] + halfThickness, room.floorElevation + wall.height, wall.end[1] + halfThickness);
+			for (const sample of wall.samples) {
+				includePoint(min, max, sample.point[0] - halfThickness, room.floorElevation, sample.point[1] - halfThickness);
+				includePoint(min, max, sample.point[0] + halfThickness, room.floorElevation + wall.height, sample.point[1] + halfThickness);
+			}
 		}
+	}
+
+	for (const object of model.objects) {
+		includePoint(min, max, ...object.worldAabb.min);
+		includePoint(min, max, ...object.worldAabb.max);
 	}
 
 	if (![...min, ...max].every(Number.isFinite)) return null;

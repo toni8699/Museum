@@ -235,9 +235,11 @@ Focused plan: [`2026-08-11-layout-cad-a3-1-camera-style-bend.md`](./2026-08-11-l
 
 Replace Bezier-room tool with mid-span interior anchors (`auto-bezier`, pure 2D centripetal). Densify line samples; interval-split Plan/3D opening gaps; Plan opening drag. Legacy authored cubic migrates on codec read.
 
-### A4 — Objects, inspectors, layout I/O UI *(next)*
+### A4 — Objects, inspectors, layout I/O UI *(implemented)*
 
-Ghost place layout objects; room/wall/opening/object inspectors; Project menu Layout Import/Copy/Download/Reset; blank/dirty/imported/invalid status.
+Focused plan: [`2026-08-11-layout-cad-a4-objects-inspectors-io.md`](./2026-08-11-layout-cad-a4-objects-inspectors-io.md).
+
+Ghost place layout objects; room/wall/opening/object inspectors; Project menu Layout Import/Copy/Download/Reset; blank/dirty/imported status with independent invalid-import feedback.
 
 ---
 

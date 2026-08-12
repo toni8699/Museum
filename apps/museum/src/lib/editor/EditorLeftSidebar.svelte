@@ -4,6 +4,7 @@
 	import EditorCameraTree from './EditorCameraTree.svelte';
 	import EditorSceneTree from './EditorSceneTree.svelte';
 	import {
+		layoutPreviewSessionStatus,
 		layoutPreviewSourceLabel,
 		loadChopinLayoutPreview,
 		resetLayoutPreview,
@@ -14,17 +15,27 @@
 	let {
 		store,
 		layoutPreview,
+		confirmLayoutReplacement,
 		outlinerElement = $bindable(),
 		onAssetSelection
 	}: {
 		store: MuseumEditorStore;
 		layoutPreview: LayoutPreviewState;
+		confirmLayoutReplacement: () => boolean;
 		outlinerElement?: HTMLElement | null;
 		onAssetSelection?: (asset: MuseumAsset | undefined) => void;
 	} = $props();
 
 	function switchLeftPanel(panel: 'scene' | 'assets') {
 		store.setLeftPanel(panel);
+	}
+
+	function reloadChopin() {
+		if (confirmLayoutReplacement()) loadChopinLayoutPreview(layoutPreview);
+	}
+
+	function resetLayout() {
+		if (confirmLayoutReplacement()) resetLayoutPreview(layoutPreview);
 	}
 </script>
 
@@ -62,21 +73,23 @@
 		</div>
 	{:else if store.currentWorkspace === 'layout'}
 		<header class="camera-workspace-header">
-			<h1>Layout preview</h1>
-			<p>Read-only generated geometry</p>
+			<h1>Layout editor</h1>
+			<p>Preview-only authoring session</p>
 		</header>
 
 		<section class="layout-preview-summary" aria-label="Layout preview source">
-			<div class="source-badge">{layoutPreviewSourceLabel(layoutPreview.source)}</div>
+			<div class="source-badge">{layoutPreviewSourceLabel(layoutPreview.source)} · {layoutPreviewSessionStatus(layoutPreview)}</div>
 			<dl>
 				<div><dt>Rooms</dt><dd>{layoutPreview.model.rooms.length}</dd></div>
 				<div><dt>Floors</dt><dd>{layoutPreview.project.layout.floors.length}</dd></div>
 				<div><dt>Openings</dt><dd>{layoutPreview.project.layout.floors.reduce((sum, floor) => sum + floor.rooms.reduce((roomSum, room) => roomSum + room.openings.length, 0), 0)}</dd></div>
+				<div><dt>Objects</dt><dd>{layoutPreview.model.objects.length}</dd></div>
 			</dl>
 			<div class="layout-actions">
-				<button type="button" onclick={() => loadChopinLayoutPreview(layoutPreview)}>Reload Chopin preview</button>
-				<button type="button" onclick={() => resetLayoutPreview(layoutPreview)}>Reset empty</button>
+				<button type="button" onclick={reloadChopin}>Reload Chopin preview</button>
+				<button type="button" onclick={resetLayout}>Reset empty</button>
 			</div>
+			{#if layoutPreview.importError}<p class="layout-error" role="alert">Import failed: {layoutPreview.importError}</p>{/if}
 			<p class="layout-note">Plan drafts rooms with Rectangle or Polygon; commits stay in this preview only.</p>
 		</section>
 	{:else}
@@ -119,6 +132,7 @@
 	.layout-actions button { padding: 0.42rem 0.5rem; border: 1px solid #3a3a46; border-radius: 0.32rem; background: #1a1a22; color: #f4efe4; font: inherit; font-size: 0.7rem; cursor: pointer; }
 	.layout-actions button:hover { border-color: #d6b35f; }
 	.layout-note { margin: 0; color: #a8a29a; font-size: 0.7rem; line-height: 1.4; }
+	.layout-error { margin: 0; color: #efc7c7; font-size: 0.7rem; line-height: 1.4; }
 	.back { margin-top: auto; color: #d6c7a8; font-size: 0.85rem; text-decoration: none; }
 	.back:hover { text-decoration: underline; }
 

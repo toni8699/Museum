@@ -21,7 +21,7 @@ Polish A3 interaction and opening preview:
 - Plan opening drag updates `offset` with snap.
 - `DraftSegment`: `line` | `auto-bezier` with `interiorAnchors`; codec migrates legacy `bezier`.
 - Pure 2D centripetal auto-bezier in `layout-auto-bezier.ts` (decoupled from Three/`camera-motion`).
-- Select-tool mid-span grab inserts/moves anchors; Delete removes anchor (empty → `line`).
+- Select-tool: click wall selects without insert; mid-span drag past 4 px inserts/moves anchors; Delete removes anchor (empty → `line`).
 - Hit priority: vertex → interior anchor → opening → wall → room.
 - Bezier room tool / Finish Bezier room / Convert-to-Bezier / Add bend inspector removed.
 - Corner vertex drag still resizes rooms.

@@ -3,6 +3,7 @@ import { sampleWallSegment } from './draft-geometry';
 import { type CurveSample } from './curve-geometry';
 import { hasBlockingLayoutIssues, validateLayoutRoomGeometry, type LayoutGeometryIssue } from './layout-validation';
 import { splitWallAroundOpenings } from './draft-geometry';
+import { describeLayoutObject, type LayoutObjectDescriptor } from './layout-object-editing';
 
 export type WallPreview = {
 	segmentId: string;
@@ -19,6 +20,8 @@ export type LayoutRoomPreview = {
 	roomId: string;
 	floorElevation: number;
 	ceilingElevation: number;
+	floorThickness: number;
+	ceilingThickness: number;
 	floorPolygon: LayoutVec2[];
 	ceilingPolygon: LayoutVec2[];
 	walls: WallPreview[];
@@ -26,6 +29,7 @@ export type LayoutRoomPreview = {
 
 export type LayoutPreviewModel = {
 	rooms: LayoutRoomPreview[];
+	objects: LayoutObjectDescriptor[];
 };
 
 export type LayoutPreviewModelResult = {
@@ -34,7 +38,7 @@ export type LayoutPreviewModelResult = {
 };
 
 export function buildLayoutPreviewModel(document: LayoutDocument): LayoutPreviewModelResult {
-	const model: LayoutPreviewModel = { rooms: [] };
+	const model: LayoutPreviewModel = { rooms: [], objects: document.objects.map(describeLayoutObject) };
 	const issues: LayoutGeometryIssue[] = [];
 	for (const floor of document.floors) {
 		for (const room of floor.rooms) {
@@ -78,6 +82,8 @@ function buildRoomPreview(room: LayoutRoom, floor: LayoutFloor): LayoutRoomPrevi
 		roomId: room.id,
 		floorElevation: floor.elevation,
 		ceilingElevation: floor.elevation + floor.height,
+		floorThickness: room.floorThickness,
+		ceilingThickness: room.ceilingThickness,
 		floorPolygon,
 		ceilingPolygon: floorPolygon.map(([x, z]) => [x, z] as LayoutVec2),
 		walls

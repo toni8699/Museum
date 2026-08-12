@@ -1,13 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
 import { serializeSceneDocument } from '$lib/content/scene-codec';
+import { createEmptyLayoutDocument, serializeLayoutDocument } from './layout-codec';
 import {
 	captureLayoutPreviewSnapshot,
 	commitLayoutDraftRoom,
+	commitLayoutObject,
 	commitLayoutPathRoom,
 	commitLayoutOpening,
 	commitLayoutRoomEdit,
 	deleteLayoutOpening,
+	deleteLayoutObject,
 	deleteLayoutWallInteriorAnchor,
 	insertLayoutWallInteriorAnchor,
 	restoreLayoutPreviewSnapshot,
@@ -15,9 +18,16 @@ import {
 	updateLayoutWallInteriorAnchor,
 	createLayoutPreviewState,
 	loadChopinLayoutPreview,
+	importLayoutPreviewJson,
+	layoutPreviewCanonicalJson,
+	layoutPreviewIsDirty,
+	layoutPreviewSessionStatus,
 	refreshLayoutPreview,
 	resetLayoutPreview,
-	toggleLayoutCeilings
+	setLayoutPreviewImportError,
+	toggleLayoutCeilings,
+	updateLayoutObjectFields,
+	updateLayoutRoomFields
 } from './layout-preview-state.svelte';
 
 describe('layout preview state', () => {
@@ -322,5 +332,113 @@ describe('layout preview state', () => {
 		expect(state.issues).toEqual([]);
 		expect(state.model.rooms[0]!.walls[0]!.samples.length).toBeGreaterThan(2);
 		expect(JSON.stringify(state.project)).toBe(before);
+	});
+
+	it('tracks canonical baseline independently from invalid import feedback', () => {
+		const state = createLayoutPreviewState();
+		expect(layoutPreviewSessionStatus(state)).toBe('imported');
+		expect(layoutPreviewIsDirty(state)).toBe(false);
+		const baseline = state.baselineLayoutJson;
+		expect(commitLayoutDraftRoom(state, [[30, 0], [34, 0], [34, 3], [30, 3]]).success).toBe(true);
+		expect(layoutPreviewSessionStatus(state)).toBe('dirty');
+		expect(layoutPreviewIsDirty(state)).toBe(true);
+		const dirtyJson = layoutPreviewCanonicalJson(state);
+		expect(importLayoutPreviewJson(state, '{')).toBe(false);
+		expect(state.importError).toMatch(/Invalid JSON/);
+		expect(state.baselineLayoutJson).toBe(baseline);
+		expect(layoutPreviewSessionStatus(state)).toBe('dirty');
+		expect(layoutPreviewIsDirty(state)).toBe(true);
+		expect(layoutPreviewCanonicalJson(state)).toBe(dirtyJson);
+	});
+
+	it('keeps a dirty baseline intact while reporting a file-read import failure', () => {
+		const state = createLayoutPreviewState();
+		expect(commitLayoutDraftRoom(state, [[30, 0], [34, 0], [34, 3], [30, 3]]).success).toBe(true);
+		const before = layoutPreviewCanonicalJson(state);
+		const baseline = state.baselineLayoutJson;
+
+		setLayoutPreviewImportError(state, 'Could not read the selected file');
+
+		expect(state.importError).toBe('Could not read the selected file');
+		expect(state.statusMessage).toBe('Import failed: Could not read the selected file');
+		expect(layoutPreviewCanonicalJson(state)).toBe(before);
+		expect(state.baselineLayoutJson).toBe(baseline);
+		expect(layoutPreviewIsDirty(state)).toBe(true);
+		expect(layoutPreviewSessionStatus(state)).toBe('dirty');
+	});
+
+	it('distinguishes imported empty baseline from blank reset', () => {
+		const state = createLayoutPreviewState();
+		resetLayoutPreview(state);
+		expect(layoutPreviewSessionStatus(state)).toBe('blank');
+		expect(state.baselineKind).toBe('blank');
+		const emptyJson = serializeLayoutDocument(createEmptyLayoutDocument());
+		expect(importLayoutPreviewJson(state, emptyJson)).toBe(true);
+		expect(state.source).toBe('imported');
+		expect(state.baselineKind).toBe('imported');
+		expect(layoutPreviewSessionStatus(state)).toBe('imported');
+	});
+
+	it('creates, edits, and deletes authored objects while profiles remain read-only', () => {
+		const state = createLayoutPreviewState();
+		const room = state.project.layout.floors[0]!.rooms[0]!;
+		const created = commitLayoutObject(state, 'box', [1, 0.5, 2], room.id);
+		expect(created.success).toBe(true);
+		if (!created.success) return;
+		expect(layoutPreviewSessionStatus(state)).toBe('dirty');
+		expect(state.model.objects.find((object) => object.objectId === created.objectId)).toBeTruthy();
+		expect(updateLayoutObjectFields(state, created.objectId, { dimensions: [2, 1, 3], roomId: undefined })).toEqual({
+			success: true,
+			objectId: created.objectId
+		});
+		expect(state.project.layout.objects.find((object) => object.id === created.objectId)).toMatchObject({
+			dimensions: [2, 1, 3]
+		});
+		expect(deleteLayoutObject(state, created.objectId)).toEqual({ success: true, objectId: created.objectId });
+
+		const imported = createEmptyLayoutDocument();
+		imported.objects.push({
+			id: 'profile-a',
+			kind: 'profile',
+			position: [0, 0.5, 0],
+			rotation: [0, 0, 0],
+			dimensions: [1, 1, 1],
+			profile: { closed: true, segments: [{ id: 'profile-line', kind: 'line', start: [0, 0], end: [1, 0] }] }
+		});
+		expect(importLayoutPreviewJson(state, serializeLayoutDocument(imported))).toBe(true);
+		expect(updateLayoutObjectFields(state, 'profile-a', { position: [1, 0.5, 0] }).success).toBe(false);
+		expect(deleteLayoutObject(state, 'profile-a').success).toBe(false);
+		expect(layoutPreviewIsDirty(state)).toBe(false);
+	});
+
+	it('updates shared room/floor fields and rejects an over-height floor mutation', () => {
+		const state = createLayoutPreviewState();
+		const room = state.project.layout.floors[0]!.rooms[0]!;
+		expect(updateLayoutRoomFields(state, room.id, { name: 'Gallery A', wallThickness: 0.25 })).toEqual({ success: true });
+		expect(state.project.layout.floors[0]!.rooms[0]).toMatchObject({ name: 'Gallery A', wallThickness: 0.25 });
+		const opening = state.project.layout.floors[0]!.rooms[0]!.openings[0];
+		if (!opening) return;
+		const before = layoutPreviewCanonicalJson(state);
+		expect(updateLayoutRoomFields(state, room.id, { floorHeight: opening.sillHeight + opening.height - 0.1 }).success).toBe(false);
+		expect(layoutPreviewCanonicalJson(state)).toBe(before);
+	});
+
+	it('persists draft room renames into canonical layout JSON', () => {
+		const state = createLayoutPreviewState();
+		resetLayoutPreview(state);
+		const committed = commitLayoutDraftRoom(state, [
+			[0, 0],
+			[4, 0],
+			[4, 3],
+			[0, 3]
+		]);
+		expect(committed.success).toBe(true);
+		if (!committed.success) return;
+		expect(state.project.layout.floors[0]!.rooms[0]!.name).toMatch(/^Draft Room/);
+		expect(updateLayoutRoomFields(state, committed.roomId, { name: 'Manual QA Room' })).toEqual({ success: true });
+		expect(state.project.layout.floors[0]!.rooms[0]!.name).toBe('Manual QA Room');
+		const json = layoutPreviewCanonicalJson(state);
+		expect(json).toContain('"name": "Manual QA Room"');
+		expect(json).not.toContain('Draft Room');
 	});
 });

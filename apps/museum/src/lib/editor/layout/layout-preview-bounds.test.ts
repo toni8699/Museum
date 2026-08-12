@@ -12,8 +12,8 @@ describe('layoutPreviewBounds', () => {
 		const bounds = layoutPreviewBounds(result.model);
 
 		expect(bounds).not.toBeNull();
-		expect(bounds!.min[1]).toBe(0);
-		expect(bounds!.max[1]).toBe(Math.max(...result.model.rooms.map((room) => room.ceilingElevation)));
+		expect(bounds!.min[1]).toBe(Math.min(...result.model.rooms.map((room) => room.floorElevation - room.floorThickness)));
+		expect(bounds!.max[1]).toBe(Math.max(...result.model.rooms.map((room) => room.ceilingElevation + room.ceilingThickness)));
 		expect(bounds!.min[0]).toBeLessThan(bounds!.max[0]);
 		expect(bounds!.min[2]).toBeLessThan(bounds!.max[2]);
 	});
@@ -30,7 +30,7 @@ describe('layoutPreviewBounds', () => {
 		const result = buildLayoutPreviewModel(document);
 		const bounds = layoutPreviewBounds(result.model);
 		expect(bounds).not.toBeNull();
-		expect(bounds!.min[1]).toBe(4);
-		expect(bounds!.max[1]).toBe(6.5);
+		expect(bounds!.min[1]).toBe(3.9);
+		expect(bounds!.max[1]).toBe(6.6);
 	});
 });

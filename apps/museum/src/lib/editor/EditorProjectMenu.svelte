@@ -1,16 +1,30 @@
 <script lang="ts">
 	import { parseSceneDocumentJson } from '$lib/content/scene-codec';
+	import { parseLayoutDocumentJson } from './layout/layout-codec';
+	import {
+		importLayoutPreviewJson,
+		layoutPreviewCanonicalJson,
+		layoutPreviewIsDirty,
+		layoutPreviewStatusLabel,
+		resetLayoutPreview,
+		setLayoutPreviewImportError,
+		type LayoutPreviewState
+	} from './layout/layout-preview-state.svelte';
 	import { onMount } from 'svelte';
 	import { acquireObjectUrl, releaseObjectUrl } from './store/binary-texture-store.svelte';
 	import type { MuseumEditorStore } from './museum-editor.svelte';
 
 	let {
 		store,
-		confirmDiscardUnsavedChanges,
+		layoutPreview,
+		confirmSceneReplacement,
+		confirmLayoutReplacement,
 		open = $bindable(false)
 	}: {
 		store: MuseumEditorStore;
-		confirmDiscardUnsavedChanges: () => boolean;
+		layoutPreview: LayoutPreviewState;
+		confirmSceneReplacement: () => boolean;
+		confirmLayoutReplacement: () => boolean;
 		open?: boolean;
 	} = $props();
 
@@ -23,8 +37,10 @@
 	const plainJsonBlocked = $derived(exportBlocker !== null);
 	let projectMenuElement = $state<HTMLElement>();
 	let importFileInput = $state<HTMLInputElement>();
+	let layoutImportFileInput = $state<HTMLInputElement>();
 	let packageImportInput = $state<HTMLInputElement>();
 	let pastedSceneJson = $state('');
+	let pastedLayoutJson = $state('');
 	let exportInFlight = $state(false);
 
 	function importSceneJson(json: string, clearPasteOnSuccess = false) {
@@ -33,7 +49,7 @@
 			store.setStatusMessage(`Import failed: ${parsed.issues[0]?.message ?? 'Invalid scene document'}`);
 			return false;
 		}
-		if (!confirmDiscardUnsavedChanges()) return false;
+		if (!confirmSceneReplacement()) return false;
 		if (!store.importDocument(parsed.document)) return false;
 		if (clearPasteOnSuccess) pastedSceneJson = '';
 		store.setStatusMessage('Imported scene document');
@@ -49,6 +65,27 @@
 			importSceneJson(await file.text());
 		} catch {
 			store.setStatusMessage('Import failed: Could not read the selected file');
+		}
+	}
+
+	function importLayoutJson(json: string, clearPasteOnSuccess = false) {
+		const parsed = parseLayoutDocumentJson(json);
+		if (!parsed.success) return importLayoutPreviewJson(layoutPreview, json);
+		if (!confirmLayoutReplacement()) return false;
+		const imported = importLayoutPreviewJson(layoutPreview, json);
+		if (imported && clearPasteOnSuccess) pastedLayoutJson = '';
+		return imported;
+	}
+
+	async function onLayoutImportFileChange(event: Event) {
+		const input = event.currentTarget as HTMLInputElement;
+		const file = input.files?.[0];
+		input.value = '';
+		if (!file) return;
+		try {
+			importLayoutJson(await file.text());
+		} catch {
+			setLayoutPreviewImportError(layoutPreview, 'Could not read the selected file');
 		}
 	}
 
@@ -80,6 +117,44 @@
 		anchor.remove();
 		window.setTimeout(() => URL.revokeObjectURL(url), 0);
 		store.setStatusMessage('Downloaded canonical scene JSON');
+	}
+
+	async function copyLayoutJson() {
+		const json = layoutPreviewCanonicalJson(layoutPreview);
+		if (!navigator.clipboard?.writeText) {
+			layoutPreview.statusMessage = 'Copy failed: Clipboard API is unavailable';
+			return;
+		}
+		try {
+			await navigator.clipboard.writeText(json);
+			layoutPreview.statusMessage = 'Copied canonical layout JSON';
+		} catch {
+			layoutPreview.statusMessage = 'Copy failed: Clipboard permission was denied';
+		}
+	}
+
+	function downloadLayoutJson() {
+		try {
+			const json = layoutPreviewCanonicalJson(layoutPreview);
+			const url = URL.createObjectURL(new Blob([json], { type: 'application/json;charset=utf-8' }));
+			const anchor = document.createElement('a');
+			anchor.href = url;
+			anchor.download = 'museum-layout.json';
+			anchor.style.display = 'none';
+			document.body.append(anchor);
+			anchor.click();
+			anchor.remove();
+			window.setTimeout(() => URL.revokeObjectURL(url), 0);
+			layoutPreview.statusMessage = 'Downloaded canonical layout JSON';
+		} catch {
+			layoutPreview.statusMessage = 'Download failed: Could not serialize layout';
+		}
+	}
+
+	function resetLayout() {
+		if (!confirmLayoutReplacement()) return;
+		resetLayoutPreview(layoutPreview);
+		layoutPreview.statusMessage = 'Reset to empty layout';
 	}
 
 	async function exportPackageArchive() {
@@ -114,7 +189,7 @@
 		const file = input.files?.[0];
 		input.value = '';
 		if (!file) return;
-		if (!confirmDiscardUnsavedChanges()) return;
+		if (!confirmSceneReplacement()) return;
 		try {
 			const bytes = new Uint8Array(await file.arrayBuffer());
 			const result = await store.importPackageArchive(bytes);
@@ -131,7 +206,7 @@
 	}
 
 	function resetScene() {
-		if (!confirmDiscardUnsavedChanges()) return;
+		if (!confirmSceneReplacement()) return;
 		if (store.resetToCheckedInDocument()) store.setStatusMessage('Reset to checked-in scene');
 	}
 
@@ -168,7 +243,8 @@
 				</div>
 				<span class:dirty class="document-state">{dirty ? 'Unsaved' : 'Saved'}</span>
 			</div>
-		<input bind:this={importFileInput} class="visually-hidden" type="file" accept="application/json,.json" onchange={onImportFileChange} />
+			<input bind:this={importFileInput} class="visually-hidden" type="file" accept="application/json,.json" onchange={onImportFileChange} />
+			<input bind:this={layoutImportFileInput} class="visually-hidden" type="file" accept="application/json,.json" onchange={onLayoutImportFileChange} />
 		<input
 			bind:this={packageImportInput}
 			class="visually-hidden"
@@ -227,8 +303,30 @@
 			{:else}
 				<p class="validation-ok">Scene document is valid.</p>
 			{/if}
-			{#if store.statusMessage}<p class="status" role="status">{store.statusMessage}</p>{/if}
-		</div>
+				{#if store.statusMessage}<p class="status" role="status">{store.statusMessage}</p>{/if}
+				<section class="layout-json-section" aria-label="Layout JSON actions">
+					<div class="project-heading">
+						<div>
+							<strong>Layout JSON</strong>
+							<span>Independent editor-only layout document.</span>
+						</div>
+						<span class:dirty={layoutPreviewIsDirty(layoutPreview)} class="document-state">{layoutPreviewStatusLabel(layoutPreview)}</span>
+					</div>
+					<div class="project-actions">
+						<button type="button" onclick={() => layoutImportFileInput?.click()}>Import file</button>
+						<button type="button" onclick={copyLayoutJson}>Copy JSON</button>
+						<button type="button" onclick={downloadLayoutJson}>Download JSON</button>
+						<button type="button" class="danger" onclick={resetLayout}>Reset</button>
+					</div>
+					<label class="paste-import">
+						<span>Paste layout JSON</span>
+						<textarea bind:value={pastedLayoutJson} spellcheck="false" placeholder={'{ ... }'}></textarea>
+					</label>
+					<button class="paste-action" type="button" disabled={!pastedLayoutJson.trim()} onclick={() => importLayoutJson(pastedLayoutJson, true)}>Import pasted JSON</button>
+					{#if layoutPreview.importError}<p class="layout-import-error" role="alert">Import failed: {layoutPreview.importError}</p>{/if}
+					{#if layoutPreview.statusMessage}<p class="status" role="status">{layoutPreview.statusMessage}</p>{/if}
+				</section>
+			</div>
 	{/if}
 </div>
 
@@ -271,6 +369,8 @@
 		border-radius: 0.45rem;
 		background: #17171f;
 		box-shadow: 0 0.8rem 2rem rgb(0 0 0 / 48%);
+		max-height: calc(100dvh - 5rem);
+		overflow: auto;
 	}
 	.project-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.7rem; }
 	.project-heading > div { display: flex; min-width: 0; flex-direction: column; gap: 0.15rem; }
@@ -339,6 +439,8 @@
 	.validation-errors ul { display: flex; flex-direction: column; gap: 0.25rem; margin: 0.35rem 0 0; padding-left: 1.1rem; }
 	.validation-errors code { color: #f4dc9b; font-size: 0.64rem; }
 	.validation-ok, .status { margin: 0.55rem 0 0; color: #a8a29a; font-size: 0.68rem; line-height: 1.4; }
+	.layout-json-section { margin-top: 0.8rem; padding-top: 0.8rem; border-top: 1px solid #383640; }
+	.layout-import-error { margin: 0.55rem 0 0; color: #efc7c7; font-size: 0.68rem; line-height: 1.4; }
 	.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; clip-path: inset(50%); }
 
 	@media (max-width: 34rem) {

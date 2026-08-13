@@ -161,9 +161,15 @@
 		if (interaction.editing?.roomId === selectedRoom.id) return interaction.editing.currentPoints;
 		return roomPoints(selectedRoom);
 	});
-	const rotationHandleVisible = $derived.by(() => {
+	const rotationHandleHovered = $derived.by(() => {
 		if (interaction.tool !== 'select' || interaction.selection.kind !== 'room' || !selectedRoom || !rotationHoverScreen) return false;
-		return distance(worldToPlanScreen(interaction.planView, rotationHandlePoint(selectedRoom)), rotationHoverScreen) <= LAYOUT_PLAN_HIT_RADIUS_PX;
+		return distance(rotationHandleScreenPoint(selectedRoom), rotationHoverScreen) <= LAYOUT_PLAN_HIT_RADIUS_PX;
+	});
+	const rotationFeedback = $derived.by(() => {
+		const drag = interaction.roomUnitDrag;
+		if (!drag || drag.mode !== 'rotate') return null;
+		const degrees = Math.round((drag.yaw * 180) / Math.PI);
+		return `${degrees >= 0 ? '+' : ''}${degrees}°`;
 	});
 
 	onMount(() => {
@@ -284,18 +290,33 @@
 		return true;
 	}
 
-	function rotationHandlePoint(room: LayoutRoom): LayoutVec2 {
-		const pivot = layoutRoomUnitPivot(room);
-		const points = roomPoints(room);
-		const radius = Math.max(1.25, ...points.map((point) => distance(point, pivot))) * 0.8;
-		return [pivot[0], pivot[1] - radius];
+	const ROTATION_HANDLE_OFFSET_PX = 28;
+
+	function roomScreenBounds(room: LayoutRoom): { minX: number; minY: number; maxX: number; maxY: number } {
+		const points = roomPoints(room).map((point) => worldToPlanScreen(interaction.planView, point));
+		return {
+			minX: Math.min(...points.map(([x]) => x)),
+			minY: Math.min(...points.map(([, y]) => y)),
+			maxX: Math.max(...points.map(([x]) => x)),
+			maxY: Math.max(...points.map(([, y]) => y))
+		};
+	}
+
+	function rotationHandleAnchorScreen(room: LayoutRoom): LayoutVec2 {
+		const bounds = roomScreenBounds(room);
+		return [(bounds.minX + bounds.maxX) / 2, bounds.minY];
+	}
+
+	function rotationHandleScreenPoint(room: LayoutRoom): LayoutVec2 {
+		const anchor = rotationHandleAnchorScreen(room);
+		return [anchor[0], anchor[1] - ROTATION_HANDLE_OFFSET_PX];
 	}
 
 	function rotationHandleHit(screen: LayoutVec2): LayoutRoom | null {
 		if (interaction.selection.kind !== 'room') return null;
 		const room = findLayoutRoom(rooms, interaction.selection.roomId);
 		if (!room) return null;
-		const handle = worldToPlanScreen(interaction.planView, rotationHandlePoint(room));
+		const handle = rotationHandleScreenPoint(room);
 		return distance(handle, screen) <= LAYOUT_PLAN_HIT_RADIUS_PX ? room : null;
 	}
 
@@ -890,6 +911,8 @@
 	<svg
 		bind:this={svgElement}
 		class="plan-canvas"
+		class:rotation-handle-hover={rotationHandleHovered}
+		class:rotation-dragging={Boolean(interaction.roomUnitDrag)}
 		viewBox={viewBox}
 		preserveAspectRatio="none"
 		role="application"
@@ -971,12 +994,17 @@
 					points={footprint.map((point) => worldToPlanScreen(interaction.planView, point).join(',')).join(' ')}
 				/>
 			{/if}
-			{#if interaction.selection.kind === 'room' && selectedPoints.length > 0}
-				{@const pivotScreen = selectedRoom ? worldToPlanScreen(interaction.planView, layoutRoomUnitPivot(selectedRoom)) : null}
-				{@const rotationScreen = selectedRoom ? worldToPlanScreen(interaction.planView, rotationHandlePoint(selectedRoom)) : null}
-				{#if pivotScreen && rotationScreen && rotationHandleVisible}
-					<line class="rotation-arm" x1={pivotScreen[0]} y1={pivotScreen[1]} x2={rotationScreen[0]} y2={rotationScreen[1]} />
-					<text class="rotation-glyph" x={rotationScreen[0]} y={rotationScreen[1] + 6} aria-label="Rotate room">↔</text>
+			{#if interaction.tool === 'select' && interaction.selection.kind === 'room' && selectedPoints.length > 0}
+				{@const selectionBounds = selectedRoom ? roomScreenBounds(selectedRoom) : null}
+				{@const rotationAnchorScreen = selectedRoom ? rotationHandleAnchorScreen(selectedRoom) : null}
+				{#if selectionBounds}
+					<rect class="selection-bounds" x={selectionBounds.minX} y={selectionBounds.minY} width={selectionBounds.maxX - selectionBounds.minX} height={selectionBounds.maxY - selectionBounds.minY} />
+				{/if}
+				{@const rotationScreen = selectedRoom ? rotationHandleScreenPoint(selectedRoom) : null}
+				{#if rotationAnchorScreen && rotationScreen}
+					<line class="rotation-arm" x1={rotationAnchorScreen[0]} y1={rotationAnchorScreen[1]} x2={rotationScreen[0]} y2={rotationScreen[1]} />
+					<circle class="rotation-handle" cx={rotationScreen[0]} cy={rotationScreen[1]} r="7" aria-label="Rotate room" />
+					{#if rotationFeedback}<text class="rotation-feedback" x={rotationScreen[0] + 12} y={rotationScreen[1] - 10}>{rotationFeedback}</text>{/if}
 				{/if}
 			{#each selectedPoints as point, index (index)}
 				{@const screen = worldToPlanScreen(interaction.planView, point)}
@@ -1033,6 +1061,8 @@
 <style>
 	.plan-viewport { position: absolute; inset: 0; background: #0d0d12; }
 	.plan-canvas { display: block; position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: crosshair; outline: none; }
+	.plan-canvas.rotation-handle-hover { cursor: grab; }
+	.plan-canvas.rotation-dragging { cursor: grabbing; }
 	.plan-canvas line { stroke: #302d38; stroke-width: 1; vector-effect: non-scaling-stroke; }
 	.plan-canvas line.major { stroke: #494352; }
 	.grid-label { fill: #746d7d; font: 10px ui-monospace, monospace; pointer-events: none; }
@@ -1040,6 +1070,7 @@
 	.room-fill.selected { fill: #9b7841; fill-opacity: 0.45; }
 	.room-outline { fill: none; stroke: #88b7d6; stroke-width: 2; vector-effect: non-scaling-stroke; }
 	.room-outline.selected { stroke: #f1cd78; stroke-width: 3; }
+	.selection-bounds { fill: none; stroke: #f1cd78; stroke-width: 1; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; pointer-events: none; }
 	.wall-line { fill: none; stroke: #b2a58f; stroke-width: 4; vector-effect: non-scaling-stroke; pointer-events: none; }
 	.wall-line.selected { stroke: #fff2c7; stroke-width: 6; }
 	.wall-line.opening-selected { stroke: #d6b35f; stroke-width: 6; }
@@ -1055,8 +1086,9 @@
 	.interior-anchor { fill: #d6b35f; stroke: #fff2c7; stroke-width: 2; vector-effect: non-scaling-stroke; }
 	.interior-anchor.selected { fill: #fff2c7; stroke: #d6b35f; }
 	.vertex-handle { fill: #fff2c7; stroke: #d6b35f; stroke-width: 2; vector-effect: non-scaling-stroke; }
-	.rotation-arm { stroke: #d6b35f; stroke-width: 2; stroke-dasharray: 5 3; vector-effect: non-scaling-stroke; pointer-events: none; }
-	.rotation-glyph { fill: #fff2c7; font: 700 18px ui-sans-serif, system-ui, sans-serif; paint-order: stroke; stroke: #6f5a2f; stroke-width: 3px; text-anchor: middle; pointer-events: none; user-select: none; }
+	.rotation-arm { stroke: #ffffff; stroke-width: 3; stroke-dasharray: none; vector-effect: non-scaling-stroke; pointer-events: none; }
+	.rotation-handle { fill: #fff2c7; stroke: #6f5a2f; stroke-width: 2; vector-effect: non-scaling-stroke; pointer-events: none; }
+	.rotation-feedback { fill: #fff2c7; font: 700 11px ui-monospace, monospace; paint-order: stroke; stroke: #0d0d12; stroke-width: 3px; stroke-linejoin: round; pointer-events: none; user-select: none; }
 	.dimension-label, .selection-label { fill: #f1d99a; font: 10px ui-monospace, monospace; paint-order: stroke; stroke: #0d0d12; stroke-width: 3px; stroke-linejoin: round; pointer-events: none; }
 	.selection-label { font-size: 12px; font-weight: 700; }
 	.draft-outline { fill: rgba(214, 179, 95, 0.18); stroke: #d6b35f; stroke-width: 2; stroke-dasharray: 8 4; vector-effect: non-scaling-stroke; }

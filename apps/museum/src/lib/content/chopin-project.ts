@@ -16,6 +16,9 @@ import {
 	validateChopinRoomPresentation,
 	type ChopinRoomPresentation
 } from './chopin-room-presentation';
+import { compileLayoutGeometry } from '$lib/layout/layout-geometry';
+import { hasBlockingLayoutIssues } from '$lib/layout/layout-geometry-validation';
+import type { CompiledLayoutGeometry } from '$lib/layout/layout-geometry-types';
 
 export type MuseumRuntime = {
 	project: MuseumProject;
@@ -23,6 +26,7 @@ export type MuseumRuntime = {
 	scene: RuntimeMuseumScene;
 	graph: NavigationGraph;
 	presentation: Readonly<Record<string, ChopinRoomPresentation>>;
+	geometry: CompiledLayoutGeometry;
 };
 
 const validation = validateMuseumProject(rawChopinProject);
@@ -38,12 +42,19 @@ const rooms = createLayoutRoomRegistry(chopinProject.layout);
 const scene = resolveSceneDocument(chopinProject.scene, rooms);
 const graph = createNavigationGraph(scene);
 
+const geometryResult = compileLayoutGeometry(chopinProject.layout);
+if (hasBlockingLayoutIssues(geometryResult.issues)) {
+	const first = geometryResult.issues[0]!;
+	throw new Error(`Invalid Chopin layout geometry: ${first.path} (${first.code}) — ${first.message}`);
+}
+
 export const chopinRuntime: MuseumRuntime = {
 	project: chopinProject,
 	rooms,
 	scene,
 	graph,
-	presentation: chopinRoomPresentation
+	presentation: chopinRoomPresentation,
+	geometry: geometryResult.geometry
 };
 
 /** Compatibility aliases. All derive from the same validated project instance. */

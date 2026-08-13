@@ -4,6 +4,7 @@
   import { interactivity } from '@threlte/extras';
   import { chopinRuntime, type MuseumRuntime } from '$lib/content/chopin-project';
   import type { LayoutDocument } from '$lib/layout/layout-types';
+  import type { CompiledLayoutGeometry } from '$lib/layout/layout-geometry-types';
   import type { LayoutRoomRegistry } from '$lib/project/project-layout-semantics';
   import type { ChopinRoomPresentation } from '$lib/content/chopin-room-presentation';
   import {
@@ -43,6 +44,7 @@
     scene = runtime.scene,
     rooms = runtime.rooms,
     layout = runtime.project.layout,
+    geometry = runtime.geometry,
     presentation = runtime.presentation,
     state = createMuseumState(runtime.graph),
     camera,
@@ -60,6 +62,7 @@
     scene?: RuntimeMuseumScene;
     rooms?: LayoutRoomRegistry;
     layout?: LayoutDocument;
+    geometry?: CompiledLayoutGeometry;
     presentation?: Readonly<Record<string, ChopinRoomPresentation>>;
     state?: MuseumStateStore;
     camera?: Snippet<[NavigationGraph, MuseumStateStore]>;
@@ -111,7 +114,7 @@
 
 {#if showArchitecture}
   <GroundPlinth />
-  <LayoutMuseumShell {layout} {presentation} excludedRoomIds={bespokeRoomIds} />
+  <LayoutMuseumShell {geometry} {presentation} excludedRoomIds={bespokeRoomIds} />
 
   <RoomFrame room={rooms.getRequired('entrance')}><EntranceRoom /></RoomFrame>
   <RoomFrame room={rooms.getRequired('poland')}><PolandRoom /></RoomFrame>

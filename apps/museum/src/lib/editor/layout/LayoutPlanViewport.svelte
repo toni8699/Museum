@@ -48,17 +48,14 @@
 		updateLayoutOpeningFields,
 		type LayoutPreviewSnapshot
 	} from './layout-preview-state.svelte';
-	import { pointInRoom, roomEdgeLength, roomPoints } from './layout-editing';
 	import {
 		openingContainsOffset,
-		openingSamplePolyline,
-		projectPointToDraftSegment,
 		snapSegmentOffset,
-		wallPolylinesAroundOpenings,
 		LAYOUT_PLAN_HIT_RADIUS_PX,
-		type LayoutOpeningKind
+		type LayoutOpeningKind,
+		type SegmentProjection
 	} from './layout-opening-editing';
-	import { segmentLength } from './curve-geometry';
+	import { projectPointToSampledSegment, type SampledSegment } from '$lib/layout/layout-geometry-curve';
 	import {
 		buildPlanGrid,
 		constrainToAngle,
@@ -73,6 +70,7 @@
 	} from './layout-plan-transform';
 	import type { DraftSegment, LayoutOpening, LayoutRoom, LayoutVec2 } from './layout-types';
 	import { findHitLayoutObject, type LayoutObjectDescriptor } from './layout-object-editing';
+	import { pointInPolygon } from '$lib/layout/layout-geometry-objects';
 	import { layoutRoomUnitPivot } from './layout-room-transform';
 
 	let {
@@ -126,6 +124,10 @@
 	);
 	const scaleMeters = $derived(100 / interaction.planView.pixelsPerMeter);
 	const rooms = $derived(preview.project.layout.floors.flatMap((floor) => floor.rooms));
+	const compiledRoomsById = $derived(new Map(model.rooms.map((room) => [room.roomId, room] as const)));
+	const compiledWallsBySegmentId = $derived(
+		new Map(model.rooms.flatMap((room) => room.walls.map((wall) => [wall.segmentId, wall] as const)))
+	);
 	const selectedRoom = $derived.by(() => {
 		const roomId = selectedLayoutRoomId(interaction);
 		return roomId ? findLayoutRoom(rooms, roomId) : undefined;
@@ -159,7 +161,7 @@
 	const selectedPoints = $derived.by(() => {
 		if (!selectedRoom) return [] as LayoutVec2[];
 		if (interaction.editing?.roomId === selectedRoom.id) return interaction.editing.currentPoints;
-		return roomPoints(selectedRoom);
+		return roomVertices(selectedRoom);
 	});
 	const rotationHandleHovered = $derived.by(() => {
 		if (interaction.tool !== 'select' || interaction.selection.kind !== 'room' || !selectedRoom || !rotationHoverScreen) return false;
@@ -293,7 +295,7 @@
 	const ROTATION_HANDLE_OFFSET_PX = 28;
 
 	function roomScreenBounds(room: LayoutRoom): { minX: number; minY: number; maxX: number; maxY: number } {
-		const points = roomPoints(room).map((point) => worldToPlanScreen(interaction.planView, point));
+		const points = roomVertices(room).map((point) => worldToPlanScreen(interaction.planView, point));
 		return {
 			minX: Math.min(...points.map(([x]) => x)),
 			minY: Math.min(...points.map(([, y]) => y)),
@@ -407,7 +409,7 @@
 			if (svgElement) {
 				pointerId = event.pointerId;
 				svgElement.setPointerCapture(event.pointerId);
-				beginRoomEdit(interaction, 'vertex', target.room.id, point, roomPoints(target.room), target.vertexIndex);
+				beginRoomEdit(interaction, 'vertex', target.room.id, point, roomVertices(target.room), target.vertexIndex);
 			}
 			return;
 		}
@@ -526,9 +528,10 @@
 			if (!point) return;
 			const room = findLayoutRoom(rooms, openingDrag.roomId);
 			const segment = room?.boundary.segments.find((candidate) => candidate.id === openingDrag!.segmentId);
-			if (!segment) return;
-			const projection = projectPointToDraftSegment(point, segment);
-			const length = segmentLength(segment);
+			const wall = segment ? compiledWallsBySegmentId.get(segment.id) : undefined;
+			if (!segment || !wall) return;
+			const projection = projectPointToWall(point, wall);
+			const length = wall.length;
 			const centered = projection.offset - openingDrag.width / 2;
 			const offset = interaction.planView.snapEnabled
 				? snapSegmentOffset(centered, Math.max(0, length - openingDrag.width))
@@ -778,7 +781,7 @@
 		let nearest: VertexHitTarget | null = null;
 		let nearestDistance = LAYOUT_PLAN_HIT_RADIUS_PX;
 		for (const room of rooms) {
-			roomPoints(room).forEach((point, vertexIndex) => {
+			roomVertices(room).forEach((point, vertexIndex) => {
 				const candidate = worldToPlanScreen(interaction.planView, point);
 				const currentDistance = Math.hypot(candidate[0] - screen[0], candidate[1] - screen[1]);
 				if (currentDistance <= nearestDistance) {
@@ -809,13 +812,23 @@
 		return nearest;
 	}
 
+	function projectPointToWall(point: LayoutVec2, wall: SampledSegment): SegmentProjection {
+		const projection = projectPointToSampledSegment(point, wall);
+		return { point: projection.point, offset: projection.distance, distance: projection.distanceToPath, t: projection.t };
+	}
+
+	function compiledRoomEdgeLength(roomId: string, edgeIndex: number): number {
+		return compiledRoomsById.get(roomId)?.walls[edgeIndex]?.length ?? 0;
+	}
+
 	function nearestOpeningTarget(point: LayoutVec2): OpeningHitTarget | null {
 		const tolerance = LAYOUT_PLAN_HIT_RADIUS_PX / interaction.planView.pixelsPerMeter;
 		for (const room of [...rooms].reverse()) {
 			for (const opening of [...room.openings].reverse()) {
 				const segment = room.boundary.segments.find((candidate) => candidate.id === opening.segmentId);
-				if (!segment) continue;
-				const projection = projectPointToDraftSegment(point, segment);
+				const wall = segment ? compiledWallsBySegmentId.get(segment.id) : undefined;
+				if (!segment || !wall) continue;
+				const projection = projectPointToWall(point, wall);
 				if (projection.distance <= tolerance && openingContainsOffset(opening, projection.offset, tolerance)) {
 					return { kind: 'opening', room, segment, opening, projection };
 				}
@@ -829,7 +842,9 @@
 		let nearest: WallHitTarget | null = null;
 		for (const room of [...rooms].reverse()) {
 			for (const segment of [...room.boundary.segments].reverse()) {
-				const projection = projectPointToDraftSegment(point, segment);
+				const wall = compiledWallsBySegmentId.get(segment.id);
+				if (!wall) continue;
+				const projection = projectPointToWall(point, wall);
 				if (projection.distance <= tolerance && (!nearest || projection.distance < nearest.projection.distance)) {
 					nearest = { kind: 'wall', room, segment, projection };
 				}
@@ -843,11 +858,18 @@
 	}
 
 	function findHitRoom(roomList: readonly LayoutRoom[], point: LayoutVec2): LayoutRoom | undefined {
-		return [...roomList].reverse().find((room) => pointInRoom(point, room));
+		return [...roomList].reverse().find((room) => {
+			const compiled = compiledRoomsById.get(room.id);
+			return compiled ? pointInPolygon(point, compiled.floorPolygon) : false;
+		});
 	}
 
 	function findLayoutRoom(roomList: readonly LayoutRoom[], roomId: string): LayoutRoom | undefined {
 		return roomList.find((room) => room.id === roomId);
+	}
+
+	function roomVertices(room: LayoutRoom): LayoutVec2[] {
+		return room.boundary.segments.map((segment) => [...segment.start] as LayoutVec2);
 	}
 
 	function renderPoints(roomId: string, fallback: LayoutVec2[]): LayoutVec2[] {
@@ -874,13 +896,13 @@
 		room: LayoutRoom;
 		segment: DraftSegment;
 		opening: LayoutOpening;
-		projection: ReturnType<typeof projectPointToDraftSegment>;
+		projection: SegmentProjection;
 	};
 	type WallHitTarget = {
 		kind: 'wall';
 		room: LayoutRoom;
 		segment: DraftSegment;
-		projection: ReturnType<typeof projectPointToDraftSegment>;
+		projection: SegmentProjection;
 	};
 	type ObjectHitTarget = { kind: 'object'; object: LayoutObjectDescriptor };
 	type PlanHitTarget =
@@ -936,7 +958,6 @@
 			{/each}
 		{/if}
 		{#each model.rooms as room (room.roomId)}
-			{@const layoutRoom = findLayoutRoom(rooms, room.roomId)}
 			{@const points = renderPoints(room.roomId, room.floorPolygon)}
 			<polygon
 				class="room-fill"
@@ -950,8 +971,7 @@
 				points={[...points, points[0]].map((point) => worldToPlanScreen(interaction.planView, point).join(',')).join(' ')}
 			/>
 			{#each room.walls as wall (wall.segmentId)}
-				{@const wallOpenings = layoutRoom?.openings.filter((opening) => opening.segmentId === wall.segmentId) ?? []}
-				{#each wallPolylinesAroundOpenings(wall.samples, wallOpenings) as polyline, polylineIndex (`${wall.segmentId}:span:${polylineIndex}`)}
+				{#each wall.solidCenterlinePolylines as polyline, polylineIndex (`${wall.segmentId}:span:${polylineIndex}`)}
 					<polyline
 						class="wall-line"
 						class:selected={isWallSelected(wall.segmentId)}
@@ -959,20 +979,14 @@
 						points={polyline.map((point) => worldToPlanScreen(interaction.planView, point).join(',')).join(' ')}
 					/>
 				{/each}
-			{/each}
-			{#if layoutRoom}
-				{#each layoutRoom.openings as opening (opening.id)}
-					{@const segment = layoutRoom.boundary.segments.find((candidate) => candidate.id === opening.segmentId)}
-					{#if segment}
-						{@const openingPoints = openingSamplePolyline(segment, opening).map((point) => worldToPlanScreen(interaction.planView, point))}
-						<polyline
-							class="opening-line"
-							class:opening-selected={interaction.selection.kind === 'opening' && interaction.selection.openingId === opening.id}
-							points={openingPoints.map((point) => point.join(',')).join(' ')}
-						/>
-					{/if}
+				{#each wall.openings as opening (opening.openingId)}
+					<polyline
+						class="opening-line"
+						class:opening-selected={interaction.selection.kind === 'opening' && interaction.selection.openingId === opening.openingId}
+						points={opening.centerPolyline.map((point) => worldToPlanScreen(interaction.planView, point).join(',')).join(' ')}
+					/>
 				{/each}
-			{/if}
+			{/each}
 			{/each}
 			{#each model.objects as object (object.objectId)}
 				{@const footprint = renderObjectFootprint(object)}
@@ -1014,7 +1028,7 @@
 				{@const next = selectedPoints[(index + 1) % selectedPoints.length]!}
 				{@const start = worldToPlanScreen(interaction.planView, point)}
 				{@const end = worldToPlanScreen(interaction.planView, next)}
-				{@const edgeLength = selectedRoom ? roomEdgeLength(selectedRoom, index) : Math.hypot(next[0] - point[0], next[1] - point[1])}
+				{@const edgeLength = selectedRoom ? compiledRoomEdgeLength(selectedRoom.id, index) : Math.hypot(next[0] - point[0], next[1] - point[1])}
 				<text class="dimension-label" x={(start[0] + end[0]) / 2} y={(start[1] + end[1]) / 2 - 5}>{edgeLength.toFixed(2)} m</text>
 			{/each}
 		{/if}

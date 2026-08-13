@@ -7,14 +7,11 @@ import {
 	findRoomOpening,
 	nextOpeningId,
 	openingContainsOffset,
-	openingSamplePolyline,
-	projectPointToSegment,
 	removeRoomOpening,
 	replaceRoomOpening,
-	snapSegmentOffset,
-	updateLayoutOpening,
-	wallPolylinesAroundOpenings
+	snapSegmentOffset
 } from './layout-opening-editing';
+import { wallPolylinesAroundOpenings } from '$lib/layout/layout-geometry-openings';
 import type { CurveSample } from './curve-geometry';
 
 const room = createA1RectangleDocument().floors[0]!.rooms[0]!;
@@ -23,20 +20,6 @@ const segment = room.boundary.segments[0]!;
 if (segment.kind !== 'line') throw new Error('Expected line fixture');
 
 describe('A2.3 opening editing', () => {
-	it('projects points to horizontal, vertical, and rotated segments', () => {
-		expect(projectPointToSegment([2, 3], [0, 0], [6, 0])).toMatchObject({
-			point: [2, 0],
-			offset: 2,
-			distance: 3
-		});
-		expect(projectPointToSegment([3, 2], [3, 0], [3, 4])).toMatchObject({
-			point: [3, 2],
-			offset: 2,
-			distance: 0
-		});
-		expect(projectPointToSegment([2, 1], [0, 0], [4, 4]).point).toEqual([1.5, 1.5]);
-	});
-
 	it('snaps along-segment offsets and clamps to segment bounds', () => {
 		expect(snapSegmentOffset(2.13, 6)).toBe(2.25);
 		expect(snapSegmentOffset(99, 6)).toBe(6);
@@ -55,18 +38,12 @@ describe('A2.3 opening editing', () => {
 		expect(opening.offset).toBe(0);
 	});
 
-	it('updates fields without changing stable opening identity', () => {
-		const opening = createDefaultOpening({ id: 'door', segment, kind: 'door', clickOffset: 3 });
-		const updated = updateLayoutOpening(opening, { offset: 1.25, width: 1.1, height: 2.2, sillHeight: 0.2 });
-		expect(updated).toMatchObject({ id: 'door', segmentId: segment.id, offset: 1.25, width: 1.1, height: 2.2, sillHeight: 0.2 });
-	});
-
 	it('adds, finds, replaces, and removes only the requested opening', () => {
 		const door = createDefaultOpening({ id: 'door', segment, kind: 'door', clickOffset: 1 });
 		const window = createDefaultOpening({ id: 'window', segment, kind: 'window', clickOffset: 5 });
 		const withOpenings = appendRoomOpening(appendRoomOpening(room, door), window);
 		expect(findRoomOpening(withOpenings, 'window')).toEqual(window);
-		const moved = replaceRoomOpening(withOpenings, updateLayoutOpening(door, { width: 1 }));
+		const moved = replaceRoomOpening(withOpenings, { ...door, width: 1 });
 		expect(findRoomOpening(moved, 'door')?.width).toBe(1);
 		expect(removeRoomOpening(moved, 'door').openings).toEqual([window]);
 	});
@@ -82,7 +59,7 @@ describe('A2.3 opening editing', () => {
 		expect(openingContainsOffset(opening, opening.offset - 0.1)).toBe(false);
 	});
 
-	it('splits wall samples around openings and samples opening paths along the segment', () => {
+	it('splits wall samples around openings', () => {
 		const samples: CurveSample[] = [
 			{ point: [0, 0], distance: 0, tangent: [1, 0], normal: [0, 1], t: 0 },
 			{ point: [1, 0], distance: 1, tangent: [1, 0], normal: [0, 1], t: 0.25 },
@@ -103,8 +80,6 @@ describe('A2.3 opening editing', () => {
 				[4, 0]
 			]
 		]);
-		expect(openingSamplePolyline(segment, { offset: 1, width: 2 })[0]).toEqual([1, segment.start[1]]);
-		expect(openingSamplePolyline(segment, { offset: 1, width: 2 }).at(-1)).toEqual([3, segment.start[1]]);
 	});
 
 	it('keeps solid stubs when a centered door would otherwise erase a coarse wall', () => {

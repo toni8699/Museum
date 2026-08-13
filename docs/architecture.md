@@ -16,9 +16,9 @@
 | Entities, nodes, paths, materials | `project.scene` / `SceneDocument` v6 | same |
 | Codec boundary | shared layout, scene, and project codecs | same |
 | Resolve + generated endpoints | `scene.ts` with an explicit project room resolver | same |
-| Shell cutouts | `LayoutMuseumShell` from `project.layout` | shared compiled geometry after G1 |
+| Shell cutouts | `LayoutMuseumShell` from `CompiledLayoutGeometry` | shared compiled geometry (G1 implemented) |
 | Legacy room compatibility | deprecated editor/test projection in `rooms.ts`; no visitor import | delete when consumers migrate |
-| Derived layout geometry | Editor `buildLayoutPreviewModel()` + runtime `buildLayoutArchitectureModel()` | one pure `compileLayoutGeometry()` |
+| Derived layout geometry | one pure `compileLayoutGeometry()` (G1 implemented) | same |
 | Plan presentation | SVG elements + overlays assembled in `LayoutPlanViewport.svelte` | `CompiledLayoutGeometry` → pure `PlanRenderModel` → SVG adapter |
 | 3D architecture meshes | sampled wall-chord `BoxGeometry` in editor/runtime layout shells | `CompiledLayoutGeometry` → `ThreeGeometryAdapter` → indexed `BufferGeometry` |
 | Routes / curves | `camera-route` + `camera-motion` only | unchanged |
@@ -32,14 +32,13 @@ flowchart LR
   project["chopin-project.json"] --> layout["LayoutDocument v3"]
   project --> scene["SceneDocument v6"]
   layout --> registry["room registry"]
-  layout --> runtime["buildLayoutArchitectureModel()"]
-  runtime --> shell["LayoutMuseumShell"]
+  layout --> compile["compileLayoutGeometry()"]
+  compile --> compiled["CompiledLayoutGeometry"]
+  compiled --> shell["LayoutMuseumShell"]
   scene --> resolve["resolveSceneDocument()"]
   registry --> resolve
   resolve --> entities["MuseumEntities"]
   resolve --> motion["camera-route + camera-motion"]
-  layout -.->|G1| compile["compileLayoutGeometry()"]
-  compile --> compiled["CompiledLayoutGeometry"]
   compiled --> plan["PlanRenderModel → SVG"]
   compiled --> three["ThreeGeometryAdapter → Threlte/Three"]
   three --- entities
@@ -48,12 +47,12 @@ flowchart LR
 
 ## Geometry and render boundary
 
-B5's production `LayoutMuseumShell` uses the visitor-safe
-`buildLayoutArchitectureModel()`; the editor's richer `buildLayoutPreviewModel()`
-remains a separate projection. The canonical Chopin layout is line-based. The
-post-B5 graphics roadmap consolidates
-adaptive curves, arc lengths, tangents/normals, openings/profiles, polygons,
-bounds, and query records into one pure `CompiledLayoutGeometry` contract.
+G1 replaces both legacy projections (`buildLayoutArchitectureModel()` and the
+editor's independent `buildLayoutPreviewModel()` sampling) with one pure
+`compileLayoutGeometry()`: adaptive curves, arc lengths, tangents/normals,
+openings/profiles, polygons, bounds, and query records. Plan, editor 3D, and
+visitor 3D all consume `CompiledLayoutGeometry` and no longer resample curves or
+reinterpret opening topology. The canonical Chopin layout is line-based.
 
 `LayoutDocument` remains authored semantic CAD data. Compiled geometry is derived,
 cacheable, renderer-neutral, and never serialized. It may contain plain values or

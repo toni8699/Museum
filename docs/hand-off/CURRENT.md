@@ -4,13 +4,13 @@
 
 **North star:** layout-first / Chopin-as-data — [`../north-star.md`](../north-star.md).  
 **P0:** Layout CAD Foundation — [`../plans/2026-08-10-layout-cad-foundation.md`](../plans/2026-08-10-layout-cad-foundation.md).  
-**Completed:** A0 LayoutDocument codec + B0 Chopin `rooms.ts` compiler + A1 pure line geometry/preview model/transaction stub + C0 `MuseumProject` codec + A2 read-only layout preview workspace + A2.1 rectangle/polygon drafting + A2.2 meter-scale editing and Chopin floor correction + A2.3 geometry-only opening authoring and numeric opening dimensions + A3 Bezier walls, arc-length openings, and derived arch profiles + A3.1 camera-style wall bend anchors, opening viz fix, and Plan opening drag + A4 layout objects, inspectors, and layout JSON I/O + A4.1 Layout Authoring Polish + B3 Room-Unit Relocate + B4 Runtime Dual-Read + B5 Serialized Project Runtime Cutover.
+**Completed:** A0 LayoutDocument codec + B0 Chopin `rooms.ts` compiler + A1 pure line geometry/preview model/transaction stub + C0 `MuseumProject` codec + A2 read-only layout preview workspace + A2.1 rectangle/polygon drafting + A2.2 meter-scale editing and Chopin floor correction + A2.3 geometry-only opening authoring and numeric opening dimensions + A3 Bezier walls, arc-length openings, and derived arch profiles + A3.1 camera-style wall bend anchors, opening viz fix, and Plan opening drag + A4 layout objects, inspectors, and layout JSON I/O + A4.1 Layout Authoring Polish + B3 Room-Unit Relocate + B4 Runtime Dual-Read + B5 Serialized Project Runtime Cutover + G1 Shared Geometry Compiler.
 
 Full-track Phase 2 scene presets = deferred optional.
 
 ## Next slice
 
-**G1 — Shared geometry compiler.** Consolidate editor/runtime curve sampling, openings/profiles, polygons, bounds, and query geometry behind one pure visitor-safe `compileLayoutGeometry()` contract. Roadmap: [`../plans/2026-08-13-graphics-architecture-roadmap.md`](../plans/2026-08-13-graphics-architecture-roadmap.md). B5 is implemented in [`../plans/2026-08-13-layout-cad-b5-runtime-cutover.md`](../plans/2026-08-13-layout-cad-b5-runtime-cutover.md).
+**G2 — Explicit Plan render boundary.** Derive a pure `PlanRenderModel` from `CompiledLayoutGeometry` plus optional renderer-neutral camera/tour and interaction projections; split document mutation, compiled geometry, view transforms, render order, transient overlays, and styling. Roadmap: [`../plans/2026-08-13-graphics-architecture-roadmap.md`](../plans/2026-08-13-graphics-architecture-roadmap.md). G1 is implemented in [`../plans/2026-08-13-graphics-g1-shared-geometry-compiler.md`](../plans/2026-08-13-graphics-g1-shared-geometry-compiler.md).
 
 A4 adds primitive layout-object placement in Plan and 3D, transient Plan object dragging, room/wall/opening/object numeric inspectors, canonical layout JSON I/O, and independent layout baseline/status/dirty handling. A4.1 refines this into Plan-only Box/Cylinder/Sphere gestures, transformed primitive footprints, Place/Objects/Selection accordions, contextual dimensions, and replacement-only Plan reframing. Stored object transform/dimensions now drive rendering, bounds, and JSON exactly. B3 adds shared chronological scene/layout history: entries are tagged by domain, undo/redo restores only the touched document, and import/reset clears the shared stack.
 
@@ -37,6 +37,7 @@ B5 makes checked-in `chopin-project.json` the sole production layout/scene sourc
 - B4 full suite: 89 files / 1121 tests passed.
 - B5 full suite: 92 files / 1130 tests passed.
 - B5 `npm run check -w @portfolio/museum`: 0 errors / 0 warnings.
+- G1 focused compiler/parity/boundary set passed; full suite 94 files / 1147 tests passed; check 0 errors / 0 warnings; production build passed with the shared compiler in the visitor graph and `buildLayoutArchitectureModel()` deleted.
 - B5 production build passed; visitor chunk scan contains the canonical project and `LayoutMuseumShell`, with no architecture source toggle, runtime compiler, editor marker, standalone scene JSON, or legacy shell marker.
 - B5 production browser QA passed: all nine guided nodes forward, reverse Back, free-mode direct navigation, reduced motion, HUD room updates, Paris and Music Chamber visuals, inert legacy query, clean browser errors, and `/dev/museum-editor` 404.
 
@@ -65,17 +66,18 @@ B5 makes checked-in `chopin-project.json` the sole production layout/scene sourc
 - Layout v3 persists a stable room frame. V1/v2 migration derives origin from the sampled-boundary centroid and yaw from the first non-zero tangent; room relocation moves frame/boundary/owned objects atomically.
 - B3 translation snaps 0.25 m; Shift rotation snaps 15°; room body/rotation-arm gestures and inspector rotation each create at most one `layout` history entry.
 - B5 is shipped. `rooms.ts` is a deprecated project-derived editor/test compatibility projection and cannot enter visitor imports. Unified outliner remains future work.
+- G1 is shipped. Plan, editor 3D, and visitor 3D consume one visitor-safe `compileLayoutGeometry()`; no consumer resamples curves or reinterprets opening topology. The editor preview model is a compiled-geometry adapter and its bounds come from `CompiledLayoutGeometry`. The only separate sampler is the frozen v1/v2 room-frame migration algorithm.
 
 ## Out of scope this slice
 
-Phase 2 Wall presets · G1+ graphics roadmap work · visitor rendering of layout objects · GLB import · new camera system · opening assets/frames · 3D room gizmos.
+Phase 2 Wall presets · G2+ graphics roadmap work · visitor rendering of layout objects · GLB import · new camera system · opening assets/frames · 3D room gizmos.
 
 ## Reading order (token-minimal)
 
 1. This file.  
 2. [`../AGENTS.md`](../../AGENTS.md) hard rules.  
 3. [`../architecture.md`](../architecture.md) (layout/`rooms.ts` only).  
-4. For G1, read the graphics architecture roadmap plus architecture/persistence contracts. A0/B0/A1/C0/A2/A2.1/A2.2/A2.3/A3/A3.1/A4/A4.1/B3/B4/B5 are shipped.
+4. For G2, read the parent graphics roadmap plus architecture/persistence contracts. A0/B0/A1/C0/A2/A2.1/A2.2/A2.3/A3/A3.1/A4/A4.1/B3/B4/B5/G1 are shipped.
 
 5. Skip other `docs/components/*` unless the task touches them.
 

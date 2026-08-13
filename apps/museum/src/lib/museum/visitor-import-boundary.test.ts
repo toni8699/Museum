@@ -46,6 +46,7 @@ describe('visitor import boundary', () => {
 		const relative = [...graph].map((file) => file.slice(appSrc.length + 1));
 		expect(relative).toContain('lib/content/chopin-project.json');
 		expect(relative).toContain('lib/museum/layout/LayoutMuseumShell.svelte');
+		expect(relative).toContain('lib/layout/layout-geometry.ts');
 		expect(relative.some((file) => file.includes('/editor/'))).toBe(false);
 		expect(relative).not.toContain('lib/content/rooms.ts');
 		expect(relative).not.toContain('lib/content/rooms-to-layout.ts');

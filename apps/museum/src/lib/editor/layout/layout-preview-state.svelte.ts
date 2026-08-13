@@ -7,7 +7,7 @@ import {
 	validateLayoutDocument
 } from './layout-codec';
 import { buildLayoutPreviewModel, type LayoutPreviewModel } from './layout-mesh-factory';
-import { layoutPreviewBounds, type LayoutPreviewBounds } from './layout-preview-bounds';
+import type { LayoutPreviewBounds } from './layout-preview-bounds';
 import type { DraftSegment, LayoutObject, LayoutOpening, LayoutRoom, LayoutVec2 } from './layout-types';
 import { deleteInteriorAnchorOnSegment, insertInteriorAnchorOnSegment, pointInRoom, replaceRoomPoints, updateInteriorAnchorOnSegment } from './layout-editing';
 import {
@@ -141,7 +141,7 @@ export function refreshLayoutPreview(state: LayoutPreviewState): boolean {
 	const result = buildLayoutPreviewModel(state.project.layout);
 	state.model = result.model;
 	state.issues = result.issues;
-	state.bounds = layoutPreviewBounds(result.model);
+	state.bounds = result.bounds;
 	state.previewVersion += 1;
 	state.lastMutationMessage = null;
 	state.statusMessage = null;
@@ -171,7 +171,7 @@ export function importLayoutPreviewJson(state: LayoutPreviewState, json: string)
 		state.project = nextProject;
 		state.model = result.model;
 		state.issues = result.issues;
-		state.bounds = layoutPreviewBounds(result.model);
+		state.bounds = result.bounds;
 		state.previewVersion += 1;
 		state.reframeVersion += 1;
 		state.baselineLayoutJson = parsed.canonicalJson;
@@ -483,7 +483,7 @@ export function commitLayoutPathRoom(
 		state.project = nextProject;
 		state.model = result.model;
 		state.issues = result.issues;
-			state.bounds = layoutPreviewBounds(result.model);
+			state.bounds = result.bounds;
 			state.previewVersion += 1;
 			state.lastMutationMessage = null;
 			state.statusMessage = null;
@@ -601,7 +601,7 @@ export function commitLayoutDraftRoom(
 		state.project = nextProject;
 		state.model = result.model;
 		state.issues = result.issues;
-			state.bounds = layoutPreviewBounds(result.model);
+			state.bounds = result.bounds;
 			state.previewVersion += 1;
 			state.lastMutationMessage = null;
 			state.statusMessage = null;
@@ -657,7 +657,7 @@ function createState(
 		project,
 		model: result.model,
 		issues: result.issues,
-		bounds: layoutPreviewBounds(result.model),
+		bounds: result.bounds,
 		previewVersion: previousVersion + 1,
 		reframeVersion: 0,
 		showCeilings: false,
@@ -708,7 +708,7 @@ function applyLayoutMutation(
 		state.project = nextProject;
 		state.model = result.model;
 		state.issues = result.issues;
-		state.bounds = layoutPreviewBounds(result.model);
+		state.bounds = result.bounds;
 		state.previewVersion += 1;
 		state.lastMutationMessage = null;
 		state.statusMessage = null;

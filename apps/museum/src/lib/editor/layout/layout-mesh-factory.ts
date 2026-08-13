@@ -1,9 +1,14 @@
-import type { DraftSegment, LayoutDocument, LayoutFloor, LayoutRoom, LayoutVec2 } from './layout-types';
-import { sampleWallSegment } from './draft-geometry';
-import { type CurveSample } from './curve-geometry';
-import { hasBlockingLayoutIssues, validateLayoutRoomGeometry, type LayoutGeometryIssue } from './layout-validation';
-import { splitWallAroundOpenings } from './draft-geometry';
-import { describeLayoutObject, type LayoutObjectDescriptor } from './layout-object-editing';
+import type { LayoutDocument, LayoutVec2 } from './layout-types';
+import type { LayoutGeometryIssue } from './layout-validation';
+import { compileLayoutGeometry } from '$lib/layout/layout-geometry';
+import type {
+	CompiledCurveSample,
+	CompiledOpening,
+	CompiledSolidSpan,
+	CompiledWallSection,
+	LayoutBounds3
+} from '$lib/layout/layout-geometry-types';
+import type { LayoutObjectDescriptor } from './layout-object-editing';
 
 export type WallPreview = {
 	segmentId: string;
@@ -12,8 +17,11 @@ export type WallPreview = {
 	height: number;
 	thickness: number;
 	length: number;
-	samples: CurveSample[];
-	sections: ReturnType<typeof splitWallAroundOpenings>;
+	samples: CompiledCurveSample[];
+	sections: CompiledWallSection[];
+	solidSpans: CompiledSolidSpan[];
+	openings: CompiledOpening[];
+	solidCenterlinePolylines: LayoutVec2[][];
 };
 
 export type LayoutRoomPreview = {
@@ -35,57 +43,40 @@ export type LayoutPreviewModel = {
 export type LayoutPreviewModelResult = {
 	model: LayoutPreviewModel;
 	issues: LayoutGeometryIssue[];
+	bounds: LayoutBounds3 | null;
 };
 
+/**
+ * Editor preview projection. All geometry is adapted from the single shared
+ * `compileLayoutGeometry()` contract; no curve is resampled or reinterpreted
+ * here.
+ */
 export function buildLayoutPreviewModel(document: LayoutDocument): LayoutPreviewModelResult {
-	const model: LayoutPreviewModel = { rooms: [], objects: document.objects.map(describeLayoutObject) };
-	const issues: LayoutGeometryIssue[] = [];
-	for (const floor of document.floors) {
-		for (const room of floor.rooms) {
-			const roomIssues = validateLayoutRoomGeometry(room, floor);
-			if (hasBlockingLayoutIssues(roomIssues)) {
-				issues.push(...roomIssues);
-				continue;
-			}
-			model.rooms.push(buildRoomPreview(room, floor));
-		}
-	}
-	return { model, issues };
-}
-
-function buildRoomPreview(room: LayoutRoom, floor: LayoutFloor): LayoutRoomPreview {
-	const sampledSegments = room.boundary.segments.map(sampleWallSegment);
-	const floorPolygon = room.boundary.segments.flatMap((segment, index) => {
-		if (segment.kind === 'line') return [[...segment.start] as LayoutVec2];
-		return sampledSegments[index]!.samples.slice(0, -1).map((sample) => [...sample.point] as LayoutVec2);
-	});
-	const openingsBySegment = new Map<string, LayoutRoom['openings']>();
-	for (const opening of room.openings) {
-		const openings = openingsBySegment.get(opening.segmentId) ?? [];
-		openings.push(opening);
-		openingsBySegment.set(opening.segmentId, openings);
-	}
-	const walls = room.boundary.segments.map((segment, index) => {
-		const sampled = sampledSegments[index]!;
-		return {
-			segmentId: segment.id,
-			start: [...segment.start] as LayoutVec2,
-			end: [...segment.end] as LayoutVec2,
-			height: floor.height,
-			thickness: room.wallThickness,
-			length: sampled.length,
-			samples: sampled.samples,
-			sections: splitWallAroundOpenings(segment, openingsBySegment.get(segment.id) ?? [], floor.height)
-		};
-	});
-	return {
-		roomId: room.id,
-		floorElevation: floor.elevation,
-		ceilingElevation: floor.elevation + floor.height,
-		floorThickness: room.floorThickness,
-		ceilingThickness: room.ceilingThickness,
-		floorPolygon,
-		ceilingPolygon: floorPolygon.map(([x, z]) => [x, z] as LayoutVec2),
-		walls
+	const result = compileLayoutGeometry(document);
+	const model: LayoutPreviewModel = {
+		rooms: result.geometry.rooms.map((room) => ({
+			roomId: room.roomId,
+			floorElevation: room.floorElevation,
+			ceilingElevation: room.ceilingElevation,
+			floorThickness: room.floorThickness,
+			ceilingThickness: room.ceilingThickness,
+			floorPolygon: room.floorPolygon,
+			ceilingPolygon: room.ceilingPolygon,
+			walls: room.walls.map((wall) => ({
+				segmentId: wall.segmentId,
+				start: wall.samples[0]?.point ?? ([0, 0] as LayoutVec2),
+				end: wall.samples.at(-1)?.point ?? ([0, 0] as LayoutVec2),
+				height: room.ceilingElevation - room.floorElevation,
+				thickness: wall.thickness,
+				length: wall.length,
+				samples: wall.samples,
+				sections: wall.sections,
+				solidSpans: wall.solidSpans,
+				openings: wall.openings,
+				solidCenterlinePolylines: wall.solidCenterlinePolylines
+			}))
+		})),
+		objects: result.geometry.objects
 	};
+	return { model, issues: result.issues, bounds: result.geometry.bounds };
 }

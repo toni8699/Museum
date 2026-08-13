@@ -49,7 +49,8 @@ flowchart TB
 | Working on… | Read |
 |-------------|------|
 | Vision / priorities / product-fit gate | [`north-star.md`](./north-star.md) |
-| Shared geometry compiler / Plan render model / procedural meshes / graphics performance and technology gates | [`plans/2026-08-13-graphics-architecture-roadmap.md`](./plans/2026-08-13-graphics-architecture-roadmap.md) |
+| Shared geometry compiler (G1) | [`plans/2026-08-13-graphics-g1-shared-geometry-compiler.md`](./plans/2026-08-13-graphics-g1-shared-geometry-compiler.md) |
+| Plan render model / procedural meshes / graphics performance and technology gates | [`plans/2026-08-13-graphics-architecture-roadmap.md`](./plans/2026-08-13-graphics-architecture-roadmap.md) |
 | `rooms.ts` vs layout / promotion | [`architecture.md`](./architecture.md) |
 | Editor chrome / workspaces | [`components/shell.md`](./components/shell.md) |
 | Entities / materials / library | [`components/scene-content.md`](./components/scene-content.md) |

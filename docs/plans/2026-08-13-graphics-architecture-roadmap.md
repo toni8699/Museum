@@ -1,7 +1,7 @@
 # Graphics Architecture Roadmap
 
 **Date:** 2026-08-13
-**Status:** Active post-B5 roadmap; G1 next
+**Status:** Active post-B5 roadmap; G1 implemented, G2 next
 **Prerequisite:** B5 runtime cutover
 **Architecture:** [`../architecture.md`](../architecture.md) · **Vision:** [`../north-star.md`](../north-star.md)
 
@@ -99,13 +99,20 @@ layout changes and is never serialized into `MuseumProject`.
 
 ## 5. Roadmap
 
+Two tracks: the **G-track** below builds the graphics foundation; **H1** (unified
+3D editing) is a separate milestone that depends on G1+G4 and may run in parallel
+with G5.
+
 ### G0 — Finish the source-of-truth cutover (`KEEP`, implemented)
 
 B5 promotes serialized layout architecture while preserving scene/tour behavior,
 stable room IDs, the single camera system, and visitor isolation. Deprecate or
 generate `rooms.ts` only within the B5 contract. Do not fold G1–G6 into B5.
 
-### G1 — Shared geometry compiler (`KEEP`, current P1)
+### G1 — Shared geometry compiler (`KEEP`, implemented)
+
+Focused implementation plan:
+[`2026-08-13-graphics-g1-shared-geometry-compiler.md`](./2026-08-13-graphics-g1-shared-geometry-compiler.md).
 
 Introduce one pure visitor-safe API:
 
@@ -267,6 +274,33 @@ same fixtures against SVG. Production consideration requires a meaningful budget
 win, feature/visual parity, supported-browser behavior, maintainable fallback,
 and a concrete product need. “Newer API” is not evidence.
 
+### H1 — Unified 3D editing (`KEEP`, separate track; proposed)
+
+3D gizmos are not part of the G-track exit. They return at the unified
+layout/scene editing milestone (`CURRENT.md`): 3D room/wall/opening/object editing
+with identity mapped back to `LayoutDocument`, in-context camera/tour authoring
+through the existing camera-route/camera-motion system, a unified outliner, and
+edits routed through the shared chronological history (`layout`-tagged ops,
+already shipped in B3).
+
+Target:
+
+- gizmo translate/rotate/scale on rooms, walls, openings, and layout objects in 3D;
+- picking against compiled geometry and procedural section identity — never
+  anonymous chord boxes;
+- plan and 3D remain two views of one `LayoutDocument`; no second geometry source;
+- edits validate through `compileLayoutGeometry()` so plan/3D parity holds;
+- export already flows through the serialized project (B5), so the closed loop is
+  plan → 3D show → 3D edit → export.
+
+Gates:
+
+- after **G1** — gizmo edits must validate against the one compiled geometry;
+- after **G4** — section→index metadata is the bridge between a rendered mesh and
+  an editable document element;
+- **G3/G5 non-blocking** — H1 may run in parallel with G5;
+- mirror **G2**'s hit-identity/key pattern for 3D picking.
+
 ## 6. Conditional technology gates
 
 Rust/WASM is not a numbered production milestone. Reconsider it only after
@@ -297,6 +331,7 @@ that survives profiling and existing-stack optimization.
 | Targeted Rust/WASM kernel | `LATER` | Only for an isolated measured CPU bottleneck with boundary-cost proof |
 | Full Three.js replacement / custom `wgpu` engine | `REJECT` | Duplicates a capable production scene/resource stack without a current problem |
 | Multiple speculative render backends | `REJECT` | Ongoing complexity without evidence |
+| Unified 3D gizmo editing (`H1`) | `KEEP` (separate track) | Closes the authoring loop (plan → 3D → gizmo → export); gated after G1+G4 |
 
 ## 8. Explicit non-goals
 
@@ -319,3 +354,6 @@ one compiled geometry contract; Plan renders through an explicit model; wall
 architecture uses verified procedural buffers at justified granularity; baseline
 fixtures and budgets are reproducible; and every later optimization or experiment
 is traceable to a measured product problem.
+
+H1 (unified 3D editing) is a separate track and is **not** required for this
+graphics exit; it becomes schedulable once G1 and G4 land.

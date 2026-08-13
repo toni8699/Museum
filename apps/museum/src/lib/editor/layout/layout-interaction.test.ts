@@ -25,6 +25,7 @@ import {
 	primitiveDraftCenter,
 	primitiveDraftFootprint,
 	setLayoutViewMode,
+	togglePlanViewportOption,
 	updateLayoutObjectDrag,
 	updateLayoutRoomUnitDrag,
 	updateLayoutPrimitiveDraft,
@@ -33,6 +34,21 @@ import {
 } from './layout-interaction';
 
 describe('layout interaction', () => {
+	it('toggles plan viewport options through the interaction module', () => {
+		const state = createLayoutInteractionState();
+		expect(state.planView.snapEnabled).toBe(true);
+		expect(state.planView.gridEnabled).toBe(true);
+		expect(state.planView.showTourOverlay).toBe(false);
+
+		togglePlanViewportOption(state, 'snapEnabled');
+		togglePlanViewportOption(state, 'gridEnabled');
+		togglePlanViewportOption(state, 'showTourOverlay');
+
+		expect(state.planView.snapEnabled).toBe(false);
+		expect(state.planView.gridEnabled).toBe(false);
+		expect(state.planView.showTourOverlay).toBe(true);
+	});
+
 	it('creates rectangle points from drag corners', () => {
 		const state = createLayoutInteractionState();
 		setLayoutDraftTool(state, 'rectangle');

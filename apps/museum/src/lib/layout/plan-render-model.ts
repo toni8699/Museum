@@ -1,0 +1,385 @@
+import type { LayoutVec2 } from './layout-types';
+import { geometryId, type CompiledLayoutGeometry, type LayoutBounds2 } from './layout-geometry-types';
+
+/**
+ * Pure Plan render model. Derives one ordered list of world-space primitives
+ * from `CompiledLayoutGeometry` plus optional renderer-neutral camera/tour and
+ * interaction projections. Renderer-neutral: no Svelte, DOM/SVG, Threlte, or
+ * Three imports. The SVG adapter applies the view transform and owns styling.
+ */
+
+export type PlanStyleToken =
+	| 'room-fill'
+	| 'room-fill-selected'
+	| 'room-outline'
+	| 'room-outline-selected'
+	| 'wall-line'
+	| 'wall-line-selected'
+	| 'wall-line-opening-selected'
+	| 'opening-line'
+	| 'opening-line-selected'
+	| 'layout-object'
+	| 'layout-object-selected'
+	| 'layout-object-readonly'
+	| 'layout-object-readonly-selected'
+	| 'camera-path'
+	| 'view-cone'
+	| 'look-target'
+	| 'portal-crossing'
+	| 'collision-warning'
+	| 'timing-label'
+	| 'selection-bounds'
+	| 'rotation-arm'
+	| 'rotation-handle'
+	| 'rotation-feedback'
+	| 'vertex-handle'
+	| 'interior-anchor'
+	| 'interior-anchor-selected'
+	| 'primitive-ghost'
+	| 'primitive-ghost-circle'
+	| 'primitive-ghost-sphere'
+	| 'primitive-ghost-invalid'
+	| 'draft-outline'
+	| 'draft-point'
+	| 'dimension-label'
+	| 'selection-label'
+	| 'scale-label';
+
+export type PlanHitIdentity =
+	| { kind: 'vertex'; roomId: string; vertexIndex: number }
+	| { kind: 'interiorAnchor'; roomId: string; segmentId: string; anchorId: string }
+	| { kind: 'opening'; roomId: string; segmentId: string; openingId: string }
+	| { kind: 'object'; objectId: string }
+	| { kind: 'wall'; roomId: string; segmentId: string }
+	| { kind: 'room'; roomId: string };
+
+/**
+ * Renderer-neutral selection descriptor. Mirrors the editor's selection shape
+ * without importing editor types, so the model can fully describe presentation
+ * (including which committed primitive is selected) and the adapter never needs
+ * to re-derive selection from editor state.
+ */
+export type PlanSelection =
+	| { kind: 'none' }
+	| { kind: 'room'; roomId: string }
+	| { kind: 'wall'; roomId: string; segmentId: string }
+	| { kind: 'opening'; roomId: string; segmentId: string; openingId: string }
+	| { kind: 'interiorAnchor'; roomId: string; segmentId: string; anchorId: string }
+	| { kind: 'object'; objectId: string };
+
+export type PlanPolygonPrimitive = {
+	kind: 'polygon';
+	key: string;
+	points: LayoutVec2[];
+	style: PlanStyleToken;
+	hit?: PlanHitIdentity;
+};
+
+export type PlanPolylinePrimitive = {
+	kind: 'polyline';
+	key: string;
+	points: LayoutVec2[];
+	/** Screen-constant offset (CSS px) applied to the final point after the transform (rotation arm). */
+	endOffsetPx?: readonly [number, number];
+	style: PlanStyleToken;
+	hit?: PlanHitIdentity;
+};
+
+export type PlanCirclePrimitive = {
+	kind: 'circle';
+	key: string;
+	center: LayoutVec2;
+	/** Screen-space size hint in CSS px; zoom-independent sizing is the adapter's job. */
+	radiusPx: number;
+	/** Screen-constant offset (CSS px) applied by the adapter after the view transform. */
+	offsetPx?: readonly [number, number];
+	style: PlanStyleToken;
+	hit?: PlanHitIdentity;
+};
+
+export type PlanTextPrimitive = {
+	kind: 'text';
+	key: string;
+	anchor: LayoutVec2;
+	text: string;
+	/** Screen-constant offset (CSS px) applied by the adapter after the view transform. */
+	offsetPx?: readonly [number, number];
+	style: PlanStyleToken;
+};
+
+export type PlanRenderPrimitive =
+	| PlanPolygonPrimitive
+	| PlanPolylinePrimitive
+	| PlanCirclePrimitive
+	| PlanTextPrimitive;
+
+export type PlanRenderLayerOrder = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12;
+
+export type PlanRenderLayer = {
+	order: PlanRenderLayerOrder;
+	primitives: PlanRenderPrimitive[];
+};
+
+/**
+ * Renderer-neutral camera/tour projection produced editor-side by
+ * `plan-camera-projection.ts` (step 4). The builder only slots these into
+ * layers 6–9; it never imports or resolves scene/camera data itself.
+ */
+export type PlanCameraProjection = {
+	paths?: readonly { key: string; polyline: LayoutVec2[]; connectionId?: string }[];
+	viewCones?: readonly { key: string; origin: LayoutVec2; target: LayoutVec2; fovDegrees: number; nodeId: string }[];
+	lookTargets?: readonly { key: string; point: LayoutVec2; nodeId: string }[];
+	portalCrossings?: readonly { key: string; point: LayoutVec2; openingId: string }[];
+	collisionWarnings?: readonly { key: string; point: LayoutVec2; issueCode: string }[];
+	timingLabels?: readonly { key: string; anchor: LayoutVec2; text: string; connectionId: string }[];
+};
+
+/**
+ * Transient interaction overlays produced editor-side by `plan-overlays.ts`
+ * (step 5). World-space primitives only; the builder assigns them to fixed
+ * layers and never reorders committed content.
+ */
+export type PlanInteractionProjection = {
+	/** Committed primitives matching this identity are emitted with `-selected` tokens. */
+	selected?: PlanSelection;
+	selection: readonly PlanRenderPrimitive[];
+	handles: readonly PlanRenderPrimitive[];
+	drafts: readonly PlanRenderPrimitive[];
+	labels: readonly PlanRenderPrimitive[];
+	/** Transient replacements for committed room fill/stroke (vertex/room edits). */
+	roomOverrides?: readonly { roomId: string; points: LayoutVec2[] }[];
+	/** Transient replacements for committed object footprints (object drag). */
+	objectOverrides?: readonly { objectId: string; points: LayoutVec2[] }[];
+};
+
+export type PlanRenderModel = {
+	layers: PlanRenderLayer[];
+	bounds: LayoutBounds2 | null;
+};
+
+const VIEW_CONE_STEPS = 8;
+
+function floorIdByRoomId(compiled: CompiledLayoutGeometry): Map<string, string> {
+	const map = new Map<string, string>();
+	for (const floor of compiled.floors) {
+		for (const roomId of floor.roomIds) map.set(roomId, floor.floorId);
+	}
+	return map;
+}
+
+function planBounds(compiled: CompiledLayoutGeometry): LayoutBounds2 | null {
+	const bounds = compiled.bounds;
+	if (!bounds) return null;
+	return { min: [bounds.min[0], bounds.min[2]], max: [bounds.max[0], bounds.max[2]] };
+}
+
+/** Deterministic fan polygon spanning the cone's fov around the look axis. */
+function conePolygon(origin: LayoutVec2, target: LayoutVec2, fovDegrees: number): LayoutVec2[] {
+	const dx = target[0] - origin[0];
+	const dz = target[1] - origin[1];
+	const radius = Math.hypot(dx, dz);
+	if (radius <= 1e-9) return [[...origin] as LayoutVec2];
+	const axis = Math.atan2(dz, dx);
+	const half = (fovDegrees * Math.PI) / 360;
+	const points: LayoutVec2[] = [[...origin] as LayoutVec2];
+	for (let index = 0; index <= VIEW_CONE_STEPS; index += 1) {
+		const angle = axis - half + ((half * 2) * index) / VIEW_CONE_STEPS;
+		points.push([origin[0] + Math.cos(angle) * radius, origin[1] + Math.sin(angle) * radius]);
+	}
+	return points;
+}
+
+/**
+ * Promote a committed base token to its `-selected` variant when the primitive's
+ * hit identity matches the selection. Matching is fully qualified (roomId +
+ * segmentId [+ openingId/anchorId]) so cross-room duplicate IDs highlight only
+ * the intended entity.
+ */
+function selectedStyle(
+	base: PlanStyleToken,
+	hit: PlanHitIdentity,
+	selected: PlanSelection | undefined
+): PlanStyleToken {
+	if (!selected || selected.kind === 'none') return base;
+	switch (base) {
+		case 'room-fill':
+			return selected.kind === 'room' && hit.kind === 'room' && selected.roomId === hit.roomId
+				? 'room-fill-selected'
+				: base;
+		case 'room-outline':
+			return selected.kind === 'room' && hit.kind === 'room' && selected.roomId === hit.roomId
+				? 'room-outline-selected'
+				: base;
+		case 'wall-line':
+			if (hit.kind !== 'wall') return base;
+			if (selected.kind === 'wall' && selected.roomId === hit.roomId && selected.segmentId === hit.segmentId) {
+				return 'wall-line-selected';
+			}
+			if (selected.kind === 'interiorAnchor' && selected.roomId === hit.roomId && selected.segmentId === hit.segmentId) {
+				return 'wall-line-selected';
+			}
+			if (selected.kind === 'opening' && selected.roomId === hit.roomId && selected.segmentId === hit.segmentId) {
+				return 'wall-line-opening-selected';
+			}
+			return base;
+		case 'opening-line':
+			return selected.kind === 'opening' && hit.kind === 'opening' &&
+				selected.roomId === hit.roomId && selected.segmentId === hit.segmentId && selected.openingId === hit.openingId
+				? 'opening-line-selected'
+				: base;
+		case 'layout-object':
+			return selected.kind === 'object' && hit.kind === 'object' && selected.objectId === hit.objectId
+				? 'layout-object-selected'
+				: base;
+		case 'layout-object-readonly':
+			return selected.kind === 'object' && hit.kind === 'object' && selected.objectId === hit.objectId
+				? 'layout-object-readonly-selected'
+				: base;
+		default:
+			return base;
+	}
+}
+
+/**
+ * Build the ordered Plan render model. Always returns all twelve layers (empty
+ * layers included) so render order is explicit rather than implicit in the
+ * consumer. Committed layers 1–5 come verbatim from `CompiledLayoutGeometry`;
+ * 6–9 come from the camera projection; 10–12 from the interaction projection.
+ */
+export function buildPlanRenderModel(
+	compiled: CompiledLayoutGeometry,
+	camera?: PlanCameraProjection,
+	interaction?: PlanInteractionProjection
+): PlanRenderModel {
+	const floorByRoom = floorIdByRoomId(compiled);
+	const roomOverrides = new Map((interaction?.roomOverrides ?? []).map((override) => [override.roomId, override.points] as const));
+	const objectOverrides = new Map((interaction?.objectOverrides ?? []).map((override) => [override.objectId, override.points] as const));
+	const layers: PlanRenderLayer[] = [];
+
+	const fills: PlanRenderPrimitive[] = [];
+	const strokes: PlanRenderPrimitive[] = [];
+	const walls: PlanRenderPrimitive[] = [];
+	const openings: PlanRenderPrimitive[] = [];
+	const objects: PlanRenderPrimitive[] = [];
+
+	for (const room of compiled.rooms) {
+		const floorId = floorByRoom.get(room.roomId) ?? 'unknown-floor';
+		const polygon = (roomOverrides.get(room.roomId) ?? room.floorPolygon).map(([x, z]) => [x, z] as LayoutVec2);
+		fills.push({
+			kind: 'polygon',
+			key: geometryId(['plan', 'fill', floorId, room.roomId]),
+			points: polygon,
+			style: selectedStyle('room-fill', { kind: 'room', roomId: room.roomId }, interaction?.selected),
+			hit: { kind: 'room', roomId: room.roomId }
+		});
+		strokes.push({
+			kind: 'polygon',
+			key: geometryId(['plan', 'stroke', floorId, room.roomId]),
+			points: polygon,
+			style: selectedStyle('room-outline', { kind: 'room', roomId: room.roomId }, interaction?.selected),
+			hit: { kind: 'room', roomId: room.roomId }
+		});
+		for (const wall of room.walls) {
+			wall.solidCenterlinePolylines.forEach((polyline, index) => {
+				walls.push({
+					kind: 'polyline',
+					key: geometryId(['plan', 'wall', floorId, room.roomId, wall.segmentId, String(index)]),
+					points: polyline.map(([x, z]) => [x, z] as LayoutVec2),
+					style: selectedStyle('wall-line', { kind: 'wall', roomId: room.roomId, segmentId: wall.segmentId }, interaction?.selected),
+					hit: { kind: 'wall', roomId: room.roomId, segmentId: wall.segmentId }
+				});
+			});
+		}
+		for (const opening of room.openings) {
+			openings.push({
+				kind: 'polyline',
+				key: geometryId(['plan', 'opening', floorId, room.roomId, opening.openingId]),
+				points: opening.centerPolyline.map(([x, z]) => [x, z] as LayoutVec2),
+				style: selectedStyle(
+					'opening-line',
+					{ kind: 'opening', roomId: room.roomId, segmentId: opening.segmentId, openingId: opening.openingId },
+					interaction?.selected
+				),
+				hit: { kind: 'opening', roomId: room.roomId, segmentId: opening.segmentId, openingId: opening.openingId }
+			});
+		}
+	}
+
+	for (const object of compiled.objects) {
+		objects.push({
+			kind: 'polygon',
+			key: geometryId(['plan', 'object', object.objectId]),
+			points: (objectOverrides.get(object.objectId) ?? object.planFootprint).map(([x, z]) => [x, z] as LayoutVec2),
+			style: selectedStyle(
+				object.readonly ? 'layout-object-readonly' : 'layout-object',
+				{ kind: 'object', objectId: object.objectId },
+				interaction?.selected
+			),
+			hit: { kind: 'object', objectId: object.objectId }
+		});
+	}
+
+	layers.push({ order: 1, primitives: fills });
+	layers.push({ order: 2, primitives: strokes });
+	layers.push({ order: 3, primitives: walls });
+	layers.push({ order: 4, primitives: openings });
+	layers.push({ order: 5, primitives: objects });
+
+	const cameraPaths: PlanRenderPrimitive[] = [];
+	const viewConesAndLookTargets: PlanRenderPrimitive[] = [];
+	const portalCrossingsAndWarnings: PlanRenderPrimitive[] = [];
+	const timingLabels: PlanRenderPrimitive[] = [];
+
+	for (const path of camera?.paths ?? []) {
+		cameraPaths.push({ kind: 'polyline', key: path.key, points: path.polyline, style: 'camera-path' });
+	}
+	for (const cone of camera?.viewCones ?? []) {
+		viewConesAndLookTargets.push({
+			kind: 'polygon',
+			key: cone.key,
+			points: conePolygon(cone.origin, cone.target, cone.fovDegrees),
+			style: 'view-cone'
+		});
+	}
+	for (const target of camera?.lookTargets ?? []) {
+		viewConesAndLookTargets.push({
+			kind: 'circle',
+			key: target.key,
+			center: target.point,
+			radiusPx: 4,
+			style: 'look-target'
+		});
+	}
+	for (const crossing of camera?.portalCrossings ?? []) {
+		portalCrossingsAndWarnings.push({
+			kind: 'circle',
+			key: crossing.key,
+			center: crossing.point,
+			radiusPx: 5,
+			style: 'portal-crossing'
+		});
+	}
+	for (const warning of camera?.collisionWarnings ?? []) {
+		portalCrossingsAndWarnings.push({
+			kind: 'circle',
+			key: warning.key,
+			center: warning.point,
+			radiusPx: 5,
+			style: 'collision-warning'
+		});
+	}
+	for (const label of camera?.timingLabels ?? []) {
+		timingLabels.push({ kind: 'text', key: label.key, anchor: label.anchor, text: label.text, style: 'timing-label' });
+	}
+
+	layers.push({ order: 6, primitives: cameraPaths });
+	layers.push({ order: 7, primitives: viewConesAndLookTargets });
+	layers.push({ order: 8, primitives: portalCrossingsAndWarnings });
+	layers.push({ order: 9, primitives: timingLabels });
+
+	layers.push({ order: 10, primitives: [...(interaction?.selection ?? [])] });
+	layers.push({ order: 11, primitives: [...(interaction?.handles ?? []), ...(interaction?.drafts ?? [])] });
+	layers.push({ order: 12, primitives: [...(interaction?.labels ?? [])] });
+
+	return { layers, bounds: planBounds(compiled) };
+}

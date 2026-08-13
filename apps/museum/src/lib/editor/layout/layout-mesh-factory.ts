@@ -3,6 +3,7 @@ import type { LayoutGeometryIssue } from './layout-validation';
 import { compileLayoutGeometry } from '$lib/layout/layout-geometry';
 import type {
 	CompiledCurveSample,
+	CompiledLayoutGeometry,
 	CompiledLayoutQueryGeometry,
 	CompiledOpening,
 	CompiledSolidSpan,
@@ -44,6 +45,7 @@ export type LayoutPreviewModel = {
 
 export type LayoutPreviewModelResult = {
 	model: LayoutPreviewModel;
+	geometry: CompiledLayoutGeometry;
 	issues: LayoutGeometryIssue[];
 	bounds: LayoutBounds3 | null;
 };
@@ -81,5 +83,5 @@ export function buildLayoutPreviewModel(document: LayoutDocument): LayoutPreview
 		objects: result.geometry.objects,
 		queries: result.geometry.queries
 	};
-	return { model, issues: result.issues, bounds: result.geometry.bounds };
+	return { model, geometry: result.geometry, issues: result.issues, bounds: result.geometry.bounds };
 }

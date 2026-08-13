@@ -32,6 +32,7 @@ import {
 	type LayoutObjectPatch
 } from './layout-object-editing';
 import type { Vec3 } from '$lib/types/museum';
+import type { CompiledLayoutGeometry } from '$lib/layout/layout-geometry-types';
 import { transformLayoutRoomUnit, type LayoutRoomUnitTransform } from './layout-room-transform';
 import { deriveLayoutRoomFrame } from '$lib/layout/layout-room-frame';
 
@@ -43,6 +44,7 @@ export type LayoutPreviewState = {
 	source: LayoutPreviewSource;
 	project: MuseumProject;
 	model: LayoutPreviewModel;
+	geometry: CompiledLayoutGeometry;
 	issues: LayoutGeometryIssue[];
 	bounds: LayoutPreviewBounds | null;
 	previewVersion: number;
@@ -139,6 +141,7 @@ export function resetLayoutPreview(state: LayoutPreviewState): boolean {
 export function refreshLayoutPreview(state: LayoutPreviewState): boolean {
 	const result = buildLayoutPreviewModel(state.project.layout);
 	state.model = result.model;
+	state.geometry = result.geometry;
 	state.issues = result.issues;
 	state.bounds = result.bounds;
 	state.previewVersion += 1;
@@ -171,6 +174,7 @@ export function importLayoutPreviewJson(state: LayoutPreviewState, json: string)
 		state.model = result.model;
 		state.issues = result.issues;
 		state.bounds = result.bounds;
+		state.geometry = result.geometry;
 		state.previewVersion += 1;
 		state.reframeVersion += 1;
 		state.baselineLayoutJson = parsed.canonicalJson;
@@ -481,6 +485,7 @@ export function commitLayoutPathRoom(
 		state.source = 'draft';
 		state.project = nextProject;
 		state.model = result.model;
+		state.geometry = result.geometry;
 		state.issues = result.issues;
 			state.bounds = result.bounds;
 			state.previewVersion += 1;
@@ -599,6 +604,7 @@ export function commitLayoutDraftRoom(
 		state.source = 'draft';
 		state.project = nextProject;
 		state.model = result.model;
+		state.geometry = result.geometry;
 		state.issues = result.issues;
 			state.bounds = result.bounds;
 			state.previewVersion += 1;
@@ -655,6 +661,7 @@ function createState(
 		source,
 		project,
 		model: result.model,
+		geometry: result.geometry,
 		issues: result.issues,
 		bounds: result.bounds,
 		previewVersion: previousVersion + 1,
@@ -706,6 +713,7 @@ function applyLayoutMutation(
 		state.source = 'draft';
 		state.project = nextProject;
 		state.model = result.model;
+		state.geometry = result.geometry;
 		state.issues = result.issues;
 		state.bounds = result.bounds;
 		state.previewVersion += 1;
@@ -749,6 +757,7 @@ function replaceState(target: LayoutPreviewState, next: LayoutPreviewState): voi
 	target.source = next.source;
 	target.project = next.project;
 	target.model = next.model;
+	target.geometry = next.geometry;
 	target.issues = next.issues;
 	target.bounds = next.bounds;
 	target.previewVersion = next.previewVersion;
@@ -765,6 +774,7 @@ export type LayoutPreviewSnapshot = {
 	source: LayoutPreviewState['source'];
 	project: LayoutPreviewState['project'];
 	model: LayoutPreviewState['model'];
+	geometry: LayoutPreviewState['geometry'];
 	issues: LayoutPreviewState['issues'];
 	bounds: LayoutPreviewState['bounds'];
 	lastMutationMessage: string | null;
@@ -777,6 +787,7 @@ export function captureLayoutPreviewSnapshot(state: LayoutPreviewState): LayoutP
 		source: state.source,
 		project: cloneJson(state.project),
 		model: cloneJson(state.model),
+		geometry: state.geometry,
 		issues: cloneJson(state.issues),
 		lastMutationMessage: state.lastMutationMessage,
 		statusMessage: state.statusMessage,
@@ -794,6 +805,7 @@ export function restoreLayoutPreviewSnapshot(state: LayoutPreviewState, snapshot
 	state.source = snapshot.source;
 	state.project = cloneJson(snapshot.project);
 	state.model = cloneJson(snapshot.model);
+	state.geometry = snapshot.geometry;
 	state.issues = cloneJson(snapshot.issues);
 	state.bounds = snapshot.bounds
 		? {

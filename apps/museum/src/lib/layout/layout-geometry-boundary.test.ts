@@ -112,9 +112,11 @@ describe('G1 geometry boundary', () => {
 		expect(sourceOf(resolve(srcRoot, 'lib/museum/layout/LayoutMuseumShell.svelte'))).toContain('CompiledLayoutGeometry');
 		expect(sourceOf(resolve(srcRoot, 'lib/editor/layout/LayoutPreviewScene.svelte'))).toContain('solidSpans');
 		const planSource = sourceOf(resolve(srcRoot, 'lib/editor/layout/LayoutPlanViewport.svelte'));
-		expect(planSource).toContain('$lib/layout/layout-geometry-queries');
-		expect(planSource).toContain('projectPointToSpans');
-		expect(planSource).toContain('model.queries.points');
+		expect(planSource).toContain('resolvePlanHit');
+		expect(planSource).toContain('model.queries');
 		expect(planSource).not.toContain('$lib/layout/layout-geometry-curve');
+		const planHitSource = sourceOf(resolve(srcRoot, 'lib/editor/layout/plan-hit.ts'));
+		expect(planHitSource).toContain('$lib/layout/layout-geometry-queries');
+		expect(planHitSource).toContain('projectPointToSpans');
 	});
 });

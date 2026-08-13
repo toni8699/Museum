@@ -9,6 +9,7 @@ export type PlanViewportState = {
 	gridEnabled: boolean;
 	snapEnabled: boolean;
 	angleSnapEnabled: boolean;
+	showTourOverlay: boolean;
 };
 
 export type PlanBounds = {
@@ -35,7 +36,8 @@ export function createPlanViewportState(): PlanViewportState {
 		initialized: false,
 		gridEnabled: true,
 		snapEnabled: true,
-		angleSnapEnabled: true
+		angleSnapEnabled: true,
+		showTourOverlay: false
 	};
 }
 

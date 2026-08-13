@@ -110,6 +110,15 @@ export function toggleLayoutAccordion(
 	state.accordions[section] = !state.accordions[section];
 }
 
+export type PlanViewportToggleOption = 'snapEnabled' | 'gridEnabled' | 'showTourOverlay';
+
+export function togglePlanViewportOption(
+	state: LayoutInteractionState,
+	option: PlanViewportToggleOption
+): void {
+	state.planView[option] = !state.planView[option];
+}
+
 export function beginLayoutPrimitiveDraft(
 	state: LayoutInteractionState,
 	kind: LayoutPrimitiveTool,

@@ -21,14 +21,12 @@
 		selectLayoutWall,
 		setLayoutDraftTool,
 		removeLastPolygonPoint,
-		selectedLayoutRoomId,
 		shouldBeginWallBend,
 		updateRectangle,
 		updateLayoutObjectDrag,
 		updateLayoutRoomUnitDrag,
 		updateLayoutPrimitiveDraft,
 		updateRoomEdit,
-		primitiveDraftFootprint,
 		primitiveDraftCenter,
 		rectanglePoints,
 		type LayoutInteractionState
@@ -49,17 +47,11 @@
 		type LayoutPreviewSnapshot
 	} from './layout-preview-state.svelte';
 	import {
-		openingContainsOffset,
 		snapSegmentOffset,
 		LAYOUT_PLAN_HIT_RADIUS_PX,
-		type LayoutOpeningKind,
-		type SegmentProjection
+		type LayoutOpeningKind
 	} from './layout-opening-editing';
-	import {
-		findPolygonContaining,
-		projectPointToSpans
-	} from '$lib/layout/layout-geometry-queries';
-	import type { CompiledQuerySpan } from '$lib/layout/layout-geometry-types';
+	import { compiledWallLength, findPlanHitRoom, projectPointToWall, resolvePlanHit } from './plan-hit';
 	import {
 		buildPlanGrid,
 		constrainToAngle,
@@ -68,13 +60,15 @@
 		planScreenToWorld,
 		setPlanViewportSize,
 		snapToGrid,
-		worldToPlanScreen,
 		zoomPlanViewport,
 		type PlanGridLine
 	} from './layout-plan-transform';
-	import type { DraftSegment, LayoutOpening, LayoutRoom, LayoutVec2 } from './layout-types';
-	import type { LayoutObjectDescriptor } from './layout-object-editing';
+	import type { LayoutRoom, LayoutVec2 } from './layout-types';
 	import { layoutRoomUnitPivot } from './layout-room-transform';
+	import { buildPlanRenderModel } from '$lib/layout/plan-render-model';
+	import { buildPlanInteractionProjection, rotationHandleScreenPoint } from './plan-overlays';
+	import { planCameraProjectionForProject } from './plan-camera-projection';
+	import PlanSvg from './PlanSvg.svelte';
 
 	let {
 		model,
@@ -127,32 +121,19 @@
 	);
 	const scaleMeters = $derived(100 / interaction.planView.pixelsPerMeter);
 	const rooms = $derived(preview.project.layout.floors.flatMap((floor) => floor.rooms));
-	const compiledRoomsById = $derived(new Map(model.rooms.map((room) => [room.roomId, room] as const)));
-	const wallQuerySpansByRoom = $derived.by(() => {
-		const byRoom = new Map<string, Map<string, CompiledQuerySpan[]>>();
-		for (const span of model.queries.spans) {
-			if (span.kind !== 'wall') continue;
-			let bySegment = byRoom.get(span.roomId);
-			if (!bySegment) {
-				bySegment = new Map();
-				byRoom.set(span.roomId, bySegment);
-			}
-			const spans = bySegment.get(span.segmentId) ?? [];
-			spans.push(span);
-			bySegment.set(span.segmentId, spans);
+	const interactionProjection = $derived(buildPlanInteractionProjection(interaction, rooms, model));
+	const cameraProjection = $derived.by(() => {
+		if (!interaction.planView.showTourOverlay) return undefined;
+		try {
+			return planCameraProjectionForProject(preview.project, preview.geometry, preview.issues);
+		} catch {
+			// Scene/layout divergence (e.g. imported layout missing scene rooms) must not break the plan.
+			return undefined;
 		}
-		return byRoom;
 	});
-	const roomQueryPolygons = $derived(
-		model.queries.polygons.filter((polygon) => polygon.kind === 'room-floor')
+	const planModel = $derived(
+		buildPlanRenderModel(preview.geometry, cameraProjection, interactionProjection)
 	);
-	const objectQueryPolygons = $derived(
-		model.queries.polygons.filter((polygon) => polygon.kind === 'object-footprint')
-	);
-	const selectedRoom = $derived.by(() => {
-		const roomId = selectedLayoutRoomId(interaction);
-		return roomId ? findLayoutRoom(rooms, roomId) : undefined;
-	});
 	const selectedOpeningSelection = $derived(
 		interaction.selection.kind === 'opening' ? interaction.selection : null
 	);
@@ -162,33 +143,10 @@
 			(opening) => opening.id === selectedOpeningSelection.openingId
 		);
 	});
-	const visibleInteriorAnchors = $derived.by(() => {
-		const anchors: { roomId: string; segmentId: string; anchorId: string; point: LayoutVec2 }[] = [];
-		for (const record of model.queries.points) {
-			if (record.kind !== 'interior-anchor') continue;
-			anchors.push({
-				roomId: record.roomId,
-				segmentId: record.segmentId,
-				anchorId: record.sourceId,
-				point: record.point
-			});
-		}
-		return anchors;
-	});
-	const selectedPoints = $derived.by(() => {
-		if (!selectedRoom) return [] as LayoutVec2[];
-		if (interaction.editing?.roomId === selectedRoom.id) return interaction.editing.currentPoints;
-		return roomVertices(selectedRoom);
-	});
 	const rotationHandleHovered = $derived.by(() => {
-		if (interaction.tool !== 'select' || interaction.selection.kind !== 'room' || !selectedRoom || !rotationHoverScreen) return false;
-		return distance(rotationHandleScreenPoint(selectedRoom), rotationHoverScreen) <= LAYOUT_PLAN_HIT_RADIUS_PX;
-	});
-	const rotationFeedback = $derived.by(() => {
-		const drag = interaction.roomUnitDrag;
-		if (!drag || drag.mode !== 'rotate') return null;
-		const degrees = Math.round((drag.yaw * 180) / Math.PI);
-		return `${degrees >= 0 ? '+' : ''}${degrees}°`;
+		if (interaction.tool !== 'select' || !rotationHoverScreen) return false;
+		const handle = rotationHandleScreenPoint(interaction.planView, interactionProjection);
+		return handle ? distance(handle, rotationHoverScreen) <= LAYOUT_PLAN_HIT_RADIUS_PX : false;
 	});
 
 	onMount(() => {
@@ -224,14 +182,6 @@
 		framePlanViewport(interaction.planView, points);
 	}
 
-	function renderObjectFootprint(object: LayoutObjectDescriptor): LayoutVec2[] {
-		const drag = interaction.objectDrag;
-		if (!drag || drag.objectId !== object.objectId) return object.planFootprint;
-		const dx = drag.candidatePosition[0] - drag.originalPosition[0];
-		const dz = drag.candidatePosition[2] - drag.originalPosition[2];
-		return object.planFootprint.map(([x, z]) => [x + dx, z + dz]);
-	}
-
 	function screenPoint(event: { clientX: number; clientY: number }): LayoutVec2 | null {
 		const svg = svgElement;
 		if (!svg) return null;
@@ -265,8 +215,9 @@
 		const draft = interaction.primitiveDraft;
 		if (!draft) return;
 		const center = primitiveDraftCenter({ ...draft, current: point });
-		const room = floor ? findHitRoom(floor.rooms, center) : undefined;
-		updateLayoutPrimitiveDraft(interaction, point, room?.id);
+		const allowedRoomIds = new Set((floor?.rooms ?? []).map((room) => room.id));
+		const room = findPlanHitRoom(model.queries, center, { allowedRoomIds });
+		updateLayoutPrimitiveDraft(interaction, point, room?.roomId);
 	}
 
 	function beginInteriorAnchorDrag(
@@ -309,34 +260,12 @@
 		return true;
 	}
 
-	const ROTATION_HANDLE_OFFSET_PX = 28;
-
-	function roomScreenBounds(room: LayoutRoom): { minX: number; minY: number; maxX: number; maxY: number } {
-		const points = roomVertices(room).map((point) => worldToPlanScreen(interaction.planView, point));
-		return {
-			minX: Math.min(...points.map(([x]) => x)),
-			minY: Math.min(...points.map(([, y]) => y)),
-			maxX: Math.max(...points.map(([x]) => x)),
-			maxY: Math.max(...points.map(([, y]) => y))
-		};
-	}
-
-	function rotationHandleAnchorScreen(room: LayoutRoom): LayoutVec2 {
-		const bounds = roomScreenBounds(room);
-		return [(bounds.minX + bounds.maxX) / 2, bounds.minY];
-	}
-
-	function rotationHandleScreenPoint(room: LayoutRoom): LayoutVec2 {
-		const anchor = rotationHandleAnchorScreen(room);
-		return [anchor[0], anchor[1] - ROTATION_HANDLE_OFFSET_PX];
-	}
-
 	function rotationHandleHit(screen: LayoutVec2): LayoutRoom | null {
 		if (interaction.selection.kind !== 'room') return null;
 		const room = findLayoutRoom(rooms, interaction.selection.roomId);
 		if (!room) return null;
-		const handle = rotationHandleScreenPoint(room);
-		return distance(handle, screen) <= LAYOUT_PLAN_HIT_RADIUS_PX ? room : null;
+		const handle = rotationHandleScreenPoint(interaction.planView, interactionProjection);
+		return handle && distance(handle, screen) <= LAYOUT_PLAN_HIT_RADIUS_PX ? room : null;
 	}
 
 	function beginPendingWallBend(event: PointerEvent) {
@@ -392,57 +321,58 @@
 			if (!snapped || !svgElement) return;
 			pointerId = event.pointerId;
 			svgElement.setPointerCapture(event.pointerId);
-			beginLayoutPrimitiveDraft(
-				interaction,
-				interaction.tool,
-				snapped,
-				findHitRoom(preview.project.layout.floors[0]?.rooms ?? [], snapped)?.id
-			);
+			const allowedRoomIds = new Set((preview.project.layout.floors[0]?.rooms ?? []).map((room) => room.id));
+			const room = findPlanHitRoom(model.queries, snapped, { allowedRoomIds });
+			beginLayoutPrimitiveDraft(interaction, interaction.tool, snapped, room?.roomId);
 			return;
 		}
 
 		if (interaction.tool === 'door' || interaction.tool === 'window') {
-			const target = findPlanHitTarget(point, screen);
+			const target = resolvePlanHit(model.queries, point, LAYOUT_PLAN_HIT_RADIUS_PX / interaction.planView.pixelsPerMeter);
 			if (target?.kind === 'opening') {
-				selectLayoutOpening(interaction, target.room.id, target.segment.id, target.opening.id);
+				selectLayoutOpening(interaction, target.roomId, target.segmentId, target.openingId);
 				setLayoutDraftTool(interaction, 'select');
 				return;
 			}
 			if (target?.kind === 'wall') {
-				onOpeningCreate(target.room.id, target.segment.id, interaction.tool, target.projection.offset);
+				onOpeningCreate(target.roomId, target.segmentId, interaction.tool, target.projection.offset);
 				setLayoutDraftTool(interaction, 'select');
 			}
 			return;
 		}
 
 		if (interaction.tool !== 'select') return;
-		const target = findPlanHitTarget(point, screen);
+		const target = resolvePlanHit(model.queries, point, LAYOUT_PLAN_HIT_RADIUS_PX / interaction.planView.pixelsPerMeter);
 		if (!target) {
 			clearLayoutSelection(interaction);
 			return;
 		}
 		if (target.kind === 'vertex') {
-			selectLayoutRoom(interaction, target.room.id);
+			const room = findLayoutRoom(rooms, target.roomId);
+			if (!room) return;
+			selectLayoutRoom(interaction, target.roomId);
 			if (svgElement) {
 				pointerId = event.pointerId;
 				svgElement.setPointerCapture(event.pointerId);
-				beginRoomEdit(interaction, 'vertex', target.room.id, point, roomVertices(target.room), target.vertexIndex);
+				beginRoomEdit(interaction, 'vertex', target.roomId, point, roomVertices(room), target.vertexIndex);
 			}
 			return;
 		}
 		if (target.kind === 'interiorAnchor') {
-			beginInteriorAnchorDrag(event, target.room.id, target.segment.id, target.anchor.id);
+			beginInteriorAnchorDrag(event, target.roomId, target.segmentId, target.anchorId);
 			return;
 		}
 		if (target.kind === 'opening') {
-			selectLayoutOpening(interaction, target.room.id, target.segment.id, target.opening.id);
+			const room = findLayoutRoom(rooms, target.roomId);
+			const opening = room?.openings.find((candidate) => candidate.id === target.openingId);
+			selectLayoutOpening(interaction, target.roomId, target.segmentId, target.openingId);
 			if (svgElement) {
 				dragSnapshot = captureLayoutPreviewSnapshot(preview);
 				openingDrag = {
-					roomId: target.room.id,
-					segmentId: target.segment.id,
-					openingId: target.opening.id,
-					width: target.opening.width
+					roomId: target.roomId,
+					segmentId: target.segmentId,
+					openingId: target.openingId,
+					width: opening?.width ?? 0
 				};
 				pointerId = event.pointerId;
 				svgElement.setPointerCapture(event.pointerId);
@@ -450,24 +380,25 @@
 			return;
 		}
 		if (target.kind === 'object') {
-			selectLayoutObject(interaction, target.object.objectId);
-			if (!target.object.readonly && svgElement) {
+			const object = model.objects.find((candidate) => candidate.objectId === target.objectId);
+			selectLayoutObject(interaction, target.objectId);
+			if (object && !object.readonly && svgElement) {
 				pointerId = event.pointerId;
 				svgElement.setPointerCapture(event.pointerId);
-				beginLayoutObjectDrag(interaction, target.object.objectId, target.object.position);
+				beginLayoutObjectDrag(interaction, target.objectId, object.position);
 			}
 			return;
 		}
 		if (target.kind === 'wall') {
-			selectLayoutWall(interaction, target.room.id, target.segment.id);
+			selectLayoutWall(interaction, target.roomId, target.segmentId);
 			if (!svgElement) return;
 			const projected = interaction.planView.snapEnabled
 				? snapToGrid(target.projection.point)
 				: target.projection.point;
 			pendingWallBend = {
 				pointerId: event.pointerId,
-				roomId: target.room.id,
-				segmentId: target.segment.id,
+				roomId: target.roomId,
+				segmentId: target.segmentId,
 				projectionPoint: projected,
 				originScreen: screen
 			};
@@ -475,8 +406,10 @@
 			return;
 		}
 
-		selectLayoutRoom(interaction, target.room.id);
-		beginRoomUnitDrag(event, target.room, 'translate', point);
+		const room = findLayoutRoom(rooms, target.roomId);
+		if (!room) return;
+		selectLayoutRoom(interaction, target.roomId);
+		beginRoomUnitDrag(event, room, 'translate', point);
 	}
 
 	function onPointerMove(event: PointerEvent) {
@@ -546,10 +479,10 @@
 			const room = findLayoutRoom(rooms, openingDrag.roomId);
 			const segment = room?.boundary.segments.find((candidate) => candidate.id === openingDrag!.segmentId);
 			const projection = room && segment
-				? projectPointToWall(point, room.id, segment.id)
+				? projectPointToWall(model.queries, room.id, segment.id, point)
 				: null;
 			if (!room || !segment || !projection) return;
-			const length = compiledWallLength(room.id, segment.id);
+			const length = compiledWallLength(model.queries, room.id, segment.id);
 			const centered = projection.offset - openingDrag.width / 2;
 			const offset = interaction.planView.snapEnabled
 				? snapSegmentOffset(centered, Math.max(0, length - openingDrag.width))
@@ -780,130 +713,8 @@
 		}
 	}
 
-	function findPlanHitTarget(point: LayoutVec2, screen: LayoutVec2): PlanHitTarget | null {
-		const vertex = nearestVertexTarget(screen);
-		if (vertex) return vertex;
-		const interiorAnchor = nearestInteriorAnchorTarget(screen);
-		if (interiorAnchor) return interiorAnchor;
-		const opening = nearestOpeningTarget(point);
-		if (opening) return opening;
-		const objectRecord = findPolygonContaining(point, objectQueryPolygons);
-		const object = objectRecord
-			? model.objects.find((candidate) => candidate.objectId === objectRecord.objectId)
-			: undefined;
-		if (object) return { kind: 'object', object };
-		const wall = nearestWallTarget(point);
-		if (wall) return wall;
-		const room = findHitRoom(rooms, point);
-		return room ? { kind: 'room', room } : null;
-	}
-
-	function nearestVertexTarget(screen: LayoutVec2): VertexHitTarget | null {
-		let nearest: VertexHitTarget | null = null;
-		let nearestDistance = LAYOUT_PLAN_HIT_RADIUS_PX;
-		for (const record of model.queries.points) {
-			if (record.kind !== 'vertex') continue;
-			const room = findLayoutRoom(rooms, record.roomId);
-			if (!room) continue;
-			const candidate = worldToPlanScreen(interaction.planView, record.point);
-			const currentDistance = Math.hypot(candidate[0] - screen[0], candidate[1] - screen[1]);
-			if (currentDistance <= nearestDistance) {
-				nearest = { kind: 'vertex', room, vertexIndex: record.sourceIndex };
-				nearestDistance = currentDistance;
-			}
-		}
-		return nearest;
-	}
-
-	function nearestInteriorAnchorTarget(screen: LayoutVec2): InteriorAnchorHitTarget | null {
-		let nearest: InteriorAnchorHitTarget | null = null;
-		let nearestDistance = LAYOUT_PLAN_HIT_RADIUS_PX;
-		for (const record of model.queries.points) {
-			if (record.kind !== 'interior-anchor') continue;
-			const room = findLayoutRoom(rooms, record.roomId);
-			const segment = room?.boundary.segments.find(
-				(candidate) => candidate.id === record.segmentId && candidate.kind === 'auto-bezier'
-			);
-			const anchor = segment?.kind === 'auto-bezier'
-				? segment.interiorAnchors.find((candidate) => candidate.id === record.sourceId)
-				: undefined;
-			if (!room || !segment || segment.kind !== 'auto-bezier' || !anchor) continue;
-			const handle = worldToPlanScreen(interaction.planView, record.point);
-			const currentDistance = Math.hypot(handle[0] - screen[0], handle[1] - screen[1]);
-			if (currentDistance <= nearestDistance) {
-				nearest = { kind: 'interiorAnchor', room, segment, anchor };
-				nearestDistance = currentDistance;
-			}
-		}
-		return nearest;
-	}
-
-	function projectPointToWall(
-		point: LayoutVec2,
-		roomId: string,
-		segmentId: string
-	): SegmentProjection | null {
-		const spans = wallQuerySpansByRoom.get(roomId)?.get(segmentId) ?? [];
-		const projection = projectPointToSpans(point, spans);
-		return projection
-			? {
-					point: projection.point,
-					offset: projection.offset,
-					distance: projection.distance,
-					t: projection.t
-				}
-			: null;
-	}
-
-	function compiledWallLength(roomId: string, segmentId: string): number {
-		return wallQuerySpansByRoom.get(roomId)?.get(segmentId)?.at(-1)?.endDistance ?? 0;
-	}
-
-	function compiledRoomEdgeLength(roomId: string, edgeIndex: number): number {
-		return compiledRoomsById.get(roomId)?.walls[edgeIndex]?.length ?? 0;
-	}
-
-	function nearestOpeningTarget(point: LayoutVec2): OpeningHitTarget | null {
-		const tolerance = LAYOUT_PLAN_HIT_RADIUS_PX / interaction.planView.pixelsPerMeter;
-		for (const room of [...rooms].reverse()) {
-			for (const opening of [...room.openings].reverse()) {
-				const segment = room.boundary.segments.find((candidate) => candidate.id === opening.segmentId);
-				const projection = segment ? projectPointToWall(point, room.id, segment.id) : null;
-				if (!segment || !projection) continue;
-				if (projection.distance <= tolerance && openingContainsOffset(opening, projection.offset, tolerance)) {
-					return { kind: 'opening', room, segment, opening, projection };
-				}
-			}
-		}
-		return null;
-	}
-
-	function nearestWallTarget(point: LayoutVec2): WallHitTarget | null {
-		const tolerance = LAYOUT_PLAN_HIT_RADIUS_PX / interaction.planView.pixelsPerMeter;
-		let nearest: WallHitTarget | null = null;
-		for (const room of [...rooms].reverse()) {
-			for (const segment of [...room.boundary.segments].reverse()) {
-				const projection = projectPointToWall(point, room.id, segment.id);
-				if (!projection) continue;
-				if (projection.distance <= tolerance && (!nearest || projection.distance < nearest.projection.distance)) {
-					nearest = { kind: 'wall', room, segment, projection };
-				}
-			}
-		}
-		return nearest;
-	}
-
 	function distance(a: LayoutVec2, b: LayoutVec2): number {
 		return Math.hypot(a[0] - b[0], a[1] - b[1]);
-	}
-
-	function findHitRoom(roomList: readonly LayoutRoom[], point: LayoutVec2): LayoutRoom | undefined {
-		const allowedRoomIds = new Set(roomList.map((room) => room.id));
-		const record = findPolygonContaining(
-			point,
-			roomQueryPolygons.filter((polygon) => polygon.roomId && allowedRoomIds.has(polygon.roomId))
-		);
-		return record?.roomId ? findLayoutRoom(roomList, record.roomId) : undefined;
 	}
 
 	function findLayoutRoom(roomList: readonly LayoutRoom[], roomId: string): LayoutRoom | undefined {
@@ -914,46 +725,6 @@
 		return room.boundary.segments.map((segment) => [...segment.start] as LayoutVec2);
 	}
 
-	function renderPoints(roomId: string, fallback: LayoutVec2[]): LayoutVec2[] {
-		return interaction.editing?.roomId === roomId ? interaction.editing.currentPoints : fallback;
-	}
-
-	function isWallSelected(segmentId: string): boolean {
-		const selection = interaction.selection;
-		return (
-			(selection.kind === 'wall' || selection.kind === 'interiorAnchor') &&
-			selection.segmentId === segmentId
-		);
-	}
-
-	type VertexHitTarget = { kind: 'vertex'; room: LayoutRoom; vertexIndex: number };
-	type InteriorAnchorHitTarget = {
-		kind: 'interiorAnchor';
-		room: LayoutRoom;
-		segment: Extract<DraftSegment, { kind: 'auto-bezier' }>;
-		anchor: Extract<DraftSegment, { kind: 'auto-bezier' }>['interiorAnchors'][number];
-	};
-	type OpeningHitTarget = {
-		kind: 'opening';
-		room: LayoutRoom;
-		segment: DraftSegment;
-		opening: LayoutOpening;
-		projection: SegmentProjection;
-	};
-	type WallHitTarget = {
-		kind: 'wall';
-		room: LayoutRoom;
-		segment: DraftSegment;
-		projection: SegmentProjection;
-	};
-	type ObjectHitTarget = { kind: 'object'; object: LayoutObjectDescriptor };
-	type PlanHitTarget =
-		| VertexHitTarget
-		| InteriorAnchorHitTarget
-		| OpeningHitTarget
-		| ObjectHitTarget
-		| WallHitTarget
-		| { kind: 'room'; room: LayoutRoom };
 </script>
 
 <div class="plan-viewport" aria-label="Layout Plan drafting viewport">
@@ -999,98 +770,7 @@
 				<text class="grid-label" x={line.start[0] + 4} y={line.start[1] + 12}>{line.value.toFixed(0)} m</text>
 			{/each}
 		{/if}
-		{#each model.rooms as room (room.roomId)}
-			{@const points = renderPoints(room.roomId, room.floorPolygon)}
-			<polygon
-				class="room-fill"
-				class:selected={interaction.selection.kind === 'room' && interaction.selection.roomId === room.roomId}
-				points={points.map((point) => worldToPlanScreen(interaction.planView, point).join(',')).join(' ')}
-				aria-label={`Room ${room.roomId}`}
-			/>
-			<polyline
-				class="room-outline"
-				class:selected={interaction.selection.kind === 'room' && interaction.selection.roomId === room.roomId}
-				points={[...points, points[0]].map((point) => worldToPlanScreen(interaction.planView, point).join(',')).join(' ')}
-			/>
-			{#each room.walls as wall (wall.segmentId)}
-				{#each wall.solidCenterlinePolylines as polyline, polylineIndex (`${wall.segmentId}:span:${polylineIndex}`)}
-					<polyline
-						class="wall-line"
-						class:selected={isWallSelected(wall.segmentId)}
-						class:opening-selected={interaction.selection.kind === 'opening' && interaction.selection.segmentId === wall.segmentId}
-						points={polyline.map((point) => worldToPlanScreen(interaction.planView, point).join(',')).join(' ')}
-					/>
-				{/each}
-				{#each wall.openings as opening (opening.openingId)}
-					<polyline
-						class="opening-line"
-						class:opening-selected={interaction.selection.kind === 'opening' && interaction.selection.openingId === opening.openingId}
-						points={opening.centerPolyline.map((point) => worldToPlanScreen(interaction.planView, point).join(',')).join(' ')}
-					/>
-				{/each}
-			{/each}
-			{/each}
-			{#each model.objects as object (object.objectId)}
-				{@const footprint = renderObjectFootprint(object)}
-				<polygon
-					class="layout-object"
-					class:selected={interaction.selection.kind === 'object' && interaction.selection.objectId === object.objectId}
-					class:readonly={object.readonly}
-					points={footprint.map((point) => worldToPlanScreen(interaction.planView, point).join(',')).join(' ')}
-				/>
-			{/each}
-			{#if interaction.primitiveDraft}
-				{@const draft = interaction.primitiveDraft}
-				{@const footprint = primitiveDraftFootprint(draft)}
-				<polygon
-					class="primitive-ghost"
-					class:circle={draft.kind !== 'box'}
-					class:sphere={draft.kind === 'sphere'}
-					class:invalid={!draft.valid}
-					points={footprint.map((point) => worldToPlanScreen(interaction.planView, point).join(',')).join(' ')}
-				/>
-			{/if}
-			{#if interaction.tool === 'select' && interaction.selection.kind === 'room' && selectedPoints.length > 0}
-				{@const selectionBounds = selectedRoom ? roomScreenBounds(selectedRoom) : null}
-				{@const rotationAnchorScreen = selectedRoom ? rotationHandleAnchorScreen(selectedRoom) : null}
-				{#if selectionBounds}
-					<rect class="selection-bounds" x={selectionBounds.minX} y={selectionBounds.minY} width={selectionBounds.maxX - selectionBounds.minX} height={selectionBounds.maxY - selectionBounds.minY} />
-				{/if}
-				{@const rotationScreen = selectedRoom ? rotationHandleScreenPoint(selectedRoom) : null}
-				{#if rotationAnchorScreen && rotationScreen}
-					<line class="rotation-arm" x1={rotationAnchorScreen[0]} y1={rotationAnchorScreen[1]} x2={rotationScreen[0]} y2={rotationScreen[1]} />
-					<circle class="rotation-handle" cx={rotationScreen[0]} cy={rotationScreen[1]} r="7" aria-label="Rotate room" />
-					{#if rotationFeedback}<text class="rotation-feedback" x={rotationScreen[0] + 12} y={rotationScreen[1] - 10}>{rotationFeedback}</text>{/if}
-				{/if}
-			{#each selectedPoints as point, index (index)}
-				{@const screen = worldToPlanScreen(interaction.planView, point)}
-				<circle class="vertex-handle" cx={screen[0]} cy={screen[1]} r="6" />
-			{/each}
-			{#each selectedPoints as point, index (index)}
-				{@const next = selectedPoints[(index + 1) % selectedPoints.length]!}
-				{@const start = worldToPlanScreen(interaction.planView, point)}
-				{@const end = worldToPlanScreen(interaction.planView, next)}
-				{@const edgeLength = selectedRoom ? compiledRoomEdgeLength(selectedRoom.id, index) : Math.hypot(next[0] - point[0], next[1] - point[1])}
-				<text class="dimension-label" x={(start[0] + end[0]) / 2} y={(start[1] + end[1]) / 2 - 5}>{edgeLength.toFixed(2)} m</text>
-			{/each}
-		{/if}
-		{#if draftPolygon && draftPolygon.length > 0}
-			<polyline class="draft-outline" points={draftPolygon.map((point) => worldToPlanScreen(interaction.planView, point).join(',')).join(' ')} />
-			{#each draftPolygon as point, index (index)}
-				{@const screen = worldToPlanScreen(interaction.planView, point)}
-				<circle class="draft-point" cx={screen[0]} cy={screen[1]} r="5" />
-			{/each}
-		{/if}
-		{#each visibleInteriorAnchors as anchor (`${anchor.segmentId}:${anchor.anchorId}`)}
-			{@const screen = worldToPlanScreen(interaction.planView, anchor.point)}
-			<circle
-				class="interior-anchor"
-				class:selected={interaction.selection.kind === 'interiorAnchor' && interaction.selection.anchorId === anchor.anchorId}
-				cx={screen[0]}
-				cy={screen[1]}
-				r="5"
-			/>
-		{/each}
+		<PlanSvg model={planModel} planView={interaction.planView} />
 		{#if selectedOpening}
 			<text class="selection-label" x="16" y="24">{selectedOpening.kind} · {selectedOpening.width.toFixed(2)} m × {selectedOpening.height.toFixed(2)} m</text>
 		{/if}
@@ -1122,33 +802,7 @@
 	.plan-canvas line { stroke: #302d38; stroke-width: 1; vector-effect: non-scaling-stroke; }
 	.plan-canvas line.major { stroke: #494352; }
 	.grid-label { fill: #746d7d; font: 10px ui-monospace, monospace; pointer-events: none; }
-	.room-fill { fill: #6b6254; fill-opacity: 0.32; }
-	.room-fill.selected { fill: #9b7841; fill-opacity: 0.45; }
-	.room-outline { fill: none; stroke: #88b7d6; stroke-width: 2; vector-effect: non-scaling-stroke; }
-	.room-outline.selected { stroke: #f1cd78; stroke-width: 3; }
-	.selection-bounds { fill: none; stroke: #f1cd78; stroke-width: 1; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; pointer-events: none; }
-	.wall-line { fill: none; stroke: #b2a58f; stroke-width: 4; vector-effect: non-scaling-stroke; pointer-events: none; }
-	.wall-line.selected { stroke: #fff2c7; stroke-width: 6; }
-	.wall-line.opening-selected { stroke: #d6b35f; stroke-width: 6; }
-	.opening-line { stroke: #77c6b0; stroke-width: 7; vector-effect: non-scaling-stroke; pointer-events: none; }
-	.opening-line.opening-selected { stroke: #fff2c7; stroke-width: 9; }
-	.layout-object { fill: #73806d; fill-opacity: 0.62; stroke: #b7c4ae; stroke-width: 2; vector-effect: non-scaling-stroke; pointer-events: none; }
-	.layout-object.selected { fill: #9b7841; stroke: #fff2c7; stroke-width: 3; }
-	.layout-object.readonly { fill: #6b6576; stroke-dasharray: 5 3; }
-	.primitive-ghost { fill: #d6b35f; fill-opacity: 0.25; stroke: #f1d99a; stroke-width: 2; stroke-dasharray: 7 4; vector-effect: non-scaling-stroke; pointer-events: none; }
-	.primitive-ghost.circle { fill: #77c6b0; stroke: #b8f0de; }
-	.primitive-ghost.sphere { fill: #aa8ed4; stroke: #e0cfff; }
-	.primitive-ghost.invalid { fill: #d96b6b; stroke: #efc7c7; }
-	.interior-anchor { fill: #d6b35f; stroke: #fff2c7; stroke-width: 2; vector-effect: non-scaling-stroke; }
-	.interior-anchor.selected { fill: #fff2c7; stroke: #d6b35f; }
-	.vertex-handle { fill: #fff2c7; stroke: #d6b35f; stroke-width: 2; vector-effect: non-scaling-stroke; }
-	.rotation-arm { stroke: #ffffff; stroke-width: 3; stroke-dasharray: none; vector-effect: non-scaling-stroke; pointer-events: none; }
-	.rotation-handle { fill: #fff2c7; stroke: #6f5a2f; stroke-width: 2; vector-effect: non-scaling-stroke; pointer-events: none; }
-	.rotation-feedback { fill: #fff2c7; font: 700 11px ui-monospace, monospace; paint-order: stroke; stroke: #0d0d12; stroke-width: 3px; stroke-linejoin: round; pointer-events: none; user-select: none; }
-	.dimension-label, .selection-label { fill: #f1d99a; font: 10px ui-monospace, monospace; paint-order: stroke; stroke: #0d0d12; stroke-width: 3px; stroke-linejoin: round; pointer-events: none; }
-	.selection-label { font-size: 12px; font-weight: 700; }
-	.draft-outline { fill: rgba(214, 179, 95, 0.18); stroke: #d6b35f; stroke-width: 2; stroke-dasharray: 8 4; vector-effect: non-scaling-stroke; }
-	.draft-point { fill: #fff2c7; stroke: #d6b35f; stroke-width: 2; vector-effect: non-scaling-stroke; }
+	.selection-label { fill: #f1d99a; font: 700 12px ui-monospace, monospace; paint-order: stroke; stroke: #0d0d12; stroke-width: 3px; stroke-linejoin: round; pointer-events: none; }
 	.scale-label { fill: #d6d0c4; font: 11px ui-monospace, monospace; }
 	.scale-bar { stroke: #fff2c7; stroke-width: 3; vector-effect: non-scaling-stroke; }
 	.plan-help { position: absolute; top: 4.25rem; left: 50%; z-index: 5; max-width: min(34rem, calc(100% - 2rem)); transform: translateX(-50%); padding: 0.45rem 0.7rem; border: 1px solid #49433a; border-radius: 999px; background: rgb(18 18 24 / 92%); color: #fff2c7; font: 600 0.7rem/1.2 ui-sans-serif, system-ui, sans-serif; pointer-events: none; text-align: center; }

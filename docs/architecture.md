@@ -19,7 +19,7 @@
 | Shell cutouts | `LayoutMuseumShell` from `CompiledLayoutGeometry` | shared compiled geometry (G1 implemented) |
 | Legacy room compatibility | deprecated editor/test projection in `rooms.ts`; no visitor import | delete when consumers migrate |
 | Derived layout geometry | one pure `compileLayoutGeometry()` (G1 implemented) | same |
-| Plan presentation | SVG elements + overlays assembled in `LayoutPlanViewport.svelte` | `CompiledLayoutGeometry` → pure `PlanRenderModel` → SVG adapter |
+| Plan presentation | `CompiledLayoutGeometry` → pure `PlanRenderModel` → `PlanSvg.svelte` SVG adapter (G2 implemented) | same |
 | 3D architecture meshes | sampled wall-chord `BoxGeometry` in editor/runtime layout shells | `CompiledLayoutGeometry` → `ThreeGeometryAdapter` → indexed `BufferGeometry` |
 | Routes / curves | `camera-route` + `camera-motion` only | unchanged |
 | Tour FSM | `museum-state.svelte.ts` | unchanged |

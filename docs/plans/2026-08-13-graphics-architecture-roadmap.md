@@ -1,7 +1,7 @@
 # Graphics Architecture Roadmap
 
 **Date:** 2026-08-13
-**Status:** Active post-B5 roadmap; G1 implemented, G2 next
+**Status:** Active post-B5 roadmap; G1 + G2 implemented, G3 next
 **Prerequisite:** B5 runtime cutover
 **Architecture:** [`../architecture.md`](../architecture.md) · **Vision:** [`../north-star.md`](../north-star.md)
 
@@ -26,10 +26,10 @@ This roadmap starts after B5. It must not expand or delay the B5 cutover.
 
 | Concern | Current implementation |
 |---------|------------------------|
-| Persisted architecture | `LayoutDocument` v2 in `$lib/layout/layout-types.ts`; no renderer state |
-| Editor geometry | `buildLayoutPreviewModel()` plus editor-local curve, opening, arch, bounds, and query helpers |
-| Visitor geometry | `buildLayoutArchitectureModel()` in `$lib/layout/layout-architecture.ts` |
-| Plan rendering | `LayoutPlanViewport.svelte` computes SVG elements and several interaction overlays inline |
+| Persisted architecture | `LayoutDocument` v3 in `$lib/layout/layout-types.ts`; no renderer state |
+| Editor geometry | `compileLayoutGeometry()` (G1) feeds editor preview state, Plan, and 3D |
+| Visitor geometry | `compileLayoutGeometry()` (G1) feeds `LayoutMuseumShell` |
+| Plan rendering | `LayoutPlanViewport.svelte` delegates to `PlanSvg.svelte`, which renders an explicit `PlanRenderModel` |
 | Editor 3D | `LayoutPreviewScene.svelte` emits one box per sampled wall chord/section |
 | Visitor 3D | `LayoutMuseumShell.svelte` also emits sampled chord boxes |
 | Scene/tour | `museum-scene.json` v6 plus `camera-route.ts` and `camera-motion.ts` |
@@ -144,7 +144,10 @@ and windows, all opening profiles, floor elevation, objects, and invalid geometr
 Compare normalized samples, arc lengths, tangents/normals, wall sections,
 profiles, polygons, and bounds across all three consumers.
 
-### G2 — Explicit Plan render boundary (`KEEP`)
+### G2 — Explicit Plan render boundary (`KEEP`, implemented)
+
+Focused implementation plan:
+[`2026-08-13-graphics-g2-plan-render-model.md`](./2026-08-13-graphics-g2-plan-render-model.md).
 
 Derive a pure `PlanRenderModel` from `CompiledLayoutGeometry` plus optional
 renderer-neutral camera/tour and interaction projections. The model defines this
@@ -169,7 +172,10 @@ styling. Use stable semantic keys and world-space primitives; the SVG adapter
 owns SVG attributes and applies the view transform. SVG remains the production
 renderer until the performance gate proves it is the limiting layer.
 
-### G3 — Graphics performance harness (`KEEP`)
+### G3 — Graphics performance harness (`KEEP`, next)
+
+Focused implementation plan:
+[`2026-08-13-graphics-g3-performance-harness.md`](./2026-08-13-graphics-g3-performance-harness.md).
 
 Before changing renderer technology or claiming an optimization, add deterministic
 generated layouts at 10, 100, and 1,000 rooms. Each scale must contain a fixed mix
@@ -370,11 +376,11 @@ quick-win (safe, isolated, output-preserving).
 | 1 | Incremental per-room recompile | every edit deep-clones + validates twice + recompiles the whole document | G3 |
 | 2 | Merge validate + compile into one pass | two full-document validation passes per edit | G3 |
 | 3 | Drop `cloneJson` per edit (structural / `$state` updates) | JSON round-trip of the whole layout per mutation | G3 |
-| 4 | Spatial index for self-intersection + picking | O(n²) all-pairs segment intersection | G3 / G2 |
+| 4 | Spatial index for self-intersection + picking | O(n²) all-pairs segment intersection | G3 |
 | 5 | Binary-search `pointAlongSamples`, unify with `pointAtDistance` | linear scan per lookup; O(samples²) in solid-span build | quick-win |
 | 6 | Thread precomputed cubics into auto-bezier tangent eval | cubics recompiled per sample (O(N·A²)) | quick-win |
 | 7 | Unify duplicate layout codecs (shared vs editor) | divergent unique-id strictness across import/save | quick-win |
 | 8 | `frameloop="demand"` + invalidate for idle 3D | render loop ticks at 60fps while idle | quick-win (with viewport switch) |
 | 9 | Cull invisible ceiling meshes | hidden ceilings still draw (opacity 0) | quick-win |
-| 10 | Lazy / cheaper `cacheKey` (not `JSON.stringify`) | per-query-record stringify allocation | G2 |
+| 10 | Lazy / cheaper `cacheKey` (not `JSON.stringify`) | per-query-record stringify allocation | G3 |
 | 11 | One shared `Shape` per room (floor + ceiling) | `Shape` allocated twice per room per rebuild | quick-win |

@@ -4,6 +4,7 @@
 		clearLayoutDraft,
 		setLayoutDraftTool,
 		setLayoutViewMode,
+		togglePlanViewportOption,
 		type LayoutInteractionState,
 		type LayoutDraftTool,
 		type LayoutViewMode
@@ -43,8 +44,9 @@
 	</div>
 	{#if interaction.viewMode === 'plan'}
 		<div class="tool-group options" aria-label="Plan options">
-			<button type="button" class:active={interaction.planView.snapEnabled} aria-pressed={interaction.planView.snapEnabled} onclick={() => (interaction.planView.snapEnabled = !interaction.planView.snapEnabled)}>Snap 0.25m</button>
-			<button type="button" class:active={interaction.planView.gridEnabled} aria-pressed={interaction.planView.gridEnabled} onclick={() => (interaction.planView.gridEnabled = !interaction.planView.gridEnabled)}>Grid</button>
+			<button type="button" class:active={interaction.planView.snapEnabled} aria-pressed={interaction.planView.snapEnabled} onclick={() => togglePlanViewportOption(interaction, 'snapEnabled')}>Snap 0.25m</button>
+			<button type="button" class:active={interaction.planView.gridEnabled} aria-pressed={interaction.planView.gridEnabled} onclick={() => togglePlanViewportOption(interaction, 'gridEnabled')}>Grid</button>
+			<button type="button" class:active={interaction.planView.showTourOverlay} aria-pressed={interaction.planView.showTourOverlay} onclick={() => togglePlanViewportOption(interaction, 'showTourOverlay')}>Tour</button>
 		</div>
 	{:else}
 		<button type="button" class:active={preview.showCeilings} aria-pressed={preview.showCeilings} onclick={() => toggleLayoutCeilings(preview)}>Ceiling</button>

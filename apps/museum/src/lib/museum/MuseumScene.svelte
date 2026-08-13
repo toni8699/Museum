@@ -3,6 +3,8 @@
   import { T } from '@threlte/core';
   import { interactivity } from '@threlte/extras';
   import { museumRooms } from '$lib/content/rooms';
+  import type { LayoutDocument } from '$lib/layout/layout-types';
+  import { validateLayoutDocument } from '$lib/layout/layout-codec';
   import {
     assertNavigationGraphMatchesScene,
     createNavigationGraph,
@@ -15,6 +17,7 @@
     type MuseumStateStore
   } from '$lib/state/museum-state.svelte';
   import MuseumShell from './layout/MuseumShell.svelte';
+  import LayoutMuseumShell from './layout/LayoutMuseumShell.svelte';
   import CentralChamber from './layout/CentralChamber.svelte';
   import NavigationNode from './navigation/NavigationNode.svelte';
   import CameraDirector from './navigation/CameraDirector.svelte';
@@ -47,7 +50,9 @@
     fogFar = 54,
     placementRegistry,
     forceParisAssets = false,
-    showArchitecture = true
+    showArchitecture = true,
+    architectureSource = 'rooms.ts',
+    layout
   }: {
     scene?: RuntimeMuseumScene;
     state?: MuseumStateStore;
@@ -65,7 +70,19 @@
     forceParisAssets?: boolean;
     /** Editor layout mode can keep the shared camera while hiding scene geometry. */
     showArchitecture?: boolean;
+    architectureSource?: 'rooms.ts' | 'layout';
+    layout?: LayoutDocument;
   } = $props();
+
+  const layoutForRuntime = $derived.by(() => {
+    if (architectureSource !== 'layout') return undefined;
+    if (!layout) throw new Error("MuseumScene architectureSource='layout' requires a LayoutDocument");
+    const validation = validateLayoutDocument(layout);
+    if (!validation.success) {
+      throw new Error(`Invalid layout architecture: ${validation.issues[0]!.path} — ${validation.issues[0]!.message}`);
+    }
+    return validation.document;
+  });
 
   const graph = $derived.by(() => {
     assertNavigationGraphMatchesScene(state.graph, scene);
@@ -92,7 +109,11 @@
 <T.DirectionalLight position={[2, 8, 5]} color="#c9d1df" intensity={directionalIntensity} />
 
 {#if showArchitecture}
-  <MuseumShell rooms={museumRooms} />
+  {#if architectureSource === 'layout'}
+    <LayoutMuseumShell layout={layoutForRuntime!} />
+  {:else}
+    <MuseumShell rooms={museumRooms} />
+  {/if}
   <CentralChamber />
 
   <EntranceRoom />

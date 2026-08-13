@@ -31,7 +31,7 @@ Open the local URL and visit `/museum`.
 
 Editor now has two authoring artifacts:
 
-- **Layout export** (`museum-layout.json`): rooms, floorplans, walls, openings, and layout placeholders. Editor-only during the current migration phase; `/museum` does not load it yet.
+- **Layout export** (`museum-layout.json`): rooms, floorplans, walls, openings, and layout placeholders. B4 adds an opt-in dev dual-read at `/museum?architecture=layout`; default `/museum` remains on `rooms.ts` until B5.
 - **Scene export** (`museum-scene.json`): entities, materials, navigation nodes, connections, and camera paths used by the current visitor experience.
 
 To update the live museum:
@@ -40,7 +40,7 @@ To update the live museum:
 2. Replace [`apps/museum/src/lib/content/museum-scene.json`](./apps/museum/src/lib/content/museum-scene.json) with that scene export.
 3. Restart or refresh the dev server if needed, then open `/museum`.
 
-Layout exports are not a replacement for `museum-scene.json` yet. Do not put either export under `static/`; only the checked-in scene document is loaded by the current visitor runtime.
+Layout exports are not a replacement for `museum-scene.json` yet. Do not put either export under `static/`; the default visitor runtime loads `museum-scene.json` plus `rooms.ts`, while B4 layout mode uses the runtime-safe checked-in compiler fixture.
 
 Useful commands:
 

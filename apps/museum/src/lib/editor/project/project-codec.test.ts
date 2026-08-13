@@ -75,7 +75,7 @@ describe('MuseumProject codec', () => {
 			formatVersion: 1,
 			id: 'project:empty',
 			name: 'Empty Museum',
-			layout: { formatVersion: 1, units: 'meters', floors: [], objects: [] },
+			layout: { formatVersion: 2, units: 'meters', floors: [], objects: [] },
 			scene
 		});
 	});

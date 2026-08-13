@@ -1,6 +1,6 @@
 # Museum docs
 
-**Audience:** agents + humans. **Last reviewed:** 2026-08-11
+**Audience:** agents + humans. **Last reviewed:** 2026-08-13
 
 Bootstrap: [`../AGENTS.md`](../AGENTS.md). Live slice: [`hand-off/CURRENT.md`](./hand-off/CURRENT.md). Editor code: [`../apps/museum/src/lib/editor/README.md`](../apps/museum/src/lib/editor/README.md).
 
@@ -37,7 +37,7 @@ flowchart TB
   Motion --> Visitor
 ```
 
-Runtime shell = `rooms.ts` until cutover. Scene/tour = v6 JSON. Layout CAD = P0 editor draft → later runtime. One motion system. Editor prod 404.
+Runtime shell defaults to `rooms.ts`; B4 adds opt-in dev `LayoutMuseumShell` dual-read from validated layout v2. Scene/tour = v6 JSON. B5 owns production cutover. One motion system. Editor prod 404.
 
 ---
 
@@ -45,8 +45,8 @@ Runtime shell = `rooms.ts` until cutover. Scene/tour = v6 JSON. Layout CAD = P0 
 
 | Working on… | Read |
 |-------------|------|
-| Vision / what not to build | [`north-star.md`](./north-star.md) |
-| 2D rendering expansion / performance guardrails | [`north-star.md`](./north-star.md) |
+| Vision / priorities / product-fit gate | [`north-star.md`](./north-star.md) |
+| Shared geometry compiler / Plan render model / procedural meshes / graphics performance and technology gates | [`plans/2026-08-13-graphics-architecture-roadmap.md`](./plans/2026-08-13-graphics-architecture-roadmap.md) |
 | `rooms.ts` vs layout / promotion | [`architecture.md`](./architecture.md) |
 | Editor chrome / workspaces | [`components/shell.md`](./components/shell.md) |
 | Entities / materials / library | [`components/scene-content.md`](./components/scene-content.md) |
@@ -55,7 +55,7 @@ Runtime shell = `rooms.ts` until cutover. Scene/tour = v6 JSON. Layout CAD = P0 
 | Schema / I/O / history | [`components/persistence.md`](./components/persistence.md) |
 | Paris GLB / assets | [`components/assets.md`](./components/assets.md) |
 | **What to build now** | [`hand-off/CURRENT.md`](./hand-off/CURRENT.md) |
-| Layout CAD tasks | [`plans/2026-08-10-layout-cad-foundation.md`](./plans/2026-08-10-layout-cad-foundation.md) — task section only; focused plans [`plans/2026-08-10-layout-cad-a2-editor-preview.md`](./plans/2026-08-10-layout-cad-a2-editor-preview.md) · [`plans/2026-08-10-layout-cad-a2-2-scale-editing.md`](./plans/2026-08-10-layout-cad-a2-2-scale-editing.md) · [`plans/2026-08-11-layout-cad-a2-3-opening-authoring.md`](./plans/2026-08-11-layout-cad-a2-3-opening-authoring.md) · [`plans/2026-08-11-layout-cad-a3-bezier-arch-profiles.md`](./plans/2026-08-11-layout-cad-a3-bezier-arch-profiles.md) · [`plans/2026-08-11-layout-cad-a3-1-camera-style-bend.md`](./plans/2026-08-11-layout-cad-a3-1-camera-style-bend.md) · [`plans/2026-08-11-layout-cad-a4-objects-inspectors-io.md`](./plans/2026-08-11-layout-cad-a4-objects-inspectors-io.md) · [`plans/2026-08-12-layout-cad-a4-1-polish.md`](./plans/2026-08-12-layout-cad-a4-1-polish.md) · [`plans/2026-08-10-layout-cad-a0-codec.md`](./plans/2026-08-10-layout-cad-a0-codec.md) / [`plans/2026-08-10-layout-cad-a1-line-geometry.md`](./plans/2026-08-10-layout-cad-a1-line-geometry.md) / [`plans/2026-08-10-layout-cad-c0-project-codec.md`](./plans/2026-08-10-layout-cad-c0-project-codec.md) |
+| Layout CAD tasks | [`plans/2026-08-10-layout-cad-foundation.md`](./plans/2026-08-10-layout-cad-foundation.md) — task section only; focused plans [`plans/2026-08-10-layout-cad-a2-editor-preview.md`](./plans/2026-08-10-layout-cad-a2-editor-preview.md) · [`plans/2026-08-10-layout-cad-a2-2-scale-editing.md`](./plans/2026-08-10-layout-cad-a2-2-scale-editing.md) · [`plans/2026-08-11-layout-cad-a2-3-opening-authoring.md`](./plans/2026-08-11-layout-cad-a2-3-opening-authoring.md) · [`plans/2026-08-11-layout-cad-a3-bezier-arch-profiles.md`](./plans/2026-08-11-layout-cad-a3-bezier-arch-profiles.md) · [`plans/2026-08-11-layout-cad-a3-1-camera-style-bend.md`](./plans/2026-08-11-layout-cad-a3-1-camera-style-bend.md) · [`plans/2026-08-11-layout-cad-a4-objects-inspectors-io.md`](./plans/2026-08-11-layout-cad-a4-objects-inspectors-io.md) · [`plans/2026-08-12-layout-cad-a4-1-polish.md`](./plans/2026-08-12-layout-cad-a4-1-polish.md) · [`plans/2026-08-13-layout-cad-b5-runtime-cutover.md`](./plans/2026-08-13-layout-cad-b5-runtime-cutover.md) · [`plans/2026-08-10-layout-cad-a0-codec.md`](./plans/2026-08-10-layout-cad-a0-codec.md) / [`plans/2026-08-10-layout-cad-a1-line-geometry.md`](./plans/2026-08-10-layout-cad-a1-line-geometry.md) / [`plans/2026-08-10-layout-cad-c0-project-codec.md`](./plans/2026-08-10-layout-cad-c0-project-codec.md) |
 | Deep camera dump | [`archive/CAMERA_AND_LAYOUT.md`](./archive/CAMERA_AND_LAYOUT.md) |
 | Asset checklist dump | [`archive/ASSET_WORKFLOW.md`](./archive/ASSET_WORKFLOW.md) |
 

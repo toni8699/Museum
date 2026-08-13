@@ -1,0 +1,321 @@
+# Graphics Architecture Roadmap
+
+**Date:** 2026-08-13
+**Status:** Proposed post-B5 roadmap
+**Prerequisite:** B5 runtime cutover
+**Architecture:** [`../architecture.md`](../architecture.md) · **Vision:** [`../north-star.md`](../north-star.md)
+
+## 1. Outcome
+
+Make graphics architecture a product capability of the layout-first museum, not a
+technology showcase. `MuseumProject` remains the envelope, `project.layout`
+remains the semantic architecture source, Three.js/Threlte remains the production
+3D stack, and the existing camera route/motion system remains the only one.
+
+Every proposal must answer:
+
+> What current product, architecture, correctness, or measured performance
+> problem does this solve that the existing stack does not solve cleanly?
+
+If the answer is mainly resume signaling, “Rust is faster,” “WebGPU is newer,” or
+“a custom renderer sounds impressive,” reject it or isolate it as research.
+
+This roadmap starts after B5. It must not expand or delay the B5 cutover.
+
+## 2. Current baseline and debt
+
+| Concern | Current implementation |
+|---------|------------------------|
+| Persisted architecture | `LayoutDocument` v2 in `$lib/layout/layout-types.ts`; no renderer state |
+| Editor geometry | `buildLayoutPreviewModel()` plus editor-local curve, opening, arch, bounds, and query helpers |
+| Visitor geometry | `buildLayoutArchitectureModel()` in `$lib/layout/layout-architecture.ts` |
+| Plan rendering | `LayoutPlanViewport.svelte` computes SVG elements and several interaction overlays inline |
+| Editor 3D | `LayoutPreviewScene.svelte` emits one box per sampled wall chord/section |
+| Visitor 3D | `LayoutMuseumShell.svelte` also emits sampled chord boxes |
+| Scene/tour | `museum-scene.json` v6 plus `camera-route.ts` and `camera-motion.ts` |
+
+B4 established a runtime-safe layout projection and line-layout parity for the
+current Chopin fixture. It did **not** finish universal geometry consolidation:
+the editor path has adaptive auto-Bezier sampling, tangent/normal data, and richer
+arch/opening handling, while the runtime architecture builder independently
+samples and splits walls. G1 owns that consolidation after B5; B5 should not grow
+into a graphics rewrite.
+
+## 3. Target architecture
+
+```text
+MuseumProject.project.layout
+          ↓
+    LayoutDocument
+          ↓
+ compileLayoutGeometry()
+          ↓
+ CompiledLayoutGeometry
+ ├─ sampled curves + arc-length tables
+ ├─ tangents + normals
+ ├─ wall solid sections
+ ├─ openings + elevation profiles
+ ├─ floor + ceiling polygons
+ ├─ object footprints
+ ├─ bounds + query records
+ └─ render-neutral geometry
+          │
+          ├─────────────────────────┐
+          ↓                         ↓
+  buildPlanRenderModel()     ThreeGeometryAdapter
+          ↓                         ↓
+   PlanRenderModel          procedural BufferGeometry
+          ↓                         ↓
+     SVG renderer              Threlte / Three.js
+    (production first)             ↓
+                               WebGL / WebGPU
+```
+
+Camera/tour overlays join only at the Plan projection boundary:
+
+```text
+project.scene → existing camera-route/camera-motion projection ─┐
+CompiledLayoutGeometry ──────────────────────────────────────────┴→ PlanRenderModel
+```
+
+They do not become `LayoutDocument` fields and do not create a second path or
+motion implementation.
+
+## 4. Ownership contracts
+
+| Layer | Owns | Must not own |
+|-------|------|--------------|
+| `LayoutDocument` | Authored rooms, paths, openings, portal relations, layout objects, dimensions | Samples, triangulation, SVG paths, Three objects, buffers, GPU resources, pixels |
+| `compileLayoutGeometry()` | Pure deterministic derivation, geometry issues, sampled/sectioned/query-ready data | UI state, scene entities, materials, cameras, render-backend state |
+| `CompiledLayoutGeometry` | Immutable-by-convention render-neutral values; typed arrays are allowed when backend-neutral | SVG/DOM nodes, `THREE.*`, WebGL/WebGPU handles |
+| `PlanRenderModel` | Ordered world-space drawing primitives, semantic style tokens, hit identities, overlays | Document mutation, geometry recomputation, persisted styling, camera ownership |
+| Plan view transform | World/screen conversion and zoom-dependent screen sizing | Document mutation or render ordering |
+| SVG renderer | DOM creation, SVG attributes, visual theme | Layout geometry rules or hit-test geometry generation |
+| `ThreeGeometryAdapter` | Positions, normals, UVs, indices, Three geometry lifecycle and groups | Semantic layout ownership or scene/tour mutation |
+| Three/Threlte | Scene graph, GLBs, materials/PBR, lights, shadows, cameras, resource lifecycle | Authored layout semantics or a duplicate geometry compiler |
+
+Derived geometry is disposable and cacheable. It is invalidated by relevant
+layout changes and is never serialized into `MuseumProject`.
+
+## 5. Roadmap
+
+### G0 — Finish the source-of-truth cutover (`KEEP`, current P1)
+
+B5 promotes serialized layout architecture while preserving scene/tour behavior,
+stable room IDs, the single camera system, and visitor isolation. Deprecate or
+generate `rooms.ts` only within the B5 contract. Do not fold G1–G6 into B5.
+
+### G1 — Shared geometry compiler (`KEEP`)
+
+Introduce one pure visitor-safe API:
+
+```ts
+compileLayoutGeometry(document: LayoutDocument): CompiledLayoutGeometryResult
+```
+
+The result carries compiled data plus structured geometry issues. It must not
+mutate the document, read Svelte state, or import Three/SVG/browser APIs.
+
+Consolidate the existing editor/runtime logic for:
+
+- adaptive line and auto-Bezier sampling;
+- cumulative arc-length tables, parameter values, tangents, and normals;
+- opening interval normalization and wall solid splitting;
+- rectangular, rounded, and pointed opening elevation profiles;
+- floor and ceiling polygons;
+- layout-object footprints;
+- room, wall, opening, object, floor, and document bounds;
+- precomputed query geometry (segments, spans, polygons, and AABBs) with stable
+  IDs, cache keys, and data suitable for a later grid/R-tree index.
+
+Migrate Plan, editor 3D, and visitor shell adapters incrementally. Once migrated,
+no consumer may independently resample layout curves or reinterpret opening
+topology.
+
+Parity fixtures must cover line/L-shaped rooms, auto-Bezier walls, multiple doors
+and windows, all opening profiles, floor elevation, objects, and invalid geometry.
+Compare normalized samples, arc lengths, tangents/normals, wall sections,
+profiles, polygons, and bounds across all three consumers.
+
+### G2 — Explicit Plan render boundary (`KEEP`)
+
+Derive a pure `PlanRenderModel` from `CompiledLayoutGeometry` plus optional
+renderer-neutral camera/tour and interaction projections. The model defines this
+back-to-front order:
+
+1. fills;
+2. strokes;
+3. walls;
+4. openings;
+5. objects;
+6. camera paths;
+7. view cones and look targets;
+8. portal crossings and collision warnings;
+9. timing labels;
+10. selection overlays;
+11. interaction handles;
+12. labels.
+
+Keep six concerns separate: document mutation, compiled geometry, world-to-screen
+view transforms, rendering order, transient interaction overlays, and visual
+styling. Use stable semantic keys and world-space primitives; the SVG adapter
+owns SVG attributes and applies the view transform. SVG remains the production
+renderer until the performance gate proves it is the limiting layer.
+
+### G3 — Graphics performance harness (`KEEP`)
+
+Before changing renderer technology or claiming an optimization, add deterministic
+generated layouts at 10, 100, and 1,000 rooms. Each scale must contain a fixed mix
+of lines/curves, openings/profiles, and objects so results remain comparable.
+
+Capture at least:
+
+- layout compilation time;
+- initial Plan render time;
+- pan/zoom p50 and p95 frame time;
+- drag/edit p50 and p95 frame time;
+- hit-test and snapping-query latency;
+- SVG node count;
+- Three object and material counts;
+- draw calls and triangles;
+- GPU/frame time where the browser exposes it;
+- memory; and
+- 3D regeneration time.
+
+Pin browser version, device profile, fixture seed, warm-up, sample count, and
+measurement method. Check in fixture generators and baseline results. Before G4
+or G5 optimization begins, record explicit target and fail budgets for the
+currently supported product scale; 10/100/1,000-room results are comparison tiers,
+not an unsupported claim that every tier must be interactive. A budget change
+requires a recorded product or measurement reason, not a quieter regression.
+
+### G4 — Procedural architectural meshes (`KEEP`)
+
+Replace sampled wall-chord boxes progressively with meshes built from compiled
+wall sections:
+
+```text
+Compiled wall sections
+        ↓
+   mesh builder
+        ↓
+positions · normals · uvs · indices
+        ↓
+THREE.BufferGeometry
+```
+
+Required work includes indexed topology, wall thickness/corners, opening side and
+lintel faces, arch profiles, stable UV generation, material reuse, and disposal.
+Merge/batch at a room-and-material scale where measurement supports it. Preserve
+reasonable edit/selection granularity through stable groups or section-to-index
+metadata. Do not create one giant museum mesh, and do not replace Three.js as the
+scene/material/camera/resource layer.
+
+The G3 harness records the before baseline and verifies each migration slice.
+Visual parity fixtures cover curve joins, wall ends, opening reveals, normals,
+UV continuity, shadows, and 2D/3D agreement.
+
+### G5 — Measured optimization and scale (`KEEP` then `LATER`)
+
+Apply optimizations in this order, stopping when budgets pass:
+
+```text
+measure
+  ↓
+cache derived geometry
+  ↓
+avoid whole-document work during transient edits / use partial rebuilds
+  ↓
+stable render objects and keys
+  ↓
+shared materials
+  ↓
+continuous or merged BufferGeometry
+  ↓
+viewport/frustum culling
+  ↓
+zoom-dependent detail
+  ↓
+spatial indexing
+  ↓
+instancing where appropriate
+  ↓
+only then investigate lower-level renderer changes
+```
+
+Spatial indexing is conditional. Add a render-neutral uniform grid or R-tree only
+when profiling shows linear queries materially consuming the hit-test, snapping,
+collision, selection, nearby-wall/opening, or culling budgets. Build it from
+compiled query records, benchmark construction/update cost, and keep a linear
+reference path for parity tests.
+
+### G6 — Bounded graphics experiments (`EXPERIMENT`)
+
+After the SVG/Three baseline and in-stack optimization, one isolated Plan backend
+experiment may target a measured problem: GPU CAD primitives, anti-aliased stroke
+or infinite-grid shaders, GPU picking, path/view-cone rendering, or heat-map/debug
+visualization.
+
+```text
+PlanRenderModel
+      ├─→ SVG production baseline
+      └─→ experimental WebGPU/WGSL backend
+```
+
+The experiment stays dev-only, persists no GPU/shader state, and benchmarks the
+same fixtures against SVG. Production consideration requires a meaningful budget
+win, feature/visual parity, supported-browser behavior, maintainable fallback,
+and a concrete product need. “Newer API” is not evidence.
+
+## 6. Conditional technology gates
+
+Rust/WASM is not a numbered production milestone. Reconsider it only after
+algorithmic and TypeScript improvements leave a measured CPU-heavy kernel such as
+large-scale curve flattening, polygon triangulation, spatial-index construction,
+or bulk intersection/collision queries.
+
+Any proposal requires a batched JS/WASM boundary, typed-array-friendly I/O, a
+TypeScript reference implementation, parity tests, and a benchmark that includes
+transfer/serialization overhead. A full geometry-engine rewrite stays rejected
+unless evidence changes the product constraint.
+
+A custom Three replacement, native `wgpu` 3D backend, or alternate production 3D
+renderer is research-only unless Three/Threlte presents a concrete limitation
+that survives profiling and existing-stack optimization.
+
+## 7. Classification
+
+| Proposal | Class | Reason/gate |
+|----------|-------|-------------|
+| Shared geometry compiler | `KEEP` | Removes real editor/runtime duplication and creates correctness parity |
+| `PlanRenderModel` + SVG adapter | `KEEP` | Establishes the existing Plan contract without renderer churn |
+| Procedural indexed `BufferGeometry` | `KEEP` | Fixes current chord-box topology/object-count debt within Three |
+| Performance fixtures, budgets, regressions | `KEEP` | Required evidence for every later optimization |
+| Caching, partial rebuilds, stable keys/materials | `KEEP` | First-line responses to measured work |
+| Culling, zoom detail, spatial index, instancing | `LATER` | Add only when the harness identifies the relevant scaling cost |
+| WebGPU/WGSL Plan backend | `EXPERIMENT` | One bounded comparison after SVG optimization |
+| Targeted Rust/WASM kernel | `LATER` | Only for an isolated measured CPU bottleneck with boundary-cost proof |
+| Full Three.js replacement / custom `wgpu` engine | `REJECT` | Duplicates a capable production scene/resource stack without a current problem |
+| Multiple speculative render backends | `REJECT` | Ongoing complexity without evidence |
+
+## 8. Explicit non-goals
+
+- full Three.js replacement or a custom production `wgpu` 3D engine;
+- production Rust geometry rewrite;
+- multiple speculative render backends;
+- arbitrary shader persistence;
+- custom text/glyph system;
+- native desktop/window-system work;
+- real-time general CSG or Blender-style mesh editing;
+- GPU compute merely for demonstration;
+- a second scene, navigation graph, camera route, or motion system; and
+- moving scene entities, materials, camera data, or generated geometry into
+  `LayoutDocument`.
+
+## 9. Program exit criteria
+
+The graphics foundation is established when Plan, editor 3D, and visitor 3D use
+one compiled geometry contract; Plan renders through an explicit model; wall
+architecture uses verified procedural buffers at justified granularity; baseline
+fixtures and budgets are reproducible; and every later optimization or experiment
+is traceable to a measured product problem.

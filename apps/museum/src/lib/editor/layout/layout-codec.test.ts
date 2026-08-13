@@ -31,7 +31,7 @@ function rectangleRoom(id = 'room-main'): LayoutRoom {
 
 function baseDocument(): LayoutDocument {
 	return {
-		formatVersion: 1,
+		formatVersion: 2,
 		units: 'meters',
 		floors: [
 			{
@@ -66,7 +66,7 @@ function issueCodes(input: unknown): string[] {
 describe('LayoutDocument codec', () => {
 	it('creates and validates the canonical blank document', () => {
 		const document = createEmptyLayoutDocument();
-		expect(document).toEqual({ formatVersion: 1, units: 'meters', floors: [], objects: [] });
+		expect(document).toEqual({ formatVersion: 2, units: 'meters', floors: [], objects: [] });
 		expect(successDocument(document)).toEqual(document);
 	});
 
@@ -195,9 +195,42 @@ describe('LayoutDocument codec', () => {
 
 	it('rejects unsupported format versions and units', () => {
 		const document = baseDocument() as unknown as Record<string, unknown>;
-		document.formatVersion = 2;
+		document.formatVersion = 3;
 		document.units = 'feet';
 		expect(issueCodes(document)).toEqual(['unsupported_version', 'unsupported_units']);
+	});
+
+	it('migrates layout v1 to canonical v2 without portal relations', () => {
+		const legacy = baseDocument() as unknown as Record<string, unknown>;
+		legacy.formatVersion = 1;
+		const result = validateLayoutDocument(legacy);
+		expect(result.success).toBe(true);
+		if (!result.success) return;
+		expect(result.document.formatVersion).toBe(2);
+		expect(result.canonicalJson).toContain('"formatVersion": 2');
+	});
+
+	it('validates explicit portal ownership and canonical room ordering', () => {
+		const document = baseDocument();
+		const second = rectangleRoom('room-second');
+		document.floors[0]!.rooms.push(second);
+		document.floors[0]!.rooms[0]!.openings = [{
+			id: 'door-a', segmentId: 'wall-a', kind: 'door', offset: 1, width: 1, height: 2, sillHeight: 0,
+			profile: 'rectangular', connectsRoomIds: ['room-second', 'room-main']
+		}];
+		const result = validateLayoutDocument(document);
+		expect(result.success).toBe(true);
+		if (!result.success) return;
+		expect(result.document.floors[0]!.rooms[0]!.openings[0]!.connectsRoomIds).toEqual(['room-main', 'room-second']);
+	});
+
+	it('rejects portal relations on windows and stale room references', () => {
+		const document = baseDocument();
+		document.floors[0]!.rooms[0]!.openings = [{
+			id: 'window-a', segmentId: 'wall-a', kind: 'window', offset: 1, width: 1, height: 2, sillHeight: 0,
+			profile: 'rectangular', connectsRoomIds: ['room-main', 'missing-room']
+		}];
+		expect(issueCodes(document)).toEqual(expect.arrayContaining(['invalid_value', 'missing_reference']));
 	});
 
 	it('rejects unknown root and nested keys', () => {

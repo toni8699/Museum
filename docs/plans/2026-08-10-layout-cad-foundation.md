@@ -159,6 +159,7 @@ No real-time CSG. Invalid drafts stay editable with warnings; last valid preview
 A0 codec → B0 Chopin compile fixture → A1 line rooms+preview
   → C0 project envelope → A2 editor preview → A2.1 plan UX → B1 load Chopin in editor
   → A3/A4 Bezier/arches/objects/I/O → B3 relocate → B4 dual-read → B5 cutover
+  → post-B5 graphics architecture roadmap
 ```
 
 Ship **A1 before A3**. Do not start Bezier/arches until A1 acceptance passes.
@@ -265,9 +266,17 @@ Move/rotate whole room boundary + openings + child objects as one tagged `layout
 
 `architectureSource: 'rooms.ts' | 'layout'`. Default Chopin = `rooms.ts`. Add explicit `connectsRoomIds: [string, string]` for interior door/portal openings; never infer adjacency from geometry. Migrate corridor end cutouts and room doors into semantic portal relations. External windows remain unpaired. Parity checklist before enable. No editor UI in visitor chunks.
 
+Focused implementation contract: [`2026-08-12-layout-cad-b4-runtime-dual-read.md`](./2026-08-12-layout-cad-b4-runtime-dual-read.md).
+
 ### B5 — Cutover
 
 Chopin ships as serialized project. `rooms.ts` deprecated or generated. Tour stays on shared motion; room ids stable.
+
+Focused implementation contract: [`2026-08-13-layout-cad-b5-runtime-cutover.md`](./2026-08-13-layout-cad-b5-runtime-cutover.md).
+
+Do not fold the shared geometry compiler, `PlanRenderModel`, procedural mesh, or
+renderer experiments into B5. They begin after cutover in the focused
+[graphics architecture roadmap](./2026-08-13-graphics-architecture-roadmap.md).
 
 ---
 
@@ -343,6 +352,7 @@ Multiple floors · semantic room adjacency/portal graph before B4 · terrain/civ
 
 ## 13. Related
 
+- Post-B5 graphics architecture: [`2026-08-13-graphics-architecture-roadmap.md`](./2026-08-13-graphics-architecture-roadmap.md)
 - Deferred full-track: [`../archive/superpowers/plans/2026-08-09-museum-editor-full-track.md`](../archive/superpowers/plans/2026-08-09-museum-editor-full-track.md)
 - Goal-alignment review (archived): [`../archive/superpowers/reviews/2026-08-10-layout-cad-foundation-goal-alignment.md`](../archive/superpowers/reviews/2026-08-10-layout-cad-foundation-goal-alignment.md)
 - Prior split design (archived): [`../archive/superpowers/specs/`](../archive/superpowers/specs/) — superseded by §§1–4, 11–12 here

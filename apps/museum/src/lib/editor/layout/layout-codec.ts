@@ -11,7 +11,8 @@ import type {
 	LayoutVec2
 } from './layout-types';
 
-const FORMAT_VERSION = 1 as const;
+const FORMAT_VERSION = 2 as const;
+const LEGACY_FORMAT_VERSION = 1 as const;
 const UNITS = 'meters' as const;
 const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
 
@@ -50,7 +51,8 @@ const OPENING_KEYS = [
 	'width',
 	'height',
 	'sillHeight',
-	'profile'
+	'profile',
+	'connectsRoomIds'
 ] as const;
 const OBJECT_KEYS = [
 	'id',
@@ -147,12 +149,12 @@ function parseDocument(
 	assertAllowedKeys(record, ROOT_KEYS, path, issues);
 
 	const formatVersion = readNumber(record.formatVersion, `${path}.formatVersion`, issues);
-	if (formatVersion !== FORMAT_VERSION) {
+	if (formatVersion !== FORMAT_VERSION && formatVersion !== LEGACY_FORMAT_VERSION) {
 		addIssue(
 			issues,
 			`${path}.formatVersion`,
 			'unsupported_version',
-			`Expected layout document formatVersion ${FORMAT_VERSION}`
+			`Expected layout document formatVersion ${LEGACY_FORMAT_VERSION} or ${FORMAT_VERSION}`
 		);
 	}
 
@@ -171,6 +173,7 @@ function parseDocument(
 	validateUniqueIds(objects, `${path}.objects`, issues, (object) => object.id);
 
 	const roomIds = new Set(rooms.map((room) => room.id));
+	validatePortalRelations(floors, roomIds, issues);
 	for (const [index, object] of objects.entries()) {
 		if (object.roomId && !roomIds.has(object.roomId)) {
 			addIssue(
@@ -395,6 +398,7 @@ function parseOpening(
 		['rectangular', 'rounded', 'pointed'],
 		issues
 	);
+	const connectsRoomIds = parsePortalRoomIds(record.connectsRoomIds, `${path}.connectsRoomIds`, issues);
 	if (
 		!id ||
 		!segmentId ||
@@ -407,7 +411,58 @@ function parseOpening(
 	) {
 		return undefined;
 	}
-	return { id, segmentId, kind, offset, width, height, sillHeight, profile };
+	return {
+		id,
+		segmentId,
+		kind,
+		offset,
+		width,
+		height,
+		sillHeight,
+		profile,
+		...(connectsRoomIds ? { connectsRoomIds } : {})
+	};
+}
+
+function parsePortalRoomIds(
+	input: unknown,
+	path: string,
+	issues: LayoutDocumentIssue[]
+): [string, string] | undefined {
+	if (input === undefined) return undefined;
+	if (!Array.isArray(input) || input.length !== 2) {
+		addIssue(issues, path, 'invalid_value', 'Expected exactly two room IDs');
+		return undefined;
+	}
+	const first = readId(input[0], `${path}[0]`, issues);
+	const second = readId(input[1], `${path}[1]`, issues);
+	if (!first || !second) return undefined;
+	if (first === second) addIssue(issues, path, 'invalid_value', 'Portal room IDs must be distinct');
+	return first.localeCompare(second) <= 0 ? [first, second] : [second, first];
+}
+
+function validatePortalRelations(
+	floors: readonly LayoutFloor[],
+	roomIds: ReadonlySet<string>,
+	issues: LayoutDocumentIssue[]
+): void {
+	for (const [floorIndex, floor] of floors.entries()) {
+		for (const [roomIndex, room] of floor.rooms.entries()) {
+			for (const [openingIndex, opening] of room.openings.entries()) {
+				const path = `$.floors[${floorIndex}].rooms[${roomIndex}].openings[${openingIndex}]`;
+				const relation = opening.connectsRoomIds;
+				if (!relation) continue;
+				if (opening.kind !== 'door') {
+					addIssue(issues, `${path}.connectsRoomIds`, 'invalid_value', 'Only door openings may define portal relations');
+				}
+				if (!roomIds.has(relation[0])) addIssue(issues, `${path}.connectsRoomIds[0]`, 'missing_reference', `Unknown roomId '${relation[0]}'`);
+				if (!roomIds.has(relation[1])) addIssue(issues, `${path}.connectsRoomIds[1]`, 'missing_reference', `Unknown roomId '${relation[1]}'`);
+				if (relation[0] !== room.id && relation[1] !== room.id) {
+					addIssue(issues, `${path}.connectsRoomIds`, 'invalid_value', `Opening owner room '${room.id}' must be one portal relation member`);
+				}
+			}
+		}
+	}
 }
 
 function parseObject(

@@ -48,6 +48,17 @@ describe('roomsToLayout', () => {
 			'legacy'
 		]);
 		expect(document.objects).toEqual([]);
+		const portalOpenings = document.floors[0]!.rooms.flatMap((room) => room.openings.filter((opening) => opening.connectsRoomIds));
+		expect(portalOpenings).toHaveLength(12);
+		expect(new Set(portalOpenings.map((opening) => opening.connectsRoomIds!.join('|')))).toEqual(new Set([
+			'entrance|legacy',
+			'entrance|poland',
+			'departure|poland',
+			'departure|paris',
+			'paris|workshop',
+			'music-chamber|workshop',
+			'legacy|music-chamber'
+		]));
 	});
 
 	it('uses stable room wall segment IDs and expected rectangle side order', () => {

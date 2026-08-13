@@ -4,13 +4,13 @@
 
 **North star:** layout-first / Chopin-as-data — [`../north-star.md`](../north-star.md).  
 **P0:** Layout CAD Foundation — [`../plans/2026-08-10-layout-cad-foundation.md`](../plans/2026-08-10-layout-cad-foundation.md).  
-**Completed:** A0 LayoutDocument codec + B0 Chopin `rooms.ts` compiler + A1 pure line geometry/preview model/transaction stub + C0 `MuseumProject` codec + A2 read-only layout preview workspace + A2.1 rectangle/polygon drafting + A2.2 meter-scale editing and Chopin floor correction + A2.3 geometry-only opening authoring and numeric opening dimensions + A3 Bezier walls, arc-length openings, and derived arch profiles + A3.1 camera-style wall bend anchors, opening viz fix, and Plan opening drag + A4 layout objects, inspectors, and layout JSON I/O + A4.1 Layout Authoring Polish + B3 Room-Unit Relocate.
+**Completed:** A0 LayoutDocument codec + B0 Chopin `rooms.ts` compiler + A1 pure line geometry/preview model/transaction stub + C0 `MuseumProject` codec + A2 read-only layout preview workspace + A2.1 rectangle/polygon drafting + A2.2 meter-scale editing and Chopin floor correction + A2.3 geometry-only opening authoring and numeric opening dimensions + A3 Bezier walls, arc-length openings, and derived arch profiles + A3.1 camera-style wall bend anchors, opening viz fix, and Plan opening drag + A4 layout objects, inspectors, and layout JSON I/O + A4.1 Layout Authoring Polish + B3 Room-Unit Relocate + B4 Runtime Dual-Read.
 
 Full-track Phase 2 scene presets = deferred optional.
 
 ## Next slice
 
-**B4** — Runtime dual-read: explicit room adjacency/portal semantics and layout-backed visitor parity. B3 is implemented in [`../plans/2026-08-12-layout-cad-b3-room-unit-relocate.md`](../plans/2026-08-12-layout-cad-b3-room-unit-relocate.md); A4/A4.1 remain documented in [`../plans/2026-08-11-layout-cad-a4-objects-inspectors-io.md`](../plans/2026-08-11-layout-cad-a4-objects-inspectors-io.md) and [`../plans/2026-08-12-layout-cad-a4-1-polish.md`](../plans/2026-08-12-layout-cad-a4-1-polish.md).
+**B5** — Runtime cutover: promote serialized layout architecture while preserving scene/tour behavior. Focused plan: [`../plans/2026-08-13-layout-cad-b5-runtime-cutover.md`](../plans/2026-08-13-layout-cad-b5-runtime-cutover.md). B4 is implemented in [`../plans/2026-08-12-layout-cad-b4-runtime-dual-read.md`](../plans/2026-08-12-layout-cad-b4-runtime-dual-read.md).
 
 A4 adds primitive layout-object placement in Plan and 3D, transient Plan object dragging, room/wall/opening/object numeric inspectors, canonical layout JSON I/O, and independent layout baseline/status/dirty handling. A4.1 refines this into Plan-only Box/Cylinder/Sphere gestures, transformed primitive footprints, Place/Objects/Selection accordions, contextual dimensions, and replacement-only Plan reframing. Stored object transform/dimensions now drive rendering, bounds, and JSON exactly. B3 adds shared chronological scene/layout history: entries are tagged by domain, undo/redo restores only the touched document, and import/reset clears the shared stack. Layout remains editor-only for runtime.
 
@@ -33,8 +33,9 @@ Future shell milestone: evaluate moving layout objects into a unified left-side 
 - A4.1 focused layout/shell set: 54 passed.
 - A4.1 review focused layout/shell/camera set: 7 files / 158 tests passed.
 - B3 transform/history focused set: 3 files / 40 tests passed.
-- Full suite: 86 files / 1112 tests passed.
-- Museum build passed after B3 changes.
+- Full suite before B4: 86 files / 1112 tests passed.
+- B4 full suite: 89 files / 1121 tests passed.
+- Museum build passed after B3 changes and after B4 dual-read wiring.
 - `npm run check -w @portfolio/museum`: 0 errors / 0 warnings.
 - In-app Browser manual QA remains pending: Browser runtime returned `Browser is not available: iab` on 2026-08-12.
 
@@ -42,7 +43,7 @@ Future shell milestone: evaluate moving layout objects into a unified left-side 
 
 - Single undo stack; ops tagged `layout` | `scene`.
 - Layout mode vs Museum mode mutex before plan UX.
-- Visitor on `rooms.ts` until **B4**.
+- Visitor defaults to `rooms.ts`; B4 layout dual-read is dev-only, B5 owns production cutover.
 - Rectangle click-drag OK in plan tools; object place = ghost commit.
 - A1 corridor = ordinary skinny `LayoutRoom` with optional two rectangular geometry-only cutouts; no corridor type or adjacency semantics yet.
 - A2 preview renders generated geometry; A2.1 drafts rooms in an isolated in-memory layout preview only.
@@ -62,18 +63,18 @@ Future shell milestone: evaluate moving layout objects into a unified left-side 
 - No commits unless user asks.
 - B3 room-unit pivot is derived from sampled-boundary shoelace centroid; no persistent room yaw or schema migration.
 - B3 translation snaps 0.25 m; Shift rotation snaps 15°; room body/rotation-arm gestures and inspector rotation each create at most one `layout` history entry.
-- B4 adjacency, B5 runtime cutover, and unified outliner remain future slices.
+- B4 is shipped as a non-default dual-read; B5 owns production cutover and `rooms.ts` deprecation/generation. Unified outliner remains future work.
 
 ## Out of scope this slice
 
-Phase 2 Wall presets · semantic room adjacency/portal graph (B4) · cutover (B5) · GLB import · new camera system · opening assets/frames · 3D room gizmos.
+Phase 2 Wall presets · production runtime cutover (B5) · GLB import · new camera system · opening assets/frames · 3D room gizmos.
 
 ## Reading order (token-minimal)
 
 1. This file.  
 2. [`../AGENTS.md`](../../AGENTS.md) hard rules.  
 3. [`../architecture.md`](../architecture.md) (layout/`rooms.ts` only).  
-4. For B3, read the foundation plan task section + the matching component contract. A0/B0/A1/C0/A2/A2.1/A2.2/A2.3/A3/A3.1/A4/A4.1 are shipped.
+4. For B4/B5, read the focused runtime dual-read plan plus architecture/persistence contracts. A0/B0/A1/C0/A2/A2.1/A2.2/A2.3/A3/A3.1/A4/A4.1/B3/B4 are shipped.
 
 5. Skip other `docs/components/*` unless the task touches them.
 

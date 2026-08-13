@@ -2,7 +2,7 @@
 
 **Read when:** choosing what to build; reviewing pitches.  
 **Do not read** for a narrow gizmo/tour/entity bug.  
-**Last reviewed:** 2026-08-10  
+**Last reviewed:** 2026-08-13
 **Live slice:** [`hand-off/CURRENT.md`](./hand-off/CURRENT.md)
 
 ---
@@ -33,22 +33,19 @@ MuseumProject
 | Pri | Track |
 |-----|-------|
 | **P0** | Layout CAD + Chopin compile + project envelope — [`plans/2026-08-10-layout-cad-foundation.md`](./plans/2026-08-10-layout-cad-foundation.md) |
-| P1 | Room relocate; dual-read; cutover |
-| P2 | GLB import (after layout-backed load) |
-| P3 | 2D rendering expansion + visual polish: Plan performance, camera overlays, Scene Wall presets, proven GLSL effects — optional; **not** shell |
-| P4 | Multi-story — after single-floor gate |
+| **P1** | Room relocate → dual-read → B5 production cutover; one layout SoT |
+| P2 | Graphics architecture foundation: shared geometry compiler → `PlanRenderModel` → procedural Three geometry — [`plans/2026-08-13-graphics-architecture-roadmap.md`](./plans/2026-08-13-graphics-architecture-roadmap.md) |
+| P3 | Performance baseline → measured caching/partial rebuilds/batching/culling; conditional spatial index |
+| P4 | GLB import + product-useful Plan/camera overlays + proven material effects |
+| P5 | Multi-story — after the single-floor gate |
 
-### 2D graphics expansion gate
+### Graphics architecture gate
 
-After B5, treat the Plan workspace as the primary graphics-engineering expansion surface while keeping the museum product goal intact:
+After B5, follow the canonical [graphics architecture roadmap](./plans/2026-08-13-graphics-architecture-roadmap.md): compile `LayoutDocument` once into backend-neutral geometry, project an explicit world-space `PlanRenderModel`, and adapt compiled wall sections into procedural Three `BufferGeometry`. SVG and Three/Threlte remain the production renderers.
 
-- Derive a pure `PlanRenderModel` from `LayoutDocument`: ordered fills, strokes, openings, objects, camera paths, selection overlays, and labels. Keep document mutation and rendering separate.
-- Keep SVG as the default renderer. Add Canvas/WebGL only when large-layout benchmarks identify a measured SVG bottleneck; do not build multiple speculative backends.
-- Prioritize product-useful 2D work: camera paths, view cones, look targets, portal crossings, collision warnings, timing labels, and synchronized playback position.
-- Benchmark representative heavy layouts for initial render, pan/zoom frame time, edit and hit-test latency, DOM count, memory, and 3D regeneration time. Record performance budgets and regression tests.
-- Optimize only from evidence: cached derived geometry, stable keyed elements, viewport culling, zoom-dependent detail, spatial indexing for hit testing/snapping, hidden-layer suppression, and demand-based rendering.
-- Add visual correctness coverage for curves, openings, selection layers, zoom levels, and 2D/3D geometry consistency.
-- C++, WASM, native window systems, IPC, custom compositors, and renderer rewrites are not roadmap requirements. Reconsider only for a demonstrated product bottleneck or a separately approved research goal.
+Camera paths, view cones, look targets, portal crossings, collision warnings, timing labels, and selection/interaction layers are product-useful Plan projections. Their source data remains in `project.scene` and the existing camera route/motion system; they do not become layout fields.
+
+Benchmark 10/100/1,000-room fixtures and set budgets before optimization. Cache, rebuild less, stabilize render objects/materials, batch, cull, reduce detail, and add a spatial index only in response to measurements. WebGPU/WGSL stays a bounded Plan-backend experiment; Rust/WASM requires an isolated CPU bottleneck and boundary-inclusive proof. Neither belongs on the production critical path by default.
 
 ### GLSL polish gate
 

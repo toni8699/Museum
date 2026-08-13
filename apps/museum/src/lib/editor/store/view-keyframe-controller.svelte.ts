@@ -31,6 +31,7 @@ import {
 	type SceneConnection,
 	type ScenePathAnchor
 } from '$lib/content/scene';
+import { chopinRuntime } from '$lib/content/chopin-project';
 import {
 	MUSEUM_CAMERA_EASING,
 	MUSEUM_CAMERA_FOV,
@@ -435,7 +436,9 @@ export class EditorViewKeyframeController {
 			throw new Error('The camera key is not on the guided timeline');
 		}
 
-		const draftGraph = createNavigationGraph(resolveSceneDocument(this.host.document));
+		const draftGraph = createNavigationGraph(
+			resolveSceneDocument(this.host.document, chopinRuntime.rooms)
+		);
 		const route = getCameraConnectionRoute(
 			selection.connectionId,
 			selection.direction,

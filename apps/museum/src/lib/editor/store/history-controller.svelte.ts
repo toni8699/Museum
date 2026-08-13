@@ -30,6 +30,7 @@
 import { untrack } from 'svelte';
 
 import { resolveSceneDocument, type MuseumSceneDocument } from '$lib/content/scene';
+import { chopinRuntime } from '$lib/content/chopin-project';
 
 import {
 	EditorDocumentStore,
@@ -146,7 +147,7 @@ export class EditorHistoryController {
 		}
 
 		try {
-			resolveSceneDocument(next);
+			resolveSceneDocument(next, chopinRuntime.rooms);
 		} catch (error) {
 			this.#before = null;
 			this.#framingTransaction = false;

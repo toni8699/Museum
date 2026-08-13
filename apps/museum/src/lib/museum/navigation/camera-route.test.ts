@@ -1,10 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   createNavigationGraph,
-  museumNavigationGraph,
-  museumScene,
   type RuntimeMuseumScene
 } from '$lib/content/scene';
+import { museumNavigationGraph, museumScene } from '$lib/content/chopin-project';
 import { loadFixtureScene } from '$lib/content/__fixtures__/load-fixture-scene';
 import type {
   MuseumConnection,

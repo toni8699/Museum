@@ -3,7 +3,7 @@ import type { Vec3 } from '$lib/types/museum';
 export type LayoutVec2 = [number, number];
 
 export type LayoutDocument = {
-  formatVersion: 2;
+  formatVersion: 3;
   units: 'meters';
   floors: LayoutFloor[];
   objects: LayoutObject[];
@@ -20,11 +20,19 @@ export type LayoutFloor = {
 export type LayoutRoom = {
   id: string;
   name: string;
+  frame: LayoutRoomFrame;
   boundary: DraftPath;
   wallThickness: number;
   floorThickness: number;
   ceilingThickness: number;
   openings: LayoutOpening[];
+};
+
+export type LayoutRoomFrame = {
+  /** World/layout XZ position of room-local [0, 0, 0]. */
+  origin: LayoutVec2;
+  /** Three.js positive-Y yaw in radians. */
+  yaw: number;
 };
 
 export type DraftPath = {

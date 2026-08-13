@@ -1,8 +1,8 @@
 import {
   getNode,
-  museumNavigationGraph,
   type NavigationGraph
 } from '$lib/content/scene';
+import { museumNavigationGraph } from '$lib/content/chopin-project';
 import type {
   CameraConnectionDirection,
   MuseumConnection,

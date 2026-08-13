@@ -1,7 +1,7 @@
 # B5 — Serialized Project Runtime Cutover
 
 **Date:** 2026-08-13  
-**Status:** Planned  
+**Status:** Implemented
 **Parent:** [`2026-08-10-layout-cad-foundation.md`](./2026-08-10-layout-cad-foundation.md)  
 **Prerequisite:** [`2026-08-12-layout-cad-b4-runtime-dual-read.md`](./2026-08-12-layout-cad-b4-runtime-dual-read.md)  
 **Handoff:** [`../hand-off/CURRENT.md`](../hand-off/CURRENT.md)  
@@ -338,6 +338,28 @@ apps/museum/src/lib/museum/layout/MuseumShell.svelte
 
 Exact compatibility file moves may differ. Ownership, visitor isolation, and one
 production data path are non-negotiable.
+
+## Implementation record
+
+Implemented 2026-08-13:
+
+- added canonical layout v3 room frames plus deterministic v1/v2 migration and
+  atomic room-frame relocation;
+- promoted project types, codec, cross-document validation, room registry, and
+  scene resolution to visitor-safe shared modules;
+- checked in canonical `chopin-project.json` and exposed one validated runtime;
+- cut `/museum` over to `LayoutMuseumShell`, project-derived room presentation,
+  project scene/tour data, and the existing single camera route/motion path;
+- removed the legacy visitor shell and source toggle, isolated `rooms.ts` and the
+  old compiler/scene fixture to deprecated editor/test compatibility, and added a
+  recursive visitor import-boundary test;
+- preserved independent transient scene/layout validation inside the editor.
+
+Verification passed: 92 test files / 1130 tests, Svelte check with 0 errors and
+0 warnings, production build, visitor chunk/compiled editor-guard inspection,
+and production browser QA across all guided nodes, reverse/free/direct travel,
+reduced motion, HUD updates, Paris/Music Chamber visuals, the inert legacy query,
+and the editor 404 boundary. Browser errors remained empty.
 
 ## Verification
 

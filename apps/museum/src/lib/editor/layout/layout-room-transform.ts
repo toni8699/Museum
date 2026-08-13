@@ -2,6 +2,7 @@ import type { LayoutDocument, LayoutRoom, LayoutVec2 } from './layout-types';
 import { roomBoundarySamples } from './layout-editing';
 import { validateLayoutDocument } from './layout-codec';
 import { hasBlockingLayoutIssues, validateLayoutDocumentGeometry } from './layout-validation';
+import { normalizeLayoutRoomYaw } from '$lib/layout/layout-room-frame';
 
 export type LayoutRoomUnitTransform = {
 	translation: LayoutVec2;
@@ -15,8 +16,7 @@ export type LayoutRoomUnitTransformResult =
 const EPSILON = 1e-9;
 
 /**
- * Rigidly transforms one room, its curved anchors, and objects owned by roomId.
- * The pivot is always derived from the sampled boundary; no transform is stored.
+ * Rigidly transforms one room, its authored frame, curved anchors, and owned objects.
  */
 export function transformLayoutRoomUnit(
 	document: LayoutDocument,
@@ -27,10 +27,15 @@ export function transformLayoutRoomUnit(
 		return { success: false, message: 'Room translation must be finite' };
 	}
 	if (!Number.isFinite(transform.yaw)) return { success: false, message: 'Room rotation must be finite' };
-	const located = findRoom(document, roomId);
+	const inputValidation = validateLayoutDocument(document);
+	if (!inputValidation.success) {
+		return { success: false, message: inputValidation.issues[0]?.message ?? 'Invalid layout document' };
+	}
+	const canonicalDocument = inputValidation.document;
+	const located = findRoom(canonicalDocument, roomId);
 	if (!located) return { success: false, message: `Room '${roomId}' no longer exists` };
 	const pivot = sampledPolygonCentroid(located.room);
-	const next = cloneJson(document);
+	const next = cloneJson(canonicalDocument);
 	const nextLocated = findRoom(next, roomId);
 	if (!nextLocated) return { success: false, message: `Room '${roomId}' no longer exists` };
 
@@ -71,6 +76,10 @@ function transformRoom(
 ): LayoutRoom {
 	return {
 		...room,
+		frame: {
+			origin: transformPoint(room.frame.origin, pivot, transform),
+			yaw: normalizeLayoutRoomYaw(room.frame.yaw + transform.yaw)
+		},
 		boundary: {
 			...room.boundary,
 			segments: room.boundary.segments.map((segment) => ({

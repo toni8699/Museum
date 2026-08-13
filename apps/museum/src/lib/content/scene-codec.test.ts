@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
-	museumSceneDocument,
-	resolveSceneDocument,
+	resolveSceneDocument as resolveSceneDocumentWithRooms,
 	type MuseumSceneDocument
 } from './scene';
+import { chopinRuntime, museumSceneDocument } from './chopin-project';
+import { chopinProject } from './chopin-project';
+import { validateMuseumProject } from '$lib/project/project-codec';
 import { createCameraPositionPath } from '$lib/museum/navigation/camera-motion';
 import {
 	parseSceneDocumentJson,
@@ -11,6 +13,9 @@ import {
 	validateSceneDocument
 } from './scene-codec';
 import { cloneFixtureDocument } from './__fixtures__/load-fixture-scene';
+
+const resolveSceneDocument = (input: unknown) =>
+	resolveSceneDocumentWithRooms(input, chopinRuntime.rooms);
 
 function cloneDocument() {
 	return cloneFixtureDocument('tour-minimal');
@@ -387,7 +392,21 @@ describe('scene document codec', () => {
 			],
 			reverse: []
 		};
-		expectIssue(unknownRoom, 'unknown_room');
+		expect(validateSceneDocument(unknownRoom).success).toBe(true);
+		const projectResult = validateMuseumProject({
+			formatVersion: 1,
+			id: 'project:test',
+			name: 'Test',
+			layout: chopinProject.layout,
+			scene: unknownRoom
+		});
+		expect(projectResult.success).toBe(false);
+		if (!projectResult.success) {
+			expect(projectResult.issues).toContainEqual(expect.objectContaining({
+				path: '$.scene.connections[0].viewTracks.forward[0].roomId',
+				code: 'unknown_room'
+			}));
+		}
 	});
 
 	it('rejects view targets coincident with exact forward and reverse edge positions', () => {
@@ -420,11 +439,20 @@ describe('scene document codec', () => {
 				fov: 54
 			});
 
-			expectIssue(
-				document,
-				'camera_target_too_close',
-				`$.connections[0].viewTracks.${direction}[0].cameraTarget`
-			);
+			const projectResult = validateMuseumProject({
+				formatVersion: 1,
+				id: 'project:test',
+				name: 'Test',
+				layout: chopinProject.layout,
+				scene: document
+			});
+			expect(projectResult.success).toBe(false);
+			if (!projectResult.success) {
+				expect(projectResult.issues).toContainEqual(expect.objectContaining({
+					path: `$.scene.connections[0].viewTracks.${direction}[0].cameraTarget`,
+					code: 'camera_target_too_close'
+				}));
+			}
 		}
 	});
 

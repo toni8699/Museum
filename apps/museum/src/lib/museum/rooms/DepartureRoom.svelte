@@ -1,11 +1,7 @@
 <script lang="ts">
   import { T } from '@threlte/core';
-  import { getRoom } from '$lib/content/rooms';
-
-  const room = getRoom('departure');
 </script>
 
-<T.Group position={room.position} rotation={room.rotation}>
   <T.PointLight position={[0, 2.6, 4.6]} color="#9fb9d1" intensity={8} distance={9} />
   <T.PointLight position={[0, 2.4, -5.2]} color="#d6b35f" intensity={5} distance={10} />
   <T.Mesh position={[0, 0.06, 0]}>
@@ -26,4 +22,3 @@
     <T.BoxGeometry args={[2.6, 1.4, 0.08]} />
     <T.MeshStandardMaterial color="#f0c578" transparent opacity={0.18} />
   </T.Mesh>
-</T.Group>

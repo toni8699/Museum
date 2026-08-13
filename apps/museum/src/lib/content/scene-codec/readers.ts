@@ -10,7 +10,6 @@
  */
 import type { MuseumRoomId, Vec3 } from '$lib/types/museum';
 import type { MaterialId } from '$lib/types/materials';
-import { getRoom } from '../rooms';
 import { isMaterialId } from '../materials';
 import { isSafeTextureUri } from '../texture-uri';
 import type {
@@ -150,15 +149,6 @@ export function readVec3(
 	return points.length === 3 ? [points[0]!, points[1]!, points[2]!] : undefined;
 }
 
-export function isKnownRoomId(value: string): value is MuseumRoomId {
-	try {
-		getRoom(value as MuseumRoomId);
-		return true;
-	} catch {
-		return false;
-	}
-}
-
 export function readRoomId(
 	value: JsonRecord,
 	key: string,
@@ -166,10 +156,6 @@ export function readRoomId(
 	issues: SceneDocumentIssue[]
 ): MuseumRoomId | undefined {
 	const roomId = readRequiredString(value, key, path, issues);
-	if (roomId && !isKnownRoomId(roomId)) {
-		addIssue(issues, `${path}.${key}`, 'unknown_room', `Unknown museum room: ${roomId}`);
-		return undefined;
-	}
 	return roomId as MuseumRoomId | undefined;
 }
 

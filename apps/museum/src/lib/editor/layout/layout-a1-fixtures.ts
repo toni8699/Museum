@@ -107,6 +107,7 @@ function roomDefaults(id: string, name: string): LayoutRoom {
 	return {
 		id,
 		name,
+		frame: { origin: [0, 0], yaw: 0 },
 		boundary: { closed: true, segments: [] },
 		wallThickness: 0.16,
 		floorThickness: 0.1,

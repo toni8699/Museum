@@ -43,7 +43,7 @@ export function roomsToLayout(rooms: readonly MuseumRoom[] = museumRooms): Layou
     height: floorHeight,
     rooms: rooms.map((room) => compileRoom(room, roomIds))
   };
-  return { formatVersion: 2, units: 'meters', floors: [floor], objects: [] };
+  return { formatVersion: 3, units: 'meters', floors: [floor], objects: [] };
 }
 
 function compileRoom(room: MuseumRoom, roomIds: ReadonlySet<string>): LayoutRoom {
@@ -54,6 +54,10 @@ function compileRoom(room: MuseumRoom, roomIds: ReadonlySet<string>): LayoutRoom
   return {
     id: room.id,
     name: room.title,
+    frame: {
+      origin: [room.position[0], room.position[2]],
+      yaw: room.rotation[1]
+    },
     boundary: { closed: true, segments },
     wallThickness: CHOPIN_LAYOUT_WALL_THICKNESS,
     floorThickness: CHOPIN_LAYOUT_FLOOR_THICKNESS,

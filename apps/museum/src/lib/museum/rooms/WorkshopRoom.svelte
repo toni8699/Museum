@@ -1,9 +1,6 @@
 <script lang="ts">
   import { T } from '@threlte/core';
-  import { getRoom } from '$lib/content/rooms';
   import type { Vec3 } from '$lib/types/museum';
-
-  const room = getRoom('workshop');
 
   const floatingNotes = [
     [3.2, 1.1, 1.2],
@@ -12,7 +9,6 @@
   ] satisfies Vec3[];
 </script>
 
-<T.Group position={room.position} rotation={room.rotation}>
   <T.PointLight position={[-2, 2.8, 0]} color="#ffe0aa" intensity={13} distance={9} />
   <T.PointLight position={[3.4, 2.4, 0]} color="#b7d8ef" intensity={9} distance={8} />
   <T.Mesh position={[-2.7, 0.78, -1.4]}>
@@ -39,4 +35,3 @@
       <T.MeshBasicMaterial color="#d6b35f" />
     </T.Mesh>
   {/each}
-</T.Group>

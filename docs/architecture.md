@@ -11,12 +11,13 @@
 
 | Concern | Today | Target |
 |---------|-------|--------|
-| Room poses, dims, openings, yaw | `rooms.ts` | `LayoutDocument` / `project.layout` |
-| Editor layout drafts | `LayoutDocument` / `museum-layout.json` | → runtime after B4/B5 |
-| Entities, nodes, paths, materials | `museum-scene.json` v6 | `project.scene` |
-| Codec v1–v6 | `scene-codec.ts` | + project envelope |
-| Resolve + generated endpoints | `scene.ts` | same |
-| Shell cutouts | `MuseumShell` from rooms by default; B4 dual-read can use `LayoutMuseumShell` | from layout after cutover |
+| Room frames, footprints, openings | `project.layout` / `LayoutDocument` v3 | same |
+| Editor layout drafts | `LayoutDocument` / `museum-layout.json` | same schema; independent session baseline |
+| Entities, nodes, paths, materials | `project.scene` / `SceneDocument` v6 | same |
+| Codec boundary | shared layout, scene, and project codecs | same |
+| Resolve + generated endpoints | `scene.ts` with an explicit project room resolver | same |
+| Shell cutouts | `LayoutMuseumShell` from `project.layout` | shared compiled geometry after G1 |
+| Legacy room compatibility | deprecated editor/test projection in `rooms.ts`; no visitor import | delete when consumers migrate |
 | Derived layout geometry | Editor `buildLayoutPreviewModel()` + runtime `buildLayoutArchitectureModel()` | one pure `compileLayoutGeometry()` |
 | Plan presentation | SVG elements + overlays assembled in `LayoutPlanViewport.svelte` | `CompiledLayoutGeometry` → pure `PlanRenderModel` → SVG adapter |
 | 3D architecture meshes | sampled wall-chord `BoxGeometry` in editor/runtime layout shells | `CompiledLayoutGeometry` → `ThreeGeometryAdapter` → indexed `BufferGeometry` |
@@ -28,24 +29,29 @@
 
 ```mermaid
 flowchart LR
-  rooms["rooms.ts"] -->|B0 compile; deprecated/generated at B5| layout["LayoutDocument"]
-  layout -->|post-B5| compile["compileLayoutGeometry()"]
+  project["chopin-project.json"] --> layout["LayoutDocument v3"]
+  project --> scene["SceneDocument v6"]
+  layout --> registry["room registry"]
+  layout --> runtime["buildLayoutArchitectureModel()"]
+  runtime --> shell["LayoutMuseumShell"]
+  scene --> resolve["resolveSceneDocument()"]
+  registry --> resolve
+  resolve --> entities["MuseumEntities"]
+  resolve --> motion["camera-route + camera-motion"]
+  layout -.->|G1| compile["compileLayoutGeometry()"]
   compile --> compiled["CompiledLayoutGeometry"]
   compiled --> plan["PlanRenderModel → SVG"]
   compiled --> three["ThreeGeometryAdapter → Threlte/Three"]
-  layout -->|B4/B5 transition| shell["current runtime layout shell"]
-  scene["museum-scene.json v6"] --> entities[MuseumEntities]
-  scene -->|existing camera projection only| plan
   three --- entities
   shell --- entities
 ```
 
 ## Geometry and render boundary
 
-B4's visitor-safe `buildLayoutArchitectureModel()` and the editor's richer
-`buildLayoutPreviewModel()` are currently separate projections. The current
-Chopin dual-read fixture is line-based, so B4 can prove its scoped parity without
-turning B5 into a compiler rewrite. After B5, the graphics roadmap consolidates
+B5's production `LayoutMuseumShell` uses the visitor-safe
+`buildLayoutArchitectureModel()`; the editor's richer `buildLayoutPreviewModel()`
+remains a separate projection. The canonical Chopin layout is line-based. The
+post-B5 graphics roadmap consolidates
 adaptive curves, arc lengths, tangents/normals, openings/profiles, polygons,
 bounds, and query records into one pure `CompiledLayoutGeometry` contract.
 
@@ -73,7 +79,7 @@ whole museum into one mesh.
 | **A — Dressing** | Props inside fixed architecture | Supported; presets deferred |
 | **B — Layout authorship** | Draw/relocate rooms in layout data | **North star**; P0 |
 
-- Layout meshes = **previews** in editor; B4 adds an explicit dev-only visitor dual-read branch with runtime-safe shared layout modules. No editor layout UI/store imports in visitor chunks.
+- Layout meshes are previews in editor and the sole production shell source in `/museum`; both use visitor-safe shared layout modules. No editor layout UI/store imports in visitor chunks.
 - A3 layout paths accept line + Bezier segments; openings use meter offsets along sampled arc length, while rounded/pointed profiles affect wall elevation only.
 - Corridors = skinny **layout rooms** (or later open wall-strip).  
 - Cutouts = segment-split; no real-time CSG.  
@@ -86,7 +92,7 @@ P0 models corridors as ordinary skinny `LayoutRoom` footprints, not a special co
 **Pros:** simplest MVP; same floor/wall/ceiling generation; future room containment and camera IDs; no corridor-specific renderer.  
 **Cons:** duplicated/shared wall geometry remains a future authoring concern; B4 now carries explicit portal semantics and renders layout shell parity without changing navigation.
 
-A1 openings were geometry-only. B4 layout v2 adds explicit `connectsRoomIds: [string, string]` for interior doors/portals; windows remain unpaired. `projectLayoutPortalRelations()` de-duplicates pairs for inspection only. Geometry never creates, repairs, or guesses adjacency. Default visitor architecture remains `rooms.ts`; B5 owns cutover.
+A1 openings were geometry-only. Layout v3 retains B4's explicit `connectsRoomIds: [string, string]` for interior doors/portals; windows remain unpaired. `projectLayoutPortalRelations()` de-duplicates pairs for inspection only. Geometry never creates, repairs, or guesses adjacency. The visitor reads these relations only from `project.layout`.
 
 ## Hard don’ts
 

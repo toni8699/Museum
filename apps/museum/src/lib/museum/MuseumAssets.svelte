@@ -4,25 +4,23 @@
    * Kept as a thin alias so stray imports keep model-parity rendering.
    */
   import type { RuntimeMuseumScene } from '$lib/content/scene';
-  import type { EditorPlacementRegistry } from './placement-registry';
+  import { chopinRuntime } from '$lib/content/chopin-project';
   import MuseumEntities from './MuseumEntities.svelte';
 
   let {
     scene,
     preloadParisHero = false,
-    loadParisSalon = false,
-    placementRegistry
+    loadParisSalon = false
   }: {
     scene: RuntimeMuseumScene;
     preloadParisHero?: boolean;
     loadParisSalon?: boolean;
-    placementRegistry?: EditorPlacementRegistry;
   } = $props();
 </script>
 
 <MuseumEntities
   {scene}
+  rooms={chopinRuntime.rooms}
   {preloadParisHero}
   {loadParisSalon}
-  {placementRegistry}
 />

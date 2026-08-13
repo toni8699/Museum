@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { SceneObjectPlacement } from '$lib/content/scene';
 import type { Vec3 } from '$lib/types/museum';
 import { Object3D } from 'three';
-import { museumSceneDocument } from '$lib/content/scene';
+import { museumSceneDocument } from '$lib/content/chopin-project';
 import { cloneMuseumSceneDocument } from './museum-editor.svelte';
 import {
 	degreesToRadians,

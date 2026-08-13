@@ -1,4 +1,5 @@
 import { legacyBezierToAutoBezier } from './layout-auto-bezier';
+import { deriveLayoutRoomFrame, normalizeLayoutRoomYaw } from '$lib/layout/layout-room-frame';
 import type {
 	DraftPath,
 	DraftSegment,
@@ -8,11 +9,13 @@ import type {
 	LayoutObject,
 	LayoutOpening,
 	LayoutRoom,
+	LayoutRoomFrame,
 	LayoutVec2
 } from './layout-types';
 
-const FORMAT_VERSION = 2 as const;
+const FORMAT_VERSION = 3 as const;
 const LEGACY_FORMAT_VERSION = 1 as const;
+const LEGACY_FORMAT_VERSION_TWO = 2 as const;
 const UNITS = 'meters' as const;
 const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
 
@@ -26,11 +29,13 @@ const ROOM_KEYS = [
 	'id',
 	'name',
 	'boundary',
+	'frame',
 	'wallThickness',
 	'floorThickness',
 	'ceilingThickness',
 	'openings'
 ] as const;
+const ROOM_FRAME_KEYS = ['origin', 'yaw'] as const;
 const PATH_KEYS = ['closed', 'segments'] as const;
 const LINE_SEGMENT_KEYS = ['id', 'kind', 'start', 'end'] as const;
 const AUTO_BEZIER_SEGMENT_KEYS = ['id', 'kind', 'start', 'end', 'interiorAnchors'] as const;
@@ -149,12 +154,16 @@ function parseDocument(
 	assertAllowedKeys(record, ROOT_KEYS, path, issues);
 
 	const formatVersion = readNumber(record.formatVersion, `${path}.formatVersion`, issues);
-	if (formatVersion !== FORMAT_VERSION && formatVersion !== LEGACY_FORMAT_VERSION) {
+	if (
+		formatVersion !== FORMAT_VERSION &&
+		formatVersion !== LEGACY_FORMAT_VERSION &&
+		formatVersion !== LEGACY_FORMAT_VERSION_TWO
+	) {
 		addIssue(
 			issues,
 			`${path}.formatVersion`,
 			'unsupported_version',
-			`Expected layout document formatVersion ${LEGACY_FORMAT_VERSION} or ${FORMAT_VERSION}`
+			`Expected layout document formatVersion ${LEGACY_FORMAT_VERSION}, ${LEGACY_FORMAT_VERSION_TWO}, or ${FORMAT_VERSION}`
 		);
 	}
 
@@ -163,7 +172,12 @@ function parseDocument(
 		addIssue(issues, `${path}.units`, 'unsupported_units', `Expected units '${UNITS}'`);
 	}
 
-	const floors = parseArray(record.floors, `${path}.floors`, issues, parseFloor);
+	const floors = parseArray(
+		record.floors,
+		`${path}.floors`,
+		issues,
+		(value, itemPath, target) => parseFloor(value, itemPath, target, formatVersion === FORMAT_VERSION)
+	);
 	const objects = parseArray(record.objects, `${path}.objects`, issues, parseObject);
 	if (!floors || !objects) return undefined;
 
@@ -197,7 +211,8 @@ function parseDocument(
 function parseFloor(
 	input: unknown,
 	path: string,
-	issues: LayoutDocumentIssue[]
+	issues: LayoutDocumentIssue[],
+	requireFrame = false
 ): ParsedValue<LayoutFloor> {
 	const record = readRecord(input, path, issues);
 	if (!record) return undefined;
@@ -207,7 +222,12 @@ function parseFloor(
 	const name = readNonEmptyString(record.name, `${path}.name`, issues);
 	const elevation = readNumber(record.elevation, `${path}.elevation`, issues);
 	const height = readPositiveNumber(record.height, `${path}.height`, issues);
-	const rooms = parseArray(record.rooms, `${path}.rooms`, issues, parseRoom);
+	const rooms = parseArray(
+		record.rooms,
+		`${path}.rooms`,
+		issues,
+		(value, itemPath, target) => parseRoom(value, itemPath, target, requireFrame)
+	);
 	if (!id || !name || elevation === undefined || height === undefined || !rooms) {
 		return undefined;
 	}
@@ -219,7 +239,8 @@ function parseFloor(
 function parseRoom(
 	input: unknown,
 	path: string,
-	issues: LayoutDocumentIssue[]
+	issues: LayoutDocumentIssue[],
+	requireFrame = false
 ): ParsedValue<LayoutRoom> {
 	const record = readRecord(input, path, issues);
 	if (!record) return undefined;
@@ -228,6 +249,12 @@ function parseRoom(
 	const id = readId(record.id, `${path}.id`, issues);
 	const name = readNonEmptyString(record.name, `${path}.name`, issues);
 	const boundary = parsePath(record.boundary, `${path}.boundary`, issues);
+	const frame = record.frame === undefined
+		? undefined
+		: parseRoomFrame(record.frame, `${path}.frame`, issues);
+	if (requireFrame && record.frame === undefined) {
+		addIssue(issues, `${path}.frame`, 'missing_field', 'Layout v3 rooms require a frame');
+	}
 	const wallThickness = readPositiveNumber(
 		record.wallThickness,
 		`${path}.wallThickness`,
@@ -272,12 +299,26 @@ function parseRoom(
 	return {
 		id,
 		name,
+		frame: frame ?? deriveLayoutRoomFrame({ boundary }),
 		boundary,
 		wallThickness,
 		floorThickness,
 		ceilingThickness,
 		openings
 	};
+}
+
+function parseRoomFrame(
+	input: unknown,
+	path: string,
+	issues: LayoutDocumentIssue[]
+): ParsedValue<LayoutRoomFrame> {
+	const record = readRecord(input, path, issues);
+	if (!record) return undefined;
+	assertAllowedKeys(record, ROOM_FRAME_KEYS, path, issues);
+	const origin = readVec2(record.origin, `${path}.origin`, issues);
+	const yaw = readNumber(record.yaw, `${path}.yaw`, issues);
+	return origin && yaw !== undefined ? { origin, yaw: normalizeLayoutRoomYaw(yaw) } : undefined;
 }
 
 function parsePath(

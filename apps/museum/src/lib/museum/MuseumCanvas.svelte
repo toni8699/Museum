@@ -1,39 +1,24 @@
 <script lang="ts">
   import { Canvas } from '@threlte/core';
-  import { museumScene, type RuntimeMuseumScene } from '$lib/content/scene';
-  import { chopinLayout } from '$lib/content/chopin-layout';
-  import type { LayoutDocument } from '$lib/layout/layout-types';
+  import { chopinRuntime, type MuseumRuntime } from '$lib/content/chopin-project';
   import {
-    museumState,
+    createMuseumState,
     type MuseumStateStore
   } from '$lib/state/museum-state.svelte';
   import MuseumScene from './MuseumScene.svelte';
 
-  const queryArchitectureSource = import.meta.env.DEV && typeof window !== 'undefined' &&
-    new URLSearchParams(window.location.search).get('architecture') === 'layout'
-    ? 'layout'
-    : 'rooms.ts';
-
   let {
-    scene = museumScene,
-    state = museumState,
-    architectureSource = queryArchitectureSource,
-    layout: providedLayout
+    runtime = chopinRuntime,
+    state = createMuseumState(runtime.graph)
   }: {
-    scene?: RuntimeMuseumScene;
+    runtime?: MuseumRuntime;
     state?: MuseumStateStore;
-    architectureSource?: 'rooms.ts' | 'layout';
-    layout?: LayoutDocument;
   } = $props();
-
-  const runtimeLayout = $derived<LayoutDocument | undefined>(
-    architectureSource === 'layout' ? providedLayout ?? chopinLayout : undefined
-  );
 </script>
 
 <div class="canvas-shell" aria-label="Interactive 3D Chopin museum">
   <Canvas dpr={[1, 1.5]} shadows>
-    <MuseumScene {scene} {state} {architectureSource} layout={runtimeLayout} />
+    <MuseumScene {runtime} {state} />
   </Canvas>
 </div>
 

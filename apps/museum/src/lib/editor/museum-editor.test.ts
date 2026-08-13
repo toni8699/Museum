@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { cloneFixtureDocument } from '$lib/content/__fixtures__/load-fixture-scene';
 import {
 	assertNavigationGraphMatchesScene,
-	museumSceneDocument,
 	type MuseumSceneDocument
 } from '$lib/content/scene';
+import { museumSceneDocument } from '$lib/content/chopin-project';
 import { pickInitialNavigationNodeId } from './store/document-store.svelte';
 import { serializeSceneDocument } from '$lib/content/scene-codec';
 import { placementTransformFromDocument } from './editor-transform';
@@ -305,4 +305,3 @@ describe('viewport visibility flags', () => {
 		expect(store.forceMountCameraNodeHandles).toBe(false);
 	});
 });
-

@@ -9,12 +9,20 @@
     type LayoutArchitectureWall,
     type LayoutArchitectureSection
   } from '$lib/layout/layout-architecture';
-  import { roomById } from '$lib/content/rooms';
-  import type { MuseumRoomId } from '$lib/types/museum';
+  import type { ChopinRoomPresentation } from '$lib/content/chopin-room-presentation';
+  import { neutralRoomPresentation } from '$lib/content/chopin-room-presentation';
   import MuseumMaterial from '../materials/MuseumMaterial.svelte';
   import RoomPortal from './RoomPortal.svelte';
 
-  let { layout }: { layout: LayoutDocument } = $props();
+  let {
+    layout,
+    presentation,
+    excludedRoomIds = []
+  }: {
+    layout: LayoutDocument;
+    presentation: Readonly<Record<string, ChopinRoomPresentation>>;
+    excludedRoomIds?: readonly string[];
+  } = $props();
   const model = $derived(buildLayoutArchitectureModel(layout));
 
   function polygonShape(points: readonly LayoutVec2[], invertZ = true): Shape {
@@ -46,16 +54,15 @@
     return { point, yaw: -Math.atan2(after[1] - before[1], after[0] - before[0]) };
   }
 
-  function presentation(roomId: string) {
-    const room = roomById.get(roomId as MuseumRoomId);
-    return { color: room?.color ?? '#4b4b52', accentColor: room?.accentColor ?? '#a6a6ad' };
+  function roomPresentation(roomId: string) {
+    return presentation[roomId] ?? neutralRoomPresentation;
   }
 </script>
 
 <T.Group name="LayoutMuseumShell">
   {#each model.rooms as room (room.roomId)}
-    {#if room.roomId !== 'music-chamber'}
-      {@const colors = presentation(room.roomId)}
+    {#if !excludedRoomIds.includes(room.roomId)}
+      {@const colors = roomPresentation(room.roomId)}
       {@const layoutRoom = layout.floors.flatMap((floor) => floor.rooms).find((candidate) => candidate.id === room.roomId)}
       <T.Group name={`LayoutRoom:${room.roomId}`}>
         <T.Mesh

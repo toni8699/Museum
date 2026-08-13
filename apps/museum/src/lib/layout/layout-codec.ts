@@ -5,8 +5,10 @@ import type {
   LayoutOpening,
   LayoutObject,
   LayoutRoom,
+  LayoutRoomFrame,
   LayoutVec2
 } from './layout-types';
+import { deriveLayoutRoomFrame, normalizeLayoutRoomYaw } from './layout-room-frame';
 
 export type LayoutIssue = { path: string; code: string; message: string };
 export type LayoutValidationResult =
@@ -17,11 +19,12 @@ export function validateLayoutDocument(input: unknown): LayoutValidationResult {
   const issues: LayoutIssue[] = [];
   if (!record(input)) return fail('$', 'invalid_type', 'Expected a layout document object');
   const source = input as Record<string, unknown>;
-  if (source.formatVersion !== 1 && source.formatVersion !== 2) {
-    issues.push({ path: '$.formatVersion', code: 'unsupported_version', message: 'Expected layout formatVersion 1 or 2' });
+  if (source.formatVersion !== 1 && source.formatVersion !== 2 && source.formatVersion !== 3) {
+    issues.push({ path: '$.formatVersion', code: 'unsupported_version', message: 'Expected layout formatVersion 1, 2, or 3' });
   }
   if (source.units !== 'meters') issues.push({ path: '$.units', code: 'unsupported_units', message: "Expected units 'meters'" });
-  const floors = Array.isArray(source.floors) ? source.floors.map((value, index) => parseFloor(value, `$.floors[${index}]`, issues)).filter(Boolean) as LayoutFloor[] : invalidArray('$.floors', issues);
+  const requireFrame = source.formatVersion === 3;
+  const floors = Array.isArray(source.floors) ? source.floors.map((value, index) => parseFloor(value, `$.floors[${index}]`, issues, requireFrame)).filter(Boolean) as LayoutFloor[] : invalidArray('$.floors', issues);
   const objects = Array.isArray(source.objects) ? source.objects.map((value, index) => parseObject(value, `$.objects[${index}]`, issues)).filter(Boolean) as LayoutObject[] : invalidArray('$.objects', issues);
   const rooms = floors.flatMap((floor) => floor.rooms);
   const roomIds = new Set(rooms.map((room) => room.id));
@@ -45,7 +48,7 @@ export function validateLayoutDocument(input: unknown): LayoutValidationResult {
     if (object.roomId && !roomIds.has(object.roomId)) issues.push({ path: `$.objects[${index}].roomId`, code: 'missing_reference', message: `Unknown roomId '${object.roomId}'` });
   }
   if (issues.length > 0) return { success: false, issues };
-  const document: LayoutDocument = { formatVersion: 2, units: 'meters', floors, objects };
+  const document: LayoutDocument = { formatVersion: 3, units: 'meters', floors, objects };
   return { success: true, document, canonicalJson: JSON.stringify(document, null, 2) + '\n' };
 }
 
@@ -60,7 +63,7 @@ export function serializeLayoutDocument(document: unknown): string {
   return result.canonicalJson;
 }
 
-function parseFloor(value: unknown, path: string, issues: LayoutIssue[]): LayoutFloor | undefined {
+function parseFloor(value: unknown, path: string, issues: LayoutIssue[], requireFrame: boolean): LayoutFloor | undefined {
   if (!record(value)) { issues.push({ path, code: 'invalid_type', message: 'Expected a floor object' }); return undefined; }
   const source = value as Record<string, unknown>;
   const id = stringValue(source.id, `${path}.id`, issues);
@@ -68,11 +71,11 @@ function parseFloor(value: unknown, path: string, issues: LayoutIssue[]): Layout
   const elevation = finite(source.elevation, `${path}.elevation`, issues);
   const height = finite(source.height, `${path}.height`, issues);
   if (!Array.isArray(source.rooms)) { issues.push({ path: `${path}.rooms`, code: 'invalid_type', message: 'Expected an array' }); return undefined; }
-  const rooms = source.rooms.map((room, index) => parseRoom(room, `${path}.rooms[${index}]`, issues)).filter(Boolean) as LayoutRoom[];
+  const rooms = source.rooms.map((room, index) => parseRoom(room, `${path}.rooms[${index}]`, issues, requireFrame)).filter(Boolean) as LayoutRoom[];
   return id && name && elevation !== undefined && height !== undefined ? { id, name, elevation, height, rooms } : undefined;
 }
 
-function parseRoom(value: unknown, path: string, issues: LayoutIssue[]): LayoutRoom | undefined {
+function parseRoom(value: unknown, path: string, issues: LayoutIssue[], requireFrame: boolean): LayoutRoom | undefined {
   if (!record(value)) { issues.push({ path, code: 'invalid_type', message: 'Expected a room object' }); return undefined; }
   const source = value as Record<string, unknown>;
   const id = stringValue(source.id, `${path}.id`, issues);
@@ -83,9 +86,20 @@ function parseRoom(value: unknown, path: string, issues: LayoutIssue[]): LayoutR
   const boundary = parsePath(source.boundary, `${path}.boundary`, issues);
   const openings = Array.isArray(source.openings) ? source.openings.map((opening, index) => parseOpening(opening, `${path}.openings[${index}]`, issues)).filter(Boolean) as LayoutOpening[] : [];
   if (!Array.isArray(source.openings)) issues.push({ path: `${path}.openings`, code: 'invalid_type', message: 'Expected an array' });
-  return id && name && boundary && wallThickness !== undefined && floorThickness !== undefined && ceilingThickness !== undefined
-    ? { id, name, boundary, wallThickness, floorThickness, ceilingThickness, openings }
+  const frame = source.frame === undefined
+    ? boundary ? deriveLayoutRoomFrame({ boundary }) : undefined
+    : parseRoomFrame(source.frame, `${path}.frame`, issues);
+  if (requireFrame && source.frame === undefined) issues.push({ path: `${path}.frame`, code: 'missing_field', message: 'Layout v3 rooms require a frame' });
+  return id && name && frame && boundary && wallThickness !== undefined && floorThickness !== undefined && ceilingThickness !== undefined
+    ? { id, name, frame, boundary, wallThickness, floorThickness, ceilingThickness, openings }
     : undefined;
+}
+
+function parseRoomFrame(value: unknown, path: string, issues: LayoutIssue[]): LayoutRoomFrame | undefined {
+  if (!record(value)) { issues.push({ path, code: 'invalid_type', message: 'Expected a room frame object' }); return undefined; }
+  const origin = vec2(value.origin, `${path}.origin`, issues);
+  const yaw = finite(value.yaw, `${path}.yaw`, issues);
+  return origin && yaw !== undefined ? { origin, yaw: normalizeLayoutRoomYaw(yaw) } : undefined;
 }
 
 function parsePath(value: unknown, path: string, issues: LayoutIssue[]): LayoutRoom['boundary'] | undefined {
@@ -140,7 +154,12 @@ function parseObject(value: unknown, path: string, issues: LayoutIssue[]): Layou
   const rotation = vec3(value.rotation, `${path}.rotation`, issues);
   const dimensions = vec3(value.dimensions, `${path}.dimensions`, issues);
   const roomId = value.roomId === undefined ? undefined : stringValue(value.roomId, `${path}.roomId`, issues);
-  return id && kind && position && rotation && dimensions ? { id, kind, position, rotation, dimensions, ...(roomId ? { roomId } : {}) } : undefined;
+  const profile = value.profile === undefined ? undefined : parsePath(value.profile, `${path}.profile`, issues);
+  if (kind === 'profile' && !profile) issues.push({ path: `${path}.profile`, code: 'missing_field', message: "Profile objects require a closed 'profile'" });
+  if (kind !== 'profile' && value.profile !== undefined) issues.push({ path: `${path}.profile`, code: 'unexpected_field', message: "Only profile objects may define 'profile'" });
+  return id && kind && position && rotation && dimensions
+    ? { id, kind, position, rotation, dimensions, ...(profile ? { profile } : {}), ...(roomId ? { roomId } : {}) }
+    : undefined;
 }
 
 function portalIds(value: unknown, path: string, issues: LayoutIssue[]): [string, string] | undefined {

@@ -1,13 +1,7 @@
 export type Vec3 = [number, number, number];
 
-export type MuseumRoomId =
-  | 'entrance'
-  | 'poland'
-  | 'departure'
-  | 'paris'
-  | 'workshop'
-  | 'music-chamber'
-  | 'legacy';
+/** Opaque room ID validated against the active MuseumProject layout. */
+export type MuseumRoomId = string;
 
 export type TourMode = 'guided' | 'free';
 

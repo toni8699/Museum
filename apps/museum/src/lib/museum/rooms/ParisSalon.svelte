@@ -1,11 +1,9 @@
 <script lang="ts">
   import { T } from '@threlte/core';
   import { Object3D, type SpotLight } from 'three';
-  import { getRoom } from '$lib/content/rooms';
 
   let { preloadHero = false }: { preloadHero?: boolean } = $props();
 
-  const room = getRoom('paris');
   const lightTarget = new Object3D();
   lightTarget.position.set(1.35, 0.8, -0.25);
 
@@ -21,7 +19,6 @@
   });
 </script>
 
-<T.Group position={room.position} rotation={room.rotation}>
   <T is={lightTarget} />
   <T.SpotLight
     bind:ref={keyLight}
@@ -68,5 +65,3 @@
     decay={2}
     visible={preloadHero}
   />
-
-</T.Group>

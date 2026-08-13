@@ -5,12 +5,13 @@ import type { LayoutDocument } from './layout-types';
 
 function squareDocument(): LayoutDocument {
 	return {
-		formatVersion: 2,
+		formatVersion: 3,
 		units: 'meters',
 		floors: [{
 			id: 'floor', name: 'Ground', elevation: 0, height: 3,
 			rooms: [{
 				id: 'room', name: 'Room', wallThickness: 0.1, floorThickness: 0.1, ceilingThickness: 0.1,
+				frame: { origin: [2, 2], yaw: 0 },
 				boundary: { closed: true, segments: [
 					{ id: 'a', kind: 'line', start: [0, 0], end: [4, 0] },
 					{ id: 'b', kind: 'auto-bezier', start: [4, 0], end: [4, 4], interiorAnchors: [{ id: 'bend', point: [5, 2] }] },
@@ -39,6 +40,7 @@ describe('transformLayoutRoomUnit', () => {
 		expect(room.boundary.segments[1]).toMatchObject({ start: [6, -1], end: [6, 3], id: 'b' });
 		expect(room.boundary.segments[1]!.kind === 'auto-bezier' && room.boundary.segments[1]!.interiorAnchors[0]!.point).toEqual([7, 1]);
 		expect(room.openings).toEqual(document.floors[0]!.rooms[0]!.openings);
+		expect(room.frame).toEqual({ origin: [4, 1], yaw: 0 });
 		expect(result.document.objects[0]!.position).toEqual([3, 1, 1]);
 		expect(result.document.objects[1]).toEqual(document.objects[1]);
 		expect(result.document.objects[2]).toEqual(document.objects[2]);
@@ -60,6 +62,9 @@ describe('transformLayoutRoomUnit', () => {
 		expect(result.document.objects[0]!.position[0]).toBeCloseTo(2);
 		expect(result.document.objects[0]!.position[2]).toBeCloseTo(3);
 		expect(result.document.objects[0]!.rotation[1]).toBeCloseTo(0.25 + Math.PI / 2);
+		expect(result.document.floors[0]!.rooms[0]!.frame.origin[0]).toBeCloseTo(2);
+		expect(result.document.floors[0]!.rooms[0]!.frame.origin[1]).toBeCloseTo(2);
+		expect(result.document.floors[0]!.rooms[0]!.frame.yaw).toBeCloseTo(Math.PI / 2);
 	});
 
 	it('rejects missing rooms and leaves input untouched', () => {

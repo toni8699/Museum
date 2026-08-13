@@ -13,6 +13,7 @@ function rectangleRoom(id = 'room-main'): LayoutRoom {
 	return {
 		id,
 		name: 'Main Room',
+		frame: { origin: [3, 2], yaw: 0 },
 		boundary: {
 			closed: true,
 			segments: [
@@ -31,7 +32,7 @@ function rectangleRoom(id = 'room-main'): LayoutRoom {
 
 function baseDocument(): LayoutDocument {
 	return {
-		formatVersion: 2,
+		formatVersion: 3,
 		units: 'meters',
 		floors: [
 			{
@@ -66,7 +67,7 @@ function issueCodes(input: unknown): string[] {
 describe('LayoutDocument codec', () => {
 	it('creates and validates the canonical blank document', () => {
 		const document = createEmptyLayoutDocument();
-		expect(document).toEqual({ formatVersion: 2, units: 'meters', floors: [], objects: [] });
+		expect(document).toEqual({ formatVersion: 3, units: 'meters', floors: [], objects: [] });
 		expect(successDocument(document)).toEqual(document);
 	});
 
@@ -195,19 +196,21 @@ describe('LayoutDocument codec', () => {
 
 	it('rejects unsupported format versions and units', () => {
 		const document = baseDocument() as unknown as Record<string, unknown>;
-		document.formatVersion = 3;
+		document.formatVersion = 4;
 		document.units = 'feet';
 		expect(issueCodes(document)).toEqual(['unsupported_version', 'unsupported_units']);
 	});
 
-	it('migrates layout v1 to canonical v2 without portal relations', () => {
+	it('migrates layout v1 to canonical v3 with a stable room frame', () => {
 		const legacy = baseDocument() as unknown as Record<string, unknown>;
 		legacy.formatVersion = 1;
+		delete ((legacy.floors as Array<{ rooms: Array<Record<string, unknown>> }>)[0]!.rooms[0]!).frame;
 		const result = validateLayoutDocument(legacy);
 		expect(result.success).toBe(true);
 		if (!result.success) return;
-		expect(result.document.formatVersion).toBe(2);
-		expect(result.canonicalJson).toContain('"formatVersion": 2');
+		expect(result.document.formatVersion).toBe(3);
+		expect(result.document.floors[0]!.rooms[0]!.frame).toEqual({ origin: [3, 2], yaw: 0 });
+		expect(result.canonicalJson).toContain('"formatVersion": 3');
 	});
 
 	it('validates explicit portal ownership and canonical room ordering', () => {

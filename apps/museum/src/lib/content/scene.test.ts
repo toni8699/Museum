@@ -4,11 +4,11 @@ import {
 	assertNavigationGraphMatchesScene,
 	createNavigationGraph,
 	modelEntityToPlacement,
-	museumSceneDocument,
-	resolveSceneDocument,
+	resolveSceneDocument as resolveSceneDocumentWithRooms,
 	type MuseumSceneDocument,
 	type SceneModelEntity
 } from './scene';
+import { chopinRuntime, museumSceneDocument } from './chopin-project';
 import {
 	serializeSceneDocument,
 	validateSceneDocument
@@ -17,6 +17,9 @@ import {
 	cloneFixtureDocument,
 	loadFixtureScene
 } from './__fixtures__/load-fixture-scene';
+
+const resolveSceneDocument = (input: unknown) =>
+	resolveSceneDocumentWithRooms(input, chopinRuntime.rooms);
 
 function fixtureDocument(): MuseumSceneDocument {
 	return cloneFixtureDocument('tour-minimal');

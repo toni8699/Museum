@@ -102,7 +102,7 @@ describe('layout object editing', () => {
 		});
 		expect(profile.readonly).toBe(true);
 		const document = createEmptyLayoutDocument();
-		document.floors = [{ id: 'floor-a', name: 'Floor', elevation: 0, height: 3, rooms: [{ id: 'room-a', name: 'Room', boundary: { closed: true, segments: [] }, wallThickness: 0.1, floorThickness: 0.1, ceilingThickness: 0.1, openings: [] }] }];
+		document.floors = [{ id: 'floor-a', name: 'Floor', elevation: 0, height: 3, rooms: [{ id: 'room-a', name: 'Room', frame: { origin: [0, 0], yaw: 0 }, boundary: { closed: true, segments: [] }, wallThickness: 0.1, floorThickness: 0.1, ceilingThickness: 0.1, openings: [] }] }];
 		expect(isKnownLayoutRoomId(document, undefined)).toBe(true);
 		expect(isKnownLayoutRoomId(document, 'room-a')).toBe(true);
 		expect(isKnownLayoutRoomId(document, 'missing')).toBe(false);

@@ -9,15 +9,11 @@
  *
  * Tagged `@internal` — never imported outside `scene-codec/`.
  */
-import type { Vec3 } from '$lib/types/museum';
 import type {
-	MuseumSceneDocument,
 	SceneConnectionViewTracks,
-	SceneEntity,
-	SceneNavigationNode
+	SceneEntity
 } from '../scene';
-import { createCameraPositionPath } from '$lib/museum/navigation/camera-motion';
-import { roomPoint } from '../rooms';
+import type { Vec3 } from '$lib/types/museum';
 import type {
 	ParsedMuseumSceneDocument,
 	ParsedSceneNavigationNode,
@@ -186,19 +182,6 @@ export function validateSemantics(document: ParsedMuseumSceneDocument, issues: S
 		}
 	}
 
-	if (
-		document.version === 3 ||
-		document.version === 4 ||
-		document.version === 5 ||
-		document.version === 6
-	) {
-		validateViewKeyframePoses(
-			document,
-			new Map(document.navigationNodes.map((node) => [node.id, node])),
-			issues
-		);
-	}
-
 	for (const [index, node] of document.navigationNodes.entries()) {
 		for (const [neighborIndex, neighborId] of node.connectedNodeIds.entries()) {
 			if (!edgeKeys.has(edgeKey(node.id, neighborId))) addIssue(issues, `$.navigationNodes[${index}].connectedNodeIds[${neighborIndex}]`, 'adjacency_without_connection', `No connection exists between ${node.id} and ${neighborId}`);
@@ -349,57 +332,5 @@ export function validateVersionTwoTour(
 			'invalid_tour_cycle',
 			'Guided nextNodeId links must form one cycle containing every guided node'
 		);
-	}
-}
-
-export function validateViewKeyframePoses(
-	document: Pick<MuseumSceneDocument, 'connections' | 'navigationNodes'>,
-	nodeById: ReadonlyMap<string, SceneNavigationNode>,
-	issues: SceneDocumentIssue[]
-) {
-	for (const [connectionIndex, connection] of document.connections.entries()) {
-		if (!connection.viewTracks) continue;
-		const fromNode = nodeById.get(connection.fromNodeId);
-		const toNode = nodeById.get(connection.toNodeId);
-		if (!fromNode || !toNode) continue;
-		const anchors: Vec3[] = [
-			roomPoint(fromNode.roomId, fromNode.position),
-			...connection.positionPath.anchors.map((anchor) =>
-				anchor.roomId
-					? roomPoint(anchor.roomId, anchor.position)
-					: ([...anchor.position] as Vec3)
-			),
-			roomPoint(toNode.roomId, toNode.position)
-		];
-		const positionPath = createCameraPositionPath([
-			connection.positionPath.kind === 'rounded-polyline'
-				? {
-						kind: 'rounded-polyline',
-						points: anchors,
-						clearance: connection.clearance
-					}
-				: { kind: 'auto-bezier', anchors }
-		]);
-
-		for (const direction of ['forward', 'reverse'] as const) {
-			for (const [keyframeIndex, keyframe] of connection.viewTracks[
-				direction
-			].entries()) {
-				const position = positionPath.getPointAt(
-					direction === 'forward' ? keyframe.progress : 1 - keyframe.progress
-				);
-				const target = keyframe.roomId
-					? roomPoint(keyframe.roomId, keyframe.cameraTarget)
-					: keyframe.cameraTarget;
-				if (Math.hypot(position.x - target[0], position.y - target[1], position.z - target[2]) <= EPSILON) {
-					addIssue(
-						issues,
-						`$.connections[${connectionIndex}].viewTracks.${direction}[${keyframeIndex}].cameraTarget`,
-						'camera_target_too_close',
-						`Camera eye and target must be farther than ${EPSILON}`
-					);
-				}
-			}
-		}
 	}
 }

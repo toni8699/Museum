@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { Object3D } from 'three';
 import { cloneFixtureDocument } from '$lib/content/__fixtures__/load-fixture-scene';
-import { museumSceneDocument, type MuseumSceneDocument } from '$lib/content/scene';
+import type { MuseumSceneDocument } from '$lib/content/scene';
+import { museumSceneDocument } from '$lib/content/chopin-project';
 import { serializeSceneDocument } from '$lib/content/scene-codec';
 import { placementTransformFromDocument } from './editor-transform';
 import {
@@ -414,4 +415,3 @@ describe('MuseumEditorStore clusters', () => {
 		expect(store.document.entities.find((object) => object.id === a.id)?.position[0]).toBe(originalX);
 	});
 });
-

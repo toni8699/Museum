@@ -1,7 +1,7 @@
 # Graphics Architecture Roadmap
 
 **Date:** 2026-08-13
-**Status:** Proposed post-B5 roadmap
+**Status:** Active post-B5 roadmap; G1 next
 **Prerequisite:** B5 runtime cutover
 **Architecture:** [`../architecture.md`](../architecture.md) · **Vision:** [`../north-star.md`](../north-star.md)
 
@@ -99,13 +99,13 @@ layout changes and is never serialized into `MuseumProject`.
 
 ## 5. Roadmap
 
-### G0 — Finish the source-of-truth cutover (`KEEP`, current P1)
+### G0 — Finish the source-of-truth cutover (`KEEP`, implemented)
 
 B5 promotes serialized layout architecture while preserving scene/tour behavior,
 stable room IDs, the single camera system, and visitor isolation. Deprecate or
 generate `rooms.ts` only within the B5 contract. Do not fold G1–G6 into B5.
 
-### G1 — Shared geometry compiler (`KEEP`)
+### G1 — Shared geometry compiler (`KEEP`, current P1)
 
 Introduce one pure visitor-safe API:
 

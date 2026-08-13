@@ -7,5 +7,6 @@ export type {
   LayoutObject,
   LayoutOpening,
   LayoutRoom,
+  LayoutRoomFrame,
   LayoutVec2
 } from '$lib/layout/layout-types';

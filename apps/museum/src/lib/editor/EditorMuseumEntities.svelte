@@ -10,27 +10,25 @@
   import {
     isSceneLightEntity,
     isSceneModelEntity,
-    isScenePrimitiveEntity,
-    modelEntityToPlacement
+    isScenePrimitiveEntity
   } from '$lib/content/scene';
-  import { resolveSceneMaterial } from '$lib/museum/materials/scene-instance-material';
   import type { MuseumRoomId } from '$lib/types/museum';
   import type { LayoutRoomRegistry } from '$lib/project/project-layout-semantics';
-  import AssetModel from './assets/AssetModel.svelte';
-  import EntityLight from './entities/EntityLight.svelte';
-  import EntityPrimitive from './entities/EntityPrimitive.svelte';
-  import { isSceneObjectEnabled } from './paris-activation';
+  import { resolveSceneMaterial } from '$lib/museum/materials/scene-instance-material';
+  import EditorPlacementRoot from '$lib/museum/EditorPlacementRoot.svelte';
+  import type { EditorPlacementRegistry } from '$lib/museum/placement-registry';
+  import AssetModel from '$lib/museum/assets/AssetModel.svelte';
+  import EntityLight from '$lib/museum/entities/EntityLight.svelte';
+  import EntityPrimitive from '$lib/museum/entities/EntityPrimitive.svelte';
 
   let {
     scene,
     rooms,
-    preloadParisHero = false,
-    loadParisSalon = false
+    placementRegistry
   }: {
     scene: RuntimeMuseumScene;
     rooms: LayoutRoomRegistry;
-    preloadParisHero?: boolean;
-    loadParisSalon?: boolean;
+    placementRegistry: EditorPlacementRegistry;
   } = $props();
 
   const roomGroups = $derived.by(() => {
@@ -65,27 +63,32 @@
 {#each roomGroups as group (group.room.id)}
   <T.Group position={group.room.position} rotation={group.room.rotation}>
     {#each group.entities as entity (entity.id)}
-      {#if isSceneModelEntity(entity)}
-        {@const placement = modelEntityToPlacement(entity)}
-        {@const enabled = isSceneObjectEnabled(placement, { preloadParisHero, loadParisSalon })}
-        <AssetModel
-          assetId={entity.assetId}
-          position={entity.position}
-          rotation={entity.rotation}
-          scale={entity.scale ?? 1}
-          fallback={entity.fallback}
-          {enabled}
-          effective={entity.materialInstanceId ? entityEffective(entity) : null}
-        />
-      {:else if isScenePrimitiveEntity(entity)}
-        <T.Group position={entity.position} rotation={entity.rotation} scale={entity.scale ?? 1}>
+      {@const scaleVersion = placementRegistry.scaleVersion ?? 0}
+      {@const editorScale = scaleVersion >= 0
+        ? placementRegistry.getPlacementScale?.(entity.id) ?? entity.scale ?? 1
+        : entity.scale ?? 1}
+      <EditorPlacementRoot
+        placementId={entity.id}
+        roomId={entity.roomId}
+        {placementRegistry}
+        position={entity.position}
+        rotation={entity.rotation}
+        scale={editorScale}
+      >
+        {#if isSceneModelEntity(entity)}
+          <AssetModel
+            assetId={entity.assetId}
+            fallback={entity.fallback}
+            enabled
+            localTransform
+            effective={entity.materialInstanceId ? entityEffective(entity) : null}
+          />
+        {:else if isScenePrimitiveEntity(entity)}
           <EntityPrimitive {entity} effective={entityEffective(entity)} />
-        </T.Group>
-      {:else if isSceneLightEntity(entity)}
-        <T.Group position={entity.position} rotation={entity.rotation} scale={entity.scale ?? 1}>
-          <EntityLight {entity} />
-        </T.Group>
-      {/if}
+        {:else if isSceneLightEntity(entity)}
+          <EntityLight {entity} showPickProxy />
+        {/if}
+      </EditorPlacementRoot>
     {/each}
   </T.Group>
 {/each}

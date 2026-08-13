@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-	museumSceneDocument,
 	type MuseumSceneDocument,
 	type SceneModelEntity
 } from '$lib/content/scene';
+import { museumSceneDocument } from '$lib/content/chopin-project';
 import { roomsToLayout } from '$lib/editor/layout/rooms-to-layout';
 import { createEmptyLayoutDocument } from '$lib/editor/layout/layout-codec';
 
@@ -62,22 +62,23 @@ function legacyVersionOneFrom(document: MuseumSceneDocument): unknown {
 }
 
 describe('MuseumProject codec', () => {
-	it('creates a valid project from empty layout and v6 scene documents', () => {
+	it('rejects a scene whose room references are absent from the project layout', () => {
 		const scene = validScene();
-		const project = createMuseumProject({
+		const result = validateMuseumProject({
+			formatVersion: 1,
 			id: 'project:empty',
 			name: 'Empty Museum',
 			layout: createEmptyLayoutDocument(),
 			scene
 		});
 
-		expect(project).toMatchObject({
-			formatVersion: 1,
-			id: 'project:empty',
-			name: 'Empty Museum',
-			layout: { formatVersion: 2, units: 'meters', floors: [], objects: [] },
-			scene
-		});
+		expect(result.success).toBe(false);
+		if (!result.success) {
+			expect(result.issues[0]).toMatchObject({
+				path: '$.scene.entities[0].roomId',
+				code: 'unknown_room'
+			});
+		}
 	});
 
 	it('validates all compiled Chopin rooms with the current scene', () => {

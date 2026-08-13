@@ -1,6 +1,4 @@
-import rawMuseumSceneDocument from './museum-scene.json';
 import { getAssetById } from './assets';
-import { roomPoint } from './rooms';
 import {
   SceneDocumentValidationError,
   validateSceneDocument
@@ -399,24 +397,30 @@ export type NavigationGraph = {
   nodeById: ReadonlyMap<string, NavigationNodeData>;
 };
 
+export type SceneRoomResolver = {
+  has(roomId: string): boolean;
+  point(roomId: string, localPoint: Vec3): Vec3;
+};
+
 function cloneVec3(point: Vec3): Vec3 {
   return [...point];
 }
 
-function resolveWaypoint(waypoint: SceneWaypoint): Vec3 {
+function resolveWaypoint(waypoint: SceneWaypoint, rooms: SceneRoomResolver): Vec3 {
   return waypoint.roomId
-    ? roomPoint(waypoint.roomId, waypoint.position)
+    ? rooms.point(waypoint.roomId, waypoint.position)
     : cloneVec3(waypoint.position);
 }
 
 function resolveViewKeyframe(
-  keyframe: SceneCameraViewKeyframe
+  keyframe: SceneCameraViewKeyframe,
+  rooms: SceneRoomResolver
 ): RuntimeCameraViewKeyframe {
   return {
     id: keyframe.id,
     progress: keyframe.progress,
     cameraTarget: keyframe.roomId
-      ? roomPoint(keyframe.roomId, keyframe.cameraTarget)
+      ? rooms.point(keyframe.roomId, keyframe.cameraTarget)
       : cloneVec3(keyframe.cameraTarget),
     fov: keyframe.fov,
     ...(keyframe.holdSeconds === undefined ? {} : { holdSeconds: keyframe.holdSeconds }),
@@ -424,15 +428,15 @@ function resolveViewKeyframe(
   };
 }
 
-export function resolveSceneDocument(input: unknown): RuntimeMuseumScene {
+export function resolveSceneDocument(input: unknown, rooms: SceneRoomResolver): RuntimeMuseumScene {
   const validation = validateSceneDocument(input);
   if (!validation.success) throw new SceneDocumentValidationError(validation.issues[0]!);
   const document = validation.document;
 
   const navigationNodes = document.navigationNodes.map((node): NavigationNodeData => ({
     ...node,
-    position: roomPoint(node.roomId, node.position),
-    cameraTarget: roomPoint(node.roomId, node.cameraTarget),
+    position: rooms.point(node.roomId, node.position),
+    cameraTarget: rooms.point(node.roomId, node.cameraTarget),
     connectedNodeIds: [...node.connectedNodeIds],
     ...(node.holdSeconds === undefined ? {} : { holdSeconds: node.holdSeconds })
   }));
@@ -450,7 +454,7 @@ export function resolveSceneDocument(input: unknown): RuntimeMuseumScene {
     const interiorAnchors = connection.positionPath.anchors.map(
       (anchor): RuntimePathAnchor => ({
         id: anchor.id,
-        position: resolveWaypoint(anchor)
+        position: resolveWaypoint(anchor, rooms)
       })
     );
     const resolved: MuseumConnection = {
@@ -471,15 +475,15 @@ export function resolveSceneDocument(input: unknown): RuntimeMuseumScene {
     if (connection.targetWaypoints) {
       resolved.targetWaypoints = [
         cloneVec3(fromNode.cameraTarget),
-        ...connection.targetWaypoints.map(resolveWaypoint),
+        ...connection.targetWaypoints.map((waypoint) => resolveWaypoint(waypoint, rooms)),
         cloneVec3(toNode.cameraTarget)
       ];
     }
 
     if (connection.viewTracks) {
       resolved.viewTracks = {
-        forward: connection.viewTracks.forward.map(resolveViewKeyframe),
-        reverse: connection.viewTracks.reverse.map(resolveViewKeyframe)
+        forward: connection.viewTracks.forward.map((keyframe) => resolveViewKeyframe(keyframe, rooms)),
+        reverse: connection.viewTracks.reverse.map((keyframe) => resolveViewKeyframe(keyframe, rooms))
       };
     }
 
@@ -535,13 +539,7 @@ export function assertNavigationGraphMatchesScene(
   }
 }
 
-// JSON inference widens tuple and literal types; resolveSceneDocument validates this boundary.
-export const museumSceneDocument = rawMuseumSceneDocument as unknown as MuseumSceneDocument;
-export const museumScene = resolveSceneDocument(museumSceneDocument);
-export const museumNavigationGraph = createNavigationGraph(museumScene);
-export const nodeById = museumNavigationGraph.nodeById;
-
-export function getNode(id: string, graph: NavigationGraph = museumNavigationGraph) {
+export function getNode(id: string, graph: NavigationGraph) {
   const node = graph.nodeById.get(id);
   if (!node) throw new Error(`Unknown navigation node: ${id}`);
   return node;

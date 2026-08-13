@@ -1,6 +1,5 @@
 import {
 	getNode,
-	museumSceneDocument,
 	type MuseumSceneDocument,
 	type RuntimeMuseumScene,
 	type SceneCameraViewKeyframe,
@@ -9,6 +8,7 @@ import {
 	type ScenePrimitiveDimensions,
 	type ScenePrimitiveKind
 } from '$lib/content/scene';
+import { museumSceneDocument } from '$lib/content/chopin-project';
 import {
 	serializeSceneDocument,
 	validateSceneDocument,

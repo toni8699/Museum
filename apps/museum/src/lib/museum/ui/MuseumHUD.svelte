@@ -1,19 +1,21 @@
 <script lang="ts">
-  import { roomById } from '$lib/content/rooms';
+  import { getChopinRoomPresentation } from '$lib/content/chopin-room-presentation';
+  import { chopinRuntime, type MuseumRuntime } from '$lib/content/chopin-project';
   import {
     assertNavigationGraphMatchesScene,
-    museumScene,
     type RuntimeMuseumScene
   } from '$lib/content/scene';
   import {
-    museumState,
+    createMuseumState,
     type MuseumStateStore
   } from '$lib/state/museum-state.svelte';
 
   let {
-    scene = museumScene,
-    state = museumState
+    runtime = chopinRuntime,
+    scene = runtime.scene,
+    state = createMuseumState(runtime.graph)
   }: {
+    runtime?: MuseumRuntime;
     scene?: RuntimeMuseumScene;
     state?: MuseumStateStore;
   } = $props();
@@ -22,7 +24,8 @@
     assertNavigationGraphMatchesScene(state.graph, scene);
     return scene.navigationNodes;
   });
-  const currentRoom = $derived(roomById.get(state.currentRoomId));
+  const currentRoom = $derived(runtime.rooms.get(state.currentRoomId));
+  const currentPresentation = $derived(getChopinRoomPresentation(state.currentRoomId));
   const canGoBack = $derived(
     Boolean(state.activeNode.previousNodeId && state.canNavigateTo(state.activeNode.previousNodeId))
   );
@@ -34,9 +37,9 @@
 <aside class="hud" aria-label="Museum navigation controls">
   <div class="panel title-panel">
     <p class="eyebrow">Phase 4.5 museum</p>
-    <h1>{currentRoom?.title}</h1>
-    {#if currentRoom?.subtitle}<p class="subtitle">{currentRoom.subtitle}</p>{/if}
-    <p class="mood">{currentRoom?.mood}</p>
+    <h1>{currentRoom?.name}</h1>
+    {#if currentPresentation.subtitle}<p class="subtitle">{currentPresentation.subtitle}</p>{/if}
+    <p class="mood">{currentPresentation.mood}</p>
   </div>
 
   <div class="panel controls">

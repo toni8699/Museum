@@ -1,5 +1,4 @@
-import { museumSceneDocument } from '$lib/content/scene';
-import { createMuseumProject } from '$lib/editor/project/project-codec';
+import { chopinProject, museumSceneDocument } from '$lib/content/chopin-project';
 import type { MuseumProject } from '$lib/editor/project/project-types';
 import {
 	createEmptyLayoutDocument,
@@ -21,7 +20,6 @@ import {
 	type LayoutOpeningKind,
 	type LayoutOpeningPatch
 } from './layout-opening-editing';
-import { roomsToLayout } from './rooms-to-layout';
 import { hasBlockingLayoutIssues, validateLayoutDocumentGeometry, validateLineRoom, type LayoutGeometryIssue } from './layout-validation';
 import {
 	createLayoutObject,
@@ -36,6 +34,7 @@ import {
 } from './layout-object-editing';
 import type { Vec3 } from '$lib/types/museum';
 import { transformLayoutRoomUnit, type LayoutRoomUnitTransform } from './layout-room-transform';
+import { deriveLayoutRoomFrame } from '$lib/layout/layout-room-frame';
 
 export type LayoutPreviewSource = 'chopin-fixture' | 'empty' | 'draft' | 'imported';
 export type LayoutBaselineKind = 'blank' | 'imported';
@@ -82,7 +81,7 @@ export type LayoutRoomFieldPatch = Partial<
 > & { floorHeight?: number };
 
 export function createLayoutPreviewState(): LayoutPreviewState {
-	return createState('chopin-fixture', roomsToLayout(), museumSceneDocument, 0);
+	return createState('chopin-fixture', chopinProject.layout, museumSceneDocument, 0);
 }
 
 export function layoutPreviewSourceLabel(source: LayoutPreviewSource): string {
@@ -125,7 +124,7 @@ export function setLayoutPreviewImportError(state: LayoutPreviewState, message: 
 export function loadChopinLayoutPreview(state: LayoutPreviewState): boolean {
 	replaceState(
 		state,
-		createState('chopin-fixture', roomsToLayout(), state.project.scene, state.previewVersion)
+		createState('chopin-fixture', chopinProject.layout, state.project.scene, state.previewVersion)
 	);
 	return true;
 }
@@ -161,7 +160,7 @@ export function importLayoutPreviewJson(state: LayoutPreviewState, json: string)
 		return false;
 	}
 	try {
-		const nextProject = createMuseumProject({
+		const nextProject = createPreviewProject({
 			id: state.project.id,
 			name: state.project.name,
 			layout: parsed.document,
@@ -463,12 +462,22 @@ export function commitLayoutPathRoom(
 	const floor = layout.floors[0] ?? { id: 'floor-ground', name: 'Ground Floor', elevation: 0, height: 3, rooms: [] };
 	if (!layout.floors[0]) layout.floors = [floor];
 	const roomId = nextRoomId(floor.rooms);
-	const room: LayoutRoom = { id: roomId, name: `Draft Room ${floor.rooms.length + 1}`, boundary: { closed: true, segments: segments.map((segment) => cloneJson(segment)) }, wallThickness: 0.16, floorThickness: 0.1, ceilingThickness: 0.1, openings: [] };
+	const boundary = { closed: true as const, segments: segments.map((segment) => cloneJson(segment)) };
+	const room: LayoutRoom = {
+		id: roomId,
+		name: `Draft Room ${floor.rooms.length + 1}`,
+		frame: deriveLayoutRoomFrame({ boundary }),
+		boundary,
+		wallThickness: 0.16,
+		floorThickness: 0.1,
+		ceilingThickness: 0.1,
+		openings: []
+	};
 	const geometryIssues = validateLineRoom(room, floor);
 	if (hasBlockingLayoutIssues(geometryIssues)) return { success: false, message: geometryIssues[0]!.message };
 	floor.rooms = [...floor.rooms, room];
 	try {
-		const nextProject = createMuseumProject({ id: state.project.id, name: 'Draft Layout Preview', layout, scene: state.project.scene });
+		const nextProject = createPreviewProject({ id: state.project.id, name: 'Draft Layout Preview', layout, scene: state.project.scene });
 		const result = buildLayoutPreviewModel(nextProject.layout);
 		state.source = 'draft';
 		state.project = nextProject;
@@ -545,6 +554,17 @@ export function commitLayoutDraftRoom(
 	const room: LayoutRoom = {
 		id: roomId,
 		name: `Draft Room ${floor.rooms.length + 1}`,
+		frame: deriveLayoutRoomFrame({
+			boundary: {
+				closed: true,
+				segments: points.map((start, index) => ({
+					id: `${roomId}:wall:${index}`,
+					kind: 'line' as const,
+					start: [...start] as LayoutVec2,
+					end: [...points[(index + 1) % points.length]!] as LayoutVec2
+				}))
+			}
+		}),
 		boundary: {
 			closed: true,
 			segments: points.map((start, index) => ({
@@ -570,7 +590,7 @@ export function commitLayoutDraftRoom(
 	floor.rooms = [...floor.rooms, room];
 
 	try {
-		const nextProject = createMuseumProject({
+		const nextProject = createPreviewProject({
 			id: state.project.id,
 			name: 'Draft Layout Preview',
 			layout,
@@ -596,13 +616,34 @@ export function commitLayoutDraftRoom(
 	}
 }
 
+/** Editor layout sessions may temporarily diverge from scene room references. */
+function createPreviewProject(input: {
+	id: string;
+	name: string;
+	layout: unknown;
+	scene: MuseumProject['scene'];
+}): MuseumProject {
+	const validation = validateLayoutDocument(input.layout);
+	if (!validation.success) {
+		const first = validation.issues[0]!;
+		throw new Error(`${first.path} (${first.code}): ${first.message}`);
+	}
+	return {
+		formatVersion: 1,
+		id: input.id,
+		name: input.name,
+		layout: validation.document,
+		scene: input.scene
+	};
+}
+
 function createState(
 	source: LayoutPreviewSource,
 	layout: ReturnType<typeof createEmptyLayoutDocument>,
 	scene: MuseumProject['scene'],
 	previousVersion: number
 ): LayoutPreviewState {
-	const project = createMuseumProject({
+	const project = createPreviewProject({
 		id: 'project:layout-preview',
 		name: source === 'chopin-fixture' ? 'Chopin Layout Preview' : 'Empty Layout Preview',
 		layout,
@@ -656,7 +697,7 @@ function applyLayoutMutation(
 		if (hasBlockingLayoutIssues(geometryIssues)) {
 			return failOpeningMutation(state, geometryIssues[0]!.message);
 		}
-		const nextProject = createMuseumProject({
+		const nextProject = createPreviewProject({
 			id: state.project.id,
 			name: 'Draft Layout Preview',
 			layout: structural.document,

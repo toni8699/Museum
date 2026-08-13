@@ -5,6 +5,7 @@ import {
 	type NavigationGraph,
 	type RuntimeMuseumScene
 } from '$lib/content/scene';
+import { chopinRuntime } from '$lib/content/chopin-project';
 import { validateSceneDocument } from '$lib/content/scene-codec';
 import tourMinimalRaw from './tour-minimal.json';
 
@@ -34,7 +35,7 @@ export function loadFixtureScene(name: FixtureSceneName = 'tour-minimal'): Loade
 		);
 	}
 	const document = validation.document;
-	const scene = resolveSceneDocument(document);
+	const scene = resolveSceneDocument(document, chopinRuntime.rooms);
 	const graph = createNavigationGraph(scene);
 	return { document, scene, graph };
 }

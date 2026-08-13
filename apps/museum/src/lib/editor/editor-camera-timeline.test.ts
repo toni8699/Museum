@@ -1,7 +1,8 @@
 import {
 	createNavigationGraph,
-	resolveSceneDocument
+	resolveSceneDocument as resolveSceneDocumentWithRooms
 } from '$lib/content/scene';
+import { chopinRuntime } from '$lib/content/chopin-project';
 import {
 	cloneFixtureDocument,
 	loadFixtureScene
@@ -15,6 +16,9 @@ import {
 } from '$lib/museum/navigation/camera-motion';
 import { getCameraRoute } from '$lib/museum/navigation/camera-route';
 import { describe, expect, it } from 'vitest';
+
+const resolveSceneDocument = (input: unknown) =>
+	resolveSceneDocumentWithRooms(input, chopinRuntime.rooms);
 import {
 	cameraTimelineEdgePlayheadAtProgress,
 	cameraTimelineEdgeProgressAtProgress,

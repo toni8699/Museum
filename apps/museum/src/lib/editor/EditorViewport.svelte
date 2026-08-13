@@ -2,6 +2,7 @@
 	import { Canvas } from '@threlte/core';
 	import MuseumScene from '$lib/museum/MuseumScene.svelte';
 	import type { EditorPlacementRegistry } from '$lib/museum/placement-registry';
+	import EditorMuseumEntities from './EditorMuseumEntities.svelte';
 	import EditorCameraHelpers from './EditorCameraHelpers.svelte';
 	import EditorCameraFramingHelpers from './EditorCameraFramingHelpers.svelte';
 	import EditorGrid from './EditorGrid.svelte';
@@ -151,7 +152,6 @@
 			fogEnabled={store.fogEnabled}
 			fogNear={store.fogNear}
 			fogFar={store.fogFar}
-			{placementRegistry}
 			forceParisAssets
 			showArchitecture={store.currentWorkspace !== 'layout'}
 		>
@@ -162,6 +162,9 @@
 					layoutBounds={layoutPreview.bounds}
 					layoutFrameVersion={layoutPreview.previewVersion}
 				/>
+			{/snippet}
+			{#snippet entityRenderer(scene, rooms, _activation)}
+				<EditorMuseumEntities {scene} {rooms} {placementRegistry} />
 			{/snippet}
 		</MuseumScene>
 		{#if store.currentWorkspace === 'layout'}

@@ -27,17 +27,20 @@ docs/
 
 ```mermaid
 flowchart TB
-  Editor["/dev/museum-editor"] --> SceneDoc["museum-scene.json v6"]
-  Editor --> LayoutDoc["LayoutDocument"]
-  SceneDoc --> Resolve["scene.ts"]
-  Rooms["rooms.ts"] --> Shell["MuseumShell"]
-  LayoutDoc -.->|"B4/B5"| Rooms
+  Editor["/dev/museum-editor"] --> SceneDoc["SceneDocument v6"]
+  Editor --> LayoutDoc["LayoutDocument v3"]
+  Project["chopin-project.json v1"] --> SceneDoc
+  Project --> LayoutDoc
+  SceneDoc --> Resolve["scene.ts + explicit room resolver"]
+  LayoutDoc --> Registry["room registry"]
+  LayoutDoc --> Shell["LayoutMuseumShell"]
   Resolve --> Motion["camera-route + camera-motion"]
+  Registry --> Resolve
   Shell --> Visitor["/museum"]
   Motion --> Visitor
 ```
 
-Runtime shell defaults to `rooms.ts`; B4 adds opt-in dev `LayoutMuseumShell` dual-read from validated layout v2. Scene/tour = v6 JSON. B5 owns production cutover. One motion system. Editor prod 404.
+`/museum` validates `chopin-project.json` once: layout v3 is the sole production architecture source and nested scene v6 owns content/tour data. `rooms.ts` is a deprecated editor/test projection and is absent from visitor imports. One motion system. Editor prod 404.
 
 ---
 

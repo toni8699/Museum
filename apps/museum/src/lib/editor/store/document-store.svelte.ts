@@ -32,11 +32,11 @@ import {
 } from '$lib/content/scene-codec';
 import {
 	createNavigationGraph,
-	museumSceneDocument,
 	resolveSceneDocument,
 	type MuseumSceneDocument,
 	type RuntimeMuseumScene
 } from '$lib/content/scene';
+import { museumSceneDocument, chopinRuntime } from '$lib/content/chopin-project';
 import { createMuseumState, type MuseumStateStore } from '$lib/state/museum-state.svelte';
 
 export type AfterReplaceListener = () => void;
@@ -163,7 +163,7 @@ export class EditorDocumentStore {
 	}
 
 	#rebuildRuntime() {
-		const nextScene = resolveSceneDocument(this.document);
+		const nextScene = resolveSceneDocument(this.document, chopinRuntime.rooms);
 		const initialNodeId = pickInitialNavigationNodeId(nextScene);
 		const nextState = createMuseumState(createNavigationGraph(nextScene), initialNodeId);
 		// Re-assigning `$state.raw` outside an `untrack` wrap inside the

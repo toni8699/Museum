@@ -1,11 +1,11 @@
 <script lang="ts">
   import MuseumCanvas from '$lib/museum/MuseumCanvas.svelte';
   import MuseumHUD from '$lib/museum/ui/MuseumHUD.svelte';
-  import { museumScene } from '$lib/content/scene';
-  import { museumState } from '$lib/state/museum-state.svelte';
+  import { chopinRuntime } from '$lib/content/chopin-project';
+  import { createMuseumState } from '$lib/state/museum-state.svelte';
 
-  const scene = museumScene;
-  const state = museumState;
+  const runtime = chopinRuntime;
+  const state = createMuseumState(runtime.graph);
 </script>
 
 <svelte:head>
@@ -13,8 +13,8 @@
 </svelte:head>
 
 <main class="museum-page">
-  <MuseumCanvas {scene} {state} />
-  <MuseumHUD {scene} {state} />
+  <MuseumCanvas {runtime} {state} />
+  <MuseumHUD {runtime} {state} />
 </main>
 
 <style>

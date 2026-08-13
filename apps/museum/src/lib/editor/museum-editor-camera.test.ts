@@ -3,9 +3,9 @@ import { Object3D } from 'three';
 import { cloneFixtureDocument } from '$lib/content/__fixtures__/load-fixture-scene';
 import {
 	assertNavigationGraphMatchesScene,
-	museumSceneDocument,
 	type MuseumSceneDocument
 } from '$lib/content/scene';
+import { museumSceneDocument } from '$lib/content/chopin-project';
 import { getRoom, roomLocalPoint, roomPoint } from '$lib/content/rooms';
 import { serializeSceneDocument } from '$lib/content/scene-codec';
 import {
@@ -2790,4 +2790,3 @@ describe('MuseumEditorStore Phase 3.6 history + framing-drag cleanup', () => {
 		expect(JSON.stringify(store.document)).toBe(documentBefore);
 	});
 });
-

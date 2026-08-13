@@ -40,22 +40,6 @@
 		return Math.min(section.topY, profileBaseY + profileTop);
 	}
 
-	function sphereVisualScale(dimensions: [number, number, number]): [number, number, number] {
-		// Newly drawn spheres store a 1 m editable height. Keep their viewport
-		// representation spherical until an explicitly taller height is chosen;
-		// otherwise a normal radius drag appears as a flat disc.
-		const footprintDiameter = Math.max(dimensions[0], dimensions[2]);
-		return [dimensions[0], Math.max(dimensions[1], footprintDiameter), dimensions[2]];
-	}
-
-	function objectPosition(object: LayoutPreviewModel['objects'][number]): [number, number, number] {
-		if (object.kind !== 'sphere' || !object.roomId) return object.position;
-		const room = model.rooms.find((candidate) => candidate.roomId === object.roomId);
-		if (!room) return object.position;
-		const visualHeight = sphereVisualScale(object.dimensions)[1];
-		return [object.position[0], room.floorElevation + visualHeight / 2, object.position[2]];
-	}
-
 	function clippedSpan(
 		wall: WallPreview,
 		section: WallPreview['sections'][number],
@@ -170,8 +154,8 @@
 		<T.Group
 			name={`LayoutObject:${object.objectId}`}
 			position={interaction.objectDrag?.objectId === object.objectId
-				? [interaction.objectDrag.candidatePosition[0], objectPosition(object)[1], interaction.objectDrag.candidatePosition[2]]
-				: objectPosition(object)}
+				? interaction.objectDrag.candidatePosition
+				: object.position}
 			rotation={object.rotation}
 			userData={{ editorEntity: 'layout-object', layoutObjectId: object.objectId }}
 		>
@@ -179,7 +163,7 @@
 				castShadow
 				receiveShadow
 				scale={object.kind === 'sphere'
-					? sphereVisualScale(object.dimensions)
+					? object.dimensions
 					: object.kind === 'cylinder'
 						? [1, 1, object.dimensions[2] / object.dimensions[0]]
 						: [1, 1, 1]}

@@ -10,7 +10,7 @@ import {
 import { buildLayoutPreviewModel, type LayoutPreviewModel } from './layout-mesh-factory';
 import { layoutPreviewBounds, type LayoutPreviewBounds } from './layout-preview-bounds';
 import type { DraftSegment, LayoutObject, LayoutOpening, LayoutRoom, LayoutVec2 } from './layout-types';
-import { deleteInteriorAnchorOnSegment, insertInteriorAnchorOnSegment, replaceRoomPoints, updateInteriorAnchorOnSegment } from './layout-editing';
+import { deleteInteriorAnchorOnSegment, insertInteriorAnchorOnSegment, pointInRoom, replaceRoomPoints, updateInteriorAnchorOnSegment } from './layout-editing';
 import {
 	appendRoomOpening,
 	createDefaultOpening,
@@ -47,6 +47,7 @@ export type LayoutPreviewState = {
 	issues: LayoutGeometryIssue[];
 	bounds: LayoutPreviewBounds | null;
 	previewVersion: number;
+	reframeVersion: number;
 	showCeilings: boolean;
 	lastMutationMessage: string | null;
 	statusMessage: string | null;
@@ -172,6 +173,7 @@ export function importLayoutPreviewJson(state: LayoutPreviewState, json: string)
 		state.issues = result.issues;
 		state.bounds = layoutPreviewBounds(result.model);
 		state.previewVersion += 1;
+		state.reframeVersion += 1;
 		state.baselineLayoutJson = parsed.canonicalJson;
 		state.baselineKind = 'imported';
 		state.lastMutationMessage = null;
@@ -218,10 +220,14 @@ export function commitLayoutPrimitive(
 	snapEnabled = false
 ): LayoutObjectMutationResult {
 	const floor = state.project.layout.floors[0];
-	const room = floor?.rooms.find((candidate) => candidate.id === roomId);
-	if (!floor || !room || !roomId) return failObjectMutation(state, 'Choose a first-floor room');
+	if (!floor || !roomId) return failObjectMutation(state, 'Choose a first-floor room');
 	const geometry = primitiveObjectGeometry(kind, start, current, floor.elevation, snapEnabled);
 	if (!geometry) return failObjectMutation(state, 'Primitive gesture must have a non-zero size');
+	const room = floor.rooms.find((candidate) => candidate.id === roomId);
+	const center: LayoutVec2 = [geometry.position[0], geometry.position[2]];
+	if (!room || !pointInRoom(center, room)) {
+		return failObjectMutation(state, 'Choose a first-floor room');
+	}
 	const layout = cloneLayout(state.project.layout);
 	const object = createLayoutObject({
 		id: nextLayoutObjectId(layout.objects),
@@ -600,6 +606,7 @@ function createState(
 		issues: result.issues,
 		bounds: layoutPreviewBounds(result.model),
 		previewVersion: previousVersion + 1,
+		reframeVersion: 0,
 		showCeilings: false,
 		lastMutationMessage: null,
 		statusMessage: null,
@@ -693,6 +700,7 @@ function replaceState(target: LayoutPreviewState, next: LayoutPreviewState): voi
 	target.issues = next.issues;
 	target.bounds = next.bounds;
 	target.previewVersion = next.previewVersion;
+	target.reframeVersion += 1;
 	// Keep layout-local ceiling inspection preference across reload/reset.
 	target.lastMutationMessage = null;
 	target.statusMessage = null;

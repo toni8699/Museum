@@ -1,7 +1,7 @@
 # A4.1 — Layout Authoring Polish
 
 **Date:** 2026-08-12  
-**Status:** Implemented — focused/full tests, typecheck, and build passed; manual browser QA pending  
+**Status:** Implemented — focused/full tests, typecheck, and build passed; latest Plan framing/sphere floor fixes verified; manual browser QA pending
 **Parent:** [`2026-08-11-layout-cad-a4-objects-inspectors-io.md`](./2026-08-11-layout-cad-a4-objects-inspectors-io.md)  
 **Handoff:** [`../hand-off/CURRENT.md`](../hand-off/CURRENT.md)  
 **Contracts:** [`../components/placement.md`](../components/placement.md) · [`../components/shell.md`](../components/shell.md)
@@ -107,6 +107,7 @@ pointer-up = commit sphere
 - Escape, pointer cancel, tool change, or view change discards only transient gesture state.
 - Pointer movement and ghost rendering never change canonical layout JSON, dirty state, preview model, or bounds.
 - Pointer-up performs one validated preview-state mutation.
+- Plan viewport framing remains stable after ordinary edits and reframes only after import/reset/Reload Chopin. Stored Sphere position/dimensions drive rendering and bounds exactly; the default 1 m height rests on the assigned floor and may produce a spheroid.
 
 ## Ghost contract
 
@@ -132,7 +133,7 @@ Each primitive tool owns one footprint-style Plan preview:
 - Delete removes only that object, clears its selection when selected, and uses the existing validated layout mutation path.
 - Imported read-only profile rows remain non-deletable under the existing A4 compatibility rule.
 - Plane/profile are compatibility entries, not Place tools; do not add authoring controls for them.
-- Keep list selection synchronized with Plan/3D selection and the Selection accordion.
+- Keep list selection synchronized with Plan selection and the Selection accordion. Three-dimensional selection/editing is deferred to the unified layout/scene editing milestone.
 
 ## Selection accordion
 
@@ -246,7 +247,7 @@ Extract a small Layout right-sidebar component only if it materially reduces `Ed
 
 ### Objects and selection
 
-15. Object list order is stable; row selection synchronizes Plan/3D selection and Selection inspector.
+15. Object list order is stable; row selection synchronizes Plan selection and Selection inspector; 3D selection remains deferred.
 16. Row Delete removes only the targeted authored object and clears matching selection.
 17. Selection shows contextual inspector content for room, wall/anchor, opening, and object selections.
 18. Authored objects expose no Position X/Y/Z fields.
@@ -300,6 +301,7 @@ Existing baseline diagnostics remain acceptable only if A4.1 adds none. Confirm 
 - Polygon-to-profile object authoring.
 - Object Bezier/profile editing.
 - 3D object gizmos or 3D object placement.
+- 3D object selection/editing until the unified layout/scene editing milestone.
 - Objects-follow-room behavior; that remains B3.
 - Any second navigation graph, camera motion system, or visitor layout cutover.
 
@@ -310,3 +312,4 @@ Existing baseline diagnostics remain acceptable only if A4.1 adds none. Confirm 
 - Update [`../components/shell.md`](../components/shell.md) with the locked top-bar/right-sidebar structure.
 - Update [`../components/placement.md`](../components/placement.md) with Plan-only drag placement, footprint ghosts, and `0.25 m` room/vertex snapping.
 - Keep persistence, visitor, scene, and camera contracts unchanged unless implementation reveals a real contract change.
+- Future shell milestone: evaluate a unified left-side outliner for scene assets plus layout rooms/objects after B3 and before or alongside B4; A4.1 intentionally keeps layout objects in the right sidebar and keeps document ownership separate.

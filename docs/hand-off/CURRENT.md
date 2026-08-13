@@ -10,9 +10,11 @@ Full-track Phase 2 scene presets = deferred optional.
 
 ## Next slice
 
-**B3** — Room-unit relocate: move/rotate a room boundary, openings, and child objects together. A4 is implemented in [`../plans/2026-08-11-layout-cad-a4-objects-inspectors-io.md`](../plans/2026-08-11-layout-cad-a4-objects-inspectors-io.md).
+**B3** — Room-unit relocate: move/rotate a room boundary, openings, and child objects together. A4/A4.1 are implemented in [`../plans/2026-08-11-layout-cad-a4-objects-inspectors-io.md`](../plans/2026-08-11-layout-cad-a4-objects-inspectors-io.md) and [`../plans/2026-08-12-layout-cad-a4-1-polish.md`](../plans/2026-08-12-layout-cad-a4-1-polish.md).
 
-A4 adds primitive layout-object placement in Plan and 3D, transient Plan object dragging, room/wall/opening/object numeric inspectors, canonical layout JSON I/O, and independent layout baseline/status/dirty handling. Layout remains editor-only and outside shared scene history.
+A4 adds primitive layout-object placement in Plan and 3D, transient Plan object dragging, room/wall/opening/object numeric inspectors, canonical layout JSON I/O, and independent layout baseline/status/dirty handling. A4.1 refines this into Plan-only Box/Cylinder/Sphere gestures, transformed primitive footprints, Place/Objects/Selection accordions, contextual dimensions, and replacement-only Plan reframing. Stored object transform/dimensions now drive rendering, bounds, and JSON exactly. Layout remains editor-only and outside shared scene history.
+
+Future shell milestone: evaluate moving layout objects into a unified left-side outliner with scene assets and room hierarchy after B3, before or alongside B4. This is a presentation merge only; scene/layout document ownership remains separate until the B4/B5 runtime transition.
 
 ## Completed verification
 
@@ -29,7 +31,8 @@ A4 adds primitive layout-object placement in Plan and 3D, transient Plan object 
 - A3.1 focused layout suite: 107 passed.
 - A4 focused layout suite: 41 passed after final object/state additions.
 - A4.1 focused layout/shell set: 54 passed.
-- Full suite: 85 files / 1104 tests passed.
+- A4.1 review focused layout/shell/camera set: 7 files / 158 tests passed.
+- Full suite: 85 files / 1108 tests passed.
 - Museum build passed.
 - `npm run check -w @portfolio/museum`: 0 errors / 0 warnings.
 - In-app Browser manual QA remains pending: Browser runtime returned `Browser is not available: iab` on 2026-08-12.
@@ -51,6 +54,8 @@ A4 adds primitive layout-object placement in Plan and 3D, transient Plan object 
 - A3 curve mutations remain preview-state-only; no shared editor history or persistence.
 - A4 layout object mutations and layout I/O remain preview-state-only; scene dirty/history are independent. Navigation/unload protects either dirty document.
 - A4.1 layout chrome uses Plan-only Box/Cylinder/Sphere gestures, Place/Objects/Selection accordion state, and 0.25 m room/vertex/object candidate snapping; primitive placement is not reachable in 3D.
+- A4.1 ordinary edits do not auto-reframe; import/reset/Reload Chopin do. Primitive room ownership resolves from the derived center, whole-room snap is a rigid translation, and stored Sphere height/position remain authoritative and floor-aligned at creation.
+- A4.1 3D preview renders layout objects but intentionally does not select/edit them; 3D selection and gizmos return with the unified layout/scene editing milestone.
 - A1 `LayoutOpening.offset` is meters along its segment; B4 adds explicit `connectsRoomIds` for portals.
 - Layout auto-bezier must not import `camera-motion` / Three.
 - No commits unless user asks.

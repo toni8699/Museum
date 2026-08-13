@@ -47,6 +47,7 @@ describe('layout preview state', () => {
 		const state = createLayoutPreviewState();
 		const sceneJson = serializeSceneDocument(state.project.scene);
 		const version = state.previewVersion;
+		const reframeVersion = state.reframeVersion;
 
 		expect(resetLayoutPreview(state)).toBe(true);
 		expect(state.source).toBe('empty');
@@ -55,12 +56,14 @@ describe('layout preview state', () => {
 		expect(state.bounds).toBeNull();
 		expect(serializeSceneDocument(state.project.scene)).toBe(sceneJson);
 		expect(state.previewVersion).toBeGreaterThan(version);
+		expect(state.reframeVersion).toBe(reframeVersion + 1);
 	});
 
 	it('reloads the deterministic Chopin fixture', () => {
 		const state = createLayoutPreviewState();
 		resetLayoutPreview(state);
 		const version = state.previewVersion;
+		const reframeVersion = state.reframeVersion;
 
 		expect(loadChopinLayoutPreview(state)).toBe(true);
 		expect(state.source).toBe('chopin-fixture');
@@ -69,6 +72,7 @@ describe('layout preview state', () => {
 		state.project.layout.floors[0]!.rooms.map((room) => room.id)
 	);
 		expect(state.previewVersion).toBeGreaterThan(version);
+		expect(state.reframeVersion).toBe(reframeVersion + 1);
 	});
 
 	it('commits rectangle and polygon drafts into the layout without changing scene data', () => {
@@ -383,12 +387,49 @@ describe('layout preview state', () => {
 	it('commits Plan primitive gestures with floor-relative placement', () => {
 		const state = createLayoutPreviewState();
 		const room = state.project.layout.floors[0]!.rooms[0]!;
-		const result = commitLayoutPrimitive(state, 'box', [0, 0], [2, 3], room.id, true);
+		const center = room.boundary.segments.reduce(
+			(sum, segment) => [sum[0] + segment.start[0], sum[1] + segment.start[1]] as [number, number],
+			[0, 0] as [number, number]
+		).map((value) => value / room.boundary.segments.length) as [number, number];
+		const result = commitLayoutPrimitive(
+			state,
+			'box',
+			[center[0] - 1, center[1] - 1.5],
+			[center[0] + 1, center[1] + 1.5],
+			room.id,
+			true
+		);
 		expect(result.success).toBe(true);
 		if (!result.success) return;
 		const object = state.project.layout.objects.find((candidate) => candidate.id === result.objectId);
-		expect(object).toMatchObject({ kind: 'box', roomId: room.id, position: [1, 0.5, 1.5], dimensions: [2, 1, 3] });
-		expect(commitLayoutPrimitive(state, 'sphere', [0, 0], [0, 0], room.id, true).success).toBe(false);
+		expect(object).toMatchObject({ kind: 'box', roomId: room.id, dimensions: [2, 1, 3] });
+		expect(commitLayoutPrimitive(state, 'sphere', center, center, room.id, true).success).toBe(false);
+	});
+
+	it('keeps sphere height, stored center, model bounds, and JSON geometry unified', () => {
+		const state = createLayoutPreviewState();
+		const room = state.project.layout.floors[0]!.rooms[0]!;
+		const center = room.boundary.segments.reduce(
+			(sum, segment) => [sum[0] + segment.start[0], sum[1] + segment.start[1]] as [number, number],
+			[0, 0] as [number, number]
+		).map((value) => value / room.boundary.segments.length) as [number, number];
+		const reframeVersion = state.reframeVersion;
+		const created = commitLayoutPrimitive(state, 'sphere', center, [center[0] + 2, center[1]], room.id);
+		expect(created.success).toBe(true);
+		if (!created.success) return;
+		const stored = state.project.layout.objects.find((object) => object.id === created.objectId)!;
+		const descriptor = state.model.objects.find((object) => object.objectId === created.objectId)!;
+		expect(stored).toMatchObject({ position: [center[0], 0.5, center[1]], dimensions: [4, 1, 4] });
+		expect(descriptor.worldAabb.min[1]).toBeCloseTo(0);
+		expect(descriptor.worldAabb.max[1]).toBeCloseTo(1);
+		expect(serializeLayoutDocument(state.project.layout)).toContain('"dimensions": [');
+		expect(state.reframeVersion).toBe(reframeVersion);
+
+		expect(updateLayoutObjectFields(state, created.objectId, { dimensions: [4, 2, 4] }).success).toBe(true);
+		const resized = state.model.objects.find((object) => object.objectId === created.objectId)!;
+		expect(resized.worldAabb.min[1]).toBeCloseTo(-0.5);
+		expect(resized.worldAabb.max[1]).toBeCloseTo(1.5);
+		expect(state.reframeVersion).toBe(reframeVersion);
 	});
 
 	it('creates, edits, and deletes authored objects while profiles remain read-only', () => {

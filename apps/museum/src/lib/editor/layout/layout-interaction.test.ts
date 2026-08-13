@@ -19,10 +19,13 @@ import {
 	rectanglePoints,
 	setLayoutDraftTool,
 	beginLayoutPrimitiveDraft,
+	beginRoomEdit,
+	primitiveDraftCenter,
 	primitiveDraftFootprint,
 	setLayoutViewMode,
 	updateLayoutObjectDrag,
 	updateLayoutPrimitiveDraft,
+	updateRoomEdit,
 	updateRectangle
 } from './layout-interaction';
 
@@ -99,6 +102,26 @@ describe('layout interaction', () => {
 		cancelLayoutPrimitiveDraft(state);
 		expect(state.tool).toBe('select');
 		expect(state.primitiveDraft).toBeNull();
+	});
+
+	it('resolves radial centers from drag start and box centers from both corners', () => {
+		expect(primitiveDraftCenter({ kind: 'sphere', start: [1, 2], current: [5, 6] })).toEqual([1, 2]);
+		expect(primitiveDraftCenter({ kind: 'box', start: [1, 2], current: [5, 6] })).toEqual([3, 4]);
+	});
+
+	it('snaps vertices directly while translating whole rooms rigidly', () => {
+		const state = createLayoutInteractionState();
+		const original = [[0.1, 0.2], [1.2, 0.2], [1.2, 1.4], [0.1, 1.4]] as [number, number][];
+		beginRoomEdit(state, 'room', 'room-a', [0.13, 0.17], original);
+		updateRoomEdit(state, [0.62, 0.88], true);
+		const moved = state.editing!.currentPoints;
+		expect(moved[1]![0] - moved[0]![0]).toBeCloseTo(1.1);
+		expect(moved[2]![1] - moved[1]![1]).toBeCloseTo(1.2);
+
+		beginRoomEdit(state, 'vertex', 'room-a', original[0]!, original, 0);
+		updateRoomEdit(state, [0.38, 0.62], true);
+		expect(state.editing?.currentPoints[0]).toEqual([0.5, 0.5]);
+		expect(state.editing?.currentPoints.slice(1)).toEqual(original.slice(1));
 	});
 
 	it('keeps object drag transient and snaps only X/Z', () => {

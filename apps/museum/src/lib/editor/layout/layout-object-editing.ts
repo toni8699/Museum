@@ -154,10 +154,10 @@ export function deleteLayoutObject(document: LayoutDocument, objectId: string): 
 }
 
 export function describeLayoutObject(object: LayoutObject): LayoutObjectDescriptor {
-	const corners = rotatedObjectCorners(object);
+	const samples = transformedObjectSamples(object);
 	const min: Vec3 = [Infinity, Infinity, Infinity];
 	const max: Vec3 = [-Infinity, -Infinity, -Infinity];
-	for (const [x, y, z] of corners) {
+	for (const [x, y, z] of samples) {
 		min[0] = Math.min(min[0], x);
 		min[1] = Math.min(min[1], y);
 		min[2] = Math.min(min[2], z);
@@ -165,10 +165,7 @@ export function describeLayoutObject(object: LayoutObject): LayoutObjectDescript
 		max[1] = Math.max(max[1], y);
 		max[2] = Math.max(max[2], z);
 	}
-	const planFootprint =
-		object.kind === 'cylinder' || object.kind === 'sphere'
-			? circularFootprint(object.position, Math.max(object.dimensions[0], object.dimensions[2]) / 2)
-			: convexHull(corners.map(([x, , z]) => [x, z] as LayoutVec2));
+	const planFootprint = convexHull(samples.map(([x, , z]) => [x, z] as LayoutVec2));
 	return {
 		objectId: object.id,
 		kind: object.kind,
@@ -192,22 +189,67 @@ export function findHitLayoutObject(
 	return null;
 }
 
-function rotatedObjectCorners(object: LayoutObject): Vec3[] {
+function transformedObjectSamples(object: LayoutObject): Vec3[] {
+	if (object.kind === 'sphere') return transformedSphereSamples(object);
+	if (object.kind === 'cylinder') return transformedCylinderSamples(object);
+	return transformedObjectCorners(object);
+}
+
+function transformedObjectCorners(object: LayoutObject): Vec3[] {
 	const [halfX, halfY, halfZ] = object.dimensions.map((value) => value / 2) as Vec3;
 	const corners: Vec3[] = [];
 	for (const x of [-halfX, halfX]) {
 		for (const y of [-halfY, halfY]) {
 			for (const z of [-halfZ, halfZ]) {
-				const rotated = rotateXyz([x, y, z], object.rotation);
-				corners.push([
-					rotated[0] + object.position[0],
-					rotated[1] + object.position[1],
-					rotated[2] + object.position[2]
-				]);
+				corners.push(transformObjectPoint([x, y, z], object));
 			}
 		}
 	}
 	return corners;
+}
+
+function transformedSphereSamples(object: LayoutObject, radialSteps = 64, latitudeSteps = 32): Vec3[] {
+	const [halfX, halfY, halfZ] = object.dimensions.map((value) => value / 2) as Vec3;
+	const samples: Vec3[] = [];
+	for (let latitudeIndex = 0; latitudeIndex <= latitudeSteps; latitudeIndex += 1) {
+		const latitude = -Math.PI / 2 + (latitudeIndex / latitudeSteps) * Math.PI;
+		const ring = Math.cos(latitude);
+		const y = Math.sin(latitude) * halfY;
+		for (let radialIndex = 0; radialIndex < radialSteps; radialIndex += 1) {
+			const angle = (radialIndex / radialSteps) * Math.PI * 2;
+			samples.push(transformObjectPoint([
+				Math.cos(angle) * ring * halfX,
+				y,
+				Math.sin(angle) * ring * halfZ
+			], object));
+		}
+	}
+	return samples;
+}
+
+function transformedCylinderSamples(object: LayoutObject, radialSteps = 64): Vec3[] {
+	const [halfX, halfY, halfZ] = object.dimensions.map((value) => value / 2) as Vec3;
+	const samples: Vec3[] = [];
+	for (const y of [-halfY, halfY]) {
+		for (let radialIndex = 0; radialIndex < radialSteps; radialIndex += 1) {
+			const angle = (radialIndex / radialSteps) * Math.PI * 2;
+			samples.push(transformObjectPoint([
+				Math.cos(angle) * halfX,
+				y,
+				Math.sin(angle) * halfZ
+			], object));
+		}
+	}
+	return samples;
+}
+
+function transformObjectPoint(point: Vec3, object: LayoutObject): Vec3 {
+	const rotated = rotateXyz(point, object.rotation);
+	return [
+		rotated[0] + object.position[0],
+		rotated[1] + object.position[1],
+		rotated[2] + object.position[2]
+	];
 }
 
 /** Matches Three.js Euler's default XYZ order. */
@@ -227,13 +269,6 @@ function rotateXyz([x, y, z]: Vec3, [rx, ry, rz]: Vec3): Vec3 {
 		(af + be * d) * x + (ae - bf * d) * y - b * c * z,
 		(bf - ae * d) * x + (be + af * d) * y + a * c * z
 	];
-}
-
-function circularFootprint(position: Vec3, radius: number, steps = 32): LayoutVec2[] {
-	return Array.from({ length: steps }, (_, index) => {
-		const angle = (index / steps) * Math.PI * 2;
-		return [position[0] + Math.cos(angle) * radius, position[2] + Math.sin(angle) * radius];
-	});
 }
 
 function convexHull(points: readonly LayoutVec2[]): LayoutVec2[] {

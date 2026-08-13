@@ -26,6 +26,7 @@
 		updateLayoutPrimitiveDraft,
 		updateRoomEdit,
 		primitiveDraftFootprint,
+		primitiveDraftCenter,
 		rectanglePoints,
 		type LayoutInteractionState
 	} from './layout-interaction';
@@ -104,6 +105,7 @@
 	let openingDrag = $state<{ roomId: string; segmentId: string; openingId: string; width: number } | null>(null);
 	let dragSnapshot = $state<LayoutPreviewSnapshot | null>(null);
 	let suppressNextClick = $state(false);
+	let framedReplacementVersion = $state<number | null>(null);
 
 	const viewBox = $derived(`0 0 ${interaction.planView.width} ${interaction.planView.height}`);
 	const gridLines = $derived<PlanGridLine[]>(buildPlanGrid(interaction.planView));
@@ -164,6 +166,16 @@
 		return () => observer.disconnect();
 	});
 
+	$effect(() => {
+		const replacementVersion = preview.reframeVersion;
+		if (framedReplacementVersion === null) {
+			framedReplacementVersion = replacementVersion;
+			return;
+		}
+		if (interaction.viewMode !== 'plan' || replacementVersion === framedReplacementVersion) return;
+		framedReplacementVersion = replacementVersion;
+		frameView();
+	});
 
 	function frameView() {
 		const points = [
@@ -211,7 +223,10 @@
 
 	function updatePrimitiveAt(point: LayoutVec2): void {
 		const floor = preview.project.layout.floors[0];
-		const room = floor ? findHitRoom(floor.rooms, point) : undefined;
+		const draft = interaction.primitiveDraft;
+		if (!draft) return;
+		const center = primitiveDraftCenter({ ...draft, current: point });
+		const room = floor ? findHitRoom(floor.rooms, center) : undefined;
 		updateLayoutPrimitiveDraft(interaction, point, room?.id);
 	}
 

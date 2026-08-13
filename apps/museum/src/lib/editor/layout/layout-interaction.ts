@@ -1,5 +1,5 @@
 import type { LayoutVec2 } from './layout-types';
-import { createPlanViewportState, type PlanViewportState } from './layout-plan-transform';
+import { createPlanViewportState, snapToGrid, type PlanViewportState } from './layout-plan-transform';
 import type { Vec3 } from '$lib/types/museum';
 export type LayoutViewMode = 'plan' | '3d';
 export type LayoutPrimitiveTool = 'box' | 'cylinder' | 'sphere';
@@ -145,6 +145,16 @@ export function primitiveDraftFootprint(draft: LayoutPrimitiveDraft, circleSteps
 	});
 }
 
+export function primitiveDraftCenter(
+	draft: Pick<LayoutPrimitiveDraft, 'kind' | 'start' | 'current'>
+): LayoutVec2 {
+	if (draft.kind !== 'box') return [...draft.start];
+	return [
+		(draft.start[0] + draft.current[0]) / 2,
+		(draft.start[1] + draft.current[1]) / 2
+	];
+}
+
 export function cancelLayoutPrimitiveDraft(state: LayoutInteractionState): void {
 	state.primitiveDraft = null;
 	if (state.tool === 'box' || state.tool === 'cylinder' || state.tool === 'sphere') state.tool = 'select';
@@ -250,17 +260,25 @@ export function beginRoomEdit(state: LayoutInteractionState, mode: LayoutRoomDra
 export function updateRoomEdit(state: LayoutInteractionState, currentWorld: LayoutVec2, snapEnabled = false): void {
 	const edit = state.editing;
 	if (!edit) return;
-	const delta: LayoutVec2 = [currentWorld[0] - edit.startWorld[0], currentWorld[1] - edit.startWorld[1]];
-	const candidate = (point: LayoutVec2): LayoutVec2 => {
-		const next: LayoutVec2 = [point[0] + delta[0], point[1] + delta[1]];
-		return snapEnabled ? [Math.round(next[0] * 4) / 4, Math.round(next[1] * 4) / 4] : next;
-	};
 	if (edit.mode === 'room') {
-		edit.currentPoints = edit.originalPoints.map(candidate);
+		const target = snapEnabled ? snapToGrid(currentWorld) : currentWorld;
+		const delta: LayoutVec2 = [
+			target[0] - edit.startWorld[0],
+			target[1] - edit.startWorld[1]
+		];
+		edit.currentPoints = edit.originalPoints.map(([x, z]) => [x + delta[0], z + delta[1]]);
 		return;
 	}
 	edit.currentPoints = edit.originalPoints.map((point) => [...point]);
-	if (edit.vertexIndex !== null) edit.currentPoints[edit.vertexIndex] = candidate(edit.originalPoints[edit.vertexIndex]!);
+	if (edit.vertexIndex !== null) {
+		const original = edit.originalPoints[edit.vertexIndex]!;
+		const delta: LayoutVec2 = [
+			currentWorld[0] - edit.startWorld[0],
+			currentWorld[1] - edit.startWorld[1]
+		];
+		const candidate: LayoutVec2 = [original[0] + delta[0], original[1] + delta[1]];
+		edit.currentPoints[edit.vertexIndex] = snapEnabled ? snapToGrid(candidate) : candidate;
+	}
 }
 
 export function cancelRoomEdit(state: LayoutInteractionState): void {

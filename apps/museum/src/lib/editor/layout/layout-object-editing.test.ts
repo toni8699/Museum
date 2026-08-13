@@ -58,9 +58,37 @@ describe('layout object editing', () => {
 		expect(descriptor.worldAabb.max[2]).toBeCloseTo(1);
 		expect(descriptor.planFootprint).toHaveLength(4);
 		const cylinder = describeLayoutObject({ id: 'cylinder', kind: 'cylinder', position: [0, 0.5, 0], rotation: [0, 0, 0], dimensions: [2, 1, 2] });
-		expect(cylinder.planFootprint).toHaveLength(32);
-		expect(cylinder.planFootprint[0]).toEqual([1, 0]);
+		expect(cylinder.planFootprint).toHaveLength(64);
+		expect(cylinder.planFootprint.some(([x, z]) => Math.abs(x - 1) < 1e-6 && Math.abs(z) < 1e-6)).toBe(true);
 		expect(findHitLayoutObject([describeLayoutObject(first), descriptor], [0, 0])?.objectId).toBe('second');
+	});
+
+	it('derives sampled bounds and footprints from exact primitive transforms', () => {
+		const sphere = describeLayoutObject({
+			id: 'sphere',
+			kind: 'sphere',
+			position: [0, 0.5, 0],
+			rotation: [0, Math.PI / 2, 0],
+			dimensions: [4, 1, 2]
+		});
+		expect(sphere.worldAabb.min[0]).toBeCloseTo(-1, 5);
+		expect(sphere.worldAabb.max[0]).toBeCloseTo(1, 5);
+		expect(sphere.worldAabb.min[1]).toBeCloseTo(0, 5);
+		expect(sphere.worldAabb.max[1]).toBeCloseTo(1, 5);
+		expect(sphere.worldAabb.min[2]).toBeCloseTo(-2, 5);
+		expect(sphere.worldAabb.max[2]).toBeCloseTo(2, 5);
+
+		const cylinder = describeLayoutObject({
+			id: 'rotated-cylinder',
+			kind: 'cylinder',
+			position: [0, 0, 0],
+			rotation: [0, 0, Math.PI / 2],
+			dimensions: [2, 4, 1]
+		});
+		expect(cylinder.worldAabb.min[0]).toBeCloseTo(-2, 5);
+		expect(cylinder.worldAabb.max[0]).toBeCloseTo(2, 5);
+		expect(cylinder.worldAabb.min[2]).toBeCloseTo(-0.5, 5);
+		expect(cylinder.worldAabb.max[2]).toBeCloseTo(0.5, 5);
 	});
 
 	it('marks profile placeholders read-only and validates room references', () => {

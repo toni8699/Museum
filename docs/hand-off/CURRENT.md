@@ -37,7 +37,8 @@ B5 makes checked-in `chopin-project.json` the sole production layout/scene sourc
 - B4 full suite: 89 files / 1121 tests passed.
 - B5 full suite: 92 files / 1130 tests passed.
 - B5 `npm run check -w @portfolio/museum`: 0 errors / 0 warnings.
-- G1 focused compiler/parity/boundary set passed; full suite 94 files / 1147 tests passed; check 0 errors / 0 warnings; production build passed with the shared compiler in the visitor graph and `buildLayoutArchitectureModel()` deleted.
+- G1 compiler/parity/boundary hardening passed; full suite 95 files / 1160 tests passed; check 0 errors / 0 warnings; production build passed. Shared geometry now rejects unsafe sample budgets with structured issues, gives compiled entities and query records qualified identities, and routes Plan committed hit geometry through compiled queries; `buildLayoutArchitectureModel()` remains deleted.
+- G1 close (codec collapse + review round): full suite 96 files / 1169 tests passed; check 0 errors / 0 warnings; production build passed. One strict `validateLayoutDocument` lives below `$lib/layout` (unique floor/room/object/opening/segment/anchor IDs, ID pattern, positive numbers, unknown-key rejection, v1/v2 bezier migration); the editor duplicate and its re-export shim are deleted, and the project codec and editor share the same layout import/save gate.
 - B5 production build passed; visitor chunk scan contains the canonical project and `LayoutMuseumShell`, with no architecture source toggle, runtime compiler, editor marker, standalone scene JSON, or legacy shell marker.
 - B5 production browser QA passed: all nine guided nodes forward, reverse Back, free-mode direct navigation, reduced motion, HUD room updates, Paris and Music Chamber visuals, inert legacy query, clean browser errors, and `/dev/museum-editor` 404.
 
@@ -66,7 +67,8 @@ B5 makes checked-in `chopin-project.json` the sole production layout/scene sourc
 - Layout v3 persists a stable room frame. V1/v2 migration derives origin from the sampled-boundary centroid and yaw from the first non-zero tangent; room relocation moves frame/boundary/owned objects atomically.
 - B3 translation snaps 0.25 m; Shift rotation snaps 15°; room body/rotation-arm gestures and inspector rotation each create at most one `layout` history entry.
 - B5 is shipped. `rooms.ts` is a deprecated project-derived editor/test compatibility projection and cannot enter visitor imports. Unified outliner remains future work.
-- G1 is shipped. Plan, editor 3D, and visitor 3D consume one visitor-safe `compileLayoutGeometry()`; no consumer resamples curves or reinterprets opening topology. The editor preview model is a compiled-geometry adapter and its bounds come from `CompiledLayoutGeometry`. The only separate sampler is the frozen v1/v2 room-frame migration algorithm.
+- G1 is shipped. Plan, editor 3D, and visitor 3D consume one visitor-safe `compileLayoutGeometry()`; no consumer resamples curves or reinterprets opening topology. Compiled entities and query records carry qualified identities/content keys; Plan committed hit geometry uses compiled point/span/polygon queries. Unsafe derived lengths and sample budgets fail as structured room issues. The editor preview model is a compiled-geometry adapter and its bounds come from `CompiledLayoutGeometry`. The only separate sampler is the frozen v1/v2 room-frame migration algorithm.
+- One layout codec, below `$lib/layout`: strict structural validation (unique IDs scoped per room for segments/anchors, global for floors/rooms/objects/openings; `ID_PATTERN`; positive numbers; unknown-key rejection; legacy `bezier` migration on read) gates both project import (`project-codec.ts`) and editor in-memory documents. Wall geometry keys are room-scoped (`roomId` + `segmentId`); cross-room segment-ID reuse is valid and handled by the nested room→segment span map.
 
 ## Out of scope this slice
 

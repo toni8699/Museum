@@ -60,12 +60,15 @@ export function compileLayoutGeometry(document: LayoutDocument): CompiledLayoutG
 
 		for (const [roomIndex, room] of floor.rooms.entries()) {
 			const path = `floors[${floorIndex}].rooms[${roomIndex}]`;
-			const prepared = prepareLayoutRoomSegments(room);
-			const roomIssues = validatePreparedLayoutRoomGeometry(room, floor, prepared, path);
+			const prepared = prepareLayoutRoomSegments(room, path);
+			const roomIssues = [
+				...prepared.issues,
+				...validatePreparedLayoutRoomGeometry(room, floor, prepared.segments, path)
+			];
 			issues.push(...roomIssues);
 			if (hasBlockingLayoutIssues(roomIssues)) continue;
 
-			const compiledRoom = compileRoom(room, floor, prepared as SampledSegment[], queryBuilder);
+			const compiledRoom = compileRoom(room, floor, prepared.segments as SampledSegment[], queryBuilder);
 			rooms.push(compiledRoom);
 			floorRoomIds.push(room.id);
 			includeBounds3(floorMin, floorMax, compiledRoom.bounds3.min, compiledRoom.bounds3.max);
@@ -78,6 +81,15 @@ export function compileLayoutGeometry(document: LayoutDocument): CompiledLayoutG
 		}
 
 		floors.push({
+			id: geometryId(['floor', floor.id]),
+			cacheKey: cacheKeyOf([
+				'floor',
+				floor.id,
+				floor.elevation,
+				floor.height,
+				floorRoomIds,
+				finiteBounds3(floorMin, floorMax)
+			]),
 			floorId: floor.id,
 			elevation: floor.elevation,
 			height: floor.height,
@@ -138,13 +150,31 @@ function compileRoom(
 	const walls: CompiledWall[] = room.boundary.segments.map((segment, index) => {
 		const sampled = sampledSegments[index]!;
 		const openings = openingsBySegment.get(segment.id) ?? [];
+		const segmentDependencyKey = cacheKeyOf([
+			'segment-geometry',
+			floor.id,
+			room.id,
+			segment
+		]);
+		const wallCacheKey = cacheKeyOf([
+			'wall',
+			segmentDependencyKey,
+			openings,
+			room.wallThickness,
+			floor.elevation,
+			floor.height
+		]);
 		const sections = splitSampledWallAroundOpenings(sampled, segment, openings, floor.height);
-		const compiledOpenings = openings.map((opening) => compileOpening(opening, sampled));
+		const compiledOpenings = openings.map((opening) =>
+			compileOpening(opening, sampled, floor.id, room.id, segmentDependencyKey)
+		);
 		const solidSpans = buildSolidSpans(sampled.samples, sections);
 		const solidCenterlinePolylines = wallPolylinesAroundOpenings(sampled.samples, openings);
 		const wallBounds2Value = wallBounds2(sampled.samples, room.wallThickness);
 		const wallBounds3Value = wallBounds3(sampled.samples, room.wallThickness, floorElevation, ceilingElevation);
 		return {
+			id: geometryId(['wall', floor.id, room.id, segment.id]),
+			cacheKey: wallCacheKey,
 			segmentId: segment.id,
 			thickness: room.wallThickness,
 			length: sampled.length,
@@ -165,6 +195,19 @@ function compileRoom(
 	emitRoomQueryRecords(queryBuilder, floor, room, walls, floorPolygon, roomBounds3);
 
 	return {
+		id: geometryId(['room', floor.id, room.id]),
+		cacheKey: cacheKeyOf([
+			'room',
+			floor.id,
+			floor.elevation,
+			floor.height,
+			room.id,
+			room.boundary,
+			room.wallThickness,
+			room.floorThickness,
+			room.ceilingThickness,
+			room.openings
+		]),
 		roomId: room.id,
 		floorElevation,
 		ceilingElevation,
@@ -180,7 +223,13 @@ function compileRoom(
 	};
 }
 
-function compileOpening(opening: LayoutOpening, sampled: SampledSegment): CompiledOpening {
+function compileOpening(
+	opening: LayoutOpening,
+	sampled: SampledSegment,
+	floorId: string,
+	roomId: string,
+	segmentDependencyKey: string
+): CompiledOpening {
 	const centerDistance = opening.offset + opening.width / 2;
 	const point = pointAlongSamples(sampled.samples, centerDistance);
 	const before = pointAlongSamples(sampled.samples, Math.max(0, centerDistance - OPENING_CENTER_EPSILON));
@@ -194,6 +243,8 @@ function compileOpening(opening: LayoutOpening, sampled: SampledSegment): Compil
 		: buildArchProfile(opening.profile, opening.width, opening.height).profile ?? undefined;
 	const centerPolyline = openingCenterPolyline(sampled, opening.offset, opening.offset + opening.width);
 	return {
+		id: geometryId(['opening', floorId, roomId, opening.id]),
+		cacheKey: cacheKeyOf(['opening', segmentDependencyKey, opening]),
 		openingId: opening.id,
 		segmentId: opening.segmentId,
 		kind: opening.kind,
@@ -271,7 +322,15 @@ function compileObjects(
 		}
 		const descriptor = describeLayoutObject(object);
 		compiled.push(descriptor);
-		queryBuilder.polygons.push(polygonRecord('object-footprint', ['object-footprint', object.id], descriptor.planFootprint, object.id));
+		queryBuilder.polygons.push(
+			polygonRecord(
+				'object-footprint',
+				['object-footprint', object.id],
+				descriptor.planFootprint,
+				object.id,
+				{ objectId: object.id }
+			)
+		);
 		queryBuilder.aabbs.push(aabbRecord('object', object.id, ['object', object.id], descriptor.worldAabb.min, descriptor.worldAabb.max));
 	}
 	return compiled;
@@ -293,11 +352,31 @@ function emitRoomQueryRecords(
 ): void {
 	const roomIdParts = ['room', floor.id, room.id];
 
-	for (const segment of room.boundary.segments) {
-		queryBuilder.points.push(pointRecord(roomIdParts, 'vertex', segment.id, [...segment.start] as LayoutVec2));
+	for (const [segmentIndex, segment] of room.boundary.segments.entries()) {
+		queryBuilder.points.push(
+			pointRecord(
+				floor.id,
+				room.id,
+				segment.id,
+				'vertex',
+				segment.id,
+				segmentIndex,
+				[...segment.start] as LayoutVec2
+			)
+		);
 		if (segment.kind === 'auto-bezier') {
-			for (const anchor of segment.interiorAnchors) {
-				queryBuilder.points.push(pointRecord(roomIdParts, 'anchor', anchor.id, [...anchor.point] as LayoutVec2));
+			for (const [anchorIndex, anchor] of segment.interiorAnchors.entries()) {
+				queryBuilder.points.push(
+					pointRecord(
+						floor.id,
+						room.id,
+						segment.id,
+						'interior-anchor',
+						anchor.id,
+						anchorIndex,
+						[...anchor.point] as LayoutVec2
+					)
+				);
 			}
 		}
 	}
@@ -306,15 +385,58 @@ function emitRoomQueryRecords(
 		for (let index = 1; index < wall.samples.length; index += 1) {
 			const start = wall.samples[index - 1]!;
 			const end = wall.samples[index]!;
-			queryBuilder.spans.push(spanRecord('wall', ['wall-span', floor.id, room.id, wall.segmentId, String(index - 1)], start.point, end.point, start.distance, end.distance, wall.segmentId));
+			queryBuilder.spans.push(
+				spanRecord(
+					'wall',
+					['wall-span', floor.id, room.id, wall.segmentId, String(index - 1)],
+					start.point,
+					end.point,
+					start.distance,
+					end.distance,
+					wall.segmentId,
+					floor.id,
+					room.id,
+					wall.segmentId,
+					undefined,
+					start.t,
+					end.t
+				)
+			);
 		}
 		for (const opening of wall.openings) {
 			const start = pointAlongSamples(wall.samples, opening.offset);
 			const end = pointAlongSamples(wall.samples, opening.offset + opening.width);
-			queryBuilder.spans.push(spanRecord('opening', ['opening-span', floor.id, room.id, opening.openingId], start, end, opening.offset, opening.offset + opening.width, opening.openingId));
+			queryBuilder.spans.push(
+				spanRecord(
+					'opening',
+					['opening-span', floor.id, room.id, opening.openingId],
+					start,
+					end,
+					opening.offset,
+					opening.offset + opening.width,
+					opening.openingId,
+					floor.id,
+					room.id,
+					wall.segmentId,
+					opening.openingId
+				)
+			);
 		}
 		for (const [index, span] of wall.solidSpans.entries()) {
-			queryBuilder.spans.push(spanRecord('solid', ['solid-span', floor.id, room.id, wall.segmentId, String(index)], span.start, span.end, span.startDistance, span.endDistance, wall.segmentId));
+			queryBuilder.spans.push(
+				spanRecord(
+					'solid',
+					['solid-span', floor.id, room.id, wall.segmentId, String(index)],
+					span.start,
+					span.end,
+					span.startDistance,
+					span.endDistance,
+					wall.segmentId,
+					floor.id,
+					room.id,
+					wall.segmentId
+				)
+			);
 		}
 		queryBuilder.aabbs.push(aabbRecord('wall', wall.segmentId, ['wall', floor.id, room.id, wall.segmentId], wall.bounds3.min, wall.bounds3.max));
 		for (const opening of wall.openings) {
@@ -322,7 +444,15 @@ function emitRoomQueryRecords(
 		}
 	}
 
-	queryBuilder.polygons.push(polygonRecord('room-floor', ['room-floor', floor.id, room.id], [...floorPolygon], room.id));
+	queryBuilder.polygons.push(
+		polygonRecord(
+			'room-floor',
+			['room-floor', floor.id, room.id],
+			[...floorPolygon],
+			room.id,
+			{ floorId: floor.id, roomId: room.id }
+		)
+	);
 	queryBuilder.aabbs.push(aabbRecord('room', room.id, roomIdParts, roomBounds3.min, roomBounds3.max));
 }
 
@@ -410,9 +540,28 @@ function cacheKeyOf(parts: readonly unknown[]): string {
 	return JSON.stringify(parts);
 }
 
-function pointRecord(roomIdParts: readonly string[], kind: string, sourceId: string, point: LayoutVec2) {
-	const parts = [...roomIdParts, kind, sourceId];
-	return { id: geometryId(parts), cacheKey: cacheKeyOf([...parts, point]), point };
+function pointRecord(
+	floorId: string,
+	roomId: string,
+	segmentId: string,
+	kind: 'vertex' | 'interior-anchor',
+	sourceId: string,
+	sourceIndex: number,
+	point: LayoutVec2
+) {
+	const parts = ['query-point', floorId, roomId, segmentId, kind, sourceId];
+	return {
+		id: geometryId(parts),
+		cacheKey: cacheKeyOf([...parts, sourceIndex, point]),
+		kind,
+		point,
+		aabb: bounds2(point[0], point[1], point[0], point[1]),
+		sourceId,
+		floorId,
+		roomId,
+		segmentId,
+		sourceIndex
+	};
 }
 
 function spanRecord(
@@ -422,23 +571,54 @@ function spanRecord(
 	end: LayoutVec2,
 	startDistance: number,
 	endDistance: number,
-	sourceId: string
+	sourceId: string,
+	floorId: string,
+	roomId: string,
+	segmentId: string,
+	openingId?: string,
+	startT?: number,
+	endT?: number
 ) {
 	const aabb = bounds2(Math.min(start[0], end[0]), Math.min(start[1], end[1]), Math.max(start[0], end[0]), Math.max(start[1], end[1]));
 	return {
 		id: geometryId(parts),
-		cacheKey: cacheKeyOf([...parts, start, end]),
+		cacheKey: cacheKeyOf([
+			...parts,
+			start,
+			end,
+			startDistance,
+			endDistance,
+			startT,
+			endT,
+			sourceId,
+			floorId,
+			roomId,
+			segmentId,
+			openingId
+		]),
 		kind,
 		start,
 		end,
 		startDistance,
 		endDistance,
+		...(startT === undefined ? {} : { startT }),
+		...(endT === undefined ? {} : { endT }),
 		aabb,
-		sourceId
+		sourceId,
+		floorId,
+		roomId,
+		segmentId,
+		...(openingId ? { openingId } : {})
 	};
 }
 
-function polygonRecord(kind: 'room-floor' | 'object-footprint', parts: readonly string[], polygon: readonly LayoutVec2[], sourceId: string) {
+function polygonRecord(
+	kind: 'room-floor' | 'object-footprint',
+	parts: readonly string[],
+	polygon: readonly LayoutVec2[],
+	sourceId: string,
+	metadata: { floorId?: string; roomId?: string; objectId?: string }
+) {
 	const aabb = polygonBounds2(polygon) ?? bounds2(0, 0, 0, 0);
 	return {
 		id: geometryId(parts),
@@ -446,7 +626,8 @@ function polygonRecord(kind: 'room-floor' | 'object-footprint', parts: readonly 
 		kind,
 		polygon: [...polygon] as LayoutVec2[],
 		aabb,
-		sourceId
+		sourceId,
+		...metadata
 	};
 }
 

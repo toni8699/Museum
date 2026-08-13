@@ -6,7 +6,7 @@ import {
 } from '$lib/content/scene';
 import { museumSceneDocument } from '$lib/content/chopin-project';
 import { roomsToLayout } from '$lib/editor/layout/rooms-to-layout';
-import { createEmptyLayoutDocument } from '$lib/editor/layout/layout-codec';
+import { createEmptyLayoutDocument } from '$lib/layout/layout-codec';
 
 import {
 	createMuseumProject,

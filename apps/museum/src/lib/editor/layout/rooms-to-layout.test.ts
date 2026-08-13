@@ -9,7 +9,7 @@ import {
 	CHOPIN_LAYOUT_WALL_THICKNESS,
 	roomsToLayout
 } from './rooms-to-layout';
-import { serializeLayoutDocument, validateLayoutDocument } from './layout-codec';
+import { serializeLayoutDocument, validateLayoutDocument } from '$lib/layout/layout-codec';
 
 function compiledRoom(roomId: string) {
 	const room = roomsToLayout().floors[0]!.rooms.find((candidate) => candidate.id === roomId);

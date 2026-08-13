@@ -280,6 +280,56 @@ describe('LayoutDocument codec', () => {
 		expect(issueCodes(duplicateDocument)).toContain('duplicate_id');
 	});
 
+	it('rejects duplicate segment IDs within a room boundary', () => {
+		const document = baseDocument();
+		document.floors[0]!.rooms[0]!.boundary.segments = [
+			{ id: 'wall-a', kind: 'line', start: [0, 0], end: [6, 0] },
+			{ id: 'wall-a', kind: 'line', start: [6, 0], end: [6, 4] },
+			{ id: 'wall-c', kind: 'line', start: [6, 4], end: [0, 4] },
+			{ id: 'wall-d', kind: 'line', start: [0, 4], end: [0, 0] }
+		];
+		const codes = issueCodes(document);
+		expect(codes).toContain('duplicate_id');
+		expect(codes.filter((code) => code === 'duplicate_id').length).toBe(1);
+	});
+
+	it('scopes segment IDs per room: reuse across rooms is valid', () => {
+		const document = baseDocument();
+		const second = rectangleRoom('room-second');
+		second.boundary.segments[0]!.id = 'wall-a';
+		document.floors[0]!.rooms.push(second);
+		// Segment uniqueness is per-room; consumers must key wall geometry by room + segment.
+		expect(issueCodes(document)).toEqual([]);
+		expect(successDocument(document).floors[0]!.rooms[1]!.boundary.segments[0]!.id).toBe('wall-a');
+	});
+
+	it('rejects duplicate room IDs within a floor', () => {
+		const document = baseDocument();
+		document.floors[0]!.rooms.push(rectangleRoom('room-main'));
+		const codes = issueCodes(document);
+		expect(codes).toContain('duplicate_id');
+	});
+
+	it('rejects duplicate interior anchor IDs on an auto-bezier segment', () => {
+		const document = baseDocument();
+		document.floors[0]!.rooms[0]!.boundary.segments = [
+			{
+				id: 'curve-a',
+				kind: 'auto-bezier',
+				start: [0, 0],
+				end: [6, 0],
+				interiorAnchors: [
+					{ id: 'anchor-1', point: [2, -1] },
+					{ id: 'anchor-1', point: [4, -1] }
+				]
+			},
+			{ id: 'line-b', kind: 'line', start: [6, 0], end: [6, 4] },
+			{ id: 'line-c', kind: 'line', start: [6, 4], end: [0, 4] },
+			{ id: 'line-d', kind: 'line', start: [0, 4], end: [0, 0] }
+		];
+		expect(issueCodes(document)).toContain('duplicate_id');
+	});
+
 	it('rejects non-finite and non-positive values', () => {
 		const document = baseDocument();
 		document.floors[0]!.height = Number.NaN;

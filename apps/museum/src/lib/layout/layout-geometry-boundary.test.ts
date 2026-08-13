@@ -111,6 +111,10 @@ describe('G1 geometry boundary', () => {
 		expect(sourceOf(resolve(srcRoot, 'lib/content/chopin-project.ts'))).toContain('compileLayoutGeometry');
 		expect(sourceOf(resolve(srcRoot, 'lib/museum/layout/LayoutMuseumShell.svelte'))).toContain('CompiledLayoutGeometry');
 		expect(sourceOf(resolve(srcRoot, 'lib/editor/layout/LayoutPreviewScene.svelte'))).toContain('solidSpans');
-		expect(sourceOf(resolve(srcRoot, 'lib/editor/layout/LayoutPlanViewport.svelte'))).toContain('$lib/layout/layout-geometry-curve');
+		const planSource = sourceOf(resolve(srcRoot, 'lib/editor/layout/LayoutPlanViewport.svelte'));
+		expect(planSource).toContain('$lib/layout/layout-geometry-queries');
+		expect(planSource).toContain('projectPointToSpans');
+		expect(planSource).toContain('model.queries.points');
+		expect(planSource).not.toContain('$lib/layout/layout-geometry-curve');
 	});
 });

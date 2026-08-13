@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { serializeSceneDocument } from '$lib/content/scene-codec';
-import { createEmptyLayoutDocument, serializeLayoutDocument } from './layout-codec';
+import { createEmptyLayoutDocument, serializeLayoutDocument } from '$lib/layout/layout-codec';
 import {
 	captureLayoutPreviewSnapshot,
 	commitLayoutDraftRoom,

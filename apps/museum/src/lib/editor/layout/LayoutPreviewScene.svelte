@@ -4,6 +4,7 @@
 	import type { LayoutPreviewModel, LayoutRoomPreview } from './layout-mesh-factory';
 	import type { LayoutInteractionState } from './layout-interaction';
 	import { ceilingShapePoints, floorShapePoints } from './layout-preview-geometry';
+	import { FLOOR_MATERIAL, wallMaterialForKey, wallSectionMaterialKey } from './layout-wall-material';
 
 	let {
 		model,
@@ -28,13 +29,24 @@
 		shape.closePath();
 		return shape;
 	}
+
+	// Build each room's floor + ceiling Shape once per model. Selection / drag
+	// re-renders must not reallocate shapes or rebuild their geometry.
+	const roomShapes = $derived(
+		model.rooms.map((room) => ({
+			floor: polygonShape(floorShapePoints(room.floorPolygon)),
+			ceiling: polygonShape(ceilingShapePoints(room.ceilingPolygon))
+		}))
+	);
 </script>
 
 <T.Group name="LayoutPreviewRoot">
-	{#each model.rooms as room (room.roomId)}
+	{#each model.rooms as room, roomIndex (room.roomId)}
+		{@const shapes = roomShapes[roomIndex]!}
 		<T.Group name={`LayoutRoom:${room.roomId}`}>
 			<T.Mesh
 				name={`LayoutFloor:${room.roomId}`}
+				material={FLOOR_MATERIAL}
 				position={[0, room.floorElevation, 0]}
 				rotation={[-Math.PI / 2, 0, 0]}
 				receiveShadow
@@ -44,34 +56,31 @@
 					editorSurface: { type: 'floor', placeable: true, roomId: room.roomId }
 				}}
 			>
-				<T.ShapeGeometry args={[polygonShape(floorShapePoints(room.floorPolygon))]} />
-				<T.MeshStandardMaterial color="#6b6254" roughness={0.9} metalness={0} />
+				<T.ShapeGeometry args={[shapes.floor]} />
 			</T.Mesh>
 
-			<T.Mesh
-				name={`LayoutCeiling:${room.roomId}`}
-				position={[0, room.ceilingElevation, 0]}
-				rotation={[Math.PI / 2, 0, 0]}
-				renderOrder={2}
-			>
-				<T.ShapeGeometry args={[polygonShape(ceilingShapePoints(room.ceilingPolygon))]} />
-				<T.MeshBasicMaterial
-					color="#d8c9a6"
-					transparent={!showCeilings}
-					opacity={showCeilings ? 1 : 0}
-					depthWrite={showCeilings}
-					side={DoubleSide}
-				/>
-			</T.Mesh>
+			{#if showCeilings}
+				<T.Mesh
+					name={`LayoutCeiling:${room.roomId}`}
+					position={[0, room.ceilingElevation, 0]}
+					rotation={[Math.PI / 2, 0, 0]}
+					renderOrder={2}
+				>
+					<T.ShapeGeometry args={[shapes.ceiling]} />
+					<T.MeshBasicMaterial color="#d8c9a6" side={DoubleSide} />
+				</T.Mesh>
+			{/if}
 
 			{#each room.walls as wall (wall.segmentId)}
 				<!-- Chord BoxGeometry strips: known visual approx at sharp bends; exact thick-wall topology deferred. -->
 				{#each wall.solidSpans as span, spanIndex (`${wall.segmentId}:span:${spanIndex}`)}
 					{@const section = wall.sections[span.sectionIndex]!}
+					{@const materialKey = wallSectionMaterialKey(selectedOpeningId, selectedSegmentId, wall.segmentId, section.openingId)}
 					{@const dx = span.end[0] - span.start[0]}
 					{@const dz = span.end[1] - span.start[1]}
 					<T.Mesh
 						name={`LayoutWallSection:${wall.segmentId}:${spanIndex}`}
+						material={wallMaterialForKey(materialKey)}
 						position={[
 							(span.start[0] + span.end[0]) / 2,
 							room.floorElevation + (span.bottomY + span.topY) / 2,
@@ -87,15 +96,6 @@
 								span.topY - span.bottomY,
 								wall.thickness
 							]}
-						/>
-						<T.MeshStandardMaterial
-							color={section.openingId === selectedOpeningId
-								? '#f1d99a'
-								: wall.segmentId === selectedSegmentId
-									? '#d6b35f'
-									: '#a99d89'}
-							roughness={0.82}
-							metalness={0}
 						/>
 					</T.Mesh>
 				{/each}

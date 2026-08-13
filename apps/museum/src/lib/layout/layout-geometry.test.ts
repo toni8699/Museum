@@ -165,4 +165,83 @@ describe('compileLayoutGeometry', () => {
 		expect(normalizeForParity(first)).toEqual(normalizeForParity(second));
 		expect(second.issues).toEqual([]);
 	});
+
+	it('rejects pathological finite line lengths with structured sampling issues', () => {
+		const document = g1LineRectangleDocument();
+		const room = document.floors[0]!.rooms[0]!;
+		room.boundary.segments = [
+			{ id: 'huge:0', kind: 'line', start: [0, 0], end: [1e15, 0] },
+			{ id: 'huge:1', kind: 'line', start: [1e15, 0], end: [1e15, 1] },
+			{ id: 'huge:2', kind: 'line', start: [1e15, 1], end: [0, 1] },
+			{ id: 'huge:3', kind: 'line', start: [0, 1], end: [0, 0] }
+		];
+
+		const result = compileLayoutGeometry(document);
+		expect(result.geometry.rooms).toEqual([]);
+		expect(result.issues.some((issue) => issue.code === 'sampling_budget_exceeded')).toBe(true);
+	});
+
+	it('rejects finite coordinates whose derived line length overflows', () => {
+		const document = g1LineRectangleDocument();
+		const room = document.floors[0]!.rooms[0]!;
+		room.boundary.segments = [
+			{ id: 'overflow:0', kind: 'line', start: [1e308, 0], end: [-1e308, 0] },
+			{ id: 'overflow:1', kind: 'line', start: [-1e308, 0], end: [-1e308, 1] },
+			{ id: 'overflow:2', kind: 'line', start: [-1e308, 1], end: [1e308, 1] },
+			{ id: 'overflow:3', kind: 'line', start: [1e308, 1], end: [1e308, 0] }
+		];
+
+		const result = compileLayoutGeometry(document);
+		expect(result.geometry.rooms).toEqual([]);
+		expect(result.issues.some((issue) => issue.code === 'sampling_length_invalid')).toBe(true);
+	});
+
+	it('emits identities and complete point-query metadata', () => {
+		const { geometry, issues } = compileLayoutGeometry(g1AutoBezierDocument());
+		expect(issues).toEqual([]);
+		const entities = [
+			...geometry.floors,
+			...geometry.rooms,
+			...geometry.rooms.flatMap((room) => room.walls),
+			...geometry.rooms.flatMap((room) => room.openings),
+			...geometry.objects
+		];
+		for (const entity of entities) {
+			expect(entity.id.length).toBeGreaterThan(0);
+			expect(entity.cacheKey.length).toBeGreaterThan(0);
+		}
+		for (const point of geometry.queries.points) {
+			expect(['vertex', 'interior-anchor']).toContain(point.kind);
+			expect(point.sourceId.length).toBeGreaterThan(0);
+			expect(point.roomId).toBe('room-rectangle');
+			expect(point.aabb.min).toEqual(point.point);
+			expect(point.aabb.max).toEqual(point.point);
+		}
+	});
+
+	it('qualifies same-named wall query records by room', () => {
+		const document = g1LineRectangleDocument();
+		const first = document.floors[0]!.rooms[0]!;
+		const second = structuredClone(first);
+		second.id = 'room-second';
+		second.name = 'Second';
+		second.boundary.segments = second.boundary.segments.map((segment) => ({
+			...segment,
+			start: [segment.start[0] + 20, segment.start[1]],
+			end: [segment.end[0] + 20, segment.end[1]]
+		}));
+		second.boundary.segments[0]!.id = first.boundary.segments[0]!.id;
+		document.floors[0]!.rooms.push(second);
+
+		const { geometry, issues } = compileLayoutGeometry(document);
+		expect(issues).toEqual([]);
+		const sharedId = first.boundary.segments[0]!.id;
+		const spans = geometry.queries.spans.filter(
+			(span) => span.kind === 'wall' && span.segmentId === sharedId
+		);
+		expect(new Set(spans.map((span) => span.roomId))).toEqual(
+			new Set(['room-rectangle', 'room-second'])
+		);
+		expect(new Set(spans.map((span) => span.id)).size).toBe(spans.length);
+	});
 });

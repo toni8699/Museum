@@ -3,6 +3,7 @@ import type { LayoutGeometryIssue } from './layout-geometry-types';
 import {
 	CURVE_ENDPOINT_EPSILON,
 	CURVE_SELF_INTERSECTION_TOLERANCE,
+	LayoutGeometrySamplingError,
 	sampleSegment,
 	sampledPolylineIntersects,
 	sampledPolylineSelfIntersects,
@@ -17,10 +18,32 @@ export type { LayoutGeometryIssue };
  * intermediate. Non-finite segments are represented by `null` so validation
  * can report them without sampling.
  */
-export function prepareLayoutRoomSegments(room: LayoutRoom): (SampledSegment | null)[] {
-	return room.boundary.segments.map((segment) =>
-		isFiniteSegment(segment) ? sampleSegment(segment) : null
-	);
+export type PreparedLayoutRoomGeometry = {
+	segments: (SampledSegment | null)[];
+	issues: LayoutGeometryIssue[];
+};
+
+export function prepareLayoutRoomSegments(
+	room: LayoutRoom,
+	path = `rooms.${room.id}`
+): PreparedLayoutRoomGeometry {
+	const issues: LayoutGeometryIssue[] = [];
+	const segments = room.boundary.segments.map((segment, index) => {
+		if (!isFiniteSegment(segment)) return null;
+		try {
+			return sampleSegment(segment);
+		} catch (error) {
+			const samplingError = error instanceof LayoutGeometrySamplingError ? error : null;
+			issues.push({
+				path: `${path}.boundary.segments[${index}]`,
+				code: samplingError?.code ?? 'sampling_failed',
+				message: samplingError?.message ?? 'Segment sampling failed.',
+				targetId: segment.id
+			});
+			return null;
+		}
+	});
+	return { segments, issues };
 }
 
 export function validateLineRoom(room: LayoutRoom, floor: LayoutFloor, path = `rooms.${room.id}`): LayoutGeometryIssue[] {
@@ -29,7 +52,11 @@ export function validateLineRoom(room: LayoutRoom, floor: LayoutFloor, path = `r
 
 /** Convenience validator for edit candidates: prepares then validates. */
 export function validateLayoutRoomGeometry(room: LayoutRoom, floor: LayoutFloor, path = `rooms.${room.id}`): LayoutGeometryIssue[] {
-	return validatePreparedLayoutRoomGeometry(room, floor, prepareLayoutRoomSegments(room), path);
+	const prepared = prepareLayoutRoomSegments(room, path);
+	return [
+		...prepared.issues,
+		...validatePreparedLayoutRoomGeometry(room, floor, prepared.segments, path)
+	];
 }
 
 export function validatePreparedLayoutRoomGeometry(

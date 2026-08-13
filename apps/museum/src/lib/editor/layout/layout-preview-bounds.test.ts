@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { roomsToLayout } from './rooms-to-layout';
 import { buildLayoutPreviewModel } from './layout-mesh-factory';
-import { createEmptyLayoutDocument } from './layout-codec';
+import { createEmptyLayoutDocument } from '$lib/layout/layout-codec';
 import { createA1RectangleDocument } from './layout-a1-fixtures';
 
 describe('layoutPreviewBounds', () => {

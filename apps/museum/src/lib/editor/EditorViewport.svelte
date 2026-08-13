@@ -18,6 +18,7 @@
 	import LayoutPreviewScene from './layout/LayoutPreviewScene.svelte';
 	import LayoutPlanViewport from './layout/LayoutPlanViewport.svelte';
 	import LayoutDraftToolbar from './layout/LayoutDraftToolbar.svelte';
+	import LayoutRenderGate from './layout/LayoutRenderGate.svelte';
 	import type { LayoutInteractionState } from './layout/layout-interaction';
 	import type { LayoutPreviewState } from './layout/layout-preview-state.svelte';
 	import {
@@ -125,49 +126,32 @@
 >
 	{#if store.currentWorkspace === 'layout'}
 		<LayoutDraftToolbar interaction={layoutInteraction} preview={layoutPreview} onCancelLayoutTransaction={cancelLayoutTransaction} />
-	{/if}
-	{#if store.currentWorkspace === 'layout' && layoutInteraction.viewMode === 'plan'}
-		<LayoutPlanViewport
-			model={layoutPreview.model}
-			preview={layoutPreview}
-			interaction={layoutInteraction}
-			onCommit={commitDraftRoom}
-			onOpeningCreate={createOpening}
-			onOpeningDelete={deleteOpening}
-			onLayoutTransactionBegin={beginLayoutTransaction}
-			onLayoutTransactionCommit={commitLayoutTransaction}
-			onLayoutTransactionCancel={cancelLayoutTransaction}
-		/>
-	{:else}
-		{#if store.currentWorkspace !== 'layout'}
-			<EditorViewportToolbar {store} />
-		{/if}
 		<Canvas dpr={[1, 1.5]} shadows>
-		<MuseumScene
-			scene={store.scene}
-			state={store.state}
-			showNavigationNodes={false}
-			ambientIntensity={store.ambientIntensity}
-			directionalIntensity={store.directionalIntensity}
-			fogEnabled={store.fogEnabled}
-			fogNear={store.fogNear}
-			fogFar={store.fogFar}
-			forceParisAssets
-			showArchitecture={store.currentWorkspace !== 'layout'}
-		>
-			{#snippet camera(graph, _state)}
-				<EditorCameraRig
-					{store}
-					{graph}
-					layoutBounds={layoutPreview.bounds}
-					layoutFrameVersion={layoutPreview.previewVersion}
-				/>
-			{/snippet}
-			{#snippet entityRenderer(scene, rooms, _activation)}
-				<EditorMuseumEntities {scene} {rooms} {placementRegistry} />
-			{/snippet}
-		</MuseumScene>
-		{#if store.currentWorkspace === 'layout'}
+			<LayoutRenderGate interaction={layoutInteraction} />
+			<MuseumScene
+				scene={store.scene}
+				state={store.state}
+				showNavigationNodes={false}
+				ambientIntensity={store.ambientIntensity}
+				directionalIntensity={store.directionalIntensity}
+				fogEnabled={store.fogEnabled}
+				fogNear={store.fogNear}
+				fogFar={store.fogFar}
+				forceParisAssets
+				showArchitecture={false}
+			>
+				{#snippet camera(graph, _state)}
+					<EditorCameraRig
+						{store}
+						{graph}
+						layoutBounds={layoutPreview.bounds}
+						layoutFrameVersion={layoutPreview.previewVersion}
+					/>
+				{/snippet}
+				{#snippet entityRenderer(scene, rooms, _activation)}
+					<EditorMuseumEntities {scene} {rooms} {placementRegistry} />
+				{/snippet}
+			</MuseumScene>
 			<LayoutPreviewScene
 				model={layoutPreview.model}
 				interaction={layoutInteraction}
@@ -175,45 +159,84 @@
 				selectedSegmentId={layoutInteraction.selection.kind === 'wall' || layoutInteraction.selection.kind === 'opening' || layoutInteraction.selection.kind === 'interiorAnchor' ? layoutInteraction.selection.segmentId : null}
 				selectedOpeningId={layoutInteraction.selection.kind === 'opening' ? layoutInteraction.selection.openingId : null}
 			/>
+			<EditorGrid visible={store.gridVisible && !store.isVisitorCameraPreview} />
+		</Canvas>
+		{#if layoutInteraction.viewMode === 'plan'}
+			<LayoutPlanViewport
+				model={layoutPreview.model}
+				preview={layoutPreview}
+				interaction={layoutInteraction}
+				onCommit={commitDraftRoom}
+				onOpeningCreate={createOpening}
+				onOpeningDelete={deleteOpening}
+				onLayoutTransactionBegin={beginLayoutTransaction}
+				onLayoutTransactionCommit={commitLayoutTransaction}
+				onLayoutTransactionCancel={cancelLayoutTransaction}
+			/>
 		{/if}
-		<EditorGrid visible={store.gridVisible && !store.isVisitorCameraPreview} />
-		{#if store.currentWorkspace !== 'layout' && store.viewportShowPaths}
-			<EditorCameraPathHelpers {store} />
-		{/if}
-		{#if store.currentWorkspace !== 'layout' && store.viewportShowFraming}
-			<EditorCameraViewHelpers {store} />
-			<EditorCameraFramingHelpers {store} />
-		{/if}
-		{#if store.currentWorkspace !== 'layout' && (store.viewportShowNodes || store.forceMountCameraNodeHandles)}
-			{#if (store.pendingNavigationCommand?.kind === 'connect-existing' || store.pendingNavigationCommand?.kind === 'connect-pending-node') && !store.isDocumentMutationBlocked}
-				{#each store.document.navigationNodes as node (node.id)}
-					<EditorCameraHelpers {store} nodeId={node.id} positionOnly />
-				{/each}
-				{#if store.pendingNavigationCommand?.kind === 'connect-pending-node'}
-					<EditorCameraHelpers {store} nodeId={store.pendingNavigationCommand.node.id} />
-				{/if}
-			{:else if store.cameraSelection && !store.pendingPlacementAssetId && !store.pendingPlacementPrimitiveKind && !store.pendingPlacementLightKind && !store.isCameraFramingMutationBlocked}
-				{#key store.cameraSelection.nodeId}
-					<EditorCameraHelpers {store} nodeId={store.cameraSelection.nodeId} />
-				{/key}
+	{:else}
+		<EditorViewportToolbar {store} />
+		<Canvas dpr={[1, 1.5]} shadows>
+			<MuseumScene
+				scene={store.scene}
+				state={store.state}
+				showNavigationNodes={false}
+				ambientIntensity={store.ambientIntensity}
+				directionalIntensity={store.directionalIntensity}
+				fogEnabled={store.fogEnabled}
+				fogNear={store.fogNear}
+				fogFar={store.fogFar}
+				forceParisAssets
+				showArchitecture
+			>
+				{#snippet camera(graph, _state)}
+					<EditorCameraRig
+						{store}
+						{graph}
+						layoutBounds={layoutPreview.bounds}
+						layoutFrameVersion={layoutPreview.previewVersion}
+					/>
+				{/snippet}
+				{#snippet entityRenderer(scene, rooms, _activation)}
+					<EditorMuseumEntities {scene} {rooms} {placementRegistry} />
+				{/snippet}
+			</MuseumScene>
+			<EditorGrid visible={store.gridVisible && !store.isVisitorCameraPreview} />
+			{#if store.viewportShowPaths}
+				<EditorCameraPathHelpers {store} />
 			{/if}
-		{/if}
-		{#if store.currentWorkspace !== 'layout'}
+			{#if store.viewportShowFraming}
+				<EditorCameraViewHelpers {store} />
+				<EditorCameraFramingHelpers {store} />
+			{/if}
+			{#if store.viewportShowNodes || store.forceMountCameraNodeHandles}
+				{#if (store.pendingNavigationCommand?.kind === 'connect-existing' || store.pendingNavigationCommand?.kind === 'connect-pending-node') && !store.isDocumentMutationBlocked}
+					{#each store.document.navigationNodes as node (node.id)}
+						<EditorCameraHelpers {store} nodeId={node.id} positionOnly />
+					{/each}
+					{#if store.pendingNavigationCommand?.kind === 'connect-pending-node'}
+						<EditorCameraHelpers {store} nodeId={store.pendingNavigationCommand.node.id} />
+					{/if}
+				{:else if store.cameraSelection && !store.pendingPlacementAssetId && !store.pendingPlacementPrimitiveKind && !store.pendingPlacementLightKind && !store.isCameraFramingMutationBlocked}
+					{#key store.cameraSelection.nodeId}
+						<EditorCameraHelpers {store} nodeId={store.cameraSelection.nodeId} />
+					{/key}
+				{/if}
+			{/if}
 			<EditorSelection {store} {transformControls} />
 			<EditorPlacementTools {store} />
-		<!-- Selection-bound Three helpers must be disposed and recreated for a new root. -->
+			<!-- Selection-bound Three helpers must be disposed and recreated for a new root. -->
 			{#if !store.isVisitorCameraPreview}
 				{#key store.selectionKey}
 					<EditorSelectionHelper {store} />
 				{/key}
 			{/if}
 			<EditorTransformControls {store} bind:controls={transformControls} />
-		{/if}
-		<!-- Phase 1b — placement ghost preview. Renders only while a placement
-		     is armed; pure visual cue, click pipeline stays in EditorSelection. -->
-		{#if store.currentWorkspace !== 'layout' && !store.isVisitorCameraPreview}
-			<PlacementGhost {store} />
-		{/if}
+			<!-- Phase 1b — placement ghost preview. Renders only while a placement
+			     is armed; pure visual cue, click pipeline stays in EditorSelection. -->
+			{#if !store.isVisitorCameraPreview}
+				<PlacementGhost {store} />
+			{/if}
 		</Canvas>
 	{/if}
 	{#if store.isCameraPreviewPlaying}

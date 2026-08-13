@@ -4,9 +4,8 @@ import {
 	createEmptyLayoutDocument,
 	parseLayoutDocumentJson,
 	serializeLayoutDocument,
-	validateLayoutDocument
-} from './layout-codec';
-import { buildLayoutPreviewModel, type LayoutPreviewModel } from './layout-mesh-factory';
+	validateLayoutDocument	} from '$lib/layout/layout-codec';
+	import { buildLayoutPreviewModel, type LayoutPreviewModel } from './layout-mesh-factory';
 import type { LayoutPreviewBounds } from './layout-preview-bounds';
 import type { DraftSegment, LayoutObject, LayoutOpening, LayoutRoom, LayoutVec2 } from './layout-types';
 import { deleteInteriorAnchorOnSegment, insertInteriorAnchorOnSegment, pointInRoom, replaceRoomPoints, updateInteriorAnchorOnSegment } from './layout-editing';

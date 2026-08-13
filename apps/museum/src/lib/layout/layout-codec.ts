@@ -1,182 +1,758 @@
-import type {
-  DraftSegment,
-  LayoutDocument,
-  LayoutFloor,
-  LayoutOpening,
-  LayoutObject,
-  LayoutRoom,
-  LayoutRoomFrame,
-  LayoutVec2
-} from './layout-types';
+import { legacyBezierToAutoBezier } from './layout-geometry-curve';
 import { deriveLayoutRoomFrame, normalizeLayoutRoomYaw } from './layout-room-frame';
+import type {
+	DraftPath,
+	DraftSegment,
+	LayoutDocument,
+	LayoutFloor,
+	LayoutInteriorAnchor,
+	LayoutObject,
+	LayoutOpening,
+	LayoutRoom,
+	LayoutRoomFrame,
+	LayoutVec2
+} from './layout-types';
 
-export type LayoutIssue = { path: string; code: string; message: string };
-export type LayoutValidationResult =
-  | { success: true; document: LayoutDocument; canonicalJson: string }
-  | { success: false; issues: LayoutIssue[] };
+const FORMAT_VERSION = 3 as const;
+const LEGACY_FORMAT_VERSION = 1 as const;
+const LEGACY_FORMAT_VERSION_TWO = 2 as const;
+const UNITS = 'meters' as const;
+const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
 
-export function validateLayoutDocument(input: unknown): LayoutValidationResult {
-  const issues: LayoutIssue[] = [];
-  if (!record(input)) return fail('$', 'invalid_type', 'Expected a layout document object');
-  const source = input as Record<string, unknown>;
-  if (source.formatVersion !== 1 && source.formatVersion !== 2 && source.formatVersion !== 3) {
-    issues.push({ path: '$.formatVersion', code: 'unsupported_version', message: 'Expected layout formatVersion 1, 2, or 3' });
-  }
-  if (source.units !== 'meters') issues.push({ path: '$.units', code: 'unsupported_units', message: "Expected units 'meters'" });
-  const requireFrame = source.formatVersion === 3;
-  const floors = Array.isArray(source.floors) ? source.floors.map((value, index) => parseFloor(value, `$.floors[${index}]`, issues, requireFrame)).filter(Boolean) as LayoutFloor[] : invalidArray('$.floors', issues);
-  const objects = Array.isArray(source.objects) ? source.objects.map((value, index) => parseObject(value, `$.objects[${index}]`, issues)).filter(Boolean) as LayoutObject[] : invalidArray('$.objects', issues);
-  const rooms = floors.flatMap((floor) => floor.rooms);
-  const roomIds = new Set(rooms.map((room) => room.id));
-  for (const [floorIndex, floor] of floors.entries()) {
-    for (const [roomIndex, room] of floor.rooms.entries()) {
-      for (const [openingIndex, opening] of room.openings.entries()) {
-        const path = `$.floors[${floorIndex}].rooms[${roomIndex}].openings[${openingIndex}]`;
-        if (!room.boundary.segments.some((segment) => segment.id === opening.segmentId)) {
-          issues.push({ path: `${path}.segmentId`, code: 'missing_reference', message: `Unknown segmentId '${opening.segmentId}'` });
-        }
-        const relation = opening.connectsRoomIds;
-        if (!relation) continue;
-        if (opening.kind !== 'door') issues.push({ path: `${path}.connectsRoomIds`, code: 'invalid_value', message: 'Only door openings may define portal relations' });
-        if (!roomIds.has(relation[0])) issues.push({ path: `${path}.connectsRoomIds[0]`, code: 'missing_reference', message: `Unknown roomId '${relation[0]}'` });
-        if (!roomIds.has(relation[1])) issues.push({ path: `${path}.connectsRoomIds[1]`, code: 'missing_reference', message: `Unknown roomId '${relation[1]}'` });
-        if (!relation.includes(room.id)) issues.push({ path: `${path}.connectsRoomIds`, code: 'invalid_value', message: `Opening owner room '${room.id}' must be one relation member` });
-      }
-    }
-  }
-  for (const [index, object] of objects.entries()) {
-    if (object.roomId && !roomIds.has(object.roomId)) issues.push({ path: `$.objects[${index}].roomId`, code: 'missing_reference', message: `Unknown roomId '${object.roomId}'` });
-  }
-  if (issues.length > 0) return { success: false, issues };
-  const document: LayoutDocument = { formatVersion: 3, units: 'meters', floors, objects };
-  return { success: true, document, canonicalJson: JSON.stringify(document, null, 2) + '\n' };
+type JsonRecord = Record<string, unknown>;
+
+type ParsedValue<T> = T | undefined;
+
+const ROOT_KEYS = ['formatVersion', 'units', 'floors', 'objects'] as const;
+const FLOOR_KEYS = ['id', 'name', 'elevation', 'height', 'rooms'] as const;
+const ROOM_KEYS = [
+	'id',
+	'name',
+	'boundary',
+	'frame',
+	'wallThickness',
+	'floorThickness',
+	'ceilingThickness',
+	'openings'
+] as const;
+const ROOM_FRAME_KEYS = ['origin', 'yaw'] as const;
+const PATH_KEYS = ['closed', 'segments'] as const;
+const LINE_SEGMENT_KEYS = ['id', 'kind', 'start', 'end'] as const;
+const AUTO_BEZIER_SEGMENT_KEYS = ['id', 'kind', 'start', 'end', 'interiorAnchors'] as const;
+const LEGACY_BEZIER_SEGMENT_KEYS = [
+	'id',
+	'kind',
+	'start',
+	'handleOut',
+	'handleIn',
+	'end'
+] as const;
+const INTERIOR_ANCHOR_KEYS = ['id', 'point'] as const;
+const OPENING_KEYS = [
+	'id',
+	'segmentId',
+	'kind',
+	'offset',
+	'width',
+	'height',
+	'sillHeight',
+	'profile',
+	'connectsRoomIds'
+] as const;
+const OBJECT_KEYS = [
+	'id',
+	'kind',
+	'position',
+	'rotation',
+	'dimensions',
+	'profile',
+	'roomId'
+] as const;
+
+export type LayoutDocumentIssue = {
+	path: string;
+	code: string;
+	message: string;
+};
+
+/** Backward-compatible alias shared by the project codec boundary. */
+export type LayoutIssue = LayoutDocumentIssue;
+
+export type LayoutDocumentValidationResult =
+	| {
+			success: true;
+			document: LayoutDocument;
+			canonicalJson: string;
+	  }
+	| {
+			success: false;
+			issues: LayoutDocumentIssue[];
+	  };
+
+/** Backward-compatible alias shared by the project codec boundary. */
+export type LayoutValidationResult = LayoutDocumentValidationResult;
+
+export class LayoutDocumentValidationError extends Error {
+	readonly issue: LayoutDocumentIssue;
+
+	constructor(issue: LayoutDocumentIssue) {
+		super(`${issue.path} (${issue.code}): ${issue.message}`);
+		this.name = 'LayoutDocumentValidationError';
+		this.issue = issue;
+	}
 }
 
-export function parseLayoutDocumentJson(json: string): LayoutValidationResult {
-  try { return validateLayoutDocument(JSON.parse(json) as unknown); }
-  catch { return { success: false, issues: [{ path: '$', code: 'invalid_json', message: 'Invalid JSON' }] }; }
+export function createEmptyLayoutDocument(): LayoutDocument {
+	return {
+		formatVersion: FORMAT_VERSION,
+		units: UNITS,
+		floors: [],
+		objects: []
+	};
+}
+
+export function validateLayoutDocument(input: unknown): LayoutDocumentValidationResult {
+	const issues: LayoutDocumentIssue[] = [];
+	const document = parseDocument(input, '$', issues);
+	if (!document || issues.length > 0) {
+		return { success: false, issues };
+	}
+
+	return {
+		success: true,
+		document,
+		canonicalJson: JSON.stringify(document, null, 2) + '\n'
+	};
+}
+
+export function parseLayoutDocumentJson(json: string): LayoutDocumentValidationResult {
+	try {
+		return validateLayoutDocument(JSON.parse(json) as unknown);
+	} catch (error) {
+		return {
+			success: false,
+			issues: [
+				{
+					path: '$',
+					code: 'invalid_json',
+					message: invalidJsonMessage(error, json)
+				}
+			]
+		};
+	}
 }
 
 export function serializeLayoutDocument(document: unknown): string {
-  const result = validateLayoutDocument(document);
-  if (!result.success) throw new Error(`${result.issues[0]!.path}: ${result.issues[0]!.message}`);
-  return result.canonicalJson;
+	const result = validateLayoutDocument(document);
+	if (!result.success) {
+		throw new LayoutDocumentValidationError(result.issues[0]!);
+	}
+	return result.canonicalJson;
 }
 
-function parseFloor(value: unknown, path: string, issues: LayoutIssue[], requireFrame: boolean): LayoutFloor | undefined {
-  if (!record(value)) { issues.push({ path, code: 'invalid_type', message: 'Expected a floor object' }); return undefined; }
-  const source = value as Record<string, unknown>;
-  const id = stringValue(source.id, `${path}.id`, issues);
-  const name = stringValue(source.name, `${path}.name`, issues);
-  const elevation = finite(source.elevation, `${path}.elevation`, issues);
-  const height = finite(source.height, `${path}.height`, issues);
-  if (!Array.isArray(source.rooms)) { issues.push({ path: `${path}.rooms`, code: 'invalid_type', message: 'Expected an array' }); return undefined; }
-  const rooms = source.rooms.map((room, index) => parseRoom(room, `${path}.rooms[${index}]`, issues, requireFrame)).filter(Boolean) as LayoutRoom[];
-  return id && name && elevation !== undefined && height !== undefined ? { id, name, elevation, height, rooms } : undefined;
+function parseDocument(
+	input: unknown,
+	path: string,
+	issues: LayoutDocumentIssue[]
+): ParsedValue<LayoutDocument> {
+	const record = readRecord(input, path, issues);
+	if (!record) return undefined;
+	assertAllowedKeys(record, ROOT_KEYS, path, issues);
+
+	const formatVersion = readNumber(record.formatVersion, `${path}.formatVersion`, issues);
+	if (
+		formatVersion !== FORMAT_VERSION &&
+		formatVersion !== LEGACY_FORMAT_VERSION &&
+		formatVersion !== LEGACY_FORMAT_VERSION_TWO
+	) {
+		addIssue(
+			issues,
+			`${path}.formatVersion`,
+			'unsupported_version',
+			`Expected layout document formatVersion ${LEGACY_FORMAT_VERSION}, ${LEGACY_FORMAT_VERSION_TWO}, or ${FORMAT_VERSION}`
+		);
+	}
+
+	const units = readString(record.units, `${path}.units`, issues);
+	if (units !== UNITS) {
+		addIssue(issues, `${path}.units`, 'unsupported_units', `Expected units '${UNITS}'`);
+	}
+
+	const floors = parseArray(
+		record.floors,
+		`${path}.floors`,
+		issues,
+		(value, itemPath, target) => parseFloor(value, itemPath, target, formatVersion === FORMAT_VERSION)
+	);
+	const objects = parseArray(record.objects, `${path}.objects`, issues, parseObject);
+	if (!floors || !objects) return undefined;
+
+	validateUniqueIds(floors, `${path}.floors`, issues, (floor) => floor.id);
+	const rooms = floors.flatMap((floor) => floor.rooms);
+	validateUniqueIds(rooms, `${path}.floors[].rooms`, issues, (room) => room.id);
+	validateUniqueIds(objects, `${path}.objects`, issues, (object) => object.id);
+
+	const roomIds = new Set(rooms.map((room) => room.id));
+	validatePortalRelations(floors, roomIds, issues);
+	for (const [index, object] of objects.entries()) {
+		if (object.roomId && !roomIds.has(object.roomId)) {
+			addIssue(
+				issues,
+				`${path}.objects[${index}].roomId`,
+				'missing_reference',
+				`Unknown roomId '${object.roomId}'`
+			);
+		}
+	}
+
+	if (issues.length > 0) return undefined;
+	return {
+		formatVersion: FORMAT_VERSION,
+		units: UNITS,
+		floors,
+		objects
+	};
 }
 
-function parseRoom(value: unknown, path: string, issues: LayoutIssue[], requireFrame: boolean): LayoutRoom | undefined {
-  if (!record(value)) { issues.push({ path, code: 'invalid_type', message: 'Expected a room object' }); return undefined; }
-  const source = value as Record<string, unknown>;
-  const id = stringValue(source.id, `${path}.id`, issues);
-  const name = stringValue(source.name, `${path}.name`, issues);
-  const wallThickness = finite(source.wallThickness, `${path}.wallThickness`, issues);
-  const floorThickness = finite(source.floorThickness, `${path}.floorThickness`, issues);
-  const ceilingThickness = finite(source.ceilingThickness, `${path}.ceilingThickness`, issues);
-  const boundary = parsePath(source.boundary, `${path}.boundary`, issues);
-  const openings = Array.isArray(source.openings) ? source.openings.map((opening, index) => parseOpening(opening, `${path}.openings[${index}]`, issues)).filter(Boolean) as LayoutOpening[] : [];
-  if (!Array.isArray(source.openings)) issues.push({ path: `${path}.openings`, code: 'invalid_type', message: 'Expected an array' });
-  const frame = source.frame === undefined
-    ? boundary ? deriveLayoutRoomFrame({ boundary }) : undefined
-    : parseRoomFrame(source.frame, `${path}.frame`, issues);
-  if (requireFrame && source.frame === undefined) issues.push({ path: `${path}.frame`, code: 'missing_field', message: 'Layout v3 rooms require a frame' });
-  return id && name && frame && boundary && wallThickness !== undefined && floorThickness !== undefined && ceilingThickness !== undefined
-    ? { id, name, frame, boundary, wallThickness, floorThickness, ceilingThickness, openings }
-    : undefined;
+function parseFloor(
+	input: unknown,
+	path: string,
+	issues: LayoutDocumentIssue[],
+	requireFrame = false
+): ParsedValue<LayoutFloor> {
+	const record = readRecord(input, path, issues);
+	if (!record) return undefined;
+	assertAllowedKeys(record, FLOOR_KEYS, path, issues);
+
+	const id = readId(record.id, `${path}.id`, issues);
+	const name = readNonEmptyString(record.name, `${path}.name`, issues);
+	const elevation = readNumber(record.elevation, `${path}.elevation`, issues);
+	const height = readPositiveNumber(record.height, `${path}.height`, issues);
+	const rooms = parseArray(
+		record.rooms,
+		`${path}.rooms`,
+		issues,
+		(value, itemPath, target) => parseRoom(value, itemPath, target, requireFrame)
+	);
+	if (!id || !name || elevation === undefined || height === undefined || !rooms) {
+		return undefined;
+	}
+
+	validateUniqueIds(rooms, `${path}.rooms`, issues, (room) => room.id);
+	return { id, name, elevation, height, rooms };
 }
 
-function parseRoomFrame(value: unknown, path: string, issues: LayoutIssue[]): LayoutRoomFrame | undefined {
-  if (!record(value)) { issues.push({ path, code: 'invalid_type', message: 'Expected a room frame object' }); return undefined; }
-  const origin = vec2(value.origin, `${path}.origin`, issues);
-  const yaw = finite(value.yaw, `${path}.yaw`, issues);
-  return origin && yaw !== undefined ? { origin, yaw: normalizeLayoutRoomYaw(yaw) } : undefined;
+function parseRoom(
+	input: unknown,
+	path: string,
+	issues: LayoutDocumentIssue[],
+	requireFrame = false
+): ParsedValue<LayoutRoom> {
+	const record = readRecord(input, path, issues);
+	if (!record) return undefined;
+	assertAllowedKeys(record, ROOM_KEYS, path, issues);
+
+	const id = readId(record.id, `${path}.id`, issues);
+	const name = readNonEmptyString(record.name, `${path}.name`, issues);
+	const boundary = parsePath(record.boundary, `${path}.boundary`, issues);
+	const frame = record.frame === undefined
+		? undefined
+		: parseRoomFrame(record.frame, `${path}.frame`, issues);
+	if (requireFrame && record.frame === undefined) {
+		addIssue(issues, `${path}.frame`, 'missing_field', 'Layout v3 rooms require a frame');
+	}
+	const wallThickness = readPositiveNumber(
+		record.wallThickness,
+		`${path}.wallThickness`,
+		issues
+	);
+	const floorThickness = readPositiveNumber(
+		record.floorThickness,
+		`${path}.floorThickness`,
+		issues
+	);
+	const ceilingThickness = readPositiveNumber(
+		record.ceilingThickness,
+		`${path}.ceilingThickness`,
+		issues
+	);
+	const openings = parseArray(record.openings, `${path}.openings`, issues, parseOpening);
+	if (
+		!id ||
+		!name ||
+		!boundary ||
+		wallThickness === undefined ||
+		floorThickness === undefined ||
+		ceilingThickness === undefined ||
+		!openings
+	) {
+		return undefined;
+	}
+
+	validateUniqueIds(openings, `${path}.openings`, issues, (opening) => opening.id);
+	const segmentIds = new Set(boundary.segments.map((segment) => segment.id));
+	for (const [index, opening] of openings.entries()) {
+		if (!segmentIds.has(opening.segmentId)) {
+			addIssue(
+				issues,
+				`${path}.openings[${index}].segmentId`,
+				'missing_reference',
+				`Unknown segmentId '${opening.segmentId}'`
+			);
+		}
+	}
+
+	return {
+		id,
+		name,
+		frame: frame ?? deriveLayoutRoomFrame({ boundary }),
+		boundary,
+		wallThickness,
+		floorThickness,
+		ceilingThickness,
+		openings
+	};
 }
 
-function parsePath(value: unknown, path: string, issues: LayoutIssue[]): LayoutRoom['boundary'] | undefined {
-  if (!record(value) || value.closed !== true || !Array.isArray(value.segments)) { issues.push({ path, code: 'invalid_value', message: 'Expected a closed path with segments' }); return undefined; }
-  const segments = value.segments.map((segment, index) => parseSegment(segment, `${path}.segments[${index}]`, issues)).filter(Boolean) as DraftSegment[];
-  return { closed: true, segments };
+function parseRoomFrame(
+	input: unknown,
+	path: string,
+	issues: LayoutDocumentIssue[]
+): ParsedValue<LayoutRoomFrame> {
+	const record = readRecord(input, path, issues);
+	if (!record) return undefined;
+	assertAllowedKeys(record, ROOM_FRAME_KEYS, path, issues);
+	const origin = readVec2(record.origin, `${path}.origin`, issues);
+	const yaw = readNumber(record.yaw, `${path}.yaw`, issues);
+	return origin && yaw !== undefined ? { origin, yaw: normalizeLayoutRoomYaw(yaw) } : undefined;
 }
 
-function parseSegment(value: unknown, path: string, issues: LayoutIssue[]): DraftSegment | undefined {
-  if (!record(value)) { issues.push({ path, code: 'invalid_type', message: 'Expected a segment object' }); return undefined; }
-  const id = stringValue(value.id, `${path}.id`, issues);
-  const start = vec2(value.start, `${path}.start`, issues);
-  const end = vec2(value.end, `${path}.end`, issues);
-  if (!id || !start || !end) return undefined;
-  if (value.kind === 'line') return { id, kind: 'line', start, end };
-  if (value.kind === 'auto-bezier' && Array.isArray(value.interiorAnchors)) {
-    const interiorAnchors = value.interiorAnchors.map((anchor, index) => {
-      if (!record(anchor)) return undefined;
-      const anchorId = stringValue(anchor.id, `${path}.interiorAnchors[${index}].id`, issues);
-      const point = vec2(anchor.point, `${path}.interiorAnchors[${index}].point`, issues);
-      return anchorId && point ? { id: anchorId, point } : undefined;
-    }).filter(Boolean) as { id: string; point: LayoutVec2 }[];
-    return { id, kind: 'auto-bezier', start, end, interiorAnchors };
-  }
-  issues.push({ path: `${path}.kind`, code: 'unsupported_value', message: 'Unsupported segment kind' });
-  return undefined;
+function parsePath(
+	input: unknown,
+	path: string,
+	issues: LayoutDocumentIssue[]
+): ParsedValue<DraftPath> {
+	const record = readRecord(input, path, issues);
+	if (!record) return undefined;
+	assertAllowedKeys(record, PATH_KEYS, path, issues);
+
+	if (record.closed !== true) {
+		addIssue(issues, `${path}.closed`, 'invalid_value', 'Committed paths must be closed');
+	}
+	const segments = parseArray(record.segments, `${path}.segments`, issues, parseSegment);
+	if (!segments) return undefined;
+	if (segments.length === 0) {
+		addIssue(issues, `${path}.segments`, 'empty_array', 'Expected at least one segment');
+	}
+	validateUniqueIds(segments, `${path}.segments`, issues, (segment) => segment.id);
+	return { closed: true, segments };
 }
 
-function parseOpening(value: unknown, path: string, issues: LayoutIssue[]): LayoutOpening | undefined {
-  if (!record(value)) { issues.push({ path, code: 'invalid_type', message: 'Expected an opening object' }); return undefined; }
-  const id = stringValue(value.id, `${path}.id`, issues);
-  const segmentId = stringValue(value.segmentId, `${path}.segmentId`, issues);
-  const kind = value.kind === 'door' || value.kind === 'window' ? value.kind : undefined;
-  const profile = value.profile === 'rectangular' || value.profile === 'rounded' || value.profile === 'pointed' ? value.profile : undefined;
-  const offset = finite(value.offset, `${path}.offset`, issues);
-  const width = finite(value.width, `${path}.width`, issues);
-  const height = finite(value.height, `${path}.height`, issues);
-  const sillHeight = finite(value.sillHeight, `${path}.sillHeight`, issues);
-  if (!kind) issues.push({ path: `${path}.kind`, code: 'unsupported_value', message: 'Expected door or window' });
-  if (!profile) issues.push({ path: `${path}.profile`, code: 'unsupported_value', message: 'Expected a supported opening profile' });
-  const relation = value.connectsRoomIds === undefined ? undefined : portalIds(value.connectsRoomIds, `${path}.connectsRoomIds`, issues);
-  return id && segmentId && kind && profile && offset !== undefined && width !== undefined && height !== undefined && sillHeight !== undefined
-    ? { id, segmentId, kind, offset, width, height, sillHeight, profile, ...(relation ? { connectsRoomIds: relation } : {}) }
-    : undefined;
+function parseSegment(
+	input: unknown,
+	path: string,
+	issues: LayoutDocumentIssue[]
+): ParsedValue<DraftSegment> {
+	const record = readRecord(input, path, issues);
+	if (!record) return undefined;
+	const kind = readString(record.kind, `${path}.kind`, issues);
+
+	if (kind === 'line') {
+		assertAllowedKeys(record, LINE_SEGMENT_KEYS, path, issues);
+		const id = readId(record.id, `${path}.id`, issues);
+		const start = readVec2(record.start, `${path}.start`, issues);
+		const end = readVec2(record.end, `${path}.end`, issues);
+		if (!id || !start || !end) return undefined;
+		return { id, kind, start, end };
+	}
+
+	if (kind === 'auto-bezier') {
+		assertAllowedKeys(record, AUTO_BEZIER_SEGMENT_KEYS, path, issues);
+		const id = readId(record.id, `${path}.id`, issues);
+		const start = readVec2(record.start, `${path}.start`, issues);
+		const end = readVec2(record.end, `${path}.end`, issues);
+		const interiorAnchors = parseInteriorAnchors(record.interiorAnchors, `${path}.interiorAnchors`, issues);
+		if (!id || !start || !end || !interiorAnchors) return undefined;
+		return { id, kind, start, end, interiorAnchors };
+	}
+
+	if (kind === 'bezier') {
+		assertAllowedKeys(record, LEGACY_BEZIER_SEGMENT_KEYS, path, issues);
+		const id = readId(record.id, `${path}.id`, issues);
+		const start = readVec2(record.start, `${path}.start`, issues);
+		const handleOut = readVec2(record.handleOut, `${path}.handleOut`, issues);
+		const handleIn = readVec2(record.handleIn, `${path}.handleIn`, issues);
+		const end = readVec2(record.end, `${path}.end`, issues);
+		if (!id || !start || !handleOut || !handleIn || !end) return undefined;
+		return legacyBezierToAutoBezier({ id, kind: 'bezier', start, handleOut, handleIn, end });
+	}
+
+	if (kind !== undefined) {
+		addIssue(issues, `${path}.kind`, 'unsupported_value', `Unsupported segment kind '${kind}'`);
+	}
+	return undefined;
 }
 
-function parseObject(value: unknown, path: string, issues: LayoutIssue[]): LayoutObject | undefined {
-  if (!record(value)) { issues.push({ path, code: 'invalid_type', message: 'Expected an object' }); return undefined; }
-  const id = stringValue(value.id, `${path}.id`, issues);
-  const kind = ['box', 'plane', 'cylinder', 'sphere', 'profile'].includes(String(value.kind)) ? value.kind as LayoutObject['kind'] : undefined;
-  const position = vec3(value.position, `${path}.position`, issues);
-  const rotation = vec3(value.rotation, `${path}.rotation`, issues);
-  const dimensions = vec3(value.dimensions, `${path}.dimensions`, issues);
-  const roomId = value.roomId === undefined ? undefined : stringValue(value.roomId, `${path}.roomId`, issues);
-  const profile = value.profile === undefined ? undefined : parsePath(value.profile, `${path}.profile`, issues);
-  if (kind === 'profile' && !profile) issues.push({ path: `${path}.profile`, code: 'missing_field', message: "Profile objects require a closed 'profile'" });
-  if (kind !== 'profile' && value.profile !== undefined) issues.push({ path: `${path}.profile`, code: 'unexpected_field', message: "Only profile objects may define 'profile'" });
-  return id && kind && position && rotation && dimensions
-    ? { id, kind, position, rotation, dimensions, ...(profile ? { profile } : {}), ...(roomId ? { roomId } : {}) }
-    : undefined;
+function parseInteriorAnchors(
+	input: unknown,
+	path: string,
+	issues: LayoutDocumentIssue[]
+): ParsedValue<LayoutInteriorAnchor[]> {
+	const anchors = parseArray(input, path, issues, parseInteriorAnchor);
+	if (!anchors) return undefined;
+	validateUniqueIds(anchors, path, issues, (anchor) => anchor.id);
+	for (const [index, anchor] of anchors.entries()) {
+		if (!anchor.point.every((value) => Number.isFinite(value))) {
+			addIssue(issues, `${path}[${index}].point`, 'invalid_value', 'Interior anchor point must be finite');
+		}
+	}
+	return anchors;
 }
 
-function portalIds(value: unknown, path: string, issues: LayoutIssue[]): [string, string] | undefined {
-  if (!Array.isArray(value) || value.length !== 2) { issues.push({ path, code: 'invalid_value', message: 'Expected exactly two room IDs' }); return undefined; }
-  const first = stringValue(value[0], `${path}[0]`, issues);
-  const second = stringValue(value[1], `${path}[1]`, issues);
-  if (!first || !second || first === second) { if (first === second) issues.push({ path, code: 'invalid_value', message: 'Portal room IDs must be distinct' }); return undefined; }
-  return first.localeCompare(second) <= 0 ? [first, second] : [second, first];
+function parseInteriorAnchor(
+	input: unknown,
+	path: string,
+	issues: LayoutDocumentIssue[]
+): ParsedValue<LayoutInteriorAnchor> {
+	const record = readRecord(input, path, issues);
+	if (!record) return undefined;
+	assertAllowedKeys(record, INTERIOR_ANCHOR_KEYS, path, issues);
+	const id = readId(record.id, `${path}.id`, issues);
+	const point = readVec2(record.point, `${path}.point`, issues);
+	if (!id || !point) return undefined;
+	return { id, point };
 }
 
-function invalidArray(path: string, issues: LayoutIssue[]): never[] {
-  issues.push({ path, code: 'invalid_type', message: 'Expected an array' });
-  return [];
+function parseOpening(
+	input: unknown,
+	path: string,
+	issues: LayoutDocumentIssue[]
+): ParsedValue<LayoutOpening> {
+	const record = readRecord(input, path, issues);
+	if (!record) return undefined;
+	assertAllowedKeys(record, OPENING_KEYS, path, issues);
+
+	const id = readId(record.id, `${path}.id`, issues);
+	const segmentId = readId(record.segmentId, `${path}.segmentId`, issues);
+	const kind = readEnum(record.kind, `${path}.kind`, ['door', 'window'], issues);
+	const offset = readNonNegativeNumber(record.offset, `${path}.offset`, issues);
+	const width = readPositiveNumber(record.width, `${path}.width`, issues);
+	const height = readPositiveNumber(record.height, `${path}.height`, issues);
+	const sillHeight = readNonNegativeNumber(record.sillHeight, `${path}.sillHeight`, issues);
+	const profile = readEnum(
+		record.profile,
+		`${path}.profile`,
+		['rectangular', 'rounded', 'pointed'],
+		issues
+	);
+	const connectsRoomIds = parsePortalRoomIds(record.connectsRoomIds, `${path}.connectsRoomIds`, issues);
+	if (
+		!id ||
+		!segmentId ||
+		!kind ||
+		offset === undefined ||
+		width === undefined ||
+		height === undefined ||
+		sillHeight === undefined ||
+		!profile
+	) {
+		return undefined;
+	}
+	return {
+		id,
+		segmentId,
+		kind,
+		offset,
+		width,
+		height,
+		sillHeight,
+		profile,
+		...(connectsRoomIds ? { connectsRoomIds } : {})
+	};
 }
-function record(value: unknown): value is Record<string, any> { return typeof value === 'object' && value !== null && !Array.isArray(value); }
-function stringValue(value: unknown, path: string, issues: LayoutIssue[]): string | undefined { if (typeof value !== 'string' || value.length === 0) { issues.push({ path, code: 'invalid_value', message: 'Expected a non-empty string' }); return undefined; } return value; }
-function finite(value: unknown, path: string, issues: LayoutIssue[]): number | undefined { if (typeof value !== 'number' || !Number.isFinite(value)) { issues.push({ path, code: 'invalid_number', message: 'Expected a finite number' }); return undefined; } return value; }
-function vec2(value: unknown, path: string, issues: LayoutIssue[]): LayoutVec2 | undefined { if (!Array.isArray(value) || value.length !== 2) { issues.push({ path, code: 'invalid_type', message: 'Expected a 2-number vector' }); return undefined; } const x = finite(value[0], `${path}[0]`, issues); const y = finite(value[1], `${path}[1]`, issues); return x === undefined || y === undefined ? undefined : [x, y]; }
-function vec3(value: unknown, path: string, issues: LayoutIssue[]): [number, number, number] | undefined { if (!Array.isArray(value) || value.length !== 3) { issues.push({ path, code: 'invalid_type', message: 'Expected a 3-number vector' }); return undefined; } const x = finite(value[0], `${path}[0]`, issues); const y = finite(value[1], `${path}[1]`, issues); const z = finite(value[2], `${path}[2]`, issues); return x === undefined || y === undefined || z === undefined ? undefined : [x, y, z]; }
-function fail(path: string, code: string, message: string): LayoutValidationResult { return { success: false, issues: [{ path, code, message }] }; }
+
+function parsePortalRoomIds(
+	input: unknown,
+	path: string,
+	issues: LayoutDocumentIssue[]
+): [string, string] | undefined {
+	if (input === undefined) return undefined;
+	if (!Array.isArray(input) || input.length !== 2) {
+		addIssue(issues, path, 'invalid_value', 'Expected exactly two room IDs');
+		return undefined;
+	}
+	const first = readId(input[0], `${path}[0]`, issues);
+	const second = readId(input[1], `${path}[1]`, issues);
+	if (!first || !second) return undefined;
+	if (first === second) addIssue(issues, path, 'invalid_value', 'Portal room IDs must be distinct');
+	return first.localeCompare(second) <= 0 ? [first, second] : [second, first];
+}
+
+function validatePortalRelations(
+	floors: readonly LayoutFloor[],
+	roomIds: ReadonlySet<string>,
+	issues: LayoutDocumentIssue[]
+): void {
+	for (const [floorIndex, floor] of floors.entries()) {
+		for (const [roomIndex, room] of floor.rooms.entries()) {
+			for (const [openingIndex, opening] of room.openings.entries()) {
+				const path = `$.floors[${floorIndex}].rooms[${roomIndex}].openings[${openingIndex}]`;
+				const relation = opening.connectsRoomIds;
+				if (!relation) continue;
+				if (opening.kind !== 'door') {
+					addIssue(issues, `${path}.connectsRoomIds`, 'invalid_value', 'Only door openings may define portal relations');
+				}
+				if (!roomIds.has(relation[0])) addIssue(issues, `${path}.connectsRoomIds[0]`, 'missing_reference', `Unknown roomId '${relation[0]}'`);
+				if (!roomIds.has(relation[1])) addIssue(issues, `${path}.connectsRoomIds[1]`, 'missing_reference', `Unknown roomId '${relation[1]}'`);
+				if (relation[0] !== room.id && relation[1] !== room.id) {
+					addIssue(issues, `${path}.connectsRoomIds`, 'invalid_value', `Opening owner room '${room.id}' must be one portal relation member`);
+				}
+			}
+		}
+	}
+}
+
+function parseObject(
+	input: unknown,
+	path: string,
+	issues: LayoutDocumentIssue[]
+): ParsedValue<LayoutObject> {
+	const record = readRecord(input, path, issues);
+	if (!record) return undefined;
+	assertAllowedKeys(record, OBJECT_KEYS, path, issues);
+
+	const id = readId(record.id, `${path}.id`, issues);
+	const kind = readEnum(
+		record.kind,
+		`${path}.kind`,
+		['box', 'plane', 'cylinder', 'sphere', 'profile'],
+		issues
+	);
+	const position = readVec3(record.position, `${path}.position`, issues);
+	const rotation = readVec3(record.rotation, `${path}.rotation`, issues);
+	const dimensions = readPositiveVec3(record.dimensions, `${path}.dimensions`, issues);
+	const roomId = record.roomId === undefined ? undefined : readId(record.roomId, `${path}.roomId`, issues);
+	const profile = record.profile === undefined ? undefined : parsePath(record.profile, `${path}.profile`, issues);
+	if (kind === 'profile' && !profile) {
+		addIssue(issues, `${path}.profile`, 'missing_field', "Profile objects require a closed 'profile'");
+	}
+	if (kind !== 'profile' && record.profile !== undefined) {
+		addIssue(issues, `${path}.profile`, 'unexpected_field', "Only profile objects may define 'profile'");
+	}
+	if (!id || !kind || !position || !rotation || !dimensions) return undefined;
+	return { id, kind, position, rotation, dimensions, ...(profile ? { profile } : {}), ...(roomId ? { roomId } : {}) };
+}
+
+function parseArray<T>(
+	input: unknown,
+	path: string,
+	issues: LayoutDocumentIssue[],
+	parser: (value: unknown, path: string, issues: LayoutDocumentIssue[]) => ParsedValue<T>
+): T[] | undefined {
+	if (!Array.isArray(input)) {
+		addIssue(issues, path, 'invalid_type', 'Expected an array');
+		return undefined;
+	}
+	const values = input.map((value, index) => parser(value, `${path}[${index}]`, issues));
+	return values.every((value): value is T => value !== undefined) ? values : undefined;
+}
+
+function readRecord(
+	input: unknown,
+	path: string,
+	issues: LayoutDocumentIssue[]
+): JsonRecord | undefined {
+	if (!isRecord(input)) {
+		addIssue(issues, path, 'invalid_type', 'Expected an object');
+		return undefined;
+	}
+	return input;
+}
+
+function isRecord(input: unknown): input is JsonRecord {
+	return typeof input === 'object' && input !== null && !Array.isArray(input);
+}
+
+function assertAllowedKeys(
+	record: JsonRecord,
+	allowedKeys: readonly string[],
+	path: string,
+	issues: LayoutDocumentIssue[]
+): void {
+	const allowed = new Set(allowedKeys);
+	for (const key of Object.keys(record)) {
+		if (!allowed.has(key)) {
+			addIssue(issues, `${path}.${key}`, 'unknown_key', `Unknown key '${key}'`);
+		}
+	}
+}
+
+function readString(
+	input: unknown,
+	path: string,
+	issues: LayoutDocumentIssue[]
+): string | undefined {
+	if (typeof input !== 'string') {
+		addIssue(issues, path, 'invalid_type', 'Expected a string');
+		return undefined;
+	}
+	return input;
+}
+
+function readNonEmptyString(
+	input: unknown,
+	path: string,
+	issues: LayoutDocumentIssue[]
+): string | undefined {
+	const value = readString(input, path, issues);
+	if (value !== undefined && value.trim().length === 0) {
+		addIssue(issues, path, 'invalid_value', 'Expected a non-empty string');
+		return undefined;
+	}
+	return value;
+}
+
+function readId(
+	input: unknown,
+	path: string,
+	issues: LayoutDocumentIssue[]
+): string | undefined {
+	const value = readString(input, path, issues);
+	if (value !== undefined && !ID_PATTERN.test(value)) {
+		addIssue(issues, path, 'invalid_id', 'Expected an ID matching /^[A-Za-z0-9][A-Za-z0-9._:-]*$/');
+		return undefined;
+	}
+	return value;
+}
+
+function readNumber(
+	input: unknown,
+	path: string,
+	issues: LayoutDocumentIssue[]
+): number | undefined {
+	if (typeof input !== 'number' || !Number.isFinite(input)) {
+		addIssue(issues, path, 'invalid_number', 'Expected a finite number');
+		return undefined;
+	}
+	return input;
+}
+
+function readPositiveNumber(
+	input: unknown,
+	path: string,
+	issues: LayoutDocumentIssue[]
+): number | undefined {
+	const value = readNumber(input, path, issues);
+	if (value !== undefined && value <= 0) {
+		addIssue(issues, path, 'invalid_value', 'Expected a number greater than zero');
+		return undefined;
+	}
+	return value;
+}
+
+function readNonNegativeNumber(
+	input: unknown,
+	path: string,
+	issues: LayoutDocumentIssue[]
+): number | undefined {
+	const value = readNumber(input, path, issues);
+	if (value !== undefined && value < 0) {
+		addIssue(issues, path, 'invalid_value', 'Expected a number greater than or equal to zero');
+		return undefined;
+	}
+	return value;
+}
+
+function readVec2(
+	input: unknown,
+	path: string,
+	issues: LayoutDocumentIssue[]
+): LayoutVec2 | undefined {
+	if (!Array.isArray(input) || input.length !== 2) {
+		addIssue(issues, path, 'invalid_type', 'Expected a 2-number vector');
+		return undefined;
+	}
+	const x = readNumber(input[0], `${path}[0]`, issues);
+	const y = readNumber(input[1], `${path}[1]`, issues);
+	return x === undefined || y === undefined ? undefined : [x, y];
+}
+
+function readVec3(
+	input: unknown,
+	path: string,
+	issues: LayoutDocumentIssue[]
+): [number, number, number] | undefined {
+	if (!Array.isArray(input) || input.length !== 3) {
+		addIssue(issues, path, 'invalid_type', 'Expected a 3-number vector');
+		return undefined;
+	}
+	const x = readNumber(input[0], `${path}[0]`, issues);
+	const y = readNumber(input[1], `${path}[1]`, issues);
+	const z = readNumber(input[2], `${path}[2]`, issues);
+	return x === undefined || y === undefined || z === undefined ? undefined : [x, y, z];
+}
+
+function readPositiveVec3(
+	input: unknown,
+	path: string,
+	issues: LayoutDocumentIssue[]
+): [number, number, number] | undefined {
+	const vector = readVec3(input, path, issues);
+	if (!vector) return undefined;
+	if (vector.some((value) => value <= 0)) {
+		addIssue(issues, path, 'invalid_value', 'Expected every dimension to be greater than zero');
+		return undefined;
+	}
+	return vector;
+}
+
+function readEnum<T extends string>(
+	input: unknown,
+	path: string,
+	values: readonly T[],
+	issues: LayoutDocumentIssue[]
+): T | undefined {
+	const value = readString(input, path, issues);
+	if (value === undefined) return undefined;
+	if (!values.includes(value as T)) {
+		addIssue(issues, path, 'unsupported_value', `Expected one of: ${values.join(', ')}`);
+		return undefined;
+	}
+	return value as T;
+}
+
+function validateUniqueIds<T>(
+	values: T[],
+	path: string,
+	issues: LayoutDocumentIssue[],
+	getId: (value: T) => string
+): void {
+	const seen = new Set<string>();
+	for (const [index, value] of values.entries()) {
+		const id = getId(value);
+		if (seen.has(id)) {
+			addIssue(issues, `${path}[${index}].id`, 'duplicate_id', `Duplicate ID '${id}'`);
+		}
+		seen.add(id);
+	}
+}
+
+function addIssue(
+	issues: LayoutDocumentIssue[],
+	path: string,
+	code: string,
+	message: string
+): void {
+	issues.push({ path, code, message });
+}
+
+function invalidJsonMessage(error: unknown, json: string): string {
+	const message = error instanceof Error ? error.message : 'Invalid JSON';
+	const match = /position (\d+)/.exec(message);
+	if (!match) return 'Invalid JSON';
+	const offset = Number(match[1]);
+	const before = json.slice(0, offset);
+	const line = before.split('\n').length;
+	const column = offset - before.lastIndexOf('\n');
+	return `Invalid JSON near line ${line}, column ${column}.`;
+}

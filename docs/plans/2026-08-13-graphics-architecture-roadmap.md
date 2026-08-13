@@ -357,3 +357,24 @@ is traceable to a measured product problem.
 
 H1 (unified 3D editing) is a separate track and is **not** required for this
 graphics exit; it becomes schedulable once G1 and G4 land.
+
+## 10. Known optimization backlog (uncommitted)
+
+Deferred work surfaced during the G1 close and the layout viewport-switch
+review. Each item is traced to a measured or static-analysis cost; none is a
+correctness blocker today. Assign to **G3** (performance harness) unless marked
+quick-win (safe, isolated, output-preserving).
+
+| # | Optimization | Cost today | Home |
+|---|--------------|-----------|------|
+| 1 | Incremental per-room recompile | every edit deep-clones + validates twice + recompiles the whole document | G3 |
+| 2 | Merge validate + compile into one pass | two full-document validation passes per edit | G3 |
+| 3 | Drop `cloneJson` per edit (structural / `$state` updates) | JSON round-trip of the whole layout per mutation | G3 |
+| 4 | Spatial index for self-intersection + picking | O(n²) all-pairs segment intersection | G3 / G2 |
+| 5 | Binary-search `pointAlongSamples`, unify with `pointAtDistance` | linear scan per lookup; O(samples²) in solid-span build | quick-win |
+| 6 | Thread precomputed cubics into auto-bezier tangent eval | cubics recompiled per sample (O(N·A²)) | quick-win |
+| 7 | Unify duplicate layout codecs (shared vs editor) | divergent unique-id strictness across import/save | quick-win |
+| 8 | `frameloop="demand"` + invalidate for idle 3D | render loop ticks at 60fps while idle | quick-win (with viewport switch) |
+| 9 | Cull invisible ceiling meshes | hidden ceilings still draw (opacity 0) | quick-win |
+| 10 | Lazy / cheaper `cacheKey` (not `JSON.stringify`) | per-query-record stringify allocation | G2 |
+| 11 | One shared `Shape` per room (floor + ceiling) | `Shape` allocated twice per room per rebuild | quick-win |

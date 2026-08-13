@@ -162,6 +162,8 @@ export type CompiledQuerySpan = CompiledIdentity & {
 	end: LayoutVec2;
 	startDistance: number;
 	endDistance: number;
+	startT?: number;
+	endT?: number;
 	aabb: LayoutBounds2;
 	sourceId: string;
 	floorId: string;

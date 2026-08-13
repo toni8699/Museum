@@ -46,6 +46,7 @@ export type QueryProjection = {
 	point: LayoutVec2;
 	offset: number;
 	distance: number;
+	t: number;
 };
 
 /** Nearest-span projection over compiled query spans (linear reference). */
@@ -60,7 +61,10 @@ export function projectPointToSpans(point: LayoutVec2, spans: readonly CompiledQ
 		const projected: LayoutVec2 = [span.start[0] + dx * amount, span.start[1] + dz * amount];
 		const distanceToPath = Math.hypot(point[0] - projected[0], point[1] - projected[1]);
 		const offset = span.startDistance + (span.endDistance - span.startDistance) * amount;
-		if (!best || distanceToPath < best.distance) best = { span, point: projected, offset, distance: distanceToPath };
+		const t = (span.startT ?? 0) + ((span.endT ?? span.startT ?? 0) - (span.startT ?? 0)) * amount;
+		if (!best || distanceToPath < best.distance) {
+			best = { span, point: projected, offset, distance: distanceToPath, t };
+		}
 	}
 	return best;
 }

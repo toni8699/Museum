@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { parseSceneDocumentJson } from '$lib/content/scene-codec';
-	import { parseLayoutDocumentJson } from './layout/layout-codec';
+	import { parseLayoutDocumentJson } from '$lib/layout/layout-codec';
 	import {
 		importLayoutPreviewJson,
 		layoutPreviewCanonicalJson,

@@ -5,6 +5,17 @@ export const CURVE_FLATNESS_TOLERANCE = 0.01;
 export const CURVE_MAX_SAMPLE_SPAN = 0.25;
 export const CURVE_SELF_INTERSECTION_TOLERANCE = 1e-4;
 export const LAYOUT_AUTO_BEZIER_ALPHA = 0.5;
+export const MAX_CURVE_SAMPLES_PER_SEGMENT = 100_000;
+
+export class LayoutGeometrySamplingError extends Error {
+	constructor(
+		public readonly code: 'sampling_length_invalid' | 'sampling_budget_exceeded' | 'sampling_output_invalid',
+		message: string
+	) {
+		super(message);
+		this.name = 'LayoutGeometrySamplingError';
+	}
+}
 
 export type AutoBezierSegment = Extract<DraftSegment, { kind: 'auto-bezier' }>;
 
@@ -143,13 +154,20 @@ export function segmentLength(segment: DraftSegment): number {
 
 export function sampleSegment(
 	segment: DraftSegment,
-	options: { flatnessTolerance?: number; maxSampleSpan?: number; maxDepth?: number } = {}
+	options: {
+		flatnessTolerance?: number;
+		maxSampleSpan?: number;
+		maxDepth?: number;
+		maxSamples?: number;
+	} = {}
 ): SampledSegment {
 	const flatnessTolerance = options.flatnessTolerance ?? CURVE_FLATNESS_TOLERANCE;
 	const maxSampleSpan = options.maxSampleSpan ?? CURVE_MAX_SAMPLE_SPAN;
 	const maxDepth = options.maxDepth ?? 12;
+	const maxSamples = options.maxSamples ?? MAX_CURVE_SAMPLES_PER_SEGMENT;
+	assertFiniteSamplingInput(segment);
 	if (segment.kind === 'line') {
-		const parameters = lineParameters(segment, maxSampleSpan);
+		const parameters = lineParameters(segment, maxSampleSpan, maxSamples);
 		return buildSampledSegment(
 			segment.id,
 			parameters.map((t) => ({ point: segmentPointAt(segment, t), t })),
@@ -163,8 +181,21 @@ export function sampleSegment(
 		const localParameters = adaptiveParameters(cubic, flatnessTolerance, maxSampleSpan, maxDepth);
 		for (const [parameterIndex, localT] of localParameters.entries()) {
 			if (cubicIndex > 0 && parameterIndex === 0) continue;
+			if (pointsWithT.length >= maxSamples) {
+				throw new LayoutGeometrySamplingError(
+					'sampling_budget_exceeded',
+					`Segment requires more than ${maxSamples} curve samples.`
+				);
+			}
 			const globalT = cubics.length <= 1 ? localT : (cubicIndex + localT) / cubics.length;
-			pointsWithT.push({ point: cubicBezierPoint(cubic, localT), t: globalT });
+			const point = cubicBezierPoint(cubic, localT);
+			if (!point.every(Number.isFinite)) {
+				throw new LayoutGeometrySamplingError(
+					'sampling_output_invalid',
+					'Segment sampling produced a non-finite point.'
+				);
+			}
+			pointsWithT.push({ point, t: globalT });
 		}
 	}
 	if (pointsWithT.length === 0) {
@@ -346,13 +377,55 @@ function resolveAutoBezierCubic(
 	return { cubic: cubics[index]!, localT };
 }
 
-function lineParameters(segment: Extract<DraftSegment, { kind: 'line' }>, maxSampleSpan: number): number[] {
-	const length = Math.hypot(segment.end[0] - segment.start[0], segment.end[1] - segment.start[1]);
+function lineParameters(
+	segment: Extract<DraftSegment, { kind: 'line' }>,
+	maxSampleSpan: number,
+	maxSamples: number
+): number[] {
+	const dx = segment.end[0] - segment.start[0];
+	const dz = segment.end[1] - segment.start[1];
+	const length = Math.hypot(dx, dz);
+	if (!Number.isFinite(length)) {
+		throw new LayoutGeometrySamplingError(
+			'sampling_length_invalid',
+			'Segment derived length must be finite.'
+		);
+	}
 	if (length <= CURVE_ENDPOINT_EPSILON) return [0, 1];
 	const steps = Math.max(1, Math.ceil(length / Math.max(maxSampleSpan, CURVE_ENDPOINT_EPSILON)));
+	if (!Number.isSafeInteger(steps) || steps + 1 > maxSamples) {
+		throw new LayoutGeometrySamplingError(
+			'sampling_budget_exceeded',
+			`Segment requires more than ${maxSamples} curve samples.`
+		);
+	}
 	const parameters: number[] = [];
 	for (let index = 0; index <= steps; index += 1) parameters.push(index / steps);
 	return parameters;
+}
+
+function assertFiniteSamplingInput(segment: DraftSegment): void {
+	const points = segment.kind === 'line'
+		? [segment.start, segment.end]
+		: [segment.start, ...segment.interiorAnchors.map((anchor) => anchor.point), segment.end];
+	if (!points.every((point) => point.every(Number.isFinite))) {
+		throw new LayoutGeometrySamplingError(
+			'sampling_output_invalid',
+			'Segment points must be finite before sampling.'
+		);
+	}
+	for (let index = 1; index < points.length; index += 1) {
+		const previous = points[index - 1]!;
+		const current = points[index]!;
+		const dx = current[0] - previous[0];
+		const dz = current[1] - previous[1];
+		if (!Number.isFinite(dx) || !Number.isFinite(dz) || !Number.isFinite(Math.hypot(dx, dz))) {
+			throw new LayoutGeometrySamplingError(
+				'sampling_length_invalid',
+				'Segment derived length must be finite.'
+			);
+		}
+	}
 }
 
 function adaptiveParameters(

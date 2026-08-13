@@ -1,4 +1,4 @@
-import { createEmptyLayoutDocument } from './layout-codec';
+import { createEmptyLayoutDocument } from '$lib/layout/layout-codec';
 import type {
 	DraftSegment,
 	LayoutDocument,

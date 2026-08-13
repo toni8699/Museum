@@ -1,7 +1,7 @@
 # Layout Viewport Switch Optimization
 
 **Date:** 2026-08-13
-**Status:** Planned
+**Status:** Implemented (measured: Plan→3D toggle 361.7 ms → 21.4 ms; Canvas persists across the toggle)
 **Parent:** [`2026-08-13-graphics-architecture-roadmap.md`](./2026-08-13-graphics-architecture-roadmap.md) (post-G1, pre-G4 quick win)
 **Prerequisite:** G1 shared geometry compiler (landed)
 **Handoff:** [`../hand-off/CURRENT.md`](../hand-off/CURRENT.md)
@@ -63,7 +63,9 @@ That remount is the visible chop.
 	$effect(() => {
 		const shouldRender = interaction.viewMode === '3d';
 		if (autoRender.current !== shouldRender) {
-			autoRender.current = shouldRender;
+			// `autoRender` is a `runeToCurrentWritable` in Threlte v8: `.current`
+			// is getter-only, so write through the store's `.set()`.
+			autoRender.set(shouldRender);
 			invalidate();
 		}
 	});

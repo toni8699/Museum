@@ -55,7 +55,11 @@
 		type LayoutOpeningKind,
 		type SegmentProjection
 	} from './layout-opening-editing';
-	import { projectPointToSampledSegment, type SampledSegment } from '$lib/layout/layout-geometry-curve';
+	import {
+		findPolygonContaining,
+		projectPointToSpans
+	} from '$lib/layout/layout-geometry-queries';
+	import type { CompiledQuerySpan } from '$lib/layout/layout-geometry-types';
 	import {
 		buildPlanGrid,
 		constrainToAngle,
@@ -69,8 +73,7 @@
 		type PlanGridLine
 	} from './layout-plan-transform';
 	import type { DraftSegment, LayoutOpening, LayoutRoom, LayoutVec2 } from './layout-types';
-	import { findHitLayoutObject, type LayoutObjectDescriptor } from './layout-object-editing';
-	import { pointInPolygon } from '$lib/layout/layout-geometry-objects';
+	import type { LayoutObjectDescriptor } from './layout-object-editing';
 	import { layoutRoomUnitPivot } from './layout-room-transform';
 
 	let {
@@ -125,8 +128,26 @@
 	const scaleMeters = $derived(100 / interaction.planView.pixelsPerMeter);
 	const rooms = $derived(preview.project.layout.floors.flatMap((floor) => floor.rooms));
 	const compiledRoomsById = $derived(new Map(model.rooms.map((room) => [room.roomId, room] as const)));
-	const compiledWallsBySegmentId = $derived(
-		new Map(model.rooms.flatMap((room) => room.walls.map((wall) => [wall.segmentId, wall] as const)))
+	const wallQuerySpansByRoom = $derived.by(() => {
+		const byRoom = new Map<string, Map<string, CompiledQuerySpan[]>>();
+		for (const span of model.queries.spans) {
+			if (span.kind !== 'wall') continue;
+			let bySegment = byRoom.get(span.roomId);
+			if (!bySegment) {
+				bySegment = new Map();
+				byRoom.set(span.roomId, bySegment);
+			}
+			const spans = bySegment.get(span.segmentId) ?? [];
+			spans.push(span);
+			bySegment.set(span.segmentId, spans);
+		}
+		return byRoom;
+	});
+	const roomQueryPolygons = $derived(
+		model.queries.polygons.filter((polygon) => polygon.kind === 'room-floor')
+	);
+	const objectQueryPolygons = $derived(
+		model.queries.polygons.filter((polygon) => polygon.kind === 'object-footprint')
 	);
 	const selectedRoom = $derived.by(() => {
 		const roomId = selectedLayoutRoomId(interaction);
@@ -143,18 +164,14 @@
 	});
 	const visibleInteriorAnchors = $derived.by(() => {
 		const anchors: { roomId: string; segmentId: string; anchorId: string; point: LayoutVec2 }[] = [];
-		for (const room of rooms) {
-			for (const segment of room.boundary.segments) {
-				if (segment.kind !== 'auto-bezier' || segment.interiorAnchors.length === 0) continue;
-				for (const anchor of segment.interiorAnchors) {
-					anchors.push({
-						roomId: room.id,
-						segmentId: segment.id,
-						anchorId: anchor.id,
-						point: anchor.point
-					});
-				}
-			}
+		for (const record of model.queries.points) {
+			if (record.kind !== 'interior-anchor') continue;
+			anchors.push({
+				roomId: record.roomId,
+				segmentId: record.segmentId,
+				anchorId: record.sourceId,
+				point: record.point
+			});
 		}
 		return anchors;
 	});
@@ -528,10 +545,11 @@
 			if (!point) return;
 			const room = findLayoutRoom(rooms, openingDrag.roomId);
 			const segment = room?.boundary.segments.find((candidate) => candidate.id === openingDrag!.segmentId);
-			const wall = segment ? compiledWallsBySegmentId.get(segment.id) : undefined;
-			if (!segment || !wall) return;
-			const projection = projectPointToWall(point, wall);
-			const length = wall.length;
+			const projection = room && segment
+				? projectPointToWall(point, room.id, segment.id)
+				: null;
+			if (!room || !segment || !projection) return;
+			const length = compiledWallLength(room.id, segment.id);
 			const centered = projection.offset - openingDrag.width / 2;
 			const offset = interaction.planView.snapEnabled
 				? snapSegmentOffset(centered, Math.max(0, length - openingDrag.width))
@@ -769,7 +787,10 @@
 		if (interiorAnchor) return interiorAnchor;
 		const opening = nearestOpeningTarget(point);
 		if (opening) return opening;
-		const object = findHitLayoutObject(model.objects, point);
+		const objectRecord = findPolygonContaining(point, objectQueryPolygons);
+		const object = objectRecord
+			? model.objects.find((candidate) => candidate.objectId === objectRecord.objectId)
+			: undefined;
 		if (object) return { kind: 'object', object };
 		const wall = nearestWallTarget(point);
 		if (wall) return wall;
@@ -780,15 +801,16 @@
 	function nearestVertexTarget(screen: LayoutVec2): VertexHitTarget | null {
 		let nearest: VertexHitTarget | null = null;
 		let nearestDistance = LAYOUT_PLAN_HIT_RADIUS_PX;
-		for (const room of rooms) {
-			roomVertices(room).forEach((point, vertexIndex) => {
-				const candidate = worldToPlanScreen(interaction.planView, point);
-				const currentDistance = Math.hypot(candidate[0] - screen[0], candidate[1] - screen[1]);
-				if (currentDistance <= nearestDistance) {
-					nearest = { kind: 'vertex', room, vertexIndex };
-					nearestDistance = currentDistance;
-				}
-			});
+		for (const record of model.queries.points) {
+			if (record.kind !== 'vertex') continue;
+			const room = findLayoutRoom(rooms, record.roomId);
+			if (!room) continue;
+			const candidate = worldToPlanScreen(interaction.planView, record.point);
+			const currentDistance = Math.hypot(candidate[0] - screen[0], candidate[1] - screen[1]);
+			if (currentDistance <= nearestDistance) {
+				nearest = { kind: 'vertex', room, vertexIndex: record.sourceIndex };
+				nearestDistance = currentDistance;
+			}
 		}
 		return nearest;
 	}
@@ -796,25 +818,45 @@
 	function nearestInteriorAnchorTarget(screen: LayoutVec2): InteriorAnchorHitTarget | null {
 		let nearest: InteriorAnchorHitTarget | null = null;
 		let nearestDistance = LAYOUT_PLAN_HIT_RADIUS_PX;
-		for (const room of rooms) {
-			for (const segment of room.boundary.segments) {
-				if (segment.kind !== 'auto-bezier') continue;
-				for (const anchor of segment.interiorAnchors) {
-					const handle = worldToPlanScreen(interaction.planView, anchor.point);
-					const currentDistance = Math.hypot(handle[0] - screen[0], handle[1] - screen[1]);
-					if (currentDistance <= nearestDistance) {
-						nearest = { kind: 'interiorAnchor', room, segment, anchor };
-						nearestDistance = currentDistance;
-					}
-				}
+		for (const record of model.queries.points) {
+			if (record.kind !== 'interior-anchor') continue;
+			const room = findLayoutRoom(rooms, record.roomId);
+			const segment = room?.boundary.segments.find(
+				(candidate) => candidate.id === record.segmentId && candidate.kind === 'auto-bezier'
+			);
+			const anchor = segment?.kind === 'auto-bezier'
+				? segment.interiorAnchors.find((candidate) => candidate.id === record.sourceId)
+				: undefined;
+			if (!room || !segment || segment.kind !== 'auto-bezier' || !anchor) continue;
+			const handle = worldToPlanScreen(interaction.planView, record.point);
+			const currentDistance = Math.hypot(handle[0] - screen[0], handle[1] - screen[1]);
+			if (currentDistance <= nearestDistance) {
+				nearest = { kind: 'interiorAnchor', room, segment, anchor };
+				nearestDistance = currentDistance;
 			}
 		}
 		return nearest;
 	}
 
-	function projectPointToWall(point: LayoutVec2, wall: SampledSegment): SegmentProjection {
-		const projection = projectPointToSampledSegment(point, wall);
-		return { point: projection.point, offset: projection.distance, distance: projection.distanceToPath, t: projection.t };
+	function projectPointToWall(
+		point: LayoutVec2,
+		roomId: string,
+		segmentId: string
+	): SegmentProjection | null {
+		const spans = wallQuerySpansByRoom.get(roomId)?.get(segmentId) ?? [];
+		const projection = projectPointToSpans(point, spans);
+		return projection
+			? {
+					point: projection.point,
+					offset: projection.offset,
+					distance: projection.distance,
+					t: projection.t
+				}
+			: null;
+	}
+
+	function compiledWallLength(roomId: string, segmentId: string): number {
+		return wallQuerySpansByRoom.get(roomId)?.get(segmentId)?.at(-1)?.endDistance ?? 0;
 	}
 
 	function compiledRoomEdgeLength(roomId: string, edgeIndex: number): number {
@@ -826,9 +868,8 @@
 		for (const room of [...rooms].reverse()) {
 			for (const opening of [...room.openings].reverse()) {
 				const segment = room.boundary.segments.find((candidate) => candidate.id === opening.segmentId);
-				const wall = segment ? compiledWallsBySegmentId.get(segment.id) : undefined;
-				if (!segment || !wall) continue;
-				const projection = projectPointToWall(point, wall);
+				const projection = segment ? projectPointToWall(point, room.id, segment.id) : null;
+				if (!segment || !projection) continue;
 				if (projection.distance <= tolerance && openingContainsOffset(opening, projection.offset, tolerance)) {
 					return { kind: 'opening', room, segment, opening, projection };
 				}
@@ -842,9 +883,8 @@
 		let nearest: WallHitTarget | null = null;
 		for (const room of [...rooms].reverse()) {
 			for (const segment of [...room.boundary.segments].reverse()) {
-				const wall = compiledWallsBySegmentId.get(segment.id);
-				if (!wall) continue;
-				const projection = projectPointToWall(point, wall);
+				const projection = projectPointToWall(point, room.id, segment.id);
+				if (!projection) continue;
 				if (projection.distance <= tolerance && (!nearest || projection.distance < nearest.projection.distance)) {
 					nearest = { kind: 'wall', room, segment, projection };
 				}
@@ -858,10 +898,12 @@
 	}
 
 	function findHitRoom(roomList: readonly LayoutRoom[], point: LayoutVec2): LayoutRoom | undefined {
-		return [...roomList].reverse().find((room) => {
-			const compiled = compiledRoomsById.get(room.id);
-			return compiled ? pointInPolygon(point, compiled.floorPolygon) : false;
-		});
+		const allowedRoomIds = new Set(roomList.map((room) => room.id));
+		const record = findPolygonContaining(
+			point,
+			roomQueryPolygons.filter((polygon) => polygon.roomId && allowedRoomIds.has(polygon.roomId))
+		);
+		return record?.roomId ? findLayoutRoom(roomList, record.roomId) : undefined;
 	}
 
 	function findLayoutRoom(roomList: readonly LayoutRoom[], roomId: string): LayoutRoom | undefined {
@@ -1073,7 +1115,7 @@
 </div>
 
 <style>
-	.plan-viewport { position: absolute; inset: 0; background: #0d0d12; }
+	.plan-viewport { position: absolute; inset: 0; z-index: 3; background: #0d0d12; }
 	.plan-canvas { display: block; position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: crosshair; outline: none; }
 	.plan-canvas.rotation-handle-hover { cursor: grab; }
 	.plan-canvas.rotation-dragging { cursor: grabbing; }

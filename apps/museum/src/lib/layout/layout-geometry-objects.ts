@@ -1,6 +1,7 @@
 import type { Vec3 } from '$lib/types/museum';
 import type { LayoutObject, LayoutVec2 } from './layout-types';
 import type { CompiledLayoutObject } from './layout-geometry-types';
+import { geometryId } from './layout-geometry-types';
 
 export type LayoutObjectAabb = {
 	min: Vec3;
@@ -24,6 +25,16 @@ export function describeLayoutObject(object: LayoutObject): LayoutObjectDescript
 	}
 	const planFootprint = convexHull(samples.map(([x, , z]) => [x, z] as LayoutVec2));
 	return {
+		id: geometryId(['object', object.id]),
+		cacheKey: JSON.stringify([
+			'object',
+			object.id,
+			object.kind,
+			object.position,
+			object.rotation,
+			object.dimensions,
+			object.roomId
+		]),
 		objectId: object.id,
 		kind: object.kind,
 		position: [...object.position],

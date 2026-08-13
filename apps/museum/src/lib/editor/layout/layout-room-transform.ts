@@ -1,6 +1,6 @@
 import type { LayoutDocument, LayoutRoom, LayoutVec2 } from './layout-types';
 import { roomBoundarySamples } from './layout-editing';
-import { validateLayoutDocument } from './layout-codec';
+import { validateLayoutDocument } from '$lib/layout/layout-codec';
 import { hasBlockingLayoutIssues, validateLayoutDocumentGeometry } from './layout-validation';
 import { normalizeLayoutRoomYaw } from '$lib/layout/layout-room-frame';
 

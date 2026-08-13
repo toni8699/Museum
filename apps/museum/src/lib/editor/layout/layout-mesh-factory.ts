@@ -3,6 +3,7 @@ import type { LayoutGeometryIssue } from './layout-validation';
 import { compileLayoutGeometry } from '$lib/layout/layout-geometry';
 import type {
 	CompiledCurveSample,
+	CompiledLayoutQueryGeometry,
 	CompiledOpening,
 	CompiledSolidSpan,
 	CompiledWallSection,
@@ -38,6 +39,7 @@ export type LayoutRoomPreview = {
 export type LayoutPreviewModel = {
 	rooms: LayoutRoomPreview[];
 	objects: LayoutObjectDescriptor[];
+	queries: CompiledLayoutQueryGeometry;
 };
 
 export type LayoutPreviewModelResult = {
@@ -76,7 +78,8 @@ export function buildLayoutPreviewModel(document: LayoutDocument): LayoutPreview
 				solidCenterlinePolylines: wall.solidCenterlinePolylines
 			}))
 		})),
-		objects: result.geometry.objects
+		objects: result.geometry.objects,
+		queries: result.geometry.queries
 	};
 	return { model, issues: result.issues, bounds: result.geometry.bounds };
 }

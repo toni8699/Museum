@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createEmptyLayoutDocument } from './layout-codec';
+import { createEmptyLayoutDocument } from '$lib/layout/layout-codec';
 import {
 	createLayoutObject,
 	defaultLayoutObjectDimensions,

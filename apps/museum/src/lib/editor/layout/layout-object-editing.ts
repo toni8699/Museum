@@ -35,6 +35,39 @@ export function defaultLayoutObjectDimensions(kind: AuthoredLayoutObjectKind): V
 	return [...DEFAULT_DIMENSIONS[kind]];
 }
 
+export type LayoutPrimitiveGeometry = {
+	position: Vec3;
+	dimensions: Vec3;
+};
+
+/** Derive a floor-relative primitive from a transient Plan gesture. */
+export function primitiveObjectGeometry(
+	kind: Exclude<AuthoredLayoutObjectKind, 'plane'>,
+	start: LayoutVec2,
+	current: LayoutVec2,
+	floorElevation: number,
+	snapEnabled = false
+): LayoutPrimitiveGeometry | null {
+	const first = snapEnabled ? snapLayoutPlanPoint(start) : start;
+	const last = snapEnabled ? snapLayoutPlanPoint(current) : current;
+	if (!first.every(Number.isFinite) || !last.every(Number.isFinite)) return null;
+	if (kind === 'box') {
+		const width = Math.abs(last[0] - first[0]);
+		const depth = Math.abs(last[1] - first[1]);
+		if (width <= 1e-6 || depth <= 1e-6) return null;
+		return {
+			position: [(first[0] + last[0]) / 2, floorElevation + 0.5, (first[1] + last[1]) / 2],
+			dimensions: [width, 1, depth]
+		};
+	}
+	const radius = Math.hypot(last[0] - first[0], last[1] - first[1]);
+	if (radius <= 1e-6) return null;
+	return {
+		position: [first[0], floorElevation + 0.5, first[1]],
+		dimensions: [radius * 2, 1, radius * 2]
+	};
+}
+
 export function nextLayoutObjectId(objects: readonly LayoutObject[]): string {
 	const ids = new Set(objects.map((object) => object.id));
 	let index = objects.length + 1;
@@ -132,6 +165,10 @@ export function describeLayoutObject(object: LayoutObject): LayoutObjectDescript
 		max[1] = Math.max(max[1], y);
 		max[2] = Math.max(max[2], z);
 	}
+	const planFootprint =
+		object.kind === 'cylinder' || object.kind === 'sphere'
+			? circularFootprint(object.position, Math.max(object.dimensions[0], object.dimensions[2]) / 2)
+			: convexHull(corners.map(([x, , z]) => [x, z] as LayoutVec2));
 	return {
 		objectId: object.id,
 		kind: object.kind,
@@ -141,7 +178,7 @@ export function describeLayoutObject(object: LayoutObject): LayoutObjectDescript
 		...(object.roomId ? { roomId: object.roomId } : {}),
 		readonly: object.kind === 'profile',
 		worldAabb: { min, max },
-		planFootprint: convexHull(corners.map(([x, , z]) => [x, z] as LayoutVec2))
+		planFootprint
 	};
 }
 
@@ -190,6 +227,13 @@ function rotateXyz([x, y, z]: Vec3, [rx, ry, rz]: Vec3): Vec3 {
 		(af + be * d) * x + (ae - bf * d) * y - b * c * z,
 		(bf - ae * d) * x + (be + af * d) * y + a * c * z
 	];
+}
+
+function circularFootprint(position: Vec3, radius: number, steps = 32): LayoutVec2[] {
+	return Array.from({ length: steps }, (_, index) => {
+		const angle = (index / steps) * Math.PI * 2;
+		return [position[0] + Math.cos(angle) * radius, position[2] + Math.sin(angle) * radius];
+	});
 }
 
 function convexHull(points: readonly LayoutVec2[]): LayoutVec2[] {

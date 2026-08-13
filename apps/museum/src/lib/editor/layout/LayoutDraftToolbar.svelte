@@ -1,9 +1,8 @@
 <script lang="ts">
 	import {
+		cancelLayoutPrimitiveDraft,
 		clearLayoutDraft,
-		cancelLayoutPendingObject,
 		setLayoutDraftTool,
-		setLayoutPendingObjectKind,
 		setLayoutViewMode,
 		type LayoutInteractionState,
 		type LayoutDraftTool,
@@ -24,7 +23,8 @@
 
 	function cancel() {
 		clearLayoutDraft(interaction);
-		cancelLayoutPendingObject(interaction);
+		cancelLayoutPrimitiveDraft(interaction);
+		if (interaction.tool === 'door' || interaction.tool === 'window') setLayoutDraftTool(interaction, 'select');
 	}
 </script>
 
@@ -33,24 +33,11 @@
 		<button type="button" class:active={interaction.viewMode === 'plan'} aria-pressed={interaction.viewMode === 'plan'} onclick={() => chooseView('plan')}>Plan</button>
 		<button type="button" class:active={interaction.viewMode === '3d'} aria-pressed={interaction.viewMode === '3d'} onclick={() => chooseView('3d')}>3D</button>
 	</div>
-	<div class="tool-group" aria-label="Drafting tool">
+	<div class="tool-group" aria-label="Room drafting tool">
 		<button type="button" class:active={interaction.tool === 'select'} aria-pressed={interaction.tool === 'select'} onclick={() => chooseTool('select')}>Select</button>
-		<button type="button" class:active={interaction.tool === 'rectangle'} aria-pressed={interaction.tool === 'rectangle'} onclick={() => chooseTool('rectangle')}>Rectangle</button>
-		<button type="button" class:active={interaction.tool === 'polygon'} aria-pressed={interaction.tool === 'polygon'} onclick={() => chooseTool('polygon')}>Polygon</button>
-		<button type="button" class:active={interaction.tool === 'door'} aria-pressed={interaction.tool === 'door'} onclick={() => chooseTool('door')}>Door</button>
-			<button type="button" class:active={interaction.tool === 'window'} aria-pressed={interaction.tool === 'window'} onclick={() => chooseTool('window')}>Window</button>
-			<button type="button" class:active={interaction.tool === 'object'} aria-pressed={interaction.tool === 'object'} onclick={() => chooseTool('object')}>Object</button>
-		</div>
-		{#if interaction.tool === 'object' && interaction.pendingObject}
-			<label class="object-kind">Kind
-				<select value={interaction.pendingObject.kind} onchange={(event) => setLayoutPendingObjectKind(interaction, (event.currentTarget as HTMLSelectElement).value as 'box' | 'plane' | 'cylinder' | 'sphere')}>
-					<option value="box">Box</option>
-					<option value="plane">Plane</option>
-					<option value="cylinder">Cylinder</option>
-					<option value="sphere">Sphere</option>
-				</select>
-			</label>
-		{/if}
+		<button type="button" class:active={interaction.tool === 'rectangle'} aria-pressed={interaction.tool === 'rectangle'} onclick={() => chooseTool('rectangle')}>Rect room</button>
+		<button type="button" class:active={interaction.tool === 'polygon'} aria-pressed={interaction.tool === 'polygon'} onclick={() => chooseTool('polygon')}>Polygon room</button>
+	</div>
 	{#if interaction.viewMode === 'plan'}
 		<div class="tool-group options" aria-label="Plan options">
 			<button type="button" class:active={interaction.planView.snapEnabled} aria-pressed={interaction.planView.snapEnabled} onclick={() => (interaction.planView.snapEnabled = !interaction.planView.snapEnabled)}>Snap 0.25m</button>
@@ -59,7 +46,7 @@
 	{:else}
 		<button type="button" class:active={preview.showCeilings} aria-pressed={preview.showCeilings} onclick={() => toggleLayoutCeilings(preview)}>Ceiling</button>
 	{/if}
-		{#if interaction.polygonPoints.length > 0 || interaction.rectangleStart || interaction.pendingObject}
+	{#if interaction.polygonPoints.length > 0 || interaction.rectangleStart || interaction.primitiveDraft || interaction.tool === 'door' || interaction.tool === 'window'}
 		<button type="button" class="cancel" onclick={cancel}>Cancel</button>
 	{/if}
 </div>
@@ -68,8 +55,6 @@
 	.layout-toolbar { position: absolute; top: 0.75rem; left: 0.75rem; z-index: 4; display: flex; gap: 0.3rem; padding: 0.3rem; border: 1px solid #46444e; border-radius: 0.42rem; background: rgb(19 19 26 / 94%); box-shadow: 0 0.4rem 1.25rem rgb(0 0 0 / 28%); }
 	.tool-group { display: flex; gap: 0.22rem; padding-right: 0.32rem; border-right: 1px solid #34343e; }
 	.tool-group.options { border-right: 0; }
-	.object-kind { display: flex; align-items: center; gap: 0.3rem; padding: 0 0.35rem; color: #a8a29a; font: 600 0.66rem/1 ui-sans-serif, system-ui, sans-serif; }
-	.object-kind select { padding: 0.3rem; border: 1px solid #46444e; border-radius: 0.28rem; background: #17171f; color: #f4efe4; font: inherit; }
 	button { padding: 0.38rem 0.52rem; border: 1px solid transparent; border-radius: 0.3rem; background: transparent; color: #c9c3b8; font: 600 0.68rem/1 ui-sans-serif, system-ui, sans-serif; cursor: pointer; }
 	button:hover { border-color: #5a5663; color: #fff; }
 	button.active { border-color: #8d753c; background: #2a2618; color: #fff2c7; }

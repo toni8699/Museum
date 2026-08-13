@@ -40,6 +40,22 @@
 		return Math.min(section.topY, profileBaseY + profileTop);
 	}
 
+	function sphereVisualScale(dimensions: [number, number, number]): [number, number, number] {
+		// Newly drawn spheres store a 1 m editable height. Keep their viewport
+		// representation spherical until an explicitly taller height is chosen;
+		// otherwise a normal radius drag appears as a flat disc.
+		const footprintDiameter = Math.max(dimensions[0], dimensions[2]);
+		return [dimensions[0], Math.max(dimensions[1], footprintDiameter), dimensions[2]];
+	}
+
+	function objectPosition(object: LayoutPreviewModel['objects'][number]): [number, number, number] {
+		if (object.kind !== 'sphere' || !object.roomId) return object.position;
+		const room = model.rooms.find((candidate) => candidate.roomId === object.roomId);
+		if (!room) return object.position;
+		const visualHeight = sphereVisualScale(object.dimensions)[1];
+		return [object.position[0], room.floorElevation + visualHeight / 2, object.position[2]];
+	}
+
 	function clippedSpan(
 		wall: WallPreview,
 		section: WallPreview['sections'][number],
@@ -154,8 +170,8 @@
 		<T.Group
 			name={`LayoutObject:${object.objectId}`}
 			position={interaction.objectDrag?.objectId === object.objectId
-				? interaction.objectDrag.candidatePosition
-				: object.position}
+				? [interaction.objectDrag.candidatePosition[0], objectPosition(object)[1], interaction.objectDrag.candidatePosition[2]]
+				: objectPosition(object)}
 			rotation={object.rotation}
 			userData={{ editorEntity: 'layout-object', layoutObjectId: object.objectId }}
 		>
@@ -163,7 +179,7 @@
 				castShadow
 				receiveShadow
 				scale={object.kind === 'sphere'
-					? object.dimensions
+					? sphereVisualScale(object.dimensions)
 					: object.kind === 'cylinder'
 						? [1, 1, object.dimensions[2] / object.dimensions[0]]
 						: [1, 1, 1]}
@@ -190,33 +206,4 @@
 			</T.Mesh>
 		</T.Group>
 	{/each}
-
-	{#if interaction.pendingObject?.position}
-		{@const pending = interaction.pendingObject}
-		<T.Group name="LayoutObjectGhost" position={pending.position ?? [0, 0, 0]}>
-			<T.Mesh
-				scale={pending.kind === 'sphere'
-					? pending.dimensions
-					: pending.kind === 'cylinder'
-						? [1, 1, pending.dimensions[2] / pending.dimensions[0]]
-						: [1, 1, 1]}
-			>
-				{#if pending.kind === 'box' || pending.kind === 'plane'}
-					<T.BoxGeometry args={pending.dimensions} />
-				{:else if pending.kind === 'cylinder'}
-					<T.CylinderGeometry
-						args={[pending.dimensions[0] / 2, pending.dimensions[0] / 2, pending.dimensions[1], 24]}
-					/>
-				{:else}
-					<T.SphereGeometry args={[0.5, 24, 16]} />
-				{/if}
-				<T.MeshBasicMaterial
-					color={pending.valid ? '#d6b35f' : '#d96b6b'}
-					transparent
-					opacity={0.45}
-					depthWrite={false}
-				/>
-			</T.Mesh>
-		</T.Group>
-	{/if}
 </T.Group>

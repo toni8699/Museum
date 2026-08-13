@@ -1,25 +1,29 @@
 import type { LayoutVec2 } from './layout-types';
 import { createPlanViewportState, type PlanViewportState } from './layout-plan-transform';
 import type { Vec3 } from '$lib/types/museum';
-import { defaultLayoutObjectDimensions, type AuthoredLayoutObjectKind } from './layout-object-editing';
-
 export type LayoutViewMode = 'plan' | '3d';
-export type LayoutDraftTool = 'select' | 'rectangle' | 'polygon' | 'door' | 'window' | 'object';
+export type LayoutPrimitiveTool = 'box' | 'cylinder' | 'sphere';
+export type LayoutDraftTool = 'select' | 'rectangle' | 'polygon' | 'door' | 'window' | LayoutPrimitiveTool;
 export type LayoutRoomDragMode = 'room' | 'vertex';
 
-export type LayoutPendingObject = {
-	kind: AuthoredLayoutObjectKind;
-	dimensions: Vec3;
-	position: Vec3 | null;
+export type LayoutPrimitiveDraft = {
+	kind: LayoutPrimitiveTool;
+	start: LayoutVec2;
+	current: LayoutVec2;
 	roomId?: string;
 	valid: boolean;
-	message?: string;
 };
 
 export type LayoutObjectDrag = {
 	objectId: string;
 	originalPosition: Vec3;
 	candidatePosition: Vec3;
+};
+
+export type LayoutAccordionState = {
+	place: boolean;
+	objects: boolean;
+	selection: boolean;
 };
 
 /** Screen-pixel distance before a wall mid-span drag inserts a bend anchor. */
@@ -39,9 +43,10 @@ export type LayoutInteractionState = {
 	polygonPoints: LayoutVec2[];
 	rectangleStart: LayoutVec2 | null;
 	rectangleCurrent: LayoutVec2 | null;
+	primitiveDraft: LayoutPrimitiveDraft | null;
 	selection: LayoutSelection;
-	pendingObject: LayoutPendingObject | null;
 	objectDrag: LayoutObjectDrag | null;
+	accordions: LayoutAccordionState;
 	planView: PlanViewportState;
 	editing: {
 		mode: LayoutRoomDragMode;
@@ -60,9 +65,10 @@ export function createLayoutInteractionState(): LayoutInteractionState {
 		polygonPoints: [],
 		rectangleStart: null,
 		rectangleCurrent: null,
+		primitiveDraft: null,
 		selection: { kind: 'none' },
-		pendingObject: null,
 		objectDrag: null,
+		accordions: { place: true, objects: true, selection: true },
 		planView: createPlanViewportState(),
 		editing: null
 	};
@@ -72,6 +78,8 @@ export function setLayoutViewMode(state: LayoutInteractionState, viewMode: Layou
 	state.viewMode = viewMode;
 	clearLayoutDraft(state);
 	cancelRoomEdit(state);
+	state.objectDrag = null;
+	state.primitiveDraft = null;
 }
 
 export function setLayoutDraftTool(state: LayoutInteractionState, tool: LayoutDraftTool): void {
@@ -79,46 +87,67 @@ export function setLayoutDraftTool(state: LayoutInteractionState, tool: LayoutDr
 	clearLayoutDraft(state);
 	cancelRoomEdit(state);
 	state.objectDrag = null;
-	state.pendingObject =
-		tool === 'object'
-			? {
-					kind: 'box',
-					dimensions: defaultLayoutObjectDimensions('box'),
-					position: null,
-					valid: false
-				}
-			: null;
+	state.primitiveDraft = null;
 }
 
-export function setLayoutPendingObjectKind(
+export function toggleLayoutAccordion(
 	state: LayoutInteractionState,
-	kind: AuthoredLayoutObjectKind
+	section: keyof LayoutAccordionState
 ): void {
-	if (state.tool !== 'object') state.tool = 'object';
-	state.pendingObject = {
+	state.accordions[section] = !state.accordions[section];
+}
+
+export function beginLayoutPrimitiveDraft(
+	state: LayoutInteractionState,
+	kind: LayoutPrimitiveTool,
+	point: LayoutVec2,
+	roomId?: string
+): void {
+	state.tool = kind;
+	state.primitiveDraft = {
 		kind,
-		dimensions: defaultLayoutObjectDimensions(kind),
-		position: null,
+		start: [...point],
+		current: [...point],
+		...(roomId ? { roomId } : {}),
 		valid: false
 	};
 }
 
-export function updateLayoutPendingObject(
+export function updateLayoutPrimitiveDraft(
 	state: LayoutInteractionState,
-	position: Vec3 | null,
-	roomId?: string,
-	message?: string
+	point: LayoutVec2,
+	roomId?: string
 ): void {
-	if (!state.pendingObject) return;
-	state.pendingObject.position = position ? [...position] : null;
-	state.pendingObject.roomId = roomId;
-	state.pendingObject.valid = Boolean(position && roomId);
-	state.pendingObject.message = message;
+	const draft = state.primitiveDraft;
+	if (!draft) return;
+	draft.current = [...point];
+	draft.roomId = roomId;
+	draft.valid = Boolean(roomId && primitiveDraftHasSize(draft));
 }
 
-export function cancelLayoutPendingObject(state: LayoutInteractionState): void {
-	state.pendingObject = null;
-	if (state.tool === 'object') state.tool = 'select';
+export function primitiveDraftHasSize(draft: Pick<LayoutPrimitiveDraft, 'kind' | 'start' | 'current'>): boolean {
+	if (draft.kind === 'box') {
+		return Math.abs(draft.current[0] - draft.start[0]) > 1e-6 && Math.abs(draft.current[1] - draft.start[1]) > 1e-6;
+	}
+	return Math.hypot(draft.current[0] - draft.start[0], draft.current[1] - draft.start[1]) > 1e-6;
+}
+
+export function primitiveDraftFootprint(draft: LayoutPrimitiveDraft, circleSteps = 32): LayoutVec2[] {
+	if (draft.kind === 'box') {
+		const [startX, startZ] = draft.start;
+		const [endX, endZ] = draft.current;
+		return [[startX, startZ], [endX, startZ], [endX, endZ], [startX, endZ]];
+	}
+	const radius = Math.hypot(draft.current[0] - draft.start[0], draft.current[1] - draft.start[1]);
+	return Array.from({ length: circleSteps }, (_, index) => {
+		const angle = (index / circleSteps) * Math.PI * 2;
+		return [draft.start[0] + Math.cos(angle) * radius, draft.start[1] + Math.sin(angle) * radius];
+	});
+}
+
+export function cancelLayoutPrimitiveDraft(state: LayoutInteractionState): void {
+	state.primitiveDraft = null;
+	if (state.tool === 'box' || state.tool === 'cylinder' || state.tool === 'sphere') state.tool = 'select';
 }
 
 export function beginRectangle(state: LayoutInteractionState, point: LayoutVec2): void {
@@ -218,16 +247,20 @@ export function beginRoomEdit(state: LayoutInteractionState, mode: LayoutRoomDra
 	state.editing = { mode, vertexIndex, roomId, startWorld: [...startWorld], originalPoints: originalPoints.map((point) => [...point]), currentPoints: originalPoints.map((point) => [...point]) };
 }
 
-export function updateRoomEdit(state: LayoutInteractionState, currentWorld: LayoutVec2): void {
+export function updateRoomEdit(state: LayoutInteractionState, currentWorld: LayoutVec2, snapEnabled = false): void {
 	const edit = state.editing;
 	if (!edit) return;
 	const delta: LayoutVec2 = [currentWorld[0] - edit.startWorld[0], currentWorld[1] - edit.startWorld[1]];
+	const candidate = (point: LayoutVec2): LayoutVec2 => {
+		const next: LayoutVec2 = [point[0] + delta[0], point[1] + delta[1]];
+		return snapEnabled ? [Math.round(next[0] * 4) / 4, Math.round(next[1] * 4) / 4] : next;
+	};
 	if (edit.mode === 'room') {
-		edit.currentPoints = edit.originalPoints.map(([x, z]) => [x + delta[0], z + delta[1]]);
+		edit.currentPoints = edit.originalPoints.map(candidate);
 		return;
 	}
 	edit.currentPoints = edit.originalPoints.map((point) => [...point]);
-	if (edit.vertexIndex !== null) edit.currentPoints[edit.vertexIndex] = [edit.originalPoints[edit.vertexIndex]![0] + delta[0], edit.originalPoints[edit.vertexIndex]![1] + delta[1]];
+	if (edit.vertexIndex !== null) edit.currentPoints[edit.vertexIndex] = candidate(edit.originalPoints[edit.vertexIndex]!);
 }
 
 export function cancelRoomEdit(state: LayoutInteractionState): void {

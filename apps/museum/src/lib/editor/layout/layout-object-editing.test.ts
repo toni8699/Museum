@@ -10,6 +10,7 @@ import {
 	isKnownLayoutRoomId,
 	nextLayoutObjectId,
 	patchLayoutObject,
+	primitiveObjectGeometry,
 	snapLayoutPlanPoint
 } from './layout-object-editing';
 
@@ -18,6 +19,18 @@ describe('layout object editing', () => {
 		expect(defaultLayoutObjectDimensions('plane')).toEqual([2, 0.01, 2]);
 		expect(floorObjectPosition([1.12, 2.13], 4, [1, 2, 1], true)).toEqual([1, 5, 2.25]);
 		expect(snapLayoutPlanPoint([0.37, -0.37])).toEqual([0.25, -0.25]);
+	});
+
+	it('derives box and radial primitive geometry from Plan gestures', () => {
+		expect(primitiveObjectGeometry('box', [1.1, 2.2], [3.6, 5.2], 2)).toEqual({
+			position: [2.35, 2.5, 3.7],
+			dimensions: [2.5, 1, 3]
+		});
+		expect(primitiveObjectGeometry('cylinder', [1, 2], [4, 6], 3, true)).toEqual({
+			position: [1, 3.5, 2],
+			dimensions: [10, 1, 10]
+		});
+		expect(primitiveObjectGeometry('sphere', [1, 2], [1, 2], 0)).toBeNull();
 	});
 
 	it('allocates collision-free stable IDs', () => {
@@ -44,6 +57,9 @@ describe('layout object editing', () => {
 		expect(descriptor.worldAabb.min[0]).toBeCloseTo(-0.5);
 		expect(descriptor.worldAabb.max[2]).toBeCloseTo(1);
 		expect(descriptor.planFootprint).toHaveLength(4);
+		const cylinder = describeLayoutObject({ id: 'cylinder', kind: 'cylinder', position: [0, 0.5, 0], rotation: [0, 0, 0], dimensions: [2, 1, 2] });
+		expect(cylinder.planFootprint).toHaveLength(32);
+		expect(cylinder.planFootprint[0]).toEqual([1, 0]);
 		expect(findHitLayoutObject([describeLayoutObject(first), descriptor], [0, 0])?.objectId).toBe('second');
 	});
 

@@ -17,7 +17,6 @@
 	import LayoutPreviewScene from './layout/LayoutPreviewScene.svelte';
 	import LayoutPlanViewport from './layout/LayoutPlanViewport.svelte';
 	import LayoutDraftToolbar from './layout/LayoutDraftToolbar.svelte';
-	import LayoutInteraction3D from './layout/LayoutInteraction3D.svelte';
 	import type { LayoutInteractionState } from './layout/layout-interaction';
 	import type { LayoutPreviewState } from './layout/layout-preview-state.svelte';
 	import {
@@ -56,13 +55,13 @@
 		// EditorPlacementRoot register effects on every independent scale write)
 		// while still exposing reactive session scale memory to MuseumEntities.
 		get scaleVersion() {
-			return store.session.placementScaleVectorVersion;
+			return store.placementScaleVectorVersion;
 		},
 		getPlacementScale: (id) => {
 			const entity = store.document.entities.find((candidate) => candidate.id === id);
 			return resolveEditorPlacementScale(
 				entity?.scale,
-				store.session.getPlacementScaleVector(id)
+				store.getPlacementScaleVector(id)
 			);
 		}
 	};
@@ -157,7 +156,6 @@
 				selectedSegmentId={layoutInteraction.selection.kind === 'wall' || layoutInteraction.selection.kind === 'opening' || layoutInteraction.selection.kind === 'interiorAnchor' ? layoutInteraction.selection.segmentId : null}
 				selectedOpeningId={layoutInteraction.selection.kind === 'opening' ? layoutInteraction.selection.openingId : null}
 			/>
-			<LayoutInteraction3D preview={layoutPreview} interaction={layoutInteraction} />
 		{/if}
 		<EditorGrid visible={store.gridVisible && !store.isVisitorCameraPreview} />
 		{#if store.currentWorkspace !== 'layout' && store.viewportShowPaths}

@@ -30,6 +30,7 @@ import {
 	isKnownLayoutRoomId,
 	nextLayoutObjectId,
 	patchLayoutObject,
+	primitiveObjectGeometry,
 	type AuthoredLayoutObjectKind,
 	type LayoutObjectPatch
 } from './layout-object-editing';
@@ -206,6 +207,32 @@ export function updateLayoutRoomFields(
 	if (patch.floorHeight !== undefined) floor.height = patch.floorHeight;
 	const applied = applyLayoutMutation(state, layout);
 	return applied.success ? { success: true } : applied;
+}
+
+export function commitLayoutPrimitive(
+	state: LayoutPreviewState,
+	kind: Exclude<AuthoredLayoutObjectKind, 'plane'>,
+	start: LayoutVec2,
+	current: LayoutVec2,
+	roomId: string | undefined,
+	snapEnabled = false
+): LayoutObjectMutationResult {
+	const floor = state.project.layout.floors[0];
+	const room = floor?.rooms.find((candidate) => candidate.id === roomId);
+	if (!floor || !room || !roomId) return failObjectMutation(state, 'Choose a first-floor room');
+	const geometry = primitiveObjectGeometry(kind, start, current, floor.elevation, snapEnabled);
+	if (!geometry) return failObjectMutation(state, 'Primitive gesture must have a non-zero size');
+	const layout = cloneLayout(state.project.layout);
+	const object = createLayoutObject({
+		id: nextLayoutObjectId(layout.objects),
+		kind,
+		position: geometry.position,
+		dimensions: geometry.dimensions,
+		roomId
+	});
+	layout.objects = [...layout.objects, object];
+	const applied = applyLayoutMutation(state, layout);
+	return applied.success ? { success: true, objectId: object.id } : applied;
 }
 
 export function commitLayoutObject(

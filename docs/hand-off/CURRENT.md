@@ -4,7 +4,7 @@
 
 **North star:** layout-first / Chopin-as-data — [`../north-star.md`](../north-star.md).  
 **P0:** Layout CAD Foundation — [`../plans/2026-08-10-layout-cad-foundation.md`](../plans/2026-08-10-layout-cad-foundation.md).  
-**Completed:** A0 LayoutDocument codec + B0 Chopin `rooms.ts` compiler + A1 pure line geometry/preview model/transaction stub + C0 `MuseumProject` codec + A2 read-only layout preview workspace + A2.1 rectangle/polygon drafting + A2.2 meter-scale editing and Chopin floor correction + A2.3 geometry-only opening authoring and numeric opening dimensions + A3 Bezier walls, arc-length openings, and derived arch profiles + A3.1 camera-style wall bend anchors, opening viz fix, and Plan opening drag + A4 layout objects, inspectors, and layout JSON I/O.
+**Completed:** A0 LayoutDocument codec + B0 Chopin `rooms.ts` compiler + A1 pure line geometry/preview model/transaction stub + C0 `MuseumProject` codec + A2 read-only layout preview workspace + A2.1 rectangle/polygon drafting + A2.2 meter-scale editing and Chopin floor correction + A2.3 geometry-only opening authoring and numeric opening dimensions + A3 Bezier walls, arc-length openings, and derived arch profiles + A3.1 camera-style wall bend anchors, opening viz fix, and Plan opening drag + A4 layout objects, inspectors, and layout JSON I/O + A4.1 Layout Authoring Polish.
 
 Full-track Phase 2 scene presets = deferred optional.
 
@@ -28,9 +28,10 @@ A4 adds primitive layout-object placement in Plan and 3D, transient Plan object 
 - A3 focused layout suite: 98 passed.
 - A3.1 focused layout suite: 107 passed.
 - A4 focused layout suite: 41 passed after final object/state additions.
-- Full suite: 85 files / 1100 tests passed.
+- A4.1 focused layout/shell set: 54 passed.
+- Full suite: 85 files / 1104 tests passed.
 - Museum build passed.
-- `npm run check -w @portfolio/museum`: same 4 baseline diagnostics in `MuseumEntities.svelte` and `EditorViewport.svelte`; no A4 additions.
+- `npm run check -w @portfolio/museum`: 0 errors / 0 warnings.
 - In-app Browser manual QA remains pending: Browser runtime returned `Browser is not available: iab` on 2026-08-12.
 
 ## Locked decisions
@@ -49,6 +50,7 @@ A4 adds primitive layout-object placement in Plan and 3D, transient Plan object 
 - A3.1 walls use `line` | `auto-bezier` with camera-style interior anchors (pure 2D centripetal cubics); no Bezier room tool; no authored `handleOut`/`handleIn` edit model; legacy `bezier` migrates on codec read. Bend via mid-span **drag** (4 px threshold); click selects wall without inserting an anchor; corners resize rooms. Plan-only anchors; 3D sampled preview only.
 - A3 curve mutations remain preview-state-only; no shared editor history or persistence.
 - A4 layout object mutations and layout I/O remain preview-state-only; scene dirty/history are independent. Navigation/unload protects either dirty document.
+- A4.1 layout chrome uses Plan-only Box/Cylinder/Sphere gestures, Place/Objects/Selection accordion state, and 0.25 m room/vertex/object candidate snapping; primitive placement is not reachable in 3D.
 - A1 `LayoutOpening.offset` is meters along its segment; B4 adds explicit `connectsRoomIds` for portals.
 - Layout auto-bezier must not import `camera-motion` / Three.
 - No commits unless user asks.
@@ -62,7 +64,7 @@ Phase 2 Wall presets · semantic room adjacency/portal graph (B4) · cutover (B5
 1. This file.  
 2. [`../AGENTS.md`](../../AGENTS.md) hard rules.  
 3. [`../architecture.md`](../architecture.md) (layout/`rooms.ts` only).  
-4. For B3, read the foundation plan task section + the matching component contract. A0/B0/A1/C0/A2/A2.1/A2.2/A2.3/A3/A3.1/A4 are shipped.
+4. For B3, read the foundation plan task section + the matching component contract. A0/B0/A1/C0/A2/A2.1/A2.2/A2.3/A3/A3.1/A4/A4.1 are shipped.
 
 5. Skip other `docs/components/*` unless the task touches them.
 

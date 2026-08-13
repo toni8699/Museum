@@ -715,6 +715,14 @@ export class MuseumEditorStore {
 	set activeCameraDirection(value: CameraConnectionDirection) {
 		this.selectionStore.setDiscovery(this.activeCameraConnectionId, value);
 	}
+	/** Session-only per-axis placement scale memory used by the editor renderer. */
+	get placementScaleVectorVersion(): number {
+		return this.session.placementScaleVectorVersion;
+	}
+	getPlacementScaleVector(id: string) {
+		return this.session.getPlacementScaleVector(id);
+	}
+
 	/** Session-only asset placement and pointer/shortcut coordination. */
 	get pendingPlacementAssetId(): string | null {
 		return this.session.pendingPlacementAssetId;

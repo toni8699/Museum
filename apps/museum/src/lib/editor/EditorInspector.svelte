@@ -21,9 +21,12 @@
 		type LayoutRoomFieldPatch
 	} from './layout/layout-preview-state.svelte';
 	import {
+		selectLayoutObject,
 		selectedLayoutRoomId,
 		setLayoutDraftTool,
-		type LayoutInteractionState
+		toggleLayoutAccordion,
+		type LayoutInteractionState,
+		type LayoutPrimitiveTool
 	} from './layout/layout-interaction';
 	import { roomBounds, roomEdgeLength } from './layout/layout-editing';
 	import {
@@ -279,6 +282,45 @@
 		store.setStatusMessage(result.success ? `Updated object ${field}` : `Object rejected: ${result.message}`);
 	}
 
+	function armLayoutPlaceTool(tool: 'door' | 'window' | LayoutPrimitiveTool) {
+		if ((tool === 'box' || tool === 'cylinder' || tool === 'sphere') && layoutInteraction.viewMode !== 'plan') {
+			store.setStatusMessage('Primitive placement is Plan-only');
+			return;
+		}
+		layoutInteraction.accordions.place = true;
+		setLayoutDraftTool(layoutInteraction, tool);
+	}
+
+	function selectListedLayoutObject(objectId: string) {
+		selectLayoutObject(layoutInteraction, objectId);
+		setLayoutDraftTool(layoutInteraction, 'select');
+		if (!layoutInteraction.accordions.selection) toggleLayoutAccordion(layoutInteraction, 'selection');
+	}
+
+	function updateObjectMetric(
+		metric: 'width' | 'depth' | 'height' | 'radius',
+		event: Event
+	) {
+		if (!selectedLayoutObject || selectedLayoutObject.kind === 'profile' || selectedLayoutObject.kind === 'plane') return;
+		const input = event.currentTarget as HTMLInputElement;
+		const value = Number(input.value);
+		if (!Number.isFinite(value) || value <= 0) {
+			input.value = String(metric === 'radius' ? selectedLayoutObject.dimensions[0] / 2 : metric === 'width' ? selectedLayoutObject.dimensions[0] : metric === 'depth' ? selectedLayoutObject.dimensions[2] : selectedLayoutObject.dimensions[1]);
+			return;
+		}
+		const dimensions = [...selectedLayoutObject.dimensions] as [number, number, number];
+		if (metric === 'width') dimensions[0] = value;
+		if (metric === 'depth') dimensions[2] = value;
+		if (metric === 'height') dimensions[1] = value;
+		if (metric === 'radius') {
+			dimensions[0] = value * 2;
+			dimensions[2] = value * 2;
+		}
+		const result = updateLayoutObjectFields(layoutPreview, selectedLayoutObject.id, { dimensions });
+		if (!result.success) input.value = String(metric === 'radius' ? selectedLayoutObject.dimensions[0] / 2 : metric === 'width' ? selectedLayoutObject.dimensions[0] : metric === 'depth' ? selectedLayoutObject.dimensions[2] : selectedLayoutObject.dimensions[1]);
+		store.setStatusMessage(result.success ? `Updated object ${metric}` : `Object rejected: ${result.message}`);
+	}
+
 	function updateObjectRoom(event: Event) {
 		if (!selectedLayoutObject || selectedLayoutObject.kind === 'profile') return;
 		const roomId = (event.currentTarget as HTMLSelectElement).value || undefined;
@@ -286,11 +328,14 @@
 		store.setStatusMessage(result.success ? 'Updated object room' : `Object rejected: ${result.message}`);
 	}
 
-	function removeSelectedObject() {
-		if (!selectedLayoutObject) return;
-		const result = deleteLayoutObject(layoutPreview, selectedLayoutObject.id);
-		if (result.success) layoutInteraction.selection = { kind: 'none' };
+	function removeLayoutObject(objectId: string) {
+		const result = deleteLayoutObject(layoutPreview, objectId);
+		if (result.success && selectedLayoutObjectId === objectId) layoutInteraction.selection = { kind: 'none' };
 		store.setStatusMessage(result.success ? 'Deleted layout object' : `Object delete failed: ${result.message}`);
+	}
+
+	function removeSelectedObject() {
+		if (selectedLayoutObject) removeLayoutObject(selectedLayoutObject.id);
 	}
 
 </script>
@@ -335,6 +380,39 @@
 			</dl>
 			{#if layoutPreview.importError}<p class="layout-opening-warning" role="alert">Import failed: {layoutPreview.importError}</p>{/if}
 			<p class="layout-inspector-note">Openings are geometry-only in this phase. No room adjacency or portal semantics are inferred.</p>
+
+			<div class="layout-accordion">
+				<button type="button" class="accordion-trigger" aria-expanded={layoutInteraction.accordions.place} onclick={() => toggleLayoutAccordion(layoutInteraction, 'place')}><strong>Place</strong><span>{layoutInteraction.accordions.place ? '−' : '+'}</span></button>
+				{#if layoutInteraction.accordions.place}
+					<div class="place-tools" aria-label="Layout place tools">
+						<button type="button" disabled={layoutInteraction.viewMode !== 'plan'} onclick={() => armLayoutPlaceTool('door')}>Door</button>
+						<button type="button" disabled={layoutInteraction.viewMode !== 'plan'} onclick={() => armLayoutPlaceTool('window')}>Window</button>
+						<button type="button" disabled={layoutInteraction.viewMode !== 'plan'} onclick={() => armLayoutPlaceTool('box')}>Box</button>
+						<button type="button" disabled={layoutInteraction.viewMode !== 'plan'} onclick={() => armLayoutPlaceTool('cylinder')}>Cylinder</button>
+						<button type="button" disabled={layoutInteraction.viewMode !== 'plan'} onclick={() => armLayoutPlaceTool('sphere')}>Sphere</button>
+					</div>
+				{/if}
+			</div>
+
+			<div class="layout-accordion">
+				<button type="button" class="accordion-trigger" aria-expanded={layoutInteraction.accordions.objects} onclick={() => toggleLayoutAccordion(layoutInteraction, 'objects')}><strong>Objects</strong><span>{layoutInteraction.accordions.objects ? '−' : '+'}</span></button>
+				{#if layoutInteraction.accordions.objects}
+					<div class="layout-object-list" aria-label="Layout objects">
+						{#if layoutPreview.project.layout.objects.length === 0}<span class="layout-empty">No layout objects.</span>{/if}
+						{#each layoutPreview.project.layout.objects as object (object.id)}
+							<div class="layout-object-row" class:selected={selectedLayoutObjectId === object.id}>
+								<button type="button" class="object-row-select" onclick={() => selectListedLayoutObject(object.id)}><strong>{object.kind}</strong><span>{object.id}</span></button>
+								<button type="button" class="object-row-delete" disabled={object.kind === 'profile'} aria-label={`Delete ${object.id}`} onclick={() => removeLayoutObject(object.id)}>Delete</button>
+							</div>
+						{/each}
+					</div>
+				{/if}
+			</div>
+
+			<div class="layout-accordion">
+				<button type="button" class="accordion-trigger" aria-expanded={layoutInteraction.accordions.selection} onclick={() => toggleLayoutAccordion(layoutInteraction, 'selection')}><strong>Selection</strong><span>{layoutInteraction.accordions.selection ? '−' : '+'}</span></button>
+				{#if layoutInteraction.accordions.selection}
+				<div class="layout-selection-content">
 			{#if selectedLayoutObject}
 				<div class="layout-selected-room" aria-label="Selected layout object">
 					<strong>{selectedLayoutObject.kind} object</strong>
@@ -342,21 +420,18 @@
 					{#if selectedLayoutObject.kind === 'profile'}
 						<span>Imported profile placeholder · read-only</span>
 					{/if}
-					{#each ['X', 'Y', 'Z'] as axis, index (axis)}
-						<label>Position {axis}<input disabled={selectedLayoutObject.kind === 'profile'} type="number" step="0.05" value={selectedLayoutObject.position[index]} onchange={(event) => updateObjectVector('position', index as 0 | 1 | 2, event)} /></label>
-					{/each}
-					{#each ['X', 'Y', 'Z'] as axis, index (axis)}
-						<label>Rotation {axis} (rad)<input disabled={selectedLayoutObject.kind === 'profile'} type="number" step="0.05" value={selectedLayoutObject.rotation[index]} onchange={(event) => updateObjectVector('rotation', index as 0 | 1 | 2, event)} /></label>
-					{/each}
-					{#each ['X', 'Y', 'Z'] as axis, index (axis)}
-						<label>Dimension {axis}<input disabled={selectedLayoutObject.kind === 'profile'} type="number" min="0.001" step="0.05" value={selectedLayoutObject.dimensions[index]} onchange={(event) => updateObjectVector('dimensions', index as 0 | 1 | 2, event)} /></label>
-					{/each}
-					<label>Room
-						<select disabled={selectedLayoutObject.kind === 'profile'} value={selectedLayoutObject.roomId ?? ''} onchange={updateObjectRoom}>
-							<option value="">Unassigned</option>
-							{#each layoutRooms as room (room.id)}<option value={room.id}>{room.name} · {room.id}</option>{/each}
-						</select>
-					</label>
+					{#if selectedLayoutObject.kind === 'profile' || selectedLayoutObject.kind === 'plane'}
+						<span>Position: {selectedLayoutObject.position.join(', ')} · rotation: {selectedLayoutObject.rotation.join(', ')}</span>
+						<span>Dimensions: {selectedLayoutObject.dimensions.join(' × ')}</span>
+					{:else if selectedLayoutObject.kind === 'box'}
+						<label>Width (m)<input type="number" min="0.001" step="0.05" value={selectedLayoutObject.dimensions[0]} onchange={(event) => updateObjectMetric('width', event)} /></label>
+						<label>Depth (m)<input type="number" min="0.001" step="0.05" value={selectedLayoutObject.dimensions[2]} onchange={(event) => updateObjectMetric('depth', event)} /></label>
+						<label>Height (m)<input type="number" min="0.001" step="0.05" value={selectedLayoutObject.dimensions[1]} onchange={(event) => updateObjectMetric('height', event)} /></label>
+					{:else}
+						<label>Radius (m)<input type="number" min="0.001" step="0.05" value={selectedLayoutObject.dimensions[0] / 2} onchange={(event) => updateObjectMetric('radius', event)} /></label>
+						<label>Height (m)<input type="number" min="0.001" step="0.05" value={selectedLayoutObject.dimensions[1]} onchange={(event) => updateObjectMetric('height', event)} /></label>
+					{/if}
+					<div class="object-room-meta"><span>Room ownership</span><strong>{layoutRooms.find((room) => room.id === selectedLayoutObject.roomId)?.name ?? 'Unassigned'} · {selectedLayoutObject.roomId ?? 'none'}</strong></div>
 					{#if layoutPreview.lastMutationMessage}<p class="layout-opening-warning" role="status">{layoutPreview.lastMutationMessage}</p>{/if}
 					<button type="button" class="layout-danger" disabled={selectedLayoutObject.kind === 'profile'} onclick={removeSelectedObject}>Delete object</button>
 				</div>
@@ -411,6 +486,9 @@
 					{#if layoutPreview.lastMutationMessage}<p class="layout-opening-warning" role="status">{layoutPreview.lastMutationMessage}</p>{/if}
 				</div>
 			{/if}
+				</div>
+				{/if}
+			</div>
 			{#if layoutPreview.issues.length > 0}
 				<div class="layout-issues" role="alert">
 					<strong>Geometry warnings</strong>
@@ -604,6 +682,21 @@
 	.layout-inspector dt { color: #8f8a82; font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.04em; }
 	.layout-inspector dd { margin: 0; color: #f4efe4; font-size: 0.72rem; text-align: right; }
 	.layout-inspector-note { margin: 0; color: #a8a29a; font-size: 0.7rem; line-height: 1.45; }
+	.layout-accordion { display: flex; flex-direction: column; gap: 0.45rem; padding: 0.55rem; border: 1px solid #34313a; border-radius: 0.4rem; background: #17171f; }
+	.accordion-trigger { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 0.2rem 0; border: 0; background: transparent; color: #f4efe4; font: inherit; font-size: 0.75rem; cursor: pointer; }
+	.accordion-trigger span { color: #d6b35f; font-size: 1rem; }
+	.place-tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.35rem; }
+	.place-tools button { padding: 0.4rem 0.3rem; border: 1px solid #4a4438; border-radius: 0.3rem; background: #242018; color: #fff2c7; font: inherit; font-size: 0.68rem; cursor: pointer; }
+	.place-tools button:disabled { opacity: 0.4; cursor: default; }
+	.layout-object-list { display: flex; flex-direction: column; gap: 0.3rem; }
+	.layout-empty { color: #918c84; font-size: 0.68rem; }
+	.layout-object-row { display: flex; align-items: stretch; gap: 0.3rem; }
+	.layout-object-row.selected { outline: 1px solid #d6b35f; border-radius: 0.3rem; }
+	.object-row-select { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 0.12rem; padding: 0.38rem; border: 1px solid #3a3a46; border-radius: 0.3rem; background: #1a1a22; color: #f4efe4; text-align: left; cursor: pointer; }
+	.object-row-select span { overflow-wrap: anywhere; color: #a8a29a; font: 0.62rem ui-monospace, monospace; }
+	.object-row-delete { padding: 0.3rem; border: 1px solid #684147; border-radius: 0.3rem; background: #21191b; color: #efc7c7; font: inherit; font-size: 0.64rem; cursor: pointer; }
+	.object-row-delete:disabled { opacity: 0.4; cursor: default; }
+	.layout-selection-content { display: flex; flex-direction: column; gap: 0.5rem; }
 	.layout-selected-room { display: flex; flex-direction: column; gap: 0.2rem; padding: 0.6rem; border: 1px solid #8d753c; border-radius: 0.35rem; background: #211d15; color: #f4efe4; font-size: 0.7rem; }
 	.layout-selected-room span { color: #c4bdaF; font-size: 0.66rem; overflow-wrap: anywhere; }
 	.layout-selected-room label { display: flex; flex-direction: column; gap: 0.25rem; color: #c4bdaF; font-size: 0.66rem; }

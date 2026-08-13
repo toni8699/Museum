@@ -6,6 +6,7 @@ import {
 	captureLayoutPreviewSnapshot,
 	commitLayoutDraftRoom,
 	commitLayoutObject,
+	commitLayoutPrimitive,
 	commitLayoutPathRoom,
 	commitLayoutOpening,
 	commitLayoutRoomEdit,
@@ -377,6 +378,17 @@ describe('layout preview state', () => {
 		expect(state.source).toBe('imported');
 		expect(state.baselineKind).toBe('imported');
 		expect(layoutPreviewSessionStatus(state)).toBe('imported');
+	});
+
+	it('commits Plan primitive gestures with floor-relative placement', () => {
+		const state = createLayoutPreviewState();
+		const room = state.project.layout.floors[0]!.rooms[0]!;
+		const result = commitLayoutPrimitive(state, 'box', [0, 0], [2, 3], room.id, true);
+		expect(result.success).toBe(true);
+		if (!result.success) return;
+		const object = state.project.layout.objects.find((candidate) => candidate.id === result.objectId);
+		expect(object).toMatchObject({ kind: 'box', roomId: room.id, position: [1, 0.5, 1.5], dimensions: [2, 1, 3] });
+		expect(commitLayoutPrimitive(state, 'sphere', [0, 0], [0, 0], room.id, true).success).toBe(false);
 	});
 
 	it('creates, edits, and deletes authored objects while profiles remain read-only', () => {

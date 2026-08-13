@@ -21,13 +21,13 @@ Scale: **uniform** (default, scalar in v6) vs **independent** (session `scaleVec
 
 Nav selection ⊥ placement selection. **No** viewport DnD for place. Plan rectangle click-drag = CAD exception only ([`../north-star.md`](../north-star.md)).
 
-## Layout objects (A4)
+## Layout objects (A4/A4.1)
 
 Layout object placement is editor-local and separate from scene placement/history:
 
 ```text
-Object tool + primitive kind → layout ghost → Plan room floor or tagged 3D layout floor → commit LayoutObject
-Escape / invalid target → cancel (document unchanged)
+Place → Box/Cylinder/Sphere Plan gesture → footprint ghost → commit LayoutObject
+Escape / invalid gesture / tool change → cancel (document unchanged)
 ```
 
-Plan placement uses the first layout floor, 0.25 m X/Z snap, room ownership from the hit footprint, and center Y = floor elevation + half object height. Three-dimensional placement resolves the exact tagged layout floor and room. Plan dragging previews X/Z transiently and commits once on pointer-up; invalid drops restore the original position. Imported `profile` objects are selectable read-only placeholders. Layout gizmos, world drag, profile authoring, and dimension handles remain deferred.
+A4.1 keeps primitive authoring Plan-only. Box uses opposite rectangle corners; Cylinder and Sphere use center plus radius. New objects use a 1 m default height, first-floor room ownership, floor-relative center Y, and 0.25 m Plan snapping when enabled. Select remains the only movement tool: room, vertex, and object candidates snap before the one final pointer-up mutation. Imported `plane` and `profile` objects remain codec-compatible compatibility entries; profiles are read-only. Three-dimensional preview renders existing objects and supports selection, but has no primitive placement or gizmos.

@@ -4,10 +4,11 @@
 	import {
 		addPolygonPoint,
 		beginLayoutObjectDrag,
+		beginLayoutPrimitiveDraft,
 		beginRectangle,
 		beginRoomEdit,
 		cancelLayoutObjectDrag,
-		cancelLayoutPendingObject,
+		cancelLayoutPrimitiveDraft,
 		cancelRoomEdit,
 		clearLayoutDraft,
 		clearLayoutSelection,
@@ -22,15 +23,16 @@
 		shouldBeginWallBend,
 		updateRectangle,
 		updateLayoutObjectDrag,
-		updateLayoutPendingObject,
+		updateLayoutPrimitiveDraft,
 		updateRoomEdit,
+		primitiveDraftFootprint,
 		rectanglePoints,
 		type LayoutInteractionState
 	} from './layout-interaction';
 	import type { LayoutPreviewState } from './layout-preview-state.svelte';
 	import {
 		captureLayoutPreviewSnapshot,
-		commitLayoutObject,
+		commitLayoutPrimitive,
 		commitLayoutRoomEdit,
 		deleteLayoutObject,
 		deleteLayoutWallInteriorAnchor,
@@ -67,7 +69,6 @@
 	import type { DraftSegment, LayoutOpening, LayoutRoom, LayoutVec2 } from './layout-types';
 	import {
 		findHitLayoutObject,
-		floorObjectPosition,
 		type LayoutObjectDescriptor
 	} from './layout-object-editing';
 
@@ -103,7 +104,6 @@
 	let openingDrag = $state<{ roomId: string; segmentId: string; openingId: string; width: number } | null>(null);
 	let dragSnapshot = $state<LayoutPreviewSnapshot | null>(null);
 	let suppressNextClick = $state(false);
-	let lastSource = $state<string | null>(null);
 
 	const viewBox = $derived(`0 0 ${interaction.planView.width} ${interaction.planView.height}`);
 	const gridLines = $derived<PlanGridLine[]>(buildPlanGrid(interaction.planView));
@@ -164,12 +164,6 @@
 		return () => observer.disconnect();
 	});
 
-	$effect(() => {
-		if (interaction.viewMode !== 'plan') return;
-		if (lastSource === preview.source && interaction.planView.initialized) return;
-		lastSource = preview.source;
-		frameView();
-	});
 
 	function frameView() {
 		const points = [
@@ -179,40 +173,12 @@
 		framePlanViewport(interaction.planView, points);
 	}
 
-	function updatePendingObjectAt(point: LayoutVec2) {
-		const pending = interaction.pendingObject;
-		const floor = preview.project.layout.floors[0];
-		const room = floor ? findHitRoom(floor.rooms, point) : undefined;
-		if (!pending || !floor || !room) {
-			updateLayoutPendingObject(interaction, null, undefined, 'Choose a room floor');
-			return;
-		}
-		updateLayoutPendingObject(
-			interaction,
-			floorObjectPosition(point, floor.elevation, pending.dimensions, interaction.planView.snapEnabled),
-			room.id
-		);
-	}
-
 	function renderObjectFootprint(object: LayoutObjectDescriptor): LayoutVec2[] {
 		const drag = interaction.objectDrag;
 		if (!drag || drag.objectId !== object.objectId) return object.planFootprint;
 		const dx = drag.candidatePosition[0] - drag.originalPosition[0];
 		const dz = drag.candidatePosition[2] - drag.originalPosition[2];
 		return object.planFootprint.map(([x, z]) => [x + dx, z + dz]);
-	}
-
-	function pendingObjectFootprint(): LayoutVec2[] {
-		const pending = interaction.pendingObject;
-		if (!pending?.position) return [];
-		const halfX = pending.dimensions[0] / 2;
-		const halfZ = pending.dimensions[2] / 2;
-		return [
-			[pending.position[0] - halfX, pending.position[2] - halfZ],
-			[pending.position[0] + halfX, pending.position[2] - halfZ],
-			[pending.position[0] + halfX, pending.position[2] + halfZ],
-			[pending.position[0] - halfX, pending.position[2] + halfZ]
-		];
 	}
 
 	function screenPoint(event: { clientX: number; clientY: number }): LayoutVec2 | null {
@@ -237,6 +203,16 @@
 		}
 		if (interaction.planView.snapEnabled) point = snapToGrid(point);
 		return point;
+	}
+
+	function isPrimitiveTool(tool: LayoutInteractionState['tool']): tool is 'box' | 'cylinder' | 'sphere' {
+		return tool === 'box' || tool === 'cylinder' || tool === 'sphere';
+	}
+
+	function updatePrimitiveAt(point: LayoutVec2): void {
+		const floor = preview.project.layout.floors[0];
+		const room = floor ? findHitRoom(floor.rooms, point) : undefined;
+		updateLayoutPrimitiveDraft(interaction, point, room?.id);
 	}
 
 	function beginInteriorAnchorDrag(
@@ -311,6 +287,20 @@
 			return;
 		}
 
+		if (isPrimitiveTool(interaction.tool)) {
+			const snapped = draftPoint(event, null);
+			if (!snapped || !svgElement) return;
+			pointerId = event.pointerId;
+			svgElement.setPointerCapture(event.pointerId);
+			beginLayoutPrimitiveDraft(
+				interaction,
+				interaction.tool,
+				snapped,
+				findHitRoom(preview.project.layout.floors[0]?.rooms ?? [], snapped)?.id
+			);
+			return;
+		}
+
 		if (interaction.tool === 'door' || interaction.tool === 'window') {
 			const target = findPlanHitTarget(point, screen);
 			if (target?.kind === 'opening') {
@@ -321,26 +311,6 @@
 			if (target?.kind === 'wall') {
 				onOpeningCreate(target.room.id, target.segment.id, interaction.tool, target.projection.offset);
 				setLayoutDraftTool(interaction, 'select');
-			}
-			return;
-		}
-
-		if (interaction.tool === 'object') {
-			updatePendingObjectAt(point);
-			const pending = interaction.pendingObject;
-			if (!pending?.valid || !pending.position || !pending.roomId) {
-				preview.statusMessage = pending?.message ?? 'Choose a room floor';
-				cancelLayoutPendingObject(interaction);
-				return;
-			}
-			const result = commitLayoutObject(preview, pending.kind, pending.position, pending.roomId);
-			if (result.success) {
-				selectLayoutObject(interaction, result.objectId);
-				setLayoutDraftTool(interaction, 'select');
-				preview.statusMessage = `Created ${pending.kind} object`;
-			} else {
-				preview.statusMessage = result.message;
-				cancelLayoutPendingObject(interaction);
 			}
 			return;
 		}
@@ -414,9 +384,9 @@
 	}
 
 	function onPointerMove(event: PointerEvent) {
-		if (interaction.tool === 'object' && interaction.pendingObject) {
-			const point = worldPoint(event);
-			if (point) updatePendingObjectAt(point);
+		if (interaction.primitiveDraft && pointerId === event.pointerId) {
+			const point = draftPoint(event, null);
+			if (point) updatePrimitiveAt(point);
 			return;
 		}
 		if (panPointerId === event.pointerId && lastPanScreen) {
@@ -475,7 +445,7 @@
 		}
 		if (interaction.tool === 'select' && interaction.editing) {
 			const point = worldPoint(event);
-			if (point) updateRoomEdit(interaction, point);
+			if (point) updateRoomEdit(interaction, point, interaction.planView.snapEnabled);
 		}
 	}
 
@@ -501,6 +471,33 @@
 			return;
 		}
 		if (pointerId !== event.pointerId) return;
+		if (interaction.primitiveDraft) {
+			const point = draftPoint(event, null);
+			if (point) updatePrimitiveAt(point);
+			const draft = interaction.primitiveDraft;
+			if (!draft?.valid || !draft.roomId) {
+				preview.statusMessage = 'Choose a non-zero gesture inside a first-floor room';
+			} else {
+				const result = commitLayoutPrimitive(
+					preview,
+					draft.kind,
+					draft.start,
+					draft.current,
+					draft.roomId,
+					interaction.planView.snapEnabled
+				);
+				if (result.success) {
+					selectLayoutObject(interaction, result.objectId);
+					preview.statusMessage = `Created ${draft.kind} object`;
+				} else {
+					preview.statusMessage = result.message;
+				}
+			}
+			cancelLayoutPrimitiveDraft(interaction);
+			pointerId = null;
+			svgElement?.releasePointerCapture(event.pointerId);
+			return;
+		}
 		if (interaction.objectDrag) {
 			const drag = interaction.objectDrag;
 			const result = updateLayoutObjectFields(preview, drag.objectId, {
@@ -527,6 +524,14 @@
 			commitLayoutRoomEdit(preview, edit.roomId, edit.currentPoints);
 			cancelRoomEdit(interaction);
 		}
+	}
+
+	function onPointerCancel(event: PointerEvent) {
+		if (interaction.primitiveDraft && pointerId === event.pointerId) {
+			cancelLayoutPrimitiveDraft(interaction);
+			pointerId = null;
+		}
+		if (svgElement?.hasPointerCapture(event.pointerId)) svgElement.releasePointerCapture(event.pointerId);
 	}
 
 	function onClick(event: MouseEvent) {
@@ -581,8 +586,9 @@
 				pointerId = null;
 				return;
 			}
-			if (interaction.pendingObject) {
-				cancelLayoutPendingObject(interaction);
+			if (interaction.primitiveDraft) {
+				cancelLayoutPrimitiveDraft(interaction);
+				pointerId = null;
 				return;
 			}
 			if (interaction.tool === 'door' || interaction.tool === 'window') {
@@ -770,8 +776,8 @@
 			Click points · Backspace removes last · click first or Finish · Escape cancels
 		{:else if interaction.tool === 'door' || interaction.tool === 'window'}
 			Click any wall to place a {interaction.tool} · click existing opening to select · Escape returns to Select
-		{:else if interaction.tool === 'object'}
-			Move over first-floor room · click to place {interaction.pendingObject?.kind ?? 'object'} · Escape cancels
+		{:else if interaction.tool === 'box' || interaction.tool === 'cylinder' || interaction.tool === 'sphere'}
+			{#if interaction.tool === 'box'}Drag opposite corners to place a box{:else}Drag from center to set {interaction.tool} radius{/if} · Escape cancels
 		{:else}
 			Click wall to select · drag mid-span to bend · drag anchors · openings · middle-drag pans · wheel zooms
 		{/if}
@@ -789,6 +795,7 @@
 		onpointerdown={onPointerDown}
 		onpointermove={onPointerMove}
 		onpointerup={onPointerUp}
+		onpointercancel={onPointerCancel}
 		onclick={onClick}
 		onwheel={onWheel}
 		onkeydown={onKeyDown}
@@ -849,11 +856,14 @@
 					points={footprint.map((point) => worldToPlanScreen(interaction.planView, point).join(',')).join(' ')}
 				/>
 			{/each}
-			{#if interaction.pendingObject?.position}
-				{@const footprint = pendingObjectFootprint()}
+			{#if interaction.primitiveDraft}
+				{@const draft = interaction.primitiveDraft}
+				{@const footprint = primitiveDraftFootprint(draft)}
 				<polygon
-					class="object-ghost"
-					class:invalid={!interaction.pendingObject.valid}
+					class="primitive-ghost"
+					class:circle={draft.kind !== 'box'}
+					class:sphere={draft.kind === 'sphere'}
+					class:invalid={!draft.valid}
 					points={footprint.map((point) => worldToPlanScreen(interaction.planView, point).join(',')).join(' ')}
 				/>
 			{/if}
@@ -928,8 +938,10 @@
 	.layout-object { fill: #73806d; fill-opacity: 0.62; stroke: #b7c4ae; stroke-width: 2; vector-effect: non-scaling-stroke; pointer-events: none; }
 	.layout-object.selected { fill: #9b7841; stroke: #fff2c7; stroke-width: 3; }
 	.layout-object.readonly { fill: #6b6576; stroke-dasharray: 5 3; }
-	.object-ghost { fill: #d6b35f; fill-opacity: 0.25; stroke: #f1d99a; stroke-width: 2; stroke-dasharray: 7 4; vector-effect: non-scaling-stroke; pointer-events: none; }
-	.object-ghost.invalid { fill: #d96b6b; stroke: #efc7c7; }
+	.primitive-ghost { fill: #d6b35f; fill-opacity: 0.25; stroke: #f1d99a; stroke-width: 2; stroke-dasharray: 7 4; vector-effect: non-scaling-stroke; pointer-events: none; }
+	.primitive-ghost.circle { fill: #77c6b0; stroke: #b8f0de; }
+	.primitive-ghost.sphere { fill: #aa8ed4; stroke: #e0cfff; }
+	.primitive-ghost.invalid { fill: #d96b6b; stroke: #efc7c7; }
 	.interior-anchor { fill: #d6b35f; stroke: #fff2c7; stroke-width: 2; vector-effect: non-scaling-stroke; }
 	.interior-anchor.selected { fill: #fff2c7; stroke: #d6b35f; }
 	.vertex-handle { fill: #fff2c7; stroke: #d6b35f; stroke-width: 2; vector-effect: non-scaling-stroke; }

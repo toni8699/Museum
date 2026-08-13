@@ -4,7 +4,7 @@ import {
 	addPolygonPoint,
 	beginLayoutObjectDrag,
 	cancelLayoutObjectDrag,
-	cancelLayoutPendingObject,
+	cancelLayoutPrimitiveDraft,
 	beginRectangle,
 	clearLayoutDraft,
 	createLayoutInteractionState,
@@ -18,10 +18,11 @@ import {
 	shouldBeginWallBend,
 	rectanglePoints,
 	setLayoutDraftTool,
-	setLayoutPendingObjectKind,
+	beginLayoutPrimitiveDraft,
+	primitiveDraftFootprint,
 	setLayoutViewMode,
 	updateLayoutObjectDrag,
-	updateLayoutPendingObject,
+	updateLayoutPrimitiveDraft,
 	updateRectangle
 } from './layout-interaction';
 
@@ -88,16 +89,16 @@ describe('layout interaction', () => {
 		expect(LAYOUT_WALL_BEND_DRAG_THRESHOLD_PX).toBe(4);
 	});
 
-	it('arms layout-local object ghosts and clears them when switching tools', () => {
+	it('tracks explicit primitive gestures and clears them when cancelled', () => {
 		const state = createLayoutInteractionState();
-		setLayoutDraftTool(state, 'object');
-		expect(state.pendingObject).toMatchObject({ kind: 'box', dimensions: [1, 1, 1], valid: false });
-		setLayoutPendingObjectKind(state, 'plane');
-		updateLayoutPendingObject(state, [2, 0.005, 3], 'room-a');
-		expect(state.pendingObject).toMatchObject({ kind: 'plane', position: [2, 0.005, 3], roomId: 'room-a', valid: true });
-		cancelLayoutPendingObject(state);
+		setLayoutDraftTool(state, 'box');
+		beginLayoutPrimitiveDraft(state, 'box', [1, 1], 'room-a');
+		updateLayoutPrimitiveDraft(state, [3, 4], 'room-a');
+		expect(state.primitiveDraft).toMatchObject({ kind: 'box', start: [1, 1], current: [3, 4], roomId: 'room-a', valid: true });
+		expect(primitiveDraftFootprint(state.primitiveDraft!)).toEqual([[1, 1], [3, 1], [3, 4], [1, 4]]);
+		cancelLayoutPrimitiveDraft(state);
 		expect(state.tool).toBe('select');
-		expect(state.pendingObject).toBeNull();
+		expect(state.primitiveDraft).toBeNull();
 	});
 
 	it('keeps object drag transient and snaps only X/Z', () => {

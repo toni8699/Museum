@@ -44,14 +44,29 @@ import type { EditorCameraPreviewController } from './camera-preview-controller.
  */
 export const HISTORY_LIMIT = 100;
 
-type CommitKind = 'doc' | 'framing';
+export type HistoryDomain = 'scene' | 'layout';
+type CommitKind = 'doc' | 'framing' | 'layout';
+
+export type LayoutHistoryHost = {
+	capture(): unknown;
+	replace(snapshot: unknown): void;
+	matches?(a: unknown, b: unknown): boolean;
+};
 
 export type HistoryCommitResult = {
 	changed: boolean;
 	type: CommitKind | null;
+	domain?: HistoryDomain;
 	/** Set when resolver validation fails; facade posts via setStatusMessage. */
 	error: Error | null;
 };
+
+type SceneHistoryEntry = {
+	domain: 'scene';
+	before: MuseumSceneDocument;
+};
+type LayoutHistoryEntry = { domain: 'layout'; before: unknown };
+type HistoryEntry = SceneHistoryEntry | LayoutHistoryEntry;
 
 export class EditorHistoryController {
 	/** Counter consumed by `$derived` getters via `void`. */
@@ -63,11 +78,15 @@ export class EditorHistoryController {
 	 */
 	#before: MuseumSceneDocument | null = null;
 
-	/** Stack of "undo" snapshot documents, oldest at index 0. */
-	#past: MuseumSceneDocument[] = [];
+	/** Chronological undo entries, oldest at index 0. */
+	#past: HistoryEntry[] = [];
 
-	/** Stack of "redo" snapshot documents. */
-	#future: MuseumSceneDocument[] = [];
+	/** Chronological redo entries. */
+	#future: HistoryEntry[] = [];
+
+	/** Optional layout document host registered by the editor shell. */
+	#layoutHost: LayoutHistoryHost | null = null;
+	#layoutBefore: unknown = null;
 
 	/** Distinguishes a `beginFraming()` from a regular document transaction. */
 	#framingTransaction = false;
@@ -81,17 +100,29 @@ export class EditorHistoryController {
 	// Transactions
 	// ============================================================
 
-	/** Begin a regular document transaction. */
+	/** Register the preview-only layout document as the second history domain. */
+	registerLayoutHost(host: LayoutHistoryHost | null): void {
+		this.#layoutHost = host;
+	}
+
+	/** Begin a regular scene transaction. */
 	beginDocument(): boolean {
-		if (this.#before) return false;
+		if (this.#before || this.#layoutBefore !== null) return false;
 		this.#before = cloneMuseumSceneDocument(this.document.document);
 		this.#framingTransaction = false;
 		return true;
 	}
 
+	/** Begin a layout transaction in the same chronological stack. */
+	beginLayout(): boolean {
+		if (!this.#layoutHost || this.#before || this.#layoutBefore !== null) return false;
+		this.#layoutBefore = this.#layoutHost.capture();
+		return true;
+	}
+
 	/** Begin a camera-framing transaction. */
 	beginFraming(): boolean {
-		if (this.#before) return false;
+		if (this.#before || this.#layoutBefore !== null) return false;
 		this.#before = cloneMuseumSceneDocument(this.document.document);
 		this.#framingTransaction = true;
 		return true;
@@ -129,7 +160,7 @@ export class EditorHistoryController {
 
 		this.#before = null;
 		this.#framingTransaction = false;
-		this.#past.push(before);
+		this.#past.push({ domain: 'scene', before: cloneMuseumSceneDocument(before) });
 		if (this.#past.length > HISTORY_LIMIT) this.#past.shift();
 		this.#future = [];
 		this.document.replace(next);
@@ -137,13 +168,30 @@ export class EditorHistoryController {
 		return { changed: true, type, error: null };
 	}
 
-	/**
-	 * Cancel the in-flight transaction. The composition root is responsible
-	 * for any framing-drag `canceler()` that must run first; if that
-	 * returns false, the facade surfaces a status message and skips this
-	 * call. Always restores the pre-transaction snapshot when invoked.
-	 */
+	/** Commit a layout snapshot as one tagged chronological history entry. */
+	commitLayout(next: unknown): HistoryCommitResult {
+		const before = this.#layoutBefore;
+		const host = this.#layoutHost;
+		if (before === null || !host) return { changed: false, type: null, domain: 'layout', error: null };
+		const matches = host.matches ?? ((a, b) => JSON.stringify(a) === JSON.stringify(b));
+		this.#layoutBefore = null;
+		if (matches(before, next)) return { changed: false, type: null, domain: 'layout', error: null };
+		this.#past.push({ domain: 'layout', before });
+		if (this.#past.length > HISTORY_LIMIT) this.#past.shift();
+		this.#future = [];
+		host.replace(next);
+		this.#bumpVersion();
+		return { changed: true, type: 'layout', domain: 'layout', error: null };
+	}
+
+	/** Cancel the active scene or layout transaction atomically. */
 	cancel(): boolean {
+		if (this.#layoutBefore !== null && this.#layoutHost) {
+			const before = this.#layoutBefore;
+			this.#layoutBefore = null;
+			this.#layoutHost.replace(before);
+			return true;
+		}
 		const before = this.#before;
 		if (!before) return false;
 		this.#before = null;
@@ -159,10 +207,18 @@ export class EditorHistoryController {
 	undo(): boolean {
 		const previous = this.#past.pop();
 		if (!previous) return false;
-		this.#future.push(cloneMuseumSceneDocument(this.document.document));
+		if (previous.domain === 'scene') {
+			this.#future.push({ domain: 'scene', before: cloneMuseumSceneDocument(this.document.document) });
+			this.document.replace(previous.before);
+			this.preview.pruneIfStale();
+		} else if (this.#layoutHost) {
+			this.#future.push({ domain: 'layout', before: this.#layoutHost.capture() });
+			this.#layoutHost.replace(previous.before);
+		} else {
+			this.#past.push(previous);
+			return false;
+		}
 		if (this.#future.length > HISTORY_LIMIT) this.#future.shift();
-		this.document.replace(previous);
-		this.preview.pruneIfStale();
 		this.#bumpVersion();
 		return true;
 	}
@@ -170,10 +226,18 @@ export class EditorHistoryController {
 	redo(): boolean {
 		const next = this.#future.pop();
 		if (!next) return false;
-		this.#past.push(cloneMuseumSceneDocument(this.document.document));
+		if (next.domain === 'scene') {
+			this.#past.push({ domain: 'scene', before: cloneMuseumSceneDocument(this.document.document) });
+			this.document.replace(next.before);
+			this.preview.pruneIfStale();
+		} else if (this.#layoutHost) {
+			this.#past.push({ domain: 'layout', before: this.#layoutHost.capture() });
+			this.#layoutHost.replace(next.before);
+		} else {
+			this.#future.push(next);
+			return false;
+		}
 		if (this.#past.length > HISTORY_LIMIT) this.#past.shift();
-		this.document.replace(next);
-		this.preview.pruneIfStale();
 		this.#bumpVersion();
 		return true;
 	}
@@ -183,6 +247,7 @@ export class EditorHistoryController {
 		this.#past = [];
 		this.#future = [];
 		this.#before = null;
+		this.#layoutBefore = null;
 		this.#framingTransaction = false;
 		this.#bumpVersion();
 	}
@@ -198,20 +263,20 @@ export class EditorHistoryController {
 	 */
 	get canUndo(): boolean {
 		if (this.preview.transportState === 'playing') return false;
-		if (this.#before) return false;
+		if (this.#before || this.#layoutBefore !== null) return false;
 		return this.#past.length > 0;
 	}
 
 	/** Redo allowed when future is non-empty and no peer-link block applies. */
 	get canRedo(): boolean {
 		if (this.preview.transportState === 'playing') return false;
-		if (this.#before) return false;
+		if (this.#before || this.#layoutBefore !== null) return false;
 		return this.#future.length > 0;
 	}
 
 	/** True when an in-flight transaction is open (`#before !== null`). */
 	get isDocumentUndoBlocked(): boolean {
-		return this.#before !== null;
+		return this.#before !== null || this.#layoutBefore !== null;
 	}
 
 	get pastDepth(): number {

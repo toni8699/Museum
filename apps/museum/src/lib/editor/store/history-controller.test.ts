@@ -169,6 +169,27 @@ describe('EditorHistoryController', () => {
 		expect(history.canRedo).toBe(false);
 	});
 
+	it('interleaves layout and scene entries without overwriting the other domain', () => {
+		const { document, history } = makeControllers();
+		let layout = { value: 0 };
+		history.registerLayoutHost({
+			capture: () => ({ ...layout }),
+			replace: (snapshot) => { layout = { ...(snapshot as { value: number }) }; },
+			matches: (a, b) => JSON.stringify(a) === JSON.stringify(b)
+		});
+		const originalSceneRotation = document.document.entities[0]!.rotation[1];
+		expect(history.beginLayout()).toBe(true);
+		layout = { value: 1 };
+		expect(history.commitLayout({ value: 1 }).domain).toBe('layout');
+		expect(history.beginDocument()).toBe(true);
+		history.commit(fingerprint(document.document));
+		expect(history.undo()).toBe(true);
+		expect(layout.value).toBe(1);
+		expect(document.document.entities[0]!.rotation[1]).toBe(originalSceneRotation);
+		expect(history.undo()).toBe(true);
+		expect(layout.value).toBe(0);
+	});
+
 	it('re-entrant beginDocument refuses while a transaction is in flight', () => {
 		const { history } = makeControllers();
 		expect(history.beginDocument()).toBe(true);

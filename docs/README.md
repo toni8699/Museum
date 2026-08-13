@@ -46,6 +46,7 @@ Runtime shell = `rooms.ts` until cutover. Scene/tour = v6 JSON. Layout CAD = P0 
 | Working on… | Read |
 |-------------|------|
 | Vision / what not to build | [`north-star.md`](./north-star.md) |
+| 2D rendering expansion / performance guardrails | [`north-star.md`](./north-star.md) |
 | `rooms.ts` vs layout / promotion | [`architecture.md`](./architecture.md) |
 | Editor chrome / workspaces | [`components/shell.md`](./components/shell.md) |
 | Entities / materials / library | [`components/scene-content.md`](./components/scene-content.md) |

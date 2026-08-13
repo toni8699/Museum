@@ -11,17 +11,20 @@
 	import type { LayoutPreviewState } from './layout-preview-state.svelte';
 	import { toggleLayoutCeilings } from './layout-preview-state.svelte';
 
-	let { interaction, preview }: { interaction: LayoutInteractionState; preview: LayoutPreviewState } = $props();
+	let { interaction, preview, onCancelLayoutTransaction = () => false }: { interaction: LayoutInteractionState; preview: LayoutPreviewState; onCancelLayoutTransaction?: () => boolean } = $props();
 
 	function chooseView(mode: LayoutViewMode) {
+		if (interaction.roomUnitDrag) onCancelLayoutTransaction();
 		setLayoutViewMode(interaction, mode);
 	}
 
 	function chooseTool(tool: LayoutDraftTool) {
+		if (interaction.roomUnitDrag) onCancelLayoutTransaction();
 		setLayoutDraftTool(interaction, tool);
 	}
 
 	function cancel() {
+		if (interaction.roomUnitDrag) onCancelLayoutTransaction();
 		clearLayoutDraft(interaction);
 		cancelLayoutPrimitiveDraft(interaction);
 		if (interaction.tool === 'door' || interaction.tool === 'window') setLayoutDraftTool(interaction, 'select');
@@ -46,7 +49,7 @@
 	{:else}
 		<button type="button" class:active={preview.showCeilings} aria-pressed={preview.showCeilings} onclick={() => toggleLayoutCeilings(preview)}>Ceiling</button>
 	{/if}
-	{#if interaction.polygonPoints.length > 0 || interaction.rectangleStart || interaction.primitiveDraft || interaction.tool === 'door' || interaction.tool === 'window'}
+	{#if interaction.polygonPoints.length > 0 || interaction.rectangleStart || interaction.primitiveDraft || interaction.roomUnitDrag || interaction.tool === 'door' || interaction.tool === 'window'}
 		<button type="button" class="cancel" onclick={cancel}>Cancel</button>
 	{/if}
 </div>

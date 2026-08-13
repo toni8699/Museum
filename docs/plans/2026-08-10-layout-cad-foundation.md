@@ -257,9 +257,9 @@ Deterministic compile of `museumRooms` → layout fixture (stable room ids, rect
 
 Import fixture / “Load Chopin layout”. Preview without writing `rooms.ts`.
 
-### B3 — Room-unit relocate
+### B3 — Room-unit relocate *(implemented)*
 
-Move/rotate whole room boundary + openings + child objects as one undo transaction.
+Move/rotate whole room boundary + openings + child objects as one tagged `layout` transaction. The focused implementation contract is [`2026-08-12-layout-cad-b3-room-unit-relocate.md`](./2026-08-12-layout-cad-b3-room-unit-relocate.md).
 
 ### B4 — Runtime dual-read
 

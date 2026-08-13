@@ -73,6 +73,7 @@
 		if (!parsed.success) return importLayoutPreviewJson(layoutPreview, json);
 		if (!confirmLayoutReplacement()) return false;
 		const imported = importLayoutPreviewJson(layoutPreview, json);
+		if (imported) store.clearSharedHistory();
 		if (imported && clearPasteOnSuccess) pastedLayoutJson = '';
 		return imported;
 	}
@@ -154,6 +155,7 @@
 	function resetLayout() {
 		if (!confirmLayoutReplacement()) return;
 		resetLayoutPreview(layoutPreview);
+		store.clearSharedHistory();
 		layoutPreview.statusMessage = 'Reset to empty layout';
 	}
 

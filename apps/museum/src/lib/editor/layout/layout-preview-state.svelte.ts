@@ -35,6 +35,7 @@ import {
 	type LayoutObjectPatch
 } from './layout-object-editing';
 import type { Vec3 } from '$lib/types/museum';
+import { transformLayoutRoomUnit, type LayoutRoomUnitTransform } from './layout-room-transform';
 
 export type LayoutPreviewSource = 'chopin-fixture' | 'empty' | 'draft' | 'imported';
 export type LayoutBaselineKind = 'blank' | 'imported';
@@ -482,6 +483,17 @@ export function commitLayoutPathRoom(
 	} catch (error) {
 		return { success: false, message: error instanceof Error ? error.message : 'Could not commit room draft' };
 	}
+}
+
+export function previewLayoutRoomUnit(
+	state: LayoutPreviewState,
+	roomId: string,
+	transform: LayoutRoomUnitTransform
+): LayoutRoomEditResult {
+	const result = transformLayoutRoomUnit(state.project.layout, roomId, transform);
+	if (!result.success) return failRoomEdit(state, result.message);
+	const applied = applyLayoutMutation(state, result.document);
+	return applied.success ? { success: true } : failRoomEdit(state, applied.message);
 }
 
 export function commitLayoutRoomEdit(

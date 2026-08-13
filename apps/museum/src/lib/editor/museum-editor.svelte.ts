@@ -64,7 +64,7 @@ import { EditorSessionState } from './store/session-state.svelte';
 import { EditorSceneRoots } from './store/scene-roots.svelte';
 import { EditorDocumentStore } from './store/document-store.svelte';
 import { EditorCameraPreviewController } from './store/camera-preview-controller.svelte';
-import { EditorHistoryController } from './store/history-controller.svelte';
+import { EditorHistoryController, type LayoutHistoryHost } from './store/history-controller.svelte';
 import { EditorSelectionStore } from './store/selection-store.svelte';
 import { EditorSelectionActions } from './store/selection-actions.svelte';
 import { EditorMutationGuards } from './store/mutation-guards.svelte';
@@ -2292,6 +2292,31 @@ export class MuseumEditorStore {
 
 	makeMaterialInstanceUnique(entityId: string): boolean {
 		return this.textureLibraryController.makeMaterialInstanceUnique(entityId);
+	}
+
+	registerLayoutHistory(host: LayoutHistoryHost | null): void {
+		this.historyController.registerLayoutHost(host);
+	}
+
+	beginLayoutTransaction(): boolean {
+		if (this.isDocumentMutationBlocked || this.historyController.isDocumentUndoBlocked) return false;
+		return this.historyController.beginLayout();
+	}
+
+	commitLayoutTransaction(snapshot: unknown): boolean {
+		if (!this.historyController.isDocumentUndoBlocked) return false;
+		const result = this.historyController.commitLayout(snapshot);
+		if (result.error) this.setStatusMessage(result.error.message);
+		return result.changed;
+	}
+
+	cancelLayoutTransaction(): boolean {
+		if (!this.historyController.isDocumentUndoBlocked) return false;
+		return this.historyController.cancel();
+	}
+
+	clearSharedHistory(): void {
+		this.historyController.clear();
 	}
 
 	beginDocumentTransaction() {

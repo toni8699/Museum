@@ -20,6 +20,7 @@
 	import type { LayoutInteractionState } from './layout/layout-interaction';
 	import type { LayoutPreviewState } from './layout/layout-preview-state.svelte';
 	import {
+		captureLayoutPreviewSnapshot,
 		commitLayoutDraftRoom,
 		commitLayoutOpening,
 		deleteLayoutOpening
@@ -86,6 +87,18 @@
 		store.setStatusMessage(result.success ? `Created ${kind} opening` : `Opening rejected: ${result.message}`);
 	}
 
+	function beginLayoutTransaction(): boolean {
+		return store.beginLayoutTransaction();
+	}
+
+	function commitLayoutTransaction(): boolean {
+		return store.commitLayoutTransaction(captureLayoutPreviewSnapshot(layoutPreview));
+	}
+
+	function cancelLayoutTransaction(): boolean {
+		return store.cancelLayoutTransaction();
+	}
+
 	function deleteOpening(roomId: string, openingId: string) {
 		const selection = layoutInteraction.selection;
 		const result = deleteLayoutOpening(layoutPreview, roomId, openingId);
@@ -110,7 +123,7 @@
 	aria-label="Museum editor viewport"
 >
 	{#if store.currentWorkspace === 'layout'}
-		<LayoutDraftToolbar interaction={layoutInteraction} preview={layoutPreview} />
+		<LayoutDraftToolbar interaction={layoutInteraction} preview={layoutPreview} onCancelLayoutTransaction={cancelLayoutTransaction} />
 	{/if}
 	{#if store.currentWorkspace === 'layout' && layoutInteraction.viewMode === 'plan'}
 		<LayoutPlanViewport
@@ -120,6 +133,9 @@
 			onCommit={commitDraftRoom}
 			onOpeningCreate={createOpening}
 			onOpeningDelete={deleteOpening}
+			onLayoutTransactionBegin={beginLayoutTransaction}
+			onLayoutTransactionCommit={commitLayoutTransaction}
+			onLayoutTransactionCancel={cancelLayoutTransaction}
 		/>
 	{:else}
 		{#if store.currentWorkspace !== 'layout'}

@@ -31,11 +31,17 @@
 	}
 
 	function reloadChopin() {
-		if (confirmLayoutReplacement()) loadChopinLayoutPreview(layoutPreview);
+		if (confirmLayoutReplacement()) {
+			loadChopinLayoutPreview(layoutPreview);
+			store.clearSharedHistory();
+		}
 	}
 
 	function resetLayout() {
-		if (confirmLayoutReplacement()) resetLayoutPreview(layoutPreview);
+		if (confirmLayoutReplacement()) {
+			resetLayoutPreview(layoutPreview);
+			store.clearSharedHistory();
+		}
 	}
 </script>
 

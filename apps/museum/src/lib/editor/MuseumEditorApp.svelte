@@ -23,12 +23,22 @@
 	} from '$lib/museum/materials/texture-cache';
 	import { BinaryTextureStore } from './store/binary-texture-store.svelte';
 	import { createMuseumEditorStore } from './museum-editor.svelte';
-	import { createLayoutPreviewState, layoutPreviewIsDirty } from './layout/layout-preview-state.svelte';
+	import {
+	captureLayoutPreviewSnapshot,
+	createLayoutPreviewState,
+	layoutPreviewIsDirty,
+	restoreLayoutPreviewSnapshot
+} from './layout/layout-preview-state.svelte';
 	import { createLayoutInteractionState } from './layout/layout-interaction';
 
 	const store = createMuseumEditorStore();
 	const layoutPreview = $state(createLayoutPreviewState());
 	const layoutInteraction = $state(createLayoutInteractionState());
+	store.registerLayoutHistory({
+		capture: () => captureLayoutPreviewSnapshot(layoutPreview),
+		replace: (snapshot) => restoreLayoutPreviewSnapshot(layoutPreview, snapshot as ReturnType<typeof captureLayoutPreviewSnapshot>),
+		matches: (a, b) => JSON.stringify((a as { project: { layout: unknown } }).project.layout) === JSON.stringify((b as { project: { layout: unknown } }).project.layout)
+	});
 	// Phase 6.1 — single shared FSM sub-store. Set on context so every editor
 	// child reads the same reactive state.
 	const interactionStore = new EditorInteractionStore();

@@ -35,8 +35,28 @@ MuseumProject
 | **P0** | Layout CAD + Chopin compile + project envelope — [`plans/2026-08-10-layout-cad-foundation.md`](./plans/2026-08-10-layout-cad-foundation.md) |
 | P1 | Room relocate; dual-read; cutover |
 | P2 | GLB import (after layout-backed load) |
-| P3 | Scene Wall presets as dressing — optional; **not** shell |
+| P3 | 2D rendering expansion + visual polish: Plan performance, camera overlays, Scene Wall presets, proven GLSL effects — optional; **not** shell |
 | P4 | Multi-story — after single-floor gate |
+
+### 2D graphics expansion gate
+
+After B5, treat the Plan workspace as the primary graphics-engineering expansion surface while keeping the museum product goal intact:
+
+- Derive a pure `PlanRenderModel` from `LayoutDocument`: ordered fills, strokes, openings, objects, camera paths, selection overlays, and labels. Keep document mutation and rendering separate.
+- Keep SVG as the default renderer. Add Canvas/WebGL only when large-layout benchmarks identify a measured SVG bottleneck; do not build multiple speculative backends.
+- Prioritize product-useful 2D work: camera paths, view cones, look targets, portal crossings, collision warnings, timing labels, and synchronized playback position.
+- Benchmark representative heavy layouts for initial render, pan/zoom frame time, edit and hit-test latency, DOM count, memory, and 3D regeneration time. Record performance budgets and regression tests.
+- Optimize only from evidence: cached derived geometry, stable keyed elements, viewport culling, zoom-dependent detail, spatial indexing for hit testing/snapping, hidden-layer suppression, and demand-based rendering.
+- Add visual correctness coverage for curves, openings, selection layers, zoom levels, and 2D/3D geometry consistency.
+- C++, WASM, native window systems, IPC, custom compositors, and renderer rewrites are not roadmap requirements. Reconsider only for a demonstrated product bottleneck or a separately approved research goal.
+
+### GLSL polish gate
+
+- Do not expand scene schema or polish temporary `rooms.ts` architecture during B3–B5.
+- After B5 runtime cutover, prototype GLSL effects in `/dev/materials` with runtime-only parameters.
+- Re-evaluate against imported GLBs after P2; promote only proven, performant effects into P3.
+- Prefer controlled presets such as plaster aging, velvet sheen, or exhibit reveal. Never persist arbitrary shader source in `MuseumProject` / `museum-scene.json`.
+- Material effects must preserve existing PBR lighting, shadows, fog, and tone mapping. Global post-processing comes after material experiments and a visitor performance baseline.
 
 ## Non-goals
 

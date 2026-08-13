@@ -19,7 +19,7 @@
 | Shell cutouts | `MuseumShell` from rooms | from layout after cutover |
 | Routes / curves | `camera-route` + `camera-motion` only | unchanged |
 | Tour FSM | `museum-state.svelte.ts` | unchanged |
-| Editor session | `museum-editor.svelte.ts` | + layout-tagged history ops |
+| Editor session | `museum-editor.svelte.ts` | layout-tagged history ops (B3 implemented) |
 
 **Camera** = 3D guided PerspectiveCamera, not webcam.
 

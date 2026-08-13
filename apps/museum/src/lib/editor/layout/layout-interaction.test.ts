@@ -3,7 +3,9 @@ import { describe, expect, it } from 'vitest';
 import {
 	addPolygonPoint,
 	beginLayoutObjectDrag,
+	beginLayoutRoomUnitDrag,
 	cancelLayoutObjectDrag,
+	cancelLayoutRoomUnitDrag,
 	cancelLayoutPrimitiveDraft,
 	beginRectangle,
 	clearLayoutDraft,
@@ -24,6 +26,7 @@ import {
 	primitiveDraftFootprint,
 	setLayoutViewMode,
 	updateLayoutObjectDrag,
+	updateLayoutRoomUnitDrag,
 	updateLayoutPrimitiveDraft,
 	updateRoomEdit,
 	updateRectangle
@@ -122,6 +125,17 @@ describe('layout interaction', () => {
 		updateRoomEdit(state, [0.38, 0.62], true);
 		expect(state.editing?.currentPoints[0]).toEqual([0.5, 0.5]);
 		expect(state.editing?.currentPoints.slice(1)).toEqual(original.slice(1));
+	});
+
+	it('tracks rigid room translation and Shift rotation snapping', () => {
+		const state = createLayoutInteractionState();
+		beginLayoutRoomUnitDrag(state, 'room-a', 'translate', [0.1, 0.1], [2, 2]);
+		updateLayoutRoomUnitDrag(state, [0.62, 0.38], true, true);
+		expect(state.roomUnitDrag?.translation).toEqual([0.4, 0.4]);
+		cancelLayoutRoomUnitDrag(state);
+		beginLayoutRoomUnitDrag(state, 'room-a', 'rotate', [2, 1], [2, 2]);
+		updateLayoutRoomUnitDrag(state, [1, 2], false, true, true);
+		expect(state.roomUnitDrag?.yaw).toBeCloseTo(-Math.PI / 2);
 	});
 
 	it('keeps object drag transient and snaps only X/Z', () => {

@@ -17,6 +17,8 @@
 		updateLayoutObjectFields,
 		updateLayoutOpeningFields,
 		updateLayoutRoomFields,
+		previewLayoutRoomUnit,
+		captureLayoutPreviewSnapshot,
 		type LayoutPreviewState,
 		type LayoutRoomFieldPatch
 	} from './layout/layout-preview-state.svelte';
@@ -248,6 +250,33 @@
 		store.setStatusMessage(result.success ? 'Updated room name' : `Room rejected: ${result.message}`);
 	}
 
+	function rotateSelectedRoom(event: Event) {
+		if (!selectedLayoutRoom) return;
+		const input = event.currentTarget as HTMLInputElement;
+		const degrees = Number(input.value);
+		input.value = '0';
+		if (!Number.isFinite(degrees)) {
+			store.setStatusMessage('Rotation must be finite');
+			return;
+		}
+		if (Math.abs(degrees) <= 1e-9) return;
+		if (!store.beginLayoutTransaction()) {
+			store.setStatusMessage('Finish the current layout interaction first');
+			return;
+		}
+		const result = previewLayoutRoomUnit(layoutPreview, selectedLayoutRoom.id, {
+			translation: [0, 0],
+			yaw: (degrees * Math.PI) / 180
+		});
+		if (!result.success) {
+			store.cancelLayoutTransaction();
+			store.setStatusMessage(`Room rotation rejected: ${result.message}`);
+			return;
+		}
+		store.commitLayoutTransaction(captureLayoutPreviewSnapshot(layoutPreview));
+		store.setStatusMessage(`Rotated room by ${degrees}°`);
+	}
+
 	function updateRoomNumber(field: keyof LayoutRoomFieldPatch, event: Event) {
 		if (!selectedLayoutRoom || !selectedLayoutFloor) return;
 		const input = event.currentTarget as HTMLInputElement;
@@ -465,6 +494,7 @@
 					{/if}
 					<label>Wall thickness (m)<input type="number" min="0.001" step="0.01" value={selectedLayoutRoom.wallThickness} onchange={(event) => updateRoomNumber('wallThickness', event)} /></label>
 					<label>Floor thickness (m)<input type="number" min="0.001" step="0.01" value={selectedLayoutRoom.floorThickness} onchange={(event) => updateRoomNumber('floorThickness', event)} /></label>
+					<label>Rotate by (°)<input type="number" step="15" value="0" onchange={rotateSelectedRoom} /></label>
 					<label>Ceiling thickness (m)<input type="number" min="0.001" step="0.01" value={selectedLayoutRoom.ceilingThickness} onchange={(event) => updateRoomNumber('ceilingThickness', event)} /></label>
 					{#if selectedLayoutFloor}<label>Floor height (m)<input type="number" min="0.001" step="0.05" value={selectedLayoutFloor.height} onchange={(event) => updateRoomNumber('floorHeight', event)} /></label>{/if}
 					<div class="layout-opening-actions">
@@ -481,6 +511,7 @@
 					<label>Name<input type="text" value={selectedLayoutRoom.name} onchange={updateRoomName} /></label>
 					<label>Wall thickness (m)<input type="number" min="0.001" step="0.01" value={selectedLayoutRoom.wallThickness} onchange={(event) => updateRoomNumber('wallThickness', event)} /></label>
 					<label>Floor thickness (m)<input type="number" min="0.001" step="0.01" value={selectedLayoutRoom.floorThickness} onchange={(event) => updateRoomNumber('floorThickness', event)} /></label>
+					<label>Rotate by (°)<input type="number" step="15" value="0" onchange={rotateSelectedRoom} /></label>
 					<label>Ceiling thickness (m)<input type="number" min="0.001" step="0.01" value={selectedLayoutRoom.ceilingThickness} onchange={(event) => updateRoomNumber('ceilingThickness', event)} /></label>
 					{#if selectedLayoutFloor}<label>Floor height (m)<input type="number" min="0.001" step="0.05" value={selectedLayoutFloor.height} onchange={(event) => updateRoomNumber('floorHeight', event)} /></label>{/if}
 					{#if layoutPreview.lastMutationMessage}<p class="layout-opening-warning" role="status">{layoutPreview.lastMutationMessage}</p>{/if}

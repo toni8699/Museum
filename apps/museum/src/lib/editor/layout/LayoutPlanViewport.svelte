@@ -4,10 +4,12 @@
 	import {
 		addPolygonPoint,
 		beginLayoutObjectDrag,
+		beginLayoutRoomUnitDrag,
 		beginLayoutPrimitiveDraft,
 		beginRectangle,
 		beginRoomEdit,
 		cancelLayoutObjectDrag,
+		cancelLayoutRoomUnitDrag,
 		cancelLayoutPrimitiveDraft,
 		cancelRoomEdit,
 		clearLayoutDraft,
@@ -23,6 +25,7 @@
 		shouldBeginWallBend,
 		updateRectangle,
 		updateLayoutObjectDrag,
+		updateLayoutRoomUnitDrag,
 		updateLayoutPrimitiveDraft,
 		updateRoomEdit,
 		primitiveDraftFootprint,
@@ -35,6 +38,7 @@
 		captureLayoutPreviewSnapshot,
 		commitLayoutPrimitive,
 		commitLayoutRoomEdit,
+		previewLayoutRoomUnit,
 		deleteLayoutObject,
 		deleteLayoutWallInteriorAnchor,
 		insertLayoutWallInteriorAnchor,
@@ -68,10 +72,8 @@
 		type PlanGridLine
 	} from './layout-plan-transform';
 	import type { DraftSegment, LayoutOpening, LayoutRoom, LayoutVec2 } from './layout-types';
-	import {
-		findHitLayoutObject,
-		type LayoutObjectDescriptor
-	} from './layout-object-editing';
+	import { findHitLayoutObject, type LayoutObjectDescriptor } from './layout-object-editing';
+	import { layoutRoomUnitPivot } from './layout-room-transform';
 
 	let {
 		model,
@@ -79,7 +81,10 @@
 		interaction,
 		onCommit,
 		onOpeningCreate,
-		onOpeningDelete
+		onOpeningDelete,
+		onLayoutTransactionBegin,
+		onLayoutTransactionCommit,
+		onLayoutTransactionCancel
 	}: {
 		model: LayoutPreviewModel;
 		preview: LayoutPreviewState;
@@ -87,6 +92,9 @@
 		onCommit: (points: LayoutVec2[]) => boolean;
 		onOpeningCreate: (roomId: string, segmentId: string, kind: LayoutOpeningKind, clickOffset: number) => void;
 		onOpeningDelete: (roomId: string, openingId: string) => void;
+		onLayoutTransactionBegin: () => boolean;
+		onLayoutTransactionCommit: () => boolean;
+		onLayoutTransactionCancel: () => boolean;
 	} = $props();
 
 	let svgElement = $state<SVGSVGElement>();
@@ -106,6 +114,8 @@
 	let dragSnapshot = $state<LayoutPreviewSnapshot | null>(null);
 	let suppressNextClick = $state(false);
 	let framedReplacementVersion = $state<number | null>(null);
+	let roomUnitSnapshot = $state<LayoutPreviewSnapshot | null>(null);
+	let rotationHoverScreen = $state<LayoutVec2 | null>(null);
 
 	const viewBox = $derived(`0 0 ${interaction.planView.width} ${interaction.planView.height}`);
 	const gridLines = $derived<PlanGridLine[]>(buildPlanGrid(interaction.planView));
@@ -150,6 +160,10 @@
 		if (!selectedRoom) return [] as LayoutVec2[];
 		if (interaction.editing?.roomId === selectedRoom.id) return interaction.editing.currentPoints;
 		return roomPoints(selectedRoom);
+	});
+	const rotationHandleVisible = $derived.by(() => {
+		if (interaction.tool !== 'select' || interaction.selection.kind !== 'room' || !selectedRoom || !rotationHoverScreen) return false;
+		return distance(worldToPlanScreen(interaction.planView, rotationHandlePoint(selectedRoom)), rotationHoverScreen) <= LAYOUT_PLAN_HIT_RADIUS_PX;
 	});
 
 	onMount(() => {
@@ -250,6 +264,8 @@
 		pendingWallBend = null;
 		openingDrag = null;
 		dragSnapshot = null;
+		roomUnitSnapshot = null;
+		rotationHoverScreen = null;
 		pointerId = null;
 	}
 
@@ -257,6 +273,30 @@
 		if (dragSnapshot) restoreLayoutPreviewSnapshot(preview, dragSnapshot);
 		clearActiveLayoutDrag();
 		suppressNextClick = true;
+	}
+
+	function beginRoomUnitDrag(event: PointerEvent, room: LayoutRoom, mode: 'translate' | 'rotate', point: LayoutVec2): boolean {
+		if (!svgElement || !onLayoutTransactionBegin()) return false;
+		roomUnitSnapshot = captureLayoutPreviewSnapshot(preview);
+		beginLayoutRoomUnitDrag(interaction, room.id, mode, point, layoutRoomUnitPivot(room));
+		pointerId = event.pointerId;
+		svgElement.setPointerCapture(event.pointerId);
+		return true;
+	}
+
+	function rotationHandlePoint(room: LayoutRoom): LayoutVec2 {
+		const pivot = layoutRoomUnitPivot(room);
+		const points = roomPoints(room);
+		const radius = Math.max(1.25, ...points.map((point) => distance(point, pivot))) * 0.8;
+		return [pivot[0], pivot[1] - radius];
+	}
+
+	function rotationHandleHit(screen: LayoutVec2): LayoutRoom | null {
+		if (interaction.selection.kind !== 'room') return null;
+		const room = findLayoutRoom(rooms, interaction.selection.roomId);
+		if (!room) return null;
+		const handle = worldToPlanScreen(interaction.planView, rotationHandlePoint(room));
+		return distance(handle, screen) <= LAYOUT_PLAN_HIT_RADIUS_PX ? room : null;
 	}
 
 	function beginPendingWallBend(event: PointerEvent) {
@@ -292,6 +332,11 @@
 		const point = worldPoint(event);
 		const screen = screenPoint(event);
 		if (!point || !screen) return;
+
+		if (interaction.tool === 'select') {
+			const rotationRoom = rotationHandleHit(screen);
+			if (rotationRoom && beginRoomUnitDrag(event, rotationRoom, 'rotate', point)) return;
+		}
 
 		if (interaction.tool === 'rectangle') {
 			const snapped = draftPoint(event, null);
@@ -391,14 +436,13 @@
 		}
 
 		selectLayoutRoom(interaction, target.room.id);
-		if (svgElement) {
-			pointerId = event.pointerId;
-			svgElement.setPointerCapture(event.pointerId);
-			beginRoomEdit(interaction, 'room', target.room.id, point, roomPoints(target.room));
-		}
+		beginRoomUnitDrag(event, target.room, 'translate', point);
 	}
 
 	function onPointerMove(event: PointerEvent) {
+		if (interaction.tool === 'select' && !interaction.roomUnitDrag) {
+			rotationHoverScreen = screenPoint(event);
+		}
 		if (interaction.primitiveDraft && pointerId === event.pointerId) {
 			const point = draftPoint(event, null);
 			if (point) updatePrimitiveAt(point);
@@ -433,6 +477,24 @@
 			return;
 		}
 		if (pointerId !== event.pointerId) return;
+		if (interaction.roomUnitDrag && roomUnitSnapshot) {
+			const point = worldPoint(event);
+			if (!point) return;
+			updateLayoutRoomUnitDrag(
+				interaction,
+				point,
+				interaction.planView.snapEnabled,
+				interaction.planView.angleSnapEnabled,
+				event.shiftKey
+			);
+			restoreLayoutPreviewSnapshot(preview, roomUnitSnapshot);
+			const result = previewLayoutRoomUnit(preview, interaction.roomUnitDrag.roomId, {
+				translation: interaction.roomUnitDrag.translation,
+				yaw: interaction.roomUnitDrag.yaw
+			});
+			if (!result.success) preview.statusMessage = result.message;
+			return;
+		}
 		if (interaction.objectDrag) {
 			const point = worldPoint(event);
 			if (point) updateLayoutObjectDrag(interaction, point, interaction.planView.snapEnabled);
@@ -513,6 +575,17 @@
 			svgElement?.releasePointerCapture(event.pointerId);
 			return;
 		}
+		if (interaction.roomUnitDrag) {
+			const changed = onLayoutTransactionCommit();
+			if (!changed && roomUnitSnapshot) restoreLayoutPreviewSnapshot(preview, roomUnitSnapshot);
+			cancelLayoutRoomUnitDrag(interaction);
+			roomUnitSnapshot = null;
+			rotationHoverScreen = null;
+			pointerId = null;
+			preview.statusMessage = changed ? 'Moved room unit' : preview.statusMessage;
+			svgElement?.releasePointerCapture(event.pointerId);
+			return;
+		}
 		if (interaction.objectDrag) {
 			const drag = interaction.objectDrag;
 			const result = updateLayoutObjectFields(preview, drag.objectId, {
@@ -544,6 +617,13 @@
 	function onPointerCancel(event: PointerEvent) {
 		if (interaction.primitiveDraft && pointerId === event.pointerId) {
 			cancelLayoutPrimitiveDraft(interaction);
+			pointerId = null;
+		}
+		if (interaction.roomUnitDrag && pointerId === event.pointerId) {
+			onLayoutTransactionCancel();
+			cancelLayoutRoomUnitDrag(interaction);
+			roomUnitSnapshot = null;
+			rotationHoverScreen = null;
 			pointerId = null;
 		}
 		if (svgElement?.hasPointerCapture(event.pointerId)) svgElement.releasePointerCapture(event.pointerId);
@@ -590,6 +670,14 @@
 				pendingWallBend = null;
 				suppressNextClick = true;
 				svgElement?.releasePointerCapture(pendingPointerId);
+				return;
+			}
+			if (interaction.roomUnitDrag) {
+				onLayoutTransactionCancel();
+				cancelLayoutRoomUnitDrag(interaction);
+				roomUnitSnapshot = null;
+				rotationHoverScreen = null;
+				pointerId = null;
 				return;
 			}
 			if (dragSnapshot || draggedInteriorAnchor || openingDrag) {
@@ -814,6 +902,7 @@
 		onclick={onClick}
 		onwheel={onWheel}
 		onkeydown={onKeyDown}
+		onpointerleave={() => (rotationHoverScreen = null)}
 	>
 		{#if interaction.planView.gridEnabled}
 			{#each gridLines as line (line.id)}
@@ -883,6 +972,12 @@
 				/>
 			{/if}
 			{#if interaction.selection.kind === 'room' && selectedPoints.length > 0}
+				{@const pivotScreen = selectedRoom ? worldToPlanScreen(interaction.planView, layoutRoomUnitPivot(selectedRoom)) : null}
+				{@const rotationScreen = selectedRoom ? worldToPlanScreen(interaction.planView, rotationHandlePoint(selectedRoom)) : null}
+				{#if pivotScreen && rotationScreen && rotationHandleVisible}
+					<line class="rotation-arm" x1={pivotScreen[0]} y1={pivotScreen[1]} x2={rotationScreen[0]} y2={rotationScreen[1]} />
+					<text class="rotation-glyph" x={rotationScreen[0]} y={rotationScreen[1] + 6} aria-label="Rotate room">↔</text>
+				{/if}
 			{#each selectedPoints as point, index (index)}
 				{@const screen = worldToPlanScreen(interaction.planView, point)}
 				<circle class="vertex-handle" cx={screen[0]} cy={screen[1]} r="6" />
@@ -960,6 +1055,8 @@
 	.interior-anchor { fill: #d6b35f; stroke: #fff2c7; stroke-width: 2; vector-effect: non-scaling-stroke; }
 	.interior-anchor.selected { fill: #fff2c7; stroke: #d6b35f; }
 	.vertex-handle { fill: #fff2c7; stroke: #d6b35f; stroke-width: 2; vector-effect: non-scaling-stroke; }
+	.rotation-arm { stroke: #d6b35f; stroke-width: 2; stroke-dasharray: 5 3; vector-effect: non-scaling-stroke; pointer-events: none; }
+	.rotation-glyph { fill: #fff2c7; font: 700 18px ui-sans-serif, system-ui, sans-serif; paint-order: stroke; stroke: #6f5a2f; stroke-width: 3px; text-anchor: middle; pointer-events: none; user-select: none; }
 	.dimension-label, .selection-label { fill: #f1d99a; font: 10px ui-monospace, monospace; paint-order: stroke; stroke: #0d0d12; stroke-width: 3px; stroke-linejoin: round; pointer-events: none; }
 	.selection-label { font-size: 12px; font-weight: 700; }
 	.draft-outline { fill: rgba(214, 179, 95, 0.18); stroke: #d6b35f; stroke-width: 2; stroke-dasharray: 8 4; vector-effect: non-scaling-stroke; }

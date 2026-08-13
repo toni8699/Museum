@@ -20,7 +20,7 @@
 		!store.isDocumentMutationBlocked && !store.isEditorInteractionActive
 	);
 	const dirty = $derived(store.isDirty);
-	const sceneHistoryEnabled = $derived(workspace !== 'layout');
+	const sceneHistoryEnabled = $derived(true);
 	const canPreviewTour = $derived(
 		!store.isEditorInteractionActive &&
 		!store.isDocumentTransactionActive &&

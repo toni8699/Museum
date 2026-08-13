@@ -1,10 +1,19 @@
 import type { LayoutVec2 } from './layout-types';
+import type { LayoutRoomUnitTransform } from './layout-room-transform';
 import { createPlanViewportState, snapToGrid, type PlanViewportState } from './layout-plan-transform';
 import type { Vec3 } from '$lib/types/museum';
 export type LayoutViewMode = 'plan' | '3d';
 export type LayoutPrimitiveTool = 'box' | 'cylinder' | 'sphere';
 export type LayoutDraftTool = 'select' | 'rectangle' | 'polygon' | 'door' | 'window' | LayoutPrimitiveTool;
 export type LayoutRoomDragMode = 'room' | 'vertex';
+
+export type LayoutRoomUnitDrag = LayoutRoomUnitTransform & {
+	roomId: string;
+	mode: 'translate' | 'rotate';
+	startWorld: LayoutVec2;
+	pivot: LayoutVec2;
+	startAngle: number;
+};
 
 export type LayoutPrimitiveDraft = {
 	kind: LayoutPrimitiveTool;
@@ -46,6 +55,7 @@ export type LayoutInteractionState = {
 	primitiveDraft: LayoutPrimitiveDraft | null;
 	selection: LayoutSelection;
 	objectDrag: LayoutObjectDrag | null;
+	roomUnitDrag: LayoutRoomUnitDrag | null;
 	accordions: LayoutAccordionState;
 	planView: PlanViewportState;
 	editing: {
@@ -68,6 +78,7 @@ export function createLayoutInteractionState(): LayoutInteractionState {
 		primitiveDraft: null,
 		selection: { kind: 'none' },
 		objectDrag: null,
+		roomUnitDrag: null,
 		accordions: { place: true, objects: true, selection: true },
 		planView: createPlanViewportState(),
 		editing: null
@@ -79,6 +90,7 @@ export function setLayoutViewMode(state: LayoutInteractionState, viewMode: Layou
 	clearLayoutDraft(state);
 	cancelRoomEdit(state);
 	state.objectDrag = null;
+	state.roomUnitDrag = null;
 	state.primitiveDraft = null;
 }
 
@@ -87,6 +99,7 @@ export function setLayoutDraftTool(state: LayoutInteractionState, tool: LayoutDr
 	clearLayoutDraft(state);
 	cancelRoomEdit(state);
 	state.objectDrag = null;
+	state.roomUnitDrag = null;
 	state.primitiveDraft = null;
 }
 
@@ -253,6 +266,53 @@ export function cancelLayoutObjectDrag(state: LayoutInteractionState): void {
 	state.objectDrag = null;
 }
 
+export function beginLayoutRoomUnitDrag(
+	state: LayoutInteractionState,
+	roomId: string,
+	mode: 'translate' | 'rotate',
+	startWorld: LayoutVec2,
+	pivot: LayoutVec2
+): void {
+	state.roomUnitDrag = {
+		roomId,
+		mode,
+		startWorld: [...startWorld],
+		pivot: [...pivot],
+		startAngle: Math.atan2(startWorld[1] - pivot[1], startWorld[0] - pivot[0]),
+		translation: [0, 0],
+		yaw: 0
+	};
+	state.editing = null;
+}
+
+export function updateLayoutRoomUnitDrag(
+	state: LayoutInteractionState,
+	currentWorld: LayoutVec2,
+	snapEnabled: boolean,
+	angleSnapEnabled: boolean,
+	shiftKey = false
+): void {
+	const drag = state.roomUnitDrag;
+	if (!drag) return;
+	if (drag.mode === 'translate') {
+		const target = snapEnabled ? snapToGrid(currentWorld) : currentWorld;
+		drag.translation = [target[0] - drag.startWorld[0], target[1] - drag.startWorld[1]];
+		return;
+	}
+	let yaw = Math.atan2(currentWorld[1] - drag.pivot[1], currentWorld[0] - drag.pivot[0]) - drag.startAngle;
+	while (yaw > Math.PI) yaw -= Math.PI * 2;
+	while (yaw <= -Math.PI) yaw += Math.PI * 2;
+	if (shiftKey && angleSnapEnabled) {
+		const increment = Math.PI / 12;
+		yaw = Math.round(yaw / increment) * increment;
+	}
+	drag.yaw = yaw;
+}
+
+export function cancelLayoutRoomUnitDrag(state: LayoutInteractionState): void {
+	state.roomUnitDrag = null;
+}
+
 export function beginRoomEdit(state: LayoutInteractionState, mode: LayoutRoomDragMode, roomId: string, startWorld: LayoutVec2, originalPoints: readonly LayoutVec2[], vertexIndex: number | null = null): void {
 	state.editing = { mode, vertexIndex, roomId, startWorld: [...startWorld], originalPoints: originalPoints.map((point) => [...point]), currentPoints: originalPoints.map((point) => [...point]) };
 }
@@ -283,6 +343,7 @@ export function updateRoomEdit(state: LayoutInteractionState, currentWorld: Layo
 
 export function cancelRoomEdit(state: LayoutInteractionState): void {
 	state.editing = null;
+	state.roomUnitDrag = null;
 }
 
 export function clearLayoutDraft(state: LayoutInteractionState): void {

@@ -4,15 +4,15 @@
 
 **North star:** layout-first / Chopin-as-data — [`../north-star.md`](../north-star.md).  
 **P0:** Layout CAD Foundation — [`../plans/2026-08-10-layout-cad-foundation.md`](../plans/2026-08-10-layout-cad-foundation.md).  
-**Completed:** A0 LayoutDocument codec + B0 Chopin `rooms.ts` compiler + A1 pure line geometry/preview model/transaction stub + C0 `MuseumProject` codec + A2 read-only layout preview workspace + A2.1 rectangle/polygon drafting + A2.2 meter-scale editing and Chopin floor correction + A2.3 geometry-only opening authoring and numeric opening dimensions + A3 Bezier walls, arc-length openings, and derived arch profiles + A3.1 camera-style wall bend anchors, opening viz fix, and Plan opening drag + A4 layout objects, inspectors, and layout JSON I/O + A4.1 Layout Authoring Polish.
+**Completed:** A0 LayoutDocument codec + B0 Chopin `rooms.ts` compiler + A1 pure line geometry/preview model/transaction stub + C0 `MuseumProject` codec + A2 read-only layout preview workspace + A2.1 rectangle/polygon drafting + A2.2 meter-scale editing and Chopin floor correction + A2.3 geometry-only opening authoring and numeric opening dimensions + A3 Bezier walls, arc-length openings, and derived arch profiles + A3.1 camera-style wall bend anchors, opening viz fix, and Plan opening drag + A4 layout objects, inspectors, and layout JSON I/O + A4.1 Layout Authoring Polish + B3 Room-Unit Relocate.
 
 Full-track Phase 2 scene presets = deferred optional.
 
 ## Next slice
 
-**B3** — Room-unit relocate: move/rotate a room boundary, openings, and child objects together. A4/A4.1 are implemented in [`../plans/2026-08-11-layout-cad-a4-objects-inspectors-io.md`](../plans/2026-08-11-layout-cad-a4-objects-inspectors-io.md) and [`../plans/2026-08-12-layout-cad-a4-1-polish.md`](../plans/2026-08-12-layout-cad-a4-1-polish.md).
+**B4** — Runtime dual-read: explicit room adjacency/portal semantics and layout-backed visitor parity. B3 is implemented in [`../plans/2026-08-12-layout-cad-b3-room-unit-relocate.md`](../plans/2026-08-12-layout-cad-b3-room-unit-relocate.md); A4/A4.1 remain documented in [`../plans/2026-08-11-layout-cad-a4-objects-inspectors-io.md`](../plans/2026-08-11-layout-cad-a4-objects-inspectors-io.md) and [`../plans/2026-08-12-layout-cad-a4-1-polish.md`](../plans/2026-08-12-layout-cad-a4-1-polish.md).
 
-A4 adds primitive layout-object placement in Plan and 3D, transient Plan object dragging, room/wall/opening/object numeric inspectors, canonical layout JSON I/O, and independent layout baseline/status/dirty handling. A4.1 refines this into Plan-only Box/Cylinder/Sphere gestures, transformed primitive footprints, Place/Objects/Selection accordions, contextual dimensions, and replacement-only Plan reframing. Stored object transform/dimensions now drive rendering, bounds, and JSON exactly. Layout remains editor-only and outside shared scene history.
+A4 adds primitive layout-object placement in Plan and 3D, transient Plan object dragging, room/wall/opening/object numeric inspectors, canonical layout JSON I/O, and independent layout baseline/status/dirty handling. A4.1 refines this into Plan-only Box/Cylinder/Sphere gestures, transformed primitive footprints, Place/Objects/Selection accordions, contextual dimensions, and replacement-only Plan reframing. Stored object transform/dimensions now drive rendering, bounds, and JSON exactly. B3 adds shared chronological scene/layout history: entries are tagged by domain, undo/redo restores only the touched document, and import/reset clears the shared stack. Layout remains editor-only for runtime.
 
 Future shell milestone: evaluate moving layout objects into a unified left-side outliner with scene assets and room hierarchy after B3, before or alongside B4. This is a presentation merge only; scene/layout document ownership remains separate until the B4/B5 runtime transition.
 
@@ -32,8 +32,9 @@ Future shell milestone: evaluate moving layout objects into a unified left-side 
 - A4 focused layout suite: 41 passed after final object/state additions.
 - A4.1 focused layout/shell set: 54 passed.
 - A4.1 review focused layout/shell/camera set: 7 files / 158 tests passed.
-- Full suite: 85 files / 1108 tests passed.
-- Museum build passed.
+- B3 transform/history focused set: 3 files / 40 tests passed.
+- Full suite: 86 files / 1112 tests passed.
+- Museum build passed after B3 changes.
 - `npm run check -w @portfolio/museum`: 0 errors / 0 warnings.
 - In-app Browser manual QA remains pending: Browser runtime returned `Browser is not available: iab` on 2026-08-12.
 
@@ -52,17 +53,20 @@ Future shell milestone: evaluate moving layout objects into a unified left-side 
 - A3/A3.1 curve sampling uses `0.01 m` flatness, `0.25 m` maximum sample span (lines densified too), `1e-4 m` self-intersection tolerance, and existing `12 px` Plan hit radius.
 - A3.1 walls use `line` | `auto-bezier` with camera-style interior anchors (pure 2D centripetal cubics); no Bezier room tool; no authored `handleOut`/`handleIn` edit model; legacy `bezier` migrates on codec read. Bend via mid-span **drag** (4 px threshold); click selects wall without inserting an anchor; corners resize rooms. Plan-only anchors; 3D sampled preview only.
 - A3 curve mutations remain preview-state-only; no shared editor history or persistence.
-- A4 layout object mutations and layout I/O remain preview-state-only; scene dirty/history are independent. Navigation/unload protects either dirty document.
+- A4 layout object mutations and layout I/O remain preview-state-only; scene/layout dirty baselines remain independent. B3 room-unit gestures and inspector rotation are the first layout mutations routed through shared chronological history. Navigation/unload protects either dirty document.
 - A4.1 layout chrome uses Plan-only Box/Cylinder/Sphere gestures, Place/Objects/Selection accordion state, and 0.25 m room/vertex/object candidate snapping; primitive placement is not reachable in 3D.
 - A4.1 ordinary edits do not auto-reframe; import/reset/Reload Chopin do. Primitive room ownership resolves from the derived center, whole-room snap is a rigid translation, and stored Sphere height/position remain authoritative and floor-aligned at creation.
-- A4.1 3D preview renders layout objects but intentionally does not select/edit them; 3D selection and gizmos return with the unified layout/scene editing milestone.
+- A4.1 3D preview renders layout objects but intentionally does not select/edit them; B3 remains Plan-only and 3D room gizmos return with the unified layout/scene editing milestone.
 - A1 `LayoutOpening.offset` is meters along its segment; B4 adds explicit `connectsRoomIds` for portals.
 - Layout auto-bezier must not import `camera-motion` / Three.
 - No commits unless user asks.
+- B3 room-unit pivot is derived from sampled-boundary shoelace centroid; no persistent room yaw or schema migration.
+- B3 translation snaps 0.25 m; Shift rotation snaps 15°; room body/rotation-arm gestures and inspector rotation each create at most one `layout` history entry.
+- B4 adjacency, B5 runtime cutover, and unified outliner remain future slices.
 
 ## Out of scope this slice
 
-Phase 2 Wall presets · semantic room adjacency/portal graph (B4) · cutover (B5) · GLB import · new camera system · opening assets/frames · shared layout history/persistence.
+Phase 2 Wall presets · semantic room adjacency/portal graph (B4) · cutover (B5) · GLB import · new camera system · opening assets/frames · 3D room gizmos.
 
 ## Reading order (token-minimal)
 

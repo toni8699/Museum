@@ -15,7 +15,7 @@ If conflict: **`docs/` component files + hub win** over this file for product de
 1. **One nav + one motion** — `camera-route.ts` + `camera-motion.ts` only.
 2. **Architecture SoT today** — `rooms.ts` until B4/B5. New rooms → `LayoutDocument`; layout must not drive `/museum` before those gates.
 3. **Scene SoT** — `museum-scene.json` v6; interior connection anchors only; never persist generated endpoints.
-4. **Visitor isolation** — editor prod 404; no editor/layout UI in visitor chunks.
+4. **Visitor isolation** — editor prod 404 by default; no editor/layout UI in visitor chunks. Sole exception: an explicit build-time `VITE_MUSEUM_EDITOR=1` demo deploy may expose `/editor` and `/` as the editor (see root `README.md`); without that flag the editor must 404 and stay out of the visitor bundle.
 5. Editor helpers outside `MuseumScene` / visitor imports.
 6. No nav arrays in `rooms.ts`; no second graph/motion; prefer Floor/Wall/Ceiling planes.
 7. Svelte 5 runes; Threlte patterns; `scroll-travel` unused.

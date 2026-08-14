@@ -1,6 +1,6 @@
 import {
 	BENCH_METHOD_VERSION,
-	REQUIRED_BUDGET_METRICS,
+	ENFORCED_BUDGET_METRICS,
 	type BenchMetricName,
 	type BenchSample,
 	type BenchTierResult,
@@ -16,27 +16,44 @@ export type BudgetCheck = {
 };
 
 /**
- * Fail-closed comparison of a measured tier against recorded budgets. Only the
- * `fail` bound is enforced (budget changes require a recorded reason in the
- * baseline); `target` is advisory. Metrics without a budget are reported, not
- * failed.
+ * Fail-closed comparison of a measured tier against recorded budgets.
+ *
+ * Every enforced metric must be (a) present in the measured result, (b)
+ * budgeted in the baseline, and (c) under its `fail` bound — a missing sample,
+ * missing budget, or over-fail value each produce a violation. Only the `fail`
+ * bound is enforced (budget changes require a recorded reason); `target` is
+ * advisory. Non-enforced metrics without a budget are reported, not failed.
  */
 export function checkBudgets(
 	result: BenchTierResult,
-	budgets: Partial<Record<BenchMetricName, Budget>>
+	budgets: Partial<Record<BenchMetricName, Budget>>,
+	enforced: readonly BenchMetricName[] = ENFORCED_BUDGET_METRICS
 ): BudgetCheck {
 	const violations: string[] = [];
 	const unbudgeted: BenchMetricName[] = [];
-	for (const sample of result.samples) {
-		const budget = budgets[sample.metric];
+	const measured = sampleByMetric(result.samples);
+
+	for (const metric of enforced) {
+		const sample = measured.get(metric);
+		if (!sample) {
+			violations.push(`${metric}: missing from result`);
+			continue;
+		}
+		const budget = budgets[metric];
 		if (!budget) {
-			unbudgeted.push(sample.metric);
+			violations.push(`${metric}: no budget recorded`);
 			continue;
 		}
 		if (sample.value > budget.fail) {
-			violations.push(`${sample.metric}: measured ${round(sample.value)} > fail ${budget.fail} (target ${budget.target})`);
+			violations.push(`${metric}: measured ${round(sample.value)} > fail ${budget.fail} (target ${budget.target})`);
 		}
 	}
+
+	for (const sample of result.samples) {
+		if (enforced.includes(sample.metric)) continue;
+		if (!budgets[sample.metric]) unbudgeted.push(sample.metric);
+	}
+
 	return { pass: violations.length === 0, violations, unbudgeted };
 }
 
@@ -46,7 +63,7 @@ export function validateBaseline(baseline: BudgetBaseline): string[] {
 	if (baseline.methodVersion !== BENCH_METHOD_VERSION) {
 		problems.push(`methodVersion ${baseline.methodVersion} != ${BENCH_METHOD_VERSION}`);
 	}
-	for (const metric of REQUIRED_BUDGET_METRICS) {
+	for (const metric of ENFORCED_BUDGET_METRICS) {
 		const budget = baseline.budgets[metric];
 		if (!budget) problems.push(`missing budget for ${metric}`);
 		else if (!budget.reason || budget.reason.trim().length === 0) problems.push(`missing reason for ${metric}`);

@@ -95,4 +95,4 @@ A1 openings were geometry-only. Layout v3 retains B4's explicit `connectsRoomIds
 
 ## Hard don’ts
 
-Dual nav graphs · persist `node:<id>:position` endpoints · put render-backend state in `LayoutDocument` or compiled geometry · build a second geometry compiler in a render adapter · replace Three without a measured production limitation · wire `@portfolio/scroll-travel` casually · ship editor to prod visitors (`/editor` → 404).
+Dual nav graphs · persist `node:<id>:position` endpoints · put render-backend state in `LayoutDocument` or compiled geometry · build a second geometry compiler in a render adapter · replace Three without a measured production limitation · wire `@portfolio/scroll-travel` casually · ship editor to prod visitors (`/editor` → 404; sole exception: an explicit build-time `VITE_MUSEUM_EDITOR=1` demo deploy).

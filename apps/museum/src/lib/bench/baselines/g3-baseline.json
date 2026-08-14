@@ -1,5 +1,5 @@
 {
-  "methodVersion": 1,
+  "methodVersion": 2,
   "budgets": {
     "layout-compile": {
       "target": 30,
@@ -26,10 +26,35 @@
       "fail": 8000000,
       "reason": "Measured 2026-08-13 2,201,474 bytes serialized compiled geometry for Chopin; target/fail bound a 2x/4x footprint regression."
     },
-    "cache-key-cost": {
-      "target": 20,
-      "fail": 60,
-      "reason": "Measured 2026-08-13 p50 8.09 ms JSON.stringify proxy on Chopin compiled geometry; signals backlog #10 only, not a correctness bound."
+    "cache-key-code-units": {
+      "target": 700000,
+      "fail": 1300000,
+      "reason": "Measured 2026-08-13 620,268 UTF-16 code units of stored cacheKey strings for Chopin; the deterministic allocation backlog #10 targets, with fail = 2x regression bound."
+    },
+    "svg-node-count": {
+      "target": 100,
+      "fail": 150,
+      "reason": "Measured 2026-08-13 71 SVG nodes for the Chopin Plan model; fail = ~2x catches SVG node bloat."
+    },
+    "three-object-estimate": {
+      "target": 1200,
+      "fail": 2400,
+      "reason": "Measured 2026-08-13 1,166 chord-box spans for Chopin; fail = ~2x catches chord-box object bloat (the G4 target)."
+    },
+    "three-material-estimate": {
+      "target": 40,
+      "fail": 80,
+      "reason": "Measured 2026-08-13 28 wall material groups for Chopin; fail = ~2x catches material proliferation."
+    },
+    "three-draw-call-estimate": {
+      "target": 1200,
+      "fail": 2400,
+      "reason": "Measured 2026-08-13 1,166 estimated draw calls for the Chopin chord-box scene; fail = ~2x."
+    },
+    "three-triangle-estimate": {
+      "target": 14000,
+      "fail": 28000,
+      "reason": "Measured 2026-08-13 13,992 estimated triangles for the Chopin chord-box scene; fail = 2x."
     }
   },
   "tiers": [
@@ -37,20 +62,105 @@
       "tier": "chopin",
       "roomCount": 7,
       "provenance": {
-        "commitSha": "local",
-        "date": "2026-08-13T20:01:00.000Z",
+        "commitSha": "c4ca8ae0b58d9998fbc9330a1c4354e1371ef248",
+        "date": "2026-08-14T00:40:12.118Z",
         "deviceProfile": "node",
         "warmup": 2,
         "samples": 5,
-        "methodVersion": 1
+        "methodVersion": 2
       },
       "samples": [
-        { "metric": "layout-compile", "unit": "ms", "value": 14.13, "p50": 14.13, "p95": 17.33 },
-        { "metric": "plan-render-build", "unit": "ms", "value": 0.211, "p50": 0.211, "p95": 0.852 },
-        { "metric": "hit-test", "unit": "ms", "value": 0.12, "p50": 0.12, "p95": 0.123 },
-        { "metric": "snap-query", "unit": "ms", "value": 0.000609, "p50": 0.000609, "p95": 0.000653 },
-        { "metric": "compiled-memory", "unit": "bytes", "value": 2201474 },
-        { "metric": "cache-key-cost", "unit": "ms", "value": 8.09, "p50": 8.09, "p95": 8.35 }
+        {
+          "metric": "layout-compile",
+          "unit": "ms",
+          "value": 11.447000000000003,
+          "p50": 11.447000000000003,
+          "p95": 14.654875000000061
+        },
+        {
+          "metric": "plan-render-build",
+          "unit": "ms",
+          "value": 0.0919170000000804,
+          "p50": 0.0919170000000804,
+          "p95": 0.15354200000001583
+        },
+        {
+          "metric": "hit-test",
+          "unit": "ms",
+          "value": 0.11800437500000044,
+          "p50": 0.11800437500000044,
+          "p95": 0.13154770999999982
+        },
+        {
+          "metric": "snap-query",
+          "unit": "ms",
+          "value": 0.000563539999999989,
+          "p50": 0.000563539999999989,
+          "p95": 0.0006977100000000291
+        },
+        {
+          "metric": "compiled-memory",
+          "unit": "bytes",
+          "value": 2201474
+        },
+        {
+          "metric": "cache-key-code-units",
+          "unit": "count",
+          "value": 620268
+        },
+        {
+          "metric": "plan-render-initial",
+          "unit": "ms",
+          "value": 0.2104580000000169,
+          "p50": 0.2104580000000169,
+          "p95": 0.23154199999999037
+        },
+        {
+          "metric": "svg-node-count",
+          "unit": "nodes",
+          "value": 71
+        },
+        {
+          "metric": "plan-render-work-pan-zoom",
+          "unit": "ms",
+          "value": 0.35950000000002547,
+          "p50": 0.35950000000002547,
+          "p95": 0.3601250000000391
+        },
+        {
+          "metric": "plan-render-work-edit",
+          "unit": "ms",
+          "value": 0.31683299999997416,
+          "p50": 0.31683299999997416,
+          "p95": 0.33854199999996126
+        },
+        {
+          "metric": "three-regen",
+          "unit": "ms",
+          "value": 0.14704199999994216,
+          "p50": 0.14704199999994216,
+          "p95": 0.16620900000009442
+        },
+        {
+          "metric": "three-object-estimate",
+          "unit": "count",
+          "value": 1166
+        },
+        {
+          "metric": "three-material-estimate",
+          "unit": "count",
+          "value": 28
+        },
+        {
+          "metric": "three-draw-call-estimate",
+          "unit": "count",
+          "value": 1166
+        },
+        {
+          "metric": "three-triangle-estimate",
+          "unit": "count",
+          "value": 13992
+        }
       ]
     },
     {
@@ -58,20 +168,105 @@
       "seed": 101,
       "roomCount": 10,
       "provenance": {
-        "commitSha": "local",
-        "date": "2026-08-13T20:01:00.000Z",
+        "commitSha": "c4ca8ae0b58d9998fbc9330a1c4354e1371ef248",
+        "date": "2026-08-14T00:40:12.414Z",
         "deviceProfile": "node",
         "warmup": 2,
         "samples": 5,
-        "methodVersion": 1
+        "methodVersion": 2
       },
       "samples": [
-        { "metric": "layout-compile", "unit": "ms", "value": 27.77, "p50": 27.77, "p95": 40.89 },
-        { "metric": "plan-render-build", "unit": "ms", "value": 0.141, "p50": 0.141, "p95": 0.278 },
-        { "metric": "hit-test", "unit": "ms", "value": 0.187, "p50": 0.187, "p95": 0.225 },
-        { "metric": "snap-query", "unit": "ms", "value": 0.000582, "p50": 0.000582, "p95": 0.000719 },
-        { "metric": "compiled-memory", "unit": "bytes", "value": 2903689 },
-        { "metric": "cache-key-cost", "unit": "ms", "value": 7.96, "p50": 7.96, "p95": 9.62 }
+        {
+          "metric": "layout-compile",
+          "unit": "ms",
+          "value": 25.269666999999913,
+          "p50": 25.269666999999913,
+          "p95": 33.02579100000003
+        },
+        {
+          "metric": "plan-render-build",
+          "unit": "ms",
+          "value": 0.2569170000001577,
+          "p50": 0.2569170000001577,
+          "p95": 0.259166999999934
+        },
+        {
+          "metric": "hit-test",
+          "unit": "ms",
+          "value": 0.14474312499999997,
+          "p50": 0.14474312499999997,
+          "p95": 0.15973687500000097
+        },
+        {
+          "metric": "snap-query",
+          "unit": "ms",
+          "value": 0.0005368750000002365,
+          "p50": 0.0005368750000002365,
+          "p95": 0.0007304150000004483
+        },
+        {
+          "metric": "compiled-memory",
+          "unit": "bytes",
+          "value": 2903689
+        },
+        {
+          "metric": "cache-key-code-units",
+          "unit": "count",
+          "value": 795557
+        },
+        {
+          "metric": "plan-render-initial",
+          "unit": "ms",
+          "value": 0.4114589999999225,
+          "p50": 0.4114589999999225,
+          "p95": 0.42975000000001273
+        },
+        {
+          "metric": "svg-node-count",
+          "unit": "nodes",
+          "value": 130
+        },
+        {
+          "metric": "plan-render-work-pan-zoom",
+          "unit": "ms",
+          "value": 0.58787499999994,
+          "p50": 0.58787499999994,
+          "p95": 0.6868329999999787
+        },
+        {
+          "metric": "plan-render-work-edit",
+          "unit": "ms",
+          "value": 0.47945800000002237,
+          "p50": 0.47945800000002237,
+          "p95": 0.5272499999998672
+        },
+        {
+          "metric": "three-regen",
+          "unit": "ms",
+          "value": 0.04362500000002001,
+          "p50": 0.04362500000002001,
+          "p95": 0.046708000000080574
+        },
+        {
+          "metric": "three-object-estimate",
+          "unit": "count",
+          "value": 1501
+        },
+        {
+          "metric": "three-material-estimate",
+          "unit": "count",
+          "value": 40
+        },
+        {
+          "metric": "three-draw-call-estimate",
+          "unit": "count",
+          "value": 1501
+        },
+        {
+          "metric": "three-triangle-estimate",
+          "unit": "count",
+          "value": 18012
+        }
       ]
     },
     {
@@ -79,20 +274,105 @@
       "seed": 202,
       "roomCount": 100,
       "provenance": {
-        "commitSha": "local",
-        "date": "2026-08-13T20:01:00.000Z",
+        "commitSha": "c4ca8ae0b58d9998fbc9330a1c4354e1371ef248",
+        "date": "2026-08-14T00:40:12.902Z",
         "deviceProfile": "node",
         "warmup": 2,
         "samples": 5,
-        "methodVersion": 1
+        "methodVersion": 2
       },
       "samples": [
-        { "metric": "layout-compile", "unit": "ms", "value": 244.7, "p50": 244.7, "p95": 570.9 },
-        { "metric": "plan-render-build", "unit": "ms", "value": 1.84, "p50": 1.84, "p95": 2.16 },
-        { "metric": "hit-test", "unit": "ms", "value": 2.3, "p50": 2.3, "p95": 2.58 },
-        { "metric": "snap-query", "unit": "ms", "value": 0.00581, "p50": 0.00581, "p95": 0.00662 },
-        { "metric": "compiled-memory", "unit": "bytes", "value": 29464213 },
-        { "metric": "cache-key-cost", "unit": "ms", "value": 109.9, "p50": 109.9, "p95": 132.2 }
+        {
+          "metric": "layout-compile",
+          "unit": "ms",
+          "value": 217.47845900000038,
+          "p50": 217.47845900000038,
+          "p95": 238.65425000000005
+        },
+        {
+          "metric": "plan-render-build",
+          "unit": "ms",
+          "value": 1.1724169999997684,
+          "p50": 1.1724169999997684,
+          "p95": 1.239292000000205
+        },
+        {
+          "metric": "hit-test",
+          "unit": "ms",
+          "value": 1.8317372900000009,
+          "p50": 1.8317372900000009,
+          "p95": 1.8942622949999985
+        },
+        {
+          "metric": "snap-query",
+          "unit": "ms",
+          "value": 0.006361039999997047,
+          "p50": 0.006361039999997047,
+          "p95": 0.007327915000000757
+        },
+        {
+          "metric": "compiled-memory",
+          "unit": "bytes",
+          "value": 29464213
+        },
+        {
+          "metric": "cache-key-code-units",
+          "unit": "count",
+          "value": 8156637
+        },
+        {
+          "metric": "plan-render-initial",
+          "unit": "ms",
+          "value": 5.608959000000141,
+          "p50": 5.608959000000141,
+          "p95": 6.07300000000032
+        },
+        {
+          "metric": "svg-node-count",
+          "unit": "nodes",
+          "value": 1300
+        },
+        {
+          "metric": "plan-render-work-pan-zoom",
+          "unit": "ms",
+          "value": 7.233749999999418,
+          "p50": 7.233749999999418,
+          "p95": 7.387250000000677
+        },
+        {
+          "metric": "plan-render-work-edit",
+          "unit": "ms",
+          "value": 6.78545800000029,
+          "p50": 6.78545800000029,
+          "p95": 6.80987499999992
+        },
+        {
+          "metric": "three-regen",
+          "unit": "ms",
+          "value": 0.46916699999928824,
+          "p50": 0.46916699999928824,
+          "p95": 0.48637499999949796
+        },
+        {
+          "metric": "three-object-estimate",
+          "unit": "count",
+          "value": 15227
+        },
+        {
+          "metric": "three-material-estimate",
+          "unit": "count",
+          "value": 400
+        },
+        {
+          "metric": "three-draw-call-estimate",
+          "unit": "count",
+          "value": 15227
+        },
+        {
+          "metric": "three-triangle-estimate",
+          "unit": "count",
+          "value": 182724
+        }
       ]
     },
     {
@@ -100,20 +380,105 @@
       "seed": 303,
       "roomCount": 1000,
       "provenance": {
-        "commitSha": "local",
-        "date": "2026-08-13T20:01:00.000Z",
+        "commitSha": "c4ca8ae0b58d9998fbc9330a1c4354e1371ef248",
+        "date": "2026-08-14T00:40:17.671Z",
         "deviceProfile": "node",
         "warmup": 1,
         "samples": 3,
-        "methodVersion": 1
+        "methodVersion": 2
       },
       "samples": [
-        { "metric": "layout-compile", "unit": "ms", "value": 3077, "p50": 3077, "p95": 3202.2 },
-        { "metric": "plan-render-build", "unit": "ms", "value": 37.3, "p50": 37.3, "p95": 47.54 },
-        { "metric": "hit-test", "unit": "ms", "value": 62.03, "p50": 62.03, "p95": 80.36 },
-        { "metric": "snap-query", "unit": "ms", "value": 0.0748, "p50": 0.0748, "p95": 0.101 },
-        { "metric": "compiled-memory", "unit": "bytes", "value": 301050350 },
-        { "metric": "cache-key-cost", "unit": "ms", "value": 1334.2, "p50": 1334.2, "p95": 1364.9 }
+        {
+          "metric": "layout-compile",
+          "unit": "ms",
+          "value": 2636.163124999999,
+          "p50": 2636.163124999999,
+          "p95": 3224.3310420000016
+        },
+        {
+          "metric": "plan-render-build",
+          "unit": "ms",
+          "value": 30.935249999998632,
+          "p50": 30.935249999998632,
+          "p95": 31.85887499999808
+        },
+        {
+          "metric": "hit-test",
+          "unit": "ms",
+          "value": 44.99037500000004,
+          "p50": 44.99037500000004,
+          "p95": 47.16573644999998
+        },
+        {
+          "metric": "snap-query",
+          "unit": "ms",
+          "value": 0.25731562499995564,
+          "p50": 0.25731562499995564,
+          "p95": 0.2657895749999625
+        },
+        {
+          "metric": "compiled-memory",
+          "unit": "bytes",
+          "value": 301050350
+        },
+        {
+          "metric": "cache-key-code-units",
+          "unit": "count",
+          "value": 83949962
+        },
+        {
+          "metric": "plan-render-initial",
+          "unit": "ms",
+          "value": 82.54233400000157,
+          "p50": 82.54233400000157,
+          "p95": 86.12754199999836
+        },
+        {
+          "metric": "svg-node-count",
+          "unit": "nodes",
+          "value": 13000
+        },
+        {
+          "metric": "plan-render-work-pan-zoom",
+          "unit": "ms",
+          "value": 89.80620799999815,
+          "p50": 89.80620799999815,
+          "p95": 90.62225000000035
+        },
+        {
+          "metric": "plan-render-work-edit",
+          "unit": "ms",
+          "value": 124.80191600000035,
+          "p50": 124.80191600000035,
+          "p95": 130.18370900000082
+        },
+        {
+          "metric": "three-regen",
+          "unit": "ms",
+          "value": 4.976875000000291,
+          "p50": 4.976875000000291,
+          "p95": 5.0378749999981665
+        },
+        {
+          "metric": "three-object-estimate",
+          "unit": "count",
+          "value": 153782
+        },
+        {
+          "metric": "three-material-estimate",
+          "unit": "count",
+          "value": 4000
+        },
+        {
+          "metric": "three-draw-call-estimate",
+          "unit": "count",
+          "value": 153782
+        },
+        {
+          "metric": "three-triangle-estimate",
+          "unit": "count",
+          "value": 1845384
+        }
       ]
     }
   ]

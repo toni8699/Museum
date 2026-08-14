@@ -4,26 +4,26 @@
  * unit and (for time metrics) p50/p95 aggregates.
  */
 
-export const BENCH_METHOD_VERSION = 1;
+export const BENCH_METHOD_VERSION = 2;
 
 export type BenchMetricName =
 	| 'layout-compile'
 	| 'plan-render-build'
 	| 'plan-render-initial'
-	| 'plan-pan-zoom-frame'
-	| 'plan-edit-frame'
+	| 'plan-render-work-pan-zoom'
+	| 'plan-render-work-edit'
 	| 'hit-test'
 	| 'snap-query'
 	| 'svg-node-count'
-	| 'three-object-count'
-	| 'three-material-count'
-	| 'three-draw-calls'
-	| 'three-triangles'
+	| 'three-object-estimate'
+	| 'three-material-estimate'
+	| 'three-draw-call-estimate'
+	| 'three-triangle-estimate'
 	| 'gpu-frame'
 	| 'memory-heap'
 	| 'three-regen'
 	| 'compiled-memory'
-	| 'cache-key-cost';
+	| 'cache-key-code-units';
 
 export type BenchUnit = 'ms' | 'count' | 'bytes' | 'nodes';
 
@@ -73,11 +73,24 @@ export type BudgetBaseline = {
 	tiers: BenchTierResult[];
 };
 
-/** Metrics that must exist as budgets for the supported product scale. */
-export const REQUIRED_BUDGET_METRICS: readonly BenchMetricName[] = [
+/**
+ * Metrics the Chopin budget check enforces. Every metric here must be present in
+ * the measured result, budgeted in the baseline, and under its `fail` bound —
+ * otherwise the check fails closed. The SVG node count, chord-box topology
+ * estimates, and cache-key footprint are deterministic and included so
+ * SVG/Three/cacheKey regressions cannot slip past CI; frame-time metrics stay
+ * advisory (environment-dependent) and are not enforced.
+ */
+export const ENFORCED_BUDGET_METRICS: readonly BenchMetricName[] = [
 	'layout-compile',
 	'plan-render-build',
 	'hit-test',
 	'snap-query',
-	'compiled-memory'
+	'compiled-memory',
+	'cache-key-code-units',
+	'svg-node-count',
+	'three-object-estimate',
+	'three-material-estimate',
+	'three-draw-call-estimate',
+	'three-triangle-estimate'
 ];

@@ -40,8 +40,8 @@ them individually instead of one opaque "the editor is slow."
 |---------|-------|------------|
 | Scale fixtures | Hand-authored G1/G2 parity fixtures (~8 layouts) and the 9-room Chopin project | One seeded generator emitting valid 10/100/1,000-room `LayoutDocument`s with a fixed mix |
 | Compile/model/hit timing | No timers; correctness tests only | Pure Node-tier metrics: `compileLayoutGeometry`, `buildPlanRenderModel`, `resolvePlanHit`, snapping-query, and cache-key allocation |
-| Frame-level timing | None | Browser-tier p50/p95 for initial Plan render, pan/zoom, and drag/edit under a pinned rAF loop |
-| Renderer resource counts | None | SVG node count; Three object/material/draw-call/triangle/memory counts via `renderer.info` |
+| Frame-level timing | None | Deterministic browser-tier render-work proxies (initial render, pan/zoom, edit); a real rAF viewport driver is a follow-up |
+| Renderer resource counts | None | SVG node count; chord-box topology estimates; live `renderer.info` counts browser-only via `/dev/perf` |
 | Budgets | The roadmap names target/fail budgets as a requirement but none exist | Checked-in `target`/`fail` budgets for Chopin scale + a fail-closed CI comparison |
 | Optimizations | The backlog lists 11 measured costs, several `G3`-homed, none validated | Each backlog item gets a metric that would justify it (G5 implements; G3 supplies the evidence) |
 
@@ -77,11 +77,11 @@ the metrics that would decide each of those — it does not implement them.
     model-build time, hit-test/snapping-query latency, cache-key allocation, and
     compiled-data memory footprint. Runs under vitest/Node with the same
     fixtures.
-  - **Browser tier** (environment-pinned): initial Plan render time, pan/zoom
-    and drag/edit p50/p95 frame times, SVG node count, Three
-    object/material/draw-call/triangle counts, GPU frame time where exposed,
-    and heap memory. Runs on a dev-only harness page against a pinned Chromium
-    via agent-browser, or a documented manual protocol.
+  - **Browser tier** (deterministic, DOM-free): initial Plan render work,
+    synchronous pan/zoom and edit render-work proxies, SVG node count, and
+    chord-box topology estimates. Live `renderer.info`/GPU/memory counters are
+    browser-only (via `/dev/perf` + `three-stats.ts`) and advisory; a real
+    scripted rAF viewport driver is a follow-up.
 - The harness records provenance for every report: fixture seed, scale, browser
   version, device profile, warm-up count, sample count, measurement-method
   version, date, and commit SHA. Reports without provenance are not baselines.
@@ -101,10 +101,9 @@ the metrics that would decide each of those — it does not implement them.
   import graph, and adds no measurement code to `LayoutMuseumShell`,
   `LayoutPlanViewport.svelte`, or `PlanSvg.svelte`'s production path (only
   instrumented adapters/wrappers used by the harness page).
-- Measurement must not perturb what it measures where avoidable: Node tier uses
-  a warm-up pass and repeated samples with median/percentile aggregation; the
-  browser tier uses a warm-up and multiple rAF windows with dropped first
-  frames. Results are recorded in a versioned JSON schema, never CSV ad hoc.
+- Measurement must not perturb what it measures where avoidable: both tiers use
+  a warm-up pass and repeated samples with median/percentile aggregation.
+  Results are recorded in a versioned JSON schema, never CSV ad hoc.
 - No optimization ships in G3. If a measured number is already inside budget at
   supported scale, the harness's job is to say so, not to "improve" it.
 
@@ -166,23 +165,24 @@ checkBudgets(result: BenchTierResult, baseline: BudgetBaseline): { pass: boolean
 
 - `layout-compile` (ms) — `compileLayoutGeometry()` wall time per document;
 - `plan-render-build` (ms) — `buildPlanRenderModel()` wall time per document;
-- `plan-render-initial` (ms) — first paint of the Plan model through the SVG adapter;
-- `plan-pan-zoom-frame` (ms) — p50/p95 rAF frame time during scripted pan/zoom;
-- `plan-edit-frame` (ms) — p50/p95 rAF frame time during scripted drag/edit;
+- `plan-render-initial` (ms) — synchronous model→SVG render work (initial);
+- `plan-render-work-pan-zoom` (ms) — synchronous model→SVG render work per pan/zoom step (deterministic proxy; a real rAF viewport driver is a follow-up);
+- `plan-render-work-edit` (ms) — synchronous rebuild + render work per transient edit (same proxy caveat);
 - `hit-test` (ms) — `resolvePlanHit()` plus the placement containment query;
 - `snap-query` (ms) — candidate snapping-query latency;
 - `svg-node-count` (nodes) — SVG element count in the Plan pane;
-- `three-object-count` / `three-material-count` (count);
-- `three-draw-calls` / `three-triangles` (count) — from `renderer.info.render`;
+- `three-object-estimate` / `three-material-estimate` (count) — chord-box topology estimates (solid spans, wall groups), not live `renderer.info`;
+- `three-draw-call-estimate` / `three-triangle-estimate` (count) — naive chord-box draw/triangle estimates; live `renderer.info` reads are browser-only via `three-stats.ts`;
 - `gpu-frame` (ms) — where the browser exposes it;
 - `memory-heap` (bytes) — heap/`performance.memory` where available;
 - `three-regen` (ms) — 3D regeneration time after a committed edit;
 - `compiled-memory` (bytes) — Node-tier compiled-data footprint;
-- `cache-key-cost` (ms) — time spent producing `cacheKey`s (backlog #10 signal).
+- `cache-key-code-units` (count) — total UTF-16 code units of stored `cacheKey` strings across compiled entities and query records (backlog #10 signal; shrinks under a lazy/cheaper cacheKey).
 
-The browser tier scripts the same user actions against every fixture
-(initial open → fit → N pan/zoom gestures → one room drag/edit → recompile →
-recount) so frame samples are comparable, not "whatever the human did."
+The browser tier re-renders the deterministic `PlanRenderModel` at a cycling
+zoom and a transient-edit rebuild, so render-work samples are comparable and
+reproducible. A real scripted-rAF viewport driver (PlanSvg DOM paint + gestures)
+is an explicit follow-up, not part of this slice.
 
 ## Implementation sequence
 
@@ -207,7 +207,7 @@ recount) so frame samples are comparable, not "whatever the human did."
 ### 3. Instrument the Node tier
 
 1. Add `plan-bench.ts` measuring `layout-compile`, `plan-render-build`,
-   `hit-test`, `snap-query`, `compiled-memory`, and `cache-key-cost` against the
+   `hit-test`, `snap-query`, `compiled-memory`, and `cache-key-code-units` against the
    generated fixtures, with a warm-up and repeated samples.
 2. Expose it as a focused vitest bench/measurement test so CI can run it
    deterministically; record per-tier results.
@@ -215,14 +215,14 @@ recount) so frame samples are comparable, not "whatever the human did."
 ### 4. Instrument the browser tier
 
 1. Add a dev-only `/dev/perf` harness page (alongside `/dev/assets`,
-   `/dev/materials`) that loads each fixture into the real Plan viewport and 3D
-   scene without touching the production visitor path.
-2. Add `browser-bench.ts`: the scripted rAF frame sampler (initial render,
-   pan/zoom, edit), SVG node counter, Three `renderer.info` reader
-   (object/material/draw-call/triangle counts), GPU-frame and memory readers
-   where exposed, and `three-regen` timing after a committed edit.
-3. Drive it under a pinned Chromium via agent-browser for the browser samples;
-   document a manual protocol as fallback.
+   `/dev/materials`) that runs both tiers and, when WebGL is available, live
+   chord-box `renderer.info` counts — without touching the production visitor path.
+2. Add `browser-bench.ts`: deterministic render-work proxies (initial render,
+   pan/zoom, edit), SVG node counter, chord-box topology estimates, and a
+   `three-regen` span-derivation pass. `three-stats.ts` exposes the live
+   `renderer.info` reader used by the page's opt-in WebGL button.
+3. Keep frame-time and GPU/memory counters browser-only and advisory; a real
+   scripted rAF viewport driver is a follow-up, not required for this slice.
 
 ### 5. Set budgets and check in baselines
 
@@ -265,8 +265,8 @@ recount) so frame samples are comparable, not "whatever the human did."
 | Determinism | Same seed → deep-equal `LayoutDocument` JSON; different seeds differ; counts reflect the pinned mix |
 | Validity | `validateLayoutDocument` clean and `compileLayoutGeometry()` zero-blocking at 10/100/1,000 |
 | Chopin | Compiles and renders through the same path as production; is the only budget-bearing tier |
-| Node tier | `layout-compile`/`plan-render-build`/`hit-test`/`snap-query`/`cache-key-cost` all measured with warm-up + samples, p50/p95 reported |
-| Browser tier | Initial render, pan/zoom and edit frame times, SVG node count, Three counts, GPU/memory where available, `three-regen` all captured under one scripted protocol |
+| Node tier | `layout-compile`/`plan-render-build`/`hit-test`/`snap-query`/`cache-key-code-units` all measured with warm-up + samples, p50/p95 reported |
+| Browser tier | Initial render, pan/zoom and edit render-work proxies, SVG node count, chord-box topology estimates, and `three-regen` are deterministic and vitest-reproducible; live `renderer.info`/GPU/memory stay browser-only and advisory |
 | Budgets | `target`/`fail` exist for every Chopin metric with a recorded reason; `checkBudgets` fails on `fail` breach and passes otherwise |
 | Provenance | Every report carries seed, browser/device, warm-up, samples, method version, date, commit SHA |
 | Boundary | Harness and fixtures import no editor/Svelte/Three/DOM in the Node tier; `/dev/perf` is dev-only and absent from visitor chunks; production Plan/3D/shell paths carry no measurement code |
@@ -320,14 +320,14 @@ Browser-tier measurement:
 
 ```text
 npx agent-browser --session g3-perf open http://localhost:5173/dev/perf
-# follow the page's scripted run; capture the serialized report JSON
+# run the report + live WebGL buttons; capture the serialized report JSON
 ```
 
 Manual QA:
 
 - The fixture generator is byte-deterministic and its 10/100/1,000-room
   documents open in the editor Plan without blocking issues.
-- The `/dev/perf` page runs the scripted protocol end-to-end and emits a
+- The `/dev/perf` page runs the report and live WebGL buttons and emits a
   provenance-complete report; production `/museum` and the editor are unchanged.
 - Budget CI fails when a `fail` threshold is breached and passes otherwise; a
   budget edit without a recorded reason is rejected by review.
@@ -338,8 +338,10 @@ G3 is complete only when:
 
 - a seeded deterministic generator emits valid 10/100/1,000-room layouts with a
   fixed, pinned mix and proven validity/determinism;
-- the harness captures the full roadmap metric list with warm-up, samples, and
-  p50/p95 aggregation, split into a pure Node tier and a dev-only browser tier;
+- the harness captures the roadmap metric list — frame-time metrics as
+  deterministic render-work proxies, GPU/memory as browser-only advisory — with
+  warm-up, samples, and p50/p95 aggregation, split into a pure Node tier and a
+  dev-only browser tier;
 - every report carries seed, browser/device, warm-up, sample, method-version,
   date, and commit provenance;
 - checked-in baselines plus `target`/`fail` budgets exist for the Chopin product
@@ -361,6 +363,8 @@ G3 is complete only when:
 - changing `CompiledLayoutGeometry`, `PlanRenderModel`, or `LayoutDocument`;
 - a claim that 1,000 rooms must be interactive; the tiers are comparison data;
 - serializing any measurement into `MuseumProject`; and
+- a real scripted-rAF viewport driver (PlanSvg DOM paint + gesture frame
+  timing) — follow-up work, not part of G3; and
 - shipping any harness or `/dev/perf` route to production visitors.
 
 ## Shipped (2026-08-13)
@@ -386,18 +390,19 @@ Baseline numbers (node tier, dev workstation 2026-08-13):
 | `hit-test` (per point) | 0.12 ms | 0.19 ms | 2.3 ms | 62 ms |
 | `snap-query` (per point) | 0.0006 ms | 0.0006 ms | 0.006 ms | 0.075 ms |
 | `compiled-memory` | 2.2 MB | 2.9 MB | 29 MB | 301 MB |
-| `cache-key-cost` | 8 ms | 8 ms | 110 ms | 1,334 ms |
+| `cache-key-code-units` | 0.62 M | 0.80 M | 8.2 M | 84 M |
 
 Backlog → metric mapping (step 7), now backed by the baseline:
 
 - **#1 incremental per-room recompile / #2 merge validate+compile / #3 drop
-  `cloneJson`** → `layout-compile` and `plan-edit-frame`; compile is 3.1 s at
+  `cloneJson`** → `layout-compile` and `plan-render-work-edit`; compile is 3.1 s at
   1,000 rooms, so whole-document work per edit is the evidence.
 - **#4 spatial index for self-intersection + picking** → `hit-test`; per-point
   hit cost grows super-linearly (0.12 ms → 62 ms for a 143× room increase)
   because `resolvePlanHit` rebuilds per-room/per-segment maps per call.
-- **#10 lazy/cheaper `cacheKey`** → `cache-key-cost`; `JSON.stringify`-based
-  cache keys cost 1.3 s and 301 MB serialized at 1,000 rooms.
+- **#10 lazy/cheaper `cacheKey`** → `cache-key-code-units`; stored `JSON.stringify`-based
+  cache keys total 84 M code units at 1,000 rooms (0.62 M at Chopin), the
+  deterministic allocation a lazy cacheKey would shrink.
 
 Verification at close: full museum suite **107 files / 1251 tests** (1250
 passed, 1 opt-in skipped), `svelte-check` 0 errors/warnings, production build

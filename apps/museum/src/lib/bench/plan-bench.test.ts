@@ -13,16 +13,16 @@ const runFullBench = process.env.BENCH_FULL === '1';
 describe.skipIf(!runFullBench)('plan-bench (Node tier, full)', () => {
 	it('measures every deterministic tier and reports finite positive samples', () => {
 		const provenance = makeNodeProvenance();
-		const tiers: { tier: BenchTier; fixture: ReturnType<typeof buildScaleFixture> | typeof chopinProject.layout; options?: NodeTierOptions }[] = [
+		const tiers: { tier: BenchTier; fixture: ReturnType<typeof buildScaleFixture> | typeof chopinProject.layout; options?: NodeTierOptions; seed?: number }[] = [
 			{ tier: 'chopin', fixture: chopinProject.layout },
-			{ tier: 'small', fixture: buildScaleFixture(SCALE_FIXTURE_SEEDS.small) },
-			{ tier: 'medium', fixture: buildScaleFixture(SCALE_FIXTURE_SEEDS.medium) },
-			{ tier: 'large', fixture: buildScaleFixture(SCALE_FIXTURE_SEEDS.large), options: LARGE_OPTIONS }
+			{ tier: 'small', fixture: buildScaleFixture(SCALE_FIXTURE_SEEDS.small), seed: SCALE_FIXTURE_SEEDS.small.seed },
+			{ tier: 'medium', fixture: buildScaleFixture(SCALE_FIXTURE_SEEDS.medium), seed: SCALE_FIXTURE_SEEDS.medium.seed },
+			{ tier: 'large', fixture: buildScaleFixture(SCALE_FIXTURE_SEEDS.large), options: LARGE_OPTIONS, seed: SCALE_FIXTURE_SEEDS.large.seed }
 		];
 
 		const reports: BenchTierResult[] = [];
-		for (const { tier, fixture, options } of tiers) {
-			const report = measureNodeTier(fixture, tier, provenance, options);
+		for (const { tier, fixture, options, seed } of tiers) {
+			const report = measureNodeTier(fixture, tier, provenance, options, seed);
 			reports.push(report);
 			for (const sample of report.samples) {
 				expect(Number.isFinite(sample.value), `${tier}/${sample.metric} finite`).toBe(true);
@@ -33,8 +33,9 @@ describe.skipIf(!runFullBench)('plan-bench (Node tier, full)', () => {
 		// Determinism: the small tier measured twice yields identical counts and
 		// near-identical timings (timings are excluded from the deep-equality
 		// check since wall-clock is not deterministic).
-		const smallAgain = measureNodeTier(buildScaleFixture(SCALE_FIXTURE_SEEDS.small), 'small', provenance);
+		const smallAgain = measureNodeTier(buildScaleFixture(SCALE_FIXTURE_SEEDS.small), 'small', provenance, undefined, SCALE_FIXTURE_SEEDS.small.seed);
 		expect(smallAgain.roomCount).toBe(reports[1]!.roomCount);
+		expect(smallAgain.seed).toBe(SCALE_FIXTURE_SEEDS.small.seed);
 
 		// Print a compact table for the baseline author to transcribe.
 		// eslint-disable-next-line no-console

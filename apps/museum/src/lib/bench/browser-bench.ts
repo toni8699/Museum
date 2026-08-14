@@ -18,9 +18,13 @@ export type BrowserTierOptions = {
 /**
  * Browser-tier Plan metrics. Deterministic and DOM-free: it renders the
  * `PlanRenderModel` to an SVG string (world→screen with a Y flip) so the same
- * function runs in vitest and the browser. `three-*` counts are analytical
- * chord-box estimates derived from compiled solid spans (the shape G4 targets);
- * live WebGL counters live in `three-stats.ts` and are wired by the page.
+ * function runs in vitest and the browser. `three-*-estimate` metrics are
+ * analytical chord-box topology estimates derived from compiled solid spans
+ * (the naive one-box-per-span shape G4 targets) — NOT live `renderer.info`
+ * reads; live WebGL counters live in `three-stats.ts` and are wired by the
+ * `/dev/perf` page. The `plan-render-work-*` metrics are synchronous model→SVG
+ * render-work proxies, not measured rAF frame times (a real scripted viewport
+ * driver is a follow-up).
  */
 
 const DEFAULT_PPM = 60;
@@ -103,11 +107,14 @@ export function measureBrowserTier(
 	fixture: LayoutDocument,
 	tier: BenchTier,
 	provenance: BenchProvenance,
-	options: BrowserTierOptions = {}
+	options: BrowserTierOptions = {},
+	seed?: number
 ): BenchTierResult {
 	const ppm = options.pixelsPerMeter ?? DEFAULT_PPM;
 	const warmup = options.warmup ?? 2;
 	const samples = options.samples ?? 5;
+	// Stamp the actual run configuration so the report reflects what ran.
+	const effectiveProvenance: BenchProvenance = { ...provenance, warmup, samples };
 	const compiled = compileLayoutGeometry(fixture).geometry;
 	const model = buildPlanRenderModel(compiled);
 	const result: BenchSample[] = [];
@@ -116,7 +123,9 @@ export function measureBrowserTier(
 	result.push(msSample('plan-render-initial', initial));
 	result.push({ metric: 'svg-node-count', unit: 'nodes', value: countSvgElements(renderPlanModelToSvg(model, ppm)) });
 
-	// Pan/zoom frame proxy: re-render the same model at a cycling zoom level.
+	// Synchronous model→SVG render work at a cycling zoom level. This is the
+	// deterministic work-per-frame proxy, not a measured rAF frame time; a real
+	// scripted viewport driver (PlanSvg DOM paint + rAF loop) is a follow-up.
 	let tick = 0;
 	const panZoom = timeOp(
 		() => {
@@ -125,11 +134,11 @@ export function measureBrowserTier(
 		},
 		{ warmup, samples }
 	);
-	result.push(msSample('plan-pan-zoom-frame', panZoom));
+	result.push(msSample('plan-render-work-pan-zoom', panZoom));
 
-	// Edit frame proxy: rebuild the model and re-render (a transient edit path).
+	// Synchronous rebuild + render work for a transient edit (model rebuild path).
 	const edit = timeOp(() => renderPlanModelToSvg(buildPlanRenderModel(compiled), ppm), { warmup, samples });
-	result.push(msSample('plan-edit-frame', edit));
+	result.push(msSample('plan-render-work-edit', edit));
 
 	// Three regeneration proxy: the solid-span derivation pass the chord-box
 	// adapter runs per rebuild (G4 target), without instantiating Three objects.
@@ -137,10 +146,10 @@ export function measureBrowserTier(
 	result.push(msSample('three-regen', regen));
 
 	const counts = analyticalThreeCounts(compiled);
-	result.push({ metric: 'three-object-count', unit: 'count', value: counts.objectCount });
-	result.push({ metric: 'three-material-count', unit: 'count', value: counts.materialCount });
-	result.push({ metric: 'three-draw-calls', unit: 'count', value: counts.drawCalls });
-	result.push({ metric: 'three-triangles', unit: 'count', value: counts.triangles });
+	result.push({ metric: 'three-object-estimate', unit: 'count', value: counts.objectCount });
+	result.push({ metric: 'three-material-estimate', unit: 'count', value: counts.materialCount });
+	result.push({ metric: 'three-draw-call-estimate', unit: 'count', value: counts.drawCalls });
+	result.push({ metric: 'three-triangle-estimate', unit: 'count', value: counts.triangles });
 
 	// Best-effort browser-exposed memory (Chromium only; absent elsewhere).
 	const heap = browserHeapBytes();
@@ -148,8 +157,9 @@ export function measureBrowserTier(
 
 	return {
 		tier,
+		...(seed === undefined ? {} : { seed }),
 		roomCount: countRooms(fixture),
-		provenance,
+		provenance: effectiveProvenance,
 		samples: result
 	};
 }

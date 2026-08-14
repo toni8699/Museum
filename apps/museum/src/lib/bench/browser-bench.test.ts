@@ -49,7 +49,7 @@ describe('browser-bench (deterministic tier)', () => {
 		const byMetric = new Map(first.samples.map((sample) => [sample.metric, sample.value]));
 		const again = new Map(second.samples.map((sample) => [sample.metric, sample.value]));
 		// Counts and sizes are deterministic; timings are not compared.
-		for (const metric of ['svg-node-count', 'three-object-count', 'three-material-count', 'three-draw-calls', 'three-triangles'] as const) {
+		for (const metric of ['svg-node-count', 'three-object-estimate', 'three-material-estimate', 'three-draw-call-estimate', 'three-triangle-estimate'] as const) {
 			expect(again.get(metric), metric).toBe(byMetric.get(metric));
 		}
 	});

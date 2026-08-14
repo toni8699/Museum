@@ -42,8 +42,9 @@
 				const fixture = fixtureFor(tier);
 				const prov = provenance(tier);
 				const options = tier === 'large' ? LARGE_OPTIONS : undefined;
-				const node = measureNodeTier(fixture, tier as BenchTier, prov, options);
-				const browser = measureBrowserTier(fixture, tier as BenchTier, prov, { samples: 3 });
+				const seed = tier === 'chopin' ? undefined : SCALE_FIXTURE_SEEDS[tier].seed;
+				const node = measureNodeTier(fixture, tier as BenchTier, prov, options, seed);
+				const browser = measureBrowserTier(fixture, tier as BenchTier, prov, { samples: 3 }, seed);
 				reportJson = JSON.stringify({ node, browser }, null, 2);
 			} catch (error) {
 				errorMessage = error instanceof Error ? error.message : String(error);

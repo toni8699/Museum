@@ -6,6 +6,7 @@ import type { CompiledLayoutGeometry, CompiledQueryPoint } from '$lib/layout/lay
 // so the Node tier measures the real locked-priority hit path rather than a stub.
 import { resolvePlanHit } from '$lib/editor/layout/plan-hit';
 import { timeOp } from './bench-harness';
+import { BENCH_METHOD_VERSION } from './bench-types';
 import type { BenchProvenance, BenchSample, BenchTier, BenchTierResult } from './bench-types';
 
 export type NodeTierOptions = {
@@ -33,7 +34,7 @@ export function makeNodeProvenance(partial: Partial<BenchProvenance> = {}): Benc
 		deviceProfile: env.BENCH_DEVICE_PROFILE ?? 'node',
 		warmup: DEFAULT_NODE_OPTIONS.warmup,
 		samples: DEFAULT_NODE_OPTIONS.samples,
-		methodVersion: 1,
+		methodVersion: BENCH_METHOD_VERSION,
 		...partial
 	};
 }
@@ -41,18 +42,23 @@ export function makeNodeProvenance(partial: Partial<BenchProvenance> = {}): Benc
 /**
  * Measure the deterministic Node tier for one fixture. Compiles the document
  * once to a stable `CompiledLayoutGeometry` for the model/hit/snap metrics,
- * then times each concern with warm-up and repeated samples.
+ * then times each concern with warm-up and repeated samples. `seed` is the
+ * fixture generator seed (reported in provenance); it is omitted for the
+ * checked-in `chopin` project.
  */
 export function measureNodeTier(
 	fixture: LayoutDocument,
 	tier: BenchTier,
 	provenance: BenchProvenance,
-	options: NodeTierOptions = DEFAULT_NODE_OPTIONS
+	options: NodeTierOptions = DEFAULT_NODE_OPTIONS,
+	seed?: number
 ): BenchTierResult {
 	const compiled = compileLayoutGeometry(fixture).geometry;
 	const samples: BenchSample[] = [];
 	const roomCount = countRooms(fixture);
-	const seed = tierSeed(tier);
+	const probeSeed = tierSeed(tier);
+	// Stamp the actual run configuration so the report reflects what ran.
+	const effectiveProvenance: BenchProvenance = { ...provenance, warmup: options.warmup, samples: options.samples };
 
 	// 1. Whole-document compile (the G1 `compileLayoutGeometry` path).
 	const compileTime = timeOp(() => compileLayoutGeometry(fixture), options);
@@ -63,7 +69,7 @@ export function measureNodeTier(
 	samples.push(timeSample('plan-render-build', modelTime));
 
 	// 3–4. Hit test and snapping-query latency over deterministic world points.
-	const points = samplePlanPoints(compiled, options.hitPoints, seed);
+	const points = samplePlanPoints(compiled, options.hitPoints, probeSeed);
 	const hitTime = timeOp(
 		() => {
 			for (const point of points) resolvePlanHit(compiled.queries, point, options.tolerance);
@@ -88,18 +94,19 @@ export function measureNodeTier(
 		value: JSON.stringify(compiled).length
 	});
 
-	// 6. Cache-key cost, measured as the JSON.stringify time over the compiled
-	// geometry. `layout-geometry.ts` derives every record's `cacheKey` via
-	// `JSON.stringify`, so this is a faithful proxy for backlog #10's
-	// per-record stringify allocation at this scale.
-	const cacheKeyTime = timeOp(() => JSON.stringify(compiled), { warmup: 1, samples: 2 });
-	samples.push(timeSample('cache-key-cost', cacheKeyTime));
+	// 6. Cache-key footprint: the total UTF-16 code units of the stored `cacheKey`
+	// strings across compiled entities and query records (JS string memory is
+	// UTF-16, so `length` is the honest allocation measure). `layout-geometry.ts`
+	// derives every `cacheKey` via `JSON.stringify`, so this deterministic count
+	// is the allocation backlog #10 (lazy/cheaper cacheKey) targets and will
+	// shrink if cache keys stop embedding full input JSON.
+	samples.push({ metric: 'cache-key-code-units', unit: 'count', value: cacheKeyCodeUnits(compiled) });
 
 	return {
 		tier,
-		seed,
+		...(seed === undefined ? {} : { seed }),
 		roomCount,
-		provenance,
+		provenance: effectiveProvenance,
 		samples
 	};
 }
@@ -127,6 +134,24 @@ function tierSeed(tier: BenchTier): number {
 		default:
 			return 13;
 	}
+}
+
+function cacheKeyCodeUnits(compiled: CompiledLayoutGeometry): number {
+	let units = 0;
+	for (const floor of compiled.floors) units += floor.cacheKey.length;
+	for (const room of compiled.rooms) {
+		units += room.cacheKey.length;
+		for (const wall of room.walls) {
+			units += wall.cacheKey.length;
+			for (const opening of wall.openings) units += opening.cacheKey.length;
+		}
+	}
+	for (const object of compiled.objects) units += object.cacheKey.length;
+	for (const point of compiled.queries.points) units += point.cacheKey.length;
+	for (const span of compiled.queries.spans) units += span.cacheKey.length;
+	for (const polygon of compiled.queries.polygons) units += polygon.cacheKey.length;
+	for (const aabb of compiled.queries.aabbs) units += aabb.cacheKey.length;
+	return units;
 }
 
 /** Deterministic LCG for probe-point generation (no fixture dependency). */

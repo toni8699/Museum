@@ -5,7 +5,7 @@ import type { CompiledLayoutGeometry, CompiledQueryPoint } from '$lib/layout/lay
 // Pure hit resolver (imports only $lib/layout/**; no Svelte/DOM/Three). Used here
 // so the Node tier measures the real locked-priority hit path rather than a stub.
 import { resolvePlanHit } from '$lib/editor/layout/plan-hit';
-import { timeOp } from './bench-harness';
+import { timeOp } from '$lib/bench/bench-harness';
 import { BENCH_METHOD_VERSION } from './bench-types';
 import type { BenchProvenance, BenchSample, BenchTier, BenchTierResult } from './bench-types';
 

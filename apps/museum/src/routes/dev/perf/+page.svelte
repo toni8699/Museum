@@ -2,7 +2,7 @@
 	import { dev } from '$app/environment';
 	import { chopinProject } from '$lib/content/chopin-project';
 	import { compileLayoutGeometry } from '$lib/layout/layout-geometry';
-	import { buildScaleFixture, SCALE_FIXTURE_SEEDS } from '$lib/layout/__fixtures__/layout-scale-fixtures';
+	import { buildScaleFixture, SCALE_FIXTURE_SEEDS } from '../../../../tests/lib/layout/__fixtures__/layout-scale-fixtures';
 	import { measureNodeTier, makeNodeProvenance, type NodeTierOptions } from '$lib/bench/plan-bench';
 	import { measureBrowserTier } from '$lib/bench/browser-bench';
 	import { buildChordBoxScene, readThreeRenderStats } from '$lib/bench/three-stats';

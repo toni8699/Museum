@@ -31,6 +31,8 @@
 } from './layout/layout-preview-state.svelte';
 	import { createLayoutInteractionState } from './layout/layout-interaction';
 
+	let { relic = false }: { relic?: boolean } = $props();
+
 	const store = createMuseumEditorStore();
 	const layoutPreview = $state(createLayoutPreviewState());
 	const layoutInteraction = $state(createLayoutInteractionState());
@@ -121,7 +123,7 @@
 </script>
 
 <main class="page" class:previewing={store.isDocumentMutationBlocked}>
-	<EditorAppBar {store} {layoutPreview} {confirmSceneReplacement} {confirmLayoutReplacement} />
+	<EditorAppBar {store} {layoutPreview} {confirmSceneReplacement} {confirmLayoutReplacement} {relic} />
 	<EditorLeftSidebar
 		{store}
 		{layoutPreview}

@@ -5,7 +5,7 @@ import {
 	parseLayoutDocumentJson,
 	serializeLayoutDocument,
 	validateLayoutDocument	} from '$lib/layout/layout-codec';
-	import { buildLayoutPreviewModel, type LayoutPreviewModel } from './layout-mesh-factory';
+	import { buildLayoutPreviewModel, type LayoutPreviewModel, type LayoutPreviewModelResult } from './layout-mesh-factory';
 import type { LayoutPreviewBounds } from './layout-preview-bounds';
 import type { DraftSegment, LayoutObject, LayoutOpening, LayoutRoom, LayoutVec2 } from './layout-types';
 import { deleteInteriorAnchorOnSegment, insertInteriorAnchorOnSegment, pointInRoom, replaceRoomPoints, updateInteriorAnchorOnSegment } from './layout-editing';
@@ -33,6 +33,7 @@ import {
 } from './layout-object-editing';
 import type { Vec3 } from '$lib/types/museum';
 import type { CompiledLayoutGeometry } from '$lib/layout/layout-geometry-types';
+import { buildRoomWallMesh, type IndexedWallMesh } from '$lib/layout/wall-mesh-builder';
 import { transformLayoutRoomUnit, type LayoutRoomUnitTransform } from './layout-room-transform';
 import { deriveLayoutRoomFrame } from '$lib/layout/layout-room-frame';
 
@@ -45,6 +46,14 @@ export type LayoutPreviewState = {
 	project: MuseumProject;
 	model: LayoutPreviewModel;
 	geometry: CompiledLayoutGeometry;
+	/**
+	 * Derived cache: one prebuilt `IndexedWallMesh` per compiled room, keyed by
+	 * `roomId`. A `Map` (not a plain object) so valid IDs like `constructor`
+	 * cannot collide with prototype keys. Rebuilds with `geometry` on every
+	 * mutation and is *not* part of the undo snapshot. The scene renders only
+	 * these prebuilt meshes — it never builds geometry inline.
+	 */
+	wallMeshesByRoom: ReadonlyMap<string, IndexedWallMesh>;
 	issues: LayoutGeometryIssue[];
 	bounds: LayoutPreviewBounds | null;
 	previewVersion: number;
@@ -116,6 +125,82 @@ export function layoutPreviewCanonicalJson(state: LayoutPreviewState): string {
 	return serializeLayoutDocument(state.project.layout);
 }
 
+/**
+ * Preflight the procedural wall meshes for every compiled room. Failed rooms
+ * yield structured issues (no mesh) that the editor surfaces in
+ * `layoutPreview.issues`; the scene renders only rooms that built a mesh.
+ */
+function buildWallMeshesByRoom(geometry: CompiledLayoutGeometry): {
+	wallMeshesByRoom: ReadonlyMap<string, IndexedWallMesh>;
+	issues: LayoutGeometryIssue[];
+} {
+	const wallMeshesByRoom = new Map<string, IndexedWallMesh>();
+	const issues: LayoutGeometryIssue[] = [];
+	for (const room of geometry.rooms) {
+		const result = buildRoomWallMesh(room);
+		if (result.mesh) wallMeshesByRoom.set(room.roomId, result.mesh);
+		issues.push(...result.issues);
+	}
+	return { wallMeshesByRoom, issues };
+}
+
+/**
+ * Apply a fresh compile result to the state and rebuild the derived wall-mesh
+ * cache, merging any mesh issues into `state.issues`.
+ */
+function applyCompiledLayout(state: LayoutPreviewState, result: LayoutPreviewModelResult): void {
+	const meshes = buildWallMeshesByRoom(result.geometry);
+	const issues = meshes.issues.length > 0 ? [...result.issues, ...meshes.issues] : result.issues;
+	state.model = result.model;
+	state.geometry = result.geometry;
+	state.issues = issues;
+	state.bounds = result.bounds;
+	state.wallMeshesByRoom = meshes.wallMeshesByRoom;
+}
+
+/**
+ * Fully derive the preview bundle for a candidate layout: validated project +
+ * compiled model + geometry + wall-mesh preflight. Throws on any failure so
+ * callers commit the result atomically — a caught error must leave the
+ * committed `LayoutPreviewState` untouched (no stale model/geometry paired
+ * with a new project).
+ */
+function derivePreviewBundle(
+	projectId: string,
+	projectName: string,
+	layout: MuseumProject['layout'],
+	scene: MuseumProject['scene']
+): {
+	project: MuseumProject;
+	model: LayoutPreviewModel;
+	geometry: CompiledLayoutGeometry;
+	wallMeshesByRoom: ReadonlyMap<string, IndexedWallMesh>;
+	issues: LayoutGeometryIssue[];
+	bounds: LayoutPreviewBounds | null;
+} {
+	const project = createPreviewProject({ id: projectId, name: projectName, layout, scene });
+	const result = buildLayoutPreviewModel(project.layout);
+	const meshes = buildWallMeshesByRoom(result.geometry);
+	return {
+		project,
+		model: result.model,
+		geometry: result.geometry,
+		wallMeshesByRoom: meshes.wallMeshesByRoom,
+		issues: meshes.issues.length > 0 ? [...result.issues, ...meshes.issues] : result.issues,
+		bounds: result.bounds
+	};
+}
+
+/** Install a derived bundle in one shot; never partially mutates committed state. */
+function commitPreviewBundle(state: LayoutPreviewState, bundle: ReturnType<typeof derivePreviewBundle>): void {
+	state.project = bundle.project;
+	state.model = bundle.model;
+	state.geometry = bundle.geometry;
+	state.wallMeshesByRoom = bundle.wallMeshesByRoom;
+	state.issues = bundle.issues;
+	state.bounds = bundle.bounds;
+}
+
 /** Report a failed layout import without changing the committed preview or baseline. */
 export function setLayoutPreviewImportError(state: LayoutPreviewState, message: string): void {
 	state.importError = message;
@@ -139,11 +224,7 @@ export function resetLayoutPreview(state: LayoutPreviewState): boolean {
 }
 
 export function refreshLayoutPreview(state: LayoutPreviewState): boolean {
-	const result = buildLayoutPreviewModel(state.project.layout);
-	state.model = result.model;
-	state.geometry = result.geometry;
-	state.issues = result.issues;
-	state.bounds = result.bounds;
+	applyCompiledLayout(state, buildLayoutPreviewModel(state.project.layout));
 	state.previewVersion += 1;
 	state.lastMutationMessage = null;
 	state.statusMessage = null;
@@ -162,19 +243,9 @@ export function importLayoutPreviewJson(state: LayoutPreviewState, json: string)
 		return false;
 	}
 	try {
-		const nextProject = createPreviewProject({
-			id: state.project.id,
-			name: state.project.name,
-			layout: parsed.document,
-			scene: state.project.scene
-		});
-		const result = buildLayoutPreviewModel(nextProject.layout);
+		const bundle = derivePreviewBundle(state.project.id, state.project.name, parsed.document, state.project.scene);
 		state.source = 'imported';
-		state.project = nextProject;
-		state.model = result.model;
-		state.issues = result.issues;
-		state.bounds = result.bounds;
-		state.geometry = result.geometry;
+		commitPreviewBundle(state, bundle);
 		state.previewVersion += 1;
 		state.reframeVersion += 1;
 		state.baselineLayoutJson = parsed.canonicalJson;
@@ -480,19 +551,14 @@ export function commitLayoutPathRoom(
 	if (hasBlockingLayoutIssues(geometryIssues)) return { success: false, message: geometryIssues[0]!.message };
 	floor.rooms = [...floor.rooms, room];
 	try {
-		const nextProject = createPreviewProject({ id: state.project.id, name: 'Draft Layout Preview', layout, scene: state.project.scene });
-		const result = buildLayoutPreviewModel(nextProject.layout);
+		const bundle = derivePreviewBundle(state.project.id, 'Draft Layout Preview', layout, state.project.scene);
 		state.source = 'draft';
-		state.project = nextProject;
-		state.model = result.model;
-		state.geometry = result.geometry;
-		state.issues = result.issues;
-			state.bounds = result.bounds;
-			state.previewVersion += 1;
-			state.lastMutationMessage = null;
-			state.statusMessage = null;
-			state.importError = null;
-			return { success: true, roomId };
+		commitPreviewBundle(state, bundle);
+		state.previewVersion += 1;
+		state.lastMutationMessage = null;
+		state.statusMessage = null;
+		state.importError = null;
+		return { success: true, roomId };
 	} catch (error) {
 		return { success: false, message: error instanceof Error ? error.message : 'Could not commit room draft' };
 	}
@@ -594,24 +660,14 @@ export function commitLayoutDraftRoom(
 	floor.rooms = [...floor.rooms, room];
 
 	try {
-		const nextProject = createPreviewProject({
-			id: state.project.id,
-			name: 'Draft Layout Preview',
-			layout,
-			scene: state.project.scene
-		});
-		const result = buildLayoutPreviewModel(nextProject.layout);
+		const bundle = derivePreviewBundle(state.project.id, 'Draft Layout Preview', layout, state.project.scene);
 		state.source = 'draft';
-		state.project = nextProject;
-		state.model = result.model;
-		state.geometry = result.geometry;
-		state.issues = result.issues;
-			state.bounds = result.bounds;
-			state.previewVersion += 1;
-			state.lastMutationMessage = null;
-			state.statusMessage = null;
-			state.importError = null;
-			return { success: true, roomId };
+		commitPreviewBundle(state, bundle);
+		state.previewVersion += 1;
+		state.lastMutationMessage = null;
+		state.statusMessage = null;
+		state.importError = null;
+		return { success: true, roomId };
 	} catch (error) {
 		state.lastMutationMessage = error instanceof Error ? error.message : 'Could not commit room draft';
 		return {
@@ -648,22 +704,22 @@ function createState(
 	scene: MuseumProject['scene'],
 	previousVersion: number
 ): LayoutPreviewState {
-	const project = createPreviewProject({
-		id: 'project:layout-preview',
-		name: source === 'chopin-fixture' ? 'Chopin Layout Preview' : 'Empty Layout Preview',
+	const bundle = derivePreviewBundle(
+		'project:layout-preview',
+		source === 'chopin-fixture' ? 'Chopin Layout Preview' : 'Empty Layout Preview',
 		layout,
 		scene
-	});
-	const result = buildLayoutPreviewModel(project.layout);
-	const baselineLayoutJson = serializeLayoutDocument(project.layout);
+	);
+	const baselineLayoutJson = serializeLayoutDocument(bundle.project.layout);
 	const baselineKind: LayoutBaselineKind = source === 'empty' ? 'blank' : 'imported';
 	return {
 		source,
-		project,
-		model: result.model,
-		geometry: result.geometry,
-		issues: result.issues,
-		bounds: result.bounds,
+		project: bundle.project,
+		model: bundle.model,
+		geometry: bundle.geometry,
+		wallMeshesByRoom: bundle.wallMeshesByRoom,
+		issues: bundle.issues,
+		bounds: bundle.bounds,
 		previewVersion: previousVersion + 1,
 		reframeVersion: 0,
 		showCeilings: false,
@@ -703,19 +759,9 @@ function applyLayoutMutation(
 		if (hasBlockingLayoutIssues(geometryIssues)) {
 			return failOpeningMutation(state, geometryIssues[0]!.message);
 		}
-		const nextProject = createPreviewProject({
-			id: state.project.id,
-			name: 'Draft Layout Preview',
-			layout: structural.document,
-			scene: state.project.scene
-		});
-		const result = buildLayoutPreviewModel(nextProject.layout);
+		const bundle = derivePreviewBundle(state.project.id, 'Draft Layout Preview', structural.document, state.project.scene);
 		state.source = 'draft';
-		state.project = nextProject;
-		state.model = result.model;
-		state.geometry = result.geometry;
-		state.issues = result.issues;
-		state.bounds = result.bounds;
+		commitPreviewBundle(state, bundle);
 		state.previewVersion += 1;
 		state.lastMutationMessage = null;
 		state.statusMessage = null;
@@ -758,6 +804,7 @@ function replaceState(target: LayoutPreviewState, next: LayoutPreviewState): voi
 	target.project = next.project;
 	target.model = next.model;
 	target.geometry = next.geometry;
+	target.wallMeshesByRoom = next.wallMeshesByRoom;
 	target.issues = next.issues;
 	target.bounds = next.bounds;
 	target.previewVersion = next.previewVersion;
@@ -806,7 +853,12 @@ export function restoreLayoutPreviewSnapshot(state: LayoutPreviewState, snapshot
 	state.project = cloneJson(snapshot.project);
 	state.model = cloneJson(snapshot.model);
 	state.geometry = snapshot.geometry;
+	// The snapshot's `issues` already includes mesh issues from capture time,
+	// and undo restores the same geometry, so re-deriving would duplicate them.
 	state.issues = cloneJson(snapshot.issues);
+	// The wall-mesh cache is derived and never part of the undo snapshot:
+	// undo restores the document and the cache rebuilds from geometry.
+	state.wallMeshesByRoom = buildWallMeshesByRoom(snapshot.geometry).wallMeshesByRoom;
 	state.bounds = snapshot.bounds
 		? {
 				min: [snapshot.bounds.min[0], snapshot.bounds.min[1], snapshot.bounds.min[2]],

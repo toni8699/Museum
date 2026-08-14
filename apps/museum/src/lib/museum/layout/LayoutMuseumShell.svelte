@@ -1,10 +1,13 @@
 <script lang="ts">
   import { T } from '@threlte/core';
-  import { Shape } from 'three';
+  import { Shape, type BufferGeometry, type Material } from 'three';
   import type { LayoutVec2 } from '$lib/layout/layout-types';
-  import type { CompiledLayoutGeometry, CompiledSolidSpan } from '$lib/layout/layout-geometry-types';
+  import type { CompiledLayoutGeometry, LayoutBounds3 } from '$lib/layout/layout-geometry-types';
   import type { ChopinRoomPresentation } from '$lib/content/chopin-room-presentation';
   import { neutralRoomPresentation } from '$lib/content/chopin-room-presentation';
+  import { buildRoomWallMesh } from '$lib/layout/wall-mesh-builder';
+  import { toWallBufferGeometry } from '$lib/render/wall-geometry-adapter';
+  import { createVisitorWallMaterialFactory } from './wall-material-factory';
   import MuseumMaterial from '../materials/MuseumMaterial.svelte';
   import RoomPortal from './RoomPortal.svelte';
 
@@ -32,12 +35,69 @@
   function roomPresentation(roomId: string) {
     return presentation[roomId] ?? neutralRoomPresentation;
   }
+
+  type AdaptedRoom =
+    | {
+        roomId: string;
+        ok: true;
+        geometry: BufferGeometry;
+        materials: Material[];
+        dispose: () => void;
+      }
+    | { roomId: string; ok: false; bounds: LayoutBounds3 };
+
+  let adaptedRooms = $state<AdaptedRoom[]>([]);
+
+  // Build one watertight room wall mesh per room, reusing materials per tint.
+  // Bespoke rooms are filtered BEFORE `buildRoomWallMesh` (not just hidden by
+  // the template), so the build cost and the scene match the topology
+  // estimator's exclusion semantics. Rebuilds when `geometry`/`presentation`/
+  // `excludedRoomIds` change; the cleanup disposes the previous generation's
+  // geometry and the per-run material cache.
+  $effect(() => {
+    const materials = createVisitorWallMaterialFactory((roomId) => roomPresentation(roomId).color);
+    const built: AdaptedRoom[] = geometry.rooms
+      .filter((room) => !excludedRoomIds.includes(room.roomId))
+      .map((room) => {
+      const result = buildRoomWallMesh(room, { classifySurface: () => 'wall' });
+      if (!result.mesh) {
+        return { roomId: room.roomId, ok: false, bounds: room.bounds3 };
+      }
+      const adapted = toWallBufferGeometry(result.mesh, materials.factory);
+      return { roomId: room.roomId, ok: true, ...adapted };
+    });
+    adaptedRooms = built;
+    return () => {
+      for (const room of built) if (room.ok) room.dispose();
+      materials.dispose();
+    };
+  });
+
+  function adaptedFor(roomId: string): AdaptedRoom | undefined {
+    return adaptedRooms.find((room) => room.roomId === roomId);
+  }
+
+  function failureBox(bounds: LayoutBounds3) {
+    return {
+      position: [
+        (bounds.min[0] + bounds.max[0]) / 2,
+        (bounds.min[1] + bounds.max[1]) / 2,
+        (bounds.min[2] + bounds.max[2]) / 2
+      ] as [number, number, number],
+      size: [
+        bounds.max[0] - bounds.min[0],
+        bounds.max[1] - bounds.min[1],
+        bounds.max[2] - bounds.min[2]
+      ] as [number, number, number]
+    };
+  }
 </script>
 
 <T.Group name="LayoutMuseumShell">
   {#each geometry.rooms as room (room.roomId)}
     {#if !excludedRoomIds.includes(room.roomId)}
       {@const colors = roomPresentation(room.roomId)}
+      {@const adapted = adaptedFor(room.roomId)}
       <T.Group name={`LayoutRoom:${room.roomId}`}>
         <T.Mesh
           name={`LayoutFloor:${room.roomId}`}
@@ -57,26 +117,27 @@
           <MuseumMaterial materialId="plaster-warm" surfaceSize={[8, 8]} tint="#111018" textures="off" />
         </T.Mesh>
 
+        {#if adapted?.ok}
+          <T.Mesh
+            name={`LayoutWall:${room.roomId}`}
+            geometry={adapted.geometry}
+            material={adapted.materials}
+            castShadow
+            receiveShadow
+          />
+        {:else if adapted?.ok === false}
+          <!-- Explicit failure surface: a room whose mesh fails to build is
+               never silently omitted. -->
+          <T.Mesh
+            name={`LayoutWallFailure:${room.roomId}`}
+            position={failureBox(adapted.bounds).position}
+          >
+            <T.BoxGeometry args={failureBox(adapted.bounds).size} />
+            <T.MeshBasicMaterial color="#ff2fd4" wireframe />
+          </T.Mesh>
+        {/if}
+
         {#each room.walls as wall (wall.segmentId)}
-          {#each wall.solidSpans as span, spanIndex (`${wall.segmentId}:span:${spanIndex}`)}
-            {@const dx = span.end[0] - span.start[0]}
-            {@const dz = span.end[1] - span.start[1]}
-            {@const length = Math.hypot(dx, dz)}
-            <T.Mesh
-              name={`LayoutWall:${room.roomId}:${wall.segmentId}:${spanIndex}`}
-              position={[
-                (span.start[0] + span.end[0]) / 2,
-                room.floorElevation + (span.bottomY + span.topY) / 2,
-                (span.start[1] + span.end[1]) / 2
-              ]}
-              rotation={[0, -Math.atan2(dz, dx), 0]}
-              castShadow
-              receiveShadow
-            >
-              <T.BoxGeometry args={[Math.max(0.001, length), span.topY - span.bottomY, wall.thickness]} />
-              <MuseumMaterial materialId="plaster-warm" surfaceSize={[length, span.topY - span.bottomY]} tint={colors.color} textures="off" />
-            </T.Mesh>
-          {/each}
           {#each wall.openings.filter((opening) => opening.kind === 'door') as opening (opening.openingId)}
             <RoomPortal
               position={[opening.center.point[0], room.floorElevation, opening.center.point[1]]}

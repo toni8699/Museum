@@ -4,8 +4,13 @@
 	import { compileLayoutGeometry } from '$lib/layout/layout-geometry';
 	import { buildScaleFixture, SCALE_FIXTURE_SEEDS } from '../../../../tests/lib/layout/__fixtures__/layout-scale-fixtures';
 	import { measureNodeTier, makeNodeProvenance, type NodeTierOptions } from '$lib/bench/plan-bench';
-	import { measureBrowserTier } from '$lib/bench/browser-bench';
-	import { buildChordBoxScene, readThreeRenderStats } from '$lib/bench/three-stats';
+	import { buildWallMeshScene, readThreeRenderStats } from '$lib/bench/three-stats';
+	import {
+		chopinWallMeshRenderPolicyFactory,
+		measureBrowserTier,
+		visitorWallMeshPolicy,
+		type BrowserTierOptions
+	} from '$lib/bench/browser-bench';
 	import type { BenchProvenance, BenchTier } from '$lib/bench/bench-types';
 	import * as THREE from 'three';
 
@@ -44,7 +49,11 @@
 				const options = tier === 'large' ? LARGE_OPTIONS : undefined;
 				const seed = tier === 'chopin' ? undefined : SCALE_FIXTURE_SEEDS[tier].seed;
 				const node = measureNodeTier(fixture, tier as BenchTier, prov, options, seed);
-				const browser = measureBrowserTier(fixture, tier as BenchTier, prov, { samples: 3 }, seed);
+				const browserOptions: BrowserTierOptions = { samples: 3 };
+				// Chopin mirrors the recorded baseline + live shell: production
+				// presentation + bespoke exclusion (6 rooms).
+				if (tier === 'chopin') browserOptions.policyFactory = chopinWallMeshRenderPolicyFactory();
+				const browser = measureBrowserTier(fixture, tier as BenchTier, prov, browserOptions, seed);
 				reportJson = JSON.stringify({ node, browser }, null, 2);
 			} catch (error) {
 				errorMessage = error instanceof Error ? error.message : String(error);
@@ -59,7 +68,10 @@
 		errorMessage = '';
 		try {
 			const compiled = compileLayoutGeometry(fixtureFor(tier)).geometry;
-			const sceneResult = buildChordBoxScene(compiled);
+			const policy = tier === 'chopin'
+				? chopinWallMeshRenderPolicyFactory()(compiled)
+				: visitorWallMeshPolicy(compiled);
+			const sceneResult = buildWallMeshScene(compiled, policy);
 			const renderer = new THREE.WebGLRenderer({ antialias: false });
 			renderer.setSize(64, 64);
 			const camera = new THREE.OrthographicCamera(-40, 40, 40, -40, 0.1, 1000);
@@ -67,8 +79,9 @@
 			camera.lookAt(0, 0, 0);
 			renderer.render(sceneResult.scene, camera);
 			const stats = readThreeRenderStats(renderer);
-			webglJson = JSON.stringify({ scene: { meshCount: sceneResult.meshCount, materialCount: sceneResult.materialCount, spanCount: sceneResult.spanCount, triangleEstimate: sceneResult.triangleEstimate }, renderer: stats }, null, 2);
+			webglJson = JSON.stringify({ scene: sceneResult.counts, renderer: stats }, null, 2);
 			renderer.dispose();
+			sceneResult.dispose();
 		} catch (error) {
 			errorMessage = error instanceof Error ? error.message : String(error);
 		}
@@ -92,8 +105,9 @@
 			<p class="eyebrow">/dev/perf</p>
 			<h1>G3 performance harness</h1>
 			<p class="lede">
-				Deterministic scale fixtures + Node/browser-tier measurements. Budgets are enforced only for
-				the <strong>Chopin</strong> product scale; 10/100/1,000-room tiers are comparison data.
+				Deterministic scale fixtures + Node/browser-tier measurements. Deterministic budgets are
+				enforced only for the <strong>Chopin</strong> golden fixture; 10/100/1,000-room tiers are
+				comparison data.
 			</p>
 
 			<div class="controls">
@@ -109,7 +123,7 @@
 				<button disabled={running} onclick={run}>
 					{running ? 'Measuring…' : 'Run report'}
 				</button>
-				<button disabled={running} onclick={runWebgl}>Live WebGL (chord-box)</button>
+				<button disabled={running} onclick={runWebgl}>Live WebGL (wall-mesh)</button>
 			</div>
 
 			{#if errorMessage}

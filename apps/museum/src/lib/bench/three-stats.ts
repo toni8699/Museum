@@ -1,11 +1,15 @@
 import * as THREE from 'three';
 import type { CompiledLayoutGeometry } from '$lib/layout/layout-geometry-types';
+import { buildRoomWallMesh } from '$lib/layout/wall-mesh-builder';
+import { toWallBufferGeometry } from '$lib/render/wall-geometry-adapter';
+import type { WallMeshRenderPolicy, WallMeshTopology } from './browser-bench';
 
 /**
- * Live Three.js resource counters for the browser tier. Reads
- * `renderer.info` after a render and builds the current chord-box scene (one
- * box per compiled solid span, matching the editor/visitor adapters) so draw
- * calls and triangles reflect the real chord-box debt G4 targets.
+ * Live Three.js resource counters for the browser tier. Reads `renderer.info`
+ * after a render and builds the real procedural wall-mesh scene (one
+ * `BufferGeometry` per room via the G4 builder + adapter) so draw calls and
+ * triangles reflect the actual indexed topology, not the retired chord-box
+ * approximation.
  */
 
 export type ThreeRenderStats = {
@@ -32,60 +36,66 @@ export function readThreeRenderStats(renderer: THREE.WebGLRenderer): ThreeRender
 	};
 }
 
-export type ChordBoxScene = {
+export type WallMeshScene = {
 	scene: THREE.Scene;
-	meshCount: number;
-	materialCount: number;
-	spanCount: number;
-	/** Estimated triangles for the chord-box scene (12 per box). */
-	triangleEstimate: number;
+	/** Topology counts derived from the same generated meshes the scene renders. */
+	counts: WallMeshTopology;
+	/** Disposes every adapted geometry and material created by this scene. */
+	dispose: () => void;
 };
 
 /**
- * Build a chord-box scene from compiled solid spans. Each span is an axis-aligned
- * box from `span.start`/`span.end` (plan XZ) and `span.bottomY`/`span.topY`. This
- * mirrors the G1 chord-box adapter shape so object/material counts are real.
+ * Build a real wall-mesh scene from compiled geometry under the given render
+ * policy: one `IndexedWallMesh` per room wrapped through the adapter, materials
+ * shared per distinct tint. It returns no renderer stats — the caller renders
+ * the scene and reads `renderer.info` via `readThreeRenderStats`.
  */
-export function buildChordBoxScene(compiled: CompiledLayoutGeometry, maxMeshes = 40_000): ChordBoxScene {
+export function buildWallMeshScene(compiled: CompiledLayoutGeometry, policy: WallMeshRenderPolicy): WallMeshScene {
 	const scene = new THREE.Scene();
 	const materials = new Map<string, THREE.Material>();
-	let meshCount = 0;
-	let spanCount = 0;
-	let truncated = false;
+	const disposers: Array<() => void> = [];
 
-	for (const room of compiled.rooms) {
-		let material = materials.get(room.roomId);
+	function materialFor(roomId: string): THREE.Material {
+		const tint = policy.presentation[roomId]?.tint ?? '#ffffff';
+		let material = materials.get(tint);
 		if (!material) {
-			material = new THREE.MeshBasicMaterial();
-			materials.set(room.roomId, material);
+			material = new THREE.MeshStandardMaterial({ color: tint });
+			materials.set(tint, material);
 		}
-		for (const wall of room.walls) {
-			for (const span of wall.solidSpans) {
-				spanCount += 1;
-				if (meshCount >= maxMeshes) {
-					truncated = true;
-					continue;
-				}
-				const midX = (span.start[0] + span.end[0]) / 2;
-				const midZ = (span.start[1] + span.end[1]) / 2;
-				const length = Math.hypot(span.end[0] - span.start[0], span.end[1] - span.start[1]);
-				const height = Math.max(0.001, span.topY - span.bottomY);
-				const geometry = new THREE.BoxGeometry(length, height, wall.thickness);
-				const mesh = new THREE.Mesh(geometry, material);
-				mesh.position.set(midX, (span.topY + span.bottomY) / 2, midZ);
-				const angle = Math.atan2(span.end[1] - span.start[1], span.end[0] - span.start[0]);
-				mesh.rotation.y = -angle;
-				scene.add(mesh);
-				meshCount += 1;
-			}
-		}
+		return material;
 	}
+
+	const counts: WallMeshTopology = { objectCount: 0, materialCount: 0, drawCalls: 0, triangles: 0 };
+	const excluded = policy.excludedRoomIds ?? [];
+	for (const room of compiled.rooms) {
+		// Bespoke-shell rooms are skipped before building, matching
+		// `estimateWallMeshTopology` and the live `LayoutMuseumShell`, so the
+		// live WebGL scene reports the same room/draw/material counts.
+		if (excluded.includes(room.roomId)) continue;
+		const result = buildRoomWallMesh(room, { classifySurface: policy.classifySurface });
+		if (!result.mesh) {
+			const details = result.issues.map((issue) => `${issue.code}: ${issue.message}`).join('; ');
+			throw new Error(`wall mesh build failed for room ${room.roomId}: ${details}`);
+		}
+		const adapted = toWallBufferGeometry(result.mesh, (_surfaceKey, mesh) => ({
+			material: materialFor(mesh.roomId)
+		}));
+		const mesh = new THREE.Mesh(adapted.geometry, adapted.materials);
+		mesh.matrixAutoUpdate = false;
+		scene.add(mesh);
+		counts.objectCount += 1;
+		counts.drawCalls += result.mesh.materialGroups.length;
+		counts.triangles += result.mesh.indices.length / 3;
+		disposers.push(() => adapted.dispose());
+	}
+	counts.materialCount = materials.size;
 
 	return {
 		scene,
-		meshCount: truncated ? meshCount : meshCount,
-		materialCount: materials.size,
-		spanCount,
-		triangleEstimate: spanCount * 12
+		counts,
+		dispose: () => {
+			for (const dispose of disposers) dispose();
+			for (const material of materials.values()) material.dispose();
+		}
 	};
 }

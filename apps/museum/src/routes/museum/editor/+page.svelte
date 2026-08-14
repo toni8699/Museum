@@ -3,7 +3,7 @@
 </script>
 
 <svelte:head>
-	<title>Museum Editor</title>
+	<title>Museum editor — relic</title>
 </svelte:head>
 
-<MuseumEditorEntry />
+<MuseumEditorEntry relic />

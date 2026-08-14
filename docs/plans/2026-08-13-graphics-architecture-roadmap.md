@@ -285,6 +285,9 @@ and a concrete product need. “Newer API” is not evidence.
 
 ### H1 — Unified 3D editing (`KEEP`, separate track; proposed)
 
+Focused implementation plan:
+[`2026-08-14-graphics-h1-unified-3d-editing.md`](./2026-08-14-graphics-h1-unified-3d-editing.md).
+
 3D gizmos are not part of the G-track exit. They return at the unified
 layout/scene editing milestone (`CURRENT.md`): 3D room/wall/opening/object editing
 with identity mapped back to `LayoutDocument`, in-context camera/tour authoring

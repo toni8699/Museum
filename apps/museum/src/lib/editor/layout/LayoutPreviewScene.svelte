@@ -1,26 +1,41 @@
 <script lang="ts">
 	import { T } from '@threlte/core';
-	import { DoubleSide, Shape } from 'three';
-	import type { LayoutPreviewModel, LayoutRoomPreview } from './layout-mesh-factory';
+	import { DoubleSide, Shape, type BufferGeometry, type Material } from 'three';
+	import type { LayoutPreviewModel } from './layout-mesh-factory';
 	import type { LayoutInteractionState } from './layout-interaction';
+	import type { LayoutVec2 } from './layout-types';
 	import { ceilingShapePoints, floorShapePoints } from './layout-preview-geometry';
-	import { FLOOR_MATERIAL, wallMaterialForKey, wallSectionMaterialKey } from './layout-wall-material';
+	import {
+		FLOOR_MATERIAL,
+		OPENING_HIGHLIGHT_MATERIAL,
+		WALL_HIGHLIGHT_MATERIAL,
+		WALL_MATERIAL_DEFAULT
+	} from './layout-wall-material';
+	import type { CompiledLayoutGeometry } from '$lib/layout/layout-geometry-types';
+	import type { IndexedWallMesh } from '$lib/layout/wall-mesh-builder';
+	import {
+		buildWallHighlightMesh,
+		matchOpeningRanges,
+		matchWallRanges,
+		toWallBufferGeometry,
+		type WallMeshMaterialFactory
+	} from '$lib/render/wall-geometry-adapter';
 
 	let {
 		model,
+		geometry,
+		wallMeshesByRoom,
 		interaction,
-		showCeilings = false,
-		selectedSegmentId = null,
-		selectedOpeningId = null
+		showCeilings = false
 	}: {
 		model: LayoutPreviewModel;
+		geometry: CompiledLayoutGeometry;
+		wallMeshesByRoom: ReadonlyMap<string, IndexedWallMesh>;
 		interaction: LayoutInteractionState;
 		showCeilings?: boolean;
-		selectedSegmentId?: string | null;
-		selectedOpeningId?: string | null;
 	} = $props();
 
-	function polygonShape(points: LayoutRoomPreview['floorPolygon']): Shape {
+	function polygonShape(points: readonly LayoutVec2[]): Shape {
 		const shape = new Shape();
 		const first = points[0];
 		if (!first) return shape;
@@ -30,19 +45,78 @@
 		return shape;
 	}
 
-	// Build each room's floor + ceiling Shape once per model. Selection / drag
-	// re-renders must not reallocate shapes or rebuild their geometry.
+	// Build each room's floor + ceiling Shape once per compiled geometry.
+	// Selection / drag re-renders must not reallocate shapes or rebuild geometry.
 	const roomShapes = $derived(
-		model.rooms.map((room) => ({
+		geometry.rooms.map((room) => ({
 			floor: polygonShape(floorShapePoints(room.floorPolygon)),
 			ceiling: polygonShape(ceilingShapePoints(room.ceilingPolygon))
 		}))
 	);
+
+	// Selection-independent base classifier: every surface class resolves to the
+	// shared default wall material. Selection color lives only on the overlay,
+	// never on the base mesh. The highlight materials are module-level singletons
+	// (see layout-wall-material.ts) so workspace remounts cannot leak materials.
+	const wallMaterialFactory: WallMeshMaterialFactory = () => ({ material: WALL_MATERIAL_DEFAULT });
+
+	type AdaptedRoom = { geometry: BufferGeometry; materials: Material[]; dispose: () => void };
+	let adaptedRooms = $state<Map<string, AdaptedRoom>>(new Map());
+
+	// Wrap each prebuilt room mesh through the adapter; dispose the previous
+	// generation when `geometry`/`wallMeshesByRoom` change or on unmount.
+	$effect(() => {
+		const built = new Map<string, AdaptedRoom>();
+		for (const room of geometry.rooms) {
+			const mesh = wallMeshesByRoom.get(room.roomId);
+			if (mesh) built.set(room.roomId, toWallBufferGeometry(mesh, wallMaterialFactory));
+		}
+		adaptedRooms = built;
+		return () => {
+			for (const adapted of built.values()) adapted.dispose();
+		};
+	});
+
+	// Highlight overlay for the current wall/opening selection: a thin shell over
+	// the matched range set, rebuilt and disposed on every selection change.
+	let highlight = $state<{ geometry: BufferGeometry; material: Material } | null>(null);
+
+	$effect(() => {
+		const selection = interaction.selection;
+		let overlay: BufferGeometry | null = null;
+		let material: Material | null = null;
+
+		if (selection.kind === 'wall' || selection.kind === 'interiorAnchor') {
+			const mesh = wallMeshesByRoom.get(selection.roomId);
+			if (mesh) {
+				const ranges = matchWallRanges(mesh, selection.segmentId);
+				if (ranges.length > 0) {
+					overlay = buildWallHighlightMesh(mesh, ranges);
+					material = WALL_HIGHLIGHT_MATERIAL;
+				}
+			}
+		} else if (selection.kind === 'opening') {
+			const mesh = wallMeshesByRoom.get(selection.roomId);
+			if (mesh) {
+				const ranges = matchOpeningRanges(mesh, selection.openingId);
+				if (ranges.length > 0) {
+					overlay = buildWallHighlightMesh(mesh, ranges);
+					material = OPENING_HIGHLIGHT_MATERIAL;
+				}
+			}
+		}
+
+		highlight = overlay && material ? { geometry: overlay, material } : null;
+		return () => {
+			overlay?.dispose();
+		};
+	});
 </script>
 
 <T.Group name="LayoutPreviewRoot">
-	{#each model.rooms as room, roomIndex (room.roomId)}
+	{#each geometry.rooms as room, roomIndex (room.roomId)}
 		{@const shapes = roomShapes[roomIndex]!}
+		{@const adapted = adaptedRooms.get(room.roomId)}
 		<T.Group name={`LayoutRoom:${room.roomId}`}>
 			<T.Mesh
 				name={`LayoutFloor:${room.roomId}`}
@@ -71,37 +145,26 @@
 				</T.Mesh>
 			{/if}
 
-			{#each room.walls as wall (wall.segmentId)}
-				<!-- Chord BoxGeometry strips: known visual approx at sharp bends; exact thick-wall topology deferred. -->
-				{#each wall.solidSpans as span, spanIndex (`${wall.segmentId}:span:${spanIndex}`)}
-					{@const section = wall.sections[span.sectionIndex]!}
-					{@const materialKey = wallSectionMaterialKey(selectedOpeningId, selectedSegmentId, wall.segmentId, section.openingId)}
-					{@const dx = span.end[0] - span.start[0]}
-					{@const dz = span.end[1] - span.start[1]}
-					<T.Mesh
-						name={`LayoutWallSection:${wall.segmentId}:${spanIndex}`}
-						material={wallMaterialForKey(materialKey)}
-						position={[
-							(span.start[0] + span.end[0]) / 2,
-							room.floorElevation + (span.bottomY + span.topY) / 2,
-							(span.start[1] + span.end[1]) / 2
-						]}
-						rotation={[0, -Math.atan2(dz, dx), 0]}
-						castShadow
-						receiveShadow
-					>
-						<T.BoxGeometry
-							args={[
-								Math.max(0.001, Math.hypot(dx, dz)),
-								span.topY - span.bottomY,
-								wall.thickness
-							]}
-						/>
-					</T.Mesh>
-				{/each}
-			{/each}
+			{#if adapted}
+				<T.Mesh
+					name={`LayoutWall:${room.roomId}`}
+					geometry={adapted.geometry}
+					material={adapted.materials}
+					castShadow
+					receiveShadow
+				/>
+			{/if}
 		</T.Group>
 	{/each}
+
+	{#if highlight}
+		<T.Mesh
+			name="LayoutWallHighlight"
+			geometry={highlight.geometry}
+			material={highlight.material}
+			renderOrder={3}
+		/>
+	{/if}
 
 	{#each model.objects as object (object.objectId)}
 		<T.Group

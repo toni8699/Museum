@@ -1,96 +1,112 @@
 # Architecture
 
-**Read when:** `rooms.ts`, layout CAD, promotion/cutover, ownership disputes.  
-**Skip if:** only editing a scene prop, material, or tour key inside existing rooms.  
-**Last reviewed:** 2026-08-13
-**Hub:** [`README.md`](./README.md) · **Vision:** [`north-star.md`](./north-star.md) · **Graphics roadmap:** [`plans/2026-08-13-graphics-architecture-roadmap.md`](./plans/2026-08-13-graphics-architecture-roadmap.md)
+**Read when:** ownership, layout CAD, editor shell, import/export, `/museum`
+boundary.  
+**Last reviewed:** 2026-08-14  
+**Hub:** [`README.md`](./README.md) · **Vision:**
+[`north-star.md`](./north-star.md) · **H1:**
+[`plans/2026-08-14-graphics-h1-unified-3d-editing.md`](./plans/2026-08-14-graphics-h1-unified-3d-editing.md)
 
----
-
-## Ownership
-
-| Concern | Today | Target |
-|---------|-------|--------|
-| Room frames, footprints, openings | `project.layout` / `LayoutDocument` v3 | same |
-| Editor layout drafts | `LayoutDocument` / `museum-layout.json` | same schema; independent session baseline |
-| Entities, nodes, paths, materials | `project.scene` / `SceneDocument` v6 | same |
-| Codec boundary | shared layout, scene, project codecs | same |
-| Resolve + generated endpoints | `scene.ts` with explicit project room resolver | same |
-| Shell cutouts | `LayoutMuseumShell` from `CompiledLayoutGeometry` | shared compiled geometry (G1 implemented) |
-| Legacy room compatibility | deprecated editor/test projection in `rooms.ts`; no visitor import | delete when consumers migrate |
-| Derived layout geometry | one pure `compileLayoutGeometry()` (G1 implemented) | same |
-| Plan presentation | `CompiledLayoutGeometry` → pure `PlanRenderModel` → `PlanSvg.svelte` SVG adapter (G2 implemented) | same |
-| 3D architecture meshes | `wall-mesh-builder` → `wall-geometry-adapter` → one watertight indexed `BufferGeometry` per room (G4 implemented) | same |
-| Routes / curves | `camera-route` + `camera-motion` only | unchanged |
-| Tour FSM | `museum-state.svelte.ts` | unchanged |
-| Editor session | `museum-editor.svelte.ts` | layout-tagged history ops (B3 implemented) |
-
-**Camera** = 3D guided PerspectiveCamera, not webcam.
+## Two isolated lanes
 
 ```mermaid
 flowchart LR
-  project["chopin-project.json"] --> layout["LayoutDocument v3"]
-  project --> scene["SceneDocument v6"]
-  layout --> registry["room registry"]
-  layout --> compile["compileLayoutGeometry()"]
-  compile --> compiled["CompiledLayoutGeometry"]
-  compiled --> shell["LayoutMuseumShell"]
-  scene --> resolve["resolveSceneDocument()"]
-  registry --> resolve
-  resolve --> entities["MuseumEntities"]
-  resolve --> motion["camera-route + camera-motion"]
-  compiled --> plan["PlanRenderModel → SVG"]
-  compiled --> three["wall-geometry-adapter → Threlte/Three"]
-  three --- entities
-  shell --- entities
+  New["New Project"] --> Session["H1 editor MuseumProject"]
+  Import["Import H1 package"] --> Session
+  Session --> Plan["Plan"]
+  Session --> Three["Unified 3D"]
+  Session --> Export["Portable H1 package"]
+
+  Chopin["checked-in chopin-project.json"] --> Visitor["/museum relic"]
 ```
 
-## Geometry and render boundary
+- **H1 editor:** greenfield. Starts empty or imports complete H1-format project.
+- **`/museum`:** frozen Chopin visitor relic. Keeps current checked-in project,
+  runtime, route graph, controls, and production behavior.
+- **`/museum/editor`:** frozen pre-H1 Scene · Camera editor relic (no Layout).
+- No Chopin project/editor state/history migration into H1.
+- No editor export promotion into `/museum` in H1.
+- The editor ships in production builds. Shared visitor-safe geometry/render
+  modules may serve both lanes; session, selection, hierarchy, gizmo, import,
+  and asset-store code stay editor-only imports.
 
-G1 replaces both legacy projections (`buildLayoutArchitectureModel()` + editor's
-independent `buildLayoutPreviewModel()` sampling) with one pure
-`compileLayoutGeometry()`: adaptive curves, arc lengths, tangents/normals,
-openings/profiles, polygons, bounds, query records. Plan, editor 3D, visitor 3D all
-consume `CompiledLayoutGeometry`; no longer resample curves or reinterpret opening
-topology. Canonical Chopin layout line-based.
+## Ownership
 
-`LayoutDocument` remains authored semantic CAD data. Compiled geometry = derived,
-cacheable, renderer-neutral, never serialized. May contain plain values or
-backend-neutral typed arrays, never SVG nodes/path strings, `THREE.*` objects,
-WebGL/WebGPU handles, materials, cameras, or UI state.
+| Concern | Source of truth |
+|---------|-----------------|
+| Rooms, frames, boundaries, openings | `project.layout` / `LayoutDocument` v3 |
+| Rough parametric layout objects | `project.layout.objects` |
+| Scene models, primitives, lights, materials | `project.scene` / `SceneDocument` v6 |
+| Camera nodes, connections, paths, view tracks | `project.scene` |
+| Derived geometry | pure `compileLayoutGeometry()` |
+| Plan presentation | `CompiledLayoutGeometry` → `PlanRenderModel` → `PlanSvg.svelte` |
+| 3D wall meshes | `wall-mesh-builder` → `wall-geometry-adapter` |
+| Camera route/motion | `camera-route.ts` + `camera-motion.ts` only |
+| Project-local GLB bytes | portable package manifest + editor asset store |
+| Selection, history, gizmo proxies, UI | editor session only |
 
-Plan branch owns ordered world-space render primitives. World/screen transforms, SVG
-attributes, styling, transient interaction = separate. Plan camera/tour overlays may
-project `project.scene` through existing `camera-route.ts` / `camera-motion.ts`; that
-does not transfer camera ownership to layout or create another motion path.
+Generated geometry, Three objects, renderer handles, selection, and history are
+never serialized.
 
-Three adapter owns indexed vertex/index buffers, normals, UVs, mesh groups, resource
-disposal. Three/Threlte continues to own scene graph, GLBs, materials/PBR, lights,
-shadows, cameras, visitor lifecycle. Mesh merging bounded by measured room/material
-batching + edit granularity; never compile whole museum into one mesh.
+## H1 editor composition
 
-## Mode A vs B
+```text
+MuseumProject session
+  ├─ Plan
+  │    LayoutDocument → compileLayoutGeometry → PlanRenderModel → SVG
+  └─ 3D Canvas
+       ├─ compiled layout architecture
+       ├─ scene entities/materials/assets
+       ├─ camera helpers + existing route/motion projections
+       ├─ unified project hierarchy + contextual inspector
+       └─ one TransformControls host
+            ├─ layout adapter  → layout mutation/history
+            ├─ scene adapter   → scene mutation/history
+            └─ camera adapter  → scene mutation/history
+```
 
-| Mode | Meaning | Status |
-|------|---------|--------|
-| **A — Dressing** | Props inside fixed architecture | Supported; presets deferred |
-| **B — Layout authorship** | Draw/relocate rooms in layout data | **North star**; P0 |
+One active selection domain: `none | layout | scene | camera`. Activating one
+domain detaches previous gizmo target. Underlying identity types remain separate.
 
-- Layout meshes = previews in editor + sole production shell source in `/museum`; both use visitor-safe shared layout modules. No editor layout UI/store imports in visitor chunks.
-- A3 layout paths accept line + Bezier segments; openings use meter offsets along sampled arc length; rounded/pointed profiles affect wall elevation only.
-- Corridors = skinny **layout rooms** (or later open wall-strip).  
-- Cutouts = segment-split; no real-time CSG.  
-- **Do not** treat scene Wall presets as shell authorship.
+Plan has no camera mutation path. Optional read-only overlays do not transfer
+camera ownership.
 
-## Corridor and opening decision
+## Project lifecycle
 
-P0 models corridors as ordinary skinny `LayoutRoom` footprints, not special corridor entity. Corridor may have two rectangular geometric cutouts in A1; reuses room generation, avoids second wall-strip system.
+- New Project creates empty layout v3 + empty scene v6; opens Plan.
+- Session-only free PerspectiveCamera exists until first authored navigation node.
+- Full-project import validates layout, scene, room refs, package manifest, GLB
+  and texture references before atomic replacement.
+- Import accepts H1 format plus future explicit migrations rooted at H1.
+- Import rejects Chopin/legacy payloads. No partial layout-only import.
+- Successful import/reset clears active selection and chronological history.
+- Export writes canonical project + package assets. Re-import must reproduce
+  Plan, 3D, assets, materials, and camera tour.
+- History remains one stack tagged `layout | scene`; never persisted/imported.
 
-**Pros:** simplest MVP; same floor/wall/ceiling generation; future room containment + camera IDs; no corridor-specific renderer.  
-**Cons:** duplicated/shared wall geometry remains future authoring concern; B4 now carries explicit portal semantics, renders layout shell parity without changing navigation.
+## Geometry boundary
 
-A1 openings geometry-only. Layout v3 retains B4's explicit `connectsRoomIds: [string, string]` for interior doors/portals; windows unpaired. `projectLayoutPortalRelations()` de-duplicates pairs for inspection only. Geometry never creates, repairs, or guesses adjacency. Visitor reads these relations only from `project.layout`.
+`LayoutDocument` = authored semantic CAD. `CompiledLayoutGeometry` = derived,
+cacheable, renderer-neutral, never serialized. No SVG strings, `THREE.*`, DOM,
+WebGL/WebGPU handles, materials, cameras, or UI state below layout boundary.
+
+Plan and unified editor 3D consume same compile. No consumer resamples curves or
+reinterprets opening topology. Three adapter owns buffers, materials, resource
+lifetime, raycast identity adaptation. Mesh batching stays bounded by edit
+granularity and measured budgets.
+
+## Layout rules
+
+- Single floor foundation; multi-story later.
+- Corridors = skinny layout rooms, not second corridor system.
+- Openings use authored segment offsets; door adjacency explicit via
+  `connectsRoomIds`, never geometry-guessed.
+- Curves = line + auto-bezier; openings follow compiled arc length.
+- No real-time CSG. No scene Wall preset as architecture SoT.
 
 ## Hard don’ts
 
-Dual nav graphs · persist `node:<id>:position` endpoints · put render-backend state in `LayoutDocument` or compiled geometry · build a second geometry compiler in a render adapter · replace Three without a measured production limitation · wire `@portfolio/scroll-travel` casually · ship editor to prod visitors (`/editor` → 404; sole exception: explicit build-time `VITE_MUSEUM_EDITOR=1` demo deploy).
+Dual nav graphs · second motion/gizmo/geometry compiler · persist generated
+endpoints · persist Three/render state · infer room ownership/adjacency from
+coordinates · import Chopin/legacy editor state into H1 · independent
+layout-only import · hide the editor behind a build flag.

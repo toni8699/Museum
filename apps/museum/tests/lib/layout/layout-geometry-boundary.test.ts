@@ -110,7 +110,11 @@ describe('G1 geometry boundary', () => {
 	it('routes Plan, editor 3D, and visitor 3D through the shared compiler contract', () => {
 		expect(sourceOf(resolve(srcRoot, 'lib/content/chopin-project.ts'))).toContain('compileLayoutGeometry');
 		expect(sourceOf(resolve(srcRoot, 'lib/museum/layout/LayoutMuseumShell.svelte'))).toContain('CompiledLayoutGeometry');
-		expect(sourceOf(resolve(srcRoot, 'lib/editor/layout/LayoutPreviewScene.svelte'))).toContain('solidSpans');
+		// G4: the editor 3D scene consumes prebuilt wall meshes, not per-span chord boxes.
+		const editorSceneSource = sourceOf(resolve(srcRoot, 'lib/editor/layout/LayoutPreviewScene.svelte'));
+		expect(editorSceneSource).toContain('wallMeshesByRoom');
+		expect(editorSceneSource).toContain('toWallBufferGeometry');
+		expect(editorSceneSource).not.toContain('solidSpans');
 		const planSource = sourceOf(resolve(srcRoot, 'lib/editor/layout/LayoutPlanViewport.svelte'));
 		expect(planSource).toContain('resolvePlanHit');
 		expect(planSource).toContain('model.queries');

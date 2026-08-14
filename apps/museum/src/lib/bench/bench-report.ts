@@ -1,4 +1,5 @@
 import {
+	ADVISORY_BUDGET_METRICS,
 	BENCH_METHOD_VERSION,
 	ENFORCED_BUDGET_METRICS,
 	type BenchMetricName,
@@ -57,13 +58,18 @@ export function checkBudgets(
 	return { pass: violations.length === 0, violations, unbudgeted };
 }
 
-/** Assert a baseline declares every required budget with a recorded reason. */
+/**
+ * Assert a baseline declares every enforced and advisory budget with a recorded
+ * reason. Advisory budgets are not enforced against live measurements, but the
+ * recorded document must stay complete so timing budgets can be re-enabled
+ * without first repairing the baseline.
+ */
 export function validateBaseline(baseline: BudgetBaseline): string[] {
 	const problems: string[] = [];
 	if (baseline.methodVersion !== BENCH_METHOD_VERSION) {
 		problems.push(`methodVersion ${baseline.methodVersion} != ${BENCH_METHOD_VERSION}`);
 	}
-	for (const metric of ENFORCED_BUDGET_METRICS) {
+	for (const metric of [...ENFORCED_BUDGET_METRICS, ...ADVISORY_BUDGET_METRICS]) {
 		const budget = baseline.budgets[metric];
 		if (!budget) problems.push(`missing budget for ${metric}`);
 		else if (!budget.reason || budget.reason.trim().length === 0) problems.push(`missing reason for ${metric}`);

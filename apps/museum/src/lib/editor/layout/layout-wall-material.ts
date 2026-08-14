@@ -1,4 +1,4 @@
-import { MeshStandardMaterial } from 'three';
+import { DoubleSide, MeshBasicMaterial, MeshStandardMaterial } from 'three';
 
 /** Shared wall material buckets — one instance per selection bucket, not per chord. */
 export const WALL_MATERIAL_DEFAULT = new MeshStandardMaterial({
@@ -22,6 +22,27 @@ export const FLOOR_MATERIAL = new MeshStandardMaterial({
 	color: '#6b6254',
 	roughness: 0.9,
 	metalness: 0
+});
+
+/**
+ * Shared selection-highlight overlays for the layout preview. Module-level so
+ * every preview mount reuses the same two materials — per-mount allocation
+ * would leak GPU resources across workspace switches (the scene remounts and
+ * never disposes them).
+ */
+export const WALL_HIGHLIGHT_MATERIAL = new MeshBasicMaterial({
+	color: '#d6b35f',
+	transparent: true,
+	opacity: 0.45,
+	depthWrite: false,
+	side: DoubleSide
+});
+export const OPENING_HIGHLIGHT_MATERIAL = new MeshBasicMaterial({
+	color: '#f1d99a',
+	transparent: true,
+	opacity: 0.5,
+	depthWrite: false,
+	side: DoubleSide
 });
 
 export type WallMaterialKey = 'default' | 'wall-selected' | 'opening-selected';

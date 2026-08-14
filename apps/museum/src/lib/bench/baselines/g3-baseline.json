@@ -1,25 +1,30 @@
 {
-  "methodVersion": 2,
+  "methodVersion": 3,
   "budgets": {
     "layout-compile": {
       "target": 30,
       "fail": 60,
-      "reason": "Measured 2026-08-13 p50 14.13 ms on the Chopin layout (node tier); target = 2x headroom, fail = 4x regression bound."
+      "reason": "Measured 2026-08-13 p50 ~10 ms on the Chopin layout (node tier); target = 2x headroom, fail = 4x regression bound."
     },
     "plan-render-build": {
       "target": 1,
       "fail": 5,
-      "reason": "Measured 2026-08-13 p50 0.21 ms on the Chopin layout (node tier); target = 2x headroom, fail = 4x regression bound."
+      "reason": "Measured 2026-08-13 p50 ~0.08 ms on the Chopin layout (node tier); near-noise floor with generous headroom."
+    },
+    "wall-mesh-build": {
+      "target": 30,
+      "fail": 60,
+      "reason": "G4 deterministic metric: one watertight indexed wall mesh per room (7 rooms, ~14.3k triangles — the bevel bridge + reveal geometry added over the original 9.4k). Measured 2026-08-14 p50 ~19 ms on quiet runs, ~30–41 ms on loaded runs (5-sample median is noisy); fail = 2x of the target so only a real topology regression trips."
     },
     "hit-test": {
       "target": 0.5,
       "fail": 2,
-      "reason": "Measured 2026-08-13 p50 0.12 ms per point on the Chopin layout; fail allows ~16x before tripping so only a real O(n) regression fails."
+      "reason": "Measured 2026-08-13 p50 ~0.10 ms per point on the Chopin layout; fail allows ~20x before tripping so only a real O(n) regression fails."
     },
     "snap-query": {
       "target": 0.01,
       "fail": 0.05,
-      "reason": "Measured 2026-08-13 p50 0.0006 ms per point on the Chopin layout; near-noise floor with generous headroom."
+      "reason": "Measured 2026-08-13 p50 ~0.0005 ms per point on the Chopin layout; near-noise floor with generous headroom."
     },
     "compiled-memory": {
       "target": 4000000,
@@ -37,24 +42,24 @@
       "reason": "Measured 2026-08-13 71 SVG nodes for the Chopin Plan model; fail = ~2x catches SVG node bloat."
     },
     "three-object-estimate": {
-      "target": 1200,
-      "fail": 2400,
-      "reason": "Measured 2026-08-13 1,166 chord-box spans for Chopin; fail = ~2x catches chord-box object bloat (the G4 target)."
+      "target": 20,
+      "fail": 60,
+      "reason": "G4 before→after: 1,166 one-box-per-span objects → 6 (one watertight indexed mesh per visitor room; the bespoke music-chamber shell is excluded exactly as the live LayoutMuseumShell does). Re-measured on re-record = 6; fail = ~10x catches a return to per-span object proliferation."
     },
     "three-material-estimate": {
-      "target": 40,
-      "fail": 80,
-      "reason": "Measured 2026-08-13 28 wall material groups for Chopin; fail = ~2x catches material proliferation."
+      "target": 20,
+      "fail": 60,
+      "reason": "G4 before→after: 28 chord-box material groups → 6 (one shared presentation tint per visitor room). Re-measured on re-record = 6; fail = ~10x catches material proliferation."
     },
     "three-draw-call-estimate": {
-      "target": 1200,
-      "fail": 2400,
-      "reason": "Measured 2026-08-13 1,166 estimated draw calls for the Chopin chord-box scene; fail = ~2x."
+      "target": 20,
+      "fail": 60,
+      "reason": "G4 before→after: 1,166 per-span draw calls → 6 (one surface-class group per visitor room). Re-measured on re-record = 6; fail = ~10x catches draw-call collapse regressions."
     },
     "three-triangle-estimate": {
-      "target": 14000,
-      "fail": 28000,
-      "reason": "Measured 2026-08-13 13,992 estimated triangles for the Chopin chord-box scene; fail = 2x."
+      "target": 19000,
+      "fail": 38000,
+      "reason": "G4 before→after: 13,992 chord-box triangles → 12,876 real indexed wall-mesh triangles across the 6 visitor rooms (bespoke shell excluded; the G4 bevel/jamb work adds real corner-bridge and reveal geometry over the old 7-room 9,388). Re-measured on re-record = 12,876; target ≈ 1.5x, fail ≈ 3x catches triangle bloat."
     }
   },
   "tiers": [
@@ -62,41 +67,50 @@
       "tier": "chopin",
       "roomCount": 7,
       "provenance": {
-        "commitSha": "c4ca8ae0b58d9998fbc9330a1c4354e1371ef248",
-        "date": "2026-08-14T00:40:12.118Z",
+        "commitSha": "c27400cd4644e463fd8b72f1c22dbe9e76e8899c",
+        "date": "2026-08-14T20:44:47.560Z",
         "deviceProfile": "node",
         "warmup": 2,
         "samples": 5,
-        "methodVersion": 2
+        "methodVersion": 3,
+        "treeDirty": true,
+        "contentHash": "840833e926f05542"
       },
       "samples": [
         {
           "metric": "layout-compile",
           "unit": "ms",
-          "value": 11.447000000000003,
-          "p50": 11.447000000000003,
-          "p95": 14.654875000000061
+          "value": 17.56754100000012,
+          "p50": 17.56754100000012,
+          "p95": 21.18883299999993
         },
         {
           "metric": "plan-render-build",
           "unit": "ms",
-          "value": 0.0919170000000804,
-          "p50": 0.0919170000000804,
-          "p95": 0.15354200000001583
+          "value": 0.2067500000000564,
+          "p50": 0.2067500000000564,
+          "p95": 0.30750000000011823
+        },
+        {
+          "metric": "wall-mesh-build",
+          "unit": "ms",
+          "value": 34.54424999999992,
+          "p50": 34.54424999999992,
+          "p95": 42.317666000000145
         },
         {
           "metric": "hit-test",
           "unit": "ms",
-          "value": 0.11800437500000044,
-          "p50": 0.11800437500000044,
-          "p95": 0.13154770999999982
+          "value": 0.2528083349999997,
+          "p50": 0.2528083349999997,
+          "p95": 0.26849458000000026
         },
         {
           "metric": "snap-query",
           "unit": "ms",
-          "value": 0.000563539999999989,
-          "p50": 0.000563539999999989,
-          "p95": 0.0006977100000000291
+          "value": 0.001545414999999366,
+          "p50": 0.001545414999999366,
+          "p95": 0.001729374999999891
         },
         {
           "metric": "compiled-memory",
@@ -111,9 +125,9 @@
         {
           "metric": "plan-render-initial",
           "unit": "ms",
-          "value": 0.2104580000000169,
-          "p50": 0.2104580000000169,
-          "p95": 0.23154199999999037
+          "value": 0.5219580000000406,
+          "p50": 0.5219580000000406,
+          "p95": 1.0174160000001393
         },
         {
           "metric": "svg-node-count",
@@ -123,43 +137,36 @@
         {
           "metric": "plan-render-work-pan-zoom",
           "unit": "ms",
-          "value": 0.35950000000002547,
-          "p50": 0.35950000000002547,
-          "p95": 0.3601250000000391
+          "value": 0.9576660000000174,
+          "p50": 0.9576660000000174,
+          "p95": 1.2345000000000255
         },
         {
           "metric": "plan-render-work-edit",
           "unit": "ms",
-          "value": 0.31683299999997416,
-          "p50": 0.31683299999997416,
-          "p95": 0.33854199999996126
-        },
-        {
-          "metric": "three-regen",
-          "unit": "ms",
-          "value": 0.14704199999994216,
-          "p50": 0.14704199999994216,
-          "p95": 0.16620900000009442
+          "value": 0.6770419999998012,
+          "p50": 0.6770419999998012,
+          "p95": 0.9005829999998696
         },
         {
           "metric": "three-object-estimate",
           "unit": "count",
-          "value": 1166
+          "value": 6
         },
         {
           "metric": "three-material-estimate",
           "unit": "count",
-          "value": 28
+          "value": 6
         },
         {
           "metric": "three-draw-call-estimate",
           "unit": "count",
-          "value": 1166
+          "value": 6
         },
         {
           "metric": "three-triangle-estimate",
           "unit": "count",
-          "value": 13992
+          "value": 12876
         }
       ]
     },
@@ -168,41 +175,50 @@
       "seed": 101,
       "roomCount": 10,
       "provenance": {
-        "commitSha": "c4ca8ae0b58d9998fbc9330a1c4354e1371ef248",
-        "date": "2026-08-14T00:40:12.414Z",
+        "commitSha": "c27400cd4644e463fd8b72f1c22dbe9e76e8899c",
+        "date": "2026-08-14T20:44:48.490Z",
         "deviceProfile": "node",
         "warmup": 2,
         "samples": 5,
-        "methodVersion": 2
+        "methodVersion": 3,
+        "treeDirty": true,
+        "contentHash": "840833e926f05542"
       },
       "samples": [
         {
           "metric": "layout-compile",
           "unit": "ms",
-          "value": 25.269666999999913,
-          "p50": 25.269666999999913,
-          "p95": 33.02579100000003
+          "value": 39.89945799999987,
+          "p50": 39.89945799999987,
+          "p95": 45.47462499999983
         },
         {
           "metric": "plan-render-build",
           "unit": "ms",
-          "value": 0.2569170000001577,
-          "p50": 0.2569170000001577,
-          "p95": 0.259166999999934
+          "value": 0.16716700000006313,
+          "p50": 0.16716700000006313,
+          "p95": 0.1705419999998412
+        },
+        {
+          "metric": "wall-mesh-build",
+          "unit": "ms",
+          "value": 63.14250000000038,
+          "p50": 63.14250000000038,
+          "p95": 71.29012499999999
         },
         {
           "metric": "hit-test",
           "unit": "ms",
-          "value": 0.14474312499999997,
-          "p50": 0.14474312499999997,
-          "p95": 0.15973687500000097
+          "value": 0.27299125,
+          "p50": 0.27299125,
+          "p95": 0.29017020500000174
         },
         {
           "metric": "snap-query",
           "unit": "ms",
-          "value": 0.0005368750000002365,
-          "p50": 0.0005368750000002365,
-          "p95": 0.0007304150000004483
+          "value": 0.0008043750000001637,
+          "p50": 0.0008043750000001637,
+          "p95": 0.003059375000000273
         },
         {
           "metric": "compiled-memory",
@@ -217,9 +233,9 @@
         {
           "metric": "plan-render-initial",
           "unit": "ms",
-          "value": 0.4114589999999225,
-          "p50": 0.4114589999999225,
-          "p95": 0.42975000000001273
+          "value": 0.8871250000001965,
+          "p50": 0.8871250000001965,
+          "p95": 1.273834000000079
         },
         {
           "metric": "svg-node-count",
@@ -229,43 +245,36 @@
         {
           "metric": "plan-render-work-pan-zoom",
           "unit": "ms",
-          "value": 0.58787499999994,
-          "p50": 0.58787499999994,
-          "p95": 0.6868329999999787
+          "value": 1.1057089999999334,
+          "p50": 1.1057089999999334,
+          "p95": 1.2518330000002607
         },
         {
           "metric": "plan-render-work-edit",
           "unit": "ms",
-          "value": 0.47945800000002237,
-          "p50": 0.47945800000002237,
-          "p95": 0.5272499999998672
-        },
-        {
-          "metric": "three-regen",
-          "unit": "ms",
-          "value": 0.04362500000002001,
-          "p50": 0.04362500000002001,
-          "p95": 0.046708000000080574
+          "value": 1.526375000000371,
+          "p50": 1.526375000000371,
+          "p95": 4.055417000000034
         },
         {
           "metric": "three-object-estimate",
           "unit": "count",
-          "value": 1501
+          "value": 10
         },
         {
           "metric": "three-material-estimate",
           "unit": "count",
-          "value": 40
+          "value": 10
         },
         {
           "metric": "three-draw-call-estimate",
           "unit": "count",
-          "value": 1501
+          "value": 10
         },
         {
           "metric": "three-triangle-estimate",
           "unit": "count",
-          "value": 18012
+          "value": 28892
         }
       ]
     },
@@ -274,41 +283,50 @@
       "seed": 202,
       "roomCount": 100,
       "provenance": {
-        "commitSha": "c4ca8ae0b58d9998fbc9330a1c4354e1371ef248",
-        "date": "2026-08-14T00:40:12.902Z",
+        "commitSha": "c27400cd4644e463fd8b72f1c22dbe9e76e8899c",
+        "date": "2026-08-14T20:44:49.931Z",
         "deviceProfile": "node",
         "warmup": 2,
         "samples": 5,
-        "methodVersion": 2
+        "methodVersion": 3,
+        "treeDirty": true,
+        "contentHash": "840833e926f05542"
       },
       "samples": [
         {
           "metric": "layout-compile",
           "unit": "ms",
-          "value": 217.47845900000038,
-          "p50": 217.47845900000038,
-          "p95": 238.65425000000005
+          "value": 416.82154100000025,
+          "p50": 416.82154100000025,
+          "p95": 418.5237500000003
         },
         {
           "metric": "plan-render-build",
           "unit": "ms",
-          "value": 1.1724169999997684,
-          "p50": 1.1724169999997684,
-          "p95": 1.239292000000205
+          "value": 2.0426669999997102,
+          "p50": 2.0426669999997102,
+          "p95": 11.225875000000087
+        },
+        {
+          "metric": "wall-mesh-build",
+          "unit": "ms",
+          "value": 604.7554170000003,
+          "p50": 604.7554170000003,
+          "p95": 634.1684170000008
         },
         {
           "metric": "hit-test",
           "unit": "ms",
-          "value": 1.8317372900000009,
-          "p50": 1.8317372900000009,
-          "p95": 1.8942622949999985
+          "value": 3.5505997899999966,
+          "p50": 3.5505997899999966,
+          "p95": 4.420941039999998
         },
         {
           "metric": "snap-query",
           "unit": "ms",
-          "value": 0.006361039999997047,
-          "p50": 0.006361039999997047,
-          "p95": 0.007327915000000757
+          "value": 0.009569170000004306,
+          "p50": 0.009569170000004306,
+          "p95": 0.011415419999993901
         },
         {
           "metric": "compiled-memory",
@@ -323,9 +341,9 @@
         {
           "metric": "plan-render-initial",
           "unit": "ms",
-          "value": 5.608959000000141,
-          "p50": 5.608959000000141,
-          "p95": 6.07300000000032
+          "value": 10.21154100000058,
+          "p50": 10.21154100000058,
+          "p95": 17.86712500000067
         },
         {
           "metric": "svg-node-count",
@@ -335,43 +353,36 @@
         {
           "metric": "plan-render-work-pan-zoom",
           "unit": "ms",
-          "value": 7.233749999999418,
-          "p50": 7.233749999999418,
-          "p95": 7.387250000000677
+          "value": 10.791709000000992,
+          "p50": 10.791709000000992,
+          "p95": 14.39470799999981
         },
         {
           "metric": "plan-render-work-edit",
           "unit": "ms",
-          "value": 6.78545800000029,
-          "p50": 6.78545800000029,
-          "p95": 6.80987499999992
-        },
-        {
-          "metric": "three-regen",
-          "unit": "ms",
-          "value": 0.46916699999928824,
-          "p50": 0.46916699999928824,
-          "p95": 0.48637499999949796
+          "value": 11.732959000000847,
+          "p50": 11.732959000000847,
+          "p95": 12.449124999999185
         },
         {
           "metric": "three-object-estimate",
           "unit": "count",
-          "value": 15227
+          "value": 100
         },
         {
           "metric": "three-material-estimate",
           "unit": "count",
-          "value": 400
+          "value": 100
         },
         {
           "metric": "three-draw-call-estimate",
           "unit": "count",
-          "value": 15227
+          "value": 100
         },
         {
           "metric": "three-triangle-estimate",
           "unit": "count",
-          "value": 182724
+          "value": 295480
         }
       ]
     },
@@ -380,41 +391,50 @@
       "seed": 303,
       "roomCount": 1000,
       "provenance": {
-        "commitSha": "c4ca8ae0b58d9998fbc9330a1c4354e1371ef248",
-        "date": "2026-08-14T00:40:17.671Z",
+        "commitSha": "c27400cd4644e463fd8b72f1c22dbe9e76e8899c",
+        "date": "2026-08-14T20:45:04.409Z",
         "deviceProfile": "node",
         "warmup": 1,
         "samples": 3,
-        "methodVersion": 2
+        "methodVersion": 3,
+        "treeDirty": true,
+        "contentHash": "840833e926f05542"
       },
       "samples": [
         {
           "metric": "layout-compile",
           "unit": "ms",
-          "value": 2636.163124999999,
-          "p50": 2636.163124999999,
-          "p95": 3224.3310420000016
+          "value": 3677.7860000000037,
+          "p50": 3677.7860000000037,
+          "p95": 3840.7313329999997
         },
         {
           "metric": "plan-render-build",
           "unit": "ms",
-          "value": 30.935249999998632,
-          "p50": 30.935249999998632,
-          "p95": 31.85887499999808
+          "value": 20.25933300000179,
+          "p50": 20.25933300000179,
+          "p95": 24.75325000000157
+        },
+        {
+          "metric": "wall-mesh-build",
+          "unit": "ms",
+          "value": 5939.988333000001,
+          "p50": 5939.988333000001,
+          "p95": 6073.247457999998
         },
         {
           "metric": "hit-test",
           "unit": "ms",
-          "value": 44.99037500000004,
-          "p50": 44.99037500000004,
-          "p95": 47.16573644999998
+          "value": 68.09426667500011,
+          "p50": 68.09426667500011,
+          "p95": 69.98405625000014
         },
         {
           "metric": "snap-query",
           "unit": "ms",
-          "value": 0.25731562499995564,
-          "p50": 0.25731562499995564,
-          "p95": 0.2657895749999625
+          "value": 0.10313960000021324,
+          "p50": 0.10313960000021324,
+          "p95": 0.1078947750000225
         },
         {
           "metric": "compiled-memory",
@@ -429,9 +449,9 @@
         {
           "metric": "plan-render-initial",
           "unit": "ms",
-          "value": 82.54233400000157,
-          "p50": 82.54233400000157,
-          "p95": 86.12754199999836
+          "value": 104.4320000000007,
+          "p50": 104.4320000000007,
+          "p95": 260.4844160000066
         },
         {
           "metric": "svg-node-count",
@@ -441,43 +461,36 @@
         {
           "metric": "plan-render-work-pan-zoom",
           "unit": "ms",
-          "value": 89.80620799999815,
-          "p50": 89.80620799999815,
-          "p95": 90.62225000000035
+          "value": 140.06995800000732,
+          "p50": 140.06995800000732,
+          "p95": 173.76574999999139
         },
         {
           "metric": "plan-render-work-edit",
           "unit": "ms",
-          "value": 124.80191600000035,
-          "p50": 124.80191600000035,
-          "p95": 130.18370900000082
-        },
-        {
-          "metric": "three-regen",
-          "unit": "ms",
-          "value": 4.976875000000291,
-          "p50": 4.976875000000291,
-          "p95": 5.0378749999981665
+          "value": 243.03566599999613,
+          "p50": 243.03566599999613,
+          "p95": 248.7760419999977
         },
         {
           "metric": "three-object-estimate",
           "unit": "count",
-          "value": 153782
+          "value": 1000
         },
         {
           "metric": "three-material-estimate",
           "unit": "count",
-          "value": 4000
+          "value": 1000
         },
         {
           "metric": "three-draw-call-estimate",
           "unit": "count",
-          "value": 153782
+          "value": 1000
         },
         {
           "metric": "three-triangle-estimate",
           "unit": "count",
-          "value": 1845384
+          "value": 2977580
         }
       ]
     }

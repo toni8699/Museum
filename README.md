@@ -1,47 +1,73 @@
 # Spatial Sketch Editor
 
-**Layout-first editor for 3D experiences**: draw floor plan, place openings + objects,
-author camera tour, ship serialized project that separate visitor runtime renders.
-**Chopin museum** = first project built with it: serialized `MuseumProject`
-(layout + scene + camera tour) that editor builds + visitor renders.
+Layout-first editor for indoor 3D experiences.
 
-Editor not tied to museums; any indoor space (gallery, office, store, venue) sketched
-as plan → compiled to 3D → toured.
+```text
+New Project
+  → empty Plan
+  → rooms, openings, rough objects
+  → unified 3D
+  → architecture refinement, assets, materials, camera tour
+  → saved to the user's session/account
+  → portable export
+  → later import and continue
+```
 
-## What's inside
+Editor targets galleries, offices, stores, venues, museums, and similar spaces.
+Semantic layout drives generated architecture; app owns mesh generation.
 
-| Entry point | What it is |
+## Product boundary
+
+| Route | Role |
 |---|---|
-| `/` or `/editor` | **Editor** (when enabled; see demo deploy below). Root `/` renders editor whenever editor enabled, else project landing page |
-| `/museum` | **Chopin museum** visitor experience: one project built with editor |
-| `/dev/materials` · `/dev/assets` | Dev previews for PBR materials + GLB assets |
-| `/dev/perf` | G3 performance harness (generated 10/100/1,000-room fixtures + Node/browser/WebGL metrics) |
+| `/` or `/editor` | Editor (H1 target = Plan · 3D) |
+| `/museum` | Frozen Chopin visitor relic using checked-in `chopin-project.json` |
+| `/museum/editor` | Frozen pre-H1 editor relic (Scene · Camera, no Layout) |
+| `/dev/materials` · `/dev/assets` | Development previews |
+| `/dev/perf` | G3 performance harness |
 
-## Editor
+`/museum` proves shipped visitor/runtime work; `/museum/editor` freezes the
+pre-H1 Scene · Camera editor. H1 editor does not load, migrate, or preserve
+Chopin editor/session/history state. The editor boots into a fresh empty
+project; H1 ships export/import-only persistence, and the complete product
+adds session/account save on the same portable package format.
 
-Three workspaces:
+## H1 editor target
 
-- **Layout**: CAD surface. Draft rooms (Rect, Polygon), bend walls into auto-Bezier curves,
-  place Door/Window openings (rectangular/rounded/pointed profiles), place Box/Cylinder/Sphere
-  objects, relocate/rotate rooms as rigid units, edit via numeric inspectors. 0.25 m grid snap,
-  Shift 15° rotation snap, shared undo/redo. Plan = mutation surface; 3D view = live read-only
-  preview of same compiled geometry.
-- **Scene**: legacy entity authoring: models, shapes, lights, textures, materials, clusters,
-  full 3D gizmos (Select/Move/Rotate/Scale, Drop to Floor).
-- **Camera**: tour authoring: camera nodes, connections, guided order, camera-timeline lanes,
-  in-editor preview. Nodes placed on tagged room floors.
+Two top-level views:
 
-Export: layout JSON, scene JSON, or museumpack package. Visitor consumes serialized
-project; no runtime geometry compiler.
+- **Plan** — draw rooms, bend walls, add openings, place rough
+  Box/Cylinder/Sphere objects, relocate rooms, edit dimensions.
+- **3D** — generated architecture + scene entities + catalogue/project assets +
+  materials + camera/tour tools in one Canvas, hierarchy, inspector, active
+  selection domain, and contextual TransformControls gizmo.
 
-## Chopin museum (first project)
+Layout and scene remain separate data domains:
 
-- Guided tour next/back through Chopin rooms + free-tour mode across graph-connected stops
-- Smooth rounded + auto-Bézier camera paths, reduced-motion support
-- Central piano chamber; no route-line overlay in visitor view
-- Shared materials for floors, walls, ceilings, wood, plaster, brass
-- Paris Salon asset slice with furniture, lighting, decorative GLB models
-- Responsive HUD with room titles, navigation, tour controls
+```text
+MuseumProject
+  ├─ layout   ← rooms, openings, rough layout objects
+  └─ scene    ← placed assets, primitives, lights, materials, camera graph
+
+Portable package
+  ├─ project.json
+  ├─ project-local GLBs
+  └─ textures
+```
+
+Import/export starts at H1 format. Import replaces whole project atomically,
+clears session history/selection, and cross-validates room references. Future
+explicit migrations may extend H1 format. No Chopin/legacy editor migration.
+
+Focused plan: [`docs/plans/2026-08-14-graphics-h1-unified-3d-editing.md`](./docs/plans/2026-08-14-graphics-h1-unified-3d-editing.md).
+
+## Current implementation
+
+B5 project runtime cutover and G1–G4 graphics foundation shipped: serialized
+layout/scene project, shared geometry compiler, explicit Plan render model,
+performance harness, procedural indexed wall meshes. Until H1 lands, the editor
+shows legacy Scene · Camera · Layout workspaces; that pre-H1 editor is frozen
+as a relic at `/museum/editor`.
 
 ## Run locally
 
@@ -53,48 +79,36 @@ npm run dev
 ```
 
 - `/` or `/editor` → editor
-- `/museum` → Chopin museum visitor
-
-Useful commands:
-
-```bash
-npm run build   # Create a production build
-npm run check   # Run Svelte and TypeScript checks
-npm test        # Run the test suite
-```
-
-## Demo the editor on a deployed site
-
-Production builds normally exclude editor (its `/editor` route returns 404, editor code
-not bundled; `/` stays project landing). To ship build that includes editor as tool
-(e.g. Vercel demo deploy), set build-time flag:
+- `/museum` → Chopin visitor relic
+- `/museum/editor` → pre-H1 Scene · Camera editor relic
 
 ```bash
-VITE_MUSEUM_EDITOR=1 npm run build   # or set VITE_MUSEUM_EDITOR=1 as a Vercel env var and redeploy
+npm run build   # production build
+npm run check   # Svelte + TypeScript checks
+npm test        # test suite
 ```
 
-With flag, `/` + `/editor` both render editor in production; without it, `/editor` 404s,
-`/` = project landing, editor stays out of bundle. `/dev/*` routes remain development-only.
-Editor is client-side only (no server writes); everything lives in browser, exports via JSON.
+## Editor shipping
 
-## Visitor controls
+The editor always ships: `/` and `/editor` render it in production too, and
+`/dev/*` stays development-only. Editing is local-first and client-side — no
+server writes and no account/save backend; projects persist only through
+portable export/import.
 
-- **Next / Back:** HUD buttons, arrow keys, `Space`, `Backspace`
-- **Navigation nodes:** Click glowing nodes when available
-- **M:** Toggle guided + free-tour modes
-- **R:** Toggle reduced motion
-- **Paris Salon:** Drag scene or use arrow keys to look around
+## `/museum` controls
+
+- **Next / Back:** HUD, arrows, `Space`, `Backspace`
+- **Navigation nodes:** click glowing nodes
+- **M:** guided/free tour
+- **R:** reduced motion
+- **Paris Salon:** drag or arrow keys to look
 
 ## Technology
 
-SvelteKit, Svelte 5, Threlte, Three.js, TypeScript, npm-workspaces monorepo
-(`apps/museum` + `packages/*`).
+SvelteKit · Svelte 5 · Threlte · Three.js · TypeScript · npm workspaces.
 
-## Status
+## Non-goals
 
-Editor is the product. Direction: prove single-floor room/complex workflow, migrate
-projects into serialized layout + scene data, then author camera tours on top. G1 (shared
-geometry compiler) + B5 (serialized project runtime cutover) shipped; G2 (explicit Plan
-render boundary) in progress. Multi-story = later goal, gated on single-floor workflow
-reliable + polished. Chopin's Paris Salon = first detailed asset slice; exhibit
-interactions + final artwork in progress.
+Blender-style mesh editing · automatic tour generation · second camera/motion
+system · multi-story before single-floor flow ships · importing Chopin/legacy
+editor state into H1.

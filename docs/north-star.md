@@ -1,66 +1,101 @@
 # North star
 
-**Read when:** choosing what to build; reviewing pitches.  
-**Do not read** for narrow gizmo/tour/entity bug.  
-**Last reviewed:** 2026-08-13
+**Read when:** choosing product direction or reviewing pitches.  
+**Last reviewed:** 2026-08-14  
 **Live slice:** [`hand-off/CURRENT.md`](./hand-off/CURRENT.md)
-
----
 
 ## Vision
 
-**Layout-first museum complex editor:** empty canvas → draw/relocate rooms → openings + parametric placeholders (not free mesh) → serialize `MuseumProject` (layout + scene) → load in editor/visitor → author **camera tour on that complex**. Chopin = first **data project**, not permanent `rooms.ts` special case.
+Greenfield, local-first spatial editor:
 
-**Local-first workflow:** New Project → layout in Plan → generated 3D → scene/assets → camera tour → export one portable project package → later import it to resume. Saving need not modify repository source files.
+```text
+New Project
+  → empty Plan
+  → rooms, openings, rough parametric objects
+  → unified 3D
+  → architecture refinement, imported assets, materials, camera tour
+  → saved to the user's session/account
+  → portable export
+  → later import and continue
+```
 
-Foundation = **single floor**. Corridors = ordinary skinny layout rooms; early cutouts geometry-only. Semantic room/portal adjacency arrives at B4. Multi-story only after single-floor draft → validate → preview → serialize → reload → promote → tour works without regressions.
+Plan = layout CAD. 3D = integrated project editor. No separate Scene, Camera,
+or Layout-3D workspace after H1.
+
+`/museum` = frozen Chopin visitor relic; `/museum/editor` = frozen pre-H1
+Scene · Camera editor relic (no Layout tab). Both keep checked-in
+`chopin-project.json` / `museum-scene.json`; H1 editor never loads/migrates
+Chopin project, legacy workspace state, selection, or history.
+
+## Project truth
 
 ```text
 MuseumProject
-  ├─ layout   ← rooms, openings, layout objects
-  └─ scene    ← entities, materials, camera graph
+  ├─ layout   ← rooms, boundaries, openings, rough layout objects
+  └─ scene    ← entities, materials, lights, camera graph
 
-Portable project package
+Portable package
   ├─ project.json
-  ├─ imported GLBs
+  ├─ project-local GLBs
   └─ textures
 ```
 
+`LayoutDocument` and `SceneDocument` stay separate SoTs. Unified 3D composes
+both. Three objects, gizmo proxies, selection, generated geometry, decoded GLBs,
+and history remain session-only.
+
+Projects are saved for the user — session drafts locally and, in the complete
+product, account persistence — both layered on the same portable package
+format. H1 ships the export/import-only slice first; the document model does
+not change when account save arrives.
+
 ## Sacred contracts
 
-1. Semantic drafting, not Blender — app owns mesh; no arbitrary CSG/sculpt.  
-2. Serialize/load — leave `rooms.ts` via compile → dual-read → cutover.  
-3. One camera/motion system.  
-4. Visitor isolation until promotion APIs shared.  
-5. Object place = ghost → commit; plan rectangle click-drag = CAD exception only.
+1. Semantic drafting, not Blender. App owns generated mesh; no arbitrary CSG/sculpt.
+2. One editor shell: Plan | 3D. One 3D Canvas, active selection domain, hierarchy,
+   inspector, contextual gizmo host.
+3. One geometry compiler. Plan and 3D derive from `compileLayoutGeometry()`.
+4. One camera graph/motion path: `camera-route.ts` + `camera-motion.ts`.
+5. Greenfield H1: New Project starts empty. No Chopin/legacy editor migration.
+6. Versioned full-project import/export. Import atomic; clears history/selection;
+   future migrations root at H1 format.
+7. `/museum` visitor and `/museum/editor` pre-H1 editor relic stay frozen. The
+   editor ships in production builds; no build-flag gating.
+8. Object placement = ghost → commit. Completed gesture = one history entry.
 
 ## Priority
 
 | Pri | Track |
 |-----|-------|
-| **P0** | Layout CAD + Chopin compile + project envelope — [`plans/2026-08-10-layout-cad-foundation.md`](./plans/2026-08-10-layout-cad-foundation.md) |
-| **P1** | Room relocate → dual-read → B5 production cutover; one layout SoT |
-| P2 | Graphics architecture foundation: shared geometry compiler → `PlanRenderModel` → procedural Three geometry — [`plans/2026-08-13-graphics-architecture-roadmap.md`](./plans/2026-08-13-graphics-architecture-roadmap.md) |
-| P3 | Performance baseline → measured caching/partial rebuilds/batching/culling; conditional spatial index |
-| P4 | GLB import + product-useful Plan/camera overlays + proven material effects |
-| P5 | Multi-story — after the single-floor gate |
+| Shipped | B5 serialized runtime cutover + G1–G4 graphics foundation |
+| **P0** | H1 unified Plan-to-3D project editor — [`plans/2026-08-14-graphics-h1-unified-3d-editing.md`](./plans/2026-08-14-graphics-h1-unified-3d-editing.md) |
+| P1 | H1 project-local GLB/package sub-slice + full round-trip |
+| P2 | Measured optimization from G3 budgets; cache/rebuild/batch/cull only when proven |
+| P3 | Material polish and product-useful effects |
+| P4 | Multi-story after single-floor New Project → export/import gate |
 
-### Graphics architecture gate
+## H1 product gate
 
-After B5, follow the canonical [graphics architecture roadmap](./plans/2026-08-13-graphics-architecture-roadmap.md): compile `LayoutDocument` once into backend-neutral geometry, project an explicit world-space `PlanRenderModel`, adapt compiled wall sections into procedural Three `BufferGeometry`. SVG + Three/Threlte remain the production renderers.
+H1 ships only when one new project completes:
 
-Camera paths, view cones, look targets, portal crossings, collision warnings, timing labels, selection/interaction layers = product-useful Plan projections. Source data stays in `project.scene` + existing camera route/motion system; they do not become layout fields.
+```text
+empty Plan → valid rooms → generated 3D → layout fine-tune
+→ asset placement → camera authoring/playback → export → fresh import
+```
 
-Benchmark 10/100/1,000-room fixtures and set budgets before optimization. Cache, rebuild less, stabilize render objects/materials, batch, cull, reduce detail, add spatial index only in response to measurements. WebGPU/WGSL stays a bounded Plan-backend experiment; Rust/WASM requires an isolated CPU bottleneck + boundary-inclusive proof. Neither belongs on the production critical path by default.
+Imported project must reproduce layout, scene, assets, and camera tour. No
+visitor promotion or Chopin migration required.
 
-### GLSL polish gate
+## Technology gates
 
-- Do not expand scene schema or polish temporary `rooms.ts` architecture during B3–B5.
-- After B5 runtime cutover, prototype GLSL effects in `/dev/materials` with runtime-only parameters.
-- Re-evaluate against imported GLBs after P2; promote only proven, performant effects into P3.
-- Prefer controlled presets (plaster aging, velvet sheen, exhibit reveal). Never persist arbitrary shader source in `MuseumProject` / `museum-scene.json`.
-- Material effects must preserve existing PBR lighting, shadows, fog, tone mapping. Global post-processing comes after material experiments + a visitor performance baseline.
+- SVG + Three/Threlte remain production renderers.
+- Optimize only against G3 measurements.
+- WebGPU/WGSL stays bounded experiment.
+- Rust/WASM needs isolated CPU bottleneck + boundary-inclusive proof.
+- Shader source never persists in project data.
 
 ## Non-goals
 
-Blender mesh editor · auto tour from floorplan · multi-tenant CMS · second path engine · investing in `rooms.ts` multi-opening as long-term SoT if cutover near.
+Blender mesh editor · auto tour from floor plan · multi-tenant CMS · second
+camera/motion system · legacy/Chopin editor migration · independent layout-only
+import · multi-story before H1 single-floor round-trip.

@@ -1,6 +1,7 @@
 import type { LayoutDocument, LayoutVec2 } from '$lib/layout/layout-types';
 import { compileLayoutGeometry } from '$lib/layout/layout-geometry';
 import { buildPlanRenderModel } from '$lib/layout/plan-render-model';
+import { buildRoomWallMesh } from '$lib/layout/wall-mesh-builder';
 import type { CompiledLayoutGeometry, CompiledQueryPoint } from '$lib/layout/layout-geometry-types';
 // Pure hit resolver (imports only $lib/layout/**; no Svelte/DOM/Three). Used here
 // so the Node tier measures the real locked-priority hit path rather than a stub.
@@ -68,6 +69,12 @@ export function measureNodeTier(
 	const modelTime = timeOp(() => buildPlanRenderModel(compiled), options);
 	samples.push(timeSample('plan-render-build', modelTime));
 
+	// 2b. Procedural wall-mesh build (the G4 `buildRoomWallMesh` path): one
+	// watertight indexed mesh per room. This is the deterministic topology cost
+	// that replaces the retired chord-box span derivation.
+	const wallBuild = timeOp(() => buildAllWallMeshes(compiled), options);
+	samples.push(timeSample('wall-mesh-build', wallBuild));
+
 	// 3–4. Hit test and snapping-query latency over deterministic world points.
 	const points = samplePlanPoints(compiled, options.hitPoints, probeSeed);
 	const hitTime = timeOp(
@@ -121,6 +128,20 @@ function perPoint(timing: { value: number; p50: number; p95: number }, count: nu
 
 function countRooms(document: LayoutDocument): number {
 	return document.floors.reduce((sum, floor) => sum + floor.rooms.length, 0);
+}
+
+/** Build every room's indexed wall mesh; returns the total index count (a deterministic work proxy). */
+function buildAllWallMeshes(compiled: CompiledLayoutGeometry): number {
+	let indexCount = 0;
+	for (const room of compiled.rooms) {
+		const result = buildRoomWallMesh(room);
+		if (!result.mesh) {
+			const details = result.issues.map((issue) => `${issue.code}: ${issue.message}`).join('; ');
+			throw new Error(`wall mesh build failed for room ${room.roomId}: ${details}`);
+		}
+		indexCount += result.mesh.indices.length;
+	}
+	return indexCount;
 }
 
 function tierSeed(tier: BenchTier): number {

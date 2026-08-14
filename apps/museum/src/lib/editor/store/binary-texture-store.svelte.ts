@@ -20,10 +20,8 @@
  *
  * **No file-system or network IO.** Pure in-memory.
  *
- * **Visitor isolation.** This module is reachable only through
- * `museum-editor-entry-plugin.ts`'s `serve` branch, which the visitor bundle
- * excludes via `MuseumEditorStub.svelte`. Task 11 verifies via grep over the
- * produced chunks.
+ * **Visitor isolation.** Reached only from the editor entry; the `/museum`
+ * visitor route does not import this module.
  */
 
 import { sha256Bytes } from '$lib/editor/helpers/package-sha';
@@ -158,9 +156,8 @@ class BinaryTextureStoreImpl {
 }
 
 /**
- * Module-level singleton. The visitor bundle never imports this file:
- * `museum-editor-entry-plugin.ts`'s `serve` branch is the only entry, and
- * `MuseumEditorStub.svelte` excludes it from `/museum` chunks.
+ * Module-level singleton. The `/museum` visitor route never imports this file;
+ * only the editor entry reaches it.
  */
 export const BinaryTextureStore = new BinaryTextureStoreImpl();
 

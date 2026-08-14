@@ -154,10 +154,10 @@
 			</MuseumScene>
 			<LayoutPreviewScene
 				model={layoutPreview.model}
+				geometry={layoutPreview.geometry}
+				wallMeshesByRoom={layoutPreview.wallMeshesByRoom}
 				interaction={layoutInteraction}
 				showCeilings={layoutPreview.showCeilings}
-				selectedSegmentId={layoutInteraction.selection.kind === 'wall' || layoutInteraction.selection.kind === 'opening' || layoutInteraction.selection.kind === 'interiorAnchor' ? layoutInteraction.selection.segmentId : null}
-				selectedOpeningId={layoutInteraction.selection.kind === 'opening' ? layoutInteraction.selection.openingId : null}
 			/>
 			<EditorGrid visible={store.gridVisible && !store.isVisitorCameraPreview} />
 		</Canvas>

@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "bench:record": "vite-node --config vitest.config.ts src/lib/bench/record-baseline.cli.ts --full"
   },
   "dependencies": {
     "@portfolio/scroll-travel": "*",

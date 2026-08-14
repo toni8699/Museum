@@ -1,14 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { buildScaleFixture, SCALE_FIXTURE_SEEDS } from '../layout/__fixtures__/layout-scale-fixtures';
 import { compileLayoutGeometry } from '$lib/layout/layout-geometry';
-import { buildPlanRenderModel } from '$lib/layout/plan-render-model';
-import { makeNodeProvenance } from '$lib/bench/plan-bench';
-import {
-	analyticalThreeCounts,
-	countSvgElements,
-	measureBrowserTier,
-	renderPlanModelToSvg
-} from '$lib/bench/browser-bench';
+import { buildPlanRenderModel } from '$lib/layout/plan-render-model';	import { makeNodeProvenance } from '$lib/bench/plan-bench';
+	import { chopinProject } from '$lib/content/chopin-project';
+	import {
+		chopinWallMeshRenderPolicyFactory,
+		countSvgElements,
+		estimateWallMeshTopology,
+		measureBrowserTier,
+		renderPlanModelToSvg,
+		visitorWallMeshPolicy
+	} from '$lib/bench/browser-bench';
 
 describe('browser-bench (deterministic tier)', () => {
 	it('renders the Plan model to an SVG string with one element per primitive', () => {
@@ -24,15 +26,39 @@ describe('browser-bench (deterministic tier)', () => {
 		expect(countSvgElements(svg)).toBe(primitives);
 	});
 
-	it('computes analytical chord-box counts from compiled solid spans', () => {
+	it('estimates indexed wall-mesh topology from real built meshes', () => {
 		const fixture = buildScaleFixture(SCALE_FIXTURE_SEEDS.small);
 		const compiled = compileLayoutGeometry(fixture).geometry;
-		const counts = analyticalThreeCounts(compiled);
+		const counts = estimateWallMeshTopology(compiled, visitorWallMeshPolicy(compiled));
 
-		expect(counts.objectCount).toBeGreaterThan(0);
+		// One mesh per room (visitor policy collapses to one surface class), so
+		// object count = room count, one draw call per room, and triangles are
+		// the real indexed count (not 12 per chord box).
+		expect(counts.objectCount).toBe(compiled.rooms.length);
 		expect(counts.materialCount).toBeGreaterThan(0);
 		expect(counts.drawCalls).toBe(counts.objectCount);
-		expect(counts.triangles).toBe(counts.objectCount * 12);
+		expect(counts.triangles).toBeGreaterThan(0);
+	});
+
+	it('matches the live visitor scene for Chopin: 6 rooms, not 7', () => {
+		const compiled = compileLayoutGeometry(chopinProject.layout).geometry;
+		// Production policy: real presentation tints + bespoke-shell exclusion.
+		const policy = chopinWallMeshRenderPolicyFactory()(compiled);
+		const counts = estimateWallMeshTopology(compiled, policy);
+		// 7 layout rooms minus the bespoke music-chamber shell the scene
+		// excludes before building — the production layout shell renders 6.
+		expect(counts.objectCount).toBe(6);
+		expect(counts.drawCalls).toBe(6);
+		// All six visitor rooms carry distinct presentation tints.
+		expect(counts.materialCount).toBe(6);
+		expect(counts.triangles).toBeGreaterThan(0);
+	});
+
+	it('keeps the default visitor policy at the full room count for non-Chopin fixtures', () => {
+		const fixture = buildScaleFixture(SCALE_FIXTURE_SEEDS.small);
+		const compiled = compileLayoutGeometry(fixture).geometry;
+		const counts = estimateWallMeshTopology(compiled, visitorWallMeshPolicy(compiled));
+		expect(counts.objectCount).toBe(compiled.rooms.length);
 	});
 
 	it('produces a complete, deterministic browser-tier report', () => {

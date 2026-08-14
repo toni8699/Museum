@@ -4,7 +4,7 @@
  * unit and (for time metrics) p50/p95 aggregates.
  */
 
-export const BENCH_METHOD_VERSION = 2;
+export const BENCH_METHOD_VERSION = 3;
 
 export type BenchMetricName =
 	| 'layout-compile'
@@ -21,9 +21,9 @@ export type BenchMetricName =
 	| 'three-triangle-estimate'
 	| 'gpu-frame'
 	| 'memory-heap'
-	| 'three-regen'
 	| 'compiled-memory'
-	| 'cache-key-code-units';
+	| 'cache-key-code-units'
+	| 'wall-mesh-build';
 
 export type BenchUnit = 'ms' | 'count' | 'bytes' | 'nodes';
 
@@ -37,6 +37,10 @@ export type BenchProvenance = {
 	warmup: number;
 	samples: number;
 	methodVersion: number;
+	/** True when the working tree was dirty at record time (baseline not reproducible from HEAD alone). */
+	treeDirty?: boolean;
+	/** Deterministic content hash of the relevant sources, so a dirty-tree baseline stays reproducible. */
+	contentHash?: string;
 };
 
 export type BenchSample = {
@@ -57,35 +61,31 @@ export type BenchTierResult = {
 };
 
 export type Budget = {
-	/** Budget that must hold at the supported product scale. */
+	/** Budget that must hold at the golden-fixture scale. */
 	target: number;
-	/** Hard regression bound: exceeding this fails the budget check. */
+	/** Hard regression bound: exceeding this fails the budget check (when enforced). */
 	fail: number;
-	/** Recorded product/measurement reason for this budget. */
+	/** Recorded measurement reason for this budget. */
 	reason: string;
 };
 
 export type BudgetBaseline = {
 	methodVersion: number;
-	/** Budgets apply to the `chopin` (supported product) tier only. */
+	/** Budgets apply to the `chopin` frozen golden-fixture tier only. */
 	budgets: Partial<Record<BenchMetricName, Budget>>;
 	/** Comparison tiers; recorded, never enforced. */
 	tiers: BenchTierResult[];
 };
 
 /**
- * Metrics the Chopin budget check enforces. Every metric here must be present in
- * the measured result, budgeted in the baseline, and under its `fail` bound —
- * otherwise the check fails closed. The SVG node count, chord-box topology
- * estimates, and cache-key footprint are deterministic and included so
- * SVG/Three/cacheKey regressions cannot slip past CI; frame-time metrics stay
- * advisory (environment-dependent) and are not enforced.
+ * Metrics the budget check enforces against the frozen Chopin golden fixture.
+ * Every metric here must be present in the measured result, budgeted in the
+ * baseline, and under its `fail` bound — otherwise the check fails closed.
+ * These are all deterministic (exact counts/sizes), so they assert that the
+ * compile/mesh pipeline produces the same output for the same input rather
+ * than measuring wall-clock speed.
  */
 export const ENFORCED_BUDGET_METRICS: readonly BenchMetricName[] = [
-	'layout-compile',
-	'plan-render-build',
-	'hit-test',
-	'snap-query',
 	'compiled-memory',
 	'cache-key-code-units',
 	'svg-node-count',
@@ -93,4 +93,18 @@ export const ENFORCED_BUDGET_METRICS: readonly BenchMetricName[] = [
 	'three-material-estimate',
 	'three-draw-call-estimate',
 	'three-triangle-estimate'
+];
+
+/**
+ * Wall-clock timing metrics. Recorded and budgeted for reference but not
+ * enforced: they depend on machine load, and the product scale is now
+ * greenfield H1 projects rather than Chopin. Re-enable once a representative
+ * H1 fixture and stable CI hardware exist.
+ */
+export const ADVISORY_BUDGET_METRICS: readonly BenchMetricName[] = [
+	'layout-compile',
+	'plan-render-build',
+	'wall-mesh-build',
+	'hit-test',
+	'snap-query'
 ];

@@ -7,12 +7,14 @@
 		store,
 		layoutPreview,
 		confirmSceneReplacement,
-		confirmLayoutReplacement
+		confirmLayoutReplacement,
+		relic = false
 	}: {
 		store: MuseumEditorStore;
 		layoutPreview: import('./layout/layout-preview-state.svelte').LayoutPreviewState;
 		confirmSceneReplacement: () => boolean;
 		confirmLayoutReplacement: () => boolean;
+		relic?: boolean;
 	} = $props();
 
 	const workspace = $derived(store.currentWorkspace);
@@ -56,14 +58,16 @@
 			disabled={!canSwitchWorkspace}
 			onclick={() => switchWorkspace('camera')}
 		>Camera</button>
-		<button
-			type="button"
-			role="tab"
-			aria-selected={workspace === 'layout'}
-			class:active={workspace === 'layout'}
-			disabled={!canSwitchWorkspace}
-			onclick={() => switchWorkspace('layout')}
-		>Layout</button>
+		{#if !relic}
+			<button
+				type="button"
+				role="tab"
+				aria-selected={workspace === 'layout'}
+				class:active={workspace === 'layout'}
+				disabled={!canSwitchWorkspace}
+				onclick={() => switchWorkspace('layout')}
+			>Layout</button>
+		{/if}
 	</div>
 	<div class="actions">
 		<span class:dirty class="document-state">{dirty ? 'Unsaved' : 'Saved'}</span>

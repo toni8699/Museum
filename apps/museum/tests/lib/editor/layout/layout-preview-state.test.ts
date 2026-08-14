@@ -43,6 +43,17 @@ describe('layout preview state', () => {
 		expect(state.bounds).not.toBeNull();
 	});
 
+	it('prebuilds a procedural wall mesh per compiled room', () => {
+		const state = createLayoutPreviewState();
+		expect(state.wallMeshesByRoom).toBeInstanceOf(Map);
+		expect(state.wallMeshesByRoom.size).toBe(state.geometry.rooms.length);
+		for (const room of state.geometry.rooms) {
+			const mesh = state.wallMeshesByRoom.get(room.roomId);
+			expect(mesh).toBeDefined();
+			expect(mesh!.indices.length).toBeGreaterThan(0);
+		}
+	});
+
 	it('resets to empty while preserving the canonical scene document', () => {
 		const state = createLayoutPreviewState();
 		const sceneJson = serializeSceneDocument(state.project.scene);

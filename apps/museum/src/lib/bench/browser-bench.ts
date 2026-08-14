@@ -6,6 +6,8 @@ import {
 	type PlanRenderPrimitive
 } from '$lib/layout/plan-render-model';
 import type { CompiledLayoutGeometry, LayoutBounds2 } from '$lib/layout/layout-geometry-types';
+import { buildRoomWallMesh, type WallMeshSectionRef, type WallMeshSurfaceKey } from '$lib/layout/wall-mesh-builder';
+import { chopinRoomPresentation } from '$lib/content/chopin-room-presentation';
 import { timeOp } from './bench-harness';
 import type { BenchProvenance, BenchSample, BenchTier, BenchTierResult } from './bench-types';
 
@@ -13,6 +15,13 @@ export type BrowserTierOptions = {
 	pixelsPerMeter?: number;
 	warmup?: number;
 	samples?: number;
+	/**
+	 * Render-policy factory for the wall-mesh topology estimates. Defaults to
+	 * `visitorWallMeshPolicy`; the recorder passes the production Chopin policy
+	 * (real presentation tints + bespoke-room exclusion) so the estimates match
+	 * the live `LayoutMuseumShell` scene instead of a synthetic per-room tint.
+	 */
+	policyFactory?: WallMeshRenderPolicyFactory;
 };
 
 /**
@@ -78,29 +87,107 @@ export function countSvgElements(svg: string): number {
 	return matches?.length ?? 0;
 }
 
-export type AnalyticalThreeCounts = {
+/**
+ * The render policy under which topology counts are meaningful: the surface
+ * classifier drives the builder's material groups (draw calls), and the
+ * per-room presentation drives material identity (materials are shared per
+ * distinct tint). `excludedRoomIds` (bespoke shells) are omitted from the
+ * counts, matching the live `LayoutMuseumShell` which skips them before
+ * building. Counts derive from the same generated meshes the adapters render,
+ * never from a "one box per span" assumption.
+ */
+export type WallMeshRenderPolicy = {
+	classifySurface: (ref: WallMeshSectionRef) => WallMeshSurfaceKey;
+	presentation: Readonly<Record<string, { tint: string }>>;
+	excludedRoomIds?: readonly string[];
+};
+
+export type WallMeshRenderPolicyFactory = (compiled: CompiledLayoutGeometry) => WallMeshRenderPolicy;
+
+export type WallMeshTopology = {
 	objectCount: number;
 	materialCount: number;
 	drawCalls: number;
 	triangles: number;
 };
 
-/** Chord-box resource estimate from compiled solid spans (one box per span). */
-export function analyticalThreeCounts(compiled: CompiledLayoutGeometry): AnalyticalThreeCounts {
-	let spanCount = 0;
-	const wallGroups = new Set<string>();
-	for (const room of compiled.rooms) {
-		for (const wall of room.walls) {
-			if (wall.solidSpans.length > 0) wallGroups.add(`${room.roomId}\u0000${wall.segmentId}`);
-			spanCount += wall.solidSpans.length;
-		}
+/**
+ * Default visitor-style policy factory: one surface class per room, materials
+ * shared per room tint, no room exclusions. The recorder and `/dev/perf`
+ * override this for the Chopin tier with `chopinWallMeshRenderPolicyFactory`
+ * (production presentation + bespoke exclusion) so the estimates match the
+ * shipped `LayoutMuseumShell` scene.
+ */
+export function visitorWallMeshPolicy(compiled: CompiledLayoutGeometry): WallMeshRenderPolicy {
+	const presentation: Record<string, { tint: string }> = {};
+	for (const room of compiled.rooms) presentation[room.roomId] = { tint: deterministicRoomTint(room.roomId) };
+	return { classifySurface: () => 'wall', presentation };
+}
+
+/** Deterministic valid CSS hex for a room id — stable across runs and never a `THREE.Color` "Unknown color" warning. */
+function deterministicRoomTint(roomId: string): string {
+	let hash = 0x811c9dc5;
+	for (let i = 0; i < roomId.length; i += 1) {
+		hash ^= roomId.charCodeAt(i);
+		hash = Math.imul(hash, 0x01000193);
 	}
-	return {
-		objectCount: spanCount,
-		materialCount: wallGroups.size,
-		drawCalls: spanCount,
-		triangles: spanCount * 12
-	};
+	const r = hash & 0xff;
+	const g = (hash >>> 8) & 0xff;
+	const b = (hash >>> 16) & 0xff;
+	const hex = (value: number) => value.toString(16).padStart(2, '0');
+	return `#${hex(r)}${hex(g)}${hex(b)}`;
+}
+
+/**
+ * Production Chopin render-policy factory: real per-room presentation tints
+ * plus the bespoke-room exclusion, so the topology estimates match the live
+ * `LayoutMuseumShell` scene (6 rooms) instead of the synthetic per-room tint +
+ * all-7-rooms visitor default. Lives here (not in the recorder) because
+ * `record-baseline.ts` imports Node builtins and cannot be bundled into the
+ * browser `MeasureBrowserTier`/`/dev/perf` path. Built once per measurement
+ * from the production presentation constants, never from a second compiled
+ * instance.
+ */
+export function chopinWallMeshRenderPolicyFactory(): WallMeshRenderPolicyFactory {
+	const presentation: Record<string, { tint: string }> = {};
+	const excludedRoomIds: string[] = [];
+	for (const [roomId, room] of Object.entries(chopinRoomPresentation)) {
+		presentation[roomId] = { tint: room.color };
+		if (room.shell === 'bespoke') excludedRoomIds.push(roomId);
+	}
+	return () => ({ classifySurface: () => 'wall', presentation, excludedRoomIds });
+}
+
+/**
+ * Indexed wall-mesh topology estimate: builds every room's `IndexedWallMesh`
+ * under the given policy and counts meshes, distinct materials, draw-call
+ * groups, and triangles from the real output (the G4 replacement for the old
+ * one-box-per-span `analyticalThreeCounts`).
+ */
+export function estimateWallMeshTopology(
+	compiled: CompiledLayoutGeometry,
+	policy: WallMeshRenderPolicy
+): WallMeshTopology {
+	let objectCount = 0;
+	let drawCalls = 0;
+	let triangles = 0;
+	const tints = new Set<string>();
+	const excluded = policy.excludedRoomIds ?? [];
+	for (const room of compiled.rooms) {
+		// Bespoke-shell rooms are omitted here exactly as LayoutMuseumShell
+		// omits them before building, so the estimates match the live scene.
+		if (excluded.includes(room.roomId)) continue;
+		const result = buildRoomWallMesh(room, { classifySurface: policy.classifySurface });
+		if (!result.mesh) {
+			const details = result.issues.map((issue) => `${issue.code}: ${issue.message}`).join('; ');
+			throw new Error(`wall mesh build failed for room ${room.roomId}: ${details}`);
+		}
+		objectCount += 1;
+		drawCalls += result.mesh.materialGroups.length;
+		triangles += result.mesh.indices.length / 3;
+		tints.add(policy.presentation[room.roomId]?.tint ?? room.roomId);
+	}
+	return { objectCount, materialCount: tints.size, drawCalls, triangles };
 }
 
 export function measureBrowserTier(
@@ -140,12 +227,8 @@ export function measureBrowserTier(
 	const edit = timeOp(() => renderPlanModelToSvg(buildPlanRenderModel(compiled), ppm), { warmup, samples });
 	result.push(msSample('plan-render-work-edit', edit));
 
-	// Three regeneration proxy: the solid-span derivation pass the chord-box
-	// adapter runs per rebuild (G4 target), without instantiating Three objects.
-	const regen = timeOp(() => deriveSpanPass(compiled), { warmup, samples });
-	result.push(msSample('three-regen', regen));
-
-	const counts = analyticalThreeCounts(compiled);
+	const policyFactory = options.policyFactory ?? visitorWallMeshPolicy;
+	const counts = estimateWallMeshTopology(compiled, policyFactory(compiled));
 	result.push({ metric: 'three-object-estimate', unit: 'count', value: counts.objectCount });
 	result.push({ metric: 'three-material-estimate', unit: 'count', value: counts.materialCount });
 	result.push({ metric: 'three-draw-call-estimate', unit: 'count', value: counts.drawCalls });
@@ -162,21 +245,6 @@ export function measureBrowserTier(
 		provenance: effectiveProvenance,
 		samples: result
 	};
-}
-
-/** Derive chord-box parameters for every solid span (no Three allocation). */
-function deriveSpanPass(compiled: CompiledLayoutGeometry): number {
-	let count = 0;
-	for (const room of compiled.rooms) {
-		for (const wall of room.walls) {
-			for (const span of wall.solidSpans) {
-				const length = Math.hypot(span.end[0] - span.start[0], span.end[1] - span.start[1]);
-				const height = Math.max(0.001, span.topY - span.bottomY);
-				count += length + height;
-			}
-		}
-	}
-	return count;
 }
 
 function msSample(metric: BenchSample['metric'], timing: { value: number; p50: number; p95: number }): BenchSample {

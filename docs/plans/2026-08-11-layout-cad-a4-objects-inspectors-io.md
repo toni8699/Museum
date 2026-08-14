@@ -529,7 +529,7 @@ Do not create a second scene placement or persistence system.
 
 ## Manual verification
 
-1. Open `/dev/museum-editor` and choose Layout.
+1. Open `/editor` and choose Layout.
 2. Verify Project menu is available and shows Layout JSON controls plus unchanged Scene JSON controls.
 3. Verify initial Chopin status is imported.
 4. Reset empty; confirm status blank and no rooms/objects.

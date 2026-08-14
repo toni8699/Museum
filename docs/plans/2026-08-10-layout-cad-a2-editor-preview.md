@@ -7,7 +7,7 @@
 
 ## Goal
 
-Put the first generated layout preview inside `/dev/museum-editor`.
+Put the first generated layout preview inside `/editor`.
 
 ```text
 MuseumProject fixture
@@ -251,7 +251,7 @@ Pure/controller tests:
 
 Component/manual verification:
 
-1. Open `/dev/museum-editor`.
+1. Open `/editor`.
 2. Select `Layout`.
 3. See all seven compiled Chopin rooms in one 3D preview.
 4. Verify floors, walls, ceilings, rectangular door/window gaps, and corridor cutouts.

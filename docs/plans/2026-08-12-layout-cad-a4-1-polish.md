@@ -268,7 +268,7 @@ Extract a small Layout right-sidebar component only if it materially reduces `Ed
 
 ## Manual verification
 
-1. Open `/dev/museum-editor` → Layout and verify the locked top-bar order in Plan and 3D.
+1. Open `/editor` → Layout and verify the locked top-bar order in Plan and 3D.
 2. Verify the right sidebar has Place, Objects, and Selection accordions in order.
 3. In Plan, place a Door and Window from Place and confirm existing opening behavior.
 4. Drag-place Box, Cylinder, and Sphere; verify distinct footprint ghosts, `1.0 m` height, selection, and list rows.

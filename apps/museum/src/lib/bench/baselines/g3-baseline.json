@@ -1,0 +1,120 @@
+{
+  "methodVersion": 1,
+  "budgets": {
+    "layout-compile": {
+      "target": 30,
+      "fail": 60,
+      "reason": "Measured 2026-08-13 p50 14.13 ms on the Chopin layout (node tier); target = 2x headroom, fail = 4x regression bound."
+    },
+    "plan-render-build": {
+      "target": 1,
+      "fail": 5,
+      "reason": "Measured 2026-08-13 p50 0.21 ms on the Chopin layout (node tier); target = 2x headroom, fail = 4x regression bound."
+    },
+    "hit-test": {
+      "target": 0.5,
+      "fail": 2,
+      "reason": "Measured 2026-08-13 p50 0.12 ms per point on the Chopin layout; fail allows ~16x before tripping so only a real O(n) regression fails."
+    },
+    "snap-query": {
+      "target": 0.01,
+      "fail": 0.05,
+      "reason": "Measured 2026-08-13 p50 0.0006 ms per point on the Chopin layout; near-noise floor with generous headroom."
+    },
+    "compiled-memory": {
+      "target": 4000000,
+      "fail": 8000000,
+      "reason": "Measured 2026-08-13 2,201,474 bytes serialized compiled geometry for Chopin; target/fail bound a 2x/4x footprint regression."
+    },
+    "cache-key-cost": {
+      "target": 20,
+      "fail": 60,
+      "reason": "Measured 2026-08-13 p50 8.09 ms JSON.stringify proxy on Chopin compiled geometry; signals backlog #10 only, not a correctness bound."
+    }
+  },
+  "tiers": [
+    {
+      "tier": "chopin",
+      "roomCount": 7,
+      "provenance": {
+        "commitSha": "local",
+        "date": "2026-08-13T20:01:00.000Z",
+        "deviceProfile": "node",
+        "warmup": 2,
+        "samples": 5,
+        "methodVersion": 1
+      },
+      "samples": [
+        { "metric": "layout-compile", "unit": "ms", "value": 14.13, "p50": 14.13, "p95": 17.33 },
+        { "metric": "plan-render-build", "unit": "ms", "value": 0.211, "p50": 0.211, "p95": 0.852 },
+        { "metric": "hit-test", "unit": "ms", "value": 0.12, "p50": 0.12, "p95": 0.123 },
+        { "metric": "snap-query", "unit": "ms", "value": 0.000609, "p50": 0.000609, "p95": 0.000653 },
+        { "metric": "compiled-memory", "unit": "bytes", "value": 2201474 },
+        { "metric": "cache-key-cost", "unit": "ms", "value": 8.09, "p50": 8.09, "p95": 8.35 }
+      ]
+    },
+    {
+      "tier": "small",
+      "seed": 101,
+      "roomCount": 10,
+      "provenance": {
+        "commitSha": "local",
+        "date": "2026-08-13T20:01:00.000Z",
+        "deviceProfile": "node",
+        "warmup": 2,
+        "samples": 5,
+        "methodVersion": 1
+      },
+      "samples": [
+        { "metric": "layout-compile", "unit": "ms", "value": 27.77, "p50": 27.77, "p95": 40.89 },
+        { "metric": "plan-render-build", "unit": "ms", "value": 0.141, "p50": 0.141, "p95": 0.278 },
+        { "metric": "hit-test", "unit": "ms", "value": 0.187, "p50": 0.187, "p95": 0.225 },
+        { "metric": "snap-query", "unit": "ms", "value": 0.000582, "p50": 0.000582, "p95": 0.000719 },
+        { "metric": "compiled-memory", "unit": "bytes", "value": 2903689 },
+        { "metric": "cache-key-cost", "unit": "ms", "value": 7.96, "p50": 7.96, "p95": 9.62 }
+      ]
+    },
+    {
+      "tier": "medium",
+      "seed": 202,
+      "roomCount": 100,
+      "provenance": {
+        "commitSha": "local",
+        "date": "2026-08-13T20:01:00.000Z",
+        "deviceProfile": "node",
+        "warmup": 2,
+        "samples": 5,
+        "methodVersion": 1
+      },
+      "samples": [
+        { "metric": "layout-compile", "unit": "ms", "value": 244.7, "p50": 244.7, "p95": 570.9 },
+        { "metric": "plan-render-build", "unit": "ms", "value": 1.84, "p50": 1.84, "p95": 2.16 },
+        { "metric": "hit-test", "unit": "ms", "value": 2.3, "p50": 2.3, "p95": 2.58 },
+        { "metric": "snap-query", "unit": "ms", "value": 0.00581, "p50": 0.00581, "p95": 0.00662 },
+        { "metric": "compiled-memory", "unit": "bytes", "value": 29464213 },
+        { "metric": "cache-key-cost", "unit": "ms", "value": 109.9, "p50": 109.9, "p95": 132.2 }
+      ]
+    },
+    {
+      "tier": "large",
+      "seed": 303,
+      "roomCount": 1000,
+      "provenance": {
+        "commitSha": "local",
+        "date": "2026-08-13T20:01:00.000Z",
+        "deviceProfile": "node",
+        "warmup": 1,
+        "samples": 3,
+        "methodVersion": 1
+      },
+      "samples": [
+        { "metric": "layout-compile", "unit": "ms", "value": 3077, "p50": 3077, "p95": 3202.2 },
+        { "metric": "plan-render-build", "unit": "ms", "value": 37.3, "p50": 37.3, "p95": 47.54 },
+        { "metric": "hit-test", "unit": "ms", "value": 62.03, "p50": 62.03, "p95": 80.36 },
+        { "metric": "snap-query", "unit": "ms", "value": 0.0748, "p50": 0.0748, "p95": 0.101 },
+        { "metric": "compiled-memory", "unit": "bytes", "value": 301050350 },
+        { "metric": "cache-key-cost", "unit": "ms", "value": 1334.2, "p50": 1334.2, "p95": 1364.9 }
+      ]
+    }
+  ]
+}

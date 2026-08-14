@@ -1,7 +1,7 @@
 # G3 — Graphics Performance Harness
 
 **Date:** 2026-08-13
-**Status:** Proposed
+**Status:** Implemented
 **Parent:** [`2026-08-13-graphics-architecture-roadmap.md`](./2026-08-13-graphics-architecture-roadmap.md)
 **Prerequisite:** [`2026-08-13-graphics-g2-plan-render-model.md`](./2026-08-13-graphics-g2-plan-render-model.md)
 **Handoff:** [`../hand-off/CURRENT.md`](../hand-off/CURRENT.md)
@@ -362,3 +362,43 @@ G3 is complete only when:
 - a claim that 1,000 rooms must be interactive; the tiers are comparison data;
 - serializing any measurement into `MuseumProject`; and
 - shipping any harness or `/dev/perf` route to production visitors.
+
+## Shipped (2026-08-13)
+
+All eight steps landed. `layout-scale-fixtures.ts` generates deterministic,
+codec-valid, zero-blocking layouts at 10/100/1,000 rooms (fixed mix: 30%
+auto-bezier, 2 openings/room, 3 objects/room). The harness splits into a pure
+Node tier (`plan-bench.ts`, `bench-harness.ts`) and a deterministic,
+DOM-free browser tier (`browser-bench.ts`, plus `three-stats.ts` for live
+WebGL counters); `/dev/perf` is dev-only and 404-gated in production.
+
+Checked-in baseline (`src/lib/bench/baselines/g3-baseline.json`) sets
+fail-closed budgets for the Chopin product scale and records 10/100/1,000-room
+comparison tiers. The Chopin budget check runs on every CI pass; the full
+4-tier measurement is opt-in (`BENCH_FULL=1`).
+
+Baseline numbers (node tier, dev workstation 2026-08-13):
+
+| Metric | Chopin (7) | 10 | 100 | 1,000 |
+|--------|-----------:|--:|---:|-----:|
+| `layout-compile` | 14 ms | 28 ms | 245 ms | 3,077 ms |
+| `plan-render-build` | 0.21 ms | 0.14 ms | 1.8 ms | 37 ms |
+| `hit-test` (per point) | 0.12 ms | 0.19 ms | 2.3 ms | 62 ms |
+| `snap-query` (per point) | 0.0006 ms | 0.0006 ms | 0.006 ms | 0.075 ms |
+| `compiled-memory` | 2.2 MB | 2.9 MB | 29 MB | 301 MB |
+| `cache-key-cost` | 8 ms | 8 ms | 110 ms | 1,334 ms |
+
+Backlog → metric mapping (step 7), now backed by the baseline:
+
+- **#1 incremental per-room recompile / #2 merge validate+compile / #3 drop
+  `cloneJson`** → `layout-compile` and `plan-edit-frame`; compile is 3.1 s at
+  1,000 rooms, so whole-document work per edit is the evidence.
+- **#4 spatial index for self-intersection + picking** → `hit-test`; per-point
+  hit cost grows super-linearly (0.12 ms → 62 ms for a 143× room increase)
+  because `resolvePlanHit` rebuilds per-room/per-segment maps per call.
+- **#10 lazy/cheaper `cacheKey`** → `cache-key-cost`; `JSON.stringify`-based
+  cache keys cost 1.3 s and 301 MB serialized at 1,000 rooms.
+
+Verification at close: full museum suite **107 files / 1251 tests** (1250
+passed, 1 opt-in skipped), `svelte-check` 0 errors/warnings, production build
+clean, and the dev perf route is absent from production server output.

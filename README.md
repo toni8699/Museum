@@ -36,7 +36,7 @@ Editor now has two authoring artifacts:
 
 To update the live museum:
 
-1. In `/dev/museum-editor`, use **Copy JSON** or **Download JSON** for the scene document.
+1. In `/editor`, use **Copy JSON** or **Download JSON** for the scene document.
 2. Replace [`apps/museum/src/lib/content/museum-scene.json`](./apps/museum/src/lib/content/museum-scene.json) with that scene export.
 3. Restart or refresh the dev server if needed, then open `/museum`.
 
@@ -50,6 +50,16 @@ npm run check   # Run Svelte and TypeScript checks
 npm test        # Run the test suite
 ```
 
+### Demo the editor on a deployed site
+
+Production builds normally exclude the museum editor (its `/editor` route returns 404 and the editor code is not bundled). To ship a build that includes the editor as a tool — e.g. a Vercel demo deploy — set the build-time flag:
+
+```bash
+VITE_MUSEUM_EDITOR=1 npm run build   # or set VITE_MUSEUM_EDITOR=1 as a Vercel env var and redeploy
+```
+
+With the flag, `/editor` is live in production; without it, the route 404s and the editor stays out of the bundle. The `/dev/*` routes remain development-only. The editor is client-side only (no server writes); everything lives in the browser and exports via JSON.
+
 ## Controls
 
 - **Next / Back:** HUD buttons, arrow keys, `Space`, and `Backspace`
@@ -62,7 +72,7 @@ npm test        # Run the test suite
 
 Built with SvelteKit, Svelte 5, Threlte, Three.js, and TypeScript.
 
-The main application lives in [`apps/museum`](./apps/museum). Additional development views are available at `/dev/materials`, `/dev/assets`, and `/dev/museum-editor`. The museum editor is excluded from production; its route returns 404 in production builds.
+The main application lives in [`apps/museum`](./apps/museum). Additional development views are available at `/dev/materials` and `/dev/assets`. The museum editor lives at `/editor`; it is excluded from production builds unless `VITE_MUSEUM_EDITOR=1` is set, in which case its route returns 404 otherwise.
 
 ## Status
 

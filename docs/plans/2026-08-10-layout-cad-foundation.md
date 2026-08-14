@@ -26,7 +26,7 @@ Foundation for a **layout-first, serializable museum complex**:
 
 ## 2. Current boundary
 
-Already have: `/dev/museum-editor`, placement/gizmos/ghost/history, package I/O, `rooms.ts` shell, scene v6, shared camera pipeline.
+Already have: `/editor`, placement/gizmos/ghost/history, package I/O, `rooms.ts` shell, scene v6, shared camera pipeline.
 
 This phase = **editor-only layout mode**. Does not replace `rooms.ts`, change `/museum` shell, or alter v6 visitor scene until B4/B5.
 

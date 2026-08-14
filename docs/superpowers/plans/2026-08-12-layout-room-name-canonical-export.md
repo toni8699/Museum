@@ -217,7 +217,7 @@ Expected: Vite serves the museum app without a build error.
 
 - [ ] **Step 2: Reproduce the exact acceptance path**
 
-In `/dev/museum-editor`:
+In `/editor`:
 
 1. Open Layout workspace.
 2. Draft and select a room named `Draft Room 1`.

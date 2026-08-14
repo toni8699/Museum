@@ -305,7 +305,7 @@ Selection is layout-local and may survive a valid field edit. Deletion clears th
 
 ## Manual verification
 
-1. Open `/dev/museum-editor`.
+1. Open `/editor`.
 2. Select **Layout → Plan**.
 3. Choose **Door**, click any wall center (no prior wall select); verify selected opening and visible gap.
 4. Edit width, height, and offset; verify Plan marker and 3D wall/lintel update.

@@ -22,10 +22,15 @@ export function museumEditorEntryPlugin(): Plugin {
 		load(id) {
 			if (id !== RESOLVED_VIRTUAL_ID) return;
 
-			const entry =
-				command === 'serve'
-					? path.join(editorRoot, 'MuseumEditorApp.svelte')
-					: path.join(editorRoot, 'MuseumEditorStub.svelte');
+			// Ship the real editor in production builds only when explicitly
+			// requested (VITE_MUSEUM_EDITOR=1) — e.g. a demo deploy. The default
+			// production build keeps the editor out of the bundle entirely.
+			const includeEditor =
+				command === 'serve' || process.env.VITE_MUSEUM_EDITOR === '1';
+
+			const entry = includeEditor
+				? path.join(editorRoot, 'MuseumEditorApp.svelte')
+				: path.join(editorRoot, 'MuseumEditorStub.svelte');
 
 			return `export { default } from ${JSON.stringify(entry)};`;
 		}

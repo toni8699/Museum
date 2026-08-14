@@ -27,7 +27,7 @@ docs/
 
 ```mermaid
 flowchart TB
-  Editor["/dev/museum-editor"] --> SceneDoc["SceneDocument v6"]
+  Editor["/editor"] --> SceneDoc["SceneDocument v6"]
   Editor --> LayoutDoc["LayoutDocument v3"]
   Project["chopin-project.json v1"] --> SceneDoc
   Project --> LayoutDoc

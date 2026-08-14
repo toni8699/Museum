@@ -372,7 +372,7 @@ Manual visitor QA:
 
 - All nine guided nodes, Back, free/direct navigation, reduced motion, and HUD
   room updates remain unchanged.
-- `/dev/museum-editor` remains a production 404 and browser errors stay clean.
+- `/editor` remains a production 404 in the default build and browser errors stay clean.
 
 ## Exit criteria
 

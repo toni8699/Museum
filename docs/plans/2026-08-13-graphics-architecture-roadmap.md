@@ -1,7 +1,7 @@
 # Graphics Architecture Roadmap
 
 **Date:** 2026-08-13
-**Status:** Active post-B5 roadmap; G1 + G2 implemented, G3 next
+**Status:** Active post-B5 roadmap; G1 + G2 + G3 implemented, G4 next
 **Prerequisite:** B5 runtime cutover
 **Architecture:** [`../architecture.md`](../architecture.md) · **Vision:** [`../north-star.md`](../north-star.md)
 
@@ -172,7 +172,7 @@ styling. Use stable semantic keys and world-space primitives; the SVG adapter
 owns SVG attributes and applies the view transform. SVG remains the production
 renderer until the performance gate proves it is the limiting layer.
 
-### G3 — Graphics performance harness (`KEEP`, next)
+### G3 — Graphics performance harness (`KEEP`, implemented)
 
 Focused implementation plan:
 [`2026-08-13-graphics-g3-performance-harness.md`](./2026-08-13-graphics-g3-performance-harness.md).
@@ -202,7 +202,7 @@ currently supported product scale; 10/100/1,000-room results are comparison tier
 not an unsupported claim that every tier must be interactive. A budget change
 requires a recorded product or measurement reason, not a quieter regression.
 
-### G4 — Procedural architectural meshes (`KEEP`)
+### G4 — Procedural architectural meshes (`KEEP`, next)
 
 Replace sampled wall-chord boxes progressively with meshes built from compiled
 wall sections:

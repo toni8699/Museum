@@ -174,7 +174,7 @@ Svelte components own pointer events, rendering, focus, and status messaging. No
 
 ## Manual verification
 
-1. Open `/dev/museum-editor` and select **Layout → Plan**.
+1. Open `/editor` and select **Layout → Plan**.
 2. Confirm meter grid, labels, scale indicator, and stable origin.
 3. Draw rectangle; verify live meter width/depth.
 4. Draw polygon; use Backspace and Escape during draft.

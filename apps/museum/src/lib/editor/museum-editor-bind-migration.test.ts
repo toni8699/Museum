@@ -1,7 +1,7 @@
 /**
  * Slice 5 bind-migration contract smoke (plan §5.4 / §5.5 unit stand-in).
  *
- * Full Vitest-browser + Playwright against `/dev/museum-editor` is not wired
+ * Full Vitest-browser + Playwright against `/editor` is not wired
  * in this package yet (`@vitest/browser` absent). This file proves the Phase B
  * write paths the migrated components call, and that session is the owner.
  */

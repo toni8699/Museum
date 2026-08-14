@@ -326,7 +326,7 @@ Exact file moves may differ, but visitor imports must terminate outside
 
 17. `/museum` import graph contains no `$lib/editor/**`, editor Svelte component,
     editor store, or editor-only CSS.
-18. Production build keeps `/dev/museum-editor` guarded by its existing 404 rule.
+18. Production build keeps `/editor` guarded by its existing 404 rule.
 19. Both architecture sources produce identical scene navigation graph, active
     node transitions, route samples, Paris activation, and HUD room identity.
 20. Default `/museum` source remains `rooms.ts` with no query or stored preference.

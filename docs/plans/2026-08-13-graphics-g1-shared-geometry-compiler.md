@@ -434,7 +434,7 @@ Manual visitor QA:
   presentation, ground plinth, and shadows render once and in the same locations.
 - Curved/profile parity fixtures render through the visitor adapter without
   editor imports.
-- `/dev/museum-editor` remains production 404 and browser errors stay clean.
+- `/editor` remains production 404 (without `VITE_MUSEUM_EDITOR=1`) and browser errors stay clean.
 
 ## Exit criteria
 

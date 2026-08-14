@@ -396,7 +396,7 @@ and the editor 404 boundary. Browser errors remained empty.
     handwritten legacy room geometry, or runtime rooms compiler.
 16. Production chunks contain the serialized project and layout runtime, not a
     second handwritten architecture definition.
-17. `/dev/museum-editor` keeps its production 404 guard.
+17. `/editor` keeps its production 404 guard.
 18. Full museum tests, `npm run check -w @portfolio/museum`, and museum production
     build pass.
 

@@ -1,7 +1,7 @@
 # G4 — Procedural Architectural Meshes
 
 **Date:** 2026-08-13
-**Status:** Proposed
+**Status:** Implemented
 **Parent:** [`2026-08-13-graphics-architecture-roadmap.md`](./2026-08-13-graphics-architecture-roadmap.md)
 **Prerequisite:** [`2026-08-13-graphics-g1-shared-geometry-compiler.md`](./2026-08-13-graphics-g1-shared-geometry-compiler.md) · [`2026-08-13-graphics-g3-performance-harness.md`](./2026-08-13-graphics-g3-performance-harness.md)
 **Handoff:** [`../hand-off/CURRENT.md`](../hand-off/CURRENT.md)
@@ -301,6 +301,7 @@ buildWallHighlightMesh(
 type WallMeshRenderPolicy = {
   classifySurface: (ref: WallMeshSectionRef) => WallMeshSurfaceKey;
   presentation: Readonly<Record<string, { tint: string }>>;   // per-room tint identity
+  excludedRoomIds?: readonly string[];                        // bespoke shells, skipped before build
 };
 
 estimateWallMeshTopology(
@@ -452,13 +453,13 @@ code commits unless requested.
 | Fixture / concern | Required assertion |
 |-------------------|--------------------|
 | L-shaped line room | Corner watertight: shared edge positions, zero crack/z-fight; **no cap face at the corner joint** |
-| 90° corner miter | Offset lines intersect cleanly at right angles; bevel fallback beyond the miter limit |
+| 90° corner miter | Offset lines intersect cleanly at right angles; past the miter limit a **profile-aware bevel bridge** (side/top/bottom caps + horizontal wedge faces, driven by the union of both endpoint vertical profiles, open where both are open) closes the wedge; `det ≈ 0 && dirA·dirB < 0` folds reject with `wall_corner_fold`, never a degenerate average |
 | Tight curve / narrow neck / close parallel walls | Offset-contour overlap (local folds and non-adjacent overlap) returns structured issues and no mesh (fail closed) |
 | Auto-Bezier curved room | Smooth normals across the curve; no chord faceting gap; UV `u` monotonic |
 | Door (rectangular) | Jamb faces + flat lintel underside; opening width/height match the compiled opening |
 | Window (rectangular / rounded / pointed) | Sill top flat; lintel underside follows `profile.topBoundary` at `profileBaseY` + floor; side reveals closed |
 | Profile union | side→sill and lintel→side junctions emit no interior faces; caps exist only at opening gaps and profile transitions |
-| Opening at segment endpoint | Profile-aware corner union: weld overlapping solid, partial reveal for the profile difference, no cap |
+| Opening at segment endpoint | Corner-aware reveal: miter corners share the apex; bevel corners resolve to the wall-own offset edge (a0/b0) and weld through the bevel bridge; no jamb at a beveled end plane or a both-open mitered joint; no cap |
 | Floor elevation + thickness | Mesh sits at `floorElevation`; thickness offset is `±thickness/2` along the normal |
 | UV continuity | `v` anchored to room floor, no reset at lintel/sill boundaries; raw metric UVs, tile repeat material-side |
 | Draw-call count | `materialGroups` = distinct surface classes, not sections; visitor wall = one draw call per room tint |

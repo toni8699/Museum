@@ -41,7 +41,7 @@ them individually instead of one opaque "the editor is slow."
 | Scale fixtures | Hand-authored G1/G2 parity fixtures (~8 layouts) and the 9-room Chopin project | One seeded generator emitting valid 10/100/1,000-room `LayoutDocument`s with a fixed mix |
 | Compile/model/hit timing | No timers; correctness tests only | Pure Node-tier metrics: `compileLayoutGeometry`, `buildPlanRenderModel`, `resolvePlanHit`, snapping-query, and cache-key allocation |
 | Frame-level timing | None | Deterministic browser-tier render-work proxies (initial render, pan/zoom, edit); a real rAF viewport driver is a follow-up |
-| Renderer resource counts | None | SVG node count; chord-box topology estimates; live `renderer.info` counts browser-only via `/dev/perf` |
+| Renderer resource counts | None | SVG node count; indexed wall-mesh topology estimates; live `renderer.info` counts browser-only via `/dev/perf` |
 | Budgets | The roadmap names target/fail budgets as a requirement but none exist | Checked-in `target`/`fail` budgets for Chopin scale + a fail-closed CI comparison |
 | Optimizations | The backlog lists 11 measured costs, several `G3`-homed, none validated | Each backlog item gets a metric that would justify it (G5 implements; G3 supplies the evidence) |
 
@@ -79,7 +79,7 @@ the metrics that would decide each of those — it does not implement them.
     fixtures.
   - **Browser tier** (deterministic, DOM-free): initial Plan render work,
     synchronous pan/zoom and edit render-work proxies, SVG node count, and
-    chord-box topology estimates. Live `renderer.info`/GPU/memory counters are
+    indexed wall-mesh topology estimates. Live `renderer.info`/GPU/memory counters are
     browser-only (via `/dev/perf` + `three-stats.ts`) and advisory; a real
     scripted rAF viewport driver is a follow-up.
 - The harness records provenance for every report: fixture seed, scale, browser
@@ -171,11 +171,11 @@ checkBudgets(result: BenchTierResult, baseline: BudgetBaseline): { pass: boolean
 - `hit-test` (ms) — `resolvePlanHit()` plus the placement containment query;
 - `snap-query` (ms) — candidate snapping-query latency;
 - `svg-node-count` (nodes) — SVG element count in the Plan pane;
-- `three-object-estimate` / `three-material-estimate` (count) — chord-box topology estimates (solid spans, wall groups), not live `renderer.info`;
-- `three-draw-call-estimate` / `three-triangle-estimate` (count) — naive chord-box draw/triangle estimates; live `renderer.info` reads are browser-only via `three-stats.ts`;
+- `three-object-estimate` / `three-material-estimate` (count) — indexed wall-mesh topology estimates (one mesh/tint per room, G4), not live `renderer.info`;
+- `three-draw-call-estimate` / `three-triangle-estimate` (count) — real indexed wall-mesh draw/triangle counts from `estimateWallMeshTopology` (G4); live `renderer.info` reads are browser-only via `three-stats.ts`;
 - `gpu-frame` (ms) — where the browser exposes it;
 - `memory-heap` (bytes) — heap/`performance.memory` where available;
-- `three-regen` (ms) — 3D regeneration time after a committed edit;
+- `wall-mesh-build` (ms) — one watertight `IndexedWallMesh` per room via `buildRoomWallMesh` (G4; replaces the retired `three-regen` chord-box span-derivation pass);
 - `compiled-memory` (bytes) — Node-tier compiled-data footprint;
 - `cache-key-code-units` (count) — total UTF-16 code units of stored `cacheKey` strings across compiled entities and query records (backlog #10 signal; shrinks under a lazy/cheaper cacheKey).
 
@@ -216,10 +216,10 @@ is an explicit follow-up, not part of this slice.
 
 1. Add a dev-only `/dev/perf` harness page (alongside `/dev/assets`,
    `/dev/materials`) that runs both tiers and, when WebGL is available, live
-   chord-box `renderer.info` counts — without touching the production visitor path.
+   wall-mesh `renderer.info` counts — without touching the production visitor path.
 2. Add `browser-bench.ts`: deterministic render-work proxies (initial render,
-   pan/zoom, edit), SVG node counter, chord-box topology estimates, and a
-   `three-regen` span-derivation pass. `three-stats.ts` exposes the live
+   pan/zoom, edit), SVG node counter, and indexed wall-mesh topology estimates
+   (`estimateWallMeshTopology`). `three-stats.ts` exposes the live
    `renderer.info` reader used by the page's opt-in WebGL button.
 3. Keep frame-time and GPU/memory counters browser-only and advisory; a real
    scripted rAF viewport driver is a follow-up, not required for this slice.
@@ -266,7 +266,7 @@ is an explicit follow-up, not part of this slice.
 | Validity | `validateLayoutDocument` clean and `compileLayoutGeometry()` zero-blocking at 10/100/1,000 |
 | Chopin | Compiles and renders through the same path as production; is the only budget-bearing tier |
 | Node tier | `layout-compile`/`plan-render-build`/`hit-test`/`snap-query`/`cache-key-code-units` all measured with warm-up + samples, p50/p95 reported |
-| Browser tier | Initial render, pan/zoom and edit render-work proxies, SVG node count, chord-box topology estimates, and `three-regen` are deterministic and vitest-reproducible; live `renderer.info`/GPU/memory stay browser-only and advisory |
+| Browser tier | Initial render, pan/zoom and edit render-work proxies, SVG node count, and indexed wall-mesh topology estimates are deterministic and vitest-reproducible; live `renderer.info`/GPU/memory stay browser-only and advisory |
 | Budgets | `target`/`fail` exist for every Chopin metric with a recorded reason; `checkBudgets` fails on `fail` breach and passes otherwise |
 | Provenance | Every report carries seed, browser/device, warm-up, samples, method version, date, commit SHA |
 | Boundary | Harness and fixtures import no editor/Svelte/Three/DOM in the Node tier; `/dev/perf` is dev-only and absent from visitor chunks; production Plan/3D/shell paths carry no measurement code |

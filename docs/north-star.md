@@ -1,7 +1,7 @@
 # North star
 
 **Read when:** choosing what to build; reviewing pitches.  
-**Do not read** for a narrow gizmo/tour/entity bug.  
+**Do not read** for narrow gizmo/tour/entity bug.  
 **Last reviewed:** 2026-08-13
 **Live slice:** [`hand-off/CURRENT.md`](./hand-off/CURRENT.md)
 
@@ -9,15 +9,21 @@
 
 ## Vision
 
-**Layout-first museum complex editor:** empty canvas → draw/relocate rooms → openings + parametric placeholders (not free mesh) → serialize `MuseumProject` (layout + scene) → load in editor/visitor → author **camera tour on that complex**. Chopin is the first **data project**, not a permanent `rooms.ts` special case.
+**Layout-first museum complex editor:** empty canvas → draw/relocate rooms → openings + parametric placeholders (not free mesh) → serialize `MuseumProject` (layout + scene) → load in editor/visitor → author **camera tour on that complex**. Chopin = first **data project**, not permanent `rooms.ts` special case.
 
-Foundation = **single floor**. Corridors are ordinary skinny layout rooms; early cutouts are geometry-only. Semantic room/portal adjacency arrives at B4. Multi-story only after single-floor draft → validate → preview → serialize → reload → promote → tour works without regressions.
+**Local-first workflow:** New Project → layout in Plan → generated 3D → scene/assets → camera tour → export one portable project package → later import it to resume. Saving need not modify repository source files.
+
+Foundation = **single floor**. Corridors = ordinary skinny layout rooms; early cutouts geometry-only. Semantic room/portal adjacency arrives at B4. Multi-story only after single-floor draft → validate → preview → serialize → reload → promote → tour works without regressions.
 
 ```text
 MuseumProject
-  ├─ layout   ← rooms, openings, layout objects  (today: rooms.ts)
-  ├─ scene    ← entities, materials, camera graph (today: museum-scene.json)
-  └─ assets…
+  ├─ layout   ← rooms, openings, layout objects
+  └─ scene    ← entities, materials, camera graph
+
+Portable project package
+  ├─ project.json
+  ├─ imported GLBs
+  └─ textures
 ```
 
 ## Sacred contracts
@@ -41,19 +47,19 @@ MuseumProject
 
 ### Graphics architecture gate
 
-After B5, follow the canonical [graphics architecture roadmap](./plans/2026-08-13-graphics-architecture-roadmap.md): compile `LayoutDocument` once into backend-neutral geometry, project an explicit world-space `PlanRenderModel`, and adapt compiled wall sections into procedural Three `BufferGeometry`. SVG and Three/Threlte remain the production renderers.
+After B5, follow the canonical [graphics architecture roadmap](./plans/2026-08-13-graphics-architecture-roadmap.md): compile `LayoutDocument` once into backend-neutral geometry, project an explicit world-space `PlanRenderModel`, adapt compiled wall sections into procedural Three `BufferGeometry`. SVG + Three/Threlte remain the production renderers.
 
-Camera paths, view cones, look targets, portal crossings, collision warnings, timing labels, and selection/interaction layers are product-useful Plan projections. Their source data remains in `project.scene` and the existing camera route/motion system; they do not become layout fields.
+Camera paths, view cones, look targets, portal crossings, collision warnings, timing labels, selection/interaction layers = product-useful Plan projections. Source data stays in `project.scene` + existing camera route/motion system; they do not become layout fields.
 
-Benchmark 10/100/1,000-room fixtures and set budgets before optimization. Cache, rebuild less, stabilize render objects/materials, batch, cull, reduce detail, and add a spatial index only in response to measurements. WebGPU/WGSL stays a bounded Plan-backend experiment; Rust/WASM requires an isolated CPU bottleneck and boundary-inclusive proof. Neither belongs on the production critical path by default.
+Benchmark 10/100/1,000-room fixtures and set budgets before optimization. Cache, rebuild less, stabilize render objects/materials, batch, cull, reduce detail, add spatial index only in response to measurements. WebGPU/WGSL stays a bounded Plan-backend experiment; Rust/WASM requires an isolated CPU bottleneck + boundary-inclusive proof. Neither belongs on the production critical path by default.
 
 ### GLSL polish gate
 
 - Do not expand scene schema or polish temporary `rooms.ts` architecture during B3–B5.
 - After B5 runtime cutover, prototype GLSL effects in `/dev/materials` with runtime-only parameters.
 - Re-evaluate against imported GLBs after P2; promote only proven, performant effects into P3.
-- Prefer controlled presets such as plaster aging, velvet sheen, or exhibit reveal. Never persist arbitrary shader source in `MuseumProject` / `museum-scene.json`.
-- Material effects must preserve existing PBR lighting, shadows, fog, and tone mapping. Global post-processing comes after material experiments and a visitor performance baseline.
+- Prefer controlled presets (plaster aging, velvet sheen, exhibit reveal). Never persist arbitrary shader source in `MuseumProject` / `museum-scene.json`.
+- Material effects must preserve existing PBR lighting, shadows, fog, tone mapping. Global post-processing comes after material experiments + a visitor performance baseline.
 
 ## Non-goals
 

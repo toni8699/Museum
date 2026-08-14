@@ -1,7 +1,7 @@
 # Graphics Architecture Roadmap
 
 **Date:** 2026-08-13
-**Status:** Active post-B5 roadmap; G1 + G2 + G3 implemented, G4 next
+**Status:** Active post-B5 roadmap; G1 + G2 + G3 + G4 implemented, G5 next
 **Prerequisite:** B5 runtime cutover
 **Architecture:** [`../architecture.md`](../architecture.md) · **Vision:** [`../north-star.md`](../north-star.md)
 
@@ -30,8 +30,8 @@ This roadmap starts after B5. It must not expand or delay the B5 cutover.
 | Editor geometry | `compileLayoutGeometry()` (G1) feeds editor preview state, Plan, and 3D |
 | Visitor geometry | `compileLayoutGeometry()` (G1) feeds `LayoutMuseumShell` |
 | Plan rendering | `LayoutPlanViewport.svelte` delegates to `PlanSvg.svelte`, which renders an explicit `PlanRenderModel` |
-| Editor 3D | `LayoutPreviewScene.svelte` emits one box per sampled wall chord/section |
-| Visitor 3D | `LayoutMuseumShell.svelte` also emits sampled chord boxes |
+| Editor 3D | `LayoutPreviewScene.svelte` renders prebuilt `IndexedWallMesh` via `wall-geometry-adapter` (G4) |
+| Visitor 3D | `LayoutMuseumShell.svelte` renders one watertight indexed `BufferGeometry` per room (G4) |
 | Scene/tour | `museum-scene.json` v6 plus `camera-route.ts` and `camera-motion.ts` |
 
 B4 established a runtime-safe layout projection and line-layout parity for the
@@ -62,7 +62,7 @@ MuseumProject.project.layout
           │
           ├─────────────────────────┐
           ↓                         ↓
-  buildPlanRenderModel()     ThreeGeometryAdapter
+  buildPlanRenderModel()     wall-geometry-adapter
           ↓                         ↓
    PlanRenderModel          procedural BufferGeometry
           ↓                         ↓
@@ -91,7 +91,7 @@ motion implementation.
 | `PlanRenderModel` | Ordered world-space drawing primitives, semantic style tokens, hit identities, overlays | Document mutation, geometry recomputation, persisted styling, camera ownership |
 | Plan view transform | World/screen conversion and zoom-dependent screen sizing | Document mutation or render ordering |
 | SVG renderer | DOM creation, SVG attributes, visual theme | Layout geometry rules or hit-test geometry generation |
-| `ThreeGeometryAdapter` | Positions, normals, UVs, indices, Three geometry lifecycle and groups | Semantic layout ownership or scene/tour mutation |
+| `wall-geometry-adapter` | Positions, normals, UVs, indices, Three geometry lifecycle and groups | Semantic layout ownership or scene/tour mutation |
 | Three/Threlte | Scene graph, GLBs, materials/PBR, lights, shadows, cameras, resource lifecycle | Authored layout semantics or a duplicate geometry compiler |
 
 Derived geometry is disposable and cacheable. It is invalidated by relevant
@@ -202,7 +202,7 @@ currently supported product scale; 10/100/1,000-room results are comparison tier
 not an unsupported claim that every tier must be interactive. A budget change
 requires a recorded product or measurement reason, not a quieter regression.
 
-### G4 — Procedural architectural meshes (`KEEP`, next)
+### G4 — Procedural architectural meshes (`KEEP`, implemented)
 
 Focused implementation plan:
 [`2026-08-13-graphics-g4-procedural-architectural-meshes.md`](./2026-08-13-graphics-g4-procedural-architectural-meshes.md).

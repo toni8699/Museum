@@ -204,6 +204,9 @@ requires a recorded product or measurement reason, not a quieter regression.
 
 ### G4 — Procedural architectural meshes (`KEEP`, next)
 
+Focused implementation plan:
+[`2026-08-13-graphics-g4-procedural-architectural-meshes.md`](./2026-08-13-graphics-g4-procedural-architectural-meshes.md).
+
 Replace sampled wall-chord boxes progressively with meshes built from compiled
 wall sections:
 

@@ -34,9 +34,9 @@ import {
 	createNavigationGraph,
 	resolveSceneDocument,
 	type MuseumSceneDocument,
-	type RuntimeMuseumScene,
-	type SceneRoomResolver
+	type RuntimeMuseumScene
 } from '$lib/content/scene';
+import type { LayoutRoomRegistry } from '$lib/project/project-layout-semantics';
 import { museumSceneDocument } from '$lib/content/chopin-project';
 import { createMuseumState, type MuseumStateStore } from '$lib/state/museum-state.svelte';
 
@@ -113,7 +113,7 @@ export class EditorDocumentStore {
 
 	constructor(
 		initialDocument: MuseumSceneDocument = museumSceneDocument,
-		readonly rooms: SceneRoomResolver
+		readonly rooms: LayoutRoomRegistry
 	) {
 		const cloned = cloneMuseumSceneDocument(initialDocument);
 		this.document = cloned;

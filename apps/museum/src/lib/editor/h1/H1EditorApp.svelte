@@ -1,61 +1,66 @@
-<!--
-	Legacy pre-H1 editor shell, mounted only at /museum/editor (relic). Its H1
-	twin is h1/H1EditorApp.svelte — same store + surfaces, Plan | 3D chrome.
-	Keep texture-loader, binary-store cleanup, navigation/exit guards, and
-	shortcut wiring in sync between the two.
--->
 <script lang="ts">
+	// Twin of the legacy MuseumEditorApp (mounted at /museum/editor). H1 only
+	// replaces the top-level chrome; the texture-loader, binary-store cleanup,
+	// navigation/exit guards, and shortcut wiring below are duplicated and must
+	// stay in sync with the legacy shell.
 	import { beforeNavigate } from '$app/navigation';
 	import type { MuseumAsset } from '$lib/types/assets';
-	import type { MaterialTextureSlot } from '$lib/types/materials';
 	import type { Texture as ThreeTexture } from 'three';
-	import { onDestroy, onMount, untrack } from 'svelte';
+	import { onDestroy, onMount, setContext } from 'svelte';
 	import { TextureLoader } from 'three';
-	import EditorAppBar from './EditorAppBar.svelte';
-	import EditorCameraTimelineFrame from './EditorCameraTimelineFrame.svelte';
-	import EditorInspector from './EditorInspector.svelte';
-	import EditorLeftSidebar from './EditorLeftSidebar.svelte';
-	import EditorMaterialChoiceDialog from './EditorMaterialChoiceDialog.svelte';
-	import EditorViewport from './EditorViewport.svelte';
-	import { registerEditorShortcuts } from './hooks/shortcuts.svelte';
-	import { setContext } from 'svelte';
+	import EditorCameraTimelineFrame from '$lib/editor/EditorCameraTimelineFrame.svelte';
+	import EditorInspector from '$lib/editor/EditorInspector.svelte';
+	import EditorLeftSidebar from '$lib/editor/EditorLeftSidebar.svelte';
+	import EditorMaterialChoiceDialog from '$lib/editor/EditorMaterialChoiceDialog.svelte';
+	import { registerEditorShortcuts } from '$lib/editor/hooks/shortcuts.svelte';
 	import {
 		EditorInteractionStore,
 		EDITOR_INTERACTION_STORE_KEY
-	} from './store/editor-interaction-store.svelte';
+	} from '$lib/editor/store/editor-interaction-store.svelte';
 	import {
 		setDefaultTextureSourceLoader,
 		type TextureSourceLoader
 	} from '$lib/museum/materials/texture-cache';
-	import { BinaryTextureStore } from './store/binary-texture-store.svelte';
-	import { createMuseumEditorStore } from './museum-editor.svelte';
+	import { BinaryTextureStore } from '$lib/editor/store/binary-texture-store.svelte';
+	import { createMuseumEditorStore } from '$lib/editor/museum-editor.svelte';
 	import {
-	captureLayoutPreviewSnapshot,
-	createLayoutPreviewState,
-	layoutPreviewIsDirty,
-	restoreLayoutPreviewSnapshot
-} from './layout/layout-preview-state.svelte';
-	import { createLayoutInteractionState } from './layout/layout-interaction';
+		captureLayoutPreviewSnapshot,
+		createLayoutPreviewState,
+		layoutPreviewIsDirty,
+		restoreLayoutPreviewSnapshot
+	} from '$lib/editor/layout/layout-preview-state.svelte';
+	import {
+		createLayoutInteractionState,
+		setLayoutViewMode
+	} from '$lib/editor/layout/layout-interaction';
+	import H1AppBar from './H1AppBar.svelte';
+	import H1PlanView from './H1PlanView.svelte';
+	import H13DView from './H13DView.svelte';
+	import { EditorViewState } from './editor-view-state.svelte';
 
-	let { relic = false }: { relic?: boolean } = $props();
-
-	// `relic` is a mount-time prop: read it once, non-reactively, to configure the
-	// store and the layout history bridge. A relic mount never gains (or loses)
-	// Layout mid-session.
-	const store = createMuseumEditorStore({ relic: untrack(() => relic) });
+	const store = createMuseumEditorStore();
 	const layoutPreview = $state(createLayoutPreviewState());
 	const layoutInteraction = $state(createLayoutInteractionState());
-	// Relic isolation: the frozen Scene · Camera editor never registers a layout
-	// history domain — it cannot switch to the Layout workspace (store guard) nor
-	// mutate layout from the Project menu (menu gating), so there is no layout
-	// document to snapshot.
-	if (!untrack(() => relic)) {
-		store.registerLayoutHistory({
-			capture: () => captureLayoutPreviewSnapshot(layoutPreview),
-			replace: (snapshot) => restoreLayoutPreviewSnapshot(layoutPreview, snapshot as ReturnType<typeof captureLayoutPreviewSnapshot>),
-			matches: (a, b) => JSON.stringify((a as { project: { layout: unknown } }).project.layout) === JSON.stringify((b as { project: { layout: unknown } }).project.layout)
-		});
-	}
+	const viewState = new EditorViewState();
+	store.registerLayoutHistory({
+		capture: () => captureLayoutPreviewSnapshot(layoutPreview),
+		replace: (snapshot) => restoreLayoutPreviewSnapshot(layoutPreview, snapshot as ReturnType<typeof captureLayoutPreviewSnapshot>),
+		matches: (a, b) => JSON.stringify((a as { project: { layout: unknown } }).project.layout) === JSON.stringify((b as { project: { layout: unknown } }).project.layout)
+	});
+
+	// Map the top-level Plan | 3D view + 3D context onto the legacy store's
+	// `currentWorkspace`. Plan owns the layout workspace (SVG surface); 3D owns
+	// scene/camera — the drafted architecture renders in 3D unconditionally, so
+	// there is no layout 3D context to sync.
+	$effect(() => {
+		if (viewState.viewMode === 'plan') {
+			setLayoutViewMode(layoutInteraction, 'plan');
+			store.setWorkspace('layout');
+		} else {
+			store.setWorkspace(viewState.active3dContext);
+		}
+	});
+
 	// Phase 6.1 — single shared FSM sub-store. Set on context so every editor
 	// child reads the same reactive state.
 	const interactionStore = new EditorInteractionStore();
@@ -66,16 +71,10 @@
 	let clusterNameInput = $state<HTMLInputElement>();
 	let selectedAsset = $state<MuseumAsset>();
 
-	// Phase 5.4 — bind a default source loader that consults the binary
-	// store first, then falls back to the legacy public-fetch path. The
-	// `texture-cache.ts` module exports this setter exactly so we don't
-	// have to import `BinaryTextureStore` from inside `materials/`.
 	const threeTextureLoader = new TextureLoader();
 	const editorSourceLoader: TextureSourceLoader = (uri, _slot) => {
 		const url = BinaryTextureStore.objectUrlFor(uri);
 		if (url) return threeTextureLoader.loadAsync(url);
-		// Fallback: legacy public-fetch path. Synchronous `.load` wrapped
-		// in a promise so the loader's signature stays single-shape.
 		return new Promise<ThreeTexture>((resolve, reject) => {
 			threeTextureLoader.load(uri, resolve, undefined, reject);
 		});
@@ -89,13 +88,6 @@
 	});
 
 	onDestroy(() => {
-		// App teardown: clear both the object URL registry AND the byte-map
-		// entries. On dev HMR the singleton survives remounts — stale entries
-		// poisoned texture-cache re-acquisition when an in-flight
-		// TextureLoader.loadAsync resolved with a revoked URL. ClearExcept
-		// walks every entry, revokes its object URL, and empties
-		// pendingObjectUrls — the next mount starts cold with no Blob
-		// pointers leaking into the next render cycle.
 		BinaryTextureStore.clearExcept(new Set());
 	});
 
@@ -138,7 +130,13 @@
 </script>
 
 <main class="page" class:previewing={store.isDocumentMutationBlocked}>
-	<EditorAppBar {store} {layoutPreview} {confirmSceneReplacement} {confirmLayoutReplacement} {relic} />
+	<H1AppBar
+		{store}
+		{layoutPreview}
+		{viewState}
+		{confirmSceneReplacement}
+		{confirmLayoutReplacement}
+	/>
 	<EditorLeftSidebar
 		{store}
 		{layoutPreview}
@@ -151,12 +149,16 @@
 		bind:this={viewportElement}
 		class="center"
 		role="application"
-		aria-label="3D editor viewport"
+		aria-label="Editor viewport"
 		tabindex="0"
 		onpointerdown={(event) => event.currentTarget.focus()}
 		style="grid-area: center;"
 	>
-		<EditorViewport {store} {layoutPreview} {layoutInteraction} />
+		{#if viewState.viewMode === 'plan'}
+			<H1PlanView {store} {layoutPreview} {layoutInteraction} />
+		{:else}
+			<H13DView {store} {layoutPreview} {layoutInteraction} />
+		{/if}
 	</div>
 	<EditorInspector
 		{store}
@@ -165,8 +167,9 @@
 		{selectedAsset}
 		bind:clusterNameInput
 	/>
-	<EditorCameraTimelineFrame {store} />
-	<!-- Phase 5.2 — shared by viewport drops and inspector edits; rendered once outside the canvas. -->
+	{#if viewState.viewMode === '3d'}
+		<EditorCameraTimelineFrame {store} />
+	{/if}
 	<EditorMaterialChoiceDialog {store} />
 </main>
 

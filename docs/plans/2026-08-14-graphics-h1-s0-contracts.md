@@ -110,7 +110,7 @@ createEmptyMuseumProject(input: { id: string; name: string }): MuseumProject;
 | Boot | Editor currently loads the checked-in Chopin project, not an empty project |
 | Camera | Editor uses the Chopin scene's navigation graph; no session-only free-camera boot path |
 | Playback locks | Already implemented in `museum-editor.svelte.ts` / `controller-hosts.ts` |
-| Relic | `/museum/editor` (relic) and `/museum` (visitor) already exist; `/` and `/editor` mount the full editor |
+| Relic | `/museum/editor` (relic) and `/museum` (visitor) exist; S1 wired `/` and `/editor` to the H1 shell (`H1EditorApp`) while the relic keeps mounting the legacy `MuseumEditorApp` |
 
 ## Implementation steps
 

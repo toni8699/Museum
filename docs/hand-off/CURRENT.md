@@ -10,9 +10,18 @@ Full-track Phase 2 scene presets = deferred optional.
 
 ## Next slice
 
-**H1 S1 — Editor shell (Plan | 3D).** Consolidate the legacy editor shell into the new H1 entry: promote the Plan surface to a top-level view, merge the two Threlte Canvas branches into one 3D view, and freeze the pre-H1 editor untouched at `/museum/editor`. Plan: [`../plans/2026-08-14-graphics-h1-s1-editor-shell.md`](../plans/2026-08-14-graphics-h1-s1-editor-shell.md); roadmap: [`../plans/2026-08-14-graphics-h1-unified-3d-editing.md`](../plans/2026-08-14-graphics-h1-unified-3d-editing.md).
+**H1 S2 — Boot into an empty project.** The editor boots blank (no New Project command): `createEmptyMuseumProject()` + `createLayoutRoomRegistry(project.layout)` for scene resolution, a session-only free camera, import = open / export = save, and the preview lockout until a valid route exists. Plan: [`../plans/2026-08-14-graphics-h1-s2-boot-empty.md`](../plans/2026-08-14-graphics-h1-s2-boot-empty.md) (S2 closes the remaining `it.todo` contracts); roadmap: [`../plans/2026-08-14-graphics-h1-unified-3d-editing.md`](../plans/2026-08-14-graphics-h1-unified-3d-editing.md).
 
-**H1 S0 is Partial.** Landed: `createEmptySceneDocument` + `createEmptyMuseumProject`, authoring-empty validator loosening, `EditorViewMode`, injectable scene room-resolver + zero-node policy (`pickInitialNavigationNodeId` returns `null`), and the relic store/menu guard (relic cannot reach the Layout workspace). Open `it.todo` contracts in `tests/lib/editor/h1/contracts.test.ts` (close with S1/S2): boot-blank session camera, preview lockout, view-switch preservation, playback locks, relic isolation smoke test. Plan: [`../plans/2026-08-14-graphics-h1-s0-contracts.md`](../plans/2026-08-14-graphics-h1-s0-contracts.md).
+**H1 S1 shipped — Editor shell (Plan | 3D).** New `h1/H1EditorApp` at `/` and `/editor`: `H1AppBar` (Plan | 3D + 3D context Scene · Camera), full-panel `H1PlanView` (SVG, no Canvas), and `h1/H13DView` — one fused Canvas always rendering `LayoutPreviewScene` (draft architecture) + `EditorMuseumEntities` (scene entities) + camera helpers over `MuseumScene(showArchitecture=false)`. `h1/editor-view-state.svelte.ts` (pure view state + tests; `active3dContext` collapsed to scene|camera). The pre-H1 `MuseumEditorApp` stays frozen at `/museum/editor` (relic) with its visitor Chopin shell. Plan: [`../plans/2026-08-14-graphics-h1-s1-editor-shell.md`](../plans/2026-08-14-graphics-h1-s1-editor-shell.md).
+
+**H1 S0 is Partial.** Landed: `createEmptySceneDocument` + `createEmptyMuseumProject`, authoring-empty validator loosening, `EditorViewMode`, injectable scene room-resolver + zero-node policy (`pickInitialNavigationNodeId` returns `null`), and the relic store/menu guard (relic cannot reach the Layout workspace). Open `it.todo` contracts in `tests/lib/editor/h1/contracts.test.ts` (close with S2): boot-blank session camera, preview lockout, playback locks. (S1 closed view-switch preservation + relic isolation smoke as real tests.) Plan: [`../plans/2026-08-14-graphics-h1-s0-contracts.md`](../plans/2026-08-14-graphics-h1-s0-contracts.md).
+
+**Open candidate (decided before H1 S9):** catalogue assets as layout objects
+(C2) — a post-H1 slice making catalogue furniture placeable/editable in Plan as
+`LayoutObject.kind: 'asset'`. H1 keeps the door open at near-zero cost: the
+slice-9 composite asset registry is shared, so layout asset objects can later
+resolve checked-in/project-local asset ids without a manifest format-version
+change. See H1 plan "Ownership remains separate" + explicit non-goals.
 
 (Deferred, not abandoned — **G5 — Measured optimization and scale**: apply optimizations in order — cache derived geometry, partial rebuilds, stable render objects/keys, shared materials, merged `BufferGeometry`, culling, LOD, spatial indexing, instancing — stop when G3 budgets pass. G4 in [`../plans/2026-08-13-graphics-g4-procedural-architectural-meshes.md`](../plans/2026-08-13-graphics-g4-procedural-architectural-meshes.md); roadmap [`../plans/2026-08-13-graphics-architecture-roadmap.md`](../plans/2026-08-13-graphics-architecture-roadmap.md). No focused G5 plan yet.)
 
@@ -49,6 +58,7 @@ B5 makes checked-in `chopin-project.json` the sole production layout/scene sourc
 - B5 production build passed; visitor chunk scan contains canonical project + `LayoutMuseumShell`, no architecture source toggle, runtime compiler, editor marker, standalone scene JSON, or legacy shell marker.
 - B5 production browser QA passed: all nine guided nodes forward, reverse Back, free-mode direct navigation, reduced motion, HUD room updates, Paris + Music Chamber visuals, inert legacy query, clean browser errors, `/editor` 404.
 - H1 S0 (partial): `createEmptySceneDocument`/`createEmptyMuseumProject` codec-valid + byte-stable; `empty_navigation` loosened for authoring-empty without weakening non-empty invariants; `EditorViewMode` pinned; scene room-resolver injected (no `chopinRuntime` in the editor sub-stores) + `pickInitialNavigationNodeId` returns `null` on zero nodes; relic store guard + Project-menu gating so `/museum/editor` cannot reach the Layout workspace. 5 `it.todo` contracts (session camera, preview lockout, view-switch preservation, playback locks, relic smoke) close with S1/S2.
+- H1 S1: full suite 114 files / 1327 tests (1323 passed, 1 opt-in skip, 3 todo); check 0/0; production build passed. `h1/H1EditorApp` (Plan | 3D + 3D context Scene · Camera) mounted at `/` and `/editor`; full-panel `H1PlanView` (no Canvas); `h1/H13DView` fuses one Canvas (draft architecture + entities + camera helpers, no visitor Chopin shell); `h1/editor-view-state.svelte.ts` + 5 tests (`active3dContext` = scene|camera); `LayoutDraftToolbar` gained an optional `showViewToggle`; `/museum/editor` keeps the frozen `MuseumEditorApp` relic. S1 close: the store's `rooms` seam widened to `LayoutRoomRegistry` so `H13DView` resolves entities against the injected registry (no `chopinRuntime` import); view-switch preservation + relic route wiring became real tests (Plan ↔ 3D preserves document/history/dirty/selection with no history entry; `/museum/editor` mounts the legacy entry while `/` + `/editor` mount `H1EditorApp`); orphaned `LayoutInteraction3D.svelte` deleted.
 
 ## Locked decisions
 
@@ -90,7 +100,7 @@ Phase 2 Wall presets · G5+ graphics roadmap work · visitor rendering of layout
 1. This file.  
 2. [`../AGENTS.md`](../../AGENTS.md) hard rules.  
 3. [`../architecture.md`](../architecture.md) (layout/`rooms.ts` only).  
-4. A0/B0/A1/C0/A2/A2.1/A2.2/A2.3/A3/A3.1/A4/A4.1/B3/B4/B5/G1/G2/G3/G4 shipped. H1 in progress: S0 partial → S1 shell next. Read [`../plans/2026-08-14-graphics-h1-unified-3d-editing.md`](../plans/2026-08-14-graphics-h1-unified-3d-editing.md) + its S0/S1 sub-plans.
+4. A0/B0/A1/C0/A2/A2.1/A2.2/A2.3/A3/A3.1/A4/A4.1/B3/B4/B5/G1/G2/G3/G4 shipped. H1 in progress: S0 partial + S1 shipped → S2 (boot blank) next. Read [`../plans/2026-08-14-graphics-h1-unified-3d-editing.md`](../plans/2026-08-14-graphics-h1-unified-3d-editing.md) + its S0/S1 sub-plans.
 
 5. Skip other `docs/components/*` unless task touches them.
 

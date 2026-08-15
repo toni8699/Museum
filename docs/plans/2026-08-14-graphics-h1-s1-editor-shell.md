@@ -1,7 +1,7 @@
 # H1 S1 — Editor Shell Consolidation (Plan · 3D)
 
 **Date:** 2026-08-14
-**Status:** Proposed
+**Status:** Implemented
 **Parent:** [`2026-08-14-graphics-h1-unified-3d-editing.md`](./2026-08-14-graphics-h1-unified-3d-editing.md)
 **Prerequisite:** S0 · Pin the product/session contracts
 **Handoff:** [`../../hand-off/CURRENT.md`](../../hand-off/CURRENT.md)
@@ -26,7 +26,7 @@ preview are deferred to S3–S8.
 | Top-level switcher | `EditorAppBar.svelte` tabs `Scene · Camera · Layout` → `store.currentWorkspace` (`EditorWorkspace = 'scene' \| 'camera' \| 'layout'` in `museum-editor.types.ts`, held by `session-state.svelte.ts`) |
 | Viewport dispatch | `EditorViewport.svelte` has **two Canvas branches**: `layout` (a Threlte `Canvas` with `LayoutRenderGate` + `MuseumScene` `showArchitecture=false` + `LayoutPreviewScene` + `EditorGrid`, plus a `LayoutPlanViewport` SVG overlay when `layoutInteraction.viewMode === 'plan'`), and `scene/camera` (a separate `Canvas` with `MuseumScene` `showArchitecture=true` + camera helpers + `EditorSelection`/`EditorPlacementTools`/`EditorSelectionHelper`/`EditorTransformControls`/`PlacementGhost`) |
 | Plan surface | `LayoutPlanViewport.svelte` + `PlanSvg.svelte` + `LayoutDraftToolbar.svelte` — full 2D SVG CAD with room/opening/object drafting, already gated by an internal `LayoutViewMode = 'plan' \| '3d'` (`layout-interaction.ts`) |
-| 3D layout | `LayoutPreviewScene.svelte` (wall meshes) + `LayoutInteraction3D.svelte` + `LayoutRenderGate.svelte` |
+| 3D layout | `LayoutPreviewScene.svelte` (wall meshes) + `LayoutRenderGate.svelte` (`LayoutInteraction3D.svelte` is removed in this slice — its plan↔3D interaction split was subsumed by the H1 top-level Plan · 3D switch) |
 | Scene/camera | `MuseumScene.svelte` + `EditorMuseumEntities.svelte`; camera tools as `EditorCameraHelpers/Path/Framing/View` + `EditorCameraTree` (left) + `EditorCameraTimelineFrame` (bottom) |
 | Relic | `/museum/editor` mounts `MuseumEditorApp` with `relic`; `/` and `/editor` mount the full shell. S0 hardened this beyond the tab: `createMuseumEditorStore({ relic })` rejects `setWorkspace('layout')`, the layout history bridge is skipped, and the Project menu's layout section is gated `{#if !relic}` |
 
@@ -64,14 +64,16 @@ H1 editor shell
   `museum-editor.svelte.ts` and its stores — **stays untouched** and remains
   mounted only at `/museum/editor`. It is the frozen pre-H1 snapshot.
 - H1 introduces a new shell entry `src/lib/editor/h1/H1EditorApp.svelte`
-  mounted at `/` and `/editor`. It imports shared, renderer-neutral surfaces
-  (`$lib/layout/**`, `PlanSvg`, `LayoutPlanViewport`, `LayoutPreviewScene`,
-  `LayoutDraftToolbar`, `$lib/museum/**`) but not the legacy shell chrome or
-  its session store.
-- H1 shell state lives in a new `h1/editor-view-state.svelte.ts`
-  (`viewMode`, `active3dContext`) and a thin document/session wrapper. It does
-  **not** mutate the legacy `museum-editor.svelte.ts` store, so the relic can
-  never observe H1 changes.
+  mounted at `/` and `/editor`. It composes the same `createMuseumEditorStore()`
+  and the shared editor surfaces (`EditorViewport`, `EditorLeftSidebar`,
+  `EditorInspector`, `EditorCameraTimelineFrame`) under new Plan | 3D chrome —
+  same store, same surfaces, same behavior. Only the legacy `EditorAppBar`
+  chrome (Scene · Camera · Layout tabs) is replaced by `H1AppBar`.
+- H1 shell view state lives in `h1/editor-view-state.svelte.ts`
+  (`viewMode: 'plan' | '3d'`, `active3dContext: 'scene' | 'camera'`) and maps
+  onto the store's existing `currentWorkspace`. It changes no store internals,
+  so the relic (which keeps mounting the untouched `MuseumEditorApp`) never
+  observes H1 chrome changes.
 
 ### Plan stays the SVG CAD surface
 
@@ -91,10 +93,11 @@ H1 editor shell
 
 ### Camera and scene become contexts, not tabs
 
-- `active3dContext: 'scene' | 'camera' | 'layout'` replaces the top-level
-  workspace semantics for the 3D view: it selects which left-sidebar panel,
-  inspector, and viewport helpers are shown. It is session-only and never
-  serialized.
+- `active3dContext: 'scene' | 'camera'` replaces the top-level workspace
+  semantics for the 3D view: it selects which left-sidebar panel, inspector,
+  and viewport helpers are shown. It is session-only and never serialized.
+  Layout is not a 3D context — the drafted architecture renders in 3D
+  unconditionally via `LayoutPreviewScene`.
 - The app bar exposes only `Plan | 3D`. Switching Plan→3D keeps the document,
   selection where valid, history, dirty state, and camera preview; it creates
   no history entry (same rule as today's workspace switch).
@@ -115,7 +118,7 @@ H1 editor shell
 ### 1. Introduce `EditorViewMode` and shell state
 
 - Add `h1/editor-view-state.svelte.ts`: `viewMode: 'plan' | '3d'`,
-  `active3dContext: 'scene' | 'camera' | 'layout'`, with `setViewMode()` and
+  `active3dContext: 'scene' | 'camera'`, with `setViewMode()` and
   `set3dContext()` guarded the same way `setWorkspace` is (blocked during
   active interaction/transaction).
 - Unit-test the transitions: no-op on same value, blocked during interaction,
@@ -146,9 +149,10 @@ H1 editor shell
   `layout` branch's `MuseumScene(showArchitecture=false)` + `LayoutPreviewScene`
   into the single mount, with visibility derived from `active3dContext` and
   existing store flags.
-- Keep `LayoutInteraction3D` and plan-drafting mutually exclusive exactly as
-  `viewMode` does today; entering Plan mounts the SVG surface, entering 3D
-  remounts the Canvas.
+- Plan-drafting and 3D editing stay mutually exclusive exactly as `viewMode`
+  does today; entering Plan mounts the SVG surface, entering 3D mounts the one
+  Canvas. `LayoutInteraction3D`'s 3D-draft interaction is **not** carried over
+  — the fused `H13DView` renders `LayoutPreviewScene` directly.
 
 ### 5. Contextual panels
 
@@ -194,6 +198,27 @@ H1 editor shell
 - Layout candidate preview + atomic history (S8).
 - Project-local GLB import (S9) and boot-into-empty project (S2 — S1 keeps the
   current document source for parity).
+
+## Implementation notes (deviations)
+
+- **Same store, not a thin wrapper.** The original locked-decision draft said
+  H1 would use a "thin document/session wrapper" that does not use the legacy
+  store. That contradicted the slice's own "same store, same behavior" goal,
+  so it was dropped: H1 composes `createMuseumEditorStore()` directly and only
+  replaces the top-level chrome. The store is untouched; the relic keeps the
+  legacy `MuseumEditorApp` and cannot observe H1's view state.
+- **One-Canvas fusion landed** (`h1/H13DView.svelte`). The 3D view mounts one
+  Threlte `Canvas` that always renders `LayoutPreviewScene` (draft
+  architecture), `EditorMuseumEntities` (scene entities), camera helpers,
+  grid/selection/placement/gizmo, over `MuseumScene(showArchitecture=false)`
+  (camera + lights only). The legacy `EditorViewport` stays untouched for the
+  relic, which keeps its visitor Chopin shell.
+- **Plan view hides the toolbar's Plan | 3D toggle** (`showViewToggle={false}`
+  on `LayoutDraftToolbar`) because the top-level switch owns view selection.
+- **`EditorLeftSidebar` Chopin action removed** (not in the original draft). The
+  shared layout summary no longer renders "Reload Chopin preview" (only
+  "Reset empty"), and the orphaned `LayoutInteraction3D.svelte` was deleted
+  once the fusion made it dead. The sidebar is otherwise untouched.
 
 ## Verification
 

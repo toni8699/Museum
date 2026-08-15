@@ -12,7 +12,18 @@
 	import type { LayoutPreviewState } from './layout-preview-state.svelte';
 	import { toggleLayoutCeilings } from './layout-preview-state.svelte';
 
-	let { interaction, preview, onCancelLayoutTransaction = () => false }: { interaction: LayoutInteractionState; preview: LayoutPreviewState; onCancelLayoutTransaction?: () => boolean } = $props();
+	let {
+		interaction,
+		preview,
+		onCancelLayoutTransaction = () => false,
+		showViewToggle = true
+	}: {
+		interaction: LayoutInteractionState;
+		preview: LayoutPreviewState;
+		onCancelLayoutTransaction?: () => boolean;
+		/** H1 hides this when the top-level Plan | 3D switch owns view selection. */
+		showViewToggle?: boolean;
+	} = $props();
 
 	function chooseView(mode: LayoutViewMode) {
 		if (interaction.roomUnitDrag) onCancelLayoutTransaction();
@@ -33,10 +44,12 @@
 </script>
 
 <div class="layout-toolbar" role="toolbar" aria-label="Layout drafting tools">
-	<div class="tool-group" aria-label="Layout view">
-		<button type="button" class:active={interaction.viewMode === 'plan'} aria-pressed={interaction.viewMode === 'plan'} onclick={() => chooseView('plan')}>Plan</button>
-		<button type="button" class:active={interaction.viewMode === '3d'} aria-pressed={interaction.viewMode === '3d'} onclick={() => chooseView('3d')}>3D</button>
-	</div>
+	{#if showViewToggle}
+		<div class="tool-group" aria-label="Layout view">
+			<button type="button" class:active={interaction.viewMode === 'plan'} aria-pressed={interaction.viewMode === 'plan'} onclick={() => chooseView('plan')}>Plan</button>
+			<button type="button" class:active={interaction.viewMode === '3d'} aria-pressed={interaction.viewMode === '3d'} onclick={() => chooseView('3d')}>3D</button>
+		</div>
+	{/if}
 	<div class="tool-group" aria-label="Room drafting tool">
 		<button type="button" class:active={interaction.tool === 'select'} aria-pressed={interaction.tool === 'select'} onclick={() => chooseTool('select')}>Select</button>
 		<button type="button" class:active={interaction.tool === 'rectangle'} aria-pressed={interaction.tool === 'rectangle'} onclick={() => chooseTool('rectangle')}>Rect room</button>

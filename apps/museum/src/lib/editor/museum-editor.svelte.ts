@@ -6,9 +6,9 @@ import {
 	type SceneObjectCluster,
 	type SceneLightKind,
 	type ScenePrimitiveDimensions,
-	type ScenePrimitiveKind,
-	type SceneRoomResolver
+	type ScenePrimitiveKind
 } from '$lib/content/scene';
+import type { LayoutRoomRegistry } from '$lib/project/project-layout-semantics';
 import { museumSceneDocument, chopinRuntime } from '$lib/content/chopin-project';
 import {
 	serializeSceneDocument,
@@ -323,7 +323,7 @@ export class MuseumEditorStore {
 	get scene(): RuntimeMuseumScene {
 		return this.documentStore.scene;
 	}
-	get rooms(): SceneRoomResolver {
+	get rooms(): LayoutRoomRegistry {
 		return this.documentStore.rooms;
 	}
 	get state(): MuseumStateStore {
@@ -2692,11 +2692,12 @@ export type MuseumEditorStoreOptions = {
 	/** Optional authoring document seed (defaults to checked-in museum-scene.json). */
 	document?: MuseumSceneDocument;
 	/**
-	 * H1 S0 — room resolver used to project scene room-relative coordinates to
-	 * world space. Defaults to the Chopin layout registry (the frozen relic);
-	 * the boot-empty H1 editor passes `createLayoutRoomRegistry(project.layout)`.
+	 * H1 S0 — room registry used to resolve scene room-relative coordinates to
+	 * world space (scene resolution + room-frame rendering). Defaults to the
+	 * Chopin layout registry (the frozen relic); the boot-empty H1 editor
+	 * passes `createLayoutRoomRegistry(project.layout)`.
 	 */
-	rooms?: SceneRoomResolver;
+	rooms?: LayoutRoomRegistry;
 	/** H1 S0 — true for the frozen `/museum/editor` relic (Scene + Camera only). */
 	relic?: boolean;
 	/** Phase 5.2 — injectable texture image verifier (browser default). */

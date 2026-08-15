@@ -16,6 +16,18 @@ import {
 	serializeMuseumProject,
 	validateMuseumProject
 } from '$lib/project/project-codec';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { serializeSceneDocument } from '$lib/content/scene-codec';
+import { cloneFixtureDocument } from '../../content/__fixtures__/load-fixture-scene';
+import { museumEditorEntryPlugin } from '../../../../vite/museum-editor-entry-plugin';
+
+const ROUTES_DIR = fileURLToPath(new URL('../../../../src/routes', import.meta.url));
+
+function readRouteSource(routePath: string): string {
+	return fs.readFileSync(path.join(ROUTES_DIR, routePath), 'utf8');
+}
 
 describe('H1 S0 — empty project contract', () => {
 	it('creates a codec-valid, fully-empty project', () => {
@@ -126,12 +138,65 @@ describe('H1 S0 — session/shell contracts (closed by later slices)', () => {
 		'S2: visitor/tour preview is unavailable on a blank project until a valid node/route exists'
 	);
 	it.todo(
-		'S1: Plan ↔ 3D switch preserves document/history/dirty/selection and writes no history entry'
-	);
-	it.todo(
 		'S1/S2: document mutation and view switching are rejected during camera playback; framing edits are blocked during director framing'
 	);
-	it.todo(
-		'S1: /museum/editor renders the legacy shell (Scene · Camera, no Layout) while / and /editor mount the H1 shell'
-	);
+});
+
+describe('H1 S1 — Plan ↔ 3D switch preserves session state', () => {
+	it('switches workspace without touching document, history, dirty state, or selection', () => {
+		const store = createMuseumEditorStore({ document: cloneFixtureDocument() });
+
+		// Make one real mutation so the undo stack is non-empty and the doc is dirty.
+		expect(store.beginDocumentTransaction()).toBe(true);
+		const first = store.document.entities[0]!;
+		first.rotation = [
+			first.rotation[0],
+			first.rotation[1] + 0.001,
+			first.rotation[2]
+		] as typeof first.rotation;
+		expect(store.commitDocumentTransaction()).toBe(true);
+		expect(store.canUndo).toBe(true);
+
+		const documentJson = serializeSceneDocument(store.document);
+		const historyVersion = store.historyVersion;
+		const dirty = store.isDirty;
+		const selection = JSON.parse(JSON.stringify(store.selection.workspace)) as unknown;
+
+		expect(store.setWorkspace('layout')).toBe(true); // Plan
+		expect(store.setWorkspace('camera')).toBe(true); // 3D camera
+		expect(store.setWorkspace('scene')).toBe(true); // 3D scene
+
+		expect(serializeSceneDocument(store.document)).toBe(documentJson);
+		expect(store.historyVersion).toBe(historyVersion);
+		expect(store.canUndo).toBe(true);
+		expect(store.isDirty).toBe(dirty);
+		expect(JSON.parse(JSON.stringify(store.selection.workspace))).toEqual(selection);
+	});
+});
+
+describe('H1 S1 — route wiring (relic smoke proxy, no DOM harness)', () => {
+	it('/museum/editor mounts the frozen legacy entry, not the H1 shell', () => {
+		const relic = readRouteSource('museum/editor/+page.svelte');
+		expect(relic).toContain('virtual:museum-editor-entry');
+		expect(relic).not.toContain('H1EditorApp');
+	});
+
+	it('/ and /editor mount the H1 shell', () => {
+		for (const routePath of ['+page.svelte', 'editor/+page.svelte']) {
+			const source = readRouteSource(routePath);
+			expect(source).toContain('H1EditorApp');
+			expect(source).not.toContain('virtual:museum-editor-entry');
+		}
+	});
+
+	it('virtual:museum-editor-entry resolves to the legacy MuseumEditorApp', () => {
+		const plugin = museumEditorEntryPlugin() as {
+			resolveId?(id: string): string | null | undefined;
+			load?(id: string): string | undefined;
+		};
+		const resolved = plugin.resolveId?.('virtual:museum-editor-entry');
+		expect(resolved).toBeTruthy();
+		const loaded = plugin.load?.(resolved!);
+		expect(loaded).toContain('MuseumEditorApp.svelte');
+	});
 });

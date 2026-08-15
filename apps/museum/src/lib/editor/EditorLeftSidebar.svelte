@@ -6,7 +6,6 @@
 	import {
 		layoutPreviewSessionStatus,
 		layoutPreviewSourceLabel,
-		loadChopinLayoutPreview,
 		resetLayoutPreview,
 		type LayoutPreviewState
 	} from './layout/layout-preview-state.svelte';
@@ -28,13 +27,6 @@
 
 	function switchLeftPanel(panel: 'scene' | 'assets') {
 		store.setLeftPanel(panel);
-	}
-
-	function reloadChopin() {
-		if (confirmLayoutReplacement()) {
-			loadChopinLayoutPreview(layoutPreview);
-			store.clearSharedHistory();
-		}
 	}
 
 	function resetLayout() {
@@ -92,7 +84,6 @@
 				<div><dt>Objects</dt><dd>{layoutPreview.model.objects.length}</dd></div>
 			</dl>
 			<div class="layout-actions">
-				<button type="button" onclick={reloadChopin}>Reload Chopin preview</button>
 				<button type="button" onclick={resetLayout}>Reset empty</button>
 			</div>
 			{#if layoutPreview.importError}<p class="layout-error" role="alert">Import failed: {layoutPreview.importError}</p>{/if}

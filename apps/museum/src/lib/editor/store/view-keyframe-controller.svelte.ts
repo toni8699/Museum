@@ -29,9 +29,9 @@ import {
 	type MuseumSceneDocument,
 	type SceneCameraViewKeyframe,
 	type SceneConnection,
-	type ScenePathAnchor,
-	type SceneRoomResolver
+	type ScenePathAnchor
 } from '$lib/content/scene';
+import type { LayoutRoomRegistry } from '$lib/project/project-layout-semantics';
 import {
 	MUSEUM_CAMERA_EASING,
 	MUSEUM_CAMERA_FOV,
@@ -118,7 +118,7 @@ export interface EditorViewKeyframeControllerHost {
 
 	// Document + selection state.
 	readonly document: MuseumSceneDocument;
-	readonly rooms: SceneRoomResolver;
+	readonly rooms: LayoutRoomRegistry;
 	readonly selection: EditorSelectionStore;
 	readonly selectedConnection: SceneConnection | undefined;
 	readonly selectedAnchor: ScenePathAnchor | undefined;

@@ -132,6 +132,15 @@ this editor plus future versioned migrations from that H1 baseline.
 H1 integrates these domains in the editor shell; it does not merge their schemas
 or move camera/assets into `LayoutDocument`.
 
+**Post-H1 candidate (door left open):** catalogue assets as layout objects
+(`LayoutObject.kind: 'asset'` with an `assetId`) is a possible post-H1 slice
+that would make catalogue furniture placeable and editable in Plan directly.
+H1 does not commit to it, but keeps the door open at near-zero cost: the
+project-local asset registry built in slice 9 is shared, and the package
+manifest contract can later reference layout-referenced asset ids without a
+format-version change. The decision is made before slice 9 is drafted — see
+slice 9 and the explicit non-goals.
+
 `/museum` is outside this editor session graph. H1 does not route its checked-in
 Chopin project through editor import, selection, history, or gizmo
 adapters.
@@ -548,6 +557,13 @@ integration, 10 highest-risk architectural work in this program.
 - Imported and catalogue scene entities use the existing scene gizmo adapter.
 - Reject unsafe/unsupported files with structured feedback and no partial asset
   registration.
+- **C2 door (decided before this slice):** the composite asset registry is a
+  shared service — scene entities resolve through it today, and layout asset
+  objects (`LayoutObject.kind: 'asset'`) may resolve through it in a post-H1
+  slice. The manifest contract notes layout-referenced `assetId`
+  cross-validation as future work; writing this as a shared registry now avoids
+  a manifest format-version change later. If C2 is rejected before this slice,
+  the registry stays scene-only and this line is dropped.
 
 ### 10. Fold camera authoring into 3D
 
@@ -735,6 +751,8 @@ H1 is complete only when:
 
 - camera or tour authoring in Plan;
 - merging `LayoutDocument`, `SceneDocument`, or their identity types;
+- moving catalogue assets into `LayoutDocument` within H1 (post-H1 candidate
+  C2, decided before slice 9 — see "Ownership remains separate");
 - making the Three scene graph or gizmo proxy authoritative data;
 - a second gizmo, camera graph, route, motion system, or geometry compiler;
 - Blender-style arbitrary mesh/vertex/face editing, sculpting, or real-time CSG;

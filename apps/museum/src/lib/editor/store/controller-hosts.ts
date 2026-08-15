@@ -7,9 +7,9 @@ import type {
 	SceneNavigationNode,
 	SceneObjectCluster,
 	ScenePathAnchor,
-	ScenePrimitiveKind,
-	SceneRoomResolver
+	ScenePrimitiveKind
 } from '$lib/content/scene';
+import type { LayoutRoomRegistry } from '$lib/project/project-layout-semantics';
 import type { MuseumStateStore } from '$lib/state/museum-state.svelte';
 import type { CameraConnectionDirection, MuseumRoomId } from '$lib/types/museum';
 import type { ResolvedCameraRoute } from '$lib/museum/navigation/camera-route';
@@ -68,7 +68,7 @@ export interface EditorControllerHostSource {
 	// Document + resolved scene + selection reducer.
 	readonly document: MuseumSceneDocument;
 	readonly scene: RuntimeMuseumScene;
-	readonly rooms: SceneRoomResolver;
+	readonly rooms: LayoutRoomRegistry;
 	readonly state: MuseumStateStore;
 	readonly selectionStore: EditorSelectionStore;
 

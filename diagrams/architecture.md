@@ -3,7 +3,7 @@
 Companion to [`overall-flow.md`](./overall-flow.md). Built from source (`apps/museum/src/lib`)
 on 2026-08-14. All diagrams are mermaid, matching the existing docs.
 
-## Mental model — in one breath
+## Mental model: in one breath
 
 Authored JSON documents validate into one project; a pure derivation step turns the
 layout into renderer-neutral geometry; three consumers (2D plan, 3D walls, hit-testing)
@@ -20,7 +20,7 @@ const bufferGeo = toWallBufferGeometry(wallMesh, wallMaterialFactory); // Three.
 const hit       = resolvePlanHit(geometry.queries, point, tolerance);  // selection
 ```
 
-## 0. Versioning — what the v-numbers mean
+## 0. Versioning: what the v-numbers mean
 
 Every serialized document carries a `formatVersion` / `schemaVersion` field. The codec
 reads it to detect old data and migrate it forward, so files written by an older build
@@ -39,7 +39,7 @@ on-disk versions, not arbitrary labels. Codecs reject unknown versions and migra
 legacy ones, so old Chopin files keep loading.
 
 ```ts
-// layout-codec.ts — accepts legacy, always emits current
+// layout-codec.ts: accepts legacy, always emits current
 const FORMAT_VERSION = 3 as const;
 const LEGACY_FORMAT_VERSION = 1 as const;      // v1 → v3 migration on read
 const LEGACY_FORMAT_VERSION_TWO = 2 as const;  // v2 → v3 migration on read
@@ -54,7 +54,7 @@ shared core derives geometry that both the editor preview and the visitor render
 
 ```mermaid
 flowchart TB
-    subgraph Editor["Editor — /editor (VITE_MUSEUM_EDITOR=1)"]
+    subgraph Editor["Editor: /editor (VITE_MUSEUM_EDITOR=1)"]
         direction TB
         E1["Layout workspace<br/>(CAD surface)"] --> LAYOUT["layout/ editor modules<br/>draft, edit, inspect, undo"]
         E2["Scene workspace<br/>(entities, materials, lights)"] --> SCENE["scene/ editor modules"]
@@ -71,19 +71,18 @@ flowchart TB
         CAMROUTE["camera<br/>camera-route + camera-motion"]
     end
 
-    subgraph Visitor["Visitor — /museum"]
+    subgraph Visitor["Visitor: /museum"]
         direction TB
         V1["LayoutMuseumShell<br/>(rooms, walls, portals)"]
         V2["MuseumScene<br/>(entities, materials)"]
         V3["CameraDirector<br/>(guided / free tour)"]
     end
 
-    DOCSTORE --> CODEC
+    Editor -->|"documents via codecs"| Core
     CODEC --> COMP
     COMP --> V1
-    CAM --> CAMROUTE
+    CODEC --> CAMROUTE
     CAMROUTE --> V3
-    DOCSTORE --> CAMROUTE
     V2 --> V1
     SCENE -. "authored scene doc<br/>(museum-scene.json v6)" .-> V2
 
@@ -94,7 +93,7 @@ Notes:
 
 - **Two apps in spirit, one codebase**: the editor (authoring) and the visitor
   (`/museum`, runtime render). They share the same derived geometry IR.
-- **`CompiledLayoutGeometry` is the single source of truth for 3D shape** — the
+- **`CompiledLayoutGeometry` is the single source of truth for 3D shape.** The
   visitor has *no* runtime geometry derivation; geometry is derived once from the
   validated project and consumed directly.
 - The scene editor doesn't feed the visitor directly: the link is the serialized
@@ -103,7 +102,7 @@ Notes:
 
 ---
 
-## 2. End-to-end flow — Json → derive → 2D / 3D
+## 2. End-to-end flow: Json → derive → 2D / 3D
 
 **In one breath:** two authored documents validate into one project; the layout is
 derived into geometry consumed by plan, 3D, and hit-testing; the scene projects into
@@ -146,7 +145,7 @@ Consumers of the same `CompiledLayoutGeometry`:
 
 ---
 
-## 3. Pipeline stages — what actually happens
+## 3. Pipeline stages: what actually happens
 
 The source is typed JSON; the stages below are literal steps.
 
@@ -158,7 +157,7 @@ geometry → consume. Blocking issues stop before geometry; non-blocking issues 
 | **Read** | `JSON.parse` turns raw text into plain objects | (built-in) |
 | **Validate structure** | Walk the object tree with typed readers (`readNumber`, `readVec3`, `readEnum`), allowed-key checks, ID pattern; legacy `bezier → auto-bezier` and v1/v2 → v3 migration | `layout-codec.ts`, `content/scene-codec/` (`readers.ts`, `parse-entities.ts`, `parse-nodes.ts`, `parse-connections.ts`, `migrate.ts`) |
 | **Cross-validate** | Field-spanning checks: duplicate IDs, dangling `segmentId`/`roomId` refs, portal relations (door ↔ room pair), finite numbers, blocking-vs-warning issues | `layout-geometry-validation.ts`, `project/project-layout-semantics.ts`, `scene-codec/validate.ts` |
-| **Derive geometry** | `compileLayoutGeometry` — curve sampling, arch profiles, wall sections, solid spans, query records, cache keys; pure + deterministic | `layout-geometry.ts`, `layout-geometry-curve.ts`, `layout-geometry-openings.ts`, `layout-geometry-objects.ts`, `layout-geometry-queries.ts` |
+| **Derive geometry** | `compileLayoutGeometry`: curve sampling, arch profiles, wall sections, solid spans, query records, cache keys; pure + deterministic | `layout-geometry.ts`, `layout-geometry-curve.ts`, `layout-geometry-openings.ts`, `layout-geometry-objects.ts`, `layout-geometry-queries.ts` |
 | **IR** | `CompiledLayoutGeometry` (renderer-neutral) + `CompiledLayoutGeometryResult { geometry, issues }` | `layout-geometry-types.ts` |
 | **Consume** | 2D plan render model + SVG; 3D wall meshes + Threlte; hit-testing queries | `plan-render-model.ts`, `wall-mesh-builder.ts`, `render/wall-geometry-adapter.ts`, `editor/layout/plan-hit.ts` |
 | **Camera track** | Scene graph → route → motion sampling | `museum/navigation/camera-route.ts`, `camera-motion.ts` |
@@ -341,7 +340,7 @@ classDiagram
 
 Two notes on shape:
 
-- `Compiled*` types are plain data (interfaces) produced by pure functions — no
+- `Compiled*` types are plain data (interfaces) produced by pure functions. No
   classes with behavior, no inheritance. The only class-like things in the codebase
   are validation errors (`LayoutDocumentValidationError`, `MuseumProjectValidationError`,
   `SceneDocumentValidationError`) and the Svelte 5 `$state` controllers in
@@ -368,13 +367,13 @@ Two notes on shape:
 
 Key boundary/parity tests that pin the architecture:
 
-- `layout-geometry-boundary.test.ts` — exactly one `compileLayoutGeometry` definition.
-- `plan-render-boundary.test.ts` — `plan-render-model.ts` may not import the geometry
+- `layout-geometry-boundary.test.ts`: exactly one `compileLayoutGeometry` definition.
+- `plan-render-boundary.test.ts`: `plan-render-model.ts` may not import the geometry
   derivation; adapters own rendering.
-- `layout-geometry-parity.test.ts` — editor preview geometry == shared derivation output.
-- `layout-geometry-golden.test.ts` — golden snapshots per fixture document.
-- `visitor-import-boundary` — editor/layout modules absent from visitor chunks.
-- `wall-mesh-shell-boundary.test.ts` — visitor shell imports the shared wall builder.
+- `layout-geometry-parity.test.ts`: editor preview geometry == shared derivation output.
+- `layout-geometry-golden.test.ts`: golden snapshots per fixture document.
+- `visitor-import-boundary`: editor/layout modules absent from visitor chunks.
+- `wall-mesh-shell-boundary.test.ts`: visitor shell imports the shared wall builder.
 
 ---
 

@@ -35,6 +35,5 @@ flowchart LR
 - The camera tour projects scene data through the single route/motion system
   (`camera-route.ts` + `camera-motion.ts`).
 - Only authored data persists; compiled geometry is derived and rebuilt when needed.
-- Version markers: layout `formatVersion` 3, scene `schemaVersion` 6, project `formatVersion` 1
-  (see [`architecture.md`](./architecture.md#0-versioning--what-the-v-numbers-mean) for the
-  evolution).
+- Documents carry no version fields; the codecs parse one canonical shape each
+  (see [`architecture.md`](./architecture.md#0-documents-one-shape-no-versioning)).

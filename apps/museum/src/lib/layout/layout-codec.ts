@@ -1,4 +1,3 @@
-import { legacyBezierToAutoBezier } from './layout-geometry-curve';
 import { deriveLayoutRoomFrame, normalizeLayoutRoomYaw } from './layout-room-frame';
 import type {
 	DraftPath,
@@ -13,9 +12,6 @@ import type {
 	LayoutVec2
 } from './layout-types';
 
-const FORMAT_VERSION = 3 as const;
-const LEGACY_FORMAT_VERSION = 1 as const;
-const LEGACY_FORMAT_VERSION_TWO = 2 as const;
 const UNITS = 'meters' as const;
 const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
 
@@ -23,7 +19,7 @@ type JsonRecord = Record<string, unknown>;
 
 type ParsedValue<T> = T | undefined;
 
-const ROOT_KEYS = ['formatVersion', 'units', 'floors', 'objects'] as const;
+const ROOT_KEYS = ['units', 'floors', 'objects'] as const;
 const FLOOR_KEYS = ['id', 'name', 'elevation', 'height', 'rooms'] as const;
 const ROOM_KEYS = [
 	'id',
@@ -39,14 +35,6 @@ const ROOM_FRAME_KEYS = ['origin', 'yaw'] as const;
 const PATH_KEYS = ['closed', 'segments'] as const;
 const LINE_SEGMENT_KEYS = ['id', 'kind', 'start', 'end'] as const;
 const AUTO_BEZIER_SEGMENT_KEYS = ['id', 'kind', 'start', 'end', 'interiorAnchors'] as const;
-const LEGACY_BEZIER_SEGMENT_KEYS = [
-	'id',
-	'kind',
-	'start',
-	'handleOut',
-	'handleIn',
-	'end'
-] as const;
 const INTERIOR_ANCHOR_KEYS = ['id', 'point'] as const;
 const OPENING_KEYS = [
 	'id',
@@ -104,7 +92,6 @@ export class LayoutDocumentValidationError extends Error {
 
 export function createEmptyLayoutDocument(): LayoutDocument {
 	return {
-		formatVersion: FORMAT_VERSION,
 		units: UNITS,
 		floors: [],
 		objects: []
@@ -159,31 +146,12 @@ function parseDocument(
 	if (!record) return undefined;
 	assertAllowedKeys(record, ROOT_KEYS, path, issues);
 
-	const formatVersion = readNumber(record.formatVersion, `${path}.formatVersion`, issues);
-	if (
-		formatVersion !== FORMAT_VERSION &&
-		formatVersion !== LEGACY_FORMAT_VERSION &&
-		formatVersion !== LEGACY_FORMAT_VERSION_TWO
-	) {
-		addIssue(
-			issues,
-			`${path}.formatVersion`,
-			'unsupported_version',
-			`Expected layout document formatVersion ${LEGACY_FORMAT_VERSION}, ${LEGACY_FORMAT_VERSION_TWO}, or ${FORMAT_VERSION}`
-		);
-	}
-
 	const units = readString(record.units, `${path}.units`, issues);
 	if (units !== UNITS) {
 		addIssue(issues, `${path}.units`, 'unsupported_units', `Expected units '${UNITS}'`);
 	}
 
-	const floors = parseArray(
-		record.floors,
-		`${path}.floors`,
-		issues,
-		(value, itemPath, target) => parseFloor(value, itemPath, target, formatVersion === FORMAT_VERSION)
-	);
+	const floors = parseArray(record.floors, `${path}.floors`, issues, parseFloor);
 	const objects = parseArray(record.objects, `${path}.objects`, issues, parseObject);
 	if (!floors || !objects) return undefined;
 
@@ -207,7 +175,6 @@ function parseDocument(
 
 	if (issues.length > 0) return undefined;
 	return {
-		formatVersion: FORMAT_VERSION,
 		units: UNITS,
 		floors,
 		objects
@@ -217,8 +184,7 @@ function parseDocument(
 function parseFloor(
 	input: unknown,
 	path: string,
-	issues: LayoutDocumentIssue[],
-	requireFrame = false
+	issues: LayoutDocumentIssue[]
 ): ParsedValue<LayoutFloor> {
 	const record = readRecord(input, path, issues);
 	if (!record) return undefined;
@@ -228,12 +194,7 @@ function parseFloor(
 	const name = readNonEmptyString(record.name, `${path}.name`, issues);
 	const elevation = readNumber(record.elevation, `${path}.elevation`, issues);
 	const height = readPositiveNumber(record.height, `${path}.height`, issues);
-	const rooms = parseArray(
-		record.rooms,
-		`${path}.rooms`,
-		issues,
-		(value, itemPath, target) => parseRoom(value, itemPath, target, requireFrame)
-	);
+	const rooms = parseArray(record.rooms, `${path}.rooms`, issues, parseRoom);
 	if (!id || !name || elevation === undefined || height === undefined || !rooms) {
 		return undefined;
 	}
@@ -245,8 +206,7 @@ function parseFloor(
 function parseRoom(
 	input: unknown,
 	path: string,
-	issues: LayoutDocumentIssue[],
-	requireFrame = false
+	issues: LayoutDocumentIssue[]
 ): ParsedValue<LayoutRoom> {
 	const record = readRecord(input, path, issues);
 	if (!record) return undefined;
@@ -258,8 +218,8 @@ function parseRoom(
 	const frame = record.frame === undefined
 		? undefined
 		: parseRoomFrame(record.frame, `${path}.frame`, issues);
-	if (requireFrame && record.frame === undefined) {
-		addIssue(issues, `${path}.frame`, 'missing_field', 'Layout v3 rooms require a frame');
+	if (record.frame === undefined) {
+		addIssue(issues, `${path}.frame`, 'missing_field', 'Rooms require a frame');
 	}
 	const wallThickness = readPositiveNumber(
 		record.wallThickness,
@@ -374,17 +334,6 @@ function parseSegment(
 		const interiorAnchors = parseInteriorAnchors(record.interiorAnchors, `${path}.interiorAnchors`, issues);
 		if (!id || !start || !end || !interiorAnchors) return undefined;
 		return { id, kind, start, end, interiorAnchors };
-	}
-
-	if (kind === 'bezier') {
-		assertAllowedKeys(record, LEGACY_BEZIER_SEGMENT_KEYS, path, issues);
-		const id = readId(record.id, `${path}.id`, issues);
-		const start = readVec2(record.start, `${path}.start`, issues);
-		const handleOut = readVec2(record.handleOut, `${path}.handleOut`, issues);
-		const handleIn = readVec2(record.handleIn, `${path}.handleIn`, issues);
-		const end = readVec2(record.end, `${path}.end`, issues);
-		if (!id || !start || !handleOut || !handleIn || !end) return undefined;
-		return legacyBezierToAutoBezier({ id, kind: 'bezier', start, handleOut, handleIn, end });
 	}
 
 	if (kind !== undefined) {

@@ -1,9 +1,7 @@
 {
-  "formatVersion": 1,
   "id": "project:chopin",
   "name": "Chopin Museum",
   "layout": {
-    "formatVersion": 3,
     "units": "meters",
     "floors": [
       {
@@ -698,7 +696,6 @@
     "objects": []
   },
   "scene": {
-    "version": 6,
     "textures": [],
     "materials": [],
     "entities": [

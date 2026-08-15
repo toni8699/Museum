@@ -821,7 +821,6 @@ function createPreviewProject(input: {
 		throw new Error(`${first.path} (${first.code}): ${first.message}`);
 	}
 	return {
-		formatVersion: 1,
 		id: input.id,
 		name: input.name,
 		layout: validation.document,

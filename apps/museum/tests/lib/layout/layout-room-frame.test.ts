@@ -4,31 +4,7 @@ import { validateLayoutDocument } from '$lib/layout/layout-codec';
 import { layoutRoomLocalPoint, layoutRoomPoint } from '$lib/layout/layout-room-frame';
 import type { Vec3 } from '$lib/types/museum';
 
-describe('layout v3 room frames', () => {
-	it('migrates layout v2 Chopin boundaries back to every authored frame', () => {
-		const legacy = JSON.parse(JSON.stringify(chopinProject.layout)) as {
-			formatVersion: number;
-			floors: Array<{ rooms: Array<{ frame?: unknown }> }>;
-		};
-		legacy.formatVersion = 2;
-		for (const floor of legacy.floors) {
-			for (const room of floor.rooms) delete room.frame;
-		}
-		const result = validateLayoutDocument(legacy);
-		expect(result.success).toBe(true);
-		if (!result.success) return;
-		for (const floor of result.document.floors) {
-			for (const room of floor.rooms) {
-				const expected = chopinProject.layout.floors
-					.flatMap((candidate) => candidate.rooms)
-					.find((candidate) => candidate.id === room.id)!;
-				expect(room.frame.origin[0]).toBeCloseTo(expected.frame.origin[0], 9);
-				expect(room.frame.origin[1]).toBeCloseTo(expected.frame.origin[1], 9);
-				expect(room.frame.yaw).toBeCloseTo(expected.frame.yaw, 9);
-			}
-		}
-	});
-
+describe('layout room frames', () => {
 	it('round-trips room-local/world points with Three.js positive-Y yaw', () => {
 		const floor = chopinProject.layout.floors[0]!;
 		const room = floor.rooms.find((candidate) => candidate.id === 'paris')!;

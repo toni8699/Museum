@@ -34,12 +34,10 @@ function expectVecClose(actual: Vec3, expected: Vec3, digits = 9): void {
 }
 
 describe('canonical Chopin project', () => {
-	it('is already canonical serialized project v1 with layout v3 and scene v6', () => {
+	it('is canonical: raw JSON round-trips byte-stably through the codec', () => {
 		const result = validateMuseumProject(rawProject);
 		expect(result.success).toBe(true);
 		if (!result.success) return;
-		expect(result.project.layout.formatVersion).toBe(3);
-		expect(result.project.scene.version).toBe(6);
 		expect(JSON.stringify(rawProject, null, 2) + '\n').toBe(serializeMuseumProject(chopinProject));
 	});
 

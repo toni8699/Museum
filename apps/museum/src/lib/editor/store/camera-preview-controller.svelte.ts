@@ -647,7 +647,7 @@ export class EditorCameraPreviewController {
 	 * composition root will call `invalidateGraph()`).
 	 */
 	#graph() {
-		const key = `${this.document.document.navigationNodes.length}/${this.document.document.connections.length}/${this.document.document.version}`;
+		const key = `${this.document.document.navigationNodes.length}/${this.document.document.connections.length}`;
 		if (this.#graphCache && this.#graphCacheKey === key) return this.#graphCache;
 		this.#graphCache = createNavigationGraph(this.document.scene);
 		this.#graphCacheKey = key;

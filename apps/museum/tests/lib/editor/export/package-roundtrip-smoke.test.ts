@@ -18,8 +18,7 @@ import { unzipSync } from 'fflate';
 import { buildPackage } from '$lib/editor/export/package-exporter';
 import { importPackage } from '$lib/editor/import/package-importer';
 import {
-	REWRITE_URI_PREFIX,
-	SUPPORTED_SCHEMA_VERSION
+	REWRITE_URI_PREFIX
 } from '$lib/content/package-format';
 import baseSceneFixture from '$lib/content/museum-scene.json';
 import type { MuseumSceneDocument, SceneTextureAsset } from '$lib/content/scene';
@@ -46,7 +45,6 @@ function makeScene(): MuseumSceneDocument {
 	const baseScene = baseSceneFixture as unknown as MuseumSceneDocument;
 	return {
 		...baseScene,
-		version: SUPPORTED_SCHEMA_VERSION,
 		textures: FIXTURE_TEXTURES.map((t) => ({ ...t })),
 		materials: []
 	};
@@ -76,11 +74,10 @@ describe('Phase 5.4 package round-trip smoke', () => {
 		// The resolver was called once per texture uri.
 		expect(seen).toEqual(FIXTURE_TEXTURES.map((t) => t.uri));
 
-		// Manifest sanity: formatVersion=1, schemaVersion=6, generator pinned,
-		// packageId is package-<12 hex>.
+		// Manifest sanity: generator pinned, packageId is package-<12 hex.
 		const map = unzipSync(exportResult.zip);
 		const manifest = JSON.parse(new TextDecoder().decode(map['manifest.json']!)) as {
-			package: { id: string; formatVersion: number; schemaVersion: number; generator: string };
+			package: { id: string; generator: string };
 			textures: Array<{
 				assetId: string;
 				originalName: string;
@@ -90,8 +87,6 @@ describe('Phase 5.4 package round-trip smoke', () => {
 				destinationPath: string;
 			}>;
 		};
-		expect(manifest.package.formatVersion).toBe(1);
-		expect(manifest.package.schemaVersion).toBe(SUPPORTED_SCHEMA_VERSION);
 		expect(manifest.package.generator).toBe('museum-editor-5.4');
 		expect(manifest.package.id).toMatch(/^package-[0-9a-f]{12}$/);
 		expect(manifest.textures.length).toBe(FIXTURE_TEXTURES.length);

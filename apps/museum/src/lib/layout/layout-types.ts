@@ -3,7 +3,6 @@ import type { Vec3 } from '$lib/types/museum';
 export type LayoutVec2 = [number, number];
 
 export type LayoutDocument = {
-  formatVersion: 3;
   units: 'meters';
   floors: LayoutFloor[];
   objects: LayoutObject[];

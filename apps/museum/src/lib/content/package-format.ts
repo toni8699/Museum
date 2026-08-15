@@ -5,7 +5,7 @@
  * `editor/import/package-importer.ts` and `editor/export/package-exporter.ts`.
  *
  * Format:
- * - `museum-scene.json` (canonical v6, rewritten URIs)
+ * - `museum-scene.json` (canonical, rewritten URIs)
  * - `manifest.json` (single source of truth; per-texture sha256 fingerprints)
  * - `textures/<sanitizedFilename>` × N
  *
@@ -18,11 +18,6 @@
  */
 
 import { sha256Bytes } from '$lib/editor/helpers/package-sha';
-
-/** Forward-compatible format identifier; older `0` is not supported. */
-export const PACKAGE_FORMAT_VERSION = 1 as const;
-/** The scene schema version every package must conform to. */
-export const SUPPORTED_SCHEMA_VERSION = 6 as const;
 
 export type SupportedMime = 'image/png' | 'image/webp' | 'image/jpeg';
 
@@ -48,15 +43,8 @@ export function extensionForMime(mime: string): '.png' | '.webp' | '.jpg' | '.jp
 	}
 }
 
-export interface ManifestVersion {
-	formatVersion: number;
-	schemaVersion: number;
-}
-
 export interface PackageManifestPackage {
 	id: string;
-	formatVersion: typeof PACKAGE_FORMAT_VERSION;
-	schemaVersion: typeof SUPPORTED_SCHEMA_VERSION;
 	createdAt: string;
 	generator: string;
 	documentTitle: string;
@@ -74,27 +62,6 @@ export interface PackageManifestTextureEntry {
 export interface PackageManifest {
 	package: PackageManifestPackage;
 	textures: PackageManifestTextureEntry[];
-}
-
-export function assertFormatVersion(formatVersion: number): void {
-	if (formatVersion !== PACKAGE_FORMAT_VERSION) {
-		throw new Error(
-			`Unsupported package formatVersion ${formatVersion}; expected ${PACKAGE_FORMAT_VERSION}.`
-		);
-	}
-}
-
-export function assertSchemaVersion(schemaVersion: number): void {
-	if (schemaVersion !== SUPPORTED_SCHEMA_VERSION) {
-		throw new Error(
-			`Unsupported package schemaVersion ${schemaVersion}; expected ${SUPPORTED_SCHEMA_VERSION}.`
-		);
-	}
-}
-
-export function assertManifestVersion(version: ManifestVersion): void {
-	assertFormatVersion(version.formatVersion);
-	assertSchemaVersion(version.schemaVersion);
 }
 
 /**
@@ -206,8 +173,6 @@ export function buildPackageManifest(input: {
 	return {
 		package: {
 			id: input.packageId,
-			formatVersion: PACKAGE_FORMAT_VERSION,
-			schemaVersion: SUPPORTED_SCHEMA_VERSION,
 			createdAt: input.createdAt.toISOString(),
 			generator: 'museum-editor-5.4',
 			documentTitle: input.documentTitle || 'museum-scene'

@@ -15,9 +15,8 @@ import type {
 	MuseumProjectValidationResult
 } from './project-types';
 
-const FORMAT_VERSION = 1 as const;
 const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
-const ROOT_KEYS = ['formatVersion', 'id', 'name', 'layout', 'scene'] as const;
+const ROOT_KEYS = ['id', 'name', 'layout', 'scene'] as const;
 type JsonRecord = Record<string, unknown>;
 
 export type MuseumProjectInput = {
@@ -37,7 +36,7 @@ export class MuseumProjectValidationError extends Error {
 }
 
 export function createMuseumProject(input: MuseumProjectInput): MuseumProject {
-	const result = validateMuseumProject({ formatVersion: FORMAT_VERSION, ...input });
+	const result = validateMuseumProject(input);
 	if (!result.success) throw new MuseumProjectValidationError(result.issues[0]!);
 	return result.project;
 }
@@ -54,7 +53,6 @@ export type EmptyMuseumProjectInput = {
  */
 export function createEmptyMuseumProject(input: EmptyMuseumProjectInput): MuseumProject {
 	return {
-		formatVersion: FORMAT_VERSION,
 		id: input.id,
 		name: input.name,
 		layout: createEmptyLayoutDocument(),
@@ -70,9 +68,6 @@ export function validateMuseumProject(input: unknown): MuseumProjectValidationRe
 			issues.push(issue(`$.${key}`, 'unknown_key', `Unknown key '${key}'`));
 		}
 	}
-	if (input.formatVersion !== FORMAT_VERSION) {
-		issues.push(issue('$.formatVersion', 'unsupported_version', `Expected museum project formatVersion ${FORMAT_VERSION}`));
-	}
 	const id = readId(input.id, '$.id', issues);
 	const name = readName(input.name, '$.name', issues);
 	const layoutResult = validateLayoutDocument(input.layout);
@@ -86,7 +81,6 @@ export function validateMuseumProject(input: unknown): MuseumProjectValidationRe
 		return { success: false, issues };
 	}
 	const project: MuseumProject = {
-		formatVersion: FORMAT_VERSION,
 		id,
 		name,
 		layout: layoutResult.document,

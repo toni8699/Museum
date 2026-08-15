@@ -28,8 +28,8 @@ docs/
 flowchart TB
   New["New Project"] --> EditorProject["H1 MuseumProject session"]
   Import["Import H1 package"] --> EditorProject
-  EditorProject --> Layout["LayoutDocument v3"]
-  EditorProject --> Scene["SceneDocument v6"]
+  EditorProject --> Layout["LayoutDocument"]
+  EditorProject --> Scene["SceneDocument"]
   Layout --> Plan["PlanRenderModel → Plan"]
   Layout --> Compile["compileLayoutGeometry()"]
   Compile --> Editor3D["Unified editor 3D Canvas"]

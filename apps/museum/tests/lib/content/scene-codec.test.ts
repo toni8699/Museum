@@ -21,86 +21,6 @@ function cloneDocument() {
 	return cloneFixtureDocument('tour-minimal');
 }
 
-function modelPlacementsFromDocument(document: MuseumSceneDocument) {
-	return document.entities
-		.filter((entity): entity is Extract<typeof entity, { kind: 'model' }> => entity.kind === 'model')
-		.map(({ kind: _kind, name: _name, ...placement }) => placement);
-}
-
-function versionTwoDocument(): unknown {
-	const document = cloneDocument();
-	const {
-		entities: _entities,
-		textures: _textures,
-		materials: _materials,
-		...rest
-	} = document;
-	return {
-		...rest,
-		version: 2,
-		objects: modelPlacementsFromDocument(document),
-		navigationNodes: document.navigationNodes.map(({ fov: _fov, holdSeconds: _hold, ...node }) => node),
-		connections: document.connections.map(
-			({ viewTracks: _viewTracks, timing: _timing, ...connection }) => connection
-		)
-	};
-}
-
-function versionOneDocument(): unknown {
-	const document = versionTwoDocument() as {
-		version: number;
-		connections: Array<Record<string, unknown> & {
-			positionPath: { anchors: Array<{ id: string }> };
-		}>;
-	};
-	return {
-		...document,
-		version: 1,
-		connections: document.connections.map(({ positionPath, ...connection }) => ({
-			...connection,
-			positionWaypoints: positionPath.anchors.map(({ id: _id, ...waypoint }) => waypoint)
-		}))
-	};
-}
-
-function versionFiveDocument(): unknown {
-	const document = cloneDocument();
-	const {
-		textures: _textures,
-		materials: _materials,
-		...rest
-	} = document;
-	return {
-		...rest,
-		version: 5,
-		entities: document.entities.map((entity) => {
-			const { materialInstanceId: _materialInstanceId, ...legacyEntity } =
-				entity as typeof entity & { materialInstanceId?: string };
-			return legacyEntity;
-		})
-	};
-}
-
-function versionSixDocument(): {
-	version: number;
-	textures: Array<Record<string, unknown>>;
-	materials: Array<Record<string, unknown>>;
-	entities: Array<Record<string, unknown>>;
-	[key: string]: unknown;
-} {
-	const document = cloneDocument() as unknown as {
-		version: number;
-		entities: Array<Record<string, unknown>>;
-		[key: string]: unknown;
-	};
-	return {
-		...document,
-		version: 6,
-		textures: [],
-		materials: []
-	};
-}
-
 function expectIssue(input: unknown, code: string, path?: string) {
 	const result = validateSceneDocument(input);
 	expect(result.success).toBe(false);
@@ -117,7 +37,7 @@ describe('scene document codec', () => {
 		const parsed = parseSceneDocumentJson(json);
 
 		expect(json).toMatch(
-			/^\{\n  "version": 6,\n  "textures": \[\],\n  "materials": \[\],\n  "entities": \[/
+			/^\{\n  "textures": \[\],\n  "materials": \[\],\n  "entities": \[/
 		);
 		expect(json).toContain('\n  "navigationNodes": [');
 		expect(json).not.toContain('\n  "clusters":');
@@ -140,7 +60,7 @@ describe('scene document codec', () => {
 	});
 
 	it('reports malformed JSON separately and rejects strict unknown or null fields', () => {
-		const malformed = parseSceneDocumentJson('{\n  "version": 1,\n');
+		const malformed = parseSceneDocumentJson('{\n  "textures": [],\n');
 		expect(malformed).toEqual({
 			success: false,
 			issues: [expect.objectContaining({ path: '$', code: 'invalid_json' })]
@@ -194,69 +114,6 @@ describe('scene document codec', () => {
 		const result = validateSceneDocument(document);
 		expect(result.success).toBe(false);
 		if (!result.success) expect(result.issues).toContainEqual(expect.objectContaining({ code: 'invalid_tour_cycle' }));
-	});
-
-	it('strictly validates version 1 before deterministic migration to canonical version 6', () => {
-		const legacy = versionOneDocument() as {
-			connections: Array<Record<string, unknown>>;
-		};
-		legacy.connections[0]!.targetWaypoints = [
-			{ roomId: 'entrance', position: [0.5, 1.4, -1] }
-		];
-		const before = JSON.stringify(legacy);
-		const result = validateSceneDocument(legacy);
-
-		expect(result.success).toBe(true);
-		if (!result.success) return;
-		expect(JSON.stringify(legacy)).toBe(before);
-		expect(result.document.version).toBe(6);
-		expect(result.document.textures).toEqual([]);
-		expect(result.document.materials).toEqual([]);
-		expect(result.document.entities.every((entity) => entity.kind === 'model')).toBe(true);
-		expect(result.document.navigationNodes.every((node) => node.fov === 54)).toBe(true);
-		expect(result.document.connections.every((connection) => connection.positionPath.kind === 'rounded-polyline')).toBe(true);
-		const fixtureAnchorIds = cloneDocument().connections.flatMap((connection) =>
-			connection.positionPath.anchors.map((anchor) => anchor.id)
-		);
-		expect(
-			result.document.connections.flatMap((connection) =>
-				connection.positionPath.anchors.map((anchor) => anchor.id)
-			)
-		).toEqual(fixtureAnchorIds);
-		expect(result.canonicalJson).toContain('"version": 6');
-		expect(result.canonicalJson).not.toContain('positionWaypoints');
-		expect(result.document.connections[0]!.targetWaypoints).toEqual(
-			legacy.connections[0]!.targetWaypoints
-		);
-		expect(serializeSceneDocument(legacy as MuseumSceneDocument)).toBe(result.canonicalJson);
-
-		const repeated = validateSceneDocument(legacy);
-		expect(repeated).toEqual(result);
-	});
-
-	it('migrates version 2 directly to v6 while preserving dormant target waypoints', () => {
-		const legacy = versionTwoDocument() as {
-			connections: Array<Record<string, unknown>>;
-		};
-		legacy.connections[0]!.targetWaypoints = [
-			{ roomId: 'entrance', position: [0.5, 1.4, -1] },
-			{ position: [12, 1.3, 8] }
-		];
-		const before = JSON.stringify(legacy);
-		const result = validateSceneDocument(legacy);
-
-		expect(result.success).toBe(true);
-		if (!result.success) return;
-		expect(JSON.stringify(legacy)).toBe(before);
-		expect(result.document.version).toBe(6);
-		expect(result.document.navigationNodes.every((node) => node.fov === 54)).toBe(true);
-		expect(result.document.connections.every((connection) => !connection.viewTracks)).toBe(true);
-		expect(result.document.connections[0]!.targetWaypoints).toEqual(
-			legacy.connections[0]!.targetWaypoints
-		);
-		expect(result.document.connections[0]!.targetWaypoints).not.toBe(
-			legacy.connections[0]!.targetWaypoints
-		);
 	});
 
 	it('round-trips canonical directional view tracks with stable field order and fresh values', () => {
@@ -394,7 +251,6 @@ describe('scene document codec', () => {
 		};
 		expect(validateSceneDocument(unknownRoom).success).toBe(true);
 		const projectResult = validateMuseumProject({
-			formatVersion: 1,
 			id: 'project:test',
 			name: 'Test',
 			layout: chopinProject.layout,
@@ -440,7 +296,6 @@ describe('scene document codec', () => {
 			});
 
 			const projectResult = validateMuseumProject({
-				formatVersion: 1,
 				id: 'project:test',
 				name: 'Test',
 				layout: chopinProject.layout,
@@ -456,46 +311,7 @@ describe('scene document codec', () => {
 		}
 	});
 
-	it('does not reinterpret fields across scene document versions', () => {
-		const legacy = versionOneDocument() as {
-			navigationNodes: Array<Record<string, unknown>>;
-			connections: Array<Record<string, unknown>>;
-		};
-		legacy.connections[0]!.positionPath = { kind: 'rounded-polyline', anchors: [] };
-		const legacyResult = validateSceneDocument(legacy);
-		expect(legacyResult.success).toBe(false);
-		if (!legacyResult.success) {
-			expect(legacyResult.issues).toContainEqual(
-				expect.objectContaining({
-					path: '$.connections[0].positionPath',
-					code: 'unknown_property'
-				})
-			);
-		}
-
-		const versionTwo = versionTwoDocument() as {
-			navigationNodes: Array<Record<string, unknown>>;
-			connections: Array<Record<string, unknown>>;
-		};
-		versionTwo.navigationNodes[0]!.fov = 54;
-		versionTwo.connections[0]!.viewTracks = { forward: [], reverse: [] };
-		const versionTwoResult = validateSceneDocument(versionTwo);
-		expect(versionTwoResult.success).toBe(false);
-		if (!versionTwoResult.success) {
-			expect(versionTwoResult.issues).toEqual(
-				expect.arrayContaining([
-					expect.objectContaining({
-						path: '$.navigationNodes[0].fov',
-						code: 'unknown_property'
-					}),
-					expect.objectContaining({
-						path: '$.connections[0].viewTracks',
-						code: 'unknown_property'
-					})
-				])
-			);
-		}
-
+	it('rejects stale legacy fields on the current shape', () => {
 		const current = cloneDocument() as unknown as {
 			connections: Array<Record<string, unknown>>;
 		};
@@ -512,20 +328,7 @@ describe('scene document codec', () => {
 		}
 	});
 
-	it('keeps v1 all-node tour rules and permits connected free-only v2 nodes', () => {
-		const legacy = versionOneDocument() as {
-			navigationNodes: Array<Record<string, unknown>>;
-		};
-		delete legacy.navigationNodes[0]!.nextNodeId;
-		delete legacy.navigationNodes[0]!.previousNodeId;
-		const legacyResult = validateSceneDocument(legacy);
-		expect(legacyResult.success).toBe(false);
-		if (!legacyResult.success) {
-			expect(legacyResult.issues).toContainEqual(
-				expect.objectContaining({ code: 'missing_tour_link' })
-			);
-		}
-
+	it('permits connected free-only nodes and all-free-only graphs', () => {
 		const current = cloneDocument();
 		const source = current.navigationNodes[0]!;
 		current.navigationNodes.push({
@@ -664,7 +467,6 @@ describe('scene document codec', () => {
 		const result = validateSceneDocument(document);
 		expect(result.success).toBe(true);
 		if (!result.success) return;
-		expect(result.document.version).toBe(6);
 		expect(result.document.entities.some((entity) => entity.kind === 'primitive')).toBe(true);
 		expect(result.document.entities.some((entity) => entity.kind === 'light')).toBe(true);
 		expect(serializeSceneDocument(result.document)).toBe(result.canonicalJson);
@@ -710,26 +512,8 @@ describe('scene document codec', () => {
 		);
 	});
 
-	it('migrates canonical v5 input to deterministic v6 empty resource arrays', () => {
-		const legacy = versionFiveDocument();
-		const before = JSON.stringify(legacy);
-		const first = validateSceneDocument(legacy);
-		const second = validateSceneDocument(legacy);
-
-		expect(first.success).toBe(true);
-		if (!first.success) return;
-		expect(first.document.version).toBe(6);
-		expect(first.document.textures).toEqual([]);
-		expect(first.document.materials).toEqual([]);
-		expect(first.canonicalJson).toMatch(
-			/^\{\n  "version": 6,\n  "textures": \[\],\n  "materials": \[\],\n  "entities": \[/
-		);
-		expect(second).toEqual(first);
-		expect(JSON.stringify(legacy)).toBe(before);
-	});
-
-	it('round-trips stable v6 texture and material instance IDs with renderable references', () => {
-		const document = versionSixDocument();
+	it('round-trips texture and material instance IDs with renderable references', () => {
+		const document = cloneDocument();
 		document.textures = [
 			{
 				id: 'texture-wall-detail',
@@ -747,7 +531,8 @@ describe('scene document codec', () => {
 				metalness: 0.1
 			}
 		];
-		document.entities[0]!.materialInstanceId = 'material-wall-detail';
+		(document.entities[0] as { materialInstanceId?: string }).materialInstanceId =
+			'material-wall-detail';
 		document.entities.push({
 			kind: 'primitive',
 			id: 'textured-box',
@@ -798,28 +583,28 @@ describe('scene document codec', () => {
 		'/textures/texture.png?cache=1',
 		'/textures/texture.png#preview'
 	])('rejects unsafe texture URI %s', (uri) => {
-		const document = versionSixDocument();
+		const document = cloneDocument();
 		document.textures = [{ id: 'unsafe-texture', name: 'Unsafe', uri }];
 
 		expectIssue(document, 'unsafe_texture_uri', '$.textures[0].uri');
 	});
 
 	it('rejects duplicate resources and unresolved material references', () => {
-		const duplicateTextures = versionSixDocument();
+		const duplicateTextures = cloneDocument();
 		duplicateTextures.textures = [
 			{ id: 'same-texture', name: 'First', uri: '/textures/first.png' },
 			{ id: 'same-texture', name: 'Second', uri: '/textures/second.png' }
 		];
 		expectIssue(duplicateTextures, 'duplicate_id', '$.textures[1].id');
 
-		const duplicateMaterials = versionSixDocument();
+		const duplicateMaterials = cloneDocument();
 		duplicateMaterials.materials = [
 			{ id: 'same-material', name: 'First', baseMaterialId: 'plaster-warm' },
 			{ id: 'same-material', name: 'Second', baseMaterialId: 'wood-walnut' }
 		];
 		expectIssue(duplicateMaterials, 'duplicate_id', '$.materials[1].id');
 
-		const unknownTexture = versionSixDocument();
+		const unknownTexture = cloneDocument();
 		unknownTexture.materials = [
 			{
 				id: 'unknown-texture-material',
@@ -830,8 +615,9 @@ describe('scene document codec', () => {
 		];
 		expectIssue(unknownTexture, 'unknown_texture', '$.materials[0].baseTextureId');
 
-		const unknownMaterial = versionSixDocument();
-		unknownMaterial.entities[0]!.materialInstanceId = 'missing-material';
+		const unknownMaterial = cloneDocument();
+		(unknownMaterial.entities[0] as { materialInstanceId?: string }).materialInstanceId =
+			'missing-material';
 		expectIssue(
 			unknownMaterial,
 			'unknown_material_instance',
@@ -840,10 +626,10 @@ describe('scene document codec', () => {
 	});
 
 	it('rejects invalid material bases, overrides, and light material references', () => {
-		const unknownBase = versionSixDocument();
+		const unknownBase = cloneDocument();
 		unknownBase.materials = [
 			{ id: 'bad-base', name: 'Bad Base', baseMaterialId: 'missing-material' }
-		];
+		] as unknown as MuseumSceneDocument['materials'];
 		expectIssue(unknownBase, 'unknown_material', '$.materials[0].baseMaterialId');
 
 		for (const [key, value] of [
@@ -852,7 +638,7 @@ describe('scene document codec', () => {
 			['metalness', -0.01],
 			['metalness', 1.01]
 		] as const) {
-			const invalidOverride = versionSixDocument();
+			const invalidOverride = cloneDocument();
 			invalidOverride.materials = [
 				{
 					id: `bad-${key}-${value}`,
@@ -864,7 +650,7 @@ describe('scene document codec', () => {
 			expectIssue(invalidOverride, `invalid_${key}`, `$.materials[0].${key}`);
 		}
 
-		const lightReference = versionSixDocument();
+		const lightReference = cloneDocument();
 		lightReference.entities.push({
 			kind: 'light',
 			id: 'material-light',
@@ -877,7 +663,7 @@ describe('scene document codec', () => {
 			position: [0, 2, 0],
 			rotation: [0, 0, 0],
 			materialInstanceId: 'missing-material'
-		});
+		} as never);
 		expectIssue(
 			lightReference,
 			'unknown_property',
@@ -885,27 +671,13 @@ describe('scene document codec', () => {
 		);
 	});
 
-	it('requires v6 resource arrays and keeps v6-only fields out of v5', () => {
-		const missingTextures = versionSixDocument();
+	it('requires textures and materials resource arrays', () => {
+		const missingTextures = cloneDocument();
 		delete (missingTextures as Partial<typeof missingTextures>).textures;
 		expectIssue(missingTextures, 'invalid_type', '$.textures');
 
-		const missingMaterials = versionSixDocument();
+		const missingMaterials = cloneDocument();
 		delete (missingMaterials as Partial<typeof missingMaterials>).materials;
 		expectIssue(missingMaterials, 'invalid_type', '$.materials');
-
-		const legacyRoot = versionFiveDocument() as Record<string, unknown>;
-		legacyRoot.textures = [];
-		expectIssue(legacyRoot, 'unknown_property', '$.textures');
-
-		const legacyEntity = versionFiveDocument() as {
-			entities: Array<Record<string, unknown>>;
-		};
-		legacyEntity.entities[0]!.materialInstanceId = 'material-wall-detail';
-		expectIssue(
-			legacyEntity,
-			'unknown_property',
-			'$.entities[0].materialInstanceId'
-		);
 	});
 });

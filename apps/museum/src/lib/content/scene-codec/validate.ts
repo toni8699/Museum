@@ -1,26 +1,23 @@
 /**
- * `scene-codec/validate.ts` — semantic + version-two + keyframe validation.
+ * `scene-codec/validate.ts` — semantic + tour-cycle + keyframe validation.
  *
  * Hosts `validateSemantics` (the cross-node / cross-connection checks),
- * `validateVersionTwoTour` (the reciprocal-cycle guard for v2 documents),
- * and `validateViewKeyframePoses` (eye/target distance floor on the
+ * `validateVersionTwoTour` (the reciprocal-cycle tour guard), and
+ * `validateViewKeyframePoses` (eye/target distance floor on the
  * per-edge view tracks). All three push issues into the shared
  * `SceneDocumentIssue[]` array.
  *
  * Tagged `@internal` — never imported outside `scene-codec/`.
  */
 import type {
+	MuseumSceneDocument,
 	SceneConnectionViewTracks,
-	SceneEntity
+	SceneEntity,
+	SceneNavigationNode
 } from '../scene';
 import type { Vec3 } from '$lib/types/museum';
-import type {
-	ParsedMuseumSceneDocument,
-	ParsedSceneNavigationNode,
-	SceneDocumentIssue
-} from './types';
+import type { SceneDocumentIssue } from './types';
 import { addIssue } from './readers';
-import { documentEntities } from './parse-entities';
 
 const EPSILON = 1e-6;
 
@@ -40,41 +37,38 @@ export function assertUnique(
 export function distance(a: Vec3, b: Vec3) {
 	return Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 }
-export function validateSemantics(document: ParsedMuseumSceneDocument, issues: SceneDocumentIssue[]) {
-	const entities = documentEntities(document);
-	const entitiesPath = 'entities' in document ? '$.entities' : '$.objects';
-	assertUnique(entities, 'scene entity', entitiesPath, issues);
+export function validateSemantics(document: MuseumSceneDocument, issues: SceneDocumentIssue[]) {
+	const entities = document.entities;
+	assertUnique(entities, 'scene entity', '$.entities', issues);
 	assertUnique(document.navigationNodes, 'navigation node', '$.navigationNodes', issues);
 	assertUnique(document.connections, 'connection', '$.connections', issues);
 	assertUnique(document.clusters ?? [], 'scene cluster', '$.clusters', issues);
-	if ('textures' in document) {
-		assertUnique(document.textures, 'texture asset', '$.textures', issues);
-		assertUnique(document.materials, 'material instance', '$.materials', issues);
-		const textureIds = new Set(document.textures.map((texture) => texture.id));
-		for (const [index, material] of document.materials.entries()) {
-			if (material.baseTextureId && !textureIds.has(material.baseTextureId)) {
-				addIssue(
-					issues,
-					`$.materials[${index}].baseTextureId`,
-					'unknown_texture',
-					`Unknown texture asset: ${material.baseTextureId}`
-				);
-			}
+	assertUnique(document.textures, 'texture asset', '$.textures', issues);
+	assertUnique(document.materials, 'material instance', '$.materials', issues);
+	const textureIds = new Set(document.textures.map((texture) => texture.id));
+	for (const [index, material] of document.materials.entries()) {
+		if (material.baseTextureId && !textureIds.has(material.baseTextureId)) {
+			addIssue(
+				issues,
+				`$.materials[${index}].baseTextureId`,
+				'unknown_texture',
+				`Unknown texture asset: ${material.baseTextureId}`
+			);
 		}
-		const materialIds = new Set(document.materials.map((material) => material.id));
-		for (const [index, entity] of entities.entries()) {
-			if (
-				'materialInstanceId' in entity &&
-				entity.materialInstanceId !== undefined &&
-				!materialIds.has(entity.materialInstanceId)
-			) {
-				addIssue(
-					issues,
-					`$.entities[${index}].materialInstanceId`,
-					'unknown_material_instance',
-					`Unknown material instance: ${entity.materialInstanceId}`
-				);
-			}
+	}
+	const materialIds = new Set(document.materials.map((material) => material.id));
+	for (const [index, entity] of entities.entries()) {
+		if (
+			'materialInstanceId' in entity &&
+			entity.materialInstanceId !== undefined &&
+			!materialIds.has(entity.materialInstanceId)
+		) {
+			addIssue(
+				issues,
+				`$.entities[${index}].materialInstanceId`,
+				'unknown_material_instance',
+				`Unknown material instance: ${entity.materialInstanceId}`
+			);
 		}
 	}
 
@@ -205,55 +199,15 @@ export function validateSemantics(document: ParsedMuseumSceneDocument, issues: S
 	}
 	if (visited.size !== document.navigationNodes.length) addIssue(issues, '$.connections', 'disconnected_graph', 'Navigation connections must form one connected graph');
 
-	if (document.navigationNodes.length === 1 && document.version === 1) {
-		const node = document.navigationNodes[0]!;
-		if (node.nextNodeId !== undefined || node.previousNodeId !== undefined) addIssue(issues, '$.navigationNodes[0]', 'singleton_tour_links', 'A singleton graph cannot define next or previous links');
-		return;
-	}
-
-	if (
-		document.version === 2 ||
-		document.version === 3 ||
-		document.version === 4 ||
-		document.version === 5 ||
-		document.version === 6
-	) {
-		validateVersionTwoTour(document.navigationNodes, nodeById, issues);
-		return;
-	}
-
-	for (const [index, node] of document.navigationNodes.entries()) {
-		const path = `$.navigationNodes[${index}]`;
-		if (!node.nextNodeId) addIssue(issues, `${path}.nextNodeId`, 'missing_tour_link', 'Every multi-node graph requires nextNodeId');
-		if (!node.previousNodeId) addIssue(issues, `${path}.previousNodeId`, 'missing_tour_link', 'Every multi-node graph requires previousNodeId');
-		for (const [key, opposite] of [['nextNodeId', 'previousNodeId'], ['previousNodeId', 'nextNodeId']] as const) {
-			const linkedId = node[key];
-			if (!linkedId) continue;
-			if (linkedId === node.id) addIssue(issues, `${path}.${key}`, 'self_tour_link', 'A tour link cannot reference its own node');
-			const linked = nodeById.get(linkedId);
-			if (!linked) addIssue(issues, `${path}.${key}`, 'unknown_node', `Unknown navigation node: ${linkedId}`);
-			else {
-				if (!node.connectedNodeIds.includes(linkedId)) addIssue(issues, `${path}.${key}`, 'non_adjacent_tour_link', `Tour link ${linkedId} is not adjacent`);
-				if (linked[opposite] !== node.id) addIssue(issues, `${path}.${key}`, 'non_reciprocal_tour_link', `${linkedId}.${opposite} must equal ${node.id}`);
-			}
-		}
-	}
-	const start = document.navigationNodes[0]!;
-	const tourVisited = new Set<string>();
-	let current: ParsedSceneNavigationNode | undefined = start;
-	while (current && !tourVisited.has(current.id)) {
-		tourVisited.add(current.id);
-		current = current.nextNodeId ? nodeById.get(current.nextNodeId) : undefined;
-	}
-	if (tourVisited.size !== document.navigationNodes.length || current?.id !== start.id) addIssue(issues, '$.navigationNodes', 'invalid_tour_cycle', 'nextNodeId links must form one cycle containing every node');
+	validateVersionTwoTour(document.navigationNodes, nodeById, issues);
 }
 
 export function validateVersionTwoTour(
-	nodes: readonly ParsedSceneNavigationNode[],
-	nodeById: ReadonlyMap<string, ParsedSceneNavigationNode>,
+	nodes: readonly SceneNavigationNode[],
+	nodeById: ReadonlyMap<string, SceneNavigationNode>,
 	issues: SceneDocumentIssue[]
 ) {
-	const linkedNodes: ParsedSceneNavigationNode[] = [];
+	const linkedNodes: SceneNavigationNode[] = [];
 	for (const [index, node] of nodes.entries()) {
 		const path = `$.navigationNodes[${index}]`;
 		const hasNext = node.nextNodeId !== undefined;
@@ -316,7 +270,7 @@ export function validateVersionTwoTour(
 	}
 	const start = linkedNodes[0]!;
 	const tourVisited = new Set<string>();
-	let current: ParsedSceneNavigationNode | undefined = start;
+	let current: SceneNavigationNode | undefined = start;
 	while (current && !tourVisited.has(current.id)) {
 		tourVisited.add(current.id);
 		current = current.nextNodeId ? nodeById.get(current.nextNodeId) : undefined;

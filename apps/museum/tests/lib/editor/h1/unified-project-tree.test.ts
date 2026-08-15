@@ -14,7 +14,6 @@ import type { ActiveEditorSelection } from '$lib/editor/h1/active-editor-selecti
 
 function makeLayout(): LayoutDocument {
 	return {
-		formatVersion: 3,
 		units: 'meters',
 		floors: [
 			{
@@ -123,7 +122,6 @@ function makeEntity(
 
 function makeScene(): MuseumSceneDocument {
 	return {
-		version: 6,
 		textures: [],
 		materials: [],
 		entities: [

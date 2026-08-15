@@ -6,8 +6,7 @@
  * browser entry is callback-shaped). All other dependencies are project-local.
  *
  * **Rejection matrix** (matches the design spec):
- * - `format-unsupported` — invalid zip bytes, unsupported `formatVersion`,
- *   unparsable manifest.
+ * - `format-unsupported` — invalid zip bytes, unparsable manifest.
  * - `missing-bytes` — `museum-scene.json`, `manifest.json`, or any
  *   `manifest.textures[*].destinationPath` is absent.
  * - `fingerprint-mismatch` — a manifest entry's bytes do not match its
@@ -28,8 +27,6 @@ import { isSafeTextureUri } from '$lib/content/texture-uri';
 import { parseSceneDocumentJson } from '$lib/content/scene-codec';
 import {
 	REWRITE_URI_PREFIX,
-	assertFormatVersion,
-	assertSchemaVersion,
 	derivePackageId,
 	type PackageManifest,
 	type SupportedMime
@@ -160,24 +157,6 @@ function decodeManifest(
 			detail: 'manifest.json is missing required top-level keys (package, textures)'
 		};
 	}
-	try {
-		assertFormatVersion(raw.package.formatVersion);
-	} catch (err) {
-		return {
-			status: 'rejected',
-			reason: 'format-unsupported',
-			detail: errorDetail(err)
-		};
-	}
-	try {
-		assertSchemaVersion(raw.package.schemaVersion);
-	} catch (err) {
-		return {
-			status: 'rejected',
-			reason: 'schema-mismatch',
-			detail: errorDetail(err)
-		};
-	}
 	return { status: 'ok', manifest: raw };
 }
 
@@ -187,13 +166,9 @@ function isManifestShape(value: unknown): value is PackageManifest {
 	if (typeof obj['package'] !== 'object' || obj['package'] === null) return false;
 	if (!Array.isArray(obj['textures'])) return false;
 	const pkg = obj['package'] as Record<string, unknown>;
-	// Schema: package must carry an `id`, a numeric `formatVersion`, and a
-	// numeric `schemaVersion`. Other fields are validated by the build helper.
-	return (
-		typeof pkg['id'] === 'string' &&
-		typeof pkg['formatVersion'] === 'number' &&
-		typeof pkg['schemaVersion'] === 'number'
-	);
+	// Schema: package must carry an `id`. Other fields are validated by the
+	// build helper.
+	return typeof pkg['id'] === 'string';
 }
 
 function decodeScene(
@@ -216,7 +191,7 @@ function decodeScene(
 		return {
 			status: 'rejected',
 			reason: 'schema-mismatch',
-			detail: `museum-scene.json strict v6 parse failed: ${parsed.issues
+			detail: `museum-scene.json strict parse failed: ${parsed.issues
 				.map((i) => `${i.path}:${i.code}`)
 				.join('; ')}`
 		};

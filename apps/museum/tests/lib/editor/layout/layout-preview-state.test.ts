@@ -36,7 +36,6 @@ describe('layout preview state', () => {
 		const state = createLayoutPreviewState();
 
 		expect(state.source).toBe('chopin-fixture');
-		expect(state.project.formatVersion).toBe(1);
 		expect(state.project.layout.floors[0]!.rooms).toHaveLength(7);
 		expect(state.model.rooms).toHaveLength(7);
 		expect(state.issues).toEqual([]);

@@ -25,53 +25,6 @@ function fixtureDocument(): MuseumSceneDocument {
 	return cloneFixtureDocument('tour-minimal');
 }
 
-function versionOneFrom(document: MuseumSceneDocument): unknown {
-	const {
-		entities,
-		textures: _textures,
-		materials: _materials,
-		...rest
-	} = document;
-	return {
-		...rest,
-		version: 1,
-		objects: entities
-			.filter((entity): entity is SceneModelEntity => entity.kind === 'model')
-			.map(({ kind: _kind, name: _name, ...placement }) => placement),
-		navigationNodes: document.navigationNodes.map(
-			({ fov: _fov, holdSeconds: _hold, ...node }) => node
-		),
-		connections: document.connections.map(
-			({
-				positionPath,
-				viewTracks: _viewTracks,
-				targetWaypoints: _targetWaypoints,
-				timing: _timing,
-				...connection
-			}) => ({
-				...connection,
-				positionWaypoints: positionPath.anchors.map(({ id: _id, ...waypoint }) => waypoint)
-			})
-		)
-	};
-}
-
-function versionThreeFrom(document: MuseumSceneDocument): unknown {
-	const {
-		entities,
-		textures: _textures,
-		materials: _materials,
-		...rest
-	} = document;
-	return {
-		...rest,
-		version: 3,
-		objects: entities
-			.filter((entity): entity is SceneModelEntity => entity.kind === 'model')
-			.map(({ kind: _kind, name: _name, ...placement }) => placement)
-	};
-}
-
 function assertGuidedCycleInvariant(document: MuseumSceneDocument) {
 	const guided = document.navigationNodes.filter(
 		(node) => node.nextNodeId !== undefined || node.previousNodeId !== undefined
@@ -105,7 +58,7 @@ describe('checked-in museum-scene.json smoke', () => {
 		expect(resolved.entities).toHaveLength(museumSceneDocument.entities.length);
 
 		const json = serializeSceneDocument(museumSceneDocument);
-		expect(json).toMatch(/^\{\n  "version": 6,\n/);
+		expect(json).toMatch(/^\{\n  "textures": \[\],\n  "materials": \[\],\n  "entities": \[/);
 		expect(JSON.stringify(museumSceneDocument)).toBe(before);
 	});
 
@@ -308,30 +261,8 @@ describe('resolveSceneDocument', () => {
 		expect(resolveSceneDocument(roundTripped)).toEqual(resolveSceneDocument(document));
 	});
 
-	it('resolves a valid version 1 document to the migrated runtime (modulo v3-only refinements)', () => {
-		const document = fixtureDocument();
-		const legacy = versionOneFrom(document);
-		const before = JSON.stringify(legacy);
-
-		const expected = resolveSceneDocument(document);
-		expect(expected).not.toBe(resolveSceneDocument(document));
-
-		for (const connection of expected.connections) {
-			if ('viewTracks' in connection) delete connection.viewTracks;
-			if ('targetWaypoints' in connection) delete connection.targetWaypoints;
-			connection.positionPath.kind = 'rounded-polyline';
-		}
-		for (const node of expected.navigationNodes) {
-			node.fov = 54;
-		}
-
-		expect(resolveSceneDocument(legacy)).toEqual(expected);
-		expect(JSON.stringify(legacy)).toBe(before);
-	});
-
 	it('resolves mixed-space position and target waypoints with fresh endpoints', () => {
 		const document: MuseumSceneDocument = {
-			version: 6,
 			textures: [],
 			materials: [],
 			entities: [
@@ -458,14 +389,8 @@ describe('resolveSceneDocument', () => {
 		);
 	});
 
-	it('rejects unsupported versions, duplicate ids, and unknown endpoints', () => {
+	it('rejects duplicate ids and unknown endpoints', () => {
 		const cloneDocument = () => fixtureDocument();
-		const unsupported = cloneDocument();
-		(unsupported as unknown as { version: number }).version = 7;
-		expect(() => resolveSceneDocument(unsupported)).toThrow(
-			'Unsupported museum scene document version: 7'
-		);
-
 		const duplicate = cloneDocument();
 		duplicate.entities.push({ ...duplicate.entities[0] });
 		expect(() => resolveSceneDocument(duplicate)).toThrow(
@@ -479,29 +404,11 @@ describe('resolveSceneDocument', () => {
 		);
 	});
 
-	it('migrates v3 input without timing fields to canonical v6', () => {
+	it('accepts authored timing and projects it onto runtime scene/instances', () => {
 		const document = fixtureDocument();
-		const clone = versionThreeFrom(document);
-		expect((clone as { version: number }).version).toBe(3);
-		const validation = validateSceneDocument(clone);
-		expect(validation.success).toBe(true);
-		if (validation.success) {
-			expect(validation.document.version).toBe(6);
-			expect(validation.document.entities).toHaveLength(document.entities.length);
-			expect(validation.document.entities[0]).toMatchObject({
-				kind: 'model',
-				id: document.entities[0]!.id
-			});
-		}
-	});
-
-	it('accepts authored v4 timing and projects it onto runtime scene/instances', () => {
-		const document = fixtureDocument();
-		const model = document.entities[0] as SceneModelEntity;
 		const holdNodeId = document.navigationNodes[1]!.id;
-		const v4 = {
-			version: 4,
-			objects: [modelEntityToPlacement(model)],
+		const authored = {
+			...document,
 			navigationNodes: document.navigationNodes.map((node, index) =>
 				index === 1 ? { ...node, holdSeconds: 2.5 } : node
 			),
@@ -528,7 +435,7 @@ describe('resolveSceneDocument', () => {
 				...document.connections.slice(1)
 			]
 		};
-		const resolved = resolveSceneDocument(v4);
+		const resolved = resolveSceneDocument(authored);
 		const held = resolved.navigationNodes.find((node) => node.id === holdNodeId)!;
 		expect(held.holdSeconds).toBe(2.5);
 		const connection = resolved.connections[0]!;
@@ -538,13 +445,10 @@ describe('resolveSceneDocument', () => {
 		expect(connection.viewTracks?.forward[0]?.easing).toBe('ease-in');
 	});
 
-	it('rejects v4 documents with malformed timing payloads', () => {
+	it('rejects malformed timing payloads', () => {
 		const document = fixtureDocument();
-		const model = document.entities[0] as SceneModelEntity;
-		const v4 = {
-			version: 4,
-			objects: [modelEntityToPlacement(model)],
-			navigationNodes: document.navigationNodes,
+		const bad = {
+			...document,
 			connections: [
 				{
 					...document.connections[0]!,
@@ -555,7 +459,7 @@ describe('resolveSceneDocument', () => {
 				...document.connections.slice(1)
 			]
 		};
-		expect(() => resolveSceneDocument(v4)).toThrow(/invalid_duration_seconds/);
+		expect(() => resolveSceneDocument(bad)).toThrow(/invalid_duration_seconds/);
 	});
 
 	it('validates editor clusters while keeping runtime rendering flat', () => {

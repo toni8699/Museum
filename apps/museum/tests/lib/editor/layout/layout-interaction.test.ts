@@ -172,7 +172,6 @@ describe('layout interaction', () => {
 describe('H1 S3 — reconcileLayoutSelection', () => {
 	function makeLayout(): LayoutDocument {
 		return {
-			formatVersion: 3,
 			units: 'meters',
 			floors: [
 				{

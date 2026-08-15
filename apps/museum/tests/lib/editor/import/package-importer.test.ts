@@ -3,7 +3,6 @@ import { unzipSync, zipSync } from 'fflate';
 import { importPackage } from '$lib/editor/import/package-importer';
 import {
 	REWRITE_URI_PREFIX,
-	SUPPORTED_SCHEMA_VERSION,
 	derivePackageId
 } from '$lib/content/package-format';
 import { parseSceneDocumentJson } from '$lib/content/scene-codec';
@@ -18,7 +17,6 @@ async function buildMinimalValidPackage(): Promise<Uint8Array> {
 	const baseScene = baseSceneFixture as unknown as Record<string, unknown>;
 	const scene = {
 		...baseScene,
-		version: SUPPORTED_SCHEMA_VERSION,
 		textures: [
 			{ id: 'walnut', name: 'Walnut Detail', uri: `${REWRITE_URI_PREFIX(pkg)}walnut.png` }
 		],
@@ -33,8 +31,6 @@ async function buildMinimalValidPackage(): Promise<Uint8Array> {
 	const manifest = {
 		package: {
 			id: pkg,
-			formatVersion: 1,
-			schemaVersion: SUPPORTED_SCHEMA_VERSION,
 			createdAt: '2026-08-07T18:30:00.000Z',
 			generator: 'museum-editor-5.4',
 			documentTitle: 'museum-scene'
@@ -88,7 +84,6 @@ describe('package-importer', () => {
 		if (result.status !== 'ok') {
 			throw new Error(`expected ok, got rejected: ${result.reason} — ${result.detail}`);
 		}
-		expect(result.document.version).toBe(SUPPORTED_SCHEMA_VERSION);
 		expect(result.document.textures.length).toBe(1);
 		expect(result.binaries.size).toBe(1);
 		expect(result.packageId).toMatch(/^package-[0-9a-f]{12}$/);
@@ -116,30 +111,6 @@ describe('package-importer', () => {
 		const result = await importPackage(packZip({ 'museum-scene.json': sceneBytes }));
 		expect(result.status).toBe('rejected');
 		if (result.status === 'rejected') expect(result.reason).toBe('missing-bytes');
-	});
-
-	it('rejects unsupported formatVersion', async () => {
-		const manifestBytes = readJson(bundle, 'manifest.json', (obj) => {
-			const o = obj as { package: { formatVersion: number } };
-			o.package.formatVersion = 7;
-			return o;
-		});
-		const sceneBytes = unzipSync(bundle)['museum-scene.json']!;
-		const result = await importPackage(packZip({ 'museum-scene.json': sceneBytes, 'manifest.json': manifestBytes }));
-		expect(result.status).toBe('rejected');
-		if (result.status === 'rejected') expect(result.reason).toBe('format-unsupported');
-	});
-
-	it('rejects on schemaVersion mismatch', async () => {
-		const manifestBytes = readJson(bundle, 'manifest.json', (obj) => {
-			const o = obj as { package: { schemaVersion: number } };
-			o.package.schemaVersion = 5;
-			return o;
-		});
-		const sceneBytes = unzipSync(bundle)['museum-scene.json']!;
-		const result = await importPackage(packZip({ 'museum-scene.json': sceneBytes, 'manifest.json': manifestBytes }));
-		expect(result.status).toBe('rejected');
-		if (result.status === 'rejected') expect(result.reason).toBe('schema-mismatch');
 	});
 
 	it('rejects on fingerprint mismatch', async () => {
@@ -197,7 +168,7 @@ describe('package-importer', () => {
 		}
 	});
 
-	it('rejects when scene JSON is not v6 strict-parseable', async () => {
+	it('rejects when scene JSON is not strict-parseable', async () => {
 		const invalidScene = new TextEncoder().encode(
 			'{"version":99,"textures":[],"materials":[],"entities":[],"navigationNodes":[],"connections":[]}'
 		);

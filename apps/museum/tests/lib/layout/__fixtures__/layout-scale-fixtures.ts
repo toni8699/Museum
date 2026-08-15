@@ -117,7 +117,6 @@ export function buildScaleFixture(spec: ScaleFixtureSpec): LayoutDocument {
 	}
 
 	return {
-		formatVersion: 3,
 		units: 'meters',
 		floors: [
 			{

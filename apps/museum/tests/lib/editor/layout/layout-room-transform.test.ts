@@ -5,7 +5,6 @@ import type { LayoutDocument } from '$lib/editor/layout/layout-types';
 
 function squareDocument(): LayoutDocument {
 	return {
-		formatVersion: 3,
 		units: 'meters',
 		floors: [{
 			id: 'floor', name: 'Ground', elevation: 0, height: 3,

@@ -22,7 +22,6 @@ function createHarness(
 	selection.bindSession(new EditorSessionState());
 
 	const document = {
-		version: 6,
 		textures: [],
 		materials: [],
 		entities: objects.map((object) => ({
@@ -288,7 +287,6 @@ describe('EditorSelectionActions — Phase 6.4 keep-action invariant', () => {
 			roomId: 'paris'
 		} as SceneObjectCluster;
 		const document = {
-			version: 6,
 			textures: [],
 			materials: [],
 			entities: [

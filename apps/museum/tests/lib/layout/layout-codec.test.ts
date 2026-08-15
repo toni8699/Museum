@@ -32,7 +32,6 @@ function rectangleRoom(id = 'room-main'): LayoutRoom {
 
 function baseDocument(): LayoutDocument {
 	return {
-		formatVersion: 3,
 		units: 'meters',
 		floors: [
 			{
@@ -67,7 +66,7 @@ function issueCodes(input: unknown): string[] {
 describe('LayoutDocument codec', () => {
 	it('creates and validates the canonical blank document', () => {
 		const document = createEmptyLayoutDocument();
-		expect(document).toEqual({ formatVersion: 3, units: 'meters', floors: [], objects: [] });
+		expect(document).toEqual({ units: 'meters', floors: [], objects: [] });
 		expect(successDocument(document)).toEqual(document);
 	});
 
@@ -117,31 +116,6 @@ describe('LayoutDocument codec', () => {
 			{ id: 'line-d', kind: 'line', start: [0, 4], end: [0, 0] }
 		];
 		expect(successDocument(document)).toEqual(document);
-	});
-
-	it('migrates legacy bezier segments to auto-bezier on read', () => {
-		const document = baseDocument();
-		document.floors[0]!.rooms[0]!.boundary.segments = [
-			{
-				id: 'curve-a',
-				kind: 'bezier',
-				start: [0, 0],
-				handleOut: [1, -2],
-				handleIn: [3, -2],
-				end: [4, 0]
-			},
-			{ id: 'line-b', kind: 'line', start: [4, 0], end: [4, 4] },
-			{ id: 'line-c', kind: 'line', start: [4, 4], end: [0, 4] },
-			{ id: 'line-d', kind: 'line', start: [0, 4], end: [0, 0] }
-		] as never;
-		const parsed = successDocument(document);
-		expect(parsed.floors[0]!.rooms[0]!.boundary.segments[0]).toMatchObject({
-			id: 'curve-a',
-			kind: 'auto-bezier',
-			start: [0, 0],
-			end: [4, 0],
-			interiorAnchors: [{ id: 'curve-a:anchor:1', point: [2, -1.5] }]
-		});
 	});
 
 	it('round-trips multiple rectangular openings on a skinny corridor room', () => {
@@ -194,23 +168,17 @@ describe('LayoutDocument codec', () => {
 		expect(successDocument(document)).toEqual(document);
 	});
 
-	it('rejects unsupported format versions and units', () => {
+	it('rejects unknown version keys and unsupported units', () => {
 		const document = baseDocument() as unknown as Record<string, unknown>;
 		document.formatVersion = 4;
 		document.units = 'feet';
-		expect(issueCodes(document)).toEqual(['unsupported_version', 'unsupported_units']);
+		expect(issueCodes(document)).toEqual(['unknown_key', 'unsupported_units']);
 	});
 
-	it('migrates layout v1 to canonical v3 with a stable room frame', () => {
+	it('requires a room frame', () => {
 		const legacy = baseDocument() as unknown as Record<string, unknown>;
-		legacy.formatVersion = 1;
 		delete ((legacy.floors as Array<{ rooms: Array<Record<string, unknown>> }>)[0]!.rooms[0]!).frame;
-		const result = validateLayoutDocument(legacy);
-		expect(result.success).toBe(true);
-		if (!result.success) return;
-		expect(result.document.formatVersion).toBe(3);
-		expect(result.document.floors[0]!.rooms[0]!.frame).toEqual({ origin: [3, 2], yaw: 0 });
-		expect(result.canonicalJson).toContain('"formatVersion": 3');
+		expect(issueCodes(legacy)).toContain('missing_field');
 	});
 
 	it('validates explicit portal ownership and canonical room ordering', () => {

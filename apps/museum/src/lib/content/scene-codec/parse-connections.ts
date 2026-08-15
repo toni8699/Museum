@@ -1,11 +1,11 @@
 /**
  * `scene-codec/parse-connections.ts` — connection parsing + timing helpers.
  *
- * Hosts the V2/V3/V4 connection parsers, the legacy position-waypoints shape,
- * the position-path/path-anchor adapter, view-track view-keyframe/state
- * machine, and the central timing readers (`readHoldSeconds`, `readEasing`,
- * `parseConnectionTiming`, `parseConnectionTimingPair`). The one public
- * export, `cameraSceneConnectionTimingFailureReason`, is re-exported from
+ * Hosts the canonical connection parser, the position-path/path-anchor
+ * adapter, view-track view-keyframe/state machine, and the central timing
+ * readers (`readHoldSeconds`, `readEasing`, `parseConnectionTiming`,
+ * `parseConnectionTimingPair`). The one public export,
+ * `cameraSceneConnectionTimingFailureReason`, is re-exported from
  * `index.ts` for consumer diagnostics.
  *
  * Tagged `@internal` except `cameraSceneConnectionTimingFailureReason`.
@@ -29,8 +29,6 @@ import type {
 } from '../scene';
 import type {
 	JsonRecord,
-	LegacySceneConnection,
-	SceneConnectionV2,
 	SceneDocumentIssue
 } from './types';
 import {
@@ -83,30 +81,6 @@ export function parseConnectionBase(
 		clearance,
 		...(targetWaypoints === undefined ? {} : { targetWaypoints })
 	};
-}
-
-export function parseLegacyConnection(
-	input: unknown,
-	path: string,
-	issues: SceneDocumentIssue[]
-): LegacySceneConnection | undefined {
-	const base = parseConnectionBase(input, path, issues, [
-		'id',
-		'fromNodeId',
-		'toNodeId',
-		'clearance',
-		'positionWaypoints',
-		'targetWaypoints'
-	]);
-	if (!base) return undefined;
-	const positionWaypoints = parseWaypoints(
-		base.input.positionWaypoints,
-		`${path}.positionWaypoints`,
-		issues
-	);
-	if (!positionWaypoints) return undefined;
-	const { input: _input, ...connection } = base;
-	return { ...connection, positionWaypoints };
 }
 
 export function parsePositionPath(
@@ -375,55 +349,7 @@ export function parseConnectionTimingPair(
 	};
 }
 
-export function parseConnectionV2(
-	input: unknown,
-	path: string,
-	issues: SceneDocumentIssue[]
-): SceneConnectionV2 | undefined {
-	const base = parseConnectionBase(input, path, issues, [
-		'id',
-		'fromNodeId',
-		'toNodeId',
-		'clearance',
-		'positionPath',
-		'targetWaypoints'
-	]);
-	if (!base) return undefined;
-	const positionPath = parsePositionPath(base.input.positionPath, `${path}.positionPath`, issues);
-	if (!positionPath) return undefined;
-	const { input: _input, ...connection } = base;
-	return { ...connection, positionPath };
-}
-
-export function parseConnectionV3(
-	input: unknown,
-	path: string,
-	issues: SceneDocumentIssue[]
-): SceneConnection | undefined {
-	const base = parseConnectionBase(input, path, issues, [
-		'id',
-		'fromNodeId',
-		'toNodeId',
-		'clearance',
-		'positionPath',
-		'viewTracks',
-		'targetWaypoints'
-	]);
-	if (!base) return undefined;
-	const positionPath = parsePositionPath(base.input.positionPath, `${path}.positionPath`, issues);
-	const viewTracks = 'viewTracks' in base.input
-		? parseViewTracks(base.input.viewTracks, `${path}.viewTracks`, issues, { allowTiming: false })
-		: undefined;
-	if (!positionPath || ('viewTracks' in base.input && !viewTracks)) return undefined;
-	const { input: _input, ...connection } = base;
-	return {
-		...connection,
-		positionPath,
-		...(viewTracks === undefined ? {} : { viewTracks })
-	};
-}
-
-export function parseConnectionV4(
+export function parseConnection(
 	input: unknown,
 	path: string,
 	issues: SceneDocumentIssue[]

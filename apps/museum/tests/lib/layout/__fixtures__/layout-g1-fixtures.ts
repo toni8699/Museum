@@ -9,7 +9,6 @@ import type {
 
 export function g1DocumentWithRooms(rooms: LayoutRoom[], objects: LayoutObject[] = []): LayoutDocument {
 	return {
-		formatVersion: 3,
 		units: 'meters',
 		floors: [
 			{

@@ -2,7 +2,6 @@ import type { MuseumSceneDocument } from '$lib/content/scene';
 import type { LayoutDocument } from '$lib/layout/layout-types';
 
 export type MuseumProject = {
-	formatVersion: 1;
 	id: string;
 	name: string;
 	layout: LayoutDocument;

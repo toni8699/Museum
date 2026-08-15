@@ -31,7 +31,6 @@ function makeScene(textures: MuseumSceneDocument['textures']): MuseumSceneDocume
 	const baseScene = baseSceneFixture as unknown as MuseumSceneDocument;
 	return {
 		...baseScene,
-		version: 6,
 		textures,
 		materials: []
 	};
@@ -54,8 +53,6 @@ describe('package-exporter', () => {
 		expect(map['manifest.json']).toBeDefined();
 		expect(Object.keys(map).filter((n) => n.startsWith('textures/')).length).toBe(1);
 		const manifest = JSON.parse(new TextDecoder().decode(map['manifest.json']!));
-		expect(manifest.package.formatVersion).toBe(1);
-		expect(manifest.package.schemaVersion).toBe(6);
 		expect(manifest.package.generator).toBe('museum-editor-5.4');
 		expect(manifest.textures.length).toBe(1);
 		expect(manifest.textures[0].fingerprint).toMatch(/^sha256-[0-9a-f]{64}$/);

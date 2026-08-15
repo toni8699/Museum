@@ -34,9 +34,9 @@ flowchart LR
 
 | Concern | Source of truth |
 |---------|-----------------|
-| Rooms, frames, boundaries, openings | `project.layout` / `LayoutDocument` v3 |
+| Rooms, frames, boundaries, openings | `project.layout` / `LayoutDocument` |
 | Rough parametric layout objects | `project.layout.objects` |
-| Scene models, primitives, lights, materials | `project.scene` / `SceneDocument` v6 |
+| Scene models, primitives, lights, materials | `project.scene` / `SceneDocument` |
 | Camera nodes, connections, paths, view tracks | `project.scene` |
 | Derived geometry | pure `compileLayoutGeometry()` |
 | Plan presentation | `CompiledLayoutGeometry` → `PlanRenderModel` → `PlanSvg.svelte` |
@@ -73,7 +73,7 @@ camera ownership.
 
 ## Project lifecycle
 
-- New Project creates empty layout v3 + empty scene v6; opens Plan.
+- New Project creates empty layout + empty scene; opens Plan.
 - Session-only free PerspectiveCamera exists until first authored navigation node.
 - Full-project import validates layout, scene, room refs, package manifest, GLB
   and texture references before atomic replacement.

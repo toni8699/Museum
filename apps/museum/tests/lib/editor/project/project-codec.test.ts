@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-	type MuseumSceneDocument,
-	type SceneModelEntity
-} from '$lib/content/scene';
+import type { MuseumSceneDocument } from '$lib/content/scene';
 import { museumSceneDocument } from '$lib/content/chopin-project';
 import { roomsToLayout } from '$lib/editor/layout/rooms-to-layout';
 import { createEmptyLayoutDocument } from '$lib/layout/layout-codec';
@@ -30,42 +27,10 @@ function chopinProject(): MuseumProject {
 	});
 }
 
-function legacyVersionOneFrom(document: MuseumSceneDocument): unknown {
-	const {
-		entities,
-		textures: _textures,
-		materials: _materials,
-		...rest
-	} = document;
-	return {
-		...rest,
-		version: 1,
-		objects: entities
-			.filter((entity): entity is SceneModelEntity => entity.kind === 'model')
-			.map(({ kind: _kind, name: _name, ...placement }) => placement),
-		navigationNodes: document.navigationNodes.map(
-			({ fov: _fov, holdSeconds: _hold, ...node }) => node
-		),
-		connections: document.connections.map(
-			({
-				positionPath,
-				viewTracks: _viewTracks,
-				targetWaypoints: _targetWaypoints,
-				timing: _timing,
-				...connection
-			}) => ({
-				...connection,
-				positionWaypoints: positionPath.anchors.map(({ id: _id, ...waypoint }) => waypoint)
-			})
-		)
-	};
-}
-
 describe('MuseumProject codec', () => {
 	it('rejects a scene whose room references are absent from the project layout', () => {
 		const scene = validScene();
 		const result = validateMuseumProject({
-			formatVersion: 1,
 			id: 'project:empty',
 			name: 'Empty Museum',
 			layout: createEmptyLayoutDocument(),
@@ -85,7 +50,6 @@ describe('MuseumProject codec', () => {
 		const project = chopinProject();
 
 		expect(project.layout.floors[0]!.rooms).toHaveLength(7);
-		expect(project.scene.version).toBe(6);
 	});
 
 	it('round-trips a canonical Chopin project without changing data', () => {
@@ -105,16 +69,12 @@ describe('MuseumProject codec', () => {
 			scene: project.scene,
 			name: project.name,
 			layout: project.layout,
-			id: project.id,
-			formatVersion: project.formatVersion
+			id: project.id
 		};
 
 		const canonical = validateMuseumProject(reordered);
 		expect(canonical.success).toBe(true);
 		if (!canonical.success) return;
-		expect(canonical.canonicalJson.indexOf('"formatVersion"')).toBeLessThan(
-			canonical.canonicalJson.indexOf('"id"')
-		);
 		expect(canonical.canonicalJson.indexOf('"id"')).toBeLessThan(
 			canonical.canonicalJson.indexOf('"name"')
 		);
@@ -144,7 +104,6 @@ describe('MuseumProject codec', () => {
 	it('rejects missing and invalid envelope fields', () => {
 		const project = chopinProject();
 		const cases: Array<[string, Record<string, unknown>]> = [
-			['formatVersion', { ...project, formatVersion: 2 }],
 			['id', { ...project, id: 'not valid' }],
 			['name', { ...project, name: '   ' }],
 			['layout', { ...project, layout: undefined }],
@@ -169,11 +128,11 @@ describe('MuseumProject codec', () => {
 		);
 		expect(partialLayout.success).toBe(false);
 		expect(partialLayout.success ? [] : partialLayout.issues).toContainEqual(
-			expect.objectContaining({ path: '$.layout.formatVersion' })
+			expect.objectContaining({ path: '$.layout.units' })
 		);
 		expect(partialScene.success).toBe(false);
 		expect(partialScene.success ? [] : partialScene.issues).toContainEqual(
-			expect.objectContaining({ path: '$.scene.version' })
+			expect.objectContaining({ path: '$.scene.textures' })
 		);
 	});
 
@@ -194,20 +153,8 @@ describe('MuseumProject codec', () => {
 		);
 		expect(sceneIssue.success).toBe(false);
 		expect(sceneIssue.success ? [] : sceneIssue.issues).toContainEqual(
-			expect.objectContaining({ path: '$.scene.version', code: 'unsupported_version' })
+			expect.objectContaining({ path: '$.scene.version', code: 'unknown_property' })
 		);
-	});
-
-	it('canonicalizes a legacy scene through the existing scene codec', () => {
-		const project = chopinProject();
-		const result = validateMuseumProject({
-			...project,
-			scene: legacyVersionOneFrom(project.scene)
-		});
-
-		expect(result.success).toBe(true);
-		if (!result.success) return;
-		expect(result.project.scene.version).toBe(6);
 	});
 
 	it('reports malformed JSON as one invalid_json issue', () => {

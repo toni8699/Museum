@@ -68,7 +68,6 @@ const light: SceneLightEntity = {
 
 function sceneDocument(entities: SceneEntity[]): MuseumSceneDocument {
 	return {
-		version: 6,
 		textures: [],
 		materials: [],
 		entities,

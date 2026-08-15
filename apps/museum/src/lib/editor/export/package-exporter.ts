@@ -38,7 +38,6 @@ import type { MuseumSceneDocument, SceneTextureAsset } from '$lib/content/scene'
 export type ExportRejectionReason =
 	| 'unresolved-binary'
 	| 'unsafe-uri'
-	| 'schema-mismatch'
 	| 'unsupported-mime';
 
 export type PackageExportResult =
@@ -62,13 +61,6 @@ export interface PackageExportInput {
 
 export async function buildPackage(input: PackageExportInput): Promise<PackageExportResult> {
 	const document = input.document;
-	if (document.version !== 6) {
-		return {
-			status: 'rejected',
-			reason: 'schema-mismatch',
-			detail: `document version ${document.version} is not supported; expected 6`
-		};
-	}
 
 	// Validate every texture uri is safe.
 	for (const t of document.textures) {

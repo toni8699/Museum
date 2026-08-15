@@ -43,7 +43,7 @@ export function roomsToLayout(rooms: readonly MuseumRoom[] = museumRooms): Layou
     height: floorHeight,
     rooms: rooms.map((room) => compileRoom(room, roomIds))
   };
-  return { formatVersion: 3, units: 'meters', floors: [floor], objects: [] };
+  return { units: 'meters', floors: [floor], objects: [] };
 }
 
 function compileRoom(room: MuseumRoom, roomIds: ReadonlySet<string>): LayoutRoom {

@@ -12,7 +12,7 @@ is typed JSON.
 
 ```ts
 // One shared pipeline, three consumers, one camera track
-const project = parseMuseumProjectJson(json);                     // layout v3 + scene v6 → MuseumProject v1
+const project = parseMuseumProjectJson(json);                     // one project: layout + scene
 const { geometry, issues } = compileLayoutGeometry(project.layout);
 const planModel = buildPlanRenderModel(geometry);                 // 2D plan (SVG)
 const wallMesh  = buildRoomWallMesh(geometry.rooms[0]);           // 3D walls (pure data)
@@ -20,30 +20,19 @@ const bufferGeo = toWallBufferGeometry(wallMesh, wallMaterialFactory); // Three.
 const hit       = resolvePlanHit(geometry.queries, point, tolerance);  // selection
 ```
 
-## 0. Versioning: what the v-numbers mean
+## 0. Documents: one shape, no versioning
 
-Every serialized document carries a `formatVersion` / `schemaVersion` field. The codec
-reads it to detect old data and migrate it forward, so files written by an older build
-still load. The numbers exist because the formats evolved through the layout-CAD work
-(A0–B5): each bump is a breaking format change, with a migration for the previous version.
+The serialized documents carry no version fields and no migrations. Each document has
+one canonical shape, and the codecs parse exactly that shape. Documents written by older
+builds (with `formatVersion` / `schemaVersion` / `version` keys) are rejected as unknown
+properties rather than migrated; the frozen museum files are stored in the current shape.
 
-| Document | Field | Current | Evolution |
-|---|---|---|---|
-| Layout document | `formatVersion` | **3** | v1/v2 predate the stable room frame (origin + yaw) and use `bezier` segments; read as legacy and migrated to v3 (`layout-codec.ts`) |
-| Museum project | `formatVersion` | **1** | First serialized envelope combining layout + scene (B5 cutover) |
-| Scene document | `schemaVersion` | **6** | V1→V2→V3/V4→V5→V6 deterministic migrations (`scene-codec/migrate.ts`): node forwards → fov shape → entity wrap → texture/material resources |
-| Museumpack package | `formatVersion` + `schemaVersion` | **1** + **6** | Archive format version + inner scene schema version (`package-format.ts`) |
-
-Why it matters in the diagrams: "layout v3 · scene v6 · project v1" below are the current
-on-disk versions, not arbitrary labels. Codecs reject unknown versions and migrate known
-legacy ones, so old Chopin files keep loading.
-
-```ts
-// layout-codec.ts: accepts legacy, always emits current
-const FORMAT_VERSION = 3 as const;
-const LEGACY_FORMAT_VERSION = 1 as const;      // v1 → v3 migration on read
-const LEGACY_FORMAT_VERSION_TWO = 2 as const;  // v2 → v3 migration on read
-```
+| Document | Shape |
+|---|---|
+| Layout document | `units: 'meters'`, floors → rooms (stable frame + draft paths) → openings → objects (`layout-codec.ts`) |
+| Museum project | `id`, `name`, `layout`, `scene` (`project-codec.ts`) |
+| Scene document | `textures`, `materials`, `entities`, `clusters?`, `navigationNodes`, `connections` (`scene-codec/`) |
+| Museumpack package | manifest: `id`, `createdAt`, `generator`, `documentTitle`, textures (`package-format.ts`) |
 
 ---
 
@@ -86,7 +75,7 @@ flowchart TB
     V2 --> V1
     SCENE -. "authored scene doc<br/>(museum-scene.json v6)" .-> V2
 
-    PERSIST["chopin-project.json v1<br/>layout v3 + scene v6"] -. "authored only,<br/>read at build" .-> CODEC
+    PERSIST["chopin-project.json<br/>layout + scene"] -. "authored only,<br/>read at build" .-> CODEC
 ```
 
 Notes:
@@ -97,7 +86,7 @@ Notes:
   visitor has *no* runtime geometry derivation; geometry is derived once from the
   validated project and consumed directly.
 - The scene editor doesn't feed the visitor directly: the link is the serialized
-  scene document (`museum-scene.json` v6), hence the dashed authored-data edge.
+  scene document (`museum-scene.json`), hence the dashed authored-data edge.
 - Editor is client-side only; persistence is JSON/package export, no server writes.
 
 ---
@@ -208,14 +197,12 @@ classDiagram
     direction TB
 
     class MuseumProject {
-        formatVersion: 1
         id, name: string
         layout: LayoutDocument
         scene: MuseumSceneDocument
     }
 
     class LayoutDocument {
-        formatVersion: 3
         units: "meters"
         floors: LayoutFloor[]
         objects: LayoutObject[]
@@ -302,7 +289,6 @@ classDiagram
     }
 
     class MuseumSceneDocument {
-        schemaVersion: 6
         entities: SceneEntity[]
         materials, textures
         nodes, connections
@@ -355,7 +341,7 @@ Two notes on shape:
 | Module (src/lib) | Responsibility | Files to open first |
 |---|---|---|
 | `layout/` | Layout document model, codec, geometry derivation, plan render model | `layout-types.ts`, `layout-codec.ts`, `layout-geometry.ts`, `plan-render-model.ts` |
-| `project/` | MuseumProject v1: combines layout + scene, cross-validates | `project-codec.ts`, `project-types.ts`, `project-layout-semantics.ts` |
+| `project/` | MuseumProject: combines layout + scene, cross-validates | `project-codec.ts`, `project-types.ts`, `project-layout-semantics.ts` |
 | `content/` | Chopin data + scene document codec (v1→v6 migration) | `chopin-project.ts`, `scene.ts`, `scene-codec/index.ts`, `rooms.ts` (deprecated projection) |
 | `render/` | Three.js wall-geometry adapter (`IndexedWallMesh` → `BufferGeometry`) | `wall-geometry-adapter.ts` |
 | `museum/` | Visitor runtime: shells, rooms, materials, navigation | `layout/LayoutMuseumShell.svelte`, `navigation/camera-route.ts`, `navigation/camera-motion.ts`, `MuseumCanvas.svelte` |

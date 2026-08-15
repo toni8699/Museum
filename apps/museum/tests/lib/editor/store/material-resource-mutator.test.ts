@@ -23,7 +23,6 @@ interface HostRig extends EditorMaterialResourceMutatorHost {
 
 function baseDocument(): MuseumSceneDocument {
 	return {
-		version: 6,
 		textures: [],
 		materials: [],
 		entities: [],
@@ -158,7 +157,6 @@ function documentOf(
 	entities: SceneEntity[]
 ): MuseumSceneDocument {
 	return {
-		version: 6,
 		textures,
 		materials,
 		entities,

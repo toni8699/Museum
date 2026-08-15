@@ -40,12 +40,9 @@ describe('H1 S0 — empty project contract', () => {
 	it('creates a codec-valid, fully-empty project', () => {
 		const project = createEmptyMuseumProject({ id: 'project:blank', name: 'Blank' });
 
-		expect(project.formatVersion).toBe(1);
-		expect(project.layout.formatVersion).toBe(3);
 		expect(project.layout.units).toBe('meters');
 		expect(project.layout.floors).toEqual([]);
 		expect(project.layout.objects).toEqual([]);
-		expect(project.scene.version).toBe(6);
 		expect(project.scene.textures).toEqual([]);
 		expect(project.scene.materials).toEqual([]);
 		expect(project.scene.entities).toEqual([]);
@@ -69,7 +66,6 @@ describe('H1 S0 — empty project contract', () => {
 
 	it('accepts an authoring-empty scene document with an empty layout', () => {
 		const result = validateMuseumProject({
-			formatVersion: 1,
 			id: 'project:blank',
 			name: 'Blank',
 			layout: createEmptyLayoutDocument(),
@@ -81,7 +77,6 @@ describe('H1 S0 — empty project contract', () => {
 
 	it('keeps non-empty scene invariants: a populated scene still requires its rooms', () => {
 		const result = validateMuseumProject({
-			formatVersion: 1,
 			id: 'project:blank',
 			name: 'Blank',
 			layout: createEmptyLayoutDocument(),

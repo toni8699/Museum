@@ -86,7 +86,7 @@ describe('buildPlanRenderModel', () => {
 	});
 
 	it('returns null bounds for empty compiled geometry', () => {
-		const { geometry } = compileLayoutGeometry({ formatVersion: 3, units: 'meters', floors: [], objects: [] });
+		const { geometry } = compileLayoutGeometry({ units: 'meters', floors: [], objects: [] });
 		expect(buildPlanRenderModel(geometry).bounds).toBeNull();
 	});
 

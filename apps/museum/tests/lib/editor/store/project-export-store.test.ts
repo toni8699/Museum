@@ -37,7 +37,6 @@ function makeTexture(overrides: Partial<SceneTextureAsset>): SceneTextureAsset {
 
 function makeDocument(textures: SceneTextureAsset[]): MuseumSceneDocument {
 	return {
-		version: 6,
 		textures,
 		materials: [],
 		entities: [],

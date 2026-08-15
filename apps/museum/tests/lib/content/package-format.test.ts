@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
 	REWRITE_URI_PREFIX,
-	assertManifestVersion,
 	buildPackageManifest,
 	collisionSuffix,
 	derivePackageId,
@@ -14,32 +13,6 @@ import {
 } from '$lib/content/package-format';
 
 describe('package-format', () => {
-	describe('assertManifestVersion', () => {
-		it('accepts formatVersion 1 and schemaVersion 6', () => {
-			expect(() =>
-				assertManifestVersion({ formatVersion: 1, schemaVersion: 6 })
-			).not.toThrow();
-		});
-
-		it('rejects unsupported formatVersion', () => {
-			expect(() =>
-				assertManifestVersion({ formatVersion: 2, schemaVersion: 6 })
-			).toThrow(/formatVersion/);
-		});
-
-		it('rejects unsupported schemaVersion', () => {
-			expect(() =>
-				assertManifestVersion({ formatVersion: 1, schemaVersion: 5 })
-			).toThrow(/schemaVersion/);
-		});
-
-		it('rejects formatVersion 0', () => {
-			expect(() =>
-				assertManifestVersion({ formatVersion: 0, schemaVersion: 6 })
-			).toThrow(/formatVersion/);
-		});
-	});
-
 	describe('derivePackageId', () => {
 		it('produces a sortable, deterministic id for the same set of fingerprints', async () => {
 			const a = await derivePackageId(['fpB', 'fpA']);
@@ -167,8 +140,6 @@ describe('package-format', () => {
 			const manifest: PackageManifest = {
 				package: {
 					id: 'package-aabbccddeeff',
-					formatVersion: 1,
-					schemaVersion: 6,
 					createdAt: '2026-08-07T18:30:00.000Z',
 					generator: 'museum-editor-5.4',
 					documentTitle: 'museum-scene'

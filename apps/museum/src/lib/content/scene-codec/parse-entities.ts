@@ -1,13 +1,12 @@
 /**
- * `scene-codec/parse-entities.ts` — entity/resource parsers + placement/cluster
- * shape mapping.
+ * `scene-codec/parse-entities.ts` — entity/resource parsers + cluster shape
+ * mapping.
  *
- * Hosts the 13 entity-related `parse*` functions (`parseTextureAsset`,
- * `parseMaterialInstance`, `parsePlacement`, `parseEntityTransform`,
- * `parseModelEntity`, `parsePrimitiveEntity`, `parseLightEntity`, `parseEntity`,
- * `parseCluster`) plus the two adapters `modelEntityFromPlacement` and
- * `documentEntities` used by `validate.ts` and `migrate.ts`. Reads all
- * icon/reader helpers from `./readers` and the V5 union from `./types`.
+ * Hosts the entity-related `parse*` functions (`parseTextureAsset`,
+ * `parseMaterialInstance`, `parseEntityTransform`, `parseModelEntity`,
+ * `parsePrimitiveEntity`, `parseLightEntity`, `parseEntity`, `parseCluster`)
+ * plus the shared `readPositiveDimension` / `parsePrimitiveDimensions`
+ * helpers. Reads all icon/reader helpers from `./readers`.
  *
  * Tagged `@internal` — never imported outside `scene-codec/`; consumers walk
  * documents through `validateSceneDocument` or `parseSceneDocumentJson`.
@@ -26,14 +25,12 @@ import type {
 	SceneModelEntity,
 	SceneMaterialInstance,
 	SceneObjectCluster,
-	SceneObjectPlacement,
 	ScenePlaneDimensions,
 	ScenePrimitiveEntity,
 	ScenePrimitiveKind,
 	SceneSphereDimensions,
 	SceneTextureAsset
 } from '../scene';
-import type { ParsedMuseumSceneDocument } from './types';
 import type { JsonRecord, SceneDocumentIssue } from './types';
 import {
 	HEX_COLOR_PATTERN,
@@ -52,25 +49,6 @@ import {
 	readVec3
 } from './readers';
 
-export function modelEntityFromPlacement(placement: SceneObjectPlacement): SceneModelEntity {
-	const assetName = getAssetById(placement.assetId)?.name;
-	return {
-		kind: 'model',
-		id: placement.id,
-		name: assetName || placement.id,
-		roomId: placement.roomId,
-		assetId: placement.assetId,
-		fallback: placement.fallback,
-		position: placement.position,
-		rotation: placement.rotation,
-		...(placement.scale === undefined ? {} : { scale: placement.scale })
-	};
-}
-
-export function documentEntities(document: ParsedMuseumSceneDocument): SceneEntity[] {
-	if ('entities' in document) return document.entities;
-	return document.objects.map((object) => modelEntityFromPlacement(object));
-}
 export function parseTextureAsset(
 	input: unknown,
 	path: string,
@@ -148,49 +126,6 @@ export function parseMaterialInstance(
 		...(metalness === undefined ? {} : { metalness })
 	};
 }
-export function parsePlacement(
-	input: unknown,
-	path: string,
-	issues: SceneDocumentIssue[]
-): SceneObjectPlacement | undefined {
-	if (!isRecord(input)) {
-		addIssue(issues, path, 'invalid_type', 'Expected a placement object');
-		return undefined;
-	}
-	assertAllowedKeys(input, ['id', 'roomId', 'assetId', 'fallback', 'position', 'rotation', 'scale'], path, issues);
-	const id = readRequiredString(input, 'id', path, issues);
-	const roomId = readRoomId(input, 'roomId', path, issues);
-	const assetId = readRequiredString(input, 'assetId', path, issues);
-	if (assetId && !getAssetById(assetId)) {
-		addIssue(issues, `${path}.assetId`, 'unknown_asset', `Unknown museum asset: ${assetId}`);
-	}
-	const fallback = readRequiredString(input, 'fallback', path, issues);
-	if (fallback && !isSceneObjectFallback(fallback)) {
-		addIssue(issues, `${path}.fallback`, 'invalid_fallback', `Invalid fallback: ${fallback}`);
-	}
-	const position = readVec3(input.position, `${path}.position`, issues);
-	const rotation = readVec3(input.rotation, `${path}.rotation`, issues);
-	let scale: number | undefined;
-	if ('scale' in input) {
-		scale = readRequiredNumber(input, 'scale', path, issues);
-		if (scale !== undefined && scale <= 0) {
-			addIssue(issues, `${path}.scale`, 'invalid_scale', 'Scale must be greater than zero');
-		}
-	}
-	if (!id || !roomId || !assetId || !fallback || !position || !rotation || (scale !== undefined && scale <= 0)) {
-		return undefined;
-	}
-	return {
-		id,
-		roomId,
-		assetId,
-		fallback: fallback as SceneObjectPlacement['fallback'],
-		position,
-		rotation,
-		...(scale === undefined ? {} : { scale })
-	};
-}
-
 export function readPositiveDimension(
 	value: JsonRecord,
 	key: string,

@@ -30,6 +30,11 @@
 
 - Manifest schema: per-asset entry (id, fingerprint/hash, mime, byte length,
   referenced-by), its canonical key order, and its format version.
+- **Footprints (locked):** the manifest persists no footprint fields.
+  Catalogue footprints are authored `MuseumAsset.footprint` metadata; imported
+  footprints are derived from the loaded model's world AABB at render time by
+  the post-H1 Plan staging slice (C1) and session-cached. C2 (layout asset
+  objects) is rejected — the composite registry stays scene-only.
 - How catalogue (checked-in) ids and project-local ids are namespaced so they
   can never collide in the composite registry.
 - Whether the package stays a directory/archive of named files (current shape)
@@ -58,6 +63,10 @@
 
 - Changing `SceneDocument` / `MuseumProject` schemas — assets stay referenced by
   `assetId`, bytes stay in the package store.
+- Layout asset objects (`LayoutObject.kind: 'asset'`) — rejected; 2D furnishing
+  is the post-H1 Plan staging slice (C1).
+- Persisting footprint fields in the manifest — imported footprints are derived
+  at render time; catalogue footprints stay in `MuseumAsset` metadata.
 - Account/session persistence — export remains the only save in H1.
 
 ## Verification (to be filled by S9)

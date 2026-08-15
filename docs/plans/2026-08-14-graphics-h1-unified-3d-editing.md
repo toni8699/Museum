@@ -132,14 +132,14 @@ this editor plus future versioned migrations from that H1 baseline.
 H1 integrates these domains in the editor shell; it does not merge their schemas
 or move camera/assets into `LayoutDocument`.
 
-**Post-H1 candidate (door left open):** catalogue assets as layout objects
-(`LayoutObject.kind: 'asset'` with an `assetId`) is a possible post-H1 slice
-that would make catalogue furniture placeable and editable in Plan directly.
-H1 does not commit to it, but keeps the door open at near-zero cost: the
-project-local asset registry built in slice 9 is shared, and the package
-manifest contract can later reference layout-referenced asset ids without a
-format-version change. The decision is made before slice 9 is drafted — see
-slice 9 and the explicit non-goals.
+**Post-H1 polish slice (locked):** 2D furnishing ships after H1 as the **Plan
+staging mode** (C1) — scene entities become visible and editable in Plan
+through a `layout | staging` tool mode. C2 (catalogue assets as layout
+objects, `LayoutObject.kind: 'asset'`) is **rejected** in favor of C1:
+furniture stays in `project.scene`, and the scene pipeline (3D gizmo, visitor
+rendering, imported-GLB uniformity) remains the single content path. See
+"Post-H1 polish slices" for the full contract, the S3 policy amendment, and
+the derived-footprint rule.
 
 `/museum` is outside this editor session graph. H1 does not route its checked-in
 Chopin project through editor import, selection, history, or gizmo
@@ -189,7 +189,8 @@ type ActiveEditorSelection =
   | { domain: 'camera'; selection: CameraSelection };
 ```
 
-- Plan selection always activates the layout domain.
+- Plan selection always activates the layout domain (the post-H1 Plan staging
+  mode C1 adds the one scene-domain exception — see "Post-H1 polish slices").
 - A 3D or hierarchy pick activates exactly one domain and clears the prior
   active domain's actionable selection. Expansion and discovery UI state may
   persist, but two gizmo-eligible selections may never coexist.
@@ -557,13 +558,13 @@ integration, 10 highest-risk architectural work in this program.
 - Imported and catalogue scene entities use the existing scene gizmo adapter.
 - Reject unsafe/unsupported files with structured feedback and no partial asset
   registration.
-- **C2 door (decided before this slice):** the composite asset registry is a
-  shared service — scene entities resolve through it today, and layout asset
-  objects (`LayoutObject.kind: 'asset'`) may resolve through it in a post-H1
-  slice. The manifest contract notes layout-referenced `assetId`
-  cross-validation as future work; writing this as a shared registry now avoids
-  a manifest format-version change later. If C2 is rejected before this slice,
-  the registry stays scene-only and this line is dropped.
+- **C1 decision (post-H1 staging, C2 rejected):** the composite asset registry
+  is scene-only — catalogue and project-local ids resolve for scene entities
+  only; layout asset objects (`LayoutObject.kind: 'asset'`) are rejected. The
+  manifest persists **no** footprint fields: catalogue footprints are authored
+  `MuseumAsset.footprint` metadata, and imported footprints are derived from
+  loaded model world-AABBs at render time by the post-H1 Plan staging slice
+  (C1), session-cached, never serialized.
 
 ### 10. Fold camera authoring into 3D
 
@@ -713,6 +714,38 @@ Manual product QA:
 9. Repeat edits/imports and confirm no retained geometry, helper, material,
    decoded model, or object-URL growth.
 
+## Post-H1 polish slices (locked)
+
+### C1 — Plan staging mode (2D furnishing)
+
+Focused plan: [`2026-08-14-graphics-h1-c1-plan-staging.md`](./2026-08-14-graphics-h1-c1-plan-staging.md).
+
+The Sweet Home 3D-style experience ships as a post-H1 polish slice: scene
+entities become visible and editable in Plan through a dedicated tool mode.
+C2 (catalogue assets as layout objects, `LayoutObject.kind: 'asset'`) is
+rejected in favor of C1 — furniture stays in `project.scene`.
+
+- `PlanViewMode: 'layout' | 'staging'`: layout mode is CAD as today (scene
+  entities render as faint dashed layer-5.5 outlines, passive spatial
+  context); staging mode selects/mutates scene entities in Plan.
+- Staging selection activates the scene domain — the one amendment to the
+  "Plan selection always activates the layout domain" policy. S3's
+  `ActiveEditorSelection` machinery is domain-generic; no H1 rework is needed.
+- 2D mutations write `position[0]/[2]` + yaw only; `position[1]` (elevation)
+  is preserved. One tagged `scene` history entry per completed gesture.
+- Plan never loads GLBs: rendering + hit-testing use footprint polygons via a
+  pure 2D point-in-polygon resolver. Catalogue footprints come from authored
+  `MuseumAsset.footprint` metadata; imported footprints are derived from the
+  loaded model's world AABB at render time and session-cached — never a
+  manifest field. Snapping reads `LayoutDocument`, writes only `SceneDocument`.
+- Room drag (B3) does not relocate scene entities in the first slice (Alpha);
+  out-of-polygon content is flagged by the existing collision/placement
+  warnings. Coordinated room+furniture relocation (Beta) is a multi-domain
+  atomicity project, explicitly out of scope.
+- H1 dependencies: none hard. Path A (read-only layer-5.5 projection) is the
+  H1-era interim and is reused by C1. S9 stays scene-only and persists no
+  footprint fields.
+
 ## Exit criteria
 
 H1 is complete only when:
@@ -751,8 +784,8 @@ H1 is complete only when:
 
 - camera or tour authoring in Plan;
 - merging `LayoutDocument`, `SceneDocument`, or their identity types;
-- moving catalogue assets into `LayoutDocument` within H1 (post-H1 candidate
-  C2, decided before slice 9 — see "Ownership remains separate");
+- moving catalogue assets into `LayoutDocument` (rejected — 2D furnishing is
+  the post-H1 Plan staging mode C1; see "Post-H1 polish slices");
 - making the Three scene graph or gizmo proxy authoritative data;
 - a second gizmo, camera graph, route, motion system, or geometry compiler;
 - Blender-style arbitrary mesh/vertex/face editing, sculpting, or real-time CSG;

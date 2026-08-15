@@ -313,9 +313,10 @@ Gates:
 - **G3/G5 non-blocking** — H1 may run in parallel with G5;
 - mirror **G2**'s hit-identity/key pattern for 3D picking.
 
-**Post-H1 candidate (door left open):** catalogue assets as layout objects
-(`LayoutObject.kind: 'asset'`) — decided before H1 slice 9 so the asset registry
-stays shared; see the H1 plan's "Ownership remains separate" section.
+**Post-H1 polish slice (locked):** Plan staging mode (C1) — scene entities
+placeable/editable in Plan via a `layout | staging` tool. C2 (catalogue assets
+as layout objects) is rejected; furniture stays in `project.scene`. See the H1
+plan's "Post-H1 polish slices" section.
 
 ## 6. Conditional technology gates
 

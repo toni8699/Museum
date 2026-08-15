@@ -12,8 +12,12 @@
 	import {
 		deleteLayoutObject,
 		deleteLayoutOpening,
+		deleteLayoutRoom,
 		layoutPreviewSourceLabel,
 		layoutPreviewStatusLabel,
+		layoutRoomSceneReferenceSummary,
+		layoutRoomSceneReferenceTotal,
+		listLayoutRoomSceneReferences,
 		updateLayoutObjectFields,
 		updateLayoutOpeningFields,
 		updateLayoutRoomFields,
@@ -367,6 +371,36 @@
 		if (selectedLayoutObject) removeLayoutObject(selectedLayoutObject.id);
 	}
 
+	// H1 S2.1 — room deletion is blocked while any scene content (entities,
+	// clusters, camera nodes, path anchors, waypoints, view keyframes)
+	// references the room. The blocker reads the store's authoritative scene
+	// document (the layout preview's `project.scene` is a boot-time copy).
+	const roomDeleteReferences = $derived(
+		selectedLayoutRoom
+			? listLayoutRoomSceneReferences(store.document, selectedLayoutRoom.id)
+			: null
+	);
+	const roomDeleteBlocked = $derived(
+		Boolean(roomDeleteReferences && layoutRoomSceneReferenceTotal(roomDeleteReferences) > 0)
+	);
+
+	function removeSelectedRoom() {
+		if (!selectedLayoutRoom) return;
+		if (!store.beginLayoutTransaction()) {
+			store.setStatusMessage('Finish the current layout interaction first');
+			return;
+		}
+		const result = deleteLayoutRoom(layoutPreview, selectedLayoutRoom.id, store.document);
+		if (!result.success) {
+			store.cancelLayoutTransaction();
+			store.setStatusMessage(`Room delete failed: ${result.message}`);
+			return;
+		}
+		store.commitLayoutTransaction(captureLayoutPreviewSnapshot(layoutPreview));
+		layoutInteraction.selection = { kind: 'none' };
+		store.setStatusMessage('Deleted room');
+	}
+
 </script>
 
 <aside class="panel inspector" aria-label="Inspector" style="grid-area: right;">
@@ -515,6 +549,18 @@
 					<label>Ceiling thickness (m)<input type="number" min="0.001" step="0.01" value={selectedLayoutRoom.ceilingThickness} onchange={(event) => updateRoomNumber('ceilingThickness', event)} /></label>
 					{#if selectedLayoutFloor}<label>Floor height (m)<input type="number" min="0.001" step="0.05" value={selectedLayoutFloor.height} onchange={(event) => updateRoomNumber('floorHeight', event)} /></label>{/if}
 					{#if layoutPreview.lastMutationMessage}<p class="layout-opening-warning" role="status">{layoutPreview.lastMutationMessage}</p>{/if}
+					{#if roomDeleteReferences && roomDeleteBlocked}
+						<p class="layout-opening-warning" role="alert">Delete blocked — referenced by {layoutRoomSceneReferenceSummary(roomDeleteReferences)}</p>
+					{/if}
+					<button
+						type="button"
+						class="layout-danger"
+						disabled={roomDeleteBlocked || store.isDocumentMutationBlocked || store.isEditorInteractionActive}
+						title={roomDeleteBlocked && roomDeleteReferences
+							? `Delete blocked: referenced by ${layoutRoomSceneReferenceSummary(roomDeleteReferences)}`
+							: undefined}
+						onclick={removeSelectedRoom}
+					>Delete room</button>
 				</div>
 			{/if}
 				</div>

@@ -18,12 +18,13 @@ Full-track Phase 2 scene presets = deferred optional.
 
 **H1 S0 is Closed.** Landed: `createEmptySceneDocument` + `createEmptyMuseumProject`, authoring-empty validator loosening, `EditorViewMode`, injectable scene room-resolver + zero-node policy (`pickInitialNavigationNodeId` returns `null`), and the relic store/menu guard (relic cannot reach the Layout workspace). The session/shell `it.todo` contracts in `tests/lib/editor/h1/contracts.test.ts` went green across S1 (view-switch preservation, relic smoke) and S2 (boot-blank session camera, preview lockout); the playback lock is pinned in `museum-editor-shell.test.ts`. Plan: [`../plans/2026-08-14-graphics-h1-s0-contracts.md`](../plans/2026-08-14-graphics-h1-s0-contracts.md).
 
-**Open candidate (decided before H1 S9):** catalogue assets as layout objects
-(C2) — a post-H1 slice making catalogue furniture placeable/editable in Plan as
-`LayoutObject.kind: 'asset'`. H1 keeps the door open at near-zero cost: the
-slice-9 composite asset registry is shared, so layout asset objects can later
-resolve checked-in/project-local asset ids without a manifest format-version
-change. See H1 plan "Ownership remains separate" + explicit non-goals.
+**Post-H1 polish slice (locked):** Plan staging mode (C1) — scene entities
+placeable/editable in Plan via a `layout | staging` tool; C2 (catalogue assets
+as layout objects) is rejected in favor of C1. H1 keeps no C2 door: S9's
+composite registry is scene-only, the manifest persists no footprint fields
+(imported footprints are derived from loaded model AABBs at render time), and
+Path A (read-only layer-5.5 Plan projection) is the H1-era interim reused by
+C1. Plan: [`../plans/2026-08-14-graphics-h1-c1-plan-staging.md`](../plans/2026-08-14-graphics-h1-c1-plan-staging.md). See H1 plan "Post-H1 polish slices".
 
 (Deferred, not abandoned — **G5 — Measured optimization and scale**: apply optimizations in order — cache derived geometry, partial rebuilds, stable render objects/keys, shared materials, merged `BufferGeometry`, culling, LOD, spatial indexing, instancing — stop when G3 budgets pass. G4 in [`../plans/2026-08-13-graphics-g4-procedural-architectural-meshes.md`](../plans/2026-08-13-graphics-g4-procedural-architectural-meshes.md); roadmap [`../plans/2026-08-13-graphics-architecture-roadmap.md`](../plans/2026-08-13-graphics-architecture-roadmap.md). No focused G5 plan yet.)
 

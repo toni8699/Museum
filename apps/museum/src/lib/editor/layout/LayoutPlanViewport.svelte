@@ -77,6 +77,7 @@
 		onCommit,
 		onOpeningCreate,
 		onOpeningDelete,
+		onRoomDelete,
 		onLayoutTransactionBegin,
 		onLayoutTransactionCommit,
 		onLayoutTransactionCancel
@@ -87,6 +88,7 @@
 		onCommit: (points: LayoutVec2[]) => boolean;
 		onOpeningCreate: (roomId: string, segmentId: string, kind: LayoutOpeningKind, clickOffset: number) => void;
 		onOpeningDelete: (roomId: string, openingId: string) => void;
+		onRoomDelete: (roomId: string) => boolean;
 		onLayoutTransactionBegin: () => boolean;
 		onLayoutTransactionCommit: () => boolean;
 		onLayoutTransactionCancel: () => boolean;
@@ -705,6 +707,13 @@
 			const result = deleteLayoutObject(preview, interaction.selection.objectId);
 			if (result.success) clearLayoutSelection(interaction);
 			preview.statusMessage = result.success ? 'Deleted layout object' : result.message;
+			return;
+		}
+		// H1 S2.1 — room deletion is a guarded layout transaction (the caller
+		// owns begin/commit/cancel + the scene-reference reject policy).
+		if ((event.key === 'Delete' || event.key === 'Backspace') && interaction.tool === 'select' && interaction.selection.kind === 'room') {
+			event.preventDefault();
+			onRoomDelete(interaction.selection.roomId);
 			return;
 		}
 		if (event.key === 'Backspace' && interaction.tool === 'polygon' && interaction.polygonPoints.length > 0) {

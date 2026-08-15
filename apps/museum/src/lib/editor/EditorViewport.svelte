@@ -25,7 +25,8 @@
 		captureLayoutPreviewSnapshot,
 		commitLayoutDraftRoom,
 		commitLayoutOpening,
-		deleteLayoutOpening
+		deleteLayoutOpening,
+		deleteLayoutRoom
 	} from './layout/layout-preview-state.svelte';
 	import type { LayoutOpeningKind } from './layout/layout-opening-editing';
 	import type { MuseumEditorStore } from './museum-editor.svelte';
@@ -109,6 +110,26 @@
 		}
 		store.setStatusMessage(result.success ? 'Deleted opening' : `Opening delete failed: ${result.message}`);
 	}
+
+	// H1 S2.1 — room deletion: guarded layout transaction + reject-when-
+	// scene-referenced policy. (Unreachable in the relic, which cannot enter
+	// the layout workspace, but kept in parity with the H1 shell.)
+	function deleteRoom(roomId: string): boolean {
+		if (!store.beginLayoutTransaction()) {
+			store.setStatusMessage('Finish the current layout interaction first');
+			return false;
+		}
+		const result = deleteLayoutRoom(layoutPreview, roomId, store.document);
+		if (!result.success) {
+			store.cancelLayoutTransaction();
+			store.setStatusMessage(`Room delete failed: ${result.message}`);
+			return false;
+		}
+		store.commitLayoutTransaction(captureLayoutPreviewSnapshot(layoutPreview));
+		layoutInteraction.selection = { kind: 'none' };
+		store.setStatusMessage('Deleted room');
+		return true;
+	}
 </script>
 
 <div
@@ -169,6 +190,7 @@
 				onCommit={commitDraftRoom}
 				onOpeningCreate={createOpening}
 				onOpeningDelete={deleteOpening}
+				onRoomDelete={deleteRoom}
 				onLayoutTransactionBegin={beginLayoutTransaction}
 				onLayoutTransactionCommit={commitLayoutTransaction}
 				onLayoutTransactionCancel={cancelLayoutTransaction}

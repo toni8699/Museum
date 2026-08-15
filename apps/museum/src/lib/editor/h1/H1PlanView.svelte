@@ -7,7 +7,8 @@
 		captureLayoutPreviewSnapshot,
 		commitLayoutDraftRoom,
 		commitLayoutOpening,
-		deleteLayoutOpening
+		deleteLayoutOpening,
+		deleteLayoutRoom
 	} from '$lib/editor/layout/layout-preview-state.svelte';
 	import type { LayoutOpeningKind } from '$lib/editor/layout/layout-opening-editing';
 	import type { MuseumEditorStore } from '$lib/editor/museum-editor.svelte';
@@ -60,6 +61,25 @@
 		}
 		store.setStatusMessage(result.success ? 'Deleted opening' : `Opening delete failed: ${result.message}`);
 	}
+
+	// H1 S2.1 — room deletion: guarded layout transaction + reject-when-
+	// scene-referenced policy (blockers read the store's authoritative scene).
+	function deleteRoom(roomId: string): boolean {
+		if (!store.beginLayoutTransaction()) {
+			store.setStatusMessage('Finish the current layout interaction first');
+			return false;
+		}
+		const result = deleteLayoutRoom(layoutPreview, roomId, store.document);
+		if (!result.success) {
+			store.cancelLayoutTransaction();
+			store.setStatusMessage(`Room delete failed: ${result.message}`);
+			return false;
+		}
+		store.commitLayoutTransaction(captureLayoutPreviewSnapshot(layoutPreview));
+		layoutInteraction.selection = { kind: 'none' };
+		store.setStatusMessage('Deleted room');
+		return true;
+	}
 </script>
 
 <div class="plan-view" role="application" aria-label="Plan drafting surface">
@@ -72,14 +92,14 @@
 	<LayoutPlanViewport
 		model={layoutPreview.model}
 		preview={layoutPreview}
-		interaction={layoutInteraction}
-		onCommit={commitDraftRoom}
-		onOpeningCreate={createOpening}
-		onOpeningDelete={deleteOpening}
-		onLayoutTransactionBegin={beginLayoutTransaction}
-		onLayoutTransactionCommit={commitLayoutTransaction}
-		onLayoutTransactionCancel={cancelLayoutTransaction}
-	/>
+		interaction={layoutInteraction}			onCommit={commitDraftRoom}
+			onOpeningCreate={createOpening}
+			onOpeningDelete={deleteOpening}
+			onRoomDelete={deleteRoom}
+			onLayoutTransactionBegin={beginLayoutTransaction}
+			onLayoutTransactionCommit={commitLayoutTransaction}
+			onLayoutTransactionCancel={cancelLayoutTransaction}
+		/>
 </div>
 
 <style>

@@ -1,5 +1,5 @@
 import { chopinProject, museumSceneDocument } from '$lib/content/chopin-project';
-import { createEmptySceneDocument } from '$lib/content/scene';
+import { createEmptySceneDocument, type MuseumSceneDocument } from '$lib/content/scene';
 import type { MuseumProject } from '$lib/editor/project/project-types';
 import {
 	createEmptyLayoutDocument,
@@ -21,6 +21,7 @@ import {
 	type LayoutOpeningPatch
 } from './layout-opening-editing';
 import { hasBlockingLayoutIssues, validateLayoutDocumentGeometry, validateLineRoom, type LayoutGeometryIssue } from './layout-validation';
+import { deleteLayoutRoom as deleteRoomFromDocument } from './layout-room-editing';
 import {
 	createLayoutObject,
 	defaultLayoutObjectDimensions,
@@ -268,29 +269,130 @@ export function importLayoutPreviewJson(state: LayoutPreviewState, json: string)
 		setLayoutPreviewImportError(state, error instanceof Error ? error.message : 'Could not import layout');
 		return false;
 	}
+}	export function updateLayoutRoomFields(
+		state: LayoutPreviewState,
+		roomId: string,
+		patch: LayoutRoomFieldPatch
+	): LayoutRoomEditResult {
+		const layout = cloneLayout(state.project.layout);
+		const floor = layout.floors.find((candidate) => candidate.rooms.some((room) => room.id === roomId));
+		const room = floor?.rooms.find((candidate) => candidate.id === roomId);
+		if (!floor || !room) return failRoomEdit(state, 'Room no longer exists');
+		if (patch.name !== undefined && patch.name.trim().length === 0) {
+			return failRoomEdit(state, 'Room name cannot be empty');
+		}
+		const nextRoom: LayoutRoom = {
+			...room,
+			...(patch.name === undefined ? {} : { name: patch.name.trim() }),
+			...(patch.wallThickness === undefined ? {} : { wallThickness: patch.wallThickness }),
+			...(patch.floorThickness === undefined ? {} : { floorThickness: patch.floorThickness }),
+			...(patch.ceilingThickness === undefined ? {} : { ceilingThickness: patch.ceilingThickness })
+		};
+		floor.rooms = floor.rooms.map((candidate) => (candidate.id === roomId ? nextRoom : candidate));
+		if (patch.floorHeight !== undefined) floor.height = patch.floorHeight;
+		const applied = applyLayoutMutation(state, layout);
+		return applied.success ? { success: true } : applied;
+	}
+
+/** Per-kind counts of scene content referencing a layout room. */
+export type LayoutRoomSceneReferences = {
+	entities: number;
+	clusters: number;
+	navigationNodes: number;
+	pathAnchors: number;
+	waypoints: number;
+	viewKeyframes: number;
+};
+
+/**
+ * Count every `project.scene` reference to a layout room. Mirrors the
+ * `unknown_room` cross-validation surface of `validateProjectSceneRooms` so
+ * the reject-when-referenced policy and the project codec agree on what
+ * counts as a reference.
+ */
+export function listLayoutRoomSceneReferences(
+	scene: MuseumSceneDocument,
+	roomId: string
+): LayoutRoomSceneReferences {
+	let entities = 0;
+	let clusters = 0;
+	let navigationNodes = 0;
+	let pathAnchors = 0;
+	let waypoints = 0;
+	let viewKeyframes = 0;
+	for (const entity of scene.entities) {
+		if (entity.roomId === roomId) entities += 1;
+	}
+	for (const cluster of scene.clusters ?? []) {
+		if (cluster.roomId === roomId) clusters += 1;
+	}
+	for (const node of scene.navigationNodes) {
+		if (node.roomId === roomId) navigationNodes += 1;
+	}
+	for (const connection of scene.connections) {
+		for (const anchor of connection.positionPath.anchors) {
+			if (anchor.roomId === roomId) pathAnchors += 1;
+		}
+		for (const waypoint of connection.targetWaypoints ?? []) {
+			if (waypoint.roomId === roomId) waypoints += 1;
+		}
+		for (const direction of ['forward', 'reverse'] as const) {
+			for (const keyframe of connection.viewTracks?.[direction] ?? []) {
+				if (keyframe.roomId === roomId) viewKeyframes += 1;
+			}
+		}
+	}
+	return { entities, clusters, navigationNodes, pathAnchors, waypoints, viewKeyframes };
 }
 
-export function updateLayoutRoomFields(
+export function layoutRoomSceneReferenceTotal(refs: LayoutRoomSceneReferences): number {
+	return (
+		refs.entities +
+		refs.clusters +
+		refs.navigationNodes +
+		refs.pathAnchors +
+		refs.waypoints +
+		refs.viewKeyframes
+	);
+}
+
+/** "3 entities · 1 camera node" — the blocker summary shown to the user. */
+export function layoutRoomSceneReferenceSummary(refs: LayoutRoomSceneReferences): string {
+	const parts: string[] = [];
+	if (refs.entities > 0) parts.push(`${refs.entities} entit${refs.entities === 1 ? 'y' : 'ies'}`);
+	if (refs.clusters > 0) parts.push(`${refs.clusters} cluster${refs.clusters === 1 ? '' : 's'}`);
+	if (refs.navigationNodes > 0) parts.push(`${refs.navigationNodes} camera node${refs.navigationNodes === 1 ? '' : 's'}`);
+	if (refs.pathAnchors > 0) parts.push(`${refs.pathAnchors} path anchor${refs.pathAnchors === 1 ? '' : 's'}`);
+	if (refs.waypoints > 0) parts.push(`${refs.waypoints} waypoint${refs.waypoints === 1 ? '' : 's'}`);
+	if (refs.viewKeyframes > 0) parts.push(`${refs.viewKeyframes} view keyframe${refs.viewKeyframes === 1 ? '' : 's'}`);
+	return parts.join(' · ');
+}
+
+/**
+ * H1 S2.1 — delete a layout room (reject-when-referenced policy).
+ *
+ * The caller passes the authoritative scene document (the editor store's
+ * document, which owns scene authoring in the H1 shell) — NOT
+ * `state.project.scene`, a boot-time copy that never syncs with scene edits.
+ * The delete is blocked while any scene content references the room; a
+ * successful delete cascades layout-internal content only (room + owned
+ * objects + portal refs) and rides the standard `applyLayoutMutation` gate
+ * (strict codec + geometry + wall-mesh preflight).
+ */
+export function deleteLayoutRoom(
 	state: LayoutPreviewState,
 	roomId: string,
-	patch: LayoutRoomFieldPatch
+	scene: MuseumSceneDocument
 ): LayoutRoomEditResult {
-	const layout = cloneLayout(state.project.layout);
-	const floor = layout.floors.find((candidate) => candidate.rooms.some((room) => room.id === roomId));
-	const room = floor?.rooms.find((candidate) => candidate.id === roomId);
-	if (!floor || !room) return failRoomEdit(state, 'Room no longer exists');
-	if (patch.name !== undefined && patch.name.trim().length === 0) {
-		return failRoomEdit(state, 'Room name cannot be empty');
+	const refs = listLayoutRoomSceneReferences(scene, roomId);
+	if (layoutRoomSceneReferenceTotal(refs) > 0) {
+		return failRoomEdit(
+			state,
+			`Room is referenced by scene content (${layoutRoomSceneReferenceSummary(refs)}); move or delete it first`
+		);
 	}
-	const nextRoom: LayoutRoom = {
-		...room,
-		...(patch.name === undefined ? {} : { name: patch.name.trim() }),
-		...(patch.wallThickness === undefined ? {} : { wallThickness: patch.wallThickness }),
-		...(patch.floorThickness === undefined ? {} : { floorThickness: patch.floorThickness }),
-		...(patch.ceilingThickness === undefined ? {} : { ceilingThickness: patch.ceilingThickness })
-	};
-	floor.rooms = floor.rooms.map((candidate) => (candidate.id === roomId ? nextRoom : candidate));
-	if (patch.floorHeight !== undefined) floor.height = patch.floorHeight;
+	const layout = deleteRoomFromDocument(cloneLayout(state.project.layout), roomId);
+	if (!layout) return failRoomEdit(state, 'Room no longer exists');
 	const applied = applyLayoutMutation(state, layout);
 	return applied.success ? { success: true } : applied;
 }

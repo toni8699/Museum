@@ -201,7 +201,29 @@ export function sampleSegment(
 	if (pointsWithT.length === 0) {
 		pointsWithT.push({ point: [...segment.start], t: 0 }, { point: [...segment.end], t: 1 });
 	}
-	return buildSampledSegment(segment.id, pointsWithT, segment);
+	return buildSampledSegment(segment.id, pointsWithT, segment, cubics);
+}
+
+/**
+ * Binary search over monotonically increasing sample distances: the first
+ * sample index (never below 1) whose distance is >= threshold, or
+ * `samples.length` when none qualifies. Shared by `pointAtDistance` and
+ * `pointAlongSamples` (G3 quick-win #5 — linear scan → O(log n)).
+ */
+function firstSampleIndexAtOrAfter(samples: readonly CurveSample[], threshold: number): number {
+	let low = 1;
+	let high = samples.length - 1;
+	let result = samples.length;
+	while (low <= high) {
+		const middle = Math.floor((low + high) / 2);
+		if (samples[middle]!.distance >= threshold) {
+			result = middle;
+			high = middle - 1;
+		} else {
+			low = middle + 1;
+		}
+	}
+	return result;
 }
 
 export function pointAtDistance(sampled: SampledSegment, distanceAlong: number): CurveDistanceResult {
@@ -209,14 +231,7 @@ export function pointAtDistance(sampled: SampledSegment, distanceAlong: number):
 	if (samples.length === 0) return { point: [0, 0], distance: 0, tangent: [1, 0], normal: [0, 1], t: 0 };
 	if (samples.length === 1 || sampled.length <= CURVE_ENDPOINT_EPSILON) return { ...samples[0]!, point: [...samples[0]!.point] };
 	const target = Math.min(sampled.length, Math.max(0, distanceAlong));
-	let high = samples.length - 1;
-	let low = 0;
-	while (low < high) {
-		const middle = Math.floor((low + high) / 2);
-		if (samples[middle]!.distance < target) low = middle + 1;
-		else high = middle;
-	}
-	const endIndex = Math.max(1, low);
+	const endIndex = Math.min(samples.length - 1, firstSampleIndexAtOrAfter(samples, target));
 	const start = samples[endIndex - 1]!;
 	const end = samples[endIndex]!;
 	const span = end.distance - start.distance;
@@ -252,19 +267,16 @@ export function pointAlongSamples(samples: readonly CurveSample[], distanceAlong
 	if (samples.length === 0) return [0, 0];
 	if (samples.length === 1) return [...samples[0]!.point] as LayoutVec2;
 	const target = Math.min(samples.at(-1)!.distance, Math.max(0, distanceAlong));
-	for (let index = 1; index < samples.length; index += 1) {
-		const start = samples[index - 1]!;
-		const end = samples[index]!;
-		if (target <= end.distance + 1e-9) {
-			const span = end.distance - start.distance;
-			const amount = span > 1e-9 ? (target - start.distance) / span : 0;
-			return [
-				start.point[0] + (end.point[0] - start.point[0]) * amount,
-				start.point[1] + (end.point[1] - start.point[1]) * amount
-			];
-		}
-	}
-	return [...samples.at(-1)!.point] as LayoutVec2;
+	const endIndex = firstSampleIndexAtOrAfter(samples, target - 1e-9);
+	if (endIndex >= samples.length) return [...samples.at(-1)!.point] as LayoutVec2;
+	const start = samples[endIndex - 1]!;
+	const end = samples[endIndex]!;
+	const span = end.distance - start.distance;
+	const amount = span > 1e-9 ? (target - start.distance) / span : 0;
+	return [
+		start.point[0] + (end.point[0] - start.point[0]) * amount,
+		start.point[1] + (end.point[1] - start.point[1]) * amount
+	];
 }
 
 export function projectPointToSampledSegment(point: LayoutVec2, sampled: SampledSegment): CurveDistanceResult & { distanceToPath: number } {
@@ -327,7 +339,8 @@ export function sampledPolylineSelfIntersects(
 function buildSampledSegment(
 	segmentId: string,
 	pointsWithT: readonly { point: LayoutVec2; t: number }[],
-	segment: DraftSegment
+	segment: DraftSegment,
+	cubics?: readonly CubicBezierShape[]
 ): SampledSegment {
 	const points = pointsWithT.map((entry) => entry.point);
 	const distances = [0];
@@ -336,7 +349,7 @@ function buildSampledSegment(
 	}
 	const length = distances.at(-1) ?? 0;
 	const samples = pointsWithT.map((entry, index) => {
-		const tangent = tangentFromSamples(points, index, segment, entry.t);
+		const tangent = tangentFromSamples(points, index, segment, entry.t, cubics);
 		return {
 			point: [...entry.point] as LayoutVec2,
 			distance: distances[index]!,
@@ -369,12 +382,30 @@ function resolveAutoBezierCubic(
 			localT: clamp01(t)
 		};
 	}
+	return resolveAutoBezierCubicFromCubics(cubics, t);
+}
+
+/**
+ * Same resolver as {@link resolveAutoBezierCubic} against an already-compiled
+ * cubic list — G3 quick-win #6: tangent evaluation no longer recompiles the
+ * spline per sample (O(N·A) → O(A + N)). Callers pass a non-empty list
+ * (compile output of a valid segment always is).
+ */
+function resolveAutoBezierCubicFromCubics(
+	cubics: readonly CubicBezierShape[],
+	t: number
+): { cubic: CubicBezierShape; localT: number } {
 	if (cubics.length === 1) return { cubic: cubics[0]!, localT: clamp01(t) };
 	const clamped = clamp01(t);
 	const scaled = clamped * cubics.length;
 	const index = Math.min(cubics.length - 1, Math.floor(scaled));
 	const localT = index === cubics.length - 1 ? scaled - index : Math.min(1, scaled - index);
 	return { cubic: cubics[index]!, localT };
+}
+
+function autoBezierDerivativeAtFromCubics(cubics: readonly CubicBezierShape[], t: number): LayoutVec2 {
+	const { cubic, localT } = resolveAutoBezierCubicFromCubics(cubics, t);
+	return cubicBezierDerivative(cubic, localT);
 }
 
 function lineParameters(
@@ -453,8 +484,17 @@ function adaptiveParameters(
 	return [...new Set(result)].sort((a, b) => a - b);
 }
 
-function tangentFromSamples(points: readonly LayoutVec2[], index: number, segment: DraftSegment, t: number): LayoutVec2 {
-	const tangent = segmentTangentAt(segment, t);
+function tangentFromSamples(
+	points: readonly LayoutVec2[],
+	index: number,
+	segment: DraftSegment,
+	t: number,
+	cubics?: readonly CubicBezierShape[]
+): LayoutVec2 {
+	const tangent =
+		cubics && cubics.length > 0 && segment.kind === 'auto-bezier'
+			? normalize(autoBezierDerivativeAtFromCubics(cubics, t), fallbackTangent(segment))
+			: segmentTangentAt(segment, t);
 	if (length(tangent) > CURVE_ENDPOINT_EPSILON) return tangent;
 	if (index > 0) return normalize(subtract(points[index]!, points[index - 1]!), [1, 0]);
 	return index + 1 < points.length ? normalize(subtract(points[index + 1]!, points[index]!), [1, 0]) : [1, 0];

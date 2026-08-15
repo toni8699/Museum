@@ -59,7 +59,8 @@ layout-3d-picking.ts (pure, $lib/editor/layout — plan-hit.ts precedent)
 
 EditorSelection.svelte (the one coordinator — H1 + relic shared)
   + onLayoutPick?: (candidates) => boolean     (default undefined)
-  click flow: compute intersections ONCE → if onLayoutPick && !previewing,
+  click flow: compute intersections ONCE → after the placement + Alt-cycle
+       branches, if onLayoutPick && !previewing:
        candidates = layoutCandidatesFromIntersections(intersections)
        if onLayoutPick(candidates) → commit + return (skip scene/deselect)
        else fall through to existing resolveNormalSelection unchanged
@@ -89,17 +90,25 @@ create exactly the risk the umbrella warns about. The coordinator contract is:
   readonly Layout3dHitCandidate[]) => boolean`. `undefined` (relic mount)
   keeps today's exact behavior — no new imports, no behavior change.
 - In the click flow, after `intersections` are computed **once**, the layout
-  branch runs first when the prop is present: build candidates from the same
-  list, call the callback; if it returns `true` (a layout selection was
-  committed) return without touching the scene/camera path. If it returns
-  `false` (no layout candidate resolved), fall through to the existing
+  branch slots **after the placement branches** (`place-camera`, primitive/
+  light/asset placement all `return` before it) **and after the Alt-cycle
+  branch** — Alt-click keeps cycling scene placements and never selects
+  layout. When the prop is present: build candidates from the same list and
+  call the callback; if it returns `true` (a layout selection was committed)
+  return without touching the scene/camera path. If it returns `false` (no
+  layout candidate resolved, or a nearer scene/camera hit won the
+  cross-domain arbitration below), fall through to the existing
   `resolveNormalSelection` unchanged — including the background-deselect
   behavior for a click that hits neither layout nor scene content.
+- **Layout picks ignore Shift/Meta/Ctrl**: they always produce a plain single
+  selection via `selectLayout*` — the layout domain has no additive/toggle
+  multi-select today (Plan behaves the same).
 - TransformControls precedence and the `pointerSession` guards already sit
   ahead of the click flow; they are untouched.
 - Alt-cycle, shift/meta placement selection, placement-mode floor clicks,
-  path/framing drags: all keep their existing branches before/after the layout
-  branch exactly as ordered today.
+  path/framing drags: all keep their existing branches; the layout branch sits
+  after the placement branches and the Alt-cycle branch, before
+  `resolveNormalSelection` (order pinned in step 0).
 
 ### `Layout3dHitCandidate` + amended `resolveLayout3dHits` signature
 
@@ -121,8 +130,9 @@ export function resolveLayout3dHits(
   already builds `layout3dPickIndexByRoom` once per mesh generation — passing
   meshes would rebuild the O(triangles) index on every click, defeating the
   S5 cache. `wall-triangle` candidates carry `roomId` + `triangleIndex`
-  (`faceIndex / 3` of the indexed buffer) and resolve through
-  `pickIndices.get(roomId)(triangleIndex)` → `Layout3dTriangleRef`.
+  (the triangle number of the indexed buffer — Three's `faceIndex` as-is,
+  never divided) and resolve through `pickIndices.get(roomId)(triangleIndex)`
+  → `Layout3dTriangleRef`.
 - **Return value is `LayoutSelection`** (the existing union:
   `room` / `wall` / `opening` / `interiorAnchor` / `object`), so the commit
   path is `selectLayoutRoom/Wall/Opening/InteriorAnchor/Object` — the same
@@ -145,6 +155,22 @@ export function resolveLayout3dHits(
 - Sort all eligible candidates by `distance` ascending. The **nearest group**
   wins: an object behind a wall is not selected merely because object ranks
   higher (umbrella rule).
+- **Cross-domain nearest-visible — the layout branch is not a preemptor.** A
+  scene entity or camera helper standing in front of a wall/floor must stay
+  clickable. Yield rule: let `d_scene` be the distance of the nearest
+  intersection carrying scene/camera identity (a `placementId`, camera
+  handle, or navigation/connection/anchor/keyframe tag — what
+  `resolveNormalSelection` would act on); the layout selection commits only
+  if `layoutDist ≤ d_scene + LAYOUT_3D_SAME_DEPTH_EPSILON`, otherwise the
+  click falls through to the existing scene/camera flow unchanged. This is
+  deliberately **not** "nearest overall intersection": editor chrome (grid,
+  the `LayoutWallHighlight` shell at +0.02, placement ghost) is nearer than
+  the surface it decorates and must never shadow the real pick — clicking an
+  already-selected wall must re-select it, not deselect. Implementation
+  seam: `SelectionHitInfo` currently carries no `distance`, so either extend
+  it (small additive field in `editor-selection.ts` — amends the "Untouched"
+  list) or compare against the raw `intersections` via the existing userData
+  walk-ups (`findPlacementIdFromObject` / `findNavigationSelectionFromObject`).
 - Candidates whose distances differ by `≤ LAYOUT_3D_SAME_DEPTH_EPSILON`
   (`1e-4` m) form a tie group. Within a tie group the priority is
   **anchor → opening → object → wall → room**, then stable input order
@@ -163,8 +189,12 @@ export function resolveLayout3dHits(
   import**, so `layout-3d-picking.ts` keeps its purity boundary test green.
 - Identification, all via authored `userData` (never name/coordinate guessing):
   - wall mesh: `userData.surfaceType === 'wall'` + `roomId` (new tag below);
-    `faceIndex` → `triangleIndex = faceIndex / 3` →
+    `faceIndex` → `triangleIndex = faceIndex` →
     `{ kind: 'wall-triangle', roomId, triangleIndex, distance }`.
+    Three's `Mesh.raycast` already reports `faceIndex` as the triangle number
+    in indexed-buffer semantics (`faceIndex = Math.floor(j / 3)` in `Mesh.js`),
+    and the S5 index is keyed by exactly that triangle number — dividing again
+    would silently mis-own most wall clicks.
   - floor/ceiling: `userData.surfaceType === 'floor' | 'ceiling'` + `roomId` →
     `{ kind: 'room-surface', roomId, surface, distance }`.
   - object: walk up parents to `editorEntity === 'layout-object'` →
@@ -236,7 +266,11 @@ add a focused `tests/lib/editor/layout/layout-3d-selection.test.ts` for the
 candidate extraction + commit route:
 
 - **Nearest-visible** — a near wall beats a far object; a near object beats a
-  far wall.
+  far wall. **Cross-domain** — a scene entity (placementId) in front of a
+  wall or floor selects the entity, not the wall/room behind; the yield rule
+  holds at the boundary (`layoutDist > d_scene + eps` → scene wins,
+  `≤ eps` → layout wins); the `LayoutWallHighlight` shell never shadows the
+  wall it decorates.
 - **Same-depth priority** — every pairwise rule at `Δd ≤ eps`:
   anchor > opening > object > wall > room; the reversed order loses; a
   `Δd > eps` pair is decided by distance, not priority.
@@ -244,7 +278,10 @@ candidate extraction + commit route:
   `bridge` refs → wall selection; `jamb`/`sill`/`lintel`/`arch-reveal` refs →
   opening selection (openings fixture + profile matrix); bridge triangles
   keep the current-wall owner; out-of-range `triangleIndex` → candidate
-  dropped, `null` when nothing else.
+  dropped, `null` when nothing else. Extraction fixtures use real three.js
+  `faceIndex` semantics (triangle number in the indexed buffer — small
+  integers), pinning `triangleIndex = faceIndex` and never an index-buffer
+  offset.
 - **Room surfaces** — floor and ceiling candidates → room selection.
 - **Determinism** — tie group with two equal candidates resolves by priority
   then input order; repeated `resolveLayout3dHits` calls agree.
@@ -315,8 +352,12 @@ candidate extraction + commit route:
   highlight + inspector; click the opening sill/jamb → opening selection;
   click the anchor octahedron → interiorAnchor selection; click floor →
   room selection; click the box → object selection; click empty sky →
-  deselect; click a scene entity → scene domain (layout cleared); a layout
-  pick after that re-activates layout. Plan ↔ 3D switch preserves the
+  deselect; click a scene entity → scene domain (layout cleared) — including
+  an entity standing on a floor or in front of a wall (never the room/wall
+  behind); Alt-click on a wall still cycles scene placements; clicking an
+  already-selected wall re-selects it (the highlight shell does not deselect);
+  a layout pick after a scene pick re-activates layout. Plan ↔ 3D switch
+  preserves the
   selection and highlight. Visitor camera preview: no anchor helpers, no
   layout pick on click. Relic `/museum/editor` unchanged.
 - Confirm the click path never fires a second raycast (one `intersections`
@@ -336,7 +377,8 @@ candidate extraction + commit route:
 | One coordinator | `EditorSelection` remains the single Canvas selection listener; layout branch reuses the same `intersections` (no second raycast) |
 | Nearest-visible | Front wall blocks an object behind it; nearer object beats farther wall |
 | Same-depth ties | Within `LAYOUT_3D_SAME_DEPTH_EPSILON`: anchor → opening → object → wall → room; beyond it, distance decides |
-| Wall resolution | Wall `side`/`lintel`/`bridge` triangles → wall selection (bridge keeps current-wall owner); opening `jamb`/`sill`/`lintel`/`arch-reveal` → opening selection |
+| Cross-domain | A scene/camera hit nearer than the winning layout candidate (beyond `eps`) wins and the click falls through; layout wins within `eps` or when nothing scene/camera is nearer; the highlight shell/grid never shadow a real pick |
+| Wall resolution | Wall `side`/`lintel`/`bridge` triangles → wall selection (bridge keeps current-wall owner; `triangleIndex = faceIndex`, never `faceIndex / 3`); opening `jamb`/`sill`/`lintel`/`arch-reveal` → opening selection |
 | Room surfaces | Floor/ceiling candidates → `{ kind: 'room' }` |
 | Helper filtering | Anchor candidates only when helpers render (`showAnchors`); highlight/ghost/grid/lights/camera helpers yield no layout candidates |
 | Background clear | No layout + no scene hit → existing deselect path (`onDeselect`/`deselectActive`); no candidate ever forces a layout write |
@@ -382,18 +424,20 @@ docs/hand-off/CURRENT.md                                   (S6 planned → shipp
 ```
 
 Untouched: `resolveNormalSelection`/`selectionHitFromIntersection`
-(`editor-selection.ts`), all placement/pointer-session branches,
-`layout-preview-state`, the visitor shell, and everything under
-`/museum/editor`.
+(`editor-selection.ts`) — except the optional additive
+`SelectionHitInfo.distance` field if the cross-domain comparator needs it;
+all placement/pointer-session branches, `layout-preview-state`, the visitor
+shell, and everything under `/museum/editor`.
 
 ## Implementation notes (as-built deviations)
 
 Filled at close — expected hot spots: whether the `onLayoutPick` callback
 returns `boolean` vs `LayoutSelection | null` after real wiring, the exact
 structural `RaycastHitLike` shape, tie-epsilon tuning after manual QA, and
-whether the layout branch must skip during `pendingPlacement*` /
-`pendingNavigationCommand` (placement clicks are handled earlier in the flow
-today, so the layout branch should be unreachable there — verify in step 5).
+the cross-domain comparator seam (`SelectionHitInfo.distance` extension vs
+walking the raw `intersections`). Placement clicks are handled earlier in
+the flow, so the layout branch is unreachable there by construction (branch
+order pinned in step 0).
 
 ## Verification
 

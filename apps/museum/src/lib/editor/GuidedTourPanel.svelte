@@ -3,7 +3,25 @@
 	import { formatCameraNodeLabel } from './editor-outliner';
 	import type { MuseumEditorStore } from './museum-editor.svelte';
 
-	let { store }: { store: MuseumEditorStore } = $props();
+	// H1 S4 — optional interactivity gate. The unified tree embeds this panel
+	// read-only in Plan (Plan exposes no camera mutation path), so `false` must
+	// gate **every** mutation surface, not just clicks: native HTML5 drag
+	// (`draggable`, dragstart, the drop gap, "Drag to guided") and the
+	// move/insert/remove buttons all fold into `guidedEditingBlocked` below.
+	// The relic never passes the prop and is unchanged.
+	let {
+		store,
+		interactive = true,
+		activeDomain = null
+	}: {
+		store: MuseumEditorStore;
+		interactive?: boolean;
+		// H1 S4 — the S3 active selection domain, forwarded to
+		// NodeConnectionsPanel so its discovery-driven direction highlight is
+		// gated to camera-or-none. The relic never passes it and keeps the
+		// legacy selection-gated behavior.
+		activeDomain?: 'layout' | 'scene' | 'camera' | 'none' | null;
+	} = $props();
 
 	const guidedTourChain = $derived(store.guidedTourNodeIds);
 	const freeNodeIds = $derived(
@@ -18,7 +36,8 @@
 			: null
 	);
 	const guidedEditingBlocked = $derived(
-		store.isDocumentMutationBlocked ||
+		!interactive ||
+			store.isDocumentMutationBlocked ||
 			store.isEditorInteractionActive ||
 			store.pendingNavigationCommand !== null
 	);
@@ -137,6 +156,7 @@
 					aria-expanded={isNodeExpanded(node.id)}
 					aria-selected={isNodeSelected(node.id)}
 					aria-grabbed={draggedNodeId === node.id}
+					aria-disabled={interactive ? undefined : true}
 					draggable={index > 0 && !guidedEditingBlocked}
 					ondragstart={(event) => beginNodeDrag(event, node.id)}
 					ondragend={finishNodeDrag}
@@ -147,7 +167,8 @@
 							class="tree-row__chevron"
 							aria-label={`${isNodeExpanded(node.id) ? 'Collapse' : 'Expand'} connections for ${node.label}`}
 							aria-expanded={isNodeExpanded(node.id)}
-							onclick={() => toggleNodeConnections(node.id)}
+							aria-disabled={interactive ? undefined : true}
+							onclick={interactive ? () => toggleNodeConnections(node.id) : undefined}
 						>
 							<span class="chevron" class:open={isNodeExpanded(node.id)}>›</span>
 						</button>
@@ -155,7 +176,8 @@
 							type="button"
 							class="tree-row"
 							class:tree-row--selected={isNodeSelected(node.id)}
-							onclick={() => selectNode(node.id)}
+							aria-disabled={interactive ? undefined : true}
+							onclick={interactive ? () => selectNode(node.id) : undefined}
 						>
 							<span class="tree-row__sequence" aria-hidden="true">
 								{String(index + 1).padStart(2, '0')}
@@ -191,7 +213,12 @@
 						</div>
 					</div>
 					{#if isNodeExpanded(node.id)}
-						<NodeConnectionsPanel {store} nodeId={node.id} />
+						<NodeConnectionsPanel
+							{store}
+							nodeId={node.id}
+							interactive={interactive}
+							{activeDomain}
+						/>
 					{/if}
 				</li>
 				{#if draggedNodeId || selectedFreeNodeId}
@@ -241,6 +268,7 @@
 					aria-expanded={isNodeExpanded(node.id)}
 					aria-selected={isNodeSelected(node.id)}
 					aria-grabbed={draggedNodeId === node.id}
+					aria-disabled={interactive ? undefined : true}
 					draggable={!guidedEditingBlocked}
 					ondragstart={(event) => beginNodeDrag(event, node.id)}
 					ondragend={finishNodeDrag}
@@ -251,7 +279,8 @@
 							class="tree-row__chevron"
 							aria-label={`${isNodeExpanded(node.id) ? 'Collapse' : 'Expand'} connections for ${node.label}`}
 							aria-expanded={isNodeExpanded(node.id)}
-							onclick={() => toggleNodeConnections(node.id)}
+							aria-disabled={interactive ? undefined : true}
+							onclick={interactive ? () => toggleNodeConnections(node.id) : undefined}
 						>
 							<span class="chevron" class:open={isNodeExpanded(node.id)}>›</span>
 						</button>
@@ -259,7 +288,8 @@
 							type="button"
 							class="tree-row"
 							class:tree-row--selected={isNodeSelected(node.id)}
-							onclick={() => selectNode(node.id)}
+							aria-disabled={interactive ? undefined : true}
+							onclick={interactive ? () => selectNode(node.id) : undefined}
 						>
 							<span class="tree-row__diamond" aria-hidden="true">◆</span>
 							<span class="tree-row__label" title={formatCameraNodeLabel(node.label, node.id)}>
@@ -269,7 +299,12 @@
 						</button>
 					</div>
 					{#if isNodeExpanded(node.id)}
-						<NodeConnectionsPanel {store} nodeId={node.id} />
+						<NodeConnectionsPanel
+							{store}
+							nodeId={node.id}
+							interactive={interactive}
+							{activeDomain}
+						/>
 					{/if}
 				</li>
 			{/if}

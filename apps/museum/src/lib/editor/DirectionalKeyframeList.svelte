@@ -6,14 +6,19 @@
 	} from '$lib/content/scene';
 	import type { MuseumEditorStore } from './museum-editor.svelte';
 
+	// H1 S4 — optional interactivity gate (the unified tree renders the camera
+	// branch read-only in Plan). When false, keyframe rows are aria-disabled
+	// with no click handler. The relic never passes the prop and is unchanged.
 	let {
 		store,
 		connectionId,
-		direction
+		direction,
+		interactive = true
 	}: {
 		store: MuseumEditorStore;
 		connectionId: string;
 		direction: CameraConnectionDirection;
+		interactive?: boolean;
 	} = $props();
 
 	function readKeyframes(
@@ -53,13 +58,16 @@
 		</li>
 	{/if}
 	{#each keyframes as keyframe (keyframe.id)}
-		<li role="treeitem" aria-selected={isKeyframeSelected(keyframe.id)}>
+		<li role="treeitem" aria-selected={isKeyframeSelected(keyframe.id)} aria-disabled={interactive ? undefined : true}>
 			<button
 				type="button"
 				class="tree-row keyframe-row"
 				class:tree-row--selected={isKeyframeSelected(keyframe.id)}
-				onclick={() =>
-					store.selectCameraTimelineViewKeyframe(connectionId, direction, keyframe.id)}
+				aria-disabled={interactive ? undefined : true}
+				onclick={interactive
+					? () =>
+							store.selectCameraTimelineViewKeyframe(connectionId, direction, keyframe.id)
+					: undefined}
 			>
 				<span class="tree-row__diamond" aria-hidden="true">◇</span>
 				<span class="tree-row__label" title={keyframe.id}>{keyframe.id}</span>

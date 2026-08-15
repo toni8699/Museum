@@ -26,9 +26,14 @@ import { cloneFixtureDocument } from '../../content/__fixtures__/load-fixture-sc
 import { museumEditorEntryPlugin } from '../../../../vite/museum-editor-entry-plugin';
 
 const ROUTES_DIR = fileURLToPath(new URL('../../../../src/routes', import.meta.url));
+const LIB_DIR = fileURLToPath(new URL('../../../../src/lib', import.meta.url));
 
 function readRouteSource(routePath: string): string {
 	return fs.readFileSync(path.join(ROUTES_DIR, routePath), 'utf8');
+}
+
+function readLibSource(relativePath: string): string {
+	return fs.readFileSync(path.join(LIB_DIR, relativePath), 'utf8');
 }
 
 describe('H1 S0 — empty project contract', () => {
@@ -294,6 +299,106 @@ describe('H1 S1 — route wiring (relic smoke proxy, no DOM harness)', () => {
 		expect(resolved).toBeTruthy();
 		const loaded = plugin.load?.(resolved!);
 		expect(loaded).toContain('MuseumEditorApp.svelte');
+	});
+});
+
+describe('H1 S4 — unified hierarchy contracts', () => {
+	it('mounts the H1 sidebar + unified tree in the H1 shell, never in the relic', () => {
+		// H1 shell imports the new sidebar (and the unified tree through it).
+		const h1App = readLibSource('editor/h1/H1EditorApp.svelte');
+		expect(h1App).toContain('H1Sidebar');
+		expect(h1App).not.toContain('EditorLeftSidebar');
+
+		// Relic: the route source imports only virtual:museum-editor-entry, and
+		// the entry plugin's load() output is just a re-export, so assert on the
+		// resolved module's file source (MuseumEditorApp.svelte) + the legacy
+		// components themselves.
+		const relicApp = readLibSource('editor/MuseumEditorApp.svelte');
+		expect(relicApp).toContain('EditorLeftSidebar');
+		expect(relicApp).not.toContain('H1Sidebar');
+		expect(relicApp).not.toContain('UnifiedProjectTree');
+
+		const relicSidebar = readLibSource('editor/EditorLeftSidebar.svelte');
+		expect(relicSidebar).toContain('EditorSceneTree');
+		expect(relicSidebar).toContain('EditorCameraTree');
+		expect(relicSidebar).not.toContain('UnifiedProjectTree');
+
+		for (const component of [
+			'editor/EditorSceneTree.svelte',
+			'editor/EditorCameraTree.svelte'
+		]) {
+			expect(readLibSource(component)).not.toContain('UnifiedProjectTree');
+			expect(readLibSource(component)).not.toContain('H1Sidebar');
+		}
+	});
+
+	it('keeps the camera tree internals reusable behind optional props (relic default behavior)', () => {
+		const guided = readLibSource('editor/GuidedTourPanel.svelte');
+		const connections = readLibSource('editor/NodeConnectionsPanel.svelte');
+		const keyframes = readLibSource('editor/DirectionalKeyframeList.svelte');
+		// The optional H1 S4 gate props default to true when absent.
+		expect(guided).toMatch(/interactive\??:/);
+		expect(connections).toMatch(/interactive\??:/);
+		expect(keyframes).toMatch(/interactive\??:/);
+	});
+
+	it('gates every guided/free node-row pick in GuidedTourPanel behind interactive (Plan gate)', () => {
+		// The Plan gate is behavioral, not just prop presence: the node-row
+		// select click (and the connections chevron) must be no-ops when
+		// interactive is false, exactly like the connection/direction rows — a
+		// plain `onclick={() => selectNode(node.id)}` would leak the camera
+		// domain into Plan (the plan's locked "scene/camera rows aria-disabled
+		// no-ops" decision).
+		const guided = readLibSource('editor/GuidedTourPanel.svelte');
+		// Row select is gated and carries aria-disabled on both guided + free
+		// rows (the two byte-identical row blocks share one handler shape).
+		expect(guided).not.toContain('onclick={() => selectNode(node.id)}');
+		expect(guided.match(/onclick=\{interactive \? \(\) => selectNode\(node\.id\) : undefined\}/g)).toHaveLength(2);
+		expect(guided.match(/onclick=\{interactive \? \(\) => toggleNodeConnections\(node\.id\) : undefined\}/g)).toHaveLength(2);
+		// aria-disabled appears on every gated surface: guided li + chevron +
+		// row, free li + chevron + row.
+		expect(guided.match(/aria-disabled=\{interactive \? undefined : true\}/g)).toHaveLength(6);
+	});
+
+	it('keeps the unified tree mounted across Hierarchy|Assets tabs and hides the boot header correctly', () => {
+		const sidebar = readLibSource('editor/h1/H1Sidebar.svelte');
+		// The tree must not unmount when the Assets tab is active (its
+		// component-local expansion state would be lost) — it renders
+		// unconditionally and the inactive panel is hidden by class, with the
+		// Assets library as a 3D-only sibling.
+		expect(sidebar).toContain('<UnifiedProjectTree');
+		expect(sidebar.match(/class:panel-content--hidden/g)?.length).toBe(2);
+		// importError is `string | null`, so the boot-empty header check must
+		// be `!== null` — `!== undefined` is always true and would show the
+		// header strip on every blank boot.
+		expect(sidebar).toContain('layoutPreview.importError !== null');
+	});
+
+	it('threads the active domain so the camera direction highlight is discovery-driven, gated to camera-or-none', () => {
+		const connections = readLibSource('editor/NodeConnectionsPanel.svelte');
+		const guided = readLibSource('editor/GuidedTourPanel.svelte');
+		const tree = readLibSource('editor/UnifiedProjectTree.svelte');
+		// The panel accepts the S3 active domain and highlights the discovery
+		// direction row when domain is camera-or-none (scrubbing sets discovery
+		// with no navigation selection); layout/scene never co-highlights.
+		expect(connections).toMatch(/activeDomain\??:/);
+		expect(connections).toContain("activeDomain === 'camera' || activeDomain === 'none'");
+		// GuidedTourPanel forwards the domain to every embedded panel, and the
+		// unified tree supplies it from the S3 active selection.
+		// Svelte shorthand `{activeDomain}` on both embedded connections panels.
+		expect(guided.match(/\{activeDomain\}/g)?.length).toBe(2);
+		expect(tree).toContain('activeDomain={active.domain}');
+	});
+
+	it('expands the ancestor chain for every active layout/scene selection, not just rooms', () => {
+		const tree = readLibSource('editor/UnifiedProjectTree.svelte');
+		const model = readLibSource('editor/unified-project-tree-model.ts');
+		// Viewport picks don't route through the tree's select* helpers (which
+		// already expand), so the tree must reveal the picked row for any active
+		// layout/scene selection — including cluster ancestors.
+		expect(tree).toContain('layoutSelectionAncestorRoomId');
+		expect(tree).toContain('ensureClusterTreeExpanded');
+		expect(model).toContain('export function layoutSelectionAncestorRoomId');
 	});
 });
 

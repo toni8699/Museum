@@ -213,6 +213,28 @@ describe('H1 S3 — EditorActiveSelectionStore exclusivity', () => {
 		// Clearing the layout selection must never clear the scene pick.
 		expect(store.selectedPlacementIds).toEqual([entityId]);
 	});
+
+	it('onLayoutSelectionChanged is idempotent — no fresh workspace write once detached (S4 freeze regression)', () => {
+		// The shell effect calls this on every layout-selection change, and it
+		// reads `selection.workspace` reactively (through `selectedRoomId`). An
+		// unconditional setWorkspace of a new object makes the effect re-run
+		// forever (Svelte `effect_update_depth_exceeded` = the reported Plan
+		// freeze on room/wall/opening picks). After the first detach, a second
+		// call must not write a new workspace object at all.
+		const { store, layoutInteraction, activeSelection } = wired();
+		const entityId = store.document.entities[0]!.id;
+		expect(store.selectionActions.selectPlacement(entityId)).toBe(true);
+		selectLayoutRoom(layoutInteraction, 'room-a');
+
+		activeSelection.onLayoutSelectionChanged();
+		const workspaceAfterFirst = store.selection.workspace;
+		expect(store.selectedPlacementIds).toEqual([]);
+		expect(store.selectedRoomId).toBe('paris');
+
+		activeSelection.onLayoutSelectionChanged();
+		expect(store.selection.workspace).toBe(workspaceAfterFirst);
+		expect(store.selectedPlacementIds).toEqual([]);
+	});
 });
 
 describe('H1 S3 — deselectActive', () => {

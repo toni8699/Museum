@@ -9,7 +9,27 @@
 	import { formatCameraNodeLabel } from './editor-outliner';
 	import type { MuseumEditorStore } from './museum-editor.svelte';
 
-	let { store, nodeId }: { store: MuseumEditorStore; nodeId: string } = $props();
+	// H1 S4 — optional interactivity gate (the unified tree renders the camera
+	// branch read-only in Plan). When false, connection/direction rows are
+	// aria-disabled with no click/expand handlers. The relic never passes the
+	// prop and is unchanged.
+	let {
+		store,
+		nodeId,
+		interactive = true,
+		activeDomain = null
+	}: {
+		store: MuseumEditorStore;
+		nodeId: string;
+		interactive?: boolean;
+		// H1 S4 — the S3 active selection domain. Direction rows are
+		// discovery-driven but gated to the camera-or-none domain (the plan's
+		// documented exception): timeline scrubbing sets the discovery slots
+		// with no navigation selection, and a layout/scene selection must
+		// never co-highlight a camera row. The relic never passes the prop and
+		// keeps the legacy selection-gated behavior.
+		activeDomain?: 'layout' | 'scene' | 'camera' | 'none' | null;
+	} = $props();
 
 	const nodeConnections = $derived(getNodeConnections(store.document, nodeId));
 	const rows = $derived([...nodeConnections.outgoing, ...nodeConnections.incoming]);
@@ -64,6 +84,17 @@
 	}
 
 	function isDirectionSelected(connectionId: string, direction: CameraConnectionDirection) {
+		// H1 S4 — discovery-only camera scrubbing sets the discovery slots with
+		// **no** navigation selection at all, so the direction row must also
+		// highlight straight from discovery, gated to the camera-or-none
+		// domain (never co-highlighting under a layout/scene selection).
+		if (
+			(activeDomain === 'camera' || activeDomain === 'none') &&
+			store.activeCameraConnectionId === connectionId &&
+			store.activeCameraDirection === direction
+		) {
+			return true;
+		}
 		return (
 			isConnectionHeaderSelected(connectionId) &&
 			store.activeCameraConnectionId === connectionId &&
@@ -89,6 +120,7 @@
 				role="treeitem"
 				aria-expanded={isConnectionExpanded(row.connectionId)}
 				aria-selected={isConnectionHeaderSelected(row.connectionId)}
+				aria-disabled={interactive ? undefined : true}
 			>
 				<div class="connection-line">
 					<button
@@ -96,7 +128,8 @@
 						class="tree-row__chevron"
 						aria-label={`${isConnectionExpanded(row.connectionId) ? 'Collapse' : 'Expand'} ${partnerLabel}`}
 						aria-expanded={isConnectionExpanded(row.connectionId)}
-						onclick={() => store.toggleCameraConnectionTreeExpansion(row.connectionId)}
+						aria-disabled={interactive ? undefined : true}
+						onclick={interactive ? () => store.toggleCameraConnectionTreeExpansion(row.connectionId) : undefined}
 					>
 						<span class="chevron" class:open={isConnectionExpanded(row.connectionId)}>›</span>
 					</button>
@@ -106,11 +139,14 @@
 						class:tree-row--selected={isConnectionHeaderSelected(row.connectionId)}
 						class:outgoing={row.bucket === 'outgoing'}
 						class:incoming={row.bucket === 'incoming'}
-						onclick={() =>
-							store.selectionActions.selectCameraConnectionDirection(
-								row.connectionId,
-								travelDirection
-							)}
+						aria-disabled={interactive ? undefined : true}
+						onclick={interactive
+							? () =>
+									store.selectionActions.selectCameraConnectionDirection(
+										row.connectionId,
+										travelDirection
+									)
+							: undefined}
 						title={`${row.connectionId} · ${row.bucket}`}
 					>
 						<span class="direction-badge" aria-hidden="true"
@@ -129,6 +165,7 @@
 								role="treeitem"
 								aria-expanded={expanded}
 								aria-selected={isDirectionSelected(row.connectionId, direction)}
+								aria-disabled={interactive ? undefined : true}
 							>
 								<div class="direction-line">
 									<button
@@ -136,8 +173,14 @@
 										class="tree-row__chevron"
 										aria-label={`${expanded ? 'Collapse' : 'Expand'} ${direction} keys`}
 										aria-expanded={expanded}
-										onclick={() =>
-											store.toggleCameraDirectionTreeExpansion(row.connectionId, direction)}
+										aria-disabled={interactive ? undefined : true}
+										onclick={interactive
+											? () =>
+													store.toggleCameraDirectionTreeExpansion(
+														row.connectionId,
+														direction
+													)
+											: undefined}
 									>
 										<span class="chevron" class:open={expanded}>›</span>
 									</button>
@@ -146,11 +189,14 @@
 										class="tree-row direction-row"
 										class:tree-row--selected={isDirectionSelected(row.connectionId, direction)}
 										class:direction-row--empty={count === 0}
-										onclick={() =>
-											store.selectionActions.selectCameraConnectionDirection(
-												row.connectionId,
-												direction
-											)}
+										aria-disabled={interactive ? undefined : true}
+										onclick={interactive
+											? () =>
+													store.selectionActions.selectCameraConnectionDirection(
+														row.connectionId,
+														direction
+													)
+											: undefined}
 									>
 										<span class="direction-badge">{direction === 'forward' ? '▶' : '◀'}</span>
 										<span class="tree-row__label">{direction}</span>
@@ -162,6 +208,7 @@
 										{store}
 										connectionId={row.connectionId}
 										{direction}
+										interactive={interactive}
 									/>
 								{/if}
 							</li>

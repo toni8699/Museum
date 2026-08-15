@@ -156,11 +156,35 @@ export class EditorActiveSelectionStore {
 	 * `clearPlacementSelection` keeps the room context and `setNavigation({kind:
 	 * 'none'})` is non-actionable, so the store hook never fires and this
 	 * cannot loop. Testable independently of the shell `$effect`.
+	 *
+	 * Idempotent by construction (S4 regression): the shell effect calls this
+	 * on every layout-selection change, and `selectedRoomId` reads
+	 * `selection.workspace` reactively — an unconditional `setWorkspace` write
+	 * of a fresh object makes the effect re-run (read → write → re-run),
+	 * spinning into Svelte's `effect_update_depth_exceeded` freeze on the
+	 * first room/wall/opening pick. Each slot is therefore written only when
+	 * it actually changes from the detach target.
 	 */
 	onLayoutSelectionChanged(): void {
 		if (this.#layoutInteraction.selection.kind === 'none') return;
-		this.#store.selectionActions.clearPlacementSelection();
-		this.#store.selection.setNavigation({ kind: 'none' });
+		const roomId = this.#store.selectedRoomId;
+		const roomOnlyWorkspace: WorkspaceSelection =
+			roomId === null
+				? { kind: 'none' }
+				: { kind: 'placement', ids: [], clusterId: null, roomId };
+		const workspace = this.#store.selection.workspace;
+		const alreadyDetached =
+			workspace.kind === 'none' ||
+			(workspace.kind === 'placement' &&
+				workspace.ids.length === 0 &&
+				workspace.clusterId === null &&
+				workspace.roomId === roomId);
+		if (!alreadyDetached) {
+			this.#store.selection.setWorkspace(roomOnlyWorkspace);
+		}
+		if (this.#store.selection.navigation.kind !== 'none') {
+			this.#store.selection.setNavigation({ kind: 'none' });
+		}
 	}
 }
 

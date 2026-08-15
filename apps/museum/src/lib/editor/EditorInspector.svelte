@@ -3,6 +3,7 @@
 	import { isSceneLightEntity, isSceneModelEntity, isScenePrimitiveEntity } from '$lib/content/scene';
 	import type { MuseumAsset } from '$lib/types/assets';
 	import { tick } from 'svelte';
+	import type { EditorWorkspace } from './museum-editor.types';
 	import EditorCameraInspector from './EditorCameraInspector.svelte';
 	import EditorLightInspector from './EditorLightInspector.svelte';
 	import EditorMaterialInspector from './EditorMaterialInspector.svelte';
@@ -40,19 +41,35 @@
 		EDITOR_VISITOR_LIGHTING,
 		type MuseumEditorStore
 	} from './museum-editor.svelte';
+	import type { EditorActiveSelectionStore } from './h1/active-editor-selection.svelte';
+	import type { EditorViewMode } from './h1/editor-view-mode';
 
 	let {
 		store,
 		layoutPreview,
 		layoutInteraction,
+		activeSelection,
 		selectedAsset,
-		clusterNameInput = $bindable()
+		clusterNameInput = $bindable(),
+		viewMode = '3d'
 	}: {
 		store: MuseumEditorStore;
 		layoutPreview: LayoutPreviewState;
 		layoutInteraction: LayoutInteractionState;
+		/** H1 S4 — optional domain-driven panel switch. When provided and a
+		 *  domain is active, the panel follows `active.domain` (a scene/camera
+		 *  selection survives Plan ↔ 3D and must keep its panel); otherwise it
+		 *  falls back to `store.currentWorkspace` — the relic passes nothing
+		 *  and is byte-for-byte unchanged. */
+		activeSelection?: EditorActiveSelectionStore;
 		selectedAsset?: MuseumAsset;
 		clusterNameInput?: HTMLInputElement;
+		/** Authoritative shell view mode. H1 passes the top-level Plan | 3D
+		 *  switch so the domain-driven panel can keep a preserved scene/camera
+		 *  selection visible yet read-only in Plan (Plan is layout CAD only —
+		 *  no non-layout mutation path). Legacy mounts omit it and stay fully
+		 *  interactive. */
+		viewMode?: EditorViewMode;
 	} = $props();
 
 	let clusterNameDraft = $state('');
@@ -90,8 +107,20 @@
 			? singleSelectedEntity
 			: undefined
 	);
+	// H1 S4 — panel domain: the active selection when one is provided and a
+	// domain is active (S3 view-switch preservation), else the legacy workspace.
+	const domain = $derived<EditorWorkspace>(
+		activeSelection && activeSelection.active.domain !== 'none'
+			? activeSelection.active.domain
+			: store.currentWorkspace
+	);
+	// Plan read-only gate — Plan is layout CAD only. A scene/camera selection
+	// survives the Plan ↔ 3D switch (S3) and keeps its panel, but every
+	// non-layout mutation control must be inert while in Plan.
+	const readOnly = $derived(viewMode !== '3d');
+	const readOnlyNonLayout = $derived(readOnly && domain !== 'layout');
 	const showAssetInspector = $derived(
-		store.currentWorkspace === 'scene' &&
+		domain === 'scene' &&
 			store.leftPanel === 'assets' &&
 			!singleMaterialEntity
 	);
@@ -406,7 +435,7 @@
 <aside class="panel inspector" aria-label="Inspector" style="grid-area: right;">
 	<header>
 		<h2>Inspector</h2>
-		{#if store.currentWorkspace === 'layout'}
+		{#if domain === 'layout'}
 			<p>Layout Plan editing · preview-only</p>
 		{:else if showAssetInspector}
 			<p>{selectedAsset ? 'Asset library selection' : 'No asset matches the current filters.'}</p>
@@ -431,7 +460,7 @@
 		{/if}
 	</header>
 
-	{#if store.currentWorkspace === 'layout'}
+	{#if domain === 'layout'}
 		<section class="layout-inspector" aria-label="Layout preview details">
 			<dl>
 				<div><dt>Project</dt><dd>{layoutPreview.project.name}</dd></div>
@@ -598,6 +627,7 @@
 						type="button"
 						class="place"
 						class:active={store.pendingPlacementAssetId === selectedAsset.id}
+						disabled={readOnly}
 						onclick={() => store.beginAssetPlacement(selectedAsset.id)}
 					>
 						{store.pendingPlacementAssetId === selectedAsset.id ? 'Placing…' : 'Place in Paris'}
@@ -616,8 +646,21 @@
 			</section>
 		{/if}
 	{:else if selectedNavigation}
-		<EditorCameraInspector {store} />
+		{#if readOnlyNonLayout}
+			<section class="read-only-note" aria-label="Read-only camera selection">
+				<h2>Read-only in Plan</h2>
+				<p>Camera selections survive the Plan ↔ 3D switch, but Plan is layout-only. Switch to 3D to edit this selection.</p>
+			</section>
+		{:else}
+			<EditorCameraInspector {store} />
+		{/if}
 	{:else if hasPlacementSelection}
+		{#if readOnlyNonLayout}
+			<section class="read-only-note" aria-label="Read-only scene selection">
+				<h2>Read-only in Plan</h2>
+				<p>Scene selections survive the Plan ↔ 3D switch, but Plan is layout-only. Switch to 3D to edit this selection.</p>
+			</section>
+		{:else}
 		<section class="grouping" aria-label="Group selection">
 			<div class="section-heading">
 				<h2>Group selection</h2>
@@ -713,6 +756,7 @@
 		</section>
 
 		<EditorPlacementInspector {store} />
+		{/if}
 	{:else}
 		<section class="empty-selection" aria-label="Editor help">
 			<h2>No selection</h2>
@@ -797,6 +841,9 @@
 	.place { padding: 0.48rem 0.6rem; border: 1px solid #8d753c; border-radius: 0.32rem; background: #242018; color: #fff2c7; font: inherit; font-size: 0.73rem; cursor: pointer; }
 	.place.active { background: #3a3019; box-shadow: inset 0 0 0 1px #d6b35f; }
 	.unsupported, .empty-selection p { margin: 0; color: #a8a29a; font-size: 0.72rem; line-height: 1.4; }
+	.read-only-note { display: flex; flex-direction: column; gap: 0.55rem; padding: 0.85rem; border: 1px solid #34313a; border-radius: 0.45rem; background: #17171f; }
+	.read-only-note h2 { margin: 0; font-size: 0.9rem; }
+	.read-only-note p { margin: 0; color: #a8a29a; font-size: 0.72rem; line-height: 1.4; }
 	.presets { display: flex; gap: 0.35rem; }
 	.presets button, .deselect, .camera-controls button { padding: 0.38rem 0.5rem; border: 1px solid #3a3a46; border-radius: 0.32rem; background: #1a1a22; color: #f4efe4; font: inherit; font-size: 0.72rem; cursor: pointer; }
 	.camera-controls button:disabled, .presets button:disabled { opacity: 0.4; cursor: default; }

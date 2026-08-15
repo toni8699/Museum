@@ -10,8 +10,8 @@
 	import { TextureLoader } from 'three';
 	import EditorCameraTimelineFrame from '$lib/editor/EditorCameraTimelineFrame.svelte';
 	import EditorInspector from '$lib/editor/EditorInspector.svelte';
-	import EditorLeftSidebar from '$lib/editor/EditorLeftSidebar.svelte';
 	import EditorMaterialChoiceDialog from '$lib/editor/EditorMaterialChoiceDialog.svelte';
+	import H1Sidebar from './H1Sidebar.svelte';
 	import { registerEditorShortcuts } from '$lib/editor/hooks/shortcuts.svelte';
 	import {
 		EditorInteractionStore,
@@ -128,6 +128,10 @@
 			setLayoutViewMode(layoutInteraction, 'plan');
 			store.setWorkspace('layout');
 		} else {
+			// H1 S4 review — restoring the layout view mode keeps Plan-only
+			// placement tools disabled in 3D (the inspector's Place accordion
+			// and the primitive guard read `layoutInteraction.viewMode`).
+			setLayoutViewMode(layoutInteraction, '3d');
 			store.setWorkspace(viewState.active3dContext);
 		}
 	});
@@ -215,13 +219,14 @@
 		projectName={bootProject.name}
 		onReset={() => activeSelection.reset()}
 	/>
-	<EditorLeftSidebar
+	<H1Sidebar
 		{store}
 		{layoutPreview}
-		{confirmLayoutReplacement}
+		{layoutInteraction}
+		{activeSelection}
+		{viewState}
 		bind:outlinerElement
 		onAssetSelection={(asset) => (selectedAsset = asset)}
-		onReset={() => activeSelection.reset()}
 	/>
 	<!-- svelte-ignore a11y_no_noninteractive_tabindex (the WebGL viewport owns guarded editor shortcuts) -->
 	<div
@@ -243,7 +248,9 @@
 		{store}
 		{layoutPreview}
 		{layoutInteraction}
+		{activeSelection}
 		{selectedAsset}
+		viewMode={viewState.viewMode}
 		bind:clusterNameInput
 	/>
 	{#if viewState.viewMode === '3d'}

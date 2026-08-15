@@ -6,19 +6,19 @@ No server. No account. Everything lives in your browser. Save = export. Load = i
 
 ## Example
 
-**Chopin museum** — the first project built with it. Guided tour, free roam, reduced motion. Paris Salon included.
+**Chopin museum** is the first project built with it. Guided tour, free roam, reduced motion. Paris Salon included.
 
-Any indoor space works: gallery, office, store, venue.
+Any indoor space works. Gallery, office, store, venue.
 
 ## Features
 
-- **Plan editor** — draw rooms, bend walls into curves, snap to grid
-- **Openings** — doors, windows, round/pointed profiles
-- **Objects** — boxes, cylinders, spheres, GLB assets
-- **Camera tours** — place nodes, connect paths, smooth rides
-- **3D view** — live preview of your compiled plan
-- **Undo / redo** — shared across the editor
-- **Portable project** — export JSON, import anywhere
+- **Plan editor:** draw rooms, bend walls into curves, snap to grid
+- **Openings:** doors, windows, round/pointed profiles
+- **Objects:** boxes, cylinders, spheres, GLB assets
+- **Camera tours:** place nodes, connect paths, smooth rides
+- **3D view:** live preview of your compiled plan
+- **Undo / redo:** shared across the editor
+- **Portable project:** export JSON, import anywhere
 
 ## Run
 
@@ -29,8 +29,9 @@ npm install
 npm run dev
 ```
 
-- `/` — editor
-- `/museum` — Chopin museum example
+- `/` or `/editor`: main editor. 2D CAD plan -> 3D render
+- `/museum`: legacy code. Chopin museum preview
+- `/museum/editor`: legacy editor
 
 ```bash
 npm run build   # production build

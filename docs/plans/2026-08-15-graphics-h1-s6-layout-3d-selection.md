@@ -4,7 +4,7 @@
 **Status:** Planned
 **Parent:** [`2026-08-14-graphics-h1-unified-3d-editing.md`](./2026-08-14-graphics-h1-unified-3d-editing.md) (step 6, difficulty 8/10 — plan Frontier, implementation Frontier+)
 **Prerequisite:** S5 · Complete Wall/Opening 3D Pick Metadata
-**Handoff:** [`../../hand-off/CURRENT.md`](../../hand-off/CURRENT.md)
+**Handoff:** [`../hand-off/CURRENT.md`](../hand-off/CURRENT.md)
 
 ## Goal
 
@@ -42,33 +42,44 @@ pick identity and selection cycling through coincident content stay deferred
 | Tree + inspector sync | S4 pick-expand effect reveals any active layout selection; `EditorInspector` renders layout selections via `layoutInteraction` | Unchanged — free |
 | 3D highlight | `LayoutPreviewScene` already builds wall/opening highlight shells + object tint from `interaction.selection` | Unchanged — free |
 | Visitor preview | Anchors hidden via `showAnchors={!store.isVisitorCameraPreview}` (S5 review fix); grid/selection/ghost hidden; layout picks do not exist | Layout picks additionally gated off during preview |
-| Relic | `EditorViewport` mounts `EditorSelection` with no extra props; layout workspace unreachable | Optional prop defaults keep the relic byte-identical |
+| Relic | `EditorViewport` mounts `EditorSelection` with no extra props; layout workspace unreachable | Optional prop keeps relic behavior unchanged; shared component bytes may change |
 
 ## Target
 
 ```text
 layout-3d-picking.ts (pure, $lib/editor/layout — plan-hit.ts precedent)
   Layout3dHitCandidate                          (umbrella shape, exact)
+  Layout3dResolvedHit = { selection, distance }
   layoutCandidatesFromIntersections(intersections)  → Layout3dHitCandidate[]
        structural RaycastHitLike type — no 'three' import (purity boundary)
        floor/ceiling/wall surfaceType + editorEntity walk-up → candidates
-  resolveLayout3dHits(pickIndices, hits) → LayoutSelection | null
+  resolveLayout3dHits(pickIndices, hits) → Layout3dResolvedHit | null
        nearest-visible wins; same-depth (|Δd| ≤ eps) semantic priority:
        anchor → opening → object → wall → room; wall-triangle resolved
        through Layout3dPickIndex; unresolvable refs dropped
 
+editor-selection.ts (existing scene/camera resolver, behavior preserved)
+  SelectionHitInfo gains optional distance; runtime intersections always set it
+  resolveNormalSelectionWithHit(hits) → { result, sourceHit }
+       same opacity filtering + camera/navigation/placement priority as today
+  resolveNormalSelection(hits) delegates and keeps its existing result contract
+
 EditorSelection.svelte (the one coordinator — H1 + relic shared)
-  + onLayoutPick?: (candidates) => boolean     (default undefined)
+  + onLayoutPick?: (candidates, competingSceneDistance) => boolean
+       (default undefined)
   click flow: compute intersections ONCE → after the placement + Alt-cycle
-       branches, if onLayoutPick && !previewing:
+       branches, if onLayoutPick and existing mutation guard passed:
        candidates = layoutCandidatesFromIntersections(intersections)
-       if onLayoutPick(candidates) → commit + return (skip scene/deselect)
-       else fall through to existing resolveNormalSelection unchanged
+       normal = resolveNormalSelectionWithHit(hits)
+       sceneDist = normal.result is actionable ? normal.sourceHit.distance : null
+       if onLayoutPick(candidates, sceneDist) → commit + return
+       else apply normal.result unchanged
 
 H13DView.svelte
   <EditorSelection onLayoutPick={handleLayoutPick} .../>
   handleLayoutPick: resolveLayout3dHits(layoutPreview.layout3dPickIndexByRoom, c)
-       → selectLayout* on layoutInteraction; returns handled
+       → compare resolved.distance with competingSceneDistance
+       → selectLayout* on layoutInteraction only when layout wins; returns handled
 
 LayoutPreviewScene.svelte
   wall T.Mesh gains userData={{ surfaceType: 'wall', roomId }}  (new identity)
@@ -87,19 +98,23 @@ layout branch — there are no competing listeners to merge, and inventing a new
 create exactly the risk the umbrella warns about. The coordinator contract is:
 
 - `EditorSelection` gains one optional prop `onLayoutPick?: (candidates:
-  readonly Layout3dHitCandidate[]) => boolean`. `undefined` (relic mount)
-  keeps today's exact behavior — no new imports, no behavior change.
+  readonly Layout3dHitCandidate[], competingSceneDistance: number | null) =>
+  boolean`. `undefined` (relic mount) keeps today's exact behavior. The shared
+  component necessarily gains an editor-layout import, so relic behavior — not
+  emitted bytes — is the frozen contract.
 - In the click flow, after `intersections` are computed **once**, the layout
   branch slots **after the placement branches** (`place-camera`, primitive/
   light/asset placement all `return` before it) **and after the Alt-cycle
   branch** — Alt-click keeps cycling scene placements and never selects
   layout. When the prop is present: build candidates from the same list and
-  call the callback; if it returns `true` (a layout selection was committed)
-  return without touching the scene/camera path. If it returns `false` (no
-  layout candidate resolved, or a nearer scene/camera hit won the
-  cross-domain arbitration below), fall through to the existing
-  `resolveNormalSelection` unchanged — including the background-deselect
-  behavior for a click that hits neither layout nor scene content.
+  resolve the existing normal path once with `resolveNormalSelectionWithHit`,
+  then call the callback with the candidates and the resolved actionable
+  scene/camera source distance (or `null`). If it returns `true` (a layout
+  selection was committed), return without applying the normal result. If it
+  returns `false` (no layout candidate resolved, or a nearer scene/camera hit
+  won), apply the already-resolved normal result unchanged — including the
+  background-deselect behavior for a click that hits neither layout nor scene
+  content. Never run either resolver twice.
 - **Layout picks ignore Shift/Meta/Ctrl**: they always produce a plain single
   selection via `selectLayout*` — the layout domain has no additive/toggle
   multi-select today (Plan behaves the same).
@@ -119,10 +134,15 @@ export type Layout3dHitCandidate =
   | { kind: 'wall-triangle'; roomId: string; triangleIndex: number; distance: number }
   | { kind: 'room-surface'; roomId: string; surface: 'floor' | 'ceiling'; distance: number };
 
+export type Layout3dResolvedHit = {
+  selection: LayoutSelection;
+  distance: number;
+};
+
 export function resolveLayout3dHits(
   pickIndices: ReadonlyMap<string, Layout3dPickIndex>,
   hits: readonly Layout3dHitCandidate[]
-): LayoutSelection | null;
+): Layout3dResolvedHit | null;
 ```
 
 - **Umbrella-signature amendment (documented):** the umbrella sketches
@@ -133,10 +153,12 @@ export function resolveLayout3dHits(
   (the triangle number of the indexed buffer — Three's `faceIndex` as-is,
   never divided) and resolve through `pickIndices.get(roomId)(triangleIndex)`
   → `Layout3dTriangleRef`.
-- **Return value is `LayoutSelection`** (the existing union:
-  `room` / `wall` / `opening` / `interiorAnchor` / `object`), so the commit
-  path is `selectLayoutRoom/Wall/Opening/InteriorAnchor/Object` — the same
-  helpers Plan uses. `null` = no layout selection (background or scene/camera).
+- **Umbrella-return amendment (documented):** return the existing
+  `LayoutSelection` union together with its winning ray distance. Cross-domain
+  arbitration cannot be correct if the layout resolver discards that distance.
+  The commit path remains
+  `selectLayoutRoom/Wall/Opening/InteriorAnchor/Object` — the same helpers Plan
+  uses. `null` = no layout selection (background or scene/camera).
 - Ref → selection mapping is deterministic:
   - `{ kind: 'wall', segmentId, surface }` (side/lintel/bridge) →
     `{ kind: 'wall', roomId, segmentId }` — bridge triangles keep their
@@ -157,20 +179,29 @@ export function resolveLayout3dHits(
   higher (umbrella rule).
 - **Cross-domain nearest-visible — the layout branch is not a preemptor.** A
   scene entity or camera helper standing in front of a wall/floor must stay
-  clickable. Yield rule: let `d_scene` be the distance of the nearest
-  intersection carrying scene/camera identity (a `placementId`, camera
-  handle, or navigation/connection/anchor/keyframe tag — what
-  `resolveNormalSelection` would act on); the layout selection commits only
-  if `layoutDist ≤ d_scene + LAYOUT_3D_SAME_DEPTH_EPSILON`, otherwise the
-  click falls through to the existing scene/camera flow unchanged. This is
+  clickable. `d_scene` is **not** the nearest tagged raw intersection. It is
+  the source-hit distance of the actionable result produced by today's exact
+  normal resolver: first apply `NEAR_INVISIBLE_OPACITY`, then preserve its
+  camera-node → view-keyframe → path-anchor → connection → first-effective
+  placement ordering. A low-opacity tagged hit, or a tagged placement behind
+  an unowned first-effective surface that makes the normal resolver return
+  `deselect`, supplies no competing distance. This prevents the comparator
+  from yielding to content the normal path would not actually select.
+- Yield rule: the layout selection commits only if `d_scene === null` or
+  `layoutDist ≤ d_scene + LAYOUT_3D_SAME_DEPTH_EPSILON`; otherwise the click
+  applies the already-resolved scene/camera result unchanged. This is
   deliberately **not** "nearest overall intersection": editor chrome (grid,
   the `LayoutWallHighlight` shell at +0.02, placement ghost) is nearer than
   the surface it decorates and must never shadow the real pick — clicking an
-  already-selected wall must re-select it, not deselect. Implementation
-  seam: `SelectionHitInfo` currently carries no `distance`, so either extend
-  it (small additive field in `editor-selection.ts` — amends the "Untouched"
-  list) or compare against the raw `intersections` via the existing userData
-  walk-ups (`findPlacementIdFromObject` / `findNavigationSelectionFromObject`).
+  already-selected wall must re-select it, not deselect.
+- Extend `SelectionHitInfo` with optional `distance` and add
+  `resolveNormalSelectionWithHit(hits) → { result, sourceHit }` in
+  `editor-selection.ts`. `selectionHitFromIntersection` always copies
+  `Intersection.distance`; optionality preserves legacy/manual hit fixtures.
+  Existing `resolveNormalSelection` delegates to the new helper and returns
+  only `.result`, preserving every current caller and result shape. For a
+  `deselect` result, `sourceHit` is `null` even when the first effective hit is
+  non-interactive editor chrome.
 - Candidates whose distances differ by `≤ LAYOUT_3D_SAME_DEPTH_EPSILON`
   (`1e-4` m) form a tie group. Within a tie group the priority is
   **anchor → opening → object → wall → room**, then stable input order
@@ -241,7 +272,9 @@ resolution.
 - **Visitor preview gate:** `H13DView` passes
   `onLayoutPick={store.isVisitorCameraPreview ? undefined : handleLayoutPick}`
   — during visitor camera playback no layout pick can commit (anchors are
-  already hidden). Director playback and normal editing select normally.
+  already hidden). The existing `isDocumentMutationBlocked` guard also blocks
+  selection while Director transport is playing. Paused Director and normal
+  editing select normally; S6 does not change that lock.
 
 ### Purity, bench, and relic isolation
 
@@ -251,9 +284,10 @@ resolution.
 - **No bench re-baseline:** geometry, draw calls, and mesh topology are
   untouched (one `userData` object on the wall mesh; a click-time O(hits)
   pure resolution). `three-*-estimate` budgets hold exactly.
-- Relic `/museum/editor` is byte-identical: `EditorViewport` does not pass
+- Relic `/museum/editor` is behavior-identical: `EditorViewport` does not pass
   `onLayoutPick`, and `LayoutPreviewScene` is only mounted in the
-  (unreachable) layout workspace branch anyway.
+  (unreachable) layout workspace branch anyway. Shared component bytes may
+  change because `EditorSelection` gains the optional branch.
 
 ## Implementation steps
 
@@ -270,7 +304,10 @@ candidate extraction + commit route:
   wall or floor selects the entity, not the wall/room behind; the yield rule
   holds at the boundary (`layoutDist > d_scene + eps` → scene wins,
   `≤ eps` → layout wins); the `LayoutWallHighlight` shell never shadows the
-  wall it decorates.
+  wall it decorates. Pin that `d_scene` belongs to the exact actionable normal
+  result: near-invisible tagged hits are filtered; camera/navigation priority
+  keeps its current source hit; a normal `deselect` contributes `null`, not the
+  distance of a merely tagged raw intersection.
 - **Same-depth priority** — every pairwise rule at `Δd ≤ eps`:
   anchor > opening > object > wall > room; the reversed order loses; a
   `Δd > eps` pair is decided by distance, not priority.
@@ -291,19 +328,26 @@ candidate extraction + commit route:
   and camera helper objects produce no candidate; walk-up finds
   `layout-object`/`layout-anchor` on parent groups.
 - **Commit route** — pure-ish shell test (no Svelte mount): candidates →
-  `resolveLayout3dHits` → `selectLayout*` → `deriveActiveSelection` reports
-  the layout domain; a follow-up scene pick (store hook) clears it; a no-hit
-  click leaves `interaction.selection` untouched and the scene flow owns
-  deselect.
+  `resolveLayout3dHits` → compare its winning distance with the resolved
+  normal source distance → `selectLayout*` → `deriveActiveSelection` reports
+  the layout domain; a nearer normal winner causes no layout write; a follow-up
+  scene pick (store hook) clears layout; a no-hit click leaves
+  `interaction.selection` untouched and the normal flow owns deselect.
+- **Normal resolver preservation** — extend `editor-selection.test.ts`: every
+  existing camera/navigation/placement/deselect fixture agrees between
+  `resolveNormalSelection(hits)` and
+  `resolveNormalSelectionWithHit(hits).result`; source-hit identity/distance
+  matches the winning effective hit; `deselect` returns `sourceHit: null`.
 - **Boundary** — `layout-3d-picking.ts` still imports no
   Three/DOM/Svelte/`$app`/`$lib/museum` (the existing purity test covers the
   new code automatically once it imports the module).
 - **Contracts (source assertions)** — `EditorSelection` declares optional
-  `onLayoutPick` with a `?:` default-undefined shape; `H13DView` passes
-  `onLayoutPick` gated on `!store.isVisitorCameraPreview`; `EditorViewport`
-  (relic) does not; `LayoutPreviewScene` wall mesh carries
-  `surfaceType: 'wall'` + `roomId`; `layout-3d-picking.ts` exports
-  `Layout3dHitCandidate` + `resolveLayout3dHits`.
+  `onLayoutPick` with the candidates + competing-distance signature and a `?:`
+  default-undefined shape; `H13DView` passes `onLayoutPick` gated on
+  `!store.isVisitorCameraPreview`; `EditorViewport` (relic) does not;
+  `LayoutPreviewScene` wall mesh carries `surfaceType: 'wall'` + `roomId`;
+  `layout-3d-picking.ts` exports `Layout3dHitCandidate` +
+  `Layout3dResolvedHit` + `resolveLayout3dHits`.
 
 ### 1. Pure resolution + extraction in layout-3d-picking.ts
 
@@ -315,7 +359,7 @@ candidate extraction + commit route:
 - Add `resolveLayout3dHits(pickIndices, hits)`: drop unresolvable
   wall-triangles, sort by distance, group ties within the epsilon, apply
   anchor → opening → object → wall → room, return the winning
-  `LayoutSelection` or `null`.
+  `{ selection, distance }` or `null`.
 
 ### 2. Wall mesh identity tag
 
@@ -324,11 +368,18 @@ candidate extraction + commit route:
 
 ### 3. Coordinator branch in EditorSelection.svelte
 
-- Add the optional `onLayoutPick` prop (typed, default `undefined`).
-- In the click flow, after `intersections` is computed: when
-  `onLayoutPick` is present, build candidates via
-  `layoutCandidatesFromIntersections`; `if (onLayoutPick(candidates)) return;`
-  (skip the scene/camera path). Otherwise continue exactly as today.
+- `editor-selection.ts`: add optional `SelectionHitInfo.distance`, copy runtime
+  `Intersection.distance`, and extract `resolveNormalSelectionWithHit` without
+  changing `resolveNormalSelection` behavior or return shape.
+- Add the optional `onLayoutPick` prop (typed, default `undefined`) with
+  `(candidates, competingSceneDistance) => boolean`.
+- In the click flow, after `intersections` is computed: build `hits` once and
+  resolve the normal result/source hit once. After placement and Alt branches,
+  when `onLayoutPick` is present, build candidates via
+  `layoutCandidatesFromIntersections`; pass candidates plus the actionable
+  normal source distance (otherwise `null`). If the callback returns `true`,
+  return; otherwise apply the already-resolved normal result through today's
+  exact dispatch. Do not call `resolveNormalSelection` again.
 - No changes to pointer-down/pointer-session/alt-cycle/placement branches;
   TransformControls precedence untouched.
 
@@ -337,9 +388,11 @@ candidate extraction + commit route:
 - `H13DView.svelte` passes
   `onLayoutPick={store.isVisitorCameraPreview ? undefined : handleLayoutPick}`,
   where `handleLayoutPick` resolves via
-  `layoutPreview.layout3dPickIndexByRoom`, commits through
-  `selectLayoutRoom/Wall/Opening/InteriorAnchor/Object` on
-  `layoutInteraction`, and returns whether a selection was committed.
+  `layoutPreview.layout3dPickIndexByRoom`, returns `false` when no layout hit or
+  when `competingSceneDistance !== null && resolved.distance >
+  competingSceneDistance + epsilon`, otherwise commits
+  `resolved.selection` through `selectLayoutRoom/Wall/Opening/InteriorAnchor/Object`
+  on `layoutInteraction` and returns `true`.
 - Relic `EditorViewport.svelte`: no change (prop absent).
 
 ### 5. Regression + manual QA
@@ -357,9 +410,10 @@ candidate extraction + commit route:
   behind); Alt-click on a wall still cycles scene placements; clicking an
   already-selected wall re-selects it (the highlight shell does not deselect);
   a layout pick after a scene pick re-activates layout. Plan ↔ 3D switch
-  preserves the
-  selection and highlight. Visitor camera preview: no anchor helpers, no
-  layout pick on click. Relic `/museum/editor` unchanged.
+  preserves the selection and highlight. Visitor camera preview: no anchor
+  helpers, no layout pick on click. Playing Director: existing mutation guard
+  blocks all selection; pause Director and selection resumes. Relic
+  `/museum/editor` behavior unchanged.
 - Confirm the click path never fires a second raycast (one `intersections`
   computation per click) and that highlights rebuild/dispose as before.
 
@@ -377,15 +431,15 @@ candidate extraction + commit route:
 | One coordinator | `EditorSelection` remains the single Canvas selection listener; layout branch reuses the same `intersections` (no second raycast) |
 | Nearest-visible | Front wall blocks an object behind it; nearer object beats farther wall |
 | Same-depth ties | Within `LAYOUT_3D_SAME_DEPTH_EPSILON`: anchor → opening → object → wall → room; beyond it, distance decides |
-| Cross-domain | A scene/camera hit nearer than the winning layout candidate (beyond `eps`) wins and the click falls through; layout wins within `eps` or when nothing scene/camera is nearer; the highlight shell/grid never shadow a real pick |
+| Cross-domain | The exact actionable `resolveNormalSelectionWithHit` source supplies `d_scene` after opacity filtering and current camera/navigation/placement priority; a nearer winner beyond `eps` wins, layout wins within `eps` or when the normal result is `deselect`; highlight/grid never shadow a real layout pick |
 | Wall resolution | Wall `side`/`lintel`/`bridge` triangles → wall selection (bridge keeps current-wall owner; `triangleIndex = faceIndex`, never `faceIndex / 3`); opening `jamb`/`sill`/`lintel`/`arch-reveal` → opening selection |
 | Room surfaces | Floor/ceiling candidates → `{ kind: 'room' }` |
 | Helper filtering | Anchor candidates only when helpers render (`showAnchors`); highlight/ghost/grid/lights/camera helpers yield no layout candidates |
 | Background clear | No layout + no scene hit → existing deselect path (`onDeselect`/`deselectActive`); no candidate ever forces a layout write |
-| Domain activation | Layout pick activates layout and detaches scene/camera (S3); scene pick clears layout (`onSelectionActivate`); visitor preview commits no layout picks |
+| Domain activation | Layout pick activates layout and detaches scene/camera (S3); scene pick clears layout (`onSelectionActivate`); visitor and playing Director previews commit no layout picks; paused Director resumes selection |
 | Tree/inspector/highlight | S4 tree expand + highlight and S5 3D highlight overlay fire from `interaction.selection` with zero new code |
 | Plan parity | Plan's 2D priority unchanged; identity parity asserted, ordering not |
-| Relic isolation | `/museum/editor` mounts `EditorSelection` without `onLayoutPick`; wall tag/anchors only in the shared layout scene |
+| Relic isolation | `/museum/editor` mounts `EditorSelection` without `onLayoutPick`; behavior stays frozen although shared component bytes change; wall tag/anchors only in the shared layout scene |
 | Purity | `layout-3d-picking.ts` imports no Three/DOM/Svelte/`$app`/`$lib/museum` (structural `RaycastHitLike`, no `Intersection` import) |
 | Bench | `three-*-estimate` budgets hold exactly (no geometry/draw change) |
 | Precedence | TransformControls axis/drag + pointerSession guards still short-circuit clicks before any branch |
@@ -413,31 +467,36 @@ Primary edits:
 
 ```text
 apps/museum/src/lib/editor/layout/layout-3d-picking.ts    (Layout3dHitCandidate,
+                                                            Layout3dResolvedHit,
                                                             layoutCandidatesFromIntersections,
                                                             resolveLayout3dHits)
+apps/museum/src/lib/editor/editor-selection.ts                 (hit distance +
+                                                                resolver-with-source seam)
 apps/museum/src/lib/editor/EditorSelection.svelte          (optional onLayoutPick branch)
 apps/museum/src/lib/editor/h1/H13DView.svelte              (onLayoutPick wiring, preview gate)
 apps/museum/src/lib/editor/layout/LayoutPreviewScene.svelte (wall userData surfaceType 'wall')
 tests/lib/editor/layout/layout-3d-picking.test.ts          (resolution + tie + ref mapping)
+tests/lib/editor/editor-selection.test.ts                  (resolver/source preservation)
 tests/lib/editor/h1/contracts.test.ts                      (H1 S6 describe block)
 docs/hand-off/CURRENT.md                                   (S6 planned → shipped on close)
 ```
 
-Untouched: `resolveNormalSelection`/`selectionHitFromIntersection`
-(`editor-selection.ts`) — except the optional additive
-`SelectionHitInfo.distance` field if the cross-domain comparator needs it;
-all placement/pointer-session branches, `layout-preview-state`, the visitor
-shell, and everything under `/museum/editor`.
+Behavior-preserved but edited: `resolveNormalSelection` delegates to
+`resolveNormalSelectionWithHit`; `selectionHitFromIntersection` copies
+`Intersection.distance`. Untouched: all placement/pointer-session branches,
+`layout-preview-state`, the visitor shell, and everything under
+`/museum/editor`.
 
 ## Implementation notes (as-built deviations)
 
 Filled at close — expected hot spots: whether the `onLayoutPick` callback
-returns `boolean` vs `LayoutSelection | null` after real wiring, the exact
-structural `RaycastHitLike` shape, tie-epsilon tuning after manual QA, and
-the cross-domain comparator seam (`SelectionHitInfo.distance` extension vs
-walking the raw `intersections`). Placement clicks are handled earlier in
-the flow, so the layout branch is unreachable there by construction (branch
-order pinned in step 0).
+returns `boolean` vs the resolved result after real wiring, the exact
+structural `RaycastHitLike` shape, and tie-epsilon tuning after manual QA.
+Cross-domain dataflow is locked: resolved layout `{ selection, distance }`
+versus the existing normal resolver's actionable source-hit distance — never
+nearest-tag guessing. Placement clicks are handled earlier in the flow, so the
+layout branch is unreachable there by construction (branch order pinned in
+step 0).
 
 ## Verification
 

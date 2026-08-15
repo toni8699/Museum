@@ -19,9 +19,8 @@ export type Editor3dContext = 'scene' | 'camera';
  * enforce the no-op-on-same-value rule).
  */
 export class EditorViewState {
-	// S1 parity: boot into 3D/scene (the legacy default workspace). S2 flips
-	// this to 'plan' — New Project opens the empty Plan canvas.
-	viewMode = $state<EditorViewMode>('3d');
+	// H1 S2 — the editor boots into the empty Plan canvas.
+	viewMode = $state<EditorViewMode>('plan');
 	active3dContext = $state<Editor3dContext>('scene');
 
 	setViewMode(mode: EditorViewMode): boolean {

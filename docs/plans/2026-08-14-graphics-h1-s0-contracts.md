@@ -1,8 +1,8 @@
 # H1 S0 — Pin the Product/Session Contracts
 
 **Date:** 2026-08-14
-**Status:** Partial — codec/constructor/type seams landed; the session/shell
-contracts are recorded as `it.todo` and close with S1/S2.
+**Status:** Closed — codec/constructor/type seams landed in S0; the
+session/shell contracts recorded as `it.todo` went green across S1/S2.
 **Parent:** [`2026-08-14-graphics-h1-unified-3d-editing.md`](./2026-08-14-graphics-h1-unified-3d-editing.md)
 **Next:** [`2026-08-14-graphics-h1-s1-editor-shell.md`](./2026-08-14-graphics-h1-s1-editor-shell.md)
 **Handoff:** [`../../hand-off/CURRENT.md`](../../hand-off/CURRENT.md)

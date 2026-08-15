@@ -5,14 +5,17 @@ import type { Editor3dContext } from '$lib/editor/h1/editor-view-state.svelte';
 import type { EditorViewMode } from '$lib/editor/h1/editor-view-mode';
 
 describe('H1 S1 — EditorViewState', () => {
-	it('defaults to the 3D view with the scene context', () => {
+	it('defaults to the Plan view with the scene 3D context', () => {
 		const state = new EditorViewState();
-		expect(state.viewMode).toBe('3d');
+		expect(state.viewMode).toBe('plan');
 		expect(state.active3dContext).toBe('scene');
 	});
 
 	it('setViewMode switches plan/3d and no-ops on the same value', () => {
 		const state = new EditorViewState();
+		expect(state.viewMode).toBe('plan');
+		expect(state.setViewMode('3d')).toBe(true);
+		expect(state.viewMode).toBe('3d');
 		expect(state.setViewMode('3d')).toBe(false);
 		expect(state.setViewMode('plan')).toBe(true);
 		expect(state.viewMode).toBe('plan');

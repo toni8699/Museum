@@ -23,9 +23,11 @@
 	} from '$lib/museum/materials/texture-cache';
 	import { BinaryTextureStore } from '$lib/editor/store/binary-texture-store.svelte';
 	import { createMuseumEditorStore } from '$lib/editor/museum-editor.svelte';
+	import { createEmptyMuseumProject } from '$lib/project/project-codec';
+	import { createLayoutRoomRegistry } from '$lib/project/project-layout-semantics';
 	import {
 		captureLayoutPreviewSnapshot,
-		createLayoutPreviewState,
+		createEmptyLayoutPreviewState,
 		layoutPreviewIsDirty,
 		restoreLayoutPreviewSnapshot
 	} from '$lib/editor/layout/layout-preview-state.svelte';
@@ -38,14 +40,43 @@
 	import H13DView from './H13DView.svelte';
 	import { EditorViewState } from './editor-view-state.svelte';
 
-	const store = createMuseumEditorStore();
-	const layoutPreview = $state(createLayoutPreviewState());
+	// H1 S2 — the editor boots blank on every load: one canonical empty project
+	// seeds both the scene-only store and the layout-only preview surface.
+	const bootProject = createEmptyMuseumProject({
+		id: 'project:untitled',
+		name: 'Untitled project'
+	});
+	const store = createMuseumEditorStore({
+		document: bootProject.scene,
+		rooms: createLayoutRoomRegistry(bootProject.layout)
+	});
+	const layoutPreview = $state(createEmptyLayoutPreviewState());
 	const layoutInteraction = $state(createLayoutInteractionState());
 	const viewState = new EditorViewState();
 	store.registerLayoutHistory({
 		capture: () => captureLayoutPreviewSnapshot(layoutPreview),
 		replace: (snapshot) => restoreLayoutPreviewSnapshot(layoutPreview, snapshot as ReturnType<typeof captureLayoutPreviewSnapshot>),
 		matches: (a, b) => JSON.stringify((a as { project: { layout: unknown } }).project.layout) === JSON.stringify((b as { project: { layout: unknown } }).project.layout)
+	});
+
+	// H1 S2 — keep the store's room registry live: every layout mutation
+	// replaces `layoutPreview.project`, so re-derive the registry from the
+	// current layout. Without this, `store.rooms.has(draftedRoomId)` stays
+	// false and camera/primitive placement on a drafted room is rejected
+	// ("Click a tagged museum-room floor") and node creation would throw on
+	// the unknown room. `updateRooms` also re-resolves the runtime scene, so a
+	// moved room immediately moves the rendered node/entity helpers.
+	$effect(() => {
+		// Scene and layout commit separate history entries (atomic cross-domain
+		// history is deferred to S8), so a layout undo can outrun a scene that
+		// references it — the new registry would fail to resolve. Keep the
+		// previous consistent snapshot rather than crashing the editor; the
+		// divergence surfaces through the normal scene-mutation path.
+		try {
+			store.updateRooms(createLayoutRoomRegistry(layoutPreview.project.layout));
+		} catch (error) {
+			console.error('H1: skipped room-registry sync (layout/scene divergence)', error);
+		}
 	});
 
 	// Map the top-level Plan | 3D view + 3D context onto the legacy store's
@@ -136,6 +167,7 @@
 		{viewState}
 		{confirmSceneReplacement}
 		{confirmLayoutReplacement}
+		projectName={bootProject.name}
 	/>
 	<EditorLeftSidebar
 		{store}

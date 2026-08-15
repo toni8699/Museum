@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { useThrelte } from '@threlte/core';
 	import { useOrbitControls } from '@threlte/extras';
-	import { roomLocalPoint, roomPoint } from '$lib/content/rooms';
+	import { roomLocalPoint } from '$lib/content/rooms';
 	import type { Vec3 } from '$lib/types/museum';
 	import { Plane, Raycaster, Vector2, Vector3, type Intersection } from 'three';
 	import type { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
@@ -243,7 +243,7 @@
 			store.updateNavigationNodePoint(
 				node.id,
 				'target',
-				roomLocalPoint(node.roomId, active.initialTarget)
+				store.rooms.localPoint(node.roomId, active.initialTarget)
 			);
 		} else {
 			store.updateSelectedNodeFov(active.initialFov);
@@ -328,8 +328,8 @@
 			const node = store.selectedNavigationNode;
 			if (!node || node.id !== owner.nodeId) return null;
 			return {
-				position: roomPoint(node.roomId, node.position),
-				target: roomPoint(node.roomId, node.cameraTarget),
+				position: store.rooms.point(node.roomId, node.position),
+				target: store.rooms.point(node.roomId, node.cameraTarget),
 				fov: node.fov,
 				pending: store.isPendingNavigationNode(node.id)
 			};
@@ -431,7 +431,7 @@
 					? store.updateNavigationNodePoint(
 							active.owner.nodeId,
 							'target',
-							roomLocalPoint(
+							store.rooms.localPoint(
 								store.selectedNavigationNode!.roomId,
 								worldTarget
 							)
@@ -757,7 +757,12 @@
 		const intersections = raycast(event);
 		const pendingNavigation = store.pendingNavigationCommand;
 		if (pendingNavigation?.kind === 'place-camera') {
-			const floorHit = findPlaceableFloorIntersection(intersections);
+			// H1 S2 — accept any project-layout room floor, not just Chopin rooms.
+			const floorHit = findPlaceableFloorIntersection(
+				intersections,
+				undefined,
+				(id) => store.rooms.has(id)
+			);
 			if (!floorHit) {
 				store.setStatusMessage('Click a tagged museum-room floor');
 				return;
@@ -772,7 +777,12 @@
 		}
 
 		if (store.pendingPlacementPrimitiveKind) {
-			const floorHit = findPlaceableFloorIntersection(intersections);
+			// H1 S2 — accept any project-layout room floor, not just Chopin rooms.
+			const floorHit = findPlaceableFloorIntersection(
+				intersections,
+				undefined,
+				(id) => store.rooms.has(id)
+			);
 			if (!floorHit) {
 				store.setStatusMessage('Click a tagged museum-room floor');
 				return;
@@ -780,13 +790,18 @@
 			const worldPoint = floorHit.intersection.point.toArray() as Vec3;
 			store.createPendingPrimitiveAt(
 				floorHit.roomId,
-				roomLocalPoint(floorHit.roomId, worldPoint)
+				store.rooms.localPoint(floorHit.roomId, worldPoint)
 			);
 			return;
 		}
 
 		if (store.pendingPlacementLightKind) {
-			const floorHit = findPlaceableFloorIntersection(intersections);
+			// H1 S2 — accept any project-layout room floor, not just Chopin rooms.
+			const floorHit = findPlaceableFloorIntersection(
+				intersections,
+				undefined,
+				(id) => store.rooms.has(id)
+			);
 			if (!floorHit) {
 				store.setStatusMessage('Click a tagged museum-room floor');
 				return;
@@ -794,7 +809,7 @@
 			const worldPoint = floorHit.intersection.point.toArray() as Vec3;
 			store.createPendingLightAt(
 				floorHit.roomId,
-				roomLocalPoint(floorHit.roomId, worldPoint)
+				store.rooms.localPoint(floorHit.roomId, worldPoint)
 			);
 			return;
 		}

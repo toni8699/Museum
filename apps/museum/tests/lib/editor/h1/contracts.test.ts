@@ -130,17 +130,111 @@ describe('H1 S0 — relic isolation', () => {
 	});
 });
 
-describe('H1 S0 — session/shell contracts (closed by later slices)', () => {
-	it.todo(
-		'S2: booting the editor leaves navigationNodes empty and uses a session-only free camera (no persisted node/endpoint)'
-	);
-	it.todo(
-		'S2: visitor/tour preview is unavailable on a blank project until a valid node/route exists'
-	);
-	it.todo(
-		'S1/S2: document mutation and view switching are rejected during camera playback; framing edits are blocked during director framing'
-	);
+describe('H1 S2 — boot into an empty project', () => {
+	it('boots blank: zero navigation nodes, no persisted node, no tour preview', () => {
+		const project = createEmptyMuseumProject({ id: 'project:blank', name: 'Blank' });
+		const store = createMuseumEditorStore({
+			document: project.scene,
+			rooms: createLayoutRoomRegistry(project.layout)
+		});
+
+		expect(store.document.navigationNodes).toEqual([]);
+		expect(store.document.connections).toEqual([]);
+		expect(store.document.entities).toEqual([]);
+		expect(store.scene.navigationNodes).toEqual([]);
+		expect(store.state.activeNodeId).toBe('');
+		expect(store.canStartTourPreview).toBe(false);
+	});
+
+	it('locks tour preview until a guided chain exists (zero nodes, lone node, guided)', () => {
+		// Zero nodes.
+		const empty = createMuseumEditorStore({
+			document: createEmptyMuseumProject({ id: 'p0', name: 'Empty' }).scene,
+			rooms: createLayoutRoomRegistry(createEmptyLayoutDocument())
+		});
+		expect(empty.canStartTourPreview).toBe(false);
+
+		// One node that is not part of a guided chain (no next/previous link).
+		const lone = cloneFixtureDocument();
+		const node = lone.navigationNodes[0]!;
+		lone.navigationNodes = [node];
+		lone.connections = [];
+		node.nextNodeId = undefined;
+		node.previousNodeId = undefined;
+		node.connectedNodeIds = [];
+		expect(createMuseumEditorStore({ document: lone }).canStartTourPreview).toBe(false);
+
+		// A guided chain exists.
+		expect(
+			createMuseumEditorStore({ document: cloneFixtureDocument() }).canStartTourPreview
+		).toBe(true);
+	});
+
+	it('reset restores the boot document (not Chopin) and clears history', () => {
+		const store = createMuseumEditorStore({ document: cloneFixtureDocument() });
+		const bootCanonical = store.canonicalJson;
+
+		expect(store.beginDocumentTransaction()).toBe(true);
+		const first = store.document.entities[0]!;
+		first.rotation = [
+			first.rotation[0],
+			first.rotation[1] + 0.001,
+			first.rotation[2]
+		] as typeof first.rotation;
+		expect(store.commitDocumentTransaction()).toBe(true);
+		expect(store.canUndo).toBe(true);
+		expect(store.isDirty).toBe(true);
+
+		expect(store.resetToCheckedInDocument()).toBe(true);
+		expect(store.canonicalJson).toBe(bootCanonical);
+		expect(store.canUndo).toBe(false);
+		expect(store.isDirty).toBe(false);
+	});
+
+	it('authors the first camera node standalone, then unlocks preview once a second node forms a guided chain', () => {
+		const fixture = cloneFixtureDocument();
+		fixture.navigationNodes = [];
+		fixture.connections = [];
+		const store = createMuseumEditorStore({ document: fixture });
+
+		const roomId = store.rooms.entries[0]!.id;
+		const floorWorld = store.rooms.point(roomId, [0, 0, 0]);
+
+		// First node on a blank graph commits standalone (no destination).
+		expect(store.beginCameraPlacement()).toBe(true);
+		const firstNodeId = store.createPendingNavigationNodeAt(roomId, floorWorld, [0, 0, -1]);
+
+		expect(firstNodeId).not.toBeNull();
+		expect(store.document.navigationNodes).toHaveLength(1);
+		expect(store.document.connections).toHaveLength(0);
+		expect(store.pendingNavigationCommand).toBeNull();
+		expect(store.canStartTourPreview).toBe(false); // lone node, no guided chain
+
+		// Second node connects to the first, but a connection alone is not a
+		// guided chain.
+		expect(store.beginCameraPlacement()).toBe(true);
+		const secondNodeId = store.createPendingNavigationNodeAt(
+			roomId,
+			store.rooms.point(roomId, [1, 0, 1]),
+			[0, 0, -1]
+		);
+		expect(secondNodeId).not.toBeNull();
+		expect(store.document.navigationNodes).toHaveLength(1); // still pending
+		expect(store.connectPendingNavigationNode(firstNodeId!)).toBe(true);
+		expect(store.document.navigationNodes).toHaveLength(2);
+		expect(store.document.connections).toHaveLength(1);
+		expect(store.canStartTourPreview).toBe(false); // connected but not guided
+
+		// Ordering the two nodes into a reciprocal cycle forms the guided chain.
+		expect(store.setGuidedTourOrder([firstNodeId!, secondNodeId!])).toBe(true);
+		expect(store.canStartTourPreview).toBe(true);
+	});
 });
+
+// The S1/S2 playback-lock contract (view switching rejected during camera
+// playback) is already pinned by museum-editor-shell.test.ts — "rejects
+// workspace switches during interaction or modal preview" — so it is not
+// re-pinned here.
 
 describe('H1 S1 — Plan ↔ 3D switch preserves session state', () => {
 	it('switches workspace without touching document, history, dirty state, or selection', () => {

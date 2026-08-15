@@ -211,7 +211,9 @@
 
 	function resetScene() {
 		if (!confirmSceneReplacement()) return;
-		if (store.resetToCheckedInDocument()) store.setStatusMessage('Reset to checked-in scene');
+		if (store.resetToCheckedInDocument()) {
+			store.setStatusMessage(relic ? 'Reset to checked-in scene' : 'Reset to empty project');
+		}
 	}
 
 	onMount(() => {

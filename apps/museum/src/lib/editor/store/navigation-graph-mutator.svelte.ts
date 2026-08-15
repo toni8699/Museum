@@ -22,7 +22,7 @@
  * `begin/commit` transaction pattern the god file used.
  */
 
-import { roomLocalPoint, roomPoint } from '$lib/content/rooms';
+import type { LayoutRoomRegistry } from '$lib/project/project-layout-semantics';
 import { cameraSceneConnectionTimingFailureReason } from '$lib/content/scene-codec';
 import type {
 	MuseumSceneDocument,
@@ -137,6 +137,8 @@ export interface EditorNavigationGraphMutatorHost {
 
 	// Document + selection state.
 	readonly document: MuseumSceneDocument;
+	/** H1 S2 — project-relative room frames for camera-node placement. */
+	readonly rooms: LayoutRoomRegistry;
 	readonly selection: EditorSelectionStore;
 	readonly currentWorkspace: EditorWorkspace;
 	readonly selectedNavigationNode: SceneNavigationNode | undefined;
@@ -295,8 +297,8 @@ export class EditorNavigationGraphMutator {
 		let forwardZ = cameraForwardWorld[2];
 		let forwardLength = Math.hypot(forwardX, forwardZ);
 		if (forwardLength <= 1e-6) {
-			const origin = roomPoint(roomId, [0, 0, 0]);
-			const fallback = roomPoint(roomId, [0, 0, -1]);
+			const origin = this.host.rooms.point(roomId, [0, 0, 0]);
+			const fallback = this.host.rooms.point(roomId, [0, 0, -1]);
 			forwardX = fallback[0] - origin[0];
 			forwardZ = fallback[2] - origin[2];
 			forwardLength = Math.hypot(forwardX, forwardZ);
@@ -330,11 +332,45 @@ export class EditorNavigationGraphMutator {
 			id: nodeId,
 			roomId,
 			label: `Camera Node ${number}`,
-			position: roomLocalPoint(roomId, eyeWorld),
-			cameraTarget: roomLocalPoint(roomId, targetWorld),
+			position: this.host.rooms.localPoint(roomId, eyeWorld),
+			cameraTarget: this.host.rooms.localPoint(roomId, targetWorld),
 			fov: CAMERA_NODE_CREATION_DEFAULTS.fov,
 			connectedNodeIds: []
 		};
+
+		// H1 S2 — first node on a blank project: there is no destination to
+		// connect to, so commit it standalone instead of entering the
+		// connect-pending-node flow.
+		if (this.host.document.navigationNodes.length === 0) {
+			if (!this.host.beginDocumentTransaction()) {
+				this.host.pendingNavigationCommand = null;
+				this.#clearPendingNavigationSnapshot();
+				this.host.setStatusMessage('Could not commit the camera node');
+				return null;
+			}
+			const committedNode: SceneNavigationNode = {
+				...node,
+				position: [...node.position],
+				cameraTarget: [...node.cameraTarget]
+			};
+			this.host.document.navigationNodes.push(committedNode);
+			if (!this.host.commitDocumentTransaction()) {
+				this.host.pendingNavigationCommand = null;
+				this.#clearPendingNavigationSnapshot();
+				this.host.setStatusMessage('Could not commit the camera node');
+				return null;
+			}
+			this.host.pendingNavigationCommand = null;
+			this.#clearPendingNavigationSnapshot();
+			this.host.selection.setNavigation({
+				kind: 'node',
+				nodeId,
+				handle: 'position'
+			});
+			this.host.setStatusMessage(`Added ${node.label} (first camera node)`);
+			return nodeId;
+		}
+
 		this.host.pendingNavigationCommand = { kind: 'connect-pending-node', node };
 		this.host.selection.setNavigation({
 			kind: 'node',

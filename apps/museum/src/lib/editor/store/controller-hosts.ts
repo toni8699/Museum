@@ -264,6 +264,9 @@ export function createControllerHosts(
 		get document() {
 			return source.document;
 		},
+		get rooms() {
+			return source.rooms;
+		},
 		get selection() {
 			return source.selectionStore;
 		},

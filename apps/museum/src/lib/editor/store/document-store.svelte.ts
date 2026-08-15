@@ -111,14 +111,41 @@ export class EditorDocumentStore {
 	 */
 	#afterReplaceListeners = new Set<AfterReplaceListener>();
 
+	/**
+	 * H1 S2 — the room registry is a live seam, not a boot-time constant: the
+	 * boot-empty editor swaps it whenever the project layout gains/loses rooms
+	 * (see `MuseumEditorStore.updateRooms`). Every derived-runtime rebuild
+	 * (`replace()`) reads the current registry, so scene content that
+	 * references drafted rooms stays resolvable. The frozen relic never calls
+	 * `updateRooms` — its Chopin registry is unchanged.
+	 */
+	rooms: LayoutRoomRegistry;
+
 	constructor(
 		initialDocument: MuseumSceneDocument = museumSceneDocument,
-		readonly rooms: LayoutRoomRegistry
+		rooms: LayoutRoomRegistry
 	) {
 		const cloned = cloneMuseumSceneDocument(initialDocument);
 		this.document = cloned;
+		this.rooms = rooms;
 		this.baselineCanonicalJson = serializeSceneDocument(cloned);
 		this.#rebuildRuntime();
+	}
+
+	/**
+	 * Swap the room registry after the project layout changed (room drafted,
+	 * moved, or deleted) and immediately re-resolve the derived runtime. The
+	 * scene document stores room-local coordinates, so any layout change that
+	 * alters a referenced room's frame must re-run the world-space resolution
+	 * (`resolveSceneDocument`) or the runtime scene keeps stale positions — the
+	 * node/entity helpers would render where the room *was*. Resolution runs
+	 * against the new registry *before* the reference swaps, so a dangling
+	 * scene reference throws without leaving the store half-updated (the
+	 * composition root decides how to surface the divergence).
+	 */
+	updateRooms(rooms: LayoutRoomRegistry) {
+		this.#rebuildRuntime(rooms);
+		this.rooms = rooms;
 	}
 
 	/**
@@ -170,8 +197,8 @@ export class EditorDocumentStore {
 		return () => this.#afterReplaceListeners.delete(listener);
 	}
 
-	#rebuildRuntime() {
-		const nextScene = resolveSceneDocument(this.document, this.rooms);
+	#rebuildRuntime(rooms: LayoutRoomRegistry = this.rooms) {
+		const nextScene = resolveSceneDocument(this.document, rooms);
 		const initialNodeId = pickInitialNavigationNodeId(nextScene);
 		const nextState = createMuseumState(createNavigationGraph(nextScene), initialNodeId);
 		// Re-assigning `$state.raw` outside an `untrack` wrap inside the

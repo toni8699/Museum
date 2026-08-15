@@ -1,7 +1,7 @@
 # H1 S2 — Boot into an Empty Project
 
 **Date:** 2026-08-14
-**Status:** Draft — not implemented
+**Status:** Implemented
 **Parent:** [`2026-08-14-graphics-h1-unified-3d-editing.md`](./2026-08-14-graphics-h1-unified-3d-editing.md)
 **Prerequisite:** S1 · Editor Shell Consolidation (Plan · 3D)
 **Handoff:** [`../../hand-off/CURRENT.md`](../../hand-off/CURRENT.md)
@@ -114,8 +114,12 @@ with green tests:
   createEmptyMuseumProject(...).scene, rooms: createLayoutRoomRegistry(empty
   layout) })` boots with `navigationNodes === []`, `state.activeNodeId === ''`,
   and no node persisted after construction.
-- **Preview lockout** — the store's preview predicate is false on a blank
-  project (no valid timeline) and becomes true once a valid node/route exists.
+- **Preview lockout** — pin the predicate's three cases explicitly:
+  `false` on zero navigation nodes, `false` on a single node that is not part
+  of a guided chain, and `true` once a guided chain exists. (`getCameraTimeline()`
+  already returns `null` when `findGuidedStart` finds no node with both
+  `nextNodeId` and `previousNodeId` — the test locks that semantics rather than
+  implying it.)
 - **Reset** — after a mutation, `resetToCheckedInDocument()` restores the empty
   document and clears history (`canUndo === false`).
 - **Playback lock (view-switch half)** — `setWorkspace` is rejected while
@@ -161,21 +165,40 @@ Flip `EditorViewState`'s default in the same pass and update
 - Wire the Project-menu reset (and the sidebar "Reset empty") to the
   boot-document reset on both surfaces — scene via `resetToCheckedInDocument()`
   (now boot-targeted) and layout via `resetLayoutPreview`.
+- Update `EditorProjectMenu.resetScene()`'s status message
+  (`'Reset to checked-in scene'`) — it becomes misleading once reset targets
+  the empty boot document. Use a boot-appropriate label (e.g.
+  `'Reset to empty project'`) or pass the label in dynamically.
+- **Name note:** `resetToCheckedInDocument` is now a misnomer (H1 resets to the
+  boot document, not a checked-in file). Keep the name to avoid churn across
+  `EditorProjectMenu` + tests; document it and optionally add a
+  `resetToBootDocument` alias later.
+- **Atomicity caveat:** the store-level step-0 test can only see the scene
+  half; the two-surface (scene + layout) atomicity is shell-level and is
+  verified by manual QA only (no DOM harness in the repo). State this in the
+  test comment rather than implying a unit test covers it.
 
 ### 6. Cleanup
 
-- Delete the now-dead `loadChopinLayoutPreview` (its only call site — the
-  "Reload Chopin preview" button — was removed in S1), or leave it with a
-  S9-cleanup note if S9 still references it.
+- `loadChopinLayoutPreview` has no production call sites since S1 (the
+  "Reload Chopin preview" button was removed), **but** it is still called by
+  `tests/lib/editor/layout/layout-preview-state.test.ts`
+  ("reloads the deterministic Chopin fixture") and referenced in the A4 plan.
+  **Keep it** as a legacy fixture helper (test-only) with an explicit
+  `@deprecated`-style comment pointing at the test + A4 doc; do not delete it
+  in this slice — deleting it requires rewriting that test, which is out of
+  scope for boot-blank.
 
 ### 7. Regression + manual QA
 
 - Full suite + `svelte-check` + production build.
 - Manual: boot at `/` opens an empty Plan; switch to 3D shows the neutral free
-  camera with no crash; Preview Tour is disabled; draw a room and switch to 3D
-  to see the draft; author a node + connection and confirm Preview Tour enables;
-  reset returns to the empty project; `/museum/editor` + `/museum` still render
-  the frozen Chopin relic unchanged.
+  camera with no crash; Preview Tour is disabled; open each left panel +
+  inspector + camera timeline on the blank project (zero entities/nodes render
+  empty, no crash); draw a room and switch to 3D to see the draft; author a
+  node + connection and confirm Preview Tour enables; reset returns to the
+  empty project; `/museum/editor` + `/museum` still render the frozen Chopin
+  relic unchanged.
 
 ## Regression matrix
 
@@ -187,6 +210,8 @@ Flip `EditorViewState`'s default in the same pass and update
 | Reset | Reset restores the empty project on both surfaces and clears history/selection/baselines |
 | Room drafting | Drawing a room works before any scene entity or navigation node exists |
 | Relic isolation | `/museum` + `/museum/editor` stay frozen (Chopin); H1 never migrates Chopin state |
+| Empty surfaces | Left panels, camera tree, inspector, and asset library render empty (zero entities/nodes) without crashing on a blank project |
+| First node | A "Place camera" affordance authors the first node on a blank project (no destination required) |
 
 ## Non-goals (deferred)
 
@@ -196,6 +221,55 @@ Flip `EditorViewState`'s default in the same pass and update
 - Replacing `/museum` (still the frozen Chopin visitor) with a
   preview-your-draft visitor.
 - Legacy/Chopin migration of scene, workspace, selection, or history.
+
+## Implementation notes
+
+- **Reset semantics changed + one existing test updated.**
+  `resetToCheckedInDocument()` now resets to the document the store was
+  constructed with (captured as a `bootDocument` clone), not the hardcoded
+  `museumSceneDocument`. `museum-editor.test.ts` "tracks canonical baselines
+  across edits, imports, undo, and reset" pinned the old reset-to-Chopin
+  behavior; its final assertion now expects the boot fixture.
+- **`createEmptyLayoutPreviewState()` added** (rather than constructing +
+  `resetLayoutPreview`), seeding `baselineKind: 'blank'` with an empty scene.
+- **Playback-lock todo not re-tested.** The S1/S2 view-switch-during-playback
+  contract is already covered by `museum-editor-shell.test.ts` ("rejects
+  workspace switches during interaction or modal preview"); a comment in
+  `contracts.test.ts` points at it instead of adding a duplicate test.
+- **App-bar subtitle** now shows the session project name via a `projectName`
+  prop (was the hardcoded `museum-scene.json`).
+
+## First-node camera authoring (resolved)
+
+Boot-blank exposed a latent gap — no UI path to author the first navigation
+node — which is now closed:
+
+- Added a **"Place Camera"** button to the H1 camera context (`H1AppBar`),
+  wired to `store.beginCameraPlacement()`.
+- Added a **standalone zero-node commit** in
+  `createPendingNavigationNodeAt`: when the graph has zero nodes, the node is
+  committed unconnected instead of entering the connect-pending-node flow
+  (which requires a pre-existing destination).
+- Made camera placement **project-relative**: the mutator resolves room frames
+  through the injected `LayoutRoomRegistry` (`host.rooms.point`/`localPoint`)
+  instead of Chopin `roomPoint`/`roomLocalPoint`, and the camera-placement
+  floor hit accepts any project-layout room (`store.rooms.has`).
+- Loosened the codec's `missing_guided_cycle` rule: a multi-node graph with **no**
+  guided cycle is now a valid authoring state (a tour can be drafted
+  node-by-node). Malformed cycles (`invalid_tour_cycle`, `missing_tour_link`,
+  non-reciprocal links) still fail; runtime tour preview remains gated by
+  `canStartTourPreview`. This supersedes S0's "non-empty invariants untouched"
+  note — `missing_guided_cycle` was a runtime-readiness check, not a structural
+  one.
+
+Covered by `contracts.test.ts` "authors the first camera node standalone, then
+unlocks preview once a second node forms a guided chain" (arm → first node
+standalone → `canStartTourPreview` false → second node connected → still false
+→ `setGuidedTourOrder` forms the cycle → true).
+
+Note: primitive/light/asset placement still gates on Chopin rooms via
+`findPlaceableFloorIntersection`'s default predicate — separate scene-authoring
+work (S10), not part of the camera-node path.
 
 ## Verification
 

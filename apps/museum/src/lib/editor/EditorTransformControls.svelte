@@ -2,7 +2,6 @@
 	import { onDestroy, getContext } from 'svelte';
 	import { useThrelte } from '@threlte/core';
 	import { useOrbitControls } from '@threlte/extras';
-	import { roomLocalPoint } from '$lib/content/rooms';
 	import type { Vec3 } from '$lib/types/museum';
 	import { Group, Matrix4, Object3D, Quaternion, Vector3 } from 'three';
 	import { TransformControls as ThreeTransformControls } from 'three/examples/jsm/controls/TransformControls.js';
@@ -287,7 +286,7 @@
 			store.updateNavigationNodePoint(
 				active.nodeId,
 				active.handle,
-				roomLocalPoint(node.roomId, world)
+				store.rooms.localPoint(node.roomId, world)
 			);
 			return;
 		}

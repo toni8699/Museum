@@ -2,7 +2,7 @@
 	import { onDestroy } from 'svelte';
 	import { getNode } from '$lib/content/scene';
 	import type { NavigationGraph } from '$lib/content/scene';
-	import { getRoom, roomPoint } from '$lib/content/rooms';
+	import { getRoom } from '$lib/content/rooms';
 	import {
 		CAMERA_FOV_UPDATE_EPSILON,
 		VISITOR_CAMERA_PROJECTION,
@@ -113,8 +113,8 @@
 		) {
 			const node = store.selectedNavigationNode;
 			if (!node) return;
-			previewPosition.set(...roomPoint(node.roomId, node.position));
-			previewTarget.set(...roomPoint(node.roomId, node.cameraTarget));
+			previewPosition.set(...store.rooms.point(node.roomId, node.position));
+			previewTarget.set(...store.rooms.point(node.roomId, node.cameraTarget));
 			previewSample.fov = node.fov;
 			return;
 		}

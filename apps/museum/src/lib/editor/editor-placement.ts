@@ -68,13 +68,14 @@ export function getEditorPlaceableFloor(
 /** Intersections are already nearest-first; accept only exact semantic floor metadata. */
 export function findPlaceableFloorIntersection(
 	intersections: Intersection[],
-	roomId?: MuseumRoomId
+	roomId?: MuseumRoomId,
+	isKnownRoom: (roomId: string) => boolean = (id) => roomById.has(id as MuseumRoomId)
 ): PlaceableFloorIntersection | null {
 	for (const hit of intersections) {
 		const floor = getEditorPlaceableFloor(hit.object, roomId);
 		if (!floor) continue;
 		const surface = floor.userData.editorSurface as EditorSurfaceUserData;
-		if (!surface.roomId || !roomById.has(surface.roomId as MuseumRoomId)) continue;
+		if (!surface.roomId || !isKnownRoom(surface.roomId)) continue;
 		return {
 			intersection: hit,
 			roomId: surface.roomId as MuseumRoomId

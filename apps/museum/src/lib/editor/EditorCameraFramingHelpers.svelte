@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
 	import { useTask, useThrelte } from '@threlte/core';
-	import { roomPoint } from '$lib/content/rooms';
 	import {
 		BoxGeometry,
 		BufferGeometry,
@@ -97,8 +96,8 @@
 			const node = store.selectedNavigationNode;
 			if (!node) return null;
 			return {
-				position: roomPoint(node.roomId, node.position),
-				target: roomPoint(node.roomId, node.cameraTarget),
+				position: store.rooms.point(node.roomId, node.position),
+				target: store.rooms.point(node.roomId, node.cameraTarget),
 				fov: node.fov,
 				userData: {
 					editorEntity: 'camera-fov-handle',

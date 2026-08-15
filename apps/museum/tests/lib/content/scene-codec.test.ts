@@ -552,13 +552,9 @@ describe('scene document codec', () => {
 			delete node.nextNodeId;
 			delete node.previousNodeId;
 		}
-		const allFreeOnlyResult = validateSceneDocument(allFreeOnly);
-		expect(allFreeOnlyResult.success).toBe(false);
-		if (!allFreeOnlyResult.success) {
-			expect(allFreeOnlyResult.issues).toContainEqual(
-				expect.objectContaining({ code: 'missing_guided_cycle' })
-			);
-		}
+		// H1 S2 — a multi-node graph with no guided cycle is a valid authoring
+		// state; runtime tour preview is gated by `canStartTourPreview`.
+		expect(validateSceneDocument(allFreeOnly).success).toBe(true);
 	});
 
 	it('rejects duplicate, empty, and generated-endpoint anchor IDs', () => {

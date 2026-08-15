@@ -14,9 +14,7 @@ import {
 	serializeSceneDocument,
 	validateSceneDocument,
 	type SceneDocumentValidationResult
-} from '$lib/content/scene-codec';
-import { roomPoint } from '$lib/content/rooms';
-import type { MaterialId } from '$lib/types/materials';
+} from '$lib/content/scene-codec';	import type { MaterialId } from '$lib/types/materials';
 import type { MuseumStateStore } from '$lib/state/museum-state.svelte';
 import {
 	cameraMotionProgressAtEdgeProgress,
@@ -212,7 +210,8 @@ import {
 // (`import { cloneMuseumSceneDocument } from '$lib/editor/museum-editor.svelte'`
 // and any `import { cloneResolvedCameraRoute } ...`) keep compiling unchanged
 // until Slice 6 collapses the facade surface.
-export { cloneMuseumSceneDocument } from './helpers/document-clone';
+import { cloneMuseumSceneDocument } from './helpers/document-clone';
+export { cloneMuseumSceneDocument };
 export { cloneResolvedCameraRoute } from './helpers/route-clone';
 
 const STATUS_MESSAGE_MS = 2500;
@@ -317,6 +316,8 @@ export class MuseumEditorStore {
 	private readonly documentStore: EditorDocumentStore;
 	/** True when this store backs the frozen `/museum/editor` relic. */
 	private readonly relicMode: boolean;
+	/** H1 S2 — the document the store was constructed with (the reset target). */
+	private readonly bootDocument: MuseumSceneDocument;
 	get document(): MuseumSceneDocument {
 		return this.documentStore.document;
 	}
@@ -325,6 +326,16 @@ export class MuseumEditorStore {
 	}
 	get rooms(): LayoutRoomRegistry {
 		return this.documentStore.rooms;
+	}
+	/**
+	 * H1 S2 — keep the room registry in sync with the live project layout
+	 * (the boot-empty editor re-derives it from `layoutPreview.project.layout`
+	 * after every layout mutation) and re-resolve the runtime scene against it,
+	 * so a moved room immediately moves the rendered node/entity helpers. The
+	 * frozen relic never calls this.
+	 */
+	updateRooms(rooms: LayoutRoomRegistry) {
+		this.documentStore.updateRooms(rooms);
 	}
 	get state(): MuseumStateStore {
 		return this.documentStore.state;
@@ -442,6 +453,7 @@ export class MuseumEditorStore {
 
 	constructor(options: MuseumEditorStoreOptions = {}) {
 		this.relicMode = options.relic === true;
+		this.bootDocument = cloneMuseumSceneDocument(options.document ?? museumSceneDocument);
 		this.documentStore = new EditorDocumentStore(
 			options.document,
 			options.rooms ?? chopinRuntime.rooms
@@ -1113,8 +1125,8 @@ export class MuseumEditorStore {
 		if (pending?.id === nodeId) {
 			return {
 				...pending,
-				position: roomPoint(pending.roomId, pending.position),
-				cameraTarget: roomPoint(pending.roomId, pending.cameraTarget),
+				position: this.rooms.point(pending.roomId, pending.position),
+				cameraTarget: this.rooms.point(pending.roomId, pending.cameraTarget),
 				connectedNodeIds: [...pending.connectedNodeIds]
 			};
 		}
@@ -1226,6 +1238,11 @@ export class MuseumEditorStore {
 	/** Build the current timeline index from the resolved graph and shared motion compiler. */
 	getCameraTimeline(): EditorCameraTimeline | null {
 		return this.cameraTimelineController.getCameraTimeline();
+	}
+
+	/** H1 S2 — true when the resolved graph yields a valid guided tour. */
+	get canStartTourPreview(): boolean {
+		return this.getCameraTimeline() !== null;
 	}
 
 	/** Visitor and active Director transport own immutable document state. */
@@ -2407,7 +2424,7 @@ export class MuseumEditorStore {
 	}
 
 	resetToCheckedInDocument() {
-		return this.importDocument(museumSceneDocument);
+		return this.importDocument(cloneMuseumSceneDocument(this.bootDocument));
 	}
 
 	#prepareDocumentReplacement() {

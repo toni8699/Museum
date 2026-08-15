@@ -10,13 +10,15 @@
 		layoutPreview,
 		viewState,
 		confirmSceneReplacement,
-		confirmLayoutReplacement
+		confirmLayoutReplacement,
+		projectName
 	}: {
 		store: MuseumEditorStore;
 		layoutPreview: LayoutPreviewState;
 		viewState: EditorViewState;
 		confirmSceneReplacement: () => boolean;
 		confirmLayoutReplacement: () => boolean;
+		projectName: string;
 	} = $props();
 
 	const viewMode = $derived(viewState.viewMode);
@@ -26,6 +28,7 @@
 	const canPreviewTour = $derived(
 		!store.isEditorInteractionActive &&
 		!store.isDocumentTransactionActive &&
+		store.canStartTourPreview &&
 		(!store.cameraPreview || store.cameraPreview.transport !== 'playing')
 	);
 	let projectMenuOpen = $state(false);
@@ -50,7 +53,7 @@
 <header class="app-bar" aria-label="Museum editor shell" style="grid-area: top;">
 	<div class="brand">
 		<span class="title">Museum editor</span>
-		<span class="subtitle">museum-scene.json</span>
+		<span class="subtitle">{projectName}</span>
 	</div>
 
 	<div class="views" role="tablist" aria-label="Editor views">
@@ -100,6 +103,12 @@
 		{#if viewMode === '3d' && active3dContext === 'scene'}
 			<a class="preview-action" href="/museum" target="_blank" rel="noreferrer">Preview Museum</a>
 		{:else if viewMode === '3d' && active3dContext === 'camera'}
+			<button
+				type="button"
+				disabled={!canSwitch}
+				title="Place a new camera node on a room floor"
+				onclick={() => store.beginCameraPlacement()}
+			>Place Camera</button>
 			<button
 				type="button"
 				disabled={!canPreviewTour}

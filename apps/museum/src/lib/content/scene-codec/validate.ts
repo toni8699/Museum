@@ -309,14 +309,9 @@ export function validateVersionTwoTour(
 	}
 
 	if (linkedNodes.length === 0) {
-		if (nodes.length > 1) {
-			addIssue(
-				issues,
-				'$.navigationNodes',
-				'missing_guided_cycle',
-				'A multi-node graph must retain at least one guided tour cycle'
-			);
-		}
+		// H1 S2 — a graph with no guided cycle is a valid authoring state
+		// (a tour can be drafted node-by-node from a blank project). Runtime
+		// tour preview is gated by `canStartTourPreview` instead of the codec.
 		return;
 	}
 	const start = linkedNodes[0]!;

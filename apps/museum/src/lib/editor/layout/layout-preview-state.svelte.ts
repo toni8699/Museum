@@ -1,4 +1,5 @@
 import { chopinProject, museumSceneDocument } from '$lib/content/chopin-project';
+import { createEmptySceneDocument } from '$lib/content/scene';
 import type { MuseumProject } from '$lib/editor/project/project-types';
 import {
 	createEmptyLayoutDocument,
@@ -92,6 +93,15 @@ export type LayoutRoomFieldPatch = Partial<
 
 export function createLayoutPreviewState(): LayoutPreviewState {
 	return createState('chopin-fixture', chopinProject.layout, museumSceneDocument, 0);
+}
+
+/**
+ * H1 S2 — boot a blank layout surface (`baselineKind: 'blank'`, empty layout +
+ * empty scene) for the boot-into-empty editor. The Chopin-fixture default
+ * (`createLayoutPreviewState`) remains the frozen relic's boot source.
+ */
+export function createEmptyLayoutPreviewState(): LayoutPreviewState {
+	return createState('empty', createEmptyLayoutDocument(), createEmptySceneDocument(), 0);
 }
 
 export function layoutPreviewSourceLabel(source: LayoutPreviewSource): string {

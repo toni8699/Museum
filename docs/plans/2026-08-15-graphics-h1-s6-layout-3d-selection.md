@@ -188,12 +188,20 @@ export function resolveLayout3dHits(
   `deselect`, supplies no competing distance. This prevents the comparator
   from yielding to content the normal path would not actually select.
 - Yield rule: the layout selection commits only if `d_scene === null` or
-  `layoutDist ≤ d_scene + LAYOUT_3D_SAME_DEPTH_EPSILON`; otherwise the click
-  applies the already-resolved scene/camera result unchanged. This is
-  deliberately **not** "nearest overall intersection": editor chrome (grid,
-  the `LayoutWallHighlight` shell at +0.02, placement ghost) is nearer than
-  the surface it decorates and must never shadow the real pick — clicking an
-  already-selected wall must re-select it, not deselect.
+  `layoutDist < d_scene − LAYOUT_3D_SAME_DEPTH_EPSILON`; otherwise the click
+  applies the already-resolved scene/camera result unchanged. The comparison
+  is **strict**, and the epsilon guards *against* layout: at an exact tie
+  (`|Δd| ≤ ε`) the visible content wins, never the background surface.
+  (Adversarial review: cross-domain ties are exact by construction — same
+  ray, same 3D point, both surfaces — so the earlier `layoutDist ≤
+  d_scene + ε` direction deterministically handed clicks at entity
+  contact silhouettes and coplanar faces to the room, silently regressing
+  content selection. The strict flip restores today's behavior: the content
+  is selected, or deselect on a grazing miss — never the room.)
+  This is deliberately **not** "nearest overall intersection": editor chrome
+  (grid, the `LayoutWallHighlight` shell at +0.02, placement ghost) is nearer
+  than the surface it decorates and must never shadow the real pick — clicking
+  an already-selected wall must re-select it, not deselect.
 - Extend `SelectionHitInfo` with optional `distance` and add
   `resolveNormalSelectionWithHit(hits) → { result, sourceHit }` in
   `editor-selection.ts`. `selectionHitFromIntersection` always copies
@@ -205,10 +213,18 @@ export function resolveLayout3dHits(
 - Candidates whose distances differ by `≤ LAYOUT_3D_SAME_DEPTH_EPSILON`
   (`1e-4` m) form a tie group. Within a tie group the priority is
   **anchor → opening → object → wall → room**, then stable input order
-  (deterministic — never `undefined`/iteration-order dependence).
-- The tie rule is a safety net for coincident-but-distinct geometry (e.g. an
-  object face coplanar with a floor, a helper floating on a surface); the
-  common cases resolve to exactly one triangle and never reach it.
+  (deterministic — never `undefined`/iteration-order dependence). This
+  priority applies within the layout candidate set only: an actionable
+  scene/camera result at `|Δd| ≤ ε` outranks the entire layout group
+  (content wins ties, above).
+- The epsilon is a **noise band, not a semantic tie-breaker toward layout**.
+  The value `1e-4` is retained on measured grounds: exact-coincident
+  scene/layout pairs (an entity face coplanar with a floor, a helper floating
+  on a surface) raycast to `|Δd| ~ 1e-15` — deep inside the band — while the
+  nearest genuinely distinct geometry (anchor helper +2 cm, wall thickness
+  0.2 m) sits 4+ orders of magnitude outside it, so the band never merges
+  real depth separation and even `1e-3` would be safe. Common cases resolve
+  to exactly one triangle and never reach the band.
 - Selection cycling through coincident/overlapping content is a later
   enhancement (non-goal).
 
@@ -232,8 +248,8 @@ export function resolveLayout3dHits(
     `{ kind: 'object', objectId: userData.layoutObjectId, distance }`.
   - anchor: walk up parents to `editorEntity === 'layout-anchor'` →
     `{ kind: 'anchor', roomId, segmentId, anchorId, distance }` (each parent
-    hop adds no distance correction — helpers are small and the tie epsilon
-    covers the offset).
+    hop adds no distance correction — the helper's +2 cm offset is resolved
+    by strict distance, far outside the epsilon band).
 - Everything else in the scene (scene entities, camera helpers, grid, lights,
   highlight overlay, placement ghost, `LayoutWallHighlight` shell) yields no
   layout candidate → the scene/camera flow handles it exactly as today.
@@ -303,8 +319,10 @@ candidate extraction + commit route:
   far wall. **Cross-domain** — a scene entity (placementId) in front of a
   wall or floor selects the entity, not the wall/room behind; the yield rule
   holds at the boundary (`layoutDist > d_scene + eps` → scene wins,
-  `≤ eps` → layout wins); the `LayoutWallHighlight` shell never shadows the
-  wall it decorates. Pin that `d_scene` belongs to the exact actionable normal
+  `layoutDist < d_scene − eps` → layout wins, and the exact-tie band
+  `|Δd| ≤ eps` → scene wins — content beats the background at equal depth,
+  pinned by an entity contact-silhouette fixture); the `LayoutWallHighlight`
+  shell never shadows the wall it decorates. Pin that `d_scene` belongs to the exact actionable normal
   result: near-invisible tagged hits are filtered; camera/navigation priority
   keeps its current source hit; a normal `deselect` contributes `null`, not the
   distance of a merely tagged raw intersection.
@@ -352,7 +370,9 @@ candidate extraction + commit route:
 ### 1. Pure resolution + extraction in layout-3d-picking.ts
 
 - Add the `Layout3dHitCandidate` union (umbrella shape, exact) and
-  `LAYOUT_3D_SAME_DEPTH_EPSILON = 1e-4`.
+  `LAYOUT_3D_SAME_DEPTH_EPSILON = 1e-4` (noise band, not a tie-breaker
+  toward layout — validated by the exact-tie fixtures: coincident pairs land
+  ~1e-15 inside the band, distinct pairs ≥2 cm far outside it).
 - Add `layoutCandidatesFromIntersections(intersections: readonly RaycastHitLike[])`
   with the structural `RaycastHitLike` type and the walk-up identification
   rules above.
@@ -389,10 +409,11 @@ candidate extraction + commit route:
   `onLayoutPick={store.isVisitorCameraPreview ? undefined : handleLayoutPick}`,
   where `handleLayoutPick` resolves via
   `layoutPreview.layout3dPickIndexByRoom`, returns `false` when no layout hit or
-  when `competingSceneDistance !== null && resolved.distance >
-  competingSceneDistance + epsilon`, otherwise commits
-  `resolved.selection` through `selectLayoutRoom/Wall/Opening/InteriorAnchor/Object`
-  on `layoutInteraction` and returns `true`.
+  when `competingSceneDistance !== null && resolved.distance ≥
+  competingSceneDistance − epsilon` (scene wins the exact-tie band), otherwise
+  commits `resolved.selection` through
+  `selectLayoutRoom/Wall/Opening/InteriorAnchor/Object` on `layoutInteraction`
+  and returns `true`.
 - Relic `EditorViewport.svelte`: no change (prop absent).
 
 ### 5. Regression + manual QA

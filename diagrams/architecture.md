@@ -144,8 +144,8 @@ geometry → consume. Blocking issues stop before geometry; non-blocking issues 
 | Stage | What happens | Files |
 |---|---|---|
 | **Read** | `JSON.parse` turns raw text into plain objects | (built-in) |
-| **Validate structure** | Walk the object tree with typed readers (`readNumber`, `readVec3`, `readEnum`), allowed-key checks, ID pattern; legacy `bezier → auto-bezier` and v1/v2 → v3 migration | `layout-codec.ts`, `content/scene-codec/` (`readers.ts`, `parse-entities.ts`, `parse-nodes.ts`, `parse-connections.ts`, `migrate.ts`) |
-| **Cross-validate** | Field-spanning checks: duplicate IDs, dangling `segmentId`/`roomId` refs, portal relations (door ↔ room pair), finite numbers, blocking-vs-warning issues | `layout-geometry-validation.ts`, `project/project-layout-semantics.ts`, `scene-codec/validate.ts` |
+| **Validate structure** | Walk the object tree with typed readers (`readNumber`, `readVec3`, `readEnum`), allowed-key checks, ID pattern; one canonical shape, no versioned migrations | `layout-codec.ts`, `content/scene-codec/` (`readers.ts`, `parse-entities.ts`, `parse-document.ts`) |
+| **Cross-validate** | Field-spanning checks: duplicate IDs, dangling `segmentId`/`roomId` refs, portal relations (door ↔ room pair), finite numbers, blocking-vs-warning issues | `layout-geometry-validation.ts`, `project/project-layout-semantics.ts`, `scene-codec/parse-document.ts` |
 | **Derive geometry** | `compileLayoutGeometry`: curve sampling, arch profiles, wall sections, solid spans, query records, cache keys; pure + deterministic | `layout-geometry.ts`, `layout-geometry-curve.ts`, `layout-geometry-openings.ts`, `layout-geometry-objects.ts`, `layout-geometry-queries.ts` |
 | **IR** | `CompiledLayoutGeometry` (renderer-neutral) + `CompiledLayoutGeometryResult { geometry, issues }` | `layout-geometry-types.ts` |
 | **Consume** | 2D plan render model + SVG; 3D wall meshes + Threlte; hit-testing queries | `plan-render-model.ts`, `wall-mesh-builder.ts`, `render/wall-geometry-adapter.ts`, `editor/layout/plan-hit.ts` |

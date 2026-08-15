@@ -12,14 +12,11 @@ import type { MuseumRoomId, Vec3 } from '$lib/types/museum';
 import type { MaterialId } from '$lib/types/materials';
 import { isMaterialId } from '../materials';
 import { isSafeTextureUri } from '../texture-uri';
-import type {
-	SceneDocumentIssue
-} from './types';
-import type { JsonRecord } from './types';
+import type { SceneDocumentIssue } from './index';
 
-// Re-exported so sibling modules don't need a redundant `import { JsonRecord }`
-// from `./types` when they already pull it from here.
-export type { JsonRecord } from './types';
+// Internal record type shared by every parser. Lives here (the leaf module)
+// so `parse-entities` / `parse-document` can import it alongside the readers.
+export type JsonRecord = Record<string, unknown>;
 
 export const SCENE_PRIMITIVE_KINDS = ['box', 'plane', 'cylinder', 'sphere'] as const;
 export const SCENE_LIGHT_KINDS = ['point', 'spot', 'directional'] as const;

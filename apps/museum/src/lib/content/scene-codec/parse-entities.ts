@@ -31,7 +31,8 @@ import type {
 	SceneSphereDimensions,
 	SceneTextureAsset
 } from '../scene';
-import type { JsonRecord, SceneDocumentIssue } from './types';
+import type { SceneDocumentIssue } from './index';
+import type { JsonRecord } from './readers';
 import {
 	HEX_COLOR_PATTERN,
 	SCENE_LIGHT_KINDS,

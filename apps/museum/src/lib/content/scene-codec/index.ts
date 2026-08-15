@@ -6,12 +6,9 @@
  *
  * Internal helpers live in:
  *
- *   - `./types`         — public types + `JsonRecord`
- *   - `./readers`       — leaf typed JSON readers
+ *   - `./readers`       — leaf typed JSON readers + `JsonRecord`
  *   - `./parse-entities`— entities, materials, textures
- *   - `./parse-nodes`   — navigation nodes, waypoints, path anchors
- *   - `./parse-connections` — connection shapes + timing helpers
- *   - `./validate`      — semantic / tour-cycle / keyframe validation
+ *   - `./parse-document`— nodes, waypoints, connections, timing, semantics
  *   - `./canonical`     — clone helpers + deterministic serializer
  *
  * Public surface frozen to: `SceneDocumentIssue`,
@@ -21,6 +18,7 @@
  * `@internal` and consumers should not import the sibling modules
  * directly.
  */
+import type { MuseumSceneDocument } from '../scene';
 import { addIssue, assertAllowedKeys, isRecord } from './readers';
 import {
 	parseCluster,
@@ -28,21 +26,34 @@ import {
 	parseMaterialInstance,
 	parseTextureAsset
 } from './parse-entities';
-import { parseNode } from './parse-nodes';
-import { parseConnection } from './parse-connections';
-import { validateSemantics } from './validate';
+import { parseConnection, parseNode, validateSemantics } from './parse-document';
 import { canonicalDocument } from './canonical';
 
-import {
-	SceneDocumentValidationError,
-	type SceneDocumentIssue,
-	type SceneDocumentValidationResult
-} from './types';
+/**
+ * Public surface types for the museum scene document codec. The document has
+ * one canonical shape; there are no versioned legacy forms to migrate.
+ */
+export type SceneDocumentIssue = {
+	path: string;
+	code: string;
+	message: string;
+};
 
-export type { SceneDocumentIssue } from './types';
-export type { SceneDocumentValidationResult } from './types';
-export { SceneDocumentValidationError } from './types';
-export { cameraSceneConnectionTimingFailureReason } from './parse-connections';
+export type SceneDocumentValidationResult =
+	| { success: true; document: MuseumSceneDocument; canonicalJson: string }
+	| { success: false; issues: SceneDocumentIssue[] };
+
+export class SceneDocumentValidationError extends Error {
+	readonly issue: SceneDocumentIssue;
+
+	constructor(issue: SceneDocumentIssue) {
+		super(`${issue.path} (${issue.code}): ${issue.message}`);
+		this.name = 'SceneDocumentValidationError';
+		this.issue = issue;
+	}
+}
+
+export { cameraSceneConnectionTimingFailureReason } from './parse-document';
 
 export function validateSceneDocument(input: unknown): SceneDocumentValidationResult {
 	const issues: SceneDocumentIssue[] = [];

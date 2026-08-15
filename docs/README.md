@@ -76,6 +76,7 @@ portable export/import only (session/account save is future work).
 | Gizmo / placement / transforms | [`components/placement.md`](./components/placement.md) |
 | Camera/tour | [`components/camera-tour.md`](./components/camera-tour.md) |
 | Schema / import/export / history | [`components/persistence.md`](./components/persistence.md) |
+| Scene codec internals / module layout | [`components/scene-codec.md`](./components/scene-codec.md) |
 | GLBs / asset registry | [`components/assets.md`](./components/assets.md) |
 | Current work | [`hand-off/CURRENT.md`](./hand-off/CURRENT.md) |
 | Tests | [`../apps/museum/tests/README.md`](../apps/museum/tests/README.md) |

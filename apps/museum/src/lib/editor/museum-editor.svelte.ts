@@ -524,6 +524,9 @@ export class MuseumEditorStore {
 			this.textureVerifier
 		);
 		this.selectionStore.bindSession(this.session);
+		// H1 S3 — forward the cross-domain activation hook (the reducer fires it
+		// on actionable picks; the H1 shell clears the layout selection there).
+		this.selectionStore.setOnSelectionActivate(options.onSelectionActivate ?? null);
 		// Sub-store selection reconciliation (defect #2 fix). Closes the
 		// pre-slice gap where #reconcileSelection() only ran via the explicit
 		// #replaceDocument() callers — now fires on every document swap.
@@ -2719,6 +2722,13 @@ export type MuseumEditorStoreOptions = {
 	relic?: boolean;
 	/** Phase 5.2 — injectable texture image verifier (browser default). */
 	textureVerifier?: TextureVerifier;
+	/**
+	 * H1 S3 — fired by the selection reducer when an actionable scene/camera
+	 * pick lands (cluster, placement ids > 0, or non-none navigation). The H1
+	 * shell clears the layout selection here; the no-op default keeps the
+	 * frozen relic untouched. Room-only placement and deselect never fire it.
+	 */
+	onSelectionActivate?: () => void;
 };
 
 export function createMuseumEditorStore(options: MuseumEditorStoreOptions = {}) {

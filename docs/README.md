@@ -45,6 +45,22 @@ No lane crossing: H1 editor never imports/migrates Chopin, legacy workspace
 state, selection, or history. `/museum` keeps checked-in visitor runtime. H1
 import/export handles H1-created projects plus future explicit migrations.
 
+## Product surface
+
+Route → role (moved from root README when it became human-only):
+
+| Route | Role |
+|---|---|
+| `/` or `/editor` | Main H1 editor (Plan · 3D), always ships in production |
+| `/museum` | Frozen Chopin visitor relic using checked-in `chopin-project.json` |
+| `/museum/editor` | Frozen pre-H1 editor relic (Scene · Camera, no Layout) |
+| `/dev/materials` · `/dev/assets` | Development previews |
+| `/dev/perf` | G3 performance harness |
+
+Editor shipping policy: the editor boots into a fresh empty project; no
+Chopin/legacy editor state is loaded, migrated, or preserved. Persistence is
+portable export/import only (session/account save is future work).
+
 ## Read only what task needs
 
 | Working on… | Read |

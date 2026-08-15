@@ -32,13 +32,19 @@
 		restoreLayoutPreviewSnapshot
 	} from '$lib/editor/layout/layout-preview-state.svelte';
 	import {
+		clearLayoutSelection,
 		createLayoutInteractionState,
+		reconcileLayoutSelection,
 		setLayoutViewMode
 	} from '$lib/editor/layout/layout-interaction';
 	import H1AppBar from './H1AppBar.svelte';
 	import H1PlanView from './H1PlanView.svelte';
 	import H13DView from './H13DView.svelte';
 	import { EditorViewState } from './editor-view-state.svelte';
+	import {
+		ACTIVE_EDITOR_SELECTION_KEY,
+		EditorActiveSelectionStore
+	} from './active-editor-selection.svelte';
 
 	// H1 S2 — the editor boots blank on every load: one canonical empty project
 	// seeds both the scene-only store and the layout-only preview surface.
@@ -46,12 +52,22 @@
 		id: 'project:untitled',
 		name: 'Untitled project'
 	});
-	const store = createMuseumEditorStore({
-		document: bootProject.scene,
-		rooms: createLayoutRoomRegistry(bootProject.layout)
-	});
 	const layoutPreview = $state(createEmptyLayoutPreviewState());
 	const layoutInteraction = $state(createLayoutInteractionState());
+	const store = createMuseumEditorStore({
+		document: bootProject.scene,
+		rooms: createLayoutRoomRegistry(bootProject.layout),
+		// H1 S3 — an actionable scene/camera pick clears the layout selection
+		// (detach-then-attach: the new domain lands, the previous one drops).
+		onSelectionActivate: () => clearLayoutSelection(layoutInteraction)
+	});
+	// H1 S3 — one active selection domain at the editor composition root.
+	const activeSelection = new EditorActiveSelectionStore(
+		store,
+		layoutInteraction,
+		() => clearLayoutSelection(layoutInteraction)
+	);
+	setContext(ACTIVE_EDITOR_SELECTION_KEY, activeSelection);
 	const viewState = new EditorViewState();
 	store.registerLayoutHistory({
 		capture: () => captureLayoutPreviewSnapshot(layoutPreview),
@@ -76,6 +92,30 @@
 			store.updateRooms(createLayoutRoomRegistry(layoutPreview.project.layout));
 		} catch (error) {
 			console.error('H1: skipped room-registry sync (layout/scene divergence)', error);
+		}
+	});
+
+	// H1 S3 — activating the layout domain (a Plan pick) detaches any actionable
+	// scene/camera pick. The guard + writes live on the wrapper so the contract
+	// is unit-testable; the effect is a thin reactive trigger.
+	$effect(() => {
+		activeSelection.onLayoutSelectionChanged();
+	});
+
+	// H1 S3 — re-validate the layout selection against the live layout after
+	// every layout swap (undo/redo/commit/cancel/delete/reset/import), including
+	// paths that bypass the layout history bridge. Converges in one pass: the
+	// reconciled selection is written only when it differs. The compare is
+	// structural rather than reference-identity so the effect stays idempotent
+	// even if `reconcileLayoutSelection` ever returns a fresh-but-equal object
+	// for the valid case (which would otherwise re-write and loop).
+	$effect(() => {
+		const layout = layoutPreview.project.layout;
+		const reconciled = reconcileLayoutSelection(layoutInteraction.selection, layout);
+		if (
+			JSON.stringify(reconciled) !== JSON.stringify(layoutInteraction.selection)
+		) {
+			layoutInteraction.selection = reconciled;
 		}
 	});
 
@@ -142,11 +182,16 @@
 	});
 
 	onMount(() =>
-		registerEditorShortcuts(store, {
-			getViewportElement: () => viewportElement,
-			getOutlinerElement: () => outlinerElement,
-			getClusterNameInput: () => clusterNameInput
-		}, interactionStore)
+		registerEditorShortcuts(
+			store,
+			{
+				getViewportElement: () => viewportElement,
+				getOutlinerElement: () => outlinerElement,
+				getClusterNameInput: () => clusterNameInput
+			},
+			interactionStore,
+			() => activeSelection.deselectActive()
+		)
 	);
 
 	$effect(() => {
@@ -168,6 +213,7 @@
 		{confirmSceneReplacement}
 		{confirmLayoutReplacement}
 		projectName={bootProject.name}
+		onReset={() => activeSelection.reset()}
 	/>
 	<EditorLeftSidebar
 		{store}
@@ -175,6 +221,7 @@
 		{confirmLayoutReplacement}
 		bind:outlinerElement
 		onAssetSelection={(asset) => (selectedAsset = asset)}
+		onReset={() => activeSelection.reset()}
 	/>
 	<!-- svelte-ignore a11y_no_noninteractive_tabindex (the WebGL viewport owns guarded editor shortcuts) -->
 	<div

@@ -26,7 +26,8 @@ function isEditableTarget(target: EventTarget | null) {
 export function createEditorShortcutHandler(
 	store: MuseumEditorStore,
 	host: EditorShortcutHost,
-	interactionStore?: EditorInteractionStore
+	interactionStore?: EditorInteractionStore,
+	deselectActive?: () => void
 ) {
 	function editorOwnsSceneShortcuts() {
 		if (typeof document === 'undefined') return false;
@@ -198,7 +199,10 @@ export function createEditorShortcutHandler(
 				event.preventDefault();
 				return;
 			}
-			if (sceneOwnsShortcuts) store.selectionActions.deselect();
+			// H1 S3 — Escape deselects whichever domain is active; the default
+			// keeps the legacy scene-owned deselect for the relic.
+			if (deselectActive) deselectActive();
+			else if (sceneOwnsShortcuts) store.selectionActions.deselect();
 		}
 	};
 }
@@ -206,9 +210,10 @@ export function createEditorShortcutHandler(
 export function registerEditorShortcuts(
 	store: MuseumEditorStore,
 	host: EditorShortcutHost,
-	interactionStore?: EditorInteractionStore
+	interactionStore?: EditorInteractionStore,
+	deselectActive?: () => void
 ) {
-	const onKeyDown = createEditorShortcutHandler(store, host, interactionStore);
+	const onKeyDown = createEditorShortcutHandler(store, host, interactionStore, deselectActive);
 	window.addEventListener('keydown', onKeyDown);
 	return () => window.removeEventListener('keydown', onKeyDown);
 }

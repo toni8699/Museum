@@ -80,7 +80,8 @@
 		onRoomDelete,
 		onLayoutTransactionBegin,
 		onLayoutTransactionCommit,
-		onLayoutTransactionCancel
+		onLayoutTransactionCancel,
+		onDeselect
 	}: {
 		model: LayoutPreviewModel;
 		preview: LayoutPreviewState;
@@ -92,6 +93,8 @@
 		onLayoutTransactionBegin: () => boolean;
 		onLayoutTransactionCommit: () => boolean;
 		onLayoutTransactionCancel: () => boolean;
+		/** H1 S3 — a Plan empty-click deselects the *active* domain (default: clear the layout selection). */
+		onDeselect?: () => void;
 	} = $props();
 
 	let svgElement = $state<SVGSVGElement>();
@@ -346,7 +349,11 @@
 		if (interaction.tool !== 'select') return;
 		const target = resolvePlanHit(model.queries, point, LAYOUT_PLAN_HIT_RADIUS_PX / interaction.planView.pixelsPerMeter);
 		if (!target) {
-			clearLayoutSelection(interaction);
+			// H1 S3 — a Plan empty-click deselects whichever domain is active (a
+			// scene/camera pick may have survived into Plan); default keeps the
+			// layout-only clear.
+			if (onDeselect) onDeselect();
+			else clearLayoutSelection(interaction);
 			return;
 		}
 		if (target.kind === 'vertex') {

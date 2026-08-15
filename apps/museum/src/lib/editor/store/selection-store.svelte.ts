@@ -50,6 +50,24 @@ function hasRealWorkspacePick(workspace: WorkspaceSelection): boolean {
 export class EditorSelectionStore {
 	#session: EditorSessionState | null = null;
 
+	/**
+	 * H1 S3 — fired by the reducer when a *real actionable* pick lands
+	 * (cluster, placement ids > 0, or non-none navigation). The H1 shell
+	 * clears the layout selection here; the no-op default keeps the frozen
+	 * relic untouched. Room-only placement and deselect never fire it.
+	 */
+	#onSelectionActivate: (() => void) | null = null;
+
+	/**
+	 * H1 S3 — the only injection seam for the cross-domain hook: the store is
+	 * a private field initializer inside `MuseumEditorStore`, so the shell
+	 * passes the callback through `createMuseumEditorStore` options and this
+	 * setter, not a constructor arg.
+	 */
+	setOnSelectionActivate(callback: (() => void) | null): void {
+		this.#onSelectionActivate = callback;
+	}
+
 	workspace = $state<WorkspaceSelection>({ kind: 'none' });
 
 	navigation = $state<NavigationSelection>({ kind: 'none' });
@@ -88,6 +106,10 @@ export class EditorSelectionStore {
 			this.discoveryConnectionId = null;
 			this.discoveryDirection = 'forward';
 		}
+		// H1 S3 — a real pick activates the scene domain and detaches the
+		// previous domain (layout). Fires after the internal cross-clearing so
+		// layout is the last thing cleared (detach-then-attach ordering).
+		if (hasRealWorkspacePick(s)) this.#onSelectionActivate?.();
 	}
 
 	setNavigation(s: NavigationSelection) {
@@ -109,6 +131,9 @@ export class EditorSelectionStore {
 			const roomId = workspaceRoomId(this.workspace);
 			this.workspace = roomId ? roomOnly(roomId) : { kind: 'none' };
 		}
+		// H1 S3 — a non-none navigation activates the camera domain and
+		// detaches the previous domain (layout).
+		if (s.kind !== 'none') this.#onSelectionActivate?.();
 	}
 
 	setDiscovery(

@@ -1,4 +1,4 @@
-import type { LayoutVec2 } from './layout-types';
+import type { DraftSegment, LayoutDocument, LayoutRoom, LayoutVec2 } from './layout-types';
 import type { LayoutRoomUnitTransform } from './layout-room-transform';
 import { createPlanViewportState, snapToGrid, type PlanViewportState } from './layout-plan-transform';
 import type { Vec3 } from '$lib/types/museum';
@@ -371,4 +371,113 @@ export function shouldBeginWallBend(
 	thresholdPx = LAYOUT_WALL_BEND_DRAG_THRESHOLD_PX
 ): boolean {
 	return screenDistance(originScreen, currentScreen) >= thresholdPx;
+}
+
+// =====================================================================
+// H1 S3 — layout selection reconcile (pure).
+//
+// `LayoutInteractionState.selection` is shell-owned and is *not* part of the
+// `LayoutPreviewState` undo snapshot, so every layout swap (undo/redo/commit/
+// cancel/delete/reset/import) can leave a stale selection. The shell re-runs
+// this against `layoutPreview.project.layout` after every swap. Demotion
+// mirrors the scene-side convention (`anchor`→`connection`,
+// `view-keyframe`→`connection`): a child selection degrades to its nearest
+// surviving parent identity instead of vanishing outright.
+// =====================================================================
+
+function findLayoutRoomAnyFloor(
+	layout: LayoutDocument,
+	roomId: string
+): LayoutRoom | undefined {
+	for (const floor of layout.floors) {
+		const room = floor.rooms.find((candidate) => candidate.id === roomId);
+		if (room) return room;
+	}
+	return undefined;
+}
+
+function findLayoutWall(
+	layout: LayoutDocument,
+	roomId: string,
+	segmentId: string
+): DraftSegment | undefined {
+	return findLayoutRoomAnyFloor(layout, roomId)?.boundary.segments.find(
+		(segment) => segment.id === segmentId
+	);
+}
+
+function findLayoutOpening(
+	layout: LayoutDocument,
+	roomId: string,
+	segmentId: string,
+	openingId: string
+): boolean {
+	return Boolean(
+		findLayoutRoomAnyFloor(layout, roomId)?.openings.some(
+			(opening) => opening.id === openingId && opening.segmentId === segmentId
+		)
+	);
+}
+
+function findLayoutInteriorAnchor(
+	layout: LayoutDocument,
+	roomId: string,
+	segmentId: string,
+	anchorId: string
+): boolean {
+	const segment = findLayoutWall(layout, roomId, segmentId);
+	if (!segment || segment.kind !== 'auto-bezier') return false;
+	return segment.interiorAnchors.some((anchor) => anchor.id === anchorId);
+}
+
+/**
+ * Re-validate a layout selection against the current `LayoutDocument`.
+ *
+ * Contract: returns the **same input reference** when the selection is still
+ * valid, and a fresh object only when it must change (demotion or clear).
+ * Shell consumers rely on this identity for cheap change detection; do not
+ * spread/clone the valid case.
+ *
+ * Demotes `opening` / `interiorAnchor` to their parent `wall` when the child is
+ * gone but the wall survives; otherwise clears to `{ kind: 'none' }`.
+ */
+export function reconcileLayoutSelection(
+	selection: LayoutSelection,
+	layout: LayoutDocument
+): LayoutSelection {
+	switch (selection.kind) {
+		case 'none':
+			return selection;
+		case 'room':
+			return findLayoutRoomAnyFloor(layout, selection.roomId)
+				? selection
+				: { kind: 'none' };
+		case 'wall':
+			return findLayoutWall(layout, selection.roomId, selection.segmentId)
+				? selection
+				: { kind: 'none' };
+		case 'opening': {
+			// Parent-first, mirroring the scene side (anchor→connection): a dead
+			// wall clears outright (no demotion target), a dead opening demotes
+			// to its surviving wall.
+			const wall = findLayoutWall(layout, selection.roomId, selection.segmentId);
+			if (!wall) return { kind: 'none' };
+			if (findLayoutOpening(layout, selection.roomId, selection.segmentId, selection.openingId)) {
+				return selection;
+			}
+			return { kind: 'wall', roomId: selection.roomId, segmentId: selection.segmentId };
+		}
+		case 'interiorAnchor': {
+			const wall = findLayoutWall(layout, selection.roomId, selection.segmentId);
+			if (!wall) return { kind: 'none' };
+			if (findLayoutInteriorAnchor(layout, selection.roomId, selection.segmentId, selection.anchorId)) {
+				return selection;
+			}
+			return { kind: 'wall', roomId: selection.roomId, segmentId: selection.segmentId };
+		}
+		case 'object':
+			return layout.objects.some((object) => object.id === selection.objectId)
+				? selection
+				: { kind: 'none' };
+	}
 }

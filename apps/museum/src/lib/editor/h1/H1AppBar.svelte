@@ -11,7 +11,8 @@
 		viewState,
 		confirmSceneReplacement,
 		confirmLayoutReplacement,
-		projectName
+		projectName,
+		onReset
 	}: {
 		store: MuseumEditorStore;
 		layoutPreview: LayoutPreviewState;
@@ -19,6 +20,8 @@
 		confirmSceneReplacement: () => boolean;
 		confirmLayoutReplacement: () => boolean;
 		projectName: string;
+		/** H1 S3 — fired after the Project-menu reset actions; the shell clears the active selection. */
+		onReset?: () => void;
 	} = $props();
 
 	const viewMode = $derived(viewState.viewMode);
@@ -121,6 +124,7 @@
 			{layoutPreview}
 			{confirmSceneReplacement}
 			{confirmLayoutReplacement}
+			{onReset}
 			bind:open={projectMenuOpen}
 		/>
 	</div>

@@ -20,6 +20,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { serializeSceneDocument } from '$lib/content/scene-codec';
+import { deriveActiveSelection } from '$lib/editor/h1/active-editor-selection.svelte';
+import type { LayoutSelection } from '$lib/editor/layout/layout-interaction';
 import { cloneFixtureDocument } from '../../content/__fixtures__/load-fixture-scene';
 import { museumEditorEntryPlugin } from '../../../../vite/museum-editor-entry-plugin';
 
@@ -292,5 +294,68 @@ describe('H1 S1 — route wiring (relic smoke proxy, no DOM harness)', () => {
 		expect(resolved).toBeTruthy();
 		const loaded = plugin.load?.(resolved!);
 		expect(loaded).toContain('MuseumEditorApp.svelte');
+	});
+});
+
+describe('H1 S3 — cross-domain selection contracts', () => {
+	it('forwards onSelectionActivate from the store options into the reducer', () => {
+		let fired = 0;
+		const store = createMuseumEditorStore({
+			document: cloneFixtureDocument(),
+			onSelectionActivate: () => {
+				fired += 1;
+			}
+		});
+		const entityId = store.document.entities[0]!.id;
+
+		// Room-only latent context never fires the hook.
+		expect(store.selectionActions.selectRoom(store.document.entities[0]!.roomId)).toBe(true);
+		expect(fired).toBe(0);
+
+		// An actionable placement pick fires it.
+		expect(store.selectionActions.selectPlacement(entityId)).toBe(true);
+		expect(fired).toBe(1);
+	});
+
+	it('preserves the active domain across view switches (pure mapping over untouched slots)', () => {
+		const store = createMuseumEditorStore({ document: cloneFixtureDocument() });
+		const entityId = store.document.entities[0]!.id;
+		expect(store.selectionActions.selectPlacement(entityId)).toBe(true);
+
+		// Synthetic fixture: the wrapper derives the active domain from the
+		// untouched workspace/nav slots plus the (shell-owned) layout selection,
+		// so a Plan↔3D switch cannot change it.
+		const layoutSelection: LayoutSelection = { kind: 'room', roomId: 'paris' };
+		const before = deriveActiveSelection(
+			store.selection.workspace,
+			store.selection.navigation,
+			layoutSelection
+		);
+
+		expect(store.setWorkspace('layout')).toBe(true);
+		expect(store.setWorkspace('camera')).toBe(true);
+		expect(store.setWorkspace('scene')).toBe(true);
+
+		const after = deriveActiveSelection(
+			store.selection.workspace,
+			store.selection.navigation,
+			layoutSelection
+		);
+		expect(after).toEqual(before);
+	});
+
+	it('importDocument clears the scene selection slots; import begins with no active selection', () => {
+		const store = createMuseumEditorStore({ document: cloneFixtureDocument() });
+		const entityId = store.document.entities[0]!.id;
+		expect(store.selectionActions.selectPlacement(entityId)).toBe(true);
+		expect(
+			store.selectionActions.selectNavigationNode(store.document.navigationNodes[0]!.id)
+		).toBe(true);
+
+		expect(store.importDocument(createEmptySceneDocument())).toBe(true);
+		expect(store.selectedPlacementIds).toEqual([]);
+		expect(store.selectedRoomId).toBeNull();
+		expect(store.navigationSelection).toBeNull();
+		expect(store.canUndo).toBe(false);
 	});
 });

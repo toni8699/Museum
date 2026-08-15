@@ -50,10 +50,13 @@
 
 	let {
 		store,
-		transformControls
+		transformControls,
+		onDeselect
 	}: {
 		store: MuseumEditorStore;
 		transformControls?: TransformControls;
+		/** H1 S3 — deselect the *active* domain (default: scene-owned deselect, so the frozen relic is untouched). */
+		onDeselect?: () => void;
 	} = $props();
 
 	const { camera, scene, canvas } = useThrelte();
@@ -873,7 +876,11 @@
 				meta: event.metaKey || event.ctrlKey
 			});
 		} else if (!event.shiftKey && !event.metaKey && !event.ctrlKey) {
-			store.selectionActions.deselect();
+			// H1 S3 — an empty click clears whichever domain is active (a layout
+			// selection may have survived into 3D); default keeps the legacy
+			// scene-owned deselect for the relic.
+			if (onDeselect) onDeselect();
+			else store.selectionActions.deselect();
 			interactionStore?.dispatch({
 				type: 'CLICK',
 				target: null,

@@ -16,13 +16,16 @@
 		layoutPreview,
 		confirmLayoutReplacement,
 		outlinerElement = $bindable(),
-		onAssetSelection
+		onAssetSelection,
+		onReset
 	}: {
 		store: MuseumEditorStore;
 		layoutPreview: LayoutPreviewState;
 		confirmLayoutReplacement: () => boolean;
 		outlinerElement?: HTMLElement | null;
 		onAssetSelection?: (asset: MuseumAsset | undefined) => void;
+		/** H1 S3 — fired after the sidebar "Reset empty" action; the shell clears the active selection. */
+		onReset?: () => void;
 	} = $props();
 
 	function switchLeftPanel(panel: 'scene' | 'assets') {
@@ -33,6 +36,7 @@
 		if (confirmLayoutReplacement()) {
 			resetLayoutPreview(layoutPreview);
 			store.clearSharedHistory();
+			onReset?.();
 		}
 	}
 </script>

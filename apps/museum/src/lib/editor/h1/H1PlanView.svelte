@@ -12,6 +12,11 @@
 	} from '$lib/editor/layout/layout-preview-state.svelte';
 	import type { LayoutOpeningKind } from '$lib/editor/layout/layout-opening-editing';
 	import type { MuseumEditorStore } from '$lib/editor/museum-editor.svelte';
+	import { getContext } from 'svelte';
+	import {
+		ACTIVE_EDITOR_SELECTION_KEY,
+		type EditorActiveSelectionStore
+	} from './active-editor-selection.svelte';
 
 	let {
 		store,
@@ -22,6 +27,9 @@
 		layoutPreview: LayoutPreviewState;
 		layoutInteraction: LayoutInteractionState;
 	} = $props();
+	const activeSelection = getContext<EditorActiveSelectionStore | undefined>(
+		ACTIVE_EDITOR_SELECTION_KEY
+	);
 
 	function commitDraftRoom(points: [number, number][]): boolean {
 		const result = commitLayoutDraftRoom(layoutPreview, points);
@@ -92,14 +100,16 @@
 	<LayoutPlanViewport
 		model={layoutPreview.model}
 		preview={layoutPreview}
-		interaction={layoutInteraction}			onCommit={commitDraftRoom}
-			onOpeningCreate={createOpening}
-			onOpeningDelete={deleteOpening}
-			onRoomDelete={deleteRoom}
-			onLayoutTransactionBegin={beginLayoutTransaction}
-			onLayoutTransactionCommit={commitLayoutTransaction}
-			onLayoutTransactionCancel={cancelLayoutTransaction}
-		/>
+		interaction={layoutInteraction}
+		onCommit={commitDraftRoom}
+		onOpeningCreate={createOpening}
+		onOpeningDelete={deleteOpening}
+		onRoomDelete={deleteRoom}
+		onLayoutTransactionBegin={beginLayoutTransaction}
+		onLayoutTransactionCommit={commitLayoutTransaction}
+		onLayoutTransactionCancel={cancelLayoutTransaction}
+		onDeselect={activeSelection ? () => activeSelection.deselectActive() : undefined}
+	/>
 </div>
 
 <style>

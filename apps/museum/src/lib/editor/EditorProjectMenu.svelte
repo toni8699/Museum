@@ -20,7 +20,8 @@
 		confirmSceneReplacement,
 		confirmLayoutReplacement,
 		relic = false,
-		open = $bindable(false)
+		open = $bindable(false),
+		onReset
 	}: {
 		store: MuseumEditorStore;
 		layoutPreview: LayoutPreviewState;
@@ -28,6 +29,8 @@
 		confirmLayoutReplacement: () => boolean;
 		relic?: boolean;
 		open?: boolean;
+		/** H1 S3 — fired after a reset action; the shell clears the active selection on all three slots. */
+		onReset?: () => void;
 	} = $props();
 
 	const dirty = $derived(store.isDirty);
@@ -159,6 +162,7 @@
 		resetLayoutPreview(layoutPreview);
 		store.clearSharedHistory();
 		layoutPreview.statusMessage = 'Reset to empty layout';
+		onReset?.();
 	}
 
 	async function exportPackageArchive() {
@@ -213,6 +217,7 @@
 		if (!confirmSceneReplacement()) return;
 		if (store.resetToCheckedInDocument()) {
 			store.setStatusMessage(relic ? 'Reset to checked-in scene' : 'Reset to empty project');
+			onReset?.();
 		}
 	}
 

@@ -26,6 +26,10 @@
 		EDITOR_INTERACTION_STORE_KEY,
 		type EditorInteractionStore
 	} from '$lib/editor/store/editor-interaction-store.svelte';
+	import {
+		ACTIVE_EDITOR_SELECTION_KEY,
+		type EditorActiveSelectionStore
+	} from './active-editor-selection.svelte';
 
 	let {
 		store,
@@ -38,6 +42,9 @@
 	} = $props();
 	const interactionStore = getContext<EditorInteractionStore | undefined>(
 		EDITOR_INTERACTION_STORE_KEY
+	);
+	const activeSelection = getContext<EditorActiveSelectionStore | undefined>(
+		ACTIVE_EDITOR_SELECTION_KEY
 	);
 
 	const placementRegistry: EditorPlacementRegistry = {
@@ -125,7 +132,11 @@
 				{/key}
 			{/if}
 		{/if}
-		<EditorSelection {store} {transformControls} />
+		<EditorSelection
+			{store}
+			{transformControls}
+			onDeselect={activeSelection ? () => activeSelection.deselectActive() : undefined}
+		/>
 		<EditorPlacementTools {store} />
 		{#if !store.isVisitorCameraPreview}
 			{#key store.selectionKey}

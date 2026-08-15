@@ -17,7 +17,7 @@ Open app
   → draw rooms/openings + rough parametric objects
   → switch to 3D
   → refine architecture
-  → import/place scene assets
+  → place catalogue assets (user-GLB import is post-H1)
   → author and preview the camera tour
   → export one portable project
 ```
@@ -50,7 +50,7 @@ MuseumProject editor session
   └─ 3D
        ├─ generated layout architecture
        ├─ layout selection + fine editing
-       ├─ scene entities + imported/catalog assets
+       ├─ scene entities + catalogue assets
        ├─ materials
        ├─ camera nodes/paths/framing/playback
        ├─ unified project hierarchy
@@ -84,7 +84,7 @@ this editor plus future versioned migrations from that H1 baseline.
 | Gizmo | Scene/camera `EditorTransformControls`; no layout gizmo | One mounted TransformControls host; domain adapters mutate the correct document |
 | History | One chronological stack with `layout` and `scene` entries | Preserved; one entry per completed gesture in the owning domain |
 | Hierarchy | Scene tree, camera tree, and layout summary/accordions are workspace-specific | One project hierarchy plus Assets panel; imported H1 projects cross-validate as one project |
-| Imported models | Checked-in catalogue GLBs only; user GLB pipeline deferred | Project-local GLBs can enter the asset library, place in 3D, and round-trip in the portable package |
+| Imported models | Checked-in catalogue GLBs only; user GLB pipeline deferred | Deferred post-H1 with S9 (2026-08-15); H1 keeps the checked-in catalogue as the only asset source |
 
 ## Target architecture
 
@@ -126,7 +126,7 @@ this editor plus future versioned migrations from that H1 baseline.
 | Rough Box/Cylinder/Sphere placeholders | `project.layout.objects` | Derived primitive meshes |
 | Placed catalogue/imported models, scene primitives, lights, materials | `project.scene` | Existing scene entity roots |
 | Navigation nodes, connections, paths, view tracks, timing | `project.scene` | Existing camera helpers and route/motion projections |
-| Imported GLB bytes and package metadata | Project-local asset registry + portable package manifest | Object URLs/resource handles, session-only |
+| Imported GLB bytes and package metadata | Project-local asset registry + portable package manifest *(post-H1 — S9 deferred)* | Object URLs/resource handles, session-only |
 | Selection, gizmo proxy, hover, panel state | Editor session only | Never serialized |
 
 H1 integrates these domains in the editor shell; it does not merge their schemas
@@ -349,24 +349,12 @@ resolveLayout3dHits(
   → room resolution. H1 tests identity parity where both views expose the same
   authored element, not identical 2D/3D hit ordering.
 
-### Imported assets participate in the same 3D flow
+### User-imported assets participate in the same 3D flow (deferred post-H1)
 
-- H1 integrates existing catalogue placement into unified 3D unchanged.
-- To satisfy the end-to-end product flow, add a focused project-local GLB import
-  sub-slice before H1 closes. A chosen GLB is fingerprinted, validated, assigned
-  a stable project-local asset id, registered in the Assets panel, and loaded
-  through the shared `AssetModel` path—never a room-local GLTF loader.
-- Scene model entities continue to persist an `assetId` in scene v6. A composite
-  editor asset registry resolves checked-in catalogue ids and project-local ids.
-- Project-local model bytes and model metadata live in the portable package
-  manifest/asset store, not inside `MuseumProject` JSON or `SceneDocument`.
-  Package export/import cross-validates every referenced project-local asset and
-  round-trips its bytes.
-- Object URLs, decoded GLTFs, and renderer handles remain session-only and are
-  released on project replacement/unmount.
-- This sub-slice requires its own focused asset/package plan before code if the
-  manifest format or security limits change. H1 remains the product umbrella
-  and is not complete until at least one user-imported GLB round-trips.
+Deferred out of H1 with step 9 — H1 integrates existing catalogue placement
+into unified 3D unchanged; scene entities persist `assetId` (scene v6) resolved
+from the shipped catalogue. The post-H1 design lives in
+[`2026-08-14-graphics-h1-s9-asset-package.md`](./2026-08-14-graphics-h1-s9-asset-package.md).
 
 ### Camera is integrated in 3D, not duplicated
 
@@ -445,6 +433,11 @@ because the slice touches 3D. Difficulty is relative within H1 on a **1–10
 scale**: 1–3 contained, 4–6 moderate, 7–8 hard/cross-cutting, 9 critical
 integration, 10 highest-risk architectural work in this program.
 
+Slices are rated on two axes — **effort** (volume: code, tests, integration,
+docs churn) and **risk** (boundary seams, silent failure modes, relic/visitor/
+bench regression) — with **difficulty = max(effort, risk)**, +1 when both are
+≥ 7. Effort drives slice sizing; risk drives model strength.
+
 ### 0. Pin the product/session contracts
 
 **Execution:** Difficulty **2/10** · Recommended model strength — plan: **Balanced**; implementation: **Balanced**.
@@ -453,8 +446,8 @@ integration, 10 highest-risk architectural work in this program.
 - Replace the implementation plan's workspace assumption with `Plan | 3D`.
 - Lock greenfield boot, full-project replacement, view switching, playback
   locks, and `/museum` relic isolation. No legacy session transition contract.
-- Write the focused project-local GLB/package sub-plan before changing its
-  manifest contract.
+- The focused project-local GLB/package sub-plan is deferred post-H1 (step 9);
+  H1 changes no package-manifest contract.
 
 ### 1. Consolidate the editor shell
 
@@ -516,10 +509,11 @@ integration, 10 highest-risk architectural work in this program.
 
 ### 6. Centralize 3D selection
 
-**Execution:** Difficulty **8/10** · Recommended model strength — plan: **Frontier**; implementation: **Frontier+**.
+**Execution:** Difficulty **6/10** (effort 4 · risk 6) · Recommended model strength — plan: **Frontier**; implementation: **Frontier**.
 
-- Replace independent competing Canvas raycast listeners with one editor 3D
-  selection coordinator.
+- Give the existing single Canvas listener a layout branch — one editor 3D
+  selection coordinator (the S6 sub-plan confirmed one listener exists; no
+  second raycast source is added).
 - Reuse existing scene/camera hit classification and add layout candidates.
 - Apply nearest-visible arbitration, same-depth tie-breaking, helper filtering,
   background clear, and TransformControls event precedence.
@@ -538,7 +532,7 @@ integration, 10 highest-risk architectural work in this program.
 
 ### 8. Add layout candidate previews and atomic history
 
-**Execution:** Difficulty **8/10** · Recommended model strength — plan: **Frontier+**; implementation: **Frontier+**.
+**Execution:** Difficulty **8/10** (effort 6 · risk 8) · Recommended model strength — plan: **Frontier**; implementation: **Frontier+**.
 
 - Add a `layoutGizmoDrag` session containing target identity, immutable baseline,
   current delta, last valid candidate, and derived preview bundle.
@@ -548,27 +542,15 @@ integration, 10 highest-risk architectural work in this program.
 - Rebuild/dispose meshes and reattach the gizmo proxy without retaining old
   render-object identity.
 
-### 9. Integrate project-local asset import and placement
+### 9. Project-local asset import and placement — deferred
 
-**Execution:** Difficulty **10/10** · Recommended model strength — plan: **Frontier+**; implementation: **Frontier+**.
-
-- Extend the package asset manifest/store for GLBs under a focused sub-plan.
-- Add import to the 3D Assets panel, composite registry lookup, shared loader,
-  ghost placement, scene entity commit, cleanup, and package round-trip.
-- Imported and catalogue scene entities use the existing scene gizmo adapter.
-- Reject unsafe/unsupported files with structured feedback and no partial asset
-  registration.
-- **C1 decision (post-H1 staging, C2 rejected):** the composite asset registry
-  is scene-only — catalogue and project-local ids resolve for scene entities
-  only; layout asset objects (`LayoutObject.kind: 'asset'`) are rejected. The
-  manifest persists **no** footprint fields: catalogue footprints are authored
-  `MuseumAsset.footprint` metadata, and imported footprints are derived from
-  loaded model world-AABBs at render time by the post-H1 Plan staging slice
-  (C1), session-cached, never serialized.
+Deferred out of H1 (2026-08-15); the difficulty sequence skips from 8 to 10
+because this step left H1 — see the post-H1 plan seed
+[`2026-08-14-graphics-h1-s9-asset-package.md`](./2026-08-14-graphics-h1-s9-asset-package.md).
 
 ### 10. Fold camera authoring into 3D
 
-**Execution:** Difficulty **5/10** · Recommended model strength — plan: **Balanced**; implementation: **Balanced**.
+**Execution:** Difficulty **7/10** (effort 5 · risk 7) · Recommended model strength — plan: **Balanced**; implementation: **Frontier**.
 
 - Move Camera tree/timeline/tool entry points into the unified 3D shell.
 - Preserve route/motion ownership, helper selection, framing, timing, playback,
@@ -581,8 +563,9 @@ integration, 10 highest-risk architectural work in this program.
 
 **Execution:** Difficulty **7/10** · Recommended model strength — plan: **Frontier**; implementation: **Frontier**.
 
-- Export one portable project containing layout, scene, textures, and
-  project-local GLBs; import it into a fresh editor session.
+- Export one portable project containing layout, scene, and textures (no
+  project-local GLBs — S9 deferred; entities reference shipped catalogue ids);
+  import it into a fresh editor session.
 - Version H1 project/package format. Import H1 output and future explicit
   migrations only; reject legacy/Chopin payloads without changing session.
 - Verify Plan/3D parity, fresh import history/selection, asset bytes, camera
@@ -623,7 +606,7 @@ integration, 10 highest-risk architectural work in this program.
 | History | One chronological entry per gesture in the correct domain; no-op/cancel adds none |
 | Undo/redo | Restores both views and active target safely across interleaved layout/scene/camera edits |
 | Invalid project import | Unknown room refs or legacy/Chopin payload reject atomically; current project unchanged |
-| Imported GLB | User-selected GLB registers, places, edits, exports, imports, and renders with identical bytes/id |
+| Catalogue placement | Placed catalogue assets transform and round-trip with stable ids (the user-GLB row moves to the post-H1 S9+ plan) |
 | Camera in 3D | Author/edit/play camera without leaving 3D; playback mutation locks remain intact |
 | Plan camera boundary | Plan has no camera mutation path; optional read-only overlay cannot edit scene data |
 | Resource lifetime | Repeated edits/project replacement release old geometry, helpers, object URLs, and decoded model resources |
@@ -644,7 +627,6 @@ apps/museum/src/lib/editor/gizmo/scene-gizmo-adapter.svelte.ts
 apps/museum/src/lib/editor/gizmo/camera-gizmo-adapter.svelte.ts
 apps/museum/src/lib/editor/layout/layout-3d-picking.ts
 apps/museum/src/lib/editor/project/empty-project.ts
-apps/museum/src/lib/editor/assets/project-asset-store.svelte.ts
 ```
 
 Primary edits:
@@ -673,7 +655,8 @@ apps/museum/src/lib/editor/import/package-importer.ts
 
 Exact files may consolidate. Boundaries that may not collapse are: active
 selection ownership, complete layout pick identity, the single gizmo host with
-domain adapters, full candidate validation, and project-local asset lifetime.
+domain adapters, and full candidate validation (project-local asset lifetime is
+deferred with S9).
 
 ## Verification
 
@@ -694,7 +677,7 @@ Required integration/browser coverage:
 - orbit-control disable/restore and gizmo event precedence;
 - Plan → 3D → Plan project identity and history;
 - unified hierarchy selection/accessibility for cross-valid H1 projects;
-- user GLB import/place/export/re-import and object-URL cleanup;
+- catalogue asset placement/transform in unified 3D (user-GLB import/export coverage moves to the post-H1 plan);
 - camera authoring/playback in unified 3D;
 - `/museum` visitor and `/museum/editor` pre-H1 editor relic smoke tests, unchanged by H1 editor work.
 
@@ -705,7 +688,7 @@ Manual product QA:
 3. Switch to 3D; confirm the generated architecture is the same project.
 4. Pick and refine a room, wall, opening, anchor, and layout object with one
    contextual gizmo.
-5. Import a GLB, place it from Assets, and transform it in the same 3D view.
+5. Place a catalogue asset from Assets and transform it in the same 3D view.
 6. Add camera nodes, edit a route/view, and play director/visitor preview without
    changing workspace.
 7. Interleave layout, scene, and camera edits; undo/redo in chronological order.
@@ -743,8 +726,8 @@ rejected in favor of C1 — furniture stays in `project.scene`.
   warnings. Coordinated room+furniture relocation (Beta) is a multi-domain
   atomicity project, explicitly out of scope.
 - H1 dependencies: none hard. Path A (read-only layer-5.5 projection) is the
-  H1-era interim and is reused by C1. S9 stays scene-only and persists no
-  footprint fields.
+  H1-era interim and is reused by C1. The post-H1 S9+ registry stays scene-only
+  and persists no footprint fields.
 
 ## Exit criteria
 
@@ -765,8 +748,9 @@ H1 is complete only when:
 - `LayoutDocument` and `SceneDocument` remain separate sources of truth and no
   `THREE.Object3D` transform, generated endpoint, selection, or renderer state is
   serialized;
-- a user-imported GLB can be placed and edited in unified 3D and round-trips
-  through the portable package without entering scene v6 as binary data;
+- asset placement uses the shipped catalogue only — no user-GLB import in H1
+  (deferred with step 9); H1 packages contain no user binary assets and the
+  package manifest is unchanged;
 - camera authoring and playback remain on the one existing route/motion system,
   work entirely in 3D, and preserve mutation/reduced-motion behavior;
 - export/import round-trips H1-created projects; import clears history/selection,
@@ -797,6 +781,8 @@ H1 is complete only when:
   state, legacy selection, or history into H1;
 - independent layout-only import or transient layout/scene divergence in H1;
 - serializing binary GLBs inside `MuseumProject`/`SceneDocument` JSON;
+- user-GLB import and the project-local asset registry in H1 (deferred with
+  step 9 — see the post-H1 plan seed);
 - replacing Three/Threlte or adding a new production renderer; and
 - hiding the editor behind a build flag; the editor ships in production
   builds.

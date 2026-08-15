@@ -15,6 +15,7 @@ import {
 	NEAR_INVISIBLE_OPACITY,
 	nextPlacementCycleId,
 	resolveNormalSelection,
+	resolveNormalSelectionWithHit,
 	selectionHitFromIntersection,
 	uniquePlacementIdsInOrder,
 	type SelectionHitInfo
@@ -350,5 +351,123 @@ describe('editor-selection helpers', () => {
 			{ opacity: 0.05, placementId: 'b' },
 			{ opacity: 1, placementId: 'c' }
 		]);
+	});
+});
+
+// H1 S6 — the normal resolver keeps its exact result contract while exposing
+// the actionable source hit (with its ray distance) for cross-domain arbitration.
+describe('H1 S6 — resolveNormalSelectionWithHit', () => {
+	it('agrees with resolveNormalSelection for every camera/navigation/placement/deselect shape', () => {
+		const fixtures: SelectionHitInfo[][] = [
+			// camera helper precedence
+			[
+				hit('chair-placement', { nodeId: 'paris-seat', handle: 'target' }),
+				hit(null, { nodeId: 'paris-seat', handle: 'position' }, 0.01)
+			],
+			// near-invisible camera ignored → placement
+			[
+				hit(null, { nodeId: 'paris-seat', handle: 'position' }, 0.01),
+				hit('piano-placement')
+			],
+			// anchor > connection
+			[
+				{
+					opacity: 1,
+					placementId: 'chair',
+					navigationSelection: { kind: 'connection', connectionId: 'a-b' }
+				},
+				{
+					opacity: 1,
+					placementId: null,
+					navigationSelection: { kind: 'anchor', connectionId: 'a-b', anchorId: 'a-b-anchor-01' }
+				}
+			],
+			// view-keyframe precedence
+			[
+				{
+					opacity: 1,
+					placementId: 'chair',
+					navigationSelection: { kind: 'connection', connectionId: 'a-b' }
+				},
+				{
+					opacity: 1,
+					placementId: null,
+					navigationSelection: {
+						kind: 'view-keyframe',
+						connectionId: 'a-b',
+						direction: 'reverse',
+						keyframeId: 'a-b-view-reverse-01'
+					}
+				}
+			],
+			// placement
+			[hit('chair-placement')],
+			// deselect (no hits)
+			[],
+			// deselect (first effective hit is non-interactive chrome)
+			[hit(null)]
+		];
+
+		for (const fixture of fixtures) {
+			expect(resolveNormalSelectionWithHit(fixture).result).toEqual(
+				resolveNormalSelection(fixture)
+			);
+		}
+	});
+
+	it('reports the winning effective hit as the source with its distance', () => {
+		// Placement source: the first effective hit, not the nearest tagged hit.
+		expect(
+			resolveNormalSelectionWithHit([
+				{ opacity: 0.01, placementId: 'ghost', distance: 0.5 },
+				{ opacity: 1, placementId: 'chair', distance: 1.5 }
+			])
+		).toEqual({
+			result: { action: 'select', id: 'chair' },
+			sourceHit: { opacity: 1, placementId: 'chair', distance: 1.5 }
+		});
+
+		// Camera source: the effective camera helper wins over a nearer placement.
+		expect(
+			resolveNormalSelectionWithHit([
+				{ opacity: 1, placementId: 'chair', distance: 0.9 },
+				{ opacity: 1, placementId: null, cameraSelection: { nodeId: 'n1', handle: 'target' }, distance: 1.2 }
+			])
+		).toEqual({
+			result: { action: 'select-camera', selection: { nodeId: 'n1', handle: 'target' } },
+			sourceHit: {
+				opacity: 1,
+				placementId: null,
+				cameraSelection: { nodeId: 'n1', handle: 'target' },
+				distance: 1.2
+			}
+		});
+	});
+
+	it('returns sourceHit null for deselect, even with a merely tagged raw intersection', () => {
+		expect(resolveNormalSelectionWithHit([])).toEqual({
+			result: { action: 'deselect' },
+			sourceHit: null
+		});
+		// A near-invisible tagged hit is filtered → deselect contributes null,
+		// not the tagged raw intersection's distance.
+		expect(
+			resolveNormalSelectionWithHit([{ opacity: 0.01, placementId: 'ghost', distance: 0.5 }])
+		).toEqual({
+			result: { action: 'deselect' },
+			sourceHit: null
+		});
+		// A lone non-interactive chrome hit deselects with no source distance.
+		expect(resolveNormalSelectionWithHit([hit(null)])).toEqual({
+			result: { action: 'deselect' },
+			sourceHit: null
+		});
+	});
+
+	it('copies Intersection.distance into hit info', () => {
+		const markerGeometry = new Object3D();
+		expect(
+			selectionHitFromIntersection({ object: markerGeometry, distance: 4.2 } as Intersection)
+		).toMatchObject({ opacity: 1, placementId: null, distance: 4.2 });
 	});
 });

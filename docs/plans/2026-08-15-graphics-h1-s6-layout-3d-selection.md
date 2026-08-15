@@ -1,7 +1,7 @@
 # H1 S6 — Centralized 3D Layout Selection
 
 **Date:** 2026-08-15
-**Status:** Planned
+**Status:** Shipped
 **Parent:** [`2026-08-14-graphics-h1-unified-3d-editing.md`](./2026-08-14-graphics-h1-unified-3d-editing.md) (step 6, difficulty 8/10 — plan Frontier, implementation Frontier+)
 **Prerequisite:** S5 · Complete Wall/Opening 3D Pick Metadata
 **Handoff:** [`../hand-off/CURRENT.md`](../hand-off/CURRENT.md)
@@ -510,14 +510,31 @@ Behavior-preserved but edited: `resolveNormalSelection` delegates to
 
 ## Implementation notes (as-built deviations)
 
-Filled at close — expected hot spots: whether the `onLayoutPick` callback
-returns `boolean` vs the resolved result after real wiring, the exact
-structural `RaycastHitLike` shape, and tie-epsilon tuning after manual QA.
-Cross-domain dataflow is locked: resolved layout `{ selection, distance }`
-versus the existing normal resolver's actionable source-hit distance — never
-nearest-tag guessing. Placement clicks are handled earlier in the flow, so the
-layout branch is unreachable there by construction (branch order pinned in
-step 0).
+- `onLayoutPick` returns `boolean` as locked; the coordinator resolves the
+  normal result once (`resolveNormalSelectionWithHit`) and only calls the
+  layout callback when the prop is present, applying the already-resolved
+  result otherwise. No second raycast: one `intersections` list feeds both
+  paths.
+- The cross-domain yield rule lives in a shared pure helper
+  `layoutPickBeatsSceneDistance(layoutDistance, sceneDistance)` (in
+  `layout-3d-picking.ts`) so `H13DView.handleLayoutPick` and the
+  commit-route tests exercise the *same* strict comparison —
+  `d_scene === null || layoutDist < d_scene − ε` — instead of duplicating it.
+- Structural `RaycastHitLike` = `{ object: { userData, parent }, distance,
+  faceIndex?: number | null }`. `faceIndex` is **optional** because three's
+  `Intersection.faceIndex` is `number | null | undefined`; candidate
+  extraction still requires a `number` before emitting a `wall-triangle`
+  (an undefined/null `faceIndex` drops the hit, never mis-picks).
+- Wall surfaces: the builder never emits a wall `lintel` surface (compiler
+  lintels always carry `openingId` — pinned by the S5 test), so the S6
+  ref-mapping tests cover wall `side` + `bridge` (bridge in the dedicated
+  forced-bevel fixture) and all four opening surfaces (`jamb`/`sill`/`lintel`/
+  `arch-reveal`). `resolveLayout3dHits` maps any wall ref to a wall selection
+  and any opening ref to an opening selection regardless of surface.
+- Tie-epsilon `1e-4` m retained as planned; no manual-QA retune was needed.
+  26 new tests (8 resolution, 10 extraction + commit-route incl. cross-domain
+  boundaries, 4 normal-resolver source preservation, 4 S6 contracts); full
+  suite **1431 green**, `svelte-check` 0, build clean.
 
 ## Verification
 

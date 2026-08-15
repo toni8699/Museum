@@ -7,6 +7,8 @@ import { buildRoomWallMesh, type IndexedWallMesh, type Layout3dPickRange } from 
 import {
 	buildLayout3dTriangleIndex,
 	layoutAnchorHelperPlacements,
+	resolveLayout3dHits,
+	type Layout3dHitCandidate,
 	type Layout3dPickIndex
 } from '$lib/editor/layout/layout-3d-picking';
 import {
@@ -192,5 +194,207 @@ describe('layout-3d-picking purity', () => {
 		const mesh = buildMesh(g1MultipleOpeningsDocument());
 		const resolve = buildLayout3dTriangleIndex(mesh);
 		expect(resolve(0)).not.toBeNull();
+	});
+});
+
+describe('H1 S6 — resolveLayout3dHits', () => {
+	function indexMap(mesh: IndexedWallMesh): ReadonlyMap<string, Layout3dPickIndex> {
+		return new Map([[mesh.roomId, buildLayout3dTriangleIndex(mesh)]]);
+	}
+
+	/** First triangle index of the first pick range matching the predicate. */
+	function firstTriangleOf(
+		mesh: IndexedWallMesh,
+		predicate: (range: Layout3dPickRange) => boolean
+	): number {
+		const range = mesh.pickRanges.find(predicate);
+		if (!range) throw new Error('fixture has no matching pick range');
+		return range.start / 3;
+	}
+
+	const wallHit = (mesh: IndexedWallMesh, triangleIndex: number, distance: number): Layout3dHitCandidate => ({
+		kind: 'wall-triangle',
+		roomId: mesh.roomId,
+		triangleIndex,
+		distance
+	});
+
+	const objectHit = (objectId: string, distance: number): Layout3dHitCandidate => ({
+		kind: 'object',
+		objectId,
+		distance
+	});
+
+	const anchorHit = (
+		roomId: string,
+		segmentId: string,
+		anchorId: string,
+		distance: number
+	): Layout3dHitCandidate => ({ kind: 'anchor', roomId, segmentId, anchorId, distance });
+
+	const roomHit = (
+		roomId: string,
+		surface: 'floor' | 'ceiling',
+		distance: number
+	): Layout3dHitCandidate => ({ kind: 'room-surface', roomId, surface, distance });
+
+	it('nearest-visible wins: a near wall beats a far object and a near object beats a far wall', () => {
+		const mesh = buildMesh(g1MultipleOpeningsDocument());
+		const indices = indexMap(mesh);
+		const wallTriangle = firstTriangleOf(mesh, (range) => range.kind === 'wall');
+
+		expect(
+			resolveLayout3dHits(indices, [wallHit(mesh, wallTriangle, 2), objectHit('obj', 3)])
+		).toMatchObject({ selection: { kind: 'wall' }, distance: 2 });
+
+		expect(
+			resolveLayout3dHits(indices, [objectHit('obj', 2), wallHit(mesh, wallTriangle, 3)])
+		).toEqual({ selection: { kind: 'object', objectId: 'obj' }, distance: 2 });
+	});
+
+	it('same-depth priority is anchor → opening → object → wall → room, both input orders', () => {
+		const mesh = buildMesh(g1MultipleOpeningsDocument());
+		const indices = indexMap(mesh);
+		const openingTriangle = firstTriangleOf(mesh, (range) => range.kind === 'opening');
+		const wallTriangle = firstTriangleOf(mesh, (range) => range.kind === 'wall');
+
+		const anchor = anchorHit('room-openings', 'room-openings:wall:0', 'anchor:1', 2);
+		const opening = wallHit(mesh, openingTriangle, 2);
+		const object = objectHit('obj', 2);
+		const wall = wallHit(mesh, wallTriangle, 2);
+		const room = roomHit('room-openings', 'floor', 2);
+
+		const ordered: Layout3dHitCandidate[] = [room, wall, object, opening, anchor];
+		const reversed: Layout3dHitCandidate[] = [anchor, opening, object, wall, room];
+		for (const hits of [ordered, reversed]) {
+			expect(resolveLayout3dHits(indices, hits)).toEqual({
+				selection: {
+					kind: 'interiorAnchor',
+					roomId: 'room-openings',
+					segmentId: 'room-openings:wall:0',
+					anchorId: 'anchor:1'
+				},
+				distance: 2
+			});
+		}
+
+		// Pairwise spot checks of the ordering.
+		expect(resolveLayout3dHits(indices, [wall, opening])?.selection.kind).toBe('opening');
+		expect(resolveLayout3dHits(indices, [room, object])?.selection.kind).toBe('object');
+		expect(resolveLayout3dHits(indices, [room, wall])?.selection.kind).toBe('wall');
+		expect(resolveLayout3dHits(indices, [wall, object])?.selection.kind).toBe('object');
+	});
+
+	it('a Δd > eps pair is decided by distance, not semantic priority', () => {
+		const indices = new Map<string, Layout3dPickIndex>();
+		// A distant anchor (highest priority) loses to a nearer room (lowest).
+		expect(
+			resolveLayout3dHits(indices, [
+				roomHit('r1', 'floor', 2),
+				anchorHit('r1', 'r1:wall:0', 'anchor:1', 2.1)
+			])
+		).toEqual({ selection: { kind: 'room', roomId: 'r1' }, distance: 2 });
+	});
+
+	it('maps wall side/lintel/bridge triangles to wall selections and opening surfaces to opening selections', () => {
+		const mesh = buildMesh(g1ProfileMatrixDocument());
+		const indices = indexMap(mesh);
+		const resolve = buildLayout3dTriangleIndex(mesh);
+
+		// Wall surfaces: `side` here (the profile matrix's lintels are all
+		// opening-owned); `bridge` is covered by the dedicated bridge test below.
+		for (const surface of ['side'] as const) {
+			const triangle = firstTriangleOf(
+				mesh,
+				(range) => range.kind === 'wall' && range.surface === surface
+			);
+			const ref = resolve(triangle)!;
+			expect(ref.kind).toBe('wall');
+			expect(resolveLayout3dHits(indices, [wallHit(mesh, triangle, 1)])).toEqual({
+				selection: { kind: 'wall', roomId: ref.roomId, segmentId: ref.segmentId },
+				distance: 1
+			});
+		}
+
+		for (const surface of ['jamb', 'sill', 'lintel', 'arch-reveal'] as const) {
+			const triangle = firstTriangleOf(
+				mesh,
+				(range) => range.kind === 'opening' && range.surface === surface
+			);
+			const ref = resolve(triangle)!;
+			if (ref.kind !== 'opening') throw new Error(`expected opening ref, got ${ref.kind}`);
+			expect(resolveLayout3dHits(indices, [wallHit(mesh, triangle, 1)])).toEqual({
+				selection: {
+					kind: 'opening',
+					roomId: ref.roomId,
+					segmentId: ref.segmentId,
+					openingId: ref.openingId
+				},
+				distance: 1
+			});
+		}
+	});
+
+	it('keeps bridge triangles owned by the current wall (bridge → wall, never the neighbor)', () => {
+		const mesh = buildMesh(g1LineRectangleDocument(), { miterLimit: 1 });
+		const indices = indexMap(mesh);
+		const resolve = buildLayout3dTriangleIndex(mesh);
+		const triangle = firstTriangleOf(
+			mesh,
+			(range) => range.kind === 'wall' && range.surface === 'bridge'
+		);
+		const ref = resolve(triangle)!;
+		expect(ref).toMatchObject({ kind: 'wall', surface: 'bridge' });
+		expect(resolveLayout3dHits(indices, [wallHit(mesh, triangle, 1)])).toEqual({
+			selection: { kind: 'wall', roomId: ref.roomId, segmentId: ref.segmentId },
+			distance: 1
+		});
+	});
+
+	it('resolves floor and ceiling candidates to the room selection', () => {
+		const indices = new Map<string, Layout3dPickIndex>();
+		expect(
+			resolveLayout3dHits(indices, [roomHit('r1', 'floor', 1)])
+		).toEqual({ selection: { kind: 'room', roomId: 'r1' }, distance: 1 });
+		expect(
+			resolveLayout3dHits(indices, [roomHit('r1', 'ceiling', 2)])
+		).toEqual({ selection: { kind: 'room', roomId: 'r1' }, distance: 2 });
+	});
+
+	it('drops unresolvable wall-triangles instead of promoting them', () => {
+		const mesh = buildMesh(g1MultipleOpeningsDocument());
+		const indices = indexMap(mesh);
+		const triangleCount = mesh.indices.length / 3;
+
+		expect(resolveLayout3dHits(indices, [wallHit(mesh, triangleCount, 1)])).toBeNull();
+		expect(resolveLayout3dHits(indices, [wallHit(mesh, -1, 1)])).toBeNull();
+		expect(
+			resolveLayout3dHits(indices, [
+				{ kind: 'wall-triangle', roomId: 'unknown', triangleIndex: 0, distance: 1 }
+			])
+		).toBeNull();
+
+		// An unresolvable near hit never shadows a farther valid candidate.
+		expect(
+			resolveLayout3dHits(indices, [
+				wallHit(mesh, triangleCount, 0.5),
+				objectHit('obj', 2)
+			])
+		).toEqual({ selection: { kind: 'object', objectId: 'obj' }, distance: 2 });
+	});
+
+	it('resolves equal-priority equal-depth ties by stable input order, deterministically', () => {
+		const indices = new Map<string, Layout3dPickIndex>();
+		const first = objectHit('obj-a', 2);
+		const second = objectHit('obj-b', 2);
+
+		const resolved = resolveLayout3dHits(indices, [first, second]);
+		expect(resolved).toEqual({ selection: { kind: 'object', objectId: 'obj-a' }, distance: 2 });
+		// Repeated calls agree, and input order is the tie-breaker.
+		expect(resolveLayout3dHits(indices, [first, second])).toEqual(resolved);
+		expect(resolveLayout3dHits(indices, [second, first])).toEqual({
+			selection: { kind: 'object', objectId: 'obj-b' },
+			distance: 2
+		});
 	});
 });

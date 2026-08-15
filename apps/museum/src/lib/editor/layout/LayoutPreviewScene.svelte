@@ -168,6 +168,7 @@
 					material={adapted.materials}
 					castShadow
 					receiveShadow
+					userData={{ surfaceType: 'wall', roomId: room.roomId }}
 				/>
 			{/if}
 		</T.Group>

@@ -107,6 +107,8 @@ export type SelectionHitInfo = {
 	cameraSelection?: EditorCameraSelection | null;
 	/** Any climbed navigation helper, including path connections and anchors. */
 	navigationSelection?: EditorNavigationSelection;
+	/** H1 S6 — raycast distance in meters. Runtime intersections always set it; absent on legacy/manual fixtures. */
+	distance?: number;
 };
 
 export type NormalSelectionResult =
@@ -340,7 +342,8 @@ export function selectionHitFromIntersection(hit: Intersection): SelectionHitInf
 						handle: navigationSelection.handle
 				  }
 				: null,
-		navigationSelection
+		navigationSelection,
+		distance: hit.distance
 	};
 }
 
@@ -363,49 +366,81 @@ export function uniquePlacementIdsInOrder(hits: SelectionHitInfo[]): string[] {
 }
 
 /**
- * Normal click: an effective camera helper wins over placement geometry.
- * Otherwise the first effective hit keeps the existing placement/deselect rule.
+ * Normal click resolver paired with the exact hit that produced the result.
+ * Same opacity filtering + camera/navigation/placement priority as
+ * `resolveNormalSelection`; the returned `sourceHit` is the actionable source
+ * hit (null for a `deselect`, even when the first effective hit is
+ * non-interactive editor chrome). H1 S6 uses the source hit's `distance` for
+ * cross-domain nearest-visible arbitration — never nearest-tag guessing.
  */
-export function resolveNormalSelection(
+export function resolveNormalSelectionWithHit(
 	hits: SelectionHitInfo[]
-): NormalSelectionResult {
+): { result: NormalSelectionResult; sourceHit: SelectionHitInfo | null } {
 	const effective = filterEffectiveHits(hits);
 	const cameraHit = effective.find(
 		(hit) => hit.navigationSelection?.kind === 'node' || hit.cameraSelection
 	);
 	if (cameraHit?.cameraSelection) {
-		return { action: 'select-camera', selection: cameraHit.cameraSelection };
+		return {
+			result: { action: 'select-camera', selection: cameraHit.cameraSelection },
+			sourceHit: cameraHit
+		};
 	}
 	if (cameraHit?.navigationSelection?.kind === 'node') {
 		const { nodeId, handle } = cameraHit.navigationSelection;
-		return { action: 'select-camera', selection: { nodeId, handle } };
+		return {
+			result: { action: 'select-camera', selection: { nodeId, handle } },
+			sourceHit: cameraHit
+		};
 	}
 
 	const anchorHit = effective.find(
 		(hit) => hit.navigationSelection?.kind === 'view-keyframe'
 	);
 	if (anchorHit?.navigationSelection) {
-		return { action: 'select-navigation', selection: anchorHit.navigationSelection };
+		return {
+			result: { action: 'select-navigation', selection: anchorHit.navigationSelection },
+			sourceHit: anchorHit
+		};
 	}
 
 	const pathAnchorHit = effective.find(
 		(hit) => hit.navigationSelection?.kind === 'anchor'
 	);
 	if (pathAnchorHit?.navigationSelection) {
-		return { action: 'select-navigation', selection: pathAnchorHit.navigationSelection };
+		return {
+			result: { action: 'select-navigation', selection: pathAnchorHit.navigationSelection },
+			sourceHit: pathAnchorHit
+		};
 	}
 
 	const connectionHit = effective.find(
 		(hit) => hit.navigationSelection?.kind === 'connection'
 	);
 	if (connectionHit?.navigationSelection) {
-		return { action: 'select-navigation', selection: connectionHit.navigationSelection };
+		return {
+			result: { action: 'select-navigation', selection: connectionHit.navigationSelection },
+			sourceHit: connectionHit
+		};
 	}
 
 	const first = effective[0];
-	if (!first) return { action: 'deselect' };
-	if (first.placementId) return { action: 'select', id: first.placementId };
-	return { action: 'deselect' };
+	if (!first) return { result: { action: 'deselect' }, sourceHit: null };
+	if (first.placementId) {
+		return { result: { action: 'select', id: first.placementId }, sourceHit: first };
+	}
+	return { result: { action: 'deselect' }, sourceHit: null };
+}
+
+/**
+ * Normal click: an effective camera helper wins over placement geometry.
+ * Otherwise the first effective hit keeps the existing placement/deselect rule.
+ * Delegates to `resolveNormalSelectionWithHit`; return shape unchanged.
+ */
+export function resolveNormalSelection(
+	hits: SelectionHitInfo[]
+): NormalSelectionResult {
+	return resolveNormalSelectionWithHit(hits).result;
 }
 
 /**

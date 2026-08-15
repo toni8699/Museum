@@ -69,7 +69,7 @@ not change when account save arrives.
 |-----|-------|
 | Shipped | B5 serialized runtime cutover + G1–G4 graphics foundation |
 | **P0** | H1 unified Plan-to-3D project editor — [`plans/2026-08-14-graphics-h1-unified-3d-editing.md`](./plans/2026-08-14-graphics-h1-unified-3d-editing.md) |
-| P1 | H1 project-local GLB/package sub-slice + full round-trip |
+| P1 | Post-H1: project-local GLB import + account persistence (S9a + D1 — deferred from H1, 2026-08-15) |
 | P2 | Measured optimization from G3 budgets; cache/rebuild/batch/cull only when proven |
 | P3 | Material polish and product-useful effects |
 | P4 | Multi-story after single-floor New Project → export/import gate |
@@ -80,11 +80,12 @@ H1 ships only when one new project completes:
 
 ```text
 empty Plan → valid rooms → generated 3D → layout fine-tune
-→ asset placement → camera authoring/playback → export → fresh import
+→ catalogue asset placement → camera authoring/playback → export → fresh import
 ```
 
-Imported project must reproduce layout, scene, assets, and camera tour. No
-visitor promotion or Chopin migration required.
+Imported project must reproduce layout, scene, and camera tour; asset placement
+uses the shipped catalogue (user-GLB import is the post-H1 plan). No visitor
+promotion or Chopin migration required.
 
 ## Technology gates
 

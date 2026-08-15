@@ -16,7 +16,19 @@
 	import EditorViewportToolbar from '$lib/editor/EditorViewportToolbar.svelte';
 	import PlacementGhost from '$lib/editor/placement-ghost.svelte';
 	import LayoutPreviewScene from '$lib/editor/layout/LayoutPreviewScene.svelte';
-	import type { LayoutInteractionState } from '$lib/editor/layout/layout-interaction';
+	import {
+		selectLayoutInteriorAnchor,
+		selectLayoutObject,
+		selectLayoutOpening,
+		selectLayoutRoom,
+		selectLayoutWall,
+		type LayoutInteractionState
+	} from '$lib/editor/layout/layout-interaction';
+	import {
+		layoutPickBeatsSceneDistance,
+		resolveLayout3dHits,
+		type Layout3dHitCandidate
+	} from '$lib/editor/layout/layout-3d-picking';
 	import type { LayoutPreviewState } from '$lib/editor/layout/layout-preview-state.svelte';
 	import type { MuseumEditorStore } from '$lib/editor/museum-editor.svelte';
 	import { resolveEditorPlacementScale } from '$lib/editor/scale-vector';
@@ -64,6 +76,58 @@
 	};
 
 	let transformControls = $state<TransformControls>();
+
+	/**
+	 * H1 S6 — resolve 3D layout candidates through the S5 pick index and commit
+	 * the winner through the existing `selectLayout*` helpers. Returns `false`
+	 * when no layout candidate resolved, or when an actionable scene/camera hit
+	 * is nearer (scene wins the exact-tie band); `true` commits a layout
+	 * selection and lets the coordinator skip the normal dispatch.
+	 */
+	function handleLayoutPick(
+		candidates: readonly Layout3dHitCandidate[],
+		competingSceneDistance: number | null
+	): boolean {
+		const resolved = resolveLayout3dHits(layoutPreview.layout3dPickIndexByRoom, candidates);
+		if (!resolved) return false;
+		if (!layoutPickBeatsSceneDistance(resolved.distance, competingSceneDistance)) {
+			return false;
+		}
+		switch (resolved.selection.kind) {
+			case 'room':
+				selectLayoutRoom(layoutInteraction, resolved.selection.roomId);
+				break;
+			case 'wall':
+				selectLayoutWall(
+					layoutInteraction,
+					resolved.selection.roomId,
+					resolved.selection.segmentId
+				);
+				break;
+			case 'opening':
+				selectLayoutOpening(
+					layoutInteraction,
+					resolved.selection.roomId,
+					resolved.selection.segmentId,
+					resolved.selection.openingId
+				);
+				break;
+			case 'interiorAnchor':
+				selectLayoutInteriorAnchor(
+					layoutInteraction,
+					resolved.selection.roomId,
+					resolved.selection.segmentId,
+					resolved.selection.anchorId
+				);
+				break;
+			case 'object':
+				selectLayoutObject(layoutInteraction, resolved.selection.objectId);
+				break;
+			case 'none':
+				break;
+		}
+		return true;
+	}
 </script>
 
 <div
@@ -137,6 +201,7 @@
 			{store}
 			{transformControls}
 			onDeselect={activeSelection ? () => activeSelection.deselectActive() : undefined}
+			onLayoutPick={store.isVisitorCameraPreview ? undefined : handleLayoutPick}
 		/>
 		<EditorPlacementTools {store} />
 		{#if !store.isVisitorCameraPreview}

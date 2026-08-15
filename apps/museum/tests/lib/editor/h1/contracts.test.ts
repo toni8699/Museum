@@ -454,6 +454,40 @@ describe('H1 S5 — layout 3D pick metadata', () => {
 	});
 });
 
+describe('H1 S6 — centralized 3D layout selection', () => {
+	it('extends the single coordinator with an optional onLayoutPick prop, absent on the relic', () => {
+		const selection = readLibSource('editor/EditorSelection.svelte');
+		expect(selection).toContain('onLayoutPick?:');
+		expect(selection).toContain('competingSceneDistance: number | null');
+		expect(selection).toContain('layoutCandidatesFromIntersections');
+
+		const viewport = readLibSource('editor/EditorViewport.svelte');
+		expect(viewport).toContain('<EditorSelection {store} {transformControls} />');
+		expect(viewport).not.toContain('onLayoutPick');
+	});
+
+	it('wires the H1 shell behind a visitor-preview gate', () => {
+		const h13d = readLibSource('editor/h1/H13DView.svelte');
+		expect(h13d).toContain('onLayoutPick={store.isVisitorCameraPreview ? undefined : handleLayoutPick}');
+		expect(h13d).toContain('resolveLayout3dHits');
+		expect(h13d).toContain('layoutPickBeatsSceneDistance');
+	});
+
+	it('tags the wall mesh with authored object-level identity in the shared scene', () => {
+		const scene = readLibSource('editor/layout/LayoutPreviewScene.svelte');
+		expect(scene).toContain("userData={{ surfaceType: 'wall', roomId: room.roomId }}");
+	});
+
+	it('exports the S6 resolution contracts from the pure picking module', () => {
+		const picking = readLibSource('editor/layout/layout-3d-picking.ts');
+		expect(picking).toContain('export type Layout3dHitCandidate');
+		expect(picking).toContain('export type Layout3dResolvedHit');
+		expect(picking).toContain('export function resolveLayout3dHits');
+		expect(picking).toContain('export function layoutCandidatesFromIntersections');
+		expect(picking).toContain('LAYOUT_3D_SAME_DEPTH_EPSILON = 1e-4');
+	});
+});
+
 describe('H1 S3 — cross-domain selection contracts', () => {
 	it('forwards onSelectionActivate from the store options into the reducer', () => {
 		let fired = 0;

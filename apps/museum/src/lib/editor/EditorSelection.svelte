@@ -29,10 +29,15 @@
 		findPlacementIdFromObject,
 		findPriorityCameraViewKeyframeHandle,
 		resolveNormalSelection,
+		resolveNormalSelectionWithHit,
 		selectionHitFromIntersection,
 		uniquePlacementIdsInOrder,
 		type EditorNavigationSelection
 	} from './editor-selection';
+	import {
+		layoutCandidatesFromIntersections,
+		type Layout3dHitCandidate
+	} from './layout/layout-3d-picking';
 	import {
 		firstRenderablePlacementId,
 		TEXTURE_DRAG_MIME
@@ -51,12 +56,24 @@
 	let {
 		store,
 		transformControls,
-		onDeselect
+		onDeselect,
+		onLayoutPick
 	}: {
 		store: MuseumEditorStore;
 		transformControls?: TransformControls;
 		/** H1 S3 — deselect the *active* domain (default: scene-owned deselect, so the frozen relic is untouched). */
 		onDeselect?: () => void;
+		/**
+		 * H1 S6 — optional layout-pick branch. Absent on the relic mount (frozen
+		 * behavior). When present, the click flow resolves the normal result
+		 * once, then offers the candidates + the actionable scene/camera source
+		 * distance (or null) to this callback; a `true` return commits a layout
+		 * selection, otherwise the already-resolved normal result applies.
+		 */
+		onLayoutPick?: (
+			candidates: readonly Layout3dHitCandidate[],
+			competingSceneDistance: number | null
+		) => boolean;
 	} = $props();
 
 	const { camera, scene, canvas } = useThrelte();
@@ -835,7 +852,21 @@
 			return;
 		}
 
-		const result = resolveNormalSelection(hits);
+		// H1 S6 — the layout branch reuses this one `intersections` list (no
+		// second raycast). Resolve the normal result once with its source hit,
+		// then offer the candidates to the callback; only when it declines do we
+		// fall through to the existing dispatch with the already-resolved result.
+		const normal = onLayoutPick ? resolveNormalSelectionWithHit(hits) : null;
+		if (normal && onLayoutPick) {
+			const candidates = layoutCandidatesFromIntersections(intersections);
+			const competingSceneDistance =
+				normal.result.action === 'deselect'
+					? null
+					: (normal.sourceHit?.distance ?? null);
+			if (onLayoutPick(candidates, competingSceneDistance)) return;
+		}
+
+		const result = normal ? normal.result : resolveNormalSelection(hits);
 		if (result.action === 'select-camera') {
 			if (store.cameraSelection?.nodeId !== result.selection.nodeId) {
 				store.selectionActions.selectNavigationNode(result.selection.nodeId);

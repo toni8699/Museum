@@ -15,6 +15,8 @@
 
 **Project:** `{ id, name, layout, scene }`. Visitor-safe shared codec validates nested layout + scene in one shape, prefixes nested issues, rejects scene room references absent from same layout. `chopin-project.json` = sole production layout/scene source; `chopin-project.ts` validates once, exposes project, one room registry, resolved scene, navigation graph, runtime. No assets, binary payloads, UI, or history in envelope.
 
+**H1 scope note (2026-08-15):** H1 packages contain no user binary assets — scene entities reference shipped catalogue `assetId`s only; project-local GLB import + account persistence are the deferred post-H1 plan.
+
 **History:** one chronological undo stack; entries tagged `layout` | `scene`; 100-entry cap; scene/layout transactions validate before commit; undo/redo replaces only entry's domain; no-op skips entry; scene or layout import/reset clears stack.
 
 **Session-only:** `scaleVector` map, lighting overrides, UI chrome, pending ghosts.

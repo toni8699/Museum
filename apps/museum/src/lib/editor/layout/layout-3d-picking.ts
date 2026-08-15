@@ -13,6 +13,7 @@
 
 import type { IndexedWallMesh, Layout3dPickRange, Layout3dTriangleRef } from '$lib/layout/wall-mesh-builder';
 import type { CompiledLayoutGeometry } from '$lib/layout/layout-geometry-types';
+import type { LayoutSelection } from './layout-interaction';
 
 export type { Layout3dPickRange, Layout3dTriangleRef } from '$lib/layout/wall-mesh-builder';
 
@@ -132,4 +133,253 @@ export function layoutAnchorHelperPlacements(
 		});
 	}
 	return placements;
+}
+
+// =====================================================================
+// H1 S6 — centralized 3D layout selection (pure resolution + candidate
+// extraction). The S6 coordinator reuses the S5 `layout3dPickIndexByRoom`
+// cache: raycast hits become `Layout3dHitCandidate`s structurally (no `three`
+// import — `RaycastHitLike` is a local shape) and `resolveLayout3dHits`
+// arbitrates nearest-visible + same-depth semantic priority into the existing
+// `LayoutSelection` union. Keep this module renderer-neutral: the purity test
+// above covers everything below automatically.
+// =====================================================================
+
+/**
+ * Same-depth noise band in meters. Not a tie-breaker *toward* layout: at
+ * `|Δd| ≤ ε` the cross-domain comparator hands the click to the visible
+ * content, never the background surface. Within the layout candidate set the
+ * band defines the semantic tie group (anchor → opening → object → wall →
+ * room). 1e-4 is measured: coincident faces raycast ~1e-15 apart while the
+ * nearest genuinely distinct geometry (anchor helper +2 cm, wall thickness
+ * 0.2 m) sits 4+ orders of magnitude outside it.
+ */
+export const LAYOUT_3D_SAME_DEPTH_EPSILON = 1e-4;
+
+/** Umbrella contract, exact shape (see the H1 umbrella plan). */
+export type Layout3dHitCandidate =
+	| { kind: 'object'; objectId: string; distance: number }
+	| { kind: 'anchor'; roomId: string; segmentId: string; anchorId: string; distance: number }
+	| { kind: 'wall-triangle'; roomId: string; triangleIndex: number; distance: number }
+	| { kind: 'room-surface'; roomId: string; surface: 'floor' | 'ceiling'; distance: number };
+
+/** A resolved layout selection paired with its winning ray distance (cross-domain arbitration needs both). */
+export type Layout3dResolvedHit = {
+	selection: LayoutSelection;
+	distance: number;
+};
+
+/** Structural intersection object: only the fields the coordinator reads. */
+export type RaycastHitObjectLike = {
+	userData: unknown;
+	parent: RaycastHitObjectLike | null;
+};
+
+/** Structural intersection shape — never `three.Intersection`, so purity holds. */
+export type RaycastHitLike = {
+	object: RaycastHitObjectLike;
+	distance: number;
+	faceIndex?: number | null;
+};
+
+type RaycastHitUserData = Record<string, unknown>;
+
+function hitUserData(object: RaycastHitObjectLike): RaycastHitUserData {
+	const data = object.userData;
+	return data && typeof data === 'object' ? (data as RaycastHitUserData) : {};
+}
+
+/** Climb the parent chain for the first node whose `userData` satisfies `match`. */
+function climbHitUserData(
+	object: RaycastHitObjectLike,
+	match: (data: RaycastHitUserData) => boolean
+): RaycastHitUserData | null {
+	let current: RaycastHitObjectLike | null = object;
+	while (current) {
+		const data = hitUserData(current);
+		if (match(data)) return data;
+		current = current.parent;
+	}
+	return null;
+}
+
+/**
+ * Convert raw raycast intersections into layout pick candidates. Reads only
+ * authored `userData` (surfaceType / editorEntity walk-up), `distance`, and
+ * `faceIndex` — never names or coordinate guessing. Everything else (scene
+ * entities, camera helpers, grid, lights, the highlight shell, placement
+ * ghost) yields no candidate and stays with the scene/camera flow.
+ */
+export function layoutCandidatesFromIntersections(
+	intersections: readonly RaycastHitLike[]
+): Layout3dHitCandidate[] {
+	const candidates: Layout3dHitCandidate[] = [];
+	for (const intersection of intersections) {
+		const own = hitUserData(intersection.object);
+		const surfaceType = own.surfaceType;
+		const roomId = own.roomId;
+
+		// Wall mesh: object-level authored identity (S6 tag). Three's
+		// `Mesh.raycast` reports `faceIndex` as the triangle number of the
+		// indexed buffer — the S5 index key — so it is copied as-is, never
+		// divided.
+		if (surfaceType === 'wall' && typeof roomId === 'string') {
+			if (typeof intersection.faceIndex === 'number') {
+				candidates.push({
+					kind: 'wall-triangle',
+					roomId,
+					triangleIndex: intersection.faceIndex,
+					distance: intersection.distance
+				});
+			}
+			continue;
+		}
+
+		// Floor/ceiling surfaces → room selection.
+		if (
+			(surfaceType === 'floor' || surfaceType === 'ceiling') &&
+			typeof roomId === 'string'
+		) {
+			candidates.push({
+				kind: 'room-surface',
+				roomId,
+				surface: surfaceType,
+				distance: intersection.distance
+			});
+			continue;
+		}
+
+		// Interior-anchor helper: identity lives on the parent group.
+		const anchorData = climbHitUserData(
+			intersection.object,
+			(data) => data.editorEntity === 'layout-anchor'
+		);
+		if (
+			anchorData &&
+			typeof anchorData.roomId === 'string' &&
+			typeof anchorData.segmentId === 'string' &&
+			typeof anchorData.anchorId === 'string'
+		) {
+			candidates.push({
+				kind: 'anchor',
+				roomId: anchorData.roomId,
+				segmentId: anchorData.segmentId,
+				anchorId: anchorData.anchorId,
+				distance: intersection.distance
+			});
+			continue;
+		}
+
+		// Layout object: identity lives on the parent group.
+		const objectData = climbHitUserData(
+			intersection.object,
+			(data) => data.editorEntity === 'layout-object'
+		);
+		if (objectData && typeof objectData.layoutObjectId === 'string') {
+			candidates.push({
+				kind: 'object',
+				objectId: objectData.layoutObjectId,
+				distance: intersection.distance
+			});
+		}
+	}
+	return candidates;
+}
+
+/** Semantic priority for same-depth ties (lower wins): anchor → opening → object → wall → room. */
+function layoutSelectionPriority(selection: LayoutSelection): number {
+	switch (selection.kind) {
+		case 'interiorAnchor':
+			return 0;
+		case 'opening':
+			return 1;
+		case 'object':
+			return 2;
+		case 'wall':
+			return 3;
+		case 'room':
+			return 4;
+		case 'none':
+			return 5;
+	}
+}
+
+/** Map one candidate to a `LayoutSelection`, dropping unresolvable wall-triangles. */
+function resolveLayout3dCandidate(
+	pickIndices: ReadonlyMap<string, Layout3dPickIndex>,
+	hit: Layout3dHitCandidate
+): LayoutSelection | null {
+	switch (hit.kind) {
+		case 'object':
+			return { kind: 'object', objectId: hit.objectId };
+		case 'anchor':
+			return {
+				kind: 'interiorAnchor',
+				roomId: hit.roomId,
+				segmentId: hit.segmentId,
+				anchorId: hit.anchorId
+			};
+		case 'room-surface':
+			return { kind: 'room', roomId: hit.roomId };
+		case 'wall-triangle': {
+			const resolve = pickIndices.get(hit.roomId);
+			const ref = resolve?.(hit.triangleIndex);
+			if (!ref) return null; // out-of-range / unknown room → dropped, never promoted
+			if (ref.kind === 'opening') {
+				return {
+					kind: 'opening',
+					roomId: ref.roomId,
+					segmentId: ref.segmentId,
+					openingId: ref.openingId
+				};
+			}
+			return { kind: 'wall', roomId: ref.roomId, segmentId: ref.segmentId };
+		}
+	}
+}
+
+/**
+ * Resolve layout candidates into the winning `{ selection, distance }`:
+ * nearest-visible wins; within `LAYOUT_3D_SAME_DEPTH_EPSILON` the semantic
+ * priority anchor → opening → object → wall → room applies, then stable input
+ * order. `null` = no layout selection (background or scene/camera).
+ */
+export function resolveLayout3dHits(
+	pickIndices: ReadonlyMap<string, Layout3dPickIndex>,
+	hits: readonly Layout3dHitCandidate[]
+): Layout3dResolvedHit | null {
+	const resolved: Layout3dResolvedHit[] = [];
+	for (const hit of hits) {
+		const selection = resolveLayout3dCandidate(pickIndices, hit);
+		if (selection) resolved.push({ selection, distance: hit.distance });
+	}
+	if (resolved.length === 0) return null;
+
+	// Stable ascending sort; equal distances keep input order.
+	resolved.sort((a, b) => a.distance - b.distance);
+	const nearestDistance = resolved[0]!.distance;
+	const tieGroup = resolved.filter(
+		(hit) => hit.distance - nearestDistance <= LAYOUT_3D_SAME_DEPTH_EPSILON
+	);
+	// Stable priority sort: equal priority keeps the distance/input order.
+	tieGroup.sort(
+		(a, b) => layoutSelectionPriority(a.selection) - layoutSelectionPriority(b.selection)
+	);
+	return tieGroup[0]!;
+}
+
+/**
+ * Cross-domain nearest-visible yield rule (pure, shared by the S6 handler and
+ * its tests). The layout selection wins only when there is no actionable
+ * scene/camera hit (`sceneDistance === null`) or the layout hit is strictly
+ * nearer by more than the same-depth epsilon. At `|Δd| ≤ ε` the visible
+ * content wins — never the background surface (the epsilon is a noise band,
+ * not a tie-breaker toward layout).
+ */
+export function layoutPickBeatsSceneDistance(
+	layoutDistance: number,
+	sceneDistance: number | null
+): boolean {
+	if (sceneDistance === null) return true;
+	return layoutDistance < sceneDistance - LAYOUT_3D_SAME_DEPTH_EPSILON;
 }

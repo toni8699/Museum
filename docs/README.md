@@ -70,6 +70,7 @@ portable export/import only (session/account save is future work).
 | H1 Plan → 3D editor | [`plans/2026-08-14-graphics-h1-unified-3d-editing.md`](./plans/2026-08-14-graphics-h1-unified-3d-editing.md) |
 | Graphics foundation / G5 | [`plans/2026-08-13-graphics-architecture-roadmap.md`](./plans/2026-08-13-graphics-architecture-roadmap.md) |
 | Shared geometry compiler | [`plans/2026-08-13-graphics-g1-shared-geometry-compiler.md`](./plans/2026-08-13-graphics-g1-shared-geometry-compiler.md) |
+| Geometry-kernel library review | [`plans/2026-08-15-geometry-kernel-library-review.md`](./plans/2026-08-15-geometry-kernel-library-review.md) |
 | Editor shell / views | [`components/shell.md`](./components/shell.md) |
 | Entities / materials / library | [`components/scene-content.md`](./components/scene-content.md) |
 | Gizmo / placement / transforms | [`components/placement.md`](./components/placement.md) |

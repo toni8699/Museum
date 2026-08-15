@@ -3,6 +3,7 @@
 	import { DoubleSide, Shape, type BufferGeometry, type Material } from 'three';
 	import type { LayoutPreviewModel } from './layout-mesh-factory';
 	import type { LayoutInteractionState } from './layout-interaction';
+	import { layoutAnchorHelperPlacements } from './layout-3d-picking';
 	import type { LayoutVec2 } from './layout-types';
 	import { ceilingShapePoints, floorShapePoints } from './layout-preview-geometry';
 	import {
@@ -26,13 +27,19 @@
 		geometry,
 		wallMeshesByRoom,
 		interaction,
-		showCeilings = false
+		showCeilings = false,
+		showAnchors = true
 	}: {
 		model: LayoutPreviewModel;
 		geometry: CompiledLayoutGeometry;
 		wallMeshesByRoom: ReadonlyMap<string, IndexedWallMesh>;
 		interaction: LayoutInteractionState;
 		showCeilings?: boolean;
+		// H1 S5 review fix — editor-only anchor helpers are editor chrome: the
+		// H1 shell passes `!store.isVisitorCameraPreview` so a visitor camera
+		// preview never frames them (same convention as grid/selection/ghost).
+		// Default true keeps the relic EditorViewport mount unchanged.
+		showAnchors?: boolean;
 	} = $props();
 
 	function polygonShape(points: readonly LayoutVec2[]): Shape {
@@ -53,6 +60,14 @@
 			ceiling: polygonShape(ceilingShapePoints(room.ceilingPolygon))
 		}))
 	);
+
+	// H1 S5 — editor-only interior-anchor helper placements (auto-bezier walls
+	// only), lifted to each room's floor elevation. Identity is qualified and
+	// never coordinate-guessed; helpers carry no editorSurface so placement
+	// grounding ignores them. S6's raycast coordinator gives them the top
+	// semantic priority; until then they are inert (a click resolves as a
+	// background deselect, like a wall mesh today).
+	const anchorPlacements = $derived(layoutAnchorHelperPlacements(geometry));
 
 	// Selection-independent base classifier: every surface class resolves to the
 	// shared default wall material. Selection color lives only on the overlay,
@@ -139,6 +154,7 @@
 					position={[0, room.ceilingElevation, 0]}
 					rotation={[Math.PI / 2, 0, 0]}
 					renderOrder={2}
+					userData={{ surfaceType: 'ceiling', roomId: room.roomId }}
 				>
 					<T.ShapeGeometry args={[shapes.ceiling]} />
 					<T.MeshBasicMaterial color="#d8c9a6" side={DoubleSide} />
@@ -164,6 +180,26 @@
 			material={highlight.material}
 			renderOrder={3}
 		/>
+	{/if}
+
+	{#if showAnchors}
+		{#each anchorPlacements as placement (JSON.stringify([placement.roomId, placement.segmentId, placement.anchorId]))}
+			<T.Group
+				name={`LayoutAnchor:${placement.anchorId}`}
+				position={[placement.position[0], placement.position[1] + 0.02, placement.position[2]]}
+				userData={{
+					editorEntity: 'layout-anchor',
+					roomId: placement.roomId,
+					segmentId: placement.segmentId,
+					anchorId: placement.anchorId
+				}}
+			>
+				<T.Mesh>
+					<T.OctahedronGeometry args={[0.12]} />
+					<T.MeshBasicMaterial color="#d6b35f" />
+				</T.Mesh>
+			</T.Group>
+		{/each}
 	{/if}
 
 	{#each model.objects as object (object.objectId)}

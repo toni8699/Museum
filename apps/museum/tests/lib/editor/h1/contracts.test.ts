@@ -402,6 +402,63 @@ describe('H1 S4 — unified hierarchy contracts', () => {
 	});
 });
 
+describe('H1 S5 — layout 3D pick metadata', () => {
+	it('keeps the pure builder + pick module free of renderer/Svelte imports', () => {
+		const builder = readLibSource('layout/wall-mesh-builder.ts');
+		const picking = readLibSource('editor/layout/layout-3d-picking.ts');
+		for (const source of [builder, picking]) {
+			expect(source).not.toMatch(/from\s+['"](three|svelte|@threlte|\$app)['"]/);
+			expect(source).not.toMatch(/\$lib\/museum/);
+		}
+	});
+
+	it('tags the ceiling and anchor helpers with explicit authored identity in the shared scene', () => {
+		const scene = readLibSource('editor/layout/LayoutPreviewScene.svelte');
+		// Ceiling is pick-identifiable (surfaceType 'ceiling' + roomId) but carries
+		// no editorSurface, so placement grounding still ignores it.
+		expect(scene).toMatch(/surfaceType: 'ceiling'/);
+		expect(scene).toMatch(/editorEntity: 'layout-anchor'/);
+		// The scene derives helpers from the pure module, never hardcodes positions.
+		expect(scene).toContain('layoutAnchorHelperPlacements');
+	});
+
+	it('keeps anchor helpers editor-only: un-colliding each key + hidden during visitor preview', () => {
+		const scene = readLibSource('editor/layout/LayoutPreviewScene.svelte');
+		const h13d = readLibSource('editor/h1/H13DView.svelte');
+		// IDs legally contain ':' (ID_PATTERN), so the joined key is ambiguous;
+		// the each key is the JSON-serialized tuple, never a colon join.
+		expect(scene).toContain('JSON.stringify([placement.roomId, placement.segmentId, placement.anchorId])');
+		expect(scene).not.toContain('`${placement.roomId}:${placement.segmentId}:${placement.anchorId}`');
+		// Helpers are editor chrome: the H1 shell hides them while a visitor
+		// camera preview plays (grid/selection/ghost already do), via a prop so
+		// the relic EditorViewport mount keeps the default (visible) behavior.
+		expect(scene).toContain('showAnchors = true');
+		expect(scene).toContain('{#if showAnchors}');
+		expect(h13d).toContain('showAnchors={!store.isVisitorCameraPreview}');
+	});
+
+	it('fails the wall-mesh build closed on an untagged face (pick-tag guard)', () => {
+		const builder = readLibSource('layout/wall-mesh-builder.ts');
+		expect(builder).toContain('untagged face');
+		expect(builder).toMatch(/if \(!face\.pick\) \{/);
+	});
+
+	it('carries pickRanges through the adapter as userData, never geometry groups', () => {
+		const adapter = readLibSource('render/wall-geometry-adapter.ts');
+		expect(adapter).toContain('geometry.userData.pickRanges = mesh.pickRanges');
+		// Exactly one geometry.addGroup( call — the material-group loop only.
+		// pickRanges is metadata on userData and must never add a group (zero
+		// draw-call delta). The other addGroup mentions are doc comments.
+		expect(adapter.match(/geometry\.addGroup\(/g)?.length).toBe(1);
+	});
+
+	it('keeps the preview-state pick index cache beside the wall-mesh cache', () => {
+		const state = readLibSource('editor/layout/layout-preview-state.svelte.ts');
+		expect(state).toContain('layout3dPickIndexByRoom');
+		expect(state).toContain('buildLayout3dTriangleIndex');
+	});
+});
+
 describe('H1 S3 — cross-domain selection contracts', () => {
 	it('forwards onSelectionActivate from the store options into the reducer', () => {
 		let fired = 0;

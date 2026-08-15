@@ -1,7 +1,7 @@
 # H1 S5 — Complete Wall/Opening 3D Pick Metadata
 
 **Date:** 2026-08-15
-**Status:** Planned
+**Status:** Shipped
 **Parent:** [`2026-08-14-graphics-h1-unified-3d-editing.md`](./2026-08-14-graphics-h1-unified-3d-editing.md)
 **Prerequisite:** S4 · Unified Project Hierarchy
 **Handoff:** [`../../hand-off/CURRENT.md`](../../hand-off/CURRENT.md)
@@ -416,10 +416,50 @@ the visitor shell, and everything under `/museum/editor`.
 
 ## Implementation notes (as-built deviations)
 
-Filled at close — expected hot spots: the exact Face-tagging mechanism
-(surface field vs. parallel structure), whether `pickRanges` runs are merged
-during emission or only in the index build, and the anchor helper mesh size/
-style after visual QA.
+- **Face tagging**: `Face` gained an internal `pick?: FacePick` (kind + surface
+  only — `roomId`/`segmentId` come from the emitting wall context at emit
+  time, not stored per face). Sections compute `sectionPick`/`undersidePick`
+  from `section.kind`/`section.openingId` with a defensive fallback to wall
+  `'lintel'` when a lintel section somehow lacks `openingId` (the compiler
+  never does); jambs tag `'jamb'`, bridge helpers default to `BRIDGE_PICK`
+  (`wall 'bridge'`).
+- **Run accumulation**: `emitMesh` walks the existing material-group pass and
+  merges contiguous index runs of identical `(kind, roomId, segmentId,
+  openingId, surface)` via `notePick`; disjoint runs of one ref stay separate
+  entries (a lintel section alternates `'lintel'`/`'arch-reveal'` per clip
+  interval) and the reverse index dedupes them into one table entry.
+- **TS2698 quirk**: spreading a variable whose *declared* type includes `null`
+  fails even after `if (pickRun)` narrowing ("Spread types may only be
+  created from object types"). Extracted `toPickRange(ref, start, count)`
+  whose parameter is non-nullable; both emit sites route through it.
+- **Anchor helpers**: octahedron (`OctahedronGeometry` 0.12 m) at
+  `floorElevation + 0.02` to avoid z-fighting, `MeshBasicMaterial` gold
+  (#d6b35f — matches Plan's anchor accent), `userData` carries `editorEntity:
+  'layout-anchor'` + qualified identity, no `editorSurface`. Verified inert:
+  `resolveNormalSelection` sees no `placementId`/navigation → `deselect`;
+  placement grounding filters `surfaceType === 'floor'`.
+- **Review fixes (post-ship review round)**: (1) the anchor each-block key
+  switched from colon-joined `roomId:segmentId:anchorId` to
+  `JSON.stringify([roomId, segmentId, anchorId])` — `ID_PATTERN` legally
+  allows `:` in IDs, so a crafted import could collide two distinct anchors
+  into one key and crash the keyed each (Svelte 5 throws on duplicate keys).
+  (2) helpers gained a `showAnchors` prop (default `true`, so the relic
+  `EditorViewport` mount is unchanged) threaded from `H13DView` as
+  `!store.isVisitorCameraPreview` — they are editor chrome and must not frame
+  a visitor camera preview (same convention as grid/selection/ghost).
+  (3) `emitFaceWithPick` now throws on an untagged face instead of silently
+  folding it into the previous pick run — the partition guard only catches a
+  missing owner, never a wrong one; every emitted face today is tagged, so
+  this is a fail-closed regression guard.
+- **Bridge owner verified against the emitted geometry**: forced-bevel
+  rectangle (miterLimit 1) — bridge triangles at each corner resolve to the
+  corner's current/start wall (`(0,0)→wall:0`, `(6,0)→wall:1`, `(6,4)→wall:2`,
+  `(0,4)→wall:3`), never the neighbor; both-open miter with mismatched door
+  heights (2.1 vs 2.4) — the profile-difference reveal at the shared corner
+  resolves to the current/start wall (`room-mm:wall:1`).
+- **Bench**: no re-baseline performed; `wall-mesh-build` gained only the
+  pickRanges emission pass (Chopin well under the 60 ms fail budget), all
+  `three-*-estimate` counts byte-identical (zero topology change).
 
 ## Verification
 

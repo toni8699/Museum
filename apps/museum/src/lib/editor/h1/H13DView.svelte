@@ -109,6 +109,7 @@
 			wallMeshesByRoom={layoutPreview.wallMeshesByRoom}
 			interaction={layoutInteraction}
 			showCeilings={layoutPreview.showCeilings}
+			showAnchors={!store.isVisitorCameraPreview}
 		/>
 		<EditorGrid visible={store.gridVisible && !store.isVisitorCameraPreview} />
 		{#if store.viewportShowPaths}

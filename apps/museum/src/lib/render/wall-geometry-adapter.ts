@@ -46,6 +46,7 @@ export function toWallBufferGeometry(mesh: IndexedWallMesh, resolve: WallMeshMat
 	geometry.boundingSphere = null;
 	geometry.userData.sectionToRange = mesh.sectionToRange;
 	geometry.userData.wallRanges = mesh.wallRanges;
+	geometry.userData.pickRanges = mesh.pickRanges;
 
 	const materials: Material[] = [];
 	const releases: Array<() => void> = [];

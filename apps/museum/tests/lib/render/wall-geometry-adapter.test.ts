@@ -72,6 +72,16 @@ describe('toWallBufferGeometry', () => {
 		expect(geometry.userData.wallRanges).toBe(mesh.wallRanges);
 	});
 
+	it('H1 S5 — carries pickRanges on userData and never adds geometry groups', () => {
+		const mesh = buildMesh(g1MultipleOpeningsDocument());
+		const { geometry } = toWallBufferGeometry(mesh, () => ({ material: new MeshBasicMaterial() }));
+
+		expect(geometry.userData.pickRanges).toBe(mesh.pickRanges);
+		// pickRanges is additive metadata: the draw-call structure is untouched.
+		expect(geometry.groups.length).toBe(mesh.materialGroups.length);
+		expect(mesh.pickRanges.length).toBeGreaterThan(0);
+	});
+
 	it('dispose releases each material once, is idempotent, and never disposes materials', () => {
 		const mesh = buildMesh(g1MultipleOpeningsDocument());
 		const releases: Array<ReturnType<typeof vi.fn>> = [];

@@ -32,6 +32,27 @@ export type IndexedWallMeshGroup = {
 	count: number;
 };
 
+/**
+ * H1 S5 — renderer-neutral pick identity for one emitted wall-buffer surface.
+ * `'lintel'` exists on both sides of the wall/opening union, so `kind` is
+ * always explicit. Additive metadata; never geometry groups, never serialized.
+ */
+export type Layout3dWallSurface = 'side' | 'lintel' | 'bridge';
+export type Layout3dOpeningSurface = 'jamb' | 'sill' | 'lintel' | 'arch-reveal';
+
+export type Layout3dTriangleRef =
+	| { kind: 'wall'; roomId: string; segmentId: string; surface: Layout3dWallSurface }
+	| {
+			kind: 'opening';
+			roomId: string;
+			segmentId: string;
+			openingId: string;
+			surface: Layout3dOpeningSurface;
+	  };
+
+/** One contiguous index run of one pick owner (triangle-aligned: `count % 3 === 0`). */
+export type Layout3dPickRange = Layout3dTriangleRef & { start: number; count: number };
+
 export type IndexedWallMesh = {
 	roomId: string;
 	positions: Float32Array; // world XYZ
@@ -41,6 +62,14 @@ export type IndexedWallMesh = {
 	materialGroups: IndexedWallMeshGroup[];
 	sectionToRange: Array<WallMeshSectionRef & { surfaceKey: WallMeshSurfaceKey; start: number; count: number }>;
 	wallRanges: Array<{ segmentId: string; ranges: Array<{ start: number; count: number }> }>;
+	/**
+	 * H1 S5 — complete authored pick identity: a sorted, non-overlapping
+	 * partition of the whole index buffer (every triangle has exactly one pick
+	 * owner). Covers wall side/lintel/bridge surfaces and opening
+	 * jamb/sill/lintel/arch-reveal surfaces — the classes `sectionToRange` /
+	 * `wallRanges` cannot identify (reveals and bridges have no owner today).
+	 */
+	pickRanges: Layout3dPickRange[];
 	bounds: LayoutBounds3;
 };
 
@@ -65,7 +94,20 @@ export type WallMeshBuildResult = {
 type V3 = [number, number, number];
 
 type Vertex = { p: V3; n: V3; u: number; v: number };
-type Face = { verts: Vertex[] };
+
+/**
+ * Pick identity attached to a face at build time. `'lintel'` exists on both
+ * sides of the wall/opening union, so `kind` is explicit, never inferred from
+ * the surface string. Reveal (jamb) and corner-bridge faces are tagged too —
+ * the two classes `sectionToRange` / `wallRanges` cannot identify. `roomId` /
+ * `segmentId` come from the emitting wall context, so only the variable parts
+ * live on the face.
+ */
+type FacePick =
+	| { kind: 'wall'; surface: Layout3dWallSurface }
+	| { kind: 'opening'; openingId: string; surface: Layout3dOpeningSurface };
+
+type Face = { verts: Vertex[]; pick?: FacePick };
 
 type ClipSample = {
 	point: LayoutVec2;
@@ -319,6 +361,25 @@ function buildSectionFaces(
 	const topY = section.topY;
 	const floorElevation = room.floorElevation;
 
+	// H1 S5 — pick identity for every face this section emits. A lintel splits
+	// into band/top ('lintel') and underside ('arch-reveal') surfaces; the sill
+	// strip (side + openingId) is the opening's 'sill'; a plain side section is
+	// the wall's 'side'. Lintels always carry an openingId from the compiler,
+	// but a defensively-missing one falls back to wall 'lintel' so no face is
+	// ever left untagged.
+	const sectionPick: FacePick = isLintel
+		? section.openingId
+			? { kind: 'opening', openingId: section.openingId, surface: 'lintel' }
+			: { kind: 'wall', surface: 'lintel' }
+		: section.openingId
+			? { kind: 'opening', openingId: section.openingId, surface: 'sill' }
+			: { kind: 'wall', surface: 'side' };
+	const undersidePick: FacePick = isLintel
+		? section.openingId
+			? { kind: 'opening', openingId: section.openingId, surface: 'arch-reveal' }
+			: { kind: 'wall', surface: 'lintel' }
+		: sectionPick;
+
 	for (let index = 1; index < clip.length; index += 1) {
 		const a = clip[index - 1]!;
 		const b = clip[index]!;
@@ -356,13 +417,15 @@ function buildSectionFaces(
 				vertex(frontA[0], yHiWorld, frontA[1], nA[0], 0, nA[1], a.distance, hi),
 				vertex(frontA[0], yLoAWorld, frontA[1], nA[0], 0, nA[1], a.distance, yLoA),
 				vertex(frontB[0], yLoBWorld, frontB[1], nB[0], 0, nB[1], b.distance, yLoB),
-				vertex(frontB[0], yHiWorld, frontB[1], nB[0], 0, nB[1], b.distance, hi)
+				vertex(frontB[0], yHiWorld, frontB[1], nB[0], 0, nB[1], b.distance, hi),
+				sectionPick
 			);
 			pushBandFace(faces,
 				vertex(backB[0], yHiWorld, backB[1], -nB[0], 0, -nB[1], b.distance, hi),
 				vertex(backB[0], yLoBWorld, backB[1], -nB[0], 0, -nB[1], b.distance, yLoB),
 				vertex(backA[0], yLoAWorld, backA[1], -nA[0], 0, -nA[1], a.distance, yLoA),
-				vertex(backA[0], yHiWorld, backA[1], -nA[0], 0, -nA[1], a.distance, hi)
+				vertex(backA[0], yHiWorld, backA[1], -nA[0], 0, -nA[1], a.distance, hi),
+				sectionPick
 			);
 		}
 
@@ -371,7 +434,8 @@ function buildSectionFaces(
 			vertex(frontA[0], yTop, frontA[1], 0, 1, 0, a.distance, wall.thickness),
 			vertex(frontB[0], yTop, frontB[1], 0, 1, 0, b.distance, wall.thickness),
 			vertex(backB[0], yTop, backB[1], 0, 1, 0, b.distance, 0),
-			vertex(backA[0], yTop, backA[1], 0, 1, 0, a.distance, 0)
+			vertex(backA[0], yTop, backA[1], 0, 1, 0, a.distance, 0),
+			sectionPick
 		));
 
 		// Bottom face: floor for side sections, arch underside for lintels. The
@@ -387,7 +451,8 @@ function buildSectionFaces(
 				vertex(p0[0], p0[1], p0[2], undersideNormal[0], undersideNormal[1], undersideNormal[2], a.distance, 0),
 				vertex(p1[0], p1[1], p1[2], undersideNormal[0], undersideNormal[1], undersideNormal[2], b.distance, 0),
 				vertex(p2[0], p2[1], p2[2], undersideNormal[0], undersideNormal[1], undersideNormal[2], b.distance, wall.thickness),
-				vertex(p3[0], p3[1], p3[2], undersideNormal[0], undersideNormal[1], undersideNormal[2], a.distance, wall.thickness)
+				vertex(p3[0], p3[1], p3[2], undersideNormal[0], undersideNormal[1], undersideNormal[2], a.distance, wall.thickness),
+				undersidePick
 			));
 		}
 	}
@@ -473,7 +538,8 @@ function buildRevealFaces(
 			// Winding must agree with the stored normal `sign * tangent`. The
 			// opening-end jamb (−sign) is already front→back→back-bottom→front-bottom;
 			// the opening-start jamb (+sign) needs the opposite order.
-			faces.push(side.sign > 0 ? quad(frontTop, frontBottom, backBottom, backTop) : quad(frontTop, backTop, backBottom, frontBottom));
+			const jambPick: FacePick = { kind: 'opening', openingId: opening.openingId, surface: 'jamb' };
+			faces.push(side.sign > 0 ? quad(frontTop, frontBottom, backBottom, backTop, jambPick) : quad(frontTop, backTop, backBottom, frontBottom, jambPick));
 		}
 	}
 	return faces;
@@ -792,6 +858,13 @@ function profileCovers(profile: ReadonlyArray<[number, number]>, lo: number, hi:
 	return profile.some(([pLo, pHi]) => lo >= pLo - LAYOUT_GEOMETRY_EPSILON && hi <= pHi + LAYOUT_GEOMETRY_EPSILON);
 }
 
+/**
+ * H1 S5 — every corner-bridge face is pick-owned by the current/start wall
+ * (the wall whose START the bridge closes), `surface: 'bridge'`. The owner
+ * comes from the emitting wall context; the face only needs the surface.
+ */
+const BRIDGE_PICK: FacePick = { kind: 'wall', surface: 'bridge' };
+
 /** Vertical bridge quad between two plan points `p` (previous wall) and `q` (current wall). */
 function pushBridgeSide(
 	faces: Face[],
@@ -803,7 +876,8 @@ function pushBridgeSide(
 	bandHi: number,
 	nA: LayoutVec2,
 	nB: LayoutVec2,
-	sign: 1 | -1
+	sign: 1 | -1,
+	pick: FacePick = BRIDGE_PICK
 ): void {
 	const bx = nA[0] + nB[0];
 	const bz = nA[1] + nB[1];
@@ -817,7 +891,8 @@ function pushBridgeSide(
 			vertex(q[0], yLo, q[1], 0, 0, 0, span, bandLo),
 			vertex(p[0], yLo, p[1], 0, 0, 0, 0, bandLo)
 		],
-		[sign * (bx / magnitude), 0, sign * (bz / magnitude)]
+		[sign * (bx / magnitude), 0, sign * (bz / magnitude)],
+		pick
 	);
 }
 
@@ -831,7 +906,8 @@ function pushBridgeCap(
 	bandLo: number,
 	bandHi: number,
 	dir: LayoutVec2,
-	sign: 1 | -1
+	sign: 1 | -1,
+	pick: FacePick = BRIDGE_PICK
 ): void {
 	const span = Math.hypot(q[0] - p[0], q[1] - p[1]);
 	pushOrientedFace(
@@ -842,7 +918,8 @@ function pushBridgeCap(
 			vertex(q[0], yLo, q[1], 0, 0, 0, span, bandLo),
 			vertex(q[0], yHi, q[1], 0, 0, 0, span, bandHi)
 		],
-		[sign * dir[0], 0, sign * dir[1]]
+		[sign * dir[0], 0, sign * dir[1]],
+		pick
 	);
 }
 
@@ -854,17 +931,17 @@ function pushBridgeCap(
  * closes its outer corner. Triangles with coincident vertices (miter side) are
  * skipped, so single-sided bevels emit only what is non-degenerate.
  */
-function pushWedgeCaps(faces: Face[], frontA: LayoutVec2, frontB: LayoutVec2, backA: LayoutVec2, backB: LayoutVec2, outer: LayoutVec2 | null, y: number, bandY: number, normalY: V3): void {
+function pushWedgeCaps(faces: Face[], frontA: LayoutVec2, frontB: LayoutVec2, backA: LayoutVec2, backB: LayoutVec2, outer: LayoutVec2 | null, y: number, bandY: number, normalY: V3, pick: FacePick = BRIDGE_PICK): void {
 	const v = (p: LayoutVec2) => vertex(p[0], y, p[1], 0, 0, 0, 0, bandY);
 	const distinct = (a: LayoutVec2, b: LayoutVec2) => Math.hypot(a[0] - b[0], a[1] - b[1]) > LAYOUT_GEOMETRY_EPSILON;
 	if (distinct(frontA, frontB) && distinct(frontA, backA) && distinct(frontB, backA)) {
-		pushOrientedFace(faces, [v(frontA), v(frontB), v(backA)], normalY);
+		pushOrientedFace(faces, [v(frontA), v(frontB), v(backA)], normalY, pick);
 	}
 	if (outer && distinct(frontB, backB) && distinct(frontB, backA) && distinct(backB, backA)) {
-		pushOrientedFace(faces, [v(frontB), v(backB), v(backA)], normalY);
+		pushOrientedFace(faces, [v(frontB), v(backB), v(backA)], normalY, pick);
 	}
 	if (outer && distinct(backA, backB) && distinct(backA, outer) && distinct(backB, outer)) {
-		pushOrientedFace(faces, [v(backA), v(backB), v(outer)], normalY);
+		pushOrientedFace(faces, [v(backA), v(backB), v(outer)], normalY, pick);
 	}
 }
 
@@ -873,7 +950,7 @@ function pushWedgeCaps(faces: Face[], frontA: LayoutVec2, frontB: LayoutVec2, ba
  * `desiredNormal` (winding flipped if needed); the stored vertex normal is the
  * oriented geometric normal so the winding guard always agrees.
  */
-function pushOrientedFace(faces: Face[], verts: Vertex[], desiredNormal: V3): void {
+function pushOrientedFace(faces: Face[], verts: Vertex[], desiredNormal: V3, pick?: FacePick): void {
 	const first = verts[0]!;
 	const second = verts[1]!;
 	const third = verts[2]!;
@@ -881,7 +958,7 @@ function pushOrientedFace(faces: Face[], verts: Vertex[], desiredNormal: V3): vo
 	const dot = g[0] * desiredNormal[0] + g[1] * desiredNormal[1] + g[2] * desiredNormal[2];
 	const oriented = dot >= 0 ? verts : flipWinding(verts);
 	const n = quadNormal(oriented[0]!.p, oriented[1]!.p, oriented[2]!.p);
-	faces.push({ verts: oriented.map((v) => ({ ...v, n })) });
+	faces.push({ verts: oriented.map((v) => ({ ...v, n })), ...(pick ? { pick } : {}) });
 }
 
 function flipWinding(verts: Vertex[]): Vertex[] {
@@ -1003,8 +1080,8 @@ function vertex(x: number, y: number, z: number, nx: number, ny: number, nz: num
 	return { p: [x, y, z], n: [nx, ny, nz], u, v };
 }
 
-function quad(a: Vertex, b: Vertex, c: Vertex, d: Vertex): Face {
-	return { verts: [a, b, c, d] };
+function quad(a: Vertex, b: Vertex, c: Vertex, d: Vertex, pick?: FacePick): Face {
+	return { verts: [a, b, c, d], ...(pick ? { pick } : {}) };
 }
 
 /**
@@ -1013,18 +1090,18 @@ function quad(a: Vertex, b: Vertex, c: Vertex, d: Vertex): Face {
  * bottom corner coincides with its top corner — collapse the quad to a triangle
  * (preserving winding) instead of emitting a zero-area second triangle.
  */
-function pushBandFace(faces: Face[], a: Vertex, b: Vertex, c: Vertex, d: Vertex): void {
+function pushBandFace(faces: Face[], a: Vertex, b: Vertex, c: Vertex, d: Vertex, pick?: FacePick): void {
 	const same = (p: Vertex, q: Vertex) =>
 		Math.hypot(p.p[0] - q.p[0], p.p[1] - q.p[1], p.p[2] - q.p[2]) <= LAYOUT_GEOMETRY_EPSILON;
 	if (same(b, a)) {
-		faces.push({ verts: [a, c, d] });
+		faces.push({ verts: [a, c, d], ...(pick ? { pick } : {}) });
 		return;
 	}
 	if (same(c, d)) {
-		faces.push({ verts: [a, b, d] });
+		faces.push({ verts: [a, b, d], ...(pick ? { pick } : {}) });
 		return;
 	}
-	faces.push(quad(a, b, c, d));
+	faces.push(quad(a, b, c, d, pick));
 }
 
 /** Unit geometric normal of a quad's first triangle (right-hand rule), matching its winding. */
@@ -1057,8 +1134,53 @@ function emitMesh(
 	const materialGroups: IndexedWallMeshGroup[] = [];
 	const sectionToRange: IndexedWallMesh['sectionToRange'] = [];
 	const wallRanges: IndexedWallMesh['wallRanges'] = [];
+	const pickRanges: Layout3dPickRange[] = [];
 	let min: V3 = [Infinity, Infinity, Infinity];
 	let max: V3 = [-Infinity, -Infinity, -Infinity];
+
+	// H1 S5 — contiguous runs of identical (kind, roomId, segmentId, openingId,
+	// surface) across the whole emission order. Faces are emitted in index
+	// order, so the accumulated runs are sorted, non-overlapping, and partition
+	// the index buffer — every triangle gets exactly one pick owner.
+	let pickRun: Layout3dTriangleRef | null = null;
+	let pickRunStart = 0;
+
+	function samePickRef(a: Layout3dTriangleRef, b: Layout3dTriangleRef): boolean {
+		return (
+			a.kind === b.kind &&
+			a.roomId === b.roomId &&
+			a.segmentId === b.segmentId &&
+			a.surface === b.surface &&
+			(a.kind !== 'opening' || b.kind !== 'opening' || a.openingId === b.openingId)
+		);
+	}
+
+	function notePick(ref: Layout3dTriangleRef, faceStart: number): void {
+		if (pickRun && samePickRef(pickRun, ref)) return;
+		if (pickRun) pickRanges.push(toPickRange(pickRun, pickRunStart, faceStart - pickRunStart));
+		pickRun = ref;
+		pickRunStart = faceStart;
+	}
+
+	function emitFaceWithPick(face: Face, roomId: string, segmentId: string): void {
+		// H1 S5 — fail closed on an untagged face instead of silently folding it
+		// into the previous pick run (the partition guard cannot see a wrong
+		// owner — only a missing one). Every emitted face today carries a pick;
+		// this guard turns a future dropped tag into a loud build failure.
+		if (!face.pick) {
+			throw new Error(
+				`wall mesh ${roomId}: emitted an untagged face (${face.verts.length} vertices) — every face must carry a pick tag`
+			);
+		}
+		const start = indices.length;
+		notePick(
+			face.pick.kind === 'wall'
+				? { kind: 'wall', roomId, segmentId, surface: face.pick.surface }
+				: { kind: 'opening', roomId, segmentId, openingId: face.pick.openingId, surface: face.pick.surface },
+			start
+		);
+		emitFace(face);
+	}
 
 	function vertexIndex(vertex: Vertex): number {
 		const key = `${Math.round(vertex.p[0] / weldTolerance)},${Math.round(vertex.p[1] / weldTolerance)},${Math.round(vertex.p[2] / weldTolerance)}|${Math.round(vertex.n[0] / NORMAL_GRID)},${Math.round(vertex.n[1] / NORMAL_GRID)},${Math.round(vertex.n[2] / NORMAL_GRID)}|${Math.round(vertex.u / UV_GRID)},${Math.round(vertex.v / UV_GRID)}`;
@@ -1109,7 +1231,7 @@ function emitMesh(
 			for (const section of wall.sections) {
 				if (section.surfaceKey !== surfaceKey) continue;
 				const start = indices.length;
-				for (const face of section.faces) emitFace(face);
+				for (const face of section.faces) emitFaceWithPick(face, roomId, wall.segmentId);
 				const count = indices.length - start;
 				if (count > 0) {
 					sectionToRange.push({ ...section.ref, surfaceKey, start, count });
@@ -1119,14 +1241,14 @@ function emitMesh(
 			for (const reveal of wall.reveals) {
 				if (reveal.surfaceKey !== surfaceKey) continue;
 				const start = indices.length;
-				for (const face of reveal.faces) emitFace(face);
+				for (const face of reveal.faces) emitFaceWithPick(face, roomId, wall.segmentId);
 				const count = indices.length - start;
 				if (count > 0) wallRange.ranges.push({ start, count });
 			}
 			for (const bridge of wall.bridges) {
 				if (bridge.surfaceKey !== surfaceKey) continue;
 				const start = indices.length;
-				for (const face of bridge.faces) emitFace(face);
+				for (const face of bridge.faces) emitFaceWithPick(face, roomId, wall.segmentId);
 				const count = indices.length - start;
 				if (count > 0) {
 					wallRange.ranges.push({ start, count });
@@ -1138,6 +1260,9 @@ function emitMesh(
 		if (groupCount > 0) materialGroups.push({ surfaceKey, start: groupStart, count: groupCount });
 	}
 
+	// Close the last pick run: from its start to the end of the index buffer.
+	if (pickRun) pickRanges.push(toPickRange(pickRun, pickRunStart, indices.length - pickRunStart));
+
 	return {
 		roomId,
 		positions: new Float32Array(positions),
@@ -1147,6 +1272,7 @@ function emitMesh(
 		materialGroups,
 		sectionToRange,
 		wallRanges,
+		pickRanges,
 		bounds: { min: [...min] as V3, max: [...max] as V3 }
 	};
 }
@@ -1274,4 +1400,13 @@ function segmentDistance(a0: LayoutVec2, a1: LayoutVec2, b0: LayoutVec2, b1: Lay
 
 function clamp(value: number, min: number, max: number): number {
 	return Math.min(max, Math.max(min, value));
+}
+
+/**
+ * H1 S5 — spread `Layout3dTriangleRef` into a pick range. Extracted because TS
+ * rejects spreading a variable whose *declared* type includes `null` even when
+ * the caller has narrowed it (TS2698); a non-nullable parameter sidesteps it.
+ */
+function toPickRange(ref: Layout3dTriangleRef, start: number, count: number): Layout3dPickRange {
+	return { ...ref, start, count };
 }

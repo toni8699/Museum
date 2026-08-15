@@ -54,6 +54,28 @@ describe('layout preview state', () => {
 		}
 	});
 
+	it('H1 S5 — rebuilds the pick-index cache with the wall-mesh cache on every mutation/reset', () => {
+		const state = createLayoutPreviewState();
+		expect(state.layout3dPickIndexByRoom).toBeInstanceOf(Map);
+		expect(state.layout3dPickIndexByRoom.size).toBe(state.wallMeshesByRoom.size);
+		for (const room of state.geometry.rooms) {
+			const resolve = state.layout3dPickIndexByRoom.get(room.roomId);
+			expect(resolve).toBeDefined();
+			// Every triangle of every built room resolves to exactly one owner.
+			const mesh = state.wallMeshesByRoom.get(room.roomId)!;
+			for (let t = 0; t < mesh.indices.length / 3; t += 1) expect(resolve!(t)).not.toBeNull();
+		}
+
+		// A mutation rebuilds both caches together (same room key set).
+		expect(commitLayoutDraftRoom(state, [[6, 0], [10, 0], [10, 3], [6, 3]]).success).toBe(true);
+		expect([...state.layout3dPickIndexByRoom.keys()]).toEqual([...state.wallMeshesByRoom.keys()]);
+
+		// Reset empties both.
+		expect(resetLayoutPreview(state)).toBe(true);
+		expect(state.wallMeshesByRoom.size).toBe(0);
+		expect(state.layout3dPickIndexByRoom.size).toBe(0);
+	});
+
 	it('resets to empty while preserving the canonical scene document', () => {
 		const state = createLayoutPreviewState();
 		const sceneJson = serializeSceneDocument(state.project.scene);

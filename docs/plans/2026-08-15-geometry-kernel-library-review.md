@@ -5,6 +5,7 @@ Incorporates a doc-only external review (2026-08-15); accepted findings folded i
 Round-4 execution addendum (corrected hardened spec) in §12 — supersedes §10 where they conflict.
 Positioning addendum (discovery review) in §13; §8 pitch language corrected to match §5.3.
 Release-scope addendum (round 6) in §16; §13/§14 hero revised to plain-language-first.
+Extraction-timing gate state in §17 (G1 already shipped — Step 2 unblocked).
 **Scope:** decide whether the pure 2D geometry kernel in `apps/museum/src/lib/layout/`
 is worth extracting as a standalone npm package, and what that package would be.
 
@@ -881,3 +882,49 @@ TypeScript. Smooth paths, sample by distance, find closest points, and get
 tangents/normals. Zero dependencies.”); math terminology (centripetal
 Catmull-Rom, adaptive flatness, O(log n)) moves to a “How it works” section
 below the fold. §13 and §14 updated to match.
+
+## 17. Extraction timing — roadmap gate state (2026-08-15)
+
+**Finding (post-round-7): G1 is already shipped — it predates H1, so the
+“wait for G1” trigger is already satisfied.** Verified from
+`docs/plans/2026-08-13-graphics-architecture-roadmap.md` and
+`docs/hand-off/CURRENT.md`.
+
+### Gate state
+
+- **Completed:** B5 (runtime cutover) → G1 (shared geometry compiler) → G2
+  (Plan render boundary) → G3 (performance harness) → G4 (procedural meshes)
+  → H1 S0–S5. Full suite 1420 green, `svelte-check` 0.
+- **In flight:** H1 S6 (centralized 3D selection) next, then S7–S9+; C1 (Plan
+  staging mode) is the locked post-H1 polish slice.
+- **Deferred:** G5 (measured optimization) — no focused plan yet,
+  non-blocking for H1; G6 (bounded WebGPU experiments) later.
+
+### Implications for the extraction
+
+1. **Step 2 is unblocked.** The compiler contract it targets
+   (`compileLayoutGeometry(): CompiledLayoutGeometryResult` — sampled curves,
+   arc-length tables, tangents/normals, wall sections, query records,
+   qualified identities) is locked in shipping code, with the hard rule “no
+   consumer may independently resample layout curves or reinterpret opening
+   topology”. The API decoupling (§12) should target the settled contract,
+   not a moving one.
+2. **The §13 provenance story is fact, not aspiration.** Plan, editor 3D, and
+   visitor 3D already consume the one compiled geometry — the marketing track
+   (§14/§15/§16) blocks on nothing in the roadmap.
+3. **Remaining timing considerations, in order:**
+   a. **Working-tree WIP** (H1 S4/S5 staged + unstaged) is the only practical
+      blocker for a clean extraction branch — branch from HEAD `5f2c575`
+      (kernel files are clean there); land or stash the WIP first.
+   b. **Kernel consumers are still actively modified by H1** — S5 landed
+      `pickRanges` on `wall-mesh-builder.ts`, one of the 8 direct importers
+      (§12.2). Extracting the kernel (curve + openings) isolates from that
+      churn; the consumers evolve in the app either way.
+   c. **Two G3 backlog quick-wins touch the kernel** and should be sequenced
+      deliberately relative to Step 1/Step 2: **#5** binary-search
+      `pointAlongSamples` and unify with `pointAtDistance` (quick-win);
+      **#6** thread precomputed cubics into auto-bezier tangent eval
+      (quick-win). If Step 2 lands first, they land inside the package.
+
+**Verdict:** extraction timing is no longer gated on the roadmap. The only
+real gates are WIP hygiene and the sequencing choice for quick-wins #5/#6.

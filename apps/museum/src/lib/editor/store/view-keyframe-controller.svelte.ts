@@ -29,9 +29,9 @@ import {
 	type MuseumSceneDocument,
 	type SceneCameraViewKeyframe,
 	type SceneConnection,
-	type ScenePathAnchor
+	type ScenePathAnchor,
+	type SceneRoomResolver
 } from '$lib/content/scene';
-import { chopinRuntime } from '$lib/content/chopin-project';
 import {
 	MUSEUM_CAMERA_EASING,
 	MUSEUM_CAMERA_FOV,
@@ -118,6 +118,7 @@ export interface EditorViewKeyframeControllerHost {
 
 	// Document + selection state.
 	readonly document: MuseumSceneDocument;
+	readonly rooms: SceneRoomResolver;
 	readonly selection: EditorSelectionStore;
 	readonly selectedConnection: SceneConnection | undefined;
 	readonly selectedAnchor: ScenePathAnchor | undefined;
@@ -437,7 +438,7 @@ export class EditorViewKeyframeController {
 		}
 
 		const draftGraph = createNavigationGraph(
-			resolveSceneDocument(this.host.document, chopinRuntime.rooms)
+			resolveSceneDocument(this.host.document, this.host.rooms)
 		);
 		const route = getCameraConnectionRoute(
 			selection.connectionId,

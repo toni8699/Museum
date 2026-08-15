@@ -17,12 +17,22 @@ export class MuseumStateStore {
 
   constructor(
     readonly graph: NavigationGraph = museumNavigationGraph,
-    initialNodeId = 'entrance-start'
+    initialNodeId: string | null = 'entrance-start'
   ) {
-    const initialNode = getNode(initialNodeId, graph);
-    this.activeNodeId = initialNode.id;
-    this.currentRoomId = initialNode.roomId;
-    this.visitedRoomIds = new Set([initialNode.roomId]);
+    const initialNode = initialNodeId === null ? undefined : graph.nodeById.get(initialNodeId);
+    if (initialNode) {
+      this.activeNodeId = initialNode.id;
+      this.currentRoomId = initialNode.roomId;
+      this.visitedRoomIds = new Set([initialNode.roomId]);
+    } else {
+      // H1 S0 zero-node policy: a scene with no navigation nodes is a valid
+      // authoring state. The session-only free camera owns the viewport and
+      // the tour FSM stays inert until a node is authored (S2 wires the
+      // preview lockout on top of this).
+      this.activeNodeId = '';
+      this.currentRoomId = 'entrance';
+      this.visitedRoomIds = new Set();
+    }
   }
 
   get activeNode() {
@@ -90,7 +100,7 @@ export class MuseumStateStore {
 
 export function createMuseumState(
   graph: NavigationGraph = museumNavigationGraph,
-  initialNodeId = 'entrance-start'
+  initialNodeId: string | null = 'entrance-start'
 ) {
   return new MuseumStateStore(graph, initialNodeId);
 }

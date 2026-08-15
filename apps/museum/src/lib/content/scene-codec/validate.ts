@@ -95,10 +95,11 @@ export function validateSemantics(document: ParsedMuseumSceneDocument, issues: S
 		}
 	}
 
-	if (document.navigationNodes.length === 0) {
-		addIssue(issues, '$.navigationNodes', 'empty_navigation', 'At least one navigation node is required');
-		return;
-	}
+	// Authoring-empty is a valid state: the editor boots into a blank scene
+	// before the first navigation node is authored. The graph/cycle checks below
+	// assume at least one node, so skip them here; the runtime tour/preview
+	// guards a blank project separately.
+	if (document.navigationNodes.length === 0) return;
 	const nodeById = new Map(document.navigationNodes.map((node) => [node.id, node]));
 	for (const [index, node] of document.navigationNodes.entries()) {
 		if (distance(node.position, node.cameraTarget) <= EPSILON) addIssue(issues, `$.navigationNodes[${index}].cameraTarget`, 'camera_target_too_close', `Camera eye and target must be farther than ${EPSILON}`);

@@ -88,6 +88,7 @@
 			{layoutPreview}
 			{confirmSceneReplacement}
 			{confirmLayoutReplacement}
+			{relic}
 			bind:open={projectMenuOpen}
 		/>
 	</div>

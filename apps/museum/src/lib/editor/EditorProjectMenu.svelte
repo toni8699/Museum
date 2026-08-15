@@ -19,12 +19,14 @@
 		layoutPreview,
 		confirmSceneReplacement,
 		confirmLayoutReplacement,
+		relic = false,
 		open = $bindable(false)
 	}: {
 		store: MuseumEditorStore;
 		layoutPreview: LayoutPreviewState;
 		confirmSceneReplacement: () => boolean;
 		confirmLayoutReplacement: () => boolean;
+		relic?: boolean;
 		open?: boolean;
 	} = $props();
 
@@ -306,28 +308,30 @@
 				<p class="validation-ok">Scene document is valid.</p>
 			{/if}
 				{#if store.statusMessage}<p class="status" role="status">{store.statusMessage}</p>{/if}
-				<section class="layout-json-section" aria-label="Layout JSON actions">
-					<div class="project-heading">
-						<div>
-							<strong>Layout JSON</strong>
-							<span>Independent editor-only layout document.</span>
+				{#if !relic}
+					<section class="layout-json-section" aria-label="Layout JSON actions">
+						<div class="project-heading">
+							<div>
+								<strong>Layout JSON</strong>
+								<span>Independent editor-only layout document.</span>
+							</div>
+							<span class:dirty={layoutPreviewIsDirty(layoutPreview)} class="document-state">{layoutPreviewStatusLabel(layoutPreview)}</span>
 						</div>
-						<span class:dirty={layoutPreviewIsDirty(layoutPreview)} class="document-state">{layoutPreviewStatusLabel(layoutPreview)}</span>
-					</div>
-					<div class="project-actions">
-						<button type="button" onclick={() => layoutImportFileInput?.click()}>Import file</button>
-						<button type="button" onclick={copyLayoutJson}>Copy JSON</button>
-						<button type="button" onclick={downloadLayoutJson}>Download JSON</button>
-						<button type="button" class="danger" onclick={resetLayout}>Reset</button>
-					</div>
-					<label class="paste-import">
-						<span>Paste layout JSON</span>
-						<textarea bind:value={pastedLayoutJson} spellcheck="false" placeholder={'{ ... }'}></textarea>
-					</label>
-					<button class="paste-action" type="button" disabled={!pastedLayoutJson.trim()} onclick={() => importLayoutJson(pastedLayoutJson, true)}>Import pasted JSON</button>
-					{#if layoutPreview.importError}<p class="layout-import-error" role="alert">Import failed: {layoutPreview.importError}</p>{/if}
-					{#if layoutPreview.statusMessage}<p class="status" role="status">{layoutPreview.statusMessage}</p>{/if}
-				</section>
+						<div class="project-actions">
+							<button type="button" onclick={() => layoutImportFileInput?.click()}>Import file</button>
+							<button type="button" onclick={copyLayoutJson}>Copy JSON</button>
+							<button type="button" onclick={downloadLayoutJson}>Download JSON</button>
+							<button type="button" class="danger" onclick={resetLayout}>Reset</button>
+						</div>
+						<label class="paste-import">
+							<span>Paste layout JSON</span>
+							<textarea bind:value={pastedLayoutJson} spellcheck="false" placeholder={'{ ... }'}></textarea>
+						</label>
+						<button class="paste-action" type="button" disabled={!pastedLayoutJson.trim()} onclick={() => importLayoutJson(pastedLayoutJson, true)}>Import pasted JSON</button>
+						{#if layoutPreview.importError}<p class="layout-import-error" role="alert">Import failed: {layoutPreview.importError}</p>{/if}
+						{#if layoutPreview.statusMessage}<p class="status" role="status">{layoutPreview.statusMessage}</p>{/if}
+					</section>
+				{/if}
 			</div>
 	{/if}
 </div>

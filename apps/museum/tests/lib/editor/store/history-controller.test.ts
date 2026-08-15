@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { cloneFixtureDocument } from '../../content/__fixtures__/load-fixture-scene';
 import type { MuseumSceneDocument } from '$lib/content/scene';
+import { chopinRuntime } from '$lib/content/chopin-project';
 
 import {
 	cloneMuseumSceneDocument,
@@ -23,7 +24,7 @@ function fingerprint(doc: MuseumSceneDocument): MuseumSceneDocument {
 }
 
 function makeControllers() {
-	const document = new EditorDocumentStore(cloneFixtureDocument());
+	const document = new EditorDocumentStore(cloneFixtureDocument(), chopinRuntime.rooms);
 	const preview = new EditorCameraPreviewController(document);
 	const history = new EditorHistoryController(document, preview);
 	return { document, preview, history };

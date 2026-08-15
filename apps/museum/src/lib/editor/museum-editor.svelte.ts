@@ -6,9 +6,10 @@ import {
 	type SceneObjectCluster,
 	type SceneLightKind,
 	type ScenePrimitiveDimensions,
-	type ScenePrimitiveKind
+	type ScenePrimitiveKind,
+	type SceneRoomResolver
 } from '$lib/content/scene';
-import { museumSceneDocument } from '$lib/content/chopin-project';
+import { museumSceneDocument, chopinRuntime } from '$lib/content/chopin-project';
 import {
 	serializeSceneDocument,
 	validateSceneDocument,
@@ -314,11 +315,16 @@ export class MuseumEditorStore {
 	// `EditorDocumentStore.replace` from any caller), not just the explicit
 	// `#replaceDocument()` path (closes pre-slice defect #2).
 	private readonly documentStore: EditorDocumentStore;
+	/** True when this store backs the frozen `/museum/editor` relic. */
+	private readonly relicMode: boolean;
 	get document(): MuseumSceneDocument {
 		return this.documentStore.document;
 	}
 	get scene(): RuntimeMuseumScene {
 		return this.documentStore.scene;
+	}
+	get rooms(): SceneRoomResolver {
+		return this.documentStore.rooms;
 	}
 	get state(): MuseumStateStore {
 		return this.documentStore.state;
@@ -435,7 +441,11 @@ export class MuseumEditorStore {
 	);
 
 	constructor(options: MuseumEditorStoreOptions = {}) {
-		this.documentStore = new EditorDocumentStore(options.document);
+		this.relicMode = options.relic === true;
+		this.documentStore = new EditorDocumentStore(
+			options.document,
+			options.rooms ?? chopinRuntime.rooms
+		);
 		this.previewController = new EditorCameraPreviewController(this.documentStore);
 		this.historyController = new EditorHistoryController(
 			this.documentStore,
@@ -1813,6 +1823,7 @@ export class MuseumEditorStore {
 
 	/** Phase 1.1 — switch editor workspace. Stops any active camera preview when leaving Camera. */
 	setWorkspace(workspace: EditorWorkspace) {
+		if (this.relicMode && workspace === 'layout') return false;
 		if (this.isDocumentMutationBlocked) return false;
 		if (this.viewKeyframeProgressDrag) {
 			this.cancelViewKeyframeProgressDrag();
@@ -2680,6 +2691,14 @@ export class MuseumEditorStore {
 export type MuseumEditorStoreOptions = {
 	/** Optional authoring document seed (defaults to checked-in museum-scene.json). */
 	document?: MuseumSceneDocument;
+	/**
+	 * H1 S0 — room resolver used to project scene room-relative coordinates to
+	 * world space. Defaults to the Chopin layout registry (the frozen relic);
+	 * the boot-empty H1 editor passes `createLayoutRoomRegistry(project.layout)`.
+	 */
+	rooms?: SceneRoomResolver;
+	/** H1 S0 — true for the frozen `/museum/editor` relic (Scene + Camera only). */
+	relic?: boolean;
 	/** Phase 5.2 — injectable texture image verifier (browser default). */
 	textureVerifier?: TextureVerifier;
 };

@@ -427,15 +427,17 @@ it calls remain pure where already pure; `$lib/layout/**` stays renderer-neutral
 
 Model-strength shorthand below: **Balanced** = `gpt-5.6-terra` with medium/high
 reasoning; **Frontier** = `gpt-5.6-sol` with high reasoning; **Frontier+** =
-`gpt-5.6-sol` with xhigh reasoning. Use the stronger tier when a slice crosses
-selection, transaction, schema/package, Three lifecycle, or ownership boundaries.
-Difficulty is relative within H1 on a **1–10 scale**: 1–3 contained, 4–6
-moderate, 7–8 hard/cross-cutting, 9 critical integration, 10 highest-risk
-architectural work in this program.
+`gpt-5.6-sol` with xhigh reasoning. Balanced is the default for contained 1–5
+work and implementation prep; Frontier is for cross-domain 6–8 work; Frontier+
+is reserved for the hardest lifecycle, atomicity, ownership, or package changes.
+A stronger model is recommended only when boundary risk demands it, not merely
+because the slice touches 3D. Difficulty is relative within H1 on a **1–10
+scale**: 1–3 contained, 4–6 moderate, 7–8 hard/cross-cutting, 9 critical
+integration, 10 highest-risk architectural work in this program.
 
 ### 0. Pin the product/session contracts
 
-**Execution:** Difficulty **2/10** · Recommended model strength — plan: **Frontier**; implementation: **Balanced**.
+**Execution:** Difficulty **2/10** · Recommended model strength — plan: **Balanced**; implementation: **Balanced**.
 
 - Add failing tests for a canonical empty project and session-only free camera.
 - Replace the implementation plan's workspace assumption with `Plan | 3D`.
@@ -446,7 +448,7 @@ architectural work in this program.
 
 ### 1. Consolidate the editor shell
 
-**Execution:** Difficulty **4/10** · Recommended model strength — plan: **Frontier**; implementation: **Frontier**.
+**Execution:** Difficulty **4/10** · Recommended model strength — plan: **Balanced**; implementation: **Balanced**.
 
 - Introduce `EditorViewMode = 'plan' | '3d'`.
 - Replace Scene/Camera/Layout app-bar tabs with Plan/3D.
@@ -469,7 +471,7 @@ architectural work in this program.
 
 ### 3. Make selection explicitly cross-domain
 
-**Execution:** Difficulty **6/10** · Recommended model strength — plan: **Frontier+**; implementation: **Frontier**.
+**Execution:** Difficulty **6/10** · Recommended model strength — plan: **Balanced**; implementation: **Frontier**.
 
 - Add `ActiveEditorSelection` at the editor composition root.
 - Adapt existing layout, placement/cluster, and camera selection stores without
@@ -481,7 +483,7 @@ architectural work in this program.
 
 ### 4. Build the unified project hierarchy
 
-**Execution:** Difficulty **6/10** · Recommended model strength — plan: **Frontier**; implementation: **Frontier**.
+**Execution:** Difficulty **6/10** · Recommended model strength — plan: **Balanced**; implementation: **Frontier**.
 
 - Replace `EditorSceneTree`, `EditorCameraTree`, and the layout-only summary as
   separate navigation surfaces with `UnifiedProjectTree`.
@@ -493,7 +495,7 @@ architectural work in this program.
 
 ### 5. Complete wall/opening pick metadata
 
-**Execution:** Difficulty **8/10** · Recommended model strength — plan: **Frontier+**; implementation: **Frontier**.
+**Execution:** Difficulty **8/10** · Recommended model strength — plan: **Frontier**; implementation: **Frontier**.
 
 - Add complete additive pick ranges to `IndexedWallMesh`, including sections,
   opening reveals/jambs, and deterministic bridge ownership.
@@ -504,7 +506,7 @@ architectural work in this program.
 
 ### 6. Centralize 3D selection
 
-**Execution:** Difficulty **8/10** · Recommended model strength — plan: **Frontier+**; implementation: **Frontier+**.
+**Execution:** Difficulty **8/10** · Recommended model strength — plan: **Frontier**; implementation: **Frontier+**.
 
 - Replace independent competing Canvas raycast listeners with one editor 3D
   selection coordinator.
@@ -549,7 +551,7 @@ architectural work in this program.
 
 ### 10. Fold camera authoring into 3D
 
-**Execution:** Difficulty **5/10** · Recommended model strength — plan: **Frontier**; implementation: **Frontier**.
+**Execution:** Difficulty **5/10** · Recommended model strength — plan: **Balanced**; implementation: **Balanced**.
 
 - Move Camera tree/timeline/tool entry points into the unified 3D shell.
 - Preserve route/motion ownership, helper selection, framing, timing, playback,
@@ -560,7 +562,7 @@ architectural work in this program.
 
 ### 11. Project round-trip and regression closure
 
-**Execution:** Difficulty **5/10** · Recommended model strength — plan: **Frontier**; implementation: **Frontier**.
+**Execution:** Difficulty **7/10** · Recommended model strength — plan: **Frontier**; implementation: **Frontier**.
 
 - Export one portable project containing layout, scene, textures, and
   project-local GLBs; import it into a fresh editor session.

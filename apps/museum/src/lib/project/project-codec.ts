@@ -1,7 +1,9 @@
 import {
+	createEmptyLayoutDocument,
 	validateLayoutDocument,
 	type LayoutValidationResult
 } from '$lib/layout/layout-codec';
+import { createEmptySceneDocument } from '$lib/content/scene';
 import {
 	validateSceneDocument,
 	type SceneDocumentValidationResult
@@ -38,6 +40,26 @@ export function createMuseumProject(input: MuseumProjectInput): MuseumProject {
 	const result = validateMuseumProject({ formatVersion: FORMAT_VERSION, ...input });
 	if (!result.success) throw new MuseumProjectValidationError(result.issues[0]!);
 	return result.project;
+}
+
+export type EmptyMuseumProjectInput = {
+	id: string;
+	name: string;
+};
+
+/**
+ * Authoring-empty project: one valid empty layout + one valid empty scene.
+ * This is the editor's boot state. There is no New Project command — importing
+ * a package is the only way to load prior work, and export is the only save.
+ */
+export function createEmptyMuseumProject(input: EmptyMuseumProjectInput): MuseumProject {
+	return {
+		formatVersion: FORMAT_VERSION,
+		id: input.id,
+		name: input.name,
+		layout: createEmptyLayoutDocument(),
+		scene: createEmptySceneDocument()
+	};
 }
 
 export function validateMuseumProject(input: unknown): MuseumProjectValidationResult {

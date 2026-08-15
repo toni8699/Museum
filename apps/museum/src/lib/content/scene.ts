@@ -232,6 +232,23 @@ export type SceneConnection = Omit<
 /** Current scene schema version. v1–v5 migrate to canonical v6 resources. */
 export const MUSEUM_SCENE_SCHEMA_VERSION = 6 as const;
 
+/**
+ * Authoring-empty scene document: the editor boots into this state before the
+ * first entity, navigation node, or connection is authored. It is a valid v6
+ * document — the runtime tour/preview guards a blank project separately, so a
+ * project with no navigation graph cannot start a broken tour.
+ */
+export function createEmptySceneDocument(): MuseumSceneDocument {
+	return {
+		version: MUSEUM_SCENE_SCHEMA_VERSION,
+		textures: [],
+		materials: [],
+		entities: [],
+		navigationNodes: [],
+		connections: []
+	};
+}
+
 export type MuseumSceneDocument = {
   version: 6;
   textures: SceneTextureAsset[];

@@ -7,7 +7,8 @@ import type {
 	SceneNavigationNode,
 	SceneObjectCluster,
 	ScenePathAnchor,
-	ScenePrimitiveKind
+	ScenePrimitiveKind,
+	SceneRoomResolver
 } from '$lib/content/scene';
 import type { MuseumStateStore } from '$lib/state/museum-state.svelte';
 import type { CameraConnectionDirection, MuseumRoomId } from '$lib/types/museum';
@@ -67,6 +68,7 @@ export interface EditorControllerHostSource {
 	// Document + resolved scene + selection reducer.
 	readonly document: MuseumSceneDocument;
 	readonly scene: RuntimeMuseumScene;
+	readonly rooms: SceneRoomResolver;
 	readonly state: MuseumStateStore;
 	readonly selectionStore: EditorSelectionStore;
 
@@ -375,6 +377,9 @@ export function createControllerHosts(
 		},
 		get document() {
 			return source.document;
+		},
+		get rooms() {
+			return source.rooms;
 		},
 		get selection() {
 			return source.selectionStore;

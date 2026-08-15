@@ -34,9 +34,10 @@ import {
 	createNavigationGraph,
 	resolveSceneDocument,
 	type MuseumSceneDocument,
-	type RuntimeMuseumScene
+	type RuntimeMuseumScene,
+	type SceneRoomResolver
 } from '$lib/content/scene';
-import { museumSceneDocument, chopinRuntime } from '$lib/content/chopin-project';
+import { museumSceneDocument } from '$lib/content/chopin-project';
 import { createMuseumState, type MuseumStateStore } from '$lib/state/museum-state.svelte';
 
 export type AfterReplaceListener = () => void;
@@ -54,15 +55,19 @@ export function cloneMuseumSceneDocument(doc: MuseumSceneDocument): MuseumSceneD
 	return JSON.parse(JSON.stringify(doc)) as MuseumSceneDocument;
 }
 
-/** Prefer Paris seat when present; otherwise first navigation node. */
-export function pickInitialNavigationNodeId(scene: RuntimeMuseumScene): string {
+/**
+ * Prefer Paris seat when present; otherwise the first navigation node.
+ *
+ * H1 S0 zero-node policy: returns `null` when the scene has no navigation
+ * nodes. A scene with no nodes is a valid authoring state; the session-only
+ * free camera has no tour-FSM node yet, so callers treat `null` as "no node
+ * authored" instead of throwing.
+ */
+export function pickInitialNavigationNodeId(scene: RuntimeMuseumScene): string | null {
 	const preferred = scene.navigationNodes.some((node) => node.id === 'paris-seat')
 		? 'paris-seat'
 		: scene.navigationNodes[0]?.id;
-	if (!preferred) {
-		throw new Error('A museum scene needs at least one navigation node');
-	}
-	return preferred;
+	return preferred ?? null;
 }
 
 export class EditorDocumentStore {
@@ -106,7 +111,10 @@ export class EditorDocumentStore {
 	 */
 	#afterReplaceListeners = new Set<AfterReplaceListener>();
 
-	constructor(initialDocument: MuseumSceneDocument = museumSceneDocument) {
+	constructor(
+		initialDocument: MuseumSceneDocument = museumSceneDocument,
+		readonly rooms: SceneRoomResolver
+	) {
 		const cloned = cloneMuseumSceneDocument(initialDocument);
 		this.document = cloned;
 		this.baselineCanonicalJson = serializeSceneDocument(cloned);
@@ -163,7 +171,7 @@ export class EditorDocumentStore {
 	}
 
 	#rebuildRuntime() {
-		const nextScene = resolveSceneDocument(this.document, chopinRuntime.rooms);
+		const nextScene = resolveSceneDocument(this.document, this.rooms);
 		const initialNodeId = pickInitialNavigationNodeId(nextScene);
 		const nextState = createMuseumState(createNavigationGraph(nextScene), initialNodeId);
 		// Re-assigning `$state.raw` outside an `untrack` wrap inside the

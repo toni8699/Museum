@@ -2,9 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import { EditorDocumentStore } from '$lib/editor/store/document-store.svelte';
 import { EditorCameraPreviewController } from '$lib/editor/store/camera-preview-controller.svelte';
+import { chopinRuntime } from '$lib/content/chopin-project';
 
 function makeControllers() {
-	const document = new EditorDocumentStore();
+	const document = new EditorDocumentStore(undefined, chopinRuntime.rooms);
 	const preview = new EditorCameraPreviewController(document);
 	return { document, preview };
 }

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { cloneFixtureDocument } from '../../content/__fixtures__/load-fixture-scene';
 import { serializeSceneDocument } from '$lib/content/scene-codec';
 import type { MuseumSceneDocument } from '$lib/content/scene';
-import { museumSceneDocument } from '$lib/content/chopin-project';
+import { museumSceneDocument, chopinRuntime } from '$lib/content/chopin-project';
 
 import {
 	cloneMuseumSceneDocument,
@@ -30,7 +30,7 @@ function fingerprint(doc: MuseumSceneDocument): MuseumSceneDocument {
 
 describe('EditorDocumentStore', () => {
 	it('starts with the bundled scene document as the source of truth', () => {
-		const store = new EditorDocumentStore();
+		const store = new EditorDocumentStore(undefined, chopinRuntime.rooms);
 		expect(store.document).toEqual(museumSceneDocument);
 		expect(store.validation.success).toBe(true);
 		expect(
@@ -40,14 +40,14 @@ describe('EditorDocumentStore', () => {
 	});
 
 	it('reports not-dirty at boot (baseline matches live canonical JSON)', () => {
-		const store = new EditorDocumentStore();
+		const store = new EditorDocumentStore(undefined, chopinRuntime.rooms);
 		expect(store.isDirty).toBe(false);
 		expect(store.canonicalJson).toBe(store.baselineCanonicalJson);
 	});
 
 	it('replace(next) swaps the document and rebuilds validation/scene/state', () => {
 		const seed = cloneFixtureDocument();
-		const store = new EditorDocumentStore(seed);
+		const store = new EditorDocumentStore(seed, chopinRuntime.rooms);
 		const next = fingerprint(seed);
 		store.replace(next);
 		expect(store.document.entities[0]!.rotation[1]).not.toBe(seed.entities[0]!.rotation[1]);
@@ -57,7 +57,7 @@ describe('EditorDocumentStore', () => {
 
 	it('setBaseline(json) resets the dirty comparison', () => {
 		const seed = cloneFixtureDocument();
-		const store = new EditorDocumentStore(seed);
+		const store = new EditorDocumentStore(seed, chopinRuntime.rooms);
 		store.replace(fingerprint(seed));
 		expect(store.isDirty).toBe(true);
 		store.setBaseline(serializeSceneDocument(store.document));
@@ -65,7 +65,7 @@ describe('EditorDocumentStore', () => {
 	});
 
 	it('replace(next) fires every afterReplace listener in registration order', () => {
-		const store = new EditorDocumentStore(cloneFixtureDocument());
+		const store = new EditorDocumentStore(cloneFixtureDocument(), chopinRuntime.rooms);
 		const calls: string[] = [];
 		store.addAfterReplaceListener(() => calls.push('a'));
 		store.addAfterReplaceListener(() => calls.push('b'));
@@ -75,7 +75,7 @@ describe('EditorDocumentStore', () => {
 	});
 
 	it('addAfterReplaceListener returns an unsubscribe handle', () => {
-		const store = new EditorDocumentStore(cloneFixtureDocument());
+		const store = new EditorDocumentStore(cloneFixtureDocument(), chopinRuntime.rooms);
 		const calls: string[] = [];
 		const unsub = store.addAfterReplaceListener(() => calls.push('keep'));
 		const unsubDrop = store.addAfterReplaceListener(() => calls.push('drop'));
@@ -88,7 +88,7 @@ describe('EditorDocumentStore', () => {
 	});
 
 	it('listener exceptions are caught and logged without aborting the chain', () => {
-		const store = new EditorDocumentStore(cloneFixtureDocument());
+		const store = new EditorDocumentStore(cloneFixtureDocument(), chopinRuntime.rooms);
 		const calls: string[] = [];
 		const originalError = console.error;
 		console.error = () => undefined;

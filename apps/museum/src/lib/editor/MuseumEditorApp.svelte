@@ -3,7 +3,7 @@
 	import type { MuseumAsset } from '$lib/types/assets';
 	import type { MaterialTextureSlot } from '$lib/types/materials';
 	import type { Texture as ThreeTexture } from 'three';
-	import { onDestroy, onMount } from 'svelte';
+	import { onDestroy, onMount, untrack } from 'svelte';
 	import { TextureLoader } from 'three';
 	import EditorAppBar from './EditorAppBar.svelte';
 	import EditorCameraTimelineFrame from './EditorCameraTimelineFrame.svelte';
@@ -33,14 +33,23 @@
 
 	let { relic = false }: { relic?: boolean } = $props();
 
-	const store = createMuseumEditorStore();
+	// `relic` is a mount-time prop: read it once, non-reactively, to configure the
+	// store and the layout history bridge. A relic mount never gains (or loses)
+	// Layout mid-session.
+	const store = createMuseumEditorStore({ relic: untrack(() => relic) });
 	const layoutPreview = $state(createLayoutPreviewState());
 	const layoutInteraction = $state(createLayoutInteractionState());
-	store.registerLayoutHistory({
-		capture: () => captureLayoutPreviewSnapshot(layoutPreview),
-		replace: (snapshot) => restoreLayoutPreviewSnapshot(layoutPreview, snapshot as ReturnType<typeof captureLayoutPreviewSnapshot>),
-		matches: (a, b) => JSON.stringify((a as { project: { layout: unknown } }).project.layout) === JSON.stringify((b as { project: { layout: unknown } }).project.layout)
-	});
+	// Relic isolation: the frozen Scene · Camera editor never registers a layout
+	// history domain — it cannot switch to the Layout workspace (store guard) nor
+	// mutate layout from the Project menu (menu gating), so there is no layout
+	// document to snapshot.
+	if (!untrack(() => relic)) {
+		store.registerLayoutHistory({
+			capture: () => captureLayoutPreviewSnapshot(layoutPreview),
+			replace: (snapshot) => restoreLayoutPreviewSnapshot(layoutPreview, snapshot as ReturnType<typeof captureLayoutPreviewSnapshot>),
+			matches: (a, b) => JSON.stringify((a as { project: { layout: unknown } }).project.layout) === JSON.stringify((b as { project: { layout: unknown } }).project.layout)
+		});
+	}
 	// Phase 6.1 — single shared FSM sub-store. Set on context so every editor
 	// child reads the same reactive state.
 	const interactionStore = new EditorInteractionStore();

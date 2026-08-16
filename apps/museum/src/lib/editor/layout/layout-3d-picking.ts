@@ -383,3 +383,40 @@ export function layoutPickBeatsSceneDistance(
 	if (sceneDistance === null) return true;
 	return layoutDistance < sceneDistance - LAYOUT_3D_SAME_DEPTH_EPSILON;
 }
+
+/**
+ * H1 S6 deferral (2026-08-16) — direct 3D picks of walls / interior anchors
+ * are deferred by decision: a viewport click must not commit them yet, while
+ * hierarchy (tree) picks of the same identities stay live and highlight.
+ * The resolver still maps wall triangles (the machinery is untouched); this
+ * predicate lets the coordinator fall through to the normal scene dispatch
+ * instead of committing a wall/anchor selection. Rooms, openings, objects,
+ * and `none` remain directly pickable. S6.1 re-enables by flipping this gate.
+ */
+export function isLayoutDirectPickDeferred(selection: LayoutSelection): boolean {
+	return selection.kind === 'wall' || selection.kind === 'interiorAnchor';
+}
+
+/**
+ * Stable identity key for a resolved layout selection. The hover coordinator
+ * re-resolves every pointer move, but the tint overlay must only rebuild when
+ * the *identity* under the cursor changes — moving within one wall must not
+ * reallocate shell geometry each frame. `null` (no hover) keys to ''.
+ */
+export function layoutSelectionKey(selection: LayoutSelection | null): string {
+	if (!selection) return '';
+	switch (selection.kind) {
+		case 'none':
+			return 'none';
+		case 'room':
+			return `room:${selection.roomId}`;
+		case 'wall':
+			return `wall:${selection.roomId}:${selection.segmentId}`;
+		case 'opening':
+			return `opening:${selection.roomId}:${selection.segmentId}:${selection.openingId}`;
+		case 'interiorAnchor':
+			return `anchor:${selection.roomId}:${selection.segmentId}:${selection.anchorId}`;
+		case 'object':
+			return `object:${selection.objectId}`;
+	}
+}

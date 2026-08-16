@@ -1,17 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { compileLayoutGeometry } from '$lib/layout/layout-geometry';
 import { buildRoomWallMesh, type IndexedWallMesh } from '$lib/layout/wall-mesh-builder';
-import type { LayoutDocument } from '$lib/layout/layout-types';
-import {
-	buildLayout3dTriangleIndex,
-	layoutCandidatesFromIntersections,
-	layoutPickBeatsSceneDistance,
-	LAYOUT_3D_SAME_DEPTH_EPSILON,
-	resolveLayout3dHits,
-	type Layout3dHitCandidate,
-	type Layout3dPickIndex,
-	type RaycastHitLike
-} from '$lib/editor/layout/layout-3d-picking';
+import type { LayoutDocument } from '$lib/layout/layout-types';	import {
+		buildLayout3dTriangleIndex,
+		isLayoutDirectPickDeferred,
+		layoutCandidatesFromIntersections,
+		layoutPickBeatsSceneDistance,
+		layoutSelectionKey,
+		LAYOUT_3D_SAME_DEPTH_EPSILON,
+		resolveLayout3dHits,
+		type Layout3dHitCandidate,
+		type Layout3dPickIndex,
+		type RaycastHitLike
+	} from '$lib/editor/layout/layout-3d-picking';
 import {
 	clearLayoutSelection,
 	createLayoutInteractionState,
@@ -238,5 +239,80 @@ describe('H1 S6 — commit route (pure shell mirror)', () => {
 		expect(layoutPickBeatsSceneDistance(2, 2 + eps)).toBe(false); // boundary
 		// Layout farther → scene wins.
 		expect(layoutPickBeatsSceneDistance(3, 2)).toBe(false);
+	});
+});
+
+describe('H1 S6 follow-up — layoutSelectionKey (hover dedupe)', () => {
+	it('keys every selection kind to a stable, unambiguous identity string', () => {
+		expect(layoutSelectionKey(null)).toBe('');
+		expect(layoutSelectionKey({ kind: 'none' })).toBe('none');
+		expect(layoutSelectionKey({ kind: 'room', roomId: 'r1' })).toBe('room:r1');
+		expect(layoutSelectionKey({ kind: 'wall', roomId: 'r1', segmentId: 'r1:wall:0' })).toBe(
+			'wall:r1:r1:wall:0'
+		);
+		expect(
+			layoutSelectionKey({
+				kind: 'opening',
+				roomId: 'r1',
+				segmentId: 'r1:wall:0',
+				openingId: 'door-1'
+			})
+		).toBe('opening:r1:r1:wall:0:door-1');
+		expect(
+			layoutSelectionKey({
+				kind: 'interiorAnchor',
+				roomId: 'r1',
+				segmentId: 'r1:wall:0',
+				anchorId: 'a1'
+			})
+		).toBe('anchor:r1:r1:wall:0:a1');
+		expect(layoutSelectionKey({ kind: 'object', objectId: 'obj-box' })).toBe('object:obj-box');
+	});
+
+	it('distinguishes identities that differ only in one qualifier', () => {
+		const wallA = layoutSelectionKey({ kind: 'wall', roomId: 'r1', segmentId: 'r1:wall:0' });
+		const wallB = layoutSelectionKey({ kind: 'wall', roomId: 'r1', segmentId: 'r1:wall:1' });
+		const wallInRoom2 = layoutSelectionKey({ kind: 'wall', roomId: 'r2', segmentId: 'r1:wall:0' });
+
+		expect(wallA).not.toBe(wallB);
+		expect(wallA).not.toBe(wallInRoom2);
+		// An opening never collides with the wall it sits on (the extra
+		// `:openingId` segment keeps the keys disjoint).
+		expect(
+			layoutSelectionKey({
+				kind: 'opening',
+				roomId: 'r1',
+				segmentId: 'r1:wall:0',
+				openingId: 'door-1'
+			})
+		).not.toBe(wallA);
+	});
+});
+
+describe('H1 S6 deferral — isLayoutDirectPickDeferred', () => {
+	it('defers direct wall and interior-anchor picks', () => {
+		expect(isLayoutDirectPickDeferred({ kind: 'wall', roomId: 'r1', segmentId: 'r1:wall:0' })).toBe(true);
+		expect(
+			isLayoutDirectPickDeferred({
+				kind: 'interiorAnchor',
+				roomId: 'r1',
+				segmentId: 'r1:wall:0',
+				anchorId: 'a1'
+			})
+		).toBe(true);
+	});
+
+	it('keeps room, opening, object, and none directly pickable', () => {
+		expect(isLayoutDirectPickDeferred({ kind: 'none' })).toBe(false);
+		expect(isLayoutDirectPickDeferred({ kind: 'room', roomId: 'r1' })).toBe(false);
+		expect(
+			isLayoutDirectPickDeferred({
+				kind: 'opening',
+				roomId: 'r1',
+				segmentId: 'r1:wall:0',
+				openingId: 'door-1'
+			})
+		).toBe(false);
+		expect(isLayoutDirectPickDeferred({ kind: 'object', objectId: 'obj-box' })).toBe(false);
 	});
 });

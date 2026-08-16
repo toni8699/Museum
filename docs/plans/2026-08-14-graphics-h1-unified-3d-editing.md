@@ -523,6 +523,8 @@ bench regression) — with **difficulty = max(effort, risk)**, +1 when both are
 
 **Execution:** Difficulty **9/10** · Recommended model strength — plan: **Frontier+**; implementation: **Frontier+**.
 
+**Focused plan:** [`2026-08-16-graphics-h1-s7-single-gizmo-host.md`](./2026-08-16-graphics-h1-s7-single-gizmo-host.md).
+
 - Extract TransformControls lifecycle/FSM/orbit/snap behavior from the current
   scene-specific component.
 - Add scene, camera, and layout target adapters.

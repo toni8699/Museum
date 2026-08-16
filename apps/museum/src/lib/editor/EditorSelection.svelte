@@ -57,7 +57,8 @@
 		store,
 		transformControls,
 		onDeselect,
-		onLayoutPick
+		onLayoutPick,
+		onLayoutHover
 	}: {
 		store: MuseumEditorStore;
 		transformControls?: TransformControls;
@@ -74,6 +75,16 @@
 			candidates: readonly Layout3dHitCandidate[],
 			competingSceneDistance: number | null
 		) => boolean;
+		/**
+		 * H1 S6 follow-up — optional layout-hover branch. Same candidate
+		 * extraction + cross-domain arbitration as `onLayoutPick`, but fires on
+		 * pointer move (before a click) and writes nothing: the shell tints the
+		 * surface under the cursor. Passed empty candidates to clear.
+		 */
+		onLayoutHover?: (
+			candidates: readonly Layout3dHitCandidate[],
+			competingSceneDistance: number | null
+		) => void;
 	} = $props();
 
 	const { camera, scene, canvas } = useThrelte();
@@ -615,6 +626,7 @@
 			pointerSession?.kind === 'framing'
 		)
 			return;
+		updateLayoutHover(event);
 		const result = activePathHit(event);
 		if (!result) {
 			store.setNavigationHover(null);
@@ -629,6 +641,38 @@
 	// Phase 6.1 Q4 — placement hover drives the dim-white half-opacity outline.
 	// Raycasts every placement root (selected or not), finds the deepest
 	// intersection, publishes the id to `interactionStore.hoverTargetId`.
+	/**
+	 * H1 S6 follow-up — resolve the layout surface under the cursor on pointer
+	 * move, mirroring the click arbitration exactly (one raycast, same
+	 * `resolveNormalSelectionWithHit` source-distance rule). Placement, Alt,
+	 * mutation-blocked, and gizmo-drag states clear the hover rather than
+	 * preview a pick the click would never commit.
+	 */
+	function updateLayoutHover(event: PointerEvent) {
+		if (!onLayoutHover) return;
+		if (
+			store.isDocumentMutationBlocked ||
+			isFloorPlacementActive() ||
+			transformControls?.dragging ||
+			transformControls?.axis ||
+			event.altKey
+		) {
+			onLayoutHover([], null);
+			return;
+		}
+		const currentCamera = camera.current;
+		if (!currentCamera) {
+			onLayoutHover([], null);
+			return;
+		}
+		const intersections = raycast(event);
+		const hits = intersections.map(selectionHitFromIntersection);
+		const normal = resolveNormalSelectionWithHit(hits);
+		const competingSceneDistance =
+			normal.result.action === 'deselect' ? null : (normal.sourceHit?.distance ?? null);
+		onLayoutHover(layoutCandidatesFromIntersections(intersections), competingSceneDistance);
+	}
+
 	function updatePlacementHover(event: PointerEvent) {
 		if (!interactionStore) return;
 		const currentCamera = camera.current;
@@ -1093,6 +1137,7 @@
 
 	function onPointerLeave() {
 		store.setNavigationHover(null);
+		if (onLayoutHover) onLayoutHover([], null);
 	}
 
 	/**

@@ -546,3 +546,72 @@ npm run build -w @portfolio/museum
 
 Plus the manual QA in step 5, the unchanged S0–S5 contracts, and the
 unchanged G3 bench budgets (no re-baseline).
+
+## Post-ship follow-up (2026-08-15): known debt — anchor helpers + highlighting disconnected
+
+User directive after manual QA: the anchor-helper octahedra rendered as
+unwanted yellow dots on auto-bezier walls, and wall hover-highlighting worked
+while wall selection still could not be reached — so the highlighting was
+disconnected and **3D wall selection is deferred as known debt**.
+
+What changed (all rendering-side; the S6 pick/commit machinery is untouched
+and still resolves walls/anchors through the S5 index):
+
+- `LayoutPreviewScene.svelte` — the anchor-helper octahedra, the selection-
+  highlight shell (`LayoutWallHighlight`), and the hover shell
+  (`LayoutWallHover`) are commented out behind `KNOWN DEBT` markers (script
+  declarations + template blocks preserved as raw text for re-enabling). The
+  `showAnchors` / `hoverSelection` props were removed (no caller passed them
+  explicitly). Object inline hover tint is dormant with the hover feed.
+- `H13DView.svelte` — `showAnchors`, `hoverSelection`, and `onLayoutHover`
+  passes removed; the hover handlers/state removed behind a `KNOWN DEBT`
+  comment. `EditorSelection`'s optional `onLayoutHover` prop (S6 contract) is
+  untouched — the coordinator's guard makes hover a no-op when unpinned.
+- Contracts updated to pin the deferred state (`KNOWN DEBT` markers present,
+  no `showAnchors`/`hoverSelection`/`onLayoutHover` in the H1 shell).
+
+Re-enable path: restore the commented blocks in `LayoutPreviewScene.svelte`
++ the hover feed in `H13DView.svelte` (and the commented imports) once 3D
+wall selection actually commits a wall — the wall `surfaceType: 'wall'` tag,
+`layout3dPickIndexByRoom` cache, and `resolveLayout3dHits` wall mapping all
+remain live.
+
+## Revision (2026-08-16): direct 3D wall pick deferred by decision; hierarchy wall selection + highlight shipped
+
+Decision: **direct 3D wall selection stays deferred**, now as an explicit
+product gate rather than a claim about the machinery — the original
+"wall selection cannot be reached" failure was never root-caused at runtime;
+pure/geometry probes show `resolveLayout3dHits` maps wall triangles
+correctly, so the defect (if live) plausibly sits in live-scene arbitration
+(a nearer invisible hit shadowing the wall through `layoutPickBeatsSceneDistance`),
+not in the pick pipeline. **Hierarchy wall selection and the selection-highlight
+shell ship.**
+
+What changed (2026-08-16):
+
+- `layout-3d-picking.ts` — new pure `isLayoutDirectPickDeferred(selection)`
+  (true for `wall` + `interiorAnchor`; rooms/openings/objects/`none` stay
+  directly pickable). The single switch point S6.1 flips to re-enable.
+- `H13DView.svelte` — `handleLayoutPick` returns `false` for deferred
+  resolutions, falling through to the normal coordinator dispatch (a wall
+  click deselects; wall surfaces carry no scene identity). The `wall` /
+  `interiorAnchor` commit cases and their `selectLayoutWall` /
+  `selectLayoutInteriorAnchor` imports were removed; the stale `KNOWN DEBT`
+  block is rewritten to the actual state.
+- `LayoutPreviewScene.svelte` — the **selection-highlight shell
+  (`LayoutWallHighlight`) is restored**: `matchWallRanges` /
+  `matchOpeningRanges` + `buildWallHighlightMesh` overlays render from
+  `interaction.selection` alone (gold `WALL_HIGHLIGHT_MATERIAL` / `OPENING_HIGHLIGHT_MATERIAL`),
+  so tree-picked walls/openings/anchors highlight even though direct 3D wall
+  picks are gated. Hover shell, anchor-helper octahedra, and object hover tint
+  stay disconnected (markers updated; no functional change). The relic
+  `EditorViewport` mount picks this up automatically — plan-view wall
+  selections highlight in its 3D preview too.
+- Contracts/tests — `isLayoutDirectPickDeferred` unit-tested (wall/anchor
+  deferred; room/opening/object/`none` live); full suite + `svelte-check`
+  green.
+
+Named follow-up **S6.1**: re-enable direct 3D wall selection after a
+root-cause browser QA of the original scenario (live scene with helpers /
+ghost) — the gate predicate is the single flip point, and the resolver,
+`surfaceType: 'wall'` tag, and `layout3dPickIndexByRoom` cache are untouched.

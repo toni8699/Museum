@@ -3,11 +3,17 @@
 	import { DoubleSide, Shape, type BufferGeometry, type Material } from 'three';
 	import type { LayoutPreviewModel } from './layout-mesh-factory';
 	import type { LayoutInteractionState } from './layout-interaction';
-	import { layoutAnchorHelperPlacements } from './layout-3d-picking';
+	// Deferred (2026-08-16): hover + anchor-helper overlays stay disconnected;
+	// the selection-highlight shell below is live. `layoutAnchorHelperPlacements`
+	// was imported by the deferred anchor block; restore it with that block
+	// when the octahedra return (S6.1+).
+	// import { layoutAnchorHelperPlacements } from './layout-3d-picking';
 	import type { LayoutVec2 } from './layout-types';
 	import { ceilingShapePoints, floorShapePoints } from './layout-preview-geometry';
 	import {
 		FLOOR_MATERIAL,
+		// Deferred with the hover/anchor shells (S6.1+): LAYOUT_HOVER_COLOR,
+		// OPENING_HOVER_MATERIAL, WALL_HOVER_MATERIAL.
 		OPENING_HIGHLIGHT_MATERIAL,
 		WALL_HIGHLIGHT_MATERIAL,
 		WALL_MATERIAL_DEFAULT
@@ -27,19 +33,17 @@
 		geometry,
 		wallMeshesByRoom,
 		interaction,
-		showCeilings = false,
-		showAnchors = true
+		showCeilings = false
 	}: {
 		model: LayoutPreviewModel;
 		geometry: CompiledLayoutGeometry;
 		wallMeshesByRoom: ReadonlyMap<string, IndexedWallMesh>;
 		interaction: LayoutInteractionState;
 		showCeilings?: boolean;
-		// H1 S5 review fix — editor-only anchor helpers are editor chrome: the
-		// H1 shell passes `!store.isVisitorCameraPreview` so a visitor camera
-		// preview never frames them (same convention as grid/selection/ghost).
-		// Default true keeps the relic EditorViewport mount unchanged.
-		showAnchors?: boolean;
+		// Deferred (2026-08-16): the `showAnchors` (anchor-helper octahedra) and
+		// `hoverSelection` (hover preview) props stay removed with their render
+		// blocks below; restore them when hover/anchors return (S6.1+). Neither
+		// mount (H13DView nor the relic EditorViewport) passes them explicitly.
 	} = $props();
 
 	function polygonShape(points: readonly LayoutVec2[]): Shape {
@@ -61,13 +65,12 @@
 		}))
 	);
 
-	// H1 S5 — editor-only interior-anchor helper placements (auto-bezier walls
-	// only), lifted to each room's floor elevation. Identity is qualified and
-	// never coordinate-guessed; helpers carry no editorSurface so placement
-	// grounding ignores them. S6's raycast coordinator gives them the top
-	// semantic priority; until then they are inert (a click resolves as a
-	// background deselect, like a wall mesh today).
-	const anchorPlacements = $derived(layoutAnchorHelperPlacements(geometry));
+	// Deferred (2026-08-16): the anchor-helper octahedra (yellow dots on
+	// auto-bezier walls) were unwanted in the 3D view and stay off.
+	// `layoutAnchorHelperPlacements` stays exported from the pure picking
+	// module; restore this derivation with the anchor render block when the
+	// octahedra return (S6.1+).
+	// const anchorPlacements = $derived(layoutAnchorHelperPlacements(geometry));
 
 	// Selection-independent base classifier: every surface class resolves to the
 	// shared default wall material. Selection color lives only on the overlay,
@@ -92,8 +95,13 @@
 		};
 	});
 
-	// Highlight overlay for the current wall/opening selection: a thin shell over
-	// the matched range set, rebuilt and disposed on every selection change.
+	// Selection-highlight shell (restored 2026-08-16): a gold overlay over the
+	// selected wall/opening/anchor range, driven purely by
+	// `interaction.selection`. Hierarchy picks (UnifiedProjectTree rows) and
+	// direct picks that commit (openings, objects) both light up — tree-picked
+	// walls highlight here even though direct 3D wall picks are deferred. The
+	// overlay is rebuilt/disposed on selection change; hover overlays stay off
+	// (deferred block below).
 	let highlight = $state<{ geometry: BufferGeometry; material: Material } | null>(null);
 
 	$effect(() => {
@@ -126,6 +134,58 @@
 			overlay?.dispose();
 		};
 	});
+
+	// Deferred (2026-08-16): the hover-preview shell (cyan tint over the
+	// wall/opening surface under the cursor) stays off with the hover feed
+	// (see H13DView) — restore alongside S6.1. Object/helper inline hover
+	// tinting below is dormant too because nothing feeds `hoverSelection`.
+	// let hover = $state<{ geometry: BufferGeometry; material: Material } | null>(null);
+	//
+	// $effect(() => {
+	// 	const selection = hoverSelection;
+	// 	const current = interaction.selection;
+	// 	let overlay: BufferGeometry | null = null;
+	// 	let material: Material | null = null;
+	//
+	// 	if (selection && selection.kind !== 'none' && selection.kind !== 'room') {
+	// 		if (selection.kind === 'wall') {
+	// 			const isSelected =
+	// 				current.kind === 'wall' &&
+	// 				current.roomId === selection.roomId &&
+	// 				current.segmentId === selection.segmentId;
+	// 			if (!isSelected) {
+	// 				const mesh = wallMeshesByRoom.get(selection.roomId);
+	// 				if (mesh) {
+	// 					const ranges = matchWallRanges(mesh, selection.segmentId);
+	// 					if (ranges.length > 0) {
+	// 						overlay = buildWallHighlightMesh(mesh, ranges);
+	// 						material = WALL_HOVER_MATERIAL;
+	// 					}
+	// 				}
+	// 			}
+	// 		} else if (selection.kind === 'opening') {
+	// 			const isSelected =
+	// 				current.kind === 'opening' &&
+	// 				current.roomId === selection.roomId &&
+	// 				current.openingId === selection.openingId;
+	// 			if (!isSelected) {
+	// 				const mesh = wallMeshesByRoom.get(selection.roomId);
+	// 				if (mesh) {
+	// 					const ranges = matchOpeningRanges(mesh, selection.openingId);
+	// 					if (ranges.length > 0) {
+	// 						overlay = buildWallHighlightMesh(mesh, ranges);
+	// 						material = OPENING_HOVER_MATERIAL;
+	// 					}
+	// 				}
+	// 			}
+	// 		}
+	// 	}
+	//
+	// 	hover = overlay && material ? { geometry: overlay, material } : null;
+	// 	return () => {
+	// 		overlay?.dispose();
+	// 	};
+	// });
 </script>
 
 <T.Group name="LayoutPreviewRoot">
@@ -174,6 +234,52 @@
 		</T.Group>
 	{/each}
 
+	<!-- Deferred (2026-08-16): hover + anchor-helper shells stay off; the
+		selection-highlight shell is live below. Restore these blocks with the
+		hover feed and octahedra (S6.1+). -->
+	<!--
+		{#if hover}
+			<T.Mesh
+				name="LayoutWallHover"
+				geometry={hover.geometry}
+				material={hover.material}
+				renderOrder={2}
+			/>
+		{/if}
+
+		{#if showAnchors}
+			{#each anchorPlacements as placement (JSON.stringify([placement.roomId, placement.segmentId, placement.anchorId]))}
+				{@const anchorHovered =
+					hoverSelection?.kind === 'interiorAnchor' &&
+					hoverSelection.roomId === placement.roomId &&
+					hoverSelection.segmentId === placement.segmentId &&
+					hoverSelection.anchorId === placement.anchorId}
+				{@const anchorSelected =
+					interaction.selection.kind === 'interiorAnchor' &&
+					interaction.selection.roomId === placement.roomId &&
+					interaction.selection.segmentId === placement.segmentId &&
+					interaction.selection.anchorId === placement.anchorId}
+				<T.Group
+					name={`LayoutAnchor:${placement.anchorId}`}
+					position={[placement.position[0], placement.position[1] + 0.02, placement.position[2]]}
+					userData={{
+						editorEntity: 'layout-anchor',
+						roomId: placement.roomId,
+						segmentId: placement.segmentId,
+						anchorId: placement.anchorId
+					}}
+				>
+					<T.Mesh>
+						<T.OctahedronGeometry args={[0.12]} />
+						<T.MeshBasicMaterial
+							color={anchorHovered && !anchorSelected ? LAYOUT_HOVER_COLOR : '#d6b35f'}
+						/>
+					</T.Mesh>
+				</T.Group>
+			{/each}
+		{/if}
+	-->
+
 	{#if highlight}
 		<T.Mesh
 			name="LayoutWallHighlight"
@@ -183,27 +289,11 @@
 		/>
 	{/if}
 
-	{#if showAnchors}
-		{#each anchorPlacements as placement (JSON.stringify([placement.roomId, placement.segmentId, placement.anchorId]))}
-			<T.Group
-				name={`LayoutAnchor:${placement.anchorId}`}
-				position={[placement.position[0], placement.position[1] + 0.02, placement.position[2]]}
-				userData={{
-					editorEntity: 'layout-anchor',
-					roomId: placement.roomId,
-					segmentId: placement.segmentId,
-					anchorId: placement.anchorId
-				}}
-			>
-				<T.Mesh>
-					<T.OctahedronGeometry args={[0.12]} />
-					<T.MeshBasicMaterial color="#d6b35f" />
-				</T.Mesh>
-			</T.Group>
-		{/each}
-	{/if}
-
 	{#each model.objects as object (object.objectId)}
+		{@const objectSelected =
+			interaction.selection.kind === 'object' &&
+			interaction.selection.objectId === object.objectId}
+		<!-- Deferred — object hover tint stays off with the hover feed (S6.1+). -->
 		<T.Group
 			name={`LayoutObject:${object.objectId}`}
 			position={interaction.objectDrag?.objectId === object.objectId
@@ -231,8 +321,7 @@
 					<T.SphereGeometry args={[0.5, 24, 16]} />
 				{/if}
 				<T.MeshStandardMaterial
-					color={interaction.selection.kind === 'object' &&
-					interaction.selection.objectId === object.objectId
+					color={objectSelected
 						? '#d6b35f'
 						: object.readonly
 							? '#756f82'

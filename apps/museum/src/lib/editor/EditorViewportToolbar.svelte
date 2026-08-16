@@ -7,7 +7,23 @@
 		type EditorInteractionStore
 	} from './store/editor-interaction-store.svelte';
 
-	let { store }: { store: MuseumEditorStore } = $props();
+	let {
+		store,
+		showCeilings = false,
+		onToggleCeilings,
+		cameraAgnosticViewMenu = false
+	}: {
+		store: MuseumEditorStore;
+		// H1 3D (restored 2026-08-16): the layout ceiling toggle that the
+		// unification dropped lives in the View menu when these props are
+		// provided; the relic mount leaves them absent and keeps its own
+		// LayoutDraftToolbar Ceiling button.
+		showCeilings?: boolean;
+		onToggleCeilings?: () => void;
+		// H1 3D: surface the View menu in both Scene and Camera contexts.
+		// Default (false) preserves the relic's camera-only menu.
+		cameraAgnosticViewMenu?: boolean;
+	} = $props();
 
 	const interactionStore = getContext<EditorInteractionStore | undefined>(
 		EDITOR_INTERACTION_STORE_KEY
@@ -58,7 +74,7 @@
 	}
 
 	function toggleViewMenu() {
-		if (store.currentWorkspace !== 'camera') return;
+		if (store.currentWorkspace !== 'camera' && !cameraAgnosticViewMenu) return;
 		viewMenuOpen = !viewMenuOpen;
 	}
 
@@ -148,7 +164,7 @@
 		</button>
 	</div>
 
-	{#if store.currentWorkspace === 'camera'}
+	{#if store.currentWorkspace === 'camera' || cameraAgnosticViewMenu}
 		<div class="tool-group" aria-label="Viewport helper visibility">
 			<button
 				type="button"
@@ -197,6 +213,18 @@
 						<span class="check" aria-hidden="true">{store.viewportShowFraming ? '✓' : '○'}</span>
 						<span>Framing &amp; FOV</span>
 					</button>
+					{#if onToggleCeilings}
+						<button
+							type="button"
+							role="menuitemcheckbox"
+							aria-checked={showCeilings}
+							class="toggle-row"
+							onclick={onToggleCeilings}
+						>
+							<span class="check" aria-hidden="true">{showCeilings ? '✓' : '○'}</span>
+							<span>Ceiling</span>
+						</button>
+					{/if}
 				</div>
 			{/if}
 		</div>
@@ -221,11 +249,33 @@
 	}
 
 	.tool-group {
+		position: relative;
 		display: flex;
 		gap: 0.22rem;
 		padding-right: 0.32rem;
 		border-right: 1px solid #34343e;
 	}
+
+	/* View-menu dropdown: absolutely positioned below the trigger so opening
+	   it never resizes the toolbar bar (options overlay, they don't share the
+	   bar's flex flow). Mirrors the Project-menu dropdown styling. */
+	.add-menu {
+		position: absolute;
+		top: calc(100% + 0.3rem);
+		left: 0;
+		z-index: 20;
+		box-sizing: border-box;
+		min-width: 11.5rem;
+		max-width: calc(100vw - 1rem);
+		padding: 0.3rem;
+		border: 1px solid rgb(70 68 78 / 88%);
+		border-radius: 0.42rem;
+		background: rgb(19 19 26 / 96%);
+		box-shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 42%);
+		backdrop-filter: blur(8px);
+	}
+	.add-menu .toggle-row { padding: 0.34rem 0.45rem; border-radius: 0.3rem; }
+	.add-menu .toggle-row:hover { border-color: #5a5663; color: #fff; }
 
 	.scale-toggle {
 		display: flex;

@@ -268,6 +268,26 @@ describe('H1 S1 — Plan ↔ 3D switch preserves session state', () => {
 		expect(store.isDirty).toBe(dirty);
 		expect(JSON.parse(JSON.stringify(store.selection.workspace))).toEqual(selection);
 	});
+
+	it('restores the layout ceiling toggle into the H1 3D View menu (camera-agnostic), relic untouched', () => {
+		const toolbar = readLibSource('editor/EditorViewportToolbar.svelte');
+		const h13d = readLibSource('editor/h1/H13DView.svelte');
+		const viewport = readLibSource('editor/EditorViewport.svelte');
+
+		// The shared toolbar gains a Ceiling menuitem only when fed by the H1
+		// shell, and its View menu surfaces in both 3D contexts via the
+		// H1-only cameraAgnosticViewMenu prop.
+		expect(toolbar).toContain('onToggleCeilings');
+		expect(toolbar).toContain('cameraAgnosticViewMenu');
+		expect(toolbar).toMatch(/role="menuitemcheckbox"[^]*?<span>Ceiling<\/span>/);
+		expect(h13d).toContain('cameraAgnosticViewMenu');
+		expect(h13d).toContain('onToggleCeilings={');
+		expect(h13d).toContain('toggleLayoutCeilings');
+		// The relic mount feeds neither prop, keeping its LayoutDraftToolbar
+		// Ceiling button as the single surface there.
+		expect(viewport).not.toContain('onToggleCeilings');
+		expect(viewport).not.toContain('cameraAgnosticViewMenu');
+	});
 });
 
 describe('H1 S1 — route wiring (relic smoke proxy, no DOM harness)', () => {
@@ -407,29 +427,53 @@ describe('H1 S5 — layout 3D pick metadata', () => {
 		}
 	});
 
-	it('tags the ceiling and anchor helpers with explicit authored identity in the shared scene', () => {
+	it('ships the selection-highlight shell while anchor helpers + hover stay deferred', () => {
 		const scene = readLibSource('editor/layout/LayoutPreviewScene.svelte');
 		// Ceiling is pick-identifiable (surfaceType 'ceiling' + roomId) but carries
 		// no editorSurface, so placement grounding still ignores it.
 		expect(scene).toMatch(/surfaceType: 'ceiling'/);
-		expect(scene).toMatch(/editorEntity: 'layout-anchor'/);
-		// The scene derives helpers from the pure module, never hardcodes positions.
+		// 2026-08-16 revision: the selection-highlight shell is LIVE again — it
+		// renders from `interaction.selection` alone, so hierarchy (tree) wall
+		// picks highlight even though direct 3D wall picks are deferred. The
+		// anchor-helper octahedra and the hover shell stay commented out
+		// (deferred); their authored identity and the pure placement derivation
+		// are preserved inside the commented blocks for re-enabling.
+		expect(scene).toContain('LayoutWallHighlight');
+		expect(scene).toContain('buildWallHighlightMesh');
+		expect(scene).toContain('matchWallRanges');
+		expect(scene).toContain('matchOpeningRanges');
+		expect(scene).toContain('WALL_HIGHLIGHT_MATERIAL');
+		expect(scene).toContain('Deferred (2026-08-16)');
+		expect(scene).toContain("editorEntity: 'layout-anchor'");
 		expect(scene).toContain('layoutAnchorHelperPlacements');
+		expect(scene).toContain('JSON.stringify([placement.roomId, placement.segmentId, placement.anchorId])');
 	});
 
-	it('keeps anchor helpers editor-only: un-colliding each key + hidden during visitor preview', () => {
+	it('defers direct 3D wall/interior-anchor picks behind isLayoutDirectPickDeferred', () => {
+		const h13d = readLibSource('editor/h1/H13DView.svelte');
+		const picking = readLibSource('editor/layout/layout-3d-picking.ts');
+		// The gate is pure + exported (unit-tested) and the coordinator falls
+		// through to the normal dispatch for deferred resolutions; the wall/anchor
+		// commit cases are gone from the shell.
+		expect(picking).toContain('export function isLayoutDirectPickDeferred');
+		expect(h13d).toContain('isLayoutDirectPickDeferred(resolved.selection)');
+		expect(h13d).not.toContain('selectLayoutWall');
+		expect(h13d).not.toContain('selectLayoutInteriorAnchor');
+	});
+
+	it('disconnects the highlight feed: no showAnchors/hoverSelection/onLayoutHover passes remain', () => {
 		const scene = readLibSource('editor/layout/LayoutPreviewScene.svelte');
 		const h13d = readLibSource('editor/h1/H13DView.svelte');
-		// IDs legally contain ':' (ID_PATTERN), so the joined key is ambiguous;
-		// the each key is the JSON-serialized tuple, never a colon join.
-		expect(scene).toContain('JSON.stringify([placement.roomId, placement.segmentId, placement.anchorId])');
-		expect(scene).not.toContain('`${placement.roomId}:${placement.segmentId}:${placement.anchorId}`');
-		// Helpers are editor chrome: the H1 shell hides them while a visitor
-		// camera preview plays (grid/selection/ghost already do), via a prop so
-		// the relic EditorViewport mount keeps the default (visible) behavior.
-		expect(scene).toContain('showAnchors = true');
-		expect(scene).toContain('{#if showAnchors}');
-		expect(h13d).toContain('showAnchors={!store.isVisitorCameraPreview}');
+		// The S6 click coordinator still owns its optional props (onLayoutPick /
+		// onLayoutHover — the contract), but the H1 shell no longer feeds any of
+		// the disconnected surfaces, so EditorSelection's hover guard makes the
+		// whole hover resolution a no-op.
+		expect(h13d).not.toContain('showAnchors');
+		expect(h13d).not.toContain('hoverSelection');
+		// Assert the wiring shape, not the bare identifier: the KNOWN DEBT
+		// comment in H13DView legitimately mentions the prop name.
+		expect(h13d).not.toContain('onLayoutHover={');
+		expect(h13d).toContain('onLayoutPick={store.isVisitorCameraPreview ? undefined : handleLayoutPick}');
 	});
 
 	it('fails the wall-mesh build closed on an untagged face (pick-tag guard)', () => {

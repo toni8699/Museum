@@ -17,19 +17,21 @@
 	import PlacementGhost from '$lib/editor/placement-ghost.svelte';
 	import LayoutPreviewScene from '$lib/editor/layout/LayoutPreviewScene.svelte';
 	import {
-		selectLayoutInteriorAnchor,
 		selectLayoutObject,
 		selectLayoutOpening,
 		selectLayoutRoom,
-		selectLayoutWall,
 		type LayoutInteractionState
 	} from '$lib/editor/layout/layout-interaction';
 	import {
+		isLayoutDirectPickDeferred,
 		layoutPickBeatsSceneDistance,
 		resolveLayout3dHits,
 		type Layout3dHitCandidate
 	} from '$lib/editor/layout/layout-3d-picking';
-	import type { LayoutPreviewState } from '$lib/editor/layout/layout-preview-state.svelte';
+	import {
+		toggleLayoutCeilings,
+		type LayoutPreviewState
+	} from '$lib/editor/layout/layout-preview-state.svelte';
 	import type { MuseumEditorStore } from '$lib/editor/museum-editor.svelte';
 	import { resolveEditorPlacementScale } from '$lib/editor/scale-vector';
 	import type { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
@@ -88,46 +90,49 @@
 		candidates: readonly Layout3dHitCandidate[],
 		competingSceneDistance: number | null
 	): boolean {
-		const resolved = resolveLayout3dHits(layoutPreview.layout3dPickIndexByRoom, candidates);
-		if (!resolved) return false;
-		if (!layoutPickBeatsSceneDistance(resolved.distance, competingSceneDistance)) {
-			return false;
-		}
-		switch (resolved.selection.kind) {
-			case 'room':
-				selectLayoutRoom(layoutInteraction, resolved.selection.roomId);
-				break;
-			case 'wall':
-				selectLayoutWall(
-					layoutInteraction,
-					resolved.selection.roomId,
-					resolved.selection.segmentId
-				);
-				break;
-			case 'opening':
-				selectLayoutOpening(
-					layoutInteraction,
-					resolved.selection.roomId,
-					resolved.selection.segmentId,
-					resolved.selection.openingId
-				);
-				break;
-			case 'interiorAnchor':
-				selectLayoutInteriorAnchor(
-					layoutInteraction,
-					resolved.selection.roomId,
-					resolved.selection.segmentId,
-					resolved.selection.anchorId
-				);
-				break;
-			case 'object':
-				selectLayoutObject(layoutInteraction, resolved.selection.objectId);
-				break;
-			case 'none':
-				break;
-		}
+	const resolved = resolveLayout3dHits(layoutPreview.layout3dPickIndexByRoom, candidates);
+	if (!resolved) return false;
+	// Deferred (2026-08-16): direct 3D wall/anchor picks fall through to the
+	// normal coordinator dispatch (wall surfaces carry no scene identity, so
+	// the click deselects). Hierarchy picks of the same identities still
+	// commit + highlight via `selectLayout*`. See `isLayoutDirectPickDeferred`.
+	if (isLayoutDirectPickDeferred(resolved.selection)) return false;
+	if (!layoutPickBeatsSceneDistance(resolved.distance, competingSceneDistance)) {
+		return false;
+	}
+	switch (resolved.selection.kind) {
+		case 'room':
+			selectLayoutRoom(layoutInteraction, resolved.selection.roomId);
+			break;
+		case 'opening':
+			selectLayoutOpening(
+				layoutInteraction,
+				resolved.selection.roomId,
+				resolved.selection.segmentId,
+				resolved.selection.openingId
+			);
+			break;
+		case 'object':
+			selectLayoutObject(layoutInteraction, resolved.selection.objectId);
+			break;
+		case 'none':
+			break;
+	}
 		return true;
 	}
+
+	/**
+	 * Deferred (2026-08-16): the hover-preview feed (cyan tint) stays off —
+	 * `EditorSelection` still owns the optional `onLayoutHover` prop (S6
+	 * contract, untouched) but this shell does not pass it, so hover
+	 * resolution is a no-op. Direct 3D wall/interior-anchor picks are also
+	 * deferred (the `isLayoutDirectPickDeferred` gate above falls through to
+	 * the normal dispatch); rooms/openings/objects stay directly pickable.
+	 * Hierarchy wall selection + the gold highlight shell are shipped — S6.1
+	 * re-enables direct wall picks after a root-cause browser QA. Restore this
+	 * block (layoutHover state + handleLayoutHover + setLayoutHover) with the
+	 * hover feed.
+	 */
 </script>
 
 <div
@@ -143,7 +148,12 @@
 	style:cursor={interactionStore?.cursor ?? 'default'}
 	aria-label="Unified 3D editor viewport"
 >
-	<EditorViewportToolbar {store} />
+	<EditorViewportToolbar
+		{store}
+		cameraAgnosticViewMenu
+		showCeilings={layoutPreview.showCeilings}
+		onToggleCeilings={() => toggleLayoutCeilings(layoutPreview)}
+	/>
 	<Canvas dpr={[1, 1.5]} shadows>
 		<MuseumScene
 			scene={store.scene}
@@ -173,7 +183,6 @@
 			wallMeshesByRoom={layoutPreview.wallMeshesByRoom}
 			interaction={layoutInteraction}
 			showCeilings={layoutPreview.showCeilings}
-			showAnchors={!store.isVisitorCameraPreview}
 		/>
 		<EditorGrid visible={store.gridVisible && !store.isVisitorCameraPreview} />
 		{#if store.viewportShowPaths}

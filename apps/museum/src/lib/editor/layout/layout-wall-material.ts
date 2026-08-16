@@ -45,6 +45,30 @@ export const OPENING_HIGHLIGHT_MATERIAL = new MeshBasicMaterial({
 	side: DoubleSide
 });
 
+/**
+ * H1 S6 follow-up — hover preview overlays. Distinct cyan tint (vs. the gold
+ * selection shell) so the surface a click would select is visible before the
+ * click. Module-level singletons like the selection materials, so workspace
+ * remounts cannot leak GPU resources.
+ */
+export const WALL_HOVER_MATERIAL = new MeshBasicMaterial({
+	color: '#6fc3ff',
+	transparent: true,
+	opacity: 0.3,
+	depthWrite: false,
+	side: DoubleSide
+});
+export const OPENING_HOVER_MATERIAL = new MeshBasicMaterial({
+	color: '#8fd6ff',
+	transparent: true,
+	opacity: 0.34,
+	depthWrite: false,
+	side: DoubleSide
+});
+
+/** Hover accent tint shared by layout objects and interior-anchor helpers. */
+export const LAYOUT_HOVER_COLOR = '#6fc3ff';
+
 export type WallMaterialKey = 'default' | 'wall-selected' | 'opening-selected';
 
 /**

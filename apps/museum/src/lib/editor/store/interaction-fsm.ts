@@ -17,6 +17,11 @@ export type FSMEvent =
 	| { type: 'ESC' }
 	| { type: 'KEY_W' | 'KEY_E' | 'KEY_R' | 'KEY_T' | 'KEY_X' }
 	| { type: 'SELECTION_SET_CHANGE' }
+	| {
+			type: 'ACTIVE_TARGET_CHANGE';
+			/** Collision-safe adapter key of the live attachable gizmo target, or null when detached. */
+			targetKey: string | null;
+	  }
 	| { type: 'DRAG_START' }
 	| { type: 'DRAG_END'; cancelled: boolean };
 
@@ -45,15 +50,22 @@ export interface ReduceResult {
  * Reduce `(state, event) → { next state, side effects }`. Pure: never reads
  * or mutates anything outside its arguments.
  *
- * Transition policy (locks Q1-Q10 from the Phase 6.1 design doc):
+ * Transition policy (locks Q1-Q10 from the Phase 6.1 design doc, amended by
+ * H1 S7):
  *  - POINTER_MOVE: Idle/Hover follow the target's presence; Selected and
  *    Dragging ignore the cursor (hover is a sibling concern).
  *  - CLICK: empty target → Idle. With target → Selected, including shifts
  *    used as modifiers for multi-select (handled at the click-routing layer).
+ *  - ACTIVE_TARGET_CHANGE: `Selected` now means a live attachable gizmo
+ *    target exists, not merely some editor selection. Outside Dragging,
+ *    targetKey present → Selected; `null` → Idle. Ignored during Dragging.
  *  - DRAG_START: only from Selected.
  *  - DRAG_END: from Dragging only; emits a Commit or Revert side effect.
- *  - ESC: revert + deselect is split — mid-drag emits RevertDragSideEffect
- *    and stays in Dragging until DRAG_END fires; idle Esc → Idle.
+ *  - ESC: shell-level event only (idle deselect / camera-preview cascade).
+ *    A live gizmo drag never dispatches ESC — the host routes every cancel
+ *    reason (Escape included) through the active adapter's cancel + a
+ *    `DRAG_END { cancelled: true }`, so ESC during Dragging is a dead branch
+ *    and leaves the state untouched.
  *  - KEY_W/E/R/T/X: not state-mutating (the sub-store tracks mode/space).
  */
 export function reduce(state: FSMState, event: FSMEvent): ReduceResult {
@@ -106,14 +118,25 @@ export function reduce(state: FSMState, event: FSMEvent): ReduceResult {
 			next = state;
 			break;
 
+		case 'ACTIVE_TARGET_CHANGE': {
+			// The host attaches a live, session-backed gizmo target before
+			// dispatching this event; a layout selection without an adapter
+			// dispatches `targetKey: null` and therefore never reaches
+			// Selected. Ignored while a drag is in flight: the host cancels a
+			// live session first (`DRAG_END { cancelled: true }`), so a stale
+			// sync event can never flip Dragging back to Selected.
+			if (state !== 'Dragging') {
+				next = event.targetKey === null ? 'Idle' : 'Selected';
+			}
+			break;
+		}
+
 		case 'ESC': {
-			if (state === 'Dragging') {
-				effects.push(new RevertDragSideEffect());
-				// FSM-owned transition: revert + Idle. The caller restores
-				// the snapshot and detaches the gizmo drag in one operation;
-				// no follow-up DRAG_END dispatch is needed.
-				next = 'Idle';
-			} else if (state === 'Hover' || state === 'Selected' || state === 'Idle') {
+			// H1 S7 — shell-level Escape only: idle deselect / camera-preview
+			// cascade. `Dragging` ignores ESC (the host never dispatches it
+			// from a live gizmo drag; every cancel reason routes through the
+			// adapter's cancel + `DRAG_END { cancelled: true }`).
+			if (state === 'Hover' || state === 'Selected' || state === 'Idle') {
 				next = 'Idle';
 			}
 			break;

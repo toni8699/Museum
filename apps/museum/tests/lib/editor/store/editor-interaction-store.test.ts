@@ -135,23 +135,45 @@ describe('EditorInteractionStore — Phase 1a scaleMode', () => {
 		expect(a.scaleMode).toBe('independent');
 		expect(b.scaleMode).toBe('uniform');
 	});
-});
+});	describe('EditorInteractionStore — dispatch side-effects', () => {
+		it('		dispatch DRAG_END cancelled=true in Dragging clears dragSnapshot and goes to Selected', () => {
+			// Idle + CLICK → Selected.
+			store.dispatch({ type: 'CLICK', target: 'p1', shift: false, meta: false });
+			expect(store.state).toBe('Selected');
+			// Selected + DRAG_START → Dragging.
+			store.dispatch({ type: 'DRAG_START' });
+			expect(store.state).toBe('Dragging');
+			// Dragging + DRAG_END(true) → Selected.
+			store.dispatch({ type: 'DRAG_END', cancelled: true });
+			expect(store.state).toBe('Selected');
+		});
 
-describe('EditorInteractionStore — dispatch side-effects', () => {
-	it('dispatch DRAG_END cancelled=true in Dragging clears dragSnapshot and goes to Selected', () => {
-		// Idle + CLICK → Selected.
-		store.dispatch({ type: 'CLICK', target: 'p1', shift: false, meta: false });
-		expect(store.state).toBe('Selected');
-		// Selected + DRAG_START → Dragging.
-		store.dispatch({ type: 'DRAG_START' });
-		expect(store.state).toBe('Dragging');
-		// Dragging + DRAG_END(true) → Selected.
-		store.dispatch({ type: 'DRAG_END', cancelled: true });
-		expect(store.state).toBe('Selected');
+		it('dispatch ESC in Idle stays Idle', () => {
+			store.dispatch({ type: 'ESC' });
+			expect(store.state).toBe('Idle');
+		});
 	});
 
-	it('dispatch ESC in Idle stays Idle', () => {
-		store.dispatch({ type: 'ESC' });
-		expect(store.state).toBe('Idle');
+	describe('EditorInteractionStore — ACTIVE_TARGET_CHANGE (H1 S7)', () => {
+		it('targetKey present → Selected; null → Idle', () => {
+			store.dispatch({ type: 'ACTIVE_TARGET_CHANGE', targetKey: 'camera:node:pos' });
+			expect(store.state).toBe('Selected');
+			store.dispatch({ type: 'ACTIVE_TARGET_CHANGE', targetKey: null });
+			expect(store.state).toBe('Idle');
+		});
+
+		it('ignored while Dragging (host cancels the live session first)', () => {
+			store.dispatch({ type: 'CLICK', target: 'p1', shift: false, meta: false });
+			store.dispatch({ type: 'DRAG_START' });
+			expect(store.state).toBe('Dragging');
+			// A stale/late sync must never flip Dragging back to Selected.
+			store.dispatch({ type: 'ACTIVE_TARGET_CHANGE', targetKey: null });
+			expect(store.state).toBe('Dragging');
+			// The genuine cancel path still lands on Selected…
+			store.dispatch({ type: 'DRAG_END', cancelled: true });
+			expect(store.state).toBe('Selected');
+			// …and a later detached sync produces Idle.
+			store.dispatch({ type: 'ACTIVE_TARGET_CHANGE', targetKey: null });
+			expect(store.state).toBe('Idle');
+		});
 	});
-});

@@ -49,6 +49,12 @@ export class EditorInteractionStore {
 	 * Currently the side effects are marker-only (sub-store doesn't apply them
 	 * internally); the listeners in `EditorTransformControls` and `EditorSelection`
 	 * restore / commit.
+	 *
+	 * H1 S7 — `ACTIVE_TARGET_CHANGE { targetKey }` syncs the live attachable
+	 * gizmo target: `Selected` means a target exists (key present), `Idle`
+	 * means detached (`null`); the event is ignored during `Dragging`. The
+	 * single host dispatches it on attach/detach; camera targets therefore
+	 * enter `Dragging` through the same `DRAG_START` as placements.
 	 */
 	dispatch(event: FSMEvent): void {
 		const { state, effects } = reduce(this.state, event);

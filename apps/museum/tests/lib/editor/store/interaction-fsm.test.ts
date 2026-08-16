@@ -50,6 +50,33 @@ describe('reduce — transition matrix', () => {
 		},
 		{ state: 'Hover', event: { type: 'ESC' }, next: 'Idle' },
 
+		// Idle/Hover/Selected — ACTIVE_TARGET_CHANGE rows (H1 S7)
+		{
+			state: 'Idle',
+			event: { type: 'ACTIVE_TARGET_CHANGE', targetKey: 'scene:placement' },
+			next: 'Selected'
+		},
+		{
+			state: 'Idle',
+			event: { type: 'ACTIVE_TARGET_CHANGE', targetKey: null },
+			next: 'Idle'
+		},
+		{
+			state: 'Hover',
+			event: { type: 'ACTIVE_TARGET_CHANGE', targetKey: 'camera:node:pos' },
+			next: 'Selected'
+		},
+		{
+			state: 'Selected',
+			event: { type: 'ACTIVE_TARGET_CHANGE', targetKey: null },
+			next: 'Idle'
+		},
+		{
+			state: 'Selected',
+			event: { type: 'ACTIVE_TARGET_CHANGE', targetKey: 'camera:node:target' },
+			next: 'Selected'
+		},
+
 		// Selected row
 		{ state: 'Selected', event: { type: 'POINTER_MOVE', target: null }, next: 'Selected' },
 		{ state: 'Selected', event: { type: 'POINTER_MOVE', target: 'p2' }, next: 'Selected' },
@@ -95,8 +122,20 @@ describe('reduce — transition matrix', () => {
 		},
 		{
 			state: 'Dragging',
+			event: { type: 'ACTIVE_TARGET_CHANGE', targetKey: 'x' },
+			next: 'Dragging'
+		},
+		{
+			state: 'Dragging',
+			event: { type: 'ACTIVE_TARGET_CHANGE', targetKey: null },
+			next: 'Dragging'
+		},
+		{
+			// H1 S7 — dead branch: a live gizmo drag never dispatches ESC
+			// (host routes every cancel through DRAG_END { cancelled: true }).
+			state: 'Dragging',
 			event: { type: 'ESC' },
-			next: 'Idle'
+			next: 'Dragging'
 		}
 	];
 
@@ -121,6 +160,9 @@ function describeEventExtras(event: FSMEvent): string {
 	}
 	if (event.type === 'DRAG_END') {
 		return ` (cancelled=${event.cancelled})`;
+	}
+	if (event.type === 'ACTIVE_TARGET_CHANGE') {
+		return ` (targetKey=${event.targetKey === null ? 'null' : event.targetKey})`;
 	}
 	return '';
 }
@@ -149,10 +191,18 @@ describe('reduce — invariants', () => {
 		expect(effects).toHaveLength(0);
 	});
 
-	it('ESC mid-drag emits RevertDragSideEffect and transitions to Idle (FSM-owned)', () => {
+	it('ESC mid-drag is a dead branch (H1 S7): Dragging stays put, no effects', () => {
+		// The host routes every gizmo cancel (Escape included) through the
+		// adapter's cancel + DRAG_END { cancelled: true }, so the reducer
+		// must never see ESC from a live drag; pin it as a no-op.
 		const { state, effects } = reduce('Dragging', { type: 'ESC' });
-		expect(state).toBe('Idle');
-		expect(effects.some((e) => e instanceof RevertDragSideEffect)).toBe(true);
+		expect(state).toBe('Dragging');
+		expect(effects).toHaveLength(0);
+	});
+
+	it('ACTIVE_TARGET_CHANGE outside Dragging emits no side effects', () => {
+		const { effects } = reduce('Idle', { type: 'ACTIVE_TARGET_CHANGE', targetKey: 'k' });
+		expect(effects).toHaveLength(0);
 	});
 
 	it('every event leaves the state field populated', () => {

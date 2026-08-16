@@ -434,9 +434,11 @@
 
 	function onKeyDown(event: KeyboardEvent) {
 		if (event.key === 'Shift') shiftHeld = true;
-		// Phase 6.1 Q8 — Esc mid-drag reverts + deselects (FSM-owned transition).
-		// EditorTransformControls handles the placement-drag branch because
-		// navigator/anchor/view-target drags use the existing `cancelNavigationTransform`.
+		// Phase 6.1 Q8 — Esc mid-drag reverts + deselects. H1 S7 rewires the
+		// placement branch through DRAG_END { cancelled: true } + a detached
+		// ACTIVE_TARGET_CHANGE so the FSM `ESC` event stays shell-level only;
+		// navigator/anchor/view-target drags keep `cancelNavigationTransform`
+		// (they never entered Dragging).
 		if (event.key === 'Escape' && interactionStore?.state === 'Dragging') {
 			const snap = interactionStore.dragSnapshot;
 			if (snap) {
@@ -452,8 +454,14 @@
 			// private flag so it releases pointer capture. Works on r170 today.
 			(transformControls as { dragging?: boolean }).dragging = false;
 			interactionStore.clearDragSnapshot();
-			interactionStore.dispatch({ type: 'ESC' });
+			// H1 S7 — a live gizmo drag never dispatches the FSM `ESC` event.
+			// Route the cancel through the generic DRAG_END { cancelled: true }
+			// path (the monolith plays the scene adapter's cancel role until
+			// S7 step 3 extracts it), then sync the detached target so the
+			// placement deselect lands the FSM in Idle.
+			interactionStore.dispatch({ type: 'DRAG_END', cancelled: true });
 			store.selectionActions.deselect();
+			interactionStore.dispatch({ type: 'ACTIVE_TARGET_CHANGE', targetKey: null });
 			event.preventDefault();
 			event.stopImmediatePropagation();
 			return;

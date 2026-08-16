@@ -7,6 +7,7 @@ import {
 	EditorDocumentStore,
 	pickInitialNavigationNodeId
 } from '$lib/editor/store/document-store.svelte';
+import { EditorInteractionStore } from '$lib/editor/store/editor-interaction-store.svelte';
 import type { EditorViewMode } from '$lib/editor/h1/editor-view-mode';
 import { createEmptyLayoutDocument } from '$lib/layout/layout-codec';
 import { createLayoutRoomRegistry } from '$lib/project/project-layout-semantics';
@@ -530,6 +531,173 @@ describe('H1 S6 — centralized 3D layout selection', () => {
 		expect(picking).toContain('export function layoutCandidatesFromIntersections');
 		expect(picking).toContain('LAYOUT_3D_SAME_DEPTH_EPSILON = 1e-4');
 	});
+});
+
+describe('H1 S7 — single gizmo host', () => {
+	/**
+	 * Document mutations the host/adapters/descriptors must never call
+	 * directly (scene/camera mutators + the layout preview/history surface
+	 * S8 owns). Add tokens as adapters land; the walk covers every file
+	 * under `$lib/editor/gizmo`, present or future.
+	 */
+	const GIZMO_MUTATION_MARKERS = [
+		'updatePlacementTransform',
+		'beginDocumentTransaction',
+		'commitDocumentTransaction',
+		'cancelDocumentTransaction',
+		'updateNavigationNodePoint',
+		'updateConnectionAnchorWorldPoint',
+		'updateSelectedViewKeyframeTargetWorldPoint',
+		'updateLayout',
+		'previewLayoutRoomUnit',
+		'restoreLayoutPreviewSnapshot',
+		'commitLayoutTransaction',
+		'cancelLayoutTransaction'
+	];
+
+	function readAllSourceFiles(relativeDir: string): string[] {
+		const root = path.join(LIB_DIR, relativeDir);
+		const sources: string[] = [];
+		const stack = [root];
+		while (stack.length > 0) {
+			const entry = stack.pop()!;
+			const stat = fs.statSync(entry);
+			if (stat.isDirectory()) {
+				for (const child of fs.readdirSync(entry)) {
+					if (child.startsWith('.')) continue;
+					stack.push(path.join(entry, child));
+				}
+			} else if (entry.endsWith('.ts') || entry.endsWith('.svelte')) {
+				sources.push(fs.readFileSync(entry, 'utf8'));
+			}
+		}
+		return sources;
+	}
+
+	it('keeps exactly one live TransformControls constructor in editor source', () => {
+		const constructions = readAllSourceFiles('editor').reduce(
+			(count, source) =>
+				count + (source.match(/new ThreeTransformControls\(/g)?.length ?? 0),
+			0
+		);
+		expect(constructions).toBe(1);
+		// Until S7 step 2 relocates it, the sole constructor lives in the
+		// monolith composer — extraction must relocate, never duplicate.
+		expect(
+			readLibSource('editor/EditorTransformControls.svelte').match(/new ThreeTransformControls\(/g)
+		).toHaveLength(1);
+	});
+
+	it('mounts the shared composer exactly once from H13DView and the relic viewport; neither constructs controls or helpers', () => {
+		for (const [relativePath, label] of [
+			['editor/h1/H13DView.svelte', 'H13DView'],
+			['editor/EditorViewport.svelte', 'EditorViewport']
+		] as const) {
+			const source = readLibSource(relativePath);
+			expect((source.match(/<EditorTransformControls/g) ?? []).length, `${label} mounts`).toBe(1);
+			expect(source, `${label}`).not.toContain('new ThreeTransformControls');
+			expect(source, `${label}`).not.toContain('getHelper');
+			expect(source, `${label}`).toContain('bind:controls');
+		}
+	});
+
+	it('keeps EditorSelection on the bound controls with axis/dragging precedence before the S6 layout flow', () => {
+		const selection = readLibSource('editor/EditorSelection.svelte');
+		expect(selection).toContain('transformControls?: TransformControls;');
+		// Pointerdown priority gate and the pointerup commit gate both check
+		// the bound controls before the layout/normal selection flow runs.
+		expect(selection).toContain('if (transformControls?.axis || transformControls?.dragging) return;');
+		expect(selection).toContain('!transformControls?.axis &&');
+	});
+
+	it('keeps every gizmo module free of direct document/layout/history mutation calls', () => {
+		for (const source of readAllSourceFiles('editor/gizmo')) {
+			for (const marker of GIZMO_MUTATION_MARKERS) {
+				expect(source, marker).not.toContain(marker);
+			}
+		}
+	});
+
+	it('keeps the policy helper renderer-neutral (no Three/Svelte/runes)', () => {
+		const policy = readLibSource('editor/gizmo/editor-gizmo-policy.ts');
+		expect(policy).not.toMatch(/from\s+['"](three|svelte|@threlte)['"]/);
+		expect(policy).not.toContain('$state');
+	});
+
+	it('keeps layout, G4 render, camera route/motion, and visitor sources free of gizmo imports', () => {
+		for (const source of [
+			...readAllSourceFiles('layout'),
+			...readAllSourceFiles('render'),
+			...readAllSourceFiles('museum')
+		]) {
+			expect(source).not.toContain('editor/gizmo');
+		}
+		const cameraRoute = readLibSource('museum/navigation/camera-route.ts');
+		const cameraMotion = readLibSource('museum/navigation/camera-motion.ts');
+		expect(cameraRoute).not.toContain('TransformControls');
+		expect(cameraMotion).not.toContain('TransformControls');
+	});
+
+	it('pins the shared FSM sync event and the shell-level-only ESC branch', () => {
+		const fsm = readLibSource('editor/store/interaction-fsm.ts');
+		expect(fsm).toContain("type: 'ACTIVE_TARGET_CHANGE'");
+		expect(fsm).toContain('targetKey: string | null');
+		const escCase = fsm.slice(fsm.indexOf("case 'ESC':"), fsm.indexOf("case 'KEY_W':"));
+		// A live gizmo drag never dispatches ESC (every cancel reason routes
+		// through the adapter's cancel + DRAG_END { cancelled: true }), so the
+		// ESC branch must contain no Dragging-revert path.
+		expect(escCase).not.toContain('RevertDragSideEffect');
+		expect(escCase).not.toContain("state === 'Dragging'");
+	});
+
+	// Behavioral fixtures recorded before extraction (S7 step 0). The host
+	// must keep producing exactly these FSM event sequences.
+	it('records placement Escape: DRAG_END(cancelled) → deselect → ACTIVE_TARGET_CHANGE(null) ends Idle; a late mouseUp cannot commit', () => {
+		const store = new EditorInteractionStore();
+		store.dispatch({ type: 'CLICK', target: 'p1', shift: false, meta: false });
+		store.dispatch({ type: 'DRAG_START' });
+		expect(store.state).toBe('Dragging');
+		// Cancel path: the adapter restores its snapshot and deselects; the
+		// host never dispatches FSM ESC from a live drag.
+		store.dispatch({ type: 'DRAG_END', cancelled: true });
+		store.dispatch({ type: 'ACTIVE_TARGET_CHANGE', targetKey: null });
+		expect(store.state).toBe('Idle');
+		// Late natural mouseUp is inert — DRAG_END only transitions from Dragging.
+		store.dispatch({ type: 'DRAG_END', cancelled: false });
+		expect(store.state).toBe('Idle');
+	});
+
+	it('records camera Escape: cancel keeps its navigation selection, so the target persists → Selected', () => {
+		const store = new EditorInteractionStore();
+		store.dispatch({ type: 'ACTIVE_TARGET_CHANGE', targetKey: 'camera:node:pos' });
+		store.dispatch({ type: 'DRAG_START' });
+		expect(store.state).toBe('Dragging');
+		store.dispatch({ type: 'DRAG_END', cancelled: true });
+		// No ACTIVE_TARGET_CHANGE(null): the camera selection survives.
+		expect(store.state).toBe('Selected');
+	});
+
+	it('records a target switch mid-drag: cancel first, then sync; a stray sync during Dragging is ignored', () => {
+		const store = new EditorInteractionStore();
+		store.dispatch({ type: 'ACTIVE_TARGET_CHANGE', targetKey: 'scene:placement' });
+		store.dispatch({ type: 'DRAG_START' });
+		expect(store.state).toBe('Dragging');
+		// A straggler sync mid-drag can never silently retarget the FSM.
+		store.dispatch({ type: 'ACTIVE_TARGET_CHANGE', targetKey: 'camera:node:pos' });
+		expect(store.state).toBe('Dragging');
+		// The real host switch order: cancel → DRAG_END → attach → sync.
+		store.dispatch({ type: 'DRAG_END', cancelled: true });
+		store.dispatch({ type: 'ACTIVE_TARGET_CHANGE', targetKey: 'camera:node:pos' });
+		expect(store.state).toBe('Selected');
+	});
+
+	// Fixtures that need the S7 host/adapter seams, enabled as each lands.
+	it.todo('relocates the sole constructor into EditorTransformControlsHost.svelte (S7 step 2)');
+	it.todo('host contains no scene/camera/layout document-mutator calls (S7 step 2)');
+	it.todo('scene/camera adapters construct no TransformControls and register no window listeners (S7 steps 3/4)');
+	it.todo('H1 composer resolves from the S3 active domain; relic omits it and all layout adapter input (S7 steps 2/3)');
+	it.todo('layout descriptor module calls no layout preview/history mutation and the host never receives a live layout adapter (S7 step 5)');
+	it.todo('fake-host lifecycle: orbit true/false restore exactly once, target switch/unmount cancels once, late mouseUp suppression (S7 step 2 harness)');
 });
 
 describe('H1 S3 — cross-domain selection contracts', () => {

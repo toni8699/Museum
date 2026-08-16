@@ -171,7 +171,8 @@ S7 does not install that candidate.
   `bind:controls` seam. It must not instantiate Three controls, add helpers,
   register global listeners, or mutate a document.
 - Target changes detach first. If a drag exists, host cancels the old adapter
-  session before detach; it never reassigns a live session to a new target.
+  session (→ `DRAG_END { cancelled: true }`) before detach; it never reassigns
+  a live session to a new target.
 - Host configuration is a separate reactive step from target attachment so
   snap preference changes do not churn the attached proxy.
 - Camera replacement updates `controls.camera` without recreating controls.
@@ -184,8 +185,11 @@ S7 does not install that candidate.
 - `EditorInteractionStore.dragSnapshot` is placement-specific duplicate
   ownership. Move the placement baseline into the scene adapter session and
   remove that public snapshot API after its focused tests migrate.
-- Add one generic active-target/FSM synchronization event. When no drag is
-  active, a transformable target means `Selected`; no target means `Idle`.
+- Add one generic sync event `ACTIVE_TARGET_CHANGE { targetKey: string | null }`.
+  `targetKey` is the collision-safe adapter key (e.g. `camera:node:pos`), never
+  a placement id. `Selected` now means “a live attachable gizmo target exists”,
+  not “some editor selection exists”. With no drag active, target present →
+  `Selected`; no target → `Idle`; the event is ignored during `Dragging`.
   Camera and future layout targets therefore enter `Dragging` through the same
   `DRAG_START` transition as placements. Do not fake a placement id for layout
   or camera targets.
@@ -196,12 +200,45 @@ S7 does not install that candidate.
 - `objectChange` calls the live session's `preview`; `mouseUp` performs one
   final preview then one commit. A refused begin creates no session, no orbit
   change, and no history.
-- Escape/pointer-cancel/target-change/unmount call `cancel` at most once. A
-  later natural `mouseUp` after cancellation is ignored and cannot commit.
-- Preserve current domain-specific Escape selection behavior: placement drag
-  Escape reverts and deselects; camera drag Escape reverts but keeps its
-  navigation selection. S8 explicitly locks layout's choice when it activates
+- Host lifecycle on any target change or disappearance (replacement, unmount of
+  a helper, view change): cancel the old live session first
+  (`adapter.cancel('target-change')`), dispatch `DRAG_END { cancelled: true }`,
+  detach the old proxy, resolve + attach the new adapter (or none), then
+  dispatch `ACTIVE_TARGET_CHANGE` with the new key or `null`. A live session is
+  never carried across targets and a new drag is always a fresh `begin`.
+- On successful `adapter.begin()`, `dragging-changed=true` dispatches
+  `DRAG_START`.
+- **Escape correction:** a live gizmo drag never dispatches the FSM `ESC`
+  event. The host routes Escape to `adapter.cancel('escape')` then
+  `DRAG_END { cancelled: true }`. Camera cancel keeps its navigation selection,
+  so the target persists and the FSM returns to `Selected`; placement cancel
+  deselects, and the follow-up `ACTIVE_TARGET_CHANGE(null)` produces `Idle`.
+  FSM `ESC` remains a shell-level event (idle deselect / camera-preview
+  cascade) only. S8 explicitly locks layout's Escape choice when it activates
   layout sessions.
+- Escape/pointer-cancel/target-change/unmount call `adapter.cancel` at most
+  once and dispatch `DRAG_END { cancelled: true }` at most once. A later
+  natural `mouseUp` after cancellation is ignored and cannot commit.
+
+FSM watch items (same single-source-of-truth philosophy):
+
+1. **Late `mouseUp` is inert because the FSM is the latch.** After any cancel
+   the reducer has already left `Dragging` via `DRAG_END { cancelled: true }`,
+   so the natural `dragging-changed=false` `DRAG_END` is a no-op (it only
+   transitions from `Dragging`), and the host additionally ignores
+   `objectChange`/`mouseUp` while `session === null`. Do not re-add a
+   `dragSnapshot === null` latch — the FSM state *is* the latch, and the latch
+   disappears with `dragSnapshot`.
+2. **Target switch mid-drag cancels first, syncs next.** Never reassign a live
+   session to a new target and never leave `Dragging` across a switch: cancel
+   (`'target-change'`) → `DRAG_END { cancelled: true }` → detach → attach →
+   `ACTIVE_TARGET_CHANGE(new | null)`. A refused/absent next target falls to
+   `Idle` through the sync event, never through an ad-hoc state write.
+3. **Unmount / pointer-cancel / view-change / external-replacement share one
+   cancel path.** `adapter.cancel(reason)` once → `DRAG_END { cancelled: true }`
+   once → orbit restore exactly once → detach/dispose exactly once. The FSM is
+   never stranded in `Dragging`, and a later event on the dead target cannot
+   commit.
 
 ### H1 arbitration follows `ActiveEditorSelection`, never stale slots
 
@@ -356,6 +393,8 @@ S7 must not:
   gizmo event;
 - attach a draggable layout proxy whose session cannot safely preview/commit;
 - add a second TransformControls, a second Canvas listener, or a second FSM;
+- dispatch the FSM `ESC` event from a live gizmo drag (host routes Escape and
+  every other cancel reason through `adapter.cancel` + `DRAG_END { cancelled: true }`);
 - hide incomplete behavior behind a build flag.
 
 This is a focused amendment to the umbrella step wording “before enabling
@@ -410,7 +449,9 @@ extraction:
 - translation/rotation snap + Shift bypass;
 - keep-on-floor success/failure and one history commit;
 - placement Escape restores and deselects; natural mouse-up afterward does not
-  commit;
+  commit (FSM ends `Idle` via `ACTIVE_TARGET_CHANGE(null)`);
+- camera drag Escape reverts but keeps its navigation selection (FSM ends
+  `Selected`);
 - node position/target, pending node, path anchor, and view target preview,
   commit, epsilon no-op, and cancel;
 - orbit initially true and initially false both restore exactly;
@@ -426,7 +467,11 @@ extraction:
   - `showX/showY/showZ` derivation;
   - defensive `isAxisAllowed(mode, axis, policy)`;
   - toolbar/shortcut capability projection.
-- Extend `EditorInteractionStore` with generic active-target policy/FSM sync.
+- Add the `ACTIVE_TARGET_CHANGE { targetKey }` event to the FSM and
+  `EditorInteractionStore`; `Selected` = live attachable gizmo target.
+  Remove the now-unreachable `ESC`-from-`Dragging` revert branch in the
+  reducer: the host never dispatches `ESC` during a live gizmo drag (all cancel
+  reasons route through `DRAG_END { cancelled: true }`), so the branch is dead.
   Remove placement-only `DragSnapshot` once scene adapter owns it.
 - Preserve current mode and scale-mode session defaults. No document/schema
   field changes.
@@ -533,7 +578,7 @@ extraction:
 | Camera parity | Node/target/anchor/view target/pending-node semantics, epsilons, room-local mapping, and history unchanged |
 | Policy | Toolbar, shortcuts, handles, and begin guard agree on allowed mode/axis/space |
 | Orbit | Exact prior enabled state restored once on commit, cancel, target change, view change, and unmount |
-| FSM | Scene and camera use one generic Selected→Dragging→Selected/Idle flow; no placement-only snapshot owner remains |
+| FSM | Scene and camera use one generic `Selected→Dragging→Selected/Idle` flow via `ACTIVE_TARGET_CHANGE` + `DRAG_END { cancelled: true }`; mid-drag cancel never dispatches FSM `ESC`; no placement-only snapshot owner remains |
 | Escape | Adapter cancel runs once; later `mouseUp` cannot commit; existing domain-specific selection result preserved |
 | Layout math | All five identities resolve authored/compiled proxy poses and baseline deltas; stale/read-only identities return `null` |
 | S7 layout gate | No draggable layout handles, no preview-state mutation, no dirty/history change until S8 |
@@ -617,7 +662,8 @@ Plus:
 
 - focused fake-host lifecycle tests for begin refusal, preview, commit, every
   cancel reason, orbit false/true restoration, target switch, and late
-  `mouseUp` suppression;
+  `mouseUp` suppression (mid-drag Escape ends camera `Selected` / placement
+  `Idle`);
 - existing placement/cluster/scale-vector/camera/path/view/history/FSM/
   shortcut/toolbar suites unchanged at the behavioral boundary;
 - S0–S6 H1 contracts and relic route smoke;

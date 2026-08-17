@@ -114,9 +114,10 @@
 					store.document,
 					selection.connectionId,
 					selection.direction,
-					keyframe.progress
+					keyframe.progress,
+					store.rooms
 				),
-				target: getSceneCameraViewKeyframeWorldTarget(keyframe),
+				target: getSceneCameraViewKeyframeWorldTarget(keyframe, store.rooms),
 				fov: keyframe.fov,
 				userData: {
 					editorEntity: 'camera-fov-handle',

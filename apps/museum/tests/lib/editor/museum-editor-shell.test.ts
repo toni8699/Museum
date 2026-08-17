@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { cloneFixtureDocument } from '../content/__fixtures__/load-fixture-scene';
 import { createEditorShortcutHandler } from '$lib/editor/hooks/shortcuts.svelte';
 import { createMuseumEditorStore } from '$lib/editor/museum-editor.svelte';
+import { EditorInteractionStore } from '$lib/editor/store/editor-interaction-store.svelte';
+import { projectGizmoCapabilities } from '$lib/editor/gizmo/editor-gizmo-policy';
+import { SCENE_GIZMO_POLICY } from '$lib/editor/gizmo/scene-gizmo-adapter.svelte';
+import { CAMERA_GIZMO_POLICY } from '$lib/editor/gizmo/camera-gizmo-adapter.svelte';
 
 function createFixtureEditorStore() {
 	return createMuseumEditorStore({ document: cloneFixtureDocument() });
@@ -322,9 +326,7 @@ describe('MuseumEditorStore Phase 1 shell session state', () => {
 		expect(store.isDirty).toBe(false);
 		expect(store.canUndo).toBe(false);
 	});
-});
-
-describe('registerEditorShortcuts Escape cascade', () => {
+});	describe('registerEditorShortcuts Escape cascade', () => {
 	it('stops an active camera preview on Escape before later cancel paths', () => {
 		const store = createFixtureEditorStore();
 		store.selectionActions.selectNavigationNode('tour-paris');
@@ -347,5 +349,93 @@ describe('registerEditorShortcuts Escape cascade', () => {
 
 		expect(store.pendingNavigationCommand).toBeNull();
 		expect(store.statusMessage).toBe('Camera command cancelled');
+	});
+});
+
+describe('createEditorShortcutHandler — W/E/R/T refuse unsupported modes (S7 step 6)', () => {
+	const SCENE_CAPS = projectGizmoCapabilities(SCENE_GIZMO_POLICY, 'scale');
+	const CAMERA_CAPS = projectGizmoCapabilities(CAMERA_GIZMO_POLICY, 'scale');
+
+	it('refuses rotate/scale keys on a camera target through the H1 capability projection', () => {
+		const store = createFixtureEditorStore();
+		const interactionStore = new EditorInteractionStore();
+		expect(CAMERA_CAPS.allowedModes.has('scale')).toBe(false);
+		expect(CAMERA_CAPS.allowedModes.has('rotate')).toBe(false);
+		const handler = createEditorShortcutHandler(
+			store,
+			nullShortcutHost,
+			interactionStore,
+			undefined,
+			undefined,
+			() => CAMERA_CAPS
+		);
+
+		handler(makeKeyEvent('r'));
+		expect(interactionStore.mode).toBe('translate'); // scale refused
+		handler(makeKeyEvent('e'));
+		expect(interactionStore.mode).toBe('translate'); // rotate refused
+		handler(makeKeyEvent('w'));
+		expect(interactionStore.mode).toBe('translate'); // translate allowed
+	});
+
+	it('allows every mode on a scene target through the H1 capability projection', () => {
+		const store = createFixtureEditorStore();
+		const interactionStore = new EditorInteractionStore();
+		const handler = createEditorShortcutHandler(
+			store,
+			nullShortcutHost,
+			interactionStore,
+			undefined,
+			undefined,
+			() => SCENE_CAPS
+		);
+
+		handler(makeKeyEvent('r'));
+		expect(interactionStore.mode).toBe('scale');
+		handler(makeKeyEvent('e'));
+		expect(interactionStore.mode).toBe('rotate');
+		handler(makeKeyEvent('w'));
+		expect(interactionStore.mode).toBe('translate');
+	});
+
+	it('keeps the keys live when the projection is null (no interactive target)', () => {
+		const store = createFixtureEditorStore();
+		const interactionStore = new EditorInteractionStore();
+		const handler = createEditorShortcutHandler(
+			store,
+			nullShortcutHost,
+			interactionStore,
+			undefined,
+			undefined,
+			() => null
+		);
+
+		handler(makeKeyEvent('r'));
+		expect(interactionStore.mode).toBe('scale');
+	});
+
+	it('refuses rotate/scale keys on a relic camera target (legacy restriction, no caps getter)', () => {
+		const store = createFixtureEditorStore();
+		store.selectionActions.selectNavigationNode('tour-paris');
+		const interactionStore = new EditorInteractionStore();
+		const handler = createEditorShortcutHandler(store, nullShortcutHost, interactionStore);
+
+		handler(makeKeyEvent('r'));
+		expect(interactionStore.mode).toBe('translate'); // scale refused
+		handler(makeKeyEvent('e'));
+		expect(interactionStore.mode).toBe('translate'); // rotate refused
+		handler(makeKeyEvent('w'));
+		expect(interactionStore.mode).toBe('translate');
+	});
+
+	it('allows all modes on a relic scene target (no navigation selection)', () => {
+		const store = createFixtureEditorStore();
+		const interactionStore = new EditorInteractionStore();
+		const handler = createEditorShortcutHandler(store, nullShortcutHost, interactionStore);
+
+		handler(makeKeyEvent('r'));
+		expect(interactionStore.mode).toBe('scale');
+		handler(makeKeyEvent('w'));
+		expect(interactionStore.mode).toBe('translate');
 	});
 });

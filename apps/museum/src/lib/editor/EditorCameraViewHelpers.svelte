@@ -219,7 +219,8 @@
 					document,
 					connection.id,
 					direction,
-					keyframe.progress
+					keyframe.progress,
+					store.rooms
 				)
 			);
 			const selected =
@@ -262,11 +263,12 @@
 					document,
 					connection.id,
 					direction,
-					selectedKeyframe.progress
+					selectedKeyframe.progress,
+					store.rooms
 				)
 			);
 			targetPosition.set(
-				...getSceneCameraViewKeyframeWorldTarget(selectedKeyframe)
+				...getSceneCameraViewKeyframeWorldTarget(selectedKeyframe, store.rooms)
 			);
 			targetHelper.root.position.copy(targetPosition);
 			targetHelper.connectorGeometry.setFromPoints([

@@ -1173,7 +1173,7 @@ export class MuseumEditorStore {
 	get selectedViewKeyframeWorldTarget(): Vec3 | undefined {
 		const keyframe = this.selectedViewKeyframe;
 		return keyframe
-			? getSceneCameraViewKeyframeWorldTarget(keyframe)
+			? getSceneCameraViewKeyframeWorldTarget(keyframe, this.rooms)
 			: undefined;
 	}
 

@@ -51,6 +51,18 @@ const CAMERA_AXES: ReadonlySet<GizmoAxis> = new Set([
 	'xyz'
 ]);
 
+/**
+ * Camera capability policy — one source shared by the host, the toolbar, and
+ * the W/E/R/T shortcuts. World-space translate only, no scale chain.
+ */
+export const CAMERA_GIZMO_POLICY: EditorGizmoPolicy = {
+	defaultMode: 'translate',
+	allowedModes: new Set(['translate']),
+	allowedAxes: () => CAMERA_AXES,
+	space: () => 'world',
+	scaleControl: 'hidden'
+};
+
 export interface CameraGizmoAdapterInput {
 	store: MuseumEditorStore;
 }
@@ -147,13 +159,7 @@ export function createCameraGizmoAdapter(
 	const target = resolveCameraTarget(input);
 	if (!target) return null;
 
-	const policy: EditorGizmoPolicy = {
-		defaultMode: 'translate',
-		allowedModes: new Set(['translate']),
-		allowedAxes: () => CAMERA_AXES,
-		space: () => 'world',
-		scaleControl: 'hidden'
-	};
+	const policy = CAMERA_GIZMO_POLICY;
 
 	return {
 		key: target.key,

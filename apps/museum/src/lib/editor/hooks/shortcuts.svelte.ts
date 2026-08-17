@@ -9,6 +9,7 @@
  */import { tick, getContext } from 'svelte';
 	import type { MuseumEditorStore } from '../museum-editor.svelte';
 	import type { EditorInteractionStore } from '../store/editor-interaction-store.svelte';
+	import type { EditorGizmoCapabilities } from '../gizmo/editor-gizmo-policy';
 
 export type EditorShortcutHost = {
 	getViewportElement: () => HTMLElement | null | undefined;
@@ -21,14 +22,25 @@ function isEditableTarget(target: EventTarget | null) {
 	if (!(target instanceof HTMLElement)) return false;
 	if (target.isContentEditable) return true;
 	return ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName);
-}
-
-export function createEditorShortcutHandler(
-	store: MuseumEditorStore,
-	host: EditorShortcutHost,
-	interactionStore?: EditorInteractionStore,
-	deselectActive?: () => void
-) {
+}	export function createEditorShortcutHandler(
+		store: MuseumEditorStore,
+		host: EditorShortcutHost,
+		interactionStore?: EditorInteractionStore,
+		deselectActive?: () => void,
+		/**
+		 * H1 S7 — true while the active domain is a detached S7 layout selection.
+		 * Layout publishes no interactive gizmo policy until S8, so W/E/R/T/X are
+		 * refused (the remembered scene mode is never touched). Absent on the relic.
+		 */
+		isLayoutSelectionActive?: () => boolean,
+		/**
+		 * H1 S7 step 6 — the active target's generic capability projection used
+		 * by the toolbar/host. W/E/R/T refuse modes the target does not allow;
+		 * `null` (no interactive target) lets the keys set the remembered tool.
+		 * Absent on the relic, which refuses via the legacy camera restriction.
+		 */
+		getGizmoCapabilities?: () => EditorGizmoCapabilities | null
+	) {
 	function editorOwnsSceneShortcuts() {
 		if (typeof document === 'undefined') return false;
 		const active = document.activeElement;
@@ -157,7 +169,33 @@ export function createEditorShortcutHandler(
 		// Phase 6.1 section 3 — Unity-style gizmo mode keybinds. W = translate,
 		// E = rotate, R = scale, T = translate alias, X = toggle Space.
 		// Bind here BEFORE the long modifier chains so plain key presses resolve.
+		// H1 S7 — a detached layout selection is not interactive: refuse the
+		// mode keys entirely so they never touch the remembered scene mode.
+		if (isLayoutSelectionActive?.()) return;
 		const inPreview = store.cameraPreview !== null;
+		// H1 S7 step 6 — refuse modes the active target's policy does not allow
+		// (the same effective policy the toolbar/host uses). Relic camera
+		// targets are translate-only, matching the toolbar's existing
+		// restriction; `null` caps (no interactive target) keep the keys live.
+		const modeForKey =
+			key === 'w' || key === 't'
+				? 'translate'
+				: key === 'e'
+					? 'rotate'
+					: key === 'r'
+						? 'scale'
+						: null;
+		if (modeForKey) {
+			const caps = getGizmoCapabilities?.();
+			const hasNavigationTransform =
+				store.navigationSelection?.kind === 'node' ||
+				store.navigationSelection?.kind === 'anchor' ||
+				store.navigationSelection?.kind === 'view-keyframe';
+			const refused =
+				(caps !== undefined && caps !== null && !caps.allowedModes.has(modeForKey)) ||
+				(caps === undefined && hasNavigationTransform && modeForKey !== 'translate');
+			if (refused) return;
+		}
 		if (key === 'w' || key === 't') {
 			interactionStore.setMode('translate');
 			if (inPreview) return;
@@ -211,9 +249,18 @@ export function registerEditorShortcuts(
 	store: MuseumEditorStore,
 	host: EditorShortcutHost,
 	interactionStore?: EditorInteractionStore,
-	deselectActive?: () => void
+	deselectActive?: () => void,
+	isLayoutSelectionActive?: () => boolean,
+	getGizmoCapabilities?: () => EditorGizmoCapabilities | null
 ) {
-	const onKeyDown = createEditorShortcutHandler(store, host, interactionStore, deselectActive);
+	const onKeyDown = createEditorShortcutHandler(
+		store,
+		host,
+		interactionStore,
+		deselectActive,
+		isLayoutSelectionActive,
+		getGizmoCapabilities
+	);
 	window.addEventListener('keydown', onKeyDown);
 	return () => window.removeEventListener('keydown', onKeyDown);
 }

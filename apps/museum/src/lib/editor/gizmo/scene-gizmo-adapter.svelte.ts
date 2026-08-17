@@ -44,6 +44,19 @@ import type {
 
 const ALL_AXES: readonly GizmoAxis[] = ['x', 'y', 'z', 'xy', 'xz', 'yz', 'xyz'];
 
+/**
+ * Scene placement capability policy — one source shared by the host, the
+ * toolbar, and the W/E/R/T shortcuts (scene targets get the full transform
+ * set, world space, and the scene-scale-mode chain).
+ */
+export const SCENE_GIZMO_POLICY: EditorGizmoPolicy = {
+	defaultMode: 'translate',
+	allowedModes: new Set(['translate', 'rotate', 'scale']),
+	allowedAxes: () => new Set(ALL_AXES),
+	space: () => 'world',
+	scaleControl: 'scene-scale-mode'
+};
+
 export interface SceneGizmoAdapterInput {
 	store: MuseumEditorStore;
 	/** Threlte scene used for keep-on-floor grounding raycasts. */
@@ -104,13 +117,7 @@ export function createSceneGizmoAdapter(
 	const roots = input.store.getPlacementRoots(ids);
 	if (roots.length !== ids.length) return null;
 
-	const policy: EditorGizmoPolicy = {
-		defaultMode: 'translate',
-		allowedModes: new Set(['translate', 'rotate', 'scale']),
-		allowedAxes: () => new Set(ALL_AXES),
-		space: () => 'world',
-		scaleControl: 'scene-scale-mode'
-	};
+	const policy = SCENE_GIZMO_POLICY;
 
 	return {
 		key: `placement:${input.store.selectionKey}`,

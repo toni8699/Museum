@@ -381,9 +381,10 @@
 				store.document,
 				owner.connectionId,
 				owner.direction,
-				keyframe.progress
+				keyframe.progress,
+				store.rooms
 			),
-			target: getSceneCameraViewKeyframeWorldTarget(keyframe),
+			target: getSceneCameraViewKeyframeWorldTarget(keyframe, store.rooms),
 			fov: keyframe.fov,
 			pending: false
 		};
@@ -539,7 +540,8 @@
 		const initialWorld = createDraftConnectionPositionPath(
 			store.document,
 			handle.connectionId,
-			handle.direction
+			handle.direction,
+			store.rooms
 		).getPointAt(keyframe.progress, new Vector3());
 		currentCamera.getWorldDirection(viewDragPlaneNormal).normalize();
 		viewDragPlane.setFromNormalAndCoplanarPoint(
@@ -705,11 +707,13 @@
 				?.positionPath.anchors.find((candidate) => candidate.id === selection.anchorId);
 			if (!anchor) return false;
 			anchorId = anchor.id;
-			initialWorld = getScenePathAnchorWorldPosition(anchor);
+			initialWorld = getScenePathAnchorWorldPosition(anchor, store.rooms);
 		} else {
 			const path = createDraftConnectionPositionPath(
 				store.document,
-				selection.connectionId
+				selection.connectionId,
+				'forward',
+				store.rooms
 			);
 			initialProgress = findNearestCurveProgress(path, result.hit.point);
 			path.getPointAt(initialProgress, sampledPathPoint);
@@ -751,7 +755,9 @@
 			store.convertConnectionDraft(active.connectionId);
 			const smoothPath = createDraftConnectionPositionPath(
 				store.document,
-				active.connectionId
+				active.connectionId,
+				'forward',
+				store.rooms
 			);
 			const insertionIndex = getCameraPathInsertionIndex(
 				smoothPath,

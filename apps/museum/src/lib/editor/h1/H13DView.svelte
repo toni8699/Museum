@@ -44,6 +44,9 @@
 		ACTIVE_EDITOR_SELECTION_KEY,
 		type EditorActiveSelectionStore
 	} from './active-editor-selection.svelte';
+	import { SCENE_GIZMO_POLICY } from '$lib/editor/gizmo/scene-gizmo-adapter.svelte';
+	import { CAMERA_GIZMO_POLICY } from '$lib/editor/gizmo/camera-gizmo-adapter.svelte';
+	import { projectDomainGizmoCapabilities } from '$lib/editor/gizmo/editor-gizmo-policy';
 
 	let {
 		store,
@@ -59,6 +62,18 @@
 	);
 	const activeSelection = getContext<EditorActiveSelectionStore | undefined>(
 		ACTIVE_EDITOR_SELECTION_KEY
+	);
+
+	// H1 S7 step 6 — the active target's generic capability projection for the
+	// toolbar (scene/camera; null for a detached layout or no target). Same
+	// projection the W/E/R/T shortcuts use in H1EditorApp, same policies the
+	// host gets from the adapters.
+	const activeGizmoCapabilities = $derived.by(() =>
+		projectDomainGizmoCapabilities(
+			activeSelection?.active.domain ?? 'none',
+			interactionStore?.mode ?? store.transformMode,
+			{ scene: SCENE_GIZMO_POLICY, camera: CAMERA_GIZMO_POLICY }
+		)
 	);
 
 	const placementRegistry: EditorPlacementRegistry = {
@@ -153,6 +168,8 @@
 		cameraAgnosticViewMenu
 		showCeilings={layoutPreview.showCeilings}
 		onToggleCeilings={() => toggleLayoutCeilings(layoutPreview)}
+		transformDisabled={activeSelection?.active.domain === 'layout'}
+		gizmoCapabilities={activeGizmoCapabilities}
 	/>
 	<Canvas dpr={[1, 1.5]} shadows>
 		<MuseumScene

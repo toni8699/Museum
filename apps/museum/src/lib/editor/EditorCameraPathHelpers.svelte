@@ -202,7 +202,12 @@
 				helper = createConnectionHelper(connection.id);
 				connectionHelpers.set(connection.id, helper);
 			}
-			const path = createDraftConnectionPositionPath(document, connection.id);
+			const path = createDraftConnectionPositionPath(
+				document,
+				connection.id,
+				'forward',
+				store.rooms
+			);
 			const points = path.getSpacedPoints(getCameraPathVisualSampleCount(path));
 			const positions = points.flatMap((point) => [point.x, point.y, point.z]);
 			helper.visualGeometry.setPositions(positions);
@@ -239,7 +244,7 @@
 					helper = createAnchorHelper(selectedConnection.id, anchor.id);
 					anchorHelpers.set(key, helper);
 				}
-				helper.root.position.set(...getScenePathAnchorWorldPosition(anchor));
+				helper.root.position.set(...getScenePathAnchorWorldPosition(anchor, store.rooms));
 				const selected =
 					selection?.kind === 'anchor' && selection.anchorId === anchor.id;
 				const hovered =

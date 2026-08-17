@@ -6,12 +6,21 @@
 		EDITOR_INTERACTION_STORE_KEY,
 		type EditorInteractionStore
 	} from './store/editor-interaction-store.svelte';
+	import type { EditorGizmoCapabilities } from './gizmo/editor-gizmo-policy';
 
 	let {
 		store,
 		showCeilings = false,
 		onToggleCeilings,
-		cameraAgnosticViewMenu = false
+		cameraAgnosticViewMenu = false,
+		// H1 S7 — when the active domain is a detached S7 layout selection, the
+		// transform buttons are disabled (layout publishes no interactive gizmo
+		// policy until S8). Absent on the relic mount. Select stays enabled.
+		transformDisabled = false,
+		// H1 S7 step 6 — the active target's generic capability projection
+		// (scene/camera). `null` = no interactive policy. Absent on the relic,
+		// which keeps the legacy navigation-before-placement arbitration.
+		gizmoCapabilities = null
 	}: {
 		store: MuseumEditorStore;
 		// H1 3D (restored 2026-08-16): the layout ceiling toggle that the
@@ -23,6 +32,8 @@
 		// H1 3D: surface the View menu in both Scene and Camera contexts.
 		// Default (false) preserves the relic's camera-only menu.
 		cameraAgnosticViewMenu?: boolean;
+		transformDisabled?: boolean;
+		gizmoCapabilities?: EditorGizmoCapabilities | null;
 	} = $props();
 
 	const interactionStore = getContext<EditorInteractionStore | undefined>(
@@ -34,6 +45,15 @@
 	const disabled = $derived(
 		store.isDocumentMutationBlocked || store.isEditorInteractionActive
 	);
+	// S7: a detached layout selection disables the transform buttons (and the
+	// scale chain) without disabling Select or the View menu.
+	const layoutTransformDisabled = $derived(transformDisabled === true);
+	const transformDisabledFlag = $derived(disabled || layoutTransformDisabled);
+	// Generic capability projection (H1). `null` = no interactive policy
+	// (detached layout / no target) — transform buttons stay disabled only for
+	// the layout gate above, mirroring the pre-S7 no-selection appearance.
+	const caps = $derived(gizmoCapabilities ?? null);
+	// Legacy relic path (no caps): camera targets are translate-only.
 	const hasNavigationTransform = $derived(
 		store.navigationSelection?.kind === 'node' ||
 			store.navigationSelection?.kind === 'anchor' ||
@@ -42,9 +62,26 @@
 	const scaleMode = $derived<'uniform' | 'independent'>(
 		interactionStore?.scaleMode ?? 'uniform'
 	);
+	// Effective mode for the active highlight: the projected effective mode
+	// (H1), or the legacy camera/scene arbitration (relic).
+	const effectiveMode = $derived(
+		caps
+			? caps.effectiveMode
+			: hasNavigationTransform
+				? 'translate'
+				: (interactionStore?.mode ?? store.transformMode)
+	);
+	// Scale-chain is scene-placement-only (`scene-scale-mode`).
 	const scaleToolActive = $derived(
-		!hasNavigationTransform &&
-			(interactionStore?.mode ?? store.transformMode) === 'scale'
+		caps
+			? caps.scaleControl === 'scene-scale-mode' && caps.effectiveMode === 'scale'
+			: !hasNavigationTransform &&
+				(interactionStore?.mode ?? store.transformMode) === 'scale'
+	);
+	const scaleChainDisabled = $derived(
+		transformDisabledFlag ||
+			!interactionStore ||
+			(caps !== null && caps.scaleControl !== 'scene-scale-mode')
 	);
 
 	function toggleTopBarChain(event: MouseEvent) {
@@ -69,8 +106,14 @@
 
 	function toolIsActive(mode: EditorTransformMode) {
 		if (!store.transformGizmoVisible) return false;
-		const effectiveMode = interactionStore?.mode ?? store.transformMode;
+		if (caps) return caps.effectiveMode === mode;
 		return hasNavigationTransform ? mode === 'translate' : effectiveMode === mode;
+	}
+
+	function toolDisabled(mode: EditorTransformMode) {
+		if (transformDisabledFlag) return true;
+		if (caps) return !caps.allowedModes.has(mode);
+		return hasNavigationTransform && mode !== 'translate';
 	}
 
 	function toggleViewMenu() {
@@ -106,7 +149,7 @@
 				type="button"
 				class:active={toolIsActive(mode as EditorTransformMode)}
 				aria-pressed={toolIsActive(mode as EditorTransformMode)}
-				disabled={disabled || (hasNavigationTransform && mode !== 'translate')}
+				disabled={toolDisabled(mode as EditorTransformMode)}
 				onclick={() => chooseTool(mode as EditorTransformMode)}
 			>{label}</button>
 		{/each}
@@ -122,7 +165,7 @@
 						: 'Scale unlocked — click to switch to uniform (single scale across X / Y / Z)'
 					: 'Switch to Scale and lock / unlock its chain'
 			}
-			disabled={disabled || !interactionStore}
+			disabled={scaleChainDisabled}
 			onclick={toggleTopBarChain}
 		>
 			{#if scaleMode === 'uniform'}

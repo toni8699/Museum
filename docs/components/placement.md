@@ -35,3 +35,43 @@ A4.1 keeps primitive authoring Plan-only. Box uses opposite rectangle corners; C
 ## Room-unit relocate (B3)
 
 Plan Select room-body drag moves boundary endpoints, curved anchors, openings, all objects owned by room as one rigid unit. Translation uses 0.25 m snap; selected room's centroid arm provides continuous positive-Y rotation, Shift snaps to 15°. Escape, pointer-cancel, invalid geometry, tool/view cancellation roll back; no-op gestures create no history. Inspector **Rotate by (°)** applies relative delta, resets to zero. Each successful gesture = one tagged `layout` entry in shared chronological scene/layout history.
+
+## Transform gizmo host and adapters (H1 S7)
+
+One `EditorTransformControlsHost.svelte` owns the sole `ThreeTransformControls`
+per mounted 3D Canvas: constructor, helper add/remove, camera rebind,
+attach/detach, orbit lock/restore, pointer lifecycle, Escape, and dispose
+exactly once. `EditorTransformControls.svelte` is a thin composer that
+resolves exactly one nullable `EditorGizmoTargetAdapter` — scene placement or
+camera — from the H1 `ActiveEditorSelection`; the relic `/museum/editor` keeps
+its legacy navigation-before-placement arbitration through the same adapters.
+
+Domain adapters own target resolution, proxy/baseline state, document
+mapping, and commit/cancel semantics; the host never calls a document mutator
+directly:
+
+- **Scene adapter** (`scene-gizmo-adapter.svelte.ts`) — placement session:
+  shared pivot, immutable `startPivotWorldMatrix` + member baselines, rigid
+  deltas, uniform/independent scale, room-local translation snap + Shift
+  bypass, keep-on-floor, one scene document transaction per drag, cancel
+  restore + rollback + deselect.
+- **Camera adapter** (`camera-gizmo-adapter.svelte.ts`) — node position/target,
+  connection path anchor, view-keyframe target: world-space translate only, no
+  rotation/scale handles or snaps; pending-node drafts stay out of history;
+  anchor/view-target epsilon no-ops (`EDITOR_CAMERA_PATH/VIEW_MOVE_EPSILON`);
+  authored node drags commit one history entry.
+
+One `EditorGizmoPolicy` drives the host, the viewport toolbar, and the W/E/R/T
+shortcuts through `projectGizmoCapabilities` (scene = full modes + world space
++ scene-scale-mode chain; camera = translate-only + hidden chain). An
+unsupported mode/axis can never start through any surface.
+
+**S7 layout boundary — detached.** Layout selections resolve a pure
+`LayoutGizmoTargetDescriptor` (room / wall / opening / interior anchor /
+object) with proxy poses, per-kind policies, and baseline-relative
+`deriveLayoutGizmoDelta` math (`layout-gizmo-target.ts`), but no live layout
+adapter is handed to the host: transform buttons are disabled and no handles
+render. Read-only `profile` objects and stale identities resolve `null`. S8
+activates the layout candidate-session adapter and its atomic layout-history
+commit; until then a layout selection never mutates `LayoutPreviewState`,
+project, history, or export.

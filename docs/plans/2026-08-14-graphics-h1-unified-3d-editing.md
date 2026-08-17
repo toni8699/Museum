@@ -536,6 +536,8 @@ bench regression) — with **difficulty = max(effort, risk)**, +1 when both are
 
 **Execution:** Difficulty **8/10** (effort 6 · risk 8) · Recommended model strength — plan: **Frontier**; implementation: **Frontier+**.
 
+**Focused plan:** [`2026-08-16-graphics-h1-s8-layout-gizmo-candidate-session.md`](./2026-08-16-graphics-h1-s8-layout-gizmo-candidate-session.md).
+
 - Add a `layoutGizmoDrag` session containing target identity, immutable baseline,
   current delta, last valid candidate, and derived preview bundle.
 - Validate and preflight the full candidate before display/commit.

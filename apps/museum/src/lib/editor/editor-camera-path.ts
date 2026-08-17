@@ -1,8 +1,5 @@
-import {
-	isWorldPointInsideRoomXZ,
-	roomLocalPoint,
-	roomPoint
-} from '$lib/content/rooms';
+import { chopinRuntime } from '$lib/content/chopin-project';
+import type { LayoutRoomRegistry } from '$lib/project/project-layout-semantics';
 import type {
 	MuseumSceneDocument,
 	SceneConnection,
@@ -43,8 +40,50 @@ function cloneFiniteVec3(value: Vector3Like, label: string): Vec3 {
 	return [components[0], components[1], components[2]];
 }
 
-function resolveScenePoint(point: { position: Vec3; roomId?: MuseumRoomId }): Vec3 {
-	return point.roomId ? roomPoint(point.roomId, point.position) : [...point.position];
+function resolveScenePoint(
+	point: { position: Vec3; roomId?: MuseumRoomId },
+	rooms: LayoutRoomRegistry
+): Vec3 {
+	return point.roomId ? rooms.point(point.roomId, point.position) : [...point.position];
+}
+
+/**
+ * Registry-aware XZ footprint check for room-owned points (H1 S2 — the editor
+ * resolves against the live project layout, not the frozen Chopin registry).
+ * Approximates the footprint by the room boundary's AABB in room-local space,
+ * matching the rect-based check the Chopin helper used. Unknown rooms simply
+ * return false (the caller falls back to world-space ownership).
+ */
+export function isWorldPointInsideRoomXZ(
+	roomId: MuseumRoomId,
+	worldPoint: Vec3,
+	rooms: LayoutRoomRegistry,
+	epsilon = 1e-6
+): boolean {
+	const entry = rooms.get(roomId);
+	if (!entry) return false;
+	let minX = Number.POSITIVE_INFINITY;
+	let maxX = Number.NEGATIVE_INFINITY;
+	let minZ = Number.POSITIVE_INFINITY;
+	let maxZ = Number.NEGATIVE_INFINITY;
+	for (const segment of entry.room.boundary.segments) {
+		for (const point of [segment.start, segment.end]) {
+			if (point[0] < minX) minX = point[0];
+			if (point[0] > maxX) maxX = point[0];
+			if (point[1] < minZ) minZ = point[1];
+			if (point[1] > maxZ) maxZ = point[1];
+		}
+	}
+	const [localX, , localZ] = rooms.localPoint(roomId, worldPoint);
+	// Parity with the legacy Chopin check: a box centered on the room-local
+	// origin whose half-extents are the boundary's full width/depth. Drafted
+	// rect rooms are symmetric around the frame origin, so this is exact.
+	const halfX = (maxX - minX) / 2;
+	const halfZ = (maxZ - minZ) / 2;
+	return (
+		Math.abs(localX) <= halfX + epsilon &&
+		Math.abs(localZ) <= halfZ + epsilon
+	);
 }
 
 function getDraftConnection(
@@ -68,15 +107,16 @@ function getDraftNode(document: MuseumSceneDocument, nodeId: string) {
  */
 export function resolveDraftConnectionPathPart(
 	document: MuseumSceneDocument,
-	connectionId: string
+	connectionId: string,
+	rooms: LayoutRoomRegistry = chopinRuntime.rooms
 ): CameraPositionPathPart {
 	const connection = getDraftConnection(document, connectionId);
 	const fromNode = getDraftNode(document, connection.fromNodeId);
 	const toNode = getDraftNode(document, connection.toNodeId);
 	const points = [
-		roomPoint(fromNode.roomId, fromNode.position),
-		...connection.positionPath.anchors.map(resolveScenePoint),
-		roomPoint(toNode.roomId, toNode.position)
+		rooms.point(fromNode.roomId, fromNode.position),
+		...connection.positionPath.anchors.map((anchor) => resolveScenePoint(anchor, rooms)),
+		rooms.point(toNode.roomId, toNode.position)
 	];
 
 	return connection.positionPath.kind === 'rounded-polyline'
@@ -92,9 +132,10 @@ export function resolveDraftConnectionPathPart(
 export function createDraftConnectionPositionPath(
 	document: MuseumSceneDocument,
 	connectionId: string,
-	direction: CameraConnectionDirection = 'forward'
+	direction: CameraConnectionDirection = 'forward',
+	rooms: LayoutRoomRegistry = chopinRuntime.rooms
 ) {
-	const part = resolveDraftConnectionPathPart(document, connectionId);
+	const part = resolveDraftConnectionPathPart(document, connectionId, rooms);
 	if (direction === 'reverse') {
 		return createCameraPositionPath([
 			part.kind === 'rounded-polyline'
@@ -134,8 +175,11 @@ export function findScenePathAnchor(
 }
 
 /** Read an authored anchor in world space without exposing its stored coordinate basis. */
-export function getScenePathAnchorWorldPosition(anchor: ScenePathAnchor): Vec3 {
-	return resolveScenePoint(anchor);
+export function getScenePathAnchorWorldPosition(
+	anchor: ScenePathAnchor,
+	rooms: LayoutRoomRegistry = chopinRuntime.rooms
+): Vec3 {
+	return resolveScenePoint(anchor, rooms);
 }
 
 /**
@@ -144,10 +188,11 @@ export function getScenePathAnchorWorldPosition(anchor: ScenePathAnchor): Vec3 {
  */
 export function writeScenePathAnchorWorldPosition(
 	anchor: ScenePathAnchor,
-	worldPosition: Vector3Like
+	worldPosition: Vector3Like,
+	rooms: LayoutRoomRegistry = chopinRuntime.rooms
 ) {
 	const point = cloneFiniteVec3(worldPosition, 'Camera path anchor position');
-	anchor.position = anchor.roomId ? roomLocalPoint(anchor.roomId, point) : point;
+	anchor.position = anchor.roomId ? rooms.localPoint(anchor.roomId, point) : point;
 	return anchor;
 }
 
@@ -158,14 +203,15 @@ export function writeScenePathAnchorWorldPosition(
 export function createScenePathAnchorAtWorldPoint(
 	id: string,
 	worldPosition: Vector3Like,
-	activeRoomId: MuseumRoomId | null | undefined
+	activeRoomId: MuseumRoomId | null | undefined,
+	rooms: LayoutRoomRegistry = chopinRuntime.rooms
 ): ScenePathAnchor {
 	const point = cloneFiniteVec3(worldPosition, 'Camera path anchor position');
-	if (activeRoomId && isWorldPointInsideRoomXZ(activeRoomId, point)) {
+	if (activeRoomId && isWorldPointInsideRoomXZ(activeRoomId, point, rooms)) {
 		return {
 			id,
 			roomId: activeRoomId,
-			position: roomLocalPoint(activeRoomId, point)
+			position: rooms.localPoint(activeRoomId, point)
 		};
 	}
 	return { id, position: point };

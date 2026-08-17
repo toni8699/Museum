@@ -18,6 +18,7 @@ import type {
 	SceneConnection,
 	ScenePathAnchor
 } from '$lib/content/scene';
+import type { LayoutRoomRegistry } from '$lib/project/project-layout-semantics';
 import { MUSEUM_CAMERA_FOV, type MuseumRoomId, type Vec3 } from '$lib/types/museum';
 import {
 	allocateCameraPathAnchorId,
@@ -56,6 +57,7 @@ export interface EditorPathAnchorMutatorHost {
 
 	// Document + selection state.
 	readonly document: MuseumSceneDocument;
+	readonly rooms: LayoutRoomRegistry;
 	readonly cameraSelection: EditorCameraSelection | null;
 	readonly selectedNavigationNode: SceneNavigationNode | undefined;
 	readonly selectedConnection: SceneConnection | undefined;
@@ -242,7 +244,8 @@ export class EditorPathAnchorMutator {
 		const anchor = createScenePathAnchorAtWorldPoint(
 			id,
 			worldPosition,
-			this.host.selectedRoomId
+			this.host.selectedRoomId,
+			this.host.rooms
 		);
 		const index = Math.max(
 			0,
@@ -263,10 +266,10 @@ export class EditorPathAnchorMutator {
 		}
 		const anchor = findScenePathAnchor(this.host.document, connectionId, anchorId);
 		if (!anchor) return false;
-		const current = getScenePathAnchorWorldPosition(anchor);
+		const current = getScenePathAnchorWorldPosition(anchor, this.host.rooms);
 		if (vec3Matches(current, worldPosition)) return false;
 		this.convertConnectionDraft(connectionId);
-		writeScenePathAnchorWorldPosition(anchor, worldPosition);
+		writeScenePathAnchorWorldPosition(anchor, worldPosition, this.host.rooms);
 		return true;
 	}
 

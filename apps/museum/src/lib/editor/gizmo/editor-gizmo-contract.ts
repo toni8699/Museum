@@ -120,7 +120,8 @@ export interface EditorGizmoDragSession {
  * One attachable gizmo target. The host never inspects the proxy's meaning
  * or the target's document identity — it only detaches → configures →
  * attaches the proxy, then calls into the session.
- */	export interface EditorGizmoTargetAdapter {
+ */
+export interface EditorGizmoTargetAdapter {
 	/** Collision-safe adapter key (e.g. `camera:node:pos`), never a placement id. */
 	key: string;
 	domain: 'scene' | 'camera' | 'layout';

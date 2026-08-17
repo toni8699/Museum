@@ -45,6 +45,9 @@
 		ACTIVE_EDITOR_SELECTION_KEY,
 		EditorActiveSelectionStore
 	} from './active-editor-selection.svelte';
+	import { SCENE_GIZMO_POLICY } from '$lib/editor/gizmo/scene-gizmo-adapter.svelte';
+	import { CAMERA_GIZMO_POLICY } from '$lib/editor/gizmo/camera-gizmo-adapter.svelte';
+	import { projectDomainGizmoCapabilities } from '$lib/editor/gizmo/editor-gizmo-policy';
 
 	// H1 S2 — the editor boots blank on every load: one canonical empty project
 	// seeds both the scene-only store and the layout-only preview surface.
@@ -141,6 +144,18 @@
 	const interactionStore = new EditorInteractionStore();
 	setContext(EDITOR_INTERACTION_STORE_KEY, interactionStore);
 
+	// H1 S7 step 6 — the active target's generic capability projection for the
+	// W/E/R/T shortcuts. Same policies + projection the toolbar and the host
+	// use, so an unsupported mode can never start through one and be refused
+	// by another. `null` for a detached layout / no target.
+	const activeGizmoCapabilities = $derived.by(() =>
+		projectDomainGizmoCapabilities(
+			activeSelection.active.domain,
+			interactionStore.mode,
+			{ scene: SCENE_GIZMO_POLICY, camera: CAMERA_GIZMO_POLICY }
+		)
+	);
+
 	let outlinerElement = $state<HTMLElement | null>(null);
 	let viewportElement = $state<HTMLElement | null>(null);
 	let clusterNameInput = $state<HTMLInputElement>();
@@ -183,9 +198,7 @@
 	beforeNavigate((navigation) => {
 		if ((!store.isDirty && !layoutPreviewIsDirty(layoutPreview)) || navigation.willUnload) return;
 		if (!confirmNavigation()) navigation.cancel();
-	});
-
-	onMount(() =>
+	});	onMount(() =>
 		registerEditorShortcuts(
 			store,
 			{
@@ -194,7 +207,11 @@
 				getClusterNameInput: () => clusterNameInput
 			},
 			interactionStore,
-			() => activeSelection.deselectActive()
+			() => activeSelection.deselectActive(),
+			// H1 S7 — a detached layout selection refuses W/E/R/T/X until S8.
+			() => activeSelection.active.domain === 'layout',
+			// H1 S7 step 6 — refuse modes the active target's policy does not allow.
+			() => activeGizmoCapabilities
 		)
 	);
 

@@ -216,11 +216,12 @@ export class EditorViewKeyframeController {
 			const path = createDraftConnectionPositionPath(
 				this.host.document,
 				preview.connectionId,
-				preview.direction
+				preview.direction,
+				this.host.rooms
 			);
 			edgeProgress = findNearestCurveProgress(
 				path,
-				getScenePathAnchorWorldPosition(anchor)
+				getScenePathAnchorWorldPosition(anchor, this.host.rooms)
 			);
 			playhead = cameraMotionProgressAtEdgeProgress(motion, 0, edgeProgress);
 		} else {
@@ -282,7 +283,8 @@ export class EditorViewKeyframeController {
 			edgeProgress,
 			sample.target,
 			sample.fov,
-			this.host.selectedRoomId
+			this.host.selectedRoomId,
+			this.host.rooms
 		);
 
 		if (!this.host.beginDocumentTransaction()) return false;
@@ -311,9 +313,9 @@ export class EditorViewKeyframeController {
 		if (!this.host.historyDocumentUndoBlocked || !isFiniteVec3(worldTarget)) return false;
 		const keyframe = this.host.selectedViewKeyframe;
 		if (!keyframe) return false;
-		const current = getSceneCameraViewKeyframeWorldTarget(keyframe);
+		const current = getSceneCameraViewKeyframeWorldTarget(keyframe, this.host.rooms);
 		if (vec3Matches(current, worldTarget)) return false;
-		writeSceneCameraViewKeyframeWorldTarget(keyframe, worldTarget);
+		writeSceneCameraViewKeyframeWorldTarget(keyframe, worldTarget, this.host.rooms);
 		return true;
 	}
 
@@ -539,12 +541,12 @@ export class EditorViewKeyframeController {
 		try {
 			requestedProgress =
 				typeof progressOrWorldPoint === 'number'
-					? progressOrWorldPoint
-					: findNearestCurveProgress(
+					? progressOrWorldPoint						: findNearestCurveProgress(
 							createDraftConnectionPositionPath(
 								this.host.document,
 								selection.connectionId,
-								selection.direction
+								selection.direction,
+								this.host.rooms
 							),
 							progressOrWorldPoint
 						);

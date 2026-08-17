@@ -131,10 +131,11 @@
 					store.document,
 					selection.connectionId,
 					selection.direction,
-					keyframe.progress
+					keyframe.progress,
+					store.rooms
 				)
 			);
-			previewTarget.set(...getSceneCameraViewKeyframeWorldTarget(keyframe));
+			previewTarget.set(...getSceneCameraViewKeyframeWorldTarget(keyframe, store.rooms));
 			previewSample.fov = keyframe.fov;
 		}
 	}

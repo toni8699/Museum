@@ -1,8 +1,5 @@
-import {
-	isWorldPointInsideRoomXZ,
-	roomLocalPoint,
-	roomPoint
-} from '$lib/content/rooms';
+import { chopinRuntime } from '$lib/content/chopin-project';
+import type { LayoutRoomRegistry } from '$lib/project/project-layout-semantics';
 import type {
 	MuseumSceneDocument,
 	SceneCameraViewKeyframe,
@@ -14,7 +11,10 @@ import type {
 	Vec3
 } from '$lib/types/museum';
 import type { Vector3Like } from '$lib/museum/navigation/camera-motion';
-import { createDraftConnectionPositionPath } from './editor-camera-path';
+import {
+	createDraftConnectionPositionPath,
+	isWorldPointInsideRoomXZ
+} from './editor-camera-path';
 
 export const EDITOR_CAMERA_VIEW_PROGRESS_EPSILON = 1e-6;
 export const EDITOR_CAMERA_VIEW_MOVE_EPSILON = 1e-4;
@@ -122,21 +122,23 @@ export function findSceneCameraViewKeyframe(
 }
 
 export function getSceneCameraViewKeyframeWorldTarget(
-	keyframe: SceneCameraViewKeyframe
+	keyframe: SceneCameraViewKeyframe,
+	rooms: LayoutRoomRegistry = chopinRuntime.rooms
 ): Vec3 {
 	return keyframe.roomId
-		? roomPoint(keyframe.roomId, keyframe.cameraTarget)
+		? rooms.point(keyframe.roomId, keyframe.cameraTarget)
 		: [...keyframe.cameraTarget];
 }
 
 /** Preserve existing coordinate ownership while moving a target in world space. */
 export function writeSceneCameraViewKeyframeWorldTarget(
 	keyframe: SceneCameraViewKeyframe,
-	worldTarget: Vector3Like
+	worldTarget: Vector3Like,
+	rooms: LayoutRoomRegistry = chopinRuntime.rooms
 ) {
 	const target = cloneFiniteVec3(worldTarget, 'Camera view target');
 	keyframe.cameraTarget = keyframe.roomId
-		? roomLocalPoint(keyframe.roomId, target)
+		? rooms.localPoint(keyframe.roomId, target)
 		: target;
 	return keyframe;
 }
@@ -147,15 +149,16 @@ export function createSceneCameraViewKeyframeAtWorldTarget(
 	progress: number,
 	worldTarget: Vector3Like,
 	fov: number,
-	activeRoomId: MuseumRoomId | null | undefined
+	activeRoomId: MuseumRoomId | null | undefined,
+	rooms: LayoutRoomRegistry = chopinRuntime.rooms
 ): SceneCameraViewKeyframe {
 	const target = cloneFiniteVec3(worldTarget, 'Camera view target');
-	if (activeRoomId && isWorldPointInsideRoomXZ(activeRoomId, target)) {
+	if (activeRoomId && isWorldPointInsideRoomXZ(activeRoomId, target, rooms)) {
 		return {
 			id,
 			progress,
 			roomId: activeRoomId,
-			cameraTarget: roomLocalPoint(activeRoomId, target),
+			cameraTarget: rooms.localPoint(activeRoomId, target),
 			fov
 		};
 	}
@@ -167,7 +170,8 @@ export function getSceneCameraViewKeyframeWorldPosition(
 	document: MuseumSceneDocument,
 	connectionId: string,
 	direction: CameraConnectionDirection,
-	progress: number
+	progress: number,
+	rooms: LayoutRoomRegistry = chopinRuntime.rooms
 ): Vec3 {
 	if (!Number.isFinite(progress)) {
 		throw new Error('Camera view progress must be finite');
@@ -175,7 +179,8 @@ export function getSceneCameraViewKeyframeWorldPosition(
 	const path = createDraftConnectionPositionPath(
 		document,
 		connectionId,
-		direction
+		direction,
+		rooms
 	);
 	return path.getPointAt(progress).toArray() as Vec3;
 }

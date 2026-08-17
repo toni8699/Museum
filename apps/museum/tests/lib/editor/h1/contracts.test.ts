@@ -736,8 +736,88 @@ describe('H1 S7 — single gizmo host', () => {
 		expect(store.state).toBe('Selected');
 	});
 
-	// Only the S7 step-5 seam remains unlanded: the layout adapter + descriptor.
-	it.todo('layout descriptor module calls no layout preview/history mutation and the host never receives a live layout adapter (S7 step 5)');
+	it('keeps the layout descriptor module renderer-neutral and mutation-free (S7 step 5)', () => {
+		const descriptor = readLibSource('editor/gizmo/layout-gizmo-target.ts');
+		expect(descriptor).not.toMatch(/from\s+['"](three|svelte|@threlte)['"]/);
+		expect(descriptor).not.toContain('$state');
+		// The descriptor exports the two S7 seams (S8 consumes the delta).
+		expect(descriptor).toContain('export function resolveLayoutGizmoTarget');
+		expect(descriptor).toContain('export function deriveLayoutGizmoDelta');
+		// No layout preview/history mutation surface is reachable from it —
+		// additionally enforced for every gizmo file by the layout-mutation
+		// markers test above.
+		expect(descriptor).not.toContain('updateLayout');
+		expect(descriptor).not.toContain('commitLayoutTransaction');
+		expect(descriptor).not.toContain('previewLayoutRoomUnit');
+	});
+
+	it('never hands a live layout adapter to the host in S7 (descriptor stays detached)', () => {
+		const composer = readLibSource('editor/EditorTransformControls.svelte');
+		// The composer's S3-domain branch resolves layout selections to null —
+		// no live layout adapter is constructed, and the descriptor module is
+		// never imported by the composer or the host.
+		expect(composer).toContain('never a live adapter in S7');
+		expect(composer).not.toContain('layout-gizmo-target');
+		expect(readLibSource('editor/gizmo/EditorTransformControlsHost.svelte')).not.toContain(
+			'layout-gizmo-target'
+		);
+	});
+
+	it('publishes the detached-layout gate to the toolbar and shortcuts (no interactive gizmo policy)', () => {
+		// H1 toolbar accepts the optional transformDisabled gate; the relic
+		// mount omits it (no layout domain there).
+		const toolbar = readLibSource('editor/EditorViewportToolbar.svelte');
+		expect(toolbar).toContain('transformDisabled?: boolean');
+		expect(toolbar).toContain('transformDisabledFlag');
+		expect(readLibSource('editor/h1/H13DView.svelte')).toContain(
+			"transformDisabled={activeSelection?.active.domain === 'layout'}"
+		);
+		expect(readLibSource('editor/EditorViewport.svelte')).not.toContain('transformDisabled');
+		// Shortcuts refuse W/E/R/T/X while a detached layout selection is active.
+		const shortcuts = readLibSource('editor/hooks/shortcuts.svelte.ts');
+		expect(shortcuts).toContain('isLayoutSelectionActive');
+		expect(shortcuts).toContain('if (isLayoutSelectionActive?.()) return;');
+	});
+
+	it('drives the toolbar from the generic capability projection, legacy relic fallback intact (S7 step 6)', () => {
+		const toolbar = readLibSource('editor/EditorViewportToolbar.svelte');
+		// The toolbar consumes the projection, not a hasNavigationTransform
+		// special case, and the scale chain is scene-placement-only.
+		expect(toolbar).toContain('gizmoCapabilities?: EditorGizmoCapabilities | null');
+		expect(toolbar).toContain('caps.allowedModes.has(mode)');
+		expect(toolbar).toContain("caps.scaleControl === 'scene-scale-mode'");
+		// The relic keeps the legacy camera restriction when no projection is fed.
+		expect(toolbar).toContain('hasNavigationTransform');
+		expect(toolbar).toContain('toolDisabled');
+	});
+
+	it('shares one domain→capability projection between the toolbar and shortcuts (S7 step 6)', () => {
+		const h13d = readLibSource('editor/h1/H13DView.svelte');
+		const app = readLibSource('editor/h1/H1EditorApp.svelte');
+		// Both feed the same pure projection with the same adapter-owned policies.
+		for (const source of [h13d, app]) {
+			expect(source).toContain('projectDomainGizmoCapabilities');
+			expect(source).toContain('SCENE_GIZMO_POLICY');
+			expect(source).toContain('CAMERA_GIZMO_POLICY');
+		}
+		// The policies are one source shared with the host through the adapters.
+		expect(readLibSource('editor/gizmo/scene-gizmo-adapter.svelte.ts')).toContain(
+			'export const SCENE_GIZMO_POLICY'
+		);
+		expect(readLibSource('editor/gizmo/camera-gizmo-adapter.svelte.ts')).toContain(
+			'export const CAMERA_GIZMO_POLICY'
+		);
+	});
+
+	it('refuses unsupported W/E/R/T modes through the same capability policy (S7 step 6)', () => {
+		const shortcuts = readLibSource('editor/hooks/shortcuts.svelte.ts');
+		expect(shortcuts).toContain('getGizmoCapabilities');
+		expect(shortcuts).toContain('caps.allowedModes.has(modeForKey)');
+		// Relic camera targets refuse rotate/scale keys, matching the toolbar's
+		// existing restriction; the Escape cascade and preview locks are intact.
+		expect(shortcuts).toContain("hasNavigationTransform && modeForKey !== 'translate'");
+		expect(shortcuts).toContain("if (store.cameraPreview) {");
+	});
 });
 
 describe('H1 S3 — cross-domain selection contracts', () => {

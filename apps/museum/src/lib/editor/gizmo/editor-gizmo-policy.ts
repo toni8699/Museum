@@ -193,3 +193,29 @@ export function projectGizmoCapabilities(
 		scaleControl: policy.scaleControl
 	};
 }
+
+/** H1 S3 active domain → the one interactive gizmo policy projection. */
+export type GizmoActiveDomain = 'scene' | 'camera' | 'layout' | 'none';
+
+/** Policies the H1 shell maps a domain onto (the adapter-owned constants). */
+export interface EditorGizmoDomainPolicies {
+	scene: EditorGizmoPolicy;
+	camera: EditorGizmoPolicy;
+}
+
+/**
+ * Single projection shared by the H1 toolbar and the W/E/R/T shortcuts.
+ * `scene`/`camera` project the target policy with the remembered mode;
+ * `layout` (detached in S7) and `none` return `null` — no interactive gizmo
+ * policy. The relic has no `ActiveEditorSelection` and keeps its legacy
+ * navigation-before-placement arbitration instead of this helper.
+ */
+export function projectDomainGizmoCapabilities(
+	domain: GizmoActiveDomain,
+	rememberedMode: GizmoMode,
+	policies: EditorGizmoDomainPolicies
+): EditorGizmoCapabilities | null {
+	if (domain === 'scene') return projectGizmoCapabilities(policies.scene, rememberedMode);
+	if (domain === 'camera') return projectGizmoCapabilities(policies.camera, rememberedMode);
+	return null;
+}

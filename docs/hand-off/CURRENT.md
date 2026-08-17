@@ -4,7 +4,7 @@
 
 **North star:** layout-first / Chopin-as-data — [`../north-star.md`](../north-star.md).  
 **P0:** Layout CAD Foundation — [`../plans/2026-08-10-layout-cad-foundation.md`](../plans/2026-08-10-layout-cad-foundation.md).  
-**Completed:** A0 LayoutDocument codec + B0 Chopin `rooms.ts` compiler + A1 pure line geometry/preview model/transaction stub + C0 `MuseumProject` codec + A2 read-only layout preview workspace + A2.1 rectangle/polygon drafting + A2.2 meter-scale editing + Chopin floor correction + A2.3 geometry-only opening authoring + numeric opening dimensions + A3 Bezier walls, arc-length openings, derived arch profiles + A3.1 camera-style wall bend anchors, opening viz fix, Plan opening drag + A4 layout objects, inspectors, layout JSON I/O + A4.1 Layout Authoring Polish + B3 Room-Unit Relocate + B4 Runtime Dual-Read + B5 Serialized Project Runtime Cutover + G1 Shared Geometry Compiler + G2 Explicit Plan Render Boundary + G3 Graphics Performance Harness + G4 Procedural Architectural Meshes + H1 S0/S1/S2/S3/S4/S5/S6.
+**Completed:** A0 LayoutDocument codec + B0 Chopin `rooms.ts` compiler + A1 pure line geometry/preview model/transaction stub + C0 `MuseumProject` codec + A2 read-only layout preview workspace + A2.1 rectangle/polygon drafting + A2.2 meter-scale editing + Chopin floor correction + A2.3 geometry-only opening authoring + numeric opening dimensions + A3 Bezier walls, arc-length openings, derived arch profiles + A3.1 camera-style wall bend anchors, opening viz fix, Plan opening drag + A4 layout objects, inspectors, layout JSON I/O + A4.1 Layout Authoring Polish + B3 Room-Unit Relocate + B4 Runtime Dual-Read + B5 Serialized Project Runtime Cutover + G1 Shared Geometry Compiler + G2 Explicit Plan Render Boundary + G3 Graphics Performance Harness + G4 Procedural Architectural Meshes + H1 S0/S1/S2/S3/S4/S5/S6/S7.
 
 Full-track Phase 2 scene presets = deferred optional.
 
@@ -20,9 +20,8 @@ binary assets. Umbrella step 9 + the re-labeled
 
 **Known debt / next slice (2026-08-16):** direct 3D **wall selection is deferred by decision** — `H13DView.handleLayoutPick` falls through for `wall`/`interiorAnchor` resolutions via the pure `isLayoutDirectPickDeferred` gate (rooms/openings/objects stay directly pickable). **Hierarchy wall selection + the selection-highlight shell are shipped:** `UnifiedProjectTree` wall rows commit `selectLayoutWall`, and `LayoutPreviewScene` renders the gold `LayoutWallHighlight` overlay from `interaction.selection` alone (`matchWallRanges`/`matchOpeningRanges` + `buildWallHighlightMesh`), so tree-picked walls/openings/anchors light up in 3D. The hover feed (`onLayoutHover`) and anchor-helper octahedra remain disconnected (deferred). Named follow-up **S6.1**: re-enable direct 3D wall picks after a root-cause browser QA — the original "unreachable" failure was never proven at runtime; pure probes resolve walls correctly, so the defect (if live) likely sits in live-scene arbitration. See the S6 plan addendum (revision 2026-08-16).
 
-**H1 S7 in progress — as-built deviations (2026-08-16).** The single-gizmo-host
-work is mid-extraction (uncommitted in the working tree); two camera-gizmo
-defects surfaced during manual QA and are tracked here:
+**H1 S7 shipped — Single TransformControls host and target adapters (steps 0–6, 2026-08-16; uncommitted in the working tree).**
+One `EditorTransformControlsHost.svelte` owns the sole `ThreeTransformControls` per mounted 3D Canvas; `EditorTransformControls.svelte` is a thin composer resolving one nullable adapter from the H1 `ActiveEditorSelection` (relic keeps its legacy arbitration through the same adapters). Step 0 pinned the contracts block + recorded behavioral fixtures; step 1 added the shared host/adapter/session/policy contracts + pure policy helpers + the FSM `ACTIVE_TARGET_CHANGE` event (removing the dead ESC-from-Dragging revert and the placement-only `DragSnapshot`); step 2 extracted the host against a fake-host lifecycle harness (begin refusal, orbit true/false restore, single cancel, late-mouseUp suppression); step 3 moved the scene placement session into `scene-gizmo-adapter.svelte.ts` (pivot, rigid baselines, snaps, keep-on-floor, one transaction); step 4 moved the camera session into `camera-gizmo-adapter.svelte.ts` (node/anchor/view-target, pending drafts, epsilons); step 5 added the pure `layout-gizmo-target.ts` descriptors + baseline-relative delta math for all five layout identities and threaded the S7 "not interactive" gate to the toolbar/shortcuts (no live layout adapter); step 6 drives the toolbar + W/E/R/T shortcuts from the generic `projectGizmoCapabilities` projection (scene/camera policies shared with the host; scale chain scene-placement-only). Layout selections stay detached — transform buttons disabled, no handles, no project/history/dirty change — until S8. Full suite **1565 green** (up from 1518), `svelte-check` 0, production build clean, `/museum` visitor chunk graph free of gizmo/editor markers, G3 bench budgets pass unchanged (no re-baseline). Two as-built camera-gizmo deviations surfaced during manual QA and were fixed:
 
 1. **Camera Y translate handle was silently dropped (fixed).** The S7 camera
    adapter hard-coded `CAMERA_AXES = {x, z, xz}`, hiding the green Y handle the
@@ -37,26 +36,63 @@ defects surfaced during manual QA and are tracked here:
    components, and a `'Y'`-axis drag that actually writes `position[1]` with
    one history commit); the `CAMERA_POLICY` fixture in
    `editor-gizmo-policy.test.ts` was updated to match.
-2. **Delayed gizmo disappearance (investigated; host hardened).** Reported as
-   "gizmo disappears a few seconds after placing a camera". Live-browser QA:
-   the gizmo persisted through 6s+ idle waits in both the first-node and
-   pending-node flows and after drag attempts — no timer-driven detach exists
-   (the only editor timer is the 2.5s status message, which touches nothing).
-   Two findings: (a) the **connect-commit switches the selection to the new
-   connection**, so the node gizmo detaches immediately — by design (a
-   connection shows path helpers, not a node gizmo), but the likely perceived
-   "disappearance"; (b) a genuine host-lifecycle defect: `setAdapter` skipped
-   same-key adapters **without comparing the proxy**, so a remounted helper
-   root (new `Object3D`, same `camera:node:pos` key) left the gizmo attached
-   to the old, scene-removed proxy — the one mechanism by which the gizmo can
-   vanish while the node stays selected. Hardened 2026-08-16:
-   `editor-gizmo-host-controller.ts` now skips only same-key **and**
-   same-proxy resolves; same-key with a new proxy detaches the stale proxy and
-   re-attaches the live one (one `ACTIVE_TARGET_CHANGE`). Regression test
-   covers the remount and the fresh-adapter-same-proxy skip. Follow-up: if a
-   delayed vanish still reproduces, capture FSM state / `hasLiveTarget()` /
-   selection kind at the moment it happens — no remaining code path found that
-   detaches on a timer.
+2. **Gizmo freeze after connecting a camera node (root-caused + fixed
+   2026-08-16).** Reported as "ui freezes after adding a new camera and
+   connecting to the previous — cannot use the gizmo, menu options dead". The
+   freeze signature: `TransformControls: The attached 3D object must be a part
+   of the scene graph` every frame + a `pointerDown` null-crash on click.
+   Investigation ruled out a timer-driven detach (gizmo persisted through 6s+
+   idle in both the first-node and pending-node flows; the only editor timer
+   is the 2.5s status message). Two contributing findings: (a) the
+   **connect-commit switches the selection to the new connection**, so the
+   node gizmo detaches immediately — by design (a connection shows path
+   helpers, not a node gizmo); (b) a host-lifecycle defect where `setAdapter`
+   skipped same-key adapters **without comparing the proxy**, leaving the
+   gizmo attached to a scene-removed root after a helper remount — hardened
+   in `editor-gizmo-host-controller.ts` (skip only same-key **and**
+   same-proxy; same-key with a new proxy re-attaches, one
+   `ACTIVE_TARGET_CHANGE`; regression test covers the remount and the
+   fresh-adapter-same-proxy skip).
+
+   **Definitive root cause (found by instrumented live repro + exception
+   stack):** `EditorCameraPathHelpers`'s `$effect` threw
+   `Unknown project layout room: layout-room-1` during the connect flush. The
+   editor's camera path/view math (`editor-camera-path.ts` /
+   `editor-camera-view.ts`) resolved node/anchor/view-keyframe points through
+   the deprecated global `chopinRuntime.rooms` (frozen Chopin museum) instead
+   of the store's live project-layout registry (`store.rooms`) — the same
+   registry H1 S2's camera placement already uses. On a boot-empty project the
+   drafted room is not in Chopin's registry, so the exception aborted the
+   Svelte effect flush before the gizmo composer's `$derived` could re-run
+   (the selection had just become a connection), the host never detached, and
+   TransformControls stayed attached to the pending node's position helper
+   root that the pending branch had just unmounted. **Fixed:** threaded an
+   optional `LayoutRoomRegistry` (default = the legacy Chopin global, so the
+   relic and existing tests are unchanged) through `editor-camera-path.ts`
+   (path builder + anchor read/write/create, with a registry-aware
+   boundary-AABB inside-check preserving the legacy centered-box semantics)
+   and `editor-camera-view.ts` (keyframe target read/write/create + world
+   position), then passed `store.rooms` at every editor call site:
+   `EditorCameraPathHelpers`, `EditorSelection`, `EditorCameraViewHelpers`,
+   `EditorCameraFramingHelpers`, `EditorCameraRig`, `view-keyframe-controller`,
+   `path-anchor-mutator` (+ `rooms` on its host + `controller-hosts.ts`
+   wiring), and the store's `selectedViewKeyframeWorldTarget`. This also fixes
+   the same latent crash for path-anchor dragging and view-keyframe editing on
+   drafted rooms. Verified live: draft room → place camera 1 → place pending
+   camera 2 → connect now commits with zero exceptions and zero
+   TransformControls spam (was: exception + ~300 spam errors in 2s + frozen
+   UI), and re-selecting a node afterward re-attaches the gizmo; full museum
+   suite **1518 green**, `svelte-check` 0.
+
+**Next slice: H1 S8 — layout candidate-session adapter + atomic layout history.**
+S8 activates the detached S7 descriptors: a live layout adapter per identity
+(room/wall/opening/interior-anchor/object) that previews a validated candidate
+document from the immutable baseline + `deriveLayoutGizmoDelta`, then commits
+exactly one `layout` history entry on pointer-up — no throwaway mutation path.
+It owns clamps, neighbor-overlap checks, structural/geometry/compile/mesh
+validation, last-valid preview, and the S7/S8 activation boundary's last line
+(layout selection → live adapter → same host → one layout commit). Plan:
+[`../plans/2026-08-16-graphics-h1-s8-layout-gizmo-candidate-session.md`](../plans/2026-08-16-graphics-h1-s8-layout-gizmo-candidate-session.md).
 
 **H1 S6 shipped — Centralized 3D layout selection.** One coordinator, zero new Canvas listeners: `EditorSelection.svelte` gains an optional `onLayoutPick` prop (absent on the frozen relic mount) that slots a layout branch into the existing click flow after the placement + Alt-cycle branches, reusing the single `intersections` list (no second raycast). Pure `layout-3d-picking.ts` grows `Layout3dHitCandidate`/`Layout3dResolvedHit`, a structural `layoutCandidatesFromIntersections` (no `three` import — `RaycastHitLike` shape, authored `surfaceType`/`editorEntity` walk-up only), and `resolveLayout3dHits(pickIndices, hits)` → `{ selection, distance } | null`: nearest-visible wins; same-depth (`|Δd| ≤ 1e-4`) ties break anchor → opening → object → wall → room then stable input order; wall-triangles resolve through the S5 `layout3dPickIndexByRoom` cache (unresolvable refs dropped). Cross-domain arbitration is exact, never nearest-tag guessing: `resolveNormalSelectionWithHit` exposes the actionable source hit + its `distance` (deselect → `null`; near-invisible tagged hits filtered), and the strict pure yield rule `layoutPickBeatsSceneDistance` commits layout only when `d_scene === null` or `layoutDist < d_scene − ε` — content wins the exact-tie band, so the `LayoutWallHighlight` shell / grid / placement ghost never shadow a real pick. `LayoutPreviewScene` tags the wall mesh `userData={{ surfaceType: 'wall', roomId }}`; `H13DView` wires `onLayoutPick={store.isVisitorCameraPreview ? undefined : handleLayoutPick}` and commits through the existing `selectLayout*` helpers (S3 activation, S4 tree reveal, S5 highlight all fire from that one write; a follow-up scene/camera pick still clears layout via the S3 hook). 26 new tests (8 resolution, 10 extraction/commit-route incl. cross-domain boundaries, 4 normal-resolver source preservation, 4 S6 contracts); full suite **1431 green**, `svelte-check` 0, build clean. As-built deviation: the cross-domain yield rule is a shared pure helper so the handler and tests compare identically. Plan: [`../plans/2026-08-15-graphics-h1-s6-layout-3d-selection.md`](../plans/2026-08-15-graphics-h1-s6-layout-3d-selection.md).
 
@@ -97,6 +133,7 @@ C1. Plan: [`../plans/2026-08-14-graphics-h1-c1-plan-staging.md`](../plans/2026-0
 - H1 S3: cross-domain selection — `h1/active-editor-selection.svelte.ts` (`ActiveEditorSelection` union, pure `deriveActiveSelection` with `layout > scene > camera` legacy priority, `EditorActiveSelectionStore` with `active`/`deselectActive`/`reset`/`onLayoutSelectionChanged`); `MuseumEditorStoreOptions.onSelectionActivate` seam (no-op default; reducer fires on actionable picks only) + pure `reconcileLayoutSelection` in `layout-interaction.ts`; shell effects wire layout↔scene/camera exclusivity + layout-swap reconcile; `onDeselect` props + shortcut `deselectActive` + `onReset` on the three reset actions. Covered by `tests/lib/editor/h1/active-editor-selection.test.ts` (18: mapping, seam, exclusivity, deselect + guard parity, convergence, reset, view-switch) + `contracts.test.ts` S3 block (3) + `layout-interaction.test.ts` reconcile cases (3); full suite 1371 green, `svelte-check` 0, production build clean.
 - H1 S5: complete 3D pick metadata — builder emits `pickRanges` (sorted partition of the index buffer; every triangle exactly one pick owner) from build-time face tags covering wall side/lintel/bridge + opening jamb/sill/lintel/arch-reveal; bridges owned by the current/start wall only (both-open-miter profile-difference reveals included); pure `layout-3d-picking.ts` (`buildLayout3dTriangleIndex` dense resolver with partition dev-guard + `layoutAnchorHelperPlacements`); `layout3dPickIndexByRoom` cache in preview state; adapter `userData.pickRanges` (no new groups); ceiling `surfaceType: 'ceiling'` + editor-only anchor helpers in `LayoutPreviewScene` (inert until S6). Covered by 26 new tests (builder S5 block, `layout-3d-picking.test.ts`, adapter userData, S5 contracts block incl. review-fix pins, preview-state cache lifecycle); full suite 1420 green, `svelte-check` 0, build clean.
 - H1 S6: centralized 3D layout selection — `EditorSelection` gains an optional `onLayoutPick` branch (relic mount absent, so `/museum/editor` frozen) reusing the one `intersections` list; pure `resolveLayout3dHits` (nearest-visible + anchor→opening→object→wall→room same-depth priority) over the S5 `layout3dPickIndexByRoom`; structural `layoutCandidatesFromIntersections` (no `three` import) + wall `surfaceType: 'wall'` tag; exact cross-domain yield via `resolveNormalSelectionWithHit` source distance + `layoutPickBeatsSceneDistance`; visitor-preview gate on `onLayoutPick`. 26 new tests; full suite 1431 green, `svelte-check` 0, build clean. **Post-ship debt (2026-08-15):** anchor-helper octahedra + highlight/hover shells commented out behind `KNOWN DEBT` markers (wall selection deferred).
+- H1 S7: single gizmo host + target adapters — one `ThreeTransformControls` constructor in `EditorTransformControlsHost.svelte`; thin composer resolves one nullable adapter from `ActiveEditorSelection` (scene/camera; relic legacy arbitration); shared `editor-gizmo-contract.ts` + pure `editor-gizmo-policy.ts` helpers; FSM `ACTIVE_TARGET_CHANGE` (Selected = live attachable target) + `DRAG_END{cancelled}` single cancel path; fake-host lifecycle harness (`editor-gizmo-host.test.ts`); `scene-gizmo-adapter.svelte.ts` (placement session) + `camera-gizmo-adapter.svelte.ts` (node/anchor/view-target); pure `layout-gizmo-target.ts` descriptors + `deriveLayoutGizmoDelta` (all five identities, detached); toolbar + W/E/R/T shortcuts consume `projectGizmoCapabilities` (scene/camera policies shared with the host; scale chain scene-placement-only); layout gate disables transform buttons. New tests: 32 layout-descriptor + 14 host-harness + 8 camera-adapter + 5 policy + 5 shortcut-refusal + S7 contracts block; full suite **1565 green**, `svelte-check` 0, build clean, visitor chunk scan clean, G3 budgets unchanged.
 
 ## Locked decisions
 
@@ -129,6 +166,7 @@ C1. Plan: [`../plans/2026-08-14-graphics-h1-c1-plan-staging.md`](../plans/2026-0
 - G3 shipped. Harness owns measurement, not optimization: seeded deterministic 10/100/1,000-room fixtures (30% auto-bezier, 2 openings/room, 3 objects/room), pure Node tier (`compile`/`plan-render-build`/`hit-test`/`snap-query`/`compiled-memory`/`cache-key-code-units`), deterministic browser tier (initial render, synchronous render-work proxies, SVG node count, wall-mesh topology estimates), checked-in baseline whose Chopin budgets enforced fail-closed — missing sample, missing budget, or over-`fail` value on any enforced metric (node timings, `cache-key-code-units`, deterministic SVG/Three counts) fails check. 10/100/1,000-room tiers = comparison data, never enforced. Budget changes require recorded reason in `g3-baseline.json`. Harness leaves backlog (#1–#4, #10) unimplemented — each traced to measured signal for G5.
 - H1 S5 shipped. Additive pick metadata on the G4 mesh: `IndexedWallMesh.pickRanges` is a sorted non-overlapping partition of the index buffer (every triangle exactly one pick owner — walls `side`/`lintel`/`bridge`, openings `jamb`/`sill`/`lintel`/`arch-reveal`); lintel undersides split from band/top at build time; bevel-bridge faces owned exclusively by the current/start wall (never the neighbor, unlike the shared `wallRanges` highlight entry); `sectionToRange`/`wallRanges`/`materialGroups`/index layout unchanged (zero draw-call delta, no G3 re-baseline). Pure `layout-3d-picking.ts` = reverse index (`buildLayout3dTriangleIndex`, partition-validated dev guard, built once per mesh generation) + `layoutAnchorHelperPlacements`; preview-state caches `layout3dPickIndexByRoom` with `wallMeshesByRoom`; adapter carries `userData.pickRanges`; scene tags ceiling identity + renders inert anchor helpers. S6 raycasts and resolves through the index.
 - H1 S6 shipped. One 3D selection coordinator: `EditorSelection`'s existing Canvas listener gains a layout branch (optional `onLayoutPick`, absent on the relic), reusing the same `intersections` list — never a second raycast. Layout candidates resolve through the S5 `layout3dPickIndexByRoom` cache; nearest-visible wins, same-depth ties (`|Δd| ≤ 1e-4`) break anchor → opening → object → wall → room then stable input order; unresolvable wall-triangles drop. Cross-domain `d_scene` is the exact actionable `resolveNormalSelectionWithHit` source distance (deselect → `null`); layout commits only when `d_scene === null || layoutDist < d_scene − ε` (content wins the tie band; highlight/grid/ghost never shadow a real pick). Wall meshes carry `userData={{ surfaceType: 'wall', roomId }}`; commits route through the existing `selectLayout*` helpers; visitor preview gates `onLayoutPick` off.
+- H1 S7 shipped. One host, one adapter per domain: `EditorTransformControlsHost.svelte` is the only `new ThreeTransformControls` in editor source (composer constructor/helper/listener-free, contracts-enforced); `ACTIVE_TARGET_CHANGE{targetKey}` makes `Selected` = a live attachable gizmo target and every cancel reason routes through `adapter.cancel(reason)` → `DRAG_END{cancelled:true}` → orbit restore (FSM `ESC` stays shell-level only; the placement-only `DragSnapshot` is deleted). Scene/camera sessions live in their adapters (one scene document transaction per drag, epsilon no-ops anchor/view-target only, pending-node drafts history-free). Layout descriptors are pure and detached: `resolveLayoutGizmoTarget`/`deriveLayoutGizmoDelta` cover room/wall/opening/interior-anchor/object with collision-safe `geometryId` keys, read-only `profile` rejection, stale-identity `null`, and baseline-relative raw finite deltas; no live layout adapter reaches the host until S8. One `EditorGizmoPolicy` drives host + toolbar + W/E/R/T via `projectGizmoCapabilities` (scene full/world/scene-scale-mode; camera translate-only/hidden); a detached layout selection disables transform buttons without touching project/history/dirty.
 - G4 shipped. Pure, renderer-neutral `buildRoomWallMesh(room)` in `$lib/layout/wall-mesh-builder.ts` emits one watertight, surface-major `IndexedWallMesh` per room: `±thickness/2` offset-line corner miters at every turn (with `miterLimit` profile-aware bevel bridge), profile-interval union with `profileBaseY` + `floorElevation` offsets, exposed boundary faces only (no caps at closed joints), per-normal vertex splits for flat-shaded corners, metric floor-anchored UVs, fail-closed `{ mesh?, issues }` on offset-overlap/clearance/self-fold. Three-only `wall-geometry-adapter.ts` converts to `BufferGeometry` with one `addGroup` per material group, carries `sectionToRange`/`wallRanges` metadata; `dispose()` disposes geometry + invokes each material `release()` once, never shared cache. Visitor `LayoutMuseumShell` + editor `LayoutPreviewScene` both consume builder+adapter (per-span chord boxes removed, boundary-tested); editor preflights `wallMeshesByRoom` on `LayoutPreviewState` (a `Map`, never in undo snapshot), renders wall/opening selection via range-set overlays rebuilt/disposed on selection change, selection-independent base classifier. Visitor walls keep `textures="off"` tint parity via `wall-material-factory.ts` (shared per-tint cache, factory-owned, never adapter-disposed). Harness re-baselined under `BENCH_METHOD_VERSION` 3 via `npm run bench:record` (not default test): `three-*-estimate` counts indexed mesh (Chopin 6 objects / 6 draw calls / 12,876 triangles — bespoke music-chamber shell excluded before build, matching the live scene), `three-regen` removed, `wall-mesh-build` enforced; `buildWallMeshScene` honors `excludedRoomIds` so `/dev/perf` live WebGL reports the same 6-room counts. Shared walls: no coincident cross-room pairs in Chopin or scale fixtures; per-room rendering exact, dedup deferred (never coordinate-guessed).
 
 ## Out of scope this slice
@@ -140,7 +178,7 @@ Phase 2 Wall presets · G5+ graphics roadmap work · visitor rendering of layout
 1. This file.  
 2. [`../AGENTS.md`](../../AGENTS.md) hard rules.  
 3. [`../architecture.md`](../architecture.md) (layout/`rooms.ts` only).  
-4. A0/B0/A1/C0/A2/A2.1/A2.2/A2.3/A3/A3.1/A4/A4.1/B3/B4/B5/G1/G2/G3/G4 shipped. H1 in progress: S0–S6 shipped → S7 (single TransformControls host + layout adapter) next. Read [`../plans/2026-08-14-graphics-h1-unified-3d-editing.md`](../plans/2026-08-14-graphics-h1-unified-3d-editing.md) + its S0–S6 sub-plans.
+4. A0/B0/A1/C0/A2/A2.1/A2.2/A2.3/A3/A3.1/A4/A4.1/B3/B4/B5/G1/G2/G3/G4 shipped. H1 shipped: S0–S7 → S8 (layout candidate-session adapter + atomic layout history) next. Read [`../plans/2026-08-14-graphics-h1-unified-3d-editing.md`](../plans/2026-08-14-graphics-h1-unified-3d-editing.md) + its S0–S6 sub-plans + [`../plans/2026-08-16-graphics-h1-s7-single-gizmo-host.md`](../plans/2026-08-16-graphics-h1-s7-single-gizmo-host.md) + [`../plans/2026-08-16-graphics-h1-s8-layout-gizmo-candidate-session.md`](../plans/2026-08-16-graphics-h1-s8-layout-gizmo-candidate-session.md).
 
 5. Skip other `docs/components/*` unless task touches them.
 

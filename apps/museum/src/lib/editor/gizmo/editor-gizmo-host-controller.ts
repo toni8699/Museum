@@ -305,6 +305,10 @@ export class EditorGizmoHostController {
 
 	/** Ctrl/Cmd while dragging enables full snaps; releasing disables mid-drag. */
 	onSnapModifierChange(event: { ctrlKey: boolean; metaKey: boolean }) {
+		// Monolith parity note: the monolith gated on `state === 'Dragging' ||
+		// controls.dragging`; a live session is a wider window (pointer-down →
+		// mouseUp), but rows reset on attach and are only consumed mid-drag,
+		// so the observable boundary matches.
 		if (!this.session) return;
 		const controls = this.deps.controls;
 		const prefs = this.deps.getSnapPreferences();
@@ -314,6 +318,9 @@ export class EditorGizmoHostController {
 			controls.scaleSnap = prefs.scaleSnap;
 		} else {
 			controls.translationSnap = 0;
+			// Deliberate deviation: the monolith zeroed rotationSnap on Ctrl
+			// release; restoring the preference row keeps rotation snap on for
+			// the rest of the drag when the user had it enabled.
 			controls.rotationSnap = prefs.rotationSnapEnabled && !this.shiftHeld
 				? rotationSnapRadians(prefs.rotationSnapDegrees)
 				: 0;

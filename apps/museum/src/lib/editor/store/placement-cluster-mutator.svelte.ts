@@ -68,6 +68,8 @@ export interface EditorPlacementClusterMutatorHost {
 	// Mutation guards.
 	readonly isDocumentMutationBlocked: boolean;
 	readonly isEditorInteractionActive: boolean;
+	/** H1 S8.1 — true for the frozen `/museum/editor` relic (Paris-oriented placement). */
+	readonly isRelic: boolean;
 
 	// Document + selection state.
 	readonly document: MuseumSceneDocument;
@@ -148,10 +150,14 @@ export class EditorPlacementClusterMutator {
 		this.host.cancelPendingNavigation();
 		this.host.pendingPlacementPrimitiveKind = null;
 		this.host.pendingPlacementLightKind = null;
-		this.selectionActions.selectRoom('paris');
+		if (this.host.isRelic) this.selectionActions.selectRoom('paris');
 		this.host.pendingPlacementAssetId = asset.id;
 		this.host.setNavigationHover(null);
-		this.host.setStatusMessage(`Click the Paris floor to place ${asset.name}`);
+		this.host.setStatusMessage(
+			this.host.isRelic
+				? `Click the Paris floor to place ${asset.name}`
+				: `Click a tagged museum-room floor to place ${asset.name}`
+		);
 		return true;
 	}
 
@@ -206,7 +212,7 @@ export class EditorPlacementClusterMutator {
 		return this.cancelAssetPlacement(message);
 	}
 
-	createPendingPlacementAt(position: Vec3) {
+	createPendingPlacementAt(position: Vec3, roomId: MuseumRoomId) {
 		if (this.host.isDocumentMutationBlocked || this.host.isEditorInteractionActive) {
 			return null;
 		}
@@ -236,7 +242,7 @@ export class EditorPlacementClusterMutator {
 			kind: 'model',
 			id,
 			name: asset.name,
-			roomId: 'paris',
+			roomId,
 			assetId: asset.id,
 			fallback,
 			position: [...position],

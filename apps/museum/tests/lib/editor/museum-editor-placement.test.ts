@@ -9,11 +9,11 @@ import {
 	MuseumEditorStore,
 	type MuseumSceneDocument
 } from '$lib/editor/museum-editor.svelte';
-import { createFixtureEditorStore } from './editor-test-utils';
+import { createFixtureEditorStore, createRelicFixtureEditorStore } from './editor-test-utils';
 
 describe('MuseumEditorStore Phase 5 placement commands', () => {
 	it('replaces pending floor assets, rejects unsupported surfaces, and cancels stale assets', () => {
-		const store = createFixtureEditorStore();
+		const store = createRelicFixtureEditorStore();
 		const focusVersion = store.cameraFocusVersion;
 		expect(store.beginAssetPlacement('paris-salon-chair')).toBe(true);
 		expect(store.selectedRoomId).toBe('paris');
@@ -26,16 +26,16 @@ describe('MuseumEditorStore Phase 5 placement commands', () => {
 		expect(store.pendingPlacementAssetId).toBe('paris-salon-table');
 
 		store.pendingPlacementAssetId = 'missing-asset';
-		expect(store.createPendingPlacementAt([0, 0, 0])).toBeNull();
+		expect(store.createPendingPlacementAt([0, 0, 0], 'paris')).toBeNull();
 		expect(store.pendingPlacementAssetId).toBeNull();
 	});
 
 	it('creates explicit scene fields with reserved IDs and one undo entry', () => {
-		const store = createFixtureEditorStore();
+		const store = createRelicFixtureEditorStore();
 		store.selectionActions.selectRoom('paris');
 		const focusVersion = store.cameraFocusVersion;
 		expect(store.beginAssetPlacement('paris-salon-chair')).toBe(true);
-		const firstId = store.createPendingPlacementAt([1, 0.01, 2]);
+		const firstId = store.createPendingPlacementAt([1, 0.01, 2], 'paris');
 		expect(firstId).toBe('paris-salon-chair-placement');
 		const first = store.document.entities.find((object) => object.id === firstId);
 		expect(first).toMatchObject({
@@ -55,16 +55,18 @@ describe('MuseumEditorStore Phase 5 placement commands', () => {
 
 		expect(store.redo()).toBe(true);
 		store.beginAssetPlacement('paris-salon-chair');
-		expect(store.createPendingPlacementAt([2, 0.01, 3])).toBe('paris-salon-chair-placement-2');
+		expect(store.createPendingPlacementAt([2, 0.01, 3], 'paris')).toBe(
+			'paris-salon-chair-placement-2'
+		);
 	});
 
 	it('preserves Paris local coordinates across its authored yaw and scene rebuild', () => {
-		const store = createFixtureEditorStore();
+		const store = createRelicFixtureEditorStore();
 		const expectedLocal: [number, number, number] = [2.25, 0.01, -1.75];
 		const world = roomPoint('paris', expectedLocal);
 		const local = roomLocalPoint('paris', world);
 		store.beginAssetPlacement('paris-salon-table');
-		const id = store.createPendingPlacementAt(local)!;
+		const id = store.createPendingPlacementAt(local, 'paris')!;
 		const documentPosition = store.document.entities.find((object) => object.id === id)!.position;
 		const runtimePosition = store.scene.objects.find((object) => object.id === id)!.position;
 		expect(documentPosition[0]).toBeCloseTo(expectedLocal[0], 8);

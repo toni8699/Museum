@@ -56,16 +56,25 @@ scene).
 
 **Known debt / next slice (2026-08-16):** direct 3D **wall selection is deferred by decision** — `H13DView.handleLayoutPick` falls through for `wall`/`interiorAnchor` resolutions via the pure `isLayoutDirectPickDeferred` gate (rooms/openings/objects stay directly pickable). **Hierarchy wall selection + the selection-highlight shell are shipped:** `UnifiedProjectTree` wall rows commit `selectLayoutWall`, and `LayoutPreviewScene` renders the gold `LayoutWallHighlight` overlay from `interaction.selection` alone (`matchWallRanges`/`matchOpeningRanges` + `buildWallHighlightMesh`), so tree-picked walls/openings/anchors light up in 3D. The hover feed (`onLayoutHover`) and anchor-helper octahedra remain disconnected (deferred). Named follow-up **S6.1**: re-enable direct 3D wall picks after a root-cause browser QA — the original "unreachable" failure was never proven at runtime; pure probes resolve walls correctly, so the defect (if live) likely sits in live-scene arbitration. See the S6 plan addendum (revision 2026-08-16).
 
-**S8.1 (H1 scope, 2026-08-17):** un-shelf the Paris hardcode from catalogue
-placement — resolve the target room from the clicked floor (as shapes/lights
-already do) so greenfield H1 can place assets on any drafted room; keep
-`/museum/editor` Paris-oriented. Focused plan:
-[`../plans/2026-08-17-graphics-h1-s8.1-room-agnostic-placement.md`](../plans/2026-08-17-graphics-h1-s8.1-room-agnostic-placement.md).
-
-**S8.2 (H1 scope, 2026-08-17):** sweep the remaining Chopin assumptions —
-room focus (`focusRoom` Paris gate + `EditorCameraRig` Chopin `getRoom`) and
-cluster-group expansion of `'paris'`. Focused plan:
-[`../plans/2026-08-17-graphics-h1-s8.2-room-focus-cluster-expansion.md`](../plans/2026-08-17-graphics-h1-s8.2-room-focus-cluster-expansion.md).
+**H1 S8.1 + S8.2 shipped — room-agnostic catalogue placement + room focus / cluster-group expansion (2026-08-17, uncommitted).**
+S8.1: `get isRelic()` exposed over the private `relicMode` flag and threaded
+into `EditorPlacementClusterMutatorHost`; `beginAssetPlacement` preselects
+`paris` only in relic mode and posts the generic tagged-floor message in H1;
+`createPendingPlacementAt(position, roomId)` stamps the resolved room;
+`EditorSelection` resolves the clicked floor via `store.rooms.has(id)` +
+`store.rooms.localPoint` in H1 (relic keeps the `'paris'` path); CTA strings
+generic in H1 (`Place in room`, H13DView hint). S8.2: `cameraFocusRoomId`
+intent added to the session store; `focusRoom` gates on
+`(isRelic && id !== 'paris') || !rooms.has(id)` and stores the id;
+`EditorCameraRig` frames the room focus kind via `createEditorRoomBoundsCameraFrame`
+(compiled `bounds3` through the bounds path, H13DView passes `roomBoundsById`)
+when `!isRelic`; relic stays on `createEditorRoomCameraFrame(getRoom(...))`;
+grouping expands `selectedCluster.roomId` instead of `'paris'` in both group
+handlers. Relic Paris-oriented behavior pinned by tests (preselection, entity
+`roomId: 'paris'`, `focusRoom('entrance')` still refused). Full suite **1618
+green** (up from 1606), `svelte-check` 0, build clean. Focused plans:
+[`s8.1`](../plans/2026-08-17-graphics-h1-s8.1-room-agnostic-placement.md) ·
+[`s8.2`](../plans/2026-08-17-graphics-h1-s8.2-room-focus-cluster-expansion.md).
 
 **H1 S7 shipped — Single TransformControls host and target adapters (steps 0–6, 2026-08-16; committed 2026-08-17).**
 One `EditorTransformControlsHost.svelte` owns the sole `ThreeTransformControls` per mounted 3D Canvas; `EditorTransformControls.svelte` is a thin composer resolving one nullable adapter from the H1 `ActiveEditorSelection` (relic keeps its legacy arbitration through the same adapters). Step 0 pinned the contracts block + recorded behavioral fixtures; step 1 added the shared host/adapter/session/policy contracts + pure policy helpers + the FSM `ACTIVE_TARGET_CHANGE` event (removing the dead ESC-from-Dragging revert and the placement-only `DragSnapshot`); step 2 extracted the host against a fake-host lifecycle harness (begin refusal, orbit true/false restore, single cancel, late-mouseUp suppression); step 3 moved the scene placement session into `scene-gizmo-adapter.svelte.ts` (pivot, rigid baselines, snaps, keep-on-floor, one transaction); step 4 moved the camera session into `camera-gizmo-adapter.svelte.ts` (node/anchor/view-target, pending drafts, epsilons); step 5 added the pure `layout-gizmo-target.ts` descriptors + baseline-relative delta math for all five layout identities and threaded the S7 "not interactive" gate to the toolbar/shortcuts (no live layout adapter); step 6 drives the toolbar + W/E/R/T shortcuts from the generic `projectGizmoCapabilities` projection (scene/camera policies shared with the host; scale chain scene-placement-only). Layout selections stay detached — transform buttons disabled, no handles, no project/history/dirty change — until S8. Full suite **1565 green** (up from 1518), `svelte-check` 0, production build clean, `/museum` visitor chunk graph free of gizmo/editor markers, G3 bench budgets pass unchanged (no re-baseline). Two as-built camera-gizmo deviations surfaced during manual QA and were fixed:

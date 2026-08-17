@@ -1,5 +1,6 @@
 import type { MuseumRoom, Vec3 } from '$lib/types/museum';
 import { VISITOR_CAMERA_PROJECTION } from '$lib/museum/navigation/camera-motion';
+import type { LayoutBounds3 } from '$lib/layout/layout-geometry-types';
 import { Box3, Sphere, Vector3, type Object3D, type PerspectiveCamera } from 'three';
 
 export const EDITOR_CAMERA_FOV = 50;
@@ -252,6 +253,29 @@ function rotateLocalOffset(room: MuseumRoom, offset: Vec3): Vec3 {
 	const sin = Math.sin(yaw);
 	const [x, y, z] = offset;
 	return [x * cos + z * sin, y, -x * sin + z * cos];
+}
+
+/**
+ * H1 S8.2 — frame a compiled layout room's `bounds3` AABB through the generic
+ * bounds path (the placement/selection frame). Axis-aligned by construction;
+ * unlike `createEditorRoomCameraFrame` it does not follow an authored yaw, and
+ * it accepts drafted (non-Chopin) rooms.
+ */
+export function createEditorRoomBoundsCameraFrame(
+	bounds: LayoutBounds3,
+	currentPosition: Vector3,
+	currentTarget: Vector3,
+	options: EditorBoundsCameraFrameOptions = {}
+): EditorBoundsCameraFrame | null {
+	return createEditorBoundsCameraFrame(
+		new Box3(
+			new Vector3(bounds.min[0], bounds.min[1], bounds.min[2]),
+			new Vector3(bounds.max[0], bounds.max[1], bounds.max[2])
+		),
+		currentPosition,
+		currentTarget,
+		options
+	);
 }
 
 /** Deterministic whole-room framing that follows the room's authored yaw. */

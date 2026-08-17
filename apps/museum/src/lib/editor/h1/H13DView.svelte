@@ -100,6 +100,13 @@
 	// the composer's adapter writes it through `onLayoutTransient`.
 	let layoutTransient = $state<LayoutGizmoCandidateBundle | null>(null);
 
+	// H1 S8.2 — compiled per-room bounds for room-focus framing (the relic
+	// passes none, so its Chopin `getRoom` frame stays untouched).
+	const roomBoundsById = $derived(
+		(roomId: string) =>
+			layoutPreview.geometry.rooms.find((room) => room.roomId === roomId)?.bounds3 ?? null
+	);
+
 	const placementRegistry: EditorPlacementRegistry = {
 		registerPlacementRoot: (id, root) => store.registerPlacementRoot(id, root),
 		unregisterPlacementRoot: (id, root) => store.unregisterPlacementRoot(id, root),
@@ -214,6 +221,7 @@
 					{graph}
 					layoutBounds={layoutPreview.bounds}
 					layoutFrameVersion={layoutPreview.previewVersion}
+					roomBoundsById={roomBoundsById}
 				/>
 			{/snippet}
 		</MuseumScene>
@@ -283,7 +291,7 @@
 	{/if}
 	{#if store.pendingPlacementAssetId}
 		<div class="placement-hint" role="status">
-			Click a Paris floor to place · Escape cancels
+			Click a tagged museum-room floor to place · Escape cancels
 		</div>
 	{/if}
 	{#if store.pendingPlacementPrimitiveKind}

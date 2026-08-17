@@ -327,6 +327,10 @@ export class MuseumEditorStore {
 	get rooms(): LayoutRoomRegistry {
 		return this.documentStore.rooms;
 	}
+	/** H1 S8.1 — public read over the private `relicMode` flag. */
+	get isRelic(): boolean {
+		return this.relicMode;
+	}
 	/**
 	 * H1 S2 — keep the room registry in sync with the live project layout
 	 * (the boot-empty editor re-derives it from `layoutPreview.project.layout`
@@ -661,6 +665,9 @@ export class MuseumEditorStore {
 	}
 	get cameraFocusNodeId(): string | null {
 		return this.session.cameraFocusNodeId;
+	}
+	get cameraFocusRoomId(): string | null {
+		return this.session.cameraFocusRoomId;
 	}
 	get cameraPanEnabled(): boolean {
 		return this.session.cameraPanEnabled;
@@ -1765,9 +1772,16 @@ export class MuseumEditorStore {
 	}
 
 	focusRoom(id: MuseumRoomId) {
-		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive || id !== 'paris') return false;
+		if (
+			this.isDocumentMutationBlocked ||
+			this.isEditorInteractionActive ||
+			(this.isRelic && id !== 'paris') ||
+			!this.rooms.has(id)
+		) {
+			return false;
+		}
 		this.cancelPendingFrame();
-		this.session.setCameraFocus('room', null, null);
+		this.session.setCameraFocus('room', null, null, id);
 		return true;
 	}
 
@@ -2047,8 +2061,8 @@ export class MuseumEditorStore {
 		return this.placementClusterMutator.cancelAssetPlacement(message);
 	}
 
-	createPendingPlacementAt(position: Vec3) {
-		return this.placementClusterMutator.createPendingPlacementAt(position);
+	createPendingPlacementAt(position: Vec3, roomId: MuseumRoomId) {
+		return this.placementClusterMutator.createPendingPlacementAt(position, roomId);
 	}
 
 	beginPrimitivePlacement(kind: ScenePrimitiveKind) {

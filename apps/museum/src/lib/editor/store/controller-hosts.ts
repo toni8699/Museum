@@ -58,6 +58,8 @@ export interface EditorControllerHostSource {
 	// Mutation guards.
 	readonly isDocumentMutationBlocked: boolean;
 	readonly isEditorInteractionActive: boolean;
+	/** H1 S8.1 — true for the frozen `/museum/editor` relic (Paris-oriented placement). */
+	readonly isRelic: boolean;
 	readonly isCameraFramingMutationBlocked: boolean;
 	readonly isDocumentTransactionActive: boolean;
 	/** True while a document/framing transaction is open on the history controller. */
@@ -533,6 +535,9 @@ export function createControllerHosts(
 		},
 		get isEditorInteractionActive() {
 			return source.isEditorInteractionActive;
+		},
+		get isRelic() {
+			return source.isRelic;
 		},
 		get document() {
 			return source.document;

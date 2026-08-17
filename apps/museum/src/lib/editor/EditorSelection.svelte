@@ -885,13 +885,32 @@
 		}
 
 		if (store.pendingPlacementAssetId) {
-			const floorHit = findPlaceableFloorIntersection(intersections, 'paris');
+			if (store.isRelic) {
+				const floorHit = findPlaceableFloorIntersection(intersections, 'paris');
+				if (!floorHit) {
+					store.setStatusMessage('Click a placeable Paris floor');
+					return;
+				}
+				const worldPoint = floorHit.intersection.point.toArray() as Vec3;
+				store.createPendingPlacementAt(roomLocalPoint('paris', worldPoint), 'paris');
+				return;
+			}
+			// H1 S8.1 — resolve the clicked floor's room through the live registry
+			// (drafted rooms included), mirroring the primitive/light branch below.
+			const floorHit = findPlaceableFloorIntersection(
+				intersections,
+				undefined,
+				(id) => store.rooms.has(id)
+			);
 			if (!floorHit) {
-				store.setStatusMessage('Click a placeable Paris floor');
+				store.setStatusMessage('Click a tagged museum-room floor to place');
 				return;
 			}
 			const worldPoint = floorHit.intersection.point.toArray() as Vec3;
-			store.createPendingPlacementAt(roomLocalPoint('paris', worldPoint));
+			store.createPendingPlacementAt(
+				store.rooms.localPoint(floorHit.roomId, worldPoint),
+				floorHit.roomId
+			);
 			return;
 		}
 

@@ -77,7 +77,8 @@ function isEditableTarget(target: EventTarget | null) {
 	async function groupSelection() {
 		const clusterId = store.createCluster();
 		if (!clusterId) return;
-		store.ensureRoomTreeExpanded('paris');
+		const cluster = store.selectedCluster;
+		if (cluster) store.ensureRoomTreeExpanded(cluster.roomId);
 		store.ensureClusterTreeExpanded(clusterId);
 		store.focusSelection();
 		await tick();

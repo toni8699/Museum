@@ -140,13 +140,20 @@ export class EditorSessionState {
 	cameraFocusKind = $state<EditorCameraFocusKind>(null);
 	cameraFocusPlacementId = $state<string | null>(null);
 	cameraFocusNodeId = $state<string | null>(null);
+	cameraFocusRoomId = $state<string | null>(null);
 	cameraPanEnabled = $state(true);
 	gridVisible = $state(false);
 
-	setCameraFocus(kind: EditorCameraFocusKind, placementId: string | null, nodeId: string | null) {
+	setCameraFocus(
+		kind: EditorCameraFocusKind,
+		placementId: string | null,
+		nodeId: string | null,
+		roomId: string | null = null
+	) {
 		this.cameraFocusKind = kind;
 		this.cameraFocusPlacementId = placementId;
 		this.cameraFocusNodeId = nodeId;
+		this.cameraFocusRoomId = roomId;
 		this.cameraFocusVersion += 1;
 	}
 
@@ -154,6 +161,7 @@ export class EditorSessionState {
 		this.cameraFocusKind = null;
 		this.cameraFocusPlacementId = null;
 		this.cameraFocusNodeId = null;
+		this.cameraFocusRoomId = null;
 		this.cameraFocusVersion += 1;
 	}
 
@@ -165,6 +173,7 @@ export class EditorSessionState {
 		this.cameraFocusKind = null;
 		this.cameraFocusPlacementId = null;
 		this.cameraFocusNodeId = null;
+		this.cameraFocusRoomId = null;
 	}
 
 	/** Bumps the version without changing the focus target (idempotent consumer-side reads). */

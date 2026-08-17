@@ -27,6 +27,7 @@
 		createEditorBoundsCameraFrame,
 		createEditorNodeCameraFrame,
 		createEditorPanSpeed,
+		createEditorRoomBoundsCameraFrame,
 		createEditorRoomCameraFrame,
 		captureEditorOrbitPose,
 		EDITOR_CAMERA_FOV,
@@ -52,17 +53,21 @@
 		MuseumEditorStore
 	} from './museum-editor.svelte';
 	import type { LayoutPreviewBounds } from './layout/layout-preview-bounds';
+	import type { LayoutBounds3 } from '$lib/layout/layout-geometry-types';
 
 	let {
 		store,
 		graph,
 		layoutBounds = null,
-		layoutFrameVersion = 0
+		layoutFrameVersion = 0,
+		roomBoundsById = null
 	}: {
 		store: MuseumEditorStore;
 		graph: NavigationGraph;
 		layoutBounds?: LayoutPreviewBounds | null;
 		layoutFrameVersion?: number;
+		/** H1 S8.2 — compiled per-room bounds for room-focus framing (relic omits). */
+		roomBoundsById?: ((roomId: string) => LayoutBounds3 | null) | null;
 	} = $props();
 
 	// Store instance is stable for the editor session; hooks close over field getters.
@@ -420,8 +425,21 @@
 				controls.target,
 				{ fovDegrees: currentCamera.fov, aspect: currentCamera.aspect }
 			);
-		} else if (store.cameraFocusKind === 'room' && store.selectedRoomId) {
-			frame = createEditorRoomCameraFrame(getRoom(store.selectedRoomId));
+		} else if (store.cameraFocusKind === 'room' && store.cameraFocusRoomId) {
+			if (store.isRelic) {
+				// Frozen relic: frame the Chopin room through its authored yaw.
+				frame = createEditorRoomCameraFrame(getRoom(store.cameraFocusRoomId));
+			} else {
+				const bounds = roomBoundsById?.(store.cameraFocusRoomId);
+				if (bounds) {
+					frame = createEditorRoomBoundsCameraFrame(
+						bounds,
+						currentCamera.position,
+						controls.target,
+						{ fovDegrees: currentCamera.fov, aspect: currentCamera.aspect }
+					);
+				}
+			}
 		} else if (store.cameraFocusKind) {
 			const ids =
 				store.cameraFocusKind === 'placement' && store.cameraFocusPlacementId

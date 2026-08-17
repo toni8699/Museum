@@ -369,7 +369,7 @@ describe('MuseumEditorStore Phase 6 camera nodes', () => {
 		expect(store.focusSelection()).toBe(false);
 		expect(store.requestPlacementFrame([placementId])).toBe(false);
 		expect(store.beginAssetPlacement('paris-salon-chair')).toBe(false);
-		expect(store.createPendingPlacementAt([0, 0, 0])).toBeNull();
+		expect(store.createPendingPlacementAt([0, 0, 0], 'paris')).toBeNull();
 		expect(store.duplicateSelection()).toBe(false);
 		expect(store.deletePlacements([placementId])).toBe(false);
 		expect(store.createCluster()).toBeNull();

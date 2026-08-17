@@ -209,7 +209,8 @@
 	async function groupSelection() {
 		const clusterId = store.createCluster();
 		if (!clusterId) return;
-		store.ensureRoomTreeExpanded('paris');
+		const cluster = store.selectedCluster;
+		if (cluster) store.ensureRoomTreeExpanded(cluster.roomId);
 		store.ensureClusterTreeExpanded(clusterId);
 		store.focusSelection();
 		await tick();
@@ -630,7 +631,11 @@
 						disabled={readOnly}
 						onclick={() => store.beginAssetPlacement(selectedAsset.id)}
 					>
-						{store.pendingPlacementAssetId === selectedAsset.id ? 'Placing…' : 'Place in Paris'}
+						{store.pendingPlacementAssetId === selectedAsset.id
+							? 'Placing…'
+							: store.isRelic
+								? 'Place in Paris'
+								: 'Place in room'}
 					</button>
 				{:else}
 					<p class="unsupported">

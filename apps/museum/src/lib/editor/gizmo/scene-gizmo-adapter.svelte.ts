@@ -195,15 +195,19 @@ function previewPlacementSession(
 	}
 
 	pivot.updateMatrixWorld(true);
-	const transforms = applyRigidPivotDelta(
+	// Transient preview (parity with the layout adapter): the live placement
+	// roots are the drag preview. The document is deliberately NOT written per
+	// frame — `updatePlacementTransform` mutates the reactive document, and the
+	// placement root's `scale` prop reads that document live (`getPlacementScale`),
+	// so a per-frame write re-binds the prop mid-drag and races the direct root
+	// mutation (the released gizmo "snaps back" to the committed value). Commit
+	// installs every member's final transform once.
+	applyRigidPivotDelta(
 		session.startPivotWorldMatrix,
 		pivot.matrixWorld,
 		session.members,
 		scaleMode
 	);
-	for (const [id, transform] of transforms) {
-		input.store.updatePlacementTransform(id, transform);
-	}
 }
 
 function commitPlacementSession(input: SceneGizmoAdapterInput, session: SceneDragSession) {
@@ -211,14 +215,17 @@ function commitPlacementSession(input: SceneGizmoAdapterInput, session: SceneDra
 		const result = groundSelectionRigidly(session.roots, [input.scene]);
 		if (!result.grounded) {
 			input.store.setStatusMessage('No floor below selection');
-		} else if (result.deltaY !== 0) {
-			for (const member of session.members) {
-				input.store.updatePlacementTransform(
-					member.id,
-					placementTransformFromObject(member.root)
-				);
-			}
 		}
+	}
+	// Install the final member transforms once (transient → document), then
+	// commit a single history entry. The commit re-resolves the runtime scene
+	// from the document, so the reactive root props re-apply the same values
+	// the drag previewed — the scale holds instead of snapping back.
+	for (const member of session.members) {
+		input.store.updatePlacementTransform(
+			member.id,
+			placementTransformFromObject(member.root)
+		);
 	}
 	input.store.setTransformInteractionActive(false);
 	input.store.commitDocumentTransaction();

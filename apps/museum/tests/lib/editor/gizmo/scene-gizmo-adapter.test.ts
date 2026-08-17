@@ -195,6 +195,9 @@ describe('scene-gizmo-adapter — begin / preview / commit', () => {
 		expect(input.pivot.position.toArray()).toEqual([0, 0, 0]);
 
 		const historyBefore = store.historyVersion;
+		const originalX = store.document.entities.find(
+			(entity) => entity.id === ids[1]!
+		)!.position[0];
 		const session = adapter.begin({ targetKey: adapter.key })!;
 
 		// Preview: move the pivot and re-derive every member from the
@@ -205,10 +208,12 @@ describe('scene-gizmo-adapter — begin / preview / commit', () => {
 		expect(roots[0]!.position.x).toBeCloseTo(0.25);
 		expect(roots[1]!.position.x).toBeCloseTo(2.25);
 		expect(store.canUndo).toBe(false); // in-flight
+		// Transient preview: the live root moves, but the document is written
+		// only on commit (parity with the layout candidate session).
 		const previewed = store.document.entities.find(
 			(entity) => entity.id === ids[1]!
 		)!;
-		expect(previewed.position[0]).toBeCloseTo(2.25);
+		expect(previewed.position[0]).toBeCloseTo(originalX);
 
 		// Preview number two: returning the pivot to baseline restores every
 		// member — no preview ever depends on the previous one.
@@ -394,5 +399,35 @@ describe('scene-gizmo-adapter — snap routing and cancel', () => {
 		expect(store.isDocumentTransactionActive).toBe(false);
 		expect(store.transformInteractionActive).toBe(false);
 		expect(store.selectedPlacementIds).toHaveLength(2);
+	});
+});
+
+describe('scene-gizmo-adapter — scale repro', () => {
+	it('persists a uniform scale through preview + commit', () => {
+		const store = createFixtureEditorStore();
+		const { ids, roots } = selectPlacementRoots(store);
+		const input = makeInput(store, { getMode: () => 'scale' });
+		const adapter = createSceneGizmoAdapter(input)!;
+		adapter.prepare?.();
+
+		const historyBefore = store.historyVersion;
+		const session = adapter.begin({ targetKey: adapter.key })!;
+
+		// Simulate dragging the X scale handle: pivot.scale.x grows, Y/Z stay 1.
+		input.pivot.scale.set(2, 1, 1);
+		input.pivot.updateMatrixWorld(true);
+		session.preview({ targetKey: adapter.key, axis: 'X' });
+
+		// Visual: the live root was scaled in place.
+		expect(roots[0]!.scale.x).toBeCloseTo(2);
+		expect(roots[0]!.scale.y).toBeCloseTo(2);
+
+		session.commit({ targetKey: adapter.key });
+
+		expect(store.historyVersion).toBe(historyBefore + 1);
+		const committed = store.document.entities.find((entity) => entity.id === ids[0]!)!;
+		expect(committed.scale).toBeCloseTo(2);
+		const runtime = store.scene.entities.find((entity) => entity.id === ids[0]!)!;
+		expect(runtime.scale).toBeCloseTo(2);
 	});
 });

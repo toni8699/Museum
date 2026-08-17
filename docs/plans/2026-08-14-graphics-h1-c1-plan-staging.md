@@ -3,15 +3,35 @@
 Post-H1 polish slice: place and edit scene furniture directly in Plan.
 
 **Date:** 2026-08-14
-**Status:** Proposed — direction locked (C2 rejected); not scheduled
+**Status:** Approved (2026-08-17) — direction locked (C2 rejected); execution-spec revision below; not scheduled — H1 lands first, all C1 work (including Path A) starts after the H1 gate
 **Parent:** [`2026-08-14-graphics-h1-unified-3d-editing.md`](./2026-08-14-graphics-h1-unified-3d-editing.md) (Post-H1 polish slices) · [`2026-08-13-graphics-architecture-roadmap.md`](./2026-08-13-graphics-architecture-roadmap.md)
 **Handoff:** [`../../hand-off/CURRENT.md`](../../hand-off/CURRENT.md)
 
 > **Why this plan exists.** The umbrella plan locks 2D furnishing as the
 > post-H1 "Plan staging mode" (C1) and rejects C2 (catalogue assets as layout
 > objects). This is the focused slice plan for C1. It is a design record, not
-> an implementation-ready plan; the phases below are sketches to be refined
-> when C1 is scheduled.
+> an implementation-ready plan; the phases below are sketches refined by the
+> approved execution-spec revision (2026-08-17) and finalized when C1 is
+> scheduled.
+
+## Revision (2026-08-17) — approved execution spec amendments
+
+The 2026-08-17 review approved the C1 direction and locked **baked catalogue
+materials for v1** (no per-instance material overrides on furniture in this
+slice; forward-compatible because furniture stays in `SceneDocument`). Four
+execution-spec amendments from that review are folded into the phases below:
+
+1. **Scaled footprints.** The layer-5.5 projection applies each entity's
+   placement scale (uniform + independent `scaleVector`) in addition to
+   translation + yaw — a 2×-scaled model has a 2× footprint.
+2. **Per-kind footprint rules.** Models use authored `MuseumAsset.footprint`
+   × scale; primitives derive footprints from dimensions × scale (no GLB,
+   no metadata); lights render no footprint in v1.
+3. **2D rotation gesture.** Staging rotation uses a footprint rotate handle
+   (B3 rotation-arm pattern) with Shift 15° snap and inspector numeric yaw
+   parity.
+4. **Staging-mode delete coverage.** Delete in staging mode commits exactly
+   one tagged `scene` history entry, mirroring the layout-side history fix.
 
 ## Summary
 
@@ -84,13 +104,26 @@ PlanViewMode
 
 ## Phases
 
-### Phase 1 — Metadata & passive projection (may land mid-H1 as Path A)
+### Phase 1 — Metadata & passive projection (Path A)
 
 - Author `MuseumAsset.footprint: { width, depth, height }` (+ optional
   `footprintOutline: LayoutVec2[]`) from the existing `notes` text.
-- `plan-scene-footprint.ts` — pure projection module: reads `project.scene`
-  entities + footprint metadata → layer-5.5 renderable vector model (sibling
-  of `plan-camera-projection.ts`; drop Y).
+- `plan-scene-footprint.ts` — pure projection module: reads the **live
+  editor scene document** (the store's authoritative `SceneDocument` — never
+  `layoutPreview.project.scene`, a boot-time copy that never syncs with scene
+  edits, mirroring the room-delete policy) → layer-5.5 renderable vector
+  model (sibling of `plan-camera-projection.ts`; drop Y).
+- **Per-kind footprint rules (locked):**
+  - **Model entities** → authored `MuseumAsset.footprint` × placement scale,
+    rotated by `rotation[1]` (yaw).
+  - **Primitive entities** (box / cylinder / sphere) → footprint derived from
+    `dimensions` × placement scale (rectangle / circle / ellipse; no GLB, no
+    metadata needed).
+  - **Light entities** → no footprint in v1 (non-interactive; a tiny marker
+    is a later enhancement, never a pick target).
+- **Scale is part of the projection (amendment 1):** the transform chain is
+  translate → rotate(yaw) → scale (uniform + independent `scaleVector`),
+  matching the 3D world transform — a scaled model's footprint scales.
 - Render layer 5.5 as faint dashed outlines — passive spatial context in
   layout mode. Read-only: no selection, no mutation.
 
@@ -105,9 +138,20 @@ PlanViewMode
 
 ### Phase 3 — 2D scene mutations
 
-- Route 2D drag/yaw gestures to existing scene mutators: X/Z + yaw, preserve
-  Y; commit one tagged `scene` history entry per gesture. No new mutation
-  machinery.
+- Route 2D drag gestures to existing scene mutators: X/Z + yaw, preserve
+  `position[1]`; commit one tagged `scene` history entry per gesture
+  (`beginDocumentTransaction` → mutator → `commitDocumentTransaction` on
+  pointerup; cancel restores). No new mutation machinery.
+- **Rotation gesture (amendment 3):** a rotate handle on the selected
+  footprint, following the B3 room rotation-arm pattern — pivot at the
+  footprint center, continuous positive-Y rotation, Shift snaps to 15°;
+  inspector numeric yaw is parity (mirrors B3 "Rotate by (°)").
+- **Delete coverage (amendment 4):** Delete/Backspace in staging mode and
+  the inspector delete path each commit exactly one tagged `scene` history
+  entry — the same transaction wrap as drags. The layout-side analogue
+  (layout-object create/move/delete/resize) gets the identical
+  `beginLayoutTransaction`/`commitLayoutTransaction` wrap in the same slice:
+  the universal-history fix closes the Plan-side gap on both sides.
 
 ### Phase 4 — Invariants & regression documentation
 
@@ -123,8 +167,12 @@ PlanViewMode
 
 ## Dependencies / gates
 
-- No hard H1 dependency. Phase 1 may land mid-H1 — it is the Path A interim
-  the umbrella names. Phases 2–4 are post-H1.
+- **Scheduling (locked 2026-08-17):** H1 lands first. All C1 work —
+  including Path A (Phase 1) — starts only after the H1 gate closes. C1
+  stays approved and is re-registered under the post-H1 plan-tracking system
+  (letter families archived; see the CURRENT.md note). The ordering is
+  sequencing discipline, not a technical gate — the document side has no
+  hard H1 dependency.
 - Imported-in-staging requires S9's scene-only composite registry (already
   locked: the package manifest persists no footprint fields).
 - S3 stays generic; the staging → scene-domain line is added when Phase 2
@@ -134,11 +182,16 @@ PlanViewMode
 
 - Imported footprints: derived-lazily is locked, but confirm no import-time
   persistence is wanted for offline/round-trip stability.
-- Staging selection priority vs layout content when footprints overlap.
+- Staging selection priority vs layout content when footprints overlap
+  (still open — the approved spec does not resolve it).
 - Inspector surface in staging mode: reuse the scene inspector, or a
   Plan-staging variant.
 - Whether the faint layer-5.5 outlines need a toggle (drafting vs staging
   density).
+- **Scope boundary (locked for this slice):** C1 v1 is Path A visibility +
+  staging *edit* only. 2D ghost *placement* of new furniture from Plan
+  ("2D → Add a box, desk, table → ghost outline") is a follow-up slice, not
+  part of the approved execution spec.
 
 ## Non-goals
 
@@ -152,9 +205,16 @@ PlanViewMode
 ## Verification (sketch)
 
 - Footprint projection: pure-module tests for catalogue + derived footprints,
-  rotation-aware transforms, drop-Y parity.
-- Hit resolver: point-in-polygon unit tests incl. overlap and rotation.
-- Mutation: X/Z + yaw only, Y preserved; one `scene` history entry per
+  **scale-aware** transforms (uniform + independent), rotation-aware
+  transforms, drop-Y parity, and per-kind rules (model / primitive / light).
+  The projection reads the live editor scene document, not the preview copy.
+- Hit resolver: point-in-polygon unit tests incl. overlap and rotation;
+  inactive in layout mode (pass-through to `plan-hit.ts`).
+- Mutation: X/Z + yaw only, Y preserved; **rotate-handle gesture with 15°
+  Shift snap**; one `scene` history entry per drag, rotate, and **delete**
   gesture; parity with the 3D placement commit path.
+- History: Ctrl+Z after a staging drag/rotate/delete restores
+  `SceneDocument` in one step; the layout-side object fix restores
+  `LayoutDocument` in one step.
 - Visitor invariance: staging edits render in `/museum` unchanged.
 - Mode bridges: drawer auto-activate, hover affordance.

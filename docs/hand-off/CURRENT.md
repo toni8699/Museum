@@ -16,9 +16,56 @@ criteria amended: catalogue-only asset placement; H1 packages contain no user
 binary assets. Umbrella step 9 + the re-labeled
 [`../plans/2026-08-14-graphics-h1-s9-asset-package.md`](../plans/2026-08-14-graphics-h1-s9-asset-package.md).
 
+**Plan-system renewal (note, 2026-08-17):** after H1 lands, the letter-coded
+plan families (A0–A4, B0–B5, G1–G6, H1 S0–S12, C1/C2, D1, S9a) are archived
+and plan tracking restarts on one sequential scheme — the letter codes are
+confusing across tracks and are not extended past H1. Approved-but-unscheduled
+work (C1) is re-registered in the new tracker rather than re-lettered. C1
+sequencing is locked: **H1 lands first; all C1 work, including Path A,
+starts after the H1 gate.** The renewal plan
+[`../plans/2026-08-17-plan-system-renewal.md`](../plans/2026-08-17-plan-system-renewal.md)
+is the **immediately next step, hard-gated**: it executes before any other
+post-H1 work (C1/P2, S9a, G5, multi-story) may start.
+
+**H1 scope addition (2026-08-17):** catalogue asset placement must be
+room-agnostic — the pre-H1 Paris hardcode (`beginAssetPlacement` →
+`selectRoom('paris')` + `EditorSelection` → Paris-only floor match + the
+Chopin-only `roomById` default) is a frozen-relic leftover leaking into the
+greenfield H1 path, where a boot-empty project has no `paris` room. Added as
+H1 step **8.1** (difficulty 4/10): resolve the room from the clicked floor
+like shapes/lights already do, keep `/museum/editor` Paris-oriented via the
+existing `relic` flag, and add a non-Paris room regression test.
+
+**H1 frozen-Chopin audit (2026-08-17):** a sweep of the greenfield path for
+pre-H1 Chopin assumptions found the Paris placement hardcode (S8.1) plus two
+more actionable leaks, filed as **S8.2**: room focus is Paris-gated
+(`focusRoom` refuses non-`'paris'`; `EditorCameraRig` frames via the
+Chopin-only `getRoom`, which would throw on a drafted id — latent because the
+unified tree does not call `focusRoom` yet), and cluster grouping expands
+`'paris'` instead of the cluster's room. Benign Chopin defaults (no H1 action;
+cleanup optional at relic removal): `pickInitialNavigationNodeId`'s
+`'paris-seat'` preference (already null-safe), the store constructor's
+`museumSceneDocument`/`chopinRuntime.rooms` fallbacks, the
+`createLayoutPreviewState`/`loadChopinLayoutPreview` Chopin fixture,
+`editor-camera-path`/`editor-camera-view` `chopinRuntime.rooms` default params
+(H1 helpers pass `store.rooms`), `treeExpandedRoomIds`' `['paris']` seed
+(unified tree reaps it), and H13DView's `forceParisAssets` (no-op in an empty
+scene).
+
 ## Next slice
 
 **Known debt / next slice (2026-08-16):** direct 3D **wall selection is deferred by decision** — `H13DView.handleLayoutPick` falls through for `wall`/`interiorAnchor` resolutions via the pure `isLayoutDirectPickDeferred` gate (rooms/openings/objects stay directly pickable). **Hierarchy wall selection + the selection-highlight shell are shipped:** `UnifiedProjectTree` wall rows commit `selectLayoutWall`, and `LayoutPreviewScene` renders the gold `LayoutWallHighlight` overlay from `interaction.selection` alone (`matchWallRanges`/`matchOpeningRanges` + `buildWallHighlightMesh`), so tree-picked walls/openings/anchors light up in 3D. The hover feed (`onLayoutHover`) and anchor-helper octahedra remain disconnected (deferred). Named follow-up **S6.1**: re-enable direct 3D wall picks after a root-cause browser QA — the original "unreachable" failure was never proven at runtime; pure probes resolve walls correctly, so the defect (if live) likely sits in live-scene arbitration. See the S6 plan addendum (revision 2026-08-16).
+
+**S8.1 (H1 scope, 2026-08-17):** un-shelf the Paris hardcode from catalogue
+placement — resolve the target room from the clicked floor (as shapes/lights
+already do) so greenfield H1 can place assets on any drafted room; keep
+`/museum/editor` Paris-oriented. Focused plan:
+[`../plans/2026-08-17-graphics-h1-s8.1-room-agnostic-placement.md`](../plans/2026-08-17-graphics-h1-s8.1-room-agnostic-placement.md).
+
+**S8.2 (H1 scope, 2026-08-17):** sweep the remaining Chopin assumptions —
+room focus (`focusRoom` Paris gate + `EditorCameraRig` Chopin `getRoom`) and
+cluster-group expansion of `'paris'`. Focused plan:
+[`../plans/2026-08-17-graphics-h1-s8.2-room-focus-cluster-expansion.md`](../plans/2026-08-17-graphics-h1-s8.2-room-focus-cluster-expansion.md).
 
 **H1 S7 shipped — Single TransformControls host and target adapters (steps 0–6, 2026-08-16; committed 2026-08-17).**
 One `EditorTransformControlsHost.svelte` owns the sole `ThreeTransformControls` per mounted 3D Canvas; `EditorTransformControls.svelte` is a thin composer resolving one nullable adapter from the H1 `ActiveEditorSelection` (relic keeps its legacy arbitration through the same adapters). Step 0 pinned the contracts block + recorded behavioral fixtures; step 1 added the shared host/adapter/session/policy contracts + pure policy helpers + the FSM `ACTIVE_TARGET_CHANGE` event (removing the dead ESC-from-Dragging revert and the placement-only `DragSnapshot`); step 2 extracted the host against a fake-host lifecycle harness (begin refusal, orbit true/false restore, single cancel, late-mouseUp suppression); step 3 moved the scene placement session into `scene-gizmo-adapter.svelte.ts` (pivot, rigid baselines, snaps, keep-on-floor, one transaction); step 4 moved the camera session into `camera-gizmo-adapter.svelte.ts` (node/anchor/view-target, pending drafts, epsilons); step 5 added the pure `layout-gizmo-target.ts` descriptors + baseline-relative delta math for all five layout identities and threaded the S7 "not interactive" gate to the toolbar/shortcuts (no live layout adapter); step 6 drives the toolbar + W/E/R/T shortcuts from the generic `projectGizmoCapabilities` projection (scene/camera policies shared with the host; scale chain scene-placement-only). Layout selections stay detached — transform buttons disabled, no handles, no project/history/dirty change — until S8. Full suite **1565 green** (up from 1518), `svelte-check` 0, production build clean, `/museum` visitor chunk graph free of gizmo/editor markers, G3 bench budgets pass unchanged (no re-baseline). Two as-built camera-gizmo deviations surfaced during manual QA and were fixed:

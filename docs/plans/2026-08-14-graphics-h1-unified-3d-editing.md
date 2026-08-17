@@ -546,6 +546,66 @@ bench regression) — with **difficulty = max(effort, risk)**, +1 when both are
 - Rebuild/dispose meshes and reattach the gizmo proxy without retaining old
   render-object identity.
 
+### 8.1. Room-agnostic catalogue placement (un-shelf the Paris hardcode)
+
+**Execution:** Difficulty **4/10** (effort 3 · risk 4) · Recommended model strength — plan: **Balanced**; implementation: **Balanced**.
+
+**Focused plan:** [`2026-08-17-graphics-h1-s8.1-room-agnostic-placement.md`](./2026-08-17-graphics-h1-s8.1-room-agnostic-placement.md).
+
+H1 scope addition (2026-08-17): catalogue asset placement is part of the
+unified 3D experience, so it must work on any drafted room. The pre-H1
+"Paris-oriented" placement rule is a frozen-relic assumption that leaks into
+the greenfield H1 path and makes catalogue placement unreachable there — a
+boot-empty project has no `paris` room.
+
+- The shared placement path is still Chopin-frozen in three places:
+  `placement-cluster-mutator.beginAssetPlacement` calls `selectRoom('paris')`
+  and posts "Click the Paris floor to place"; `EditorSelection` calls
+  `findPlaceableFloorIntersection(intersections, 'paris')` and
+  `roomLocalPoint('paris', …)` (the frozen `$lib/content/rooms` helper); and
+  `findPlaceableFloorIntersection`'s default `isKnownRoom` accepts only the
+  frozen Chopin `roomById`. Shapes/lights already avoid all three by resolving
+  `floorHit.roomId` through the live `store.rooms`.
+- Make the asset path mirror shapes/lights: resolve the target room from the
+  clicked floor's `surface.roomId`, convert through `store.rooms.localPoint`,
+  and drop the `'paris'` preselection/CTA ("Place in Paris" → "Place in room").
+  Expose the store's existing `relicMode` (a public `isRelic` getter or
+  placement-mode surface) so `beginAssetPlacement` and `EditorSelection` can
+  branch on it.
+- Keep `/museum/editor` frozen: in relic mode retain the exact Paris-oriented
+  behavior (preselect Paris, Paris-only floor match, existing status strings);
+  the room-agnostic branch is H1-only.
+- `createPendingPlacementAt` must write the resolved `roomId` onto the created
+  `SceneModelEntity` — it currently hardcodes `roomId: 'paris'`, which would
+  persist a ghost room reference in a greenfield project.
+- Add a regression test: a drafted non-Paris room accepts a catalogue floor
+  asset end-to-end (ghost → commit → one `scene` history entry, entity
+  `roomId` = the drafted room), while the relic path still rejects a non-Paris
+  floor.
+
+### 8.2. Sweep the remaining Chopin assumptions (room focus + cluster expansion)
+
+**Execution:** Difficulty **5/10** (effort 4 · risk 5) · Recommended model strength — plan: **Balanced**; implementation: **Frontier**.
+
+**Focused plan:** [`2026-08-17-graphics-h1-s8.2-room-focus-cluster-expansion.md`](./2026-08-17-graphics-h1-s8.2-room-focus-cluster-expansion.md).
+
+H1 scope addition (2026-08-17): the S8.1 audit surfaced two more
+frozen-Chopin assumptions in the shared editor path.
+
+- Room focus is Paris-gated end-to-end: `store.focusRoom(id)` returns `false`
+  unless `id === 'paris'`, and `EditorCameraRig` frames a focused room with
+  `createEditorRoomCameraFrame(getRoom(store.selectedRoomId))` — `getRoom`
+  throws "Unknown museum room" for any drafted id (it reads the frozen Chopin
+  `roomById`). Today the H1 unified tree never calls `focusRoom` (only the
+  relic `EditorSceneTree` does), so this is latent — but the two must change
+  together: drop the `id !== 'paris'` gate and frame from the live layout
+  registry / compiled bounds rather than the Chopin `MuseumRoom` shape.
+- Cluster grouping expands the wrong room: `groupSelection` (shortcuts +
+  inspector) calls `ensureRoomTreeExpanded('paris')` instead of the cluster's
+  actual `roomId`.
+- Add regression tests: focusing a drafted room frames it without throwing,
+  and grouping in a non-Paris room expands that room.
+
 ### 9. Project-local asset import and placement — deferred
 
 Deferred out of H1 (2026-08-15); the difficulty sequence skips from 8 to 10
@@ -610,7 +670,7 @@ because this step left H1 — see the post-H1 plan seed
 | History | One chronological entry per gesture in the correct domain; no-op/cancel adds none |
 | Undo/redo | Restores both views and active target safely across interleaved layout/scene/camera edits |
 | Invalid project import | Unknown room refs or legacy/Chopin payload reject atomically; current project unchanged |
-| Catalogue placement | Placed catalogue assets transform and round-trip with stable ids (the user-GLB row moves to the post-H1 S9+ plan) |
+| Catalogue placement | Placed catalogue assets transform and round-trip with stable ids on any drafted room (room-agnostic, not Paris-only); the user-GLB row moves to the post-H1 S9+ plan |
 | Camera in 3D | Author/edit/play camera without leaving 3D; playback mutation locks remain intact |
 | Plan camera boundary | Plan has no camera mutation path; optional read-only overlay cannot edit scene data |
 | Resource lifetime | Repeated edits/project replacement release old geometry, helpers, object URLs, and decoded model resources |
@@ -752,9 +812,10 @@ H1 is complete only when:
 - `LayoutDocument` and `SceneDocument` remain separate sources of truth and no
   `THREE.Object3D` transform, generated endpoint, selection, or renderer state is
   serialized;
-- asset placement uses the shipped catalogue only — no user-GLB import in H1
-  (deferred with step 9); H1 packages contain no user binary assets and the
-  package manifest is unchanged;
+- asset placement uses the shipped catalogue only and resolves the target room
+  from the clicked floor (room-agnostic, no `paris` hardcode in H1) — no
+  user-GLB import in H1 (deferred with step 9); H1 packages contain no user
+  binary assets and the package manifest is unchanged;
 - camera authoring and playback remain on the one existing route/motion system,
   work entirely in 3D, and preserve mutation/reduced-motion behavior;
 - export/import round-trips H1-created projects; import clears history/selection,

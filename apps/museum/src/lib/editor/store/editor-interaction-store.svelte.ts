@@ -19,23 +19,16 @@
 import type { FSMState, FSMEvent, PlacementId } from './interaction-fsm';
 import { CommitDragSideEffect, RevertDragSideEffect, reduce } from './interaction-fsm';
 import { type Cursor, type CursorInputs, computeCursor } from '../interaction-cursor';
-import type { Vector3, Quaternion } from 'three';
 import type { ScaleMode } from '../scale-vector';
 
 export type GizmoMode = 'translate' | 'rotate' | 'scale';
 export type GizmoSpace = 'world' | 'local';
-
-export interface DragSnapshot {
-	placementIds: string[];
-	transforms: { id: string; position: Vector3; quaternion: Quaternion; scale: Vector3 }[];
-}
 
 export class EditorInteractionStore {
 	state: FSMState = $state('Idle');
 	mode: GizmoMode = $state('translate');
 	space: GizmoSpace = $state('world');
 	hoverTargetId: PlacementId | null = $state(null);
-	dragSnapshot: DragSnapshot | null = $state(null);
 	cursor: Cursor = $state('default');
 	selectionSize: number = $state(0);
 	// Phase 1a — placement-relative scale mode toggle. Default 'uniform'
@@ -98,18 +91,6 @@ export class EditorInteractionStore {
 			isDraggingCurrently: dragging
 		};
 		this.cursor = computeCursor(input);
-	}
-
-	captureDragSnapshot(snapshot: DragSnapshot): void {
-		this.dragSnapshot = snapshot;
-	}
-
-	restoreDragSnapshot(): void {
-		this.dragSnapshot = null;
-	}
-
-	clearDragSnapshot(): void {
-		this.dragSnapshot = null;
 	}
 
 	setSelectionSize(n: number): void {

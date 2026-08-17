@@ -120,14 +120,18 @@ export interface EditorGizmoDragSession {
  * One attachable gizmo target. The host never inspects the proxy's meaning
  * or the target's document identity — it only detaches → configures →
  * attaches the proxy, then calls into the session.
- */
-export interface EditorGizmoTargetAdapter {
+ */	export interface EditorGizmoTargetAdapter {
 	/** Collision-safe adapter key (e.g. `camera:node:pos`), never a placement id. */
 	key: string;
 	domain: 'scene' | 'camera' | 'layout';
 	/** Session-only proxy; never serialized into MuseumProject/snapshots/export. */
 	proxy: Object3D;
 	policy: EditorGizmoPolicy;
+	/**
+	 * Optional pre-attach hook (e.g. re-centering a shared pivot before the
+	 * host attaches). Called by the composer, never by the host.
+	 */
+	prepare?(): void;
 	/** Refused begins create no session, no orbit change, and no history. */
 	begin(input: EditorGizmoBeginInput): EditorGizmoDragSession | null;
 }

@@ -218,7 +218,7 @@
 				<EditorSelectionHelper {store} />
 			{/key}
 		{/if}
-		<EditorTransformControls {store} bind:controls={transformControls} />
+		<EditorTransformControls {store} bind:controls={transformControls} activeSelection={activeSelection ?? undefined} />
 		{#if !store.isVisitorCameraPreview}
 			<PlacementGhost {store} />
 		{/if}

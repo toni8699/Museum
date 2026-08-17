@@ -1,5 +1,4 @@
 import { describe, expect, it, beforeEach } from 'vitest';
-import { Vector3, Quaternion } from 'three';
 import { EditorInteractionStore } from '$lib/editor/store/editor-interaction-store.svelte';
 
 let store: EditorInteractionStore;
@@ -16,9 +15,8 @@ describe('EditorInteractionStore — defaults', () => {
 		expect(store.mode).toBe('translate');
 		expect(store.space).toBe('world');
 	});
-	it('starts with no hover target, no snapshot, default cursor', () => {
+	it('starts with no hover target and default cursor', () => {
 		expect(store.hoverTargetId).toBeNull();
-		expect(store.dragSnapshot).toBeNull();
 		expect(store.cursor).toBe('default');
 	});
 });
@@ -78,34 +76,6 @@ describe('EditorInteractionStore — dispatch + cursor', () => {
 	});
 });
 
-describe('EditorInteractionStore — drag snapshot', () => {
-	const snap = {
-		placementIds: ['p1'],
-		transforms: [
-			{
-				id: 'p1',
-				position: new Vector3(1, 2, 3),
-				quaternion: new Quaternion(),
-				scale: new Vector3(1, 1, 1)
-			}
-		]
-	};
-
-	it('captureDragSnapshot stores the snapshot', () => {
-		store.captureDragSnapshot(snap);
-		expect(store.dragSnapshot).toEqual(snap);
-	});
-	it('restoreDragSnapshot clears', () => {
-		store.captureDragSnapshot(snap);
-		store.restoreDragSnapshot();
-		expect(store.dragSnapshot).toBeNull();
-	});
-	it('clearDragSnapshot clears', () => {
-		store.captureDragSnapshot(snap);
-		store.clearDragSnapshot();
-		expect(store.dragSnapshot).toBeNull();
-	});
-});
 
 describe('EditorInteractionStore — Phase 1a scaleMode', () => {
 	it('defaults to uniform', () => {
@@ -136,7 +106,7 @@ describe('EditorInteractionStore — Phase 1a scaleMode', () => {
 		expect(b.scaleMode).toBe('uniform');
 	});
 });	describe('EditorInteractionStore — dispatch side-effects', () => {
-		it('		dispatch DRAG_END cancelled=true in Dragging clears dragSnapshot and goes to Selected', () => {
+		it('		dispatch DRAG_END cancelled=true in Dragging lands on Selected', () => {
 			// Idle + CLICK → Selected.
 			store.dispatch({ type: 'CLICK', target: 'p1', shift: false, meta: false });
 			expect(store.state).toBe('Selected');

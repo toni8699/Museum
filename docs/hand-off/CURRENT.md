@@ -20,6 +20,44 @@ binary assets. Umbrella step 9 + the re-labeled
 
 **Known debt / next slice (2026-08-16):** direct 3D **wall selection is deferred by decision** — `H13DView.handleLayoutPick` falls through for `wall`/`interiorAnchor` resolutions via the pure `isLayoutDirectPickDeferred` gate (rooms/openings/objects stay directly pickable). **Hierarchy wall selection + the selection-highlight shell are shipped:** `UnifiedProjectTree` wall rows commit `selectLayoutWall`, and `LayoutPreviewScene` renders the gold `LayoutWallHighlight` overlay from `interaction.selection` alone (`matchWallRanges`/`matchOpeningRanges` + `buildWallHighlightMesh`), so tree-picked walls/openings/anchors light up in 3D. The hover feed (`onLayoutHover`) and anchor-helper octahedra remain disconnected (deferred). Named follow-up **S6.1**: re-enable direct 3D wall picks after a root-cause browser QA — the original "unreachable" failure was never proven at runtime; pure probes resolve walls correctly, so the defect (if live) likely sits in live-scene arbitration. See the S6 plan addendum (revision 2026-08-16).
 
+**H1 S7 in progress — as-built deviations (2026-08-16).** The single-gizmo-host
+work is mid-extraction (uncommitted in the working tree); two camera-gizmo
+defects surfaced during manual QA and are tracked here:
+
+1. **Camera Y translate handle was silently dropped (fixed).** The S7 camera
+   adapter hard-coded `CAMERA_AXES = {x, z, xz}`, hiding the green Y handle the
+   pre-S7 monolith always exposed (the monolith never touched
+   `showX/showY/showZ`, so camera targets got full XYZ translate). The S7 plan
+   only locks "world-space translate only, no rotation/scale handles or snaps"
+   — never an XZ restriction — so this was an unplanned extraction regression,
+   not a locked decision. Fixed 2026-08-16: `camera-gizmo-adapter.svelte.ts`
+   restores the full `x/y/z/xy/xz/yz/xyz` translate set (the host derives
+   `showY=true` from it), pinned by a regression test in
+   `camera-gizmo-adapter.test.ts` (full allowed-axes set, `deriveShowAxes` all
+   components, and a `'Y'`-axis drag that actually writes `position[1]` with
+   one history commit); the `CAMERA_POLICY` fixture in
+   `editor-gizmo-policy.test.ts` was updated to match.
+2. **Delayed gizmo disappearance (investigated; host hardened).** Reported as
+   "gizmo disappears a few seconds after placing a camera". Live-browser QA:
+   the gizmo persisted through 6s+ idle waits in both the first-node and
+   pending-node flows and after drag attempts — no timer-driven detach exists
+   (the only editor timer is the 2.5s status message, which touches nothing).
+   Two findings: (a) the **connect-commit switches the selection to the new
+   connection**, so the node gizmo detaches immediately — by design (a
+   connection shows path helpers, not a node gizmo), but the likely perceived
+   "disappearance"; (b) a genuine host-lifecycle defect: `setAdapter` skipped
+   same-key adapters **without comparing the proxy**, so a remounted helper
+   root (new `Object3D`, same `camera:node:pos` key) left the gizmo attached
+   to the old, scene-removed proxy — the one mechanism by which the gizmo can
+   vanish while the node stays selected. Hardened 2026-08-16:
+   `editor-gizmo-host-controller.ts` now skips only same-key **and**
+   same-proxy resolves; same-key with a new proxy detaches the stale proxy and
+   re-attaches the live one (one `ACTIVE_TARGET_CHANGE`). Regression test
+   covers the remount and the fresh-adapter-same-proxy skip. Follow-up: if a
+   delayed vanish still reproduces, capture FSM state / `hasLiveTarget()` /
+   selection kind at the moment it happens — no remaining code path found that
+   detaches on a timer.
+
 **H1 S6 shipped — Centralized 3D layout selection.** One coordinator, zero new Canvas listeners: `EditorSelection.svelte` gains an optional `onLayoutPick` prop (absent on the frozen relic mount) that slots a layout branch into the existing click flow after the placement + Alt-cycle branches, reusing the single `intersections` list (no second raycast). Pure `layout-3d-picking.ts` grows `Layout3dHitCandidate`/`Layout3dResolvedHit`, a structural `layoutCandidatesFromIntersections` (no `three` import — `RaycastHitLike` shape, authored `surfaceType`/`editorEntity` walk-up only), and `resolveLayout3dHits(pickIndices, hits)` → `{ selection, distance } | null`: nearest-visible wins; same-depth (`|Δd| ≤ 1e-4`) ties break anchor → opening → object → wall → room then stable input order; wall-triangles resolve through the S5 `layout3dPickIndexByRoom` cache (unresolvable refs dropped). Cross-domain arbitration is exact, never nearest-tag guessing: `resolveNormalSelectionWithHit` exposes the actionable source hit + its `distance` (deselect → `null`; near-invisible tagged hits filtered), and the strict pure yield rule `layoutPickBeatsSceneDistance` commits layout only when `d_scene === null` or `layoutDist < d_scene − ε` — content wins the exact-tie band, so the `LayoutWallHighlight` shell / grid / placement ghost never shadow a real pick. `LayoutPreviewScene` tags the wall mesh `userData={{ surfaceType: 'wall', roomId }}`; `H13DView` wires `onLayoutPick={store.isVisitorCameraPreview ? undefined : handleLayoutPick}` and commits through the existing `selectLayout*` helpers (S3 activation, S4 tree reveal, S5 highlight all fire from that one write; a follow-up scene/camera pick still clears layout via the S3 hook). 26 new tests (8 resolution, 10 extraction/commit-route incl. cross-domain boundaries, 4 normal-resolver source preservation, 4 S6 contracts); full suite **1431 green**, `svelte-check` 0, build clean. As-built deviation: the cross-domain yield rule is a shared pure helper so the handler and tests compare identically. Plan: [`../plans/2026-08-15-graphics-h1-s6-layout-3d-selection.md`](../plans/2026-08-15-graphics-h1-s6-layout-3d-selection.md).
 
 **H1 S5 shipped — Wall/opening 3D pick metadata.** Every triangle of the G4 wall mesh now resolves to exactly one deterministic authored pick owner, plus the renderer-neutral machinery S6's 3D selection coordinator consumes. `IndexedWallMesh` gains an additive `pickRanges: Layout3dPickRange[]` — a sorted, non-overlapping, complete partition of the index buffer, emitted at build time from per-face tags: wall `side`/`lintel`/`bridge` surfaces and opening `jamb`/`sill`/`lintel`/`arch-reveal` surfaces (sill strips → `'sill'`, lintel band/top → `'lintel'`, undersides → `'arch-reveal'`, reveal jambs → `'jamb'`, bevel bridges → `'bridge'` owned exclusively by the current/start wall — never the neighbor, never both, overriding the `wallRanges` shared-entry convention for picking). New pure `layout-3d-picking.ts` (plan-hit.ts precedent, no Three/Svelte/DOM imports): `buildLayout3dTriangleIndex(mesh)` returns a dense triangle→owner resolver built once per mesh generation with a partition dev-guard (gap/overlap/uncovered/unaligned throws, mirroring `assertWindingAgreesWithNormals`), plus `layoutAnchorHelperPlacements(geometry)` lifting compiled interior-anchor query records to room floor elevation. `layout-preview-state` caches `layout3dPickIndexByRoom` beside `wallMeshesByRoom` (same lifecycle, rebuilt on mutation/undo/redo/reset/import, never in the undo snapshot); the Three adapter carries `geometry.userData.pickRanges` (zero new groups, draw-call counts untouched); `LayoutPreviewScene` tags the ceiling `surfaceType: 'ceiling'` + `roomId` (no `editorSurface`, so placement grounding ignores it) and renders qualified editor-only anchor-helper octahedra at floor height — **inert between S5 and S6** (a stray helper click is just a background deselect, identical to wall meshes today; S6 promotes them to the top semantic priority). Zero topology change: `three-*-estimate` budgets hold exactly, `wall-mesh-build` gains only pickRanges emission overhead — no re-baseline. As-built deviation: `toPickRange` helper (TS2698 — TS rejects spreading a variable whose declared type includes `null` even after narrowing; a non-nullable parameter sidesteps it). **Post-ship review fixes:** anchor each-key now `JSON.stringify([roomId, segmentId, anchorId])` (colon-join collides for legal IDs — `ID_PATTERN` allows `:`), helpers gated by a `showAnchors` prop threaded from `H13DView` as `!store.isVisitorCameraPreview` (editor chrome must not frame a visitor preview; default keeps the relic mount unchanged), and `emitFaceWithPick` throws on an untagged face instead of silently folding it into the previous pick run. 26 new tests (5 builder pickRanges/tagging/bridge-ownership, 12 `layout-3d-picking`, 1 adapter userData, 7 S5 contracts, 1 preview-state cache lifecycle); full suite **1420 green**, `svelte-check` 0, build clean. Plan: [`../plans/2026-08-15-graphics-h1-s5-layout-3d-pick-metadata.md`](../plans/2026-08-15-graphics-h1-s5-layout-3d-pick-metadata.md).

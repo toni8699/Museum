@@ -23,11 +23,11 @@ const SCENE_POLICY: EditorGizmoPolicy = {
 	scaleControl: 'scene-scale-mode'
 };
 
-/** Camera: world translate only, horizontal handles, no scale chain. */
+/** Camera: world translate only, full XYZ handles (pre-S7 monolith parity), no scale chain. */
 const CAMERA_POLICY: EditorGizmoPolicy = {
 	defaultMode: 'translate',
 	allowedModes: new Set(['translate']),
-	allowedAxes: () => XZ_AXES,
+	allowedAxes: () => ALL_AXES,
 	space: () => 'world',
 	scaleControl: 'hidden'
 };
@@ -136,10 +136,10 @@ describe('deriveShowAxes — showX/showY/showZ for the effective mode', () => {
 		});
 	});
 
-	it('camera translate (x/z/xz) hides Y', () => {
+	it('camera translate shows every component (pre-S7 monolith parity)', () => {
 		expect(deriveShowAxes('translate', CAMERA_POLICY)).toEqual({
 			showX: true,
-			showY: false,
+			showY: true,
 			showZ: true
 		});
 	});
@@ -169,7 +169,10 @@ describe('isAxisAllowed — defensive begin guard', () => {
 		// refused; a rotate 'xy' handle cannot start on a translate-only
 		// camera under any interpretation.
 		expect(isAxisAllowed('scale', 'y', ROOM_POLICY)).toBe(false);
-		expect(isAxisAllowed('rotate', 'xy', CAMERA_POLICY)).toBe(false);
+		// Camera is translate-only: 'scale' resolves to effective translate,
+		// and with the full XYZ translate set (pre-S7 monolith parity) every
+		// planar axis is a legitimate handle for the effective mode.
+		expect(isAxisAllowed('scale', 'xy', CAMERA_POLICY)).toBe(true);
 	});
 
 	it('a refused remembered mode resolves its effective axes instead of refusing blindly', () => {

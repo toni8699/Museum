@@ -28,6 +28,7 @@ import { museumEditorEntryPlugin } from '../../../../vite/museum-editor-entry-pl
 
 const ROUTES_DIR = fileURLToPath(new URL('../../../../src/routes', import.meta.url));
 const LIB_DIR = fileURLToPath(new URL('../../../../src/lib', import.meta.url));
+const TEST_DIR = fileURLToPath(new URL('../../../../tests', import.meta.url));
 
 function readRouteSource(routePath: string): string {
 	return fs.readFileSync(path.join(ROUTES_DIR, routePath), 'utf8');
@@ -535,29 +536,36 @@ describe('H1 S6 — centralized 3D layout selection', () => {
 
 describe('H1 S7 — single gizmo host', () => {
 	/**
-	 * Document mutations the host/adapters/descriptors must never call
-	 * directly (scene/camera mutators + the layout preview/history surface
-	 * S8 owns). Add tokens as adapters land; the walk covers every file
-	 * under `$lib/editor/gizmo`, present or future.
+	 * Scene/camera session + raw-transaction mutators. The scene and camera
+	 * *adapters* are the sanctioned session owners (the extraction moved the
+	 * monolith's inline calls into them), so these markers are forbidden in
+	 * every other gizmo file: host, controller, policy, contract, composer
+	 * glue. Add tokens as adapters land.
 	 */
-	const GIZMO_MUTATION_MARKERS = [
+	const SESSION_MUTATION_MARKERS = [
 		'updatePlacementTransform',
 		'beginDocumentTransaction',
 		'commitDocumentTransaction',
 		'cancelDocumentTransaction',
 		'updateNavigationNodePoint',
 		'updateConnectionAnchorWorldPoint',
-		'updateSelectedViewKeyframeTargetWorldPoint',
+		'updateSelectedViewKeyframeTargetWorldPoint'
+	];
+	/** The layout preview/history surface S8 owns: forbidden in every gizmo file. */
+	const LAYOUT_MUTATION_MARKERS = [
 		'updateLayout',
 		'previewLayoutRoomUnit',
 		'restoreLayoutPreviewSnapshot',
 		'commitLayoutTransaction',
 		'cancelLayoutTransaction'
 	];
-
-	function readAllSourceFiles(relativeDir: string): string[] {
+	const ADAPTER_BASENAMES = new Set([
+		'scene-gizmo-adapter.svelte.ts',
+		'camera-gizmo-adapter.svelte.ts'
+	]);
+	function readAllSourceFiles(relativeDir: string): { name: string; source: string }[] {
 		const root = path.join(LIB_DIR, relativeDir);
-		const sources: string[] = [];
+		const sources: { name: string; source: string }[] = [];
 		const stack = [root];
 		while (stack.length > 0) {
 			const entry = stack.pop()!;
@@ -568,24 +576,24 @@ describe('H1 S7 — single gizmo host', () => {
 					stack.push(path.join(entry, child));
 				}
 			} else if (entry.endsWith('.ts') || entry.endsWith('.svelte')) {
-				sources.push(fs.readFileSync(entry, 'utf8'));
+				sources.push({ name: path.basename(entry), source: fs.readFileSync(entry, 'utf8') });
 			}
 		}
 		return sources;
 	}
 
-	it('keeps exactly one live TransformControls constructor in editor source', () => {
+	it('relocates the sole live TransformControls constructor into EditorTransformControlsHost.svelte', () => {
 		const constructions = readAllSourceFiles('editor').reduce(
-			(count, source) =>
-				count + (source.match(/new ThreeTransformControls\(/g)?.length ?? 0),
+			(count, entry) =>
+				count + (entry.source.match(/new ThreeTransformControls\(/g)?.length ?? 0),
 			0
 		);
 		expect(constructions).toBe(1);
-		// Until S7 step 2 relocates it, the sole constructor lives in the
-		// monolith composer — extraction must relocate, never duplicate.
+		// The one construction lives in the host; the composer is constructor-free.
 		expect(
-			readLibSource('editor/EditorTransformControls.svelte').match(/new ThreeTransformControls\(/g)
+			readLibSource('editor/gizmo/EditorTransformControlsHost.svelte').match(/new ThreeTransformControls\(/g)
 		).toHaveLength(1);
+		expect(readLibSource('editor/EditorTransformControls.svelte')).not.toContain('new ThreeTransformControls');
 	});
 
 	it('mounts the shared composer exactly once from H13DView and the relic viewport; neither constructs controls or helpers', () => {
@@ -610,12 +618,49 @@ describe('H1 S7 — single gizmo host', () => {
 		expect(selection).toContain('!transformControls?.axis &&');
 	});
 
-	it('keeps every gizmo module free of direct document/layout/history mutation calls', () => {
-		for (const source of readAllSourceFiles('editor/gizmo')) {
-			for (const marker of GIZMO_MUTATION_MARKERS) {
-				expect(source, marker).not.toContain(marker);
+	it('scopes scene/camera session mutations to the adapters only; layout mutations stay out of every gizmo file', () => {
+		for (const { name, source } of readAllSourceFiles('editor/gizmo')) {
+			const isAdapter = ADAPTER_BASENAMES.has(name);
+			for (const marker of SESSION_MUTATION_MARKERS) {
+				if (isAdapter) continue; // adapters are the session owners (S7 step 3)
+				expect(source, `${name}: ${marker}`).not.toContain(marker);
+			}
+			for (const marker of LAYOUT_MUTATION_MARKERS) {
+				expect(source, `${name}: ${marker}`).not.toContain(marker);
 			}
 		}
+	});
+
+	it('keeps the adapters constructor- and listener-free (host owns the Three surface)', () => {
+		for (const [relativePath, label] of [
+			['editor/gizmo/scene-gizmo-adapter.svelte.ts', 'scene adapter'],
+			['editor/gizmo/camera-gizmo-adapter.svelte.ts', 'camera adapter']
+		] as const) {
+			const source = readLibSource(relativePath);
+			expect(source, label).not.toContain('new ThreeTransformControls');
+			expect(source, label).not.toContain('window.addEventListener');
+		}
+	});
+
+	it('resolves the H1 composer from the S3 active domain; the relic omits it and falls back to the legacy target', () => {
+		// H1 mounts with the S3 active-domain selector; the relic mount omits it.
+		expect(readLibSource('editor/h1/H13DView.svelte')).toContain('activeSelection={activeSelection ?? undefined}');
+		expect(readLibSource('editor/EditorViewport.svelte')).not.toContain('activeSelection=');
+		// Composer: active domain wins; absent selector → legacy arbitration.
+		const composer = readLibSource('editor/EditorTransformControls.svelte');
+		expect(composer).toContain('if (activeSelection) return null;');
+		expect(composer).toContain('getActiveTransformTarget');
+	});
+
+	it('records the fake-host lifecycle harness for orbit restore, single-cancel switch, and late mouseUp', () => {
+		const harness = fs.readFileSync(
+			path.join(TEST_DIR, 'lib/editor/gizmo/editor-gizmo-host.test.ts'),
+			'utf8'
+		);
+		// The three host-level behaviors Step 0 deferred are pinned there.
+		expect(harness).toMatch(/orbit.*(true|false)/i);
+		expect(harness).toMatch(/cancels once|switch.*cancel|unmount/i);
+		expect(harness).toMatch(/late mouseUp|mouseUp/i);
 	});
 
 	it('keeps the policy helper renderer-neutral (no Three/Svelte/runes)', () => {
@@ -626,9 +671,9 @@ describe('H1 S7 — single gizmo host', () => {
 
 	it('keeps layout, G4 render, camera route/motion, and visitor sources free of gizmo imports', () => {
 		for (const source of [
-			...readAllSourceFiles('layout'),
-			...readAllSourceFiles('render'),
-			...readAllSourceFiles('museum')
+			...readAllSourceFiles('layout').map((entry) => entry.source),
+			...readAllSourceFiles('render').map((entry) => entry.source),
+			...readAllSourceFiles('museum').map((entry) => entry.source)
 		]) {
 			expect(source).not.toContain('editor/gizmo');
 		}
@@ -691,13 +736,8 @@ describe('H1 S7 — single gizmo host', () => {
 		expect(store.state).toBe('Selected');
 	});
 
-	// Fixtures that need the S7 host/adapter seams, enabled as each lands.
-	it.todo('relocates the sole constructor into EditorTransformControlsHost.svelte (S7 step 2)');
-	it.todo('host contains no scene/camera/layout document-mutator calls (S7 step 2)');
-	it.todo('scene/camera adapters construct no TransformControls and register no window listeners (S7 steps 3/4)');
-	it.todo('H1 composer resolves from the S3 active domain; relic omits it and all layout adapter input (S7 steps 2/3)');
+	// Only the S7 step-5 seam remains unlanded: the layout adapter + descriptor.
 	it.todo('layout descriptor module calls no layout preview/history mutation and the host never receives a live layout adapter (S7 step 5)');
-	it.todo('fake-host lifecycle: orbit true/false restore exactly once, target switch/unmount cancels once, late mouseUp suppression (S7 step 2 harness)');
 });
 
 describe('H1 S3 — cross-domain selection contracts', () => {

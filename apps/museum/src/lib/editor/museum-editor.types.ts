@@ -144,6 +144,7 @@ export type EditorTransformInteractionKind =
 	| 'camera'
 	| 'anchor'
 	| 'view-target'
+	| 'layout'
 	| null;
 
 // =====================================================================

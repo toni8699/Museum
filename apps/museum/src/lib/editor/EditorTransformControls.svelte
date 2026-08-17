@@ -16,6 +16,15 @@
 		type SceneGizmoAdapterInput
 	} from './gizmo/scene-gizmo-adapter.svelte';
 	import { createCameraGizmoAdapter } from './gizmo/camera-gizmo-adapter.svelte';
+	import {
+		createLayoutGizmoAdapter,
+		createLayoutGizmoProxy,
+		disposeLayoutGizmoProxy
+	} from './gizmo/layout-gizmo-adapter.svelte';
+	import { resolveLayoutGizmoTarget } from './gizmo/layout-gizmo-target';
+	import type { LayoutGizmoCandidateBundle } from './gizmo/layout-gizmo-candidate';
+	import type { LayoutPreviewState } from './layout/layout-preview-state.svelte';
+	import type { LayoutInteractionState } from './layout/layout-interaction';
 	import type { EditorGizmoTargetAdapter } from './gizmo/editor-gizmo-contract';
 	import type { EditorGizmoHostController } from './gizmo/editor-gizmo-host-controller';
 	import EditorTransformControlsHost from './gizmo/EditorTransformControlsHost.svelte';
@@ -24,11 +33,18 @@
 		store,
 		controls = $bindable(),
 		/** H1 S3 — the single active-domain selector. Absent on the relic mount. */
-		activeSelection
+		activeSelection,
+		/** H1 S8 — layout adapter inputs. Absent on the relic mount. */
+		layoutPreview,
+		layoutInteraction,
+		onLayoutTransient
 	}: {
 		store: MuseumEditorStore;
 		controls?: TransformControls;
 		activeSelection?: EditorActiveSelectionStore;
+		layoutPreview?: LayoutPreviewState;
+		layoutInteraction?: LayoutInteractionState;
+		onLayoutTransient?: (bundle: LayoutGizmoCandidateBundle | null) => void;
 	} = $props();
 
 	const { scene } = useThrelte();
@@ -38,6 +54,10 @@
 	// One shared session pivot per mounted canvas — created by the scene
 	// adapter module (S7 step 3); this composer only holds the reference.
 	const pivot = createSceneGizmoPivot(scene);
+	// H1 S8 — one shared session-only layout proxy per mounted canvas (like the
+	// pivot); its pose is reset to the descriptor baseline per adapter via
+	// `prepare`/`begin`, so no second gizmo or per-selection object is created.
+	const layoutProxy = createLayoutGizmoProxy(scene);
 
 	let hostController: EditorGizmoHostController | null = $state(null);
 
@@ -105,7 +125,26 @@
 		const active = activeSelection.active;
 		if (active.domain === 'scene') return createSceneGizmoAdapter(sceneDeps);
 		if (active.domain === 'camera') return createCameraGizmoAdapter({ store });
-		// layout selections resolve descriptors but never a live adapter in S7.
+		if (active.domain === 'layout') {
+			if (!layoutPreview || !layoutInteraction || !onLayoutTransient) return null;
+			const descriptor = resolveLayoutGizmoTarget(
+				layoutPreview.project.layout,
+				layoutPreview.geometry,
+				layoutInteraction.selection
+			);
+			// A stale/missing identity resolves no descriptor → no live adapter
+			// (matching the scene/camera missing-root rule).
+			if (!descriptor) return null;
+			return createLayoutGizmoAdapter({
+				store,
+				layoutPreview,
+				layoutInteraction,
+				descriptor,
+				proxy: layoutProxy,
+				isShiftHeld: () => hostController?.isShiftHeld() ?? false,
+				onTransient: onLayoutTransient
+			});
+		}
 		return null;
 	});
 
@@ -116,6 +155,7 @@
 
 	onDestroy(() => {
 		disposeSceneGizmoPivot(pivot);
+		disposeLayoutGizmoProxy(layoutProxy);
 	});
 </script>
 

@@ -39,6 +39,9 @@ import { buildRoomWallMesh, type IndexedWallMesh } from '$lib/layout/wall-mesh-b
 import { buildLayout3dTriangleIndex, type Layout3dPickIndex } from './layout-3d-picking';
 import { transformLayoutRoomUnit, type LayoutRoomUnitTransform } from './layout-room-transform';
 import { deriveLayoutRoomFrame } from '$lib/layout/layout-room-frame';
+// H1 S8 — type-only (erased at runtime; the candidate module imports
+// `derivePreviewBundle` from here as its only value dependency).
+import type { LayoutGizmoCandidateBundle } from '../gizmo/layout-gizmo-candidate';
 
 export type LayoutPreviewSource = 'chopin-fixture' | 'empty' | 'draft' | 'imported';
 export type LayoutBaselineKind = 'blank' | 'imported';
@@ -192,7 +195,7 @@ function applyCompiledLayout(state: LayoutPreviewState, result: LayoutPreviewMod
  * committed `LayoutPreviewState` untouched (no stale model/geometry paired
  * with a new project).
  */
-function derivePreviewBundle(
+export function derivePreviewBundle(
 	projectId: string,
 	projectName: string,
 	layout: MuseumProject['layout'],
@@ -229,6 +232,29 @@ function commitPreviewBundle(state: LayoutPreviewState, bundle: ReturnType<typeo
 	state.layout3dPickIndexByRoom = bundle.layout3dPickIndexByRoom;
 	state.issues = bundle.issues;
 	state.bounds = bundle.bounds;
+}
+
+/**
+ * H1 S8 — install the layout adapter's last-valid candidate in one shot
+ * (the same field set `commitPreviewBundle` writes, plus the session
+ * bookkeeping the Plan mutators bump). The candidate was already derived
+ * through `derivePreviewBundle`, so this never re-validates and never throws.
+ */
+export function commitLayoutCandidate(
+	state: LayoutPreviewState,
+	bundle: LayoutGizmoCandidateBundle
+): void {
+	state.project = bundle.project;
+	state.model = bundle.model;
+	state.geometry = bundle.geometry;
+	state.wallMeshesByRoom = bundle.wallMeshesByRoom;
+	state.layout3dPickIndexByRoom = bundle.layout3dPickIndexByRoom;
+	state.issues = bundle.issues;
+	state.bounds = bundle.bounds;
+	state.previewVersion += 1;
+	state.lastMutationMessage = null;
+	state.statusMessage = null;
+	state.importError = null;
 }
 
 /** Report a failed layout import without changing the committed preview or baseline. */

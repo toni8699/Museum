@@ -38,6 +38,26 @@ function readLibSource(relativePath: string): string {
 	return fs.readFileSync(path.join(LIB_DIR, relativePath), 'utf8');
 }
 
+/** Recursively read every .ts/.svelte source under a `$lib` sub-directory. */
+function readAllSourceFiles(relativeDir: string): { name: string; source: string }[] {
+	const root = path.join(LIB_DIR, relativeDir);
+	const sources: { name: string; source: string }[] = [];
+	const stack = [root];
+	while (stack.length > 0) {
+		const entry = stack.pop()!;
+		const stat = fs.statSync(entry);
+		if (stat.isDirectory()) {
+			for (const child of fs.readdirSync(entry)) {
+				if (child.startsWith('.')) continue;
+				stack.push(path.join(entry, child));
+			}
+		} else if (entry.endsWith('.ts') || entry.endsWith('.svelte')) {
+			sources.push({ name: path.basename(entry), source: fs.readFileSync(entry, 'utf8') });
+		}
+	}
+	return sources;
+}
+
 describe('H1 S0 — empty project contract', () => {
 	it('creates a codec-valid, fully-empty project', () => {
 		const project = createEmptyMuseumProject({ id: 'project:blank', name: 'Blank' });
@@ -551,11 +571,23 @@ describe('H1 S7 — single gizmo host', () => {
 		'updateConnectionAnchorWorldPoint',
 		'updateSelectedViewKeyframeTargetWorldPoint'
 	];
-	/** The layout preview/history surface S8 owns: forbidden in every gizmo file. */
+	/**
+	 * The layout Plan mutators: forbidden in every gizmo file, including the
+	 * layout adapter (the S8 adapter uses its own candidate path, never these).
+	 */
 	const LAYOUT_MUTATION_MARKERS = [
 		'updateLayout',
 		'previewLayoutRoomUnit',
-		'restoreLayoutPreviewSnapshot',
+		'restoreLayoutPreviewSnapshot'
+	];
+	/**
+	 * The layout transaction facade (S8 owns it): the layout *adapter* is the
+	 * sanctioned session owner, so these markers are exempted for that basename
+	 * only — mirroring the SESSION_MUTATION_MARKERS exemption. `beginLayoutTransaction`
+	 * joins the banned list in S8 (it was absent from the S7 markers).
+	 */
+	const LAYOUT_FACADE_MARKERS = [
+		'beginLayoutTransaction',
 		'commitLayoutTransaction',
 		'cancelLayoutTransaction'
 	];
@@ -563,24 +595,8 @@ describe('H1 S7 — single gizmo host', () => {
 		'scene-gizmo-adapter.svelte.ts',
 		'camera-gizmo-adapter.svelte.ts'
 	]);
-	function readAllSourceFiles(relativeDir: string): { name: string; source: string }[] {
-		const root = path.join(LIB_DIR, relativeDir);
-		const sources: { name: string; source: string }[] = [];
-		const stack = [root];
-		while (stack.length > 0) {
-			const entry = stack.pop()!;
-			const stat = fs.statSync(entry);
-			if (stat.isDirectory()) {
-				for (const child of fs.readdirSync(entry)) {
-					if (child.startsWith('.')) continue;
-					stack.push(path.join(entry, child));
-				}
-			} else if (entry.endsWith('.ts') || entry.endsWith('.svelte')) {
-				sources.push({ name: path.basename(entry), source: fs.readFileSync(entry, 'utf8') });
-			}
-		}
-		return sources;
-	}
+	/** The layout adapter basename exempted from the facade markers (S8 step 2). */
+	const LAYOUT_ADAPTER_BASENAMES = new Set(['layout-gizmo-adapter.svelte.ts']);
 
 	it('relocates the sole live TransformControls constructor into EditorTransformControlsHost.svelte', () => {
 		const constructions = readAllSourceFiles('editor').reduce(
@@ -618,14 +634,19 @@ describe('H1 S7 — single gizmo host', () => {
 		expect(selection).toContain('!transformControls?.axis &&');
 	});
 
-	it('scopes scene/camera session mutations to the adapters only; layout mutations stay out of every gizmo file', () => {
+	it('scopes scene/camera session mutations to the adapters only; layout mutations stay out of every gizmo file (facade only in the layout adapter)', () => {
 		for (const { name, source } of readAllSourceFiles('editor/gizmo')) {
 			const isAdapter = ADAPTER_BASENAMES.has(name);
+			const isLayoutAdapter = LAYOUT_ADAPTER_BASENAMES.has(name);
 			for (const marker of SESSION_MUTATION_MARKERS) {
 				if (isAdapter) continue; // adapters are the session owners (S7 step 3)
 				expect(source, `${name}: ${marker}`).not.toContain(marker);
 			}
 			for (const marker of LAYOUT_MUTATION_MARKERS) {
+				expect(source, `${name}: ${marker}`).not.toContain(marker);
+			}
+			for (const marker of LAYOUT_FACADE_MARKERS) {
+				if (isLayoutAdapter) continue; // the layout adapter is the layout session owner (S8 step 2)
 				expect(source, `${name}: ${marker}`).not.toContain(marker);
 			}
 		}
@@ -751,26 +772,25 @@ describe('H1 S7 — single gizmo host', () => {
 		expect(descriptor).not.toContain('previewLayoutRoomUnit');
 	});
 
-	it('never hands a live layout adapter to the host in S7 (descriptor stays detached)', () => {
-		const composer = readLibSource('editor/EditorTransformControls.svelte');
-		// The composer's S3-domain branch resolves layout selections to null —
-		// no live layout adapter is constructed, and the descriptor module is
-		// never imported by the composer or the host.
-		expect(composer).toContain('never a live adapter in S7');
-		expect(composer).not.toContain('layout-gizmo-target');
+	it('keeps the gizmo host descriptor-free while the composer resolves the live layout adapter (S8 flip)', () => {
+		// S8 flips the S7 detached state: the composer's layout-domain branch now
+		// resolves the descriptor and builds the live adapter. The host stays
+		// constructor- and descriptor-free — it only forwards the input bag.
+		expect(readLibSource('editor/EditorTransformControls.svelte')).toContain('layout-gizmo-target');
 		expect(readLibSource('editor/gizmo/EditorTransformControlsHost.svelte')).not.toContain(
 			'layout-gizmo-target'
 		);
 	});
 
-	it('publishes the detached-layout gate to the toolbar and shortcuts (no interactive gizmo policy)', () => {
+	it('publishes the layout gate to the toolbar and shortcuts (stale identity, S8)', () => {
 		// H1 toolbar accepts the optional transformDisabled gate; the relic
-		// mount omits it (no layout domain there).
+		// mount omits it (no layout domain there). After S8 the gate fires only
+		// for a stale/missing layout identity — a live one publishes its policy.
 		const toolbar = readLibSource('editor/EditorViewportToolbar.svelte');
 		expect(toolbar).toContain('transformDisabled?: boolean');
 		expect(toolbar).toContain('transformDisabledFlag');
 		expect(readLibSource('editor/h1/H13DView.svelte')).toContain(
-			"transformDisabled={activeSelection?.active.domain === 'layout'}"
+			"transformDisabled={activeSelection?.active.domain === 'layout' && layoutDescriptor === null}"
 		);
 		expect(readLibSource('editor/EditorViewport.svelte')).not.toContain('transformDisabled');
 		// Shortcuts refuse W/E/R/T/X while a detached layout selection is active.
@@ -817,6 +837,81 @@ describe('H1 S7 — single gizmo host', () => {
 		// existing restriction; the Escape cascade and preview locks are intact.
 		expect(shortcuts).toContain("hasNavigationTransform && modeForKey !== 'translate'");
 		expect(shortcuts).toContain("if (store.cameraPreview) {");
+	});
+});
+
+describe('H1 S8 — layout candidate session', () => {
+	it('keeps $lib/layout/** renderer-neutral; the S8 candidate pipeline is editor-side', () => {
+		// The candidate pipeline (deriveLayoutCandidate + per-kind builders)
+		// lives under $lib/editor/gizmo, never $lib/layout — which stays
+		// Three/Svelte/DOM-free and gizmo-import-free (the S7 gizmo-import
+		// assertion is extended here to the full renderer surface).
+		for (const source of readAllSourceFiles('layout').map((entry) => entry.source)) {
+			expect(source).not.toMatch(/from\s+['"](three|svelte|@threlte|\$app)['"]/);
+			expect(source).not.toContain('editor/gizmo');
+			expect(source).not.toContain('deriveLayoutCandidate');
+		}
+	});
+
+	it('resolves a live layout adapter for a non-null descriptor and null for a stale/missing one; the relic never receives it', () => {
+		const composer = readLibSource('editor/EditorTransformControls.svelte');
+		// The S3 layout-domain branch resolves the descriptor and builds the
+		// live adapter; a stale/missing identity resolves no adapter.
+		expect(composer).toContain("active.domain === 'layout'");
+		expect(composer).toContain('createLayoutGizmoAdapter');
+		expect(composer).toContain('resolveLayoutGizmoTarget');
+		expect(composer).toContain('if (!descriptor) return null;');
+		// The composer stays constructor-free; the shared proxy is adapter-module-owned.
+		expect(composer).not.toContain('new ThreeTransformControls');
+		// The relic mount passes no active-selection/layout inputs, so the
+		// layout branch is unreachable there.
+		expect(readLibSource('editor/EditorViewport.svelte')).not.toContain('activeSelection=');
+	});
+
+	it('publishes the descriptor policy through a nullable layout slot; a stale identity stays disabled (explicit gate, not caps === null)', () => {
+		const policy = readLibSource('editor/gizmo/editor-gizmo-policy.ts');
+		expect(policy).toContain('layout: EditorGizmoPolicy | null');
+		// Both H1 call sites resolve the active selection's descriptor and pass
+		// its per-kind policy (null for a stale/missing identity).
+		for (const source of [
+			readLibSource('editor/h1/H13DView.svelte'),
+			readLibSource('editor/h1/H1EditorApp.svelte')
+		]) {
+			expect(source).toContain('resolveLayoutGizmoTarget');
+			expect(source).toContain('layout: layoutDescriptor?.policy ?? null');
+		}
+		// The toolbar gate is explicit (layout domain AND descriptor null), not
+		// caps === null — a live layout publishes its policy.
+		expect(readLibSource('editor/h1/H13DView.svelte')).toContain(
+			"transformDisabled={activeSelection?.active.domain === 'layout' && layoutDescriptor === null}"
+		);
+		// Shortcuts refuse only a stale layout identity outright; a live one
+		// falls through to the per-mode caps refusal.
+		expect(readLibSource('editor/h1/H1EditorApp.svelte')).toContain(
+			"activeSelection.active.domain === 'layout' && layoutDescriptor === null"
+		);
+	});
+
+	it('accepts the optional transient prop and feeds it from the adapter onTransient slot threaded through the composer', () => {
+		const scene = readLibSource('editor/layout/LayoutPreviewScene.svelte');
+		expect(scene).toContain('transient?: LayoutGizmoCandidateBundle | null');
+		expect(scene).toContain('transient?.geometry ?? geometry');
+		const h13d = readLibSource('editor/h1/H13DView.svelte');
+		expect(h13d).toContain('transient={layoutTransient}');
+		expect(h13d).toContain('onLayoutTransient={(bundle) => (layoutTransient = bundle)}');
+		// The composer forwards the H1 slot setter into the adapter.
+		expect(readLibSource('editor/EditorTransformControls.svelte')).toContain('onTransient: onLayoutTransient');
+	});
+
+	it('deriveLayoutCandidate returns { bundle | null, issue | null } and the adapter input includes isShiftHeld', () => {
+		const candidate = readLibSource('editor/gizmo/layout-gizmo-candidate.ts');
+		expect(candidate).toContain('export function deriveLayoutCandidate');
+		expect(candidate).toContain('{ bundle: LayoutGizmoCandidateBundle | null; issue: string | null }');
+		// The pure pipeline never throws — failures map to { bundle: null, issue }.
+		expect(candidate).not.toContain('throw new Error');
+		const adapter = readLibSource('editor/gizmo/layout-gizmo-adapter.svelte.ts');
+		expect(adapter).toContain('isShiftHeld(): boolean');
+		expect(adapter).toContain('beginLayoutTransaction');
 	});
 });
 

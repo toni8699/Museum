@@ -786,11 +786,12 @@ export class MuseumEditorStore {
 		| 'camera'
 		| 'anchor'
 		| 'view-target'
+		| 'layout'
 		| null {
 		return this.session.transformInteractionKind;
 	}
 	set transformInteractionKind(
-		value: 'placement' | 'camera' | 'anchor' | 'view-target' | null
+		value: 'placement' | 'camera' | 'anchor' | 'view-target' | 'layout' | null
 	) {
 		this.session.transformInteractionKind = value;
 	}
@@ -1973,7 +1974,7 @@ export class MuseumEditorStore {
 
 	setTransformInteractionActive(
 		active: boolean,
-		kind: 'placement' | 'camera' | 'anchor' | 'view-target' | null = active
+		kind: 'placement' | 'camera' | 'anchor' | 'view-target' | 'layout' | null = active
 			? this.transformInteractionKind
 			: null
 	) {

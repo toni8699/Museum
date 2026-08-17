@@ -48,6 +48,7 @@
 	import { SCENE_GIZMO_POLICY } from '$lib/editor/gizmo/scene-gizmo-adapter.svelte';
 	import { CAMERA_GIZMO_POLICY } from '$lib/editor/gizmo/camera-gizmo-adapter.svelte';
 	import { projectDomainGizmoCapabilities } from '$lib/editor/gizmo/editor-gizmo-policy';
+	import { resolveLayoutGizmoTarget } from '$lib/editor/gizmo/layout-gizmo-target';
 
 	// H1 S2 — the editor boots blank on every load: one canonical empty project
 	// seeds both the scene-only store and the layout-only preview surface.
@@ -144,15 +145,32 @@
 	const interactionStore = new EditorInteractionStore();
 	setContext(EDITOR_INTERACTION_STORE_KEY, interactionStore);
 
+	// H1 S8 — resolve the active layout selection's descriptor so the toolbar /
+	// shortcuts publish its per-kind policy (`null` for a stale/missing
+	// identity, which stays inert).
+	const layoutDescriptor = $derived(
+		activeSelection.active.domain === 'layout'
+			? resolveLayoutGizmoTarget(
+					layoutPreview.project.layout,
+					layoutPreview.geometry,
+					layoutInteraction.selection
+				)
+			: null
+	);
+
 	// H1 S7 step 6 — the active target's generic capability projection for the
 	// W/E/R/T shortcuts. Same policies + projection the toolbar and the host
 	// use, so an unsupported mode can never start through one and be refused
-	// by another. `null` for a detached layout / no target.
+	// by another. `null` for a stale layout identity / no target.
 	const activeGizmoCapabilities = $derived.by(() =>
 		projectDomainGizmoCapabilities(
 			activeSelection.active.domain,
 			interactionStore.mode,
-			{ scene: SCENE_GIZMO_POLICY, camera: CAMERA_GIZMO_POLICY }
+			{
+				scene: SCENE_GIZMO_POLICY,
+				camera: CAMERA_GIZMO_POLICY,
+				layout: layoutDescriptor?.policy ?? null
+			}
 		)
 	);
 
@@ -208,8 +226,10 @@
 			},
 			interactionStore,
 			() => activeSelection.deselectActive(),
-			// H1 S7 — a detached layout selection refuses W/E/R/T/X until S8.
-			() => activeSelection.active.domain === 'layout',
+			// H1 S8 — the stale-identity gate: a live layout selection publishes
+			// its descriptor policy (the caps check below refuses disallowed
+			// modes); only a stale layout identity refuses W/E/R/T/X outright.
+			() => activeSelection.active.domain === 'layout' && layoutDescriptor === null,
 			// H1 S7 step 6 — refuse modes the active target's policy does not allow.
 			() => activeGizmoCapabilities
 		)

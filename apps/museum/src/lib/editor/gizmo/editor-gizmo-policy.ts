@@ -201,12 +201,20 @@ export type GizmoActiveDomain = 'scene' | 'camera' | 'layout' | 'none';
 export interface EditorGizmoDomainPolicies {
 	scene: EditorGizmoPolicy;
 	camera: EditorGizmoPolicy;
+	/**
+	 * H1 S8 — the active layout selection's descriptor policy, resolved
+	 * per-selection by the H1 call sites (`null` for a stale/missing identity).
+	 * A static policy is insufficient: the per-kind layout policies live inside
+	 * the resolved descriptor.
+	 */
+	layout: EditorGizmoPolicy | null;
 }
 
 /**
  * Single projection shared by the H1 toolbar and the W/E/R/T shortcuts.
  * `scene`/`camera` project the target policy with the remembered mode;
- * `layout` (detached in S7) and `none` return `null` — no interactive gizmo
+ * `layout` projects the descriptor policy when one is published (live
+ * selection), `null` for a stale identity or `none` — no interactive gizmo
  * policy. The relic has no `ActiveEditorSelection` and keeps its legacy
  * navigation-before-placement arbitration instead of this helper.
  */
@@ -217,5 +225,8 @@ export function projectDomainGizmoCapabilities(
 ): EditorGizmoCapabilities | null {
 	if (domain === 'scene') return projectGizmoCapabilities(policies.scene, rememberedMode);
 	if (domain === 'camera') return projectGizmoCapabilities(policies.camera, rememberedMode);
+	if (domain === 'layout') {
+		return policies.layout ? projectGizmoCapabilities(policies.layout, rememberedMode) : null;
+	}
 	return null;
 }

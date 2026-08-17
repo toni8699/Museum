@@ -2,6 +2,7 @@
 
 **Date:** 2026-08-16  \
 **Status:** Planned  \
+**Reviewed:** 2026-08-17 (working-tree review — amendments below in the addendum)  \
 **Parent:** [`2026-08-14-graphics-h1-unified-3d-editing.md`](./2026-08-14-graphics-h1-unified-3d-editing.md) (step 8, difficulty 8/10 — effort 6 · risk 8)  \
 **Prerequisite:** [`2026-08-16-graphics-h1-s7-single-gizmo-host.md`](./2026-08-16-graphics-h1-s7-single-gizmo-host.md)  \
 **Handoff:** [`../hand-off/CURRENT.md`](../hand-off/CURRENT.md)
@@ -98,6 +99,7 @@ createLayoutGizmoAdapter(input: {
   layoutPreview: LayoutPreviewState;
   layoutInteraction: LayoutInteractionState;
   descriptor: LayoutGizmoTargetDescriptor;
+  isShiftHeld: () => boolean;   // host shift state for the adapter's own snap policy
   onTransient(bundle: LayoutGizmoCandidateBundle | null): void;  // reactive render slot
 }): EditorGizmoTargetAdapter;   // { key, domain: 'layout', proxy, policy, begin }
 ```
@@ -107,6 +109,9 @@ createLayoutGizmoAdapter(input: {
 `hasBlockingLayoutIssues`) → compile (`buildLayoutPreviewModel`) → wall-mesh
 preflight (`buildWallMeshesByRoom`). It returns `null` + the first blocking
 issue when any stage fails; `onTransient` then keeps the last valid bundle.
+It reuses `derivePreviewBundle`'s ordering but never throws: `derivePreviewBundle`
+throws via `createPreviewProject`, so `deriveLayoutCandidate` maps any caught
+failure to `{ bundle: null, issue }` — pin this throw→`null` mapping in step 0.
 
 ## Locked decisions
 
@@ -116,28 +121,38 @@ issue when any stage fails; `onTransient` then keeps the last valid bundle.
   'layout'` **and** `resolveLayoutGizmoTarget` returns a non-null descriptor.
   A stale/missing identity (descriptor `null`) resolves no adapter and the
   selection is inert — matching the scene/camera missing-root rule.
-- The S7 gate flips: layout selections publish the descriptor's policy through
-  `projectDomainGizmoCapabilities` (add `layout` to `EditorGizmoDomainPolicies`),
-  so the toolbar buttons, W/E/R/T shortcuts, and the host all agree on the same
-  allowed modes/axes. `transformDisabled` is no longer true for layout; the
-  `isLayoutSelectionActive` shortcut refusal is removed. The gate stays only
-  for a descriptor that resolves `null` (stale identity).
+- The S7 gate flips: `EditorGizmoDomainPolicies` gains a nullable
+  `layout: EditorGizmoPolicy | null` slot, and the H1 call sites
+  (`H13DView`/`H1EditorApp`) resolve the active layout selection's descriptor
+  and pass its `policy` through `projectDomainGizmoCapabilities` (`null` for a
+  stale/missing identity) — a static policy is insufficient because the
+  per-kind policies (room/wall/opening/anchor/object) live inside the
+  descriptor. Toolbar buttons, W/E/R/T shortcuts, and the host then all agree
+  on the same allowed modes/axes. `transformDisabled` is no longer true for a
+  live layout selection; the `isLayoutSelectionActive` shortcut refusal is
+  removed. The gate stays only for a descriptor that resolves `null` (stale
+  identity): the toolbar keeps an explicit `transformDisabled`-equivalent
+  derived from "layout domain AND descriptor null" — `caps === null` alone
+  would leave the buttons enabled, so the visual gate must be explicit.
 - The relic `/museum/editor` **never** receives the layout adapter (it has no
   layout domain). No env/build/query/production feature flag.
 - The layout adapter is the **only** gizmo file allowed to call the layout
   transaction facade (`beginLayoutTransaction` / `commitLayoutTransaction` /
-  `cancelLayoutTransaction`). The contracts block's `LAYOUT_MUTATION_MARKERS`
-  test is scoped: `previewLayoutRoomUnit`, `restoreLayoutPreviewSnapshot`, and
-  `updateLayout*` stay banned in every gizmo file (the adapter uses its own
-  candidate path, not the Plan mutators).
+  `cancelLayoutTransaction`). The S7 `LAYOUT_MUTATION_MARKERS` test is
+  re-scoped: `beginLayoutTransaction` is **added** to the banned list (missing
+  today), and the three facade markers are exempted for the
+  `layout-gizmo-adapter.svelte.ts` basename only (mirroring the
+  `SESSION_MUTATION_MARKERS` adapter exemption). `previewLayoutRoomUnit`,
+  `restoreLayoutPreviewSnapshot`, and `updateLayout*` stay banned in every
+  gizmo file (the adapter uses its own candidate path, not the Plan mutators).
 
 ### Session lifecycle (one drag)
 
 - **Begin** — `store.beginLayoutTransaction()` (guarded facade; refused when
-  document-mutation-blocked or undo-blocked → begin returns `null`, no session,
-  no orbit change, no history). Capture the immutable descriptor baseline;
-  create the session-only proxy at `descriptor.proxyPose`; compile the baseline
-  geometry once.
+  document-mutation-blocked or undo-blocked; the adapter's `begin` maps a
+  refused facade to a `null` session — no session, no orbit change, no
+  history). Capture the immutable descriptor baseline; create the session-only
+  proxy at `descriptor.proxyPose`; compile the baseline geometry once.
 - **Preview (objectChange)** — read the proxy's world pose
   (`position/rotation/scale`), derive `LayoutGizmoDelta` from the **baseline**
   (never a previous delta), apply the adapter's snap policy, build the candidate
@@ -178,17 +193,23 @@ issue when any stage fails; `onTransient` then keeps the last valid bundle.
   (`layoutInteraction.planView.snapEnabled`), Shift bypasses; room rotation
   snaps to 15° with Shift (the B3 contract). Scene placement's Shift-bypass
   behavior is untouched — the layout adapter owns its own snap policy, exactly
-  as S7 locked ("adapter snap policies make the distinction explicit").
+  as S7 locked ("adapter snap policies make the distinction explicit"). The
+  adapter reads shift state from the host via `isShiftHeld` (threaded through
+  the composer like `sceneDeps`), never from `layoutInteraction`.
 
 ### Transient rendering
 
 - `LayoutPreviewScene` gains an optional `transient?: LayoutGizmoCandidateBundle
   | null` prop. When set, it renders the transient bundle (model/geometry/
   wall-mesh cache) instead of the committed one; the existing `interaction`
-  selection/highlight still applies. `null` renders the committed project.
-- H13DView owns a `$state` transient slot and passes it down; the adapter's
-  `onTransient` callback writes it. One renderer, one scene — no second Canvas,
-  no temporary mutation of `layoutPreview.project`.
+  selection/highlight still applies. `null` renders the committed project. The
+  component's `adaptedRooms` effect and `roomShapes` derived re-key on the
+  **active source** (transient when set, committed otherwise) and dispose/
+  replace the adapted cache on every source switch.
+- H13DView owns a `$state` transient slot and passes it into `LayoutPreviewScene`;
+  it also forwards the slot setter into the composer, which hands it to
+  `createLayoutGizmoAdapter` as `onTransient`. One renderer, one scene — no
+  second Canvas, no temporary mutation of `layoutPreview.project`.
 - The selection-highlight shell (`LayoutWallHighlight` etc.) reads
   `interaction.selection`, which is unchanged during a drag, so highlight stays
   consistent over the transient.
@@ -213,16 +234,24 @@ Add an `H1 S8 — layout candidate session` block to
 code:
 
 - the layout adapter is the only gizmo file allowed to call the layout
-  transaction facade; `previewLayoutRoomUnit` / `restoreLayoutPreviewSnapshot` /
-  `updateLayout*` stay banned in every gizmo file;
+  transaction facade; `beginLayoutTransaction` joins the banned
+  `LAYOUT_MUTATION_MARKERS` list and the adapter basename is exempted from the
+  three facade markers; `previewLayoutRoomUnit` / `restoreLayoutPreviewSnapshot`
+  / `updateLayout*` stay banned in every gizmo file;
 - the composer resolves a live layout adapter for a non-null descriptor and
   `null` for a stale/missing one; the relic mount still never receives it;
 - the toolbar/shortcuts gate flips for a live layout selection (descriptor
-  policy published), and stays disabled for a stale identity;
+  policy published through a nullable `layout` slot in
+  `projectDomainGizmoCapabilities`), and stays disabled for a stale identity
+  (explicit `transformDisabled`-equivalent, not just `caps === null`);
 - `LayoutPreviewScene` accepts the optional `transient` prop and the H1 shell
-  feeds it from the adapter's `onTransient` slot;
+  feeds it from the adapter's `onTransient` slot (threaded through the
+  composer);
 - `$lib/layout/**` remains renderer-neutral (the candidate pipeline lives under
-  `$lib/editor/gizmo`, not `$lib/layout`).
+  `$lib/editor/gizmo`, not `$lib/layout`);
+- `deriveLayoutCandidate` returns `{ bundle | null, issue | null }` (never
+  throws; maps `derivePreviewBundle`'s throw) and the adapter input includes
+  `isShiftHeld`.
 
 ### 1. Pure candidate pipeline
 
@@ -253,11 +282,18 @@ restores + no history, proxy disposed once.
 - `EditorTransformControls.svelte`: the S3 `layout` domain branch resolves
   `createLayoutGizmoAdapter` when the descriptor is non-null, `null` otherwise.
   The adapter's `prepare` (proxy pose) runs before attach like the scene pivot.
-- `EditorGizmoDomainPolicies` gains `layout`; `H13DView`/`H1EditorApp` project
-  the descriptor policy for the toolbar + W/E/R/T. Remove the
+  H13DView threads `layoutPreview`, `layoutInteraction`, and the transient-slot
+  setter into the composer (props it does not take today); the composer's
+  `$derived` re-resolves the descriptor reactively from those props and forwards
+  `isShiftHeld` from the host controller.
+- `EditorGizmoDomainPolicies` gains a nullable `layout` slot; `H13DView` /
+  `H1EditorApp` resolve the active selection's descriptor and project its
+  policy for the toolbar + W/E/R/T (`null` for stale identity). Remove the
   `transformDisabled`-for-layout and `isLayoutSelectionActive` refusals; add a
-  stale-identity gate that keeps them.
-- H13DView passes the transient slot into `LayoutPreviewScene`.
+  stale-identity gate (layout domain AND descriptor null) that keeps the
+  toolbar disabled.
+- H13DView owns the `$state` transient slot, passes it into `LayoutPreviewScene`,
+  and forwards the setter into the composer for the adapter's `onTransient`.
 
 ### 4. Verification gate
 
@@ -353,4 +389,31 @@ Plus:
 - unchanged G3 budget run (no re-baseline); and
 - manual QA in step 5 (room/wall/opening/anchor/object drags, snap + Shift,
   Escape, undo/redo, interleaved scene/camera edits, no history/dirty change
-  until commit).
+  until commit; wall/anchor drags are reached via the hierarchy tree — direct
+  3D picks of those identities stay deferred to S6.1).
+
+## Review addendum (2026-08-17)
+
+Reviewed against the S7 working tree (uncommitted). The plan's assumptions
+held; the following decisions are pinned in place above:
+
+1. **Composer wiring** — H13DView threads `layoutPreview`, `layoutInteraction`,
+   and the transient-slot setter into `EditorTransformControls.svelte` (props
+   it does not take today); its `$derived` re-resolves the descriptor
+   reactively from those props.
+2. **Descriptor-driven policy** — `projectDomainGizmoCapabilities` takes a
+   nullable `layout` policy slot resolved per-selection from the descriptor
+   (per-kind policies live in the descriptor, so a static
+   `EditorGizmoDomainPolicies.layout` is insufficient).
+3. **Marker re-scope** — `LAYOUT_MUTATION_MARKERS` gains `beginLayoutTransaction`
+   and exempts the adapter basename from the three facade markers (mirrors the
+   `SESSION_MUTATION_MARKERS` exemption).
+4. **Stale-identity gate** — the toolbar keeps an explicit
+   `transformDisabled`-equivalent ("layout domain AND descriptor null"), not
+   `caps === null` (which would leave the buttons enabled).
+5. **Adapter input** — `isShiftHeld` is part of the input; `deriveLayoutCandidate`
+   returns `{ bundle | null, issue | null }` (maps `derivePreviewBundle`'s throw);
+   the adapter's `begin` maps a refused facade to a `null` session.
+6. **Transient render mechanics** — `LayoutPreviewScene`'s `adaptedRooms` /
+   `roomShapes` re-key on the active source and dispose per switch; wall/anchor
+   drags are tree-reachable until S6.1 (manual-QA note).

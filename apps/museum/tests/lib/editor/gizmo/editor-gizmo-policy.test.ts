@@ -262,8 +262,12 @@ describe('policy mode-set helper typing — GizmoMode is a closed union', () => 
 	});
 });
 
-describe('projectDomainGizmoCapabilities — one projection for the H1 toolbar + shortcuts (S7 step 6)', () => {
-	const DOMAIN_POLICIES = { scene: SCENE_POLICY, camera: CAMERA_POLICY };
+describe('projectDomainGizmoCapabilities — one projection for the H1 toolbar + shortcuts (S7 step 6 / S8 gate flip)', () => {
+	// S7: layout detached (no policy). S8: a live layout selection publishes
+	// its descriptor policy through the nullable `layout` slot; `null` there is
+	// a stale/missing identity that stays inert.
+	const DOMAIN_POLICIES = { scene: SCENE_POLICY, camera: CAMERA_POLICY, layout: null };
+	const LIVE_LAYOUT_POLICIES = { ...DOMAIN_POLICIES, layout: ROOM_POLICY };
 
 	it('projects the scene policy with the remembered mode', () => {
 		const caps = projectDomainGizmoCapabilities('scene', 'scale', DOMAIN_POLICIES);
@@ -279,7 +283,14 @@ describe('projectDomainGizmoCapabilities — one projection for the H1 toolbar +
 		expect(caps?.scaleControl).toBe('hidden');
 	});
 
-	it('returns null for a detached layout or no target (no interactive gizmo policy)', () => {
+	it('publishes the live layout descriptor policy (S8 gate flip)', () => {
+		const caps = projectDomainGizmoCapabilities('layout', 'translate', LIVE_LAYOUT_POLICIES);
+		expect(caps?.effectiveMode).toBe('translate');
+		expect(caps?.allowedModes).toEqual(new Set(['translate', 'rotate']));
+		expect(caps?.scaleControl).toBe('hidden');
+	});
+
+	it('returns null for a stale layout identity or no target (no interactive gizmo policy)', () => {
 		expect(projectDomainGizmoCapabilities('layout', 'translate', DOMAIN_POLICIES)).toBeNull();
 		expect(projectDomainGizmoCapabilities('none', 'translate', DOMAIN_POLICIES)).toBeNull();
 	});

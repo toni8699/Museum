@@ -47,6 +47,8 @@
 	import { SCENE_GIZMO_POLICY } from '$lib/editor/gizmo/scene-gizmo-adapter.svelte';
 	import { CAMERA_GIZMO_POLICY } from '$lib/editor/gizmo/camera-gizmo-adapter.svelte';
 	import { projectDomainGizmoCapabilities } from '$lib/editor/gizmo/editor-gizmo-policy';
+	import { resolveLayoutGizmoTarget } from '$lib/editor/gizmo/layout-gizmo-target';
+	import type { LayoutGizmoCandidateBundle } from '$lib/editor/gizmo/layout-gizmo-candidate';
 
 	let {
 		store,
@@ -64,17 +66,39 @@
 		ACTIVE_EDITOR_SELECTION_KEY
 	);
 
+	// H1 S8 — resolve the active layout selection's descriptor so the toolbar /
+	// shortcuts publish its per-kind policy (`null` for a stale/missing
+	// identity, which stays inert).
+	const layoutDescriptor = $derived(
+		activeSelection?.active.domain === 'layout'
+			? resolveLayoutGizmoTarget(
+					layoutPreview.project.layout,
+					layoutPreview.geometry,
+					layoutInteraction.selection
+				)
+			: null
+	);
+
 	// H1 S7 step 6 — the active target's generic capability projection for the
-	// toolbar (scene/camera; null for a detached layout or no target). Same
-	// projection the W/E/R/T shortcuts use in H1EditorApp, same policies the
-	// host gets from the adapters.
+	// toolbar (scene/camera; layout via the descriptor policy; null for a stale
+	// identity or no target). Same projection the W/E/R/T shortcuts use in
+	// H1EditorApp, same policies the host gets from the adapters.
 	const activeGizmoCapabilities = $derived.by(() =>
 		projectDomainGizmoCapabilities(
 			activeSelection?.active.domain ?? 'none',
 			interactionStore?.mode ?? store.transformMode,
-			{ scene: SCENE_GIZMO_POLICY, camera: CAMERA_GIZMO_POLICY }
+			{
+				scene: SCENE_GIZMO_POLICY,
+				camera: CAMERA_GIZMO_POLICY,
+				layout: layoutDescriptor?.policy ?? null
+			}
 		)
 	);
+
+	// H1 S8 — the transient candidate bundle the layout adapter previews during
+	// a drag. `LayoutPreviewScene` renders it instead of the committed project;
+	// the composer's adapter writes it through `onLayoutTransient`.
+	let layoutTransient = $state<LayoutGizmoCandidateBundle | null>(null);
 
 	const placementRegistry: EditorPlacementRegistry = {
 		registerPlacementRoot: (id, root) => store.registerPlacementRoot(id, root),
@@ -168,7 +192,7 @@
 		cameraAgnosticViewMenu
 		showCeilings={layoutPreview.showCeilings}
 		onToggleCeilings={() => toggleLayoutCeilings(layoutPreview)}
-		transformDisabled={activeSelection?.active.domain === 'layout'}
+		transformDisabled={activeSelection?.active.domain === 'layout' && layoutDescriptor === null}
 		gizmoCapabilities={activeGizmoCapabilities}
 	/>
 	<Canvas dpr={[1, 1.5]} shadows>
@@ -200,6 +224,7 @@
 			wallMeshesByRoom={layoutPreview.wallMeshesByRoom}
 			interaction={layoutInteraction}
 			showCeilings={layoutPreview.showCeilings}
+			transient={layoutTransient}
 		/>
 		<EditorGrid visible={store.gridVisible && !store.isVisitorCameraPreview} />
 		{#if store.viewportShowPaths}
@@ -235,7 +260,14 @@
 				<EditorSelectionHelper {store} />
 			{/key}
 		{/if}
-		<EditorTransformControls {store} bind:controls={transformControls} activeSelection={activeSelection ?? undefined} />
+		<EditorTransformControls
+			{store}
+			bind:controls={transformControls}
+			activeSelection={activeSelection ?? undefined}
+			layoutPreview={layoutPreview}
+			layoutInteraction={layoutInteraction}
+			onLayoutTransient={(bundle) => (layoutTransient = bundle)}
+		/>
 		{#if !store.isVisitorCameraPreview}
 			<PlacementGhost {store} />
 		{/if}

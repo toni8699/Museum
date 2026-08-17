@@ -66,12 +66,19 @@ shortcuts through `projectGizmoCapabilities` (scene = full modes + world space
 + scene-scale-mode chain; camera = translate-only + hidden chain). An
 unsupported mode/axis can never start through any surface.
 
-**S7 layout boundary — detached.** Layout selections resolve a pure
-`LayoutGizmoTargetDescriptor` (room / wall / opening / interior anchor /
-object) with proxy poses, per-kind policies, and baseline-relative
-`deriveLayoutGizmoDelta` math (`layout-gizmo-target.ts`), but no live layout
-adapter is handed to the host: transform buttons are disabled and no handles
-render. Read-only `profile` objects and stale identities resolve `null`. S8
-activates the layout candidate-session adapter and its atomic layout-history
-commit; until then a layout selection never mutates `LayoutPreviewState`,
-project, history, or export.
+**Layout adapter (H1 S8 — live candidate session).** A layout selection
+resolves a pure `LayoutGizmoTargetDescriptor` (room / wall / opening /
+interior anchor / object) with proxy poses, per-kind policies, and
+baseline-relative `deriveLayoutGizmoDelta` math (`layout-gizmo-target.ts`).
+`createLayoutGizmoAdapter` (`layout-gizmo-adapter.svelte.ts`) activates that
+descriptor through the same single host: it begins a `layout` transaction,
+derives a delta from the session-only proxy pose, runs the pure candidate
+pipeline (`layout-gizmo-candidate.ts`: structural → geometry → compile →
+wall-mesh preflight, never throwing) and renders the last-valid transient
+bundle beside the committed project, then commits exactly one `layout`
+history entry on pointer-up (no-op adds none; every cancel reason restores).
+The canonical `LayoutPreviewState` is never written during a drag — the
+transient is a separate session-only bundle. Stale identities resolve no
+descriptor → no adapter, and the toolbar/shortcuts gate stays disabled for
+that case. The adapter is the only gizmo file allowed to call the layout
+transaction facade (`LAYOUT_FACADE_MARKERS`).

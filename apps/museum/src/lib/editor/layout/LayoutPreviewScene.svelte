@@ -20,6 +20,7 @@
 	} from './layout-wall-material';
 	import type { CompiledLayoutGeometry } from '$lib/layout/layout-geometry-types';
 	import type { IndexedWallMesh } from '$lib/layout/wall-mesh-builder';
+	import type { LayoutGizmoCandidateBundle } from '../gizmo/layout-gizmo-candidate';
 	import {
 		buildWallHighlightMesh,
 		matchOpeningRanges,
@@ -33,13 +34,21 @@
 		geometry,
 		wallMeshesByRoom,
 		interaction,
-		showCeilings = false
+		showCeilings = false,
+		// H1 S8 — an optional transient candidate bundle. When set, the scene
+		// renders the transient (session-only) model/geometry/wall-mesh cache
+		// instead of the committed one; `null` renders the committed project.
+		// The selection-highlight shell reads `interaction.selection`, which is
+		// unchanged during a drag, so highlight stays consistent over the
+		// transient. Absent on the relic mount.
+		transient = null
 	}: {
 		model: LayoutPreviewModel;
 		geometry: CompiledLayoutGeometry;
 		wallMeshesByRoom: ReadonlyMap<string, IndexedWallMesh>;
 		interaction: LayoutInteractionState;
 		showCeilings?: boolean;
+		transient?: LayoutGizmoCandidateBundle | null;
 		// Deferred (2026-08-16): the `showAnchors` (anchor-helper octahedra) and
 		// `hoverSelection` (hover preview) props stay removed with their render
 		// blocks below; restore them when hover/anchors return (S6.1+). Neither
@@ -56,10 +65,18 @@
 		return shape;
 	}
 
-	// Build each room's floor + ceiling Shape once per compiled geometry.
+	// H1 S8 — the active source: the transient candidate bundle during a drag,
+	// otherwise the committed project. The deriveds/effects below re-key on it
+	// and dispose/replace the adapted cache on every source switch, so a drag
+	// previews the candidate without ever touching `layoutPreview.project`.
+	const activeGeometry = $derived(transient?.geometry ?? geometry);
+	const activeModel = $derived(transient?.model ?? model);
+	const activeWallMeshes = $derived(transient?.wallMeshesByRoom ?? wallMeshesByRoom);
+
+	// Build each room's floor + ceiling Shape once per active geometry.
 	// Selection / drag re-renders must not reallocate shapes or rebuild geometry.
 	const roomShapes = $derived(
-		geometry.rooms.map((room) => ({
+		activeGeometry.rooms.map((room) => ({
 			floor: polygonShape(floorShapePoints(room.floorPolygon)),
 			ceiling: polygonShape(ceilingShapePoints(room.ceilingPolygon))
 		}))
@@ -82,11 +99,12 @@
 	let adaptedRooms = $state<Map<string, AdaptedRoom>>(new Map());
 
 	// Wrap each prebuilt room mesh through the adapter; dispose the previous
-	// generation when `geometry`/`wallMeshesByRoom` change or on unmount.
+	// generation when the active source (`geometry`/`wallMeshesByRoom` or the
+	// transient bundle) changes or on unmount.
 	$effect(() => {
 		const built = new Map<string, AdaptedRoom>();
-		for (const room of geometry.rooms) {
-			const mesh = wallMeshesByRoom.get(room.roomId);
+		for (const room of activeGeometry.rooms) {
+			const mesh = activeWallMeshes.get(room.roomId);
 			if (mesh) built.set(room.roomId, toWallBufferGeometry(mesh, wallMaterialFactory));
 		}
 		adaptedRooms = built;
@@ -110,7 +128,7 @@
 		let material: Material | null = null;
 
 		if (selection.kind === 'wall' || selection.kind === 'interiorAnchor') {
-			const mesh = wallMeshesByRoom.get(selection.roomId);
+			const mesh = activeWallMeshes.get(selection.roomId);
 			if (mesh) {
 				const ranges = matchWallRanges(mesh, selection.segmentId);
 				if (ranges.length > 0) {
@@ -119,7 +137,7 @@
 				}
 			}
 		} else if (selection.kind === 'opening') {
-			const mesh = wallMeshesByRoom.get(selection.roomId);
+			const mesh = activeWallMeshes.get(selection.roomId);
 			if (mesh) {
 				const ranges = matchOpeningRanges(mesh, selection.openingId);
 				if (ranges.length > 0) {
@@ -189,7 +207,7 @@
 </script>
 
 <T.Group name="LayoutPreviewRoot">
-	{#each geometry.rooms as room, roomIndex (room.roomId)}
+	{#each activeGeometry.rooms as room, roomIndex (room.roomId)}
 		{@const shapes = roomShapes[roomIndex]!}
 		{@const adapted = adaptedRooms.get(room.roomId)}
 		<T.Group name={`LayoutRoom:${room.roomId}`}>
@@ -289,7 +307,7 @@
 		/>
 	{/if}
 
-	{#each model.objects as object (object.objectId)}
+	{#each activeModel.objects as object (object.objectId)}
 		{@const objectSelected =
 			interaction.selection.kind === 'object' &&
 			interaction.selection.objectId === object.objectId}

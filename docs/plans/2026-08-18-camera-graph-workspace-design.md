@@ -128,6 +128,11 @@ behavior. The decision is deferred until rooms with differing floor heights exis
 - **Camera → Plan** shows the *same* geometry as **spatial context only** — not
   editable, not selectable. Clicking a wall in Camera Plan does not select the wall.
 
+**Single render model, no separate copy.** Camera Plan reuses the same Scene Plan
+render model as its spatial backdrop; it does not maintain a separate copy of
+scene-plan geometry. Camera-specific nodes, paths, and anchors render as an
+authoring overlay on top.
+
 This is a deliberate product rule, not an oversight. It makes the domain×view
 matrix convincing: *Scene → Plan authors the environment; Camera → Plan uses the
 environment to orient camera authoring.*

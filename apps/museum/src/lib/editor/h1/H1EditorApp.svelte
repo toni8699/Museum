@@ -216,7 +216,8 @@
 	beforeNavigate((navigation) => {
 		if ((!store.isDirty && !layoutPreviewIsDirty(layoutPreview)) || navigation.willUnload) return;
 		if (!confirmNavigation()) navigation.cancel();
-	});	onMount(() =>
+	});
+	onMount(() =>
 		registerEditorShortcuts(
 			store,
 			{
@@ -278,7 +279,9 @@
 		{#if viewState.viewMode === 'plan'}
 			<H1PlanView {store} {layoutPreview} {layoutInteraction} />
 		{:else}
-			<H13DView {store} {layoutPreview} {layoutInteraction} />
+			<!-- H1 S10 — explicit 3D context seam: camera authoring overlays and
+			     the bottom timeline are Camera-only; Scene stays scene chrome. -->
+			<H13DView {store} {layoutPreview} {layoutInteraction} context={viewState.active3dContext} />
 		{/if}
 	</div>
 	<EditorInspector
@@ -290,7 +293,7 @@
 		viewMode={viewState.viewMode}
 		bind:clusterNameInput
 	/>
-	{#if viewState.viewMode === '3d'}
+	{#if viewState.viewMode === '3d' && viewState.active3dContext === 'camera'}
 		<EditorCameraTimelineFrame {store} />
 	{/if}
 	<EditorMaterialChoiceDialog {store} />

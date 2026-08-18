@@ -41,7 +41,10 @@
 		// The selection-highlight shell reads `interaction.selection`, which is
 		// unchanged during a drag, so highlight stays consistent over the
 		// transient. Absent on the relic mount.
-		transient = null
+		transient = null,
+		// Editor preview floor albedo (session-only viewport styling; drives the
+		// shared FLOOR_MATERIAL color below).
+		floorColor = '#57575d'
 	}: {
 		model: LayoutPreviewModel;
 		geometry: CompiledLayoutGeometry;
@@ -49,6 +52,7 @@
 		interaction: LayoutInteractionState;
 		showCeilings?: boolean;
 		transient?: LayoutGizmoCandidateBundle | null;
+		floorColor?: string;
 		// Deferred (2026-08-16): the `showAnchors` (anchor-helper octahedra) and
 		// `hoverSelection` (hover preview) props stay removed with their render
 		// blocks below; restore them when hover/anchors return (S6.1+). Neither
@@ -94,6 +98,14 @@
 	// never on the base mesh. The highlight materials are module-level singletons
 	// (see layout-wall-material.ts) so workspace remounts cannot leak materials.
 	const wallMaterialFactory: WallMeshMaterialFactory = () => ({ material: WALL_MATERIAL_DEFAULT });
+
+	// Apply the session floor color to the shared module-level floor material.
+	// Mutating the singleton (rather than swapping materials) keeps the
+	// workspace-remount leak rules intact while making the floor adjustable.
+	$effect(() => {
+		FLOOR_MATERIAL.color.set(floorColor);
+		FLOOR_MATERIAL.needsUpdate = true;
+	});
 
 	type AdaptedRoom = { geometry: BufferGeometry; materials: Material[]; dispose: () => void };
 	let adaptedRooms = $state<Map<string, AdaptedRoom>>(new Map());

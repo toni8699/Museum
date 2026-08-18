@@ -25,7 +25,7 @@
 			{preview.kind === 'node'
 				? 'Holding authored node pose'
 				: preview.kind === 'tour'
-					? `Guided tour · ${preview.transport} · ${(preview.playhead * 100).toFixed(1)}%`
+					? `Camera flow · ${preview.transport} · ${(preview.playhead * 100).toFixed(1)}%`
 					: preview.kind === 'connection' && preview.direction === 'reverse'
 						? `Reverse edge · ${preview.transport} · ${(preview.playhead * 100).toFixed(1)}%`
 						: preview.kind === 'connection'
@@ -37,7 +37,7 @@
 				<button type="button" class="active" onclick={() => store.pauseCameraPreview()}>Pause</button>
 			{:else}
 				<button type="button" class="active" onclick={() => store.previewGuidedTour()}>
-					Play guided tour
+					Play camera flow
 				</button>
 			{/if}
 		</div>

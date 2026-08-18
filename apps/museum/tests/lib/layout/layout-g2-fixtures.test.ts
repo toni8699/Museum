@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { chopinProject } from '$lib/content/chopin-project';
-import { getCameraMotionOptions, getGuidedCameraRoute } from '$lib/museum/navigation/camera-route';
+import { getCameraMotionOptions, getFlowRoute } from '$lib/museum/navigation/camera-route';
 import type { Vector3Like } from '$lib/museum/navigation/camera-motion';
 
 function vectorToTuple(point: Vector3Like): [number, number, number] {
@@ -239,9 +239,9 @@ describe('G2 hit-priority freeze', () => {
 });
 
 describe('G2 camera-projection scene fixture', () => {
-	it('resolves the guided cycle and flattens to the expected 2D polyline', () => {
+	it('resolves the flow loop and flattens to the expected 2D polyline', () => {
 		const graph = g2SceneNavigationGraph();
-		const route = getGuidedCameraRoute('n0', graph);
+		const route = getFlowRoute('n0', graph, { loop: true });
 		expect(route.nodeIds).toEqual(['n0', 'n1', 'n2', 'n0']);
 		const positions = route.positionParts.flatMap((part) => {
 			const points = part.kind === 'rounded-polyline' ? part.points : part.anchors;

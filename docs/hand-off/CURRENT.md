@@ -30,22 +30,30 @@ relocation, transitions, and polished workspace presentation. Focused plans:
 [`../plans/2026-08-17-graphics-h1-s10.2-camera-flow-model.md`](../plans/2026-08-17-graphics-h1-s10.2-camera-flow-model.md) ·
 [`../plans/2026-08-17-graphics-h1-s10.1-camera-workspace-ui-rework.md`](../plans/2026-08-17-graphics-h1-s10.1-camera-workspace-ui-rework.md).
 
-**H1 S10.2 Camera Flow model plan (2026-08-17, approved direction, not yet
-implemented):** the closed-loop "Guided Tour" becomes one ordered main route
-plus optional detours that return to their origin. Ordering stays the
-persisted `nextNodeId`/`previousNodeId` links (the existing order-vs-connectivity
-split), the codec relaxes "both-or-neither / must close" to simple chains, and
-the only new persisted field is `detourOfNodeId` on a detour head. The loop is
-no longer a persistence requirement — **Loop playback is a manual authoring
-choice**: the user connects the tail back to the head, closing the order links
-with a real authored return edge; there is no synthesized playback wrap.
-Append = one auto-created edge; insert = at most one; the old edge is retained
-as unused (never auto-deleted — edges own authored motion). The two-node seed
-simplifies to an open pair, removing the degenerate closed 2-cycle that caused
-the `each_key_duplicate` gizmo crash. See the plan's invariants F1–F10,
-mutation table (one transaction per op), and slices 1–7; slices 5–6 (sidebar
-tree, timeline drill-down, standalone placement) land in S10.1, which must be
-reworked against this model instead of the Close-loop empty-state language.
+**H1 S10.2 Camera Flow model (2026-08-17, implemented — slices 1–4, uncommitted):** the
+closed-loop "Guided Tour" becomes one ordered main route plus optional detours
+that return to their origin. Ordering stays the persisted
+`nextNodeId`/`previousNodeId` links (the existing order-vs-connectivity split),
+the codec relaxes "both-or-neither / must close" to simple chains, and the
+only new persisted field is `detourOfNodeId` on a detour head. The loop is no
+longer a persistence requirement — **Loop is derived, never a mutation**: it
+exists iff a distinct tail↔head connection record exists and is not a chain
+transition (uniform for all N; a two-node pair never loops). Append = one
+auto-created edge; insert = at most one; the old edge is retained as unused
+(never auto-deleted — edges own authored motion). The two-node seed simplifies
+to an open pair, removing the degenerate closed 2-cycle that caused the
+`each_key_duplicate` gizmo crash. Slices 1–4 are done and green: codec accepts
+open chains + legacy closed cycles + one-node detours (`validateVersionTwoTour`
+component analysis); `getFlowRoute` walks to the open tail and derives the
+loop; the timeline uses the open-chain boundary; mutator has generalized
+reorder/insert/remove, detour ops (add/append/remove/whole-delete with F5
+return edges + T9 strict splices), open-pair seed, and the full microcopy
+contract (incl. loop-on/loop-off announcements); S10's `closeGuidedTourLoop` /
+`findClosableGuidedChain` are removed; rename pass done (`getFlowRoute`,
+`CameraFlowPanel`, "Preview Flow"). Verified: 1660 tests pass, svelte-check 0
+errors, build clean. Slices 5–6 (sidebar tree, timeline drill-down, standalone
+placement) land in S10.1, which must be reworked against this model instead of
+the Close-loop empty-state language.
 
 **H1 S10.1 camera-node order model — product direction + live bugfix round (2026-08-17, uncommitted):** the
 Camera workspace should speak one ordered camera path — **Node 1 → Node 2 → …** —
@@ -153,24 +161,33 @@ green** (up from 1606), `svelte-check` 0, build clean. Focused plans:
 [`s8.1`](../plans/2026-08-17-graphics-h1-s8.1-room-agnostic-placement.md) ·
 [`s8.2`](../plans/2026-08-17-graphics-h1-s8.2-room-focus-cluster-expansion.md).
 
-**H1 S10 technical extraction implemented — uncommitted (2026-08-17).** H1 now
-passes an explicit `scene | camera` context into the 3D toolbar/view, keeps the
-relic's absent-prop fallback, scopes camera overlays and the full-width bottom
-timeline to Camera, and preserves the connect-flow node-handle force mount.
-The Scene View menu owns Ceiling; Camera owns the three camera-helper rows.
-`findClosableGuidedChain()` and `closeGuidedTourLoop()` enforce the conservative
-simple-path contract, commit one scene history entry with reciprocal guided
-links, select the new return edge, and post the deterministic endpoint status.
-The H1 second-node placement flow now seeds the concrete `[existing, new]`
-two-node reciprocal cycle in that same transaction, so Preview Tour is
-available immediately without a duplicate undirected edge; the relic is gated
-out of this behavior. Inspector panels remain selection-domain-driven, including preserved camera
-selection in Scene; Plan and `/museum/editor` boundaries remain unchanged.
-Focused graph/camera/H1 contract tests: **169 passed**; full museum suite:
-**1622 passed, 1 skipped**; `svelte-check`: **0 errors, 0 warnings**;
-production build: **clean** (existing bundle-size/import warnings only).
-S10.1 remains the next UI slice: dedicated sidebar, Place Camera relocation,
-transitions, Lucide dependency integration, and visual polish.
+**H1 S10 technical extraction implemented — uncommitted, verified (2026-08-17).**
+H1 now passes an explicit `scene | camera` context prop through `H1EditorApp` →
+`H13DView` → `EditorViewportToolbar` (`cameraAgnosticViewMenu` removed from the
+H1 path; the relic keeps its absent-prop `currentWorkspace` fallback). The
+Scene View menu owns Ceiling only; the Camera View menu owns the three
+camera-helper rows (Node handles / Tour paths / Framing & FOV). Camera
+authoring overlays and the connect-flow node-handle force-mount are gated to
+Camera (`isCameraContext && (viewportShowNodes || forceMountCameraNodeHandles)`
+preserved); `EditorCameraRig` stays always mounted; the full-width bottom
+`EditorCameraTimelineFrame` mounts only for `viewMode === '3d' &&
+active3dContext === 'camera'`. Pure `findClosableGuidedChain(document)`
+(one conservative open simple chain: order-free nodes, N-1 edges, no parallel
+edges, exactly two endpoints, deterministic document-order start, no existing
+return edge) plus atomic `closeGuidedTourLoop()` append exactly the missing
+last→first return edge, rewrite all reciprocal links, commit one `scene`
+history entry, select the new return connection, and post the deterministic
+endpoint status; the two-node bootstrap stays the explicit-order path (never
+a duplicate edge). Inspector panels remain selection-domain-driven, including
+preserved camera selection in Scene; Plan and `/museum/editor` boundaries
+remain unchanged. **S10.2 supersedes the Close-loop contract** (open-chain
+Camera Flow: the loop is derived, never a mutation) — S10.2 slice 3 reworks
+the same mutator, so S10's close-loop piece is transitional. Focused
+graph/camera/H1 contract suites: **180 passed** (graph 18, contracts 67,
+camera 95); full museum suite: **1635 passed, 1 skipped**; `svelte-check`:
+**0 errors, 0 warnings**; production build: **clean**. S10.2 (Camera Flow
+model) is the next slice, then S10.1 (dedicated sidebar, Place Camera
+relocation, transitions, Lucide integration, visual polish).
 
 **H1 S7 shipped — Single TransformControls host and target adapters (steps 0–6, 2026-08-16; committed 2026-08-17).**
 One `EditorTransformControlsHost.svelte` owns the sole `ThreeTransformControls` per mounted 3D Canvas; `EditorTransformControls.svelte` is a thin composer resolving one nullable adapter from the H1 `ActiveEditorSelection` (relic keeps its legacy arbitration through the same adapters). Step 0 pinned the contracts block + recorded behavioral fixtures; step 1 added the shared host/adapter/session/policy contracts + pure policy helpers + the FSM `ACTIVE_TARGET_CHANGE` event (removing the dead ESC-from-Dragging revert and the placement-only `DragSnapshot`); step 2 extracted the host against a fake-host lifecycle harness (begin refusal, orbit true/false restore, single cancel, late-mouseUp suppression); step 3 moved the scene placement session into `scene-gizmo-adapter.svelte.ts` (pivot, rigid baselines, snaps, keep-on-floor, one transaction); step 4 moved the camera session into `camera-gizmo-adapter.svelte.ts` (node/anchor/view-target, pending drafts, epsilons); step 5 added the pure `layout-gizmo-target.ts` descriptors + baseline-relative delta math for all five layout identities and threaded the S7 "not interactive" gate to the toolbar/shortcuts (no live layout adapter); step 6 drives the toolbar + W/E/R/T shortcuts from the generic `projectGizmoCapabilities` projection (scene/camera policies shared with the host; scale chain scene-placement-only). Layout selections stay detached — transform buttons disabled, no handles, no project/history/dirty change — until S8. Full suite **1565 green** (up from 1518), `svelte-check` 0, production build clean, `/museum` visitor chunk graph free of gizmo/editor markers, G3 bench budgets pass unchanged (no re-baseline). Two as-built camera-gizmo deviations surfaced during manual QA and were fixed:

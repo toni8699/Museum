@@ -41,8 +41,13 @@ import type { EditorCameraTimeline } from '../editor-camera-timeline';
 import { reserveEntityId } from '../editor-assets';
 import type { EditorNavigationSelection } from '../editor-selection';
 import {
+	currentMainFlowNodeIds,
 	validateConnectionCreation,
 	validateConnectionDeletion,
+	validateDetourAppend,
+	validateDetourCreation,
+	validateDetourNodeRemoval,
+	validateDetourRemoval,
 	validateGuidedTourInsertion,
 	validateGuidedTourOrder,
 	validateGuidedTourRemoval,
@@ -402,17 +407,30 @@ export class EditorNavigationGraphMutator {
 				return false;
 			}
 			const node = pending.node;
-			// A newly placed second node has an unambiguous authored order: the
-			// existing destination first, then the newly committed node. Seed that
-			// two-node reciprocal cycle in the same scene transaction so Preview
-			// Tour is immediately available. Two nodes share one undirected edge;
-			// Close loop intentionally does not add a duplicate return edge for
-			// this special case.
-			const seedTwoNodeGuidedCycle =
+			// S10.2 — a newly placed node seeds or appends the open flow. The
+			// second node (no flow yet) seeds an open pair `1 → 2` with one
+			// undirected edge: two nodes share one record, so the pair never
+			// loops and both travel directions stay available. When a flow
+			// exists and the chosen destination is its tail, the new node is
+			// appended (`tail.next = new`) in the same transaction.
+			const seedTwoNodeFlow =
 				!this.host.isRelic &&
 				this.host.document.navigationNodes.length === 1 &&
 				destination.nextNodeId === undefined &&
 				destination.previousNodeId === undefined;
+			const mainFlowNodeIds = currentMainFlowNodeIds(this.host.document);
+			const appendsToTail =
+				!seedTwoNodeFlow &&
+				mainFlowNodeIds !== null &&
+				mainFlowNodeIds.at(-1) === destination.id;
+			// Microcopy contract — when appending turns a live loop off, announce
+			// the transition (the old tail→head record stays as an ordinary
+			// connection; the loop simply stops qualifying). Compute BEFORE the
+			// mutation: an open chain's only tail→head record is always distinct
+			// from its N−1 transition records, so its presence is the loop test.
+			const loopWasOn = appendsToTail
+				? this.#flowHasDistinctClosingRecord(mainFlowNodeIds!)
+				: false;
 			const connectionId = reserveEntityId(
 				`${destination.id}-${node.id}`,
 				new Set(this.host.document.connections.map((connection) => connection.id))
@@ -426,11 +444,23 @@ export class EditorNavigationGraphMutator {
 			};
 			this.host.document.navigationNodes.push(committedNode);
 			this.#appendStraightConnection(destination, committedNode, connectionId);
-			if (seedTwoNodeGuidedCycle) {
-				destination.previousNodeId = committedNode.id;
+			if (seedTwoNodeFlow) {
 				destination.nextNodeId = committedNode.id;
 				committedNode.previousNodeId = destination.id;
-				committedNode.nextNodeId = destination.id;
+			} else if (appendsToTail) {
+				// A legacy closed cycle's derived tail still carries its wraparound
+				// next link; appending dissolves the closure (the head's reciprocal
+				// previous link clears with it) before writing the open append.
+				if (destination.nextNodeId !== undefined) {
+					delete destination.nextNodeId;
+					const headId = mainFlowNodeIds[0];
+					const head = this.host.document.navigationNodes.find(
+						(node) => node.id === headId
+					);
+					if (head) delete head.previousNodeId;
+				}
+				destination.nextNodeId = committedNode.id;
+				committedNode.previousNodeId = destination.id;
 			}
 			if (!this.host.commitDocumentTransaction()) return false;
 
@@ -446,10 +476,18 @@ export class EditorNavigationGraphMutator {
 				this.host.syncCameraTimelineForConnection(connectionId, 'forward', 0);
 				this.host.showCameraTimelineConnectionPose(connectionId, 'forward', 0);
 			}
+			const headLabel =
+				this.host.document.navigationNodes.find(
+					(candidate) => candidate.id === mainFlowNodeIds?.[0]
+				)?.label ?? mainFlowNodeIds?.[0] ?? '';
 			this.host.setStatusMessage(
-				seedTwoNodeGuidedCycle
-					? `Added ${node.label} and started a two-node guided tour`
-					: `Added ${node.label} and its first connection`
+				seedTwoNodeFlow
+					? `Added ${node.label} and started a two-node camera flow`
+					: appendsToTail
+						? loopWasOn
+							? `${node.label} is now the end of the tour. The loop from ${destination.label} → ${headLabel} is inactive. Draw ${node.label} → ${headLabel} to loop`
+							: `Added ${node.label} after ${destination.label} — the path now ends at ${node.label}`
+						: `Added ${node.label} and its first connection`
 			);
 			return true;
 		}
@@ -479,6 +517,16 @@ export class EditorNavigationGraphMutator {
 		);
 		if (!connectionPlan) return false;
 		const { sourceNode: source, destinationNode: destination } = connectionPlan;
+		// Loop-appears microcopy — compute before the mutation: if the new edge
+		// joins the flow head and tail, it is the distinct closing record and
+		// the derived loop turns on. Announce it; never silent.
+		const mainFlowNodeIds = currentMainFlowNodeIds(this.host.document);
+		const closesLoop =
+			mainFlowNodeIds !== null &&
+			mainFlowNodeIds.length >= 3 &&
+			!this.#flowHasDistinctClosingRecord(mainFlowNodeIds) &&
+			((source.id === mainFlowNodeIds[0] && destination.id === mainFlowNodeIds.at(-1)) ||
+				(source.id === mainFlowNodeIds.at(-1) && destination.id === mainFlowNodeIds[0]));
 		const connectionId = reserveEntityId(
 			`${source.id}-${destination.id}`,
 			new Set(this.host.document.connections.map((connection) => connection.id))
@@ -499,7 +547,19 @@ export class EditorNavigationGraphMutator {
 			this.host.syncCameraTimelineForConnection(connectionId, 'forward', 0);
 			this.host.showCameraTimelineConnectionPose(connectionId, 'forward', 0);
 		}
-		this.host.setStatusMessage('Connected camera nodes');
+		const tailLabel =
+			this.host.document.navigationNodes.find(
+				(candidate) => candidate.id === mainFlowNodeIds?.at(-1)
+			)?.label ?? mainFlowNodeIds?.at(-1) ?? '';
+		const headLabel =
+			this.host.document.navigationNodes.find(
+				(candidate) => candidate.id === mainFlowNodeIds?.[0]
+			)?.label ?? mainFlowNodeIds?.[0] ?? '';
+		this.host.setStatusMessage(
+			closesLoop
+				? `The path now loops: ${tailLabel} → ${headLabel}`
+				: 'Connected camera nodes'
+		);
 		return true;
 	}
 
@@ -521,8 +581,27 @@ export class EditorNavigationGraphMutator {
 		return connection;
 	}
 
+	/**
+	 * S10.2 — distinct-connection loop test on the document (tail→head record
+	 * present and distinct from the open chain's N−1 transitions). For N ≥ 3
+	 * the tail→head pair is never a consecutive chain pair, so presence alone
+	 * decides; a two-node pair's only record IS its chain transition and never
+	 * loops (T5/T8). Mirrors `getFlowLoopConnectionId` on the resolved graph.
+	 */
+	#flowHasDistinctClosingRecord(mainFlowNodeIds: readonly string[]) {
+		const headId = mainFlowNodeIds[0];
+		const tailId = mainFlowNodeIds.at(-1);
+		if (headId === undefined || tailId === undefined || headId === tailId) return false;
+		if (mainFlowNodeIds.length < 3) return false;
+		return this.host.document.connections.some(
+			(connection) =>
+				(connection.fromNodeId === headId && connection.toNodeId === tailId) ||
+				(connection.fromNodeId === tailId && connection.toNodeId === headId)
+		);
+	}
+
 	// ===================================================================
-	// Guided tour ordering
+	// Camera flow ordering
 	// ===================================================================
 
 	/** Rewrite one complete reciprocal guided cycle without creating graph edges. */
@@ -533,11 +612,15 @@ export class EditorNavigationGraphMutator {
 		);
 		if (!orderPlan) return false;
 		const committed = this.#applyGuidedTourOrder(orderPlan.nodeIds);
-		if (committed) this.host.setStatusMessage('Updated guided tour order');
+		if (committed) this.host.setStatusMessage('Updated camera flow order');
 		return committed;
 	}
 
-	/** Insert one free camera node into an existing guided gap. */
+	/**
+	 * Insert one free camera node into an existing flow gap. Per the S10.2
+	 * mutation contract at most ONE missing consecutive edge may be
+	 * auto-created in the same transaction; any more rejects before mutation.
+	 */
 	insertNodeIntoGuidedTour(nodeId: string, index: number) {
 		if (!this.#canEditGuidedTour()) return false;
 		const insertionPlan = runOrFail(this.host, () =>
@@ -547,12 +630,43 @@ export class EditorNavigationGraphMutator {
 		const node = this.host.document.navigationNodes.find(
 			(candidate) => candidate.id === nodeId
 		)!;
-		const committed = this.#applyGuidedTourOrder(insertionPlan.nodeIds);
-		if (committed) this.host.setStatusMessage(`Added ${node.label} to the guided tour`);
-		return committed;
+		if (!this.host.beginDocumentTransaction()) return false;
+		if (insertionPlan.missingConnection) {
+			if (
+				!this.#appendMissingConnection(insertionPlan.missingConnection)
+			) {
+				this.host.cancelDocumentTransaction();
+				return false;
+			}
+		}
+		this.#rewriteGuidedTourOrder(insertionPlan.nodeIds);
+		if (!this.host.commitDocumentTransaction()) return false;
+		const labels = insertionPlan.nodeIds.map(
+			(candidate) =>
+				this.host.document.navigationNodes.find((n) => n.id === candidate)?.label ??
+				candidate
+		);
+		const indexOfNode = insertionPlan.nodeIds.indexOf(node.id);
+		let message: string;
+		if (indexOfNode === insertionPlan.nodeIds.length - 1) {
+			message = `Added ${node.label} after ${labels.at(-2)} — the path now ends at ${node.label}`;
+		} else {
+			message = `Added ${node.label} between ${labels[indexOfNode - 1]} and ${labels[indexOfNode + 1]}`;
+		}
+		if (insertionPlan.missingConnection) {
+			const from = this.host.document.navigationNodes.find(
+				(n) => n.id === insertionPlan.missingConnection!.fromNodeId
+			);
+			const to = this.host.document.navigationNodes.find(
+				(n) => n.id === insertionPlan.missingConnection!.toNodeId
+			);
+			message += ` — created the missing transition ${from?.label ?? insertionPlan.missingConnection!.fromNodeId} → ${to?.label ?? insertionPlan.missingConnection!.toNodeId}`;
+		}
+		this.host.setStatusMessage(message);
+		return true;
 	}
 
-	/** Remove one non-start node from the guided cycle while retaining graph topology. */
+	/** Remove one non-start node from the flow while retaining graph topology. */
 	removeNodeFromGuidedTour(nodeId: string) {
 		if (!this.#canEditGuidedTour()) return false;
 		const removalPlan = runOrFail(this.host, () =>
@@ -563,8 +677,142 @@ export class EditorNavigationGraphMutator {
 			(candidate) => candidate.id === nodeId
 		)!;
 		const committed = this.#applyGuidedTourOrder(removalPlan.nodeIds);
-		if (committed) this.host.setStatusMessage(`Removed ${node.label} from the guided tour`);
+		if (committed) {
+			this.host.setStatusMessage(
+				`Removed ${node.label} from the path — ${node.label} is now a free node`
+			);
+		}
 		return committed;
+	}
+
+	// ===================================================================
+	// Detours (S10.2)
+	// ===================================================================
+
+	/**
+	 * S10.2 — branch a free node from a main-route origin. The origin–head
+	 * edge is auto-created when missing (F5): a one-node detour needs no
+	 * extra edge — origin ↔ head is one undirected record serving both the
+	 * chain and the return.
+	 */
+	addDetourNode(originNodeId: string, headNodeId: string) {
+		if (!this.#canEditGuidedTour()) return false;
+		const detourPlan = runOrFail(this.host, () =>
+			validateDetourCreation(this.host.document, originNodeId, headNodeId)
+		);
+		if (!detourPlan) return false;
+		if (!this.host.beginDocumentTransaction()) return false;
+		const head = this.host.document.navigationNodes.find(
+			(node) => node.id === headNodeId
+		)!;
+		head.detourOfNodeId = originNodeId;
+		this.#ensureConnectionBetween(originNodeId, headNodeId);
+		if (!this.host.commitDocumentTransaction()) return false;
+		this.host.setStatusMessage(
+			`Detour added at ${detourPlan.originNode.label}: ${head.label}`
+		);
+		return true;
+	}
+
+	/**
+	 * S10.2 — append a free node to an existing detour. Creates the tail–new
+	 * chain edge when missing, and ensures the new tail → origin return edge
+	 * exists (F5 — create once, never delete).
+	 */
+	appendDetourNode(originNodeId: string, newNodeId: string) {
+		if (!this.#canEditGuidedTour()) return false;
+		const detourPlan = runOrFail(this.host, () =>
+			validateDetourAppend(this.host.document, originNodeId, newNodeId)
+		);
+		if (!detourPlan) return false;
+		if (!this.host.beginDocumentTransaction()) return false;
+		const tail = this.host.document.navigationNodes.find(
+			(node) => node.id === detourPlan.tailId
+		)!;
+		const newNode = this.host.document.navigationNodes.find(
+			(node) => node.id === newNodeId
+		)!;
+		tail.nextNodeId = newNode.id;
+		newNode.previousNodeId = tail.id;
+		this.#ensureConnectionBetween(tail.id, newNode.id);
+		this.#ensureConnectionBetween(newNode.id, originNodeId);
+		if (!this.host.commitDocumentTransaction()) return false;
+		this.host.setStatusMessage(
+			`Added ${newNode.label} to the detour at ${detourPlan.originNode.label}`
+		);
+		return true;
+	}
+
+	/**
+	 * S10.2 — remove one node from a detour chain (order-only; edges stay
+	 * authored). Strict per T9: a new pred–succ adjacency must already have a
+	 * connection. Removing the head transfers the origin marker to the new
+	 * head; removing the last node clears the whole detour.
+	 */
+	removeDetourNode(originNodeId: string, nodeId: string) {
+		if (!this.#canEditGuidedTour()) return false;
+		const detourPlan = runOrFail(this.host, () =>
+			validateDetourNodeRemoval(this.host.document, originNodeId, nodeId)
+		);
+		if (!detourPlan) return false;
+		if (!this.host.beginDocumentTransaction()) return false;
+		const node = this.host.document.navigationNodes.find(
+			(candidate) => candidate.id === nodeId
+		)!;
+		const predecessorNodeId = node.previousNodeId;
+		const successorNodeId = node.nextNodeId;
+		if (predecessorNodeId && successorNodeId) {
+			const predecessor = this.host.document.navigationNodes.find(
+				(candidate) => candidate.id === predecessorNodeId
+			)!;
+			const successor = this.host.document.navigationNodes.find(
+				(candidate) => candidate.id === successorNodeId
+			)!;
+			predecessor.nextNodeId = successor.id;
+			successor.previousNodeId = predecessor.id;
+		} else if (predecessorNodeId) {
+			const predecessor = this.host.document.navigationNodes.find(
+				(candidate) => candidate.id === predecessorNodeId
+			)!;
+			delete predecessor.nextNodeId;
+		} else if (successorNodeId) {
+			const successor = this.host.document.navigationNodes.find(
+				(candidate) => candidate.id === successorNodeId
+			)!;
+			delete successor.previousNodeId;
+			successor.detourOfNodeId = originNodeId;
+		}
+		delete node.previousNodeId;
+		delete node.nextNodeId;
+		delete node.detourOfNodeId;
+		if (!this.host.commitDocumentTransaction()) return false;
+		this.host.setStatusMessage(
+			`Removed ${node.label} from the detour — the camera node is kept as free`
+		);
+		return true;
+	}
+
+	/** S10.2 — remove a whole detour: chain nodes become free, edges stay authored. */
+	removeDetour(originNodeId: string) {
+		if (!this.#canEditGuidedTour()) return false;
+		const detourPlan = runOrFail(this.host, () =>
+			validateDetourRemoval(this.host.document, originNodeId)
+		);
+		if (!detourPlan) return false;
+		if (!this.host.beginDocumentTransaction()) return false;
+		for (const nodeId of detourPlan.chainNodeIds) {
+			const node = this.host.document.navigationNodes.find(
+				(candidate) => candidate.id === nodeId
+			)!;
+			delete node.previousNodeId;
+			delete node.nextNodeId;
+			delete node.detourOfNodeId;
+		}
+		if (!this.host.commitDocumentTransaction()) return false;
+		this.host.setStatusMessage(
+			`Removed the detour at ${detourPlan.originNode.label} — the camera nodes are kept as free`
+		);
+		return true;
 	}
 
 	/**
@@ -630,8 +878,8 @@ export class EditorNavigationGraphMutator {
 		const node = this.host.document.navigationNodes.find((candidate) => candidate.id === nodeId)!;
 		this.host.setStatusMessage(
 			missing
-				? `Added ${node.label} to the guided tour with one straight connection`
-				: `Moved ${node.label} in the guided tour`
+				? `Moved ${node.label} — created the missing transition ${missing.fromNodeId} → ${missing.toNodeId}`
+				: `Moved ${node.label} in the camera flow`
 		);
 		return true;
 	}
@@ -642,30 +890,118 @@ export class EditorNavigationGraphMutator {
 		return this.host.commitDocumentTransaction();
 	}
 
+	/**
+	 * S10.2 — rewrite one complete open-chain order. No wraparound: the head
+	 * keeps `previousNodeId` undefined and the tail keeps `nextNodeId`
+	 * undefined; nodes outside the order lose all links UNLESS they belong to
+	 * a detour chain — detour order links are separate components and must
+	 * survive every main-flow rewrite (F4/F5).
+	 */
 	#rewriteGuidedTourOrder(nodeIds: readonly string[]) {
 		const guidedIndexById = new Map(
 			nodeIds.map((nodeId, index) => [nodeId, index])
 		);
+		const detourNodeIds = this.#collectDetourNodeIds(new Set(nodeIds));
 		for (const node of this.host.document.navigationNodes) {
 			const index = guidedIndexById.get(node.id);
 			if (index === undefined) {
+				if (detourNodeIds.has(node.id)) continue;
 				delete node.nextNodeId;
 				delete node.previousNodeId;
 				continue;
 			}
-			node.previousNodeId = nodeIds[(index - 1 + nodeIds.length) % nodeIds.length]!;
-			node.nextNodeId = nodeIds[(index + 1) % nodeIds.length]!;
+			if (index === 0) {
+				delete node.previousNodeId;
+				node.nextNodeId = nodeIds[1];
+			} else if (index === nodeIds.length - 1) {
+				node.previousNodeId = nodeIds[index - 1]!;
+				delete node.nextNodeId;
+			} else {
+				node.previousNodeId = nodeIds[index - 1]!;
+				node.nextNodeId = nodeIds[index + 1]!;
+			}
 		}
+	}
+
+	/**
+	 * S10.2 — every node in a detour chain (heads carry `detourOfNodeId`;
+	 * interior nodes are reachable through prev/next links from a head and
+	 * carry no marker). Main-flow order rewrites must never touch these
+	 * links. The walk never crosses into the main flow: a detour head has no
+	 * `previousNodeId`, and F5's return is an edge, not an order link — so
+	 * following prev/next from a head only ever visits the chain. The main
+	 * flow id set is a defensive guard regardless.
+	 */
+	#collectDetourNodeIds(mainFlowIds: ReadonlySet<string>): ReadonlySet<string> {
+		const nodes = this.host.document.navigationNodes;
+		const nodeById = new Map(nodes.map((node) => [node.id, node]));
+		const heads = nodes.filter((node) => node.detourOfNodeId !== undefined);
+		const detourNodeIds = new Set<string>();
+		const queue = heads.map((head) => head.id);
+		while (queue.length > 0) {
+			const nodeId = queue.pop()!;
+			if (detourNodeIds.has(nodeId) || mainFlowIds.has(nodeId)) continue;
+			detourNodeIds.add(nodeId);
+			const node = nodeById.get(nodeId);
+			if (!node) continue;
+			for (const linkedId of [node.nextNodeId, node.previousNodeId]) {
+				if (linkedId === undefined) continue;
+				queue.push(linkedId);
+			}
+		}
+		return detourNodeIds;
+	}
+
+	/** Append one missing straight edge inside the active transaction. */
+	#appendMissingConnection(missing: { fromNodeId: string; toNodeId: string }) {
+		const from = this.host.document.navigationNodes.find(
+			(node) => node.id === missing.fromNodeId
+		);
+		const to = this.host.document.navigationNodes.find(
+			(node) => node.id === missing.toNodeId
+		);
+		if (!from || !to) {
+			this.host.setStatusMessage('The flow transition endpoints became unavailable');
+			return false;
+		}
+		const connectionId = reserveEntityId(
+			`${from.id}-${to.id}`,
+			new Set(this.host.document.connections.map((connection) => connection.id))
+		);
+		this.#appendStraightConnection(from, to, connectionId);
+		return true;
+	}
+
+	/** Ensure an undirected edge exists between two nodes (F5 — create once, never delete). */
+	#ensureConnectionBetween(fromNodeId: string, toNodeId: string) {
+		if (fromNodeId === toNodeId) return null;
+		const existing = this.host.document.connections.find(
+			(connection) =>
+				(connection.fromNodeId === fromNodeId && connection.toNodeId === toNodeId) ||
+				(connection.fromNodeId === toNodeId && connection.toNodeId === fromNodeId)
+		);
+		if (existing) return existing.id;
+		const from = this.host.document.navigationNodes.find(
+			(node) => node.id === fromNodeId
+		);
+		const to = this.host.document.navigationNodes.find((node) => node.id === toNodeId);
+		if (!from || !to) return null;
+		const connectionId = reserveEntityId(
+			`${fromNodeId}-${toNodeId}`,
+			new Set(this.host.document.connections.map((connection) => connection.id))
+		);
+		this.#appendStraightConnection(from, to, connectionId);
+		return connectionId;
 	}
 
 	#canEditGuidedTour() {
 		if (this.host.isDocumentMutationBlocked) {
-			this.host.setStatusMessage('Cannot edit guided order during active camera playback');
+			this.host.setStatusMessage('Cannot edit the camera flow during active camera playback');
 			return false;
 		}
 		if (this.host.isEditorInteractionActive || this.host.isDocumentTransactionActive) {
 			this.host.setStatusMessage(
-				'Finish the active editor interaction before editing guided order'
+				'Finish the active editor interaction before editing the camera flow'
 			);
 			return false;
 		}
@@ -718,17 +1054,21 @@ export class EditorNavigationGraphMutator {
 		return true;
 	}
 
-	/** Delete one free node, or splice one guided node across an existing direct edge. */
+	/** Delete one free node, or splice one flow node across an existing direct edge. */
 	deleteNavigationNode(nodeId: string) {
 		if (!this.#canRunTopologyDeletion('node')) return false;
 		const nodePlan = runOrFail(this.host, () =>
 			validateNavigationNodeDeletion(this.host.document, nodeId)
 		);
 		if (!nodePlan) return false;
+		const deletedNodeIds = new Set([
+			nodePlan.node.id,
+			...(nodePlan.detourChainNodeIds ?? [])
+		]);
 		const incidentConnectionIds = new Set(nodePlan.incidentConnectionIds);
 		if (
 			!this.#releasePausedPreviewForTopology(
-				new Set([nodePlan.node.id]),
+				deletedNodeIds,
 				incidentConnectionIds
 			)
 		) {
@@ -736,35 +1076,68 @@ export class EditorNavigationGraphMutator {
 		}
 
 		if (!this.host.beginDocumentTransaction()) return false;
-		if (nodePlan.predecessorNodeId && nodePlan.successorNodeId) {
+		const predecessorNodeId = nodePlan.predecessorNodeId;
+		const successorNodeId = nodePlan.successorNodeId;
+		if (predecessorNodeId && successorNodeId) {
 			const predecessor = this.host.document.navigationNodes.find(
-				(node) => node.id === nodePlan.predecessorNodeId
+				(node) => node.id === predecessorNodeId
 			);
 			const successor = this.host.document.navigationNodes.find(
-				(node) => node.id === nodePlan.successorNodeId
+				(node) => node.id === successorNodeId
 			);
 			if (!predecessor || !successor) {
 				this.host.cancelDocumentTransaction();
-				this.host.setStatusMessage('The guided deletion plan became unavailable');
+				this.host.setStatusMessage('The flow deletion plan became unavailable');
 				return false;
 			}
 			predecessor.nextNodeId = successor.id;
 			successor.previousNodeId = predecessor.id;
+		} else if (predecessorNodeId) {
+			const predecessor = this.host.document.navigationNodes.find(
+				(node) => node.id === predecessorNodeId
+			);
+			if (!predecessor) {
+				this.host.cancelDocumentTransaction();
+				this.host.setStatusMessage('The flow deletion plan became unavailable');
+				return false;
+			}
+			delete predecessor.nextNodeId;
+		} else if (successorNodeId) {
+			const successor = this.host.document.navigationNodes.find(
+				(node) => node.id === successorNodeId
+			);
+			if (!successor) {
+				this.host.cancelDocumentTransaction();
+				this.host.setStatusMessage('The flow deletion plan became unavailable');
+				return false;
+			}
+			delete successor.previousNodeId;
 		}
 		this.host.document.navigationNodes = this.host.document.navigationNodes
-			.filter((node) => node.id !== nodePlan.node.id)
+			.filter((node) => !deletedNodeIds.has(node.id))
 			.map((node) => ({
 				...node,
 				connectedNodeIds: node.connectedNodeIds.filter(
-					(connectedNodeId) => connectedNodeId !== nodePlan.node.id
+					(connectedNodeId) => !deletedNodeIds.has(connectedNodeId)
 				)
 			}));
 		this.host.document.connections = this.host.document.connections.filter(
 			(connection) => !incidentConnectionIds.has(connection.id)
 		);
+		const originLabel = nodePlan.detourOriginNodeId
+			? (this.host.document.navigationNodes.find(
+					(node) => node.id === nodePlan.detourOriginNodeId
+			  )?.label ?? nodePlan.detourOriginNodeId)
+			: undefined;
 		if (!this.host.commitDocumentTransaction()) return false;
 		this.#clearDeletedConnectionSessionState(incidentConnectionIds);
-		this.host.setStatusMessage(`Deleted camera node ${nodePlan.node.label}`);
+		if (nodePlan.detourChainNodeIds && nodePlan.detourChainNodeIds.length > 0) {
+			this.host.setStatusMessage(
+				`Deleted camera node ${nodePlan.node.label} and the detour at ${originLabel}`
+			);
+		} else {
+			this.host.setStatusMessage(`Deleted camera node ${nodePlan.node.label}`);
+		}
 		return true;
 	}
 

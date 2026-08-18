@@ -632,7 +632,7 @@ export class EditorCameraPreviewController {
 			return getCameraConnectionRoute(preview.connectionId, preview.direction, graph);
 		}
 		if (preview.kind === 'tour') {
-			throw new Error('Guided tour preview uses exact camera timeline motions');
+			throw new Error('Camera flow preview uses exact camera timeline motions');
 		}
 		return getCameraRoute(preview.fromNodeId, preview.toNodeId, graph);
 	}

@@ -291,24 +291,26 @@ describe('H1 S1 — Plan ↔ 3D switch preserves session state', () => {
 		expect(JSON.parse(JSON.stringify(store.selection.workspace))).toEqual(selection);
 	});
 
-	it('restores the layout ceiling toggle into the H1 3D View menu (camera-agnostic), relic untouched', () => {
+	it('restores the layout ceiling toggle into the H1 3D View menu (S10 context contract), relic untouched', () => {
 		const toolbar = readLibSource('editor/EditorViewportToolbar.svelte');
 		const h13d = readLibSource('editor/h1/H13DView.svelte');
 		const viewport = readLibSource('editor/EditorViewport.svelte');
 
-		// The shared toolbar gains a Ceiling menuitem only when fed by the H1
-		// shell, and its View menu surfaces in both 3D contexts via the
-		// H1-only cameraAgnosticViewMenu prop.
+		// S10 — the H1 camera-agnostic escape hatch is gone: the shared toolbar
+		// takes the explicit context prop, H13DView threads it, and the relic
+		// mount passes neither (legacy camera-only fallback).
 		expect(toolbar).toContain('onToggleCeilings');
-		expect(toolbar).toContain('cameraAgnosticViewMenu');
+		expect(toolbar).toContain('context?: \'scene\' | \'camera\'');
+		expect(toolbar).not.toContain('cameraAgnosticViewMenu');
 		expect(toolbar).toMatch(/role="menuitemcheckbox"[^]*?<span>Ceiling<\/span>/);
-		expect(h13d).toContain('cameraAgnosticViewMenu');
+		expect(h13d).toContain('context: \'scene\' | \'camera\'');
+		expect(h13d).not.toContain('cameraAgnosticViewMenu');
 		expect(h13d).toContain('onToggleCeilings={');
 		expect(h13d).toContain('toggleLayoutCeilings');
 		// The relic mount feeds neither prop, keeping its LayoutDraftToolbar
 		// Ceiling button as the single surface there.
 		expect(viewport).not.toContain('onToggleCeilings');
-		expect(viewport).not.toContain('cameraAgnosticViewMenu');
+		expect(viewport).not.toContain('context=');
 	});
 });
 
@@ -370,7 +372,7 @@ describe('H1 S4 — unified hierarchy contracts', () => {
 	});
 
 	it('keeps the camera tree internals reusable behind optional props (relic default behavior)', () => {
-		const guided = readLibSource('editor/GuidedTourPanel.svelte');
+		const guided = readLibSource('editor/CameraFlowPanel.svelte');
 		const connections = readLibSource('editor/NodeConnectionsPanel.svelte');
 		const keyframes = readLibSource('editor/DirectionalKeyframeList.svelte');
 		// The optional H1 S4 gate props default to true when absent.
@@ -379,14 +381,14 @@ describe('H1 S4 — unified hierarchy contracts', () => {
 		expect(keyframes).toMatch(/interactive\??:/);
 	});
 
-	it('gates every guided/free node-row pick in GuidedTourPanel behind interactive (Plan gate)', () => {
+	it('gates every guided/free node-row pick in CameraFlowPanel behind interactive (Plan gate)', () => {
 		// The Plan gate is behavioral, not just prop presence: the node-row
 		// select click (and the connections chevron) must be no-ops when
 		// interactive is false, exactly like the connection/direction rows — a
 		// plain `onclick={() => selectNode(node.id)}` would leak the camera
 		// domain into Plan (the plan's locked "scene/camera rows aria-disabled
 		// no-ops" decision).
-		const guided = readLibSource('editor/GuidedTourPanel.svelte');
+		const guided = readLibSource('editor/CameraFlowPanel.svelte');
 		// Row select is gated and carries aria-disabled on both guided + free
 		// rows (the two byte-identical row blocks share one handler shape).
 		expect(guided).not.toContain('onclick={() => selectNode(node.id)}');
@@ -413,14 +415,14 @@ describe('H1 S4 — unified hierarchy contracts', () => {
 
 	it('threads the active domain so the camera direction highlight is discovery-driven, gated to camera-or-none', () => {
 		const connections = readLibSource('editor/NodeConnectionsPanel.svelte');
-		const guided = readLibSource('editor/GuidedTourPanel.svelte');
+		const guided = readLibSource('editor/CameraFlowPanel.svelte');
 		const tree = readLibSource('editor/UnifiedProjectTree.svelte');
 		// The panel accepts the S3 active domain and highlights the discovery
 		// direction row when domain is camera-or-none (scrubbing sets discovery
 		// with no navigation selection); layout/scene never co-highlights.
 		expect(connections).toMatch(/activeDomain\??:/);
 		expect(connections).toContain("activeDomain === 'camera' || activeDomain === 'none'");
-		// GuidedTourPanel forwards the domain to every embedded panel, and the
+		// CameraFlowPanel forwards the domain to every embedded panel, and the
 		// unified tree supplies it from the S3 active selection.
 		// Svelte shorthand `{activeDomain}` on both embedded connections panels.
 		expect(guided.match(/\{activeDomain\}/g)?.length).toBe(2);
@@ -912,6 +914,93 @@ describe('H1 S8 — layout candidate session', () => {
 		const adapter = readLibSource('editor/gizmo/layout-gizmo-adapter.svelte.ts');
 		expect(adapter).toContain('isShiftHeld(): boolean');
 		expect(adapter).toContain('beginLayoutTransaction');
+	});
+});
+
+describe('H1 S10 — camera context contracts', () => {
+	it('threads the explicit context seam through the H1 shell; the relic keeps its absent-prop fallback', () => {
+		const app = readLibSource('editor/h1/H1EditorApp.svelte');
+		const h13d = readLibSource('editor/h1/H13DView.svelte');
+		const toolbar = readLibSource('editor/EditorViewportToolbar.svelte');
+		const viewport = readLibSource('editor/EditorViewport.svelte');
+
+		// H1 derives the context from EditorViewState.active3dContext and passes
+		// it down; the toolbar split is context-prop-driven.
+		expect(app).toContain('context={viewState.active3dContext}');
+		expect(h13d).toMatch(/context: 'scene' \| 'camera'/);
+		expect(toolbar).toMatch(/context\?: 'scene' \| 'camera'/);
+		// The H1-only camera-agnostic escape hatch is removed.
+		expect(h13d).not.toContain('cameraAgnosticViewMenu');
+		expect(toolbar).not.toContain('cameraAgnosticViewMenu');
+		// The relic mount passes no context and keeps the legacy camera-only
+		// View menu via currentWorkspace.
+		expect(viewport).not.toContain('context=');
+		expect(toolbar).toContain("context === undefined && store.currentWorkspace === 'camera'");
+	});
+
+	it('splits the View-menu rows: Scene exposes Ceiling only, Camera exposes the three camera-helper rows', () => {
+		const toolbar = readLibSource('editor/EditorViewportToolbar.svelte');
+
+		// The camera-helper rows are gated behind the camera branch; the Ceiling
+		// row is gated behind the scene branch.
+		expect(toolbar).toContain('showCameraHelperRows');
+		expect(toolbar).toContain("context === 'camera'");
+		expect(toolbar).toContain('showCeilingRow');
+		expect(toolbar).toContain("context === 'scene' && onToggleCeilings !== undefined");
+		// Row markers stay distinct: helper rows inside the camera branch, Ceiling
+		// inside the scene branch (slice from the template usage, not the script
+		// deriveds, so the rows themselves are what is asserted).
+		const cameraBranch = toolbar.slice(
+			toolbar.indexOf('{#if showCameraHelperRows}'),
+			toolbar.indexOf('{#if showCeilingRow}')
+		);
+		expect(cameraBranch).toContain('Node handles');
+		expect(cameraBranch).toContain('Tour paths');
+		expect(cameraBranch).toContain('Framing &amp; FOV');
+		expect(cameraBranch).not.toContain('Ceiling');
+		const sceneBranch = toolbar.slice(toolbar.indexOf('showCeilingRow'));
+		expect(sceneBranch).toContain('Ceiling');
+	});
+
+	it('mounts the camera timeline bottom frame only for 3D Camera, never Scene', () => {
+		const app = readLibSource('editor/h1/H1EditorApp.svelte');
+		const frame = readLibSource('editor/EditorCameraTimelineFrame.svelte');
+		expect(app).toContain("viewState.viewMode === '3d' && viewState.active3dContext === 'camera'");
+		// The frame keeps its full-width bottom-strip contract; only its mount
+		// point is Camera-gated.
+		expect(frame).toContain('grid-area: bottom');
+	});
+
+	it('gates camera authoring overlays to Camera while keeping the rig always mounted', () => {
+		const h13d = readLibSource('editor/h1/H13DView.svelte');
+
+		// EditorCameraRig stays mounted in both contexts (shared viewport infra).
+		expect(h13d).toContain('<EditorCameraRig');
+		// Overlay groups are camera-context gated.
+		expect(h13d).toContain('isCameraContext && store.viewportShowPaths');
+		expect(h13d).toContain('isCameraContext && store.viewportShowFraming');
+		// The node-handle group preserves the connect-flow force-mount override.
+		expect(h13d).toContain(
+			'isCameraContext && (store.viewportShowNodes || store.forceMountCameraNodeHandles)'
+		);
+	});
+
+	it('keeps the camera inspector selection-domain-driven, never context-driven', () => {
+		const inspector = readLibSource('editor/EditorInspector.svelte');
+		// The panel follows the active selection domain (a preserved camera
+		// selection stays inspectable in Scene); context never hides it.
+		expect(inspector).toContain('activeSelection.active.domain');
+		expect(inspector).toContain('selectedNavigation');
+		expect(inspector).not.toContain('active3dContext');
+	});
+
+	it('keeps Plan free of camera mutation surfaces and the relic route frozen', () => {
+		const planView = readLibSource('editor/h1/H1PlanView.svelte');
+		const relicRoute = readRouteSource('museum/editor/+page.svelte');
+		expect(planView).not.toContain('connectNavigationNodes');
+		expect(planView).not.toContain('closeGuidedTourLoop');
+		expect(planView).not.toContain('beginCameraPlacement');
+		expect(relicRoute).not.toContain('H1EditorApp');
 	});
 });
 

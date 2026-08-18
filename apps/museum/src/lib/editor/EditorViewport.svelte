@@ -179,6 +179,7 @@
 				wallMeshesByRoom={layoutPreview.wallMeshesByRoom}
 				interaction={layoutInteraction}
 				showCeilings={layoutPreview.showCeilings}
+				floorColor={store.floorColor}
 			/>
 			<EditorGrid visible={store.gridVisible && !store.isVisitorCameraPreview} />
 		</Canvas>

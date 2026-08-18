@@ -143,6 +143,8 @@ export class EditorSessionState {
 	cameraFocusRoomId = $state<string | null>(null);
 	cameraPanEnabled = $state(true);
 	gridVisible = $state(false);
+	/** Editor preview floor albedo — session-only viewport styling, never in history/visitor JSON. */
+	floorColor = $state('#57575d');
 
 	setCameraFocus(
 		kind: EditorCameraFocusKind,
@@ -187,6 +189,10 @@ export class EditorSessionState {
 
 	toggleGrid() {
 		this.gridVisible = !this.gridVisible;
+	}
+
+	setFloorColor(value: string) {
+		this.floorColor = value;
 	}
 
 	// ============================================================

@@ -2,8 +2,8 @@
 	// H1 S4 — one project hierarchy over both documents, mounted in Plan and 3D.
 	//
 	// Rooms come from the layout (document order, via the pure model); clusters
-	// and entities nest under their explicit roomId. Camera Tour embeds the
-	// existing GuidedTourPanel (connections → directions → view keys stay in the
+	// and entities nest under their explicit roomId. Camera Flow embeds the
+	// existing CameraFlowPanel (connections → directions → view keys stay in the
 	// panel internals, unchanged). Selection is domain-driven: picks call the
 	// source APIs the viewport calls, S3's hooks own cross-domain exclusivity,
 	// and the highlight reads `ActiveEditorSelection.active` (plus the store's
@@ -22,7 +22,7 @@
 		type LayoutInteractionState
 	} from './layout/layout-interaction';
 	import type { MuseumEditorStore } from './museum-editor.svelte';
-	import GuidedTourPanel from './GuidedTourPanel.svelte';
+	import CameraFlowPanel from './CameraFlowPanel.svelte';
 	import type { EditorActiveSelectionStore } from './h1/active-editor-selection.svelte';
 	import {
 		buildUnifiedProjectTreeModel,
@@ -461,14 +461,14 @@
 			onclick={() => (cameraTourOpen = !cameraTourOpen)}
 		>
 			<span class="chevron" class:open={cameraTourOpen}>›</span>
-			<span class="tree-row__label tree-root__label">Camera Tour</span>
+			<span class="tree-row__label tree-root__label">Camera Flow</span>
 			<span class="tree-row__meta">{store.document.navigationNodes.length}</span>
 		</button>
 		{#if cameraTourOpen}
 			{#if store.document.navigationNodes.length === 0}
 				<p class="empty">No cameras</p>
 			{:else}
-				<GuidedTourPanel {store} interactive={interactive} activeDomain={active.domain} />
+				<CameraFlowPanel {store} interactive={interactive} activeDomain={active.domain} />
 			{/if}
 		{/if}
 	</div>

@@ -775,6 +775,13 @@
 		<p>Middle-drag pans. Camera-node rows frame their authored eye and target.</p>
 		<button type="button" class:active={store.cameraPanEnabled} aria-pressed={store.cameraPanEnabled} disabled={store.isVisitorCameraPreview} onclick={() => store.toggleCameraPan()}>Pan {store.cameraPanEnabled ? 'on' : 'off'}</button>
 		<button type="button" class:active={store.gridVisible} aria-pressed={store.gridVisible} disabled={store.isVisitorCameraPreview} onclick={() => store.toggleGrid()}>Grid {store.gridVisible ? 'on' : 'off'}</button>
+		<label class="floor-color">
+			<span>Floor</span>
+			<div class="color-row">
+				<input type="color" value={store.floorColor} aria-label="Editor floor color picker" disabled={store.isVisitorCameraPreview} onchange={(event) => store.sessionView.setFloorColor(event.currentTarget.value)} />
+				<input type="text" value={store.floorColor} spellcheck="false" aria-label="Editor floor color hex" disabled={store.isVisitorCameraPreview} onchange={(event) => store.sessionView.setFloorColor(event.currentTarget.value)} />
+			</div>
+		</label>
 	</section>
 
 	<section class="lighting" aria-label="Viewport lighting">
@@ -881,6 +888,10 @@
 	.camera-controls p, .lighting p { margin: 0; color: #a8a29a; font-size: 0.75rem; line-height: 1.4; }
 	.camera-controls button { align-self: flex-start; }
 	.camera-controls button.active { border-color: #d6b35f; background: #2a2618; color: #fff2c7; }
+	.floor-color { display: flex; flex-direction: column; gap: 0.3rem; color: #d6d0c4; font-size: 0.75rem; }
+	.floor-color .color-row { display: flex; align-items: center; gap: 0.45rem; }
+	.floor-color input[type='color'] { width: 2rem; height: 1.5rem; padding: 0; border: 1px solid #3a3a46; border-radius: 0.32rem; background: transparent; cursor: pointer; }
+	.floor-color input[type='text'] { width: 5.5rem; padding: 0.28rem 0.4rem; border: 1px solid #3a3a46; border-radius: 0.32rem; background: #1a1a22; color: #f4efe4; font: inherit; font-size: 0.72rem; }
 	.presets button { flex: 1; }
 	.lighting label { display: flex; flex-direction: column; gap: 0.3rem; color: #d6d0c4; font-size: 0.75rem; }
 	.lighting label.checkbox { flex-direction: row; align-items: center; gap: 0.45rem; }

@@ -11,7 +11,7 @@
  * selection matching is exact, never coordinate- or index-guessed.
  *
  * Camera connection/direction rows are not modeled here: the tree embeds the
- * existing `GuidedTourPanel` / `NodeConnectionsPanel` /
+ * existing `CameraFlowPanel` / `NodeConnectionsPanel` /
  * `DirectionalKeyframeList`, which derive them from `getNodeConnections` and
  * own their selection/expansion behavior. The matcher still pins the camera
  * row contract (and the discovery-driven direction-row rule) for tests.
@@ -109,7 +109,8 @@ export type UnifiedProjectTreeModel = {
  * `roomId`; unowned objects are not shown in the tree (the inspector's object
  * list still reaches them). Camera nodes stay under the Camera Tour root
  * (guided chain in order + free nodes) — never nested under rooms.
- */	export function buildUnifiedProjectTreeModel(input: {
+ */
+export function buildUnifiedProjectTreeModel(input: {
 		layout: LayoutDocument;
 		scene: MuseumSceneDocument;
 		guidedTourNodeIds: string[];

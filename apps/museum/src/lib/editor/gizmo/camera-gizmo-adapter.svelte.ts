@@ -6,15 +6,20 @@
  *  - connection path anchors;
  *  - view-keyframe targets.
  *
- * World-space translate only (no rotation/scale handles, no snaps), on every
- * world axis — the pre-S7 monolith never restricted camera handles, so the
- * full X/Y/Z translate set is locked for parity (see `CAMERA_AXES`). Node
- * previews convert the proxy world position through `store.rooms.localPoint`
- * and go through the existing `updateNavigationNodePoint` path; anchor and
- * view-target previews call their existing world-point mutators. Authored
- * targets begin one scene document transaction; pending camera nodes keep
- * the no-transaction draft path and restore `startLocalPoint` on cancel.
- * Anchor/view-target epsilon no-ops stay at
+ * World-space translate + rotate, no scale handles, no snaps — the pre-S7
+ * monolith never restricted camera handles, so the full X/Y/Z translate set
+ * is locked for parity (see `CAMERA_TRANSLATE_AXES`). Camera-node rotate is a
+ * target-orbit aim: the rotate-gizmo delta (yaw/pitch from the attached
+ * root's quaternion) orbits the look target around the eye; anchors and
+ * view-keyframe targets are points and stay translate-only. Node previews
+ * convert the proxy world position through `store.rooms.localPoint` and go
+ * through the existing `updateNavigationNodePoint` path (rotate writes the
+ * target through `updateNavigationNodeTargetPoint`, which is not bound to the
+ * selected handle); anchor and view-target previews call their existing
+ * world-point mutators. Authored targets begin one scene document
+ * transaction; pending camera nodes keep the no-transaction draft path and
+ * restore `startLocalPoint` / `startLocalTarget` on cancel. Anchor/
+ * view-target epsilon no-ops stay at
  * `EDITOR_CAMERA_PATH_MOVE_EPSILON` / `EDITOR_CAMERA_VIEW_MOVE_EPSILON`.
  *
  * The adapter never constructs any TransformControls, registers listeners,
@@ -22,7 +27,7 @@
  * methods run. Pinned by the S7 camera-session fixtures.
  */
 
-import { Vector3 } from 'three';
+import { Euler, Quaternion, Vector3 } from 'three';
 import type { Object3D } from 'three';
 import type { Vec3 } from '$lib/types/museum';
 import type { MuseumEditorStore } from '../museum-editor.svelte';
@@ -41,7 +46,7 @@ import type {
  * called `showX/showY/showZ`), so a camera node's eye height (`position[1]`)
  * stays draggable. The host derives `showX/showY/showZ` from this set.
  */
-const CAMERA_AXES: ReadonlySet<GizmoAxis> = new Set([
+const CAMERA_TRANSLATE_AXES: ReadonlySet<GizmoAxis> = new Set([
 	'x',
 	'y',
 	'z',
@@ -52,13 +57,34 @@ const CAMERA_AXES: ReadonlySet<GizmoAxis> = new Set([
 ]);
 
 /**
+ * Camera rotate handles: the three component rings (X pitch / Y yaw / Z roll)
+ * plus the derived screen/free handles. Rotating a camera node aims it — the
+ * look target orbits around the eye — so only the component axes make sense.
+ */
+const CAMERA_ROTATE_AXES: ReadonlySet<GizmoAxis> = new Set(['x', 'y', 'z']);
+
+/**
  * Camera capability policy — one source shared by the host, the toolbar, and
- * the W/E/R/T shortcuts. World-space translate only, no scale chain.
+ * the W/E/R/T shortcuts. World-space translate + rotate (target-orbit aim),
+ * no scale chain.
  */
 export const CAMERA_GIZMO_POLICY: EditorGizmoPolicy = {
 	defaultMode: 'translate',
+	allowedModes: new Set(['translate', 'rotate']),
+	allowedAxes: (mode) => (mode === 'rotate' ? CAMERA_ROTATE_AXES : CAMERA_TRANSLATE_AXES),
+	space: () => 'world',
+	scaleControl: 'hidden'
+};
+
+/**
+ * Anchor and view-keyframe targets are points, so they stay translate-only:
+ * rotating a point has no authored meaning. The adapter returns this policy
+ * for those target kinds while camera nodes get the full `CAMERA_GIZMO_POLICY`.
+ */
+const CAMERA_TRANSLATE_ONLY_POLICY: EditorGizmoPolicy = {
+	defaultMode: 'translate',
 	allowedModes: new Set(['translate']),
-	allowedAxes: () => CAMERA_AXES,
+	allowedAxes: () => CAMERA_TRANSLATE_AXES,
 	space: () => 'world',
 	scaleControl: 'hidden'
 };
@@ -95,6 +121,13 @@ type CameraDragSession = {
 	target: CameraTarget;
 	root: Object3D;
 	startWorldPosition: Vector3;
+	/** Rotate-drag baseline: the attached root's quaternion at begin (identity). */
+	startQuaternion: Quaternion;
+	/** Camera-node orbit baseline: world eye + look target at begin. */
+	startWorldEye?: Vector3;
+	startWorldTarget?: Vector3;
+	/** Camera-node cancel baseline: the look target's room-local point at begin. */
+	startLocalTarget?: Vec3;
 	startLocalPoint?: Vec3;
 	pending?: boolean;
 };
@@ -159,7 +192,10 @@ export function createCameraGizmoAdapter(
 	const target = resolveCameraTarget(input);
 	if (!target) return null;
 
-	const policy = CAMERA_GIZMO_POLICY;
+	// Camera nodes can rotate (target-orbit aim); anchors and view-keyframe
+	// targets are points and stay translate-only.
+	const policy =
+		target.kind === 'camera' ? CAMERA_GIZMO_POLICY : CAMERA_TRANSLATE_ONLY_POLICY;
 
 	return {
 		key: target.key,
@@ -174,7 +210,8 @@ export function createCameraGizmoAdapter(
 				return makeCameraSession(store, {
 					target,
 					root,
-					startWorldPosition: root.getWorldPosition(new Vector3())
+					startWorldPosition: root.getWorldPosition(new Vector3()),
+					startQuaternion: root.quaternion.clone()
 				});
 			}
 			const pending = store.isPendingNavigationNode(target.nodeId);
@@ -188,10 +225,18 @@ export function createCameraGizmoAdapter(
 			store.setTransformInteractionActive(true, 'camera');
 			const startLocalPoint: Vec3 =
 				target.handle === 'position' ? [...node.position] : [...node.cameraTarget];
+			const startWorldEye = new Vector3(...store.rooms.point(node.roomId, node.position));
+			const startWorldTarget = new Vector3(
+				...store.rooms.point(node.roomId, node.cameraTarget)
+			);
 			return makeCameraSession(store, {
 				target,
 				root,
 				startWorldPosition: root.getWorldPosition(new Vector3()),
+				startQuaternion: root.quaternion.clone(),
+				startWorldEye,
+				startWorldTarget,
+				startLocalTarget: [...node.cameraTarget],
 				startLocalPoint,
 				pending
 			});
@@ -226,6 +271,18 @@ function previewCameraSession(store: MuseumEditorStore, session: CameraDragSessi
 					(candidate) => candidate.id === target.nodeId
 				);
 		if (!node) return;
+		// Rotate drag: the attached root rotated in place (its quaternion
+		// diverged from the begin baseline) while its position stayed put —
+		// map that rotation onto a target orbit around the eye. Translate
+		// drags keep the existing world→room-local point write.
+		const rotated = !session.root.quaternion.equals(session.startQuaternion);
+		if (rotated) {
+			store.updateNavigationNodeTargetPoint(
+				target.nodeId,
+				orbitCameraTargetAroundEye(store, session, node.roomId)
+			);
+			return;
+		}
 		store.updateNavigationNodePoint(
 			target.nodeId,
 			target.handle,
@@ -292,9 +349,54 @@ function cancelCameraSession(
 			session.target.handle,
 			session.startLocalPoint!
 		);
+		// A rotate drag writes the look target even when the eye handle is
+		// selected, so restore the target too (drafts have no transaction to
+		// roll back).
+		if (session.startLocalTarget) {
+			store.updateNavigationNodeTargetPoint(
+				session.target.nodeId,
+				session.startLocalTarget
+			);
+		}
 	} else {
 		store.cancelDocumentTransaction();
 	}
 	session.root.position.copy(session.startWorldPosition);
+	session.root.quaternion.copy(session.startQuaternion);
 	store.setTransformInteractionActive(false);
+}
+
+/**
+ * Orbit the look target around the eye by the rotate-drag delta. The delta is
+ * decomposed as yaw (world Y) then pitch (local X) — the same turntable
+ * mapping as the editor's orbit camera — with roll ignored (a camera aim has
+ * no authored roll). Returns the new room-local camera target.
+ */
+function orbitCameraTargetAroundEye(
+	store: MuseumEditorStore,
+	session: CameraDragSession,
+	roomId: string
+): Vec3 {
+	const delta = session.root.quaternion
+		.clone()
+		.multiply(session.startQuaternion.clone().invert());
+	const euler = new Euler().setFromQuaternion(delta, 'YXZ');
+	const yaw = euler.y;
+	const pitch = euler.x;
+	const offset = new Vector3().subVectors(session.startWorldTarget!, session.startWorldEye!);
+	// Pitch about the local X axis first, then yaw about world Y.
+	const cosPitch = Math.cos(pitch);
+	const sinPitch = Math.sin(pitch);
+	const pitchedY = offset.y * cosPitch - offset.z * sinPitch;
+	const pitchedZ = offset.y * sinPitch + offset.z * cosPitch;
+	const cosYaw = Math.cos(yaw);
+	const sinYaw = Math.sin(yaw);
+	const finalX = offset.x * cosYaw + pitchedZ * sinYaw;
+	const finalZ = -offset.x * sinYaw + pitchedZ * cosYaw;
+	const targetWorld = new Vector3(
+		session.startWorldEye!.x + finalX,
+		session.startWorldEye!.y + pitchedY,
+		session.startWorldEye!.z + finalZ
+	);
+	return store.rooms.localPoint(roomId, targetWorld.toArray() as Vec3);
 }

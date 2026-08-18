@@ -63,32 +63,44 @@ describe('editor camera timeline index', () => {
 		}
 	});
 
-	it('yields two direction-distinct edges for a two-node reciprocal cycle (unique render keys)', () => {
+	it('S10.2 — a two-node pair is one open edge that plays Once (never a loop)', () => {
 		const document = cloneFixtureDocument('tour-minimal');
-		// Shrink the tour to two nodes sharing one undirected connection. The
-		// guided cycle reuses that single connection for both directions, so the
-		// timeline must expose two edges with the same connectionId but opposite
-		// directions — a renderer keyed by connectionId alone would collide.
+		// Shrink the tour to two nodes sharing one undirected connection. Under
+		// the open-chain model the pair is an open flow `a → b`: its only record
+		// is also its chain transition, so the distinct-connection test yields
+		// no loop and the timeline exposes exactly one edge (the degenerate
+		// closed 2-cycle that caused the each_key_duplicate render crash is
+		// gone by construction).
 		const [a, b] = document.navigationNodes;
 		document.navigationNodes = [a, b];
 		document.connections = [document.connections[0]!];
 		a.nextNodeId = b.id;
-		a.previousNodeId = b.id;
+		delete a.previousNodeId;
 		a.connectedNodeIds = [b.id];
-		b.nextNodeId = a.id;
 		b.previousNodeId = a.id;
+		delete b.nextNodeId;
 		b.connectedNodeIds = [a.id];
 
 		const scene = resolveSceneDocument(document);
 		const graph = createNavigationGraph(scene);
 		const timeline = createEditorCameraTimeline(graph);
 
-		expect(timeline.edges).toHaveLength(2);
+		expect(timeline.edges).toHaveLength(1);
+		expect(timeline.edges[0]).toMatchObject({
+			connectionId: 'tour-a-b',
+			fromNodeId: 'tour-a',
+			toNodeId: 'tour-b'
+		});
+		expect(timeline.nodeBoundaries.map((boundary) => boundary.nodeId)).toEqual([
+			'tour-a',
+			'tour-b'
+		]);
+		expect(timeline.nodeBoundaries.at(-1)?.progress).toBe(1);
+		// Render keys stay distinct by construction.
 		const renderKeys = timeline.edges.map(
 			(edge) => `${edge.connectionId}:${edge.direction}`
 		);
 		expect(new Set(renderKeys).size).toBe(renderKeys.length);
-		expect(timeline.edges[0]!.direction).not.toBe(timeline.edges[1]!.direction);
 	});
 
 	it('maps forward and reverse key progress onto the same physical ruler point', () => {

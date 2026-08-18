@@ -1,12 +1,12 @@
 <script lang="ts">
-	import GuidedTourPanel from './GuidedTourPanel.svelte';
+	import CameraFlowPanel from './CameraFlowPanel.svelte';
 	import type { MuseumEditorStore } from './museum-editor.svelte';
 
 	let { store }: { store: MuseumEditorStore } = $props();
 </script>
 
 <section class="camera-tree" aria-label="Camera tree">
-	<GuidedTourPanel {store} />
+	<CameraFlowPanel {store} />
 	{#if store.document.navigationNodes.length === 0 && store.document.connections.length === 0}
 		<p class="empty"><strong>No cameras</strong></p>
 	{/if}

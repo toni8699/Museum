@@ -12,7 +12,10 @@
 		store,
 		showCeilings = false,
 		onToggleCeilings,
-		cameraAgnosticViewMenu = false,
+		// H1 S10 — explicit 3D context. Scene exposes Ceiling only; Camera
+		// exposes the three camera-helper rows. Absent on the relic mount,
+		// which keeps its legacy camera-only View menu via `currentWorkspace`.
+		context = undefined,
 		// H1 S7 — when the active domain is a detached S7 layout selection, the
 		// transform buttons are disabled (layout publishes no interactive gizmo
 		// policy until S8). Absent on the relic mount. Select stays enabled.
@@ -29,9 +32,11 @@
 		// LayoutDraftToolbar Ceiling button.
 		showCeilings?: boolean;
 		onToggleCeilings?: () => void;
-		// H1 3D: surface the View menu in both Scene and Camera contexts.
-		// Default (false) preserves the relic's camera-only menu.
-		cameraAgnosticViewMenu?: boolean;
+		// H1 S10 — explicit `'scene' | 'camera'` context. When provided the View
+		// menu is always available (Scene = Ceiling only, Camera = the three
+		// camera-helper rows); when absent the relic keeps its camera-only
+		// menu keyed on `store.currentWorkspace`.
+		context?: 'scene' | 'camera';
 		transformDisabled?: boolean;
 		gizmoCapabilities?: EditorGizmoCapabilities | null;
 	} = $props();
@@ -116,8 +121,22 @@
 		return hasNavigationTransform && mode !== 'translate';
 	}
 
+	// H1 S10 — the View menu is always available under an explicit H1 context
+	// (Scene shows Ceiling only, Camera shows the camera-helper rows); the relic
+	// (no context prop) keeps its legacy camera-only menu.
+	const viewMenuVisible = $derived(
+		context !== undefined || store.currentWorkspace === 'camera'
+	);
+	// Camera-helper rows (Node handles / Tour paths / Framing & FOV): H1 Camera
+	// context, or the relic's legacy camera workspace.
+	const showCameraHelperRows = $derived(
+		context === 'camera' || (context === undefined && store.currentWorkspace === 'camera')
+	);
+	// Ceiling is a layout concern and lives only in the H1 Scene View menu.
+	const showCeilingRow = $derived(context === 'scene' && onToggleCeilings !== undefined);
+
 	function toggleViewMenu() {
-		if (store.currentWorkspace !== 'camera' && !cameraAgnosticViewMenu) return;
+		if (!viewMenuVisible) return;
 		viewMenuOpen = !viewMenuOpen;
 	}
 
@@ -207,7 +226,7 @@
 		</button>
 	</div>
 
-	{#if store.currentWorkspace === 'camera' || cameraAgnosticViewMenu}
+	{#if viewMenuVisible}
 		<div class="tool-group" aria-label="Viewport helper visibility">
 			<button
 				type="button"
@@ -226,6 +245,7 @@
 					aria-label="Viewport helpers"
 					onpointerdown={(event) => event.stopPropagation()}
 				>
+					{#if showCameraHelperRows}
 					<button
 						type="button"
 						role="menuitemcheckbox"
@@ -256,7 +276,8 @@
 						<span class="check" aria-hidden="true">{store.viewportShowFraming ? '✓' : '○'}</span>
 						<span>Framing &amp; FOV</span>
 					</button>
-					{#if onToggleCeilings}
+					{/if}
+					{#if showCeilingRow}
 						<button
 							type="button"
 							role="menuitemcheckbox"

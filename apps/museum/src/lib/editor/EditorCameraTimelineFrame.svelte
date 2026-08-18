@@ -82,7 +82,7 @@
 	<header>
 		<div class="heading">
 			<span class="legend">Camera timeline</span>
-			<span class="phase-label">Guided tour · exact shared motion</span>
+			<span class="phase-label">Camera flow · exact shared motion</span>
 		</div>
 		{#if store.cameraPreview}
 			<span class="preview-badge">Preview active</span>

@@ -19,7 +19,8 @@ import {
 import {
   getCameraConnectionRoute,
   getCameraRoute,
-  getGuidedCameraRoute
+  getFlowLoopConnectionId,
+  getFlowRoute
 } from '$lib/museum/navigation/camera-route';
 
 const { graph: fixtureGraph } = loadFixtureScene();
@@ -892,10 +893,17 @@ describe('getCameraConnectionRoute', () => {
   });
 });
 
-describe('getGuidedCameraRoute', () => {
-  it('resolves every guided edge exactly once including the return to start', () => {
-    const route = getGuidedCameraRoute('tour-a', fixtureGraph);
+describe('getFlowRoute', () => {
+  it('resolves the open chain by default and appends the derived loop with loop: true', () => {
+    const once = getFlowRoute('tour-a', fixtureGraph);
+    expect(once.nodeIds).toEqual(['tour-a', 'tour-b', 'tour-paris', 'tour-d']);
+    expect(once.edges.map((edge) => edge.connectionId)).toEqual([
+      'tour-a-b',
+      'tour-b-paris',
+      'tour-paris-d'
+    ]);
 
+    const route = getFlowRoute('tour-a', fixtureGraph, { loop: true });
     expect(route.nodeIds).toEqual([
       'tour-a',
       'tour-b',
@@ -922,9 +930,10 @@ describe('getGuidedCameraRoute', () => {
       finalSample.target,
       fixtureGraph.nodeById.get('tour-a')!.cameraTarget
     );
+    expect(getFlowLoopConnectionId('tour-a', fixtureGraph)).toBe('tour-d-a');
   });
 
-  it('retains reverse traversal when a guided connection is authored backwards', () => {
+  it('retains reverse traversal when a flow connection is authored backwards', () => {
     const reversedConnection = fixtureGraph.connections[0]!;
     const graph = createNavigationGraph({
       entities: [],
@@ -944,7 +953,7 @@ describe('getGuidedCameraRoute', () => {
       ]
     });
 
-    const route = getGuidedCameraRoute('tour-a', graph);
+    const route = getFlowRoute('tour-a', graph, { loop: true });
     expect(route.edges[0]).toMatchObject({
       connectionId: 'tour-a-b',
       direction: 'reverse',
@@ -956,8 +965,8 @@ describe('getGuidedCameraRoute', () => {
     );
   });
 
-  it('rotates the same reciprocal cycle from another guided start', () => {
-    const route = getGuidedCameraRoute('tour-paris', fixtureGraph);
+  it('rotates the same legacy cycle from another start', () => {
+    const route = getFlowRoute('tour-paris', fixtureGraph, { loop: true });
 
     expect(route.nodeIds[0]).toBe('tour-paris');
     expect(route.nodeIds.at(-1)).toBe('tour-paris');
@@ -965,7 +974,87 @@ describe('getGuidedCameraRoute', () => {
     expect(new Set(route.edges.map((edge) => edge.connectionId)).size).toBe(4);
   });
 
-  it('rejects broken reciprocal links and missing direct guided edges', () => {
+  it('S10.2 — a two-node pair never loops (distinct-connection test)', () => {
+	    // Legacy closed 2-cycle: both nodes point at each other, sharing one
+	    // undirected record. The pair's only record is also its chain
+	    // transition, so the distinct-connection test yields no loop.
+	    const pairGraph = createNavigationGraph({
+	      entities: [],
+	      objects: [],
+	      navigationNodes: [
+	        {
+	          ...nodes[0]!,
+	          connectedNodeIds: ['b'],
+	          nextNodeId: 'b',
+	          previousNodeId: 'b'
+	        },
+	        {
+	          ...nodes[1]!,
+	          connectedNodeIds: ['a'],
+	          nextNodeId: 'a',
+	          previousNodeId: 'a'
+	        }
+	      ],
+	      connections: [connections[0]]
+	    });
+
+	    expect(getFlowLoopConnectionId('a', pairGraph)).toBeNull();
+	    expect(getFlowRoute('a', pairGraph, { loop: true }).nodeIds).toEqual([
+	      'a',
+	      'b'
+	    ]);
+	  });
+
+  it('S10.2 — an open chain with a distinct closing record loops; without one it plays Once', () => {
+    // Open chain a → b → c with a separate c–a record.
+    const flowNodes: NavigationNodeData[] = nodes.slice(0, 3).map((node, index) => ({
+      ...node,
+      connectedNodeIds:
+        index === 0
+          ? ['b', 'c']
+          : index === 1
+            ? ['a', 'c']
+            : ['b', 'a']
+    }));
+    (flowNodes[0] as NavigationNodeData).nextNodeId = 'b';
+    flowNodes[1]!.previousNodeId = 'a';
+    flowNodes[1]!.nextNodeId = 'c';
+    flowNodes[2]!.previousNodeId = 'b';
+    const graph = createNavigationGraph({
+      entities: [],
+      objects: [],
+      navigationNodes: flowNodes,
+      connections: [
+        connections[0],
+        connections[1],
+        {
+          id: 'c-a',
+          fromNodeId: 'c',
+          toNodeId: 'a',
+          clearance: 0.4,
+          positionPath: {
+            kind: 'rounded-polyline',
+            anchors: runtimeAnchors('c-a', [
+              [4, 1, 2],
+              [2, 1, 1],
+              [0, 1, 0]
+            ])
+          }
+        }
+      ]
+    });
+
+    expect(getFlowLoopConnectionId('a', graph)).toBe('c-a');
+    expect(getFlowRoute('a', graph).nodeIds).toEqual(['a', 'b', 'c']);
+    expect(getFlowRoute('a', graph, { loop: true }).nodeIds).toEqual([
+      'a',
+      'b',
+      'c',
+      'a'
+    ]);
+  });
+
+  it('rejects broken reciprocal links and missing direct flow edges', () => {
     const navigationNodes = fixtureGraph.navigationNodes.map((node) => ({
       ...node,
       position: [...node.position] as Vec3,
@@ -979,7 +1068,7 @@ describe('getGuidedCameraRoute', () => {
       connections: fixtureGraph.connections,
       nodeById: new Map(navigationNodes.map((node) => [node.id, node]))
     };
-    expect(() => getGuidedCameraRoute('tour-a', brokenReciprocal)).toThrow(
+    expect(() => getFlowRoute('tour-a', brokenReciprocal)).toThrow(
       /not reciprocal/
     );
 
@@ -990,14 +1079,14 @@ describe('getGuidedCameraRoute', () => {
       ),
       nodeById: fixtureGraph.nodeById
     };
-    expect(() => getGuidedCameraRoute('tour-a', missingEdge)).toThrow(
+    expect(() => getFlowRoute('tour-a', missingEdge)).toThrow(
       'missing a connection from tour-a to tour-b'
     );
   });
 
   it('rejects a free-only start node', () => {
-    expect(() => getGuidedCameraRoute('a', customGraph)).toThrow(
-      'Camera node a is not part of the guided tour'
+    expect(() => getFlowRoute('a', customGraph)).toThrow(
+      'Camera node a is not on the flow (no nextNodeId)'
     );
   });
 });

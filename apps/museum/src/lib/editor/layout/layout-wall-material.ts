@@ -1,8 +1,13 @@
 import { DoubleSide, MeshBasicMaterial, MeshStandardMaterial } from 'three';
 
 /** Shared wall material buckets — one instance per selection bucket, not per chord. */
+/**
+ * Default wall albedo matches the concept sketch's dark charcoal walls
+ * (sampled pixels ≈ #4d4d4f) and the visitor's neutral room presentation
+ * (#4b4b52), so the editor preview, visitor shell, and design sketches agree.
+ */
 export const WALL_MATERIAL_DEFAULT = new MeshStandardMaterial({
-	color: '#a99d89',
+	color: '#4d4d4f',
 	roughness: 0.82,
 	metalness: 0
 });
@@ -17,9 +22,14 @@ export const WALL_MATERIAL_OPENING_SELECTED = new MeshStandardMaterial({
 	metalness: 0
 });
 
-/** Shared floor material for layout preview floors. */
+/**
+ * Shared floor material for layout preview floors. The default albedo matches
+ * the concept sketch's gray floor family (slightly lighter than the walls so
+ * the two surfaces stay distinguishable) and is adjustable per-session via
+ * `session.floorColor` (see LayoutPreviewScene).
+ */
 export const FLOOR_MATERIAL = new MeshStandardMaterial({
-	color: '#6b6254',
+	color: '#57575d',
 	roughness: 0.9,
 	metalness: 0
 });

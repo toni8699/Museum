@@ -115,9 +115,9 @@
 			<button
 				type="button"
 				disabled={!canPreviewTour}
-				title="Preview one complete guided loop"
+				title="Preview the camera flow"
 				onclick={() => store.previewGuidedTour()}
-			>Preview Tour</button>
+				>Preview Flow</button>
 		{/if}
 		<EditorProjectMenu
 			{store}

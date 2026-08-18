@@ -1,10 +1,20 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { cloneFixtureDocument } from '../content/__fixtures__/load-fixture-scene';
-import type { MuseumSceneDocument, SceneNavigationNode } from '$lib/content/scene';
+import type {
+	MuseumSceneDocument,
+	SceneConnection,
+	SceneNavigationNode
+} from '$lib/content/scene';
 import {
+	currentMainFlowNodeIds,
 	validateConnectionCreation,
 	validateConnectionDeletion,
 	validateCurrentGuidedTourOrder,
+	validateDetourAppend,
+	validateDetourCreation,
+	validateDetourNodeRemoval,
+	validateDetourRemoval,
 	validateGuidedTourInsertion,
 	validateGuidedTourOrder,
 	validateGuidedTourRemoval,
@@ -99,7 +109,7 @@ describe('editor camera graph command validation', () => {
 		expect(guided).toEqual(
 			expect.objectContaining({ ok: false, code: 'guided_connection' })
 		);
-		expect(guided.ok ? '' : guided.message).toContain('guided order requires');
+		expect(guided.ok ? '' : guided.message).toContain('the flow order requires');
 
 		const bridge = documentClone();
 		addFreeNode(bridge, 'free-leaf', 'tour-paris');
@@ -230,25 +240,47 @@ describe('editor guided-tour order validation', () => {
 		});
 	});
 
-	it('plans free-node insertion only across two existing edges', () => {
+	it('plans free-node insertion with at most one auto-created edge', () => {
+		// One missing consecutive edge is supplied (the mutator auto-creates it).
 		const missing = documentClone();
 		addFreeNode(missing, 'free-node', 'tour-paris');
-		expect(validateGuidedTourInsertion(missing, 'free-node', 2)).toEqual(
-			expect.objectContaining({ ok: false, code: 'missing_guided_connection' })
-		);
+		expect(validateGuidedTourInsertion(missing, 'free-node', 2)).toEqual({
+			ok: true,
+			nodeIds: ['tour-a', 'tour-b', 'free-node', 'tour-paris', 'tour-d'],
+			missingConnection: { fromNodeId: 'tour-b', toNodeId: 'free-node' }
+		});
 
 		const insertable = documentClone();
 		addFreeNode(insertable, 'free-node', 'tour-b');
 		addConnection(insertable, 'free-node', 'tour-paris', 'free-paris');
 		expect(validateGuidedTourInsertion(insertable, 'free-node', 2)).toEqual({
 			ok: true,
-			nodeIds: ['tour-a', 'tour-b', 'free-node', 'tour-paris', 'tour-d']
+			nodeIds: ['tour-a', 'tour-b', 'free-node', 'tour-paris', 'tour-d'],
+			missingConnection: null
 		});
 		expect(validateGuidedTourInsertion(insertable, 'tour-a', 2)).toEqual(
 			expect.objectContaining({ ok: false, code: 'node_already_guided' })
 		);
 		expect(validateGuidedTourInsertion(insertable, 'free-node', 0)).toEqual(
 			expect.objectContaining({ ok: false, code: 'invalid_guided_index' })
+		);
+
+		// Two missing consecutive edges reject.
+		const twoMissing = documentClone();
+		twoMissing.navigationNodes.push({
+			id: 'free-node',
+			roomId: 'paris',
+			label: 'Free Node',
+			position: [0, 1.65, 0],
+			cameraTarget: [0, 1.25, -3],
+			fov: 54,
+			connectedNodeIds: []
+		});
+		expect(validateGuidedTourInsertion(twoMissing, 'free-node', 2)).toEqual(
+			expect.objectContaining({
+				ok: false,
+				code: 'too_many_missing_guided_connections'
+			})
 		);
 	});
 
@@ -350,5 +382,324 @@ describe('editor guided-tour order validation', () => {
 			'tour-b',
 			'tour-d'
 		]);
+	});
+});
+
+describe('S10.2 — flow walk and detour validation', () => {
+	/** The 4-node fixture cycle broken into an open chain tour-a → tour-b → tour-paris → tour-d. */
+	function openChainDocument(): MuseumSceneDocument {
+		const document = documentClone();
+		const tourA = document.navigationNodes.find((node) => node.id === 'tour-a')!;
+		const tourD = document.navigationNodes.find((node) => node.id === 'tour-d')!;
+		delete tourD.nextNodeId;
+		delete tourA.previousNodeId;
+		return document;
+	}
+
+	function addFreeNode(document: MuseumSceneDocument, id: string): SceneNavigationNode {
+		const node: SceneNavigationNode = {
+			id,
+			roomId: 'paris',
+			label: id,
+			position: [0, 1.65, 0],
+			cameraTarget: [0, 1.25, -3],
+			fov: 54,
+			connectedNodeIds: []
+		};
+		document.navigationNodes.push(node);
+		return node;
+	}
+
+	it('walks an open chain, a legacy closed cycle, and rejects a broken order', () => {
+		expect(currentMainFlowNodeIds(openChainDocument())).toEqual([
+			'tour-a',
+			'tour-b',
+			'tour-paris',
+			'tour-d'
+		]);
+		// The legacy closed cycle resolves to the same derived open chain.
+		expect(currentMainFlowNodeIds(documentClone())).toEqual([
+			'tour-a',
+			'tour-b',
+			'tour-paris',
+			'tour-d'
+		]);
+		// Broken reciprocity (tour-d.next = tour-paris breaks the walk) yields null.
+		const broken = openChainDocument();
+		broken.navigationNodes.find((node) => node.id === 'tour-d')!.nextNodeId =
+			'tour-paris';
+		expect(currentMainFlowNodeIds(broken)).toBeNull();
+	});
+
+	it('plans a detour only from a main-route origin onto a free node, once per origin', () => {
+		const document = openChainDocument();
+		addFreeNode(document, 'detour-head');
+		expect(validateDetourCreation(document, 'tour-b', 'detour-head')).toEqual(
+			expect.objectContaining({
+				ok: true,
+				headId: 'detour-head',
+				tailId: 'detour-head',
+				chainNodeIds: ['detour-head']
+			})
+		);
+
+		// Origin not on the main route (a free node cannot branch a detour).
+		addFreeNode(document, 'free-origin');
+		expect(validateDetourCreation(document, 'free-origin', 'detour-head')).toEqual(
+			expect.objectContaining({ ok: false, code: 'detour_origin_not_on_flow' })
+		);
+		// Head already on the flow.
+		expect(validateDetourCreation(document, 'tour-b', 'tour-paris')).toEqual(
+			expect.objectContaining({ ok: false, code: 'detour_node_not_free' })
+		);
+		// Self-branch.
+		expect(validateDetourCreation(document, 'tour-b', 'tour-b')).toEqual(
+			expect.objectContaining({ ok: false, code: 'self_connection' })
+		);
+		// One detour per origin (F6).
+		expect(validateDetourCreation(document, 'tour-b', 'detour-head')).toEqual(
+			expect.objectContaining({ ok: true })
+		);
+		expect(
+			validateDetourCreation(
+				{
+					...document,
+					navigationNodes: document.navigationNodes.map((node) =>
+						node.id === 'detour-head'
+							? { ...node, detourOfNodeId: 'tour-b' }
+							: node
+					)
+				},
+				'tour-b',
+				'detour-head'
+			)
+		).toEqual(expect.objectContaining({ ok: false, code: 'detour_node_not_free' }));
+
+		const secondHead = addFreeNode(document, 'second-head');
+		expect(secondHead).toBeDefined();
+		const withDetour = {
+			...document,
+			navigationNodes: document.navigationNodes.map((node) =>
+				node.id === 'detour-head' ? { ...node, detourOfNodeId: 'tour-b' } : node
+			)
+		};
+		expect(validateDetourCreation(withDetour, 'tour-b', 'second-head')).toEqual(
+			expect.objectContaining({ ok: false, code: 'detour_already_exists' })
+		);
+	});
+
+	it('appends detour nodes and refuses nodes already on a flow', () => {
+		const document = openChainDocument();
+		addFreeNode(document, 'detour-head');
+		addFreeNode(document, 'detour-2');
+		const withDetour = {
+			...document,
+			navigationNodes: document.navigationNodes.map((node) =>
+				node.id === 'detour-head' ? { ...node, detourOfNodeId: 'tour-b' } : node
+			)
+		};
+		expect(validateDetourAppend(withDetour, 'tour-b', 'detour-2')).toEqual(
+			expect.objectContaining({
+				ok: true,
+				tailId: 'detour-head',
+				chainNodeIds: ['detour-head']
+			})
+		);
+		expect(validateDetourAppend(withDetour, 'tour-a', 'detour-2')).toEqual(
+			expect.objectContaining({ ok: false, code: 'unknown_detour' })
+		);
+		expect(validateDetourAppend(withDetour, 'tour-b', 'tour-paris')).toEqual(
+			expect.objectContaining({ ok: false, code: 'detour_node_not_free' })
+		);
+	});
+
+	it('plans detour node removal with the strict T9 splice and head/whole removal', () => {
+		const document = openChainDocument();
+		addFreeNode(document, 'detour-head');
+		addFreeNode(document, 'detour-2');
+		addFreeNode(document, 'detour-3');
+		const withDetour = {
+			...document,
+			navigationNodes: document.navigationNodes.map((node) =>
+				node.id === 'detour-head' ? { ...node, detourOfNodeId: 'tour-b' } : node
+			)
+		};
+
+		// Middle removal needs a direct detour-head–detour-3 edge (T9).
+		const middleMissing = {
+			...withDetour,
+			navigationNodes: withDetour.navigationNodes.map((node) =>
+				node.id === 'detour-head'
+					? { ...node, nextNodeId: 'detour-2' }
+					: node.id === 'detour-2'
+						? { ...node, previousNodeId: 'detour-head', nextNodeId: 'detour-3' }
+						: node.id === 'detour-3'
+							? { ...node, previousNodeId: 'detour-2' }
+							: node
+			)
+		};
+		expect(validateDetourNodeRemoval(middleMissing, 'tour-b', 'detour-2')).toEqual(
+			expect.objectContaining({ ok: false, code: 'missing_guided_connection' })
+		);
+
+		// With the splice edge present, the plan carries pred/succ.
+		const spliceEdge: SceneConnection = {
+			id: 'detour-head-detour-3',
+			fromNodeId: 'detour-head',
+			toNodeId: 'detour-3',
+			clearance: 0.35,
+			positionPath: { kind: 'auto-bezier', anchors: [] }
+		};
+		const bridged = {
+			...middleMissing,
+			connections: [...middleMissing.connections, spliceEdge]
+		};
+		expect(validateDetourNodeRemoval(bridged, 'tour-b', 'detour-2')).toEqual(
+			expect.objectContaining({
+				ok: true,
+				predecessorNodeId: 'detour-head',
+				successorNodeId: 'detour-3'
+			})
+		);
+
+		// Head removal needs no splice edge.
+		expect(validateDetourNodeRemoval(middleMissing, 'tour-b', 'detour-head')).toEqual(
+			expect.objectContaining({
+				ok: true,
+				predecessorNodeId: undefined,
+				successorNodeId: 'detour-2'
+			})
+		);
+
+		// Unknown chain / node not in the chain.
+		expect(validateDetourNodeRemoval(withDetour, 'tour-a', 'detour-head')).toEqual(
+			expect.objectContaining({ ok: false, code: 'unknown_detour' })
+		);
+		expect(validateDetourNodeRemoval(withDetour, 'tour-b', 'tour-paris')).toEqual(
+			expect.objectContaining({ ok: false, code: 'detour_node_not_in_chain' })
+		);
+
+		// Whole-detour removal returns the full chain.
+		expect(validateDetourRemoval(withDetour, 'tour-b')).toEqual(
+			expect.objectContaining({ ok: true, chainNodeIds: ['detour-head'] })
+		);
+		expect(validateDetourRemoval(withDetour, 'tour-a')).toEqual(
+			expect.objectContaining({ ok: false, code: 'unknown_detour' })
+		);
+	});
+
+	it('refuses deleting a detour return edge but allows unused non-chain edges', () => {
+		const document = openChainDocument();
+		addFreeNode(document, 'detour-head');
+		const withDetour = {
+			...document,
+			navigationNodes: document.navigationNodes.map((node) =>
+				node.id === 'detour-head' ? { ...node, detourOfNodeId: 'tour-b' } : node
+			)
+		};
+		// The tail–origin return edge (tour-b–detour-head) exists as a chain of
+		// one: origin ↔ head is the same record.
+		const returnEdge: SceneConnection = {
+			id: 'tour-b-detour-head',
+			fromNodeId: 'tour-b',
+			toNodeId: 'detour-head',
+			clearance: 0.35,
+			positionPath: { kind: 'auto-bezier', anchors: [] }
+		};
+		const connected = {
+			...withDetour,
+			connections: [...withDetour.connections, returnEdge]
+		};
+		expect(validateConnectionDeletion(connected, 'tour-b-detour-head')).toEqual(
+			expect.objectContaining({ ok: false, code: 'guided_connection' })
+		);
+		// A redundant chord (the open chain's unused tour-d-a edge) remains deletable.
+		expect(validateConnectionDeletion(withDetour, 'tour-d-a')).toEqual(
+			expect.objectContaining({ ok: true })
+		);
+	});
+
+	it('splices open-chain head/tail deletion and carries whole-detour deletion plans', () => {
+		const open = openChainDocument();
+		// Tail deletion: predecessor only, no bridge needed.
+		expect(validateNavigationNodeDeletion(open, 'tour-d')).toEqual(
+			expect.objectContaining({
+				ok: true,
+				predecessorNodeId: 'tour-paris',
+				successorNodeId: undefined
+			})
+		);
+		// Head deletion: successor only.
+		expect(validateNavigationNodeDeletion(open, 'tour-a')).toEqual(
+			expect.objectContaining({
+				ok: true,
+				predecessorNodeId: undefined,
+				successorNodeId: 'tour-b'
+			})
+		);
+		// Deleting the detour origin carries the whole chain (bridge edge present).
+		const detourDocument = {
+			...open,
+			navigationNodes: [
+				...open.navigationNodes.map((node) =>
+					node.id === 'tour-b' ? { ...node, detourOfNodeId: undefined } : node
+				),
+				{
+					id: 'detour-head',
+					roomId: 'paris',
+					label: 'Detour Head',
+					position: [0, 1.65, 0],
+					cameraTarget: [0, 1.25, -3],
+					fov: 54,
+					connectedNodeIds: [],
+					detourOfNodeId: 'tour-b'
+				}
+			],
+			connections: [
+				...open.connections,
+				{
+					id: 'tour-a-tour-paris',
+					fromNodeId: 'tour-a',
+					toNodeId: 'tour-paris',
+					clearance: 0.35,
+					positionPath: { kind: 'auto-bezier', anchors: [] } as const
+				} as SceneConnection
+			]
+		} as MuseumSceneDocument;
+		expect(validateNavigationNodeDeletion(detourDocument, 'tour-b')).toEqual(
+			expect.objectContaining({
+				ok: true,
+				detourChainNodeIds: ['detour-head'],
+				detourOriginNodeId: 'tour-b'
+			})
+		);
+	});
+
+	it('refuses inserting or dropping a detour node onto the main flow', () => {
+		const document = openChainDocument();
+		addFreeNode(document, 'detour-head');
+		const withDetour = {
+			...document,
+			navigationNodes: document.navigationNodes.map((node) =>
+				node.id === 'detour-head' ? { ...node, detourOfNodeId: 'tour-b' } : node
+			)
+		};
+		// A detour head cannot be spliced into the main flow in one op
+		// (remove-from-detour + insert-into-main is a separate combined op).
+		expect(validateGuidedTourInsertion(withDetour, 'detour-head', 1)).toEqual(
+			expect.objectContaining({ ok: false, code: 'detour_node_not_free' })
+		);
+		// The drag-drop path refuses a detour chain node the same way.
+		expect(
+			validateTimelineGuidedTourDrop(withDetour, 'detour-head', 'tour-a', 'tour-b')
+		).toEqual(expect.objectContaining({ ok: false, code: 'detour_node_not_free' }));
+	});
+
+	it('stays pure and renderer-neutral (no three/svelte imports)', () => {
+		const source = readFileSync(
+			new URL('../../../src/lib/editor/editor-navigation-graph.ts', import.meta.url),
+			'utf8'
+		);
+		expect(source).not.toMatch(/from\s+['"](three|svelte|@threlte|\$app)['"]/);
 	});
 });

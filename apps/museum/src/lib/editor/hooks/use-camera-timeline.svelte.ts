@@ -71,7 +71,7 @@ export function useCameraTimeline(store: MuseumEditorStore) {
 			if (store.activeCameraDirection === 'reverse' && store.activeCameraConnectionId) {
 				return 'Play reverse edge';
 			}
-			return 'Play guided tour';
+			return 'Play camera flow';
 		},
 		seek(progress: number) {
 			store.seekCameraTimeline(progress);

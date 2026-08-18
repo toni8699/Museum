@@ -37,8 +37,9 @@ describe('layout wall material buckets', () => {
 		expect(wallMaterialForKey('opening-selected')).toBe(WALL_MATERIAL_OPENING_SELECTED);
 	});
 
-	it('exports a shared floor material', () => {
+	it('exports a shared floor material defaulting to the sketch gray family', () => {
 		expect(FLOOR_MATERIAL).toBeDefined();
+		expect(FLOOR_MATERIAL.color.getHexString()).toBe('57575d');
 	});
 
 	it('hoists the selection-highlight materials as module-level singletons', () => {

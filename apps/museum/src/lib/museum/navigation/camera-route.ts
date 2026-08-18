@@ -6,6 +6,7 @@ import { museumNavigationGraph } from '$lib/content/chopin-project';
 import type {
   CameraConnectionDirection,
   MuseumConnection,
+  NavigationNodeData,
   Vec3
 } from '$lib/types/museum';
 export type { CameraConnectionDirection } from '$lib/types/museum';
@@ -79,23 +80,33 @@ function findConnectionPath(
   throw new Error(`No camera route from ${fromNodeId} to ${toNodeId}`);
 }
 
-function findDirectConnection(
+function findDirectConnectionSafe(
   fromNodeId: string,
   toNodeId: string,
   graph: NavigationGraph
-): OrientedConnection {
+): OrientedConnection | undefined {
   const connection = graph.connections.find(
     (candidate) =>
       (candidate.fromNodeId === fromNodeId && candidate.toNodeId === toNodeId) ||
       (candidate.fromNodeId === toNodeId && candidate.toNodeId === fromNodeId)
   );
-  if (!connection) {
+  if (!connection) return undefined;
+  const reversed = connection.toNodeId === fromNodeId;
+  return { connection, fromNodeId, toNodeId, reversed };
+}
+
+function findDirectConnection(
+  fromNodeId: string,
+  toNodeId: string,
+  graph: NavigationGraph
+): OrientedConnection {
+  const direct = findDirectConnectionSafe(fromNodeId, toNodeId, graph);
+  if (!direct) {
     throw new Error(
       `The guided camera route is missing a connection from ${fromNodeId} to ${toNodeId}`
     );
   }
-  const reversed = connection.toNodeId === fromNodeId;
-  return { connection, fromNodeId, toNodeId, reversed };
+  return direct;
 }
 
 function pointsEqual(left: Vec3, right: Vec3) {
@@ -409,58 +420,112 @@ export function getCameraConnectionRoute(
   );
 }
 
+type FlowChain = {
+  head: NavigationNodeData;
+  tail: NavigationNodeData;
+  nodeIds: string[];
+  path: OrientedConnection[];
+  connectionIds: ReadonlySet<string>;
+};
+
 /**
- * Resolve exactly one reciprocal guided cycle, including the final edge back to
- * the requested start. Guided links choose topology; this never substitutes a
- * BFS path for a missing guided edge.
+ * Walk one ordered flow from `startNodeId` following `nextNodeId` links.
+ * The walk stops at the open tail (`nextNodeId` undefined) or — for a legacy
+ * closed-cycle document — at the node whose next points back at the start
+ * (the derived chain never takes the closing edge). Order links choose
+ * topology; this never substitutes a BFS path for a missing flow edge.
  */
-export function getGuidedCameraRoute(
-  startNodeId: string,
-  graph: NavigationGraph = museumNavigationGraph
-): ResolvedCameraRoute {
+function walkFlowChain(startNodeId: string, graph: NavigationGraph): FlowChain {
   const start = getNode(startNodeId, graph);
-  if (start.nextNodeId === undefined || start.previousNodeId === undefined) {
-    throw new Error(`Camera node ${startNodeId} is not part of the guided tour`);
+  if (start.nextNodeId === undefined) {
+    throw new Error(`Camera node ${startNodeId} is not on the flow (no nextNodeId)`);
   }
 
-  const guidedNodeCount = graph.navigationNodes.filter(
-    (node) => node.nextNodeId !== undefined && node.previousNodeId !== undefined
-  ).length;
   const visited = new Set<string>();
   const path: OrientedConnection[] = [];
+  const connectionIds = new Set<string>();
   let cursor = start;
 
   while (true) {
     if (visited.has(cursor.id)) {
-      throw new Error(
-        `The guided camera route repeats ${cursor.id} before returning to ${start.id}`
-      );
+      throw new Error(`The flow repeats ${cursor.id} before returning to ${start.id}`);
     }
     visited.add(cursor.id);
 
     const nextNodeId = cursor.nextNodeId;
-    if (!nextNodeId) {
-      throw new Error(`Guided camera node ${cursor.id} has no next node`);
-    }
+    if (nextNodeId === undefined) break;
     const next = getNode(nextNodeId, graph);
     if (next.previousNodeId !== cursor.id) {
-      throw new Error(`Guided camera link ${cursor.id} → ${next.id} is not reciprocal`);
+      throw new Error(`Flow link ${cursor.id} → ${next.id} is not reciprocal`);
     }
+    if (next.id === start.id) break; // legacy closed cycle — stop at the derived tail
 
-    path.push(findDirectConnection(cursor.id, next.id, graph));
-    if (next.id === start.id) break;
+    const edge = findDirectConnection(cursor.id, next.id, graph);
+    path.push(edge);
+    connectionIds.add(edge.connection.id);
     cursor = next;
+  }
 
-    if (path.length > guidedNodeCount) {
-      throw new Error('The guided camera route does not form one cycle');
+  return {
+    head: start,
+    tail: cursor,
+    nodeIds: [...visited],
+    path,
+    connectionIds
+  };
+}
+
+/**
+ * S10.2 — the distinct-connection loop test. Returns the closing connection
+ * record id joining the flow tail back to its head when (a) such a record
+ * exists and (b) it is NOT already a chain transition record. Uniform for all
+ * N: a two-node pair's only record is also its chain transition, so it never
+ * loops — no special case. `null` means the flow is open (plays Once).
+ */
+export function getFlowLoopConnectionId(
+  startNodeId: string,
+  graph: NavigationGraph = museumNavigationGraph
+): string | null {
+  const chain = walkFlowChain(startNodeId, graph);
+  const closing = findDirectConnectionSafe(chain.tail.id, chain.head.id, graph);
+  if (!closing) return null;
+  if (chain.connectionIds.has(closing.connection.id)) return null;
+  return closing.connection.id;
+}
+
+/**
+ * Resolve the ordered flow starting at `startNodeId`. By default the route is
+ * the open chain (Once playback: head → … → tail). With `options.loop: true`
+ * the derived closing record is appended when the distinct-connection test
+ * holds (Loop playback over the authored return edge).
+ */
+export function getFlowRoute(
+  startNodeId: string,
+  graph: NavigationGraph = museumNavigationGraph,
+  options: { loop?: boolean } = {}
+): ResolvedCameraRoute {
+  const chain = walkFlowChain(startNodeId, graph);
+  const path = [...chain.path];
+  let endNodeId = chain.tail.id;
+
+  if (options.loop === true) {
+    const closingConnectionId = getFlowLoopConnectionId(startNodeId, graph);
+    if (closingConnectionId !== null) {
+      const connection = graph.connections.find(
+        (candidate) => candidate.id === closingConnectionId
+      )!;
+      const reversed = connection.toNodeId === chain.tail.id;
+      path.push({
+        connection,
+        fromNodeId: reversed ? connection.toNodeId : connection.fromNodeId,
+        toNodeId: reversed ? connection.fromNodeId : connection.toNodeId,
+        reversed
+      });
+      endNodeId = chain.head.id;
     }
   }
 
-  if (visited.size !== guidedNodeCount) {
-    throw new Error('The guided camera route does not include every guided node');
-  }
-
-  return buildResolvedRoute(start.id, start.id, path, graph);
+  return buildResolvedRoute(chain.head.id, endNodeId, path, graph);
 }
 
 /** Phase 3.7: project a connection's authored timing pair onto per-direction motion options consumed by `createCameraMotion`. */

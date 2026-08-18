@@ -143,11 +143,11 @@
 </script>
 
 <div class="sidebar-section-header">
-	<h2>Guided Tour</h2>
-	<span aria-label={`${guidedTourChain.length} guided stops`}>{guidedTourChain.length}</span>
+	<h2>Camera Flow</h2>
+	<span aria-label={`${guidedTourChain.length} flow stops`}>{guidedTourChain.length}</span>
 </div>
 {#if guidedTourChain.length > 0}
-	<ul role="tree" aria-label="Guided tour stops">
+	<ul role="tree" aria-label="Camera flow stops">
 		{#each guidedTourChain as nodeId, index (nodeId)}
 			{@const node = store.document.navigationNodes.find((candidate) => candidate.id === nodeId)}
 			{#if node}
@@ -187,7 +187,7 @@
 							</span>
 							{#if index === 0}<span class="tree-row__meta">Start</span>{/if}
 						</button>
-						<div class="guided-actions" aria-label={`Edit ${node.label} guided order`}>
+						<div class="guided-actions" aria-label={`Edit ${node.label} flow order`}>
 							<button
 								type="button"
 								aria-label={`Move ${node.label} earlier`}
@@ -205,8 +205,8 @@
 							<button
 								type="button"
 								class="guided-remove"
-								aria-label={`Remove ${node.label} from guided tour`}
-								title={index === 0 ? 'Guided start is pinned' : 'Remove from guided tour'}
+								aria-label={`Remove ${node.label} from camera flow`}
+								title={index === 0 ? 'Flow start is pinned' : 'Remove from camera flow'}
 								disabled={guidedEditingBlocked || index === 0 || guidedTourChain.length <= 2}
 								onclick={() => store.removeNodeFromGuidedTour(node.id)}
 							>×</button>
@@ -241,7 +241,7 @@
 								+ Insert {selectedFreeNode?.label ?? selectedFreeNodeId} here
 							</button>
 						{:else}
-							<span>Drop between stops</span>
+							<span>Drop between route steps</span>
 						{/if}
 					</li>
 				{/if}
@@ -249,7 +249,7 @@
 		{/each}
 	</ul>
 {:else}
-	<p class="empty"><strong>No guided tour</strong></p>
+	<p class="empty"><strong>No camera flow</strong></p>
 {/if}
 
 {#if freeNodeIds.length > 0}
@@ -295,7 +295,7 @@
 							<span class="tree-row__label" title={formatCameraNodeLabel(node.label, node.id)}>
 								{formatCameraNodeLabel(node.label, node.id)}
 							</span>
-							<span class="tree-row__meta">Drag to guided</span>
+							<span class="tree-row__meta">Drag to flow</span>
 						</button>
 					</div>
 					{#if isNodeExpanded(node.id)}

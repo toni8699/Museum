@@ -24,11 +24,12 @@ const SCENE_POLICY: EditorGizmoPolicy = {
 	scaleControl: 'scene-scale-mode'
 };
 
-/** Camera: world translate only, full XYZ handles (pre-S7 monolith parity), no scale chain. */
+/** Camera: world translate + rotate (target-orbit aim), no scale chain. Rotate exposes the three component rings only. */
 const CAMERA_POLICY: EditorGizmoPolicy = {
 	defaultMode: 'translate',
-	allowedModes: new Set(['translate']),
-	allowedAxes: () => ALL_AXES,
+	allowedModes: new Set(['translate', 'rotate']),
+	allowedAxes: (mode) =>
+		mode === 'rotate' ? new Set(['x', 'y', 'z']) : ALL_AXES,
 	space: () => 'world',
 	scaleControl: 'hidden'
 };
@@ -59,7 +60,7 @@ describe('resolveEffectiveMode — remembered → effective', () => {
 
 	it('uses defaultMode when the remembered mode is refused, without overwriting it', () => {
 		expect(resolveEffectiveMode('scale', ROOM_POLICY)).toBe('translate');
-		expect(resolveEffectiveMode('rotate', CAMERA_POLICY)).toBe('translate');
+		expect(resolveEffectiveMode('scale', CAMERA_POLICY)).toBe('translate');
 	});
 
 	it('defaults to defaultMode when no remembered mode is given', () => {
@@ -145,6 +146,14 @@ describe('deriveShowAxes — showX/showY/showZ for the effective mode', () => {
 		});
 	});
 
+	it('camera rotate shows the three component rings (target-orbit aim)', () => {
+		expect(deriveShowAxes('rotate', CAMERA_POLICY)).toEqual({
+			showX: true,
+			showY: true,
+			showZ: true
+		});
+	});
+
 	it('a refused remembered mode derives the effective mode\'s axes (room scale → translate)', () => {
 		expect(deriveShowAxes('scale', ROOM_POLICY)).toEqual({
 			showX: true,
@@ -167,12 +176,13 @@ describe('isAxisAllowed — defensive begin guard', () => {
 
 	it('refuses entire disallowed modes, even after effective-mode resolution', () => {
 		// remembered 'scale' on a room resolves to translate, where 'y' is
-		// refused; a rotate 'xy' handle cannot start on a translate-only
-		// camera under any interpretation.
+		// refused.
 		expect(isAxisAllowed('scale', 'y', ROOM_POLICY)).toBe(false);
-		// Camera is translate-only: 'scale' resolves to effective translate,
-		// and with the full XYZ translate set (pre-S7 monolith parity) every
-		// planar axis is a legitimate handle for the effective mode.
+		// Camera rotate is the component rings only: planar 'xy' cannot start
+		// a rotate drag. Scale resolves to effective translate, where the full
+		// XYZ translate set (pre-S7 monolith parity) makes every planar axis a
+		// legitimate handle for the effective mode.
+		expect(isAxisAllowed('rotate', 'xy', CAMERA_POLICY)).toBe(false);
 		expect(isAxisAllowed('scale', 'xy', CAMERA_POLICY)).toBe(true);
 	});
 
@@ -203,9 +213,22 @@ describe('rotate-only handles (E / XYZE) — derived host capabilities', () => {
 		expect(isThreeAxisAllowed('rotate', 'X', ROOM_POLICY)).toBe(false);
 	});
 
+	it('camera targets expose the derived screen/free handles (all component rings allowed)', () => {
+		expect(rotateScreenHandlesAllowed(CAMERA_POLICY)).toBe(true);
+		expect(isThreeAxisAllowed('rotate', 'E', CAMERA_POLICY)).toBe(true);
+		expect(isThreeAxisAllowed('rotate', 'XYZE', CAMERA_POLICY)).toBe(true);
+	});
+
 	it('translate-only targets never expose them', () => {
-		expect(rotateScreenHandlesAllowed(CAMERA_POLICY)).toBe(false);
-		expect(isThreeAxisAllowed('rotate', 'E', CAMERA_POLICY)).toBe(false);
+		const translateOnly: EditorGizmoPolicy = {
+			defaultMode: 'translate',
+			allowedModes: new Set(['translate']),
+			allowedAxes: () => ALL_AXES,
+			space: () => 'world',
+			scaleControl: 'hidden'
+		};
+		expect(rotateScreenHandlesAllowed(translateOnly)).toBe(false);
+		expect(isThreeAxisAllowed('rotate', 'E', translateOnly)).toBe(false);
 	});
 
 	it('defensive: any unexpected uppercase value is refused', () => {
@@ -276,11 +299,16 @@ describe('projectDomainGizmoCapabilities — one projection for the H1 toolbar +
 		expect(caps?.scaleControl).toBe('scene-scale-mode');
 	});
 
-	it('projects the camera policy and refuses the remembered scale mode', () => {
+	it('projects the camera policy: rotate offered, remembered scale still refused', () => {
 		const caps = projectDomainGizmoCapabilities('camera', 'scale', DOMAIN_POLICIES);
 		expect(caps?.effectiveMode).toBe('translate');
-		expect(caps?.allowedModes).toEqual(new Set(['translate']));
+		expect(caps?.allowedModes).toEqual(new Set(['translate', 'rotate']));
 		expect(caps?.scaleControl).toBe('hidden');
+
+		const rotateCaps = projectDomainGizmoCapabilities('camera', 'rotate', DOMAIN_POLICIES);
+		expect(rotateCaps?.effectiveMode).toBe('rotate');
+		expect(rotateCaps?.axes).toEqual(new Set(['x', 'y', 'z']));
+		expect(rotateCaps?.rotateScreenHandles).toBe(true);
 	});
 
 	it('publishes the live layout descriptor policy (S8 gate flip)', () => {

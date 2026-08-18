@@ -10,7 +10,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { Object3D } from 'three';
+import { Object3D, Vector3 } from 'three';
 import type { Vec3 } from '$lib/types/museum';
 import { createCameraGizmoAdapter } from '$lib/editor/gizmo/camera-gizmo-adapter.svelte';
 import { deriveShowAxes } from '$lib/editor/gizmo/editor-gizmo-policy';
@@ -55,10 +55,11 @@ describe('camera-gizmo-adapter — authored node sessions', () => {
 		store.registerCameraHelperRoot(node.id, 'position', root);
 
 		const adapter = createCameraGizmoAdapter({ store })!;
-		expect(adapter.policy.allowedModes).toEqual(new Set(['translate']));
+		expect(adapter.policy.allowedModes).toEqual(new Set(['translate', 'rotate']));
 		expect(adapter.policy.allowedAxes('translate')).toEqual(
 			new Set(['x', 'y', 'z', 'xy', 'xz', 'yz', 'xyz'])
 		);
+		expect(adapter.policy.allowedAxes('rotate')).toEqual(new Set(['x', 'y', 'z']));
 		// The host derives showX/showY/showZ from the policy, so the Y handle
 		// must render — the S7 extraction previously hid it (XZ-only).
 		expect(deriveShowAxes('translate', adapter.policy)).toEqual({
@@ -101,7 +102,7 @@ describe('camera-gizmo-adapter — authored node sessions', () => {
 		const adapter = createCameraGizmoAdapter({ store });
 		expect(adapter).not.toBeNull();
 		expect(adapter!.key).toBe(`camera:${node.id}:position`);
-		expect(adapter!.policy.allowedModes).toEqual(new Set(['translate']));
+		expect(adapter!.policy.allowedModes).toEqual(new Set(['translate', 'rotate']));
 
 		const session = adapter!.begin({ targetKey: adapter!.key });
 		expect(session).not.toBeNull();
@@ -181,6 +182,81 @@ describe('camera-gizmo-adapter — authored node sessions', () => {
 		const before = store.historyVersion;
 		session.commit({ targetKey: adapter.key });
 		expect(store.historyVersion).toBe(before + 1);
+	});
+
+	it('node rotate: the gizmo delta orbits the look target around the eye, one commit', () => {
+		const store = createFixtureEditorStore();
+		const node = store.document.navigationNodes[0]!;
+		expect(store.selectionActions.selectNavigationNode(node.id)).toBe(true);
+
+		const startEyeWorld = store.rooms.point(node.roomId, node.position);
+		const startTargetWorld = store.rooms.point(node.roomId, node.cameraTarget);
+		const root = makeRoot(startEyeWorld);
+		store.registerCameraHelperRoot(node.id, 'position', root);
+
+		const adapter = createCameraGizmoAdapter({ store })!;
+		const session = adapter.begin({ targetKey: adapter.key })!;
+
+		// A pure 90° yaw about world Y: the target must swing around the eye
+		// with the eye fixed and the aim distance preserved.
+		root.quaternion.setFromAxisAngle(new Vector3(0, 1, 0), Math.PI / 2);
+		session.preview({ targetKey: adapter.key, axis: 'Y' });
+
+		const previewed = store.document.navigationNodes.find(
+			(candidate) => candidate.id === node.id
+		)!;
+		const expectedEye = new Vector3(...startEyeWorld);
+		const expectedTarget = new Vector3(...startTargetWorld);
+		const offset = expectedTarget.clone().sub(expectedEye);
+		// yaw +90° about Y: (x, z) → (z, -x) — the orbit applies exactly the
+		// gizmo's delta rotation.
+		const expected = new Vector3(
+			expectedEye.x + offset.z,
+			expectedEye.y + offset.y,
+			expectedEye.z - offset.x
+		);
+		const previewedWorld = store.rooms.point(node.roomId, previewed.cameraTarget);
+		expect(previewedWorld[0]!).toBeCloseTo(expected.x);
+		expect(previewedWorld[1]!).toBeCloseTo(expected.y);
+		expect(previewedWorld[2]!).toBeCloseTo(expected.z);
+		// The eye never moves during a rotate drag.
+		expect(previewed.position[0]).toBeCloseTo(node.position[0]);
+		expect(previewed.position[1]).toBeCloseTo(node.position[1]);
+
+		const before = store.historyVersion;
+		session.commit({ targetKey: adapter.key });
+		expect(store.historyVersion).toBe(before + 1);
+	});
+
+	it('node rotate cancel restores the target and the root, and adds no history', () => {
+		const store = createFixtureEditorStore();
+		const node = store.document.navigationNodes[0]!;
+		const originalTarget = [...node.cameraTarget] as Vec3;
+		expect(store.selectionActions.selectNavigationNode(node.id)).toBe(true);
+
+		const startEyeWorld = store.rooms.point(node.roomId, node.position);
+		const root = makeRoot(startEyeWorld);
+		store.registerCameraHelperRoot(node.id, 'position', root);
+
+		const adapter = createCameraGizmoAdapter({ store })!;
+		const session = adapter.begin({ targetKey: adapter.key })!;
+		root.quaternion.setFromAxisAngle(new Vector3(0, 1, 0), Math.PI / 4);
+		session.preview({ targetKey: adapter.key, axis: 'Y' });
+		expect(store.canUndo).toBe(false);
+
+		session.cancel('escape');
+		expect(store.canUndo).toBe(false);
+		expect(store.isDocumentTransactionActive).toBe(false);
+		const restored = store.document.navigationNodes.find(
+			(candidate) => candidate.id === node.id
+		)!;
+		expect(restored.cameraTarget[0]).toBeCloseTo(originalTarget[0]!);
+		expect(restored.cameraTarget[1]).toBeCloseTo(originalTarget[1]!);
+		expect(restored.cameraTarget[2]).toBeCloseTo(originalTarget[2]!);
+		expect(root.quaternion.x).toBe(0);
+		expect(root.quaternion.y).toBe(0);
+		expect(root.quaternion.z).toBe(0);
+		expect(root.quaternion.w).toBe(1);
 	});
 
 	it('cancel restores the node, the root, and adds no history', () => {

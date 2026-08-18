@@ -11,8 +11,9 @@ import {
 import {
 	getCameraConnectionRoute,
 	getCameraMotionOptions,
-	getGuidedCameraRoute
+	getFlowRoute
 } from '$lib/museum/navigation/camera-route';
+import { isFlowNode } from '$lib/content/scene';
 
 const TIMELINE_EPSILON = 1e-9;
 
@@ -95,15 +96,27 @@ function timelineProgressAtSeconds(timeline: EditorCameraTimeline, seconds: numb
 }
 
 function findGuidedStart(graph: NavigationGraph, preferredStartNodeId: string) {
-	const guidedNodes = graph.navigationNodes.filter(
-		(node) => node.nextNodeId !== undefined && node.previousNodeId !== undefined
-	);
-	if (guidedNodes.length === 0) {
-		throw new Error('The camera timeline requires a guided tour');
+	const flowNodes = graph.navigationNodes.filter(isFlowNode);
+	if (flowNodes.length === 0) {
+		throw new Error('The camera timeline requires a flow');
 	}
-	return (
-		guidedNodes.find((node) => node.id === preferredStartNodeId) ?? guidedNodes[0]
-	);
+	const seed =
+		flowNodes.find((node) => node.id === preferredStartNodeId) ?? flowNodes[0];
+	// Walk previous-links to the component head. If the walk returns to the
+	// seed, the component is a legacy closed cycle — keep the seed as the start
+	// so the derived chain preserves its display order (getFlowRoute derives
+	// the loop closing edge separately).
+	const seen = new Set([seed.id]);
+	let cursor = seed;
+	while (cursor.previousNodeId !== undefined) {
+		const previous = graph.nodeById.get(cursor.previousNodeId);
+		if (!previous || !isFlowNode(previous)) break;
+		if (previous.id === seed.id) return seed;
+		if (seen.has(previous.id)) break;
+		seen.add(previous.id);
+		cursor = previous;
+	}
+	return cursor;
 }
 
 /**
@@ -117,7 +130,10 @@ export function createEditorCameraTimeline(
 	preferredStartNodeId = 'entrance-start'
 ): EditorCameraTimeline {
 	const start = findGuidedStart(graph, preferredStartNodeId);
-	const guidedRoute = getGuidedCameraRoute(start.id,graph);
+	// Loop playback is derived (distinct-connection test): when the closing
+	// record exists and is not a chain transition, the timeline includes the
+	// authored return edge; otherwise the flow plays Once and ends at the tail.
+	const guidedRoute = getFlowRoute(start.id, graph, { loop: true });
 	const nodeById = graph.nodeById;
 	const edges: EditorCameraTimelineEdge[] = [];
 	let motionElapsedSeconds = 0;

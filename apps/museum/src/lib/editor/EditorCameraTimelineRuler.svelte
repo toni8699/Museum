@@ -30,7 +30,7 @@
 </script>
 
 {#if timeline}
-	<div class="transport" aria-label="Guided tour timeline transport">
+	<div class="transport" aria-label="Camera flow timeline transport">
 		<button
 			type="button"
 			aria-label="Previous camera boundary"

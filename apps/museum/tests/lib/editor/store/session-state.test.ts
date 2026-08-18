@@ -72,6 +72,28 @@ describe('EditorSessionState', () => {
 		});
 	});
 
+	describe('grid + floor color (session-only viewport styling)', () => {
+		it('gridVisible defaults to false', () => {
+			expect(session.gridVisible).toBe(false);
+		});
+
+		it('toggleGrid flips the flag', () => {
+			session.toggleGrid();
+			expect(session.gridVisible).toBe(true);
+			session.toggleGrid();
+			expect(session.gridVisible).toBe(false);
+		});
+
+		it('floorColor defaults to the sketch gray family', () => {
+			expect(session.floorColor).toBe('#57575d');
+		});
+
+		it('setFloorColor updates the slot', () => {
+			session.setFloorColor('#808080');
+			expect(session.floorColor).toBe('#808080');
+		});
+	});
+
 	describe('setStatusMessage + timer', () => {
 		it('clears any prior timer and sets message immediately', () => {
 			session.setStatusMessage('first');

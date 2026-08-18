@@ -3,7 +3,8 @@ import { Object3D } from 'three';
 import { cloneFixtureDocument } from '../content/__fixtures__/load-fixture-scene';
 import {
 	assertNavigationGraphMatchesScene,
-	type MuseumSceneDocument
+	type MuseumSceneDocument,
+	type SceneNavigationNode
 } from '$lib/content/scene';
 import { museumSceneDocument } from '$lib/content/chopin-project';
 import { getRoom, roomLocalPoint, roomPoint } from '$lib/content/rooms';
@@ -414,7 +415,7 @@ describe('MuseumEditorStore Phase 6 camera nodes', () => {
 		expect(missingStore.previewSelectedTransition()).toBe(true);
 		expect(missingStore.cameraPreview).not.toBeNull();
 		missingStore.stopCameraPreview();
-		expect(missingStore.statusMessage).toContain('free-only node');
+		expect(missingStore.statusMessage).toContain('non_reciprocal_tour_link');
 
 		const unroutableStore = createFixtureEditorStore();
 		unroutableStore.selectionActions.selectNavigationNode('tour-paris');
@@ -711,7 +712,7 @@ describe('MuseumEditorStore Phase 6.5 camera paths', () => {
 		const before = store.canonicalJson;
 		const historyBefore = store.historyVersion;
 		expect(store.deleteConnection('tour-a-b')).toBe(false);
-		expect(store.statusMessage).toContain('guided order requires');
+		expect(store.statusMessage).toContain('the flow order requires');
 		expect(store.canonicalJson).toBe(before);
 		expect(store.historyVersion).toBe(historyBefore);
 
@@ -2191,7 +2192,8 @@ describe('MuseumEditorStore Phase 2.4 camera-key progress drag', () => {
 	});
 });
 
-describe('MuseumEditorStore Phase 3.4 guided-order editing', () => {		const checkedInOrder = [...FIXTURE_GUIDED_ORDER];
+describe('MuseumEditorStore Phase 3.4 guided-order editing', () => {
+	const checkedInOrder = [...FIXTURE_GUIDED_ORDER];
 
 	function addDocumentConnection(
 		document: MuseumSceneDocument,
@@ -2250,10 +2252,14 @@ describe('MuseumEditorStore Phase 3.4 guided-order editing', () => {		const chec
 			const node = store.document.navigationNodes.find(
 				(candidate) => candidate.id === nodeId
 			)!;
-			expect(node.previousNodeId).toBe(
-				reordered[(index - 1 + reordered.length) % reordered.length]
-			);
-			expect(node.nextNodeId).toBe(reordered[(index + 1) % reordered.length]);
+			const expectedPrev =
+				index === 0 ? undefined : reordered[index - 1];
+			const expectedNext =
+				index === reordered.length - 1
+					? undefined
+					: reordered[index + 1];
+			expect(node.previousNodeId).toBe(expectedPrev);
+			expect(node.nextNodeId).toBe(expectedNext);
 		}
 		expect(store.validation.success).toBe(true);
 
@@ -2268,12 +2274,14 @@ describe('MuseumEditorStore Phase 3.4 guided-order editing', () => {		const chec
 		const invalid = ['tour-a', 'tour-paris', 'tour-b', 'tour-d'];
 
 		expect(store.setGuidedTourOrder(invalid)).toBe(false);
-		expect(store.statusMessage).toContain('need a direct connection');
+		expect(store.statusMessage).toContain('Missing transition');
 		expect(store.canonicalJson).toBe(before);
 		expect(store.document.connections).toHaveLength(connectionCount);
 		expect(store.canUndo).toBe(false);
+		expect(store.setGuidedTourOrder(checkedInOrder)).toBe(true);
+		const afterNormalize = store.canonicalJson;
 		expect(store.setGuidedTourOrder(checkedInOrder)).toBe(false);
-		expect(store.canUndo).toBe(false);
+		expect(store.canonicalJson).toBe(afterNormalize);
 	});
 
 	it('inserts and removes a free node while retaining all graph connections', () => {
@@ -2311,7 +2319,7 @@ describe('MuseumEditorStore Phase 3.4 guided-order editing', () => {		const chec
 	it('requires a retained bridge when removing a guided node and pins the start', () => {
 		const rejected = createFixtureEditorStore();
 		expect(rejected.removeNodeFromGuidedTour('tour-b')).toBe(false);
-		expect(rejected.statusMessage).toContain('need a direct connection');
+		expect(rejected.statusMessage).toContain('Missing transition');
 		expect(rejected.removeNodeFromGuidedTour('tour-a')).toBe(false);
 		expect(rejected.statusMessage).toContain('display start is pinned');
 		expect(rejected.canUndo).toBe(false);
@@ -2352,7 +2360,499 @@ describe('MuseumEditorStore Phase 3.4 guided-order editing', () => {		const chec
 	});
 });
 
-describe('MuseumEditorStore Phase 3.5 timeline drag-connect', () => {		const checkedInOrder = [...FIXTURE_GUIDED_ORDER];
+describe('MuseumEditorStore S10.2 camera-flow mutations', () => {
+	function addDocumentConnection(
+		document: MuseumSceneDocument,
+		fromNodeId: string,
+		toNodeId: string,
+		id: string
+	) {
+		const from = document.navigationNodes.find((node) => node.id === fromNodeId)!;
+		const to = document.navigationNodes.find((node) => node.id === toNodeId)!;
+		from.connectedNodeIds.push(to.id);
+		to.connectedNodeIds.push(from.id);
+		document.connections.push({
+			id,
+			fromNodeId,
+			toNodeId,
+			clearance: 0.35,
+			positionPath: { kind: 'auto-bezier', anchors: [] }
+		});
+	}
+
+	function addFreeNode(
+		document: MuseumSceneDocument,
+		id: string
+	): SceneNavigationNode {
+		const node: SceneNavigationNode = {
+			id,
+			roomId: 'paris',
+			label: id,
+			position: [0, 1.65, 0],
+			cameraTarget: [0, 1.25, -3],
+			fov: 54,
+			connectedNodeIds: []
+		};
+		document.navigationNodes.push(node);
+		return node;
+	}
+
+	function hasConnection(
+		document: MuseumSceneDocument,
+		fromNodeId: string,
+		toNodeId: string
+	) {
+		return document.connections.some(
+			(connection) =>
+				(connection.fromNodeId === fromNodeId && connection.toNodeId === toNodeId) ||
+				(connection.fromNodeId === toNodeId && connection.toNodeId === fromNodeId)
+		);
+	}
+
+	it('seeds an open two-node pair (head→tail, no wraparound) and unlocks preview', () => {
+		const blank = cloneFixtureDocument();
+		blank.navigationNodes = [];
+		blank.connections = [];
+		const store = createFixtureEditorStore();
+		expect(store.importDocument(blank)).toBe(true);
+		expect(store.canStartTourPreview).toBe(false);
+
+		const roomId = store.rooms.entries[0]!.id;
+		expect(store.beginCameraPlacement()).toBe(true);
+		const firstNodeId = store.createPendingNavigationNodeAt(
+			roomId,
+			store.rooms.point(roomId, [0, 0, 0]),
+			[0, 0, -1]
+		)!;
+		expect(store.beginCameraPlacement()).toBe(true);
+		const secondNodeId = store.createPendingNavigationNodeAt(
+			roomId,
+			store.rooms.point(roomId, [1, 0, 1]),
+			[0, 0, -1]
+		)!;
+		expect(store.connectPendingNavigationNode(firstNodeId!)).toBe(true);
+
+		const first = store.document.navigationNodes.find(
+			(node) => node.id === firstNodeId
+		)!;
+		const second = store.document.navigationNodes.find(
+			(node) => node.id === secondNodeId
+		)!;
+		// Open pair 1 → 2: the head keeps no previous, the tail keeps no next.
+		expect(first.nextNodeId).toBe(second.id);
+		expect(first.previousNodeId).toBeUndefined();
+		expect(second.previousNodeId).toBe(first.id);
+		expect(second.nextNodeId).toBeUndefined();
+		expect(store.guidedTourNodeIds).toEqual([firstNodeId, secondNodeId]);
+		expect(store.canStartTourPreview).toBe(true);
+		expect(store.statusMessage).toContain('two-node camera flow');
+		expect(store.validation.success).toBe(true);
+	});
+
+	it('appending to a two-node pair never announces a loop-off', () => {
+		const store = createFixtureEditorStore();
+		expect(store.guidedTourNodeIds).toEqual([...FIXTURE_GUIDED_ORDER]);
+		// Shrink the flow to an open pair tour-a → tour-b (keep one edge; the
+		// pair's only record is also its chain transition, so it never loops).
+		const pairDocument = cloneFixtureDocument();
+		pairDocument.navigationNodes = pairDocument.navigationNodes
+			.filter((node) => node.id === 'tour-a' || node.id === 'tour-b')
+			.map((node) => {
+				const copy = { ...node, connectedNodeIds: [] as string[] };
+				delete copy.nextNodeId;
+				delete copy.previousNodeId;
+				return copy;
+			});
+		const pairA = pairDocument.navigationNodes.find((node) => node.id === 'tour-a')!;
+		const pairB = pairDocument.navigationNodes.find((node) => node.id === 'tour-b')!;
+		pairA.nextNodeId = pairB.id;
+		pairB.previousNodeId = pairA.id;
+		pairDocument.connections = [];
+		addDocumentConnection(pairDocument, 'tour-a', 'tour-b', 'tour-a-tour-b');
+		addFreeNode(pairDocument, 'free-3');
+		addDocumentConnection(pairDocument, 'tour-b', 'free-3', 'tour-b-free-3');
+		const pairStore = createFixtureEditorStore();
+		expect(pairStore.importDocument(pairDocument)).toBe(true);
+		expect(pairStore.validation.success).toBe(true);
+
+		// Append a third node to the pair tail: no loop was on, so the plain
+		// append microcopy applies — never the loop-off announcement.
+		expect(pairStore.beginCameraPlacement()).toBe(true);
+		const pendingId = pairStore.createPendingNavigationNodeAt(
+			'legacy',
+			[0, 0, 0],
+			[0, 0, -1]
+		)!;
+		expect(pendingId).toBeTruthy();
+		expect(pairStore.connectPendingNavigationNode('tour-b')).toBe(true);
+		expect(pairStore.statusMessage).toContain('the path now ends at');
+		expect(pairStore.statusMessage).not.toContain('is now the end of the tour');
+		expect(pairStore.validation.success).toBe(true);
+	});
+
+	it('appends a placed node to the flow tail and keeps a mid-route connection free', () => {
+		const store = createFixtureEditorStore();
+		const historyBefore = store.historyVersion;
+		expect(store.guidedTourNodeIds).toEqual([...FIXTURE_GUIDED_ORDER]);
+
+		// Connecting the new node to the tail appends it to the flow.
+		expect(store.beginCameraPlacement()).toBe(true);
+		const tailId = store.createPendingNavigationNodeAt(
+			'legacy',
+			roomPoint('legacy', [2, 0, 2]),
+			[0, 0, -1]
+		)!;
+		expect(store.connectPendingNavigationNode('tour-d')).toBe(true);
+		const tail = store.document.navigationNodes.find((node) => node.id === 'tour-d')!;
+		const appended = store.document.navigationNodes.find(
+			(node) => node.id === tailId
+		)!;
+		expect(tail.nextNodeId).toBe(appended.id);
+		expect(appended.previousNodeId).toBe('tour-d');
+		expect(appended.nextNodeId).toBeUndefined();
+		// The fixture is a legacy closed cycle (tour-d → tour-a record exists),
+		// so appending announces the loop-off transition per the microcopy
+		// contract — never silent.
+		expect(store.statusMessage).toContain('is now the end of the tour');
+		expect(store.statusMessage).toContain('inactive');
+		expect(store.statusMessage).toContain('to loop');
+		expect(store.historyVersion).toBe(historyBefore + 1);
+		expect(store.validation.success).toBe(true);
+
+		// Connecting a further node to a mid-route node keeps it free.
+		expect(store.beginCameraPlacement()).toBe(true);
+		const freeId = store.createPendingNavigationNodeAt(
+			'legacy',
+			roomPoint('legacy', [3, 0, 3]),
+			[0, 0, -1]
+		)!;
+		expect(store.connectPendingNavigationNode('tour-b')).toBe(true);
+		const free = store.document.navigationNodes.find((node) => node.id === freeId)!;
+		expect(free.nextNodeId).toBeUndefined();
+		expect(free.previousNodeId).toBeUndefined();
+		expect(store.guidedTourNodeIds).toEqual([...FIXTURE_GUIDED_ORDER, tailId]);
+	});
+
+	it('inserts a free node with at most one auto-created edge and announces it', () => {
+		const document = cloneFixtureDocument();
+		addFreeNode(document, 'free-node');
+		addDocumentConnection(document, 'tour-paris', 'free-node', 'tour-paris-free');
+		const store = createFixtureEditorStore();
+		expect(store.importDocument(document)).toBe(true);
+		const historyBefore = store.historyVersion;
+
+		expect(store.insertNodeIntoGuidedTour('free-node', 2)).toBe(true);
+		const node = store.document.navigationNodes.find(
+			(candidate) => candidate.id === 'free-node'
+		)!;
+		expect(node.previousNodeId).toBe('tour-b');
+		expect(node.nextNodeId).toBe('tour-paris');
+		// The one missing edge (tour-b → free-node) was auto-created in the
+		// same transaction.
+		expect(hasConnection(store.document, 'tour-b', 'free-node')).toBe(true);
+		// The pre-existing tour-paris edge is retained, never auto-deleted.
+		expect(hasConnection(store.document, 'tour-paris', 'free-node')).toBe(true);
+		expect(store.statusMessage).toContain('created the missing transition');
+		expect(store.historyVersion).toBe(historyBefore + 1);
+		expect(store.validation.success).toBe(true);
+
+		expect(store.undo()).toBe(true);
+		const undone = store.document.navigationNodes.find(
+			(candidate) => candidate.id === 'free-node'
+		)!;
+		expect(undone.nextNodeId).toBeUndefined();
+		expect(undone.previousNodeId).toBeUndefined();
+		expect(store.document.connections).toHaveLength(document.connections.length);
+	});
+
+	it('removes a node from the flow with free-node microcopy and rejects missing bridges', () => {
+		const rejected = createFixtureEditorStore();
+		expect(rejected.removeNodeFromGuidedTour('tour-b')).toBe(false);
+		expect(rejected.statusMessage).toContain('connect them first');
+		expect(rejected.canUndo).toBe(false);
+
+		const document = cloneFixtureDocument();
+		addDocumentConnection(document, 'tour-a', 'tour-paris', 'tour-a-paris');
+		const store = createFixtureEditorStore();
+		expect(store.importDocument(document)).toBe(true);
+		expect(store.removeNodeFromGuidedTour('tour-b')).toBe(true);
+		const middle = store.document.navigationNodes.find(
+			(node) => node.id === 'tour-b'
+		)!;
+		expect(middle.nextNodeId).toBeUndefined();
+		expect(middle.previousNodeId).toBeUndefined();
+		expect(store.statusMessage).toContain('is now a free node');
+		expect(store.guidedTourNodeIds).toEqual(['tour-a', 'tour-paris', 'tour-d']);
+		expect(store.validation.success).toBe(true);
+	});
+
+	it('rewrites the order into an open chain and rejects missing-edge reorders strictly', () => {
+		// Strict reject: a consecutive pair without an edge refuses before any
+		// mutation (only the a–paris chord is present; b–d is missing).
+		const rejected = createFixtureEditorStore();
+		const rejectedDocument = cloneFixtureDocument();
+		addDocumentConnection(rejectedDocument, 'tour-a', 'tour-paris', 'tour-a-paris');
+		expect(rejected.importDocument(rejectedDocument)).toBe(true);
+		const before = rejected.canonicalJson;
+		expect(
+			rejected.setGuidedTourOrder(['tour-a', 'tour-paris', 'tour-b', 'tour-d'])
+		).toBe(false);
+		expect(rejected.statusMessage).toContain('connect them first');
+		expect(rejected.canonicalJson).toBe(before);
+		expect(rejected.canUndo).toBe(false);
+
+		// With both chords present the reorder commits as one open-chain
+		// rewrite: head keeps no previous, tail keeps no next.
+		const document = cloneFixtureDocument();
+		addDocumentConnection(document, 'tour-a', 'tour-paris', 'tour-a-paris');
+		addDocumentConnection(document, 'tour-b', 'tour-d', 'tour-b-d');
+		const store = createFixtureEditorStore();
+		expect(store.importDocument(document)).toBe(true);
+		const historyBefore = store.historyVersion;
+		expect(
+			store.setGuidedTourOrder(['tour-a', 'tour-paris', 'tour-b', 'tour-d'])
+		).toBe(true);
+		const tourA = store.document.navigationNodes.find((node) => node.id === 'tour-a')!;
+		const tourD = store.document.navigationNodes.find((node) => node.id === 'tour-d')!;
+		expect(tourA.previousNodeId).toBeUndefined();
+		expect(tourA.nextNodeId).toBe('tour-paris');
+		expect(tourD.previousNodeId).toBe('tour-b');
+		expect(tourD.nextNodeId).toBeUndefined();
+		expect(store.guidedTourNodeIds).toEqual(['tour-a', 'tour-paris', 'tour-b', 'tour-d']);
+		expect(store.historyVersion).toBe(historyBefore + 1);
+		expect(store.validation.success).toBe(true);
+	});
+
+	it('adds, appends, and removes a detour with F5 return edges and strict splices', () => {
+		// Free nodes need an edge to keep the navigation graph connected
+		// (codec rule); chain edges are authored, the F5 return edges are not.
+		const document = cloneFixtureDocument();
+		addFreeNode(document, 'detour-1');
+		addFreeNode(document, 'detour-2');
+		addFreeNode(document, 'detour-3');
+		addDocumentConnection(document, 'tour-b', 'detour-1', 'tour-b-detour-1');
+		addDocumentConnection(document, 'detour-1', 'detour-2', 'detour-1-detour-2');
+		addDocumentConnection(document, 'detour-2', 'detour-3', 'detour-2-detour-3');
+		const store = createFixtureEditorStore();
+		expect(store.importDocument(document)).toBe(true);
+		const historyBefore = store.historyVersion;
+
+		// Add detour at tour-b with a fully free node: origin–head edge
+		// auto-created (F5, one-node detour needs no extra return edge).
+		expect(store.addDetourNode('tour-b', 'detour-1')).toBe(true);
+		let detour1 = store.document.navigationNodes.find(
+			(node) => node.id === 'detour-1'
+		)!;
+		expect(detour1.detourOfNodeId).toBe('tour-b');
+		expect(hasConnection(store.document, 'tour-b', 'detour-1')).toBe(true);
+		expect(store.statusMessage).toContain('Detour added at');
+		expect(store.guidedTourNodeIds).toEqual([...FIXTURE_GUIDED_ORDER]);
+		expect(store.historyVersion).toBe(historyBefore + 1);
+		expect(store.validation.success).toBe(true);
+
+		// Append: the chain edge detour-1–detour-2 exists already; the F5
+		// return edge detour-2–tour-b is auto-created once.
+		expect(store.appendDetourNode('tour-b', 'detour-2')).toBe(true);
+		detour1 = store.document.navigationNodes.find((node) => node.id === 'detour-1')!;
+		const detour2 = store.document.navigationNodes.find(
+			(node) => node.id === 'detour-2'
+		)!;
+		expect(detour1.nextNodeId).toBe('detour-2');
+		expect(detour2.previousNodeId).toBe('detour-1');
+		expect(detour2.detourOfNodeId).toBeUndefined();
+		expect(hasConnection(store.document, 'detour-1', 'detour-2')).toBe(true);
+		expect(hasConnection(store.document, 'detour-2', 'tour-b')).toBe(true);
+		expect(store.validation.success).toBe(true);
+
+		// The detour return edge is flow-critical: connection deletion refuses.
+		const returnEdge = store.document.connections.find(
+			(connection) =>
+				(connection.fromNodeId === 'detour-2' && connection.toNodeId === 'tour-b') ||
+				(connection.fromNodeId === 'tour-b' && connection.toNodeId === 'detour-2')
+		)!;
+		expect(store.deleteConnection(returnEdge.id)).toBe(false);
+		expect(store.statusMessage).toContain('returns a detour');
+
+		// Strict T9: removing the middle node needs a direct detour-1–detour-3
+		// edge; the mutator rejects without mutation.
+		expect(store.appendDetourNode('tour-b', 'detour-3')).toBe(true);
+		const before = store.canonicalJson;
+		expect(store.removeDetourNode('tour-b', 'detour-2')).toBe(false);
+		expect(store.statusMessage).toContain('connect them first');
+		expect(store.canonicalJson).toBe(before);
+
+		// Head removal transfers the origin marker to the new head.
+		expect(store.removeDetourNode('tour-b', 'detour-1')).toBe(true);
+		const newHead = store.document.navigationNodes.find(
+			(node) => node.id === 'detour-2'
+		)!;
+		expect(newHead.detourOfNodeId).toBe('tour-b');
+		expect(newHead.previousNodeId).toBeUndefined();
+		const removedHead = store.document.navigationNodes.find(
+			(node) => node.id === 'detour-1'
+		)!;
+		expect(removedHead.nextNodeId).toBeUndefined();
+		expect(removedHead.previousNodeId).toBeUndefined();
+		expect(removedHead.detourOfNodeId).toBeUndefined();
+		expect(store.statusMessage).toContain('kept as free');
+		expect(store.validation.success).toBe(true);
+
+		// Whole-detour removal clears the marker and links; edges stay authored.
+		expect(store.removeDetour('tour-b')).toBe(true);
+		expect(newHead.detourOfNodeId).toBeUndefined();
+		expect(hasConnection(store.document, 'detour-2', 'tour-b')).toBe(true);
+		expect(store.statusMessage).toContain('Removed the detour at');
+		expect(store.validation.success).toBe(true);
+	});
+
+	it('keeps detour chain links intact across main-flow order ops', () => {
+		const document = cloneFixtureDocument();
+		addFreeNode(document, 'detour-1');
+		addFreeNode(document, 'detour-2');
+		addDocumentConnection(document, 'tour-b', 'detour-1', 'tour-b-detour-1');
+		addDocumentConnection(document, 'detour-1', 'detour-2', 'detour-1-detour-2');
+		const store = createFixtureEditorStore();
+		expect(store.importDocument(document)).toBe(true);
+		expect(store.addDetourNode('tour-b', 'detour-1')).toBe(true);
+		expect(store.appendDetourNode('tour-b', 'detour-2')).toBe(true);
+
+		// Removing a main-route tail node must not wipe detour order links.
+		expect(store.removeNodeFromGuidedTour('tour-d')).toBe(true);
+		const detour1 = store.document.navigationNodes.find((node) => node.id === 'detour-1')!;
+		const detour2 = store.document.navigationNodes.find((node) => node.id === 'detour-2')!;
+		expect(detour1.nextNodeId).toBe('detour-2');
+		expect(detour2.previousNodeId).toBe('detour-1');
+		expect(detour1.detourOfNodeId).toBe('tour-b');
+		expect(store.validation.success).toBe(true);
+
+		// Inserting a free node into the main route likewise leaves the detour.
+		const second = cloneFixtureDocument();
+		addFreeNode(second, 'detour-1');
+		addFreeNode(second, 'detour-2');
+		addFreeNode(second, 'free-insert');
+		addDocumentConnection(second, 'tour-b', 'detour-1', 'tour-b-detour-1');
+		addDocumentConnection(second, 'detour-1', 'detour-2', 'detour-1-detour-2');
+		addDocumentConnection(second, 'tour-a', 'free-insert', 'tour-a-free-insert');
+		addDocumentConnection(second, 'free-insert', 'tour-b', 'free-insert-tour-b');
+		const insertStore = createFixtureEditorStore();
+		expect(insertStore.importDocument(second)).toBe(true);
+		expect(insertStore.addDetourNode('tour-b', 'detour-1')).toBe(true);
+		expect(insertStore.appendDetourNode('tour-b', 'detour-2')).toBe(true);
+		expect(insertStore.insertNodeIntoGuidedTour('free-insert', 1)).toBe(true);
+		const kept1 = insertStore.document.navigationNodes.find((node) => node.id === 'detour-1')!;
+		const kept2 = insertStore.document.navigationNodes.find((node) => node.id === 'detour-2')!;
+		expect(kept1.nextNodeId).toBe('detour-2');
+		expect(kept2.previousNodeId).toBe('detour-1');
+		expect(kept1.detourOfNodeId).toBe('tour-b');
+		expect(insertStore.validation.success).toBe(true);
+	});
+
+	it('deletes a whole detour when its origin or head is deleted', () => {
+		const document = cloneFixtureDocument();
+		addDocumentConnection(document, 'tour-a', 'tour-paris', 'tour-a-paris');
+		addFreeNode(document, 'detour-1');
+		addFreeNode(document, 'detour-2');
+		addDocumentConnection(document, 'tour-b', 'detour-1', 'tour-b-detour-1');
+		addDocumentConnection(document, 'detour-1', 'detour-2', 'detour-1-detour-2');
+		const store = createFixtureEditorStore();
+		expect(store.importDocument(document)).toBe(true);
+		expect(store.addDetourNode('tour-b', 'detour-1')).toBe(true);
+		expect(store.appendDetourNode('tour-b', 'detour-2')).toBe(true);
+
+		// Deleting the origin deletes the whole detour in one transaction.
+		const historyBefore = store.historyVersion;
+		expect(store.deleteNavigationNode('tour-b')).toBe(true);
+		expect(store.statusMessage).toContain('and the detour at');
+		expect(
+			store.document.navigationNodes.some(
+				(node) => node.id === 'detour-1' || node.id === 'detour-2'
+			)
+		).toBe(false);
+		expect(store.historyVersion).toBe(historyBefore + 1);
+		expect(store.validation.success).toBe(true);
+
+		// Orphaned head deletion: deleting the head removes the whole chain.
+		const second = cloneFixtureDocument();
+		addFreeNode(second, 'detour-3');
+		addFreeNode(second, 'detour-4');
+		addDocumentConnection(second, 'tour-b', 'detour-3', 'tour-b-detour-3');
+		addDocumentConnection(second, 'detour-3', 'detour-4', 'detour-3-detour-4');
+		const headStore = createFixtureEditorStore();
+		expect(headStore.importDocument(second)).toBe(true);
+		expect(headStore.addDetourNode('tour-b', 'detour-3')).toBe(true);
+		expect(headStore.appendDetourNode('tour-b', 'detour-4')).toBe(true);
+		expect(headStore.deleteNavigationNode('detour-3')).toBe(true);
+		expect(headStore.statusMessage).toContain('and the detour at Tour B');
+		expect(
+			headStore.document.navigationNodes.some(
+				(node) => node.id === 'detour-3' || node.id === 'detour-4'
+			)
+		).toBe(false);
+		expect(headStore.validation.success).toBe(true);
+	});
+
+	it('preserves detour chains across main-flow remove and reorder', () => {
+		const document = cloneFixtureDocument();
+		addFreeNode(document, 'detour-1');
+		addFreeNode(document, 'detour-2');
+		addDocumentConnection(document, 'tour-b', 'detour-1', 'tour-b-detour-1');
+		addDocumentConnection(document, 'detour-1', 'detour-2', 'detour-1-detour-2');
+		// A direct a–paris edge so the reorder below stays T9-valid.
+		addDocumentConnection(document, 'tour-a', 'tour-paris', 'tour-a-paris');
+		const store = createFixtureEditorStore();
+		expect(store.importDocument(document)).toBe(true);
+		expect(store.addDetourNode('tour-b', 'detour-1')).toBe(true);
+		expect(store.appendDetourNode('tour-b', 'detour-2')).toBe(true);
+
+		// Remove a main-flow node: the detour chain links must survive the
+		// main-flow order rewrite (order rewrites are main-component scoped;
+		// detour order links are separate components).
+		expect(store.removeNodeFromGuidedTour('tour-d')).toBe(true);
+		let detour1 = store.document.navigationNodes.find((node) => node.id === 'detour-1')!;
+		let detour2 = store.document.navigationNodes.find((node) => node.id === 'detour-2')!;
+		expect(detour1.nextNodeId).toBe('detour-2');
+		expect(detour2.previousNodeId).toBe('detour-1');
+		expect(detour1.detourOfNodeId).toBe('tour-b');
+		expect(store.validation.success).toBe(true);
+
+		// Reorder the main flow: the detour still survives.
+		expect(store.setGuidedTourOrder(['tour-a', 'tour-paris', 'tour-b'])).toBe(true);
+		detour1 = store.document.navigationNodes.find((node) => node.id === 'detour-1')!;
+		detour2 = store.document.navigationNodes.find((node) => node.id === 'detour-2')!;
+		expect(detour1.nextNodeId).toBe('detour-2');
+		expect(detour2.previousNodeId).toBe('detour-1');
+		expect(detour1.detourOfNodeId).toBe('tour-b');
+		expect(store.validation.success).toBe(true);
+	});
+
+	it('refuses to splice a detour node into the main flow', () => {
+		const document = cloneFixtureDocument();
+		addFreeNode(document, 'detour-1');
+		addFreeNode(document, 'detour-2');
+		addDocumentConnection(document, 'tour-b', 'detour-1', 'tour-b-detour-1');
+		addDocumentConnection(document, 'detour-1', 'detour-2', 'detour-1-detour-2');
+		const store = createFixtureEditorStore();
+		expect(store.importDocument(document)).toBe(true);
+		expect(store.addDetourNode('tour-b', 'detour-1')).toBe(true);
+		expect(store.appendDetourNode('tour-b', 'detour-2')).toBe(true);
+
+		// The detour head is not a free node: main-flow insertion must reject
+		// (remove-from-detour + insert-into-main is a separate combined op).
+		const before = store.canonicalJson;
+		expect(store.insertNodeIntoGuidedTour('detour-1', 1)).toBe(false);
+		expect(store.statusMessage).toContain('remove it from the detour first');
+		expect(store.canonicalJson).toBe(before);
+
+		// A detour interior node is likewise refused by the drag-drop path.
+		expect(store.timelineDragConnectNode('detour-2', 'tour-b', 'tour-paris')).toBe(false);
+		expect(store.statusMessage).toContain('remove it from the detour first');
+		expect(store.canonicalJson).toBe(before);
+		expect(store.validation.success).toBe(true);
+	});
+});
+
+describe('MuseumEditorStore Phase 3.5 timeline drag-connect', () => {
+	const checkedInOrder = [...FIXTURE_GUIDED_ORDER];
 
 	function addDocumentConnection(
 		document: MuseumSceneDocument,

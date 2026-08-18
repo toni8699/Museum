@@ -168,6 +168,18 @@ export type SceneNavigationNode = Omit<
   cameraTarget: Vec3;
 };
 
+/**
+ * S10.2 — shared on-flow predicate. A node is on a Camera Flow when it
+ * carries at least one order link: chain heads/tails have exactly one,
+ * interior nodes both. Redefined once here so the codec, route, timeline,
+ * and mutator never diverge on "what counts as ordered".
+ */
+export function isFlowNode(
+	node: Readonly<Pick<NavigationNodeData, 'nextNodeId' | 'previousNodeId'>>
+) {
+	return node.nextNodeId !== undefined || node.previousNodeId !== undefined;
+}
+
 export type SceneCameraViewKeyframe = {
   /** Stable within both directional tracks of this connection. */
   id: string;

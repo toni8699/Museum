@@ -326,7 +326,9 @@ describe('MuseumEditorStore Phase 1 shell session state', () => {
 		expect(store.isDirty).toBe(false);
 		expect(store.canUndo).toBe(false);
 	});
-});	describe('registerEditorShortcuts Escape cascade', () => {
+});
+
+describe('registerEditorShortcuts Escape cascade', () => {
 	it('stops an active camera preview on Escape before later cancel paths', () => {
 		const store = createFixtureEditorStore();
 		store.selectionActions.selectNavigationNode('tour-paris');
@@ -374,11 +376,11 @@ describe('createEditorShortcutHandler — W/E/R/T refuse unsupported modes (S7 s
 	const SCENE_CAPS = projectGizmoCapabilities(SCENE_GIZMO_POLICY, 'scale');
 	const CAMERA_CAPS = projectGizmoCapabilities(CAMERA_GIZMO_POLICY, 'scale');
 
-	it('refuses rotate/scale keys on a camera target through the H1 capability projection', () => {
+	it('refuses scale but allows rotate/translate keys on a camera target through the H1 capability projection', () => {
 		const store = createFixtureEditorStore();
 		const interactionStore = new EditorInteractionStore();
 		expect(CAMERA_CAPS.allowedModes.has('scale')).toBe(false);
-		expect(CAMERA_CAPS.allowedModes.has('rotate')).toBe(false);
+		expect(CAMERA_CAPS.allowedModes.has('rotate')).toBe(true);
 		const handler = createEditorShortcutHandler(
 			store,
 			nullShortcutHost,
@@ -391,7 +393,7 @@ describe('createEditorShortcutHandler — W/E/R/T refuse unsupported modes (S7 s
 		handler(makeKeyEvent('r'));
 		expect(interactionStore.mode).toBe('translate'); // scale refused
 		handler(makeKeyEvent('e'));
-		expect(interactionStore.mode).toBe('translate'); // rotate refused
+		expect(interactionStore.mode).toBe('rotate'); // rotate allowed (target-orbit aim)
 		handler(makeKeyEvent('w'));
 		expect(interactionStore.mode).toBe('translate'); // translate allowed
 	});

@@ -116,6 +116,97 @@ describe('scene document codec', () => {
 		if (!result.success) expect(result.issues).toContainEqual(expect.objectContaining({ code: 'invalid_tour_cycle' }));
 	});
 
+	it('S10.2 — accepts an open chain with single-link head and tail, plus one open detour chain', () => {
+		const document = cloneDocument();
+		const [a, b, c, d] = document.navigationNodes;
+		// Main route: a → b → c (open tail at c, head at a).
+		a!.nextNodeId = b!.id;
+		delete a!.previousNodeId;
+		b!.nextNodeId = c!.id;
+		b!.previousNodeId = a!.id;
+		c!.previousNodeId = b!.id;
+		delete c!.nextNodeId;
+		// Detour: d heads off b and returns via an ordinary edge.
+		d!.detourOfNodeId = b!.id;
+		delete d!.nextNodeId;
+		delete d!.previousNodeId;
+
+		const result = validateSceneDocument(document);
+		expect(result.success).toBe(true);
+		if (!result.success) return;
+		expect(result.document.navigationNodes[3]).toHaveProperty('detourOfNodeId', b!.id);
+		expect(result.canonicalJson).toContain('"detourOfNodeId": "tour-b"');
+	});
+
+	it('S10.2 — accepts a one-node detour chain (origin–head edge serves as the return)', () => {
+		const document = cloneDocument();
+		const [a] = document.navigationNodes;
+		for (const node of document.navigationNodes) {
+			delete node.nextNodeId;
+			delete node.previousNodeId;
+		}
+		const origin = document.navigationNodes[0]!;
+		origin.connectedNodeIds.push('detour-d1', 'detour-d1-tail');
+		document.navigationNodes.push({
+			id: 'detour-d1',
+			roomId: 'entrance',
+			label: 'Detour D1',
+			position: [2, 1.65, 2],
+			cameraTarget: [2, 1.25, -1],
+			fov: 54,
+			connectedNodeIds: [origin.id, 'detour-d1-tail'],
+			nextNodeId: 'detour-d1-tail',
+			detourOfNodeId: origin.id
+		});
+		document.navigationNodes.push({
+			id: 'detour-d1-tail',
+			roomId: 'entrance',
+			label: 'Detour tail',
+			position: [3, 1.65, 2],
+			cameraTarget: [3, 1.25, -1],
+			fov: 54,
+			connectedNodeIds: [origin.id, 'detour-d1'],
+			previousNodeId: 'detour-d1'
+		});
+		document.connections.push(
+			{
+				id: 'origin-d1',
+				fromNodeId: origin.id,
+				toNodeId: 'detour-d1',
+				clearance: 0.35,
+				positionPath: { kind: 'auto-bezier', anchors: [] }
+			},
+			{
+				id: 'd1-tail',
+				fromNodeId: 'detour-d1',
+				toNodeId: 'detour-d1-tail',
+				clearance: 0.35,
+				positionPath: { kind: 'auto-bezier', anchors: [] }
+			},
+			{
+				id: 'tail-origin',
+				fromNodeId: 'detour-d1-tail',
+				toNodeId: origin.id,
+				clearance: 0.35,
+				positionPath: { kind: 'auto-bezier', anchors: [] }
+			}
+		);
+		expect(validateSceneDocument(document).success).toBe(true);
+	});
+
+	it('S10.2 — rejects a detour marker on a non-head and an unknown detour origin', () => {
+		const badHead = cloneDocument();
+		badHead.navigationNodes[1]!.detourOfNodeId = 'tour-a';
+		expectIssue(badHead, 'detour_not_head', '$.navigationNodes[1].detourOfNodeId');
+
+		const unknownOrigin = cloneDocument();
+		const [a] = unknownOrigin.navigationNodes;
+		// Keep tour-a as a chain head (next only) so the origin check runs.
+		delete a!.previousNodeId;
+		a!.detourOfNodeId = 'missing-origin';
+		expectIssue(unknownOrigin, 'unknown_node', '$.navigationNodes[0].detourOfNodeId');
+	});
+
 	it('round-trips canonical directional view tracks with stable field order and fresh values', () => {
 		const document = cloneDocument();
 		document.navigationNodes[0]!.fov = 48;

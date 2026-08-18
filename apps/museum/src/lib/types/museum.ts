@@ -68,6 +68,8 @@ export type NavigationNodeData = {
   connectedNodeIds: string[];
   nextNodeId?: string;
   previousNodeId?: string;
+  /** S10.2 — detour origin marker, valid only on a chain head (no previousNodeId). */
+  detourOfNodeId?: string;
   lockInteraction?: boolean;
   /** Phase 3.7 authored camera timing: zero-position-motion hold in seconds when this node is the destination of a guided edge. */
   holdSeconds?: number;

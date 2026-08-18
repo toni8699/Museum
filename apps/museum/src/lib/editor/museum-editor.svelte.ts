@@ -14,7 +14,8 @@ import {
 	serializeSceneDocument,
 	validateSceneDocument,
 	type SceneDocumentValidationResult
-} from '$lib/content/scene-codec';	import type { MaterialId } from '$lib/types/materials';
+} from '$lib/content/scene-codec';
+import type { MaterialId } from '$lib/types/materials';
 import type { MuseumStateStore } from '$lib/state/museum-state.svelte';
 import {
 	cameraMotionProgressAtEdgeProgress,
@@ -682,6 +683,13 @@ export class MuseumEditorStore {
 	set gridVisible(value: boolean) {
 		this.session.gridVisible = value;
 	}
+	/** Editor preview floor albedo — session-only viewport styling (excluded from history/visitor JSON). */
+	get floorColor(): string {
+		return this.session.floorColor;
+	}
+	set floorColor(value: string) {
+		this.session.floorColor = value;
+	}
 	/**
 	 * Phase 1.1 persistent shell — never enters history, dirty comparison, or canonical JSON.
 	 * Workspace keeps selection/history but stops any active camera preview when leaving Camera.
@@ -1251,7 +1259,7 @@ export class MuseumEditorStore {
 		return this.cameraTimelineController.getCameraTimeline();
 	}
 
-	/** H1 S2 — true when the resolved graph yields a valid guided tour. */
+	/** H1 S2 — true when the resolved graph yields a valid camera flow. */
 	get canStartTourPreview(): boolean {
 		return this.getCameraTimeline() !== null;
 	}
@@ -1561,6 +1569,16 @@ export class MuseumEditorStore {
 		return this.pathAnchorMutator.updateNavigationNodePoint(nodeId, handle, point);
 	}
 
+	/**
+	 * Live-write one node's `cameraTarget` regardless of the selected handle
+	 * (camera gizmo target-orbit rotate). Same guards as the handle-bound
+	 * writer: framing-blocked, finite, pending-or-in-transaction, no-op on
+	 * an equal value.
+	 */
+	updateNavigationNodeTargetPoint(nodeId: string, point: Vec3) {
+		return this.pathAnchorMutator.updateNavigationNodeTargetPoint(nodeId, point);
+	}
+
 	commitNavigationNodePoint(
 		nodeId: string,
 		handle: EditorCameraHandle,
@@ -1680,7 +1698,8 @@ export class MuseumEditorStore {
 
 	copySelectedConnectionViewTrack(source: CameraConnectionDirection) {
 		return this.viewKeyframeController.copySelectedConnectionViewTrack(source);
-	}	// Slice 2 — preview + timeline playback orchestration. Each method here is
+	}
+	// Slice 2 — preview + timeline playback orchestration. Each method here is
 	// a one-line delegate to `cameraPreviewCommands`; the controller owns the
 	// verbatim body (see `store/camera-preview-commands.svelte.ts`). Inside
 	// the controller the same-instance calls (`this.setCameraPreviewMode(...)`,
@@ -2162,14 +2181,34 @@ export class MuseumEditorStore {
 		return this.navigationGraphMutator.setGuidedTourOrder(nodeIds);
 	}
 
-	/** Insert one free camera node into an existing guided gap. */
+	/** Insert one free camera node into an existing flow gap (≤1 edge auto-created). */
 	insertNodeIntoGuidedTour(nodeId: string, index: number) {
 		return this.navigationGraphMutator.insertNodeIntoGuidedTour(nodeId, index);
 	}
 
-	/** Remove one non-start node from the guided cycle while retaining graph topology. */
+	/** Remove one non-start node from the flow while retaining graph topology. */
 	removeNodeFromGuidedTour(nodeId: string) {
 		return this.navigationGraphMutator.removeNodeFromGuidedTour(nodeId);
+	}
+
+	/** S10.2 — branch a free node from a main-route origin (origin–head edge auto-created). */
+	addDetourNode(originNodeId: string, headNodeId: string) {
+		return this.navigationGraphMutator.addDetourNode(originNodeId, headNodeId);
+	}
+
+	/** S10.2 — append a free node to an existing detour (chain + return edges ensured). */
+	appendDetourNode(originNodeId: string, newNodeId: string) {
+		return this.navigationGraphMutator.appendDetourNode(originNodeId, newNodeId);
+	}
+
+	/** S10.2 — remove one node from a detour chain (strict T9 splice). */
+	removeDetourNode(originNodeId: string, nodeId: string) {
+		return this.navigationGraphMutator.removeDetourNode(originNodeId, nodeId);
+	}
+
+	/** S10.2 — remove a whole detour; chain nodes become free. */
+	removeDetour(originNodeId: string) {
+		return this.navigationGraphMutator.removeDetour(originNodeId);
 	}
 
 	/**

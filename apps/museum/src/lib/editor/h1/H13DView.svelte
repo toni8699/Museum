@@ -53,12 +53,18 @@
 	let {
 		store,
 		layoutPreview,
-		layoutInteraction
+		layoutInteraction,
+		// H1 S10 — explicit 3D context from `EditorViewState.active3dContext`.
+		// Camera authoring overlays and node-handle groups mount only in the
+		// Camera context; the editor camera rig stays mounted in both.
+		context = 'scene'
 	}: {
 		store: MuseumEditorStore;
 		layoutPreview: LayoutPreviewState;
 		layoutInteraction: LayoutInteractionState;
+		context: 'scene' | 'camera';
 	} = $props();
+	const isCameraContext = $derived(context === 'camera');
 	const interactionStore = getContext<EditorInteractionStore | undefined>(
 		EDITOR_INTERACTION_STORE_KEY
 	);
@@ -196,7 +202,7 @@
 >
 	<EditorViewportToolbar
 		{store}
-		cameraAgnosticViewMenu
+		{context}
 		showCeilings={layoutPreview.showCeilings}
 		onToggleCeilings={() => toggleLayoutCeilings(layoutPreview)}
 		transformDisabled={activeSelection?.active.domain === 'layout' && layoutDescriptor === null}
@@ -233,16 +239,17 @@
 			interaction={layoutInteraction}
 			showCeilings={layoutPreview.showCeilings}
 			transient={layoutTransient}
+			floorColor={store.floorColor}
 		/>
 		<EditorGrid visible={store.gridVisible && !store.isVisitorCameraPreview} />
-		{#if store.viewportShowPaths}
+		{#if isCameraContext && store.viewportShowPaths}
 			<EditorCameraPathHelpers {store} />
 		{/if}
-		{#if store.viewportShowFraming}
+		{#if isCameraContext && store.viewportShowFraming}
 			<EditorCameraViewHelpers {store} />
 			<EditorCameraFramingHelpers {store} />
 		{/if}
-		{#if store.viewportShowNodes || store.forceMountCameraNodeHandles}
+		{#if isCameraContext && (store.viewportShowNodes || store.forceMountCameraNodeHandles)}
 			{#if (store.pendingNavigationCommand?.kind === 'connect-existing' || store.pendingNavigationCommand?.kind === 'connect-pending-node') && !store.isDocumentMutationBlocked}
 				{#each store.document.navigationNodes as node (node.id)}
 					<EditorCameraHelpers {store} nodeId={node.id} positionOnly />

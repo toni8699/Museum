@@ -1,7 +1,8 @@
-import type {
-	MuseumSceneDocument,
-	SceneConnection,
-	SceneNavigationNode
+import {
+	isFlowNode,
+	type MuseumSceneDocument,
+	type SceneConnection,
+	type SceneNavigationNode
 } from '$lib/content/scene';
 
 export type EditorNavigationGraphFailureCode =
@@ -26,7 +27,13 @@ export type EditorNavigationGraphFailureCode =
 	| 'invalid_guided_index'
 	| 'invalid_guided_gap'
 	| 'guided_self_drop'
-	| 'too_many_missing_guided_connections';
+	| 'too_many_missing_guided_connections'
+	// S10.2 detour failures.
+	| 'unknown_detour'
+	| 'detour_origin_not_on_flow'
+	| 'detour_node_not_free'
+	| 'detour_node_not_in_chain'
+	| 'detour_already_exists';
 
 export type EditorNavigationGraphFailure = {
 	ok: false;
@@ -51,6 +58,9 @@ export type EditorNavigationNodeDeletionPlan = {
 	incidentConnectionIds: string[];
 	predecessorNodeId?: string;
 	successorNodeId?: string;
+	/** S10.2 — whole-detour deletion with the node (origin or orphaned head). */
+	detourChainNodeIds?: string[];
+	detourOriginNodeId?: string;
 };
 
 export type EditorGuidedTourOrderPlan = {
@@ -76,9 +86,6 @@ function nodeName(node: SceneNavigationNode) {
 	return `${node.label} (${node.id})`;
 }
 
-function isGuidedNode(node: SceneNavigationNode) {
-	return node.nextNodeId !== undefined && node.previousNodeId !== undefined;
-}
 
 function findConnectionBetween(
 	document: MuseumSceneDocument,
@@ -122,7 +129,25 @@ function graphRemainsConnected(
 	}
 
 	const visited = new Set<string>();
-	const queue = [remainingNodeIds[0]!];
+	// Exclude always-standalone nodes (zero edges in the original document)
+	// from the connectivity check. Nodes that would BECOME zero-edge after the
+	// deletion are still checked — stranding a connected node must be rejected.
+	const originalEdgeCount = new Map<string, number>();
+	for (const connection of document.connections) {
+		originalEdgeCount.set(
+			connection.fromNodeId,
+			(originalEdgeCount.get(connection.fromNodeId) ?? 0) + 1
+		);
+		originalEdgeCount.set(
+			connection.toNodeId,
+			(originalEdgeCount.get(connection.toNodeId) ?? 0) + 1
+		);
+	}
+	const nodesInCore = remainingNodeIds.filter(
+		(nodeId) => (originalEdgeCount.get(nodeId) ?? 0) > 0
+	);
+	if (nodesInCore.length <= 1) return true;
+	const queue = [nodesInCore[0]!];
 	while (queue.length > 0) {
 		const nodeId = queue.shift()!;
 		if (visited.has(nodeId)) continue;
@@ -131,105 +156,177 @@ function graphRemainsConnected(
 			if (!visited.has(neighborId)) queue.push(neighborId);
 		}
 	}
-	return visited.size === remainingNodeIds.length;
-}
-
-function guidedCycleRemainsValid(
-	document: MuseumSceneDocument,
-	deletedNodeId: string,
-	predecessorNodeId: string,
-	successorNodeId: string,
-	excludedConnectionIds: ReadonlySet<string>
-) {
-	const guidedNodes = document.navigationNodes.filter(
-		(node) => node.id !== deletedNodeId && isGuidedNode(node)
-	);
-	const guidedById = new Map(guidedNodes.map((node) => [node.id, node]));
-	const readNext = (node: SceneNavigationNode) =>
-		node.id === predecessorNodeId ? successorNodeId : node.nextNodeId;
-	const readPrevious = (node: SceneNavigationNode) =>
-		node.id === successorNodeId ? predecessorNodeId : node.previousNodeId;
-
-	for (const node of guidedNodes) {
-		const nextNodeId = readNext(node);
-		const previousNodeId = readPrevious(node);
-		if (!nextNodeId || !previousNodeId) return false;
-		const next = guidedById.get(nextNodeId);
-		const previous = guidedById.get(previousNodeId);
-		if (!next || !previous) return false;
-		if (readPrevious(next) !== node.id || readNext(previous) !== node.id) {
-			return false;
-		}
-		if (
-			!findConnectionBetween(
-				document,
-				node.id,
-				nextNodeId,
-				excludedConnectionIds
-			)
-		) {
-			return false;
-		}
-	}
-
-	const start = guidedNodes[0];
-	if (!start) return false;
-	const visited = new Set<string>();
-	let cursor: SceneNavigationNode | undefined = start;
-	while (cursor && !visited.has(cursor.id)) {
-		visited.add(cursor.id);
-		const nextNodeId = readNext(cursor);
-		cursor = nextNodeId ? guidedById.get(nextNodeId) : undefined;
-	}
-	return visited.size === guidedNodes.length && cursor?.id === start.id;
+	return visited.size === nodesInCore.length;
 }
 
 /**
- * Read and validate the document's existing reciprocal guided cycle. The
- * returned display order is pinned to entrance-start whenever that node is
- * guided; no document state is changed.
+ * S10.2 — walk one ordered flow component from `startNodeId` following
+ * `nextNodeId` links. Stops at the open tail or at the node whose next points
+ * back at the start (legacy closed cycle). Returns null when the order
+ * structure is invalid (unknown link target, non-reciprocal link, repeat).
+ */
+function walkFlowComponentFrom(
+	document: MuseumSceneDocument,
+	startNodeId: string,
+	nodeById: ReadonlyMap<string, SceneNavigationNode>
+): { nodeIds: string[]; headId: string; tailId: string } | null {
+	const start = nodeById.get(startNodeId);
+	if (!start) return null;
+	const visited = new Set<string>([start.id]);
+	const nodeIds = [start.id];
+	let cursor = start;
+	while (true) {
+		const nextNodeId = cursor.nextNodeId;
+		if (nextNodeId === undefined) break;
+		const next = nodeById.get(nextNodeId);
+		if (!next) return null;
+		if (next.previousNodeId !== cursor.id) return null;
+		if (next.id === start.id) break; // legacy closed cycle
+		if (visited.has(next.id)) return null;
+		visited.add(next.id);
+		nodeIds.push(next.id);
+		cursor = next;
+	}
+	return { nodeIds, headId: start.id, tailId: cursor.id };
+}
+
+/**
+ * S10.2 — the main flow component start: the component head containing the
+ * pinned entrance-start, else the first on-flow node in document order. For a
+ * legacy closed cycle the seed itself is returned so the derived chain keeps
+ * its display order (the walk stops at the node whose next = start).
+ */
+function mainFlowStart(
+	document: MuseumSceneDocument,
+	nodeById: ReadonlyMap<string, SceneNavigationNode>
+): SceneNavigationNode {
+	const flowNodes = document.navigationNodes.filter(isFlowNode);
+	const seed =
+		flowNodes.find((node) => node.id === EDITOR_GUIDED_TOUR_START_NODE_ID) ??
+		flowNodes[0]!;
+	const seen = new Set([seed.id]);
+	let cursor = seed;
+	while (cursor.previousNodeId !== undefined) {
+		const previous = nodeById.get(cursor.previousNodeId);
+		if (!previous || !isFlowNode(previous)) break;
+		if (previous.id === seed.id) return seed; // legacy closed cycle
+		if (seen.has(previous.id)) break;
+		seen.add(previous.id);
+		cursor = previous;
+	}
+	return cursor;
+}
+
+/**
+ * S10.2 — the current main flow component's ordered node ids (head → tail),
+ * or null when the document has no valid flow. Detour components are separate
+ * and excluded by design.
+ */
+export function currentMainFlowNodeIds(
+	document: MuseumSceneDocument
+): string[] | null {
+	const flowNodes = document.navigationNodes.filter(isFlowNode);
+	if (flowNodes.length === 0) return null;
+	const nodeById = new Map(document.navigationNodes.map((node) => [node.id, node]));
+	const start = mainFlowStart(document, nodeById);
+	const walked = walkFlowComponentFrom(document, start.id, nodeById);
+	return walked?.nodeIds ?? null;
+}
+
+/**
+ * S10.2 — the detour chain (head → … → tail) declared for `originNodeId`, or
+ * null when no detour branches from that origin. A one-node detour is a
+ * singleton chain.
+ */
+function findDetourChain(
+	document: MuseumSceneDocument,
+	originNodeId: string,
+	nodeById: ReadonlyMap<string, SceneNavigationNode>
+): { headNode: SceneNavigationNode; chainNodeIds: string[] } | null {
+	const head = document.navigationNodes.find(
+		(node) => node.detourOfNodeId === originNodeId
+	);
+	if (!head) return null;
+	const walked = walkFlowComponentFrom(document, head.id, nodeById);
+	if (!walked) return null;
+	return { headNode: head, chainNodeIds: walked.nodeIds };
+}
+
+/** S10.2 — the detour origin a node belongs to, or undefined when it is not on a detour. */
+export function detourOriginOf(
+	document: MuseumSceneDocument,
+	nodeId: string,
+	nodeById: ReadonlyMap<string, SceneNavigationNode>
+): string | undefined {
+	const node = nodeById.get(nodeId);
+	if (!node) return undefined;
+	let cursor = node;
+	const seen = new Set([cursor.id]);
+	while (cursor.previousNodeId !== undefined) {
+		const previous = nodeById.get(cursor.previousNodeId);
+		if (!previous || !isFlowNode(previous)) break;
+		if (seen.has(previous.id)) break;
+		seen.add(previous.id);
+		cursor = previous;
+	}
+	return cursor.detourOfNodeId;
+}
+
+/** S10.2 — true when the connection is a detour's return edge (detour tail ↔ origin). */
+function isDetourReturnEdge(
+	document: MuseumSceneDocument,
+	connection: SceneConnection
+) {
+	const nodeById = new Map(document.navigationNodes.map((node) => [node.id, node]));
+	for (const node of document.navigationNodes) {
+		if (node.detourOfNodeId === undefined) continue;
+		const chain = findDetourChain(document, node.detourOfNodeId, nodeById);
+		if (!chain) continue;
+		const tailId = chain.chainNodeIds.at(-1)!;
+		const originId = node.detourOfNodeId;
+		if (
+			(connection.fromNodeId === tailId && connection.toNodeId === originId) ||
+			(connection.fromNodeId === originId && connection.toNodeId === tailId)
+		) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/**
+ * Read and validate the document's existing main flow order. The returned
+ * display order is pinned to entrance-start whenever that node is on the
+ * flow; detour components are ignored. No document state is changed.
  */
 export function validateCurrentGuidedTourOrder(
 	document: MuseumSceneDocument
 ): EditorGuidedTourOrderPlan | EditorNavigationGraphFailure {
-	const guidedNodes = document.navigationNodes.filter(isGuidedNode);
-	if (guidedNodes.length < 2) {
+	const flowNodes = document.navigationNodes.filter(isFlowNode);
+	if (flowNodes.length < 2) {
 		return fail(
 			'minimum_guided_nodes',
-			'The guided tour must contain at least two camera nodes'
+			'The camera flow must contain at least two camera nodes'
 		);
 	}
-	const guidedById = new Map(guidedNodes.map((node) => [node.id, node]));
-	const start =
-		guidedById.get(EDITOR_GUIDED_TOUR_START_NODE_ID) ?? guidedNodes[0]!;
-	const nodeIds: string[] = [];
-	const visited = new Set<string>();
-	let cursor: SceneNavigationNode | undefined = start;
-	while (cursor && !visited.has(cursor.id)) {
-		visited.add(cursor.id);
-		nodeIds.push(cursor.id);
-		const nextNodeId: string | undefined = cursor.nextNodeId;
-		const next: SceneNavigationNode | undefined = nextNodeId
-			? guidedById.get(nextNodeId)
-			: undefined;
-		if (!next || next.previousNodeId !== cursor.id) {
-			return fail(
-				'invalid_guided_cycle',
-				'The current guided tour is not one reciprocal cycle'
-			);
-		}
-		cursor = next;
-	}
-	if (cursor?.id !== start.id || visited.size !== guidedNodes.length) {
+	const nodeById = new Map(document.navigationNodes.map((node) => [node.id, node]));
+	const start = mainFlowStart(document, nodeById);
+	const walked = walkFlowComponentFrom(document, start.id, nodeById);
+	if (!walked || walked.nodeIds.length < 2) {
 		return fail(
 			'invalid_guided_cycle',
-			'The current guided tour is not one reciprocal cycle'
+			'The current camera flow is not one reciprocal open chain'
 		);
 	}
-	return validateGuidedTourOrder(document, nodeIds);
+	return validateGuidedTourOrder(document, walked.nodeIds);
 }
 
-/** Pure validation for one complete guided display order and its return edge. */
+/**
+ * Pure validation for one complete flow display order. The order is an open
+ * chain: every consecutive pair needs a direct connection, but there is NO
+ * wraparound pair — the loop is derived from the connection graph, never an
+ * order requirement (S10.2).
+ */
 export function validateGuidedTourOrder(
 	document: MuseumSceneDocument,
 	nodeIds: readonly string[]
@@ -237,14 +334,14 @@ export function validateGuidedTourOrder(
 	if (nodeIds.length < 2) {
 		return fail(
 			'minimum_guided_nodes',
-			'The guided tour must contain at least two camera nodes'
+			'The camera flow must contain at least two camera nodes'
 		);
 	}
 	const uniqueNodeIds = new Set(nodeIds);
 	if (uniqueNodeIds.size !== nodeIds.length) {
 		return fail(
 			'duplicate_guided_node',
-			'A camera node can appear only once in the guided tour'
+			'A camera node can appear only once in the flow'
 		);
 	}
 	const nodeById = new Map(
@@ -259,36 +356,61 @@ export function validateGuidedTourOrder(
 		if (!uniqueNodeIds.has(EDITOR_GUIDED_TOUR_START_NODE_ID)) {
 			return fail(
 				'missing_guided_start',
-				`The guided tour must include ${EDITOR_GUIDED_TOUR_START_NODE_ID}`
+				`The flow must include ${EDITOR_GUIDED_TOUR_START_NODE_ID}`
 			);
 		}
 		if (nodeIds[0] !== EDITOR_GUIDED_TOUR_START_NODE_ID) {
 			return fail(
 				'guided_start_not_first',
-				`Guided display order must start at ${EDITOR_GUIDED_TOUR_START_NODE_ID}`
+				`Flow display order must start at ${EDITOR_GUIDED_TOUR_START_NODE_ID}`
 			);
 		}
 	}
 
-	for (let index = 0; index < nodeIds.length; index += 1) {
-		const from = nodeById.get(nodeIds[index]!)!;
-		const to = nodeById.get(nodeIds[(index + 1) % nodeIds.length]!)!;
-		if (!findConnectionBetween(document, from.id, to.id)) {
-			return fail(
-				'missing_guided_connection',
-				`Guided neighbors ${nodeName(from)} and ${nodeName(to)} need a direct connection`
-			);
-		}
+	const missing = missingConsecutiveConnections(document, nodeById, nodeIds);
+	if (missing.length > 0) {
+		const first = missing[0]!;
+		return fail(
+			'missing_guided_connection',
+			`Missing transition: ${nodeName(nodeById.get(first.fromNodeId)!)} → ${nodeName(nodeById.get(first.toNodeId)!)} — connect them first`
+		);
 	}
 	return { ok: true, nodeIds: [...nodeIds] };
 }
 
-/** Pure plan for inserting one free node at a display-order gap. */
+/** Consecutive open-chain pairs lacking a direct connection. */
+function missingConsecutiveConnections(
+	document: MuseumSceneDocument,
+	nodeById: ReadonlyMap<string, SceneNavigationNode>,
+	nodeIds: readonly string[]
+) {
+	const missing: Array<{ fromNodeId: string; toNodeId: string }> = [];
+	for (let index = 0; index + 1 < nodeIds.length; index += 1) {
+		const from = nodeById.get(nodeIds[index]!);
+		const to = nodeById.get(nodeIds[index + 1]!);
+		if (!from || !to) continue;
+		if (!findConnectionBetween(document, from.id, to.id)) {
+			missing.push({ fromNodeId: from.id, toNodeId: to.id });
+		}
+	}
+	return missing;
+}
+
+export type EditorGuidedTourInsertionPlan = EditorGuidedTourOrderPlan & {
+	/** The single missing consecutive edge the mutator may auto-create. */
+	missingConnection: { fromNodeId: string; toNodeId: string } | null;
+};
+
+/**
+ * Pure plan for inserting one free node at a display-order gap. At most ONE
+ * missing consecutive edge may be supplied (the mutator auto-creates it in
+ * the same transaction per the plan's append/insert rule); more rejects.
+ */
 export function validateGuidedTourInsertion(
 	document: MuseumSceneDocument,
 	nodeId: string,
 	index: number
-): EditorGuidedTourOrderPlan | EditorNavigationGraphFailure {
+): EditorGuidedTourInsertionPlan | EditorNavigationGraphFailure {
 	const node = document.navigationNodes.find((candidate) => candidate.id === nodeId);
 	if (!node) return fail('unknown_node', `Camera node is unavailable: ${nodeId}`);
 	const current = validateCurrentGuidedTourOrder(document);
@@ -296,18 +418,47 @@ export function validateGuidedTourInsertion(
 	if (current.nodeIds.includes(node.id)) {
 		return fail(
 			'node_already_guided',
-			`${nodeName(node)} is already in the guided tour`
+			`${nodeName(node)} is already in the flow`
+		);
+	}
+	// S10.2 — a detour node cannot be spliced into the main flow in one op
+	// (it must first be removed from its detour; the combined move is a
+	// separate transaction per the plan's mutation table).
+	const detourOrigin = detourOriginOf(
+		document,
+		node.id,
+		new Map(document.navigationNodes.map((candidate) => [candidate.id, candidate]))
+	);
+	if (node.detourOfNodeId !== undefined || detourOrigin !== undefined) {
+		return fail(
+			'detour_node_not_free',
+			`${nodeName(node)} is on a detour — remove it from the detour first`
 		);
 	}
 	if (!Number.isInteger(index) || index < 1 || index > current.nodeIds.length) {
 		return fail(
 			'invalid_guided_index',
-			'Choose a guided-tour gap after the pinned start'
+			'Choose a flow gap after the pinned start'
 		);
 	}
 	const nodeIds = [...current.nodeIds];
 	nodeIds.splice(index, 0, node.id);
-	return validateGuidedTourOrder(document, nodeIds);
+
+	const nodeById = new Map(
+		document.navigationNodes.map((candidate) => [candidate.id, candidate])
+	);
+	const missing = missingConsecutiveConnections(document, nodeById, nodeIds);
+	if (missing.length > 1) {
+		return fail(
+			'too_many_missing_guided_connections',
+			'A flow insertion can auto-create only one missing connection'
+		);
+	}
+	return {
+		ok: true,
+		nodeIds,
+		missingConnection: missing[0] ?? null
+	};
 }
 
 /** Pure plan for removing one non-start guided node. */
@@ -322,7 +473,7 @@ export function validateGuidedTourRemoval(
 	if (!current.nodeIds.includes(node.id)) {
 		return fail(
 			'node_not_guided',
-			`${nodeName(node)} is not in the guided tour`
+			`${nodeName(node)} is not on the camera flow`
 		);
 	}
 	if (node.id === current.nodeIds[0]) {
@@ -359,6 +510,21 @@ export function validateTimelineGuidedTourDrop(
 	if (!current.ok) return current;
 	const node = document.navigationNodes.find((candidate) => candidate.id === nodeId);
 	if (!node) return fail('unknown_node', `Camera node is unavailable: ${nodeId}`);
+	// S10.2 — a detour node cannot be dropped onto a main-flow gap in one op
+	// (remove-from-detour + insert-into-main is a separate combined op).
+	if (
+		node.detourOfNodeId !== undefined ||
+		detourOriginOf(
+			document,
+			node.id,
+			new Map(document.navigationNodes.map((candidate) => [candidate.id, candidate]))
+		) !== undefined
+	) {
+		return fail(
+			'detour_node_not_free',
+			`${nodeName(node)} is on a detour — remove it from the detour first`
+		);
+	}
 	if (node.id === EDITOR_GUIDED_TOUR_START_NODE_ID) {
 		return fail(
 			'protected_guided_start',
@@ -372,10 +538,12 @@ export function validateTimelineGuidedTourDrop(
 		);
 	}
 
+	// S10.2 — the flow is an open chain: there is no wraparound gap. The
+	// drop target must be a gap between consecutive flow nodes.
 	const gapIndex = current.nodeIds.findIndex(
 		(candidate, index) =>
 			candidate === gapFromNodeId &&
-			current.nodeIds[(index + 1) % current.nodeIds.length] === gapToNodeId
+			current.nodeIds[index + 1] === gapToNodeId
 	);
 	if (gapIndex < 0) {
 		return fail(
@@ -392,17 +560,17 @@ export function validateTimelineGuidedTourDrop(
 			'The guided-route gap became unavailable'
 		);
 	}
-	nodeIds.splice(insertionIndex === 0 ? nodeIds.length : insertionIndex, 0, node.id);
+	nodeIds.splice(insertionIndex, 0, node.id);
 
 	const nodeById = new Map(
 		document.navigationNodes.map((candidate) => [candidate.id, candidate])
 	);
 	const missingConnections: Array<{ fromNodeId: string; toNodeId: string }> = [];
-	for (let index = 0; index < nodeIds.length; index += 1) {
+	for (let index = 0; index + 1 < nodeIds.length; index += 1) {
 		const fromNodeId = nodeIds[index]!;
-		const toNodeId = nodeIds[(index + 1) % nodeIds.length]!;
+		const toNodeId = nodeIds[index + 1]!;
 		if (!nodeById.has(fromNodeId) || !nodeById.has(toNodeId)) {
-			return fail('unknown_node', 'The guided tour contains an unavailable camera node');
+			return fail('unknown_node', 'The camera flow contains an unavailable camera node');
 		}
 		if (!findConnectionBetween(document, fromNodeId, toNodeId)) {
 			missingConnections.push({ fromNodeId, toNodeId });
@@ -427,6 +595,183 @@ export function validateTimelineGuidedTourDrop(
 	};
 }
 
+export type EditorDetourPlan = {
+	ok: true;
+	originNode: SceneNavigationNode;
+	headNode: SceneNavigationNode;
+	chainNodeIds: string[];
+	headId: string;
+	tailId: string;
+};
+
+export type EditorDetourNodeRemovalPlan = EditorDetourPlan & {
+	node: SceneNavigationNode;
+	predecessorNodeId?: string;
+	successorNodeId?: string;
+};
+
+/**
+ * S10.2 — plan a new detour: a free node branches from a main-route origin.
+ * The origin–head edge is auto-created by the mutator when missing (F5).
+ */
+export function validateDetourCreation(
+	document: MuseumSceneDocument,
+	originNodeId: string,
+	headNodeId: string
+): EditorDetourPlan | EditorNavigationGraphFailure {
+	const nodeById = new Map(document.navigationNodes.map((node) => [node.id, node]));
+	const origin = nodeById.get(originNodeId);
+	if (!origin) return fail('unknown_node', `Camera node is unavailable: ${originNodeId}`);
+	const head = nodeById.get(headNodeId);
+	if (!head) return fail('unknown_node', `Camera node is unavailable: ${headNodeId}`);
+	if (origin.id === head.id) {
+		return fail('self_connection', 'A detour cannot branch back to its origin');
+	}
+	if (isFlowNode(head) || head.detourOfNodeId !== undefined) {
+		return fail(
+			'detour_node_not_free',
+			`${nodeName(head)} is already on a flow`
+		);
+	}
+	// F6 — one detour per origin (an origin's flow-degree never exceeds 2).
+	if (document.navigationNodes.some((node) => node.detourOfNodeId === origin.id)) {
+		return fail(
+			'detour_already_exists',
+			`${nodeName(origin)} already branches a detour`
+		);
+	}
+	// F4 — the origin must live on the main route.
+	if (!isFlowNode(origin)) {
+		return fail(
+			'detour_origin_not_on_flow',
+			`${nodeName(origin)} is not on the main route`
+		);
+	}
+	const start = mainFlowStart(document, nodeById);
+	const walked = walkFlowComponentFrom(document, start.id, nodeById);
+	if (!walked || !walked.nodeIds.includes(origin.id)) {
+		return fail(
+			'detour_origin_not_on_flow',
+			`${nodeName(origin)} is not on the main route`
+		);
+	}
+	return {
+		ok: true,
+		originNode: origin,
+		headNode: head,
+		chainNodeIds: [head.id],
+		headId: head.id,
+		tailId: head.id
+	};
+}
+
+/**
+ * S10.2 — plan appending a free node to an existing detour. The mutator
+ * auto-creates the tail→new chain edge and the new tail→origin return edge
+ * (F5) when missing.
+ */
+export function validateDetourAppend(
+	document: MuseumSceneDocument,
+	originNodeId: string,
+	newNodeId: string
+): (EditorDetourPlan & { tailNode: SceneNavigationNode }) | EditorNavigationGraphFailure {
+	const nodeById = new Map(document.navigationNodes.map((node) => [node.id, node]));
+	const origin = nodeById.get(originNodeId);
+	if (!origin) return fail('unknown_node', `Camera node is unavailable: ${originNodeId}`);
+	const chain = findDetourChain(document, originNodeId, nodeById);
+	if (!chain) {
+		return fail('unknown_detour', `No detour branches from ${nodeName(origin)}`);
+	}
+	const newNode = nodeById.get(newNodeId);
+	if (!newNode) return fail('unknown_node', `Camera node is unavailable: ${newNodeId}`);
+	if (isFlowNode(newNode) || newNode.detourOfNodeId !== undefined) {
+		return fail(
+			'detour_node_not_free',
+			`${nodeName(newNode)} is already on a flow`
+		);
+	}
+	const tailId = chain.chainNodeIds.at(-1)!;
+	return {
+		ok: true,
+		originNode: origin,
+		headNode: chain.headNode,
+		chainNodeIds: [...chain.chainNodeIds],
+		headId: chain.headNode.id,
+		tailId,
+		tailNode: nodeById.get(tailId)!
+	};
+}
+
+/**
+ * S10.2 — plan removing one node from a detour chain (order-only; edges stay
+ * authored). Strict per T9: when the removal creates a new pred–succ
+ * adjacency, that pair must already have a connection.
+ */
+export function validateDetourNodeRemoval(
+	document: MuseumSceneDocument,
+	originNodeId: string,
+	nodeId: string
+): EditorDetourNodeRemovalPlan | EditorNavigationGraphFailure {
+	const nodeById = new Map(document.navigationNodes.map((node) => [node.id, node]));
+	const origin = nodeById.get(originNodeId);
+	if (!origin) return fail('unknown_node', `Camera node is unavailable: ${originNodeId}`);
+	const chain = findDetourChain(document, originNodeId, nodeById);
+	if (!chain) {
+		return fail('unknown_detour', `No detour branches from ${nodeName(origin)}`);
+	}
+	const node = nodeById.get(nodeId);
+	if (!node || !chain.chainNodeIds.includes(node.id)) {
+		return fail(
+			'detour_node_not_in_chain',
+			`${node?.label ?? nodeId} is not on the detour at ${nodeName(origin)}`
+		);
+	}
+	const predecessorNodeId = node.previousNodeId;
+	const successorNodeId = node.nextNodeId;
+	if (predecessorNodeId && successorNodeId) {
+		const predecessor = nodeById.get(predecessorNodeId)!;
+		const successor = nodeById.get(successorNodeId)!;
+		if (!findConnectionBetween(document, predecessor.id, successor.id)) {
+			return fail(
+				'missing_guided_connection',
+				`Missing transition: ${nodeName(predecessor)} → ${nodeName(successor)} — connect them first`
+			);
+		}
+	}
+	return {
+		ok: true,
+		originNode: origin,
+		headNode: chain.headNode,
+		chainNodeIds: [...chain.chainNodeIds],
+		headId: chain.headNode.id,
+		tailId: chain.chainNodeIds.at(-1)!,
+		node,
+		predecessorNodeId,
+		successorNodeId
+	};
+}
+
+/** S10.2 — plan removing a whole detour (chain nodes become free). */
+export function validateDetourRemoval(
+	document: MuseumSceneDocument,
+	originNodeId: string
+): EditorDetourPlan | EditorNavigationGraphFailure {
+	const nodeById = new Map(document.navigationNodes.map((node) => [node.id, node]));
+	const origin = nodeById.get(originNodeId);
+	if (!origin) return fail('unknown_node', `Camera node is unavailable: ${originNodeId}`);
+	const chain = findDetourChain(document, originNodeId, nodeById);
+	if (!chain) {
+		return fail('unknown_detour', `No detour branches from ${nodeName(origin)}`);
+	}
+	return {
+		ok: true,
+		originNode: origin,
+		headNode: chain.headNode,
+		chainNodeIds: [...chain.chainNodeIds],
+		headId: chain.headNode.id,
+		tailId: chain.chainNodeIds.at(-1)!
+	};
+}
 /** Pure validation for one new undirected camera connection. */
 export function validateConnectionCreation(
 	document: MuseumSceneDocument,
@@ -482,7 +827,15 @@ export function validateConnectionDeletion(
 	) {
 		return fail(
 			'guided_connection',
-			`Cannot delete ${connection.id}: guided order requires the edge between ${nodeName(fromNode)} and ${nodeName(toNode)}`
+			`Cannot delete ${connection.id}: the flow order requires the edge between ${nodeName(fromNode)} and ${nodeName(toNode)}`
+		);
+	}
+	// S10.2 — a detour's return edge (tail ↔ origin) is flow-critical even
+	// though the endpoints carry no order link to each other.
+	if (isDetourReturnEdge(document, connection)) {
+		return fail(
+			'guided_connection',
+			`Cannot delete ${connection.id}: the edge returns a detour to its origin`
 		);
 	}
 	if (
@@ -500,7 +853,16 @@ export function validateConnectionDeletion(
 	return { ok: true, connection };
 }
 
-/** Pure validation and rewrite plan for one free or guided camera node deletion. */
+/**
+ * Pure validation and rewrite plan for one camera node deletion.
+ *
+ * S10.2 — open-chain semantics: a flow node's splice may end at the chain
+ * head or tail (no predecessor / no successor), the affected chain must be a
+ * valid open chain (or legacy closed cycle) right now, and the new
+ * pred–succ adjacency needs a direct connection (T9, strict). Deleting a
+ * detour origin or a detour head deletes the whole detour chain with it
+ * (one transaction, one status message).
+ */
 export function validateNavigationNodeDeletion(
 	document: MuseumSceneDocument,
 	nodeId: string
@@ -509,21 +871,50 @@ export function validateNavigationNodeDeletion(
 	if (!node) {
 		return fail('unknown_node', `Camera node is unavailable: ${nodeId}`);
 	}
-	const incidentConnections = document.connections.filter(
-		(connection) =>
-			connection.fromNodeId === node.id || connection.toNodeId === node.id
+	const nodeById = new Map(
+		document.navigationNodes.map((candidate) => [candidate.id, candidate])
 	);
-	const incidentConnectionIds = incidentConnections.map(
-		(connection) => connection.id
-	);
-	const incidentConnectionIdSet = new Set(incidentConnectionIds);
-	const excludedNodeIds = new Set([node.id]);
 
-	if (!isGuidedNode(node)) {
+	// S10.2 — whole-detour deletion: the deleted node is a detour head (the
+	// rest of the chain would be orphaned) or a detour origin (F5 chains
+	// branch only from it).
+	let detourChainNodeIds: string[] | undefined;
+	let detourOriginNodeId: string | undefined;
+	if (node.detourOfNodeId !== undefined) {
+		detourOriginNodeId = node.detourOfNodeId;
+		const chain = findDetourChain(document, node.detourOfNodeId, nodeById);
+		if (chain) {
+			detourChainNodeIds = chain.chainNodeIds.filter(
+				(candidate) => candidate !== node.id
+			);
+		}
+	} else {
+		const originOf = document.navigationNodes.find(
+			(candidate) => candidate.detourOfNodeId === node.id
+		);
+		if (originOf) {
+			detourOriginNodeId = node.id;
+			const chain = findDetourChain(document, node.id, nodeById);
+			detourChainNodeIds = chain?.chainNodeIds;
+		}
+	}
+
+	const deletedNodeIds = new Set([node.id, ...(detourChainNodeIds ?? [])]);
+	const incidentConnectionIds = document.connections
+		.filter(
+			(connection) =>
+				deletedNodeIds.has(connection.fromNodeId) ||
+				deletedNodeIds.has(connection.toNodeId)
+		)
+		.map((connection) => connection.id);
+	const incidentConnectionIdSet = new Set(incidentConnectionIds);
+
+	const onFlow = isFlowNode(node) || node.detourOfNodeId !== undefined;
+	if (!onFlow) {
 		if (
 			!graphRemainsConnected(
 				document,
-				excludedNodeIds,
+				deletedNodeIds,
 				incidentConnectionIdSet
 			)
 		) {
@@ -535,52 +926,58 @@ export function validateNavigationNodeDeletion(
 		return { ok: true, node, incidentConnectionIds };
 	}
 
-	const guidedNodeCount = document.navigationNodes.filter(isGuidedNode).length;
-	if (guidedNodeCount - 1 < 2) {
-		return fail(
-			'minimum_guided_nodes',
-			`Cannot delete ${nodeName(node)}: the guided tour must retain at least two nodes`
-		);
-	}
-	const predecessorNodeId = node.previousNodeId!;
-	const successorNodeId = node.nextNodeId!;
-	const predecessor = document.navigationNodes.find(
-		(candidate) => candidate.id === predecessorNodeId
-	)!;
-	const successor = document.navigationNodes.find(
-		(candidate) => candidate.id === successorNodeId
-	)!;
-	if (
-		!findConnectionBetween(
-			document,
-			predecessor.id,
-			successor.id,
-			incidentConnectionIdSet
-		)
-	) {
-		return fail(
-			'missing_guided_bridge',
-			`Cannot delete ${nodeName(node)}: guided predecessor ${nodeName(predecessor)} and successor ${nodeName(successor)} need a direct connection`
-		);
-	}
-	if (
-		!guidedCycleRemainsValid(
-			document,
-			node.id,
-			predecessor.id,
-			successor.id,
-			incidentConnectionIdSet
-		)
-	) {
+	// The affected flow component must be a valid open chain (or legacy
+	// closed cycle) right now — never splice a broken order.
+	const mainFlow = currentMainFlowNodeIds(document);
+	const nodeOnMainFlow = mainFlow?.includes(node.id) ?? false;
+	if (nodeOnMainFlow) {
+		if (mainFlow!.length - 1 < 2) {
+			return fail(
+				'minimum_guided_nodes',
+				`Cannot delete ${nodeName(node)}: the camera flow must retain at least two nodes`
+			);
+		}
+	} else if (isFlowNode(node) && mainFlow === null) {
 		return fail(
 			'invalid_guided_cycle',
-			`Cannot delete ${nodeName(node)}: the reciprocal guided cycle would become invalid`
+			`Cannot delete ${nodeName(node)}: the camera flow order is not a valid open chain`
 		);
+	}
+	if (!nodeOnMainFlow && (isFlowNode(node) || node.detourOfNodeId !== undefined)) {
+		// Detour chain node — the chain itself must be intact.
+		const originId = node.detourOfNodeId ?? detourOriginOf(document, node.id, nodeById);
+		const chain = originId ? findDetourChain(document, originId, nodeById) : null;
+		if (!chain) {
+			return fail(
+				'invalid_guided_cycle',
+				`Cannot delete ${nodeName(node)}: the detour order is not a valid open chain`
+			);
+		}
+	}
+
+	const predecessorNodeId = node.previousNodeId;
+	const successorNodeId = node.nextNodeId;
+	if (predecessorNodeId && successorNodeId) {
+		const predecessor = nodeById.get(predecessorNodeId)!;
+		const successor = nodeById.get(successorNodeId)!;
+		if (
+			!findConnectionBetween(
+				document,
+				predecessor.id,
+				successor.id,
+				incidentConnectionIdSet
+			)
+		) {
+			return fail(
+				'missing_guided_bridge',
+				`Cannot delete ${nodeName(node)}: guided predecessor ${nodeName(predecessor)} and successor ${nodeName(successor)} need a direct connection`
+			);
+		}
 	}
 	if (
 		!graphRemainsConnected(
 			document,
-			excludedNodeIds,
+			deletedNodeIds,
 			incidentConnectionIdSet
 		)
 	) {
@@ -594,6 +991,8 @@ export function validateNavigationNodeDeletion(
 		node,
 		incidentConnectionIds,
 		predecessorNodeId,
-		successorNodeId
+		successorNodeId,
+		detourChainNodeIds,
+		detourOriginNodeId
 	};
 }

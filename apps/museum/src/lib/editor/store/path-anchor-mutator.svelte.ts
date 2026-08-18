@@ -110,6 +110,30 @@ export class EditorPathAnchorMutator {
 		return true;
 	}
 
+	/**
+	 * Live-write one navigation node's `cameraTarget` during a gizmo
+	 * target-orbit session. Unlike `updateNavigationNodePoint`, this is NOT
+	 * bound to the currently selected handle — camera rotate always aims the
+	 * look target around the eye regardless of whether the eye or the target
+	 * handle is selected. Same guards as the handle-bound writer: framing-
+	 * blocked, finite point, pending-or-in-transaction, node exists, and a
+	 * no-op on an equal value.
+	 */
+	updateNavigationNodeTargetPoint(nodeId: string, point: Vec3) {
+		if (this.host.isCameraFramingMutationBlocked || !isFiniteVec3(point)) {
+			return false;
+		}
+		const pending = this.host.isPendingNavigationNode(nodeId);
+		if (!pending && !this.host.historyDocumentUndoBlocked) return false;
+		const node = pending
+			? this.host.pendingNavigationNode
+			: this.host.document.navigationNodes.find((candidate) => candidate.id === nodeId);
+		if (!node) return false;
+		if (vec3Matches(node.cameraTarget, point)) return false;
+		node.cameraTarget = [...point];
+		return true;
+	}
+
 	commitNavigationNodePoint(
 		nodeId: string,
 		handle: EditorCameraHandle,

@@ -70,8 +70,30 @@ describe('EditorSessionState', () => {
 			expect(session.viewportShowPaths).toBe(true);
 			expect(session.viewportShowFraming).toBe(true);
 		});
-	});
 
+		it('defaults to no hidden entities', () => {
+			expect(session.hiddenEntityIds).toEqual([]);
+			expect(session.isEntityHidden('pedestal-1')).toBe(false);
+		});
+
+		it('toggleEntityHidden adds then removes an entity id', () => {
+			session.toggleEntityHidden('pedestal-1');
+			expect(session.isEntityHidden('pedestal-1')).toBe(true);
+			expect(session.hiddenEntityIds).toEqual(['pedestal-1']);
+			session.toggleEntityHidden('pedestal-1');
+			expect(session.isEntityHidden('pedestal-1')).toBe(false);
+		});
+
+		it('hidden entities stay independent per id', () => {
+			session.toggleEntityHidden('a');
+			session.toggleEntityHidden('b');
+			expect(session.isEntityHidden('a')).toBe(true);
+			expect(session.isEntityHidden('b')).toBe(true);
+			session.toggleEntityHidden('a');
+			expect(session.isEntityHidden('a')).toBe(false);
+			expect(session.isEntityHidden('b')).toBe(true);
+		});
+	});
 	describe('grid + floor color (session-only viewport styling)', () => {
 		it('gridVisible defaults to false', () => {
 			expect(session.gridVisible).toBe(false);
@@ -82,6 +104,20 @@ describe('EditorSessionState', () => {
 			expect(session.gridVisible).toBe(true);
 			session.toggleGrid();
 			expect(session.gridVisible).toBe(false);
+		});
+
+		// S10.1.7 — grid opacity control (bottom-right viewport overlay).
+		it('gridOpacity defaults to the mid-range 0.55', () => {
+			expect(session.gridOpacity).toBe(0.55);
+		});
+
+		it('setGridOpacity clamps to the 0–1 range', () => {
+			session.setGridOpacity(0.2);
+			expect(session.gridOpacity).toBe(0.2);
+			session.setGridOpacity(1.75);
+			expect(session.gridOpacity).toBe(1);
+			session.setGridOpacity(-0.5);
+			expect(session.gridOpacity).toBe(0);
 		});
 
 		it('floorColor defaults to the sketch gray family', () => {

@@ -181,7 +181,10 @@
 				showCeilings={layoutPreview.showCeilings}
 				floorColor={store.floorColor}
 			/>
-			<EditorGrid visible={store.gridVisible && !store.isVisitorCameraPreview} />
+			<EditorGrid
+				visible={store.gridVisible && !store.isVisitorCameraPreview}
+				opacity={store.gridOpacity}
+			/>
 		</Canvas>
 		{#if layoutInteraction.viewMode === 'plan'}
 			<LayoutPlanViewport
@@ -224,7 +227,10 @@
 					<EditorMuseumEntities {scene} {rooms} {placementRegistry} />
 				{/snippet}
 			</MuseumScene>
-			<EditorGrid visible={store.gridVisible && !store.isVisitorCameraPreview} />
+			<EditorGrid
+				visible={store.gridVisible && !store.isVisitorCameraPreview}
+				opacity={store.gridOpacity}
+			/>
 			{#if store.viewportShowPaths}
 				<EditorCameraPathHelpers {store} />
 			{/if}

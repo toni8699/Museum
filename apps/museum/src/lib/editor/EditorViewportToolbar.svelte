@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { ChevronDown, Eye, MousePointer2, Move, Rotate3d, Scaling, Video } from 'lucide-svelte';
 	import type { EditorTransformMode } from './editor-transform';
 	import type { MuseumEditorStore } from './museum-editor.svelte';
 	import { onMount, getContext } from 'svelte';
@@ -134,6 +135,20 @@
 	);
 	// Ceiling is a layout concern and lives only in the H1 Scene View menu.
 	const showCeilingRow = $derived(context === 'scene' && onToggleCeilings !== undefined);
+	// S10.1 — Camera workspace toolbar: `Select | Move | Rotate | Add camera | View`.
+	// Scale and the scale-chain toggle are unmounted in Camera; Add camera lives
+	// in the Camera toolbar (relocated from the app-bar action row).
+	const isCameraContext = $derived(context === 'camera');
+	const showScaleTool = $derived(!isCameraContext);
+	const addCameraDisabled = $derived(
+		disabled ||
+			store.pendingNavigationCommand !== null ||
+			Boolean(
+				store.pendingPlacementAssetId ||
+					store.pendingPlacementPrimitiveKind ||
+					store.pendingPlacementLightKind
+			)
+	);
 
 	function toggleViewMenu() {
 		if (!viewMenuVisible) return;
@@ -158,20 +173,43 @@
 			aria-pressed={!store.transformGizmoVisible}
 			{disabled}
 			onclick={() => chooseTool('select')}
-		>Select</button>
-		{#each [
-			['translate', 'Move'],
-			['rotate', 'Rotate'],
-			['scale', 'Scale']
-		] as [mode, label]}
+		>
+			<MousePointer2 size={14} aria-hidden="true" />
+			Select
+		</button>
+		<button
+			type="button"
+			class:active={toolIsActive('translate')}
+			aria-pressed={toolIsActive('translate')}
+			disabled={toolDisabled('translate')}
+			onclick={() => chooseTool('translate')}
+		>
+			<Move size={14} aria-hidden="true" />
+			Move
+		</button>
+		<button
+			type="button"
+			class:active={toolIsActive('rotate')}
+			aria-pressed={toolIsActive('rotate')}
+			disabled={toolDisabled('rotate')}
+			onclick={() => chooseTool('rotate')}
+		>
+			<Rotate3d size={14} aria-hidden="true" />
+			Rotate
+		</button>
+		{#if showScaleTool}
 			<button
 				type="button"
-				class:active={toolIsActive(mode as EditorTransformMode)}
-				aria-pressed={toolIsActive(mode as EditorTransformMode)}
-				disabled={toolDisabled(mode as EditorTransformMode)}
-				onclick={() => chooseTool(mode as EditorTransformMode)}
-			>{label}</button>
-		{/each}
+				class:active={toolIsActive('scale')}
+				aria-pressed={toolIsActive('scale')}
+				disabled={toolDisabled('scale')}
+				onclick={() => chooseTool('scale')}
+			>
+				<Scaling size={14} aria-hidden="true" />
+				Scale
+			</button>
+		{/if}
+		{#if showScaleTool}
 		<button
 			type="button"
 			class="scale-toggle"
@@ -224,7 +262,23 @@
 				</svg>
 			{/if}
 		</button>
+		{/if}
 	</div>
+
+	{#if isCameraContext}
+		<div class="tool-group" aria-label="Camera authoring">
+			<button
+				type="button"
+				class="add-camera"
+				title="Place a new camera node on a room floor"
+				disabled={addCameraDisabled}
+				onclick={() => store.beginCameraPlacement()}
+			>
+				<Video size={14} aria-hidden="true" />
+				Add camera
+			</button>
+		</div>
+	{/if}
 
 	{#if viewMenuVisible}
 		<div class="tool-group" aria-label="Viewport helper visibility">
@@ -236,7 +290,7 @@
 				disabled={disabled}
 				title="Toggle viewport helper visibility"
 				onclick={toggleViewMenu}
-			>View <span aria-hidden="true">▾</span></button>
+			><Eye size={14} aria-hidden="true" /> View <ChevronDown size={12} aria-hidden="true" /></button>
 			{#if viewMenuOpen}
 				<div
 					class="add-menu"
@@ -275,6 +329,16 @@
 					>
 						<span class="check" aria-hidden="true">{store.viewportShowFraming ? '✓' : '○'}</span>
 						<span>Framing &amp; FOV</span>
+					</button>
+					<button
+						type="button"
+						role="menuitemcheckbox"
+						aria-checked={store.viewportShowRetained}
+						class="toggle-row"
+						onclick={() => store.toggleViewportShowRetained()}
+					>
+						<span class="check" aria-hidden="true">{store.viewportShowRetained ? '✓' : '○'}</span>
+						<span>Retained paths</span>
 					</button>
 					{/if}
 					{#if showCeilingRow}
@@ -341,12 +405,23 @@
 	.add-menu .toggle-row { padding: 0.34rem 0.45rem; border-radius: 0.3rem; }
 	.add-menu .toggle-row:hover { border-color: #5a5663; color: #fff; }
 
-	.scale-toggle {
+	.scale-toggle,
+	.add-camera {
 		display: flex;
 		align-items: center;
 		justify-content: center;
+		gap: 0.3rem;
 		padding: 0.38rem 0.45rem;
 		color: inherit;
+	}
+
+	.add-camera {
+		border-color: #6f5c31;
+		color: #e8d5a3;
+	}
+	.add-camera:hover:not(:disabled) {
+		border-color: #d6b35f;
+		color: #fff2c7;
 	}
 
 	.scale-toggle[aria-pressed='true'] {
@@ -356,6 +431,9 @@
 	}
 
 	button {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.3rem;
 		white-space: nowrap;
 		padding: 0.38rem 0.52rem;
 		border: 1px solid transparent;

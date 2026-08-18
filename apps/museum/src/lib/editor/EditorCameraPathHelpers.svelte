@@ -175,6 +175,10 @@
 		);
 		const document = store.document;
 		const selection = store.navigationSelection;
+		// S10.1.3 — retained (inactive) connections render desaturated and
+		// dashed; the View-menu toggle hides them entirely.
+		const retainedIds = new Set(store.flowRetainedConnectionIds);
+		const showRetained = store.viewportShowRetained;
 		const selectedConnectionId =
 			selection?.kind === 'connection' ||
 			selection?.kind === 'anchor' ||
@@ -194,6 +198,14 @@
 			if (liveConnectionIds.has(connectionId)) continue;
 			disposeConnectionHelper(helper);
 			connectionHelpers.delete(connectionId);
+		}
+		// Hidden retained splines are disposed (never rendered).
+		if (!showRetained) {
+			for (const [connectionId, helper] of connectionHelpers) {
+				if (!retainedIds.has(connectionId)) continue;
+				disposeConnectionHelper(helper);
+				connectionHelpers.delete(connectionId);
+			}
 		}
 
 		for (const connection of document.connections) {
@@ -216,9 +228,28 @@
 			helper.pick.computeLineDistances();
 			const selected = selectedConnectionId === connection.id;
 			const hovered = hoveredConnectionId === connection.id;
+			const retained = retainedIds.has(connection.id);
+			// S10.1.3 — retained splines are desaturated gray, dashed, and
+			// dimmer; they still pick/hover like any authored curve.
+			helper.visualMaterial.dashed = retained && !selected && !hovered;
+			helper.visualMaterial.dashScale = retained ? 3 : 1;
+			helper.visualMaterial.dashSize = retained ? 0.18 : 0;
+			helper.visualMaterial.gapSize = retained ? 0.12 : 0;
 			helper.visualMaterial.linewidth = selected ? 2 : hovered ? 1.6 : 1.25;
-			helper.visualMaterial.opacity = selected ? 0.9 : hovered ? 0.55 : 0.3;
-			helper.visualMaterial.color.set(selected ? 0xffdd83 : 0xd6b35f);
+			helper.visualMaterial.opacity = retained
+				? selected
+					? 0.8
+					: hovered
+						? 0.45
+						: 0.22
+				: selected
+					? 0.9
+					: hovered
+						? 0.55
+						: 0.3;
+			helper.visualMaterial.color.set(
+				selected ? 0xffdd83 : retained ? 0x8a8a8a : hovered ? 0xffe0a0 : 0xd6b35f
+			);
 			helper.visualMaterial.needsUpdate = true;
 		}
 

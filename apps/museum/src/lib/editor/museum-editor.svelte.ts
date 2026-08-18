@@ -59,7 +59,13 @@ import {
 	cameraTimelineProgressAtEdgeProgress,
 	type EditorCameraTimeline
 } from './editor-camera-timeline';
-import { validateCurrentGuidedTourOrder } from './editor-navigation-graph';
+import {
+	currentMainFlowNodeIds,
+	flowDetourGroups,
+	flowLoopConnectionId,
+	flowRetainedConnectionIds,
+	validateCurrentGuidedTourOrder
+} from './editor-navigation-graph';
 import { EditorSessionState } from './store/session-state.svelte';
 import { EditorSceneRoots } from './store/scene-roots.svelte';
 import { EditorDocumentStore } from './store/document-store.svelte';
@@ -683,6 +689,13 @@ export class MuseumEditorStore {
 	set gridVisible(value: boolean) {
 		this.session.gridVisible = value;
 	}
+	/** S10.1 — 3D calibration grid line opacity (session-only, 0–1). */
+	get gridOpacity(): number {
+		return this.session.gridOpacity;
+	}
+	set gridOpacity(value: number) {
+		this.session.setGridOpacity(value);
+	}
 	/** Editor preview floor albedo — session-only viewport styling (excluded from history/visitor JSON). */
 	get floorColor(): string {
 		return this.session.floorColor;
@@ -1027,6 +1040,20 @@ export class MuseumEditorStore {
 	get viewportShowFraming() {
 		return this.session.viewportShowFraming;
 	}
+	/** S10.1.3 — retained (inactive) connection spline visibility (desaturated dashed view). */
+	get viewportShowRetained() {
+		return this.session.viewportShowRetained;
+	}
+	/** S10.1 — per-row scene-entity visibility override (session-only). */
+	get hiddenEntityIds(): readonly string[] {
+		return this.session.hiddenEntityIds;
+	}
+	isEntityHidden(id: string): boolean {
+		return this.session.isEntityHidden(id);
+	}
+	toggleEntityVisibility(id: string): void {
+		this.session.toggleEntityHidden(id);
+	}
 
 	/** Phase 5.2 — session-only texture library state (never serialized). */
 	get recentTextureIds(): string[] {
@@ -1080,6 +1107,10 @@ export class MuseumEditorStore {
 		this.session.toggleViewportShowFraming();
 	}
 
+	toggleViewportShowRetained() {
+		this.session.toggleViewportShowRetained();
+	}
+
 	/** Force-mount node helpers during connect-* commands so picking keeps working when nodes are hidden. */
 	get forceMountCameraNodeHandles() {
 		const kind = this.pendingNavigationCommand?.kind;
@@ -1106,6 +1137,26 @@ export class MuseumEditorStore {
 	get guidedTourNodeIds() {
 		const validation = validateCurrentGuidedTourOrder(this.document);
 		return validation.ok ? validation.nodeIds : [];
+	}
+
+	/** S10.1 — the main flow's ordered node ids, or [] when none is valid. */
+	get mainFlowNodeIds() {
+		return currentMainFlowNodeIds(this.document) ?? [];
+	}
+
+	/** S10.1 — the derived-loop record id (distinct-connection test), or null. */
+	get flowLoopConnectionId() {
+		return flowLoopConnectionId(this.document);
+	}
+
+	/** S10.1 — detour chains grouped by origin, for the Sequence Inspector. */
+	get flowDetourGroups() {
+		return flowDetourGroups(this.document);
+	}
+
+	/** S10.1.3 — retained (inactive) connection ids, for the desaturated dashed viewport view. */
+	get flowRetainedConnectionIds() {
+		return flowRetainedConnectionIds(this.document);
 	}
 
 	get selectedNavigationNode() {

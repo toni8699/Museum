@@ -24,12 +24,17 @@
   let {
     scene,
     rooms,
-    placementRegistry
+    placementRegistry,
+    hiddenEntityIds = []
   }: {
     scene: RuntimeMuseumScene;
     rooms: LayoutRoomRegistry;
     placementRegistry: EditorPlacementRegistry;
+    /** S10.1 — session-only per-entity visibility override (H1 only; relic stays undefined). */
+    hiddenEntityIds?: readonly string[];
   } = $props();
+
+  const hiddenSet = $derived(new Set(hiddenEntityIds));
 
   const roomGroups = $derived.by(() => {
     const entitiesByRoom = new Map<MuseumRoomId, SceneEntity[]>();
@@ -67,6 +72,7 @@
       {@const editorScale = scaleVersion >= 0
         ? placementRegistry.getPlacementScale?.(entity.id) ?? entity.scale ?? 1
         : entity.scale ?? 1}
+      {#if !hiddenSet.has(entity.id)}
       <EditorPlacementRoot
         placementId={entity.id}
         roomId={entity.roomId}
@@ -89,6 +95,7 @@
           <EntityLight {entity} showPickProxy />
         {/if}
       </EditorPlacementRoot>
+      {/if}
     {/each}
   </T.Group>
 {/each}

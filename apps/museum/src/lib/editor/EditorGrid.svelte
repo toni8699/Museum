@@ -3,7 +3,11 @@
 	import { useThrelte } from '@threlte/core';
 	import { GridHelper, type Material } from 'three';
 
-	let { visible }: { visible: boolean } = $props();
+	let {
+		visible,
+		// S10.1 — grid line opacity (0–1), driven by `session.gridOpacity`.
+		opacity = 0.55
+	}: { visible: boolean; opacity?: number } = $props();
 
 	const { scene, invalidate } = useThrelte();
 	let grid: GridHelper | null = null;
@@ -18,26 +22,40 @@
 		invalidate();
 	}
 
+	function applyOpacity(value: number) {
+		if (!grid) return;
+		const clamped = Math.min(1, Math.max(0, value));
+		for (const child of grid.children) {
+			const material = (child as { material?: Material }).material;
+			if (!material) continue;
+			material.transparent = true;
+			material.opacity = clamped;
+		}
+		invalidate();
+	}
+
 	$effect(() => {
 		if (!visible) {
 			disposeGrid();
 			return;
 		}
-		if (grid) return;
-		const nextGrid = new GridHelper(80, 80, 0x8d753c, 0x37342d);
-		nextGrid.name = 'EditorCalibrationGrid';
-		nextGrid.position.y = 0.002;
-		nextGrid.renderOrder = -1;
-		nextGrid.raycast = () => undefined as never;
-		nextGrid.castShadow = false;
-		nextGrid.receiveShadow = false;
-		for (const child of nextGrid.children) {
-			child.raycast = () => undefined as never;
-			child.castShadow = false;
-			child.receiveShadow = false;
+		if (!grid) {
+			const nextGrid = new GridHelper(80, 80, 0x8d753c, 0x37342d);
+			nextGrid.name = 'EditorCalibrationGrid';
+			nextGrid.position.y = 0.002;
+			nextGrid.renderOrder = -1;
+			nextGrid.raycast = () => undefined as never;
+			nextGrid.castShadow = false;
+			nextGrid.receiveShadow = false;
+			for (const child of nextGrid.children) {
+				child.raycast = () => undefined as never;
+				child.castShadow = false;
+				child.receiveShadow = false;
+			}
+			grid = nextGrid;
+			scene.add(grid);
 		}
-		grid = nextGrid;
-		scene.add(grid);
+		applyOpacity(opacity);
 		invalidate();
 	});
 

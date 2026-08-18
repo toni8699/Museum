@@ -390,13 +390,14 @@ describe('H1 S4 — unified hierarchy contracts', () => {
 		// no-ops" decision).
 		const guided = readLibSource('editor/CameraFlowPanel.svelte');
 		// Row select is gated and carries aria-disabled on both guided + free
-		// rows (the two byte-identical row blocks share one handler shape).
+		// rows (the three byte-identical row blocks share one handler shape;
+		// S10.1.3 added the detour rows, which are gated identically).
 		expect(guided).not.toContain('onclick={() => selectNode(node.id)}');
-		expect(guided.match(/onclick=\{interactive \? \(\) => selectNode\(node\.id\) : undefined\}/g)).toHaveLength(2);
+		expect(guided.match(/onclick=\{interactive \? \(\) => selectNode\(node\.id\) : undefined\}/g)).toHaveLength(3);
 		expect(guided.match(/onclick=\{interactive \? \(\) => toggleNodeConnections\(node\.id\) : undefined\}/g)).toHaveLength(2);
 		// aria-disabled appears on every gated surface: guided li + chevron +
-		// row, free li + chevron + row.
-		expect(guided.match(/aria-disabled=\{interactive \? undefined : true\}/g)).toHaveLength(6);
+		// row, free li + chevron + row, detour row.
+		expect(guided.match(/aria-disabled=\{interactive \? undefined : true\}/g)).toHaveLength(7);
 	});
 
 	it('keeps the unified tree mounted across Hierarchy|Assets tabs and hides the boot header correctly', () => {
@@ -1001,6 +1002,129 @@ describe('H1 S10 — camera context contracts', () => {
 		expect(planView).not.toContain('closeGuidedTourLoop');
 		expect(planView).not.toContain('beginCameraPlacement');
 		expect(relicRoute).not.toContain('H1EditorApp');
+	});
+
+	// S10.1.3 — Camera toolbar: `Select | Move | Rotate | Add camera | View`.
+	it('composes the Camera toolbar with Rotate + Add camera and unmounts Scale', () => {
+		const toolbar = readLibSource('editor/EditorViewportToolbar.svelte');
+		// Select | Move | Rotate | Scale are icon + label transform tools.
+		expect(toolbar).toContain('<MousePointer2 size={14}');
+		expect(toolbar).toContain('<Move size={14}');
+		expect(toolbar).toContain('<Rotate3d size={14}');
+		expect(toolbar).toContain('<Scaling size={14}');
+		expect(toolbar).toContain('Select');
+		expect(toolbar).toContain('Rotate');
+		// Scale and the scale-chain toggle unmount in the Camera context.
+		expect(toolbar).toContain('{#if showScaleTool}');
+		expect(toolbar).toContain('const showScaleTool = $derived(!isCameraContext)');
+		// Add camera lives in the Camera toolbar (relocated from the app bar).
+		expect(toolbar).toContain('isCameraContext');
+		expect(toolbar).toContain('Add camera');
+		expect(toolbar).toContain('<Video size={14}');
+		expect(toolbar).toContain('store.beginCameraPlacement()');
+	});
+
+	it('removed the relocated Place-camera action from the app bar', () => {
+		const appBar = readLibSource('editor/h1/H1AppBar.svelte');
+		expect(appBar).not.toContain('beginCameraPlacement');
+		expect(appBar).not.toContain('Place camera');
+	});
+
+	// S10.1.3 — Sequence Inspector: derived loop row, detour groups, unused tray.
+	it('renders the Sequence Inspector loop row as a derived readout, never a Close-loop mutation', () => {
+		const panel = readLibSource('editor/CameraFlowPanel.svelte');
+		expect(panel).toContain('Loops via:');
+		expect(panel).toContain('Disconnect Loop');
+		expect(panel).toContain('Stops at');
+		expect(panel).toContain('+ Connect to');
+		// The loop row only renders for N ≥ 3 (a two-node pair never loops and
+		// never shows a loop row).
+		expect(panel).toContain('showLoopRow = $derived(guidedTourChain.length >= 3)');
+		// [Disconnect Loop] is a plain connection deletion; connecting is the
+		// ordinary connect-existing flow. No Close-loop mutation anywhere.
+		expect(panel).toContain('store.deleteConnection(flowLoopConnectionId)');
+		expect(panel).toContain('store.beginConnectExistingNodes()');
+		expect(panel).not.toContain('closeGuidedTourLoop');
+		expect(panel).not.toContain('findClosableGuidedChain');
+	});
+
+	it('renders the detour groups and the Unused Connections tray in the Sequence Inspector', () => {
+		const panel = readLibSource('editor/CameraFlowPanel.svelte');
+		expect(panel).toContain('store.flowDetourGroups');
+		expect(panel).toContain('store.flowLoopConnectionId');
+		expect(panel).toContain('Detour at');
+		expect(panel).toContain('store.removeDetour(');
+		expect(panel).toContain('store.removeDetourNode(');
+		expect(panel).toContain('Not in order yet');
+		expect(panel).toContain('Connections / Advanced');
+		expect(panel).toContain('store.appendDetourNode(');
+	});
+
+	// S10.1.4 — timeline derived-loop readout (replaces the dead-end message).
+	it('shows the derived loop readout in the timeline panel with no Close-loop language', () => {
+		const panel = readLibSource('editor/EditorCameraTimelinePanel.svelte');
+		expect(panel).toContain('Loops via:');
+		expect(panel).toContain('Stops at');
+		expect(panel).toContain('store.flowLoopConnectionId');
+		expect(panel).toContain('showLoopRow = $derived(chain.length >= 3)');
+		// The stale guided-cycle repair message is gone; the empty state names
+		// the actual gap (no flow, or a missing transition).
+		expect(panel).not.toContain('Guided timeline unavailable');
+		expect(panel).not.toContain('Repair the guided camera cycle');
+		expect(panel).toContain('No camera flow yet');
+		expect(panel).not.toContain('closeGuidedTourLoop');
+	});
+
+	// S10.1.7 — grid opacity/visibility control + XYZ orientation gizmo.
+	it('mounts the bottom-right grid controls and the corner orientation gizmo in the 3D shell', () => {
+		const h13d = readLibSource('editor/h1/H13DView.svelte');
+		const gridControls = readLibSource('editor/EditorViewportGridControls.svelte');
+		const overlay = readLibSource('editor/EditorOrientationGizmoOverlay.svelte');
+		expect(h13d).toContain('<EditorViewportGridControls {store} />');
+		expect(h13d).toContain('<EditorOrientationGizmo />');
+		expect(h13d).toContain('<EditorOrientationGizmoOverlay />');
+		// The grid control reuses session state (visibility + new opacity).
+		expect(gridControls).toContain('store.toggleGrid()');
+		expect(gridControls).toContain('store.gridOpacity = value');
+		expect(gridControls).toContain('type="range"');
+		// The orientation gizmo is a non-interactive indicator: it never
+		// intercepts pointer events and is excluded from raycasting.
+		expect(overlay).toContain('pointer-events: none');
+		expect(overlay).toContain('aria-hidden="true"');
+	});
+
+	// S10.1.6 — workspace transition polish: canvas never remounts; fades are
+	// CSS-only and disabled under prefers-reduced-motion.
+	it('animates workspace switches with CSS fades and honors reduced motion', () => {
+		const h13d = readLibSource('editor/h1/H13DView.svelte');
+		const planView = readLibSource('editor/h1/H1PlanView.svelte');
+		expect(h13d).toContain('@keyframes view-fade-in');
+		expect(h13d).toContain('prefers-reduced-motion');
+		expect(planView).toContain('@keyframes plan-fade-in');
+		expect(planView).toContain('prefers-reduced-motion');
+	});
+
+	// S10.1 — Rooms hierarchy tree: per-row visibility + kebab actions + add.
+	it('adds per-row visibility and kebab actions to the Rooms tree, plus a Rooms add button', () => {
+		const tree = readLibSource('editor/UnifiedProjectTree.svelte');
+		expect(tree).toContain('EllipsisVertical');
+		expect(tree).toContain('<Eye size={14}');
+		expect(tree).toContain('<EyeOff size={14}');
+		expect(tree).toContain('<Plus size={14}');
+		expect(tree).toContain('onAddRoom');
+		expect(tree).toContain('store.toggleEntityVisibility(');
+		expect(tree).toContain('store.focusRoom(');
+		expect(tree).toContain('store.focusPlacement(');
+		expect(tree).toContain('store.deletePlacements(');
+		expect(tree).toContain('deleteLayoutRoom(');
+		expect(tree).toContain('deleteLayoutObject(');
+		expect(tree).toContain('deleteLayoutOpening(');
+	});
+
+	it('exposes session-only entity visibility through the store facade', () => {
+		const facade = readLibSource('editor/museum-editor.svelte.ts');
+		expect(facade).toContain('get hiddenEntityIds()');
+		expect(facade).toContain('toggleEntityVisibility(');
 	});
 });
 

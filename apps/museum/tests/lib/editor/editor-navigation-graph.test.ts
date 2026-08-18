@@ -8,6 +8,8 @@ import type {
 } from '$lib/content/scene';
 import {
 	currentMainFlowNodeIds,
+	flowDetourGroups,
+	flowLoopConnectionId,
 	validateConnectionCreation,
 	validateConnectionDeletion,
 	validateCurrentGuidedTourOrder,
@@ -701,5 +703,53 @@ describe('S10.2 — flow walk and detour validation', () => {
 			'utf8'
 		);
 		expect(source).not.toMatch(/from\s+['"](three|svelte|@threlte|\$app)['"]/);
+	});
+
+	it('derives the loop record with the distinct-connection test (S10.1.3 loop row)', () => {
+		// Distinct tail→head record → loop (the fixture's tour-d→tour-a edge),
+		// even when the order links are broken (loop is derived, never stored).
+		const loopDocument = documentClone();
+		expect(flowLoopConnectionId(loopDocument)).toBe('tour-d-a');
+		// Open chain with no closing record → no loop.
+		const open = openChainDocument();
+		open.connections = open.connections.filter(
+			(connection) => connection.id !== 'tour-d-a'
+		);
+		expect(flowLoopConnectionId(open)).toBeNull();
+		// Two-node pair: its only record is also its chain transition → never loops.
+		const pair = openChainDocument();
+		const pairNodes = pair.navigationNodes.filter((node) =>
+			['tour-a', 'tour-b'].includes(node.id)
+		);
+		pair.navigationNodes = pairNodes.map((node) => {
+			if (node.id === 'tour-b') return { ...node, previousNodeId: 'tour-a' };
+			return node;
+		});
+		pair.connections = pair.connections.filter(
+			(connection) => connection.id === 'tour-a-tour-b'
+		);
+		expect(flowLoopConnectionId(pair)).toBeNull();
+	});
+
+	it('groups detour chains by origin for the Sequence Inspector (S10.1.3)', () => {
+		const document = openChainDocument();
+		const head = addFreeNode(document, 'detour-head');
+		const second = addFreeNode(document, 'detour-second');
+		second.previousNodeId = head.id;
+		head.nextNodeId = second.id;
+		const withDetour = {
+			...document,
+			navigationNodes: document.navigationNodes.map((node) =>
+				node.id === 'detour-head' ? { ...node, detourOfNodeId: 'tour-b' } : node
+			)
+		};
+		expect(flowDetourGroups(withDetour)).toEqual([
+			{
+				originNodeId: 'tour-b',
+				headNodeId: 'detour-head',
+				chainNodeIds: ['detour-head', 'detour-second']
+			}
+		]);
+		expect(flowDetourGroups(openChainDocument())).toEqual([]);
 	});
 });

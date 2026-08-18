@@ -15,6 +15,7 @@
     "@portfolio/scroll-travel": "*",
     "@threlte/core": "^8.0.4",
     "@threlte/extras": "^9.0.2",
+    "lucide-svelte": "^1.0.1",
     "three": "^0.175.0"
   },
   "devDependencies": {

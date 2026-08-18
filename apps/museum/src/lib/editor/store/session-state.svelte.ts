@@ -54,6 +54,10 @@ export class EditorSessionState {
 	viewportShowNodes = $state(true);
 	viewportShowPaths = $state(true);
 	viewportShowFraming = $state(true);
+	/** S10.1.3 — retained (inactive) connection splines: desaturated dashed view. */
+	viewportShowRetained = $state(true);
+	/** S10.1 — per-row scene-entity visibility override (session-only, never in history/visitor JSON). */
+	hiddenEntityIds = $state<string[]>([]);
 
 	#statusMessageTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -80,6 +84,20 @@ export class EditorSessionState {
 
 	toggleViewportShowFraming() {
 		this.viewportShowFraming = !this.viewportShowFraming;
+	}
+
+	toggleViewportShowRetained() {
+		this.viewportShowRetained = !this.viewportShowRetained;
+	}
+
+	isEntityHidden(id: string): boolean {
+		return this.hiddenEntityIds.includes(id);
+	}
+
+	toggleEntityHidden(id: string): void {
+		this.hiddenEntityIds = this.hiddenEntityIds.includes(id)
+			? this.hiddenEntityIds.filter((candidate) => candidate !== id)
+			: [...this.hiddenEntityIds, id];
 	}
 
 	// ============================================================
@@ -143,6 +161,8 @@ export class EditorSessionState {
 	cameraFocusRoomId = $state<string | null>(null);
 	cameraPanEnabled = $state(true);
 	gridVisible = $state(false);
+	/** S10.1 — 3D calibration grid line opacity (0–1), session-only viewport styling. */
+	gridOpacity = $state(0.55);
 	/** Editor preview floor albedo — session-only viewport styling, never in history/visitor JSON. */
 	floorColor = $state('#57575d');
 
@@ -189,6 +209,10 @@ export class EditorSessionState {
 
 	toggleGrid() {
 		this.gridVisible = !this.gridVisible;
+	}
+
+	setGridOpacity(value: number) {
+		this.gridOpacity = Math.min(1, Math.max(0, value));
 	}
 
 	setFloorColor(value: string) {

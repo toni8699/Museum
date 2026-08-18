@@ -3,6 +3,7 @@ import type { LayoutDocument } from '$lib/layout/layout-types';
 import type { MuseumSceneDocument, SceneEntity } from '$lib/content/scene';
 import type { ActiveEditorSelection } from '$lib/editor/h1/active-editor-selection.svelte';	import {
 		buildUnifiedProjectTreeModel,
+		filterUnifiedProjectTreeModel,
 		isUnifiedTreeRowInteractive,
 		isUnifiedTreeRowSelected,
 		layoutRowToSelection,
@@ -465,5 +466,65 @@ describe('H1 S4 — pick-expand ancestor resolution', () => {
 		expect(
 			layoutSelectionAncestorRoomId({ kind: 'object', objectId: 'object-unowned' }, layout)
 		).toBeNull();
+	});
+});
+
+describe('H1 S4 — hierarchy filter', () => {
+	it('returns the model untouched for an empty or whitespace query', () => {
+		const model = buildModel();
+		expect(filterUnifiedProjectTreeModel(model, '')).toBe(model);
+		expect(filterUnifiedProjectTreeModel(model, '   ')).toBe(model);
+	});
+
+	it('narrows rooms by name and prunes non-matching rooms', () => {
+		const filtered = filterUnifiedProjectTreeModel(buildModel(), 'Atrium');
+		expect(filtered.rooms.map((room) => room.roomId)).toEqual(['room-a']);
+	});
+
+	it('keeps the ancestor room when only a descendant matches', () => {
+		const filtered = filterUnifiedProjectTreeModel(buildModel(), 'wall-b');
+		expect(filtered.rooms.map((room) => room.roomId)).toEqual(['room-a']);
+		expect(filtered.rooms[0]!.walls.map((wall) => wall.segmentId)).toEqual(['wall-b']);
+	});
+
+	it('matches a wall through its bend anchor and keeps the wall', () => {
+		const filtered = filterUnifiedProjectTreeModel(buildModel(), 'anchor-1');
+		expect(filtered.rooms[0]!.walls.map((wall) => wall.segmentId)).toEqual(['wall-b']);
+	});
+
+	it('matches openings and objects by kind or id', () => {
+		const byKind = filterUnifiedProjectTreeModel(buildModel(), 'door');
+		expect(byKind.rooms[0]!.openings.map((opening) => opening.openingId)).toEqual(['opening-1']);
+
+		const byObjectId = filterUnifiedProjectTreeModel(buildModel(), 'object-2');
+		expect(byObjectId.rooms.map((room) => room.roomId)).toEqual(['room-b']);
+		expect(byObjectId.rooms[0]!.objects.map((object) => object.objectId)).toEqual(['object-2']);
+	});
+
+	it('matches cluster members by entity name and prunes non-matching members', () => {
+		const filtered = filterUnifiedProjectTreeModel(buildModel(), 'entity-a1');
+		const room = filtered.rooms[0]!;
+		expect(room.clusters).toEqual([
+			{ clusterId: 'cluster-a', name: 'Sculpture', memberIds: ['entity-a1'] }
+		]);
+		expect(room.entities.map((entity) => entity.entityId)).toContain('entity-a1');
+	});
+
+	it('matches standalone entities by name or id', () => {
+		const filtered = filterUnifiedProjectTreeModel(buildModel(), 'entity-b1');
+		expect(filtered.rooms.map((room) => room.roomId)).toEqual(['room-b']);
+		expect(filtered.rooms[0]!.entities.map((entity) => entity.entityId)).toEqual(['entity-b1']);
+	});
+
+	it('is case-insensitive and carries the camera tour through unchanged', () => {
+		const model = buildModel();
+		const filtered = filterUnifiedProjectTreeModel(model, 'ATRIUM');
+		expect(filtered.rooms.map((room) => room.roomId)).toEqual(['room-a']);
+		expect(filtered.cameraTour).toBe(model.cameraTour);
+	});
+
+	it('yields an empty room list when nothing matches', () => {
+		const filtered = filterUnifiedProjectTreeModel(buildModel(), 'zzz-no-match');
+		expect(filtered.rooms).toEqual([]);
 	});
 });

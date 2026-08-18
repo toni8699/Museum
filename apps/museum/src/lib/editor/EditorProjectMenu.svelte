@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { ChevronDown } from 'lucide-svelte';
 	import { parseSceneDocumentJson } from '$lib/content/scene-codec';
 	import { parseLayoutDocumentJson } from '$lib/layout/layout-codec';
 	import {
@@ -244,7 +245,7 @@
 		aria-haspopup="dialog"
 		aria-expanded={open}
 		onclick={() => (open = !open)}
-	>Project <span aria-hidden="true">▾</span></button>
+	>Project <ChevronDown size={14} aria-hidden="true" /></button>
 	{#if open}
 		<div class="project-menu" role="dialog" aria-label="Project actions">
 			<div class="project-heading">
@@ -358,6 +359,9 @@
 	}
 	.document-state.dirty { border-color: #8d753c; background: #2a2618; color: #f4dc9b; }
 	.project-menu-wrap > button {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.3rem;
 		padding: 0.36rem 0.6rem;
 		border: 1px solid #3a3a46;
 		border-radius: 0.3rem;

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { ChevronDown, ChevronUp } from 'lucide-svelte';
 	import { onDestroy } from 'svelte';
 	import EditorCameraTimelinePanel from './EditorCameraTimelinePanel.svelte';
 	import {
@@ -95,7 +96,13 @@
 			aria-expanded={expanded}
 			disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
 			onclick={() => store.toggleTimeline()}
-		>{expanded ? 'Collapse' : 'Expand'}</button>
+		>			{#if expanded}
+				<ChevronDown size={14} aria-hidden="true" /> Collapse
+			{:else}
+				<ChevronUp size={14} aria-hidden="true" /> Expand
+			{/if}
+		</button>
+
 	</header>
 
 	{#if expanded}
@@ -167,6 +174,9 @@
 		text-transform: uppercase;
 	}
 	.toggle {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.3rem;
 		padding: 0.3rem 0.52rem;
 		border: 1px solid #3a3a46;
 		border-radius: 0.3rem;

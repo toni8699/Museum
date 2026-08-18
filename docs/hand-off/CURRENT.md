@@ -58,11 +58,22 @@ the Close-loop empty-state language.
 **H1 S10.1 camera-node order model — product direction + live bugfix round (2026-08-17, uncommitted):** the
 Camera workspace should speak one ordered camera path — **Node 1 → Node 2 → …** —
 not "Guided Tour vs Free Nodes" (the reciprocal-link internals). The S10.1
-plan amendment captures the direction; the **only** code landed for it so far
-is the fix set below (an earlier speculative pass — a timeline-panel repair UI
-with Set order / Close loop / diagnostics plus `findClosableGuidedChain` /
-`findSimpleGuidedCycle` — was audited and reverted as overengineering that did
-not fix the reported failures).
+plan amendment captures the direction. **Implementation landed (2026-08-18,
+uncommitted):** increments S10.1.0–S10.1.7 are in the working tree —
+`lucide-svelte` (editor-only), the `Select | Move | Rotate | Add camera | View`
+Camera toolbar (Scale hidden, Place Camera relocated out of the app bar), the
+Sequence Inspector (`CameraFlowPanel` numbered rows + detour groups + derived
+`Loops via:`/`Stops at` row + `Not in order yet` Unused tray), the derived-loop
+timeline readout (`EditorCameraTimelinePanel`), retained connections as
+desaturated dashed splines with a View-menu toggle, grid visibility/opacity
+control (bottom-right overlay) + corner XYZ orientation gizmo, and the
+Plan↔3D / Scene↔Camera mount fades with `prefers-reduced-motion` guards.
+Verified: 1671 tests pass, `svelte-check` 0, build clean, plus a live dev-server
+visual pass (toolbar, gizmo axes, grid popover, timeline empty state). The
+earlier speculative pass (a timeline-panel repair UI with Set order / Close
+loop / diagnostics plus `findClosableGuidedChain` / `findSimpleGuidedCycle`)
+was audited and reverted as overengineering that did not fix the reported
+failures.
 
 **Live bugfix round (2026-08-17):**
 
@@ -93,13 +104,14 @@ not fix the reported failures).
    place camera 2 → Escape now cancels cleanly; sidebar connect seeds the
    two-node cycle, `canStartTourPreview` true, timeline renders without the
    duplicate-key error, and re-selecting a node re-attaches the gizmo to an
-   in-scene root. Full suite **1628 passed**, `svelte-check` 0. Open follow-ups
-   for the S10.1 slice: a **rotate-camera affordance** (camera gizmo policy is
-   translate-only by design; aiming = moving the target handle, which is
-   undiscoverable) and the **standalone second-node placement** workflow the
-   user wants (place → done, connect later) — the current
-   connect-pending-node contract (atomic first-edge commit, cancel discards)
-   is pinned by tests and belongs in the S10.1 sidebar rework, not a point fix.
+   in-scene root. **Resolved in the S10.1 implementation:** the rotate-camera
+   affordance landed (camera nodes expose `Select | Move | Rotate`, rotate =
+   target-orbit aim). **Still open in S10.1:** the **standalone placement**
+   workflow the user wants (place → done, connect later) — the current
+   `connect-pending-node` contract (atomic first-edge commit, cancel discards)
+   is still pinned by tests and is the one remaining S10.1.3 behavioral delta;
+   rework it as its own sub-increment (place commits standalone → "Not in
+   order yet" → `connect-existing` seeds/extends the flow).
 
 **Plan-system renewal (note, 2026-08-17):** after H1 lands, the letter-coded
 plan families (A0–A4, B0–B5, G1–G6, H1 S0–S12, C1/C2, D1, S9a) are archived

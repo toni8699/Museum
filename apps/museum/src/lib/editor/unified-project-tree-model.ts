@@ -168,6 +168,73 @@ export function buildUnifiedProjectTreeModel(input: {
 }
 
 /**
+ * Narrow a tree model by a case-insensitive substring query. A row is kept
+ * when its own searchable text matches, **or** when any descendant matches —
+ * so a matched wall/opening/entity stays reachable under its surviving room
+ * (and matched cluster members keep their cluster). Cluster members are
+ * matched by their entity name (resolved from the room's own entity list) or
+ * id; standalone entities match name + id. An empty/whitespace query returns
+ * the model untouched. Camera rows are intentionally not modeled here (the
+ * tree embeds `CameraFlowPanel`), so the camera-tour slot is carried through
+ * unchanged.
+ */
+export function filterUnifiedProjectTreeModel(
+	model: UnifiedProjectTreeModel,
+	query: string
+): UnifiedProjectTreeModel {
+	const needle = query.trim().toLowerCase();
+	if (!needle) return model;
+	const matches = (...texts: (string | undefined)[]) =>
+		texts.some((text) => text !== undefined && text.toLowerCase().includes(needle));
+
+	const rooms = model.rooms
+		.map((room) => {
+			const memberName = (memberId: string) =>
+				room.entities.find((entity) => entity.entityId === memberId)?.name;
+
+			const walls = room.walls.filter(
+				(wall) =>
+					matches(`wall · ${wall.segmentId}`, wall.segmentId) ||
+					wall.anchors.some((anchor) =>
+						matches(`bend anchor · ${anchor.anchorId}`, anchor.anchorId)
+					)
+			);
+			const openings = room.openings.filter((opening) =>
+				matches(opening.kind, opening.openingId)
+			);
+			const objects = room.objects.filter((object) =>
+				matches(object.kind, object.objectId)
+			);
+			const clusters = room.clusters
+				.map((cluster) => ({
+					...cluster,
+					memberIds: cluster.memberIds.filter((memberId) =>
+						matches(memberName(memberId), memberId)
+					)
+				}))
+				.filter(
+					(cluster) =>
+						matches(cluster.name, cluster.clusterId) || cluster.memberIds.length > 0
+				);
+			const entities = room.entities.filter((entity) =>
+				matches(entity.name, entity.entityId)
+			);
+			const selfMatches = matches(room.name, room.roomId);
+			const hasSurvivingChildren =
+				walls.length > 0 ||
+				openings.length > 0 ||
+				objects.length > 0 ||
+				clusters.length > 0 ||
+				entities.length > 0;
+			if (!selfMatches && !hasSurvivingChildren) return null;
+			return { ...room, walls, openings, objects, clusters, entities };
+		})
+		.filter((room): room is UnifiedTreeRoom => room !== null);
+
+	return { rooms, cameraTour: model.cameraTour };
+}
+
+/**
  * Does the active selection highlight this row? Domain-first: layout rows
  * match `active.selection` exactly; scene rows match the workspace slot;
  * camera rows match `navigation`. The **room row** additionally highlights on

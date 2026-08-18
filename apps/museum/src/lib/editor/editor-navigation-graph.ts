@@ -234,6 +234,52 @@ export function currentMainFlowNodeIds(
 }
 
 /**
+ * S10.2 — the derived-loop record id for the main flow (the distinct-
+ * connection test): the tail↔head connection id when it exists and is not a
+ * chain transition, or null (open flow — plays Once). A two-node pair never
+ * loops (its only record is also its chain transition). Serves the Sequence
+ * Inspector loop row and the timeline readout.
+ */
+export function flowLoopConnectionId(
+	document: MuseumSceneDocument
+): string | null {
+	const flowNodeIds = currentMainFlowNodeIds(document);
+	if (!flowNodeIds || flowNodeIds.length < 3) return null;
+	const headId = flowNodeIds[0];
+	const tailId = flowNodeIds.at(-1);
+	if (headId === undefined || tailId === undefined) return null;
+	const closing = document.connections.find(
+		(connection) =>
+			(connection.fromNodeId === headId && connection.toNodeId === tailId) ||
+			(connection.fromNodeId === tailId && connection.toNodeId === headId)
+	);
+	return closing?.id ?? null;
+}
+
+/**
+ * S10.2 — every detour chain grouped by its origin (main-route node). Each
+ * group carries the head marker node and the ordered chain node ids
+ * (head → … → tail). Used by the Sequence Inspector's detour grouping.
+ */
+export function flowDetourGroups(
+	document: MuseumSceneDocument
+): Array<{ originNodeId: string; headNodeId: string; chainNodeIds: string[] }> {
+	const nodeById = new Map(document.navigationNodes.map((node) => [node.id, node]));
+	const groups: Array<{ originNodeId: string; headNodeId: string; chainNodeIds: string[] }> = [];
+	for (const head of document.navigationNodes) {
+		if (head.detourOfNodeId === undefined) continue;
+		const chain = findDetourChain(document, head.detourOfNodeId, nodeById);
+		if (!chain) continue;
+		groups.push({
+			originNodeId: head.detourOfNodeId,
+			headNodeId: chain.headNode.id,
+			chainNodeIds: chain.chainNodeIds
+		});
+	}
+	return groups;
+}
+
+/**
  * S10.2 — the detour chain (head → … → tail) declared for `originNodeId`, or
  * null when no detour branches from that origin. A one-node detour is a
  * singleton chain.
@@ -292,6 +338,60 @@ function isDetourReturnEdge(
 		}
 	}
 	return false;
+}
+
+/**
+ * S10.1.3 — retained (inactive) connection records: authored connections not
+ * used by the main flow chain, not the derived loop record, and not a detour
+ * chain transition or return edge. These render as desaturated dashed splines
+ * in the Camera viewport with a View-menu visibility toggle.
+ */
+export function flowRetainedConnectionIds(
+	document: MuseumSceneDocument
+): string[] {
+	const activeIds = new Set<string>();
+	const flowNodeIds = currentMainFlowNodeIds(document);
+	if (flowNodeIds) {
+		for (let index = 0; index + 1 < flowNodeIds.length; index += 1) {
+			const fromId = flowNodeIds[index];
+			const toId = flowNodeIds[index + 1];
+			const record = document.connections.find(
+				(connection) =>
+					(connection.fromNodeId === fromId && connection.toNodeId === toId) ||
+					(connection.fromNodeId === toId && connection.toNodeId === fromId)
+			);
+			if (record) activeIds.add(record.id);
+		}
+		const loopId = flowLoopConnectionId(document);
+		if (loopId) activeIds.add(loopId);
+	}
+	const nodeById = new Map(document.navigationNodes.map((node) => [node.id, node]));
+	for (const node of document.navigationNodes) {
+		if (node.detourOfNodeId === undefined) continue;
+		const chain = findDetourChain(document, node.detourOfNodeId, nodeById);
+		if (!chain) continue;
+		for (let index = 0; index + 1 < chain.chainNodeIds.length; index += 1) {
+			const fromId = chain.chainNodeIds[index];
+			const toId = chain.chainNodeIds[index + 1];
+			const record = document.connections.find(
+				(connection) =>
+					(connection.fromNodeId === fromId && connection.toNodeId === toId) ||
+					(connection.fromNodeId === toId && connection.toNodeId === fromId)
+			);
+			if (record) activeIds.add(record.id);
+		}
+		const tailId = chain.chainNodeIds.at(-1)!;
+		const originId = node.detourOfNodeId;
+		const returnRecord = document.connections.find(
+			(connection) =>
+				(connection.fromNodeId === tailId && connection.toNodeId === originId) ||
+				(connection.fromNodeId === originId && connection.toNodeId === tailId)
+		);
+		if (returnRecord) activeIds.add(returnRecord.id);
+	}
+	return document.connections
+		.filter((connection) => !activeIds.has(connection.id))
+		.map((connection) => connection.id);
 }
 
 /**

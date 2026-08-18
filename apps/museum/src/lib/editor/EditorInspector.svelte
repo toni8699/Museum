@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { ExternalLink, Info, Lightbulb } from 'lucide-svelte';
 	import { resolveAssetFallback } from '$lib/content/assets';
 	import { isSceneLightEntity, isSceneModelEntity, isScenePrimitiveEntity } from '$lib/content/scene';
 	import type { MuseumAsset } from '$lib/types/assets';
@@ -461,6 +462,21 @@
 		{/if}
 	</header>
 
+	{#if readOnly}
+		<section class="plan-readonly-card" aria-label="Read-only in Plan">
+			<div class="plan-readonly-head">
+				<Info size={15} aria-hidden="true" />
+				<h2>Read-only in Plan</h2>
+			</div>
+			<p>Camera selections survive the Plan ⇄ 3D switch, but Plan is layout-only. Switch to 3D to edit scenes and cameras.</p>
+			<button
+				type="button"
+				class="plan-readonly-more"
+				onclick={() => store.setStatusMessage('Switch to 3D to author scenes and cameras — Plan is layout-only.')}
+			>Learn more <ExternalLink size={12} aria-hidden="true" /></button>
+		</section>
+	{/if}
+
 	{#if domain === 'layout'}
 		<section class="layout-inspector" aria-label="Layout preview details">
 			<dl>
@@ -651,21 +667,11 @@
 			</section>
 		{/if}
 	{:else if selectedNavigation}
-		{#if readOnlyNonLayout}
-			<section class="read-only-note" aria-label="Read-only camera selection">
-				<h2>Read-only in Plan</h2>
-				<p>Camera selections survive the Plan ↔ 3D switch, but Plan is layout-only. Switch to 3D to edit this selection.</p>
-			</section>
-		{:else}
+		{#if !readOnlyNonLayout}
 			<EditorCameraInspector {store} />
 		{/if}
 	{:else if hasPlacementSelection}
-		{#if readOnlyNonLayout}
-			<section class="read-only-note" aria-label="Read-only scene selection">
-				<h2>Read-only in Plan</h2>
-				<p>Scene selections survive the Plan ↔ 3D switch, but Plan is layout-only. Switch to 3D to edit this selection.</p>
-			</section>
-		{:else}
+		{#if !readOnlyNonLayout}
 		<section class="grouping" aria-label="Group selection">
 			<div class="section-heading">
 				<h2>Group selection</h2>
@@ -800,6 +806,13 @@
 		{/if}
 	</section>
 
+	{#if readOnly}
+		<p class="plan-footer-note">
+			<span class="plan-footer-note__icon"><Lightbulb size={13} aria-hidden="true" /></span>
+			Plan edits affect geometry and layout only. Open in 3D to place scenes and cameras.
+		</p>
+	{/if}
+
 </aside>
 
 <style>
@@ -853,9 +866,46 @@
 	.place { padding: 0.48rem 0.6rem; border: 1px solid #8d753c; border-radius: 0.32rem; background: #242018; color: #fff2c7; font: inherit; font-size: 0.73rem; cursor: pointer; }
 	.place.active { background: #3a3019; box-shadow: inset 0 0 0 1px #d6b35f; }
 	.unsupported, .empty-selection p { margin: 0; color: #a8a29a; font-size: 0.72rem; line-height: 1.4; }
-	.read-only-note { display: flex; flex-direction: column; gap: 0.55rem; padding: 0.85rem; border: 1px solid #34313a; border-radius: 0.45rem; background: #17171f; }
-	.read-only-note h2 { margin: 0; font-size: 0.9rem; }
-	.read-only-note p { margin: 0; color: #a8a29a; font-size: 0.72rem; line-height: 1.4; }
+	/* S10.1 — Plan read-only info card + footer note (concept-sketch copy). */
+	.plan-readonly-card {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+		padding: 0.75rem 0.85rem;
+		border: 1px solid #35506e;
+		border-radius: 0.45rem;
+		background: #151b26;
+	}
+	.plan-readonly-head { display: flex; align-items: center; gap: 0.45rem; color: #9cc4f0; }
+	.plan-readonly-head h2 { margin: 0; font-size: 0.9rem; color: #e6effb; }
+	.plan-readonly-card p { margin: 0; color: #b9c6d8; font-size: 0.72rem; line-height: 1.4; }
+	.plan-readonly-more {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+		align-self: flex-start;
+		padding: 0.3rem 0.5rem;
+		border: 1px solid #46688f;
+		border-radius: 0.3rem;
+		background: transparent;
+		color: #bcd7f5;
+		font: inherit;
+		font-size: 0.68rem;
+		cursor: pointer;
+	}
+	.plan-readonly-more:hover { border-color: #7fa9d6; color: #eaf3fd; }
+	.plan-footer-note {
+		display: flex;
+		align-items: flex-start;
+		gap: 0.45rem;
+		margin: 0;
+		padding-top: 0.7rem;
+		border-top: 1px solid #2a2a33;
+		color: #8f8a82;
+		font-size: 0.68rem;
+		line-height: 1.4;
+	}
+	.plan-footer-note__icon { display: inline-flex; flex: 0 0 auto; margin-top: 0.05rem; color: #d6b35f; }
 	.presets { display: flex; gap: 0.35rem; }
 	.presets button, .deselect, .camera-controls button { padding: 0.38rem 0.5rem; border: 1px solid #3a3a46; border-radius: 0.32rem; background: #1a1a22; color: #f4efe4; font: inherit; font-size: 0.72rem; cursor: pointer; }
 	.camera-controls button:disabled, .presets button:disabled { opacity: 0.4; cursor: default; }

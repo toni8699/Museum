@@ -9,16 +9,20 @@
 	// and the highlight reads `ActiveEditorSelection.active` (plus the store's
 	// camera discovery slots for direction rows — but direction rows render
 	// inside the embedded panel, which already owns that rule).
+	import { onMount } from 'svelte';
+	import { EllipsisVertical, Eye, EyeOff, ListFilter, Plus, Scan, Search, Trash2 } from 'lucide-svelte';
 	import { getMuseumAsset } from '$lib/content/assets';
 	import { isSceneModelEntity, type SceneEntity } from '$lib/content/scene';
 	import { formatPlacementLabel } from './editor-outliner';
 	import type { LayoutPreviewState } from './layout/layout-preview-state.svelte';
+	import { deleteLayoutObject, deleteLayoutOpening, deleteLayoutRoom } from './layout/layout-preview-state.svelte';
 	import {
 		selectLayoutInteriorAnchor,
 		selectLayoutObject,
 		selectLayoutOpening,
 		selectLayoutRoom,
 		selectLayoutWall,
+		setLayoutDraftTool,
 		type LayoutInteractionState
 	} from './layout/layout-interaction';
 	import type { MuseumEditorStore } from './museum-editor.svelte';
@@ -26,6 +30,7 @@
 	import type { EditorActiveSelectionStore } from './h1/active-editor-selection.svelte';
 	import {
 		buildUnifiedProjectTreeModel,
+		filterUnifiedProjectTreeModel,
 		isUnifiedTreeRowInteractive,
 		isUnifiedTreeRowSelected,
 		layoutSelectionAncestorRoomId,
@@ -42,7 +47,8 @@
 		layoutInteraction,
 		activeSelection,
 		viewMode,
-		active3dContext
+		active3dContext,
+		onAddRoom = undefined
 	}: {
 		store: MuseumEditorStore;
 		layoutPreview: LayoutPreviewState;
@@ -50,6 +56,8 @@
 		activeSelection: EditorActiveSelectionStore;
 		viewMode: EditorViewMode;
 		active3dContext: Editor3dContext;
+		/** S10.1 — start the room-drafting flow from the Rooms header (+). */
+		onAddRoom?: () => void;
 	} = $props();
 
 	const model = $derived(
@@ -73,9 +81,26 @@
 	);
 	// Plan-view gate: scene/camera rows are read-only (aria-disabled, no click).
 	const interactive = $derived(viewMode === '3d');
+	// S10.1 — hierarchy filter: narrows the Rooms tree by a case-insensitive
+	// substring over row labels/ids. Ancestors of matches survive so matched
+	// rows stay reachable; the Camera Flow panel is left untouched.
+	let filterQuery = $state('');
+	const filterActive = $derived(filterQuery.trim() !== '');
+	const visibleModel = $derived(filterUnifiedProjectTreeModel(model, filterQuery));
 
 	let roomsOpen = $state(true);
 	let cameraTourOpen = $state(false);
+	let openMenuFor = $state<string | null>(null);
+	let treeElement = $state<HTMLElement>();
+
+	onMount(() => {
+		const closeMenu = (event: PointerEvent) => {
+			if (treeElement?.contains(event.target as Node)) return;
+			openMenuFor = null;
+		};
+		window.addEventListener('pointerdown', closeMenu);
+		return () => window.removeEventListener('pointerdown', closeMenu);
+	});
 
 	// Camera Tour branch surfacing (preserved behavior): the camera context used
 	// to surface the camera tree as the whole sidebar; as a collapsible branch it
@@ -87,6 +112,12 @@
 	});
 	$effect(() => {
 		if (active.domain === 'camera') cameraTourOpen = true;
+	});
+	// While filtering, reveal the Rooms root so matches aren't hidden behind a
+	// user-collapsed root (the effect re-runs as the query changes; a manual
+	// collapse during an active filter stays authoritative until then).
+	$effect(() => {
+		if (filterActive) roomsOpen = true;
 	});
 
 	// Expansion seeding: `treeExpandedRoomIds` defaults to ['paris'] — a Chopin
@@ -203,50 +234,138 @@
 		return formatPlacementLabel(entity.light);
 	}
 
+	// S10.1 — per-row visibility + kebab actions. Visibility is a session-only
+	// viewport override; Frame/Delete reuse the existing store/layout mutators.
+	function toggleMenu(key: string) {
+		openMenuFor = openMenuFor === key ? null : key;
+	}
+
+	function frameRoom(roomId: string) {
+		store.focusRoom(roomId);
+	}
+
+	function frameEntity(entityId: string) {
+		store.focusPlacement(entityId);
+	}
+
+	function deleteEntity(entityId: string) {
+		store.deletePlacements([entityId]);
+	}
+
+	function deleteRoom(roomId: string) {
+		const result = deleteLayoutRoom(layoutPreview, roomId, store.document);
+		if (!result.success) store.setStatusMessage(result.message);
+	}
+
+	function deleteObject(objectId: string) {
+		const result = deleteLayoutObject(layoutPreview, objectId);
+		if (!result.success) store.setStatusMessage(result.message);
+	}
+
+	function deleteOpening(roomId: string, openingId: string) {
+		const result = deleteLayoutOpening(layoutPreview, roomId, openingId);
+		if (!result.success) store.setStatusMessage(result.message);
+	}
+
+	function toggleEntityHidden(entityId: string) {
+		store.toggleEntityVisibility(entityId);
+	}
+
 </script>
 
-<section class="unified-tree" aria-label="Project hierarchy">
-	<div class="tree-root">
+<section bind:this={treeElement} class="unified-tree" aria-label="Project hierarchy">
+	<div class="tree-filter" role="search">
+		<span class="tree-filter__icon"><Search size={14} aria-hidden="true" /></span>
+		<input
+			type="text"
+			class="tree-filter__input"
+			placeholder="Filter hierarchy"
+			aria-label="Filter hierarchy"
+			spellcheck="false"
+			bind:value={filterQuery}
+		/>
 		<button
 			type="button"
-			class="tree-root__row"
-			aria-expanded={roomsOpen}
-			onclick={() => (roomsOpen = !roomsOpen)}
-		>
-			<span class="chevron" class:open={roomsOpen}>›</span>
-			<span class="tree-row__label tree-root__label">Rooms</span>
-			<span class="tree-row__meta">{model.rooms.length}</span>
-		</button>
+			class="tree-filter__action"
+			class:active={filterActive}
+			aria-pressed={filterActive}
+			aria-label="Clear hierarchy filter"
+			title="Clear filter"
+			onclick={() => (filterQuery = '')}
+		><ListFilter size={14} aria-hidden="true" /></button>
+	</div>
+
+	<div class="tree-root">
+		<div class="tree-root__header">
+			<button
+				type="button"
+				class="tree-root__row"
+				aria-expanded={roomsOpen}
+				onclick={() => (roomsOpen = !roomsOpen)}
+			>
+				<span class="chevron" class:open={roomsOpen}>›</span>
+				<span class="tree-row__label tree-root__label">Rooms</span>
+				<span class="tree-row__meta">{model.rooms.length}</span>
+			</button>
+			{#if onAddRoom}
+				<button
+					type="button"
+					class="tree-root__add"
+					aria-label="Add room"
+					title="Add a room"
+					onclick={onAddRoom}
+				><Plus size={14} aria-hidden="true" /></button>
+			{/if}
+		</div>
 		{#if roomsOpen}
 			{#if model.rooms.length === 0}
 				<p class="empty">Draw a room in Plan to begin</p>
+			{:else if visibleModel.rooms.length === 0}
+				<p class="empty">No rows match “{filterQuery.trim()}”</p>
 			{:else}
 				<ul role="tree" aria-label="Rooms">
-					{#each model.rooms as room (room.roomId)}
+					{#each visibleModel.rooms as room (room.roomId)}
 						{@const open = roomOpen(room)}
 						{@const roomRow = { kind: 'room', roomId: room.roomId } satisfies UnifiedTreeRow}
 						<li role="treeitem" aria-expanded={open} aria-selected={rowSelected(roomRow)}>
-							<div class="room-line">
-								<button
-									type="button"
-									class="tree-row__chevron"
-									aria-label={`${open ? 'Collapse' : 'Expand'} ${room.name}`}
-									aria-expanded={open}
-									onclick={() => store.toggleRoomTreeExpansion(room.roomId)}
-								>
-									<span class="chevron" class:open={open}>›</span>
-								</button>
-								<button
-									type="button"
-									class="tree-row room-row"
-									class:tree-row--selected={rowSelected(roomRow)}
-									aria-disabled={!roomRowInteractive(roomRow)}
-									onclick={roomRowInteractive(roomRow) ? () => selectRoom(room) : undefined}
-								>
-									<span class="tree-row__label" title={room.name}>{room.name}</span>
-									<span class="tree-row__meta" title={room.roomId}>{formatPlacementLabel(room.roomId)}</span>
-								</button>
-							</div>
+						<div class="room-line">
+							<button
+								type="button"
+								class="tree-row__chevron"
+								aria-label={`${open ? 'Collapse' : 'Expand'} ${room.name}`}
+								aria-expanded={open}
+								onclick={() => store.toggleRoomTreeExpansion(room.roomId)}
+							>
+								<span class="chevron" class:open={open}>›</span>
+							</button>
+							<button
+								type="button"
+								class="tree-row room-row"
+								class:tree-row--selected={rowSelected(roomRow)}
+								aria-disabled={!roomRowInteractive(roomRow)}
+								onclick={roomRowInteractive(roomRow) ? () => selectRoom(room) : undefined}
+							>
+								<span class="tree-row__label" title={room.name}>{room.name}</span>
+								<span class="tree-row__meta" title={room.roomId}>{formatPlacementLabel(room.roomId)}</span>
+							</button>
+							{#if interactive}
+								<div class="row-actions">
+									<button
+										type="button"
+										class="kebab"
+										aria-label={`Actions for ${room.name}`}
+										aria-expanded={openMenuFor === `room:${room.roomId}`}
+										onclick={() => toggleMenu(`room:${room.roomId}`)}
+									><EllipsisVertical size={14} aria-hidden="true" /></button>
+									{#if openMenuFor === `room:${room.roomId}`}
+										<div class="row-menu" role="menu">
+											<button type="button" role="menuitem" onclick={() => frameRoom(room.roomId)}><Scan size={13} aria-hidden="true" /> Frame</button>
+											<button type="button" role="menuitem" class="danger" onclick={() => deleteRoom(room.roomId)}><Trash2 size={13} aria-hidden="true" /> Delete</button>
+										</div>
+									{/if}
+								</div>
+							{/if}
+						</div>
 							{#if open}
 								<ul class="room-children" role="group" aria-label={`${room.name} contents`}>
 									{#if room.walls.length > 0 || room.openings.length > 0 || room.objects.length > 0}
@@ -309,36 +428,68 @@
 											segmentId: opening.segmentId,
 											openingId: opening.openingId
 										} satisfies UnifiedTreeRow}
-										<li role="treeitem" aria-selected={rowSelected(openingRow)}>
-											<button
-												type="button"
-												class="tree-row opening-row"
-												class:tree-row--selected={rowSelected(openingRow)}
-												aria-disabled={!roomRowInteractive(openingRow)}
-												onclick={roomRowInteractive(openingRow)
-													? () => selectOpening(room, opening.segmentId, opening.openingId)
-													: undefined}
-											>
-												<span class="tree-row__label">{opening.kind === 'door' ? 'Door' : 'Window'}</span>
-												<span class="tree-row__meta" title={opening.openingId}>{formatPlacementLabel(opening.openingId)}</span>
-											</button>
-										</li>
+									<li role="treeitem" aria-selected={rowSelected(openingRow)}>
+										<button
+											type="button"
+											class="tree-row opening-row"
+											class:tree-row--selected={rowSelected(openingRow)}
+											aria-disabled={!roomRowInteractive(openingRow)}
+											onclick={roomRowInteractive(openingRow)
+												? () => selectOpening(room, opening.segmentId, opening.openingId)
+												: undefined}
+										>
+											<span class="tree-row__label">{opening.kind === 'door' ? 'Door' : 'Window'}</span>
+											<span class="tree-row__meta" title={opening.openingId}>{formatPlacementLabel(opening.openingId)}</span>
+										</button>
+										{#if interactive}
+											<div class="row-actions">
+												<button
+													type="button"
+													class="kebab"
+													aria-label={`Actions for ${opening.kind === 'door' ? 'door' : 'window'}`}
+													aria-expanded={openMenuFor === `opening:${opening.openingId}`}
+													onclick={() => toggleMenu(`opening:${opening.openingId}`)}
+												><EllipsisVertical size={14} aria-hidden="true" /></button>
+												{#if openMenuFor === `opening:${opening.openingId}`}
+													<div class="row-menu" role="menu">
+														<button type="button" role="menuitem" class="danger" onclick={() => deleteOpening(room.roomId, opening.openingId)}><Trash2 size={13} aria-hidden="true" /> Delete</button>
+													</div>
+												{/if}
+											</div>
+										{/if}
+									</li>
 									{/each}
 									{#each room.objects as object (object.objectId)}
 										{@const objectRow = { kind: 'object', objectId: object.objectId } satisfies UnifiedTreeRow}
-										<li role="treeitem" aria-selected={rowSelected(objectRow)}>
-											<button
-												type="button"
-												class="tree-row object-row"
-												class:tree-row--selected={rowSelected(objectRow)}
-												aria-disabled={!roomRowInteractive(objectRow)}
-												onclick={roomRowInteractive(objectRow)
-													? () => selectObject(object.objectId)
-													: undefined}
-											>
-												<span class="tree-row__label" title={object.objectId}>{formatPlacementLabel(object.kind)} · {formatPlacementLabel(object.objectId)}</span>
-											</button>
-										</li>
+									<li role="treeitem" aria-selected={rowSelected(objectRow)}>
+										<button
+											type="button"
+											class="tree-row object-row"
+											class:tree-row--selected={rowSelected(objectRow)}
+											aria-disabled={!roomRowInteractive(objectRow)}
+											onclick={roomRowInteractive(objectRow)
+												? () => selectObject(object.objectId)
+												: undefined}
+										>
+											<span class="tree-row__label" title={object.objectId}>{formatPlacementLabel(object.kind)} · {formatPlacementLabel(object.objectId)}</span>
+										</button>
+										{#if interactive}
+											<div class="row-actions">
+												<button
+													type="button"
+													class="kebab"
+													aria-label={`Actions for ${formatPlacementLabel(object.objectId)}`}
+													aria-expanded={openMenuFor === `object:${object.objectId}`}
+													onclick={() => toggleMenu(`object:${object.objectId}`)}
+												><EllipsisVertical size={14} aria-hidden="true" /></button>
+												{#if openMenuFor === `object:${object.objectId}`}
+													<div class="row-menu" role="menu">
+														<button type="button" role="menuitem" class="danger" onclick={() => deleteObject(object.objectId)}><Trash2 size={13} aria-hidden="true" /> Delete</button>
+													</div>
+												{/if}
+											</div>
+										{/if}
+									</li>
 									{/each}
 									{#if room.clusters.length > 0 || room.entities.length > 0}
 										<li class="group-header" role="presentation">
@@ -384,30 +535,55 @@
 													{#each cluster.memberIds as memberId (memberId)}
 														{@const entity = sceneEntitiesById.get(memberId)}
 														{@const memberRow = { kind: 'entity', entityId: memberId } satisfies UnifiedTreeRow}
-														{#if entity}
-															<li role="treeitem" aria-selected={rowSelected(memberRow)}>
-																<div class="member-line">
-																	<button
-																		type="button"
-																		class="tree-row object-row"
-																		class:tree-row--selected={rowSelected(memberRow)}
-																		aria-disabled={!roomRowInteractive(memberRow)}
-																		onclick={roomRowInteractive(memberRow)
-																			? (event) => selectEntity(entity, event)
-																			: undefined}
-																	>
-																		<span class="tree-row__label" title={entityLabel(entity)}>{entityLabel(entity)}</span>
-																		<span class="tree-row__meta" title={entityMeta(entity)}>{entityMeta(entity)}</span>
-																	</button>
-																	<button
-																		class="mini-action"
-																		type="button"
-																		aria-label={`Remove ${entityLabel(entity)} from ${cluster.name}`}
-																		disabled={!interactive}
-																		onclick={() => store.removeMemberFromCluster(cluster.clusterId, memberId)}
-																	>−</button>
-																</div>
-															</li>
+														{#if entity}																<li role="treeitem" aria-selected={rowSelected(memberRow)}>
+																	<div class="member-line">
+																		<button
+																			type="button"
+																			class="tree-row object-row"
+																			class:tree-row--selected={rowSelected(memberRow)}
+																			aria-disabled={!roomRowInteractive(memberRow)}
+																			onclick={roomRowInteractive(memberRow)
+																				? (event) => selectEntity(entity, event)
+																				: undefined}
+																		>
+																			<span class="tree-row__label" title={entityLabel(entity)}>{entityLabel(entity)}</span>
+																			<span class="tree-row__meta" title={entityMeta(entity)}>{entityMeta(entity)}</span>
+																		</button>
+																		<button
+																			class="mini-action"
+																			type="button"
+																			aria-label={`Remove ${entityLabel(entity)} from ${cluster.name}`}
+																			disabled={!interactive}
+																			onclick={() => store.removeMemberFromCluster(cluster.clusterId, memberId)}
+																		>−</button>
+																		{#if interactive}
+																			<div class="row-actions">
+																				<button
+																					type="button"
+																					class="eye"
+																					aria-pressed={!store.isEntityHidden(entity.id)}
+																					aria-label={`${store.isEntityHidden(entity.id) ? 'Show' : 'Hide'} ${entityLabel(entity)}`}
+																					title={store.isEntityHidden(entity.id) ? 'Show in viewport' : 'Hide in viewport'}
+																					onclick={() => toggleEntityHidden(entity.id)}
+																				>{#if store.isEntityHidden(entity.id)}<EyeOff size={14} aria-hidden="true" />{:else}<Eye size={14} aria-hidden="true" />{/if}</button>
+																				<button
+																					type="button"
+																					class="kebab"
+																					aria-label={`Actions for ${entityLabel(entity)}`}
+																					aria-expanded={openMenuFor === `entity:${entity.id}`}
+																					onclick={() => toggleMenu(`entity:${entity.id}`)}
+																				><EllipsisVertical size={14} aria-hidden="true" /></button>
+																				{#if openMenuFor === `entity:${entity.id}`}
+																					<div class="row-menu" role="menu">
+																						<button type="button" role="menuitem" onclick={() => frameEntity(entity.id)}><Scan size={13} aria-hidden="true" /> Frame</button>
+																						<button type="button" role="menuitem" class="danger" onclick={() => deleteEntity(entity.id)}><Trash2 size={13} aria-hidden="true" /> Delete</button>
+																					</div>
+																				{/if}
+																			</div>
+																		{/if}
+																	</div>
+																</li>
+
 														{/if}
 													{/each}
 												</ul>
@@ -418,30 +594,55 @@
 										{@const entity = sceneEntitiesById.get(entry.entityId)}
 										{@const entityRow = { kind: 'entity', entityId: entry.entityId } satisfies UnifiedTreeRow}
 										{#if entity && !clusteredPlacementIds.has(entry.entityId)}
-											<li role="treeitem" aria-selected={rowSelected(entityRow)}>
-												<div class="member-line">
+										<li role="treeitem" aria-selected={rowSelected(entityRow)}>
+											<div class="member-line">
+												<button
+													type="button"
+													class="tree-row object-row"
+													class:tree-row--selected={rowSelected(entityRow)}
+													aria-disabled={!roomRowInteractive(entityRow)}
+													onclick={roomRowInteractive(entityRow)
+														? (event) => selectEntity(entity, event)
+														: undefined}
+												>
+													<span class="tree-row__label" title={entityLabel(entity)}>{entityLabel(entity)}</span>
+													<span class="tree-row__meta" title={entityMeta(entity)}>{entityMeta(entity)}</span>
+												</button>
+												{#if interactive && isSceneModelEntity(entity) && store.selectedCluster?.roomId === room.roomId}
 													<button
+														class="mini-action"
 														type="button"
-														class="tree-row object-row"
-														class:tree-row--selected={rowSelected(entityRow)}
-														aria-disabled={!roomRowInteractive(entityRow)}
-														onclick={roomRowInteractive(entityRow)
-															? (event) => selectEntity(entity, event)
-															: undefined}
-													>
-														<span class="tree-row__label" title={entityLabel(entity)}>{entityLabel(entity)}</span>
-														<span class="tree-row__meta" title={entityMeta(entity)}>{entityMeta(entity)}</span>
-													</button>
-													{#if interactive && isSceneModelEntity(entity) && store.selectedCluster?.roomId === room.roomId}
+														aria-label={`Add ${entityLabel(entity)} to selected cluster`}
+														onclick={() => store.addMemberToCluster(store.selectedClusterId!, entry.entityId)}
+													>+</button>
+												{/if}
+												{#if interactive}
+													<div class="row-actions">
 														<button
-															class="mini-action"
 															type="button"
-															aria-label={`Add ${entityLabel(entity)} to selected cluster`}
-															onclick={() => store.addMemberToCluster(store.selectedClusterId!, entry.entityId)}
-														>+</button>
-													{/if}
-												</div>
-											</li>
+															class="eye"
+															aria-pressed={!store.isEntityHidden(entity.id)}
+															aria-label={`${store.isEntityHidden(entity.id) ? 'Show' : 'Hide'} ${entityLabel(entity)}`}
+															title={store.isEntityHidden(entity.id) ? 'Show in viewport' : 'Hide in viewport'}
+															onclick={() => toggleEntityHidden(entity.id)}
+														>{#if store.isEntityHidden(entity.id)}<EyeOff size={14} aria-hidden="true" />{:else}<Eye size={14} aria-hidden="true" />{/if}</button>
+														<button
+															type="button"
+															class="kebab"
+															aria-label={`Actions for ${entityLabel(entity)}`}
+															aria-expanded={openMenuFor === `entity:${entity.id}`}
+															onclick={() => toggleMenu(`entity:${entity.id}`)}
+														><EllipsisVertical size={14} aria-hidden="true" /></button>
+														{#if openMenuFor === `entity:${entity.id}`}
+															<div class="row-menu" role="menu">
+																<button type="button" role="menuitem" onclick={() => frameEntity(entity.id)}><Scan size={13} aria-hidden="true" /> Frame</button>
+																<button type="button" role="menuitem" class="danger" onclick={() => deleteEntity(entity.id)}><Trash2 size={13} aria-hidden="true" /> Delete</button>
+															</div>
+														{/if}
+													</div>
+												{/if}
+											</div>
+										</li>
 										{/if}
 									{/each}
 								</ul>
@@ -476,7 +677,66 @@
 
 <style>
 	.unified-tree { display: flex; min-width: 0; flex-direction: column; gap: 0.6rem; }
+
+	/* S10.1 — hierarchy filter/search bar. */
+	.tree-filter {
+		display: flex;
+		min-width: 0;
+		align-items: center;
+		gap: 0.35rem;
+		padding: 0.22rem 0.3rem;
+		border: 1px solid #34313a;
+		border-radius: 0.34rem;
+		background: #17171f;
+	}
+	.tree-filter:focus-within { border-color: #8d753c; box-shadow: inset 0 0 0 1px #6f5c31; }
+	.tree-filter__icon { display: inline-flex; flex: 0 0 auto; align-items: center; color: #918c84; }
+	.tree-filter__input {
+		flex: 1 1 auto;
+		min-width: 0;
+		padding: 0.3rem 0;
+		border: 0;
+		background: transparent;
+		color: #f4efe4;
+		font: inherit;
+		font-size: 0.73rem;
+	}
+	.tree-filter__input::placeholder { color: #6f6b66; }
+	.tree-filter__input:focus { outline: none; }
+	.tree-filter__action {
+		display: inline-flex;
+		flex: 0 0 auto;
+		width: 1.6rem;
+		height: 1.6rem;
+		align-items: center;
+		justify-content: center;
+		padding: 0;
+		border: 1px solid transparent;
+		border-radius: 0.24rem;
+		background: transparent;
+		color: #918c84;
+		cursor: pointer;
+	}
+	.tree-filter__action:hover { border-color: #3a3a46; background: #202029; color: #f4efe4; }
+	.tree-filter__action.active { border-color: #8d753c; background: #2a2618; color: #f4dc9b; }
+
 	.tree-root { display: flex; min-width: 0; flex-direction: column; gap: 0.25rem; }
+	.tree-root__header { display: flex; min-width: 0; align-items: center; gap: 0.2rem; }
+	.tree-root__header .tree-root__row { flex: 1 1 auto; }
+	.tree-root__add {
+		display: inline-flex;
+		width: 1.9rem;
+		min-height: 2.125rem;
+		align-items: center;
+		justify-content: center;
+		padding: 0;
+		border: 1px solid transparent;
+		border-radius: 0.28rem;
+		background: transparent;
+		color: #918c84;
+		cursor: pointer;
+	}
+	.tree-root__add:hover { border-color: #8d753c; background: #2a2618; color: #fff2c7; }
 	.tree-root__row {
 		display: flex;
 		width: 100%;
@@ -500,7 +760,7 @@
 	.chevron.open { transform: rotate(90deg); }
 	ul { min-width: 0; margin: 0; padding: 0; list-style: none; }
 	ul[role='tree'], .room-children, .cluster-members, .wall-children { display: flex; min-width: 0; flex-direction: column; gap: 0.12rem; }
-	.room-line, .cluster-line { display: grid; min-width: 0; grid-template-columns: 1.7rem minmax(0, 1fr); gap: 0.1rem; }
+	.room-line, .cluster-line { display: grid; min-width: 0; grid-template-columns: 1.7rem minmax(0, 1fr) auto; gap: 0.1rem; }
 	.tree-row { display: flex; width: 100%; min-width: 0; min-height: 2rem; box-sizing: border-box; align-items: center; gap: 0.45rem; padding: 0.28rem 0.45rem; border: 1px solid transparent; border-radius: 0.28rem; background: transparent; color: inherit; font: inherit; text-align: left; }
 	button.tree-row { cursor: pointer; }
 	button.tree-row:hover:not([aria-disabled='true']) { border-color: #3a3a46; background: #202029; }
@@ -520,9 +780,62 @@
 	.cluster-title { display: flex; min-width: 0; align-items: center; gap: 0.4rem; }
 	.folder-icon { position: relative; display: inline-block; width: 0.78rem; height: 0.54rem; flex: 0 0 auto; margin-top: 0.08rem; border-radius: 0.1rem; background: #d6b35f; }
 	.folder-icon::before { content: ''; position: absolute; left: 0.07rem; top: -0.15rem; width: 0.32rem; height: 0.18rem; border-radius: 0.08rem 0.08rem 0 0; background: #d6b35f; }
-	.member-line { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr) auto; align-items: stretch; gap: 0.2rem; }
+	.member-line { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr) auto auto; align-items: stretch; gap: 0.2rem; }
 	.mini-action { width: 1.8rem; min-height: 2rem; padding: 0; border: 1px solid #3a3a46; border-radius: 0.28rem; background: #1a1a22; color: #f4efe4; cursor: pointer; }
 	.mini-action:hover:not(:disabled) { border-color: #8d753c; background: #2a2618; }
 	.mini-action:disabled { opacity: 0.35; cursor: default; }
 	.empty { color: #918c84; font-size: 0.7rem; padding: 0.3rem 0.45rem 0.4rem; }
+
+	/* S10.1 — per-row visibility + kebab actions. */
+	.row-actions { position: relative; display: flex; align-items: center; gap: 0.12rem; }
+	.eye,
+	.kebab {
+		display: inline-flex;
+		width: 1.45rem;
+		min-height: 1.7rem;
+		align-items: center;
+		justify-content: center;
+		padding: 0;
+		border: 1px solid transparent;
+		border-radius: 0.24rem;
+		background: transparent;
+		color: #918c84;
+		cursor: pointer;
+	}
+	.eye:hover,
+	.kebab:hover,
+	.kebab[aria-expanded='true'] { border-color: #3a3a46; background: #202029; color: #f4efe4; }
+	.eye[aria-pressed='false'] { color: #6f6b66; }
+	.row-menu {
+		position: absolute;
+		top: calc(100% + 0.2rem);
+		right: 0;
+		z-index: 30;
+		display: flex;
+		min-width: 8rem;
+		flex-direction: column;
+		gap: 0.15rem;
+		padding: 0.3rem;
+		border: 1px solid rgb(70 68 78 / 88%);
+		border-radius: 0.34rem;
+		background: #1a1a22;
+		box-shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 42%);
+	}
+	.row-menu button {
+		display: flex;
+		align-items: center;
+		gap: 0.45rem;
+		padding: 0.34rem 0.5rem;
+		border: 1px solid transparent;
+		border-radius: 0.26rem;
+		background: transparent;
+		color: #ddd6ca;
+		font: inherit;
+		font-size: 0.68rem;
+		text-align: left;
+		cursor: pointer;
+	}
+	.row-menu button:hover { border-color: #3a3a46; background: #202029; color: #fff; }
+	.row-menu button.danger { color: #d99088; }
+	.row-menu button.danger:hover { border-color: #6f443f; background: #241716; color: #ffc1ba; }
 </style>

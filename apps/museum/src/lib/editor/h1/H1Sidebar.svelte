@@ -14,7 +14,7 @@
 		layoutPreviewSourceLabel,
 		type LayoutPreviewState
 	} from '$lib/editor/layout/layout-preview-state.svelte';
-	import type { LayoutInteractionState } from '$lib/editor/layout/layout-interaction';
+	import { setLayoutDraftTool, type LayoutInteractionState } from '$lib/editor/layout/layout-interaction';
 	import type { MuseumEditorStore } from '$lib/editor/museum-editor.svelte';
 	import UnifiedProjectTree from '$lib/editor/UnifiedProjectTree.svelte';
 	import type { EditorActiveSelectionStore } from './active-editor-selection.svelte';
@@ -50,6 +50,12 @@
 
 	function switchLeftPanel(panel: 'scene' | 'assets') {
 		store.setLeftPanel(panel);
+	}
+
+	// S10.1 — Rooms header (+): jump to Plan and start a rectangle-room draft.
+	function startRoomDraft() {
+		viewState.setViewMode('plan');
+		setLayoutDraftTool(layoutInteraction, 'rectangle');
 	}
 </script>
 
@@ -100,6 +106,7 @@
 			{activeSelection}
 			viewMode={viewState.viewMode}
 			active3dContext={viewState.active3dContext}
+			onAddRoom={startRoomDraft}
 		/>
 	</div>
 	{#if in3d}

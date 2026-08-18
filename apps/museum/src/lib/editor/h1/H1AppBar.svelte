@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { Box, Play, Redo2, Route, Undo2 } from 'lucide-svelte';
 	import EditorProjectMenu from '$lib/editor/EditorProjectMenu.svelte';
 	import type { LayoutPreviewState } from '$lib/editor/layout/layout-preview-state.svelte';
 	import type { MuseumEditorStore } from '$lib/editor/museum-editor.svelte';
@@ -87,7 +88,7 @@
 				class:active={active3dContext === 'scene'}
 				disabled={!canSwitch}
 				onclick={() => switchContext('scene')}
-			>Scene</button>
+			><Box size={13} aria-hidden="true" /> Scene</button>
 			<button
 				type="button"
 				role="tab"
@@ -95,29 +96,26 @@
 				class:active={active3dContext === 'camera'}
 				disabled={!canSwitch}
 				onclick={() => switchContext('camera')}
-			>Camera</button>
+			><Route size={13} aria-hidden="true" /> Camera</button>
 		</div>
 	{/if}
 
 	<div class="actions">
 		<span class:dirty class="document-state">{dirty ? 'Unsaved' : 'Saved'}</span>
-		<button type="button" disabled={!store.canUndo} onclick={() => store.undo()}>Undo</button>
-		<button type="button" disabled={!store.canRedo} onclick={() => store.redo()}>Redo</button>
+		<button type="button" disabled={!store.canUndo} onclick={() => store.undo()}><Undo2 size={14} aria-hidden="true" /> Undo</button>
+		<button type="button" disabled={!store.canRedo} onclick={() => store.redo()}><Redo2 size={14} aria-hidden="true" /> Redo</button>
 		{#if viewMode === '3d' && active3dContext === 'scene'}
 			<a class="preview-action" href="/museum" target="_blank" rel="noreferrer">Preview Museum</a>
 		{:else if viewMode === '3d' && active3dContext === 'camera'}
-			<button
-				type="button"
-				disabled={!canSwitch}
-				title="Place a new camera node on a room floor"
-				onclick={() => store.beginCameraPlacement()}
-			>Place Camera</button>
+			<!-- S10.1 — Place Camera moved into the Camera viewport toolbar
+			     (Select | Move | Rotate | Add camera | View); the app bar keeps
+			     the high-level playback action only. -->
 			<button
 				type="button"
 				disabled={!canPreviewTour}
 				title="Preview the camera flow"
 				onclick={() => store.previewGuidedTour()}
-				>Preview Flow</button>
+				><Play size={14} aria-hidden="true" /> Preview Flow</button>
 		{/if}
 		<EditorProjectMenu
 			{store}
@@ -151,6 +149,9 @@
 		background: #16161d;
 	}
 	.views button, .contexts button {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.3rem;
 		padding: 0.4rem 0.85rem;
 		border: 1px solid transparent;
 		border-radius: 0.32rem;
@@ -179,6 +180,9 @@
 	.document-state.dirty { border-color: #8d753c; background: #2a2618; color: #f4dc9b; }
 	.actions button,
 	.preview-action {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.3rem;
 		padding: 0.36rem 0.6rem;
 		border: 1px solid #3a3a46;
 		border-radius: 0.3rem;

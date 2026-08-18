@@ -9,6 +9,9 @@
 	import EditorCameraViewHelpers from '$lib/editor/EditorCameraViewHelpers.svelte';
 	import EditorCameraRig from '$lib/editor/EditorCameraRig.svelte';
 	import EditorGrid from '$lib/editor/EditorGrid.svelte';
+	import EditorOrientationGizmo from '$lib/editor/EditorOrientationGizmo.svelte';
+	import EditorOrientationGizmoOverlay from '$lib/editor/EditorOrientationGizmoOverlay.svelte';
+	import EditorViewportGridControls from '$lib/editor/EditorViewportGridControls.svelte';
 	import EditorPlacementTools from '$lib/editor/EditorPlacementTools.svelte';
 	import EditorSelection from '$lib/editor/EditorSelection.svelte';
 	import EditorSelectionHelper from '$lib/editor/EditorSelectionHelper.svelte';
@@ -68,6 +71,16 @@
 	const interactionStore = getContext<EditorInteractionStore | undefined>(
 		EDITOR_INTERACTION_STORE_KEY
 	);
+
+	// S10.1.6 — Scene ↔ Camera transition (180–220 ms fade). The Canvas stays
+	// mounted across context switches (only camera-chrome mounts/unmounts), so
+	// the fade animates shell content, never a Canvas remount. The class toggle
+	// is UI-local: no state mutation, no timers — the animationend clears it.
+	let transitioning = $state(false);
+	$effect(() => {
+		void context;
+		transitioning = true;
+	});
 	const activeSelection = getContext<EditorActiveSelectionStore | undefined>(
 		ACTIVE_EDITOR_SELECTION_KEY
 	);
@@ -197,8 +210,12 @@
 	)}
 	class:bending={Boolean(store.hoveredConnectionId || store.hoveredAnchorId)}
 	class:dragging-camera-key={store.viewKeyframeProgressDrag !== null}
+	class:transitioning
 	style:cursor={interactionStore?.cursor ?? 'default'}
 	aria-label="Unified 3D editor viewport"
+	onanimationend={(event) => {
+		if (event.animationName === 'view-fade-in') transitioning = false;
+	}}
 >
 	<EditorViewportToolbar
 		{store}
@@ -231,7 +248,12 @@
 				/>
 			{/snippet}
 		</MuseumScene>
-		<EditorMuseumEntities scene={store.scene} rooms={store.rooms} {placementRegistry} />
+		<EditorMuseumEntities
+			scene={store.scene}
+			rooms={store.rooms}
+			{placementRegistry}
+			hiddenEntityIds={store.hiddenEntityIds}
+		/>
 		<LayoutPreviewScene
 			model={layoutPreview.model}
 			geometry={layoutPreview.geometry}
@@ -241,7 +263,8 @@
 			transient={layoutTransient}
 			floorColor={store.floorColor}
 		/>
-		<EditorGrid visible={store.gridVisible && !store.isVisitorCameraPreview} />
+		<EditorGrid visible={store.gridVisible && !store.isVisitorCameraPreview} opacity={store.gridOpacity} />
+		<EditorOrientationGizmo />
 		{#if isCameraContext && store.viewportShowPaths}
 			<EditorCameraPathHelpers {store} />
 		{/if}
@@ -324,6 +347,8 @@
 			Choose a destination camera node · Escape cancels
 		</div>
 	{/if}
+	<EditorOrientationGizmoOverlay />
+	<EditorViewportGridControls {store} />
 </div>
 
 <style>
@@ -333,6 +358,22 @@
 		height: 100%;
 		min-height: 0;
 		background: #050508;
+		/* S10.1.6 — mount fade (Plan ↔ 3D, 220 ms) and context-switch fade
+		   (Scene ↔ Camera, 200 ms). The canvas never remounts. */
+		animation: view-fade-in 220ms ease both;
+	}
+	.viewport.transitioning {
+		animation: view-fade-in 200ms ease both;
+	}
+	@keyframes view-fade-in {
+		from { opacity: 0; }
+		to { opacity: 1; }
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.viewport,
+		.viewport.transitioning {
+			animation: none;
+		}
 	}
 
 	.viewport.placing :global(canvas) {

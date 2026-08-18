@@ -1,8 +1,7 @@
-# North star
+# North star — final product vision
 
-**Read when:** choosing product direction or reviewing pitches.  
-**Last reviewed:** 2026-08-14  
-**Live slice:** [`hand-off/CURRENT.md`](./hand-off/CURRENT.md)
+**Read when:** choosing product direction or reviewing pitches. **Priorities
+and what's next live in the tracker:** [`plans/README.md`](./plans/README.md).
 
 ## Vision
 
@@ -20,12 +19,12 @@ New Project
 ```
 
 Plan = layout CAD. 3D = integrated project editor. No separate Scene, Camera,
-or Layout-3D workspace after H1.
+or Layout-3D workspace.
 
 `/museum` = frozen Chopin visitor relic; `/museum/editor` = frozen pre-H1
 Scene · Camera editor relic (no Layout tab). Both keep checked-in
-`chopin-project.json` / `museum-scene.json`; H1 editor never loads/migrates
-Chopin project, legacy workspace state, selection, or history.
+`chopin-project.json` / `museum-scene.json`; the H1 editor never loads or
+migrates Chopin project, legacy workspace state, selection, or history.
 
 ## Project truth
 
@@ -40,14 +39,13 @@ Portable package
   └─ textures
 ```
 
-`LayoutDocument` and `SceneDocument` stay separate SoTs. Unified 3D composes
-both. Three objects, gizmo proxies, selection, generated geometry, decoded GLBs,
-and history remain session-only.
+`LayoutDocument` and `SceneDocument` stay separate sources of truth. Unified
+3D composes both. Three objects, gizmo proxies, selection, generated geometry,
+decoded GLBs, and history remain session-only.
 
 Projects are saved for the user — session drafts locally and, in the complete
 product, account persistence — both layered on the same portable package
-format. H1 ships the export/import-only slice first; the document model does
-not change when account save arrives.
+format. The document model does not change when account save arrives.
 
 ## Sacred contracts
 
@@ -56,47 +54,23 @@ not change when account save arrives.
    inspector, contextual gizmo host.
 3. One geometry compiler. Plan and 3D derive from `compileLayoutGeometry()`.
 4. One camera graph/motion path: `camera-route.ts` + `camera-motion.ts`.
-5. Greenfield H1: New Project starts empty. No Chopin/legacy editor migration.
+5. Greenfield: New Project starts empty. No Chopin/legacy editor migration.
 6. Versioned full-project import/export. Import atomic; clears history/selection;
-   future migrations root at H1 format.
+   future migrations root at the H1 format.
 7. `/museum` visitor and `/museum/editor` pre-H1 editor relic stay frozen. The
    editor ships in production builds; no build-flag gating.
 8. Object placement = ghost → commit. Completed gesture = one history entry.
-
-## Priority
-
-| Pri | Track |
-|-----|-------|
-| Shipped | B5 serialized runtime cutover + G1–G4 graphics foundation |
-| **P0** | H1 unified Plan-to-3D project editor — [`plans/2026-08-14-graphics-h1-unified-3d-editing.md`](./plans/2026-08-14-graphics-h1-unified-3d-editing.md) |
-| P1 | Post-H1: project-local GLB import + account persistence (S9a + D1 — deferred from H1, 2026-08-15) |
-| P2 | Measured optimization from G3 budgets; cache/rebuild/batch/cull only when proven |
-| P3 | Material polish and product-useful effects |
-| P4 | Multi-story after single-floor New Project → export/import gate |
-
-## H1 product gate
-
-H1 ships only when one new project completes:
-
-```text
-empty Plan → valid rooms → generated 3D → layout fine-tune
-→ catalogue asset placement → camera authoring/playback → export → fresh import
-```
-
-Imported project must reproduce layout, scene, and camera tour; asset placement
-uses the shipped catalogue (user-GLB import is the post-H1 plan). No visitor
-promotion or Chopin migration required.
 
 ## Technology gates
 
 - SVG + Three/Threlte remain production renderers.
 - Optimize only against G3 measurements.
-- WebGPU/WGSL stays bounded experiment.
-- Rust/WASM needs isolated CPU bottleneck + boundary-inclusive proof.
+- WebGPU/WGSL stays a bounded experiment.
+- Rust/WASM needs an isolated CPU bottleneck + boundary-inclusive proof.
 - Shader source never persists in project data.
 
 ## Non-goals
 
 Blender mesh editor · auto tour from floor plan · multi-tenant CMS · second
 camera/motion system · legacy/Chopin editor migration · independent layout-only
-import · multi-story before H1 single-floor round-trip.
+import · multi-story before single-floor round-trip.

@@ -1,7 +1,8 @@
 # Shell and workspaces
 
 **Read when:** app chrome, Scene/Camera switch, Layout mode, top bar, timeline frame, project menu.  
-**Last reviewed:** 2026-08-12
+**Last reviewed:** 2026-08-18  
+**Note:** the successor domain×view shell (tracker P1.1) supersedes the `Scene | Camera` sub-context framing below when it lands; this doc stays the shipped-S10.1 contract until then.
 
 ---
 

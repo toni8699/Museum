@@ -15,4 +15,4 @@
 | Placements | `museum-scene.json` via editor |
 
 `AssetModel.svelte` owns load/clone/fallback. Do not add room-local GLTF loaders.  
-GLB import pipeline (full-track Phase 3) = **deferred** until layout-backed load preferred ([`../north-star.md`](../north-star.md)).
+GLB import pipeline = **deferred** (tracker P4).

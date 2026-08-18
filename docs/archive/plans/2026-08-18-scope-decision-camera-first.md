@@ -1,10 +1,10 @@
 # Scope decision — close H1 after S10.1; post-renewal order: camera overhaul → plan staging → UI overhaul
 
 **Date:** 2026-08-18
-**Status:** Approved — records the owner's scope decision (2026-08-18)
+**Status:** Shipped (2026-08-18) — decision recorded, executed, and archived
 **Supersedes:** the 2026-08-18 classification that placed the camera redesign
-inside H1 as slice **S10.3** (sectioning plan
-`2026-08-18-s10.1-camera-followup-sectioning-framing-and-camera-plan.md`, §6
+inside H1 as slice **S10.3** (sectioning strategy
+§D of the P1 umbrella, §6
 decision 2). **No more S-numbers after this decision.**
 **Amends:** [`2026-08-17-plan-system-renewal.md`](./2026-08-17-plan-system-renewal.md) —
 its hard-gate reading "H1 lands includes S10.3" is replaced by this decision's
@@ -73,8 +73,7 @@ the gate of the camera overhaul's first increment (P1.1 below).
   `/museum` visitor chunk graph free of editor markers, G3 benches unchanged.
 - **Not part of H1 (unchanged):** S9a GLB import, S11 full import/export,
   S6.1 direct 3D wall/anchor picks, hover feed, framing futures
-  (arrival/departure shots, custom weight curves) — all post-H1, now under the
-  new tracker.
+  (arrival/departure shots, custom weight curves) — now under the new tracker.
 
 ## 4. Tracker re-seed (amends the renewal skeleton)
 
@@ -90,11 +89,11 @@ the table.
 | #  | Plan                                 | Status    | Depends on | Doc |
 |----|--------------------------------------|-----------|------------|-----|
 | —  | Plan-system renewal (process row — creates this tracker) | approved | H1 gate | 2026-08-17-plan-system-renewal.md |
-| P1 | Camera overhaul (was S10.3)          | approved  | renewal    | 2026-08-18-post-h1-camera-overhaul.md (to write) |
-| P2 | Plan staging mode (C1)               | approved  | P1         | archive/plans/pre-h1-letters/2026-08-14-graphics-h1-c1-plan-staging.md |
-| P3 | UI overhaul                          | approved  | P1, P2     | (to write) |
-| P4 | S9a — client GLB import (seed)       | proposed  | renewal    | archive/…/2026-08-14-graphics-h1-s9-asset-package.md |
-| P5 | G5 — measured optimization (seed)    | proposed  | renewal    | archive/…/2026-08-13-graphics-g4-procedural-architectural-meshes.md |
+| P1 | Camera overhaul                     | approved  | renewal    | 2026-08-18-P1-camera-overhaul.md |
+| P2 | Plan staging mode                    | approved  | P1         | 2026-08-18-P2-plan-staging.md |
+| P3 | UI overhaul                          | approved  | P1, P2     | 2026-08-18-P3-ui-overhaul.md |
+| P4 | Client GLB import                    | proposed  | renewal    | 2026-08-18-P4-gltb-import.md |
+| P5 | Measured optimization and scale      | proposed  | renewal    | 2026-08-18-P5-measured-optimization.md |
 | …  | (future work re-registers here)      |           |            | |
 ```
 
@@ -123,13 +122,9 @@ engine track must not touch the shell). P1.5 after P1.1; **P1.6 converges**
 after both tracks; P1.7 last. The S10.1 closeout increments (C0/B0) are
 already shipped and are not part of P1.
 
-Source specs re-register as P2's references (docs move to
-`docs/archive/plans/pre-h1-letters/` per the renewal):
-`2026-08-18-camera-framing-adopted-model.md` (engine) ·
-`2026-08-18-camera-graph-workspace-design.md` (shell + surface) ·
-`2026-08-18-s10.1-camera-followup-sectioning-framing-and-camera-plan.md`
-(rationale archive) ·`2026-08-18-graphics-h1-s10.3.1-domain-view-shell.md`
-(becomes P1.1's draft spec, content unchanged except IDs/name).
+Sources folded into the **P1 umbrella** (§A–§D, 2026-08-18): the successor
+shell ratification (P1.1 gate) · the adopted framing model · the camera graph
+workspace design · the sectioning and sequencing strategy. Originals deleted.
 
 ## 6. UI overhaul (P4) — scope pin
 
@@ -148,14 +143,17 @@ not an open-ended redesign:
 
 - S-numbers are retired with H1. The camera work is **P1 / P1.1–P1.7**;
   product plans start at P1 (the renewal is an unnumbered process row).
-- Per the renewal: plan titles are `YYYY-MM-DD-<slug>.md` with **no letter
-  codes, ever**; sequential numbers exist **only in `docs/plans/README.md`**;
-  files are never renamed to carry numbers; docs archive on close.
+- Per the renewal (amended 2026-08-18): plan titles are
+  `YYYY-MM-DD-P<number>-<slug>.md` — the P-number is assigned on registration
+  and carried in the filename (e.g. `2026-08-18-P1-camera-overhaul.md`); no
+  other letter codes; numbers are owned by `docs/plans/README.md` and never
+  renumbered; docs archive on close.
 
 ## 8. Follow-ups (in order)
 
-1. Write the **P1 umbrella doc** (`2026-08-18-post-h1-camera-overhaul.md`)
-   with the §5 increment table, sequencing, and the P1.1 ratification gate.
+1. Write the **P1 umbrella doc** — **done 2026-08-18**
+   (`2026-08-18-P1-camera-overhaul.md`, with the §5 increment table,
+   sequencing, the P1.1 ratification gate, and the folded sources).
 2. Amend the renewal doc's hard-gate text to this decision's "H1 lands"
    definition (this decision carries the amendment; apply it when P1 executes).
 3. Run the renewal: create `docs/plans/README.md` (process row + P1–P3
@@ -172,3 +170,11 @@ not an open-ended redesign:
   and umbrella.
 - No re-litigation of the domain×view matrix (that is the P1.1 ratification
   gate, unchanged from the sectioning plan).
+
+> **Amended 2026-08-18:** the six unimplemented letter-era plans were restored
+> from archive and **composed into the P1–P5 umbrella docs** under the
+> P-number naming: `2026-08-18-P1-camera-overhaul.md` ·
+> `2026-08-18-P2-plan-staging.md` · `2026-08-18-P3-ui-overhaul.md` ·
+> `2026-08-18-P4-gltb-import.md` · `2026-08-18-P5-measured-optimization.md`.
+> Source content is folded in (§A–§D), originals deleted; §5's "docs move to
+> archive" phrasing is superseded; §8 follow-up 1 is complete.

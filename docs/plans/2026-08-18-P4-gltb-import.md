@@ -1,14 +1,57 @@
-# S9+ — Project-Local GLB Import, Server Asset Pipeline & Account Persistence (Post-H1 Plan Seed)
+# P4 — Client GLB import (umbrella)
+
+**Date:** 2026-08-18
+**Status:** Proposed — plan seed; filled in before code
+**Tracker:** [`docs/plans/README.md`](README.md) — **P4**, depends on: renewal
+**Folded source (2026-08-18, content preserved; original deleted):** §A — the
+S9a plan seed (deferred from H1, owner decision 2026-08-15).
+
+## Outcome
+
+User GLB import into the project: **upload → validate/optimize → asset record
+→ Assets panel → ghost placement → scene entity commit**. The client is
+implemented against a **typed stub asset-record API** so it is fully testable
+before any server exists.
+
+## Scope — two contract-first halves
+
+- **P4 (this plan) — client import → workspace → place.** Asset record
+  `{ id, status, optimizedBytes, footprint }`; Assets panel states
+  (processing → ready); ghost placement → scene entity commit. Effort 5 ·
+  risk 5 → **6/10** — plan Frontier, implementation Frontier.
+- **D1 — server asset pipeline + account persistence** (upload endpoint,
+  GLB compression, texture downscaling, size limits, hashing) — the companion
+  half; scheduled separately, not part of P4's increments.
+
+## Increments
+
+| ID | Content | Depends |
+|---|---|---|
+| **P4.1** | Typed stub asset-record API + contracts (`{ id, status, optimizedBytes, footprint }`) | — |
+| **P4.2** | Upload → fingerprint / validate / optimize against the stub | P4.1 |
+| **P4.3** | Assets panel (processing → ready) + ghost placement + scene-entity commit | P4.2 |
+
+## Definition of done (P4 close)
+
+- Client tests green against the stub API (no server dependency); full suite
+  green, `svelte-check` 0, build clean; D1 scoped as its own plan before any
+  server code.
+
+---
+
+## A — Source: S9a plan seed (2026-08-14), folded
+
+## S9+ — Project-Local GLB Import, Server Asset Pipeline & Account Persistence (plan seed)
 
 **Date:** 2026-08-14 (re-labeled 2026-08-15 — deferred out of H1)
-**Status:** Post-H1 plan seed — deferred from H1 (owner decision, 2026-08-15); filled in before code
-**Parent:** [`2026-08-14-graphics-h1-unified-3d-editing.md`](./2026-08-14-graphics-h1-unified-3d-editing.md) (step 9 — deferred) · "Post-H1 polish slices" · S9+
-**Handoff:** [`../../hand-off/CURRENT.md`](../../hand-off/CURRENT.md)
+**Status:** Plan seed — deferred from H1 (owner decision, 2026-08-15); filled in before code
+**Parent:** [`2026-08-14-graphics-h1-unified-3d-editing.md`](../archive/plans/pre-h1-letters/2026-08-14-graphics-h1-unified-3d-editing.md) (step 9 — deferred) · "polish slices" · S9+
+**Handoff:** [`../hand-off/CURRENT.md`](../hand-off/CURRENT.md)
 
 > **Why this exists.** H1 (owner decision, 2026-08-15) ships catalogue-only asset
 > placement; user GLB import, the project-local half of the composite asset
 > registry, the container/package format decision, and the backend are deferred
-> to this post-H1 plan. H1 changes no package-manifest contract. This record
+> to this plan. H1 changes no package-manifest contract. This record
 > keeps the open questions so the plan is not designed ad hoc later; the full
 > S9a/D1 plan replaces this seed before code.
 
@@ -74,7 +117,7 @@ implement; the visitor never gains a network dependency.
 - Changing `SceneDocument` / `MuseumProject` schemas — assets stay referenced by
   `assetId`, bytes stay in the package store / server asset store.
 - Layout asset objects (`LayoutObject.kind: 'asset'`) — rejected; 2D furnishing
-  is the post-H1 Plan staging slice (C1).
+  is the Plan staging slice (P2).
 - Persisting footprint fields in the manifest — imported footprints are computed
   at import (server asset record); catalogue footprints stay in `MuseumAsset`
   metadata.

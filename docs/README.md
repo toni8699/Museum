@@ -1,91 +1,127 @@
-# Museum docs
+# Museum docs — context router
 
-**Audience:** agents + humans. **Last reviewed:** 2026-08-14
+**Audience:** agents + humans. **Last reviewed:** 2026-08-18.
+**Bootstrap (hard rules):** [`../AGENTS.md`](../AGENTS.md) ·
+**Plan status / what's next:** [`plans/README.md`](./plans/README.md) (tracker) ·
+**Live working-tree state:** [`hand-off/CURRENT.md`](./hand-off/CURRENT.md).
 
-Bootstrap: [`../AGENTS.md`](../AGENTS.md). Live slice:
-[`hand-off/CURRENT.md`](./hand-off/CURRENT.md). Editor code:
-[`../apps/museum/src/lib/editor/README.md`](../apps/museum/src/lib/editor/README.md).
+## Context discipline (progressive disclosure)
 
-**Token rule:** read this routing hub, then only task-listed file(s). Skip archive
-unless archaeology.
+Do not preload the documentation tree. Start here, identify the task surface,
+then read **only the referenced documents required for that task**. Archive is
+historical evidence, not current product truth. A task should need 80–200
+relevant lines, not the whole live tree.
 
-## Folder
+## Truth precedence — when live docs conflict, highest wins
+
+```text
+source code + tests      → enforced reality
+hand-off/CURRENT.md      → current working-tree state (uncommitted)
+active plan              → intended current change
+component contract       → stable subsystem behavior
+architecture.md          → ownership / boundaries
+north-star.md            → product direction
+archive/                 → rationale only
+```
+
+Two separations: **status authority** (what's next) is the tracker's job, not
+this chain's; **direction/priority conflicts are owner decisions**, not doc
+conflicts — never "resolve" a product question by doc order.
+
+## Decide what to read
+
+| Task | Read |
+|------|------|
+| Implement current slice | [`hand-off/CURRENT.md`](./hand-off/CURRENT.md) → [`plans/README.md`](./plans/README.md) → active plan → relevant component |
+| Work on a surface | relevant `components/<surface>.md` (`CURRENT.md` only if it touches current work) |
+| Architecture / ownership question | [`architecture.md`](./architecture.md) → relevant component |
+| Product / design question | [`north-star.md`](./north-star.md) → relevant component |
+| Historical question | [`archive/`](./archive/) (opt-in; nothing here is current truth) |
+
+## Folder map
 
 ```text
 docs/
-  README.md              ← routing hub
-  north-star.md          ← product vision + priority
-  architecture.md        ← ownership + editor/relic boundary
+  README.md              ← this router (navigation, rules, meta)
+  plans/README.md        ← plan tracker (status, order, archive stubs)
+  plans/                 ← active (post-renewal) plans only
+  hand-off/CURRENT.md    ← live working-tree delta
   components/            ← one contract per surface
-  hand-off/CURRENT.md    ← live slice
-  plans/                 ← active implementation
-  archive/               ← non-authoritative history
+  architecture.md        ← ownership / boundaries + pointers
+  north-star.md          ← final product vision only
+  archive/               ← cold storage; linked only from here + tracker stubs
 ```
 
-## Runtime lanes
-
-```mermaid
-flowchart TB
-  New["New Project"] --> EditorProject["H1 MuseumProject session"]
-  Import["Import H1 package"] --> EditorProject
-  EditorProject --> Layout["LayoutDocument"]
-  EditorProject --> Scene["SceneDocument"]
-  Layout --> Plan["PlanRenderModel → Plan"]
-  Layout --> Compile["compileLayoutGeometry()"]
-  Compile --> Editor3D["Unified editor 3D Canvas"]
-  Scene --> Editor3D
-  Scene --> Motion["camera-route + camera-motion"]
-  Motion --> Editor3D
-  EditorProject --> Export["Portable H1 package"]
-
-  Chopin["checked-in chopin-project.json"] --> Museum["/museum relic visitor"]
-```
-
-No lane crossing: H1 editor never imports/migrates Chopin, legacy workspace
-state, selection, or history. `/museum` keeps checked-in visitor runtime. H1
-import/export handles H1-created projects plus future explicit migrations.
+**Archive:** the only reference points are this folder link and the tracker's
+one-line `archived → <path>` stubs. No live doc explains what is archived.
 
 ## Product surface
 
-Route → role (moved from root README when it became human-only):
-
 | Route | Role |
 |---|---|
-| `/` or `/editor` | Main H1 editor (Plan · 3D), always ships in production |
-| `/museum` | Frozen Chopin visitor relic using checked-in `chopin-project.json` |
+| `/` or `/editor` | Main H1 editor, always ships in production |
+| `/museum` | Frozen Chopin visitor relic (checked-in `chopin-project.json`) |
 | `/museum/editor` | Frozen pre-H1 editor relic (Scene · Camera, no Layout) |
-| `/dev/materials` · `/dev/assets` | Development previews |
-| `/dev/perf` | G3 performance harness |
+| `/dev/materials` · `/dev/assets` · `/dev/perf` | Development previews / G3 harness |
 
-Editor shipping policy: the editor boots into a fresh empty project; no
-Chopin/legacy editor state is loaded, migrated, or preserved. Persistence is
-portable export/import only (session/account save is future work).
+The editor boots into a fresh empty project; no Chopin/legacy state is loaded
+or migrated. Persistence is portable export/import only.
 
-## Read only what task needs
+## Read what you need
 
-| Working on… | Read |
-|-------------|------|
-| Vision / priority / product-fit | [`north-star.md`](./north-star.md) |
-| Ownership / editor versus relic | [`architecture.md`](./architecture.md) |
-| H1 Plan → 3D editor | [`plans/2026-08-14-graphics-h1-unified-3d-editing.md`](./plans/2026-08-14-graphics-h1-unified-3d-editing.md) |
-| Graphics foundation / G5 | [`plans/2026-08-13-graphics-architecture-roadmap.md`](./plans/2026-08-13-graphics-architecture-roadmap.md) |
-| Shared geometry compiler | [`plans/2026-08-13-graphics-g1-shared-geometry-compiler.md`](./plans/2026-08-13-graphics-g1-shared-geometry-compiler.md) |
-| Geometry-kernel library review | [`plans/2026-08-15-geometry-kernel-library-review.md`](./plans/2026-08-15-geometry-kernel-library-review.md) |
-| Editor shell / views | [`components/shell.md`](./components/shell.md) |
-| Entities / materials / library | [`components/scene-content.md`](./components/scene-content.md) |
-| Gizmo / placement / transforms | [`components/placement.md`](./components/placement.md) |
-| Camera/tour | [`components/camera-tour.md`](./components/camera-tour.md) |
-| Schema / import/export / history | [`components/persistence.md`](./components/persistence.md) |
-| Scene codec internals / module layout | [`components/scene-codec.md`](./components/scene-codec.md) |
-| GLBs / asset registry | [`components/assets.md`](./components/assets.md) |
-| Current work | [`hand-off/CURRENT.md`](./hand-off/CURRENT.md) |
-| Tests | [`../apps/museum/tests/README.md`](../apps/museum/tests/README.md) |
-| Old layout CAD tasks | [`plans/2026-08-10-layout-cad-foundation.md`](./plans/2026-08-10-layout-cad-foundation.md) task section only |
+| Surface | Contract doc | Key source |
+|---------|--------------|------------|
+| Shell / workspaces / timeline | [`components/shell.md`](./components/shell.md) | `apps/museum/src/lib/editor/h1/` |
+| Scene entities / materials / lights | [`components/scene-content.md`](./components/scene-content.md) | `apps/museum/src/lib/content/` |
+| Gizmo / placement / transforms | [`components/placement.md`](./components/placement.md) | `apps/museum/src/lib/editor/gizmo/` |
+| Camera / tour / motion | [`components/camera-tour.md`](./components/camera-tour.md) | `apps/museum/src/lib/museum/navigation/` |
+| Persistence / schema / history | [`components/persistence.md`](./components/persistence.md) | `apps/museum/src/lib/project/` · `content/scene-codec/` |
+| Scene codec internals | [`components/scene-codec.md`](./components/scene-codec.md) | `apps/museum/src/lib/content/scene-codec/` |
+| Assets / catalogue | [`components/assets.md`](./components/assets.md) | `apps/museum/src/lib/content/assets.ts` |
+| Tests | [`../apps/museum/tests/README.md`](../apps/museum/tests/README.md) | |
+
+## Meta — how to write the hand-off and the next plan
+
+**Hand-off (`hand-off/CURRENT.md`)** — strict template, live delta only:
+
+```text
+## Working tree    — what is in the tree right now (uncommitted)
+## Next action     — tracker pointer + immediate artifact + any gate
+## Verification    — test count, svelte-check, build state
+## Known bugs      — live defects, one line each
+## Traps           — terse gotchas that cost debugging time
+## Non-negotiables — relic frozen, no commits unless asked, visitor purity
+```
+
+Lifecycle: on **slice open**, update Working tree + Next action. On **slice
+close**, mark the tracker `shipped`, move the plan doc to `archive/plans/`,
+keep the tracker's one-line stub, advance CURRENT's Status + Next action.
+**Shipped narrative → archive, never CURRENT** (archive owns history).
+
+**Sliding window:** CURRENT references only the **immediate previous slice**
+(one back-pointer) and the **single next action** — never enumerate shipped
+slices or the full plan sequence. History is chased backward through the
+tracker's depends-on column (and each archived plan's own prerequisites);
+archaeology follows the chain, it is not pre-loaded. Keep **Known bugs** /
+**Traps** bounded — delete entries when resolved or deferred elsewhere.
+
+**Next plan** — file `docs/plans/YYYY-MM-DD-P<number>-<slug>.md` — the
+P-number is assigned on registration and carried in the filename (e.g.
+`2026-08-18-P1-camera-overhaul.md`); the tracker
+([`plans/README.md`](./plans/README.md)) owns its status, order, and
+depends-on. Before implementing any increment,
+write a brief covering: (1) user outcome and out-of-scope behavior, (2) source
+components and existing APIs to reuse, (3) new props/state/dependencies, (4)
+mount/unmount and selection semantics, (5) exact acceptance tests and manual
+scenarios, (6) relic/Plan/visitor boundaries, and (7) rollback or fallback
+split if the increment expands.
 
 ## Update rules
 
 - Contract change → matching `components/*.md` or `architecture.md`.
-- Product priority change → `north-star.md`.
-- Routing change → this file.
-- Slice scratch/handoff → `CURRENT.md`.
-- Archive conflict → live docs win.
+- Plan status / order → [`plans/README.md`](./plans/README.md) (tracker).
+- Working-tree delta → `hand-off/CURRENT.md`.
+- Direction / priority change → owner decision, recorded as a scope decision
+  and reflected in the tracker.
+- Archive reference → only this router's link + tracker stubs; never explain
+  what is archived inline.

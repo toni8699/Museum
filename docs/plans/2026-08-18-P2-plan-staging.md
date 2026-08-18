@@ -1,14 +1,71 @@
-# C1 — Plan Staging Mode (2D Furnishing)
+# P2 — Plan staging mode (umbrella)
 
-Post-H1 polish slice: place and edit scene furniture directly in Plan.
+**Date:** 2026-08-18
+**Status:** Approved — umbrella; content unchanged from the approved C1 plan (re-registered, no re-scope)
+**Tracker:** [`docs/plans/README.md`](README.md) — **P2**, depends on: P1
+**Folded source (2026-08-18, content preserved; original deleted):** §A — the
+approved C1 plan (Plan Staging Mode, approved 2026-08-17, direction locked,
+C2 rejected).
+
+## Outcome
+
+Place and edit scene furniture directly in **Plan** (2D furnishing): authored
+and derived footprints projected to a layer-5.5 read-only outline, a staging
+tool + selection domain, and 2D drag/rotate/delete routed to the existing
+scene mutators with one tagged `scene` history entry per gesture.
+
+**v1 scope boundary (locked):** Path A visibility + staging *edit* only. 2D
+ghost *placement* of new furniture from Plan is a follow-up slice, not part of
+the approved execution spec.
+
+## Increments (map to §A's phases; refined at scheduling)
+
+| ID | Content | §A phase | Depends |
+|---|---|---|---|
+| **P2.1** | `MuseumAsset.footprint` metadata + `plan-scene-footprint.ts` passive projection (layer-5.5 dashed outlines, read-only) | 1 (Path A) | P1 |
+| **P2.2** | Staging tool (`PlanViewMode: 'layout' \| 'staging'`) + `plan-scene-hit.ts` + scene-domain selection | 2 | P2.1 |
+| **P2.3** | 2D scene mutations: drag/rotate/delete via existing mutators, tagged `scene` history entries + universal-history wrap (`beginLayoutTransaction`/`commitLayoutTransaction`) | 3 | P2.2 |
+| **P2.4** | Invariants + regression documentation (B3 room-drag as designed; component docs update) | 4 | P2.3 |
+
+## Gates
+
+- **P1 close** — plan staging starts after the camera overhaul lands.
+
+## Boundaries
+
+- Inherits the **P1.1 domain×view shell** and the **P1.5 backdrop/hit-test
+  discipline** (Plan stays read-only as a domain; staging never commits a
+  layout selection).
+- Baked catalogue materials for v1 — no per-instance material overrides
+  (forward-compatible: furniture stays in `SceneDocument`).
+- Scale is part of the projection: translate → rotate(yaw) → scale (uniform +
+  independent `scaleVector`), matching the 3D world transform.
+- Non-goals (from §A): no `LayoutDocument`/`SceneDocument` merge, no C2
+  (catalogue assets as layout objects), no lights/cameras/materials in layout,
+  no GLB loading or 3D hit-testing in Plan, no compound room + furniture
+  relocation, no Plan camera mutation.
+
+## Definition of done (P2 close)
+
+- Footprint projection pure-module tests (catalogue + derived) green;
+  staging interactions + history-tag assertions pass; suite green,
+  `svelte-check` 0, build clean; tracker marks **P2 shipped**.
+
+---
+
+## A — Source: C1 — Plan Staging Mode (approved 2026-08-17), folded
+
+## C1 — Plan Staging Mode (2D Furnishing)
+
+Polish slice: place and edit scene furniture directly in Plan.
 
 **Date:** 2026-08-14
 **Status:** Approved (2026-08-17) — direction locked (C2 rejected); execution-spec revision below; not scheduled — H1 lands first, all C1 work (including Path A) starts after the H1 gate
-**Parent:** [`2026-08-14-graphics-h1-unified-3d-editing.md`](./2026-08-14-graphics-h1-unified-3d-editing.md) (Post-H1 polish slices) · [`2026-08-13-graphics-architecture-roadmap.md`](./2026-08-13-graphics-architecture-roadmap.md)
-**Handoff:** [`../../hand-off/CURRENT.md`](../../hand-off/CURRENT.md)
+**Parent:** [`2026-08-14-graphics-h1-unified-3d-editing.md`](../archive/plans/pre-h1-letters/2026-08-14-graphics-h1-unified-3d-editing.md) (polish slices) · [`2026-08-13-graphics-architecture-roadmap.md`](../archive/plans/pre-h1-letters/2026-08-13-graphics-architecture-roadmap.md)
+**Handoff:** [`../hand-off/CURRENT.md`](../hand-off/CURRENT.md)
 
 > **Why this plan exists.** The umbrella plan locks 2D furnishing as the
-> post-H1 "Plan staging mode" (C1) and rejects C2 (catalogue assets as layout
+> "Plan staging mode" (C1) and rejects C2 (catalogue assets as layout
 > objects). This is the focused slice plan for C1. It is a design record, not
 > an implementation-ready plan; the phases below are sketches refined by the
 > approved execution-spec revision (2026-08-17) and finalized when C1 is
@@ -169,7 +226,7 @@ PlanViewMode
 
 - **Scheduling (locked 2026-08-17):** H1 lands first. All C1 work —
   including Path A (Phase 1) — starts only after the H1 gate closes. C1
-  stays approved and is re-registered under the post-H1 plan-tracking system
+  stays approved and is re-registered under the plan-tracking system
   (letter families archived; see the CURRENT.md note). The ordering is
   sequencing discipline, not a technical gate — the document side has no
   hard H1 dependency.

@@ -65,7 +65,9 @@ import {
 	EDITOR_CAMERA_VIEW_MOVE_EPSILON,
 	EDITOR_CAMERA_VIEW_PROGRESS_EPSILON,
 	findSceneCameraViewKeyframe,
+	getSceneCameraViewKeyframeWorldPosition,
 	getSceneCameraViewKeyframeWorldTarget,
+	orbitWorldLookTarget,
 	writeSceneCameraViewKeyframeWorldTarget
 } from '../editor-camera-view';
 import {
@@ -337,6 +339,68 @@ export class EditorViewKeyframeController {
 		}
 		if (!this.host.beginCameraFramingTransaction()) return false;
 		keyframe.cameraTarget = [...target];
+		this.host.seedEmptyReverseForSelectedForwardTrack();
+		return this.host.commitDocumentTransaction();
+	}
+
+	/**
+	 * S10.1 closeout — Aim the selected view breakpoint's look target. Orbits
+	 * `cameraTarget` around the eye at the keyframe's path progress by yaw
+	 * (world Y) then pitch (local X), preserving the eye→target radius, with
+	 * the eye/path position and FOV untouched. One framing history entry per
+	 * gesture; room-local targets stay room-local through the world write-back.
+	 */
+	commitSelectedViewKeyframeAim(yawRadians: number, pitchRadians: number) {
+		if (
+			this.host.isCameraFramingMutationBlocked ||
+			this.host.isEditorInteractionActive ||
+			!Number.isFinite(yawRadians) ||
+			!Number.isFinite(pitchRadians)
+		) {
+			return false;
+		}
+		const selection = this.host.navigationSelection;
+		const keyframe = this.host.selectedViewKeyframe;
+		if (selection?.kind !== 'view-keyframe' || !keyframe) return false;
+
+		const eyeWorld = getSceneCameraViewKeyframeWorldPosition(
+			this.host.document,
+			selection.connectionId,
+			selection.direction,
+			keyframe.progress,
+			this.host.rooms
+		);
+		const currentTargetWorld = getSceneCameraViewKeyframeWorldTarget(
+			keyframe,
+			this.host.rooms
+		);
+		if (
+			vec3Distance(eyeWorld, currentTargetWorld) <=
+			EDITOR_CAMERA_VIEW_MOVE_EPSILON
+		) {
+			this.host.setStatusMessage(
+				'The camera eye and look target are too close to aim'
+			);
+			return false;
+		}
+		const nextTargetWorld = orbitWorldLookTarget(
+			eyeWorld,
+			currentTargetWorld,
+			yawRadians,
+			pitchRadians
+		);
+		if (
+			vec3Distance(currentTargetWorld, nextTargetWorld) <=
+			EDITOR_CAMERA_VIEW_MOVE_EPSILON
+		) {
+			return false;
+		}
+		if (!this.host.beginCameraFramingTransaction()) return false;
+		writeSceneCameraViewKeyframeWorldTarget(
+			keyframe,
+			nextTargetWorld,
+			this.host.rooms
+		);
 		this.host.seedEmptyReverseForSelectedForwardTrack();
 		return this.host.commitDocumentTransaction();
 	}

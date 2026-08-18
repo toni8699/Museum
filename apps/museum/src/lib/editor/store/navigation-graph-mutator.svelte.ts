@@ -345,37 +345,27 @@ export class EditorNavigationGraphMutator {
 			connectedNodeIds: []
 		};
 
-		// H1 S2 — first node on a blank project: there is no destination to
-		// connect to, so commit it standalone instead of entering the
-		// connect-pending-node flow.
-		if (this.host.document.navigationNodes.length === 0) {
-			if (!this.host.beginDocumentTransaction()) {
-				this.host.pendingNavigationCommand = null;
-				this.#clearPendingNavigationSnapshot();
-				this.host.setStatusMessage('Could not commit the camera node');
-				return null;
-			}
-			const committedNode: SceneNavigationNode = {
-				...node,
-				position: [...node.position],
-				cameraTarget: [...node.cameraTarget]
-			};
-			this.host.document.navigationNodes.push(committedNode);
-			if (!this.host.commitDocumentTransaction()) {
-				this.host.pendingNavigationCommand = null;
-				this.#clearPendingNavigationSnapshot();
-				this.host.setStatusMessage('Could not commit the camera node');
-				return null;
-			}
-			this.host.pendingNavigationCommand = null;
-			this.#clearPendingNavigationSnapshot();
-			this.host.selection.setNavigation({
-				kind: 'node',
+		// H1 S10.1 closeout (B0) — standalone placement. Every placed node
+		// commits immediately as a free node ("not in order yet"); connecting
+		// happens later through the ordinary connect-existing flow. The frozen
+		// relic keeps the connect-pending-node contract (its checked-in graph
+		// already has nodes, so the blank-graph case never fires there).
+		if (!this.host.isRelic) {
+			return this.#commitStandaloneNode(
+				node,
 				nodeId,
-				handle: 'position'
-			});
-			this.host.setStatusMessage(`Added ${node.label} (first camera node)`);
-			return nodeId;
+				`Added ${node.label} — not in order yet`
+			);
+		}
+
+		// Relic path (unchanged) — a blank graph has no destination to connect
+		// to, so commit standalone; otherwise stay pending until the first edge.
+		if (this.host.document.navigationNodes.length === 0) {
+			return this.#commitStandaloneNode(
+				node,
+				nodeId,
+				`Added ${node.label} (first camera node)`
+			);
 		}
 
 		this.host.pendingNavigationCommand = { kind: 'connect-pending-node', node };
@@ -385,6 +375,46 @@ export class EditorNavigationGraphMutator {
 			handle: 'position'
 		});
 		this.host.setStatusMessage('Adjust camera pose, then choose an existing node');
+		return nodeId;
+	}
+
+	/**
+	 * S10.1 closeout (B0) — commit a fully-formed node as a standalone free
+	 * node in one `scene` history entry, select it, and clear the placement
+	 * command. Shared by the H1 standalone-placement path and the relic's
+	 * blank-graph first node.
+	 */
+	#commitStandaloneNode(
+		node: SceneNavigationNode,
+		nodeId: string,
+		message: string
+	) {
+		if (!this.host.beginDocumentTransaction()) {
+			this.host.pendingNavigationCommand = null;
+			this.#clearPendingNavigationSnapshot();
+			this.host.setStatusMessage('Could not commit the camera node');
+			return null;
+		}
+		const committedNode: SceneNavigationNode = {
+			...node,
+			position: [...node.position],
+			cameraTarget: [...node.cameraTarget]
+		};
+		this.host.document.navigationNodes.push(committedNode);
+		if (!this.host.commitDocumentTransaction()) {
+			this.host.pendingNavigationCommand = null;
+			this.#clearPendingNavigationSnapshot();
+			this.host.setStatusMessage('Could not commit the camera node');
+			return null;
+		}
+		this.host.pendingNavigationCommand = null;
+		this.#clearPendingNavigationSnapshot();
+		this.host.selection.setNavigation({
+			kind: 'node',
+			nodeId,
+			handle: 'position'
+		});
+		this.host.setStatusMessage(message);
 		return nodeId;
 	}
 
@@ -517,6 +547,19 @@ export class EditorNavigationGraphMutator {
 		);
 		if (!connectionPlan) return false;
 		const { sourceNode: source, destinationNode: destination } = connectionPlan;
+		// S10.1 closeout (B0) — a two-node open-pair seed. Connecting the only
+		// two free nodes in an H1 project writes the open order source →
+		// destination in the same transaction, so preview is ready immediately
+		// (the pair's single edge covers both directions). The relic and any
+		// larger graph stay purely topological — ordering there is the Sequence
+		// Inspector's job.
+		const seedTwoNodeFlow =
+			!this.host.isRelic &&
+			this.host.document.navigationNodes.length === 2 &&
+			source.nextNodeId === undefined &&
+			source.previousNodeId === undefined &&
+			destination.nextNodeId === undefined &&
+			destination.previousNodeId === undefined;
 		// Loop-appears microcopy — compute before the mutation: if the new edge
 		// joins the flow head and tail, it is the distinct closing record and
 		// the derived loop turns on. Announce it; never silent.
@@ -533,6 +576,10 @@ export class EditorNavigationGraphMutator {
 		);
 		if (!this.host.beginDocumentTransaction()) return false;
 		this.#appendStraightConnection(source, destination, connectionId);
+		if (seedTwoNodeFlow) {
+			source.nextNodeId = destination.id;
+			destination.previousNodeId = source.id;
+		}
 		if (!this.host.commitDocumentTransaction()) return false;
 
 		if (this.host.pendingNavigationCommand?.kind === 'connect-existing') {
@@ -556,9 +603,11 @@ export class EditorNavigationGraphMutator {
 				(candidate) => candidate.id === mainFlowNodeIds?.[0]
 			)?.label ?? mainFlowNodeIds?.[0] ?? '';
 		this.host.setStatusMessage(
-			closesLoop
-				? `The path now loops: ${tailLabel} → ${headLabel}`
-				: 'Connected camera nodes'
+			seedTwoNodeFlow
+				? `Connected ${source.label} and ${destination.label} — started a two-node camera flow`
+				: closesLoop
+					? `The path now loops: ${tailLabel} → ${headLabel}`
+					: 'Connected camera nodes'
 		);
 		return true;
 	}

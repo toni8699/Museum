@@ -32,7 +32,7 @@ import type { Object3D } from 'three';
 import type { Vec3 } from '$lib/types/museum';
 import type { MuseumEditorStore } from '../museum-editor.svelte';
 import { EDITOR_CAMERA_PATH_MOVE_EPSILON } from '../editor-camera-path';
-import { EDITOR_CAMERA_VIEW_MOVE_EPSILON } from '../editor-camera-view';
+import { EDITOR_CAMERA_VIEW_MOVE_EPSILON, orbitWorldLookTarget } from '../editor-camera-view';
 import type {
 	EditorGizmoCancelReason,
 	EditorGizmoDragSession,
@@ -381,22 +381,11 @@ function orbitCameraTargetAroundEye(
 		.clone()
 		.multiply(session.startQuaternion.clone().invert());
 	const euler = new Euler().setFromQuaternion(delta, 'YXZ');
-	const yaw = euler.y;
-	const pitch = euler.x;
-	const offset = new Vector3().subVectors(session.startWorldTarget!, session.startWorldEye!);
-	// Pitch about the local X axis first, then yaw about world Y.
-	const cosPitch = Math.cos(pitch);
-	const sinPitch = Math.sin(pitch);
-	const pitchedY = offset.y * cosPitch - offset.z * sinPitch;
-	const pitchedZ = offset.y * sinPitch + offset.z * cosPitch;
-	const cosYaw = Math.cos(yaw);
-	const sinYaw = Math.sin(yaw);
-	const finalX = offset.x * cosYaw + pitchedZ * sinYaw;
-	const finalZ = -offset.x * sinYaw + pitchedZ * cosYaw;
-	const targetWorld = new Vector3(
-		session.startWorldEye!.x + finalX,
-		session.startWorldEye!.y + pitchedY,
-		session.startWorldEye!.z + finalZ
+	const targetWorld = orbitWorldLookTarget(
+		session.startWorldEye!.toArray() as Vec3,
+		session.startWorldTarget!.toArray() as Vec3,
+		euler.y,
+		euler.x
 	);
-	return store.rooms.localPoint(roomId, targetWorld.toArray() as Vec3);
+	return store.rooms.localPoint(roomId, targetWorld);
 }

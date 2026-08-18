@@ -138,6 +138,63 @@ describe('scene document codec', () => {
 		expect(result.canonicalJson).toContain('"detourOfNodeId": "tour-b"');
 	});
 
+	it('B0 — accepts isolated standalone free nodes, but still rejects split graphs', () => {
+		// A valid connected graph plus two isolated free nodes is a valid
+		// authoring state (standalone placement before connecting).
+		const withIsolated = cloneDocument();
+		withIsolated.navigationNodes.push(
+			{
+				id: 'camera-node-1',
+				roomId: 'entrance',
+				label: 'Camera Node 1',
+				position: [2, 1.65, 2],
+				cameraTarget: [2, 1.25, -1],
+				fov: 54,
+				connectedNodeIds: []
+			},
+			{
+				id: 'camera-node-2',
+				roomId: 'entrance',
+				label: 'Camera Node 2',
+				position: [3, 1.65, 2],
+				cameraTarget: [3, 1.25, -1],
+				fov: 54,
+				connectedNodeIds: []
+			}
+		);
+		expect(validateSceneDocument(withIsolated).success).toBe(true);
+
+		// Two disjoint connected components are still rejected: the relaxed
+		// check only exempts edge-less standalone nodes.
+		const split = cloneDocument();
+		const [a, b, c, d] = split.navigationNodes;
+		a!.connectedNodeIds = [b!.id];
+		b!.connectedNodeIds = [a!.id];
+		c!.connectedNodeIds = [d!.id];
+		d!.connectedNodeIds = [c!.id];
+		for (const node of split.navigationNodes) {
+			delete node.nextNodeId;
+			delete node.previousNodeId;
+		}
+		split.connections = [
+			{
+				id: 'tour-a-b',
+				fromNodeId: a!.id,
+				toNodeId: b!.id,
+				clearance: 0.35,
+				positionPath: { kind: 'auto-bezier', anchors: [] }
+			},
+			{
+				id: 'tour-c-d',
+				fromNodeId: c!.id,
+				toNodeId: d!.id,
+				clearance: 0.35,
+				positionPath: { kind: 'auto-bezier', anchors: [] }
+			}
+		];
+		expectIssue(split, 'disconnected_graph', '$.connections');
+	});
+
 	it('S10.2 — accepts a one-node detour chain (origin–head edge serves as the return)', () => {
 		const document = cloneDocument();
 		const [a] = document.navigationNodes;

@@ -14,7 +14,7 @@ import { Object3D, Vector3 } from 'three';
 import type { Vec3 } from '$lib/types/museum';
 import { createCameraGizmoAdapter } from '$lib/editor/gizmo/camera-gizmo-adapter.svelte';
 import { deriveShowAxes } from '$lib/editor/gizmo/editor-gizmo-policy';
-import { createFixtureEditorStore } from '../editor-test-utils';
+import { createFixtureEditorStore, createRelicFixtureEditorStore } from '../editor-test-utils';
 import { cloneFixtureDocument } from '../../content/__fixtures__/load-fixture-scene';
 import {
 	EDITOR_CAMERA_PATH_MOVE_EPSILON,
@@ -290,7 +290,9 @@ describe('camera-gizmo-adapter — authored node sessions', () => {
 
 describe('camera-gizmo-adapter — pending-node drafts', () => {
 	it('begin/preview/commit stay out of history; cancel restores the start point and root', () => {
-		const store = createFixtureEditorStore();
+		// B0 (S10.1 closeout) made standalone placement the H1 behavior; the
+		// pending-node draft contract is now the frozen relic path.
+		const store = createRelicFixtureEditorStore();
 		const roomId = store.rooms.entries[0]!.id;
 		expect(store.beginCameraPlacement()).toBe(true);
 		const id = store.createPendingNavigationNodeAt(

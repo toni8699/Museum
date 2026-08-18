@@ -36,7 +36,7 @@ import {
 	getScenePathAnchorWorldPosition
 } from '$lib/editor/editor-camera-path';
 import { EDITOR_CAMERA_VIEW_MOVE_EPSILON } from '$lib/editor/editor-camera-view';
-import { createFixtureEditorStore } from '../editor-test-utils';
+import { createFixtureEditorStore, createRelicFixtureEditorStore } from '../editor-test-utils';
 import { cloneFixtureDocument } from '../../content/__fixtures__/load-fixture-scene';
 import type { Vec3 } from '$lib/types/museum';
 
@@ -340,7 +340,9 @@ describe('S7 step 0 — camera session fixtures', () => {
 	});
 
 	it('pending-node drafts stay out of history and cancel restores the start point', () => {
-		const store = createFixtureEditorStore();
+		// B0 (S10.1 closeout) made standalone placement the H1 behavior; the
+		// pending-node draft contract is now the frozen relic path.
+		const store = createRelicFixtureEditorStore();
 		const roomId = store.rooms.entries[0]!.id;
 		expect(store.beginCameraPlacement()).toBe(true);
 		const id = store.createPendingNavigationNodeAt(

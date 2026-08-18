@@ -130,6 +130,34 @@ export function getSceneCameraViewKeyframeWorldTarget(
 		: [...keyframe.cameraTarget];
 }
 
+/**
+ * S10.1 closeout — orbit a look target around an eye by yaw (world Y) then
+ * pitch (local X): the turntable aim mapping shared by camera-node rotate and
+ * view-breakpoint Aim. Roll is not representable (an aim has no roll) and the
+ * eye→target radius is preserved exactly. Pure, renderer-neutral tuple math —
+ * no Three/DOM/Svelte imports.
+ */
+export function orbitWorldLookTarget(
+	eye: Vec3,
+	target: Vec3,
+	yaw: number,
+	pitch: number
+): Vec3 {
+	const offsetX = target[0] - eye[0];
+	const offsetY = target[1] - eye[1];
+	const offsetZ = target[2] - eye[2];
+	// Pitch about the local X axis first, then yaw about world Y.
+	const cosPitch = Math.cos(pitch);
+	const sinPitch = Math.sin(pitch);
+	const pitchedY = offsetY * cosPitch - offsetZ * sinPitch;
+	const pitchedZ = offsetY * sinPitch + offsetZ * cosPitch;
+	const cosYaw = Math.cos(yaw);
+	const sinYaw = Math.sin(yaw);
+	const finalX = offsetX * cosYaw + pitchedZ * sinYaw;
+	const finalZ = -offsetX * sinYaw + pitchedZ * cosYaw;
+	return [eye[0] + finalX, eye[1] + pitchedY, eye[2] + finalZ];
+}
+
 /** Preserve existing coordinate ownership while moving a target in world space. */
 export function writeSceneCameraViewKeyframeWorldTarget(
 	keyframe: SceneCameraViewKeyframe,

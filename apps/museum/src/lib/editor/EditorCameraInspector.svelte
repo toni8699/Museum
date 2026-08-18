@@ -3,6 +3,7 @@
 	import EditorVec3Field from './EditorVec3Field.svelte';
 	import EditorCameraFovField from './EditorCameraFovField.svelte';
 	import EditorProgressField from './EditorProgressField.svelte';
+	import EditorNumberField from './EditorNumberField.svelte';
 	import type { EditorCameraHandle } from './editor-selection';
 	import type { MuseumEditorStore } from './museum-editor.svelte';
 	import { getNodeConnections } from './editor-camera-connections';
@@ -47,6 +48,19 @@
 	$effect(() => {
 		labelDraft = node?.label ?? '';
 	});
+
+	// S10.1 closeout — view-breakpoint Aim: incremental yaw (world Y) + pitch
+	// (local X) deltas in degrees, applied as one orbit gesture per commit.
+	let aimYawDeg = $state(0);
+	let aimPitchDeg = $state(0);
+
+	function applyAim() {
+		if (!Number.isFinite(aimYawDeg) || !Number.isFinite(aimPitchDeg)) return;
+		store.commitSelectedViewKeyframeAim(
+			(aimYawDeg * Math.PI) / 180,
+			(aimPitchDeg * Math.PI) / 180
+		);
+	}
 
 	function selectHandle(handle: EditorCameraHandle) {
 		store.selectionActions.selectCameraHandle(handle);
@@ -273,6 +287,32 @@
 			disabled={store.isCameraFramingMutationBlocked || store.isEditorInteractionActive}
 			oncommit={(fov) => store.commitSelectedViewKeyframeFov(fov)}
 		/>
+		<div class="aim" aria-label="Aim look target">
+			<div class="section-heading">
+				<h3>Aim look target</h3>
+			</div>
+			<div class="aim-fields">
+				<EditorNumberField
+					label="Yaw Δ (°)"
+					value={aimYawDeg}
+					step={5}
+					fractionDigits={1}
+					oncommit={(value) => (aimYawDeg = value)}
+				/>
+				<EditorNumberField
+					label="Pitch Δ (°)"
+					value={aimPitchDeg}
+					step={5}
+					fractionDigits={1}
+					oncommit={(value) => (aimPitchDeg = value)}
+				/>
+			</div>
+			<button
+				type="button"
+				disabled={store.isCameraFramingMutationBlocked || store.isEditorInteractionActive}
+				onclick={applyAim}
+			>Apply Aim</button>
+		</div>
 		<button
 			type="button"
 			class="danger"
@@ -343,6 +383,9 @@
 	button.active, button.done { border-color: #d6b35f; background: #2a2618; color: #fff2c7; }
 	button.danger { border-color: #744; color: #f1b1aa; }
 	button:disabled, input:disabled { opacity: 0.42; cursor: default; }
+	.aim { display: flex; flex-direction: column; gap: 0.45rem; padding-top: 0.4rem; border-top: 1px solid #2a2a33; }
+	.aim .section-heading h3 { margin: 0; font-size: 0.78rem; letter-spacing: 0.02em; color: #d6c7a8; }
+	.aim-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.45rem; }
 	.connections { display: flex; flex-direction: column; gap: 0.45rem; padding-top: 0.4rem; border-top: 1px solid #2a2a33; }
 	.connections h3 { margin: 0; font-size: 0.78rem; letter-spacing: 0.02em; color: #d6c7a8; }
 	.connections-empty { margin: 0; color: #918c84; font-size: 0.7rem; }

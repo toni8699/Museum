@@ -23,13 +23,20 @@ import {
 	MuseumEditorStore,
 	type EditorCameraPreview
 } from '$lib/editor/museum-editor.svelte';
-import { getSceneCameraViewKeyframeWorldPosition } from '$lib/editor/editor-camera-view';
+import {
+	getSceneCameraViewKeyframeWorldPosition,
+	orbitWorldLookTarget
+} from '$lib/editor/editor-camera-view';
 import {
 	cameraTimelineEdgePlayheadAtProgress,
 	cameraTimelineProgressAtEdgeProgress,
 	type EditorCameraTimeline
 } from '$lib/editor/editor-camera-timeline';
-import { createFixtureEditorStore, FIXTURE_GUIDED_ORDER } from './editor-test-utils';
+import {
+	createFixtureEditorStore,
+	createRelicFixtureEditorStore,
+	FIXTURE_GUIDED_ORDER
+} from './editor-test-utils';
 
 describe('MuseumEditorStore Phase 6 camera nodes', () => {
 	it('uses one camera selection, defaults rows to position, and avoids redundant focus', () => {
@@ -528,11 +535,10 @@ describe('MuseumEditorStore Phase 6.5 camera paths', () => {
 		expect(store.selectedConnection?.positionPath.anchors).toHaveLength(originalCount);
 	});
 
-	it('keeps an any-room camera pending until its first smooth edge commits atomically', () => {
+	it('places an any-room camera standalone, then connects it in a separate transaction', () => {
 		const store = createFixtureEditorStore();
 		const originalNodeCount = store.document.navigationNodes.length;
 		const originalConnectionCount = store.document.connections.length;
-		const originalJson = store.canonicalJson;
 
 		expect(store.beginCameraPlacement()).toBe(true);
 		const nodeId = store.createPendingNavigationNodeAt(
@@ -541,12 +547,13 @@ describe('MuseumEditorStore Phase 6.5 camera paths', () => {
 			[0, 0, -1]
 		);
 		expect(nodeId).toBe('camera-node-1');
-		expect(store.document.navigationNodes).toHaveLength(originalNodeCount);
+		// B0 — standalone placement commits immediately, no pending command.
+		expect(store.document.navigationNodes).toHaveLength(originalNodeCount + 1);
 		expect(store.document.connections).toHaveLength(originalConnectionCount);
-		expect(store.canonicalJson).toBe(originalJson);
-		expect(store.canUndo).toBe(false);
+		expect(store.pendingNavigationCommand).toBeNull();
+		expect(store.canUndo).toBe(true);
 
-		const node = store.pendingNavigationNode!;
+		const node = store.document.navigationNodes.find((candidate) => candidate.id === nodeId)!;
 		expect(node.label).toBe('Camera Node 1');
 		expect(node.roomId).toBe('workshop');
 		expect(node.position[0]).toBeCloseTo(1);
@@ -561,6 +568,64 @@ describe('MuseumEditorStore Phase 6.5 camera paths', () => {
 		expect(node.connectedNodeIds).toEqual([]);
 		expect(node.nextNodeId).toBeUndefined();
 		expect(node.previousNodeId).toBeUndefined();
+		expect(store.statusMessage).toContain('not in order yet');
+
+		expect(store.commitSelectedNodeLabel('  Workshop close-up  ')).toBe(true);
+		expect(store.commitSelectedNodeFov(62)).toBe(true);
+		expect(
+			store.commitNavigationNodePoint(nodeId!, 'position', [1.5, 1.7, 2.25])
+		).toBe(true);
+
+		// Connect the free node in its own transaction via connect-existing.
+		expect(store.beginConnectExistingNodes()).toBe(true);
+		expect(store.selectionActions.selectNavigationNode('tour-d')).toBe(true);
+		expect(store.document.connections).toHaveLength(originalConnectionCount + 1);
+		const committed = store.document.navigationNodes.find(
+			(candidate) => candidate.id === nodeId
+		)!;
+		expect(committed.label).toBe('Workshop close-up');
+		expect(committed.fov).toBe(62);
+		expect(committed.position).toEqual([1.5, 1.7, 2.25]);
+		expect(committed.connectedNodeIds).toEqual(['tour-d']);
+		const connection = store.document.connections.at(-1)!;
+		expect(connection.fromNodeId).toBe(nodeId);
+		expect(connection.toNodeId).toBe('tour-d');
+		expect(connection.positionPath).toEqual({
+			kind: 'auto-bezier',
+			anchors: []
+		});
+		expect(store.navigationSelection).toEqual({
+			kind: 'connection',
+			connectionId: connection.id
+		});
+		expect(store.pendingNavigationCommand).toBeNull();
+
+		expect(store.undo()).toBe(true);
+		expect(store.document.connections).toHaveLength(originalConnectionCount);
+	});
+
+	it('keeps the relic connect-pending-node contract: draft edits then one atomic edge commit', () => {
+		const store = createRelicFixtureEditorStore();
+		const originalNodeCount = store.document.navigationNodes.length;
+		const originalConnectionCount = store.document.connections.length;
+		const originalJson = store.canonicalJson;
+
+		expect(store.beginCameraPlacement()).toBe(true);
+		const nodeId = store.createPendingNavigationNodeAt(
+			'workshop',
+			roomPoint('workshop', [1, 0, 2]),
+			[0, 0, -1]
+		);
+		expect(nodeId).toBe('camera-node-1');
+		// Relic: the node stays pending until its first edge commits.
+		expect(store.document.navigationNodes).toHaveLength(originalNodeCount);
+		expect(store.document.connections).toHaveLength(originalConnectionCount);
+		expect(store.canonicalJson).toBe(originalJson);
+		expect(store.pendingNavigationCommand?.kind).toBe('connect-pending-node');
+		expect(store.canUndo).toBe(false);
+
+		const node = store.pendingNavigationNode!;
+		expect(node.label).toBe('Camera Node 1');
 		expect(store.commitSelectedNodeLabel('  Workshop close-up  ')).toBe(true);
 		expect(store.commitSelectedNodeFov(62)).toBe(true);
 		expect(
@@ -581,14 +646,6 @@ describe('MuseumEditorStore Phase 6.5 camera paths', () => {
 		const connection = store.document.connections.at(-1)!;
 		expect(connection.fromNodeId).toBe('tour-d');
 		expect(connection.toNodeId).toBe(nodeId);
-		expect(connection.positionPath).toEqual({
-			kind: 'auto-bezier',
-			anchors: []
-		});
-		expect(store.navigationSelection).toEqual({
-			kind: 'connection',
-			connectionId: connection.id
-		});
 		expect(store.pendingNavigationCommand).toBeNull();
 
 		expect(store.undo()).toBe(true);
@@ -597,7 +654,8 @@ describe('MuseumEditorStore Phase 6.5 camera paths', () => {
 	});
 
 	it('cancels a pending camera and all pose edits without document or history mutation', () => {
-		const store = createFixtureEditorStore();
+		// B0 — the pending-placement contract is now the frozen relic path.
+		const store = createRelicFixtureEditorStore();
 		store.setWorkspace('camera');
 		store.selectionActions.selectNavigationNode('tour-paris');
 		const selectionBefore = store.navigationSelection;
@@ -722,6 +780,8 @@ describe('MuseumEditorStore Phase 6.5 camera paths', () => {
 			roomPoint('paris', [0, 0, 0]),
 			[0, 0, -1]
 		)!;
+		// B0 — placement commits standalone; connect the free node as a leaf.
+		expect(store.beginConnectExistingNodes()).toBe(true);
 		expect(store.selectionActions.selectNavigationNode('tour-paris')).toBe(true);
 		const leafConnectionId = store.document.connections.at(-1)!.id;
 		const leafBefore = store.canonicalJson;
@@ -741,6 +801,8 @@ describe('MuseumEditorStore Phase 6.5 camera paths', () => {
 			roomPoint('workshop', [1, 0, 1]),
 			[0, 0, -1]
 		)!;
+		// B0 — placement commits standalone; connect the free node to tour-d.
+		expect(store.beginConnectExistingNodes()).toBe(true);
 		expect(store.selectionActions.selectNavigationNode('tour-d')).toBe(true);
 		const incident = store.document.connections.at(-1)!;
 		incident.viewTracks = {
@@ -1090,6 +1152,108 @@ describe('MuseumEditorStore camera view authoring', () => {
 		});
 		expect(store.redo()).toBe(true);
 		expect(store.selectedViewKeyframe?.progress).toBe(nextProgress);
+	});
+
+	it('aims a view breakpoint look target around its eye with one history entry', () => {
+		const document = cloneFixtureDocument();
+		const connection = document.connections[0]!;
+		connection.viewTracks = {
+			forward: [
+				{
+					id: `${connection.id}-view-forward-01`,
+					progress: 0.5,
+					cameraTarget: [2, 1.5, 3],
+					fov: 48
+				}
+			],
+			reverse: []
+		};
+		const store = createFixtureEditorStore();
+		expect(store.importDocument(document)).toBe(true);
+		const keyframeId = store.document.connections[0]!.viewTracks!.forward[0]!.id;
+		expect(
+			store.selectCameraTimelineViewKeyframe(connection.id, 'forward', keyframeId)
+		).toBe(true);
+
+		const keyframe = store.selectedViewKeyframe!;
+		const fovBefore = keyframe.fov;
+		const eyeWorld = getSceneCameraViewKeyframeWorldPosition(
+			store.document,
+			connection.id,
+			'forward',
+			keyframe.progress,
+			store.rooms
+		);
+		const targetWorld = store.selectedViewKeyframeWorldTarget!;
+		const radiusBefore = Math.hypot(
+			targetWorld[0] - eyeWorld[0],
+			targetWorld[1] - eyeWorld[1],
+			targetWorld[2] - eyeWorld[2]
+		);
+		const historyBefore = store.historyVersion;
+
+		const yaw = Math.PI / 2;
+		expect(store.commitSelectedViewKeyframeAim(yaw, 0)).toBe(true);
+
+		const aimedWorld = store.selectedViewKeyframeWorldTarget!;
+		const expectedWorld = orbitWorldLookTarget(eyeWorld, targetWorld, yaw, 0);
+		expect(aimedWorld[0]).toBeCloseTo(expectedWorld[0], 6);
+		expect(aimedWorld[1]).toBeCloseTo(expectedWorld[1], 6);
+		expect(aimedWorld[2]).toBeCloseTo(expectedWorld[2], 6);
+		// Fixed-radius orbit: the eye→target distance is preserved.
+		const radiusAfter = Math.hypot(
+			aimedWorld[0] - eyeWorld[0],
+			aimedWorld[1] - eyeWorld[1],
+			aimedWorld[2] - eyeWorld[2]
+		);
+		expect(radiusAfter).toBeCloseTo(radiusBefore, 6);
+		// Aim moves only the look target; FOV and path progress are untouched.
+		expect(store.selectedViewKeyframe!.fov).toBe(fovBefore);
+		expect(store.selectedViewKeyframe!.progress).toBe(keyframe.progress);
+		expect(store.historyVersion).toBe(historyBefore + 1);
+
+		expect(store.undo()).toBe(true);
+		expect(store.selectedViewKeyframeWorldTarget).toEqual(targetWorld);
+	});
+
+	it('refuses to aim a view breakpoint with a coincident or unchanged eye→target pose', () => {
+		const document = cloneFixtureDocument();
+		const connection = document.connections[0]!;
+		connection.viewTracks = {
+			forward: [
+				{
+					id: `${connection.id}-view-forward-01`,
+					progress: 0.5,
+					cameraTarget: [2, 1.5, 3],
+					fov: 48
+				}
+			],
+			reverse: []
+		};
+		const store = createFixtureEditorStore();
+		expect(store.importDocument(document)).toBe(true);
+		const keyframeId = store.document.connections[0]!.viewTracks!.forward[0]!.id;
+		expect(
+			store.selectCameraTimelineViewKeyframe(connection.id, 'forward', keyframeId)
+		).toBe(true);
+		const historyBefore = store.historyVersion;
+
+		// Zero delta is a no-op: no history entry.
+		expect(store.commitSelectedViewKeyframeAim(0, 0)).toBe(false);
+		expect(store.historyVersion).toBe(historyBefore);
+
+		// Coincident eye→target degeneracy is refused with a status message.
+		const eyeWorld = getSceneCameraViewKeyframeWorldPosition(
+			store.document,
+			connection.id,
+			'forward',
+			store.selectedViewKeyframe!.progress,
+			store.rooms
+		);
+		store.selectedViewKeyframe!.cameraTarget = eyeWorld;
+		expect(store.commitSelectedViewKeyframeAim(Math.PI, 0)).toBe(false);
+		expect(store.statusMessage).toContain('too close to aim');
+		expect(store.historyVersion).toBe(historyBefore);
 	});
 
 	it('copies directions with mirrored progress, world framing, fresh IDs, and one undo', () => {
@@ -2430,7 +2594,11 @@ describe('MuseumEditorStore S10.2 camera-flow mutations', () => {
 			store.rooms.point(roomId, [1, 0, 1]),
 			[0, 0, -1]
 		)!;
-		expect(store.connectPendingNavigationNode(firstNodeId!)).toBe(true);
+		// B0 — both nodes are committed free nodes; connecting the pair seeds
+		// the open flow source → destination in one transaction.
+		expect(store.selectionActions.selectNavigationNode(firstNodeId)).toBe(true);
+		expect(store.beginConnectExistingNodes()).toBe(true);
+		expect(store.selectionActions.selectNavigationNode(secondNodeId)).toBe(true);
 
 		const first = store.document.navigationNodes.find(
 			(node) => node.id === firstNodeId
@@ -2471,7 +2639,8 @@ describe('MuseumEditorStore S10.2 camera-flow mutations', () => {
 		addDocumentConnection(pairDocument, 'tour-a', 'tour-b', 'tour-a-tour-b');
 		addFreeNode(pairDocument, 'free-3');
 		addDocumentConnection(pairDocument, 'tour-b', 'free-3', 'tour-b-free-3');
-		const pairStore = createFixtureEditorStore();
+		// B0 — the append-on-connect flow is now the frozen relic path.
+		const pairStore = createRelicFixtureEditorStore();
 		expect(pairStore.importDocument(pairDocument)).toBe(true);
 		expect(pairStore.validation.success).toBe(true);
 
@@ -2491,7 +2660,8 @@ describe('MuseumEditorStore S10.2 camera-flow mutations', () => {
 	});
 
 	it('appends a placed node to the flow tail and keeps a mid-route connection free', () => {
-		const store = createFixtureEditorStore();
+		// B0 — the append-on-connect convenience is now the frozen relic path.
+		const store = createRelicFixtureEditorStore();
 		const historyBefore = store.historyVersion;
 		expect(store.guidedTourNodeIds).toEqual([...FIXTURE_GUIDED_ORDER]);
 

@@ -700,15 +700,25 @@ export function validateSemantics(document: MuseumSceneDocument, issues: SceneDo
 		if (to && !to.connectedNodeIds.includes(from?.id ?? '')) addIssue(issues, `$.connections[${index}].toNodeId`, 'connection_without_adjacency', `${to.id} must list ${connection.fromNodeId} as adjacent`);
 	}
 
-	const visited = new Set<string>();
-	const queue = [document.navigationNodes[0]!.id];
-	while (queue.length) {
-		const id = queue.shift()!;
-		if (visited.has(id)) continue;
-		visited.add(id);
-		for (const neighbor of nodeById.get(id)?.connectedNodeIds ?? []) if (!visited.has(neighbor)) queue.push(neighbor);
+	// B0 (S10.1 closeout) — standalone placement authoring state: an isolated
+	// free node (no connections yet) is valid. Every node that holds at least
+	// one edge must still belong to the single connected graph.
+	const connectedNodeIds = document.navigationNodes
+		.filter((node) => node.connectedNodeIds.length > 0)
+		.map((node) => node.id);
+	if (connectedNodeIds.length > 0) {
+		const visited = new Set<string>();
+		const queue = [connectedNodeIds[0]!];
+		while (queue.length) {
+			const id = queue.shift()!;
+			if (visited.has(id)) continue;
+			visited.add(id);
+			for (const neighbor of nodeById.get(id)?.connectedNodeIds ?? []) {
+				if (!visited.has(neighbor)) queue.push(neighbor);
+			}
+		}
+		if (visited.size !== connectedNodeIds.length) addIssue(issues, '$.connections', 'disconnected_graph', 'Navigation connections must form one connected graph');
 	}
-	if (visited.size !== document.navigationNodes.length) addIssue(issues, '$.connections', 'disconnected_graph', 'Navigation connections must form one connected graph');
 
 	validateVersionTwoTour(document.navigationNodes, nodeById, issues);
 }

@@ -106,12 +106,31 @@ failures.
    duplicate-key error, and re-selecting a node re-attaches the gizmo to an
    in-scene root. **Resolved in the S10.1 implementation:** the rotate-camera
    affordance landed (camera nodes expose `Select | Move | Rotate`, rotate =
-   target-orbit aim). **Still open in S10.1:** the **standalone placement**
-   workflow the user wants (place → done, connect later) — the current
-   `connect-pending-node` contract (atomic first-edge commit, cancel discards)
-   is still pinned by tests and is the one remaining S10.1.3 behavioral delta;
-   rework it as its own sub-increment (place commits standalone → "Not in
-   order yet" → `connect-existing` seeds/extends the flow).
+   target-orbit aim). **S10.1 closeout landed (2026-08-18):** **B0 standalone
+   placement** — every H1-placed node commits immediately as a free node
+   ("not in order yet", one `scene` entry); connecting later goes through
+   `connect-existing`, which seeds the two-node open pair so the "place 1 →
+   place 2 → connect" flow converges to a previewable pair. The codec's
+   `disconnected_graph` check now exempts edge-less standalone free nodes
+   while still rejecting split graphs. The frozen relic keeps the
+   `connect-pending-node` contract. **View-breakpoint Aim** —
+   `commitSelectedViewKeyframeAim(yaw, pitch)` orbits the breakpoint look
+   target around its eye (shared pure `orbitWorldLookTarget`, fixed radius,
+   one framing entry) with a coincident eye→target guard; the View breakpoint
+   inspector exposes `Yaw Δ (°)` / `Pitch Δ (°)` + Apply Aim. Verified:
+   **1690 tests pass**, `svelte-check` 0, build clean.
+
+**Roadmap after S10.1 (2026-08-18).** The S10.1 closeout (B0 standalone
+placement + view-breakpoint Aim control) is **done**. The two 2026-08-18 design docs
+([`camera-graph-workspace-design`](../plans/2026-08-18-camera-graph-workspace-design.md) ·
+[`camera-framing-adopted-model`](../plans/2026-08-18-camera-framing-adopted-model.md))
+then land as the **final H1 slice S10.3 — camera redesign**: successor
+shell (S10.3.1), Camera Plan (S10.3.2), framing engine A0–A2 in parallel,
+framing UX (S10.3.3), polish (S10.3.4) — sectioned and sequenced in
+[`2026-08-18-s10.1-camera-followup-sectioning-framing-and-camera-plan.md`](../plans/2026-08-18-s10.1-camera-followup-sectioning-framing-and-camera-plan.md).
+H1 sign-off happens after S10.3; the plan-system renewal then executes
+(hard-gated immediately-next step). S11 stays reserved for import/export.
+Post-H1 work is out of scope for now.
 
 **Plan-system renewal (note, 2026-08-17):** after H1 lands, the letter-coded
 plan families (A0–A4, B0–B5, G1–G6, H1 S0–S12, C1/C2, D1, S9a) are archived
@@ -399,7 +418,7 @@ Phase 2 Wall presets · G5+ graphics roadmap work · visitor rendering of layout
 1. This file.  
 2. [`../AGENTS.md`](../../AGENTS.md) hard rules.  
 3. [`../architecture.md`](../architecture.md) (layout/`rooms.ts` only).  
-4. A0/B0/A1/C0/A2/A2.1/A2.2/A2.3/A3/A3.1/A4/A4.1/B3/B4/B5/G1/G2/G3/G4 shipped. H1 shipped: S0–S8 + the **S10 technical extraction** (uncommitted). The next approved H1 slice is **S10.1 UX/UI rework**. Read [`../plans/2026-08-14-graphics-h1-unified-3d-editing.md`](../plans/2026-08-14-graphics-h1-unified-3d-editing.md) + its S0–S6 sub-plans + [`../plans/2026-08-16-graphics-h1-s7-single-gizmo-host.md`](../plans/2026-08-16-graphics-h1-s7-single-gizmo-host.md) + [`../plans/2026-08-16-graphics-h1-s8-layout-gizmo-candidate-session.md`](../plans/2026-08-16-graphics-h1-s8-layout-gizmo-candidate-session.md) + [`../plans/2026-08-17-graphics-h1-s10-camera-extraction.md`](../plans/2026-08-17-graphics-h1-s10-camera-extraction.md) + [`../plans/2026-08-17-graphics-h1-s10.1-camera-workspace-ui-rework.md`](../plans/2026-08-17-graphics-h1-s10.1-camera-workspace-ui-rework.md).
+4.	A0/B0/A1/C0/A2/A2.1/A2.2/A2.3/A3/A3.1/A4/A4.1/B3/B4/B5/G1/G2/G3/G4 shipped. H1 shipped: S0–S8 + the **S10 technical extraction** + **S10.2 Camera Flow** + **S10.1** including its closeout (B0 standalone placement + view-breakpoint Aim). Read [`../plans/2026-08-14-graphics-h1-unified-3d-editing.md`](../plans/2026-08-14-graphics-h1-unified-3d-editing.md) + its S0–S6 sub-plans + [`../plans/2026-08-16-graphics-h1-s7-single-gizmo-host.md`](../plans/2026-08-16-graphics-h1-s7-single-gizmo-host.md) + [`../plans/2026-08-16-graphics-h1-s8-layout-gizmo-candidate-session.md`](../plans/2026-08-16-graphics-h1-s8-layout-gizmo-candidate-session.md) + [`../plans/2026-08-17-graphics-h1-s10-camera-extraction.md`](../plans/2026-08-17-graphics-h1-s10-camera-extraction.md) + [`../plans/2026-08-17-graphics-h1-s10.1-camera-workspace-ui-rework.md`](../plans/2026-08-17-graphics-h1-s10.1-camera-workspace-ui-rework.md).
 
 5. Skip other `docs/components/*` unless task touches them.
 

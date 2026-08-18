@@ -1704,6 +1704,13 @@ export class MuseumEditorStore {
 		return this.viewKeyframeController.commitSelectedViewKeyframeTarget(target);
 	}
 
+	commitSelectedViewKeyframeAim(yawRadians: number, pitchRadians: number) {
+		return this.viewKeyframeController.commitSelectedViewKeyframeAim(
+			yawRadians,
+			pitchRadians
+		);
+	}
+
 	commitSelectedViewKeyframeFov(fov: number) {
 		return this.viewKeyframeController.commitSelectedViewKeyframeFov(fov);
 	}

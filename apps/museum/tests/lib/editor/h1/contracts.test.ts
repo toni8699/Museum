@@ -215,7 +215,7 @@ describe('H1 S2 — boot into an empty project', () => {
 		expect(store.isDirty).toBe(false);
 	});
 
-	it('authors the first camera node standalone, then unlocks preview once a second node forms a guided chain', () => {
+	it('authors every node standalone, then unlocks preview once the two-node pair is connected', () => {
 		const fixture = cloneFixtureDocument();
 		fixture.navigationNodes = [];
 		fixture.connections = [];
@@ -224,7 +224,7 @@ describe('H1 S2 — boot into an empty project', () => {
 		const roomId = store.rooms.entries[0]!.id;
 		const floorWorld = store.rooms.point(roomId, [0, 0, 0]);
 
-		// First node on a blank graph commits standalone (no destination).
+		// First node commits standalone as a free node (not in order yet).
 		expect(store.beginCameraPlacement()).toBe(true);
 		const firstNodeId = store.createPendingNavigationNodeAt(roomId, floorWorld, [0, 0, -1]);
 
@@ -232,10 +232,9 @@ describe('H1 S2 — boot into an empty project', () => {
 		expect(store.document.navigationNodes).toHaveLength(1);
 		expect(store.document.connections).toHaveLength(0);
 		expect(store.pendingNavigationCommand).toBeNull();
-		expect(store.canStartTourPreview).toBe(false); // lone node, no guided chain
+		expect(store.canStartTourPreview).toBe(false); // lone node, no flow
 
-		// Second node connects to the first, but a connection alone is not a
-		// guided chain.
+		// Second node also commits standalone — no pending connect step (B0).
 		expect(store.beginCameraPlacement()).toBe(true);
 		const secondNodeId = store.createPendingNavigationNodeAt(
 			roomId,
@@ -243,13 +242,16 @@ describe('H1 S2 — boot into an empty project', () => {
 			[0, 0, -1]
 		);
 		expect(secondNodeId).not.toBeNull();
-		expect(store.document.navigationNodes).toHaveLength(1); // still pending
-		expect(store.connectPendingNavigationNode(firstNodeId!)).toBe(true);
 		expect(store.document.navigationNodes).toHaveLength(2);
+		expect(store.document.connections).toHaveLength(0);
+		expect(store.pendingNavigationCommand).toBeNull();
+
+		// Connecting the only two free nodes seeds the open pair first → second
+		// in the same transaction, so preview is immediately ready.
+		expect(store.selectionActions.selectNavigationNode(firstNodeId!)).toBe(true);
+		expect(store.beginConnectExistingNodes()).toBe(true);
+		expect(store.selectionActions.selectNavigationNode(secondNodeId!)).toBe(true);
 		expect(store.document.connections).toHaveLength(1);
-		// The second placement has a concrete order: existing destination first,
-		// newly placed node second. The mutator seeds the reciprocal two-node
-		// cycle in the same scene transaction, so preview is immediately ready.
 		expect(store.guidedTourNodeIds).toEqual([firstNodeId!, secondNodeId!]);
 		expect(store.canStartTourPreview).toBe(true);
 	});
@@ -1028,6 +1030,16 @@ describe('H1 S10 — camera context contracts', () => {
 		const appBar = readLibSource('editor/h1/H1AppBar.svelte');
 		expect(appBar).not.toContain('beginCameraPlacement');
 		expect(appBar).not.toContain('Place camera');
+	});
+
+	// S10.1 closeout — view-breakpoint Aim control (inspector yaw/pitch).
+	it('exposes the inspector Aim control and routes it through the shared aim mutator', () => {
+		const inspector = readLibSource('editor/EditorCameraInspector.svelte');
+		expect(inspector).toContain('Aim look target');
+		expect(inspector).toContain('Yaw Δ (°)');
+		expect(inspector).toContain('Pitch Δ (°)');
+		expect(inspector).toContain('Apply Aim');
+		expect(inspector).toContain('store.commitSelectedViewKeyframeAim(');
 	});
 
 	// S10.1.3 — Sequence Inspector: derived loop row, detour groups, unused tray.

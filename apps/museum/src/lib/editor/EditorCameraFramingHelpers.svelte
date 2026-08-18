@@ -16,6 +16,7 @@
 	} from 'three';
 	import {
 		createEditorCameraFramingGeometry,
+		createEditorCameraFrustumLinePoints,
 		type EditorCameraFramingGeometry
 	} from './editor-camera-framing';
 	import {
@@ -132,13 +133,7 @@
 	}
 
 	function updateFrustumLines(geometry: EditorCameraFramingGeometry) {
-		const corners = geometry.corners.map((corner) => new Vector3(...corner));
-		const points: Vector3[] = [];
-		for (const corner of corners) points.push(eye.clone(), corner);
-		for (let index = 0; index < corners.length; index += 1) {
-			points.push(corners[index]!, corners[(index + 1) % corners.length]!);
-		}
-		frustumGeometry.setFromPoints(points);
+		frustumGeometry.setFromPoints(createEditorCameraFrustumLinePoints(eye, geometry));
 	}
 
 	useTask(() => {

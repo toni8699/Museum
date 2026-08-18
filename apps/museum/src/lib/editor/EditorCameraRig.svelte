@@ -14,7 +14,9 @@
 	import {
 		Box3,
 		BoxGeometry,
-		CameraHelper,
+		BufferGeometry,
+		LineBasicMaterial,
+		LineSegments,
 		MOUSE,
 		Mesh,
 		MeshBasicMaterial,
@@ -43,6 +45,10 @@
 		getSceneCameraViewKeyframeWorldPosition,
 		getSceneCameraViewKeyframeWorldTarget
 	} from './editor-camera-view';
+	import {
+		createEditorCameraFramingGeometry,
+		createEditorCameraFrustumLinePoints
+	} from './editor-camera-framing';
 	import {
 		useDirectorPreview,
 		useVisitorPreview
@@ -97,7 +103,7 @@
 	let activePreviewMode: EditorCameraPreviewMode | null = null;
 	let activePreviewRunId: number | null = null;
 	let activeMotion: CameraMotion | null = null;
-	let virtualCameraHelper: CameraHelper | null = null;
+	let virtualCameraFrustum: LineSegments | null = null;
 	let virtualCameraBody: Mesh | null = null;
 	let handledRecenterVersion = -1;
 	let lastLayoutFrameVersion = -1;
@@ -145,7 +151,7 @@
 		}
 	}
 
-	function showLegacyDirectorHelper(preview: ActiveCameraPreview) {
+	function showDirectorPreviewFrustum(preview: ActiveCameraPreview) {
 		const selection = store.navigationSelection;
 		const selectedFraming =
 			selection?.kind === 'node' || selection?.kind === 'view-keyframe';
@@ -168,7 +174,26 @@
 	function applyVirtualPose() {
 		if (!virtualCamera) return;
 		applyPreviewPose(virtualCamera);
-		virtualCameraHelper?.update();
+		updateVirtualCameraFrustum();
+	}
+
+	/**
+	 * Draw the preview's frustum with the same finite, depth-clamped geometry as
+	 * the selected-object framing helper, so the projection matches the actual
+	 * camera view angle instead of spanning the full near→far render volume.
+	 */
+	function updateVirtualCameraFrustum() {
+		if (!virtualCameraFrustum || !camera) return;
+		if (previewPosition.distanceToSquared(previewTarget) <= 1e-12) return;
+		const geometry = createEditorCameraFramingGeometry(
+			previewPosition,
+			previewTarget,
+			previewSample.fov,
+			camera.aspect
+		);
+		virtualCameraFrustum.geometry.setFromPoints(
+			createEditorCameraFrustumLinePoints(previewPosition, geometry)
+		);
 	}
 
 	function syncDirectorObserver(currentCamera: PerspectiveCamera, controls: ThreeOrbitControls) {
@@ -203,7 +228,7 @@
 		directorOrbitPose = null;
 		hasLastVirtualPosition = false;
 		handledRecenterVersion = -1;
-		if (virtualCameraHelper) virtualCameraHelper.visible = false;
+		if (virtualCameraFrustum) virtualCameraFrustum.visible = false;
 		if (virtualCameraBody) virtualCameraBody.visible = false;
 	}
 
@@ -224,7 +249,7 @@
 		return true;
 	}
 
-	function disposeVirtualCameraHelper() {
+	function disposeVirtualCameraHelpers() {
 		if (virtualCameraBody) {
 			virtualCameraBody.removeFromParent();
 			virtualCameraBody.geometry.dispose();
@@ -234,14 +259,14 @@
 			for (const material of materials as Material[]) material.dispose();
 			virtualCameraBody = null;
 		}
-		if (virtualCameraHelper) {
-			virtualCameraHelper.removeFromParent();
-			virtualCameraHelper.geometry.dispose();
-			const materials = Array.isArray(virtualCameraHelper.material)
-				? virtualCameraHelper.material
-				: [virtualCameraHelper.material];
+		if (virtualCameraFrustum) {
+			virtualCameraFrustum.removeFromParent();
+			virtualCameraFrustum.geometry.dispose();
+			const materials = Array.isArray(virtualCameraFrustum.material)
+				? virtualCameraFrustum.material
+				: [virtualCameraFrustum.material];
 			for (const material of materials as Material[]) material.dispose();
-			virtualCameraHelper = null;
+			virtualCameraFrustum = null;
 		}
 	}
 
@@ -253,13 +278,22 @@
 	$effect(() => {
 		const currentVirtualCamera = virtualCamera;
 		if (!currentVirtualCamera) return;
-		disposeVirtualCameraHelper();
+		disposeVirtualCameraHelpers();
 		currentVirtualCamera.name = 'EditorVirtualVisitorCamera';
 		currentVirtualCamera.raycast = () => undefined as never;
-		const helper = new CameraHelper(currentVirtualCamera);
-		helper.name = 'EditorVirtualVisitorCameraFrustum';
-		helper.raycast = () => undefined as never;
-		helper.renderOrder = 1000;
+		const frustum = new LineSegments(
+			new BufferGeometry(),
+			new LineBasicMaterial({
+				color: 0xffcf67,
+				transparent: true,
+				opacity: 0.86,
+				depthTest: false,
+				depthWrite: false
+			})
+		);
+		frustum.name = 'EditorVirtualVisitorCameraFiniteFrustum';
+		frustum.raycast = () => undefined as never;
+		frustum.renderOrder = 1000;
 		const body = new Mesh(
 			new BoxGeometry(0.28, 0.2, 0.38),
 			new MeshBasicMaterial({ color: 0xffcf67, wireframe: true, depthTest: false })
@@ -268,14 +302,14 @@
 		body.position.z = 0.12;
 		body.raycast = () => undefined as never;
 		body.renderOrder = 1001;
-		helper.visible = false;
+		frustum.visible = false;
 		body.visible = false;
 		currentVirtualCamera.add(body);
-		scene.add(helper);
-		virtualCameraHelper = helper;
+		scene.add(frustum);
+		virtualCameraFrustum = frustum;
 		virtualCameraBody = body;
 		invalidate();
-		return disposeVirtualCameraHelper;
+		return disposeVirtualCameraHelpers;
 	});
 
 	$effect(() => {
@@ -320,9 +354,9 @@
 				}
 			}
 			activePreviewMode = preview.mode;
-			const showLegacyHelper = showLegacyDirectorHelper(preview);
-			if (virtualCameraHelper) virtualCameraHelper.visible = showLegacyHelper;
-			if (virtualCameraBody) virtualCameraBody.visible = showLegacyHelper;
+			const showPreviewFrustum = showDirectorPreviewFrustum(preview);
+			if (virtualCameraFrustum) virtualCameraFrustum.visible = showPreviewFrustum;
+			if (virtualCameraBody) virtualCameraBody.visible = showPreviewFrustum;
 
 			if (activePreviewRunId === preview.runId) return;
 			activePreviewRunId = preview.runId;
@@ -498,9 +532,9 @@
 				director.sampleMotion(preview, progress, activeMotion);
 			}
 			applyPausedFramingOverride(preview);
-			const showLegacyHelper = showLegacyDirectorHelper(preview);
-			if (virtualCameraHelper) virtualCameraHelper.visible = showLegacyHelper;
-			if (virtualCameraBody) virtualCameraBody.visible = showLegacyHelper;
+			const showPreviewFrustum = showDirectorPreviewFrustum(preview);
+			if (virtualCameraFrustum) virtualCameraFrustum.visible = showPreviewFrustum;
+			if (virtualCameraBody) virtualCameraBody.visible = showPreviewFrustum;
 			applyVirtualPose();
 			if (preview.mode === 'visitor') applyPreviewPose(currentCamera);
 			else syncDirectorObserver(currentCamera, controls);
@@ -523,7 +557,7 @@
 		const restored = restoreOrbitIfNeeded();
 		if (restored && director.preview) store.stopCameraPreview();
 		store.setCameraPreviewRestorer(null);
-		disposeVirtualCameraHelper();
+		disposeVirtualCameraHelpers();
 	});
 </script>
 

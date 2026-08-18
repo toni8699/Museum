@@ -3,6 +3,7 @@ import { getRoom } from '$lib/content/rooms';
 import {
 	clampEditorCameraFrustumDepth,
 	createEditorCameraFramingGeometry,
+	createEditorCameraFrustumLinePoints,
 	verticalFovFromEditorCameraFrustumPoint
 } from '$lib/editor/editor-camera-framing';
 import { createEditorRoomCameraFrame } from '$lib/editor/editor-camera';
@@ -27,6 +28,21 @@ describe('editor camera framing geometry', () => {
 		expect(geometry.bottomHandle[1]).toBeCloseTo(-3);
 		expect(geometry.corners[0]![0]).toBeCloseTo(-8);
 		expect(geometry.corners[1]![0]).toBeCloseTo(8);
+	});
+
+	it('builds eye-to-corner rays and a closed FOV-plane rectangle for the finite frustum', () => {
+		const position: [number, number, number] = [0, 1, 0];
+		const target: [number, number, number] = [0, 1, -4];
+		const geometry = createEditorCameraFramingGeometry(position, target, 90, 2);
+		const points = createEditorCameraFrustumLinePoints(position, geometry);
+		expect(points).toHaveLength(16);
+		expect(points[0]!.toArray()).toEqual([0, 1, 0]);
+		expect(points[1]!.toArray()).toEqual(geometry.corners[0]);
+		expect(points[2]!.toArray()).toEqual([0, 1, 0]);
+		expect(points[3]!.toArray()).toEqual(geometry.corners[1]);
+		// The four rectangle edges close the FOV plane back to the first corner.
+		expect(points[14]!.toArray()).toEqual(geometry.corners[3]);
+		expect(points[15]!.toArray()).toEqual(geometry.corners[0]);
 	});
 
 	it('derives and clamps vertical FOV from a side-handle point', () => {

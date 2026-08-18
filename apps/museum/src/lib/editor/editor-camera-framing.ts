@@ -102,6 +102,26 @@ export function createEditorCameraFramingGeometry(
 	};
 }
 
+/**
+ * Line-segment vertex list for a finite frustum: four eye→corner rays plus the
+ * four rectangle edges that close the FOV plane. Shared by the selected-object
+ * framing helper and the preview virtual-camera frustum so both render exactly
+ * the same projection.
+ */
+export function createEditorCameraFrustumLinePoints(
+	eye: CameraFramingPoint,
+	geometry: EditorCameraFramingGeometry
+): Vector3[] {
+	const origin = finiteVector(eye, 'Camera position');
+	const corners = geometry.corners.map((corner) => new Vector3(...corner));
+	const points: Vector3[] = [];
+	for (const corner of corners) points.push(origin.clone(), corner);
+	for (let index = 0; index < corners.length; index += 1) {
+		points.push(corners[index]!, corners[(index + 1) % corners.length]!);
+	}
+	return points;
+}
+
 export function verticalFovFromEditorCameraFrustumPoint(
 	position: CameraFramingPoint,
 	target: CameraFramingPoint,

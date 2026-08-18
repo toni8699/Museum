@@ -50,8 +50,9 @@ other post-H1 work starts until this plan lands
 
 ## Execution steps (in order, all after the H1 gate)
 
-1. **Create `docs/plans/README.md`** — the tracker, seeded with this plan
-   (`P1`) and the re-registered C1 (`P2`) per the skeleton below.
+1. **Create `docs/plans/README.md`** — the tracker, seeded with this plan as
+   an **unnumbered process row** (a tracker cannot number its own bootstrap)
+   and the re-registered work per the skeleton below.
 2. **Archive the letter era.** Move every pre-renewal plan doc in
    `docs/plans/` — all 36 current files, letter-coded or not — to
    `docs/archive/plans/pre-h1-letters/` (one flat directory, filenames
@@ -70,17 +71,20 @@ other post-H1 work starts until this plan lands
 5. **Retire duplicates.** `docs/components/*.original.md` files and any
    stale archive-letter scheme notes move to the pre-H1-letters archive.
 6. **Update the hand-off.** `CURRENT.md`'s "Next slice" points to the tracker
-   as the plan source of truth and to `P2` (C1) as the first scheduled work.
+   as the plan source of truth and to the first scheduled work per the tracker
+   (`P1` camera overhaul, per the 2026-08-18 scope decision).
 
 ## Tracker skeleton (seeded by this plan)
 
 ```text
 | #  | Plan                                      | Status    | Depends on | Doc |
 |----|-------------------------------------------|-----------|------------|-----|
-| P1 | Plan-system renewal (this plan)           | approved  | H1 gate    | 2026-08-17-plan-system-renewal.md |
+| —  | Plan-system renewal (this plan — process row, creates this tracker) | approved | H1 gate | 2026-08-17-plan-system-renewal.md |
+| P1 | Camera overhaul (was H1 S10.3 — inserted by the 2026-08-18 scope decision) | approved | renewal | 2026-08-18-post-h1-camera-overhaul.md |
 | P2 | Plan staging mode — 2D furnishing (C1)    | approved  | P1         | archive/plans/pre-h1-letters/2026-08-14-graphics-h1-c1-plan-staging.md |
-| P3 | S9a — client GLB import (seed)            | proposed  | P1         | archive/plans/pre-h1-letters/2026-08-14-graphics-h1-s9-asset-package.md |
-| P4 | G5 — measured optimization and scale      | proposed  | P1         | archive/plans/pre-h1-letters/2026-08-13-graphics-g4-procedural-architectural-meshes.md |
+| P3 | UI overhaul (inserted by the 2026-08-18 scope decision) | approved | P1, P2 | (to write) |
+| P4 | S9a — client GLB import (seed)            | proposed  | renewal    | archive/plans/pre-h1-letters/2026-08-14-graphics-h1-s9-asset-package.md |
+| P5 | G5 — measured optimization and scale      | proposed  | renewal    | archive/plans/pre-h1-letters/2026-08-13-graphics-g4-procedural-architectural-meshes.md |
 | …  | (future work re-registers here)           |           |            | |
 ```
 
@@ -97,6 +101,15 @@ and any other post-H1 work are hard-gated behind this plan's execution. The
 gate is recorded in `CURRENT.md`: "after the H1 gate, the renewal plan
 executes before any other post-H1 work."
 
+> **Amended 2026-08-18 by
+> [`2026-08-18-scope-decision-close-h1-camera-first.md`](./2026-08-18-scope-decision-close-h1-camera-first.md):**
+> "H1 lands" is redefined to **H1 sign-off after S10.1** (the camera redesign
+> is not part of H1). This plan's trigger therefore fires now; the camera
+> redesign re-registers as **P1** (first post-renewal work), C1 as **P2**,
+> and the UI overhaul as **P3** (last) per the amended tracker seed in the
+> scope decision; this plan itself becomes an unnumbered process row in the
+> tracker. The S10.3 slice inside H1 is dissolved — no more S-numbers.
+
 ## Acceptance criteria
 
 - No pre-renewal plan doc remains in the active `docs/plans/` root — every
@@ -104,8 +117,9 @@ executes before any other post-H1 work."
 - `docs/plans/README.md` exists and is the single status source; every plan
   doc's `**Status:**` matches the tracker.
 - C1 is re-registered as `P2` with content unchanged and a tracker link.
-- `CURRENT.md` points to the tracker as the plan source of truth and to `P2`
-  as the first scheduled work.
+- `CURRENT.md` points to the tracker as the plan source of truth and to `P1`
+  (camera overhaul) as the first scheduled work, per the 2026-08-18 scope
+  decision.
 - No new plan doc contains a letter code; the naming rule is stated in the
   tracker README.
 
@@ -115,6 +129,7 @@ executes before any other post-H1 work."
   its own approved doc).
 - Renumbering git history or rewriting old docs — archives keep filenames.
 - Touching application code, schemas, or benches.
-- Choosing *what* to do after P2 — the tracker just tracks; priorities remain
-  the owner's call (north-star P1 = S9a remains the stated priority once
-  re-registered).
+- Choosing *what* to do beyond the committed P1–P3 order — the tracker just
+  tracks; priorities remain the owner's call (the 2026-08-18 scope decision
+  re-orders the first slots: camera P1, plan staging P2, UI overhaul P3; the
+  north-star's S9a-first priority yields for those three).

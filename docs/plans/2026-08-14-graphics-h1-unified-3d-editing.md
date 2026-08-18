@@ -616,12 +616,32 @@ because this step left H1 — see the post-H1 plan seed
 
 **Execution:** Difficulty **7/10** (effort 5 · risk 7) · Recommended model strength — plan: **Balanced**; implementation: **Frontier**.
 
+**Focused plans and execution order:**
+
+1. [`2026-08-17-graphics-h1-s10-camera-extraction.md`](./2026-08-17-graphics-h1-s10-camera-extraction.md) — **S10 technical extraction first**.
+2. [`2026-08-17-graphics-h1-s10.2-camera-flow-model.md`](./2026-08-17-graphics-h1-s10.2-camera-flow-model.md) — **S10.2 Camera Flow model second** (open main route + detours; removes the loop requirement).
+3. [`2026-08-17-graphics-h1-s10.1-camera-workspace-ui-rework.md`](./2026-08-17-graphics-h1-s10.1-camera-workspace-ui-rework.md) — **S10.1 UX/UI rework third**.
+
+S10 establishes the explicit Scene/Camera context seam, context-safe camera
+helper and bottom-timeline gates, strict Close-loop graph contract, atomic
+mutator, selection-domain semantics, and the required contract-test updates.
+S10.2 generalizes the ordering model to open chains with detours (one new
+persisted field, `detourOfNodeId`) so appending a camera needs exactly one
+connection and the tour no longer has to close. S10.1 consumes those stable
+seams and the S10.2 model to compose the dedicated Camera Flow sidebar,
+workspace toolbars, Place Camera relocation, transitions, and polished empty
+states. Do not implement the visual rework against the relic-era
+`currentWorkspace` or `cameraAgnosticViewMenu` escape hatches before S10 lands.
+
+Both slices must preserve the following H1 boundaries:
+
 - Move Camera tree/timeline/tool entry points into the unified 3D shell.
 - Preserve route/motion ownership, helper selection, framing, timing, playback,
   reduced motion, and mutation locks.
-- Reuse camera authoring behavior inside new 3D shell; do not migrate old Camera
-  workspace/session state.
-- Confirm Plan exposes no camera mutation path.
+- Reuse camera authoring behavior inside the new 3D shell; do not migrate old
+  Camera workspace/session state.
+- Confirm Plan exposes no camera mutation path and `/museum/editor` remains
+  frozen.
 
 ### 11. Project round-trip and regression closure
 

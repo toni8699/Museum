@@ -167,7 +167,32 @@ function isEditableTarget(target: EventTarget | null) {
 			event.preventDefault();
 			store.focusSelection();
 		} else if (interactionStore && !modifier && !event.altKey && !event.shiftKey) {
-		// Phase 6.1 section 3 — Unity-style gizmo mode keybinds. W = translate,
+			// Escape must stay reachable in H1: the mode-key branch above would
+			// otherwise swallow it (else-if), so run the cancel cascade before
+			// the W/E/R/T handling. Kept inline for parity with the relic branch.
+			if (event.key === 'Escape') {
+				if (store.transformInteractionActive) return;
+				if (store.cancelPendingNavigation('Camera command cancelled')) {
+					event.preventDefault();
+					return;
+				}
+				if (store.cancelAssetPlacement('Placement cancelled')) {
+					event.preventDefault();					return;
+				}
+				if (store.finishAnchorEditing()) {
+					event.preventDefault();
+					return;
+				}
+				if (store.finishViewKeyframeEditing()) {
+					event.preventDefault();
+					return;
+				}
+				// H1 S3 — Escape deselects whichever domain is active.
+				if (deselectActive) deselectActive();
+				else if (sceneOwnsShortcuts) store.selectionActions.deselect();
+				return;
+			}
+			// Phase 6.1 section 3 — Unity-style gizmo mode keybinds. W = translate,
 		// E = rotate, R = scale, T = translate alias, X = toggle Space.
 		// Bind here BEFORE the long modifier chains so plain key presses resolve.
 		// H1 S7 — a detached layout selection is not interactive: refuse the

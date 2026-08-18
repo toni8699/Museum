@@ -63,6 +63,34 @@ describe('editor camera timeline index', () => {
 		}
 	});
 
+	it('yields two direction-distinct edges for a two-node reciprocal cycle (unique render keys)', () => {
+		const document = cloneFixtureDocument('tour-minimal');
+		// Shrink the tour to two nodes sharing one undirected connection. The
+		// guided cycle reuses that single connection for both directions, so the
+		// timeline must expose two edges with the same connectionId but opposite
+		// directions — a renderer keyed by connectionId alone would collide.
+		const [a, b] = document.navigationNodes;
+		document.navigationNodes = [a, b];
+		document.connections = [document.connections[0]!];
+		a.nextNodeId = b.id;
+		a.previousNodeId = b.id;
+		a.connectedNodeIds = [b.id];
+		b.nextNodeId = a.id;
+		b.previousNodeId = a.id;
+		b.connectedNodeIds = [a.id];
+
+		const scene = resolveSceneDocument(document);
+		const graph = createNavigationGraph(scene);
+		const timeline = createEditorCameraTimeline(graph);
+
+		expect(timeline.edges).toHaveLength(2);
+		const renderKeys = timeline.edges.map(
+			(edge) => `${edge.connectionId}:${edge.direction}`
+		);
+		expect(new Set(renderKeys).size).toBe(renderKeys.length);
+		expect(timeline.edges[0]!.direction).not.toBe(timeline.edges[1]!.direction);
+	});
+
 	it('maps forward and reverse key progress onto the same physical ruler point', () => {
 		const { graph } = loadFixtureScene();
 		const timeline = createEditorCameraTimeline(graph);

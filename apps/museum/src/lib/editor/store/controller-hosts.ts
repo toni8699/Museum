@@ -275,6 +275,9 @@ export function createControllerHosts(
 		get currentWorkspace() {
 			return source.currentWorkspace;
 		},
+		get isRelic() {
+			return source.isRelic;
+		},
 		get selectedNavigationNode() {
 			return source.selectedNavigationNode;
 		},

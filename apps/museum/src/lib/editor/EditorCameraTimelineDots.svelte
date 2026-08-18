@@ -294,7 +294,7 @@
 		</div>
 		<div class="track route-track" aria-label="Guided Route">
 			<div class="rail"></div>
-			{#each timeline.edges as edge (edge.connectionId)}
+			{#each timeline.edges as edge (`${edge.connectionId}:${edge.direction}`)}
 				{@const start = edge.motionStartSeconds / timeline.durationSeconds}
 				{@const end = edge.motionEndSeconds / timeline.durationSeconds}
 				<button

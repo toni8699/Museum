@@ -141,6 +141,8 @@ export interface EditorNavigationGraphMutatorHost {
 	readonly rooms: LayoutRoomRegistry;
 	readonly selection: EditorSelectionStore;
 	readonly currentWorkspace: EditorWorkspace;
+	/** H1-only automatic two-node guided bootstrap; relic behavior stays unchanged. */
+	readonly isRelic: boolean;
 	readonly selectedNavigationNode: SceneNavigationNode | undefined;
 	readonly selectedPlacementIds: string[];
 	readonly selectedClusterId: string | null;
@@ -400,6 +402,17 @@ export class EditorNavigationGraphMutator {
 				return false;
 			}
 			const node = pending.node;
+			// A newly placed second node has an unambiguous authored order: the
+			// existing destination first, then the newly committed node. Seed that
+			// two-node reciprocal cycle in the same scene transaction so Preview
+			// Tour is immediately available. Two nodes share one undirected edge;
+			// Close loop intentionally does not add a duplicate return edge for
+			// this special case.
+			const seedTwoNodeGuidedCycle =
+				!this.host.isRelic &&
+				this.host.document.navigationNodes.length === 1 &&
+				destination.nextNodeId === undefined &&
+				destination.previousNodeId === undefined;
 			const connectionId = reserveEntityId(
 				`${destination.id}-${node.id}`,
 				new Set(this.host.document.connections.map((connection) => connection.id))
@@ -413,6 +426,12 @@ export class EditorNavigationGraphMutator {
 			};
 			this.host.document.navigationNodes.push(committedNode);
 			this.#appendStraightConnection(destination, committedNode, connectionId);
+			if (seedTwoNodeGuidedCycle) {
+				destination.previousNodeId = committedNode.id;
+				destination.nextNodeId = committedNode.id;
+				committedNode.previousNodeId = destination.id;
+				committedNode.nextNodeId = destination.id;
+			}
 			if (!this.host.commitDocumentTransaction()) return false;
 
 			this.host.pendingNavigationCommand = null;
@@ -427,7 +446,11 @@ export class EditorNavigationGraphMutator {
 				this.host.syncCameraTimelineForConnection(connectionId, 'forward', 0);
 				this.host.showCameraTimelineConnectionPose(connectionId, 'forward', 0);
 			}
-			this.host.setStatusMessage(`Added ${node.label} and its first connection`);
+			this.host.setStatusMessage(
+				seedTwoNodeGuidedCycle
+					? `Added ${node.label} and started a two-node guided tour`
+					: `Added ${node.label} and its first connection`
+			);
 			return true;
 		}
 		return this.connectNavigationNodes(pending.sourceNodeId, destinationNodeId);

@@ -247,10 +247,10 @@ describe('H1 S2 — boot into an empty project', () => {
 		expect(store.connectPendingNavigationNode(firstNodeId!)).toBe(true);
 		expect(store.document.navigationNodes).toHaveLength(2);
 		expect(store.document.connections).toHaveLength(1);
-		expect(store.canStartTourPreview).toBe(false); // connected but not guided
-
-		// Ordering the two nodes into a reciprocal cycle forms the guided chain.
-		expect(store.setGuidedTourOrder([firstNodeId!, secondNodeId!])).toBe(true);
+		// The second placement has a concrete order: existing destination first,
+		// newly placed node second. The mutator seeds the reciprocal two-node
+		// cycle in the same scene transaction, so preview is immediately ready.
+		expect(store.guidedTourNodeIds).toEqual([firstNodeId!, secondNodeId!]);
 		expect(store.canStartTourPreview).toBe(true);
 	});
 });

@@ -350,6 +350,24 @@ describe('MuseumEditorStore Phase 1 shell session state', () => {
 		expect(store.pendingNavigationCommand).toBeNull();
 		expect(store.statusMessage).toBe('Camera command cancelled');
 	});
+
+	it('cancels pending navigation on Escape with an H1 interaction store (mode-key branch no longer swallows it)', () => {
+		const store = createFixtureEditorStore();
+		const interactionStore = new EditorInteractionStore();
+		expect(store.beginCameraPlacement()).toBe(true);
+		expect(store.pendingNavigationCommand).not.toBeNull();
+
+		const handler = createEditorShortcutHandler(
+			store,
+			nullShortcutHost,
+			interactionStore,
+			() => false
+		);
+		handler(makeKeyEvent('Escape'));
+
+		expect(store.pendingNavigationCommand).toBeNull();
+		expect(store.statusMessage).toBe('Camera command cancelled');
+	});
 });
 
 describe('createEditorShortcutHandler — W/E/R/T refuse unsupported modes (S7 step 6)', () => {

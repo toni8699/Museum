@@ -87,10 +87,15 @@ other post-H1 work starts until this plan lands
 ## Hard gate
 
 **This plan is the immediately next step after H1 lands — nothing else
-proceeds first.** C1 (P2), S9a, G5, multi-story, material polish, and any
-other post-H1 work are hard-gated behind this plan's execution. The gate is
-recorded in `CURRENT.md`: "after the H1 gate, the renewal plan executes
-before any other post-H1 work."
+proceeds first.** "H1 lands" includes the final H1 slice **S10.3 — camera
+redesign** (successor domain×view shell + Camera Plan + framing envelope, from
+the two 2026-08-18 design docs), sequenced by
+[`2026-08-18-s10.1-camera-followup-sectioning-framing-and-camera-plan.md`](./2026-08-18-s10.1-camera-followup-sectioning-framing-and-camera-plan.md):
+S10.1 closeout (B0 standalone placement + view-breakpoint Aim) → **S10.3** →
+H1 sign-off → **this plan**. C1 (P2), S9a, G5, multi-story, material polish,
+and any other post-H1 work are hard-gated behind this plan's execution. The
+gate is recorded in `CURRENT.md`: "after the H1 gate, the renewal plan
+executes before any other post-H1 work."
 
 ## Acceptance criteria
 

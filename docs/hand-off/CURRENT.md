@@ -7,28 +7,26 @@ shipped/next lists never accumulate.
 
 ## Working tree
 
-- Current delta: **P1.3 shipped (2026-08-18)** — edge-local smootherstep
-  envelopes now blend automatic/authored Cartesian targets and FOV in the sole
-  motion sampler. Motion creation adaptively compiles deterministic minimum-
-  standoff, collinear/POI angular-rate, and hazardous late-exit bypass guards;
-  frame sampling stays allocation-free and random-access stable. Focused branch,
-  guard, ownership, legacy, relic, and full-suite coverage is green. Archived
-  brief: [`../archive/plans/2026-08-18-P1.3-envelope-sampler-guards.md`](../archive/plans/2026-08-18-P1.3-envelope-sampler-guards.md).
-- Previous slice: **P1.2 shipped (2026-08-18)** — framing-envelope schema,
-  codec, route, motion-preparation, and clone-path threading; committed as
-  `50f34ea P1.2`.
+- Current delta: **P1.4 shipped (2026-08-19)** — dense whole-transition
+  non-degeneracy, endpoint, continuity, singularity, double-whip, seek-order,
+  and FOV-pacing acceptance matrices in `camera-motion.test.ts` plus pure
+  auto-managed/manual framing-envelope editor policy
+  (`editor-camera-framing-envelope.ts`). Archived brief:
+  [`../archive/plans/2026-08-19-P1.4-envelope-invariants-policy.md`](../archive/plans/2026-08-19-P1.4-envelope-invariants-policy.md).
+- Previous slice: **P1.3 shipped (2026-08-18)** — envelope sampler and compiled
+  standoff, angular-rate, and late-exit guards. Archived brief:
+  [`../archive/plans/2026-08-18-P1.3-envelope-sampler-guards.md`](../archive/plans/2026-08-18-P1.3-envelope-sampler-guards.md).
 
 ## Next action
 
-- **One action:** write and review the **P1.4 implementation brief** for dense
-  envelope invariants, auto-managed/manual policy, guard continuity, and FOV-
-  pacing acceptance matrices. **P1.5** remains the parallel Camera Plan track;
-  **P1.6** converges both tracks.
+- **One action:** the engine track (P1.2–P1.4) is complete. Next is **P1.5**
+  (Camera Plan surface mounting into the P1.1 shell); **P1.6** converges both
+  tracks with framing authoring UX bound to P1.4's pure policy.
 
 ## Verification
 
-- **1714 tests green (1 skipped) · `svelte-check` 0 errors / 0 warnings · build
-  clean** (P1.3, 2026-08-18).
+- **1,802 tests green (1 skipped) · `svelte-check` 0 errors / 0 warnings · build
+  clean** (P1.4 closeout, 2026-08-19).
 
 ## Known bugs / deferred
 

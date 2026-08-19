@@ -1,7 +1,7 @@
 # P1 — Camera overhaul (umbrella)
 
 **Date:** 2026-08-18
-**Status:** In-progress — **P1.1–P1.3 shipped 2026-08-18**; umbrella; remaining increments execute in order below
+**Status:** In-progress — **P1.1–P1.3 shipped 2026-08-18**; **P1.4 shipped 2026-08-19**; umbrella; remaining increments execute in order below
 **Tracker:** [`docs/plans/README.md`](README.md) — **P1**, depends on: renewal
 **Folded sources (2026-08-18, content preserved; originals deleted):**
 - §A — successor shell ratification (the P1.1 gate)
@@ -20,7 +20,10 @@
    the preview controller (consumer seams in §D §3 A0).
 4. **F4 — P1.5's B0 dependency made explicit** (P1.5 row).
 5. **F5 — B2's timing-labels row gated** behind an explicit product decision
-   (§D finding 3 + §D §4 B2 bullet).
+   (§D finding 3 + §D §4 B2 bullet). **Resolved 2026-08-19 — duration is
+   authored on the plan edge:** per-direction connection timing + derived
+   speed (`length / time`) + plan-edge timing labels fold into **P1.5**; the
+   Camera 3D Connection-Inspector duration field lands in **P1.6** (§D §6.6).
 6. **F6 — playback-unchanged pin** (golden-sample over a legacy route) added
    to the DoD.
 7. **F7 — relic guard named** (`tests/lib/editor/app/contracts.test.ts`) in the
@@ -76,9 +79,9 @@ by the ratified shell contract (§A).
 | **P1.1** | Successor domain×view shell + shell contract; **gate = shell-inversion ratification (§A)** — implementation brief: **§A.1** — **shipped 2026-08-18** (status bar folded in; conformance mapping §A.2) | §A | — |
 | **P1.2** | `framingEnvelope` serialization + ordering validation + `resolveSceneDocument` threading (+ runtime types) + **FOV copy fix, specs/docs wording (F1)** + **clone-survival test through `helpers/route-clone` + preview controller (F3)** — **shipped 2026-08-18** | §B, §D | — |
 | **P1.3** | Envelope sampler blend `w(p)` in `sampleCameraMotion` + **engine guards (ext. review): POI singularity angular clamp + standoff · collinear-zero stability guard (Cartesian blend retained) · double-whip dynamic bypass** — **shipped 2026-08-18**; [archived brief](../archive/plans/2026-08-18-P1.3-envelope-sampler-guards.md) | §B, §D | P1.2 |
-| **P1.4** | Envelope invariant + auto-managed/manual policy tests + **guard acceptance criteria (ext. review): non-degeneracy (`target–eye ≥ near-clip`) · smooth continuity (no 180° pops) · singularity · double-whip · FOV pacing** | §B, §D | P1.2, P1.3 |
-| **P1.5** | Camera Plan surface + backdrop/visual-rule assertions (B0 Add-camera mutator already shipped in S10.1 closeout, `674d597`; **F4**) | §C | P1.1 |
-| **P1.6** | Framing authoring UX + FOV copy fix (**UI wording; spec/docs copy lands in P1.2**) + **intent-first surface (ext. review): focus-timing presets Early/Centered/Full Move + lens presets · envelope handles in advanced drawer · parallax warning + FOV ramp guardrail + comfort diagnostic** | §B | P1.2–P1.4, P1.1 |
+| **P1.4** | Envelope invariant + auto-managed/manual policy tests + **guard acceptance criteria (ext. review): non-degeneracy (`target–eye ≥ near-clip`) · smooth continuity (no 180° pops) · singularity · double-whip · FOV pacing** — **shipped 2026-08-19**; [archived brief](../archive/plans/2026-08-19-P1.4-envelope-invariants-policy.md) | §B, §D | P1.2, P1.3 |
+| **P1.5** | Camera Plan surface + backdrop/visual-rule assertions + **connection timing authoring (F5 resolved: duration authored on the plan edge — per-direction `durationSeconds` via the shipped `setConnectionTiming` mutator, derived speed readout `length/time`, plan-edge timing labels un-gated)** (B0 Add-camera mutator already shipped in S10.1 closeout, `674d597`; **F4**) | §C | P1.1 |
+| **P1.6** | Framing authoring UX + FOV copy fix (**UI wording; spec/docs copy lands in P1.2**) + **intent-first surface (ext. review): focus-timing presets Early/Centered/Full Move + lens presets · envelope handles in advanced drawer · parallax warning + FOV ramp guardrail + comfort diagnostic** + **Camera 3D Connection-Inspector duration field (same per-direction connection timing authored in P1.5)** | §B | P1.2–P1.4, P1.1 |
 | **P1.7** | Camera UI reconciliation pass (light — not the P3 overhaul) | — | P1.5, P1.6 |
 
 ## Sequencing
@@ -432,7 +435,7 @@ the one shell-region gap — the rest of the Camera Plan content lands with P1.5
 | 6 | Scene → Plan authoring | ✅ shipped (pre-P1) |
 | 7 | Scene → 3D authoring | ✅ shipped (pre-P1) |
 | 8 | Asset-management state | deferred (not in P1) |
-| 9 | Camera → Plan surface (backdrop, X/Z, Y preserved, no framing) | P1.5 |
+| 9 | Camera → Plan surface (backdrop, X/Z, Y preserved, no framing; connection timing/duration authoring — F5) | P1.5 |
 | 10 | Camera → 3D (framing authority + lanes) | ✅ viewport shipped; framing lanes → P1.6–P1.7 |
 | 11 | Timeline = Camera-domain infrastructure | ✅ P1.1 |
 | 12 | Timeline exposure (heights, tour controls, lanes) | ✅ heights/controls; lanes → P1.6–P1.7 |
@@ -444,7 +447,7 @@ the one shell-region gap — the rest of the Camera Plan content lands with P1.5
 | 19 | Workspace state persistence | ✅ P1.1 |
 | 20 | Domain-switch behavior | ✅ P1.1 (180–220 ms animation polish deferred) |
 | 21 | View-switch behavior | ✅ P1.1 |
-| 22 | Capability/visibility matrix | ✅ Scene cells; Camera Plan → P1.5 |
+| 22 | Capability/visibility matrix (incl. connection-timing row) | ✅ Scene cells; Camera Plan → P1.5 |
 | 23 | Non-leakage rules | ✅ Scene cells; Camera Plan → P1.5 |
 | 24 | Review targets A–L | ✅ A–H, J–L (P1.1); I (Plan Y) → P1.5 |
 | 25 | Shell state model | ✅ P1.1 (`EditorViewState`) |
@@ -1039,9 +1042,9 @@ Current-state findings that drove the sectioning (kept for the record):
    behind the Plan Tour toggle. Camera Plan reuses **one render model** plus a
    **filtered overlay profile** — nodes, connection curves, path anchors,
    selected state, sequence/free-node state; **no** cones, look targets,
-   breakpoints, envelope UI; **timing labels excluded — adding them requires an
-   explicit product decision (F5)**. It is not "the Plan Tour layer made
-   editable."
+   breakpoints, envelope UI; **timing labels included (F5 resolved 2026-08-19 —
+   duration authored on the plan edge; §D §6.6)**. It is not "the Plan Tour
+   layer made editable."
 4. **The connection-deletion invariant is already shipped** (S10.2
    `validateConnectionDeletion` refuses flow-required edges, detour returns,
    and graph-disconnecting deletions atomically) — Camera Plan must not offer a
@@ -1112,9 +1115,11 @@ rows. Key seams and decisions preserved from the specs:
   content preserved: **2D toolbar modes** `Select | Add camera | Connect |
   View` with rubber-band connect preview; the **filtered overlay profile**
   (✓ nodes, connection/path curves, path anchors, selected state,
-  sequence/free-node state; ✗ cones, look targets, breakpoints, envelope UI,
-  **timing labels — excluded, adding them requires an explicit product
-  decision (F5)**) reusing `plan-camera-projection.ts`,
+  sequence/free-node state; ✗ cones, look targets, breakpoints, envelope UI)
+  — **timing labels + per-direction duration authoring included (F5 resolved
+  2026-08-19 — duration authored on the plan edge, §D §6.6; written through
+  the shipped `setConnectionTiming` mutator)** — reusing
+  `plan-camera-projection.ts`,
   `LayoutPlanViewport`/`PlanSvg` + `plan-hit.ts`, and the shipped mutators;
   **exit** — every gesture commits through existing graph mutators with one
   history entry, flow membership visually distinguishable, Plan cannot mutate
@@ -1146,6 +1151,14 @@ polish pass.
 5. **Envelope validation location.** **Live** — reject bad ordering in both
    `parse-document.ts` (editor import) and `project-layout-semantics.ts`
    (export gate).
+6. **Timing authoring location (F5).** **Resolved 2026-08-19** — duration is
+   authored on the plan edge: selecting a connection in Camera Plan exposes
+   per-direction `durationSeconds` (existing `SceneConnectionTiming` field,
+   written via the shipped `setConnectionTiming` mutator); derived speed =
+   path length ÷ duration auto-updates as the path bends (authored duration
+   preserved); un-authored directions keep the formula-derived duration; the
+   plan-edge timing label is un-gated (B2). The Camera 3D Connection
+   Inspector exposes the same per-direction field in P1.6.
 
 ## 7. Non-goals (kept)
 

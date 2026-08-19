@@ -3,6 +3,10 @@
 **Date:** 2026-08-18
 **Status:** Approved — umbrella; content unchanged from the approved C1 plan (re-registered, no re-scope)
 **Tracker:** [`docs/plans/README.md`](README.md) — **P2**, depends on: P1
+**Canonical specs (2026-08-19):** [`Design-shell-specs.md`](../Design-specs/Design-shell-specs.md)
+(shell/workspace exposure) · [`Design-specs.md`](../Design-specs/Design-specs.md)
+(UI design system). P2 is a **workspace-local mode inside Scene → Plan**, not a
+new workspace; §B records the shell-conformance reconciliation.
 **Folded source (2026-08-18, content preserved; original deleted):** §A — the
 approved C1 plan (Plan Staging Mode, approved 2026-08-17, direction locked,
 C2 rejected).
@@ -50,6 +54,147 @@ the approved execution spec.
 - Footprint projection pure-module tests (catalogue + derived) green;
   staging interactions + history-tag assertions pass; suite green,
   `svelte-check` 0, build clean; tracker marks **P2 shipped**.
+
+---
+
+## B — Shell & workspace amendments (2026-08-19)
+
+Reconciles P2 with the canonical shell/workspace specification
+([`../Design-specs/Design-shell-specs.md`](../Design-specs/Design-shell-specs.md),
+"exposure") and the UI design system
+([`../Design-specs/Design-specs.md`](../Design-specs/Design-specs.md),
+"visual"). Conformance targets on P2 close: shell-spec §6 (Scene → Plan),
+§22 (capability matrix), §24 (review targets).
+
+### Core decision
+
+P2 introduces **no new domain and no new Plan/3D view**.
+`PlanViewMode: 'layout' | 'staging'` is a workspace-local authoring mode inside
+**Scene → Plan**, below the domain × view axes:
+
+```text
+Scene
+├─ Plan
+│  ├─ Layout   → edit architecture
+│  └─ Staging  → arrange existing scene objects in 2D
+└─ 3D          → fully author scene objects in 3D
+```
+
+Staging is not a fifth workspace and must not appear beside `Scene | Camera`
+or `Plan | 3D`.
+
+### Product definition
+
+Scene Plan redefines from "build space" to **"author the museum spatially in
+2D"** — Layout mode builds/edits architectural space; Staging mode arranges
+existing scene furniture and objects.
+
+### P2 contracts (folded)
+
+- **P2-A — local mode.** `PlanViewMode: layout | staging` is Scene → Plan-local
+  and does not alter the top-level Scene/Camera × Plan/3D shell.
+- **P2-B — visible mode control.** An explicit `Layout | Staging` state lives
+  in the Scene Plan contextual toolbar (or equivalent local-mode surface);
+  not hover-only or implicit. Architecture tools must not remain misleadingly
+  active while Staging owns pointer authority; movement stays direct
+  manipulation and v1 adds no permanent Move/Rotate tools.
+- **P2-C — hit-test priority.** Mode decides pointer authority: Layout → layout
+  hit wins; Staging → scene-footprint hit wins; architecture is not selected
+  by ordinary staging clicks.
+- **P2-D — inspector.** Reuse the canonical Scene Inspector shell with a
+  Plan-staging surface (X, Z, yaw); Y/elevation is shown as preserved 3D state.
+  Current scale is visible and the projection respects it, but the surface
+  must not imply a Plan scaling gesture that P2 v1 does not define.
+- **P2-E — Asset Library scope.** v1 staging applies to existing placed Scene
+  entities; selecting an unplaced catalogue asset does not begin Plan placement.
+  Catalogue-driven staging auto-activation for new placement is deferred with
+  2D ghost placement.
+- **P2-F — mode transitions.** Entering/leaving Staging does not create a
+  document mutation or change the selected entity; Scene selection may be
+  remembered when returning to Layout; Scene Plan ↔ Scene 3D preserves entity
+  identity/selection. `layout | staging` is remembered for the editor session,
+  is Scene Plan-scoped (never global), and never carries into Camera Plan.
+- **P2-G — staging visualization.** Four footprint states: passive,
+  bridge-hover, active staging, selected (+ rotate handle).
+- **P2-H — architecture authority.** Architecture stays visible and usable as
+  snap/spatial context in Staging but accepts no normal selection or mutation
+  until Layout is restored.
+- **P2-I — scaling boundary.** Scale affects footprint projection; P2 v1 adds
+  no Plan scaling gesture.
+- **P2-J — hierarchy.** Scene → Plan continues `Hierarchy | Assets`; no
+  dedicated staging sidebar. Hierarchy represents both architecture and placed
+  Scene content as normal project structure without duplicating objects into a
+  separate "Staging Objects" list; selection follows mode authority.
+- **P2-K — staging content scope.** Camera/tour content — camera nodes, camera
+  graph, guided sequence, timeline, framing — is not part of Plan staging;
+  lights have no interactive footprint in P2 v1.
+
+### Selection & mutation authority
+
+| Mode | Workspace | Selection authority | Mutates |
+|------|-----------|--------------------|---------|
+| Layout | Scene → Plan | `LayoutDocument` | rooms/walls/doors/windows/openings/dimensions |
+| Staging | Scene → Plan | `SceneDocument` | X/Z + yaw of existing scene entities; delete |
+
+This is intentional, not domain leakage: the user stays in Scene throughout;
+the local mode selects which Scene-owned document layer accepts selection and
+mutation. Staging preserves `position Y` and other 3D-only state exactly.
+
+### History
+
+One user gesture = one undo entry, tagged to the actually-mutated document:
+staging drag/rotate/delete = one `scene` entry; layout ops stay layout-tagged.
+No gesture may produce a layout + scene entry pair or hidden architecture
+mutations. Room drag (Layout) relocates only `LayoutDocument` rooms and owned
+layout objects — Scene furniture stays at world X/Z.
+
+### Shell-spec deltas (Shell-A … Shell-J)
+
+Applied to `Design-shell-specs.md` on 2026-08-19 (§1, §6, §16, §19, §22–§25,
+§28–§31); P2 treats them as conformance requirements:
+
+- **Shell-A** — Scene Plan = 2D scene authoring with Layout + Staging modes.
+- **Shell-B** — workspace-local mode as third-level routing beneath domain/view.
+- **Shell-C** — Scene objects passive/context in Layout, editable in Staging.
+- **Shell-D** — selection authority defined independently of workspace identity.
+- **Shell-E** — contextual toolbar routed by local mode.
+- **Shell-F** — Scene Plan Inspector routing for staging selections.
+- **Shell-G** — hit-testing authority by mode.
+- **Shell-H** — staging footprint states + rotate-handle behavior.
+- **Shell-I** — Scene Plan ↔ Scene 3D selection continuity.
+- **Shell-J** — room-drag/furniture non-relocation as explicit workspace truth.
+
+### Revised capability matrix
+
+| Capability | Scene Plan — Layout | Scene Plan — Staging | Scene 3D | Camera Plan | Camera 3D |
+| --- | --- | --- | --- | --- | --- |
+| Architecture editing | Yes | No | contextual | No | No |
+| Architecture context | Yes | Yes | Yes | Yes | Yes |
+| Scene furniture visible | Yes | Yes | Yes | contextual | contextual |
+| Scene furniture select | No via footprint | Yes | Yes | No | No |
+| Scene X/Z edit | No | Yes | Yes | No | No |
+| Scene Y edit | No | No | Yes | No | No |
+| Scene yaw edit | No | Yes | Yes | No | No |
+| Scene full rotation | No | No | Yes | No | No |
+| Scene scaling | No | No in P2 v1 | Yes | No | No |
+| Add scene asset | existing workflows only | no 2D placement in P2 v1 | Yes | No | No |
+| Camera graph edit | No | No | No | Yes | Yes |
+| Camera framing | No | No | No | No | Yes |
+| Camera timeline | No | No | No | Yes | Yes |
+
+### Codebase review additions (on P2 close)
+
+- `PlanViewMode` is Scene Plan-local and does not alter global domain/view semantics.
+- Layout and Staging do not compete for normal click selection.
+- Passive footprint projection does not itself activate Scene editing.
+- Staging resolves to canonical Scene entity identity.
+- Only X/Z/yaw change during staging; Y survives exactly.
+- Inspector does not expose misleading unsupported Plan operations.
+- One completed staging gesture = one tagged `scene` history entry.
+- Staging snap/read access to layout never commits layout mutations.
+- Layout room motion never silently moves Scene furniture.
+- Scene Plan ↔ Scene 3D creates no duplicate Scene selection state.
+- No P2 staging code path mutates Camera-domain data.
 
 ---
 
@@ -126,7 +271,8 @@ PlanViewMode
   ├─ 'layout'   CAD as today (rooms / walls / openings / layout objects)
   │              scene entities render as faint dashed layer-5.5 outlines
   └─ 'staging'  scene entities selectable + mutable in Plan
-                  catalogue drawer auto-activates staging
+                  (catalogue auto-activation for unplaced assets deferred —
+                  §B P2-E)
 ```
 
 - Staging selection activates the **scene** domain — the one amendment to the
@@ -143,9 +289,11 @@ PlanViewMode
   time, session-cached, never serialized.
 - Snapping reads `LayoutDocument` (walls / corners / rooms), writes only
   `SceneDocument`.
-- Low-friction mode bridges: picking an asset in the catalogue drawer
-  auto-activates staging; hovering a scene entity in layout mode offers a
-  1-click "switch to staging" affordance.
+- Low-friction mode bridges: hovering a scene entity in layout mode offers a
+  1-click "switch to staging" affordance (→ staging + select the hovered
+  entity). Catalogue-driven staging auto-activation for *unplaced* assets is
+  deferred with 2D ghost placement (§B P2-E): in v1, staging applies to
+  existing placed Scene entities only.
 
 ## Room drag (B3) — locked policy
 
@@ -239,16 +387,18 @@ PlanViewMode
 
 - Imported footprints: derived-lazily is locked, but confirm no import-time
   persistence is wanted for offline/round-trip stability.
-- Staging selection priority vs layout content when footprints overlap
-  (still open — the approved spec does not resolve it).
-- Inspector surface in staging mode: reuse the scene inspector, or a
-  Plan-staging variant.
+- ~~Staging selection priority vs layout content when footprints overlap~~ —
+  **resolved by §B P2-C:** mode decides hit authority (Layout → layout wins;
+  Staging → scene footprint wins).
+- ~~Inspector surface in staging mode: reuse the scene inspector, or a
+  Plan-staging variant~~ — **resolved by §B P2-D:** reuse the canonical Scene
+  Inspector with a Plan-staging property surface.
 - Whether the faint layer-5.5 outlines need a toggle (drafting vs staging
   density).
 - **Scope boundary (locked for this slice):** C1 v1 is Path A visibility +
   staging *edit* only. 2D ghost *placement* of new furniture from Plan
   ("2D → Add a box, desk, table → ghost outline") is a follow-up slice, not
-  part of the approved execution spec.
+  part of the approved execution spec. (Reaffirmed by §B P2-E.)
 
 ## Non-goals
 

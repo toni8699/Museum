@@ -33,7 +33,7 @@ The tracker is authoritative when a plan doc's `**Status:**` drifts.
 | # | Plan | Status | Depends on | Doc |
 |---|------|--------|------------|-----|
 | — | Plan-system renewal + documentation rework (process row — created this tracker and the five-doc model) | shipped | H1 gate | archived → [2026-08-17-plan-system-renewal.md](archive/plans/2026-08-17-plan-system-renewal.md) |
-| P1 | Camera overhaul | in-progress — **P1.1–P1.3 shipped 2026-08-18** | renewal | [2026-08-18-P1-camera-overhaul.md](2026-08-18-P1-camera-overhaul.md) |
+| P1 | Camera overhaul | in-progress — **P1.1–P1.3 shipped 2026-08-18**; **P1.4 shipped 2026-08-19** | renewal | [2026-08-18-P1-camera-overhaul.md](2026-08-18-P1-camera-overhaul.md) |
 | P2 | Plan staging mode — 2D furnishing | approved | P1 | [2026-08-18-P2-plan-staging.md](2026-08-18-P2-plan-staging.md) |
 | P3 | UI overhaul — reconciliation/refresh pass over settled surfaces | approved | P1, P2 | [2026-08-18-P3-ui-overhaul.md](2026-08-18-P3-ui-overhaul.md) |
 | P4 | Client GLB import | proposed | renewal | [2026-08-18-P4-gltb-import.md](2026-08-18-P4-gltb-import.md) |
@@ -59,8 +59,10 @@ conformance mapping is **P1 §A.2** (target:
 
 **P1.3 shipped 2026-08-18** — archived →
 [2026-08-18-P1.3-envelope-sampler-guards.md](../archive/plans/2026-08-18-P1.3-envelope-sampler-guards.md).
-The engine track continues with **P1.4**; its implementation brief is the next
-artifact.
+**P1.4 shipped 2026-08-19** — archived →
+[2026-08-19-P1.4-envelope-invariants-policy.md](../archive/plans/2026-08-19-P1.4-envelope-invariants-policy.md).
+The engine track (P1.2–P1.4) is complete; the shell track continues with
+**P1.5**, which mounts into the P1.1 shell, then **P1.6** converges both tracks.
 
 ## Archived plans (2026-08-10 → 2026-08-18)
 

@@ -3,6 +3,9 @@
 **Status:** proposed canonical shell/workspace specification
 **Purpose:** codebase conformance review
 **Scope:** editor shell composition, workspace ownership, component visibility, interaction authority, persistence, and cross-workspace transitions.
+**Last amended:** 2026-08-19 — P2 Shell-A…Shell-J: Scene → Plan local authoring mode
+(Layout | Staging), mode-routed toolbar/Inspector/hit-testing, staging footprint
+states, Scene selection continuity, room-drag rule.
 
 This specification complements the visual UI specification.
 
@@ -34,12 +37,12 @@ The editor has two independent axes:
 
 This produces four canonical workspaces:
 
-| Workspace     | Primary job                 |
-| ------------- | --------------------------- |
-| Scene → Plan  | Build space                 |
-| Scene → 3D    | Place and manipulate things |
-| Camera → Plan | Route cameras               |
-| Camera → 3D   | Frame camera movement       |
+| Workspace     | Primary job                                          |
+| ------------- | ---------------------------------------------------- |
+| Scene → Plan  | Author the museum spatially in 2D (Layout \| Staging) |
+| Scene → 3D    | Place and manipulate things                          |
+| Camera → Plan | Route cameras                                        |
+| Camera → 3D   | Frame camera movement                                |
 
 These are not four unrelated applications.
 
@@ -60,6 +63,43 @@ and
 remain separate controls.
 
 `Plan | 3D` order never reverses between domains.
+
+## Workspace-local authoring mode
+
+Beneath the domain × view axes, a workspace may define a **local authoring
+mode** that controls what kind of content the current workspace is
+authoring. This is third-level routing:
+
+```text
+Domain
+  ↓
+View
+  ↓
+Local authoring mode, where applicable
+```
+
+Today only **Scene → Plan** requires such a local mode:
+
+```text
+Scene
+├─ Plan
+│  ├─ Layout   → edit architecture
+│  └─ Staging  → arrange existing scene objects in 2D
+└─ 3D          → fully author scene objects in 3D
+
+Camera
+├─ Plan        → author camera position/topology
+└─ 3D          → author camera movement/framing
+```
+
+Rules:
+
+* `layout | staging` controls what kind of Scene content Plan is currently
+  authoring.
+* It sits **below** `Scene → Plan`. Staging is not a fifth workspace.
+* Staging MUST NOT appear beside `Scene | Camera` or `Plan | 3D`.
+* The mode is Scene Plan-local: switching to Camera Plan never carries
+  Staging into Camera.
 
 ---
 
@@ -273,13 +313,38 @@ A camera's Y position may exist in the data model while Camera Plan is active, b
 
 ## Purpose
 
-Architectural/layout authoring.
+Scene Plan = **author the museum spatially in 2D.**
 
 Primary question:
 
-> Where is the museum structure?
+> Where is the museum structure, and how are existing scene objects arranged?
 
-## Viewport MUST show
+It contains two authoring intents, selected by a workspace-local mode:
+
+* **Layout mode** — build and edit architectural space.
+* **Staging mode** — arrange existing scene furniture and scene objects
+  spatially in Plan.
+
+Scene Plan therefore no longer means architecture exclusively.
+
+## Local authoring mode
+
+`layout | staging` is a Scene → Plan-local authoring mode beneath the
+domain × view axes (§1 Workspace-local authoring mode).
+
+The mode control lives in the **Scene Plan contextual toolbar region**,
+never the global domain/view switchers. Active mode must be visually
+obvious — not hidden in hover behavior or inferred from selection. The
+user must be able to answer immediately:
+
+> Am I editing architecture or furniture?
+
+Presentation is open: segmented control, compact mode selector, tool-group
+switch, or equivalent editor-pattern control.
+
+## Layout mode
+
+### Viewport MUST show
 
 * architectural floor plan
 * walls
@@ -290,7 +355,8 @@ Primary question:
 * architectural annotations
 * grid
 * room labels
-* furniture/environment context where useful
+* scene furniture/environment context where useful — as **passive
+  footprints**
 * snap guides when active
 * current selection
 * editing handles appropriate to selected architecture
@@ -299,7 +365,7 @@ Plan is an actual spatial representation of museum geometry.
 
 It is not a schematic diagram.
 
-## Viewport MUST allow editing of
+### Viewport MUST allow editing of
 
 * rooms
 * walls
@@ -308,7 +374,43 @@ It is not a schematic diagram.
 * openings
 * architectural dimensions/geometry
 
-## Context toolbar
+### Scene footprints in Layout
+
+Scene furniture and primitive footprints render as faint dashed layer-5.5
+outlines — passive spatial context:
+
+* visible
+* hover-aware only where the mode bridge requires it
+* **not selected**
+* **not mutated**
+
+Passive footprint projection must not itself activate Scene editing.
+
+### Room drag behavior
+
+Room drag relocates the room and its owned layout objects only
+(`transformLayoutRoomUnit` semantics). Scene furniture keeps its world
+X/Z — staged furniture is never implicitly collected into a room move.
+
+If furniture ends up outside valid room/placement geometry, the existing
+warning system surfaces the issue; the operation must not silently
+relocate furniture. The editor must not imply compound room + furniture
+movement exists.
+
+### Bridge to Staging
+
+Hovering a scene footprint in Layout mode exposes an **Edit in Staging**
+affordance:
+
+```text
+Edit in Staging
+→ activate staging
+→ select hovered entity
+```
+
+The bridge-hover footprint must not look already selected.
+
+### Context toolbar
 
 Canonical capabilities:
 
@@ -342,13 +444,20 @@ Lights
 Cameras
 ```
 
+Hierarchy represents both architecture and placed Scene content as normal
+project structure. No dedicated staging sidebar; objects must not be
+duplicated into a separate "Staging Objects" hierarchy.
+
 ## Inspector
 
-Architecture-oriented Inspector.
+One conceptual right-side Inspector; routing follows the selected entity
+and active Plan mode.
+
+### Layout mode — architecture-oriented
 
 Examples:
 
-### Wall
+#### Wall
 
 ```text
 Geometry
@@ -365,6 +474,149 @@ Constraints
 Material
 ```
 
+### Staging mode — Plan-staging surface
+
+Scene object Inspector adapted for Plan authority:
+
+```text
+Identity
+  Name
+  Asset / Type
+
+Plan Transform
+  X
+  Z
+  Yaw
+
+Elevation Y — preserved 3D state
+  1.20 m
+  Edited in 3D
+
+Scale — affects footprint projection
+  No Plan scaling gesture in P2 v1
+
+Contextual Commands
+  Delete
+  Focus / Reveal
+```
+
+Y/elevation must not be mutated by 2D drag; show it as preserved 3D state
+rather than silently hiding the value. Current scale stays visible and the
+projection respects it, but Plan staging must not imply scale manipulation
+that does not exist in P2 v1.
+
+## Staging mode
+
+### Purpose
+
+Arrange existing scene furniture and scene objects spatially in Plan.
+Architecture remains spatial context.
+
+### Viewport MUST show
+
+* the architectural Plan surface (rooms, walls, openings, grid, snap
+  guides) as read-only spatial context
+* scale-aware scene footprints (active vs selected states, §29)
+* current staging selection with rotation handle
+* view controls
+
+### Viewport MUST allow
+
+* selection of supported scene entities (furniture/models, primitives)
+* X/Z translation via direct drag
+* yaw rotation via the footprint rotate handle — pivot at footprint
+  center, continuous yaw, positive-Y semantics, Shift = 15° snap
+* delete (Delete/Backspace)
+* Inspector numeric yaw — semantically identical to handle rotation
+
+### Plan transform authority
+
+Staging edits only:
+
+```text
+position X
+position Z
+rotation yaw
+```
+
+Staging preserves exactly:
+
+```text
+position Y (elevation)
+pitch
+roll
+other 3D-only transform state
+```
+
+Plan edits horizontal placement; vertical authored state survives (the
+same principle as Camera Plan §9). Staging must not normalize, floor-snap,
+or otherwise change Y simply because a furniture object is moved in Plan.
+
+Example:
+
+```text
+lamp elevation = 1.1 m
+
+drag lamp footprint in Staging
+→ X changes
+→ Z changes
+→ Y stays 1.1 m
+```
+
+### Hit-testing authority
+
+Mode decides pointer authority:
+
+```text
+Layout mode:
+layout hit target wins
+
+Staging mode:
+staging footprint hit target wins
+```
+
+This resolves interaction ambiguity when furniture overlaps walls, rooms,
+or other layout content. In Staging, architecture:
+
+* remains visible
+* remains useful for snapping and geometric placement calculations
+* does not become selected through ordinary staging interaction
+* does not accept mutations
+
+### Snapping contract
+
+Staging may **read** `LayoutDocument` spatial information (room boundaries,
+walls, corners, other valid snap references) but **writes only**
+`SceneDocument`. Snapping must never convert a staging gesture into a
+layout mutation.
+
+### Context toolbar
+
+The toolbar routes by local mode. Staging does not require a large
+permanent toolset in P2 v1; at minimum the shell exposes an unmistakable
+Staging state plus the existing interaction model:
+
+```text
+Select / drag
+contextual rotation handle
+Delete / Backspace
+Inspector numeric yaw
+View controls
+```
+
+Do not invent permanent Move/Rotate tools unless later UX testing requires
+them — movement stays direct manipulation; rotation stays the footprint
+rotation-handle interaction. Architecture tools must not remain
+misleadingly active while Staging owns pointer authority.
+
+### Asset Library
+
+The Asset Library remains available in Scene → Plan, but selecting an
+**unplaced** catalogue asset does not enter a Plan placement gesture in
+P2 v1 — staging applies to existing placed Scene entities only. 2D
+placement and its staging auto-activation belong to the follow-up
+ghost-placement slice.
+
 ## MUST NOT expose
 
 * Camera timeline
@@ -375,8 +627,10 @@ Material
 * Camera framing targets
 * camera frustums as framing-authoring controls
 * Camera envelope controls
+* (Staging) Camera nodes, camera graph, guided sequence, or Camera Plan's
+  selection domain
 
-Scene Plan is architecture authoring, not camera authoring.
+Scene Plan is 2D scene authoring, not camera authoring.
 
 ---
 
@@ -606,6 +860,7 @@ Clicking a wall must not enter Scene wall-editing mode.
 * camera connections
 * selected node/connection
 * path anchors when relevant
+* timing labels on connection edges when authored
 * relevant placement/snapping feedback
 
 Guided camera example:
@@ -646,6 +901,37 @@ means:
 It does NOT mean:
 
 > playback goes from A to B next.
+
+---
+
+## Timing authoring
+
+**Product choice: connection duration is authored on the plan edge.**
+
+The plan edge is the authoring locus for a move's timing:
+
+* selecting a connection exposes its per-direction timing in the Inspector
+* duration is authored in seconds
+* derived speed is shown as a readout: `speed = path length ÷ duration`
+* the connection edge renders a timing label with the authored duration
+
+Per-direction rule — the edge itself stays undirected, but each direction of
+one connection carries its own duration:
+
+```text
+Camera A — Camera B
+duration A→B: 4.2 s
+duration B→A: 3.5 s
+```
+
+Rules:
+
+* bending the path (adding/moving interior anchors) recomputes path length;
+  the authored duration is preserved and derived speed updates automatically
+  (`speed = length / time`)
+* an un-authored direction falls back to the formula-derived duration from
+  path length (the engine default), and the label shows the derived value
+* timing is Camera-domain data; Scene workspaces never expose it
 
 ---
 
@@ -735,6 +1021,7 @@ May expose:
 * path information
 * validation state
 * contextual path operations
+* per-direction duration/timing (§ Timing authoring)
 * deletion where valid
 
 ### Path anchor
@@ -823,6 +1110,8 @@ Camera 3D owns:
 * framing breakpoints
 * framing envelope
 * relevant roll authoring
+* connection timing (duration) — the same per-direction field authored in
+  Camera Plan (§9 Timing authoring); Plan and 3D edit one value, not two
 
 ---
 
@@ -1097,22 +1386,27 @@ Toolbar should be selected from current workspace.
 
 Canonical routing:
 
-| Capability     |              Scene Plan | Scene 3D | Camera Plan |  Camera 3D |
-| -------------- | ----------------------: | -------: | ----------: | ---------: |
-| Select         |                       ✓ |        ✓ |           ✓ |          ✓ |
-| Wall/Room/etc. |                       ✓ |        — |           — |          — |
-| Measure        |                       ✓ |        — |           — |          — |
-| Move           |              contextual |        ✓ |        drag |          ✓ |
-| Rotate         | contextual architecture |        ✓ |           — |          ✓ |
-| Scale          | contextual architecture |        ✓ |           — |          — |
-| Add Asset      |                       — |        ✓ |           — |          — |
-| Add Camera     |                       — |        — |           ✓ |          ✓ |
-| Connect        |                       — |        — |           ✓ | contextual |
-| Path editing   |                       — |        — |  contextual |          ✓ |
-| Frame          |                       — |        — |           — |          ✓ |
-| View controls  |                       ✓ |        ✓ |           ✓ |          ✓ |
+| Capability          | Scene Plan — Layout | Scene Plan — Staging | Scene 3D | Camera Plan | Camera 3D |
+| ------------------- | ------------------: | -------------------: | -------: | ----------: | --------: |
+| Select              |                   ✓ |                    ✓ |        ✓ |           ✓ |         ✓ |
+| Wall/Room/etc.      |                   ✓ |                    — |        — |           — |         — |
+| Measure             |                   ✓ |                    — |        — |           — |         — |
+| Move                |          contextual |                 drag |        ✓ |        drag |         ✓ |
+| Rotate              | contextual architecture |       rotate handle |        ✓ |           — |         ✓ |
+| Scale               | contextual architecture |                    — |        ✓ |           — |         — |
+| Add Asset           |                   — |   no 2D placement |        ✓ |           — |         — |
+| Add Camera          |                   — |                    — |        — |           ✓ |         ✓ |
+| Connect             |                   — |                    — |        — |           ✓ | contextual |
+| Path editing        |                   — |                    — |        — |  contextual |         ✓ |
+| Frame               |                   — |                    — |        — |           — |         ✓ |
+| View controls       |                   ✓ |                    ✓ |        ✓ |           ✓ |         ✓ |
 
 Toolbar should expose workspace intent rather than every operation the underlying data model technically supports.
+
+In Scene Plan, the toolbar routes by **local mode**. In Staging, movement is
+direct manipulation (no permanent Move tool) and rotation is the footprint
+rotation-handle interaction; architecture tools must not remain misleadingly
+active while Staging owns pointer authority.
 
 ---
 
@@ -1193,6 +1487,8 @@ Useful editor state should survive workspace switching during session.
 ### SHOULD preserve globally where practical
 
 * active view per domain
+* active local authoring mode per workspace (e.g. Scene Plan `layout | staging`,
+  remembered for the session and never carried into Camera Plan)
 * relevant panel expansion state
 * selected entity
 * viewport preferences
@@ -1283,27 +1579,32 @@ Legend:
 * **C** = contextual
 * **—** = absent
 
-| Feature            |          Scene Plan |             Scene 3D |    Camera Plan | Camera 3D |
-| ------------------ | ------------------: | -------------------: | -------------: | --------: |
-| Architecture       |                   E | V/E where applicable |              V |         V |
-| Scene objects      |                   V |                    E |              V |         V |
-| Asset Library      |                 E/C |                    E |              — |         — |
-| Scene Hierarchy    |                   E |                    E |              — |         — |
-| Camera Sidebar     |                   — |                    — |              E |         E |
-| Camera nodes       | V/project structure |  V/project structure |              E |         E |
-| Sequence order     |                   — |                    — |              E |         E |
-| Connections        |                   — |                    — |              E |         E |
-| Camera X/Z         |                   — |                    — |              E |         E |
-| Camera Y           |                   — |                    — | preserved only |         E |
-| Path anchor X/Z    |                   — |                    — |              E |         E |
-| Path anchor Y      |                   — |                    — | preserved only |         E |
-| Camera orientation |                   — |                    — |              — |         E |
-| Look target        |                   — |                    — |              — |         E |
-| FOV authoring      |                   — |                    — |              — |         E |
-| Framing envelope   |                   — |                    — |              — |       E/C |
-| Camera Timeline    |                   — |                    — |              E |         E |
-| Scene Inspector    |                   E |                    E |              — |         — |
-| Camera Inspector   |                   — |                    — |              E |         E |
+| Feature            | Scene Plan — Layout | Scene Plan — Staging | Scene 3D | Camera Plan | Camera 3D |
+| ------------------ | ------------------: | -------------------: | -------: | ----------: | --------: |
+| Architecture       |                   E |                    V | V/E where applicable |              V |         V |
+| Scene objects      |                   V |                    E |                      E |              V |         V |
+| Scene object Y     |                   — |         preserved only |                      E |              — |         — |
+| Scene object scale |                   — |   V — projection only |                      E |              — |         — |
+| Scene full rotation |                  — |                    — |                      E |              — |         — |
+| Add scene asset    | existing workflows only | no 2D placement in P2 v1 |     E |              — |         — |
+| Asset Library      |                 E/C |                 E/C  |                      E |              — |         — |
+| Scene Hierarchy    |                   E |                    E |                      E |              — |         — |
+| Camera Sidebar     |                   — |                    — |                      — |              E |         E |
+| Camera nodes       | V/project structure |  V/project structure |       V/project structure |              E |         E |
+| Sequence order     |                   — |                    — |                      — |              E |         E |
+| Connections        |                   — |                    — |                      — |              E |         E |
+| Camera X/Z         |                   — |                    — |                      — |              E |         E |
+| Camera Y           |                   — |                    — |                      — | preserved only |         E |
+| Path anchor X/Z    |                   — |                    — |                      — |              E |         E |
+| Path anchor Y      |                   — |                    — |                      — | preserved only |         E |
+| Camera orientation |                   — |                    — |                      — |              — |         E |
+| Look target        |                   — |                    — |                      — |              — |         E |
+| FOV authoring      |                   — |                    — |                      — |              — |         E |
+| Framing envelope   |                   — |                    — |                      — |              — |       E/C |
+| Connection timing  |                   — |                    — |                      — |              E |         E |
+| Camera Timeline    |                   — |                    — |                      — |              E |         E |
+| Scene Inspector    |                   E |     E — staging surface |                      E |              — |         — |
+| Camera Inspector   |                   — |                    — |                      — |              E |         E |
 
 ---
 
@@ -1314,6 +1615,24 @@ The following should be considered codebase violations:
 **Scene Plan**
 
 Camera timeline appears.
+
+**Scene Plan — Layout**
+
+A passive scene footprint activates Scene editing.
+
+**Scene Plan — Staging**
+
+Architecture becomes selected or mutated through ordinary staging interaction.
+
+**Scene Plan — Staging**
+
+A staging gesture commits a layout history entry, a hidden architecture
+mutation, or more than one tagged `scene` entry.
+
+**Scene Plan — Staging**
+
+Camera nodes, camera graph, guided sequence, or Camera Plan's selection
+domain become editable.
 
 **Scene 3D**
 
@@ -1443,6 +1762,39 @@ Verify switching does not unnecessarily reset:
 
 Verify each continuous user gesture results in one logical undo action.
 
+### M. Scene Plan local mode
+
+Verify `layout | staging` is Scene Plan-local, routes toolbar/Inspector/
+hit-testing by mode, and does not alter global domain/view semantics or
+carry into Camera Plan.
+
+### N. Staging hit-test authority
+
+Verify Layout and Staging do not compete for normal click selection, and
+that passive footprint projection never activates Scene editing in Layout
+mode.
+
+### O. Staging footprint states
+
+Verify the four staging footprint states render distinctly (passive,
+bridge-hover, active staging, selected + rotate handle) and that the
+rotate handle follows the pivot/Shift-snap contract.
+
+### P. Scene selection continuity
+
+Verify Scene Plan ↔ Scene 3D creates no duplicate Scene selection state,
+and that returning from Staging to Layout makes the Scene selection
+inactive/passive without destroying identity.
+
+### Q. Mutation and history tagging
+
+Verify staging operations change only X/Z/yaw, preserve Y exactly, and
+commit exactly one tagged `scene` history entry per completed gesture.
+
+### R. Room drag isolation
+
+Verify layout room motion never silently moves Scene furniture.
+
 ---
 
 # 25. Recommended Shell State Model for Review
@@ -1457,6 +1809,7 @@ EditorShell
 │   └── Camera
 ├── View State
 │   ├── Scene: Plan | 3D
+│   │   └── Scene Plan mode: layout | staging
 │   └── Camera: Plan | 3D
 ├── Selection
 ├── History
@@ -1472,6 +1825,10 @@ EditorShell
 The important design point is ownership.
 
 Workspace-specific state should live high enough that changing representation does not accidentally destroy it.
+
+Scene Plan's `layout | staging` mode is workspace-local state: scoped to
+Scene → Plan, remembered for the editor session, and never carried into
+Camera Plan.
 
 ---
 
@@ -1546,6 +1903,21 @@ drag camera across room
 → Y remains 1.7m
 ```
 
+### Timing authoring
+
+```text
+Camera Plan
+select connection A—B
+set duration 4.2 s
+→ edge label shows 4.2 s
+→ playback uses 4.2 s for that direction
+
+bend the path
+→ length changes
+→ duration stays 4.2 s
+→ derived speed readout updates
+```
+
 ### Topology truth
 
 ```text
@@ -1605,3 +1977,160 @@ What state will follow me when I switch views?
 ```
 
 That contract should guide both UI implementation and future codebase reviews.
+
+---
+
+# 28. Selection Authority vs Workspace Identity
+
+The shell separates two concepts that must not be conflated:
+
+1. **active workspace** — which workspace is mounted
+2. **active document / selection authority** — which document layer accepts
+   selection and mutation
+
+In Scene → Plan the local mode determines the selection authority:
+
+```text
+Layout mode
+Workspace:          Scene → Plan
+Selection authority: LayoutDocument
+
+Staging mode
+Workspace:          Scene → Plan
+Selection authority: SceneDocument
+```
+
+This is intentional, not domain leakage. The user remains in the Scene
+domain throughout; the mode selects which Scene-owned document layer
+currently accepts selection and mutation.
+
+Hierarchy selection follows the same mode authority:
+
+* **Layout mode** — selecting a wall/room in Hierarchy activates normal
+  layout selection.
+* **Staging mode** — selecting a supported placed scene entity activates
+  Scene selection and shows its footprint.
+
+---
+
+# 29. Scene Plan Staging — Footprint Rendering States
+
+The shell/visual spec defines four staging footprint states.
+
+### Passive footprint (Layout mode)
+
+* faint, dashed
+* low visual priority
+* no selection handles
+* never activates Scene selection
+
+### Bridge-hover footprint (Layout mode only)
+
+* slightly stronger emphasis
+* one-click **Edit in Staging** affordance
+* must not look already selected
+
+### Active staging footprint (Staging mode, not selected)
+
+* clearly available for interaction
+* still subordinate to architectural Plan readability
+
+### Selected staging footprint (Staging mode)
+
+* clear selection outline using the editor's standard primary interaction
+  accent
+* handles appropriate to supported operations
+* rotation handle (pivot at footprint center)
+* drag affordance
+* Inspector synchronized
+
+### Rotation interaction
+
+* rotation arm/handle on the selected footprint
+* pivot at footprint center
+* continuous yaw, positive-Y rotation semantics
+* Shift = 15° snap
+* direct-manipulation control, not necessarily a permanent toolbar mode
+* Inspector numeric yaw is semantically identical to handle rotation
+
+### Footprint content rules (P2 v1)
+
+* catalogue models — authored asset footprint metadata
+* imported project models — derived/session-cached footprint
+* primitives — footprint derived from dimensions
+* lights — no interactive footprint
+* camera/tour content — not part of Plan staging
+
+Footprint representation includes translation → yaw → scale (uniform +
+`scaleVector`), matching the 3D world transform; a model scaled 2× in
+Scene 3D shows a corresponding 2× Plan footprint.
+
+---
+
+# 30. Scene Selection Continuity
+
+The Scene domain has one shared selection model — the same entity identity
+across Plan and 3D. This is a hard invariant, mirroring §13 (Camera).
+
+```text
+Scene Plan → Staging
+select Chair 01
+
+→ Scene 3D
+
+Chair 01 remains selected
+```
+
+```text
+Scene 3D
+select Chair 01
+
+→ Scene Plan
+
+Scene Plan returns in Staging → Chair 01 remains selected.
+Scene Plan returns in Layout → the chair may remain the logical Scene
+selection internally, but must not expose staging handles or override
+layout editing authority.
+```
+
+Switching modes must never create duplicate identity.
+
+### Staging → Layout
+
+```text
+Staging
+Chair selected
+
+→ Layout
+
+Scene selection remains remembered but becomes inactive/passive in Plan
+layout selection authority becomes active
+footprint loses staging handles
+returning to Staging restores the selected Scene entity where practical
+```
+
+This avoids destructive selection resets while preserving mode authority.
+
+---
+
+# 31. Mode Persistence
+
+`layout | staging` is remembered while the user remains in the editor
+session:
+
+```text
+Scene Plan
+Staging active
+
+→ Scene 3D
+→ back to Scene Plan
+
+Staging active again
+```
+
+Rules:
+
+* the mode is associated with **Scene Plan**, not global
+* switching to Camera Plan must not carry Staging into Camera
+* entering or leaving Staging creates no document mutation and does not
+  change the selected entity

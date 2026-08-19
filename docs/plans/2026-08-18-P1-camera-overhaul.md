@@ -7,7 +7,24 @@
 - §A — successor shell ratification (the P1.1 gate)
 - §B — framing envelope, adopted model
 - §C — camera graph workspace, design summary
-- §D — sectioning and sequencing, strategy
+- §D — sectioning and sequencing, strategy (compressed: provenance + live decisions)
+
+**Review amendment pass (2026-08-18):** the P1 doc review's seven findings
+(F1–F7) are folded below:
+
+1. **F1 — FOV copy fix split:** specs/docs wording → P1.2, UI wording → P1.6
+   (§B §7; §D §6.4).
+2. **F2 — §D compressed** to provenance + live decisions; its S10.3-era build
+   specs and phase table replaced by pointers.
+3. **F3 — clone-survival test** added to P1.2 through `helpers/route-clone` +
+   the preview controller (consumer seams in §D §3 A0).
+4. **F4 — P1.5's B0 dependency made explicit** (P1.5 row).
+5. **F5 — B2's timing-labels row gated** behind an explicit product decision
+   (§D finding 3 + §D §4 B2 bullet).
+6. **F6 — playback-unchanged pin** (golden-sample over a legacy route) added
+   to the DoD.
+7. **F7 — relic guard named** (`tests/lib/editor/h1/contracts.test.ts`) in the
+   DoD.
 
 ## Outcome
 
@@ -24,11 +41,11 @@ by the ratified shell contract (§A).
 | ID | Content | Source | Depends |
 |---|---|---|---|
 | **P1.1** | Successor domain×view shell + shell contract; **gate = shell-inversion ratification (§A)** | §A | — |
-| **P1.2** | `framingEnvelope` serialization + ordering validation + `resolveSceneDocument` threading (+ runtime types) | §B, §D | — |
+| **P1.2** | `framingEnvelope` serialization + ordering validation + `resolveSceneDocument` threading (+ runtime types) + **FOV copy fix, specs/docs wording (F1)** + **clone-survival test through `helpers/route-clone` + preview controller (F3)** | §B, §D | — |
 | **P1.3** | Envelope sampler blend `w(p)` in `sampleCameraMotion` | §B, §D | P1.2 |
 | **P1.4** | Envelope invariant + auto-managed/manual policy tests | §B, §D | P1.2, P1.3 |
-| **P1.5** | Camera Plan surface + backdrop/visual-rule assertions | §C | P1.1 |
-| **P1.6** | Framing authoring UX + FOV copy fix | §B | P1.2–P1.4, P1.1 |
+| **P1.5** | Camera Plan surface + backdrop/visual-rule assertions (B0 Add-camera mutator already shipped in S10.1 closeout, `674d597`; **F4**) | §C | P1.1 |
+| **P1.6** | Framing authoring UX + FOV copy fix (**UI wording; spec/docs copy lands in P1.2**) | §B | P1.2–P1.4, P1.1 |
 | **P1.7** | Camera UI reconciliation pass (light — not the P3 overhaul) | — | P1.5, P1.6 |
 
 ## Sequencing
@@ -61,6 +78,10 @@ converges both tracks. **P1.7** last.
 ## Definition of done (P1 close)
 
 - All increments shipped; full suite green, `svelte-check` 0, build clean.
+- **Existing content playback numerically unchanged** — A1's golden-sample pin
+  over a legacy route (F6; the visitor-visible change guard).
+- **Relic guard named (F7):** `tests/lib/editor/h1/contracts.test.ts` — H1 S0
+  relic-isolation + H1 S1 route-wiring smoke proxy — stays green.
 - P1.7 reconciliation done (interim presentation; the P3 pass is separate).
 - Tracker marks **P1 shipped**; this umbrella moves to archive with a stub.
 
@@ -96,6 +117,14 @@ scoped change to `deriveActiveSelection`, not to the selection slots.
 `Scene → 3D` is not part of this umbrella. Boot stays `Scene → Plan`; the
 domain axis defaults to `scene`, the scene view to `plan`, the camera view to
 `3d`. Changeable later with no architecture impact.
+
+---
+
+## Design reference (read on demand)
+
+The sections below are the folded design sources. **Read only the section your
+increment maps to — not the whole file:** P1.2–P1.4 → **§B** · P1.5 → **§C** ·
+strategy and provenance → **§D**. The live plan is the front matter + §A above.
 
 ---
 
@@ -616,84 +645,66 @@ after this amendment pass.
 
 ---
 
-## D — Sectioning and sequencing: strategy (folded source, 2026-08-18)
+## D — Sectioning and sequencing: strategy (historical record, compressed)
 
-## H1 camera follow-up — sectioning proposal: framing envelope + Camera Plan
+> **Read-on-demand / provenance.** §D is the original 2026-08-18 sectioning
+> strategy — the record of *why* P1 is sequenced as it is. Its increment-level
+> build specs (A0–A3, B0–B3) and the S10.3-era phase table were compressed
+> away; the live increments are the **front-matter table**, and the full specs
+> are **§B** (engine track) and **§C** (shell track). Mapping to the current
+> tracker: B1 = **P1.1**, B2 (+B3) = **P1.5**, A0 = **P1.2**, A1 = **P1.3**, A2 =
+> **P1.4**, A3 = **P1.6**, polish = **P1.7**. **B0 (standalone placement) and the
+> Aim closeout shipped** in S10.1 closeout (`674d597`); the shell-inversion gate
+> is **P1.1** (§A).
+> **Sources reviewed:** §B (adopted model) ·
+> [`2026-08-18-camera-framing-design-review.md`](../archive/plans/pre-h1-letters/2026-08-18-camera-framing-design-review.md) ·
+> §C (workspace design). Status as written: proposal; the accepted-amendment
+> notes (B-track before A3, B1 shell contract, B2 filtered overlay profile +
+> single-render-model invariant) are reflected in §A/§B/§C.
 
-**Status:** proposal — sectioning/sequencing recommendation, not an implementation
-plan. **Date:** 2026-08-18. **Revised 2026-08-18 (accepted amendments):** closeout
-expanded to both remaining S10.1 deltas (B0 + Aim, settled); B-track (B1/B2)
-sequenced before A3 with the framing engine (A0–A2) run in parallel; B1 gains an
-explicit shell contract + superseded-invariant list; B2 gains a filtered overlay
-profile + single-render-model invariant. **Sequencing agreed 2026-08-18:** the
-redesign is H1 umbrella-step-10 slice **S10.3** (the final H1 slice); H1 closes
-after it; the plan-system renewal runs after H1 sign-off; S11 stays reserved
-for import/export.
-**Sources reviewed:**
-§B (adopted model) ·
-[`2026-08-18-camera-framing-design-review.md`](../archive/plans/pre-h1-letters/2026-08-18-camera-framing-design-review.md) ·
-§C (workspace design).
-**Against current state:** the working tree as of 2026-08-18 — S10 + S10.2
-committed; S10.1.0–S10.1.7 committed as `9684ec3 "S10.1 first round"` (1671
-tests green, svelte-check 0, build clean). Two closeout items remain: **B0
-standalone placement** and the **view-breakpoint Aim decision** (both specified
-below).
+## 1. Strategy (kept)
 
-## 1. TL;DR
-
-The three docs contain **two independent workstreams**, not one:
+Two independent workstreams, not one:
 
 - **Workstream A — framing envelope (adopted model C′).** A data-model +
-  sampler + authoring-UX feature that composes inside the Camera → 3D
-  workspace. It changes `project.scene` serialization and the shared motion
-  engine, so it is visitor-visible; the UI half mounts into the **final**
-  Camera → 3D workspace after the B1 shell rework (revised sequencing, §5).
+  sampler + authoring-UX feature composing inside Camera → 3D. Visitor-visible
+  (changes `project.scene` serialization + the shared motion engine); the UI
+  half mounts into the **final** Camera → 3D workspace after the shell rework.
 - **Workstream B — Camera Plan + domain×view shell.** A **successor shell
-  rework**, not an S10.1 increment. The workspace design's domain×view
-  matrix (`Scene | Camera` primary, each owning `Plan | 3D`) **inverts S10.1
-  invariant 1** (primary `Plan | 3D`, secondary `Scene | Camera` mounted only
-  in 3D). Folding it into the in-flight S10.1 would re-open the shell S10.1
-  just built; it should sequence after S10.1 sign-off as its own slice.
+  rework**, not an S10.1 increment — the domain×view matrix inverts the prior
+  primary `Plan | 3D` shell. It must sequence as its own slice, never amend
+  in-flight S10.1 work.
 
-Six current-state findings drive the sectioning:
+Current-state findings that drove the sectioning (kept for the record):
 
-1. **The adopted model's "verified against shipped code" appendix holds.**
-   `hasAuthoredKeyframes` gates `sampleAuthoredView` in
-   `apps/museum/src/lib/museum/navigation/camera-motion.ts`; auto baseline
-   endpoints are node poses in `buildLookAheadTargets`
-   (`camera-route.ts`), with `travelFacingEnds` only for reversed edges with
-   no reverse keys. The envelope can be built on the existing seams as
-   specified — no model drift to fix first.
-2. **The two open S10.1.3 items are both small and model-agnostic.** (a)
-   Standalone placement ("place → done, connect later") requires a
-   "create free node, commit standalone" path; the workspace-design doc's §4.3
-   "create free node, commit standalone" row is that exact mutator — land it
-   **once** in closeout (B0 below) and both surfaces consume it. (b) The
-   view-breakpoint Aim decision is settled in closeout as an inspector-based
-   yaw/pitch control (pure `editor-camera-view` math, one undo entry) — it
-   closes the last S10.1.3 behavioral delta and removes A3's hidden dependency.
-3. **Plan already renders camera content top-down — but Camera Plan must not
-   enable all of it.** `plan-camera-projection.ts` projects paths, view cones,
-   look targets, portal crossings, and timing labels onto the plan plane
-   (layers 6–9 of `PlanRenderModel`), gated behind the Plan Tour toggle. Camera
-   Plan reuses **one render model** (no second copy of layout geometry) as a
-   read-only backdrop plus a **filtered camera overlay** — nodes, connection
-   curves, path anchors, selected state, sequence/free-node state; **no** cones,
-   look targets, breakpoints, or envelope UI (the B2 overlay profile below). It
-   is not a new renderer or a new graph store, and it is not "the existing Plan
-   Tour layer made editable" — framing content stays Camera → 3D-only (§4.4).
-4. **The connection-deletion invariant (workspace-design doc §5.5) is already shipped.**
-   S10.2's `validateConnectionDeletion` refuses flow-required edges, detour
-   return edges, and graph-disconnecting deletions atomically. §5.5 needs no
-   new work — only the Camera Plan UI must not offer a bypass.
-5. **The matrix rework touches freshly landed S10.1 files.** `H1EditorApp`,
-   `H1AppBar`, `EditorViewState` (needs a domain axis), and both switchers —
-   the workspace-design doc's own §5.7 admits "several S10.1 plan assumptions." This is
-   why it must be a successor slice, not an amendment to the in-flight one.
-6. **Both workstreams are camera-authoring scope.** They should be
-   classified as follow-on slices so they sequence **before** the plan-system
-   renewal gate (per the handoff, renewal executes before any later work may
-   start).
+1. **The adopted model's shipped-code seams hold** — `hasAuthoredKeyframes`
+   gates `sampleAuthoredView` (`camera-motion.ts`); auto baseline endpoints are
+   node poses in `buildLookAheadTargets` (`camera-route.ts`); `travelFacingEnds`
+   only for reversed edges with no reverse keys. The envelope builds on the
+   existing seams — no model drift to fix first.
+2. **B0 + Aim were the two S10.1.3 closeout deltas** — both small and
+   model-agnostic, both landed once in closeout and consumed by both surfaces:
+   B0 = "create free node, commit standalone" mutator; Aim = **inspector-based
+   yaw/pitch** (look-target only, fixed-radius orbit, one history entry,
+   room-local commit path, translate-only gizmo — shipped in `674d597`).
+3. **Plan already renders camera content top-down, but Camera Plan must not
+   enable all of it** — `plan-camera-projection.ts` projects paths, cones, look
+   targets, portal crossings, timing labels (layers 6–9 of `PlanRenderModel`)
+   behind the Plan Tour toggle. Camera Plan reuses **one render model** plus a
+   **filtered overlay profile** — nodes, connection curves, path anchors,
+   selected state, sequence/free-node state; **no** cones, look targets,
+   breakpoints, envelope UI; **timing labels excluded — adding them requires an
+   explicit product decision (F5)**. It is not "the Plan Tour layer made
+   editable."
+4. **The connection-deletion invariant is already shipped** (S10.2
+   `validateConnectionDeletion` refuses flow-required edges, detour returns,
+   and graph-disconnecting deletions atomically) — Camera Plan must not offer a
+   bypass.
+5. **The matrix rework touches freshly landed S10.1 files** — `H1EditorApp`,
+   `H1AppBar`, `EditorViewState` (gains a domain axis), both switchers. This is
+   why it is a successor slice, not an amendment to in-flight work.
+6. (Historical) Both workstreams were classified as camera-authoring scope
+   before the renewal gate; that classification is now the P1 tracker row.
 
 ## 2. Doc-by-doc review against current state
 
@@ -703,296 +714,95 @@ Six current-state findings drive the sectioning:
 | Framing adopted model (C′) | **Adopted spec** | Two stable layers exist separately: auto baseline (`buildLookAheadTargets` + node-FOV lerp) and authored track (`sampleAuthoredView`); breakpoints strictly interior; per-direction `viewTracks` | The **blend**: `framingEnvelope` field, `w(p) = enterRamp × exitRamp` in `sampleCameraMotion`, auto-create/auto-managed envelope policy, envelope band UI, "Full authored transition" command, FOV copy fix |
 | Camera graph workspace | Design summary, reviewed/approved shape | Graph model + ~90% of interactions (create/drag/connect/delete/reorder/auto straight line/auto face-forward); Plan backdrop + camera top-down projection; deletion invariant | Domain×view **shell rework**, the **Camera Plan surface** (input layer), standalone "create free node" mutator, 2D toolbar modes |
 
-## 3. Workstream A — framing envelope (from the adopted model)
+## 3. Workstream A — increment build specs (compressed → pointers)
 
-### A0 — Serialization/API: `framingEnvelope` on per-direction view tracks
+The A0–A3 build specs are folded into the front-matter increments (A0 =
+**P1.2**, A1 = **P1.3**, A2 = **P1.4**, A3 = **P1.6**); the full spec is **§B**
+(model, behavioral contract, §5 defaults, §9 next-work) plus the front-matter
+rows. Key seams and decisions preserved from the specs:
 
-**Scope.** Add the optional envelope object to each direction of
-`SceneConnectionViewTracks` (`apps/museum/src/lib/types/museum.ts`), parse it in
-`scene-codec/parse-document.ts` (`parseViewTracks`, alongside the existing
-`allowTiming` handling), clone it in `scene-codec/canonical.ts`, and validate
-the ordering invariant `0 ≤ enterStart ≤ enterEnd ≤ exitStart ≤ exitEnd ≤ 1` in
-the project codec validation (`apps/museum/src/lib/project/project-layout-semantics.ts`,
-next to the existing viewTrack keyframe checks). Absent field = legacy
-full-authored `w = 1`; **no data migration, no `{w:1}` rewriting** — pin with a
-byte-stability test on an existing fixture (e.g. `chopin-project.json` /
-`museum-scene.json`). Editor consumers that must not lose the field:
-`view-keyframe-controller.svelte.ts` (key create/copy/delete writes the track
-object), `helpers/route-clone.ts` + `store/camera-preview-controller.svelte.ts`
-(preview clone), `NodeConnectionsPanel.svelte` key counts.
+- **A0 (serialization/API).** Envelope on each direction of
+  `SceneConnectionViewTracks`; parse in `parse-document.ts` (`parseViewTracks`),
+  clone in `canonical.ts`; validate `0 ≤ enterStart ≤ enterEnd ≤ exitStart ≤
+  exitEnd ≤ 1` in **both** `parse-document.ts` (editor import) and
+  `project-layout-semantics.ts` (export gate), mirroring keyframe validation.
+  Absent field = legacy full-authored `w = 1`; **no migration, no `{w:1}`
+  rewriting** — pin with a byte-stability test. Consumers that must not lose
+  the field: `view-keyframe-controller.svelte.ts`, `helpers/route-clone.ts` +
+  `store/camera-preview-controller.svelte.ts` (preview clone), and
+  `NodeConnectionsPanel.svelte` key counts.
+- **A1 (sampler).** One canonical smootherstep weight helper in
+  `camera-motion.ts` shared by editor preview and runtime; thread the envelope
+  via `buildOrientedViewTrack` → `PreparedCameraMotionEdgeView`; absent
+  envelope → legacy path exactly as today; reversed edges with no reverse keys
+  keep `travelFacingEnds` (invariant not invoked); **no endpoint constraints
+  on `w`** (§B §4 makes them unnecessary).
+- **A2 (tests).** Canonical-endpoint invariant across forward /
+  reversed-with-keys / reversed-no-key edges; absent-field behavior; ordering
+  + degenerate validation; auto-managed vs manual policy as pure logic (first
+  key auto-creates the envelope, later breakpoints auto-expand while
+  auto-managed, any handle edit flips to manual — UI only binds).
+- **A3 (authoring UX).** Envelope band with enter/exit handles, one-gesture
+  push-in, "Full authored transition" (`w = 1`) — mounts into the **final**
+  Camera → 3D workspace, not the pre-P1.1 shell; includes the FOV copy fix (§B
+  §7) in the same UI pass. Exit `< 1` produces the "resume auto-facing before
+  arrival" read; one history entry per gesture.
 
-**Exit.** Old files round-trip byte-stable; a new envelope survives
-import/export/undo/redo; ordering violations fail validation with a named
-issue; the visitor runtime ignores the field without erroring (forward-compat
-until A1).
+## 4. Workstream B — shell + Camera Plan build specs (compressed → pointers)
 
-### A1 — Sampler: `w(p) = enterRamp(p) × exitRamp(p)` blend in `sampleCameraMotion`
+- **B0 (standalone placement) + Aim — SHIPPED** in S10.1 closeout (`674d597`).
+  B0 = "create free node, commit standalone" mutator consumed by both surfaces;
+  Aim = inspector-based yaw/pitch view-breakpoint control (decision record in
+  §1 finding 2 above).
+- **B1 (successor shell) = P1.1.** The ratified contract is **§A**
+  (supersession table, preserved guarantees, boot default); the design
+  rationale is §C §5. Unique operational content preserved: **Camera-domain
+  persistence rules** — the Sequence panel and camera timeline persist across
+  Plan ↔ 3D (only the center surface + view-specific tools/inspector change);
+  **per-domain selection memory** — switching domains restores that domain's
+  previous selection, and when invalid it degrades per the existing
+  child-selection rules (e.g. a deleted node degrades to its nearest ancestor).
+- **B2 (Camera Plan surface) = P1.5.** The decisions are §C §4–§6. Unique
+  content preserved: **2D toolbar modes** `Select | Add camera | Connect |
+  View` with rubber-band connect preview; the **filtered overlay profile**
+  (✓ nodes, connection/path curves, path anchors, selected state,
+  sequence/free-node state; ✗ cones, look targets, breakpoints, envelope UI,
+  **timing labels — excluded, adding them requires an explicit product
+  decision (F5)**) reusing `plan-camera-projection.ts`,
+  `LayoutPlanViewport`/`PlanSvg` + `plan-hit.ts`, and the shipped mutators;
+  **exit** — every gesture commits through existing graph mutators with one
+  history entry, flow membership visually distinguishable, Plan cannot mutate
+  scene/layout state, anchor/node identity survives the Plan ↔ 3D switch.
+- **B3 (backdrop/visual-rule hardening) — not a separate slice.** Its
+  assertions (edges = connections; order owned by sidebar/timeline; §4.4
+  no-framing discipline in hit handling) fold into P1.5's exit criteria.
 
-**Scope.** One canonical smootherstep weight helper in
-`apps/museum/src/lib/museum/navigation/camera-motion.ts` (visitor-safe, shared
-by editor preview and runtime — the "what-you-author-is-what-plays" seam).
-Thread the envelope from `camera-route.ts`'s `buildOrientedViewTrack` into the
-`PreparedCameraMotionEdgeView` (alongside the existing `automaticTargetPath` /
-`hasAuthoredKeyframes` fields) and blend in `sampleCameraMotion`: eye stays on
-`positionPath`; `target = lerp(autoTarget, authoredTarget, w)`; `fov` likewise;
-absent envelope → legacy path exactly as today. Scoping: reversed edges with no
-reverse keys keep `travelFacingEnds` (no authored layer → no envelope → invariant
-not invoked); adding the first reverse key flips auto endpoints to node poses
-(already the route builder's behavior). Do **not** add endpoint constraints on
-`w` — the canonical-endpoint invariant makes them unnecessary.
+## 5. Sequencing (compressed → front-matter table)
 
-**Exit.** Existing content playback is numerically unchanged (golden-sample
-test over a legacy route); a fixture with an envelope blends against the auto
-baseline; degenerate ramps (`enterStart = enterEnd`) work.
+The S10.3-era phase table, ASCII diagram, and gate chain are superseded by the
+front-matter **Increments** + **Sequencing** sections (P1.1 ∥ P1.2–P1.4 →
+P1.5 → P1.6 → P1.7). The strategy's shape survived intact: the engine track
+(A-track) has no shell dependency and runs in parallel; UI work (B-track, A3)
+mounts into the final shell; build the correct basic layout first, then one
+polish pass.
 
-### A2 — Tests: engine invariants + auto-managed envelope policy
+## 6. Decisions — resolution state
 
-**Scope.** Pure tests plus one pure helper module (e.g.
-`camera-framing-envelope.ts` in `$lib/museum/navigation` or an editor-side
-`envelope-manager`): the canonical-endpoint invariant (any `w` → node pose at
-p=0/1) across forward / reversed-with-keys / reversed-no-key edges; absent-field
-legacy behavior; ordering validation; degenerate-envelope validation; and the
-**auto-managed vs manual** policy as pure logic — first key auto-creates
-`{ enter ramp, plateau, exit pinned at 1 }`, later breakpoints auto-expand the
-envelope while auto-managed, and any handle edit flips it to manual (so the UI
-in A3 only binds, never re-implements the policy).
+1. **Shell inversion.** **Resolved — ratified at the P1.1 gate** (§A);
+   rejection would re-sequence the shell track per §C §5.4's alternatives.
+2. **Classification.** **Resolved (historical)** — the "S10.3 inside H1"
+   classification was dissolved by the plan-system renewal; the pipeline order
+   lives in the tracker.
+3. **Framing stays out of Camera Plan (§C §4.4).** **Live** — the envelope band
+   and view-breakpoint UI remain Camera → 3D-only; confirm at P1.5.
+4. **FOV copy fix timing.** **Resolved (F1)** — split: spec/docs wording in
+   **P1.2**, UI wording in **P1.6** (§B §7).
+5. **Envelope validation location.** **Live** — reject bad ordering in both
+   `parse-document.ts` (editor import) and `project-layout-semantics.ts`
+   (export gate).
 
-**Exit.** The adopted model's test list (§9.3) is covered; the invariant is
-pinned for all three edge classes; the visitor bundle stays free of editor-only
-envelope code (purity check).
-
-### A3 — Authoring UX: envelope band, push-in, "Full authored transition"
-
-**Scope.** Mounts into the **final Camera → 3D workspace** (after B1, per the
-revised sequencing in §5 — do **not** build this into the pre-B1 shell). An
-envelope band on the transition with enter/exit handles, one-gesture push-in,
-and the "Full authored transition" command (`w = 1` escape hatch). Composes
-with two surfaces that already exist: the **View breakpoint inspector** (its
-Aim control lands in closeout, so the envelope handles have a settled
-companion) and the **timeline** (S10.1.4 readout). Include the FOV copy fix
-from the adopted model §7 ("wider / zoomed out" vs "tighter / zoomed in") in
-the same UI pass so wording is standardized once.
-
-**Exit.** New first key auto-creates an envelope; moving a handle makes it
-manual; exit `< 1` produces the "resume auto-facing before arrival" read; the
-command produces legacy-style `w = 1`; one history entry per gesture.
-
-## 4. Workstream B — Camera Plan + domain×view shell (from the camera-graph workspace design)
-
-### B0 — Standalone placement ("create free node, commit standalone") — land in S10.1
-
-**Scope.** Generalize the existing first-node standalone commit
-(`createPendingNavigationNodeAt` + the S10.2 open-pair seed) into a
-"place → done, node is *Not in order yet* → connect later" flow, replacing the
-current `connect-pending-node` contract (which is pinned by tests and is the
-one remaining S10.1.3 behavioral delta). This is the workspace-design doc's
-"create free node, commit standalone" mutator (§4.3/§6.2) — landing it here
-closes S10.1 **and** unblocks Camera Plan's Add-camera row.
-
-**Exit.** Place commits standalone with one history entry; the node lands in
-"Not in order yet"; `Connect to another node` starts the ordinary
-`beginConnectExistingNodes` flow; the two-node open-pair seed still converges
-to a previewable pair; relic `/museum/editor` unchanged.
-
-### Closeout — View-breakpoint Aim control (settled decision)
-
-**Decision (2026-08-18):** the QA-round view-breakpoint rotate question is
-settled as **inspector-based yaw/pitch Aim** — the plan's preferred option (a)
-("pure `editor-camera-view` math, one history entry"), **not** a new gizmo
-mode. Rules:
-
-- Aims the **look target only**; eye/path position and FOV unchanged.
-- Yaw (world Y) + pitch (local X), no roll — the same turntable mapping as the
-  landed camera-node orbit (`orbitCameraTargetAroundEye`).
-- Preserves the current eye→target distance while aiming (fixed-radius orbit,
-  so this holds automatically).
-- One undo/history entry per gesture, matching camera-node rotate.
-- Reuses the existing room-local commit path (`commitViewTarget`-style
-  writeback) so `roomId`-local keyframe targets stay local.
-- Guards the degenerate eye→target case (near-zero offset) exactly like the
-  node orbit does.
-- The breakpoint target gizmo stays translate-only; no second rotation-gizmo
-  mode is added now.
-- Detour-edge keys (S10.2) inherit automatically — the control is
-  inspector-based and works on any keyframe.
-
-**Why settle now:** it closes the last S10.1.3 behavioral delta, gives
-Camera → 3D complete framing semantics without growing S10.1, and removes the
-hidden dependency A3 carried ("decide inside S10.1.3") — A3 now depends only on
-A0–A2 and the final shell.
-
-### B1 — Domain×view shell matrix (successor slice, after S10.1 closeout)
-
-**Scope.** The deliberate shell rework from the workspace-design doc §5:
-`EditorViewState` gains a domain axis (`scene | camera`) with per-domain view
-state (`plan | 3d`, fixed `[Plan | 3D]` order everywhere), the app bar switchers
-flip to domain-primary, and the S10.1 shell shape is **formally superseded**.
-Preserve what S10.1 guarantees: no new store/document, context memory, Plan
-mutation-safety, and relic isolation. Boot default: `Scene → 3D` per the review
-verdict (deferred, non-architectural).
-
-**Superseded S10.1 invariants (enumerated, so sign-off is explicit).**
-
-1. **Invariant 1** (primary `Plan | 3D`, secondary 3D-only `Scene | Camera`) —
-   replaced by the domain×view matrix (domain-primary, per-domain `Plan | 3D`).
-2. **Invariant 3** (timeline mounts strictly when 3D + Camera context) — in the
-   Camera domain the timeline persists across Plan ↔ 3D (persistence rules
-   below).
-3. **Invariant 2, partially** (viewport toolbar placement) — the Camera domain
-   gains a left context toolbar; reconcile against the landed viewport toolbar
-   (`Select | Move | Rotate | Add camera | View`) so actions are not duplicated
-   across the two locations.
-
-**UI shell structure (architecture-level; pixel/style details deliberately out —
-from the mockups, not the code).**
-
-```
-Top bar
-├─ Domain switcher:  [Scene | Camera]   (primary, always visible)
-└─ View switcher:    [Plan | 3D]        (per domain, fixed order)
-
-Workspace
-├─ Left:   context toolbar (domain- and view-specific)
-├─ Center: the active Plan / 3D surface
-├─ Right:  domain sidebar + inspector
-└─ Bottom: domain timeline, when applicable
-```
-
-**Ownership (what each cell is for):**
-
-| Cell | Surface |
-|---|---|
-| Scene → Plan | layout authoring (rooms/walls) + layout inspector |
-| Scene → 3D | scene-object authoring + scene inspector |
-| Camera → Plan | camera graph overlay on the read-only layout backdrop (B2) |
-| Camera → 3D | framing / path authoring (today's Camera viewport) |
-
-**Persistence rules (Camera domain).** The **Sequence panel** and the **camera
-timeline** persist across Plan ↔ 3D; **camera selection** persists across
-Plan ↔ 3D. Only the center surface and view-specific tools/inspector sections
-change on a view switch. (This supersedes S10.1 invariant 3's strict 3D-only
-timeline gating.)
-
-**Selection memory (per domain).** Scene selection is shared across
-Scene Plan ↔ Scene 3D; camera selection is shared across Camera Plan ↔
-Camera 3D (§5.3). Switching domains restores that domain's previous selection
-— **when still valid; otherwise it degrades per the existing S10
-child-selection rules** (e.g. a deleted node degrades to its nearest ancestor).
-Example: select Node 3 in Camera Plan → switch to Scene 3D → back to Camera 3D
-→ Node 3 is still selected.
-
-**Gate.** The **shell-inversion ratification (decision 1) moves into closeout**
-— A3 mounts into the final shell, so B1 cannot drift past S10.1 sign-off.
-
-**Exit.** Domain×view navigation creates no history/selection-domain changes;
-`Scene → Plan` keeps today's layout authoring (the §5.6 wrinkle — no new
-scene-content top-down surface); Camera keeps one selection across Plan/3D.
-
-### B2 — Camera Plan surface (render + input layer over existing commands)
-
-**Scope.** The workspace-design doc §4/§6: camera nodes at real world positions on the
-**read-only-but-hit-testable** Plan backdrop (§4.6 — backdrop stays hit-testable
-for camera placement; it is not `pointer-events: none`), connection curves
-projected top-down (no arrows; order numbers vs free-node ring per §5.2),
-X/Z-only node **and path-anchor** drag with authored Y preserved (§4.5), **no
-framing content** (§4.4 — no look targets, no heading icons, no envelopes),
-and selection/pose sync with Camera → 3D (§5.3). 2D toolbar modes:
-`Select | Add camera | Connect | View` with rubber-band connect preview.
-Reuses: `plan-camera-projection.ts` (already draws paths/cones/targets),
-`LayoutPlanViewport`/`PlanSvg` + `plan-hit.ts` for picking, and the shipped
-mutators (`beginConnectExistingNodes`, `connectNavigationNodes`,
-`updateNavigationNodePoint`, path-anchor mutator, `deleteNavigationNode` /
-`deleteConnection`). Depends on B1 (mount) and B0 (Add-camera mutator).
-
-**Rendering profile — CameraPlanOverlay (do not enable the whole Plan Tour
-camera layer).** Camera Plan reuses the **same Scene Plan render model** for
-spatial geometry — it does **not** maintain a second copy of layout geometry
-(**invariant**). The camera overlay above that read-only backdrop renders only a
-**filtered profile**:
-
-```
-✓ camera nodes            ✗ view cones
-✓ connection/path curves  ✗ look targets
-✓ path anchors            ✗ framing breakpoints
-✓ selected state          ✗ envelope UI
-✓ sequence number /       ✗ timing labels (unless explicitly desired)
-  free-node state
-```
-
-This correction matters: `plan-camera-projection.ts` already draws cones, look
-targets, and timing labels, so an implementer reading "input-enabled variant of
-the existing render path" could naively enable the full layer and violate the
-§4.4 boundary. Camera Plan is **not** "the existing Plan Tour layer made
-editable" — framing content stays Camera → 3D-only.
-
-**Exit.** Every Camera Plan gesture commits through existing graph mutators
-with one history entry; flow membership is visually distinguishable; Plan
-remains unable to mutate scene/layout state; a selected anchor/node keeps its
-identity when switching to Camera → 3D.
-
-### B3 — Backdrop boundary + flow/connection visual rules (spec hardening only)
-
-**Scope.** Most of this is already true: `Scene → Plan` authors geometry and
-`Camera → Plan` uses it as spatial context only; the deletion invariant is
-shipped (S10.2). Remaining work is enforcing the §5.2 visual rule (edges =
-connections, sidebar/timeline = order — the S10.1 Sequence Inspector already
-owns order) and the §4.4 no-framing discipline in the new surface's hit
-handling. No separate slice needed — fold B3's assertions into B2's exit
-criteria.
-
-## 5. Recommended sequencing against current state
-
-The two-doc follow-up is **H1 umbrella-step-10 slice S10.3 — camera redesign**
-(the final H1 slice): the successor domain×view shell, Camera Plan, and framing
-envelope land inside H1, executed as ordered increments in the S10.1 pattern.
-H1 closes after S10.3; the plan-system renewal (hard-gated "immediately next
-step") runs after H1 sign-off; **S11 stays reserved for import/export** (the
-S2/S3/S4 "S9/S11" boundary points are deferred).
-
-| Phase | Sections | Why here | Difficulty |
-|---|---|---|---|
-| **Phase 1 — S10.1 closeout** | B0 (standalone placement) + Aim control | Both remaining S10.1.3 deltas; B0 is also the mutator Camera Plan needs; settling Aim removes A3's hidden dependency; the shell-inversion ratification happens here | 4/10 |
-| **S10.3.1 — successor shell** | B1 (+ shell contract) | After S10.1 closeout; formally supersedes invariants 1, 3, and parts of 2; A3 must mount into this final shell, so it precedes A3 | 7/10 |
-| **S10.3.2 — surface** | B2 (+B3 assertions) | Depends on B1 mount + B0 mutator | 6/10 |
-| **S10.3 parallel engine track** | A0 → A1 → A2 | Visitor-safe data + sampler; no shell dependency — runs alongside S10.3.1–S10.3.2; S10.1's purity check already guards the bundle | 5/10 |
-| **S10.3.3 — framing UX** | A3 | Depends on A0–A2 **and** the final (B1) Camera → 3D workspace — do not build into the pre-B1 shell | 6/10 |
-| **S10.3.4 — UI polish** | one reconciliation pass | S10.1.7 tokens already landed; this pass reconciles them with the new shell — it is not a re-polish | 3/10 |
-
-```
-             ┌─ A0 → A1 → A2 ────────┐
-S10.1 close ─┤                       ├─ A3 → polish
-             └─ B1 → B2 ────────────┘
-```
-
-Engine work (A-track) does not care about the shell; UI work (B-track, A3)
-does. Build the new architecture with the basic correct layout first, then one
-polish pass — no full visual redesign during B1/B2.
-
-**Gate structure (agreed 2026-08-18):** S10.1 closeout → **S10.3** (inside
-H1) → **H1 sign-off** → **plan-system renewal** (hard-gated immediately-next
-step) → later work. The tracker records the resulting order.
-
-## 6. Decisions to adjudicate before implementation
-
-1. **Shell inversion (B1).** Approve superseding S10.1 invariants 1, 3, and
-   parts of 2 (enumerated in B1) after sign-off, or keep the current
-   `Plan | 3D`-primary shell and mount Camera Plan differently (the
-   workspace-design doc's matrix is the reviewed answer — this is a
-   ratification, not a re-litigation). **Timing: this ratification moves into
-   Phase 1 closeout**, because A3 mounts into the final shell.
-2. **Classification — resolved 2026-08-18.** The redesign lands
-   inside H1 as umbrella-step-10 slice **S10.3**; H1 closes after it; the
-   renewal runs after H1 sign-off; S11 stays reserved for import/export.
-3. **Framing stays out of Camera Plan** (§4.4) — confirm the envelope band and
-   view-breakpoint UI remain Camera → 3D-only even after the shell rework.
-4. **FOV copy fix** ships in A0 (specs/docs wording) or waits for A3 (UI
-   wording) — recommended: A0, so no new docs write the backwards example.
-5. **Envelope validation location** — both `parse-document.ts` (editor import)
-   and `project-layout-semantics.ts` (export gate) should reject the bad
-   ordering, mirroring how keyframes are validated today.
-
-## 7. Non-goals (unchanged by this proposal)
+## 7. Non-goals (kept)
 
 Arrival/departure shots and custom weight curves (adopted model §8) stay
 future; multi-story, auto-tour generation, and removing the relic stay out of
-scope; the plan-system renewal still executes before any later work.
+scope.

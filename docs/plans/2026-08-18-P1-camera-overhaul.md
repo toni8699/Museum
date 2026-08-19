@@ -1,7 +1,7 @@
 # P1 — Camera overhaul (umbrella)
 
 **Date:** 2026-08-18
-**Status:** Approved (2026-08-18 scope decision) — umbrella; increments execute in order below
+**Status:** In-progress — **P1.1 shipped 2026-08-18**; umbrella; remaining increments execute in order below
 **Tracker:** [`docs/plans/README.md`](README.md) — **P1**, depends on: renewal
 **Folded sources (2026-08-18, content preserved; originals deleted):**
 - §A — successor shell ratification (the P1.1 gate)
@@ -26,6 +26,39 @@
 7. **F7 — relic guard named** (`tests/lib/editor/app/contracts.test.ts`) in the
    DoD.
 
+**External design review — camera framing freedom (2026-08-18, four rounds,
+locked):** an independent reviewer validated the model and contributed two
+engine catches. Decisions folded below:
+
+- **Validated (matches §B's own decision log):** the constrained Option A
+  model; **sacred endpoints** (rejects arrival/departure overrides — the
+  reviewer's graph-fragility argument matches §B §6's rejection of Option B);
+  **no direct rotation-speed knob** (over-constrained: duration is fixed by
+  path geometry, so ramp width is the speed control); custom curves as an
+  additive upgrade only.
+- **Adopted — engine guards (P1.3):** **POI spin-around singularity** (path
+  passing under/over an authored target → 180° whip) → angular velocity clamp
+  + standoff guard; **collinear-zero** (the blend point passing through the
+  eye when the two targets straddle it) → **stability guard on the Cartesian
+  point blend — the blend formula is NOT rewritten** (world-space point
+  targeting preserves focus distance + parallax, per the reviewer's round-4
+  argument); **double-whip** (`exit < 1` left→center→right wobble) → dynamic
+  bypass easing straight from the authored target into Node B when `exitEnd`
+  is late and Node B is off-axis (thresholds validated, not hard-coded).
+- **Adopted — engine acceptance criteria (P1.4):** non-degeneracy
+  (`‖target(p) − eye(p)‖ ≥ near-clip` for all p); smooth continuity (no 180°
+  pops; bounded angular velocity with a derivative-continuous clamp);
+  endpoint invariant (already §B §4); singularity + double-whip + FOV-pacing
+  tests.
+- **Adopted — authoring UX (P1.6):** intent-first surface — focus-timing
+  presets (Early / Centered / Full Move) + lens presets (24 / 50 / 85 mm)
+  mapped over the envelope; raw envelope handles move to an advanced drawer;
+  parallax whiplash editor warning; FOV minimum-ramp duration guardrail with
+  deliberate dolly-zoom still authorable + a comfort diagnostic hint.
+- **Confirmed:** one envelope per move (the reviewer's "wet/dry fader" — the
+  authored keys define the shape, the single envelope scales the whole
+  interval; no second FOV timing envelope).
+
 ## Outcome
 
 The camera graph gets its dedicated workspace: a successor **domain×view
@@ -40,12 +73,12 @@ by the ratified shell contract (§A).
 
 | ID | Content | Source | Depends |
 |---|---|---|---|
-| **P1.1** | Successor domain×view shell + shell contract; **gate = shell-inversion ratification (§A)** | §A | — |
+| **P1.1** | Successor domain×view shell + shell contract; **gate = shell-inversion ratification (§A)** — implementation brief: **§A.1** — **shipped 2026-08-18** (status bar folded in; conformance mapping §A.2) | §A | — |
 | **P1.2** | `framingEnvelope` serialization + ordering validation + `resolveSceneDocument` threading (+ runtime types) + **FOV copy fix, specs/docs wording (F1)** + **clone-survival test through `helpers/route-clone` + preview controller (F3)** | §B, §D | — |
-| **P1.3** | Envelope sampler blend `w(p)` in `sampleCameraMotion` | §B, §D | P1.2 |
-| **P1.4** | Envelope invariant + auto-managed/manual policy tests | §B, §D | P1.2, P1.3 |
+| **P1.3** | Envelope sampler blend `w(p)` in `sampleCameraMotion` + **engine guards (ext. review): POI singularity angular clamp + standoff · collinear-zero stability guard (Cartesian blend retained) · double-whip dynamic bypass** | §B, §D | P1.2 |
+| **P1.4** | Envelope invariant + auto-managed/manual policy tests + **guard acceptance criteria (ext. review): non-degeneracy (`target–eye ≥ near-clip`) · smooth continuity (no 180° pops) · singularity · double-whip · FOV pacing** | §B, §D | P1.2, P1.3 |
 | **P1.5** | Camera Plan surface + backdrop/visual-rule assertions (B0 Add-camera mutator already shipped in S10.1 closeout, `674d597`; **F4**) | §C | P1.1 |
-| **P1.6** | Framing authoring UX + FOV copy fix (**UI wording; spec/docs copy lands in P1.2**) | §B | P1.2–P1.4, P1.1 |
+| **P1.6** | Framing authoring UX + FOV copy fix (**UI wording; spec/docs copy lands in P1.2**) + **intent-first surface (ext. review): focus-timing presets Early/Centered/Full Move + lens presets · envelope handles in advanced drawer · parallax warning + FOV ramp guardrail + comfort diagnostic** | §B | P1.2–P1.4, P1.1 |
 | **P1.7** | Camera UI reconciliation pass (light — not the P3 overhaul) | — | P1.5, P1.6 |
 
 ## Sequencing
@@ -82,6 +115,8 @@ converges both tracks. **P1.7** last.
   over a legacy route (F6; the visitor-visible change guard).
 - **Relic guard named (F7):** `tests/lib/editor/app/contracts.test.ts` —
   relic-isolation + route-wiring smoke proxy — stays green.
+- **External-review guards landed and tested** — singularity, collinear-zero,
+  double-whip, and FOV-pacing acceptance criteria green (P1.3/P1.4).
 - P1.7 reconciliation done (interim presentation; the P3 pass is separate).
 - Tracker marks **P1 shipped**; this umbrella moves to archive with a stub.
 
@@ -103,7 +138,7 @@ domain owns a `Plan | 3D` view pair in **fixed `[Plan | 3D]` order everywhere**
 |---|---|
 | **Invariant 1** — persistent dual-switcher shell: primary `[Plan \| 3D]` always visible, secondary `[Scene \| Camera]` mounts only when `viewMode === '3d'` | **Domain×view matrix.** Domain switcher `[Scene \| Camera]` is primary and always visible; view switcher `[Plan \| 3D]` is per-domain and always visible. Scene and Camera are peer domains, not 3D sub-contexts. Two distinct segmented controls, never one 4-tab bar |
 | **Invariant 3** — timeline bottom frame mounts strictly when `viewMode === '3d' && active3dContext === 'camera'` | **Camera-domain timeline.** The camera timeline mounts for the Camera domain in both views; the Scene domain never mounts it |
-| **Invariant 2 (parts)** — context-specific viewport toolbars / View menus, no duplication | **Toolbar ownership reconciled.** 3D cells keep the viewport toolbar (Scene `Select \| Move \| Rotate \| Scale \| Local/World \| Snap \| View`; Camera `Select \| Move \| Rotate \| Add camera \| View`). The Camera domain gains a left context tool rail; an action lives in exactly **one** location per cell. Plan cells own 2D toolbars |
+| **Invariant 2 (parts)** — context-specific viewport toolbars / View menus, no duplication | **Toolbar ownership reconciled.** 3D cells keep the viewport toolbar (Scene `Select \| Move \| Rotate \| Scale \| Local/World \| Snap \| View`; Camera `Select \| Move \| Rotate \| Add camera \| View`). No empty Camera rail mounts beside the viewport; an action lives in exactly **one** location per cell. Plan cells own 2D toolbars |
 | **Invariant 4 — relic isolation** | **Preserved unchanged.** `/museum/editor` stays frozen; every shared-component change stays guarded via the relic context props |
 
 **Preserved guarantees (not superseded):** no new store or document
@@ -120,15 +155,325 @@ domain axis defaults to `scene`, the scene view to `plan`, the camera view to
 
 ---
 
+## A.1 — P1.1 implementation brief (scheduled 2026-08-18)
+
+**Gate:** the §A ratification above. Accepting P1.1 ratifies the shell
+inversion; if rejected, stop and re-sequence the shell track per §C §5.4. This
+brief refines the front-matter **P1.1** row at scheduling time; it does not
+re-scope §A. It delivers the successor domain×view shell only — the **Camera
+Plan surface itself is P1.5** (this increment mounts a placeholder cell).
+
+**Review amendment pass (2026-08-18, brief review):** the §A.1 review's six
+findings (G1–G6) are folded below; the brief's scope (§A) is unchanged.
+
+1. **G1 — sidebar `interactive` gate decomposition (blocker):** the single
+   boolean cannot become `domain === 'camera'` — it also gates scene rows, so
+   Scene → 3D scene authoring would go read-only. Decompose per row-type (§2
+   sidebar row; §5 test 3; step 5).
+2. **G2 — `#convergeLegacyState` vs. the multi-actionable model:** the
+   selection-store constructor still clears surplus slots under the legacy
+   layout > scene > camera priority; multi-actionable slots are the *norm*
+   under domain-gated memory (§3).
+3. **G3 — Camera-domain workspace mapping:** `store.setWorkspace` collapses
+   the timeline, stops previews, and cancels pending navigation when leaving
+   `'camera'`; Camera → Plan must keep workspace `'camera'`, not `'layout'`
+   (§2 store-mapping row; §5 test 5; DoD).
+4. **G4 — call-site inventory:** `tests/lib/editor/layout/layout-3d-selection.test.ts`
+   (~183) also calls `deriveActiveSelection` (§5 test 2; step 2).
+5. **G5 — `cameraTourOpen` auto-expand:** the tree's camera-tour auto-expand
+   fires on `domain === 'camera'`, both views (intended; §4).
+6. **G6 — panel-gate naming:** the three CameraFlowPanel row gates are the
+   chain / loop / detour sections behind `guidedEditingBlocked` (§5 test 3).
+
+### 1. User outcome and out-of-scope behavior
+
+**Outcome.** The editor shell becomes a domain×view matrix: `Scene | Camera`
+is the primary, always-visible domain switcher; each domain owns a `Plan | 3D`
+view pair in **fixed `[Plan | 3D]` order**, always visible. Scene and Camera
+are peer domains, not 3D sub-contexts. The camera timeline and Sequence panel
+persist across both Camera views. Selections are **domain-gated**: each
+domain's previous selection is remembered and restored when the domain
+reactivates.
+
+**Out of scope (this increment):**
+
+- The **Camera Plan surface** (nodes/edges/anchors, 2D toolbar modes,
+  backdrop/hit-test discipline) — **P1.5**, which mounts into this shell.
+- Framing authoring UX + FOV copy fix (P1.6) and the engine track (P1.2–P1.4).
+- Any change to the three selection slots or the legacy reducer's
+  workspace↔navigation cross-clear (P1.1 changes only the *resolution*, per §A).
+- Boot default change (§C §7 Q4 — deferred, non-architectural; boot stays
+  Scene → Plan).
+
+### 2. Source components and existing APIs to reuse
+
+| Piece | Reuse | Note |
+|---|---|---|
+| Shell state | `editor-view-state.svelte.ts` — pure state holder | gains the domain axis; stays the only shell state (no new store/document) |
+| Store mapping | `EditorApp.svelte`'s `$effect` → `setLayoutViewMode` + `store.setWorkspace` | Scene plan → `'layout'` + `setLayoutViewMode('plan')`; Scene 3D → `'scene'`; **both Camera cells → `'camera'`** (G3 — `setWorkspace` collapses the timeline, stops previews, and cancels pending navigation on leaving `'camera'`); layout view mode: plan cells → `'plan'`, 3D cells → `'3d'` |
+| Domain switcher | `EditorAppBar.svelte` `contexts` block | becomes the always-visible primary control; `switchContext` → `switchDomain` |
+| View switcher | `EditorAppBar.svelte` `views` block | becomes per-domain, always visible, fixed `[Plan \| 3D]` |
+| 3D cells | `Workspace3DView.svelte` (editor-only; the relic uses `EditorViewport.svelte`) | split per domain (`Scene3DView` / `Camera3DView`) or keep shared + `context` prop (fallback, §7) |
+| Plan cell | `PlanWorkspace.svelte` + `LayoutDraftToolbar` (`showViewToggle={false}` stays) | Scene → Plan unchanged; the Plan/3D toggle lives in the app bar now |
+| Selection | `deriveActiveSelection` + `EditorActiveSelectionStore` | gains the domain gate; slots untouched |
+| Timeline | `EditorCameraTimelineFrame` (full-width bottom strip) | gate flips from `viewMode === '3d' && active3dContext === 'camera'` to `domain === 'camera'` |
+| Sidebar | `EditorSidebar.svelte` + `UnifiedProjectTree.svelte` | `interactive` gate decomposes **per row-type** (G1): scene rows `domain === 'scene' && view === '3d'`; camera rows `domain === 'camera'` (both views); layout rows stay interactive in the Scene domain. The decomposition lives in `isUnifiedTreeRowInteractive` (`unified-project-tree-model.ts`, extended with the domain axis); `CameraFlowPanel`'s gate keys off the camera-row rule, not the tree's shared boolean |
+| Camera workspace chrome | existing contextual viewport toolbar | P1.1 mounts no frame-only rail. P1.5 adds Camera Plan controls only when their final ownership is implemented, without duplicating the Camera 3D toolbar |
+
+### 3. New props / state / dependencies
+
+State (`editor-view-state.svelte.ts`):
+
+- `Editor3dContext` renamed → `EditorDomain = 'scene' | 'camera'` (same union;
+  the "3D sub-context" vocabulary dies per §A).
+- `domain = $state<EditorDomain>('scene')`.
+- `sceneView = $state<EditorViewMode>('plan')` · `cameraView =
+  $state<EditorViewMode>('3d')` — one view memory per domain.
+- `activeView` derived getter (the current domain's view); `setDomain(d)` and
+  `setView(domain, mode)` — no-op on the same value, matching the current
+  setters.
+
+New/renamed props:
+
+- `EditorActiveSelectionStore` constructor gains `viewState` (reads `domain`
+  for the gate); construct `viewState` **before** the selection store in
+  `EditorApp`.
+- **`#convergeLegacyState` reworked (G2):** the constructor no longer clears
+  surplus slots under the legacy layout > scene > camera priority —
+  multi-actionable slots are the *norm* under domain-gated memory. Boot is
+  empty (so this is defensive in the shell), but the convergence must respect
+  the domain gate: it must never destroy an inactive domain's memory.
+- `deriveActiveSelection(domain, workspace, navigation, layoutSelection)` —
+  new leading `domain` parameter.
+- `UnifiedProjectTree` props: `viewMode` / `active3dContext` → `domain` /
+  `view` (editor-only component; the relic's tree stays untouched).
+- `Workspace3DView`'s `context` prop type aliases `EditorDomain` (or the split
+  components drop it).
+- New component: `CameraPlanPlaceholder.svelte` (neutral empty state,
+  replaced by P1.5); optional `Scene3DView.svelte` / `Camera3DView.svelte`.
+
+No new store, no new document, no new dependencies.
+
+### 4. Mount/unmount and selection semantics
+
+Center cell matrix (`EditorApp.svelte`):
+
+| Domain | View | Mounts |
+|---|---|---|
+| scene | plan | `PlanWorkspace` (unchanged) |
+| scene | 3d | Scene 3D cell (scene toolbar; View menu shows Ceiling only) |
+| camera | 3d | Camera 3D cell (camera toolbar incl. Add camera; camera overlays) |
+| camera | plan | `CameraPlanPlaceholder` (P1.5 replaces) |
+
+- Timeline bottom frame mounts when `viewState.domain === 'camera'` (both
+  views); never in Scene. The Sequence panel persists across Camera views the
+  same way.
+- No frame-only Camera rail mounts. Camera 3D keeps its existing contextual
+  viewport toolbar; Camera Plan gains controls with the implemented P1.5
+  surface, not before.
+- App-bar actions: Preview Museum stays Scene → 3D; **Preview Flow moves to
+  the Camera domain (both views)**, matching timeline persistence. The
+  `canSwitch` guard applies to both switchers.
+- Sidebar: the tree's camera-tour auto-expand (today: `active3dContext ===
+  'camera'`) fires on `domain === 'camera'`, both views (G5 — intended: the
+  camera flow panel stays live across Camera views).
+- 3D cells keep the S10.1.6 mount fade; Scene ↔ Camera remains attention-only
+  — the Canvas never remounts.
+
+Selection semantics (domain-gated):
+
+- `deriveActiveSelection(domain, …)`: **camera** domain → navigation slot if
+  non-none, else `none` (scene/layout slots are memory, never active);
+  **scene** domain → layout > scene priority, navigation slot ignored.
+- View switches never change selection — extend the pinned "Plan ↔ 3D switch
+  preserves selection" contract to the Camera domain.
+- Domain switches never clear slots; they re-gate which slot is active.
+  Invalid identities degrade per the existing child-selection rules.
+- **Deliberate change:** `onLayoutSelectionChanged` (Scene → Plan picks) stops
+  clearing the navigation slot — camera-domain memory must survive Scene
+  layout work. The legacy reducer's workspace↔navigation cross-clear stays
+  (out of scope): a scene pick still drops a camera pick and vice versa —
+  documented degradation, not a regression.
+- Inspector keeps following `activeSelection.active.domain` (already
+  domain-driven; existing pin unchanged).
+
+### 5. Acceptance tests and manual scenarios
+
+Unit / contract tests (all under `tests/lib/editor/app/`):
+
+1. `editor-view-state.test.ts` rewritten: defaults (scene / plan, plus
+   `cameraView === '3d'`); `setDomain` / `setView` no-op guards; **per-domain
+   view memory** (each domain's view survives the other's round-trips); type
+   pin `EditorDomain = 'scene' | 'camera'`.
+2. `active-editor-selection.test.ts`: domain-gate matrix — camera domain +
+   navigation → camera even with layout/scene actionable; camera domain
+   without navigation → none; scene domain + layout → layout (camera slot
+   ignored); scene domain + scene → scene; scene domain + camera-only → none.
+   Update every `deriveActiveSelection` call site (incl. `contracts.test.ts`
+   ~1172/1182 and `layout-3d-selection.test.ts` ~183 — G4).
+3. `contracts.test.ts` (relic guard, F7): update the editor-side pins —
+   EditorApp passes `context={viewState.domain}`; timeline gate
+   `viewState.domain === 'camera'`; the tree's `interactive` gate follows the
+   G1 per-row-type decomposition (scene rows interactive only in Scene → 3D,
+   camera rows in both Camera views); the three CameraFlowPanel row gates
+   (chain / loop / detour sections behind `guidedEditingBlocked` — G6) +
+   seven `aria-disabled` marks keep their shape but are domain-driven.
+   **Relic assertions stay byte-for-byte** (`EditorViewport.svelte`
+   untouched, `/museum/editor` route untouched, `museum/navigation/**`
+   untouched).
+4. New store-level test: camera node selected → Scene → Plan layout pick →
+   navigation slot preserved → back to Camera → 3D restores the selection.
+5. Timeline mounts for Camera in both views, never in Scene (source assert +
+   behavior); **the expanded/collapsed state also persists across Camera
+   views** (G3 — the camera domain keeps workspace `'camera'`, so
+   `setWorkspace`'s timeline-expansion logic never collapses it).
+6. `CameraPlanPlaceholder` mounts no camera mutation surface (source assert,
+   mirroring the existing `PlanWorkspace` no-mutator pin).
+
+Manual scenarios:
+
+- Boot → Scene → Plan (layout drafting, unchanged).
+- Scene → 3D: scene authoring; View menu shows Ceiling only; Preview Museum
+  present.
+- Camera → 3D: today's camera viewport; timeline open; Preview Flow; Add
+  camera in the toolbar.
+- Camera → Plan: placeholder cell; timeline + Sequence panel still present; a
+  camera selection made in 3D is still selected/inspectable.
+- Scene → Plan: previous layout selection restored; the camera selection is
+  preserved for later.
+- Tour playback locks both switchers (`canSwitch`); Escape cancels a pending
+  placement before any switch.
+
+### 6. Relic / Plan / visitor boundaries
+
+- `/museum` + `/museum/editor` frozen; no editor/layout code in visitor
+  chunks. `museum/navigation/**` untouched (P1.1 boundary).
+- Shared components change only via relic context props; `EditorViewport.svelte`
+  (relic mount) untouched.
+- Camera → Plan is a placeholder — no backdrop, no hit-testing, no camera
+  mutation surfaces (the P1.5 backdrop/hit-test discipline lands with P1.5).
+- `EditorViewState` remains the pure state holder; no new store/document.
+
+### 7. Rollback / fallback split
+
+If the diff balloons, ship in order (each step independently green):
+
+- **Step 1 (the shell inversion, non-negotiable):** view-state domain axis +
+  the `deriveActiveSelection` domain gate + EditorApp/AppBar cell matrix +
+  timeline gate. This alone ratifies §A and unblocks P1.5.
+- **Step 2:** sidebar/tree domain gating + the `onLayoutSelectionChanged`
+  navigation-slot preservation.
+- **Step 3:** chrome — `CameraPlanPlaceholder` and optional per-domain 3D split.
+- **Fallback for Step 3:** keep the single `Workspace3DView` with its
+  `context` prop. The P6 "split per domain" note is honored by the domain
+  axis + per-domain toolbar composition; the split is organizational and can
+  land later.
+
+### Implementation steps
+
+1. `editor-view-state.svelte.ts` — domain axis + per-domain views + setters;
+   rename `Editor3dContext` → `EditorDomain`; rewrite `editor-view-state.test.ts`.
+2. `active-editor-selection.svelte.ts` — domain-gated `deriveActiveSelection`;
+   `EditorActiveSelectionStore(viewState)`; `#convergeLegacyState` reworked to
+   respect the domain gate (G2); preserve the navigation slot in
+   `onLayoutSelectionChanged`; update `active-editor-selection.test.ts` +
+   `contracts.test.ts` + `layout-3d-selection.test.ts` call sites (G4).
+3. `EditorAppBar.svelte` — two always-visible segmented controls (domain
+   primary, view per-domain, fixed `[Plan \| 3D]`); action gating (Preview
+   Flow on the Camera domain, both views).
+4. `EditorApp.svelte` — construct `viewState` first; store-mapping effect
+   (Scene plan → `'layout'`; Scene 3D + both Camera cells → `'camera'` — G3);
+   center-cell matrix; timeline gate →
+   domain; sidebar props; placeholder mount; no frame-only Camera rail.
+5. `EditorSidebar.svelte` + `UnifiedProjectTree.svelte` — per-row-type
+   `interactive` (G1, via `isUnifiedTreeRowInteractive` extended with the
+   domain axis); camera-tour auto-expand on `domain === 'camera'` (G5);
+   `startRoomDraft` → Scene → Plan.
+6. `contracts.test.ts` — update the editor-side pins (domain wiring, timeline
+   gate, panel gating), keep relic assertions identical; add the new tests
+   from §5.
+7. Full suite (1690 baseline), `svelte-check` 0, build clean.
+
+### Definition of done (P1.1 close)
+
+- §A ratified; the shell renders the four-cell matrix with fixed `[Plan \| 3D]`
+  order; Camera → Plan shows the placeholder; the timeline (mount **and
+  expanded state**) persists across Camera views (G3); domain-gated selection + per-domain view memory proven by
+  tests.
+- Relic guard green; `museum/navigation/**` untouched; no visitor-chunk
+  change.
+- Tracker P1 row marks P1.1 done (P1.5 can mount into the shell); CURRENT.md
+  advances.
+
+**P1.1 shipped 2026-08-18** — all DoD items met; §A ratified; the shell
+renders the four-cell matrix with the Camera-domain timeline and domain-gated
+selection proven by tests. The design-spec conformance mapping (§A.2) is the
+shell's tracked target.
+
+---
+
+## A.2 — Design-spec conformance mapping (folded 2026-08-18)
+
+The proposed canonical shell spec
+[`docs/Design-specs/Design-shell-specs.md`](../Design-specs/Design-shell-specs.md)
+is the tracked shell target. This mapping records, per spec section, where the
+requirement ships. Legend: **✅** shipped (P1.1 or earlier) · **P1.5** / **P1.6–7** ·
+**deferred** (not in P1). The **status bar** (§2/§18) was pulled into P1.1 as
+the one shell-region gap — the rest of the Camera Plan content lands with P1.5.
+
+| Spec § | Requirement | Ships in |
+|---|---|---|
+| 1 | Two axes, domain-first, separate controls, fixed `[Plan \| 3D]` order | ✅ P1.1 |
+| 2 | Six-region persistent shell | ✅ P1.1 (status bar folded in) |
+| 3 | Header purity (no manipulation commands); boot `Scene → 3D` | ✅ P1.1 (header); boot deferred |
+| 4 | Left-panel routing; dedicated Camera Sidebar | partial P1.1 (Scene-only Hierarchy\|Assets and Add Room are hidden in Camera; unified tree environment is read-only); dedicated Camera Sidebar sections → P1.7 |
+| 5 | One Inspector routed by selection | ✅ shipped (S-series) |
+| 6 | Scene → Plan authoring | ✅ shipped (pre-P1) |
+| 7 | Scene → 3D authoring | ✅ shipped (pre-P1) |
+| 8 | Asset-management state | deferred (not in P1) |
+| 9 | Camera → Plan surface (backdrop, X/Z, Y preserved, no framing) | P1.5 |
+| 10 | Camera → 3D (framing authority + lanes) | ✅ viewport shipped; framing lanes → P1.6–P1.7 |
+| 11 | Timeline = Camera-domain infrastructure | ✅ P1.1 |
+| 12 | Timeline exposure (heights, tour controls, lanes) | ✅ heights/controls; lanes → P1.6–P1.7 |
+| 13 | Camera shared selection across Plan/3D | ✅ P1.1 |
+| 14–15 | Domain boundaries / no leakage | ✅ P1.1 (domain gate) |
+| 16 | Toolbar ownership matrix | ✅ P1.1 (existing cells); Camera Plan toolbar → P1.5 |
+| 17 | Viewport utilities | ✅ shipped |
+| 18 | Status bar | ✅ P1.1 (folded in) |
+| 19 | Workspace state persistence | ✅ P1.1 |
+| 20 | Domain-switch behavior | ✅ P1.1 (180–220 ms animation polish deferred) |
+| 21 | View-switch behavior | ✅ P1.1 |
+| 22 | Capability/visibility matrix | ✅ Scene cells; Camera Plan → P1.5 |
+| 23 | Non-leakage rules | ✅ Scene cells; Camera Plan → P1.5 |
+| 24 | Review targets A–L | ✅ A–H, J–L (P1.1); I (Plan Y) → P1.5 |
+| 25 | Shell state model | ✅ P1.1 (`EditorViewState`) |
+| 26 | Acceptance flows | ✅ non-Camera-Plan flows (P1.1); Camera Plan flows → P1.5 |
+| 27 | Review principle | ✅ (guides future reviews) |
+
+**Known deltas vs the spec (tracked, not regressions):** boot stays `Scene →
+Plan` (deferred, non-architectural); the Camera Sidebar is today the unified
+tree with read-only environment rows and the embedded Camera Flow panel
+(Scene-only Hierarchy/Assets tabs and Add Room are absent; dedicated
+Environment / Sequence Inspector / Free Cameras / Connections sections →
+P1.7); the timeline domain-switch animation is instant (polish, deferred).
+
+---
+
 ## Design reference (read on demand)
 
 The sections below are the folded design sources. **Read only the section your
-increment maps to — not the whole file:** P1.2–P1.4 → **§B** · P1.5 → **§C** ·
-strategy and provenance → **§D**. The live plan is the front matter + §A above.
+increment maps to — not the whole file:** P1.1 → **§A + §A.1 + §A.2** · P1.2–P1.4 →
+**§B** · P1.5 → **§C** · strategy and provenance → **§D**. The live plan is the
+front matter + §A (+ the P1.1 brief in §A.1 + the design-spec conformance
+mapping in §A.2).
 
 ---
 
 ## B — Framing envelope: adopted model (folded source, 2026-08-18)
+
+> **External design review (2026-08-18):** engine guards refined by the
+> four-round framing-freedom review — see the front-matter review note. §B
+> remains the adopted model as reviewed; the guards land in P1.3/P1.4/P1.6.
 
 ## Camera framing authoring — adopted model (C′)
 

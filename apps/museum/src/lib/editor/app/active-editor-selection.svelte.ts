@@ -8,27 +8,32 @@
  * the reducer; the missing boundary is `layout ↔ (scene | camera)`. This module
  * owns that boundary:
  *
- * - `deriveActiveSelection` — pure mapping from the three slots to exactly one
- *   domain (`layout` | `scene` | `camera` | `none`). Room-only placement is
- *   *context, not actionable* and never counts as an active domain. For legacy
- *   multi-actionable states the priority is deterministic: layout > scene >
- *   camera.
+ * - `deriveActiveSelection` — pure mapping from the current **domain** + the
+ *   three slots to exactly one domain (`layout` | `scene` | `camera` | `none`).
+ *   P1.1 (shell inversion, §A) made the mapping **domain-gated**: the camera
+ *   domain reads only the navigation slot (scene/layout slots are memory,
+ *   never active there); the scene domain reads layout > scene and ignores the
+ *   navigation slot. Room-only placement is *context, not actionable* and
+ *   never counts as an active domain.
  * - `EditorActiveSelectionStore` — composition-root facade exposing `active`
- *   (derived), `deselectActive()` (clears whichever domain is active), and
- *   `reset()` (clears all three slots explicitly for import/reset).
+ *   (derived through the domain gate), `deselectActive()` (clears whichever
+ *   domain is active), and `reset()` (clears all three slots explicitly for
+ *   import/reset). The shell constructs `EditorViewState` **before** this
+ *   store so the gate can read `domain`.
  *
  * Activation itself stays in the source stores: `EditorSelectionStore` fires
  * the `onSelectionActivate` hook (wired through `createMuseumEditorStore`
  * options) on actionable scene/camera picks, and the editor shell clears the
- * scene/camera slots when `layoutInteraction.selection` becomes actionable.
- * This module therefore adapts the stores without merging their types, and the
- * machinery stays domain-generic so the P2 Plan staging mode can
- * route Plan scene-activation through it without rework.
+ * scene slot when `layoutInteraction.selection` becomes actionable. This module
+ * therefore adapts the stores without merging their types, and the machinery
+ * stays domain-generic so the P2 Plan staging mode can route Plan
+ * scene-activation through it without rework.
  */
 
 import { clearLayoutSelection, type LayoutInteractionState, type LayoutSelection } from '../layout/layout-interaction';
 import type { NavigationSelection, WorkspaceSelection } from '../museum-editor.types';
 import type { MuseumEditorStore } from '../museum-editor.svelte';
+import type { EditorViewState } from './editor-view-state.svelte';
 
 /** Context key so editor children (hierarchy, selection, gizmo) can read `active`. */
 export const ACTIVE_EDITOR_SELECTION_KEY = Symbol('active-editor-selection');
@@ -48,23 +53,34 @@ export function isWorkspaceSelectionActionable(workspace: WorkspaceSelection): b
 }
 
 /**
- * Pure mapping from the three source slots to the one active domain.
- * Deterministic priority for (legacy) multi-actionable states: layout > scene >
- * camera, then `none`.
+ * Pure mapping from the current domain + the three source slots to the one
+ * active domain (P1.1 domain gate, §A.1 §4):
+ *
+ * - **camera** domain → navigation slot if non-none, else `none` (scene/layout
+ *   slots are memory, never active).
+ * - **scene** domain → layout > scene priority; the navigation slot is ignored
+ *   (camera picks are memory while Scene is active).
+ *
+ * View switches never change the result (the slots are untouched); domain
+ * switches re-gate which slot is active.
  */
 export function deriveActiveSelection(
+	domain: 'scene' | 'camera',
 	workspace: WorkspaceSelection,
 	navigation: NavigationSelection,
 	layoutSelection: LayoutSelection
 ): ActiveEditorSelection {
+	if (domain === 'camera') {
+		if (navigation.kind !== 'none') {
+			return { domain: 'camera', selection: navigation };
+		}
+		return { domain: 'none' };
+	}
 	if (layoutSelection.kind !== 'none') {
 		return { domain: 'layout', selection: layoutSelection };
 	}
 	if (isWorkspaceSelectionActionable(workspace)) {
 		return { domain: 'scene', selection: workspace };
-	}
-	if (navigation.kind !== 'none') {
-		return { domain: 'camera', selection: navigation };
 	}
 	return { domain: 'none' };
 }
@@ -72,48 +88,25 @@ export function deriveActiveSelection(
 export class EditorActiveSelectionStore {
 	readonly #store: MuseumEditorStore;
 	readonly #layoutInteraction: LayoutInteractionState;
+	readonly #viewState: EditorViewState;
 	readonly #clearLayoutSelection: () => void;
 
 	constructor(
 		store: MuseumEditorStore,
 		layoutInteraction: LayoutInteractionState,
+		viewState: EditorViewState,
 		clearLayoutSelectionCallback: () => void
 	) {
 		this.#store = store;
 		this.#layoutInteraction = layoutInteraction;
+		this.#viewState = viewState;
 		this.#clearLayoutSelection = clearLayoutSelectionCallback;
-		// construction-time convergence: editor boot is all-empty (the
-		// activation hooks enforce exclusivity from the first pick), but a future
-		// consumer may construct the wrapper over a legacy multi-actionable
-		// state. Keep the highest-priority domain and clear the surplus slots so
-		// the derived read and the slots agree.
-		this.#convergeLegacyState();
 	}
 
-	#convergeLegacyState(): void {
-		const workspace = this.#store.selection.workspace;
-		const navigation = this.#store.selection.navigation;
-		const layoutSelection = this.#layoutInteraction.selection;
-		const actionableCount =
-			(layoutSelection.kind !== 'none' ? 1 : 0) +
-			(isWorkspaceSelectionActionable(workspace) ? 1 : 0) +
-			(navigation.kind !== 'none' ? 1 : 0);
-		// Priority layout > scene > camera. Camera can never win here: with
-		// layout and workspace both non-actionable, a camera pick is the only
-		// actionable domain (count 1) and we return above.
-		if (actionableCount <= 1) return;
-		if (layoutSelection.kind !== 'none') {
-			this.#store.selection.setWorkspace({ kind: 'none' });
-			this.#store.selection.setNavigation({ kind: 'none' });
-		} else {
-			this.#clearLayoutSelection();
-			this.#store.selection.setNavigation({ kind: 'none' });
-		}
-	}
-
-	/** Exactly one active domain, derived from the three untouched source slots. */
+	/** Exactly one active domain, derived through the domain gate from the untouched source slots. */
 	active = $derived.by<ActiveEditorSelection>(() =>
 		deriveActiveSelection(
+			this.#viewState.domain,
 			this.#store.selection.workspace,
 			this.#store.selection.navigation,
 			this.#layoutInteraction.selection
@@ -152,18 +145,25 @@ export class EditorActiveSelectionStore {
 
 	/**
 	 * the shell's layout-activation hook: when a Plan pick makes the
-	 * layout selection actionable, detach any actionable scene/camera pick.
+	 * layout selection actionable, detach any actionable scene pick.
 	 * `clearPlacementSelection` keeps the room context and `setNavigation({kind:
 	 * 'none'})` is non-actionable, so the store hook never fires and this
 	 * cannot loop. Testable independently of the shell `$effect`.
+	 *
+	 * P1.1 (deliberate change, §A.1 §4): the **navigation slot is no longer
+	 * cleared here** — it is camera-domain memory and must survive Scene layout
+	 * work (a camera pick made in Camera → 3D stays restorable after a Scene →
+	 * Plan drafting session). The legacy reducer's workspace↔navigation
+	 * cross-clear stays (out of scope): a *scene* pick still drops a camera
+	 * pick and vice versa — documented degradation, not a regression.
 	 *
 	 * Idempotent by construction (S4 regression): the shell effect calls this
 	 * on every layout-selection change, and `selectedRoomId` reads
 	 * `selection.workspace` reactively — an unconditional `setWorkspace` write
 	 * of a fresh object makes the effect re-run (read → write → re-run),
 	 * spinning into Svelte's `effect_update_depth_exceeded` freeze on the
-	 * first room/wall/opening pick. Each slot is therefore written only when
-	 * it actually changes from the detach target.
+	 * first room/wall/opening pick. The workspace slot is therefore written
+	 * only when it actually changes from the detach target.
 	 */
 	onLayoutSelectionChanged(): void {
 		if (this.#layoutInteraction.selection.kind === 'none') return;
@@ -182,9 +182,5 @@ export class EditorActiveSelectionStore {
 		if (!alreadyDetached) {
 			this.#store.selection.setWorkspace(roomOnlyWorkspace);
 		}
-		if (this.#store.selection.navigation.kind !== 'none') {
-			this.#store.selection.setNavigation({ kind: 'none' });
-		}
 	}
 }
-

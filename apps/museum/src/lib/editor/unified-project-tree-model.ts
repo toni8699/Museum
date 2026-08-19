@@ -23,6 +23,8 @@ import type { CameraConnectionDirection } from '$lib/types/museum';
 import type { LayoutSelection } from './layout/layout-interaction';
 import type { WorkspaceSelection, NavigationSelection } from './museum-editor.types';
 import type { ActiveEditorSelection } from './app/active-editor-selection.svelte';
+import type { EditorDomain } from './app/editor-view-state.svelte';
+import type { EditorViewMode } from './app/editor-view-mode';
 
 export type UnifiedTreeRow =
 	| { kind: 'room'; roomId: string }
@@ -375,27 +377,42 @@ export function isUnifiedTreeRowSelected(
 }
 
 /**
- * View-aware pick gating. Layout rows are interactive in both views; scene and
- * camera rows are interactive only in 3D — in Plan they render read-only
- * (`aria-disabled`, no-op) per S3's locked "Plan selection always activates
- * the layout domain" and the umbrella's "Plan is layout CAD only" / "Plan
- * exposes no camera mutation path". P2 (plan staging) flips the scene
- * branch by extending this predicate.
+ * Domain×view-aware pick gating (P1.1, G1). One predicate over the shell's
+ * two axes:
+ *
+ * - **layout rows** (room/wall/opening/anchor/object) are interactive in the
+ *   Scene domain, both views (Scene → Plan drafting + Scene → 3D picks). In
+ *   the Camera domain they are read-only spatial context (§C §4.6).
+ * - **scene rows** (cluster/entity) are interactive only in Scene → 3D — in
+ *   Scene → Plan they render read-only (`aria-disabled`, no-op) per S3's
+ *   locked "Plan selection always activates the layout domain".
+ * - **camera rows** are interactive in the Camera domain, both views (the
+ *   tree embeds the live `CameraFlowPanel`; its own `interactive` prop keys
+ *   off the camera-domain rule).
+ *
+ * Read-only rows stay `aria-disabled` no-ops; they never activate a domain
+ * outside their own. P2 (plan staging) flips the scene branch by extending
+ * this predicate.
  */
 export function isUnifiedTreeRowInteractive(
 	row: UnifiedTreeRow,
-	viewMode: 'plan' | '3d'
+	domain: EditorDomain,
+	view: EditorViewMode
 ): boolean {
-	if (viewMode === '3d') return true;
 	switch (row.kind) {
+		case 'camera-node':
+		case 'camera-connection':
+		case 'camera-direction':
+		case 'camera-keyframe':
+			return domain === 'camera';
 		case 'room':
 		case 'wall':
 		case 'opening':
 		case 'interiorAnchor':
 		case 'object':
-			return true;
+			return domain === 'scene';
 		default:
-			return false;
+			return domain === 'scene' && view === '3d';
 	}
 }
 

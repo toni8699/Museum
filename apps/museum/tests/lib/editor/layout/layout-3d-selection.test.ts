@@ -178,14 +178,14 @@ describe('commit route (pure shell mirror)', () => {
 			{ kind: 'wall-triangle', roomId: mesh.roomId, triangleIndex: wallTriangle, distance: 1.5 }
 		];
 		expect(applyLayoutPick(interaction, indices, candidates, null)).toBe(true);
-		expect(interaction.selection.kind).toBe('wall');
-		expect(
-			deriveActiveSelection(
-				store.selection.workspace,
-				store.selection.navigation,
-				interaction.selection
-			)
-		).toEqual({ domain: 'layout', selection: interaction.selection });
+		expect(interaction.selection.kind).toBe('wall');			expect(
+				deriveActiveSelection(
+					'scene',
+					store.selection.workspace,
+					store.selection.navigation,
+					interaction.selection
+				)
+			).toEqual({ domain: 'layout', selection: interaction.selection });
 	});
 
 	it('a nearer scene winner causes no layout write (scene wins beyond the tie band)', () => {

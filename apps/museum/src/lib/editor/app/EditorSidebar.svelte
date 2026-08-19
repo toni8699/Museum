@@ -38,8 +38,10 @@
 		onAssetSelection?: (asset: MuseumAsset | undefined) => void;
 	} = $props();
 
-	const viewMode = $derived(viewState.viewMode);
-	const in3d = $derived(viewMode === '3d');
+	const domain = $derived(viewState.domain);
+	const activeView = $derived(viewState.activeView);
+	const in3d = $derived(activeView === '3d');
+	const showScenePanelTabs = $derived(domain === 'scene' && in3d);
 	// Boot-empty editor surfaces no badge (status 'blank' and no import error).
 	// importError is `string | null` — check `!== null`, not `!== undefined`
 	// (which is always true and would show the header on every blank boot).
@@ -52,9 +54,10 @@
 		store.setLeftPanel(panel);
 	}
 
-	// S10.1 — Rooms header (+): jump to Plan and start a rectangle-room draft.
+	// S10.1 — Rooms header (+): jump to Scene → Plan and start a rectangle-room draft.
 	function startRoomDraft() {
-		viewState.setViewMode('plan');
+		viewState.setDomain('scene');
+		viewState.setView('scene', 'plan');
 		setLayoutDraftTool(layoutInteraction, 'rectangle');
 	}
 </script>
@@ -77,7 +80,7 @@
 		</div>
 	{/if}
 
-	{#if in3d}
+	{#if showScenePanelTabs}
 		<div class="panel-tabs" role="tablist" aria-label="Editor panels">
 			<button
 				type="button"
@@ -98,18 +101,18 @@
 
 	<!-- Both panels stay mounted; the inactive one is hidden by class so the
 	     tree's component-local expansion state survives tab switches. -->
-	<div class="panel-content" class:panel-content--hidden={in3d && store.leftPanel === 'assets'}>
+	<div class="panel-content" class:panel-content--hidden={showScenePanelTabs && store.leftPanel === 'assets'}>
 		<UnifiedProjectTree
 			{store}
 			{layoutPreview}
 			{layoutInteraction}
 			{activeSelection}
-			viewMode={viewState.viewMode}
-			active3dContext={viewState.active3dContext}
-			onAddRoom={startRoomDraft}
+			domain={viewState.domain}
+			view={viewState.activeView}
+			onAddRoom={domain === 'scene' ? startRoomDraft : undefined}
 		/>
 	</div>
-	{#if in3d}
+	{#if showScenePanelTabs}
 		<div class="panel-content" class:panel-content--hidden={store.leftPanel !== 'assets'}>
 			<EditorAssetLibrary {store} onselectionchange={onAssetSelection} />
 		</div>

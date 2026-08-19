@@ -11,22 +11,32 @@ shipped/next lists never accumulate.
   shipped and archived). Chain back via
   [`../plans/README.md`](../plans/README.md) (depends-on) and the archived
   [2026-08-18 scope decision](../archive/plans/2026-08-18-scope-decision-camera-first.md).
-- Current delta: execution order committed (**P1 → P2 → P3**); 38 shipped
-  letter-era plans archived; **P1–P5 umbrella docs** composed with all source
-  content folded in (originals deleted); `docs/` rebuilt as the context router.
-- All plan/doc changes **uncommitted**; no application-code changes in flight.
+- Current delta: **P1.1 shipped (2026-08-18)** — successor **domain×view
+  shell** (§A ratified; implemented per **P1 §A.1** with the G1–G6 review
+  amendments): domain×view matrix + per-domain view memory + **domain-gated
+  selection** + **Camera-domain timeline** ownership + Camera → Plan
+  placeholder cell + per-row-type sidebar gating. Review follow-up removed the
+  empty Camera rail, hid Scene-only sidebar tabs/Assets/Add Room in Camera,
+  and made status-bar save/grid/snap/hints workspace-aware.
+- **Status bar added** (design-spec §2/§18 — the one shell-region gap):
+  persistent bottom region in every workspace (workspace, selection, save
+  state, nav hints, grid/snap/units).
+- **Design-spec conformance mapping folded into P1 §A.2** (target:
+  `docs/Design-specs/Design-shell-specs.md`).
+- P1.1 code + all plan/doc changes **uncommitted**.
 
 ## Next action
 
-- **One action:** ratify the **shell inversion** (P1.1's gate — approve
-  superseding the prior shell invariants 1, 3, parts of 2; enumerated in
-  **P1 §A**), then implement **P1.1** (successor domain×view shell); the engine
-  track **P1.2–P1.4** runs in parallel.
+- **One action:** the engine track **P1.2–P1.4** (framing envelope
+  serialization + ordering validation + `resolveSceneDocument` threading + FOV
+  copy fix + clone-survival test) runs in parallel with **P1.5** — the
+  **Camera Plan surface** mounts into the P1.1 shell (the placeholder cell).
+  **P1.6** converges both tracks; **P1.7** last.
 
 ## Verification
 
-- **1690 tests green · `svelte-check` 0 · build clean** (S10.1 closeout,
-  2026-08-18). Doc rework adds no code.
+- **1697 tests green · `svelte-check` 0 errors / 0 warnings · build clean**
+  (P1.1 review fixes, 2026-08-18).
 
 ## Known bugs / deferred
 

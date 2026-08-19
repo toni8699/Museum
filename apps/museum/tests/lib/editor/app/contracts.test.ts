@@ -927,9 +927,9 @@ describe('camera context contracts', () => {
 		const toolbar = readLibSource('editor/EditorViewportToolbar.svelte');
 		const viewport = readLibSource('editor/EditorViewport.svelte');
 
-		// editor derives the context from EditorViewState.active3dContext and passes
+		// P1.1 — the editor derives the 3D context from the domain axis and passes
 		// it down; the toolbar split is context-prop-driven.
-		expect(app).toContain('context={viewState.active3dContext}');
+		expect(app).toContain('context={viewState.domain}');
 		expect(ws3d).toMatch(/context: 'scene' \| 'camera'/);
 		expect(toolbar).toMatch(/context\?: 'scene' \| 'camera'/);
 		// The editor-only camera-agnostic escape hatch is removed.
@@ -965,13 +965,68 @@ describe('camera context contracts', () => {
 		expect(sceneBranch).toContain('Ceiling');
 	});
 
-	it('mounts the camera timeline bottom frame only for 3D Camera, never Scene', () => {
+	it('mounts the camera timeline bottom frame for the Camera domain in both views, never Scene', () => {
 		const app = readLibSource('editor/app/EditorApp.svelte');
 		const frame = readLibSource('editor/EditorCameraTimelineFrame.svelte');
-		expect(app).toContain("viewState.viewMode === '3d' && viewState.active3dContext === 'camera'");
+		expect(app).toContain("viewState.domain === 'camera'");
 		// The frame keeps its full-width bottom-strip contract; only its mount
-		// point is Camera-gated.
+		// point is Camera-domain gated.
 		expect(frame).toContain('grid-area: bottom');
+	});
+
+	it('keeps both Camera cells on the camera workspace so timeline state persists across views (G3)', () => {
+		const app = readLibSource('editor/app/EditorApp.svelte');
+		// G3 — `store.setWorkspace` collapses the timeline, stops previews, and
+		// cancels pending navigation when leaving 'camera'; mapping both Camera
+		// cells to the camera workspace means Camera 3D ↔ Plan toggles never
+		// trigger those side effects (timeline expanded state persists).
+		expect(app).toContain("if (viewState.domain === 'camera')");
+		expect(app).toContain("store.setWorkspace('camera')");
+	});
+
+	it('mounts the Camera Plan placeholder cell with no camera mutation surface', () => {
+		const app = readLibSource('editor/app/EditorApp.svelte');
+		const placeholder = readLibSource('editor/app/CameraPlanPlaceholder.svelte');
+		// The center-cell matrix mounts the placeholder only for Camera → Plan.
+		expect(app).toContain('<CameraPlanPlaceholder');
+		expect(app).toContain("viewState.activeView === 'plan' && viewState.domain === 'scene'");
+		// It is deliberately inert — no camera mutation surface (mirrors the
+		// PlanWorkspace no-mutator pin).
+		expect(placeholder).not.toContain('connectNavigationNodes');
+		expect(placeholder).not.toContain('beginCameraPlacement');
+		expect(placeholder).not.toContain('closeGuidedTourLoop');
+		expect(placeholder).not.toContain('deleteConnection');
+		expect(placeholder).not.toContain('updateNavigationNodePoint');
+	});
+
+	it('mounts a persistent status bar region in every workspace with no authoring actions', () => {
+		const app = readLibSource('editor/app/EditorApp.svelte');
+		const status = readLibSource('editor/app/StatusBar.svelte');
+		// The status bar is an unconditional shell region (design-spec §2/§18),
+		// present in all four workspaces.
+		expect(app).toContain('<StatusBar');
+		expect(app).toContain("'status status status'");
+		expect(status).toContain('grid-area: status');
+		expect(app).toContain('{layoutPreview} {layoutInteraction} {viewState} {activeSelection}');
+		expect(status).toContain('store.isDirty || layoutPreviewIsDirty(layoutPreview)');
+		expect(status).toContain('layoutInteraction.planView.gridEnabled');
+		expect(status).toContain('layoutInteraction.planView.snapEnabled');
+		// Informational/supporting only — major authoring actions must not
+		// migrate into it.
+		expect(status).not.toContain('beginCameraPlacement');
+		expect(status).not.toContain('connectNavigationNodes');
+		expect(status).not.toContain('deleteConnection');
+		expect(status).not.toContain('setLayoutDraftTool');
+		expect(status).not.toContain('store.undo');
+	});
+
+	it('keeps Scene-only sidebar controls out of the Camera domain and mounts no empty camera rail', () => {
+		const app = readLibSource('editor/app/EditorApp.svelte');
+		const sidebar = readLibSource('editor/app/EditorSidebar.svelte');
+		expect(sidebar).toContain("domain === 'scene' && in3d");
+		expect(sidebar).toContain("onAddRoom={domain === 'scene' ? startRoomDraft : undefined}");
+		expect(sidebar).toContain('{#if showScenePanelTabs}');
+		expect(app).not.toContain('CameraDomainRail');
 	});
 
 	it('gates camera authoring overlays to Camera while keeping the rig always mounted', () => {
@@ -1170,6 +1225,7 @@ describe('cross-domain selection contracts', () => {
 		// so a Plan↔3D switch cannot change it.
 		const layoutSelection: LayoutSelection = { kind: 'room', roomId: 'paris' };
 		const before = deriveActiveSelection(
+			'scene',
 			store.selection.workspace,
 			store.selection.navigation,
 			layoutSelection
@@ -1180,6 +1236,7 @@ describe('cross-domain selection contracts', () => {
 		expect(store.setWorkspace('scene')).toBe(true);
 
 		const after = deriveActiveSelection(
+			'scene',
 			store.selection.workspace,
 			store.selection.navigation,
 			layoutSelection

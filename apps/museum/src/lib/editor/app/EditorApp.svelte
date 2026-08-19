@@ -40,6 +40,8 @@
 	import EditorAppBar from './EditorAppBar.svelte';
 	import PlanWorkspace from './PlanWorkspace.svelte';
 	import Workspace3DView from './Workspace3DView.svelte';
+	import CameraPlanPlaceholder from './CameraPlanPlaceholder.svelte';
+	import StatusBar from './StatusBar.svelte';
 	import { EditorViewState } from './editor-view-state.svelte';
 	import {
 		ACTIVE_EDITOR_SELECTION_KEY,
@@ -65,14 +67,17 @@
 		// (detach-then-attach: the new domain lands, the previous one drops).
 		onSelectionActivate: () => clearLayoutSelection(layoutInteraction)
 	});
+	// P1.1 — construct the view state before the selection store: the store's
+	// domain gate reads `viewState.domain`.
+	const viewState = new EditorViewState();
 	// one active selection domain at the editor composition root.
 	const activeSelection = new EditorActiveSelectionStore(
 		store,
 		layoutInteraction,
+		viewState,
 		() => clearLayoutSelection(layoutInteraction)
 	);
 	setContext(ACTIVE_EDITOR_SELECTION_KEY, activeSelection);
-	const viewState = new EditorViewState();
 	store.registerLayoutHistory({
 		capture: () => captureLayoutPreviewSnapshot(layoutPreview),
 		replace: (snapshot) => restoreLayoutPreviewSnapshot(layoutPreview, snapshot as ReturnType<typeof captureLayoutPreviewSnapshot>),
@@ -123,20 +128,23 @@
 		}
 	});
 
-	// Map the top-level Plan | 3D view + 3D context onto the legacy store's
-	// `currentWorkspace`. Plan owns the layout workspace (SVG surface); 3D owns
-	// scene/camera — the drafted architecture renders in 3D unconditionally, so
-	// there is no layout 3D context to sync.
+	// Map the domain×view matrix onto the legacy store's `currentWorkspace`.
+	// The layout view mode follows the *view* (plan cells → 'plan', 3D cells →
+	// '3d' — keeping Plan-only placement tools disabled in 3D, per the
+	// inspector's Place accordion + primitive guard reads). The workspace
+	// follows the domain: Scene plan owns the layout workspace, Scene 3D owns
+	// scene, and **both Camera cells keep the camera workspace** (G3) so
+	// `setWorkspace`'s timeline-expansion / preview-stop / pending-navigation
+	// side effects never fire on Camera 3D ↔ Plan toggles.
 	$effect(() => {
-		if (viewState.viewMode === 'plan') {
-			setLayoutViewMode(layoutInteraction, 'plan');
+		const isPlan = viewState.activeView === 'plan';
+		setLayoutViewMode(layoutInteraction, isPlan ? 'plan' : '3d');
+		if (viewState.domain === 'camera') {
+			store.setWorkspace('camera');
+		} else if (isPlan) {
 			store.setWorkspace('layout');
 		} else {
-			// review — restoring the layout view mode keeps Plan-only
-			// placement tools disabled in 3D (the inspector's Place accordion
-			// and the primitive guard read `layoutInteraction.viewMode`).
-			setLayoutViewMode(layoutInteraction, '3d');
-			store.setWorkspace(viewState.active3dContext);
+			store.setWorkspace('scene');
 		}
 	});
 
@@ -276,12 +284,15 @@
 		onpointerdown={(event) => event.currentTarget.focus()}
 		style="grid-area: center;"
 	>
-		{#if viewState.viewMode === 'plan'}
+		{#if viewState.activeView === 'plan' && viewState.domain === 'scene'}
 			<PlanWorkspace {store} {layoutPreview} {layoutInteraction} />
+		{:else if viewState.activeView === 'plan'}
+			<!-- P1.1 — Camera → Plan is a placeholder cell until P1.5. -->
+			<CameraPlanPlaceholder />
 		{:else}
 			<!-- explicit 3D context seam: camera authoring overlays and
 			     the bottom timeline are Camera-only; Scene stays scene chrome. -->
-			<Workspace3DView {store} {layoutPreview} {layoutInteraction} context={viewState.active3dContext} />
+			<Workspace3DView {store} {layoutPreview} {layoutInteraction} context={viewState.domain} />
 		{/if}
 	</div>
 	<EditorInspector
@@ -290,12 +301,14 @@
 		{layoutInteraction}
 		{activeSelection}
 		{selectedAsset}
-		viewMode={viewState.viewMode}
+		viewMode={viewState.activeView}
 		bind:clusterNameInput
 	/>
-	{#if viewState.viewMode === '3d' && viewState.active3dContext === 'camera'}
+	{#if viewState.domain === 'camera'}
 		<EditorCameraTimelineFrame {store} />
 	{/if}
+	<!-- P1.1 (design-spec §2/§18) — persistent status bar in every workspace. -->
+	<StatusBar {store} {layoutPreview} {layoutInteraction} {viewState} {activeSelection} />
 	<EditorMaterialChoiceDialog {store} />
 </main>
 
@@ -304,11 +317,12 @@
 	.page {
 		display: grid;
 		grid-template-columns: minmax(17rem, 21rem) minmax(0, 1fr) minmax(17rem, 22rem);
-		grid-template-rows: auto minmax(0, 1fr) auto;
+		grid-template-rows: auto minmax(0, 1fr) auto auto;
 		grid-template-areas:
 			'top top top'
 			'left center right'
-			'bottom bottom bottom';
+			'bottom bottom bottom'
+			'status status status';
 		height: 100vh;
 		height: 100dvh;
 		overflow: hidden;
@@ -316,7 +330,7 @@
 		color: #f4efe4;
 		font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
 	}
-	.center { min-width: 0; min-height: 0; outline: none; }
+	.center { position: relative; min-width: 0; min-height: 0; outline: none; }
 	.center:focus-visible { box-shadow: inset 0 0 0 1px #d6b35f; }
 
 	@media (max-width: 78rem) {
@@ -326,12 +340,13 @@
 	@media (max-width: 62rem) {
 		.page {
 			grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-			grid-template-rows: auto minmax(24rem, 58vh) auto minmax(16rem, 34rem);
+			grid-template-rows: auto minmax(24rem, 58vh) auto minmax(16rem, 34rem) auto;
 			grid-template-areas:
 				'top top'
 				'center center'
 				'bottom bottom'
-				'left right';
+				'left right'
+				'status status';
 			height: auto;
 			min-height: 100vh;
 			min-height: 100dvh;
@@ -342,13 +357,14 @@
 	@media (max-width: 44rem) {
 		.page {
 			grid-template-columns: minmax(0, 1fr);
-			grid-template-rows: auto minmax(22rem, 55vh) auto minmax(16rem, 30rem) minmax(18rem, 30rem);
+			grid-template-rows: auto minmax(22rem, 55vh) auto minmax(16rem, 30rem) minmax(18rem, 30rem) auto;
 			grid-template-areas:
 				'top'
 				'center'
 				'bottom'
 				'left'
-				'right';
+				'right'
+				'status';
 		}
 	}
 </style>

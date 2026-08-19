@@ -407,26 +407,41 @@ describe('row selection matching', () => {
 	});
 });
 
-describe('view-aware interactivity', () => {
-	it('keeps layout rows interactive in both views', () => {
+describe('domain×view-aware interactivity (P1.1, G1)', () => {
+	it('keeps layout rows interactive in both Scene views and read-only in the Camera domain', () => {
 		const room: UnifiedTreeRow = { kind: 'room', roomId: 'room-a' };
 		const wall: UnifiedTreeRow = { kind: 'wall', roomId: 'room-a', segmentId: 'wall-a' };
 		const opening: UnifiedTreeRow = { kind: 'opening', roomId: 'room-a', segmentId: 'wall-a', openingId: 'opening-1' };
 		const anchor: UnifiedTreeRow = { kind: 'interiorAnchor', roomId: 'room-a', segmentId: 'wall-b', anchorId: 'anchor-1' };
 		const object: UnifiedTreeRow = { kind: 'object', objectId: 'object-1' };
 		for (const row of [room, wall, opening, anchor, object]) {
-			expect(isUnifiedTreeRowInteractive(row, 'plan')).toBe(true);
-			expect(isUnifiedTreeRowInteractive(row, '3d')).toBe(true);
+			expect(isUnifiedTreeRowInteractive(row, 'scene', 'plan')).toBe(true);
+			expect(isUnifiedTreeRowInteractive(row, 'scene', '3d')).toBe(true);
+			// Camera domain: the scene plan is read-only spatial context (§C §4.6).
+			expect(isUnifiedTreeRowInteractive(row, 'camera', 'plan')).toBe(false);
+			expect(isUnifiedTreeRowInteractive(row, 'camera', '3d')).toBe(false);
 		}
 	});
 
-	it('gates scene and camera rows to 3D', () => {
+	it('gates scene rows to Scene → 3D only', () => {
 		const entity: UnifiedTreeRow = { kind: 'entity', entityId: 'entity-a1' };
 		const cluster: UnifiedTreeRow = { kind: 'cluster', clusterId: 'cluster-a' };
+		for (const row of [entity, cluster]) {
+			expect(isUnifiedTreeRowInteractive(row, 'scene', '3d')).toBe(true);
+			expect(isUnifiedTreeRowInteractive(row, 'scene', 'plan')).toBe(false);
+			expect(isUnifiedTreeRowInteractive(row, 'camera', '3d')).toBe(false);
+		}
+	});
+
+	it('gates camera rows to the Camera domain, both views', () => {
 		const node: UnifiedTreeRow = { kind: 'camera-node', nodeId: 'node-1' };
-		for (const row of [entity, cluster, node]) {
-			expect(isUnifiedTreeRowInteractive(row, '3d')).toBe(true);
-			expect(isUnifiedTreeRowInteractive(row, 'plan')).toBe(false);
+		const connection: UnifiedTreeRow = { kind: 'camera-connection', connectionId: 'conn-a' };
+		const direction: UnifiedTreeRow = { kind: 'camera-direction', connectionId: 'conn-a', direction: 'forward' };
+		const keyframe: UnifiedTreeRow = { kind: 'camera-keyframe', connectionId: 'conn-a', direction: 'forward', keyframeId: 'kf-1' };
+		for (const row of [node, connection, direction, keyframe]) {
+			expect(isUnifiedTreeRowInteractive(row, 'camera', 'plan')).toBe(true);
+			expect(isUnifiedTreeRowInteractive(row, 'camera', '3d')).toBe(true);
+			expect(isUnifiedTreeRowInteractive(row, 'scene', '3d')).toBe(false);
 		}
 	});
 });

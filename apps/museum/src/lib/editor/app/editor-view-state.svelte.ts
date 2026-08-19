@@ -1,37 +1,48 @@
 import type { EditorViewMode } from './editor-view-mode';
 
 /**
- * 3D sub-contexts. Scene and camera stop being top-level workspaces and
- * become tool/panel contexts *inside* the one 3D view. The drafted layout
- * architecture renders in 3D unconditionally (via `LayoutPreviewScene`), so
- * there is no separate "layout" context — "Layout" is the top-level Plan view.
+ * peer editor domains (P1.1 shell inversion — §A). Scene and camera stop being
+ * 3D sub-contexts and become top-level peer domains, each owning a `Plan | 3D`
+ * view pair in fixed `[Plan | 3D]` order.
  */
-export type Editor3dContext = 'scene' | 'camera';
+export type EditorDomain = 'scene' | 'camera';
 
 /**
- * top-level shell view state.
+ * top-level shell view state (the domain×view matrix).
  *
- * `viewMode` is the only user-facing top-level switch — `Plan | 3D`. `3d`
- * hosts scene and camera as session-only tool/panel contexts. This is a pure
- * state holder: the shell maps these onto the legacy store's
- * `currentWorkspace` + `layoutInteraction.viewMode`, and applies the store's
- * interaction/transaction guards at the call site (the setters here only
- * enforce the no-op-on-same-value rule).
+ * `domain` is the primary, always-visible switcher (`Scene | Camera`); each
+ * domain owns one view memory (`sceneView` / `cameraView`), so a Plan ↔ 3D
+ * switch never leaks across domains. `activeView` is the current domain's
+ * view. This is a pure state holder: the shell maps these onto the legacy
+ * store's `currentWorkspace` + `layoutInteraction.viewMode`, and applies the
+ * store's interaction/transaction guards at the call site (the setters here
+ * only enforce the no-op-on-same-value rule).
  */
 export class EditorViewState {
-	// the editor boots into the empty Plan canvas.
-	viewMode = $state<EditorViewMode>('plan');
-	active3dContext = $state<Editor3dContext>('scene');
+	// boot defaults per §A: scene domain, scene view Plan, camera view 3D.
+	domain = $state<EditorDomain>('scene');
+	sceneView = $state<EditorViewMode>('plan');
+	cameraView = $state<EditorViewMode>('3d');
 
-	setViewMode(mode: EditorViewMode): boolean {
-		if (mode === this.viewMode) return false;
-		this.viewMode = mode;
+	/** the current domain's view — the only user-facing view switch. */
+	activeView = $derived.by<EditorViewMode>(() =>
+		this.domain === 'scene' ? this.sceneView : this.cameraView
+	);
+
+	setDomain(domain: EditorDomain): boolean {
+		if (domain === this.domain) return false;
+		this.domain = domain;
 		return true;
 	}
 
-	set3dContext(context: Editor3dContext): boolean {
-		if (context === this.active3dContext) return false;
-		this.active3dContext = context;
+	setView(domain: EditorDomain, mode: EditorViewMode): boolean {
+		if (domain === 'scene') {
+			if (mode === this.sceneView) return false;
+			this.sceneView = mode;
+		} else {
+			if (mode === this.cameraView) return false;
+			this.cameraView = mode;
+		}
 		return true;
 	}
 }

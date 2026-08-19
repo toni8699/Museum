@@ -3,7 +3,7 @@
 	import EditorProjectMenu from '$lib/editor/EditorProjectMenu.svelte';
 	import type { LayoutPreviewState } from '$lib/editor/layout/layout-preview-state.svelte';
 	import type { MuseumEditorStore } from '$lib/editor/museum-editor.svelte';
-	import type { Editor3dContext, EditorViewState } from './editor-view-state.svelte';
+	import type { EditorDomain, EditorViewState } from './editor-view-state.svelte';
 	import type { EditorViewMode } from './editor-view-mode';
 
 	let {
@@ -25,32 +25,36 @@
 		onReset?: () => void;
 	} = $props();
 
-	const viewMode = $derived(viewState.viewMode);
-	const active3dContext = $derived(viewState.active3dContext);
+	const domain = $derived(viewState.domain);
+	const activeView = $derived(viewState.activeView);
 	const canSwitch = $derived(!store.isDocumentMutationBlocked && !store.isEditorInteractionActive);
 	const dirty = $derived(store.isDirty);
 	const canPreviewTour = $derived(
 		!store.isEditorInteractionActive &&
-		!store.isDocumentTransactionActive &&
-		store.canStartTourPreview &&
-		(!store.cameraPreview || store.cameraPreview.transport !== 'playing')
+			!store.isDocumentTransactionActive &&
+			store.canStartTourPreview &&
+			(!store.cameraPreview || store.cameraPreview.transport !== 'playing')
 	);
 	let projectMenuOpen = $state(false);
+
+	// P1.1 — two always-visible segmented controls: the domain switcher is
+	// primary (`Scene | Camera`), the view switcher is per-domain in fixed
+	// `[Plan | 3D]` order everywhere (§A / §C §5.1). The `canSwitch` guard
+	// applies to both.
+	function switchDomain(next: EditorDomain) {
+		if (!canSwitch) {
+			store.setStatusMessage('Stop the current interaction before switching domains');
+			return;
+		}
+		viewState.setDomain(next);
+	}
 
 	function switchView(mode: EditorViewMode) {
 		if (!canSwitch) {
 			store.setStatusMessage('Stop the current interaction before switching views');
 			return;
 		}
-		viewState.setViewMode(mode);
-	}
-
-	function switchContext(context: Editor3dContext) {
-		if (!canSwitch) {
-			store.setStatusMessage('Stop the current interaction before switching contexts');
-			return;
-		}
-		viewState.set3dContext(context);
+		viewState.setView(domain, mode);
 	}
 </script>
 
@@ -60,56 +64,53 @@
 		<span class="subtitle">{projectName}</span>
 	</div>
 
+	<div class="domains" role="tablist" aria-label="Editor domain">
+		<button
+			type="button"
+			role="tab"
+			aria-selected={domain === 'scene'}
+			class:active={domain === 'scene'}
+			disabled={!canSwitch}
+			onclick={() => switchDomain('scene')}
+		><Box size={13} aria-hidden="true" /> Scene</button>
+		<button
+			type="button"
+			role="tab"
+			aria-selected={domain === 'camera'}
+			class:active={domain === 'camera'}
+			disabled={!canSwitch}
+			onclick={() => switchDomain('camera')}
+		><Route size={13} aria-hidden="true" /> Camera</button>
+	</div>
+
 	<div class="views" role="tablist" aria-label="Editor views">
 		<button
 			type="button"
 			role="tab"
-			aria-selected={viewMode === 'plan'}
-			class:active={viewMode === 'plan'}
+			aria-selected={activeView === 'plan'}
+			class:active={activeView === 'plan'}
 			disabled={!canSwitch}
 			onclick={() => switchView('plan')}
 		>Plan</button>
 		<button
 			type="button"
 			role="tab"
-			aria-selected={viewMode === '3d'}
-			class:active={viewMode === '3d'}
+			aria-selected={activeView === '3d'}
+			class:active={activeView === '3d'}
 			disabled={!canSwitch}
 			onclick={() => switchView('3d')}
 		>3D</button>
 	</div>
 
-	{#if viewMode === '3d'}
-		<div class="contexts" role="tablist" aria-label="3D context">
-			<button
-				type="button"
-				role="tab"
-				aria-selected={active3dContext === 'scene'}
-				class:active={active3dContext === 'scene'}
-				disabled={!canSwitch}
-				onclick={() => switchContext('scene')}
-			><Box size={13} aria-hidden="true" /> Scene</button>
-			<button
-				type="button"
-				role="tab"
-				aria-selected={active3dContext === 'camera'}
-				class:active={active3dContext === 'camera'}
-				disabled={!canSwitch}
-				onclick={() => switchContext('camera')}
-			><Route size={13} aria-hidden="true" /> Camera</button>
-		</div>
-	{/if}
-
 	<div class="actions">
 		<span class:dirty class="document-state">{dirty ? 'Unsaved' : 'Saved'}</span>
 		<button type="button" disabled={!store.canUndo} onclick={() => store.undo()}><Undo2 size={14} aria-hidden="true" /> Undo</button>
 		<button type="button" disabled={!store.canRedo} onclick={() => store.redo()}><Redo2 size={14} aria-hidden="true" /> Redo</button>
-		{#if viewMode === '3d' && active3dContext === 'scene'}
+		{#if domain === 'scene' && activeView === '3d'}
 			<a class="preview-action" href="/museum" target="_blank" rel="noreferrer">Preview Museum</a>
-		{:else if viewMode === '3d' && active3dContext === 'camera'}
-			<!-- S10.1 — Place Camera moved into the Camera viewport toolbar
-			     (Select | Move | Rotate | Add camera | View); the app bar keeps
-			     the high-level playback action only. -->
+		{:else if domain === 'camera'}
+			<!-- P1.1 — Preview Flow moves to the Camera domain (both views),
+			     matching timeline persistence. -->
 			<button
 				type="button"
 				disabled={!canPreviewTour}
@@ -140,7 +141,7 @@
 	.brand { display: flex; flex-direction: column; gap: 0.05rem; min-width: 12.5rem; }
 	.title { font-size: 0.92rem; font-weight: 650; letter-spacing: 0.02em; color: #f4efe4; }
 	.subtitle { color: #8f8a82; font-size: 0.68rem; }
-	.views, .contexts {
+	.domains, .views {
 		display: flex;
 		gap: 0.3rem;
 		padding: 0.25rem;
@@ -148,7 +149,7 @@
 		border-radius: 0.4rem;
 		background: #16161d;
 	}
-	.views button, .contexts button {
+	.domains button, .views button {
 		display: inline-flex;
 		align-items: center;
 		gap: 0.3rem;
@@ -161,10 +162,9 @@
 		font-size: 0.74rem;
 		cursor: pointer;
 	}
-	.views button:disabled, .contexts button:disabled { opacity: 0.5; cursor: default; }
-	.views button:hover:not(:disabled), .contexts button:hover:not(:disabled) { color: #f4efe4; }
-	.views button.active { border-color: #d6b35f; background: #2a2618; color: #fff2c7; }
-	.contexts button.active { border-color: #52634e; background: #182218; color: #cfe9c4; }
+	.domains button:disabled, .views button:disabled { opacity: 0.5; cursor: default; }
+	.domains button:hover:not(:disabled), .views button:hover:not(:disabled) { color: #f4efe4; }
+	.domains button.active, .views button.active { border-color: #d6b35f; background: #2a2618; color: #fff2c7; }
 	.actions { display: flex; gap: 0.4rem; align-items: center; margin-left: auto; }
 	.document-state {
 		padding: 0.16rem 0.42rem;
@@ -201,15 +201,15 @@
 	@media (max-width: 62rem) {
 		.app-bar { flex-wrap: wrap; gap: 0.55rem 0.75rem; }
 		.brand { min-width: 0; flex: 1 1 10rem; }
-		.views, .contexts { order: 2; }
+		.domains, .views { order: 2; }
 		.actions { order: 3; width: 100%; margin-left: 0; overflow-x: auto; padding-bottom: 0.05rem; }
 		.actions > .document-state { margin-right: auto; }
 	}
 	@media (max-width: 34rem) {
 		.app-bar { padding: 0.5rem 0.6rem; }
 		.subtitle { display: none; }
-		.views, .contexts { margin-left: auto; }
-		.views button, .contexts button { padding-inline: 0.62rem; }
+		.domains, .views { margin-left: auto; }
+		.domains button, .views button { padding-inline: 0.62rem; }
 		.actions button, .preview-action { padding-inline: 0.5rem; }
 	}
 </style>

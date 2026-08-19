@@ -7,6 +7,7 @@ import {
 	isWorkspaceSelectionActionable,
 	type ActiveEditorSelection
 } from '$lib/editor/app/active-editor-selection.svelte';
+import { EditorViewState } from '$lib/editor/app/editor-view-state.svelte';
 import {
 	clearLayoutSelection,
 	createLayoutInteractionState,
@@ -26,11 +27,13 @@ import { cloneFixtureDocumentWithEntityCount } from '../editor-test-utils';
  * Wires the `onSelectionActivate` seam exactly like `EditorApp` does: the
  * store fires it on actionable scene/camera picks, and the callback clears the
  * shell-owned layout selection. The `EditorActiveSelectionStore` wraps the same
- * store + `LayoutInteractionState`.
+ * store + `LayoutInteractionState` + `EditorViewState` (constructed first, as
+ * the shell does — the store's domain gate reads `viewState.domain`).
  */
 function wired(): {
 	store: MuseumEditorStore;
 	layoutInteraction: LayoutInteractionState;
+	viewState: EditorViewState;
 	activeSelection: EditorActiveSelectionStore;
 } {
 	const layoutInteraction = createLayoutInteractionState();
@@ -38,15 +41,17 @@ function wired(): {
 		document: cloneFixtureDocumentWithEntityCount(3),
 		onSelectionActivate: () => clearLayoutSelection(layoutInteraction)
 	});
+	const viewState = new EditorViewState();
 	const activeSelection = new EditorActiveSelectionStore(
 		store,
 		layoutInteraction,
+		viewState,
 		() => clearLayoutSelection(layoutInteraction)
 	);
-	return { store, layoutInteraction, activeSelection };
+	return { store, layoutInteraction, viewState, activeSelection };
 }
 
-describe('deriveActiveSelection', () => {
+describe('deriveActiveSelection (P1.1 domain gate)', () => {
 	const placement: WorkspaceSelection = {
 		kind: 'placement',
 		ids: ['a'],
@@ -61,48 +66,68 @@ describe('deriveActiveSelection', () => {
 	};
 	const room: LayoutSelection = { kind: 'room', roomId: 'room-a' };
 
-	it('maps each slot to its one domain', () => {
+	it('scene domain maps each slot to its one domain; navigation is ignored', () => {
 		expect(
-			deriveActiveSelection({ kind: 'none' }, { kind: 'none' }, { kind: 'none' })
+			deriveActiveSelection('scene', { kind: 'none' }, { kind: 'none' }, { kind: 'none' })
 		).toEqual({ domain: 'none' });
 		// Room-only placement is *context, not actionable*.
 		expect(
 			deriveActiveSelection(
+				'scene',
 				{ kind: 'placement', ids: [], clusterId: null, roomId: 'paris' },
 				{ kind: 'none' },
 				{ kind: 'none' }
 			)
 		).toEqual({ domain: 'none' });
-		expect(deriveActiveSelection(placement, { kind: 'none' }, { kind: 'none' })).toEqual({
+		expect(deriveActiveSelection('scene', placement, { kind: 'none' }, { kind: 'none' })).toEqual({
 			domain: 'scene',
 			selection: placement
 		});
-		expect(deriveActiveSelection(cluster, { kind: 'none' }, { kind: 'none' })).toEqual({
+		expect(deriveActiveSelection('scene', cluster, { kind: 'none' }, { kind: 'none' })).toEqual({
 			domain: 'scene',
 			selection: cluster
 		});
-		expect(deriveActiveSelection({ kind: 'none' }, connection, { kind: 'none' })).toEqual({
-			domain: 'camera',
-			selection: connection
+		expect(deriveActiveSelection('scene', { kind: 'none' }, connection, { kind: 'none' })).toEqual({
+			domain: 'none'
 		});
-		expect(deriveActiveSelection({ kind: 'none' }, { kind: 'none' }, room)).toEqual({
+		expect(deriveActiveSelection('scene', { kind: 'none' }, { kind: 'none' }, room)).toEqual({
 			domain: 'layout',
 			selection: room
 		});
 	});
 
-	it('resolves legacy multi-actionable states by priority layout > scene > camera', () => {
-		expect(deriveActiveSelection(placement, connection, room)).toEqual({
+	it('scene domain resolves multi-actionable states by layout > scene; navigation slot ignored', () => {
+		expect(deriveActiveSelection('scene', placement, connection, room)).toEqual({
 			domain: 'layout',
 			selection: room
 		});
-		expect(deriveActiveSelection(placement, connection, { kind: 'none' })).toEqual({
+		expect(deriveActiveSelection('scene', placement, connection, { kind: 'none' })).toEqual({
 			domain: 'scene',
 			selection: placement
 		});
-		expect(deriveActiveSelection({ kind: 'none' }, connection, { kind: 'none' })).toEqual({
+	});
+
+	it('camera domain reads the navigation slot only; scene/layout slots are memory', () => {
+		expect(deriveActiveSelection('camera', { kind: 'none' }, connection, { kind: 'none' })).toEqual({
 			domain: 'camera',
 			selection: connection
+		});
+		// camera + layout actionable → camera wins (layout is memory).
+		expect(deriveActiveSelection('camera', { kind: 'none' }, connection, room)).toEqual({
+			domain: 'camera',
+			selection: connection
+		});
+		// camera + scene actionable → camera wins (scene is memory).
+		expect(deriveActiveSelection('camera', placement, connection, { kind: 'none' })).toEqual({
+			domain: 'camera',
+			selection: connection
+		});
+		// camera without navigation → none, even with scene/layout actionable.
+		expect(deriveActiveSelection('camera', placement, { kind: 'none' }, room)).toEqual({
+			domain: 'none'
+		});
+		expect(deriveActiveSelection('camera', placement, { kind: 'none' }, { kind: 'none' })).toEqual({
+			domain: 'none'
 		});
 	});
 
@@ -173,17 +198,25 @@ describe('EditorActiveSelectionStore exclusivity', () => {
 		expect(activeSelection.active.domain).toBe('scene');
 	});
 
-	it('a camera pick clears a surviving layout selection', () => {
-		const { store, layoutInteraction, activeSelection } = wired();
+	it('a camera pick clears a surviving layout selection and activates in the Camera domain', () => {
+		const { store, layoutInteraction, activeSelection, viewState } = wired();
 		selectLayoutRoom(layoutInteraction, 'room-a');
 
 		const nodeId = store.document.navigationNodes[0]!.id;
 		expect(store.selectionActions.selectNavigationNode(nodeId)).toBe(true);
 		expect(layoutInteraction.selection).toEqual({ kind: 'none' });
-		expect(activeSelection.active.domain).toBe('camera');
+		// P1.1 domain gate: in the Scene domain the navigation slot is memory,
+		// never active.
+		expect(activeSelection.active.domain).toBe('none');
+		// Enter the Camera domain: the pick becomes the active domain.
+		viewState.setDomain('camera');
+		expect(activeSelection.active).toEqual({
+			domain: 'camera',
+			selection: { kind: 'node', nodeId, handle: 'position' }
+		});
 	});
 
-	it('activating the layout domain detaches scene and camera picks', () => {
+	it('activating the layout domain detaches the scene pick and preserves the navigation slot (P1.1 memory)', () => {
 		const { store, layoutInteraction, activeSelection } = wired();
 		const entityId = store.document.entities[0]!.id;
 		expect(store.selectionActions.selectPlacement(entityId)).toBe(true);
@@ -196,7 +229,9 @@ describe('EditorActiveSelectionStore exclusivity', () => {
 		selectLayoutRoom(layoutInteraction, 'room-a');
 		activeSelection.onLayoutSelectionChanged();
 
-		expect(store.navigationSelection).toBeNull();
+		// P1.1 deliberate change: the navigation slot is camera-domain memory
+		// and survives Scene layout work.
+		expect(store.navigationSelection).not.toBeNull();
 		expect(store.selectedPlacementIds).toEqual([]);
 		expect(store.selectedRoomId).toBe('paris'); // room context kept
 		expect(activeSelection.active).toEqual({
@@ -282,28 +317,61 @@ describe('deselectActive', () => {
 	});
 });
 
-describe('construction-time convergence', () => {
-	it('keeps the layout domain and clears the surplus slots (layout > scene > camera)', () => {
+describe('construction-time behavior (P1.1 domain-gated memory, G2)', () => {
+	// The reducer keeps workspace↔navigation mutually exclusive (a nav pick
+	// demotes a real workspace pick to room-only), so the multi-actionable
+	// scene+camera state can only be built by direct field writes — exactly the
+	// defensive case the old convergence existed for. G2: the wrapper no longer
+	// clears surplus slots; the domain gate alone decides the active read and
+	// no inactive domain's memory is ever destroyed.
+	function storeWithAllSlots() {
 		const layoutInteraction = createLayoutInteractionState();
 		const store = createMuseumEditorStore({
 			document: cloneFixtureDocumentWithEntityCount(3)
 		});
 		const entityId = store.document.entities[0]!.id;
 		const nodeId = store.document.navigationNodes[0]!.id;
-		// Build a legacy multi-actionable state directly on the slots (no hook
-		// wired — the wrapper owns the convergence).
-		store.selection.setWorkspace({
+		store.selection.workspace = {
 			kind: 'placement',
 			ids: [entityId],
 			clusterId: null,
 			roomId: 'paris'
-		});
-		store.selection.setNavigation({ kind: 'node', nodeId, handle: 'position' });
+		};
+		store.selection.navigation = { kind: 'node', nodeId, handle: 'position' };
 		layoutInteraction.selection = { kind: 'room', roomId: 'room-a' };
+		return { layoutInteraction, store, entityId, nodeId };
+	}
+
+	it('never destroys surplus slots: the camera domain reads the navigation slot; layout/scene stay memory', () => {
+		const { layoutInteraction, store, nodeId } = storeWithAllSlots();
+		const viewState = new EditorViewState();
+		viewState.setDomain('camera');
 
 		const activeSelection = new EditorActiveSelectionStore(
 			store,
 			layoutInteraction,
+			viewState,
+			() => clearLayoutSelection(layoutInteraction)
+		);
+
+		expect(activeSelection.active).toEqual({
+			domain: 'camera',
+			selection: { kind: 'node', nodeId, handle: 'position' }
+		});
+		// No slot destroyed — all three remain memory for their domains.
+		expect(store.selectedPlacementIds).toEqual([store.document.entities[0]!.id]);
+		expect(store.navigationSelection).toEqual({ kind: 'node', nodeId, handle: 'position' });
+		expect(layoutInteraction.selection).toEqual({ kind: 'room', roomId: 'room-a' });
+	});
+
+	it('scene domain: layout > scene; the navigation slot stays untouched memory', () => {
+		const { layoutInteraction, store, nodeId } = storeWithAllSlots();
+		const viewState = new EditorViewState();
+
+		const activeSelection = new EditorActiveSelectionStore(
+			store,
+			layoutInteraction,
+			viewState,
 			() => clearLayoutSelection(layoutInteraction)
 		);
 
@@ -311,22 +379,17 @@ describe('construction-time convergence', () => {
 			domain: 'layout',
 			selection: { kind: 'room', roomId: 'room-a' }
 		});
-		expect(store.selectedPlacementIds).toEqual([]);
-		expect(store.navigationSelection).toBeNull();
-		expect(layoutInteraction.selection).toEqual({ kind: 'room', roomId: 'room-a' });
+		expect(store.selectedPlacementIds).toEqual([store.document.entities[0]!.id]);
+		expect(store.navigationSelection).toEqual({ kind: 'node', nodeId, handle: 'position' });
 	});
 
-	it('keeps the scene domain when layout is not actionable (scene > camera)', () => {
+	it('scene domain with scene + camera memory: active is scene; the navigation slot stays memory', () => {
 		const layoutInteraction = createLayoutInteractionState();
 		const store = createMuseumEditorStore({
 			document: cloneFixtureDocumentWithEntityCount(3)
 		});
 		const entityId = store.document.entities[0]!.id;
 		const nodeId = store.document.navigationNodes[0]!.id;
-		// The reducer normally prevents scene+camera coexistence (a nav pick
-		// demotes the workspace pick), so this legacy state can only be built by
-		// direct field writes — exactly the defensive case the convergence
-		// exists for.
 		store.selection.workspace = {
 			kind: 'placement',
 			ids: [entityId],
@@ -338,41 +401,18 @@ describe('construction-time convergence', () => {
 		const activeSelection = new EditorActiveSelectionStore(
 			store,
 			layoutInteraction,
+			new EditorViewState(),
 			() => clearLayoutSelection(layoutInteraction)
 		);
 
 		expect(activeSelection.active.domain).toBe('scene');
 		expect(store.selectedPlacementIds).toEqual([entityId]);
-		expect(store.navigationSelection).toBeNull();
+		expect(store.navigationSelection).toEqual({ kind: 'node', nodeId, handle: 'position' });
 		expect(layoutInteraction.selection).toEqual({ kind: 'none' });
-	});
-
-	it('leaves a single actionable domain untouched', () => {
-		const layoutInteraction = createLayoutInteractionState();
-		const store = createMuseumEditorStore({
-			document: cloneFixtureDocumentWithEntityCount(3)
-		});
-		const entityId = store.document.entities[0]!.id;
-		store.selection.setWorkspace({
-			kind: 'placement',
-			ids: [entityId],
-			clusterId: null,
-			roomId: 'paris'
-		});
-
-		const activeSelection = new EditorActiveSelectionStore(
-			store,
-			layoutInteraction,
-			() => clearLayoutSelection(layoutInteraction)
-		);
-
-		expect(activeSelection.active.domain).toBe('scene');
-		expect(store.selectedPlacementIds).toEqual([entityId]);
-		expect(store.navigationSelection).toBeNull();
 	});
 });
 
-describe('reset() and view-switch preservation', () => {
+describe('reset() and domain/view-switch preservation', () => {
 	it('reset clears all three slots explicitly to none', () => {
 		const { store, layoutInteraction, activeSelection } = wired();
 		const entityId = store.document.entities[0]!.id;
@@ -390,18 +430,57 @@ describe('reset() and view-switch preservation', () => {
 		expect(activeSelection.active).toEqual({ domain: 'none' });
 	});
 
-	it('a layout selection survives into 3D (view switch never touches the slots)', () => {
-		const { store, layoutInteraction, activeSelection } = wired();
+	it('a layout selection survives view and domain switches (slots untouched; the gate re-gates)', () => {
+		const { store, layoutInteraction, activeSelection, viewState } = wired();
 		selectLayoutRoom(layoutInteraction, 'room-a');
 
-		// The S1 contract: switching the workspace preserves selection state.
-		expect(store.setWorkspace('layout')).toBe(true);
-		expect(store.setWorkspace('camera')).toBe(true);
-		expect(store.setWorkspace('scene')).toBe(true);
-
+		// Scene → 3D: layout stays active (view switch never touches the slots).
+		viewState.setView('scene', '3d');
 		expect(activeSelection.active).toEqual({
 			domain: 'layout',
 			selection: { kind: 'room', roomId: 'room-a' }
+		});
+
+		// Camera domain: the layout slot is memory; nothing is active.
+		viewState.setDomain('camera');
+		viewState.setView('camera', '3d');
+		expect(activeSelection.active).toEqual({ domain: 'none' });
+
+		// Back to Scene: the layout selection is restored.
+		viewState.setDomain('scene');
+		expect(activeSelection.active).toEqual({
+			domain: 'layout',
+			selection: { kind: 'room', roomId: 'room-a' }
+		});
+	});
+
+	it('restores a camera selection after Scene layout work (domain-gated memory)', () => {
+		const { store, layoutInteraction, activeSelection, viewState } = wired();
+		const nodeId = store.document.navigationNodes[0]!.id;
+
+		// Camera domain: select a node.
+		viewState.setDomain('camera');
+		viewState.setView('camera', '3d');
+		expect(store.selectionActions.selectNavigationNode(nodeId)).toBe(true);
+		expect(activeSelection.active).toEqual({
+			domain: 'camera',
+			selection: { kind: 'node', nodeId, handle: 'position' }
+		});
+
+		// Scene → Plan layout work: the navigation slot survives.
+		viewState.setDomain('scene');
+		viewState.setView('scene', 'plan');
+		selectLayoutRoom(layoutInteraction, 'room-a');
+		activeSelection.onLayoutSelectionChanged();
+		expect(store.navigationSelection).toEqual({ kind: 'node', nodeId, handle: 'position' });
+		expect(activeSelection.active.domain).toBe('layout');
+
+		// Back to Camera → 3D: the selection is restored.
+		viewState.setDomain('camera');
+		viewState.setView('camera', '3d');
+		expect(activeSelection.active).toEqual({
+			domain: 'camera',
+			selection: { kind: 'node', nodeId, handle: 'position' }
 		});
 	});
 });

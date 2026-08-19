@@ -38,7 +38,7 @@
 		type UnifiedTreeRow,
 		type UnifiedTreeRoom
 	} from './unified-project-tree-model';
-	import type { Editor3dContext } from './app/editor-view-state.svelte';
+	import type { EditorDomain } from './app/editor-view-state.svelte';
 	import type { EditorViewMode } from './app/editor-view-mode';
 
 	let {
@@ -46,16 +46,16 @@
 		layoutPreview,
 		layoutInteraction,
 		activeSelection,
-		viewMode,
-		active3dContext,
+		domain,
+		view,
 		onAddRoom = undefined
 	}: {
 		store: MuseumEditorStore;
 		layoutPreview: LayoutPreviewState;
 		layoutInteraction: LayoutInteractionState;
 		activeSelection: EditorActiveSelectionStore;
-		viewMode: EditorViewMode;
-		active3dContext: Editor3dContext;
+		domain: EditorDomain;
+		view: EditorViewMode;
 		/** S10.1 — start the room-drafting flow from the Rooms header (+). */
 		onAddRoom?: () => void;
 	} = $props();
@@ -79,8 +79,13 @@
 	const clusteredPlacementIds = $derived(
 		new Set((store.document.clusters ?? []).flatMap((cluster) => cluster.memberIds))
 	);
-	// Plan-view gate: scene/camera rows are read-only (aria-disabled, no click).
-	const interactive = $derived(viewMode === '3d');
+	// P1.1 (G1) — per-row-type interactivity. Scene/layout row actions are
+	// interactive only in Scene → 3D; camera rows (the embedded flow panel)
+	// are interactive in the Camera domain, both views. Layout-row *selection*
+	// follows the model predicate (`isUnifiedTreeRowInteractive`), which stays
+	// domain×view-aware.
+	const sceneInteractive = $derived(domain === 'scene' && view === '3d');
+	const cameraInteractive = $derived(domain === 'camera');
 	// S10.1 — hierarchy filter: narrows the Rooms tree by a case-insensitive
 	// substring over row labels/ids. Ancestors of matches survive so matched
 	// rows stay reachable; the Camera Flow panel is left untouched.
@@ -102,13 +107,12 @@
 		return () => window.removeEventListener('pointerdown', closeMenu);
 	});
 
-	// Camera Tour branch surfacing (preserved behavior): the camera context used
-	// to surface the camera tree as the whole sidebar; as a collapsible branch it
-	// could get buried. One-shot expansions on the *transition* into camera
-	// context and into the camera domain (a camera pick) — not a continuous
+	// Camera Tour branch surfacing (preserved behavior): as a collapsible branch it
+	// could get buried. One-shot expansions on the *transition* into the camera
+	// domain (G5 — both Camera views) and into a camera pick — not a continuous
 	// derived, so a user's explicit collapse stays authoritative.
 	$effect(() => {
-		if (active3dContext === 'camera') cameraTourOpen = true;
+		if (domain === 'camera') cameraTourOpen = true;
 	});
 	$effect(() => {
 		if (active.domain === 'camera') cameraTourOpen = true;
@@ -188,7 +192,7 @@
 	}
 
 	function roomRowInteractive(row: UnifiedTreeRow): boolean {
-		return isUnifiedTreeRowInteractive(row, viewMode);
+		return isUnifiedTreeRowInteractive(row, domain, view);
 	}
 
 	function selectRoom(room: UnifiedTreeRoom) {
@@ -348,7 +352,7 @@
 								<span class="tree-row__label" title={room.name}>{room.name}</span>
 								<span class="tree-row__meta" title={room.roomId}>{formatPlacementLabel(room.roomId)}</span>
 							</button>
-							{#if interactive}
+							{#if sceneInteractive}
 								<div class="row-actions">
 									<button
 										type="button"
@@ -441,7 +445,7 @@
 											<span class="tree-row__label">{opening.kind === 'door' ? 'Door' : 'Window'}</span>
 											<span class="tree-row__meta" title={opening.openingId}>{formatPlacementLabel(opening.openingId)}</span>
 										</button>
-										{#if interactive}
+										{#if sceneInteractive}
 											<div class="row-actions">
 												<button
 													type="button"
@@ -473,7 +477,7 @@
 										>
 											<span class="tree-row__label" title={object.objectId}>{formatPlacementLabel(object.kind)} · {formatPlacementLabel(object.objectId)}</span>
 										</button>
-										{#if interactive}
+										{#if sceneInteractive}
 											<div class="row-actions">
 												<button
 													type="button"
@@ -553,11 +557,11 @@
 																			class="mini-action"
 																			type="button"
 																			aria-label={`Remove ${entityLabel(entity)} from ${cluster.name}`}
-																			disabled={!interactive}
+																			disabled={!sceneInteractive}
 																			onclick={() => store.removeMemberFromCluster(cluster.clusterId, memberId)}
 																		>−</button>
-																		{#if interactive}
-																			<div class="row-actions">
+														{#if sceneInteractive}
+															<div class="row-actions">
 																				<button
 																					type="button"
 																					class="eye"
@@ -608,7 +612,7 @@
 													<span class="tree-row__label" title={entityLabel(entity)}>{entityLabel(entity)}</span>
 													<span class="tree-row__meta" title={entityMeta(entity)}>{entityMeta(entity)}</span>
 												</button>
-												{#if interactive && isSceneModelEntity(entity) && store.selectedCluster?.roomId === room.roomId}
+												{#if sceneInteractive && isSceneModelEntity(entity) && store.selectedCluster?.roomId === room.roomId}
 													<button
 														class="mini-action"
 														type="button"
@@ -616,8 +620,8 @@
 														onclick={() => store.addMemberToCluster(store.selectedClusterId!, entry.entityId)}
 													>+</button>
 												{/if}
-												{#if interactive}
-													<div class="row-actions">
+										{#if sceneInteractive}
+											<div class="row-actions">
 														<button
 															type="button"
 															class="eye"
@@ -669,7 +673,7 @@
 			{#if store.document.navigationNodes.length === 0}
 				<p class="empty">No cameras</p>
 			{:else}
-				<CameraFlowPanel {store} interactive={interactive} activeDomain={active.domain} />
+				<CameraFlowPanel {store} interactive={cameraInteractive} activeDomain={active.domain} />
 			{/if}
 		{/if}
 	</div>

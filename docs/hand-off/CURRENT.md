@@ -23,11 +23,15 @@ shipped/next lists never accumulate.
   state, nav hints, grid/snap/units).
 - **Design-spec conformance mapping folded into P1 §A.2** (target:
   `docs/Design-specs/Design-shell-specs.md`).
-- P1.1 code + all plan/doc changes **uncommitted**.
+- **P1.2 implementation brief added as a separate active doc:**
+  [`2026-08-18-P1.2-framing-envelope-serialization.md`](../plans/2026-08-18-P1.2-framing-envelope-serialization.md).
+- **P1.1 committed** (`dc31ddc feat(editor): add domain-view workspace shell`).
+  Plan/doc updates (this hand-off, the P1 umbrella's P1.1 close note, and the
+  P1.2 brief) remain uncommitted.
 
 ## Next action
 
-- **One action:** the engine track **P1.2–P1.4** (framing envelope
+- **One action:** implement the now-briefed engine track **P1.2–P1.4** (framing envelope
   serialization + ordering validation + `resolveSceneDocument` threading + FOV
   copy fix + clone-survival test) runs in parallel with **P1.5** — the
   **Camera Plan surface** mounts into the P1.1 shell (the placeholder cell).

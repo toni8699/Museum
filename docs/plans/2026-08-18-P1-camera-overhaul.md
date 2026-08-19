@@ -74,7 +74,7 @@ by the ratified shell contract (§A).
 | ID | Content | Source | Depends |
 |---|---|---|---|
 | **P1.1** | Successor domain×view shell + shell contract; **gate = shell-inversion ratification (§A)** — implementation brief: **§A.1** — **shipped 2026-08-18** (status bar folded in; conformance mapping §A.2) | §A | — |
-| **P1.2** | `framingEnvelope` serialization + ordering validation + `resolveSceneDocument` threading (+ runtime types) + **FOV copy fix, specs/docs wording (F1)** + **clone-survival test through `helpers/route-clone` + preview controller (F3)** | §B, §D | — |
+| **P1.2** | [`framingEnvelope` serialization + ordering validation + `resolveSceneDocument` threading](./2026-08-18-P1.2-framing-envelope-serialization.md) (+ runtime types) + **FOV copy fix, specs/docs wording (F1)** + **clone-survival test through `helpers/route-clone` + preview controller (F3)** | §B, §D | — |
 | **P1.3** | Envelope sampler blend `w(p)` in `sampleCameraMotion` + **engine guards (ext. review): POI singularity angular clamp + standoff · collinear-zero stability guard (Cartesian blend retained) · double-whip dynamic bypass** | §B, §D | P1.2 |
 | **P1.4** | Envelope invariant + auto-managed/manual policy tests + **guard acceptance criteria (ext. review): non-degeneracy (`target–eye ≥ near-clip`) · smooth continuity (no 180° pops) · singularity · double-whip · FOV pacing** | §B, §D | P1.2, P1.3 |
 | **P1.5** | Camera Plan surface + backdrop/visual-rule assertions (B0 Add-camera mutator already shipped in S10.1 closeout, `674d597`; **F4**) | §C | P1.1 |
@@ -408,7 +408,8 @@ If the diff balloons, ship in order (each step independently green):
 **P1.1 shipped 2026-08-18** — all DoD items met; §A ratified; the shell
 renders the four-cell matrix with the Camera-domain timeline and domain-gated
 selection proven by tests. The design-spec conformance mapping (§A.2) is the
-shell's tracked target.
+shell's tracked target. **Committed `dc31ddc`** (`feat(editor): add domain-view
+workspace shell`).
 
 ---
 

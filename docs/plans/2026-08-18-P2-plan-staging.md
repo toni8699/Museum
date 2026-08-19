@@ -185,6 +185,7 @@ Applied to `Design-shell-specs.md` on 2026-08-19 (§1, §6, §16, §19, §22–�
 ### Codebase review additions (on P2 close)
 
 - `PlanViewMode` is Scene Plan-local and does not alter global domain/view semantics.
+- `layout | staging` persists across Scene Plan ↔ Scene 3D for the editor session and never carries into Camera Plan.
 - Layout and Staging do not compete for normal click selection.
 - Passive footprint projection does not itself activate Scene editing.
 - Staging resolves to canonical Scene entity identity.

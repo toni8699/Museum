@@ -1552,6 +1552,7 @@ Persistent:
 
 * domain
 * left-domain model
+* active local authoring mode (Scene Plan `layout | staging`)
 * logical selection
 * project state
 * history
@@ -1853,6 +1854,23 @@ select statue
 → manipulate statue
 → switch Plan
 project remains same scene
+```
+
+### Scene Plan mode continuity
+
+```text
+Scene Plan
+Staging active
+
+→ Scene 3D
+→ back to Scene Plan
+
+Staging active again
+
+→ Camera Plan
+
+no staging mode control appears
+no staging selection carries over
 ```
 
 ### Camera spatial/framing continuity

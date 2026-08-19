@@ -16,12 +16,14 @@ shipped/next lists never accumulate.
 - Previous slice: **P1.3 shipped (2026-08-18)** — envelope sampler and compiled
   standoff, angular-rate, and late-exit guards. Archived brief:
   [`../archive/plans/2026-08-18-P1.3-envelope-sampler-guards.md`](../archive/plans/2026-08-18-P1.3-envelope-sampler-guards.md).
+- **P1.5 implementation brief ready (2026-08-19):**
+  [`../plans/2026-08-19-P1.5-camera-plan-surface.md`](../plans/2026-08-19-P1.5-camera-plan-surface.md).
 
 ## Next action
 
-- **One action:** the engine track (P1.2–P1.4) is complete. Next is **P1.5**
-  (Camera Plan surface mounting into the P1.1 shell); **P1.6** converges both
-  tracks with framing authoring UX bound to P1.4's pure policy.
+- **One action:** implement the now-briefed **P1.5** Camera Plan surface in the
+  P1.1 shell; **P1.6** then converges both tracks with framing authoring UX bound
+  to P1.4's pure policy.
 
 ## Verification
 

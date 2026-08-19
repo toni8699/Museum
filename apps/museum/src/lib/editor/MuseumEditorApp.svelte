@@ -1,16 +1,12 @@
 <!--
 	Legacy pre-H1 editor shell, mounted only at /museum/editor (relic). Its H1
-	twin is h1/H1EditorApp.svelte — same store + surfaces, Plan | 3D chrome.
-	Keep texture-loader, binary-store cleanup, navigation/exit guards, and
-	shortcut wiring in sync between the two.
+	twin is app/EditorApp.svelte — same store + surfaces, Plan | 3D chrome.
+	Boot glue (dirty guard + texture lifecycle) is shared via
+	`useEditorShellBoot`; only shortcut wiring stays shell-owned.
 -->
 <script lang="ts">
-	import { beforeNavigate } from '$app/navigation';
 	import type { MuseumAsset } from '$lib/types/assets';
-	import type { MaterialTextureSlot } from '$lib/types/materials';
-	import type { Texture as ThreeTexture } from 'three';
-	import { onDestroy, onMount, untrack } from 'svelte';
-	import { TextureLoader } from 'three';
+	import { onMount, untrack } from 'svelte';
 	import EditorAppBar from './EditorAppBar.svelte';
 	import EditorCameraTimelineFrame from './EditorCameraTimelineFrame.svelte';
 	import EditorInspector from './EditorInspector.svelte';
@@ -23,18 +19,13 @@
 		EditorInteractionStore,
 		EDITOR_INTERACTION_STORE_KEY
 	} from './store/editor-interaction-store.svelte';
-	import {
-		setDefaultTextureSourceLoader,
-		type TextureSourceLoader
-	} from '$lib/museum/materials/texture-cache';
-	import { BinaryTextureStore } from './store/binary-texture-store.svelte';
 	import { createMuseumEditorStore } from './museum-editor.svelte';
 	import {
 	captureLayoutPreviewSnapshot,
 	createLayoutPreviewState,
-	layoutPreviewIsDirty,
 	restoreLayoutPreviewSnapshot
 } from './layout/layout-preview-state.svelte';
+	import { useEditorShellBoot } from './hooks/editor-shell-boot.svelte';
 	import { createLayoutInteractionState } from './layout/layout-interaction';
 
 	let { relic = false }: { relic?: boolean } = $props();
@@ -66,56 +57,11 @@
 	let clusterNameInput = $state<HTMLInputElement>();
 	let selectedAsset = $state<MuseumAsset>();
 
-	// Phase 5.4 — bind a default source loader that consults the binary
-	// store first, then falls back to the legacy public-fetch path. The
-	// `texture-cache.ts` module exports this setter exactly so we don't
-	// have to import `BinaryTextureStore` from inside `materials/`.
-	const threeTextureLoader = new TextureLoader();
-	const editorSourceLoader: TextureSourceLoader = (uri, _slot) => {
-		const url = BinaryTextureStore.objectUrlFor(uri);
-		if (url) return threeTextureLoader.loadAsync(url);
-		// Fallback: legacy public-fetch path. Synchronous `.load` wrapped
-		// in a promise so the loader's signature stays single-shape.
-		return new Promise<ThreeTexture>((resolve, reject) => {
-			threeTextureLoader.load(uri, resolve, undefined, reject);
-		});
-	};
-
-	onMount(() => {
-		setDefaultTextureSourceLoader(editorSourceLoader);
-		return () => {
-			setDefaultTextureSourceLoader(null);
-		};
-	});
-
-	onDestroy(() => {
-		// App teardown: clear both the object URL registry AND the byte-map
-		// entries. On dev HMR the singleton survives remounts — stale entries
-		// poisoned texture-cache re-acquisition when an in-flight
-		// TextureLoader.loadAsync resolved with a revoked URL. ClearExcept
-		// walks every entry, revokes its object URL, and empties
-		// pendingObjectUrls — the next mount starts cold with no Blob
-		// pointers leaking into the next render cycle.
-		BinaryTextureStore.clearExcept(new Set());
-	});
-
-	function confirmSceneReplacement() {
-		return !store.isDirty || window.confirm('Discard unsaved scene changes?');
-	}
-
-	function confirmLayoutReplacement() {
-		return !layoutPreviewIsDirty(layoutPreview) || window.confirm('Discard unsaved layout changes?');
-	}
-
-	function confirmNavigation() {
-		if (!store.isDirty && !layoutPreviewIsDirty(layoutPreview)) return true;
-		const label = store.isDirty && layoutPreviewIsDirty(layoutPreview) ? 'scene and layout' : store.isDirty ? 'scene' : 'layout';
-		return window.confirm(`Discard unsaved ${label} changes?`);
-	}
-
-	beforeNavigate((navigation) => {
-		if ((!store.isDirty && !layoutPreviewIsDirty(layoutPreview)) || navigation.willUnload) return;
-		if (!confirmNavigation()) navigation.cancel();
+	// P7.4 — shared boot composable (dirty guard + texture lifecycle only).
+	// Shortcut wiring stays shell-owned; see `useEditorShellBoot`.
+	const { confirmSceneReplacement, confirmLayoutReplacement } = useEditorShellBoot({
+		store,
+		layoutPreview
 	});
 
 	onMount(() =>
@@ -126,15 +72,6 @@
 		}, interactionStore)
 	);
 
-	$effect(() => {
-		if (!store.isDirty && !layoutPreviewIsDirty(layoutPreview)) return;
-		const onBeforeUnload = (event: BeforeUnloadEvent) => {
-			event.preventDefault();
-			event.returnValue = '';
-		};
-		window.addEventListener('beforeunload', onBeforeUnload);
-		return () => window.removeEventListener('beforeunload', onBeforeUnload);
-	});
 </script>
 
 <main class="page" class:previewing={store.isDocumentMutationBlocked}>

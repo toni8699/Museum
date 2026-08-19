@@ -7,16 +7,18 @@ shipped/next lists never accumulate.
 
 ## Working tree
 
-- Current delta: **P1.4 shipped (2026-08-19)** — dense whole-transition
+- Current delta: **P7.4 shipped (2026-08-19)** — shared editor-shell boot
+  composable (`useEditorShellBoot`) extracted from `MuseumEditorApp.svelte` +
+  `app/EditorApp.svelte`: dirty guard (`beforeNavigate` + `beforeunload`) and
+  texture-loader lifecycle; shortcut wiring stays shell-owned. Brief: §P7.4 of
+  [`../plans/2026-08-19-P7-editor-facade-collapse.md`](../plans/2026-08-19-P7-editor-facade-collapse.md).
+- Previous slice: **P1.4 shipped (2026-08-19)** — dense whole-transition
   non-degeneracy, endpoint, continuity, singularity, double-whip, seek-order,
   and FOV-pacing acceptance matrices in `camera-motion.test.ts` plus pure
   auto-managed/manual framing-envelope editor policy
   (`editor-camera-framing-envelope.ts`). Archived brief:
   [`../archive/plans/2026-08-19-P1.4-envelope-invariants-policy.md`](../archive/plans/2026-08-19-P1.4-envelope-invariants-policy.md).
-- Previous slice: **P1.3 shipped (2026-08-18)** — envelope sampler and compiled
-  standoff, angular-rate, and late-exit guards. Archived brief:
-  [`../archive/plans/2026-08-18-P1.3-envelope-sampler-guards.md`](../archive/plans/2026-08-18-P1.3-envelope-sampler-guards.md).
-- **P1.5 implementation brief ready (2026-08-19):**
+- **P1.5 implementation brief ready (2026-08-19, resumes now):**
   [`../plans/2026-08-19-P1.5-camera-plan-surface.md`](../plans/2026-08-19-P1.5-camera-plan-surface.md).
 
 ## Next action
@@ -27,8 +29,8 @@ shipped/next lists never accumulate.
 
 ## Verification
 
-- **1,802 tests green (1 skipped) · `svelte-check` 0 errors / 0 warnings · build
-  clean** (P1.4 closeout, 2026-08-19).
+- **1,808 tests green (1 skipped) · `svelte-check` 0 errors / 0 warnings · build
+  clean** (P7.4 closeout, 2026-08-19).
 
 ## Known bugs / deferred
 

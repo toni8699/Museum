@@ -1,13 +1,10 @@
 <script lang="ts">
-	// Twin of the legacy MuseumEditorApp (mounted at /museum/editor). The editor only
-	// replaces the top-level chrome; the texture-loader, binary-store cleanup,
-	// navigation/exit guards, and shortcut wiring below are duplicated and must
-	// stay in sync with the legacy shell.
-	import { beforeNavigate } from '$app/navigation';
+	// Twin of the legacy MuseumEditorApp (mounted at /museum/editor). The editor
+	// replaces the top-level chrome; the boot glue (dirty guard + texture
+	// lifecycle) is shared via `useEditorShellBoot`, and only the shortcut wiring
+	// below is shell-owned.
 	import type { MuseumAsset } from '$lib/types/assets';
-	import type { Texture as ThreeTexture } from 'three';
-	import { onDestroy, onMount, setContext } from 'svelte';
-	import { TextureLoader } from 'three';
+	import { onMount, setContext } from 'svelte';
 	import EditorCameraTimelineFrame from '$lib/editor/EditorCameraTimelineFrame.svelte';
 	import EditorInspector from '$lib/editor/EditorInspector.svelte';
 	import EditorMaterialChoiceDialog from '$lib/editor/EditorMaterialChoiceDialog.svelte';
@@ -17,20 +14,15 @@
 		EditorInteractionStore,
 		EDITOR_INTERACTION_STORE_KEY
 	} from '$lib/editor/store/editor-interaction-store.svelte';
-	import {
-		setDefaultTextureSourceLoader,
-		type TextureSourceLoader
-	} from '$lib/museum/materials/texture-cache';
-	import { BinaryTextureStore } from '$lib/editor/store/binary-texture-store.svelte';
 	import { createMuseumEditorStore } from '$lib/editor/museum-editor.svelte';
 	import { createEmptyMuseumProject } from '$lib/project/project-codec';
 	import { createLayoutRoomRegistry } from '$lib/project/project-layout-semantics';
 	import {
 		captureLayoutPreviewSnapshot,
 		createEmptyLayoutPreviewState,
-		layoutPreviewIsDirty,
 		restoreLayoutPreviewSnapshot
 	} from '$lib/editor/layout/layout-preview-state.svelte';
+	import { useEditorShellBoot } from '$lib/editor/hooks/editor-shell-boot.svelte';
 	import {
 		clearLayoutSelection,
 		createLayoutInteractionState,
@@ -187,44 +179,13 @@
 	let clusterNameInput = $state<HTMLInputElement>();
 	let selectedAsset = $state<MuseumAsset>();
 
-	const threeTextureLoader = new TextureLoader();
-	const editorSourceLoader: TextureSourceLoader = (uri, _slot) => {
-		const url = BinaryTextureStore.objectUrlFor(uri);
-		if (url) return threeTextureLoader.loadAsync(url);
-		return new Promise<ThreeTexture>((resolve, reject) => {
-			threeTextureLoader.load(uri, resolve, undefined, reject);
-		});
-	};
-
-	onMount(() => {
-		setDefaultTextureSourceLoader(editorSourceLoader);
-		return () => {
-			setDefaultTextureSourceLoader(null);
-		};
+	// P7.4 — shared boot composable (dirty guard + texture lifecycle only).
+	// Shortcut wiring stays shell-owned; see `useEditorShellBoot`.
+	const { confirmSceneReplacement, confirmLayoutReplacement } = useEditorShellBoot({
+		store,
+		layoutPreview
 	});
 
-	onDestroy(() => {
-		BinaryTextureStore.clearExcept(new Set());
-	});
-
-	function confirmSceneReplacement() {
-		return !store.isDirty || window.confirm('Discard unsaved scene changes?');
-	}
-
-	function confirmLayoutReplacement() {
-		return !layoutPreviewIsDirty(layoutPreview) || window.confirm('Discard unsaved layout changes?');
-	}
-
-	function confirmNavigation() {
-		if (!store.isDirty && !layoutPreviewIsDirty(layoutPreview)) return true;
-		const label = store.isDirty && layoutPreviewIsDirty(layoutPreview) ? 'scene and layout' : store.isDirty ? 'scene' : 'layout';
-		return window.confirm(`Discard unsaved ${label} changes?`);
-	}
-
-	beforeNavigate((navigation) => {
-		if ((!store.isDirty && !layoutPreviewIsDirty(layoutPreview)) || navigation.willUnload) return;
-		if (!confirmNavigation()) navigation.cancel();
-	});
 	onMount(() =>
 		registerEditorShortcuts(
 			store,
@@ -244,15 +205,6 @@
 		)
 	);
 
-	$effect(() => {
-		if (!store.isDirty && !layoutPreviewIsDirty(layoutPreview)) return;
-		const onBeforeUnload = (event: BeforeUnloadEvent) => {
-			event.preventDefault();
-			event.returnValue = '';
-		};
-		window.addEventListener('beforeunload', onBeforeUnload);
-		return () => window.removeEventListener('beforeunload', onBeforeUnload);
-	});
 </script>
 
 <main class="page" class:previewing={store.isDocumentMutationBlocked}>

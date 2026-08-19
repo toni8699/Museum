@@ -39,12 +39,18 @@ The tracker is authoritative when a plan doc's `**Status:**` drifts.
 | P4 | Client GLB import | proposed | renewal | [2026-08-18-P4-gltb-import.md](2026-08-18-P4-gltb-import.md) |
 | P5 | Measured optimization and scale | proposed | renewal | [2026-08-18-P5-measured-optimization.md](2026-08-18-P5-measured-optimization.md) |
 | P6 | Editor artifact rename (de-H1) | shipped | renewal | archived → [2026-08-18-P6-editor-rename.md](archive/plans/2026-08-18-P6-editor-rename.md) |
+| P7 | Museum-editor facade decoupling — finish the deferred H1 splits (selection de-coupling, facade thinning, type collapse, shims, Chopin defaults, shell boot) | approved — **Option B: P7.4 shipped 2026-08-19; P7.1–P7.5 wait for P1 close** | P1 | [2026-08-19-P7-editor-facade-collapse.md](2026-08-19-P7-editor-facade-collapse.md) |
 | … | future work re-registers here | | | |
 
 Execution order: **P6 (before P1.1) → P1 → P2 → P3**. P6 is the mechanical
-editor rename so P1.1's shell-inversion diff stays behavior-only. P4/P5 and
+editor rename so P1.1's shell-inversion diff stays behavior-only. P4/P5/P7 and
 later entries do not start until P1–P3 are scheduled or re-prioritized by the
-owner. The order is committed by the
+owner. **P7** is a behavior-preserving refactor (facade collapse, shim
+deletion, Chopin-default removal, shell-boot extraction). **Option B approved
+2026-08-19; P7.4 shipped 2026-08-19** — the shared shell-boot composable landed
+before P1.5 (smallest collision window — both touch `EditorApp.svelte`); the
+remaining increments wait for P1 close and then execute **P7.1 → P7.5 → P7.2 →
+P7.3** as serial green diffs. The order is committed by the
 [2026-08-18 scope decision](archive/plans/2026-08-18-scope-decision-camera-first.md)
 (camera first, plan staging second, UI overhaul last).
 
@@ -61,8 +67,9 @@ conformance mapping is **P1 §A.2** (target:
 [2026-08-18-P1.3-envelope-sampler-guards.md](../archive/plans/2026-08-18-P1.3-envelope-sampler-guards.md).
 **P1.4 shipped 2026-08-19** — archived →
 [2026-08-19-P1.4-envelope-invariants-policy.md](../archive/plans/2026-08-19-P1.4-envelope-invariants-policy.md).
-The engine track (P1.2–P1.4) is complete; the shell track continues with
-**P1.5**, which mounts into the P1.1 shell, then **P1.6** converges both tracks.
+The engine track (P1.2–P1.4) is complete; **P7.4 shipped 2026-08-19** (Option B,
+before P1.5). The shell track continues with **P1.5**, which mounts into the
+P1.1 shell, then **P1.6** converges both tracks.
 
 ## Archived plans (2026-08-10 → 2026-08-18)
 

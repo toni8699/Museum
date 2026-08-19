@@ -1,0 +1,74 @@
+/**
+ * P7.4 — shared editor-shell boot composable.
+ *
+ * Thin Svelte glue around `./editor-shell-boot-core`. Owns the dirty-guard
+ * (`beforeNavigate` + `beforeunload`) and texture-loader lifecycle for both
+ * shells. Shortcut wiring is deliberately NOT extracted: the relic registers
+ * a 3-arg `registerEditorShortcuts` while the editor passes deselect +
+ * stale-layout + gizmo-capability callbacks — a single signature cannot cover
+ * both without leaking the new shell's gating model into the relic.
+ */
+
+import { beforeNavigate } from '$app/navigation';
+import { onDestroy, onMount } from 'svelte';
+import {
+	computeConfirmNavigation,
+	createEditorSourceLoader,
+	createTextureLifecycle,
+	createUnloadGuard
+} from './editor-shell-boot-core';
+import {
+	layoutPreviewIsDirty,
+	type LayoutPreviewState
+} from '../layout/layout-preview-state.svelte';
+import type { MuseumEditorStore } from '../museum-editor.svelte';
+
+export type EditorShellBootResult = {
+	confirmSceneReplacement: () => boolean;
+	confirmLayoutReplacement: () => boolean;
+	confirmNavigation: () => boolean;
+};
+
+export function useEditorShellBoot(input: {
+	store: MuseumEditorStore;
+	layoutPreview: LayoutPreviewState;
+}): EditorShellBootResult {
+	const { store, layoutPreview } = input;
+
+	const textureLifecycle = createTextureLifecycle(createEditorSourceLoader());
+	onMount(() => {
+		textureLifecycle.install();
+		return () => textureLifecycle.teardown();
+	});
+
+	const unloadGuard = createUnloadGuard(window);
+	$effect(() => {
+		if (store.isDirty || layoutPreviewIsDirty(layoutPreview)) unloadGuard.attach();
+		else unloadGuard.detach();
+	});
+	onDestroy(() => unloadGuard.detach());
+
+	function confirmSceneReplacement(): boolean {
+		return !store.isDirty || window.confirm('Discard unsaved scene changes?');
+	}
+
+	function confirmLayoutReplacement(): boolean {
+		return !layoutPreviewIsDirty(layoutPreview) || window.confirm('Discard unsaved layout changes?');
+	}
+
+	function confirmNavigation(): boolean {
+		const result = computeConfirmNavigation({
+			sceneDirty: store.isDirty,
+			layoutDirty: layoutPreviewIsDirty(layoutPreview)
+		});
+		if (!result.needsConfirmation) return true;
+		return window.confirm(`Discard unsaved ${result.label} changes?`);
+	}
+
+	beforeNavigate((navigation) => {
+		if ((!store.isDirty && !layoutPreviewIsDirty(layoutPreview)) || navigation.willUnload) return;
+		if (!confirmNavigation()) navigation.cancel();
+	});
+
+	return { confirmSceneReplacement, confirmLayoutReplacement, confirmNavigation };
+}

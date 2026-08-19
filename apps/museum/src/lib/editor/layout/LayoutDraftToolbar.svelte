@@ -21,7 +21,7 @@
 		interaction: LayoutInteractionState;
 		preview: LayoutPreviewState;
 		onCancelLayoutTransaction?: () => boolean;
-		/** H1 hides this when the top-level Plan | 3D switch owns view selection. */
+		/** the editor hides this when the top-level Plan | 3D switch owns view selection. */
 		showViewToggle?: boolean;
 	} = $props();
 

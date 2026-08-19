@@ -13,27 +13,27 @@
 		store,
 		showCeilings = false,
 		onToggleCeilings,
-		// H1 S10 — explicit 3D context. Scene exposes Ceiling only; Camera
+		// explicit 3D context. Scene exposes Ceiling only; Camera
 		// exposes the three camera-helper rows. Absent on the relic mount,
 		// which keeps its legacy camera-only View menu via `currentWorkspace`.
 		context = undefined,
-		// H1 S7 — when the active domain is a detached S7 layout selection, the
+		// when the active domain is a detached S7 layout selection, the
 		// transform buttons are disabled (layout publishes no interactive gizmo
 		// policy until S8). Absent on the relic mount. Select stays enabled.
 		transformDisabled = false,
-		// H1 S7 step 6 — the active target's generic capability projection
+		// step 6 — the active target's generic capability projection
 		// (scene/camera). `null` = no interactive policy. Absent on the relic,
 		// which keeps the legacy navigation-before-placement arbitration.
 		gizmoCapabilities = null
 	}: {
 		store: MuseumEditorStore;
-		// H1 3D (restored 2026-08-16): the layout ceiling toggle that the
+		// editor 3D (restored 2026-08-16): the layout ceiling toggle that the
 		// unification dropped lives in the View menu when these props are
 		// provided; the relic mount leaves them absent and keeps its own
 		// LayoutDraftToolbar Ceiling button.
 		showCeilings?: boolean;
 		onToggleCeilings?: () => void;
-		// H1 S10 — explicit `'scene' | 'camera'` context. When provided the View
+		// explicit `'scene' | 'camera'` context. When provided the View
 		// menu is always available (Scene = Ceiling only, Camera = the three
 		// camera-helper rows); when absent the relic keeps its camera-only
 		// menu keyed on `store.currentWorkspace`.
@@ -55,7 +55,7 @@
 	// scale chain) without disabling Select or the View menu.
 	const layoutTransformDisabled = $derived(transformDisabled === true);
 	const transformDisabledFlag = $derived(disabled || layoutTransformDisabled);
-	// Generic capability projection (H1). `null` = no interactive policy
+	// Generic capability projection (editor). `null` = no interactive policy
 	// (detached layout / no target) — transform buttons stay disabled only for
 	// the layout gate above, mirroring the pre-S7 no-selection appearance.
 	const caps = $derived(gizmoCapabilities ?? null);
@@ -69,7 +69,7 @@
 		interactionStore?.scaleMode ?? 'uniform'
 	);
 	// Effective mode for the active highlight: the projected effective mode
-	// (H1), or the legacy camera/scene arbitration (relic).
+	// (editor), or the legacy camera/scene arbitration (relic).
 	const effectiveMode = $derived(
 		caps
 			? caps.effectiveMode
@@ -122,18 +122,18 @@
 		return hasNavigationTransform && mode !== 'translate';
 	}
 
-	// H1 S10 — the View menu is always available under an explicit H1 context
+	// the View menu is always available under an explicit editor context
 	// (Scene shows Ceiling only, Camera shows the camera-helper rows); the relic
 	// (no context prop) keeps its legacy camera-only menu.
 	const viewMenuVisible = $derived(
 		context !== undefined || store.currentWorkspace === 'camera'
 	);
-	// Camera-helper rows (Node handles / Tour paths / Framing & FOV): H1 Camera
+	// Camera-helper rows (Node handles / Tour paths / Framing & FOV): editor Camera
 	// context, or the relic's legacy camera workspace.
 	const showCameraHelperRows = $derived(
 		context === 'camera' || (context === undefined && store.currentWorkspace === 'camera')
 	);
-	// Ceiling is a layout concern and lives only in the H1 Scene View menu.
+	// Ceiling is a layout concern and lives only in the editor Scene View menu.
 	const showCeilingRow = $derived(context === 'scene' && onToggleCeilings !== undefined);
 	// S10.1 — Camera workspace toolbar: `Select | Move | Rotate | Add camera | View`.
 	// Scale and the scale-chain toggle are unmounted in Camera; Add camera lives

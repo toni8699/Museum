@@ -35,7 +35,7 @@
 		wallMeshesByRoom,
 		interaction,
 		showCeilings = false,
-		// H1 S8 — an optional transient candidate bundle. When set, the scene
+		// an optional transient candidate bundle. When set, the scene
 		// renders the transient (session-only) model/geometry/wall-mesh cache
 		// instead of the committed one; `null` renders the committed project.
 		// The selection-highlight shell reads `interaction.selection`, which is
@@ -56,7 +56,7 @@
 		// Deferred (2026-08-16): the `showAnchors` (anchor-helper octahedra) and
 		// `hoverSelection` (hover preview) props stay removed with their render
 		// blocks below; restore them when hover/anchors return (S6.1+). Neither
-		// mount (H13DView nor the relic EditorViewport) passes them explicitly.
+		// mount (Workspace3DView nor the relic EditorViewport) passes them explicitly.
 	} = $props();
 
 	function polygonShape(points: readonly LayoutVec2[]): Shape {
@@ -69,7 +69,7 @@
 		return shape;
 	}
 
-	// H1 S8 — the active source: the transient candidate bundle during a drag,
+	// the active source: the transient candidate bundle during a drag,
 	// otherwise the committed project. The deriveds/effects below re-key on it
 	// and dispose/replace the adapted cache on every source switch, so a drag
 	// previews the candidate without ever touching `layoutPreview.project`.
@@ -167,7 +167,7 @@
 
 	// Deferred (2026-08-16): the hover-preview shell (cyan tint over the
 	// wall/opening surface under the cursor) stays off with the hover feed
-	// (see H13DView) — restore alongside S6.1. Object/helper inline hover
+	// (see Workspace3DView) — restore alongside S6.1. Object/helper inline hover
 	// tinting below is dormant too because nothing feeds `hoverSelection`.
 	// let hover = $state<{ geometry: BufferGeometry; material: Material } | null>(null);
 	//

@@ -72,7 +72,7 @@
 		graph: NavigationGraph;
 		layoutBounds?: LayoutPreviewBounds | null;
 		layoutFrameVersion?: number;
-		/** H1 S8.2 — compiled per-room bounds for room-focus framing (relic omits). */
+		/** compiled per-room bounds for room-focus framing (relic omits). */
 		roomBoundsById?: ((roomId: string) => LayoutBounds3 | null) | null;
 	} = $props();
 

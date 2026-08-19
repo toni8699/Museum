@@ -58,7 +58,7 @@ export function cloneMuseumSceneDocument(doc: MuseumSceneDocument): MuseumSceneD
 /**
  * Prefer Paris seat when present; otherwise the first navigation node.
  *
- * H1 S0 zero-node policy: returns `null` when the scene has no navigation
+ * zero-node policy: returns `null` when the scene has no navigation
  * nodes. A scene with no nodes is a valid authoring state; the session-only
  * free camera has no tour-FSM node yet, so callers treat `null` as "no node
  * authored" instead of throwing.
@@ -112,7 +112,7 @@ export class EditorDocumentStore {
 	#afterReplaceListeners = new Set<AfterReplaceListener>();
 
 	/**
-	 * H1 S2 — the room registry is a live seam, not a boot-time constant: the
+	 * the room registry is a live seam, not a boot-time constant: the
 	 * boot-empty editor swaps it whenever the project layout gains/loses rooms
 	 * (see `MuseumEditorStore.updateRooms`). Every derived-runtime rebuild
 	 * (`replace()`) reads the current registry, so scene content that

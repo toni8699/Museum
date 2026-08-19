@@ -1,5 +1,5 @@
 /**
- * H1 S4 — pure unified-project-tree model + selection matchers.
+ * pure unified-project-tree model + selection matchers.
  *
  * One hierarchy over both documents, never a merged identity type. This module
  * is deliberately renderer-neutral: **no Three/DOM/Svelte imports** (same rule
@@ -22,7 +22,7 @@ import type { MuseumSceneDocument } from '$lib/content/scene';
 import type { CameraConnectionDirection } from '$lib/types/museum';
 import type { LayoutSelection } from './layout/layout-interaction';
 import type { WorkspaceSelection, NavigationSelection } from './museum-editor.types';
-import type { ActiveEditorSelection } from './h1/active-editor-selection.svelte';
+import type { ActiveEditorSelection } from './app/active-editor-selection.svelte';
 
 export type UnifiedTreeRow =
 	| { kind: 'room'; roomId: string }
@@ -379,7 +379,7 @@ export function isUnifiedTreeRowSelected(
  * camera rows are interactive only in 3D — in Plan they render read-only
  * (`aria-disabled`, no-op) per S3's locked "Plan selection always activates
  * the layout domain" and the umbrella's "Plan is layout CAD only" / "Plan
- * exposes no camera mutation path". C1 (post-H1 Plan staging) flips the scene
+ * exposes no camera mutation path". P2 (plan staging) flips the scene
  * branch by extending this predicate.
  */
 export function isUnifiedTreeRowInteractive(

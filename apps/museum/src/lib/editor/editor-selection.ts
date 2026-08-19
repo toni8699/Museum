@@ -107,7 +107,7 @@ export type SelectionHitInfo = {
 	cameraSelection?: EditorCameraSelection | null;
 	/** Any climbed navigation helper, including path connections and anchors. */
 	navigationSelection?: EditorNavigationSelection;
-	/** H1 S6 — raycast distance in meters. Runtime intersections always set it; absent on legacy/manual fixtures. */
+	/** raycast distance in meters. Runtime intersections always set it; absent on legacy/manual fixtures. */
 	distance?: number;
 };
 
@@ -370,7 +370,7 @@ export function uniquePlacementIdsInOrder(hits: SelectionHitInfo[]): string[] {
  * Same opacity filtering + camera/navigation/placement priority as
  * `resolveNormalSelection`; the returned `sourceHit` is the actionable source
  * hit (null for a `deselect`, even when the first effective hit is
- * non-interactive editor chrome). H1 S6 uses the source hit's `distance` for
+ * non-interactive editor chrome). uses the source hit's `distance` for
  * cross-domain nearest-visible arbitration — never nearest-tag guessing.
  */
 export function resolveNormalSelectionWithHit(

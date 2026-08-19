@@ -520,7 +520,7 @@ describe('buildRoomWallMesh', () => {
 	});
 });
 
-describe('H1 S5 — pickRanges pick metadata', () => {
+describe('pickRanges pick metadata', () => {
 	it('emits pickRanges as a sorted partition covering every emitted triangle', () => {
 		const fixtures: Array<[ReturnType<typeof g1LineRectangleDocument>, { miterLimit?: number }?]> = [
 			[g1LineRectangleDocument(), undefined],

@@ -1,5 +1,5 @@
 /**
- * H1 S7 — shared editor gizmo contracts.
+ * shared editor gizmo contracts.
  *
  * One actual TransformControls host + explicit scene/camera/layout target
  * adapter boundaries. This module declares the seams only: the host owns

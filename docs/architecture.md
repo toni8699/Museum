@@ -6,12 +6,12 @@ For a specific surface, go straight to the matching contract doc (table below).
 ## Two isolated lanes
 
 ```text
-H1 editor (greenfield)          /museum (frozen Chopin relic)
+Editor (greenfield)          /museum (frozen Chopin relic)
   New Project → Plan → 3D        checked-in chopin-project.json + runtime
-  → portable export/import       /museum/editor = frozen pre-H1 editor relic
+  → portable export/import       /museum/editor = frozen legacy editor relic
 ```
 
-- No Chopin project/editor state/history migration into H1.
+- No Chopin project/editor state/history migration into the editor.
 - No editor export promotion into `/museum`.
 - The editor ships in production builds (no build-flag gating).
 - Shared visitor-safe geometry/render modules may serve both lanes; session,
@@ -39,7 +39,7 @@ are never serialized.
 
 | Working on… | Read | Key source |
 |---|---|---|
-| Shell / workspaces / timeline | [`components/shell.md`](./components/shell.md) | `apps/museum/src/lib/editor/h1/` |
+| Shell / workspaces / timeline | [`components/shell.md`](./components/shell.md) | `apps/museum/src/lib/editor/app/` |
 | Entities / materials / lights | [`components/scene-content.md`](./components/scene-content.md) | `apps/museum/src/lib/content/` |
 | Gizmo / placement / transforms | [`components/placement.md`](./components/placement.md) | `apps/museum/src/lib/editor/gizmo/` |
 | Camera / tour / motion | [`components/camera-tour.md`](./components/camera-tour.md) | `apps/museum/src/lib/museum/navigation/` |
@@ -60,5 +60,5 @@ materials, resource lifetime, and raycast identity adaptation.
 
 Dual nav graphs · second motion/gizmo/geometry compiler · persist generated
 endpoints · persist Three/render state · infer room ownership/adjacency from
-coordinates · import Chopin/legacy editor state into H1 · independent
+coordinates · import Chopin/legacy editor state into the editor · independent
 layout-only import · hide the editor behind a build flag.

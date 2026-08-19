@@ -43,7 +43,7 @@ per mounted 3D Canvas: constructor, helper add/remove, camera rebind,
 attach/detach, orbit lock/restore, pointer lifecycle, Escape, and dispose
 exactly once. `EditorTransformControls.svelte` is a thin composer that
 resolves exactly one nullable `EditorGizmoTargetAdapter` — scene placement or
-camera — from the H1 `ActiveEditorSelection`; the relic `/museum/editor` keeps
+camera — from the editor `ActiveEditorSelection`; the relic `/museum/editor` keeps
 its legacy navigation-before-placement arbitration through the same adapters.
 
 Domain adapters own target resolution, proxy/baseline state, document

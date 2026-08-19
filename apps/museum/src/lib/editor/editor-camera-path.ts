@@ -48,7 +48,7 @@ function resolveScenePoint(
 }
 
 /**
- * Registry-aware XZ footprint check for room-owned points (H1 S2 — the editor
+ * Registry-aware XZ footprint check for room-owned points (the editor
  * resolves against the live project layout, not the frozen Chopin registry).
  * Approximates the footprint by the room boundary's AABB in room-local space,
  * matching the rect-based check the Chopin helper used. Unknown rooms simply

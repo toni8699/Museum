@@ -323,7 +323,7 @@ export class MuseumEditorStore {
 	private readonly documentStore: EditorDocumentStore;
 	/** True when this store backs the frozen `/museum/editor` relic. */
 	private readonly relicMode: boolean;
-	/** H1 S2 — the document the store was constructed with (the reset target). */
+	/** the document the store was constructed with (the reset target). */
 	private readonly bootDocument: MuseumSceneDocument;
 	get document(): MuseumSceneDocument {
 		return this.documentStore.document;
@@ -334,12 +334,12 @@ export class MuseumEditorStore {
 	get rooms(): LayoutRoomRegistry {
 		return this.documentStore.rooms;
 	}
-	/** H1 S8.1 — public read over the private `relicMode` flag. */
+	/** public read over the private `relicMode` flag. */
 	get isRelic(): boolean {
 		return this.relicMode;
 	}
 	/**
-	 * H1 S2 — keep the room registry in sync with the live project layout
+	 * keep the room registry in sync with the live project layout
 	 * (the boot-empty editor re-derives it from `layoutPreview.project.layout`
 	 * after every layout mutation) and re-resolve the runtime scene against it,
 	 * so a moved room immediately moves the rendered node/entity helpers. The
@@ -535,8 +535,8 @@ export class MuseumEditorStore {
 			this.textureVerifier
 		);
 		this.selectionStore.bindSession(this.session);
-		// H1 S3 — forward the cross-domain activation hook (the reducer fires it
-		// on actionable picks; the H1 shell clears the layout selection there).
+		// forward the cross-domain activation hook (the reducer fires it
+		// on actionable picks; the editor shell clears the layout selection there).
 		this.selectionStore.setOnSelectionActivate(options.onSelectionActivate ?? null);
 		// Sub-store selection reconciliation (defect #2 fix). Closes the
 		// pre-slice gap where #reconcileSelection() only ran via the explicit
@@ -1310,7 +1310,7 @@ export class MuseumEditorStore {
 		return this.cameraTimelineController.getCameraTimeline();
 	}
 
-	/** H1 S2 — true when the resolved graph yields a valid camera flow. */
+	/** true when the resolved graph yields a valid camera flow. */
 	get canStartTourPreview(): boolean {
 		return this.getCameraTimeline() !== null;
 	}
@@ -2824,19 +2824,19 @@ export type MuseumEditorStoreOptions = {
 	/** Optional authoring document seed (defaults to checked-in museum-scene.json). */
 	document?: MuseumSceneDocument;
 	/**
-	 * H1 S0 — room registry used to resolve scene room-relative coordinates to
+	 * room registry used to resolve scene room-relative coordinates to
 	 * world space (scene resolution + room-frame rendering). Defaults to the
-	 * Chopin layout registry (the frozen relic); the boot-empty H1 editor
+	 * Chopin layout registry (the frozen relic); the boot-empty editor
 	 * passes `createLayoutRoomRegistry(project.layout)`.
 	 */
 	rooms?: LayoutRoomRegistry;
-	/** H1 S0 — true for the frozen `/museum/editor` relic (Scene + Camera only). */
+	/** true for the frozen `/museum/editor` relic (Scene + Camera only). */
 	relic?: boolean;
 	/** Phase 5.2 — injectable texture image verifier (browser default). */
 	textureVerifier?: TextureVerifier;
 	/**
-	 * H1 S3 — fired by the selection reducer when an actionable scene/camera
-	 * pick lands (cluster, placement ids > 0, or non-none navigation). The H1
+	 * fired by the selection reducer when an actionable scene/camera
+	 * pick lands (cluster, placement ids > 0, or non-none navigation). The editor
 	 * shell clears the layout selection here; the no-op default keeps the
 	 * frozen relic untouched. Room-only placement and deselect never fire it.
 	 */

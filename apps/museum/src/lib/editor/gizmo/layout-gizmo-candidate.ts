@@ -1,5 +1,5 @@
 /**
- * H1 S8 step 1 — pure layout candidate derivation + validation pipeline.
+ * step 1 — pure layout candidate derivation + validation pipeline.
  *
  * Consumes the S7 descriptor/delta seams and produces a validated transient
  * candidate bundle that the layout adapter previews and, on pointer-up,

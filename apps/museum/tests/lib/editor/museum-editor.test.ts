@@ -120,7 +120,7 @@ describe('createMuseumEditorStore', () => {
 		expect(store.importDocument(imported)).toBe(true);
 		expect(store.isDirty).toBe(false);
 		expect(store.resetToCheckedInDocument()).toBe(true);
-		// H1 S2 — reset restores the boot document (the fixture), not the
+		// reset restores the boot document (the fixture), not the
 		// hardcoded Chopin checked-in scene.
 		expect(store.document.entities[0]!.position).toEqual(bootPosition);
 		expect(store.isDirty).toBe(false);

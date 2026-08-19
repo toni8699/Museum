@@ -39,7 +39,7 @@ import { buildRoomWallMesh, type IndexedWallMesh } from '$lib/layout/wall-mesh-b
 import { buildLayout3dTriangleIndex, type Layout3dPickIndex } from './layout-3d-picking';
 import { transformLayoutRoomUnit, type LayoutRoomUnitTransform } from './layout-room-transform';
 import { deriveLayoutRoomFrame } from '$lib/layout/layout-room-frame';
-// H1 S8 — type-only (erased at runtime; the candidate module imports
+// type-only (erased at runtime; the candidate module imports
 // `derivePreviewBundle` from here as its only value dependency).
 import type { LayoutGizmoCandidateBundle } from '../gizmo/layout-gizmo-candidate';
 
@@ -61,7 +61,7 @@ export type LayoutPreviewState = {
 	 */
 	wallMeshesByRoom: ReadonlyMap<string, IndexedWallMesh>;
 	/**
-	 * H1 S5 — triangle reverse index per compiled room, built once per mesh
+	 * triangle reverse index per compiled room, built once per mesh
 	 * generation beside `wallMeshesByRoom` (same lifecycle, never in the undo
 	 * snapshot). S6's 3D selection coordinator resolves raycast hit triangles
 	 * through it instead of re-walking `pickRanges` per hit.
@@ -108,7 +108,7 @@ export function createLayoutPreviewState(): LayoutPreviewState {
 }
 
 /**
- * H1 S2 — boot a blank layout surface (`baselineKind: 'blank'`, empty layout +
+ * boot a blank layout surface (`baselineKind: 'blank'`, empty layout +
  * empty scene) for the boot-into-empty editor. The Chopin-fixture default
  * (`createLayoutPreviewState`) remains the frozen relic's boot source.
  */
@@ -164,7 +164,7 @@ function buildWallMeshesByRoom(geometry: CompiledLayoutGeometry): {
 		const result = buildRoomWallMesh(room);
 		if (result.mesh) {
 			wallMeshesByRoom.set(room.roomId, result.mesh);
-			// Built once per mesh generation (H1 S5). A partition violation throws
+			// Built once per mesh generation (). A partition violation throws
 			// here — fail-closed, mirroring the builder's own reject-with-issues.
 			layout3dPickIndexByRoom.set(room.roomId, buildLayout3dTriangleIndex(result.mesh));
 		}
@@ -235,7 +235,7 @@ function commitPreviewBundle(state: LayoutPreviewState, bundle: ReturnType<typeo
 }
 
 /**
- * H1 S8 — install the layout adapter's last-valid candidate in one shot
+ * install the layout adapter's last-valid candidate in one shot
  * (the same field set `commitPreviewBundle` writes, plus the session
  * bookkeeping the Plan mutators bump). The candidate was already derived
  * through `derivePreviewBundle`, so this never re-validates and never throws.
@@ -414,10 +414,10 @@ export function layoutRoomSceneReferenceSummary(refs: LayoutRoomSceneReferences)
 }
 
 /**
- * H1 S2.1 — delete a layout room (reject-when-referenced policy).
+ * delete a layout room (reject-when-referenced policy).
  *
  * The caller passes the authoritative scene document (the editor store's
- * document, which owns scene authoring in the H1 shell) — NOT
+ * document, which owns scene authoring in the editor shell) — NOT
  * `state.project.scene`, a boot-time copy that never syncs with scene edits.
  * The delete is blocked while any scene content references the room; a
  * successful delete cascades layout-internal content only (room + owned

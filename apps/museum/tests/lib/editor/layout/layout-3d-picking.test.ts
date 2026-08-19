@@ -197,7 +197,7 @@ describe('layout-3d-picking purity', () => {
 	});
 });
 
-describe('H1 S6 — resolveLayout3dHits', () => {
+describe('resolveLayout3dHits', () => {
 	function indexMap(mesh: IndexedWallMesh): ReadonlyMap<string, Layout3dPickIndex> {
 		return new Map([[mesh.roomId, buildLayout3dTriangleIndex(mesh)]]);
 	}

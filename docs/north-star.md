@@ -21,9 +21,9 @@ New Project
 Plan = layout CAD. 3D = integrated project editor. No separate Scene, Camera,
 or Layout-3D workspace.
 
-`/museum` = frozen Chopin visitor relic; `/museum/editor` = frozen pre-H1
+`/museum` = frozen Chopin visitor relic; `/museum/editor` = frozen legacy
 Scene · Camera editor relic (no Layout tab). Both keep checked-in
-`chopin-project.json` / `museum-scene.json`; the H1 editor never loads or
+`chopin-project.json` / `museum-scene.json`; the editor never loads or
 migrates Chopin project, legacy workspace state, selection, or history.
 
 ## Project truth
@@ -56,8 +56,8 @@ format. The document model does not change when account save arrives.
 4. One camera graph/motion path: `camera-route.ts` + `camera-motion.ts`.
 5. Greenfield: New Project starts empty. No Chopin/legacy editor migration.
 6. Versioned full-project import/export. Import atomic; clears history/selection;
-   future migrations root at the H1 format.
-7. `/museum` visitor and `/museum/editor` pre-H1 editor relic stay frozen. The
+   future migrations root at the editor format.
+7. `/museum` visitor and `/museum/editor` legacy editor relic stay frozen. The
    editor ships in production builds; no build-flag gating.
 8. Object placement = ghost → commit. Completed gesture = one history entry.
 

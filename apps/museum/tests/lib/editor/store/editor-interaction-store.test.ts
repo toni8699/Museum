@@ -124,7 +124,7 @@ describe('EditorInteractionStore — Phase 1a scaleMode', () => {
 		});
 	});
 
-	describe('EditorInteractionStore — ACTIVE_TARGET_CHANGE (H1 S7)', () => {
+	describe('EditorInteractionStore — ACTIVE_TARGET_CHANGE ()', () => {
 		it('targetKey present → Selected; null → Idle', () => {
 			store.dispatch({ type: 'ACTIVE_TARGET_CHANGE', targetKey: 'camera:node:pos' });
 			expect(store.state).toBe('Selected');

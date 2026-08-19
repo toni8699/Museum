@@ -1,5 +1,5 @@
 <script lang="ts">
-	// H1 S4 — one project hierarchy over both documents, mounted in Plan and 3D.
+	// one project hierarchy over both documents, mounted in Plan and 3D.
 	//
 	// Rooms come from the layout (document order, via the pure model); clusters
 	// and entities nest under their explicit roomId. Camera Flow embeds the
@@ -27,7 +27,7 @@
 	} from './layout/layout-interaction';
 	import type { MuseumEditorStore } from './museum-editor.svelte';
 	import CameraFlowPanel from './CameraFlowPanel.svelte';
-	import type { EditorActiveSelectionStore } from './h1/active-editor-selection.svelte';
+	import type { EditorActiveSelectionStore } from './app/active-editor-selection.svelte';
 	import {
 		buildUnifiedProjectTreeModel,
 		filterUnifiedProjectTreeModel,
@@ -38,8 +38,8 @@
 		type UnifiedTreeRow,
 		type UnifiedTreeRoom
 	} from './unified-project-tree-model';
-	import type { Editor3dContext } from './h1/editor-view-state.svelte';
-	import type { EditorViewMode } from './h1/editor-view-mode';
+	import type { Editor3dContext } from './app/editor-view-state.svelte';
+	import type { EditorViewMode } from './app/editor-view-mode';
 
 	let {
 		store,
@@ -121,7 +121,7 @@
 	});
 
 	// Expansion seeding: `treeExpandedRoomIds` defaults to ['paris'] — a Chopin
-	// room that never exists in a boot-empty H1 project. Trim the slot to live
+	// room that never exists in a boot-empty editor project. Trim the slot to live
 	// layout room ids on model build (write only when it differs) so the first
 	// drafted room starts collapsed and toggles stay in sync with the registry.
 	$effect(() => {

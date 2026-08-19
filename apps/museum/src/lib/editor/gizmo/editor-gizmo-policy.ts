@@ -1,5 +1,5 @@
 /**
- * H1 S7 — pure gizmo-policy helpers.
+ * pure gizmo-policy helpers.
  *
  * One `EditorGizmoPolicy` drives the host, the toolbar, and the W/E/R/T
  * shortcuts. These helpers are the single place that derives:
@@ -194,16 +194,16 @@ export function projectGizmoCapabilities(
 	};
 }
 
-/** H1 S3 active domain → the one interactive gizmo policy projection. */
+/** active domain → the one interactive gizmo policy projection. */
 export type GizmoActiveDomain = 'scene' | 'camera' | 'layout' | 'none';
 
-/** Policies the H1 shell maps a domain onto (the adapter-owned constants). */
+/** Policies the editor shell maps a domain onto (the adapter-owned constants). */
 export interface EditorGizmoDomainPolicies {
 	scene: EditorGizmoPolicy;
 	camera: EditorGizmoPolicy;
 	/**
-	 * H1 S8 — the active layout selection's descriptor policy, resolved
-	 * per-selection by the H1 call sites (`null` for a stale/missing identity).
+	 * the active layout selection's descriptor policy, resolved
+	 * per-selection by the editor call sites (`null` for a stale/missing identity).
 	 * A static policy is insufficient: the per-kind layout policies live inside
 	 * the resolved descriptor.
 	 */
@@ -211,7 +211,7 @@ export interface EditorGizmoDomainPolicies {
 }
 
 /**
- * Single projection shared by the H1 toolbar and the W/E/R/T shortcuts.
+ * Single projection shared by the editor toolbar and the W/E/R/T shortcuts.
  * `scene`/`camera` project the target policy with the remembered mode;
  * `layout` projects the descriptor policy when one is published (live
  * selection), `null` for a stale identity or `none` — no interactive gizmo

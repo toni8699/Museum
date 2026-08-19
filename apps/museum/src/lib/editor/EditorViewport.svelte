@@ -111,9 +111,9 @@
 		store.setStatusMessage(result.success ? 'Deleted opening' : `Opening delete failed: ${result.message}`);
 	}
 
-	// H1 S2.1 — room deletion: guarded layout transaction + reject-when-
+	// room deletion: guarded layout transaction + reject-when-
 	// scene-referenced policy. (Unreachable in the relic, which cannot enter
-	// the layout workspace, but kept in parity with the H1 shell.)
+	// the layout workspace, but kept in parity with the editor shell.)
 	function deleteRoom(roomId: string): boolean {
 		if (!store.beginLayoutTransaction()) {
 			store.setStatusMessage('Finish the current layout interaction first');

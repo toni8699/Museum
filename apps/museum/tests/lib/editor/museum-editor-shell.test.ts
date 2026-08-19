@@ -353,7 +353,7 @@ describe('registerEditorShortcuts Escape cascade', () => {
 		expect(store.statusMessage).toBe('Camera command cancelled');
 	});
 
-	it('cancels pending navigation on Escape with an H1 interaction store (mode-key branch no longer swallows it)', () => {
+	it('cancels pending navigation on Escape with an editor interaction store (mode-key branch no longer swallows it)', () => {
 		const store = createFixtureEditorStore();
 		const interactionStore = new EditorInteractionStore();
 		expect(store.beginCameraPlacement()).toBe(true);
@@ -376,7 +376,7 @@ describe('createEditorShortcutHandler — W/E/R/T refuse unsupported modes (S7 s
 	const SCENE_CAPS = projectGizmoCapabilities(SCENE_GIZMO_POLICY, 'scale');
 	const CAMERA_CAPS = projectGizmoCapabilities(CAMERA_GIZMO_POLICY, 'scale');
 
-	it('refuses scale but allows rotate/translate keys on a camera target through the H1 capability projection', () => {
+	it('refuses scale but allows rotate/translate keys on a camera target through the editor capability projection', () => {
 		const store = createFixtureEditorStore();
 		const interactionStore = new EditorInteractionStore();
 		expect(CAMERA_CAPS.allowedModes.has('scale')).toBe(false);
@@ -398,7 +398,7 @@ describe('createEditorShortcutHandler — W/E/R/T refuse unsupported modes (S7 s
 		expect(interactionStore.mode).toBe('translate'); // translate allowed
 	});
 
-	it('allows every mode on a scene target through the H1 capability projection', () => {
+	it('allows every mode on a scene target through the editor capability projection', () => {
 		const store = createFixtureEditorStore();
 		const interactionStore = new EditorInteractionStore();
 		const handler = createEditorShortcutHandler(

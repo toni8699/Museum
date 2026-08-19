@@ -68,7 +68,7 @@ export interface EditorPlacementClusterMutatorHost {
 	// Mutation guards.
 	readonly isDocumentMutationBlocked: boolean;
 	readonly isEditorInteractionActive: boolean;
-	/** H1 S8.1 — true for the frozen `/museum/editor` relic (Paris-oriented placement). */
+	/** true for the frozen `/museum/editor` relic (Paris-oriented placement). */
 	readonly isRelic: boolean;
 
 	// Document + selection state.

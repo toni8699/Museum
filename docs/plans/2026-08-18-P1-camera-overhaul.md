@@ -23,7 +23,7 @@
    (§D finding 3 + §D §4 B2 bullet).
 6. **F6 — playback-unchanged pin** (golden-sample over a legacy route) added
    to the DoD.
-7. **F7 — relic guard named** (`tests/lib/editor/h1/contracts.test.ts`) in the
+7. **F7 — relic guard named** (`tests/lib/editor/app/contracts.test.ts`) in the
    DoD.
 
 ## Outcome
@@ -80,8 +80,8 @@ converges both tracks. **P1.7** last.
 - All increments shipped; full suite green, `svelte-check` 0, build clean.
 - **Existing content playback numerically unchanged** — A1's golden-sample pin
   over a legacy route (F6; the visitor-visible change guard).
-- **Relic guard named (F7):** `tests/lib/editor/h1/contracts.test.ts` — H1 S0
-  relic-isolation + H1 S1 route-wiring smoke proxy — stays green.
+- **Relic guard named (F7):** `tests/lib/editor/app/contracts.test.ts` —
+  relic-isolation + route-wiring smoke proxy — stays green.
 - P1.7 reconciliation done (interim presentation; the P3 pass is separate).
 - Tracker marks **P1 shipped**; this umbrella moves to archive with a stub.
 
@@ -548,7 +548,7 @@ same capability; symmetry of structure, not symmetry of features.
 ### 5.7 Cost (honest)
 
 This is a *shell rework*, not an add-on — the primary/secondary switchers flip, and
-Camera graduates from a 3D sub-context to a peer domain. Touches `H1EditorApp`,
+Camera graduates from a 3D sub-context to a peer domain. Touches `EditorApp`,
 `EditorViewState`, switcher components, and several S10.1 plan assumptions.
 Contained, but deliberate.
 
@@ -700,8 +700,8 @@ Current-state findings that drove the sectioning (kept for the record):
    `validateConnectionDeletion` refuses flow-required edges, detour returns,
    and graph-disconnecting deletions atomically) — Camera Plan must not offer a
    bypass.
-5. **The matrix rework touches freshly landed S10.1 files** — `H1EditorApp`,
-   `H1AppBar`, `EditorViewState` (gains a domain axis), both switchers. This is
+5. **The matrix rework touches freshly landed S10.1 files** — `EditorApp`,
+   `EditorAppBar`, `EditorViewState` (gains a domain axis), both switchers. This is
    why it is a successor slice, not an amendment to in-flight work.
 6. (Historical) Both workstreams were classified as camera-authoring scope
    before the renewal gate; that classification is now the P1 tracker row.

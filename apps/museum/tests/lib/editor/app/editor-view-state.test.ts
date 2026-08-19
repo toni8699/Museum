@@ -1,10 +1,10 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
 
-import { EditorViewState } from '$lib/editor/h1/editor-view-state.svelte';
-import type { Editor3dContext } from '$lib/editor/h1/editor-view-state.svelte';
-import type { EditorViewMode } from '$lib/editor/h1/editor-view-mode';
+import { EditorViewState } from '$lib/editor/app/editor-view-state.svelte';
+import type { Editor3dContext } from '$lib/editor/app/editor-view-state.svelte';
+import type { EditorViewMode } from '$lib/editor/app/editor-view-mode';
 
-describe('H1 S1 — EditorViewState', () => {
+describe('EditorViewState', () => {
 	it('defaults to the Plan view with the scene 3D context', () => {
 		const state = new EditorViewState();
 		expect(state.viewMode).toBe('plan');

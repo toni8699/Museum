@@ -6,7 +6,7 @@
 	} from '$lib/content/scene';
 	import type { MuseumEditorStore } from './museum-editor.svelte';
 
-	// H1 S4 — optional interactivity gate (the unified tree renders the camera
+	// optional interactivity gate (the unified tree renders the camera
 	// branch read-only in Plan). When false, keyframe rows are aria-disabled
 	// with no click handler. The relic never passes the prop and is unchanged.
 	let {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { LayoutDocument } from '$lib/layout/layout-types';
 import type { MuseumSceneDocument, SceneEntity } from '$lib/content/scene';
-import type { ActiveEditorSelection } from '$lib/editor/h1/active-editor-selection.svelte';	import {
+import type { ActiveEditorSelection } from '$lib/editor/app/active-editor-selection.svelte';	import {
 		buildUnifiedProjectTreeModel,
 		filterUnifiedProjectTreeModel,
 		isUnifiedTreeRowInteractive,
@@ -183,7 +183,7 @@ function layoutActive(
 	return { domain: 'layout', selection } as ActiveEditorSelection;
 }
 
-describe('H1 S4 — unified tree model', () => {
+describe('unified tree model', () => {
 	it('orders rooms from the layout (floors flatMap) with qualified architecture children', () => {
 		const model = buildModel();
 		expect(model.rooms.map((room) => room.roomId)).toEqual(['room-a', 'room-b']);
@@ -253,7 +253,7 @@ describe('H1 S4 — unified tree model', () => {
 	});
 });
 
-describe('H1 S4 — row selection matching', () => {
+describe('row selection matching', () => {
 	it('highlights exactly the selected layout row for every layout kind', () => {
 		const room: UnifiedTreeRow = { kind: 'room', roomId: 'room-a' };
 		const wall: UnifiedTreeRow = { kind: 'wall', roomId: 'room-a', segmentId: 'wall-b' };
@@ -407,7 +407,7 @@ describe('H1 S4 — row selection matching', () => {
 	});
 });
 
-describe('H1 S4 — view-aware interactivity', () => {
+describe('view-aware interactivity', () => {
 	it('keeps layout rows interactive in both views', () => {
 		const room: UnifiedTreeRow = { kind: 'room', roomId: 'room-a' };
 		const wall: UnifiedTreeRow = { kind: 'wall', roomId: 'room-a', segmentId: 'wall-a' };
@@ -431,7 +431,7 @@ describe('H1 S4 — view-aware interactivity', () => {
 	});
 });
 
-describe('H1 S4 — pick-expand ancestor resolution', () => {
+describe('pick-expand ancestor resolution', () => {
 	const layout = makeLayout();
 
 	it('returns the carrying roomId for room/wall/opening/anchor selections', () => {
@@ -469,7 +469,7 @@ describe('H1 S4 — pick-expand ancestor resolution', () => {
 	});
 });
 
-describe('H1 S4 — hierarchy filter', () => {
+describe('hierarchy filter', () => {
 	it('returns the model untouched for an empty or whitespace query', () => {
 		const model = buildModel();
 		expect(filterUnifiedProjectTreeModel(model, '')).toBe(model);

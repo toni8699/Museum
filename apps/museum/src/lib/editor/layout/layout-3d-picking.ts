@@ -1,5 +1,5 @@
 /**
- * H1 S5 — pure 3D layout pick identity + reverse index.
+ * pure 3D layout pick identity + reverse index.
  *
  * Consumes the additive `IndexedWallMesh.pickRanges` the builder emits and
  * turns it into O(1) triangle → pick-owner resolution (built once per mesh
@@ -136,7 +136,7 @@ export function layoutAnchorHelperPlacements(
 }
 
 // =====================================================================
-// H1 S6 — centralized 3D layout selection (pure resolution + candidate
+// centralized 3D layout selection (pure resolution + candidate
 // extraction). The S6 coordinator reuses the S5 `layout3dPickIndexByRoom`
 // cache: raycast hits become `Layout3dHitCandidate`s structurally (no `three`
 // import — `RaycastHitLike` is a local shape) and `resolveLayout3dHits`
@@ -156,7 +156,7 @@ export function layoutAnchorHelperPlacements(
  */
 export const LAYOUT_3D_SAME_DEPTH_EPSILON = 1e-4;
 
-/** Umbrella contract, exact shape (see the H1 umbrella plan). */
+/** Umbrella contract, exact shape (see the archived umbrella plan). */
 export type Layout3dHitCandidate =
 	| { kind: 'object'; objectId: string; distance: number }
 	| { kind: 'anchor'; roomId: string; segmentId: string; anchorId: string; distance: number }
@@ -385,7 +385,7 @@ export function layoutPickBeatsSceneDistance(
 }
 
 /**
- * H1 S6 deferral (2026-08-16) — direct 3D picks of walls / interior anchors
+ * deferral (2026-08-16) — direct 3D picks of walls / interior anchors
  * are deferred by decision: a viewport click must not commit them yet, while
  * hierarchy (tree) picks of the same identities stay live and highlight.
  * The resolver still maps wall triangles (the machinery is untouched); this

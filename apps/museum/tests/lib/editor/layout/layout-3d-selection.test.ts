@@ -23,7 +23,7 @@ import {
 	selectLayoutWall,
 	type LayoutInteractionState
 } from '$lib/editor/layout/layout-interaction';
-import { deriveActiveSelection } from '$lib/editor/h1/active-editor-selection.svelte';
+import { deriveActiveSelection } from '$lib/editor/app/active-editor-selection.svelte';
 import { createMuseumEditorStore } from '$lib/editor/museum-editor.svelte';
 import { cloneFixtureDocument } from '../../content/__fixtures__/load-fixture-scene';
 import { g1MultipleOpeningsDocument } from '../../layout/__fixtures__/layout-g1-fixtures';
@@ -57,7 +57,7 @@ function rayHit(object: HitNode, distance: number, faceIndex: number | null = nu
 	return { object, distance, faceIndex };
 }
 
-describe('H1 S6 — layoutCandidatesFromIntersections', () => {
+describe('layoutCandidatesFromIntersections', () => {
 	it('identifies wall, floor, and ceiling surfaces from authored object-level userData', () => {
 		const wall = node({ surfaceType: 'wall', roomId: 'r1' });
 		const floor = node({ surfaceType: 'floor', roomId: 'r1' });
@@ -118,9 +118,9 @@ describe('H1 S6 — layoutCandidatesFromIntersections', () => {
 	});
 });
 
-describe('H1 S6 — commit route (pure shell mirror)', () => {
+describe('commit route (pure shell mirror)', () => {
 	/**
-	 * Mirror of `H13DView.handleLayoutPick` — identical resolve + yield + commit
+	 * Mirror of `Workspace3DView.handleLayoutPick` — identical resolve + yield + commit
 	 * path over the same pure primitives. Kept in sync by the S6 source-assertion
 	 * contract test (which pins the component's actual wiring), so this exercises
 	 * the route without a Svelte mount.
@@ -242,7 +242,7 @@ describe('H1 S6 — commit route (pure shell mirror)', () => {
 	});
 });
 
-describe('H1 S6 follow-up — layoutSelectionKey (hover dedupe)', () => {
+describe('follow-up — layoutSelectionKey (hover dedupe)', () => {
 	it('keys every selection kind to a stable, unambiguous identity string', () => {
 		expect(layoutSelectionKey(null)).toBe('');
 		expect(layoutSelectionKey({ kind: 'none' })).toBe('none');
@@ -289,7 +289,7 @@ describe('H1 S6 follow-up — layoutSelectionKey (hover dedupe)', () => {
 	});
 });
 
-describe('H1 S6 deferral — isLayoutDirectPickDeferred', () => {
+describe('deferral — isLayoutDirectPickDeferred', () => {
 	it('defers direct wall and interior-anchor picks', () => {
 		expect(isLayoutDirectPickDeferred({ kind: 'wall', roomId: 'r1', segmentId: 'r1:wall:0' })).toBe(true);
 		expect(

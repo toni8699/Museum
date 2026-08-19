@@ -1,7 +1,7 @@
 import type { EditorViewMode } from './editor-view-mode';
 
 /**
- * H1 3D sub-contexts. Scene and camera stop being top-level workspaces and
+ * 3D sub-contexts. Scene and camera stop being top-level workspaces and
  * become tool/panel contexts *inside* the one 3D view. The drafted layout
  * architecture renders in 3D unconditionally (via `LayoutPreviewScene`), so
  * there is no separate "layout" context — "Layout" is the top-level Plan view.
@@ -9,7 +9,7 @@ import type { EditorViewMode } from './editor-view-mode';
 export type Editor3dContext = 'scene' | 'camera';
 
 /**
- * H1 S1 top-level shell view state.
+ * top-level shell view state.
  *
  * `viewMode` is the only user-facing top-level switch — `Plan | 3D`. `3d`
  * hosts scene and camera as session-only tool/panel contexts. This is a pure
@@ -19,7 +19,7 @@ export type Editor3dContext = 'scene' | 'camera';
  * enforce the no-op-on-same-value rule).
  */
 export class EditorViewState {
-	// H1 S2 — the editor boots into the empty Plan canvas.
+	// the editor boots into the empty Plan canvas.
 	viewMode = $state<EditorViewMode>('plan');
 	active3dContext = $state<Editor3dContext>('scene');
 

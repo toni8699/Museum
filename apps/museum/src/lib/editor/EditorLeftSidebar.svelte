@@ -24,7 +24,7 @@
 		confirmLayoutReplacement: () => boolean;
 		outlinerElement?: HTMLElement | null;
 		onAssetSelection?: (asset: MuseumAsset | undefined) => void;
-		/** H1 S3 — fired after the sidebar "Reset empty" action; the shell clears the active selection. */
+		/** fired after the sidebar "Reset empty" action; the shell clears the active selection. */
 		onReset?: () => void;
 	} = $props();
 

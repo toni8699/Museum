@@ -354,9 +354,9 @@ describe('editor-selection helpers', () => {
 	});
 });
 
-// H1 S6 — the normal resolver keeps its exact result contract while exposing
+// the normal resolver keeps its exact result contract while exposing
 // the actionable source hit (with its ray distance) for cross-domain arbitration.
-describe('H1 S6 — resolveNormalSelectionWithHit', () => {
+describe('resolveNormalSelectionWithHit', () => {
 	it('agrees with resolveNormalSelection for every camera/navigation/placement/deselect shape', () => {
 		const fixtures: SelectionHitInfo[][] = [
 			// camera helper precedence

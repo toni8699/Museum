@@ -1,5 +1,5 @@
 /**
- * H1 S7 steps 2/3 — scene placement gizmo adapter.
+ * steps 2/3 — scene placement gizmo adapter.
  *
  * Owns the placement session the monolith `EditorTransformControls.svelte`
  * used to run inline: pivot baseline, rigid member deltas, uniform /
@@ -7,7 +7,7 @@
  * snap preference routing, keep-on-floor grounding, one document
  * transaction per drag, and the placement-cancel deselect.
  *
- * Resolution rule (H1 + relic): a scene placement target exists only when
+ * Resolution rule (editor + relic): a scene placement target exists only when
  * every selected placement id resolves to a live root — missing roots
  * return `null` (the refuses-begin contract) and no session is attached.
  *

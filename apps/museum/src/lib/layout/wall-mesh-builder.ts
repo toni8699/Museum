@@ -33,7 +33,7 @@ export type IndexedWallMeshGroup = {
 };
 
 /**
- * H1 S5 — renderer-neutral pick identity for one emitted wall-buffer surface.
+ * renderer-neutral pick identity for one emitted wall-buffer surface.
  * `'lintel'` exists on both sides of the wall/opening union, so `kind` is
  * always explicit. Additive metadata; never geometry groups, never serialized.
  */
@@ -63,7 +63,7 @@ export type IndexedWallMesh = {
 	sectionToRange: Array<WallMeshSectionRef & { surfaceKey: WallMeshSurfaceKey; start: number; count: number }>;
 	wallRanges: Array<{ segmentId: string; ranges: Array<{ start: number; count: number }> }>;
 	/**
-	 * H1 S5 — complete authored pick identity: a sorted, non-overlapping
+	 * complete authored pick identity: a sorted, non-overlapping
 	 * partition of the whole index buffer (every triangle has exactly one pick
 	 * owner). Covers wall side/lintel/bridge surfaces and opening
 	 * jamb/sill/lintel/arch-reveal surfaces — the classes `sectionToRange` /
@@ -361,7 +361,7 @@ function buildSectionFaces(
 	const topY = section.topY;
 	const floorElevation = room.floorElevation;
 
-	// H1 S5 — pick identity for every face this section emits. A lintel splits
+	// pick identity for every face this section emits. A lintel splits
 	// into band/top ('lintel') and underside ('arch-reveal') surfaces; the sill
 	// strip (side + openingId) is the opening's 'sill'; a plain side section is
 	// the wall's 'side'. Lintels always carry an openingId from the compiler,
@@ -859,7 +859,7 @@ function profileCovers(profile: ReadonlyArray<[number, number]>, lo: number, hi:
 }
 
 /**
- * H1 S5 — every corner-bridge face is pick-owned by the current/start wall
+ * every corner-bridge face is pick-owned by the current/start wall
  * (the wall whose START the bridge closes), `surface: 'bridge'`. The owner
  * comes from the emitting wall context; the face only needs the surface.
  */
@@ -1138,7 +1138,7 @@ function emitMesh(
 	let min: V3 = [Infinity, Infinity, Infinity];
 	let max: V3 = [-Infinity, -Infinity, -Infinity];
 
-	// H1 S5 — contiguous runs of identical (kind, roomId, segmentId, openingId,
+	// contiguous runs of identical (kind, roomId, segmentId, openingId,
 	// surface) across the whole emission order. Faces are emitted in index
 	// order, so the accumulated runs are sorted, non-overlapping, and partition
 	// the index buffer — every triangle gets exactly one pick owner.
@@ -1163,7 +1163,7 @@ function emitMesh(
 	}
 
 	function emitFaceWithPick(face: Face, roomId: string, segmentId: string): void {
-		// H1 S5 — fail closed on an untagged face instead of silently folding it
+		// fail closed on an untagged face instead of silently folding it
 		// into the previous pick run (the partition guard cannot see a wrong
 		// owner — only a missing one). Every emitted face today carries a pick;
 		// this guard turns a future dropped tag into a loud build failure.
@@ -1403,7 +1403,7 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 /**
- * H1 S5 — spread `Layout3dTriangleRef` into a pick range. Extracted because TS
+ * spread `Layout3dTriangleRef` into a pick range. Extracted because TS
  * rejects spreading a variable whose *declared* type includes `null` even when
  * the caller has narrowed it (TS2698); a non-nullable parameter sidesteps it.
  */

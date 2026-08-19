@@ -53,7 +53,7 @@ describe('layout preview state', () => {
 		}
 	});
 
-	it('H1 S5 — rebuilds the pick-index cache with the wall-mesh cache on every mutation/reset', () => {
+	it('rebuilds the pick-index cache with the wall-mesh cache on every mutation/reset', () => {
 		const state = createLayoutPreviewState();
 		expect(state.layout3dPickIndexByRoom).toBeInstanceOf(Map);
 		expect(state.layout3dPickIndexByRoom.size).toBe(state.wallMeshesByRoom.size);

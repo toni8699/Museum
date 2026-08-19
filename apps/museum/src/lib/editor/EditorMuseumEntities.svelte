@@ -30,7 +30,7 @@
     scene: RuntimeMuseumScene;
     rooms: LayoutRoomRegistry;
     placementRegistry: EditorPlacementRegistry;
-    /** S10.1 — session-only per-entity visibility override (H1 only; relic stays undefined). */
+    /** S10.1 — session-only per-entity visibility override (the editor only; relic stays undefined). */
     hiddenEntityIds?: readonly string[];
   } = $props();
 

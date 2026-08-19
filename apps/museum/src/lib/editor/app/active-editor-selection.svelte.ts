@@ -1,5 +1,5 @@
 /**
- * H1 S3 — one active selection domain at the editor composition root.
+ * One active selection domain at the editor composition root.
  *
  * The editor keeps three parallel selection slots with their own types and
  * owners: `EditorSelectionStore.workspace` (scene placement/cluster),
@@ -19,10 +19,10 @@
  *
  * Activation itself stays in the source stores: `EditorSelectionStore` fires
  * the `onSelectionActivate` hook (wired through `createMuseumEditorStore`
- * options) on actionable scene/camera picks, and the H1 shell clears the
+ * options) on actionable scene/camera picks, and the editor shell clears the
  * scene/camera slots when `layoutInteraction.selection` becomes actionable.
  * This module therefore adapts the stores without merging their types, and the
- * machinery stays domain-generic so the post-H1 Plan staging mode (C1) can
+ * machinery stays domain-generic so the P2 Plan staging mode can
  * route Plan scene-activation through it without rework.
  */
 
@@ -30,7 +30,7 @@ import { clearLayoutSelection, type LayoutInteractionState, type LayoutSelection
 import type { NavigationSelection, WorkspaceSelection } from '../museum-editor.types';
 import type { MuseumEditorStore } from '../museum-editor.svelte';
 
-/** Context key so H1 children (S4 hierarchy, S6 selection, S7 gizmo) can read `active`. */
+/** Context key so editor children (hierarchy, selection, gizmo) can read `active`. */
 export const ACTIVE_EDITOR_SELECTION_KEY = Symbol('active-editor-selection');
 
 export type ActiveEditorSelection =
@@ -82,7 +82,7 @@ export class EditorActiveSelectionStore {
 		this.#store = store;
 		this.#layoutInteraction = layoutInteraction;
 		this.#clearLayoutSelection = clearLayoutSelectionCallback;
-		// H1 S3 — construction-time convergence: H1 boot is all-empty (the
+		// construction-time convergence: editor boot is all-empty (the
 		// activation hooks enforce exclusivity from the first pick), but a future
 		// consumer may construct the wrapper over a legacy multi-actionable
 		// state. Keep the highest-priority domain and clear the surplus slots so
@@ -151,7 +151,7 @@ export class EditorActiveSelectionStore {
 	}
 
 	/**
-	 * H1 S3 — the shell's layout-activation hook: when a Plan pick makes the
+	 * the shell's layout-activation hook: when a Plan pick makes the
 	 * layout selection actionable, detach any actionable scene/camera pick.
 	 * `clearPlacementSelection` keeps the room context and `setNavigation({kind:
 	 * 'none'})` is non-actionable, so the store hook never fires and this

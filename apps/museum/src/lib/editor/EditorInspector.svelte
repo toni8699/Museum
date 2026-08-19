@@ -42,8 +42,8 @@
 		EDITOR_VISITOR_LIGHTING,
 		type MuseumEditorStore
 	} from './museum-editor.svelte';
-	import type { EditorActiveSelectionStore } from './h1/active-editor-selection.svelte';
-	import type { EditorViewMode } from './h1/editor-view-mode';
+	import type { EditorActiveSelectionStore } from './app/active-editor-selection.svelte';
+	import type { EditorViewMode } from './app/editor-view-mode';
 
 	let {
 		store,
@@ -57,7 +57,7 @@
 		store: MuseumEditorStore;
 		layoutPreview: LayoutPreviewState;
 		layoutInteraction: LayoutInteractionState;
-		/** H1 S4 — optional domain-driven panel switch. When provided and a
+		/** optional domain-driven panel switch. When provided and a
 		 *  domain is active, the panel follows `active.domain` (a scene/camera
 		 *  selection survives Plan ↔ 3D and must keep its panel); otherwise it
 		 *  falls back to `store.currentWorkspace` — the relic passes nothing
@@ -65,7 +65,7 @@
 		activeSelection?: EditorActiveSelectionStore;
 		selectedAsset?: MuseumAsset;
 		clusterNameInput?: HTMLInputElement;
-		/** Authoritative shell view mode. H1 passes the top-level Plan | 3D
+		/** Authoritative shell view mode. the editor passes the top-level Plan | 3D
 		 *  switch so the domain-driven panel can keep a preserved scene/camera
 		 *  selection visible yet read-only in Plan (Plan is layout CAD only —
 		 *  no non-layout mutation path). Legacy mounts omit it and stay fully
@@ -108,7 +108,7 @@
 			? singleSelectedEntity
 			: undefined
 	);
-	// H1 S4 — panel domain: the active selection when one is provided and a
+	// panel domain: the active selection when one is provided and a
 	// domain is active (S3 view-switch preservation), else the legacy workspace.
 	const domain = $derived<EditorWorkspace>(
 		activeSelection && activeSelection.active.domain !== 'none'
@@ -402,7 +402,7 @@
 		if (selectedLayoutObject) removeLayoutObject(selectedLayoutObject.id);
 	}
 
-	// H1 S2.1 — room deletion is blocked while any scene content (entities,
+	// room deletion is blocked while any scene content (entities,
 	// clusters, camera nodes, path anchors, waypoints, view keyframes)
 	// references the room. The blocker reads the store's authoritative scene
 	// document (the layout preview's `project.scene` is a boot-time copy).

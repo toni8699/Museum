@@ -41,7 +41,7 @@ const TIER_ORDER: readonly BenchTier[] = ['chopin', 'small', 'medium', 'large'];
  * a recorded reason; `recordBaseline()` persists this table alongside the
  * fresh tier measurements. Only the deterministic metrics (see
  * `ENFORCED_BUDGET_METRICS`) are enforced against live measurements; the
- * wall-clock metrics remain recorded but advisory until the H1 product has a
+ * wall-clock metrics remain recorded but advisory until the product has a
  * representative fixture and stable CI. The three `three-*-estimate` bounds
  * and the `wall-mesh-build` metric reflect the G4 indexed-mesh topology (one
  * watertight mesh per room) rather than the retired one-box-per-span chord

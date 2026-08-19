@@ -25,7 +25,7 @@ export class MuseumStateStore {
       this.currentRoomId = initialNode.roomId;
       this.visitedRoomIds = new Set([initialNode.roomId]);
     } else {
-      // H1 S0 zero-node policy: a scene with no navigation nodes is a valid
+      // zero-node policy: a scene with no navigation nodes is a valid
       // authoring state. The session-only free camera owns the viewport and
       // the tour FSM stays inert until a node is authored (S2 wires the
       // preview lockout on top of this).

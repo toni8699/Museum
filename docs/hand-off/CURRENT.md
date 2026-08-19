@@ -31,12 +31,12 @@ shipped/next lists never accumulate.
 ## Known bugs / deferred
 
 - Direct 3D **wall/interior-anchor picks deferred** (S6.1):
-  `H13DView.handleLayoutPick` falls through for those resolutions; rooms /
+  `Workspace3DView.handleLayoutPick` falls through for those resolutions; rooms /
   openings / objects stay directly pickable.
 - **Layout hover feed** (`onLayoutHover`) + anchor-helper octahedra stay
   disconnected (deferred).
 - **Paris-gated `focusRoom` latent** on drafted rooms (throws via Chopin
-  `getRoom`) — H1 path fixed by S8.2; benign Chopin defaults remain, cleanup
+  `getRoom`) — editor path fixed by S8.2; benign Chopin defaults remain, cleanup
   optional at relic removal.
 
 ## Traps
@@ -47,7 +47,7 @@ shipped/next lists never accumulate.
 - **Editor camera path/view math** must resolve points through `store.rooms`,
   never `chopinRuntime.rooms` (root cause of the gizmo freeze on drafted
   rooms; `TransformControls` stayed attached to an unmounted helper root).
-- **H1 shortcut cascade:** Escape must run before the W/E/R/T mode-key branch,
+- **Shortcut cascade:** Escape must run before the W/E/R/T mode-key branch,
   or `cancelPendingNavigation` never fires.
 - **S3 `onLayoutSelectionChanged`:** write slots only when they differ —
   unconditional writes spin `effect_update_depth_exceeded`.

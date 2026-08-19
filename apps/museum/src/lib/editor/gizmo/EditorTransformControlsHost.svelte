@@ -31,7 +31,7 @@
 		EDITOR_INTERACTION_STORE_KEY
 	);
 
-	// H1 S7 — this component is the ONE TransformControls owner: constructor,
+	// this component is the ONE TransformControls owner: constructor,
 	// helper, and disposer live only here.
 	const transformControls = new ThreeTransformControls(threlteCamera.current, dom);
 	const transformHelper = transformControls.getHelper();

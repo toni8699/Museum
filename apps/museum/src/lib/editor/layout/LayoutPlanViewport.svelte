@@ -93,7 +93,7 @@
 		onLayoutTransactionBegin: () => boolean;
 		onLayoutTransactionCommit: () => boolean;
 		onLayoutTransactionCancel: () => boolean;
-		/** H1 S3 — a Plan empty-click deselects the *active* domain (default: clear the layout selection). */
+		/** a Plan empty-click deselects the *active* domain (default: clear the layout selection). */
 		onDeselect?: () => void;
 	} = $props();
 
@@ -349,7 +349,7 @@
 		if (interaction.tool !== 'select') return;
 		const target = resolvePlanHit(model.queries, point, LAYOUT_PLAN_HIT_RADIUS_PX / interaction.planView.pixelsPerMeter);
 		if (!target) {
-			// H1 S3 — a Plan empty-click deselects whichever domain is active (a
+			// a Plan empty-click deselects whichever domain is active (a
 			// scene/camera pick may have survived into Plan); default keeps the
 			// layout-only clear.
 			if (onDeselect) onDeselect();
@@ -716,7 +716,7 @@
 			preview.statusMessage = result.success ? 'Deleted layout object' : result.message;
 			return;
 		}
-		// H1 S2.1 — room deletion is a guarded layout transaction (the caller
+		// room deletion is a guarded layout transaction (the caller
 		// owns begin/commit/cancel + the scene-reference reject policy).
 		if ((event.key === 'Delete' || event.key === 'Backspace') && interaction.tool === 'select' && interaction.selection.kind === 'room') {
 			event.preventDefault();

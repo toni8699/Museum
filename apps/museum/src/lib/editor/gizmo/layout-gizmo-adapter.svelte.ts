@@ -1,5 +1,5 @@
 /**
- * H1 S8 step 2 — the live layout candidate-session adapter.
+ * step 2 — the live layout candidate-session adapter.
  *
  * Activates the S7 detached descriptors: a layout selection drags through the
  * same single host the scene/camera adapters use, previews a validated
@@ -54,7 +54,7 @@ export interface LayoutGizmoAdapterInput {
 	proxy: Object3D;
 	/** Host-owned Shift state for the adapter's own snap policy. */
 	isShiftHeld(): boolean;
-	/** Reactive render slot — writes the transient bundle into the H1 shell. */
+	/** Reactive render slot — writes the transient bundle into the editor shell. */
 	onTransient(bundle: LayoutGizmoCandidateBundle | null): void;
 }
 

@@ -1,5 +1,5 @@
 /**
- * H1 S7 step 2 — fake-host lifecycle specs.
+ * step 2 — fake-host lifecycle specs.
  *
  * The controller (`$lib/editor/gizmo/editor-gizmo-host-controller.ts`) is
  * the pure, Three/Svelte-free core the `.svelte` host wraps. These specs

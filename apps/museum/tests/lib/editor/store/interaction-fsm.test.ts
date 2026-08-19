@@ -50,7 +50,7 @@ describe('reduce — transition matrix', () => {
 		},
 		{ state: 'Hover', event: { type: 'ESC' }, next: 'Idle' },
 
-		// Idle/Hover/Selected — ACTIVE_TARGET_CHANGE rows (H1 S7)
+		// Idle/Hover/Selected — ACTIVE_TARGET_CHANGE rows ()
 		{
 			state: 'Idle',
 			event: { type: 'ACTIVE_TARGET_CHANGE', targetKey: 'scene:placement' },
@@ -131,7 +131,7 @@ describe('reduce — transition matrix', () => {
 			next: 'Dragging'
 		},
 		{
-			// H1 S7 — dead branch: a live gizmo drag never dispatches ESC
+			// dead branch: a live gizmo drag never dispatches ESC
 			// (host routes every cancel through DRAG_END { cancelled: true }).
 			state: 'Dragging',
 			event: { type: 'ESC' },
@@ -191,7 +191,7 @@ describe('reduce — invariants', () => {
 		expect(effects).toHaveLength(0);
 	});
 
-	it('ESC mid-drag is a dead branch (H1 S7): Dragging stays put, no effects', () => {
+	it('ESC mid-drag is a dead branch (): Dragging stays put, no effects', () => {
 		// The host routes every gizmo cancel (Escape included) through the
 		// adapter's cancel + DRAG_END { cancelled: true }, so the reducer
 		// must never see ESC from a live drag; pin it as a no-op.

@@ -290,7 +290,7 @@ describe('camera-gizmo-adapter — authored node sessions', () => {
 
 describe('camera-gizmo-adapter — pending-node drafts', () => {
 	it('begin/preview/commit stay out of history; cancel restores the start point and root', () => {
-		// B0 (S10.1 closeout) made standalone placement the H1 behavior; the
+		// B0 (S10.1 closeout) made standalone placement the editor behavior; the
 		// pending-node draft contract is now the frozen relic path.
 		const store = createRelicFixtureEditorStore();
 		const roomId = store.rooms.entries[0]!.id;

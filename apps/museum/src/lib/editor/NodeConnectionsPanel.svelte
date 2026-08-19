@@ -9,7 +9,7 @@
 	import { formatCameraNodeLabel } from './editor-outliner';
 	import type { MuseumEditorStore } from './museum-editor.svelte';
 
-	// H1 S4 — optional interactivity gate (the unified tree renders the camera
+	// optional interactivity gate (the unified tree renders the camera
 	// branch read-only in Plan). When false, connection/direction rows are
 	// aria-disabled with no click/expand handlers. The relic never passes the
 	// prop and is unchanged.
@@ -22,7 +22,7 @@
 		store: MuseumEditorStore;
 		nodeId: string;
 		interactive?: boolean;
-		// H1 S4 — the S3 active selection domain. Direction rows are
+		// the S3 active selection domain. Direction rows are
 		// discovery-driven but gated to the camera-or-none domain (the plan's
 		// documented exception): timeline scrubbing sets the discovery slots
 		// with no navigation selection, and a layout/scene selection must
@@ -84,7 +84,7 @@
 	}
 
 	function isDirectionSelected(connectionId: string, direction: CameraConnectionDirection) {
-		// H1 S4 — discovery-only camera scrubbing sets the discovery slots with
+		// discovery-only camera scrubbing sets the discovery slots with
 		// **no** navigation selection at all, so the direction row must also
 		// highlight straight from discovery, gated to the camera-or-none
 		// domain (never co-highlighting under a layout/scene selection).

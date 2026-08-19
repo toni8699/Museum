@@ -13,9 +13,9 @@ import type { Vec3 } from '$lib/types/museum';
 import { createRelicFixtureEditorStore } from '../editor-test-utils';
 
 /**
- * H1 S8.1 — catalogue placement resolves the target room from the clicked
+ * catalogue placement resolves the target room from the clicked
  * floor instead of the frozen `'paris'` hardcode. The mutator + click handler
- * are room-agnostic in H1; the relic keeps its Paris-oriented behavior.
+ * are room-agnostic in editor; the relic keeps its Paris-oriented behavior.
  */
 
 function draftRoomAndSync(): { store: MuseumEditorStore; roomId: string } {
@@ -48,8 +48,8 @@ function floorIntersections(roomId: string): Intersection[] {
 	];
 }
 
-describe('H1 S8.1 — room-agnostic catalogue placement', () => {
-	it('arms catalogue placement without preselecting Paris in H1', () => {
+describe('room-agnostic catalogue placement', () => {
+	it('arms catalogue placement without preselecting Paris in editor', () => {
 		const { store } = draftRoomAndSync();
 		expect(store.beginAssetPlacement('paris-salon-chair')).toBe(true);
 		expect(store.pendingPlacementAssetId).toBe('paris-salon-chair');
@@ -98,7 +98,7 @@ describe('H1 S8.1 — room-agnostic catalogue placement', () => {
 		const { store, roomId } = draftRoomAndSync();
 		expect(store.beginAssetPlacement('paris-salon-chair')).toBe(true);
 
-		// The same three calls EditorSelection makes for the H1 branch.
+		// The same three calls EditorSelection makes for the editor branch.
 		const floorHit = findPlaceableFloorIntersection(
 			floorIntersections(roomId),
 			undefined,

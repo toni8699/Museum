@@ -8,7 +8,7 @@
 		type EditorInteractionStore
 	} from './store/editor-interaction-store.svelte';
 	import { getActiveTransformTarget } from './editor-transform';
-	import type { EditorActiveSelectionStore } from './h1/active-editor-selection.svelte';
+	import type { EditorActiveSelectionStore } from './app/active-editor-selection.svelte';
 	import {
 		createSceneGizmoAdapter,
 		createSceneGizmoPivot,
@@ -32,9 +32,9 @@
 	let {
 		store,
 		controls = $bindable(),
-		/** H1 S3 — the single active-domain selector. Absent on the relic mount. */
+		/** the single active-domain selector. Absent on the relic mount. */
 		activeSelection,
-		/** H1 S8 — layout adapter inputs. Absent on the relic mount. */
+		/** layout adapter inputs. Absent on the relic mount. */
 		layoutPreview,
 		layoutInteraction,
 		onLayoutTransient
@@ -54,7 +54,7 @@
 	// One shared session pivot per mounted canvas — created by the scene
 	// adapter module (S7 step 3); this composer only holds the reference.
 	const pivot = createSceneGizmoPivot(scene);
-	// H1 S8 — one shared session-only layout proxy per mounted canvas (like the
+	// one shared session-only layout proxy per mounted canvas (like the
 	// pivot); its pose is reset to the descriptor baseline per adapter via
 	// `prepare`/`begin`, so no second gizmo or per-selection object is created.
 	const layoutProxy = createLayoutGizmoProxy(scene);

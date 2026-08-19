@@ -59,9 +59,9 @@ one-line `archived → <path>` stubs. No live doc explains what is archived.
 
 | Route | Role |
 |---|---|
-| `/` or `/editor` | Main H1 editor, always ships in production |
+| `/` or `/editor` | Main editor, always ships in production |
 | `/museum` | Frozen Chopin visitor relic (checked-in `chopin-project.json`) |
-| `/museum/editor` | Frozen pre-H1 editor relic (Scene · Camera, no Layout) |
+| `/museum/editor` | Frozen legacy editor relic (Scene · Camera, no Layout) |
 | `/dev/materials` · `/dev/assets` · `/dev/perf` | Development previews / G3 harness |
 
 The editor boots into a fresh empty project; no Chopin/legacy state is loaded
@@ -71,7 +71,7 @@ or migrated. Persistence is portable export/import only.
 
 | Surface | Contract doc | Key source |
 |---------|--------------|------------|
-| Shell / workspaces / timeline | [`components/shell.md`](./components/shell.md) | `apps/museum/src/lib/editor/h1/` |
+| Shell / workspaces / timeline | [`components/shell.md`](./components/shell.md) | `apps/museum/src/lib/editor/app/` |
 | Scene entities / materials / lights | [`components/scene-content.md`](./components/scene-content.md) | `apps/museum/src/lib/content/` |
 | Gizmo / placement / transforms | [`components/placement.md`](./components/placement.md) | `apps/museum/src/lib/editor/gizmo/` |
 | Camera / tour / motion | [`components/camera-tour.md`](./components/camera-tour.md) | `apps/museum/src/lib/museum/navigation/` |

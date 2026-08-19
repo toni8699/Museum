@@ -28,13 +28,13 @@ function isEditableTarget(target: EventTarget | null) {
 		interactionStore?: EditorInteractionStore,
 		deselectActive?: () => void,
 		/**
-		 * H1 S7 — true while the active domain is a detached S7 layout selection.
+		 * true while the active domain is a detached S7 layout selection.
 		 * Layout publishes no interactive gizmo policy until S8, so W/E/R/T/X are
 		 * refused (the remembered scene mode is never touched). Absent on the relic.
 		 */
 		isLayoutSelectionActive?: () => boolean,
 		/**
-		 * H1 S7 step 6 — the active target's generic capability projection used
+		 * step 6 — the active target's generic capability projection used
 		 * by the toolbar/host. W/E/R/T refuse modes the target does not allow;
 		 * `null` (no interactive target) lets the keys set the remembered tool.
 		 * Absent on the relic, which refuses via the legacy camera restriction.
@@ -167,7 +167,7 @@ function isEditableTarget(target: EventTarget | null) {
 			event.preventDefault();
 			store.focusSelection();
 		} else if (interactionStore && !modifier && !event.altKey && !event.shiftKey) {
-			// Escape must stay reachable in H1: the mode-key branch above would
+			// Escape must stay reachable in editor: the mode-key branch above would
 			// otherwise swallow it (else-if), so run the cancel cascade before
 			// the W/E/R/T handling. Kept inline for parity with the relic branch.
 			if (event.key === 'Escape') {
@@ -187,7 +187,7 @@ function isEditableTarget(target: EventTarget | null) {
 					event.preventDefault();
 					return;
 				}
-				// H1 S3 — Escape deselects whichever domain is active.
+				// Escape deselects whichever domain is active.
 				if (deselectActive) deselectActive();
 				else if (sceneOwnsShortcuts) store.selectionActions.deselect();
 				return;
@@ -195,11 +195,11 @@ function isEditableTarget(target: EventTarget | null) {
 			// Phase 6.1 section 3 — Unity-style gizmo mode keybinds. W = translate,
 		// E = rotate, R = scale, T = translate alias, X = toggle Space.
 		// Bind here BEFORE the long modifier chains so plain key presses resolve.
-		// H1 S7 — a detached layout selection is not interactive: refuse the
+		// a detached layout selection is not interactive: refuse the
 		// mode keys entirely so they never touch the remembered scene mode.
 		if (isLayoutSelectionActive?.()) return;
 		const inPreview = store.cameraPreview !== null;
-		// H1 S7 step 6 — refuse modes the active target's policy does not allow
+		// step 6 — refuse modes the active target's policy does not allow
 		// (the same effective policy the toolbar/host uses). Relic camera
 		// targets are translate-only, matching the toolbar's existing
 		// restriction; `null` caps (no interactive target) keep the keys live.
@@ -263,7 +263,7 @@ function isEditableTarget(target: EventTarget | null) {
 				event.preventDefault();
 				return;
 			}
-			// H1 S3 — Escape deselects whichever domain is active; the default
+			// Escape deselects whichever domain is active; the default
 			// keeps the legacy scene-owned deselect for the relic.
 			if (deselectActive) deselectActive();
 			else if (sceneOwnsShortcuts) store.selectionActions.deselect();

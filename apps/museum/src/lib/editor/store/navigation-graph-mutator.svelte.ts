@@ -142,11 +142,11 @@ export interface EditorNavigationGraphMutatorHost {
 
 	// Document + selection state.
 	readonly document: MuseumSceneDocument;
-	/** H1 S2 — project-relative room frames for camera-node placement. */
+	/** project-relative room frames for camera-node placement. */
 	readonly rooms: LayoutRoomRegistry;
 	readonly selection: EditorSelectionStore;
 	readonly currentWorkspace: EditorWorkspace;
-	/** H1-only automatic two-node guided bootstrap; relic behavior stays unchanged. */
+	/** editor-only automatic two-node guided bootstrap; relic behavior stays unchanged. */
 	readonly isRelic: boolean;
 	readonly selectedNavigationNode: SceneNavigationNode | undefined;
 	readonly selectedPlacementIds: string[];
@@ -345,7 +345,7 @@ export class EditorNavigationGraphMutator {
 			connectedNodeIds: []
 		};
 
-		// H1 S10.1 closeout (B0) — standalone placement. Every placed node
+		// closeout (B0) — standalone placement. Every placed node
 		// commits immediately as a free node ("not in order yet"); connecting
 		// happens later through the ordinary connect-existing flow. The frozen
 		// relic keeps the connect-pending-node contract (its checked-in graph
@@ -381,7 +381,7 @@ export class EditorNavigationGraphMutator {
 	/**
 	 * S10.1 closeout (B0) — commit a fully-formed node as a standalone free
 	 * node in one `scene` history entry, select it, and clear the placement
-	 * command. Shared by the H1 standalone-placement path and the relic's
+	 * command. Shared by the editor standalone-placement path and the relic's
 	 * blank-graph first node.
 	 */
 	#commitStandaloneNode(
@@ -548,7 +548,7 @@ export class EditorNavigationGraphMutator {
 		if (!connectionPlan) return false;
 		const { sourceNode: source, destinationNode: destination } = connectionPlan;
 		// S10.1 closeout (B0) — a two-node open-pair seed. Connecting the only
-		// two free nodes in an H1 project writes the open order source →
+		// two free nodes in an editor project writes the open order source →
 		// destination in the same transaction, so preview is ready immediately
 		// (the pair's single edge covers both directions). The relic and any
 		// larger graph stay purely topological — ordering there is the Sequence

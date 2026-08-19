@@ -1,7 +1,7 @@
 import type { LayoutDocument } from './layout-types';
 
 /**
- * Pure layout-domain room deletion (H1 S2.1).
+ * Pure layout-domain room deletion ().
  *
  * Removes the room (with its openings, boundary segments, and interior
  * anchors) from its floor, deletes every layout object owned by the room

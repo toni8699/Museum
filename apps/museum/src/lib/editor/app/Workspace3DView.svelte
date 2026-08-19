@@ -57,7 +57,7 @@
 		store,
 		layoutPreview,
 		layoutInteraction,
-		// H1 S10 — explicit 3D context from `EditorViewState.active3dContext`.
+		// explicit 3D context from `EditorViewState.active3dContext`.
 		// Camera authoring overlays and node-handle groups mount only in the
 		// Camera context; the editor camera rig stays mounted in both.
 		context = 'scene'
@@ -85,7 +85,7 @@
 		ACTIVE_EDITOR_SELECTION_KEY
 	);
 
-	// H1 S8 — resolve the active layout selection's descriptor so the toolbar /
+	// resolve the active layout selection's descriptor so the toolbar /
 	// shortcuts publish its per-kind policy (`null` for a stale/missing
 	// identity, which stays inert).
 	const layoutDescriptor = $derived(
@@ -98,10 +98,10 @@
 			: null
 	);
 
-	// H1 S7 step 6 — the active target's generic capability projection for the
+	// step 6 — the active target's generic capability projection for the
 	// toolbar (scene/camera; layout via the descriptor policy; null for a stale
 	// identity or no target). Same projection the W/E/R/T shortcuts use in
-	// H1EditorApp, same policies the host gets from the adapters.
+	// EditorApp, same policies the host gets from the adapters.
 	const activeGizmoCapabilities = $derived.by(() =>
 		projectDomainGizmoCapabilities(
 			activeSelection?.active.domain ?? 'none',
@@ -114,12 +114,12 @@
 		)
 	);
 
-	// H1 S8 — the transient candidate bundle the layout adapter previews during
+	// the transient candidate bundle the layout adapter previews during
 	// a drag. `LayoutPreviewScene` renders it instead of the committed project;
 	// the composer's adapter writes it through `onLayoutTransient`.
 	let layoutTransient = $state<LayoutGizmoCandidateBundle | null>(null);
 
-	// H1 S8.2 — compiled per-room bounds for room-focus framing (the relic
+	// compiled per-room bounds for room-focus framing (the relic
 	// passes none, so its Chopin `getRoom` frame stays untouched).
 	const roomBoundsById = $derived(
 		(roomId: string) =>
@@ -145,7 +145,7 @@
 	let transformControls = $state<TransformControls>();
 
 	/**
-	 * H1 S6 — resolve 3D layout candidates through the S5 pick index and commit
+	 * resolve 3D layout candidates through the S5 pick index and commit
 	 * the winner through the existing `selectLayout*` helpers. Returns `false`
 	 * when no layout candidate resolved, or when an actionable scene/camera hit
 	 * is nearer (scene wins the exact-tie band); `true` commits a layout

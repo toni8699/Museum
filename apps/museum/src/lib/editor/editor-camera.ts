@@ -256,7 +256,7 @@ function rotateLocalOffset(room: MuseumRoom, offset: Vec3): Vec3 {
 }
 
 /**
- * H1 S8.2 — frame a compiled layout room's `bounds3` AABB through the generic
+ * frame a compiled layout room's `bounds3` AABB through the generic
  * bounds path (the placement/selection frame). Axis-aligned by construction;
  * unlike `createEditorRoomCameraFrame` it does not follow an authored yaw, and
  * it accepts drafted (non-Chopin) rooms.

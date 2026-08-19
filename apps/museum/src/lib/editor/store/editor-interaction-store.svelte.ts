@@ -43,7 +43,7 @@ export class EditorInteractionStore {
 	 * internally); the listeners in `EditorTransformControls` and `EditorSelection`
 	 * restore / commit.
 	 *
-	 * H1 S7 — `ACTIVE_TARGET_CHANGE { targetKey }` syncs the live attachable
+	 * `ACTIVE_TARGET_CHANGE { targetKey }` syncs the live attachable
 	 * gizmo target: `Selected` means a target exists (key present), `Idle`
 	 * means detached (`null`); the event is ignored during `Dragging`. The
 	 * single host dispatches it on attach/detach; camera targets therefore

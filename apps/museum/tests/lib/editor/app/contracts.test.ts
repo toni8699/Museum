@@ -8,7 +8,7 @@ import {
 	pickInitialNavigationNodeId
 } from '$lib/editor/store/document-store.svelte';
 import { EditorInteractionStore } from '$lib/editor/store/editor-interaction-store.svelte';
-import type { EditorViewMode } from '$lib/editor/h1/editor-view-mode';
+import type { EditorViewMode } from '$lib/editor/app/editor-view-mode';
 import { createEmptyLayoutDocument } from '$lib/layout/layout-codec';
 import { createLayoutRoomRegistry } from '$lib/project/project-layout-semantics';
 import {
@@ -21,7 +21,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { serializeSceneDocument } from '$lib/content/scene-codec';
-import { deriveActiveSelection } from '$lib/editor/h1/active-editor-selection.svelte';
+import { deriveActiveSelection } from '$lib/editor/app/active-editor-selection.svelte';
 import type { LayoutSelection } from '$lib/editor/layout/layout-interaction';
 import { cloneFixtureDocument } from '../../content/__fixtures__/load-fixture-scene';
 import { museumEditorEntryPlugin } from '../../../../vite/museum-editor-entry-plugin';
@@ -58,7 +58,7 @@ function readAllSourceFiles(relativeDir: string): { name: string; source: string
 	return sources;
 }
 
-describe('H1 S0 — empty project contract', () => {
+describe('empty project contract', () => {
 	it('creates a codec-valid, fully-empty project', () => {
 		const project = createEmptyMuseumProject({ id: 'project:blank', name: 'Blank' });
 
@@ -115,7 +115,7 @@ describe('H1 S0 — empty project contract', () => {
 	});
 });
 
-describe('H1 S0 — pinned types', () => {
+describe('pinned types', () => {
 	it('locks EditorViewMode to plan | 3d', () => {
 		expectTypeOf<EditorViewMode>().toEqualTypeOf<'plan' | '3d'>();
 
@@ -124,7 +124,7 @@ describe('H1 S0 — pinned types', () => {
 	});
 });
 
-describe('H1 S0 — zero-node policy + room-resolver seam', () => {
+describe('zero-node policy + room-resolver seam', () => {
 	it('pickInitialNavigationNodeId returns null for a scene with no navigation nodes', () => {
 		const rooms = createLayoutRoomRegistry(createEmptyLayoutDocument());
 		const scene = resolveSceneDocument(createEmptySceneDocument(), rooms);
@@ -142,7 +142,7 @@ describe('H1 S0 — zero-node policy + room-resolver seam', () => {
 	});
 });
 
-describe('H1 S0 — relic isolation', () => {
+describe('relic isolation', () => {
 	it('relic store rejects setWorkspace("layout"); the full editor allows it', () => {
 		const relic = createMuseumEditorStore({ relic: true });
 		expect(relic.setWorkspace('layout')).toBe(false);
@@ -154,7 +154,7 @@ describe('H1 S0 — relic isolation', () => {
 	});
 });
 
-describe('H1 S2 — boot into an empty project', () => {
+describe('boot into an empty project', () => {
 	it('boots blank: zero navigation nodes, no persisted node, no tour preview', () => {
 		const project = createEmptyMuseumProject({ id: 'project:blank', name: 'Blank' });
 		const store = createMuseumEditorStore({
@@ -262,7 +262,7 @@ describe('H1 S2 — boot into an empty project', () => {
 // workspace switches during interaction or modal preview" — so it is not
 // re-pinned here.
 
-describe('H1 S1 — Plan ↔ 3D switch preserves session state', () => {
+describe('Plan ↔ 3D switch preserves session state', () => {
 	it('switches workspace without touching document, history, dirty state, or selection', () => {
 		const store = createMuseumEditorStore({ document: cloneFixtureDocument() });
 
@@ -293,22 +293,22 @@ describe('H1 S1 — Plan ↔ 3D switch preserves session state', () => {
 		expect(JSON.parse(JSON.stringify(store.selection.workspace))).toEqual(selection);
 	});
 
-	it('restores the layout ceiling toggle into the H1 3D View menu (S10 context contract), relic untouched', () => {
+	it('restores the layout ceiling toggle into the editor 3D View menu (S10 context contract), relic untouched', () => {
 		const toolbar = readLibSource('editor/EditorViewportToolbar.svelte');
-		const h13d = readLibSource('editor/h1/H13DView.svelte');
+		const ws3d = readLibSource('editor/app/Workspace3DView.svelte');
 		const viewport = readLibSource('editor/EditorViewport.svelte');
 
-		// S10 — the H1 camera-agnostic escape hatch is gone: the shared toolbar
-		// takes the explicit context prop, H13DView threads it, and the relic
+		// S10 — the editor camera-agnostic escape hatch is gone: the shared toolbar
+		// takes the explicit context prop, Workspace3DView threads it, and the relic
 		// mount passes neither (legacy camera-only fallback).
 		expect(toolbar).toContain('onToggleCeilings');
 		expect(toolbar).toContain('context?: \'scene\' | \'camera\'');
 		expect(toolbar).not.toContain('cameraAgnosticViewMenu');
 		expect(toolbar).toMatch(/role="menuitemcheckbox"[^]*?<span>Ceiling<\/span>/);
-		expect(h13d).toContain('context: \'scene\' | \'camera\'');
-		expect(h13d).not.toContain('cameraAgnosticViewMenu');
-		expect(h13d).toContain('onToggleCeilings={');
-		expect(h13d).toContain('toggleLayoutCeilings');
+		expect(ws3d).toContain('context: \'scene\' | \'camera\'');
+		expect(ws3d).not.toContain('cameraAgnosticViewMenu');
+		expect(ws3d).toContain('onToggleCeilings={');
+		expect(ws3d).toContain('toggleLayoutCeilings');
 		// The relic mount feeds neither prop, keeping its LayoutDraftToolbar
 		// Ceiling button as the single surface there.
 		expect(viewport).not.toContain('onToggleCeilings');
@@ -316,17 +316,17 @@ describe('H1 S1 — Plan ↔ 3D switch preserves session state', () => {
 	});
 });
 
-describe('H1 S1 — route wiring (relic smoke proxy, no DOM harness)', () => {
-	it('/museum/editor mounts the frozen legacy entry, not the H1 shell', () => {
+describe('route wiring (relic smoke proxy, no DOM harness)', () => {
+	it('/museum/editor mounts the frozen legacy entry, not the editor shell', () => {
 		const relic = readRouteSource('museum/editor/+page.svelte');
 		expect(relic).toContain('virtual:museum-editor-entry');
-		expect(relic).not.toContain('H1EditorApp');
+		expect(relic).not.toContain('EditorApp');
 	});
 
-	it('/ and /editor mount the H1 shell', () => {
+	it('/ and /editor mount the editor shell', () => {
 		for (const routePath of ['+page.svelte', 'editor/+page.svelte']) {
 			const source = readRouteSource(routePath);
-			expect(source).toContain('H1EditorApp');
+			expect(source).toContain('EditorApp');
 			expect(source).not.toContain('virtual:museum-editor-entry');
 		}
 	});
@@ -343,12 +343,12 @@ describe('H1 S1 — route wiring (relic smoke proxy, no DOM harness)', () => {
 	});
 });
 
-describe('H1 S4 — unified hierarchy contracts', () => {
-	it('mounts the H1 sidebar + unified tree in the H1 shell, never in the relic', () => {
-		// H1 shell imports the new sidebar (and the unified tree through it).
-		const h1App = readLibSource('editor/h1/H1EditorApp.svelte');
-		expect(h1App).toContain('H1Sidebar');
-		expect(h1App).not.toContain('EditorLeftSidebar');
+describe('unified hierarchy contracts', () => {
+	it('mounts the editor sidebar + unified tree in the editor shell, never in the relic', () => {
+		// editor shell imports the new sidebar (and the unified tree through it).
+		const editorApp = readLibSource('editor/app/EditorApp.svelte');
+		expect(editorApp).toContain('EditorSidebar');
+		expect(editorApp).not.toContain('EditorLeftSidebar');
 
 		// Relic: the route source imports only virtual:museum-editor-entry, and
 		// the entry plugin's load() output is just a re-export, so assert on the
@@ -356,7 +356,7 @@ describe('H1 S4 — unified hierarchy contracts', () => {
 		// components themselves.
 		const relicApp = readLibSource('editor/MuseumEditorApp.svelte');
 		expect(relicApp).toContain('EditorLeftSidebar');
-		expect(relicApp).not.toContain('H1Sidebar');
+		expect(relicApp).not.toContain('EditorSidebar');
 		expect(relicApp).not.toContain('UnifiedProjectTree');
 
 		const relicSidebar = readLibSource('editor/EditorLeftSidebar.svelte');
@@ -369,7 +369,7 @@ describe('H1 S4 — unified hierarchy contracts', () => {
 			'editor/EditorCameraTree.svelte'
 		]) {
 			expect(readLibSource(component)).not.toContain('UnifiedProjectTree');
-			expect(readLibSource(component)).not.toContain('H1Sidebar');
+			expect(readLibSource(component)).not.toContain('EditorSidebar');
 		}
 	});
 
@@ -377,7 +377,7 @@ describe('H1 S4 — unified hierarchy contracts', () => {
 		const guided = readLibSource('editor/CameraFlowPanel.svelte');
 		const connections = readLibSource('editor/NodeConnectionsPanel.svelte');
 		const keyframes = readLibSource('editor/DirectionalKeyframeList.svelte');
-		// The optional H1 S4 gate props default to true when absent.
+		// The optional gate props default to true when absent.
 		expect(guided).toMatch(/interactive\??:/);
 		expect(connections).toMatch(/interactive\??:/);
 		expect(keyframes).toMatch(/interactive\??:/);
@@ -403,7 +403,7 @@ describe('H1 S4 — unified hierarchy contracts', () => {
 	});
 
 	it('keeps the unified tree mounted across Hierarchy|Assets tabs and hides the boot header correctly', () => {
-		const sidebar = readLibSource('editor/h1/H1Sidebar.svelte');
+		const sidebar = readLibSource('editor/app/EditorSidebar.svelte');
 		// The tree must not unmount when the Assets tab is active (its
 		// component-local expansion state would be lost) — it renders
 		// unconditionally and the inactive panel is hidden by class, with the
@@ -444,7 +444,7 @@ describe('H1 S4 — unified hierarchy contracts', () => {
 	});
 });
 
-describe('H1 S5 — layout 3D pick metadata', () => {
+describe('layout 3D pick metadata', () => {
 	it('keeps the pure builder + pick module free of renderer/Svelte imports', () => {
 		const builder = readLibSource('layout/wall-mesh-builder.ts');
 		const picking = readLibSource('editor/layout/layout-3d-picking.ts');
@@ -477,30 +477,30 @@ describe('H1 S5 — layout 3D pick metadata', () => {
 	});
 
 	it('defers direct 3D wall/interior-anchor picks behind isLayoutDirectPickDeferred', () => {
-		const h13d = readLibSource('editor/h1/H13DView.svelte');
+		const ws3d = readLibSource('editor/app/Workspace3DView.svelte');
 		const picking = readLibSource('editor/layout/layout-3d-picking.ts');
 		// The gate is pure + exported (unit-tested) and the coordinator falls
 		// through to the normal dispatch for deferred resolutions; the wall/anchor
 		// commit cases are gone from the shell.
 		expect(picking).toContain('export function isLayoutDirectPickDeferred');
-		expect(h13d).toContain('isLayoutDirectPickDeferred(resolved.selection)');
-		expect(h13d).not.toContain('selectLayoutWall');
-		expect(h13d).not.toContain('selectLayoutInteriorAnchor');
+		expect(ws3d).toContain('isLayoutDirectPickDeferred(resolved.selection)');
+		expect(ws3d).not.toContain('selectLayoutWall');
+		expect(ws3d).not.toContain('selectLayoutInteriorAnchor');
 	});
 
 	it('disconnects the highlight feed: no showAnchors/hoverSelection/onLayoutHover passes remain', () => {
 		const scene = readLibSource('editor/layout/LayoutPreviewScene.svelte');
-		const h13d = readLibSource('editor/h1/H13DView.svelte');
+		const ws3d = readLibSource('editor/app/Workspace3DView.svelte');
 		// The S6 click coordinator still owns its optional props (onLayoutPick /
-		// onLayoutHover — the contract), but the H1 shell no longer feeds any of
+		// onLayoutHover — the contract), but the editor shell no longer feeds any of
 		// the disconnected surfaces, so EditorSelection's hover guard makes the
 		// whole hover resolution a no-op.
-		expect(h13d).not.toContain('showAnchors');
-		expect(h13d).not.toContain('hoverSelection');
+		expect(ws3d).not.toContain('showAnchors');
+		expect(ws3d).not.toContain('hoverSelection');
 		// Assert the wiring shape, not the bare identifier: the KNOWN DEBT
-		// comment in H13DView legitimately mentions the prop name.
-		expect(h13d).not.toContain('onLayoutHover={');
-		expect(h13d).toContain('onLayoutPick={store.isVisitorCameraPreview ? undefined : handleLayoutPick}');
+		// comment in Workspace3DView legitimately mentions the prop name.
+		expect(ws3d).not.toContain('onLayoutHover={');
+		expect(ws3d).toContain('onLayoutPick={store.isVisitorCameraPreview ? undefined : handleLayoutPick}');
 	});
 
 	it('fails the wall-mesh build closed on an untagged face (pick-tag guard)', () => {
@@ -525,7 +525,7 @@ describe('H1 S5 — layout 3D pick metadata', () => {
 	});
 });
 
-describe('H1 S6 — centralized 3D layout selection', () => {
+describe('centralized 3D layout selection', () => {
 	it('extends the single coordinator with an optional onLayoutPick prop, absent on the relic', () => {
 		const selection = readLibSource('editor/EditorSelection.svelte');
 		expect(selection).toContain('onLayoutPick?:');
@@ -537,11 +537,11 @@ describe('H1 S6 — centralized 3D layout selection', () => {
 		expect(viewport).not.toContain('onLayoutPick');
 	});
 
-	it('wires the H1 shell behind a visitor-preview gate', () => {
-		const h13d = readLibSource('editor/h1/H13DView.svelte');
-		expect(h13d).toContain('onLayoutPick={store.isVisitorCameraPreview ? undefined : handleLayoutPick}');
-		expect(h13d).toContain('resolveLayout3dHits');
-		expect(h13d).toContain('layoutPickBeatsSceneDistance');
+	it('wires the editor shell behind a visitor-preview gate', () => {
+		const ws3d = readLibSource('editor/app/Workspace3DView.svelte');
+		expect(ws3d).toContain('onLayoutPick={store.isVisitorCameraPreview ? undefined : handleLayoutPick}');
+		expect(ws3d).toContain('resolveLayout3dHits');
+		expect(ws3d).toContain('layoutPickBeatsSceneDistance');
 	});
 
 	it('tags the wall mesh with authored object-level identity in the shared scene', () => {
@@ -559,7 +559,7 @@ describe('H1 S6 — centralized 3D layout selection', () => {
 	});
 });
 
-describe('H1 S7 — single gizmo host', () => {
+describe('single gizmo host', () => {
 	/**
 	 * Scene/camera session + raw-transaction mutators. The scene and camera
 	 * *adapters* are the sanctioned session owners (the extraction moved the
@@ -617,9 +617,9 @@ describe('H1 S7 — single gizmo host', () => {
 		expect(readLibSource('editor/EditorTransformControls.svelte')).not.toContain('new ThreeTransformControls');
 	});
 
-	it('mounts the shared composer exactly once from H13DView and the relic viewport; neither constructs controls or helpers', () => {
+	it('mounts the shared composer exactly once from Workspace3DView and the relic viewport; neither constructs controls or helpers', () => {
 		for (const [relativePath, label] of [
-			['editor/h1/H13DView.svelte', 'H13DView'],
+			['editor/app/Workspace3DView.svelte', 'Workspace3DView'],
 			['editor/EditorViewport.svelte', 'EditorViewport']
 		] as const) {
 			const source = readLibSource(relativePath);
@@ -668,9 +668,9 @@ describe('H1 S7 — single gizmo host', () => {
 		}
 	});
 
-	it('resolves the H1 composer from the S3 active domain; the relic omits it and falls back to the legacy target', () => {
-		// H1 mounts with the S3 active-domain selector; the relic mount omits it.
-		expect(readLibSource('editor/h1/H13DView.svelte')).toContain('activeSelection={activeSelection ?? undefined}');
+	it('resolves the editor composer from the S3 active domain; the relic omits it and falls back to the legacy target', () => {
+		// editor mounts with the S3 active-domain selector; the relic mount omits it.
+		expect(readLibSource('editor/app/Workspace3DView.svelte')).toContain('activeSelection={activeSelection ?? undefined}');
 		expect(readLibSource('editor/EditorViewport.svelte')).not.toContain('activeSelection=');
 		// Composer: active domain wins; absent selector → legacy arbitration.
 		const composer = readLibSource('editor/EditorTransformControls.svelte');
@@ -788,13 +788,13 @@ describe('H1 S7 — single gizmo host', () => {
 	});
 
 	it('publishes the layout gate to the toolbar and shortcuts (stale identity, S8)', () => {
-		// H1 toolbar accepts the optional transformDisabled gate; the relic
+		// editor toolbar accepts the optional transformDisabled gate; the relic
 		// mount omits it (no layout domain there). After S8 the gate fires only
 		// for a stale/missing layout identity — a live one publishes its policy.
 		const toolbar = readLibSource('editor/EditorViewportToolbar.svelte');
 		expect(toolbar).toContain('transformDisabled?: boolean');
 		expect(toolbar).toContain('transformDisabledFlag');
-		expect(readLibSource('editor/h1/H13DView.svelte')).toContain(
+		expect(readLibSource('editor/app/Workspace3DView.svelte')).toContain(
 			"transformDisabled={activeSelection?.active.domain === 'layout' && layoutDescriptor === null}"
 		);
 		expect(readLibSource('editor/EditorViewport.svelte')).not.toContain('transformDisabled');
@@ -817,10 +817,10 @@ describe('H1 S7 — single gizmo host', () => {
 	});
 
 	it('shares one domain→capability projection between the toolbar and shortcuts (S7 step 6)', () => {
-		const h13d = readLibSource('editor/h1/H13DView.svelte');
-		const app = readLibSource('editor/h1/H1EditorApp.svelte');
+		const ws3d = readLibSource('editor/app/Workspace3DView.svelte');
+		const app = readLibSource('editor/app/EditorApp.svelte');
 		// Both feed the same pure projection with the same adapter-owned policies.
-		for (const source of [h13d, app]) {
+		for (const source of [ws3d, app]) {
 			expect(source).toContain('projectDomainGizmoCapabilities');
 			expect(source).toContain('SCENE_GIZMO_POLICY');
 			expect(source).toContain('CAMERA_GIZMO_POLICY');
@@ -845,7 +845,7 @@ describe('H1 S7 — single gizmo host', () => {
 	});
 });
 
-describe('H1 S8 — layout candidate session', () => {
+describe('layout candidate session', () => {
 	it('keeps $lib/layout/** renderer-neutral; the S8 candidate pipeline is editor-side', () => {
 		// The candidate pipeline (deriveLayoutCandidate + per-kind builders)
 		// lives under $lib/editor/gizmo, never $lib/layout — which stays
@@ -876,23 +876,23 @@ describe('H1 S8 — layout candidate session', () => {
 	it('publishes the descriptor policy through a nullable layout slot; a stale identity stays disabled (explicit gate, not caps === null)', () => {
 		const policy = readLibSource('editor/gizmo/editor-gizmo-policy.ts');
 		expect(policy).toContain('layout: EditorGizmoPolicy | null');
-		// Both H1 call sites resolve the active selection's descriptor and pass
+		// Both editor call sites resolve the active selection's descriptor and pass
 		// its per-kind policy (null for a stale/missing identity).
 		for (const source of [
-			readLibSource('editor/h1/H13DView.svelte'),
-			readLibSource('editor/h1/H1EditorApp.svelte')
+			readLibSource('editor/app/Workspace3DView.svelte'),
+			readLibSource('editor/app/EditorApp.svelte')
 		]) {
 			expect(source).toContain('resolveLayoutGizmoTarget');
 			expect(source).toContain('layout: layoutDescriptor?.policy ?? null');
 		}
 		// The toolbar gate is explicit (layout domain AND descriptor null), not
 		// caps === null — a live layout publishes its policy.
-		expect(readLibSource('editor/h1/H13DView.svelte')).toContain(
+		expect(readLibSource('editor/app/Workspace3DView.svelte')).toContain(
 			"transformDisabled={activeSelection?.active.domain === 'layout' && layoutDescriptor === null}"
 		);
 		// Shortcuts refuse only a stale layout identity outright; a live one
 		// falls through to the per-mode caps refusal.
-		expect(readLibSource('editor/h1/H1EditorApp.svelte')).toContain(
+		expect(readLibSource('editor/app/EditorApp.svelte')).toContain(
 			"activeSelection.active.domain === 'layout' && layoutDescriptor === null"
 		);
 	});
@@ -901,10 +901,10 @@ describe('H1 S8 — layout candidate session', () => {
 		const scene = readLibSource('editor/layout/LayoutPreviewScene.svelte');
 		expect(scene).toContain('transient?: LayoutGizmoCandidateBundle | null');
 		expect(scene).toContain('transient?.geometry ?? geometry');
-		const h13d = readLibSource('editor/h1/H13DView.svelte');
-		expect(h13d).toContain('transient={layoutTransient}');
-		expect(h13d).toContain('onLayoutTransient={(bundle) => (layoutTransient = bundle)}');
-		// The composer forwards the H1 slot setter into the adapter.
+		const ws3d = readLibSource('editor/app/Workspace3DView.svelte');
+		expect(ws3d).toContain('transient={layoutTransient}');
+		expect(ws3d).toContain('onLayoutTransient={(bundle) => (layoutTransient = bundle)}');
+		// The composer forwards the editor slot setter into the adapter.
 		expect(readLibSource('editor/EditorTransformControls.svelte')).toContain('onTransient: onLayoutTransient');
 	});
 
@@ -920,20 +920,20 @@ describe('H1 S8 — layout candidate session', () => {
 	});
 });
 
-describe('H1 S10 — camera context contracts', () => {
-	it('threads the explicit context seam through the H1 shell; the relic keeps its absent-prop fallback', () => {
-		const app = readLibSource('editor/h1/H1EditorApp.svelte');
-		const h13d = readLibSource('editor/h1/H13DView.svelte');
+describe('camera context contracts', () => {
+	it('threads the explicit context seam through the editor shell; the relic keeps its absent-prop fallback', () => {
+		const app = readLibSource('editor/app/EditorApp.svelte');
+		const ws3d = readLibSource('editor/app/Workspace3DView.svelte');
 		const toolbar = readLibSource('editor/EditorViewportToolbar.svelte');
 		const viewport = readLibSource('editor/EditorViewport.svelte');
 
-		// H1 derives the context from EditorViewState.active3dContext and passes
+		// editor derives the context from EditorViewState.active3dContext and passes
 		// it down; the toolbar split is context-prop-driven.
 		expect(app).toContain('context={viewState.active3dContext}');
-		expect(h13d).toMatch(/context: 'scene' \| 'camera'/);
+		expect(ws3d).toMatch(/context: 'scene' \| 'camera'/);
 		expect(toolbar).toMatch(/context\?: 'scene' \| 'camera'/);
-		// The H1-only camera-agnostic escape hatch is removed.
-		expect(h13d).not.toContain('cameraAgnosticViewMenu');
+		// The editor-only camera-agnostic escape hatch is removed.
+		expect(ws3d).not.toContain('cameraAgnosticViewMenu');
 		expect(toolbar).not.toContain('cameraAgnosticViewMenu');
 		// The relic mount passes no context and keeps the legacy camera-only
 		// View menu via currentWorkspace.
@@ -966,7 +966,7 @@ describe('H1 S10 — camera context contracts', () => {
 	});
 
 	it('mounts the camera timeline bottom frame only for 3D Camera, never Scene', () => {
-		const app = readLibSource('editor/h1/H1EditorApp.svelte');
+		const app = readLibSource('editor/app/EditorApp.svelte');
 		const frame = readLibSource('editor/EditorCameraTimelineFrame.svelte');
 		expect(app).toContain("viewState.viewMode === '3d' && viewState.active3dContext === 'camera'");
 		// The frame keeps its full-width bottom-strip contract; only its mount
@@ -975,15 +975,15 @@ describe('H1 S10 — camera context contracts', () => {
 	});
 
 	it('gates camera authoring overlays to Camera while keeping the rig always mounted', () => {
-		const h13d = readLibSource('editor/h1/H13DView.svelte');
+		const ws3d = readLibSource('editor/app/Workspace3DView.svelte');
 
 		// EditorCameraRig stays mounted in both contexts (shared viewport infra).
-		expect(h13d).toContain('<EditorCameraRig');
+		expect(ws3d).toContain('<EditorCameraRig');
 		// Overlay groups are camera-context gated.
-		expect(h13d).toContain('isCameraContext && store.viewportShowPaths');
-		expect(h13d).toContain('isCameraContext && store.viewportShowFraming');
+		expect(ws3d).toContain('isCameraContext && store.viewportShowPaths');
+		expect(ws3d).toContain('isCameraContext && store.viewportShowFraming');
 		// The node-handle group preserves the connect-flow force-mount override.
-		expect(h13d).toContain(
+		expect(ws3d).toContain(
 			'isCameraContext && (store.viewportShowNodes || store.forceMountCameraNodeHandles)'
 		);
 	});
@@ -998,12 +998,12 @@ describe('H1 S10 — camera context contracts', () => {
 	});
 
 	it('keeps Plan free of camera mutation surfaces and the relic route frozen', () => {
-		const planView = readLibSource('editor/h1/H1PlanView.svelte');
+		const planView = readLibSource('editor/app/PlanWorkspace.svelte');
 		const relicRoute = readRouteSource('museum/editor/+page.svelte');
 		expect(planView).not.toContain('connectNavigationNodes');
 		expect(planView).not.toContain('closeGuidedTourLoop');
 		expect(planView).not.toContain('beginCameraPlacement');
-		expect(relicRoute).not.toContain('H1EditorApp');
+		expect(relicRoute).not.toContain('EditorApp');
 	});
 
 	// S10.1.3 — Camera toolbar: `Select | Move | Rotate | Add camera | View`.
@@ -1027,7 +1027,7 @@ describe('H1 S10 — camera context contracts', () => {
 	});
 
 	it('removed the relocated Place-camera action from the app bar', () => {
-		const appBar = readLibSource('editor/h1/H1AppBar.svelte');
+		const appBar = readLibSource('editor/app/EditorAppBar.svelte');
 		expect(appBar).not.toContain('beginCameraPlacement');
 		expect(appBar).not.toContain('Place camera');
 	});
@@ -1089,12 +1089,12 @@ describe('H1 S10 — camera context contracts', () => {
 
 	// S10.1.7 — grid opacity/visibility control + XYZ orientation gizmo.
 	it('mounts the bottom-right grid controls and the corner orientation gizmo in the 3D shell', () => {
-		const h13d = readLibSource('editor/h1/H13DView.svelte');
+		const ws3d = readLibSource('editor/app/Workspace3DView.svelte');
 		const gridControls = readLibSource('editor/EditorViewportGridControls.svelte');
 		const overlay = readLibSource('editor/EditorOrientationGizmoOverlay.svelte');
-		expect(h13d).toContain('<EditorViewportGridControls {store} />');
-		expect(h13d).toContain('<EditorOrientationGizmo />');
-		expect(h13d).toContain('<EditorOrientationGizmoOverlay />');
+		expect(ws3d).toContain('<EditorViewportGridControls {store} />');
+		expect(ws3d).toContain('<EditorOrientationGizmo />');
+		expect(ws3d).toContain('<EditorOrientationGizmoOverlay />');
 		// The grid control reuses session state (visibility + new opacity).
 		expect(gridControls).toContain('store.toggleGrid()');
 		expect(gridControls).toContain('store.gridOpacity = value');
@@ -1108,10 +1108,10 @@ describe('H1 S10 — camera context contracts', () => {
 	// S10.1.6 — workspace transition polish: canvas never remounts; fades are
 	// CSS-only and disabled under prefers-reduced-motion.
 	it('animates workspace switches with CSS fades and honors reduced motion', () => {
-		const h13d = readLibSource('editor/h1/H13DView.svelte');
-		const planView = readLibSource('editor/h1/H1PlanView.svelte');
-		expect(h13d).toContain('@keyframes view-fade-in');
-		expect(h13d).toContain('prefers-reduced-motion');
+		const ws3d = readLibSource('editor/app/Workspace3DView.svelte');
+		const planView = readLibSource('editor/app/PlanWorkspace.svelte');
+		expect(ws3d).toContain('@keyframes view-fade-in');
+		expect(ws3d).toContain('prefers-reduced-motion');
 		expect(planView).toContain('@keyframes plan-fade-in');
 		expect(planView).toContain('prefers-reduced-motion');
 	});
@@ -1140,7 +1140,7 @@ describe('H1 S10 — camera context contracts', () => {
 	});
 });
 
-describe('H1 S3 — cross-domain selection contracts', () => {
+describe('cross-domain selection contracts', () => {
 	it('forwards onSelectionActivate from the store options into the reducer', () => {
 		let fired = 0;
 		const store = createMuseumEditorStore({

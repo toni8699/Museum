@@ -38,11 +38,14 @@ The tracker is authoritative when a plan doc's `**Status:**` drifts.
 | P3 | UI overhaul — reconciliation/refresh pass over settled surfaces | approved | P1, P2 | [2026-08-18-P3-ui-overhaul.md](2026-08-18-P3-ui-overhaul.md) |
 | P4 | Client GLB import | proposed | renewal | [2026-08-18-P4-gltb-import.md](2026-08-18-P4-gltb-import.md) |
 | P5 | Measured optimization and scale | proposed | renewal | [2026-08-18-P5-measured-optimization.md](2026-08-18-P5-measured-optimization.md) |
+| P6 | Editor artifact rename (de-H1) | shipped | renewal | archived → [2026-08-18-P6-editor-rename.md](archive/plans/2026-08-18-P6-editor-rename.md) |
 | … | future work re-registers here | | | |
 
-Execution order: **P1 → P2 → P3**. P4/P5 and later entries do not start until
-P1–P3 are scheduled or re-prioritized by the owner. The order is committed by
-the [2026-08-18 scope decision](archive/plans/2026-08-18-scope-decision-camera-first.md)
+Execution order: **P6 (before P1.1) → P1 → P2 → P3**. P6 is the mechanical
+editor rename so P1.1's shell-inversion diff stays behavior-only. P4/P5 and
+later entries do not start until P1–P3 are scheduled or re-prioritized by the
+owner. The order is committed by the
+[2026-08-18 scope decision](archive/plans/2026-08-18-scope-decision-camera-first.md)
 (camera first, plan staging second, UI overhaul last).
 
 ## Archived plans (2026-08-10 → 2026-08-18)
@@ -94,8 +97,9 @@ prefixed.
 
 - `archived → archive/plans/2026-08-17-plan-system-renewal.md` (process row)
 - `archived → archive/plans/2026-08-18-scope-decision-camera-first.md`
+- `archived → archive/plans/2026-08-18-P6-editor-rename.md`
 
 **Sources:** all source content is folded into the umbrella docs (P1 §A–§D ·
 P2 §A · P4 §A · P5 §A); the original source files were deleted 2026-08-18.
 
-**Not archived (active):** this tracker · the five umbrella plans (P1–P5).
+**Not archived (active):** this tracker · the umbrella plans (P1–P5).

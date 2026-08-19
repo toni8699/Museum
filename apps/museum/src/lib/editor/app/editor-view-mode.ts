@@ -1,5 +1,5 @@
 /**
- * H1 top-level editor view.
+ * editor top-level editor view.
  *
  * `plan` is the 2D SVG drafting surface. `3d` is the unified Threlte canvas
  * that hosts generated architecture, scene entities, and the camera context —

@@ -1,5 +1,5 @@
 /**
- * H1 S7 step 2 — the gizmo host controller (pure core).
+ * step 2 — the gizmo host controller (pure core).
  *
  * Everything the host must own, minus the Three/Svelte/DOM glue:
  *  - one TransformControls surface lifecycle (attach/detach/config),

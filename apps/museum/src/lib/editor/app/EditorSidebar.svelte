@@ -1,6 +1,6 @@
 <script lang="ts">
-	// H1 S4 — H1 sidebar shell. Replaces the workspace-switching
-	// `EditorLeftSidebar` in the H1 shell (the relic keeps its own sidebar
+	// Sidebar shell. Replaces the workspace-switching
+	// `EditorLeftSidebar` in the editor shell (the relic keeps its own sidebar
 	// byte-for-byte). One unified hierarchy is always mounted; in 3D the sidebar
 	// gains a Hierarchy | Assets tab row (reusing `store.leftPanel`). The
 	// layout-preview summary's counts are replaced by the tree's own rows; the
@@ -40,7 +40,7 @@
 
 	const viewMode = $derived(viewState.viewMode);
 	const in3d = $derived(viewMode === '3d');
-	// Boot-empty H1 surfaces no badge (status 'blank' and no import error).
+	// Boot-empty editor surfaces no badge (status 'blank' and no import error).
 	// importError is `string | null` — check `!== null`, not `!== undefined`
 	// (which is always true and would show the header on every blank boot).
 	const showHeaderStrip = $derived(

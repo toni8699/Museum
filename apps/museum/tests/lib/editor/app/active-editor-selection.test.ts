@@ -6,7 +6,7 @@ import {
 	deriveActiveSelection,
 	isWorkspaceSelectionActionable,
 	type ActiveEditorSelection
-} from '$lib/editor/h1/active-editor-selection.svelte';
+} from '$lib/editor/app/active-editor-selection.svelte';
 import {
 	clearLayoutSelection,
 	createLayoutInteractionState,
@@ -21,9 +21,9 @@ import type {
 import { cloneFixtureDocumentWithEntityCount } from '../editor-test-utils';
 
 /**
- * H1 S3 — one active selection domain at the composition root.
+ * one active selection domain at the composition root.
  *
- * Wires the `onSelectionActivate` seam exactly like `H1EditorApp` does: the
+ * Wires the `onSelectionActivate` seam exactly like `EditorApp` does: the
  * store fires it on actionable scene/camera picks, and the callback clears the
  * shell-owned layout selection. The `EditorActiveSelectionStore` wraps the same
  * store + `LayoutInteractionState`.
@@ -46,7 +46,7 @@ function wired(): {
 	return { store, layoutInteraction, activeSelection };
 }
 
-describe('H1 S3 — deriveActiveSelection', () => {
+describe('deriveActiveSelection', () => {
 	const placement: WorkspaceSelection = {
 		kind: 'placement',
 		ids: ['a'],
@@ -125,7 +125,7 @@ describe('H1 S3 — deriveActiveSelection', () => {
 	});
 });
 
-describe('H1 S3 — onSelectionActivate seam', () => {
+describe('onSelectionActivate seam', () => {
 	it('fires only for actionable picks; deselect and room-only never fire', () => {
 		const fired: string[] = [];
 		const store = createMuseumEditorStore({
@@ -157,7 +157,7 @@ describe('H1 S3 — onSelectionActivate seam', () => {
 	});
 });
 
-describe('H1 S3 — EditorActiveSelectionStore exclusivity', () => {
+describe('EditorActiveSelectionStore exclusivity', () => {
 	it('an actionable scene pick clears a surviving layout selection', () => {
 		const { store, layoutInteraction, activeSelection } = wired();
 		// A layout selection survives the Plan → 3D view switch.
@@ -237,7 +237,7 @@ describe('H1 S3 — EditorActiveSelectionStore exclusivity', () => {
 	});
 });
 
-describe('H1 S3 — deselectActive', () => {
+describe('deselectActive', () => {
 	it('no-ops on domain none', () => {
 		const { activeSelection } = wired();
 		expect(activeSelection.deselectActive()).toBe(false);
@@ -282,7 +282,7 @@ describe('H1 S3 — deselectActive', () => {
 	});
 });
 
-describe('H1 S3 — construction-time convergence', () => {
+describe('construction-time convergence', () => {
 	it('keeps the layout domain and clears the surplus slots (layout > scene > camera)', () => {
 		const layoutInteraction = createLayoutInteractionState();
 		const store = createMuseumEditorStore({
@@ -372,7 +372,7 @@ describe('H1 S3 — construction-time convergence', () => {
 	});
 });
 
-describe('H1 S3 — reset() and view-switch preservation', () => {
+describe('reset() and view-switch preservation', () => {
 	it('reset clears all three slots explicitly to none', () => {
 		const { store, layoutInteraction, activeSelection } = wired();
 		const entityId = store.document.entities[0]!.id;

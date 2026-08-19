@@ -72,7 +72,7 @@ describe('toWallBufferGeometry', () => {
 		expect(geometry.userData.wallRanges).toBe(mesh.wallRanges);
 	});
 
-	it('H1 S5 — carries pickRanges on userData and never adds geometry groups', () => {
+	it('carries pickRanges on userData and never adds geometry groups', () => {
 		const mesh = buildMesh(g1MultipleOpeningsDocument());
 		const { geometry } = toWallBufferGeometry(mesh, () => ({ material: new MeshBasicMaterial() }));
 

@@ -30,7 +30,7 @@
 		confirmLayoutReplacement: () => boolean;
 		relic?: boolean;
 		open?: boolean;
-		/** H1 S3 — fired after a reset action; the shell clears the active selection on all three slots. */
+		/** fired after a reset action; the shell clears the active selection on all three slots. */
 		onReset?: () => void;
 	} = $props();
 

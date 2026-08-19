@@ -45,7 +45,7 @@ npx vitest run tests/lib/editor/gizmo/scene-gizmo-adapter.test.ts
 
 Lives in:
 
-- `h1/H13DView.svelte` — `placementRegistry.getPlacementScale`
+- `app/Workspace3DView.svelte` — `placementRegistry.getPlacementScale`
 - `EditorMuseumEntities.svelte` — `editorScale`
 - `museum/EditorPlacementRoot.svelte` — `<T.Group {position} {rotation} {scale}>`
 - Threlte `T` + `useProps` (scalar props are memoized; arrays always re-apply)
@@ -64,7 +64,7 @@ npm run dev   # from apps/museum
 
 Then drag the scale gizmo and check the Three root scale against the sidebar
 value. For a scriptable repro, temporarily expose the store on `window` in
-`H1EditorApp.svelte` and inspect `store.document` / the registered root after
+`EditorApp.svelte` and inspect `store.document` / the registered root after
 the drag.
 
 Rule: gizmo adapters preview through a transient (mutate only the preview), and
@@ -97,14 +97,14 @@ npx vitest run tests/lib/editor/gizmo/editor-gizmo-host.test.ts
 
 Lives in:
 
-- `h1/active-editor-selection.svelte.ts` (`deriveActiveSelection`)
+- `app/active-editor-selection.svelte.ts` (`deriveActiveSelection`)
 - `store/interaction-fsm.ts` (`reduce`) + `store/editor-interaction-store.svelte.ts`
 - `EditorTransformControls.svelte` (composer adapter resolution)
 
 Cheapest repro: vitest on the pure mapping and adapter resolution.
 
 ```bash
-npx vitest run tests/lib/editor/h1/active-editor-selection.test.ts \
+npx vitest run tests/lib/editor/app/active-editor-selection.test.ts \
   tests/lib/editor/store/editor-interaction-store.test.ts \
   tests/lib/editor/gizmo/editor-gizmo-policy.test.ts
 ```

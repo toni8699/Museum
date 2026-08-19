@@ -1,5 +1,5 @@
 /**
- * H1 S7 steps 2/4 — camera gizmo adapter.
+ * steps 2/4 — camera gizmo adapter.
  *
  * Owns the three navigation target kinds the monolith handled inline:
  *  - camera node position / target helpers;

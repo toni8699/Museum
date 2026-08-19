@@ -4,7 +4,7 @@
 	import { formatCameraNodeLabel } from './editor-outliner';
 	import type { MuseumEditorStore } from './museum-editor.svelte';
 
-	// H1 S4 — optional interactivity gate. The unified tree embeds this panel
+	// optional interactivity gate. The unified tree embeds this panel
 	// read-only in Plan (Plan exposes no camera mutation path), so `false` must
 	// gate **every** mutation surface, not just clicks: native HTML5 drag
 	// (`draggable`, dragstart, the drop gap, "Drag to guided") and the
@@ -17,7 +17,7 @@
 	}: {
 		store: MuseumEditorStore;
 		interactive?: boolean;
-		// H1 S4 — the S3 active selection domain, forwarded to
+		// the S3 active selection domain, forwarded to
 		// NodeConnectionsPanel so its discovery-driven direction highlight is
 		// gated to camera-or-none. The relic never passes it and keeps the
 		// legacy selection-gated behavior.

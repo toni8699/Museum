@@ -56,7 +56,7 @@ export const OPENING_HIGHLIGHT_MATERIAL = new MeshBasicMaterial({
 });
 
 /**
- * H1 S6 follow-up — hover preview overlays. Distinct cyan tint (vs. the gold
+ * follow-up — hover preview overlays. Distinct cyan tint (vs. the gold
  * selection shell) so the surface a click would select is visible before the
  * click. Module-level singletons like the selection materials, so workspace
  * remounts cannot leak GPU resources.

@@ -98,8 +98,8 @@ export const ENFORCED_BUDGET_METRICS: readonly BenchMetricName[] = [
 /**
  * Wall-clock timing metrics. Recorded and budgeted for reference but not
  * enforced: they depend on machine load, and the product scale is now
- * greenfield H1 projects rather than Chopin. Re-enable once a representative
- * H1 fixture and stable CI hardware exist.
+ * greenfield editor projects rather than Chopin. Re-enable once a representative
+ * editor fixture and stable CI hardware exist.
  */
 export const ADVISORY_BUDGET_METRICS: readonly BenchMetricName[] = [
 	'layout-compile',

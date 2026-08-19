@@ -12,7 +12,7 @@ import { createLayoutRoomRegistry } from '$lib/project/project-layout-semantics'
 import type { Vec3 } from '$lib/types/museum';
 
 /**
- * H1 S2 — the store's room registry must stay live against the project layout.
+ * the store's room registry must stay live against the project layout.
  * The boot-empty editor re-derives `createLayoutRoomRegistry(layoutPreview.project.layout)`
  * after every layout mutation; without that sync, `store.rooms.has(draftedRoomId)`
  * stays false and camera/primitive placement on a drafted room is rejected with
@@ -20,7 +20,7 @@ import type { Vec3 } from '$lib/types/museum';
  * unknown room). These tests pin the seam: `store.updateRooms` + the acceptance
  * predicate the placement branches use.
  */
-describe('H1 S2 — live room registry', () => {
+describe('live room registry', () => {
 	it('drafted rooms are unknown until the registry is synced, then placeable', () => {
 		const layoutPreview = createEmptyLayoutPreviewState();
 		const store = createMuseumEditorStore({
@@ -35,7 +35,7 @@ describe('H1 S2 — live room registry', () => {
 		// Boot-time registry is a snapshot of the then-empty layout.
 		expect(store.rooms.has(roomId)).toBe(false);
 
-		// H1EditorApp re-derives the registry after every layout mutation.
+		// EditorApp re-derives the registry after every layout mutation.
 		store.updateRooms(createLayoutRoomRegistry(layoutPreview.project.layout));
 		expect(store.rooms.has(roomId)).toBe(true);
 	});
@@ -118,7 +118,7 @@ describe('H1 S2 — live room registry', () => {
 		const room = floor.rooms.find((candidate) => candidate.id === roomId)!;
 		room.frame.origin = [room.frame.origin[0], room.frame.origin[1] + 10];
 
-		// The H1 $effect re-derives the registry on every layout mutation.
+		// The editor $effect re-derives the registry on every layout mutation.
 		store.updateRooms(createLayoutRoomRegistry(layoutPreview.project.layout));
 
 		const runtimeAfter = store.scene.navigationNodes[0]!.position;
@@ -130,7 +130,7 @@ describe('H1 S2 — live room registry', () => {
 	});
 });
 
-describe('H1 S2 — updateRooms is a no-op for the frozen relic', () => {
+describe('updateRooms is a no-op for the frozen relic', () => {
 	it('keeps the Chopin registry until explicitly swapped', () => {
 		const store = createMuseumEditorStore();
 		expect(store.rooms.has('paris')).toBe(true);

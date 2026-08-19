@@ -70,7 +70,7 @@
 		store.setStatusMessage(result.success ? 'Deleted opening' : `Opening delete failed: ${result.message}`);
 	}
 
-	// H1 S2.1 — room deletion: guarded layout transaction + reject-when-
+	// room deletion: guarded layout transaction + reject-when-
 	// scene-referenced policy (blockers read the store's authoritative scene).
 	function deleteRoom(roomId: string): boolean {
 		if (!store.beginLayoutTransaction()) {

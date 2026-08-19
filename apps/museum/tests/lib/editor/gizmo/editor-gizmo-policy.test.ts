@@ -285,7 +285,7 @@ describe('policy mode-set helper typing — GizmoMode is a closed union', () => 
 	});
 });
 
-describe('projectDomainGizmoCapabilities — one projection for the H1 toolbar + shortcuts (S7 step 6 / S8 gate flip)', () => {
+describe('projectDomainGizmoCapabilities — one projection for the editor toolbar + shortcuts (S7 step 6 / S8 gate flip)', () => {
 	// S7: layout detached (no policy). S8: a live layout selection publishes
 	// its descriptor policy through the nullable `layout` slot; `null` there is
 	// a stale/missing identity that stays inert.

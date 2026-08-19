@@ -72,7 +72,7 @@ function referenceScene(
 	}
 }
 
-describe('H1 S2.1 — listLayoutRoomSceneReferences', () => {
+describe('listLayoutRoomSceneReferences', () => {
 	it('counts each reference kind independently', () => {
 		const roomId = 'room-a';
 		const scene = createEmptySceneDocument();
@@ -108,7 +108,7 @@ describe('H1 S2.1 — listLayoutRoomSceneReferences', () => {
 	});
 });
 
-describe('H1 S2.1 — deleteLayoutRoom (preview state)', () => {
+describe('deleteLayoutRoom (preview state)', () => {
 	it('deletes a room with owned objects and portal refs, keeping the layout valid', () => {
 		const state = createEmptyLayoutPreviewState();
 		const roomA = draftRoom(state, [[0, 0], [4, 0], [4, 3], [0, 3]]);
@@ -166,7 +166,7 @@ describe('H1 S2.1 — deleteLayoutRoom (preview state)', () => {
 	});
 });
 
-describe('H1 S2.1 — guarded B3 transaction', () => {
+describe('guarded B3 transaction', () => {
 	function makeStore() {
 		const store = createMuseumEditorStore();
 		const layoutPreview = createEmptyLayoutPreviewState();

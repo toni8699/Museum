@@ -169,7 +169,7 @@ describe('layout interaction', () => {
 	});
 });
 
-describe('H1 S3 — reconcileLayoutSelection', () => {
+describe('reconcileLayoutSelection', () => {
 	function makeLayout(): LayoutDocument {
 		return {
 			units: 'meters',

@@ -54,7 +54,7 @@ export function createFixtureEditorStore(entityCount?: number): MuseumEditorStor
 }
 
 /**
- * H1 S8.1 — relic-flavoured fixture for the tests that pin the frozen
+ * relic-flavoured fixture for the tests that pin the frozen
  * Paris-oriented placement behavior (`/museum/editor`). The default fixture is
  * non-relic, so Paris-preselection/entity-room assertions must opt in here.
  */

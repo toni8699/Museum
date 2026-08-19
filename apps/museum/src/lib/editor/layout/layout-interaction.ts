@@ -374,7 +374,7 @@ export function shouldBeginWallBend(
 }
 
 // =====================================================================
-// H1 S3 — layout selection reconcile (pure).
+// layout selection reconcile (pure).
 //
 // `LayoutInteractionState.selection` is shell-owned and is *not* part of the
 // `LayoutPreviewState` undo snapshot, so every layout swap (undo/redo/commit/

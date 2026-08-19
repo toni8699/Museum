@@ -51,7 +51,7 @@ export interface ReduceResult {
  * or mutates anything outside its arguments.
  *
  * Transition policy (locks Q1-Q10 from the Phase 6.1 design doc, amended by
- * H1 S7):
+ * ):
  *  - POINTER_MOVE: Idle/Hover follow the target's presence; Selected and
  *    Dragging ignore the cursor (hover is a sibling concern).
  *  - CLICK: empty target → Idle. With target → Selected, including shifts
@@ -132,7 +132,7 @@ export function reduce(state: FSMState, event: FSMEvent): ReduceResult {
 		}
 
 		case 'ESC': {
-			// H1 S7 — shell-level Escape only: idle deselect / camera-preview
+			// shell-level Escape only: idle deselect / camera-preview
 			// cascade. `Dragging` ignores ESC (the host never dispatches it
 			// from a live gizmo drag; every cancel reason routes through the
 			// adapter's cancel + `DRAG_END { cancelled: true }`).

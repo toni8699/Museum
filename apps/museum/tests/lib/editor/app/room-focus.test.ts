@@ -17,7 +17,7 @@ import { createLayoutRoomRegistry } from '$lib/project/project-layout-semantics'
 import { createRelicFixtureEditorStore } from '../editor-test-utils';
 
 /**
- * H1 S8.2 — room focus and cluster-group expansion resolve the live room
+ * room focus and cluster-group expansion resolve the live room
  * instead of the frozen Chopin `'paris'` rules. The relic stays Paris-only.
  */
 
@@ -44,7 +44,7 @@ function draftRoomAndSync(): {
 	return { store, layoutPreview, roomId };
 }
 
-describe('H1 S8.2 — room focus', () => {
+describe('room focus', () => {
 	it('focuses a drafted room and stores its id in the focus intent', () => {
 		const { store, roomId } = draftRoomAndSync();
 		expect(store.focusRoom(roomId)).toBe(true);
@@ -66,7 +66,7 @@ describe('H1 S8.2 — room focus', () => {
 		)?.bounds3;
 		expect(bounds3).toBeTruthy();
 
-		// The pure H1 branch (no Chopin getRoom) produces a finite frame.
+		// The pure editor branch (no Chopin getRoom) produces a finite frame.
 		const frame = createEditorRoomBoundsCameraFrame(
 			bounds3!,
 			new Vector3(0, 10, 0),
@@ -103,7 +103,7 @@ describe('H1 S8.2 — room focus', () => {
 	});
 });
 
-describe('H1 S8.2 — cluster-group expansion', () => {
+describe('cluster-group expansion', () => {
 	it('expands the cluster room instead of the frozen paris in both group handlers', () => {
 		for (const relativePath of [
 			'editor/hooks/shortcuts.svelte.ts',

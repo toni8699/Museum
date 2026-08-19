@@ -1,5 +1,5 @@
 /**
- * H1 S7 step 0 — behavioral fixtures recorded BEFORE extraction.
+ * step 0 — behavioral fixtures recorded BEFORE extraction.
  *
  * The scene/camera sessions currently live inside
  * `EditorTransformControls.svelte` (untested component logic). These
@@ -11,7 +11,7 @@
  *
  * Host-only behavior (orbit state capture/restore, target switch/unmount
  * mid-drag, late-mouseUp suppression) needs the Three host harness and stays
- * pinned as `it.todo` in `tests/lib/editor/h1/contracts.test.ts`.
+ * pinned as `it.todo` in `tests/lib/editor/app/contracts.test.ts`.
  */
 import { describe, expect, it } from 'vitest';
 import {
@@ -340,7 +340,7 @@ describe('S7 step 0 — camera session fixtures', () => {
 	});
 
 	it('pending-node drafts stay out of history and cancel restores the start point', () => {
-		// B0 (S10.1 closeout) made standalone placement the H1 behavior; the
+		// B0 (S10.1 closeout) made standalone placement the editor behavior; the
 		// pending-node draft contract is now the frozen relic path.
 		const store = createRelicFixtureEditorStore();
 		const roomId = store.rooms.entries[0]!.id;

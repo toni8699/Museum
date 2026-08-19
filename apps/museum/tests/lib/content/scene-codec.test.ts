@@ -503,7 +503,7 @@ describe('scene document codec', () => {
 			delete node.nextNodeId;
 			delete node.previousNodeId;
 		}
-		// H1 S2 — a multi-node graph with no guided cycle is a valid authoring
+		// a multi-node graph with no guided cycle is a valid authoring
 		// state; runtime tour preview is gated by `canStartTourPreview`.
 		expect(validateSceneDocument(allFreeOnly).success).toBe(true);
 	});

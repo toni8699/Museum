@@ -1,5 +1,5 @@
 /**
- * H1 S7 — layout target descriptors and baseline-relative delta math.
+ * layout target descriptors and baseline-relative delta math.
  *
  * S7 keeps layout gizmo editing detached: a layout selection resolves a pure,
  * renderer-neutral `LayoutGizmoTargetDescriptor` (tested math) but no live

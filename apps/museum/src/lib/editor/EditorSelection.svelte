@@ -62,10 +62,10 @@
 	}: {
 		store: MuseumEditorStore;
 		transformControls?: TransformControls;
-		/** H1 S3 — deselect the *active* domain (default: scene-owned deselect, so the frozen relic is untouched). */
+		/** deselect the *active* domain (default: scene-owned deselect, so the frozen relic is untouched). */
 		onDeselect?: () => void;
 		/**
-		 * H1 S6 — optional layout-pick branch. Absent on the relic mount (frozen
+		 * optional layout-pick branch. Absent on the relic mount (frozen
 		 * behavior). When present, the click flow resolves the normal result
 		 * once, then offers the candidates + the actionable scene/camera source
 		 * distance (or null) to this callback; a `true` return commits a layout
@@ -76,7 +76,7 @@
 			competingSceneDistance: number | null
 		) => boolean;
 		/**
-		 * H1 S6 follow-up — optional layout-hover branch. Same candidate
+		 * follow-up — optional layout-hover branch. Same candidate
 		 * extraction + cross-domain arbitration as `onLayoutPick`, but fires on
 		 * pointer move (before a click) and writes nothing: the shell tints the
 		 * surface under the cursor. Passed empty candidates to clear.
@@ -644,7 +644,7 @@
 	// Raycasts every placement root (selected or not), finds the deepest
 	// intersection, publishes the id to `interactionStore.hoverTargetId`.
 	/**
-	 * H1 S6 follow-up — resolve the layout surface under the cursor on pointer
+	 * follow-up — resolve the layout surface under the cursor on pointer
 	 * move, mirroring the click arbitration exactly (one raycast, same
 	 * `resolveNormalSelectionWithHit` source-distance rule). Placement, Alt,
 	 * mutation-blocked, and gizmo-drag states clear the hover rather than
@@ -827,7 +827,7 @@
 		const intersections = raycast(event);
 		const pendingNavigation = store.pendingNavigationCommand;
 		if (pendingNavigation?.kind === 'place-camera') {
-			// H1 S2 — accept any project-layout room floor, not just Chopin rooms.
+			// accept any project-layout room floor, not just Chopin rooms.
 			const floorHit = findPlaceableFloorIntersection(
 				intersections,
 				undefined,
@@ -847,7 +847,7 @@
 		}
 
 		if (store.pendingPlacementPrimitiveKind) {
-			// H1 S2 — accept any project-layout room floor, not just Chopin rooms.
+			// accept any project-layout room floor, not just Chopin rooms.
 			const floorHit = findPlaceableFloorIntersection(
 				intersections,
 				undefined,
@@ -866,7 +866,7 @@
 		}
 
 		if (store.pendingPlacementLightKind) {
-			// H1 S2 — accept any project-layout room floor, not just Chopin rooms.
+			// accept any project-layout room floor, not just Chopin rooms.
 			const floorHit = findPlaceableFloorIntersection(
 				intersections,
 				undefined,
@@ -895,7 +895,7 @@
 				store.createPendingPlacementAt(roomLocalPoint('paris', worldPoint), 'paris');
 				return;
 			}
-			// H1 S8.1 — resolve the clicked floor's room through the live registry
+			// resolve the clicked floor's room through the live registry
 			// (drafted rooms included), mirroring the primitive/light branch below.
 			const floorHit = findPlaceableFloorIntersection(
 				intersections,
@@ -921,7 +921,7 @@
 			return;
 		}
 
-		// H1 S6 — the layout branch reuses this one `intersections` list (no
+		// the layout branch reuses this one `intersections` list (no
 		// second raycast). Resolve the normal result once with its source hit,
 		// then offer the candidates to the callback; only when it declines do we
 		// fall through to the existing dispatch with the already-resolved result.
@@ -976,7 +976,7 @@
 				meta: event.metaKey || event.ctrlKey
 			});
 		} else if (!event.shiftKey && !event.metaKey && !event.ctrlKey) {
-			// H1 S3 — an empty click clears whichever domain is active (a layout
+			// an empty click clears whichever domain is active (a layout
 			// selection may have survived into 3D); default keeps the legacy
 			// scene-owned deselect for the relic.
 			if (onDeselect) onDeselect();

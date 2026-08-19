@@ -7,26 +7,28 @@ shipped/next lists never accumulate.
 
 ## Working tree
 
-- Current delta: **P1.2 shipped (2026-08-18)** — optional per-direction
-  `framingEnvelope` now validates and round-trips through scene/project codecs,
-  resolves and routes without direction remapping, survives motion preparation
-  and both editor clone paths, and remains uninterpreted so playback is
-  unchanged. Last-key deletion and reverse-key sync preserve authored envelopes.
-- Previous slice: **P1.1 domain×view shell** (2026-08-18, shipped). Chain back
-  via [`../plans/README.md`](../plans/README.md).
-- **P1.1 committed** (`dc31ddc feat(editor): add domain-view workspace shell`).
-  P1.2 implementation and plan/doc closeout remain uncommitted.
+- Current delta: **P1.3 shipped (2026-08-18)** — edge-local smootherstep
+  envelopes now blend automatic/authored Cartesian targets and FOV in the sole
+  motion sampler. Motion creation adaptively compiles deterministic minimum-
+  standoff, collinear/POI angular-rate, and hazardous late-exit bypass guards;
+  frame sampling stays allocation-free and random-access stable. Focused branch,
+  guard, ownership, legacy, relic, and full-suite coverage is green. Archived
+  brief: [`../archive/plans/2026-08-18-P1.3-envelope-sampler-guards.md`](../archive/plans/2026-08-18-P1.3-envelope-sampler-guards.md).
+- Previous slice: **P1.2 shipped (2026-08-18)** — framing-envelope schema,
+  codec, route, motion-preparation, and clone-path threading; committed as
+  `50f34ea P1.2`.
 
 ## Next action
 
-- **One action:** implement **P1.3**, the envelope sampler blend `w(p)` plus its
-  singularity, collinear-zero, and double-whip engine guards. **P1.5** remains
-  the parallel Camera Plan surface track; **P1.6** converges both tracks.
+- **One action:** write and review the **P1.4 implementation brief** for dense
+  envelope invariants, auto-managed/manual policy, guard continuity, and FOV-
+  pacing acceptance matrices. **P1.5** remains the parallel Camera Plan track;
+  **P1.6** converges both tracks.
 
 ## Verification
 
-- **1707 tests green (1 skipped) · `svelte-check` 0 errors / 0 warnings · build
-  clean** (P1.2, 2026-08-18).
+- **1714 tests green (1 skipped) · `svelte-check` 0 errors / 0 warnings · build
+  clean** (P1.3, 2026-08-18).
 
 ## Known bugs / deferred
 

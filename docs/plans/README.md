@@ -33,7 +33,7 @@ The tracker is authoritative when a plan doc's `**Status:**` drifts.
 | # | Plan | Status | Depends on | Doc |
 |---|------|--------|------------|-----|
 | — | Plan-system renewal + documentation rework (process row — created this tracker and the five-doc model) | shipped | H1 gate | archived → [2026-08-17-plan-system-renewal.md](archive/plans/2026-08-17-plan-system-renewal.md) |
-| P1 | Camera overhaul | in-progress — **P1.1 shipped 2026-08-18** | renewal | [2026-08-18-P1-camera-overhaul.md](2026-08-18-P1-camera-overhaul.md) |
+| P1 | Camera overhaul | in-progress — **P1.1–P1.3 shipped 2026-08-18** | renewal | [2026-08-18-P1-camera-overhaul.md](2026-08-18-P1-camera-overhaul.md) |
 | P2 | Plan staging mode — 2D furnishing | approved | P1 | [2026-08-18-P2-plan-staging.md](2026-08-18-P2-plan-staging.md) |
 | P3 | UI overhaul — reconciliation/refresh pass over settled surfaces | approved | P1, P2 | [2026-08-18-P3-ui-overhaul.md](2026-08-18-P3-ui-overhaul.md) |
 | P4 | Client GLB import | proposed | renewal | [2026-08-18-P4-gltb-import.md](2026-08-18-P4-gltb-import.md) |
@@ -56,7 +56,11 @@ conformance mapping is **P1 §A.2** (target:
 
 **P1.2 shipped 2026-08-18** — archived →
 [2026-08-18-P1.2-framing-envelope-serialization.md](../archive/plans/2026-08-18-P1.2-framing-envelope-serialization.md).
-The engine track continues with **P1.3**.
+
+**P1.3 shipped 2026-08-18** — archived →
+[2026-08-18-P1.3-envelope-sampler-guards.md](../archive/plans/2026-08-18-P1.3-envelope-sampler-guards.md).
+The engine track continues with **P1.4**; its implementation brief is the next
+artifact.
 
 ## Archived plans (2026-08-10 → 2026-08-18)
 
@@ -108,6 +112,7 @@ prefixed.
 - `archived → archive/plans/2026-08-17-plan-system-renewal.md` (process row)
 - `archived → archive/plans/2026-08-18-scope-decision-camera-first.md`
 - `archived → archive/plans/2026-08-18-P6-editor-rename.md`
+- `archived → archive/plans/2026-08-18-P1.3-envelope-sampler-guards.md`
 
 **Sources:** all source content is folded into the umbrella docs (P1 §A–§D ·
 P2 §A · P4 §A · P5 §A); the original source files were deleted 2026-08-18.

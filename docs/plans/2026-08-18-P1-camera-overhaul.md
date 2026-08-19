@@ -1,7 +1,7 @@
 # P1 — Camera overhaul (umbrella)
 
 **Date:** 2026-08-18
-**Status:** In-progress — **P1.1 shipped 2026-08-18**; umbrella; remaining increments execute in order below
+**Status:** In-progress — **P1.1–P1.3 shipped 2026-08-18**; umbrella; remaining increments execute in order below
 **Tracker:** [`docs/plans/README.md`](README.md) — **P1**, depends on: renewal
 **Folded sources (2026-08-18, content preserved; originals deleted):**
 - §A — successor shell ratification (the P1.1 gate)
@@ -75,7 +75,7 @@ by the ratified shell contract (§A).
 |---|---|---|---|
 | **P1.1** | Successor domain×view shell + shell contract; **gate = shell-inversion ratification (§A)** — implementation brief: **§A.1** — **shipped 2026-08-18** (status bar folded in; conformance mapping §A.2) | §A | — |
 | **P1.2** | `framingEnvelope` serialization + ordering validation + `resolveSceneDocument` threading (+ runtime types) + **FOV copy fix, specs/docs wording (F1)** + **clone-survival test through `helpers/route-clone` + preview controller (F3)** — **shipped 2026-08-18** | §B, §D | — |
-| **P1.3** | Envelope sampler blend `w(p)` in `sampleCameraMotion` + **engine guards (ext. review): POI singularity angular clamp + standoff · collinear-zero stability guard (Cartesian blend retained) · double-whip dynamic bypass** | §B, §D | P1.2 |
+| **P1.3** | Envelope sampler blend `w(p)` in `sampleCameraMotion` + **engine guards (ext. review): POI singularity angular clamp + standoff · collinear-zero stability guard (Cartesian blend retained) · double-whip dynamic bypass** — **shipped 2026-08-18**; [archived brief](../archive/plans/2026-08-18-P1.3-envelope-sampler-guards.md) | §B, §D | P1.2 |
 | **P1.4** | Envelope invariant + auto-managed/manual policy tests + **guard acceptance criteria (ext. review): non-degeneracy (`target–eye ≥ near-clip`) · smooth continuity (no 180° pops) · singularity · double-whip · FOV pacing** | §B, §D | P1.2, P1.3 |
 | **P1.5** | Camera Plan surface + backdrop/visual-rule assertions (B0 Add-camera mutator already shipped in S10.1 closeout, `674d597`; **F4**) | §C | P1.1 |
 | **P1.6** | Framing authoring UX + FOV copy fix (**UI wording; spec/docs copy lands in P1.2**) + **intent-first surface (ext. review): focus-timing presets Early/Centered/Full Move + lens presets · envelope handles in advanced drawer · parallax warning + FOV ramp guardrail + comfort diagnostic** | §B | P1.2–P1.4, P1.1 |

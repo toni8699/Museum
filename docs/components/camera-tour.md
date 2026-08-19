@@ -20,9 +20,13 @@ Editor preview + visitor share **`camera-route` + `camera-motion` only**.
 Directional view tracks may carry one optional `framingEnvelope` per travel
 direction: `0 ≤ enterStart ≤ enterEnd ≤ exitStart ≤ exitEnd ≤ 1`. Route
 construction selects and deep-copies only the oriented direction's envelope;
-motion preparation carries it without interpreting it yet. Missing envelope
-preserves legacy full-authored framing. Larger FOV is wider / zoomed out;
-smaller FOV is tighter / zoomed in.
+motion samples its enter/exit smootherstep ramps against edge-local distance
+progress and applies the resulting weight to both Cartesian target and FOV.
+Missing envelope preserves legacy full-authored framing; envelopes on tracks
+without authored keys remain automatic. Motion creation compiles stateless
+minimum-standoff, POI angular-rate, and hazardous late-exit bypass guards;
+runtime seeks apply those target-only corrections deterministically. Larger FOV
+is wider / zoomed out; smaller FOV is tighter / zoomed in.
 
 Visitor: plays the open-chain order (loop derived); free nodes via BFS; transitioning = no nav; Paris = fixed eye + free-look. No ribbons on `/museum`.
 

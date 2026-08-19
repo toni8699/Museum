@@ -79,6 +79,23 @@ export function validateProjectSceneRooms(
 		check(node.roomId, `$.scene.navigationNodes[${index}].roomId`);
 	}
 	for (const [connectionIndex, connection] of scene.connections.entries()) {
+		for (const direction of ['forward', 'reverse'] as const) {
+			const envelope = connection.viewTracks?.framingEnvelope?.[direction];
+			if (!envelope) continue;
+			const keys = ['enterStart', 'enterEnd', 'exitStart', 'exitEnd'] as const;
+			for (const [boundIndex, key] of keys.entries()) {
+				const value = envelope[key];
+				const previous = boundIndex === 0 ? undefined : envelope[keys[boundIndex - 1]!];
+				if (!Number.isFinite(value) || value < 0 || value > 1 || (previous !== undefined && value < previous)) {
+					issues.push({
+						path: `$.scene.connections[${connectionIndex}].viewTracks.framingEnvelope.${direction}.${key}`,
+						code: 'invalid_framing_envelope',
+						message: 'Framing envelope bounds must be finite, ordered, and between zero and one'
+					});
+					break;
+				}
+			}
+		}
 		for (const [anchorIndex, anchor] of connection.positionPath.anchors.entries()) {
 			check(anchor.roomId, `$.scene.connections[${connectionIndex}].positionPath.anchors[${anchorIndex}].roomId`);
 		}

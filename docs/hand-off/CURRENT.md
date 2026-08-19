@@ -7,40 +7,26 @@ shipped/next lists never accumulate.
 
 ## Working tree
 
-- Previous slice: **plan-system renewal + documentation rework** (2026-08-18,
-  shipped and archived). Chain back via
-  [`../plans/README.md`](../plans/README.md) (depends-on) and the archived
-  [2026-08-18 scope decision](../archive/plans/2026-08-18-scope-decision-camera-first.md).
-- Current delta: **P1.1 shipped (2026-08-18)** — successor **domain×view
-  shell** (§A ratified; implemented per **P1 §A.1** with the G1–G6 review
-  amendments): domain×view matrix + per-domain view memory + **domain-gated
-  selection** + **Camera-domain timeline** ownership + Camera → Plan
-  placeholder cell + per-row-type sidebar gating. Review follow-up removed the
-  empty Camera rail, hid Scene-only sidebar tabs/Assets/Add Room in Camera,
-  and made status-bar save/grid/snap/hints workspace-aware.
-- **Status bar added** (design-spec §2/§18 — the one shell-region gap):
-  persistent bottom region in every workspace (workspace, selection, save
-  state, nav hints, grid/snap/units).
-- **Design-spec conformance mapping folded into P1 §A.2** (target:
-  `docs/Design-specs/Design-shell-specs.md`).
-- **P1.2 implementation brief added as a separate active doc:**
-  [`2026-08-18-P1.2-framing-envelope-serialization.md`](../plans/2026-08-18-P1.2-framing-envelope-serialization.md).
+- Current delta: **P1.2 shipped (2026-08-18)** — optional per-direction
+  `framingEnvelope` now validates and round-trips through scene/project codecs,
+  resolves and routes without direction remapping, survives motion preparation
+  and both editor clone paths, and remains uninterpreted so playback is
+  unchanged. Last-key deletion and reverse-key sync preserve authored envelopes.
+- Previous slice: **P1.1 domain×view shell** (2026-08-18, shipped). Chain back
+  via [`../plans/README.md`](../plans/README.md).
 - **P1.1 committed** (`dc31ddc feat(editor): add domain-view workspace shell`).
-  Plan/doc updates (this hand-off, the P1 umbrella's P1.1 close note, and the
-  P1.2 brief) remain uncommitted.
+  P1.2 implementation and plan/doc closeout remain uncommitted.
 
 ## Next action
 
-- **One action:** implement the now-briefed engine track **P1.2–P1.4** (framing envelope
-  serialization + ordering validation + `resolveSceneDocument` threading + FOV
-  copy fix + clone-survival test) runs in parallel with **P1.5** — the
-  **Camera Plan surface** mounts into the P1.1 shell (the placeholder cell).
-  **P1.6** converges both tracks; **P1.7** last.
+- **One action:** implement **P1.3**, the envelope sampler blend `w(p)` plus its
+  singularity, collinear-zero, and double-whip engine guards. **P1.5** remains
+  the parallel Camera Plan surface track; **P1.6** converges both tracks.
 
 ## Verification
 
-- **1697 tests green · `svelte-check` 0 errors / 0 warnings · build clean**
-  (P1.1 review fixes, 2026-08-18).
+- **1707 tests green (1 skipped) · `svelte-check` 0 errors / 0 warnings · build
+  clean** (P1.2, 2026-08-18).
 
 ## Known bugs / deferred
 

@@ -332,7 +332,11 @@ describe('resolveSceneDocument', () => {
 								cameraTarget: [20, 1.2, 20],
 								fov: 62
 							}
-						]
+						],
+						framingEnvelope: {
+							forward: { enterStart: 0.1, enterEnd: 0.2, exitStart: 0.8, exitEnd: 0.9 },
+							reverse: { enterStart: 0, enterEnd: 0.25, exitStart: 0.75, exitEnd: 1 }
+						}
 					},
 					targetWaypoints: [
 						{ roomId: 'entrance', position: [1, 1, -1] },
@@ -376,7 +380,11 @@ describe('resolveSceneDocument', () => {
 					cameraTarget: [20, 1.2, 20],
 					fov: 62
 				}
-			]
+			],
+			framingEnvelope: {
+				forward: { enterStart: 0.1, enterEnd: 0.2, exitStart: 0.8, exitEnd: 0.9 },
+				reverse: { enterStart: 0, enterEnd: 0.25, exitStart: 0.75, exitEnd: 1 }
+			}
 		});
 		expect(connection.positionPath.anchors[0]?.position).not.toBe(from.position);
 		expect(connection.targetWaypoints?.[0]).not.toBe(from.cameraTarget);
@@ -384,6 +392,12 @@ describe('resolveSceneDocument', () => {
 			document.connections[0]!.viewTracks?.forward[0]?.cameraTarget
 		);
 		expect(connection.viewTracks?.forward[0]).not.toHaveProperty('roomId');
+		expect(connection.viewTracks?.framingEnvelope).not.toBe(
+			document.connections[0]!.viewTracks?.framingEnvelope
+		);
+		expect(connection.viewTracks?.framingEnvelope?.forward).not.toBe(
+			document.connections[0]!.viewTracks?.framingEnvelope?.forward
+		);
 		expect(resolved.objects[0]).toEqual(
 			modelEntityToPlacement(document.entities[0] as SceneModelEntity)
 		);

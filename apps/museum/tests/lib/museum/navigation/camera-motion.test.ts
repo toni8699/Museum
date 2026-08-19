@@ -143,6 +143,59 @@ describe('createCameraMotion', () => {
     });
   });
 
+  it('carries an isolated framing envelope into the prepared edge view', () => {
+    const route = {
+      positionParts: [{
+        kind: 'rounded-polyline',
+        points: [[0, 1, 0], [10, 1, 0]]
+      }],
+      targetPoints: [[0, 1, 1], [10, 1, 1]],
+      edges: [{
+        connectionId: 'straight',
+        direction: 'forward',
+        fromNodeId: 'a',
+        toNodeId: 'b',
+        positionSpan: {
+          start: { partIndex: 0, pointIndex: 0 },
+          end: { partIndex: 0, pointIndex: 1 }
+        },
+        viewTrack: {
+          start: { cameraTarget: [0, 1, 1], fov: 54 },
+          keyframes: [],
+          end: { cameraTarget: [10, 1, 1], fov: 48 },
+          framingEnvelope: {
+            enterStart: 0.1,
+            enterEnd: 0.25,
+            exitStart: 0.8,
+            exitEnd: 1
+          }
+        }
+      }]
+    } as const satisfies CameraRoute;
+
+    const motion = createCameraMotion(route);
+    expect(motion.edgeViews[0]?.framingEnvelope).toEqual(
+      route.edges[0].viewTrack.framingEnvelope
+    );
+    expect(motion.edgeViews[0]?.framingEnvelope).not.toBe(
+      route.edges[0].viewTrack.framingEnvelope
+    );
+
+    const { framingEnvelope: _envelope, ...viewTrackWithoutEnvelope } =
+      route.edges[0].viewTrack;
+    const legacyMotion = createCameraMotion({
+      ...route,
+      edges: [{ ...route.edges[0], viewTrack: viewTrackWithoutEnvelope }]
+    });
+    for (const progress of [0, 0.2, 0.5, 0.8, 1]) {
+      const withEnvelope = sampleFull(motion, progress);
+      const withoutEnvelope = sampleFull(legacyMotion, progress);
+      expect(withEnvelope.position.toArray()).toEqual(withoutEnvelope.position.toArray());
+      expect(withEnvelope.target.toArray()).toEqual(withoutEnvelope.target.toArray());
+      expect(withEnvelope.fov).toBe(withoutEnvelope.fov);
+    }
+  });
+
   it('applies a live position before automatic tangents are generated', () => {
     const route = {
       positionParts: [

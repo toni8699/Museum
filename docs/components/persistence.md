@@ -1,11 +1,11 @@
 # Persistence and schema
 
 **Read when:** scene/layout/project codecs, undo/history, import/export, dirty, fidelity.  
-**Last reviewed:** 2026-08-13
+**Last reviewed:** 2026-08-18
 
 ---
 
-**Scene:** `textures` · `materials` · `entities` · `clusters?` · `navigationNodes` · `connections`. One canonical shape; no version field, no migrations. Primitives: `box|plane|cylinder|sphere` only. Standalone scene codec validates room IDs syntactically; project codec owns cross-document room-reference + world-space camera-pose validation.
+**Scene:** `textures` · `materials` · `entities` · `clusters?` · `navigationNodes` · `connections`. One canonical shape; no version field, no migrations. Primitives: `box|plane|cylinder|sphere` only. Connection view tracks retain `forward` / `reverse` key arrays and may add a directional `framingEnvelope`; each present direction has exactly four finite ordered unit-interval bounds (`enterStart ≤ enterEnd ≤ exitStart ≤ exitEnd`). Canonical output deep-clones and emits the envelope only when authored; absence stays absent and preserves legacy bytes. Standalone scene codec validates room IDs syntactically plus envelope shape/order; project codec owns cross-document room-reference + world-space camera-pose validation and repeats envelope range/order checks at export.
 
 **Layout:** canonical `units: 'meters'`, floors → rooms → stable room frame + draft paths → openings → layout objects. No version field; rooms always carry a finite `frame.origin: [x, z]` + normalized radian `frame.yaw`. Opening `offset` = meters along a segment, never a sample index. Door-only `connectsRoomIds: [string, string]` relations explicit, validated, never inferred from geometry; windows unpaired.
 

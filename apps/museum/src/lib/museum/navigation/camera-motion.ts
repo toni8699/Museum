@@ -10,7 +10,8 @@ import {
   MUSEUM_CAMERA_EASING,
   MUSEUM_CAMERA_FOV,
   type CameraConnectionDirection,
-  type CameraEasing
+  type CameraEasing,
+  type RuntimeCameraFramingEnvelope
 } from '$lib/types/museum';
 
 export type Vector3Like =
@@ -57,6 +58,8 @@ export type CameraRouteViewTrack = {
   keyframes: readonly CameraRouteViewKeyframe[];
   /** Generated from the oriented destination node; never persisted. */
   end: CameraRouteView;
+  /** Direction-owned travel-relative framing bounds; interpreted by P1.3. */
+  framingEnvelope?: RuntimeCameraFramingEnvelope;
 };
 
 export type CameraRouteEdge = {
@@ -182,6 +185,7 @@ type PreparedCameraRouteViewTrack = {
   start: PreparedCameraRouteView;
   keyframes: PreparedCameraRouteViewKeyframe[];
   end: PreparedCameraRouteView;
+  framingEnvelope?: RuntimeCameraFramingEnvelope;
 };
 
 type PreparedCameraRouteEdge = Omit<
@@ -202,6 +206,7 @@ type CameraMotionEdgeView = {
   points: CameraMotionViewPoint[];
   automaticTargetPath: CurvePath<Vector3> | null;
   hasAuthoredKeyframes: boolean;
+  framingEnvelope?: RuntimeCameraFramingEnvelope;
 };
 
 function isVectorTuple(
@@ -293,7 +298,10 @@ function prepareRouteEdge(
     viewTrack = {
       start: prepareRouteView(edge.viewTrack.start, `${label} start view`),
       keyframes,
-      end: prepareRouteView(edge.viewTrack.end, `${label} end view`)
+      end: prepareRouteView(edge.viewTrack.end, `${label} end view`),
+      ...(edge.viewTrack.framingEnvelope === undefined
+        ? {}
+        : { framingEnvelope: { ...edge.viewTrack.framingEnvelope } })
     };
   }
 
@@ -837,7 +845,10 @@ function createMotionEdgeView(
   return {
     points,
     automaticTargetPath,
-    hasAuthoredKeyframes: track.keyframes.length > 0
+    hasAuthoredKeyframes: track.keyframes.length > 0,
+    ...(track.framingEnvelope === undefined
+      ? {}
+      : { framingEnvelope: { ...track.framingEnvelope } })
   };
 }
 

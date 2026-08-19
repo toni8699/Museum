@@ -89,10 +89,21 @@ export type RuntimeCameraViewKeyframe = {
   easing?: CameraEasing;
 };
 
+export type RuntimeCameraFramingEnvelope = {
+  enterStart: number;
+  enterEnd: number;
+  exitStart: number;
+  exitEnd: number;
+};
+
 export type RuntimeConnectionViewTracks = Record<
   CameraConnectionDirection,
   RuntimeCameraViewKeyframe[]
->;
+> & {
+  framingEnvelope?: Partial<
+    Record<CameraConnectionDirection, RuntimeCameraFramingEnvelope>
+  >;
+};
 
 export type RuntimePathAnchor = {
   /** Stable authored ID, or a resolver-owned `node:<id>:position` endpoint ID. */

@@ -307,6 +307,118 @@ describe('scene document codec', () => {
 		expect(repeated).toEqual(result);
 	});
 
+	it('round-trips directional framing envelopes in canonical order without aliases', () => {
+		const document = cloneDocument();
+		document.connections[0]!.viewTracks = {
+			forward: [],
+			reverse: [],
+			framingEnvelope: {
+				forward: { enterStart: 0.1, enterEnd: 0.25, exitStart: 0.8, exitEnd: 1 },
+				reverse: { enterStart: 0, enterEnd: 0, exitStart: 1, exitEnd: 1 }
+			}
+		};
+		const before = JSON.stringify(document);
+		const result = validateSceneDocument(document);
+
+		expect(result.success).toBe(true);
+		if (!result.success) return;
+		expect(JSON.stringify(document)).toBe(before);
+		expect(result.document.connections[0]!.viewTracks?.framingEnvelope).toEqual(
+			document.connections[0]!.viewTracks.framingEnvelope
+		);
+		expect(result.document.connections[0]!.viewTracks?.framingEnvelope).not.toBe(
+			document.connections[0]!.viewTracks.framingEnvelope
+		);
+		expect(result.document.connections[0]!.viewTracks?.framingEnvelope?.forward).not.toBe(
+			document.connections[0]!.viewTracks.framingEnvelope?.forward
+		);
+		expect(result.canonicalJson).toContain(
+			'"framingEnvelope": {\n          "forward": {\n            "enterStart": 0.1,\n            "enterEnd": 0.25,\n            "exitStart": 0.8,\n            "exitEnd": 1'
+		);
+		expect(parseSceneDocumentJson(result.canonicalJson)).toEqual(result);
+	});
+
+	it('round-trips a forward-only framing envelope without synthesizing reverse data', () => {
+		const document = cloneDocument();
+		document.connections[0]!.viewTracks = {
+			forward: [],
+			reverse: [],
+			framingEnvelope: {
+				forward: { enterStart: 0.1, enterEnd: 0.25, exitStart: 0.8, exitEnd: 1 }
+			}
+		};
+		const result = validateSceneDocument(document);
+		expect(result.success).toBe(true);
+		if (!result.success) return;
+		expect(result.document.connections[0]!.viewTracks?.framingEnvelope).toEqual({
+			forward: { enterStart: 0.1, enterEnd: 0.25, exitStart: 0.8, exitEnd: 1 }
+		});
+		expect(result.document.connections[0]!.viewTracks?.framingEnvelope).not.toHaveProperty(
+			'reverse'
+		);
+		expect(parseSceneDocumentJson(result.canonicalJson)).toEqual(result);
+	});
+
+	it('keeps legacy no-envelope serialization byte-stable across repeated codec passes', () => {
+		const first = serializeSceneDocument(cloneDocument());
+		const parsed = parseSceneDocumentJson(first);
+		expect(parsed.success).toBe(true);
+		if (!parsed.success) return;
+		expect(parsed.document.connections[0]!.viewTracks).toBeUndefined();
+		expect(parsed.canonicalJson).toBe(first);
+		expect(serializeSceneDocument(parsed.document)).toBe(first);
+	});
+
+	it('accepts equal framing-envelope bounds and rejects malformed envelopes at exact paths', () => {
+		const equal = cloneDocument();
+		equal.connections[0]!.viewTracks = {
+			forward: [],
+			reverse: [],
+			framingEnvelope: {
+				forward: { enterStart: 0.5, enterEnd: 0.5, exitStart: 0.5, exitEnd: 0.5 }
+			}
+		};
+		expect(validateSceneDocument(equal).success).toBe(true);
+
+		const baseEnvelope = () => {
+			const value = cloneDocument() as unknown as { connections: Array<Record<string, any>> };
+			value.connections[0]!.viewTracks = {
+				forward: [],
+				reverse: [],
+				framingEnvelope: {
+					forward: { enterStart: 0.1, enterEnd: 0.2, exitStart: 0.8, exitEnd: 1 }
+				}
+			};
+			return value;
+		};
+		const missing = baseEnvelope();
+		delete missing.connections[0]!.viewTracks.framingEnvelope.forward.enterEnd;
+		expectIssue(missing, 'invalid_type', '$.connections[0].viewTracks.framingEnvelope.forward.enterEnd');
+		const nonFinite = baseEnvelope();
+		nonFinite.connections[0]!.viewTracks.framingEnvelope.forward.exitStart = Number.NaN;
+		expectIssue(nonFinite, 'non_finite_number', '$.connections[0].viewTracks.framingEnvelope.forward.exitStart');
+		const outOfRange = baseEnvelope();
+		outOfRange.connections[0]!.viewTracks.framingEnvelope.forward.enterStart = -0.1;
+		expectIssue(outOfRange, 'invalid_framing_envelope', '$.connections[0].viewTracks.framingEnvelope.forward.enterStart');
+		const unordered = baseEnvelope();
+		unordered.connections[0]!.viewTracks.framingEnvelope.forward.enterEnd = 0.05;
+		expectIssue(unordered, 'invalid_framing_envelope', '$.connections[0].viewTracks.framingEnvelope.forward.enterEnd');
+		const unknown = baseEnvelope();
+		unknown.connections[0]!.viewTracks.framingEnvelope.forward.extra = 0.4;
+		expectIssue(unknown, 'unknown_property', '$.connections[0].viewTracks.framingEnvelope.forward.extra');
+		const invalidContainer = baseEnvelope();
+		invalidContainer.connections[0]!.viewTracks.framingEnvelope = [];
+		expectIssue(invalidContainer, 'invalid_type', '$.connections[0].viewTracks.framingEnvelope');
+		const invalidEnvelope = baseEnvelope();
+		invalidEnvelope.connections[0]!.viewTracks.framingEnvelope.forward = [];
+		expectIssue(invalidEnvelope, 'invalid_type', '$.connections[0].viewTracks.framingEnvelope.forward');
+		const invalidDirection = baseEnvelope();
+		invalidDirection.connections[0]!.viewTracks.framingEnvelope.sideways = {
+			enterStart: 0, enterEnd: 0, exitStart: 1, exitEnd: 1
+		};
+		expectIssue(invalidDirection, 'unknown_property', '$.connections[0].viewTracks.framingEnvelope.sideways');
+	});
+
 	it('rejects invalid FOV, malformed tracks, IDs, progress, targets, and rooms', () => {
 		const nodeFov = cloneDocument();
 		nodeFov.navigationNodes[0]!.fov = 9.99;

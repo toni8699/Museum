@@ -138,6 +138,23 @@ describe('createMuseumEditorStore', () => {
 		expect(store.canExport).toBe(true);
 	});
 
+	it('rejects an inverted framing envelope without changing the current scene or baseline', () => {
+		const store = createFixtureEditorStore();
+		const before = serializeSceneDocument(store.document);
+		const invalid = cloneMuseumSceneDocument(museumSceneDocument);
+		const connection = invalid.connections.find((candidate) => candidate.viewTracks);
+		expect(connection?.viewTracks).toBeDefined();
+		if (!connection?.viewTracks) return;
+		connection.viewTracks.framingEnvelope = {
+			forward: { enterStart: 0.1, enterEnd: 0.8, exitStart: 0.2, exitEnd: 1 }
+		};
+
+		expect(store.importDocument(invalid)).toBe(false);
+		expect(serializeSceneDocument(store.document)).toBe(before);
+		expect(store.isDirty).toBe(false);
+		expect(store.canExport).toBe(true);
+	});
+
 	it('preserves authored v3 view data through import, history, and canonical export', () => {
 		const store = createFixtureEditorStore();
 		const imported = cloneMuseumSceneDocument(museumSceneDocument);

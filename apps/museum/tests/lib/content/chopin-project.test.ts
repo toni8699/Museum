@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest';
 import rawProject from '$lib/content/chopin-project.json';
 import { chopinProject, chopinRuntime } from '$lib/content/chopin-project';
 import { serializeMuseumProject, validateMuseumProject } from '$lib/project/project-codec';
+import {
+	createLayoutRoomRegistry,
+	validateProjectSceneRooms
+} from '$lib/project/project-layout-semantics';
 import { projectLayoutPortalRelations } from '$lib/layout/layout-portals';
 import type { Vec3 } from '$lib/types/museum';
 
@@ -126,5 +130,43 @@ describe('canonical Chopin project', () => {
 				}));
 			}
 		}
+	});
+
+	it('accepts valid framing envelopes and repeats ordering checks at the project gate', () => {
+		const input = JSON.parse(JSON.stringify(chopinProject));
+		const connection = input.scene.connections.find((candidate: any) => candidate.viewTracks);
+		expect(connection).toBeDefined();
+		connection.viewTracks.framingEnvelope = {
+			forward: { enterStart: 0.1, enterEnd: 0.25, exitStart: 0.75, exitEnd: 1 }
+		};
+		const valid = validateMuseumProject(input);
+		expect(valid.success).toBe(true);
+		if (!valid.success) return;
+		expect(serializeMuseumProject(input)).toBe(valid.canonicalJson);
+
+		const connectionIndex = valid.project.scene.connections.findIndex(
+			(candidate) => candidate.id === connection.id
+		);
+		const invalidInput = JSON.parse(JSON.stringify(input));
+		invalidInput.scene.connections[connectionIndex].viewTracks
+			.framingEnvelope.forward.exitStart = 0.2;
+		const invalid = validateMuseumProject(invalidInput);
+		expect(invalid.success).toBe(false);
+		if (!invalid.success) {
+			expect(invalid.issues).toContainEqual(expect.objectContaining({
+				path: `$.scene.connections[${connectionIndex}].viewTracks.framingEnvelope.forward.exitStart`,
+				code: 'invalid_framing_envelope'
+			}));
+		}
+
+		valid.project.scene.connections[connectionIndex]!.viewTracks!
+			.framingEnvelope!.forward!.exitStart = 0.2;
+		expect(validateProjectSceneRooms(
+			valid.project.scene,
+			createLayoutRoomRegistry(valid.project.layout)
+		)).toContainEqual(expect.objectContaining({
+			path: `$.scene.connections[${connectionIndex}].viewTracks.framingEnvelope.forward.exitStart`,
+			code: 'invalid_framing_envelope'
+		}));
 	});
 });

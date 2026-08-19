@@ -775,7 +775,11 @@ describe('getCameraConnectionRoute', () => {
             cameraTarget: [4, 5, 6],
             fov: 88
           }
-        ]
+        ],
+        framingEnvelope: {
+          forward: { enterStart: 0.1, enterEnd: 0.2, exitStart: 0.8, exitEnd: 0.9 },
+          reverse: { enterStart: 0, enterEnd: 0.25, exitStart: 0.75, exitEnd: 1 }
+        }
       }
     };
     const graph = createNavigationGraph({
@@ -798,7 +802,8 @@ describe('getCameraConnectionRoute', () => {
           fov: 35
         }
       ],
-      end: { cameraTarget: [2, 1, 1], fov: 68 }
+      end: { cameraTarget: [2, 1, 1], fov: 68 },
+      framingEnvelope: { enterStart: 0.1, enterEnd: 0.2, exitStart: 0.8, exitEnd: 0.9 }
     });
 
     const reverse = getCameraConnectionRoute('a-b', 'reverse', graph);
@@ -814,7 +819,8 @@ describe('getCameraConnectionRoute', () => {
           fov: 88
         }
       ],
-      end: { cameraTarget: [0, 1, 1], fov: 42 }
+      end: { cameraTarget: [0, 1, 1], fov: 42 },
+      framingEnvelope: { enterStart: 0, enterEnd: 0.25, exitStart: 0.75, exitEnd: 1 }
     });
 
     const forwardTarget = forward.edges[0].viewTrack?.keyframes[0].cameraTarget;
@@ -825,6 +831,14 @@ describe('getCameraConnectionRoute', () => {
       2,
       3
     ]);
+    const forwardEnvelope = forward.edges[0].viewTrack?.framingEnvelope;
+    if (!forwardEnvelope) throw new Error('Expected forward framing envelope');
+    forwardEnvelope.enterStart = 0.7;
+    expect(directionalConnection.viewTracks?.framingEnvelope?.forward?.enterStart).toBe(0.1);
+
+    delete directionalConnection.viewTracks?.framingEnvelope?.reverse;
+    const reverseWithoutEnvelope = getCameraConnectionRoute('a-b', 'reverse', graph);
+    expect(reverseWithoutEnvelope.edges[0].viewTrack).not.toHaveProperty('framingEnvelope');
   });
 
   it('does not reuse a forward view track as a reverse fallback', () => {

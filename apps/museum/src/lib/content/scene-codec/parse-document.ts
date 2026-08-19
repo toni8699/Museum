@@ -20,6 +20,7 @@ import {
 	type Vec3
 } from '$lib/types/museum';
 import type {
+	CameraFramingEnvelope,
 	MuseumSceneDocument,
 	SceneCameraViewKeyframe,
 	SceneConnection,
@@ -371,11 +372,89 @@ export function parseViewTracks(
 		addIssue(issues, path, 'invalid_type', 'Expected a camera view tracks object');
 		return undefined;
 	}
-	assertAllowedKeys(input, ['forward', 'reverse'], path, issues);
+	assertAllowedKeys(input, ['forward', 'reverse', 'framingEnvelope'], path, issues);
 	const forward = parseViewTrack(input.forward, `${path}.forward`, issues, options);
 	const reverse = parseViewTrack(input.reverse, `${path}.reverse`, issues, options);
-	if (!forward || !reverse) return undefined;
-	return { forward, reverse };
+	const framingEnvelope = 'framingEnvelope' in input
+		? parseFramingEnvelopeMap(input.framingEnvelope, `${path}.framingEnvelope`, issues)
+		: undefined;
+	if (!forward || !reverse || ('framingEnvelope' in input && framingEnvelope === undefined)) {
+		return undefined;
+	}
+	return {
+		forward,
+		reverse,
+		...(framingEnvelope === undefined ? {} : { framingEnvelope })
+	};
+}
+
+const FRAMING_ENVELOPE_KEYS = [
+	'enterStart',
+	'enterEnd',
+	'exitStart',
+	'exitEnd'
+] as const;
+
+function parseFramingEnvelope(
+	input: unknown,
+	path: string,
+	issues: SceneDocumentIssue[]
+): CameraFramingEnvelope | undefined {
+	if (!isRecord(input)) {
+		addIssue(issues, path, 'invalid_type', 'Expected a camera framing envelope object');
+		return undefined;
+	}
+	assertAllowedKeys(input, FRAMING_ENVELOPE_KEYS, path, issues);
+	const values = FRAMING_ENVELOPE_KEYS.map((key) =>
+		readRequiredNumber(input, key, path, issues)
+	);
+	if (values.some((value) => value === undefined)) return undefined;
+	const envelope: CameraFramingEnvelope = {
+		enterStart: values[0]!,
+		enterEnd: values[1]!,
+		exitStart: values[2]!,
+		exitEnd: values[3]!
+	};
+	for (const key of FRAMING_ENVELOPE_KEYS) {
+		if (envelope[key] < 0 || envelope[key] > 1) {
+			addIssue(issues, `${path}.${key}`, 'invalid_framing_envelope', 'Framing envelope bounds must be between zero and one');
+			return undefined;
+		}
+	}
+	for (let index = 1; index < FRAMING_ENVELOPE_KEYS.length; index += 1) {
+		const key = FRAMING_ENVELOPE_KEYS[index]!;
+		const previous = FRAMING_ENVELOPE_KEYS[index - 1]!;
+		if (envelope[key] < envelope[previous]) {
+			addIssue(issues, `${path}.${key}`, 'invalid_framing_envelope', `Framing envelope ${key} must be greater than or equal to ${previous}`);
+			return undefined;
+		}
+	}
+	return envelope;
+}
+
+function parseFramingEnvelopeMap(
+	input: unknown,
+	path: string,
+	issues: SceneDocumentIssue[]
+): SceneConnectionViewTracks['framingEnvelope'] | undefined {
+	if (!isRecord(input)) {
+		addIssue(issues, path, 'invalid_type', 'Expected a directional framing envelope object');
+		return undefined;
+	}
+	assertAllowedKeys(input, ['forward', 'reverse'], path, issues);
+	const forward = 'forward' in input
+		? parseFramingEnvelope(input.forward, `${path}.forward`, issues)
+		: undefined;
+	const reverse = 'reverse' in input
+		? parseFramingEnvelope(input.reverse, `${path}.reverse`, issues)
+		: undefined;
+	if (('forward' in input && forward === undefined) || ('reverse' in input && reverse === undefined)) {
+		return undefined;
+	}
+	return {
+		...(forward === undefined ? {} : { forward }),
+		...(reverse === undefined ? {} : { reverse })
+	};
 }
 
 

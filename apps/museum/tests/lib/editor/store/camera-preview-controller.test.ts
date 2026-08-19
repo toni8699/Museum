@@ -198,4 +198,31 @@ describe('EditorCameraPreviewController', () => {
 			toNodeId: 'no-such-node'
 		});
 	});
+
+	it('returns isolated captured-route framing envelopes', () => {
+		const { document, preview } = makeControllers();
+		const connection = document.document.connections.find((candidate) => candidate.viewTracks);
+		expect(connection).toBeDefined();
+		if (!connection?.viewTracks) return;
+		connection.viewTracks.framingEnvelope = {
+			forward: { enterStart: 0.1, enterEnd: 0.2, exitStart: 0.8, exitEnd: 0.9 }
+		};
+		document.replace(document.document);
+		expect(preview.startConnection(connection.id, 'forward', 'director')).toBe(true);
+		const runId = preview.preview?.runId;
+		expect(runId).toBeDefined();
+		if (runId === undefined) return;
+		const first = preview.getCapturedRoute(runId);
+		expect(first?.edges[0]?.viewTrack?.framingEnvelope).toEqual({
+			enterStart: 0.1,
+			enterEnd: 0.2,
+			exitStart: 0.8,
+			exitEnd: 0.9
+		});
+		first!.edges[0]!.viewTrack!.framingEnvelope!.enterStart = 0.7;
+		const second = preview.getCapturedRoute(runId);
+		expect(second?.edges[0]?.viewTrack?.framingEnvelope?.enterStart).toBe(0.1);
+		expect(document.document.connections.find((candidate) => candidate.id === connection.id)
+			?.viewTracks?.framingEnvelope?.forward?.enterStart).toBe(0.1);
+	});
 });

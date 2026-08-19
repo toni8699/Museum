@@ -1,7 +1,7 @@
 # Camera and tour
 
 **Read when:** nodes, connections, paths, guided order, timeline, framing, tour preview.  
-**Last reviewed:** 2026-08-10  
+**Last reviewed:** 2026-08-18
 **Deep dump (rare):** [`../archive/CAMERA_AND_LAYOUT.md`](../archive/CAMERA_AND_LAYOUT.md)
 
 ---
@@ -16,6 +16,13 @@
 Defaults: eye **1.65 m**, target **1.25 m**, distance **3 m**, clearance **0.35 m**.  
 Resolver inserts `node:<id>:position` — **never** persist those as interiors.  
 Editor preview + visitor share **`camera-route` + `camera-motion` only**.
+
+Directional view tracks may carry one optional `framingEnvelope` per travel
+direction: `0 ≤ enterStart ≤ enterEnd ≤ exitStart ≤ exitEnd ≤ 1`. Route
+construction selects and deep-copies only the oriented direction's envelope;
+motion preparation carries it without interpreting it yet. Missing envelope
+preserves legacy full-authored framing. Larger FOV is wider / zoomed out;
+smaller FOV is tighter / zoomed in.
 
 Visitor: plays the open-chain order (loop derived); free nodes via BFS; transitioning = no nav; Paris = fixed eye + free-look. No ribbons on `/museum`.
 

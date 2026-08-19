@@ -745,7 +745,8 @@ export class EditorViewKeyframeController {
 		}
 		if (
 			connection.viewTracks.forward.length === 0 &&
-			connection.viewTracks.reverse.length === 0
+			connection.viewTracks.reverse.length === 0 &&
+			connection.viewTracks.framingEnvelope === undefined
 		) {
 			delete connection.viewTracks;
 		}
@@ -785,7 +786,8 @@ export class EditorViewKeyframeController {
 		connection.viewTracks[destination] = copied;
 		if (
 			connection.viewTracks.forward.length === 0 &&
-			connection.viewTracks.reverse.length === 0
+			connection.viewTracks.reverse.length === 0 &&
+			connection.viewTracks.framingEnvelope === undefined
 		) {
 			delete connection.viewTracks;
 		}

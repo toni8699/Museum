@@ -10,6 +10,7 @@
  * Tagged `@internal` — never imported outside `scene-codec/`.
  */
 import type {
+	CameraFramingEnvelope,
 	SceneCameraViewKeyframe,
 	SceneEntity,
 	SceneModelEntity,
@@ -36,6 +37,15 @@ export function cloneViewKeyframe(
 		fov: value.fov,
 		...(value.holdSeconds === undefined ? {} : { holdSeconds: value.holdSeconds }),
 		...(value.easing === undefined ? {} : { easing: value.easing })
+	};
+}
+
+function cloneFramingEnvelope(value: CameraFramingEnvelope): CameraFramingEnvelope {
+	return {
+		enterStart: value.enterStart,
+		enterEnd: value.enterEnd,
+		exitStart: value.exitStart,
+		exitEnd: value.exitEnd
 	};
 }
 
@@ -161,7 +171,20 @@ export function canonicalDocument(document: MuseumSceneDocument): MuseumSceneDoc
 				: {
 						viewTracks: {
 							forward: connection.viewTracks.forward.map(cloneViewKeyframe),
-							reverse: connection.viewTracks.reverse.map(cloneViewKeyframe)
+							reverse: connection.viewTracks.reverse.map(cloneViewKeyframe),
+							...(connection.viewTracks.framingEnvelope?.forward === undefined &&
+								connection.viewTracks.framingEnvelope?.reverse === undefined
+								? {}
+								: {
+										framingEnvelope: {
+											...(connection.viewTracks.framingEnvelope.forward === undefined
+												? {}
+												: { forward: cloneFramingEnvelope(connection.viewTracks.framingEnvelope.forward) }),
+											...(connection.viewTracks.framingEnvelope.reverse === undefined
+												? {}
+												: { reverse: cloneFramingEnvelope(connection.viewTracks.framingEnvelope.reverse) })
+										}
+									})
 						}
 					}),
 			...(connection.targetWaypoints === undefined

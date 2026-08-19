@@ -54,6 +54,10 @@ mount into; the engine track **P1.2–P1.4** runs in parallel. The design-spec
 conformance mapping is **P1 §A.2** (target:
 `docs/Design-specs/Design-shell-specs.md`).
 
+**P1.2 shipped 2026-08-18** — archived →
+[2026-08-18-P1.2-framing-envelope-serialization.md](../archive/plans/2026-08-18-P1.2-framing-envelope-serialization.md).
+The engine track continues with **P1.3**.
+
 ## Archived plans (2026-08-10 → 2026-08-18)
 
 All archived: `archived → docs/archive/plans/pre-h1-letters/<file>`. Shipped

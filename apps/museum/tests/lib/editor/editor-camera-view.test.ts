@@ -196,7 +196,11 @@ describe('editor camera view helpers', () => {
 					cameraTarget: [9, 9, 9],
 					fov: 30
 				}
-			]
+			],
+			framingEnvelope: {
+				forward: { enterStart: 0.1, enterEnd: 0.2, exitStart: 0.8, exitEnd: 0.9 },
+				reverse: { enterStart: 0, enterEnd: 0.25, exitStart: 0.75, exitEnd: 1 }
+			}
 		};
 		expect(syncReverseViewTrackFromForward(connection)).toBe(true);
 		expect(connection.viewTracks.reverse).toHaveLength(2);
@@ -207,5 +211,9 @@ describe('editor camera view helpers', () => {
 		expect(connection.viewTracks.reverse.some((keyframe) => keyframe.id === 'stale-reverse')).toBe(
 			false
 		);
+		expect(connection.viewTracks.framingEnvelope).toEqual({
+			forward: { enterStart: 0.1, enterEnd: 0.2, exitStart: 0.8, exitEnd: 0.9 },
+			reverse: { enterStart: 0, enterEnd: 0.25, exitStart: 0.75, exitEnd: 1 }
+		});
 	});
 });

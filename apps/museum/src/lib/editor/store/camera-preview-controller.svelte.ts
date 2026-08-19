@@ -113,7 +113,10 @@ function cloneResolvedCameraRoute(route: ResolvedCameraRoute): ResolvedCameraRou
 							end: {
 								cameraTarget: cloneRoutePoint(edge.viewTrack.end.cameraTarget),
 								fov: edge.viewTrack.end.fov
-							}
+							},
+							...(edge.viewTrack.framingEnvelope === undefined
+								? {}
+								: { framingEnvelope: { ...edge.viewTrack.framingEnvelope } })
 						}
 				  }),
 			...(edge.automaticTargetPoints === undefined

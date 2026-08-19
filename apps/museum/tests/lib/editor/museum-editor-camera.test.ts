@@ -1422,6 +1422,9 @@ describe('MuseumEditorStore camera view authoring', () => {
 		store.previewSelectedConnection('forward', 'director');
 		store.setCameraPreviewPlayhead(0.5);
 		store.addViewKeyframeAtPlayhead();
+		store.selectedConnection!.viewTracks!.framingEnvelope = {
+			forward: { enterStart: 0.1, enterEnd: 0.2, exitStart: 0.8, exitEnd: 0.9 }
+		};
 		const selection = store.navigationSelection;
 		if (selection?.kind !== 'view-keyframe') throw new Error('Expected view selection');
 		const root = new Object3D();
@@ -1444,7 +1447,13 @@ describe('MuseumEditorStore camera view authoring', () => {
 			kind: 'connection',
 			connectionId: connection.id
 		});
-		expect(store.selectedConnection?.viewTracks).toBeUndefined();
+		expect(store.selectedConnection?.viewTracks).toEqual({
+			forward: [],
+			reverse: [],
+			framingEnvelope: {
+				forward: { enterStart: 0.1, enterEnd: 0.2, exitStart: 0.8, exitEnd: 0.9 }
+			}
+		});
 		store.unregisterViewKeyframeTargetHelperRoot(
 			selection.connectionId,
 			selection.direction,

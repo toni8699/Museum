@@ -185,6 +185,7 @@ function buildOrientedViewTrack(
   const endNode = getNode(edge.toNodeId, graph);
   const direction = edge.reversed ? 'reverse' : 'forward';
   const keyframes = edge.connection.viewTracks?.[direction] ?? [];
+  const framingEnvelope = edge.connection.viewTracks?.framingEnvelope?.[direction];
 
   return {
     start: {
@@ -200,7 +201,10 @@ function buildOrientedViewTrack(
     end: {
       cameraTarget: [...endNode.cameraTarget],
       fov: endNode.fov
-    }
+    },
+    ...(framingEnvelope === undefined
+      ? {}
+      : { framingEnvelope: { ...framingEnvelope } })
   };
 }
 

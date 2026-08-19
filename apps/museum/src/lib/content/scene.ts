@@ -6,6 +6,7 @@ import {
 import type { AssetId, AssetPlacement, SceneObjectFallback } from '$lib/types/assets';
 import type { MaterialId } from '$lib/types/materials';
 import type {
+  CameraConnectionDirection,
   CameraEasing,
   MuseumConnection,
   MuseumRoomId,
@@ -196,9 +197,19 @@ export type SceneCameraViewKeyframe = {
   easing?: CameraEasing;
 };
 
+export type CameraFramingEnvelope = {
+  enterStart: number;
+  enterEnd: number;
+  exitStart: number;
+  exitEnd: number;
+};
+
 export type SceneConnectionViewTracks = {
   forward: SceneCameraViewKeyframe[];
   reverse: SceneCameraViewKeyframe[];
+  framingEnvelope?: Partial<
+    Record<CameraConnectionDirection, CameraFramingEnvelope>
+  >;
 };
 
 export type SceneConnectionTimingPair = {
@@ -507,7 +518,20 @@ export function resolveSceneDocument(input: unknown, rooms: SceneRoomResolver): 
     if (connection.viewTracks) {
       resolved.viewTracks = {
         forward: connection.viewTracks.forward.map((keyframe) => resolveViewKeyframe(keyframe, rooms)),
-        reverse: connection.viewTracks.reverse.map((keyframe) => resolveViewKeyframe(keyframe, rooms))
+        reverse: connection.viewTracks.reverse.map((keyframe) => resolveViewKeyframe(keyframe, rooms)),
+        ...(connection.viewTracks.framingEnvelope?.forward === undefined &&
+          connection.viewTracks.framingEnvelope?.reverse === undefined
+          ? {}
+          : {
+              framingEnvelope: {
+                ...(connection.viewTracks.framingEnvelope.forward === undefined
+                  ? {}
+                  : { forward: { ...connection.viewTracks.framingEnvelope.forward } }),
+                ...(connection.viewTracks.framingEnvelope.reverse === undefined
+                  ? {}
+                  : { reverse: { ...connection.viewTracks.framingEnvelope.reverse } })
+              }
+            })
       };
     }
 

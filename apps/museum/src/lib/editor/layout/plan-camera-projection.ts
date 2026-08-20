@@ -1,12 +1,20 @@
-import { createNavigationGraph, resolveSceneDocument, type NavigationGraph } from '$lib/content/scene';
-import { createLayoutRoomRegistry } from '$lib/project/project-layout-semantics';
+import { createNavigationGraph, resolveSceneDocument, type MuseumSceneDocument, type NavigationGraph } from '$lib/content/scene';
+import { createLayoutRoomRegistry, type LayoutRoomRegistry } from '$lib/project/project-layout-semantics';
 import type { MuseumProject } from '$lib/project/project-types';
 import { getCameraConnectionRoute, getCameraMotionOptions } from '$lib/museum/navigation/camera-route';
 import type { Vector3Like } from '$lib/museum/navigation/camera-motion';
 import { projectLayoutPortalRelations, type LayoutPortalRelation } from '$lib/layout/layout-portals';
 import type { LayoutVec2 } from '$lib/layout/layout-types';
 import { geometryId, type CompiledLayoutGeometry, type LayoutGeometryIssue } from '$lib/layout/layout-geometry-types';
-import type { PlanCameraProjection } from '$lib/layout/plan-render-model';
+import type {
+	PlanCameraAuthoringAnchor,
+	PlanCameraAuthoringConnection,
+	PlanCameraAuthoringNode,
+	PlanCameraProjection,
+	PlanRenderPrimitive
+} from '$lib/layout/plan-render-model';	import { sampleDraftConnectionPath2D } from '../editor-camera-path';
+	import { formatCameraNodeLabel } from '../editor-outliner';
+	import { resolveCameraConnectionTiming } from '../camera-plan/camera-plan-timing';
 
 /**
  * Editor-side camera/tour projection. Projects the existing scene/navigation
@@ -42,6 +50,35 @@ type PlanCollisionWarning = NonNullable<PlanCameraProjection['collisionWarnings'
 type PlanTimingLabel = NonNullable<PlanCameraProjection['timingLabels']>[number];
 
 /**
+ * Camera-authoring selection input (P1.5). The viewport adapts the store's
+ * navigation selection onto this renderer-neutral shape; a view-keyframe
+ * selection carries no Camera Plan framing surface and maps to `null`.
+ */
+export type PlanCameraSelectionInput =
+	| { kind: 'node'; nodeId: string }
+	| { kind: 'connection'; connectionId: string }
+	| { kind: 'anchor'; connectionId: string; anchorId: string }
+	| null;
+
+/** Hover state, purely visual and owned by the Camera Plan viewport. */
+export type PlanCameraHoverInput =
+	| { kind: 'node'; nodeId: string }
+	| { kind: 'anchor'; connectionId: string; anchorId: string }
+	| { kind: 'edge'; connectionId: string }
+	| null;
+
+/** Transient pointer state the viewport feeds into the interaction layer. */
+export type CameraPlanTransientState = {
+	/** Connect rubber band from the resolved source node X/Z to the cursor. */
+	rubberBand: { from: LayoutVec2; to: LayoutVec2 } | null;
+	/** Add-Camera placement feedback at the cursor; `valid` = on a room floor. */
+	placementGhost: { point: LayoutVec2; valid: boolean } | null;
+};
+
+/** Screen-constant hit/placement radius in CSS px for Camera Plan gestures. */
+export const CAMERA_PLAN_HIT_RADIUS_PX = 8;
+
+/**
  * Resolve the project's scene document into the same `NavigationGraph` the
  * visitor uses, but against the editor's current (possibly edited) layout.
  */
@@ -49,6 +86,211 @@ export function resolvePlanSceneGraph(project: MuseumProject): NavigationGraph {
 	const rooms = createLayoutRoomRegistry(project.layout);
 	const scene = resolveSceneDocument(project.scene, rooms);
 	return createNavigationGraph(scene);
+}
+
+/**
+ * P1.5 — document-level resolver: the live Camera Plan surface reads
+ * `store.document` + `store.rooms` (never the boot-time layout copy). Same
+ * single scene path as the project entry: `resolveSceneDocument` +
+ * `createNavigationGraph`, nothing else.
+ */
+export function resolvePlanSceneGraphFromDocument(
+	document: MuseumSceneDocument,
+	rooms: LayoutRoomRegistry
+): NavigationGraph {
+	const scene = resolveSceneDocument(document, rooms);
+	return createNavigationGraph(scene);
+}
+
+function directionLabel(
+	fromNodeId: string,
+	toNodeId: string,
+	nodeById: ReadonlyMap<string, { id: string; label?: string }>
+) {
+	const fromLabel = formatCameraNodeLabel(
+		nodeById.get(fromNodeId)?.label,
+		fromNodeId
+	);
+	const toLabel = formatCameraNodeLabel(
+		nodeById.get(toNodeId)?.label,
+		toNodeId
+	);
+	return `${fromLabel}→${toLabel}`;
+}
+
+/**
+ * P1.5 — build the live Camera-authoring profile. Reads the draft document
+ * through the supplied room registry and emits every topology edge once (as
+ * exact shared draft-curve samples), every node at resolved world X/Z with
+ * order/free semantics, relevant interior anchors, selection/hover state, and
+ * per-direction effective timing. The returned projection carries empty tour
+ * layers and an `authoring` profile: the Camera Plan render model must assert
+ * at the model level that no cone/target/portal/framing primitives exist.
+ */
+export function buildPlanCameraAuthoringProjection(
+	document: MuseumSceneDocument,
+	rooms: LayoutRoomRegistry,
+	options: {
+		selection?: PlanCameraSelectionInput;
+		hover?: PlanCameraHoverInput;
+		mainFlowNodeIds?: readonly string[];
+		retainedConnectionIds?: ReadonlySet<string> | readonly string[];
+	} = {}
+): PlanCameraProjection {
+	const graph = resolvePlanSceneGraphFromDocument(document, rooms);
+	const selection = options.selection ?? null;
+	const hover = options.hover ?? null;
+	const orderByNodeId = new Map(
+		(options.mainFlowNodeIds ?? []).map((nodeId, index) => [nodeId, index + 1] as const)
+	);
+	const retained = new Set(options.retainedConnectionIds ?? []);
+	const nodeById = new Map(document.navigationNodes.map((node) => [node.id, node]));
+
+	const connections: PlanCameraAuthoringConnection[] = [];
+	const nodes: PlanCameraAuthoringNode[] = [];
+	const anchors: PlanCameraAuthoringAnchor[] = [];
+	const labels: PlanRenderPrimitive[] = [];
+
+	const relevantConnectionId =
+		selection?.kind === 'connection' || selection?.kind === 'anchor'
+			? selection.connectionId
+			: null;
+
+	for (const connection of graph.connections) {
+		const polyline = sampleDraftConnectionPath2D(
+			document,
+			connection.id,
+			rooms
+		);
+		const timing = [
+			resolveCameraConnectionTiming(connection.id, 'forward', graph),
+			resolveCameraConnectionTiming(connection.id, 'reverse', graph)
+		];
+		connections.push({
+			key: geometryId(['plan', 'camera-edge', connection.id]),
+			connectionId: connection.id,
+			polyline,
+			fromNodeId: connection.fromNodeId,
+			toNodeId: connection.toNodeId,
+			selected: selection?.kind === 'connection' && selection.connectionId === connection.id,
+			hovered: hover?.kind === 'edge' && hover.connectionId === connection.id,
+			retained: retained.has(connection.id),
+			timing
+		});
+
+		const midpoint: LayoutVec2 = polyline.length > 0
+			? polyline[Math.floor(polyline.length / 2)]!
+			: [0, 0];
+		for (const readout of timing) {
+			const isForward = readout.direction === 'forward';
+			const fromId = isForward ? connection.fromNodeId : connection.toNodeId;
+			const toId = isForward ? connection.toNodeId : connection.fromNodeId;
+			const durationText = Number.isFinite(readout.durationSeconds)
+				? `${readout.durationSeconds.toFixed(1)}s`
+				: '—';
+			labels.push({
+				kind: 'text',
+				key: geometryId(['plan', 'camera-timing', connection.id, readout.direction]),
+				anchor: midpoint,
+				text: `${directionLabel(fromId, toId, nodeById)} ${durationText}${readout.authoredDuration ? '' : ' auto'}`,
+				offsetPx: isForward ? [0, -16] : [0, 18],
+				style: 'camera-timing-label'
+			});
+		}
+	}
+
+	for (const node of document.navigationNodes) {
+		const world = rooms.point(node.roomId, node.position);
+		const point: LayoutVec2 = [world[0], world[2]];
+		const order = orderByNodeId.get(node.id) ?? null;
+		nodes.push({
+			key: geometryId(['plan', 'camera-node', node.id]),
+			nodeId: node.id,
+			point,
+			order,
+			selected: selection?.kind === 'node' && selection.nodeId === node.id,
+			hovered: hover?.kind === 'node' && hover.nodeId === node.id
+		});
+		if (order !== null) {
+			labels.push({
+				kind: 'text',
+				key: geometryId(['plan', 'camera-order-label', node.id]),
+				anchor: point,
+				text: String(order),
+				offsetPx: [0, 4],
+				style: 'camera-order-label'
+			});
+		} else {
+			labels.push({
+				kind: 'circle',
+				key: geometryId(['plan', 'camera-free-badge', node.id]),
+				center: point,
+				radiusPx: 15,
+				style: 'camera-free-badge'
+			});
+		}
+	}
+
+	if (relevantConnectionId !== null) {
+		const connection = document.connections.find(
+			(candidate) => candidate.id === relevantConnectionId
+		);
+		for (const anchor of connection?.positionPath.anchors ?? []) {
+			const world = anchor.roomId
+				? rooms.point(anchor.roomId, anchor.position)
+				: anchor.position;
+			const point: LayoutVec2 = [world[0], world[2]];
+			anchors.push({
+				key: geometryId(['plan', 'camera-anchor', relevantConnectionId, anchor.id]),
+				connectionId: relevantConnectionId,
+				anchorId: anchor.id,
+				point,
+				selected: selection?.kind === 'anchor' && selection.anchorId === anchor.id,
+				hovered: hover?.kind === 'anchor' && hover.anchorId === anchor.id
+			});
+		}
+	}
+
+	return {
+		paths: [],
+		viewCones: [],
+		lookTargets: [],
+		portalCrossings: [],
+		collisionWarnings: [],
+		timingLabels: [],
+		authoring: { connections, nodes, anchors, labels, interaction: [] }
+	};
+}
+
+/**
+ * P1.5 — transient Camera Plan interaction primitives (connect rubber band +
+ * Add-Camera placement feedback). Screen-constant sizing is carried as px
+ * hints for the SVG adapter, matching the layout overlay policy.
+ */
+export function buildCameraPlanTransientPrimitives(
+	transient: CameraPlanTransientState
+): PlanRenderPrimitive[] {
+	const primitives: PlanRenderPrimitive[] = [];
+	if (transient.placementGhost) {
+		primitives.push({
+			kind: 'circle',
+			key: geometryId(['plan', 'camera', 'placement-ghost']),
+			center: transient.placementGhost.point,
+			radiusPx: 8,
+			style: transient.placementGhost.valid
+				? 'camera-placement-ghost'
+				: 'camera-placement-ghost-invalid'
+		});
+	}
+	if (transient.rubberBand) {
+		primitives.push({
+			kind: 'polyline',
+			key: geometryId(['plan', 'camera', 'connect-band']),
+			points: [transient.rubberBand.from, transient.rubberBand.to],
+			style: 'camera-connect-band'
+		});
+	}
+	return primitives;
 }
 
 /**

@@ -3,34 +3,36 @@
 Template per [`../README.md`](../README.md). This is a **sliding window**:
 only the immediate previous slice (back-pointer) and the single next action
 live here. History chains backward through the tracker's depends-on column —
-shipped/next lists never accumulate.
+shipped/next lists never accumulate.## Working tree
 
-## Working tree
-
-- Current delta: **P7.4 shipped (2026-08-19)** — shared editor-shell boot
+- Current delta: **P1.5 shipped (2026-08-19)** — Camera Plan surface mounted
+  in the P1.1 Camera → Plan cell: live architectural backdrop + top-down
+  camera-graph authoring (Add Camera / Connect / XZ node+anchor drag / direct
+  path bend via existing store commands, one history entry each), exact shared
+  draft-curve projection with order/free/retained/selection visuals, node →
+  anchor → edge → empty hit priority, no-framing profile assertions,
+  bidirectional effective timing labels, Plan-only timing Inspector with
+  authored/automatic switching, workspace-specific Plan inspector authority,
+  and anchor Delete/Backspace routing. `CameraPlanPlaceholder` removed. Archived
+  brief:
+  [`../archive/plans/2026-08-19-P1.5-camera-plan-surface.md`](../archive/plans/2026-08-19-P1.5-camera-plan-surface.md).
+- Previous slice: **P7.4 shipped (2026-08-19)** — shared editor-shell boot
   composable (`useEditorShellBoot`) extracted from `MuseumEditorApp.svelte` +
   `app/EditorApp.svelte`: dirty guard (`beforeNavigate` + `beforeunload`) and
   texture-loader lifecycle; shortcut wiring stays shell-owned. Brief: §P7.4 of
   [`../plans/2026-08-19-P7-editor-facade-collapse.md`](../plans/2026-08-19-P7-editor-facade-collapse.md).
-- Previous slice: **P1.4 shipped (2026-08-19)** — dense whole-transition
-  non-degeneracy, endpoint, continuity, singularity, double-whip, seek-order,
-  and FOV-pacing acceptance matrices in `camera-motion.test.ts` plus pure
-  auto-managed/manual framing-envelope editor policy
-  (`editor-camera-framing-envelope.ts`). Archived brief:
-  [`../archive/plans/2026-08-19-P1.4-envelope-invariants-policy.md`](../archive/plans/2026-08-19-P1.4-envelope-invariants-policy.md).
-- **P1.5 implementation brief ready (2026-08-19, resumes now):**
-  [`../plans/2026-08-19-P1.5-camera-plan-surface.md`](../plans/2026-08-19-P1.5-camera-plan-surface.md).
 
 ## Next action
 
-- **One action:** implement the now-briefed **P1.5** Camera Plan surface in the
-  P1.1 shell; **P1.6** then converges both tracks with framing authoring UX bound
-  to P1.4's pure policy.
+- **One action:** implement **P1.6** — converge both tracks: framing authoring
+  UX bound to P1.4's pure envelope policy plus the Camera 3D Connection-
+  Inspector duration field (same per-direction connection timing authored in
+  P1.5).
 
 ## Verification
 
-- **1,808 tests green (1 skipped) · `svelte-check` 0 errors / 0 warnings · build
-  clean** (P7.4 closeout, 2026-08-19).
+- **1,834 tests green (1 skipped) · `svelte-check` 0 errors / 0 warnings · build
+  clean** (P1.5 closeout, 2026-08-19).
 
 ## Known bugs / deferred
 
@@ -55,9 +57,14 @@ shipped/next lists never accumulate.
   or `cancelPendingNavigation` never fires.
 - **S3 `onLayoutSelectionChanged`:** write slots only when they differ —
   unconditional writes spin `effect_update_depth_exceeded`.
-- **Camera Plan (P1.5):** the read-only backdrop must stay hit-testable for
-  placement but never commit a layout selection (old `layout > scene > camera`
-  reducer would detach the camera selection).
+- **Camera Plan (P1.5):** shipped — backdrop is hit-testable for placement but
+  never commits a layout selection; Camera Plan helpers contain no
+  `selectLayout*`/`clearLayoutSelection`/`layoutInteraction` path (source
+  asserted). `store.document` + `store.rooms` are scene truth, never the
+  boot-time `layoutPreview.project.scene` copy. The viewport rebuilds the plan
+  model from a derived projection on pointer moves (established LayoutPlanViewport
+  pattern); keep pointer-only state out of the projection so pan/zoom/hover
+  stays cheap.
 - **Camera = 3D guided PerspectiveCamera navigation**, not a webcam.
 
 ## Non-negotiables

@@ -1,9 +1,82 @@
 import { describe, expect, it } from 'vitest';
 import { chopinProject } from '$lib/content/chopin-project';
+import type { MuseumSceneDocument } from '$lib/content/scene';
 import { geometryId } from '$lib/layout/layout-geometry-types';
 import { compileLayoutGeometry } from '$lib/layout/layout-geometry';
 import { g2MultipleOpeningsDocument, g2ObjectMatrixDocument, g2SceneNavigationGraph } from '../../layout/__fixtures__/layout-g2-fixtures';
-import { buildPlanCameraProjection, resolvePlanSceneGraph } from '$lib/editor/layout/plan-camera-projection';
+import { g1DocumentWithRooms, g1RectangleRoom } from '../../layout/__fixtures__/layout-g1-fixtures';
+import { createLayoutRoomRegistry } from '$lib/project/project-layout-semantics';
+import { buildPlanRenderModel } from '$lib/layout/plan-render-model';
+import {
+	buildPlanCameraAuthoringProjection,
+	buildPlanCameraProjection,
+	resolvePlanSceneGraph,
+	resolvePlanSceneGraphFromDocument
+} from '$lib/editor/layout/plan-camera-projection';
+
+/** Minimal two-node graph over one unrotated room (room-a at 0,0 6×4). */
+function authoringDocument(): MuseumSceneDocument {
+	return {
+		textures: [],
+		materials: [],
+		entities: [],
+		navigationNodes: [
+			{
+				id: 'n-a',
+				roomId: 'room-a',
+				label: 'A',
+				position: [0, 1.6, 0],
+				cameraTarget: [3, 1.2, 0],
+				fov: 54,
+				connectedNodeIds: ['n-b']
+			},
+			{
+				id: 'n-b',
+				roomId: 'room-a',
+				label: 'B',
+				position: [6, 1.6, 0],
+				cameraTarget: [3, 1.2, 0],
+				fov: 54,
+				connectedNodeIds: ['n-a', 'n-c']
+			},
+			{
+				id: 'n-c',
+				roomId: 'room-a',
+				label: 'C',
+				position: [6, 1.6, 4],
+				cameraTarget: [3, 1.2, 4],
+				fov: 54,
+				connectedNodeIds: ['n-b']
+			}
+		],
+		connections: [
+			{
+				id: 'c-ab',
+				fromNodeId: 'n-a',
+				toNodeId: 'n-b',
+				clearance: 0.35,
+				positionPath: { kind: 'auto-bezier', anchors: [] },
+				timing: {
+					forward: { durationSeconds: 4.2, easing: 'smoothstep' }
+				}
+			},
+			{
+				id: 'c-bc',
+				fromNodeId: 'n-b',
+				toNodeId: 'n-c',
+				clearance: 0.35,
+				positionPath: {
+					kind: 'rounded-polyline',
+					anchors: [{ id: 'c-bc-anchor-01', position: [6, 1.6, 2] }]
+				}
+			}
+		]
+	};
+}
+
+function authoringRooms() {
+	return createLayoutRoomRegistry(g1DocumentWithRooms([g1RectangleRoom('room-a', 0, 0, 6, 4)]));
+}
 
 describe('buildPlanCameraProjection', () => {
 	it('projects camera paths, view cones, look targets, and timing labels', () => {
@@ -91,5 +164,152 @@ describe('resolvePlanSceneGraph', () => {
 			expect(node.position.every(Number.isFinite)).toBe(true);
 			expect(node.cameraTarget.every(Number.isFinite)).toBe(true);
 		}
+	});
+});
+
+describe('resolvePlanSceneGraphFromDocument (P1.5 document-level resolver)', () => {
+	it('resolves a live document against the supplied rooms, not a boot-time copy', () => {
+		const document = authoringDocument();
+		const rooms = authoringRooms();
+		const graph = resolvePlanSceneGraphFromDocument(document, rooms);
+		expect(graph.navigationNodes).toHaveLength(3);
+		expect(graph.connections).toHaveLength(2);
+		expect(graph.nodeById.get('n-a')!.position).toEqual([0, 1.6, 0]);
+		expect(graph.nodeById.get('n-b')!.position).toEqual([6, 1.6, 0]);
+	});
+
+	it('reflects live document edits through the same registry', () => {
+		const document = authoringDocument();
+		const rooms = authoringRooms();
+		document.navigationNodes[0]!.position = [2, 1.6, 1];
+		const graph = resolvePlanSceneGraphFromDocument(document, rooms);
+		expect(graph.nodeById.get('n-a')!.position).toEqual([2, 1.6, 1]);
+	});
+});	describe('buildPlanCameraAuthoringProjection (P1.5)', () => {
+	function authoring(overrides: {
+		selection?: NonNullable<Parameters<typeof buildPlanCameraAuthoringProjection>[2]>['selection'];
+		hover?: NonNullable<Parameters<typeof buildPlanCameraAuthoringProjection>[2]>['hover'];
+		mainFlowNodeIds?: string[];
+		retainedConnectionIds?: string[];
+	} = {}) {
+		return buildPlanCameraAuthoringProjection(authoringDocument(), authoringRooms(), {
+			selection: overrides.selection,
+			hover: overrides.hover,
+			mainFlowNodeIds: overrides.mainFlowNodeIds,
+			retainedConnectionIds: overrides.retainedConnectionIds
+		});
+	}
+
+	it('emits every topology edge once as exact shared draft-curve samples, with no arrow/cone/target primitives', () => {
+		const projection = authoring();
+		expect(projection.authoring!.connections).toHaveLength(2);
+		const ab = projection.authoring!.connections.find((c) => c.connectionId === 'c-ab')!;
+		const bc = projection.authoring!.connections.find((c) => c.connectionId === 'c-bc')!;
+		// straight auto-bézier edge: endpoints resolved from node world positions.
+		expect(ab.polyline[0]).toEqual([0, 0]);
+		expect(ab.polyline.at(-1)).toEqual([6, 0]);
+		expect(ab.polyline.length).toBeGreaterThanOrEqual(32);
+		expect(ab.polyline.length).toBeLessThanOrEqual(512);
+		for (const [x, z] of ab.polyline) {
+			expect(z).toBeCloseTo(0, 9);
+			expect(x).toBeGreaterThanOrEqual(-1e-9);
+			expect(x).toBeLessThanOrEqual(6 + 1e-9);
+		}
+		// rounded-polyline edge passes through its interior anchor's XZ.
+		expect(bc.polyline[0]).toEqual([6, 0]);
+		expect(bc.polyline.at(-1)).toEqual([6, 4]);
+		expect(bc.polyline.some(([, z]) => Math.abs(z - 2) < 0.4)).toBe(true);
+		// the authoring profile carries no tour layers.
+		expect(projection.paths).toEqual([]);
+		expect(projection.viewCones).toEqual([]);
+		expect(projection.lookTargets).toEqual([]);
+		expect(projection.portalCrossings).toEqual([]);
+		expect(projection.collisionWarnings).toEqual([]);
+		expect(projection.timingLabels).toEqual([]);
+	});
+
+	it('the Camera Plan render model asserts the profile: no cone/target/path tokens in layers 6–9', () => {
+		const { geometry } = compileLayoutGeometry(g2MultipleOpeningsDocument());
+		const model = buildPlanRenderModel(
+			geometry,
+			authoring({ mainFlowNodeIds: ['n-a', 'n-b'] })
+		);
+		const layers69 = model.layers.filter((layer) => layer.order >= 6 && layer.order <= 9);
+		const styles = layers69.flatMap((layer) => layer.primitives.map((primitive) => primitive.style));
+		expect(styles).not.toContain('view-cone');
+		expect(styles).not.toContain('look-target');
+		expect(styles).not.toContain('camera-path');
+		expect(styles).not.toContain('portal-crossing');
+		expect(styles).not.toContain('collision-warning');
+		expect(styles).not.toContain('timing-label');
+		expect(styles).toContain('camera-edge');
+		expect(styles).toContain('camera-node');
+		expect(styles).toContain('camera-node-free');
+		expect(styles).toContain('camera-order-label');
+		expect(styles).toContain('camera-timing-label');
+	});
+
+	it('orders nodes 1…N from mainFlowNodeIds and marks free nodes unnumbered', () => {
+		const projection = authoring({ mainFlowNodeIds: ['n-a', 'n-b'] });
+		const nodes = projection.authoring!.nodes;
+		expect(nodes.find((n) => n.nodeId === 'n-a')!.order).toBe(1);
+		expect(nodes.find((n) => n.nodeId === 'n-b')!.order).toBe(2);
+		expect(nodes.find((n) => n.nodeId === 'n-c')!.order).toBeNull();
+		const orderLabels = projection.authoring!.labels.filter(
+			(primitive) => primitive.style === 'camera-order-label'
+		);
+		expect(orderLabels.map((label) => (label.kind === 'text' ? label.text : ''))).toEqual(['1', '2']);
+		expect(
+			projection.authoring!.labels.some(
+				(primitive) => primitive.style === 'camera-free-badge'
+			)
+		).toBe(true);
+	});
+
+	it('carries selected/hovered state and keeps retained edges visible', () => {
+		const projection = authoring({
+			selection: { kind: 'connection', connectionId: 'c-ab' },
+			hover: { kind: 'node', nodeId: 'n-c' },
+			retainedConnectionIds: ['c-bc']
+		});
+		const ab = projection.authoring!.connections.find((c) => c.connectionId === 'c-ab')!;
+		const bc = projection.authoring!.connections.find((c) => c.connectionId === 'c-bc')!;
+		expect(ab.selected).toBe(true);
+		expect(ab.retained).toBe(false);
+		expect(bc.selected).toBe(false);
+		expect(bc.retained).toBe(true);
+		expect(projection.authoring!.nodes.find((n) => n.nodeId === 'n-c')!.hovered).toBe(true);
+	});
+
+	it('exposes interior anchors only for the relevant connection', () => {
+		const none = authoring();
+		expect(none.authoring!.anchors).toEqual([]);
+
+		const selectedConnection = authoring({ selection: { kind: 'connection', connectionId: 'c-bc' } });
+		expect(selectedConnection.authoring!.anchors).toHaveLength(1);
+		expect(selectedConnection.authoring!.anchors[0]).toMatchObject({
+			connectionId: 'c-bc',
+			anchorId: 'c-bc-anchor-01',
+			point: [6, 2]
+		});
+
+		const selectedAnchor = authoring({
+			selection: { kind: 'anchor', connectionId: 'c-bc', anchorId: 'c-bc-anchor-01' }
+		});
+		expect(selectedAnchor.authoring!.anchors[0]!.selected).toBe(true);
+	});
+
+	it('labels both directions with effective duration, authored vs automatic distinguishable', () => {
+		const projection = authoring();
+		const timingLabels = projection.authoring!.labels.filter(
+			(primitive) => primitive.style === 'camera-timing-label'
+		);
+		const abLabels = timingLabels
+			.filter((label) => label.key.includes('c-ab'))
+			.map((label) => (label.kind === 'text' ? label.text : ''));
+		expect(abLabels).toEqual([
+			expect.stringMatching(/^A→B 4\.2s$/),
+			expect.stringMatching(/^B→A .* auto$/)
+		]);
 	});
 });

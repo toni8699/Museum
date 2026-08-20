@@ -1,7 +1,11 @@
 # Museum Editor — UI Design System & Implementation Specification
 
-**Status:** proposed canonical UI implementation specification
+**Status:** canonical UI implementation specification — **ratified 2026-08-19** as
+the visual target for P3 (UI overhaul); its color system supersedes the
+S10.1.7 gold/charcoal tokens landed earlier in the working tree.
 **Scope:** technology, component stack, visual tokens, typography, iconography, panel sizing, interaction states, Scene/Camera × Plan/3D workspaces, Inspector, Asset Library, Outliner, Camera Timeline.
+**Provenance:** normalizes the generated UI concepts in [`Design-png/`](../../Design-png/)
+(repo root, `Scene/` + `Camera/`); executed by [P3](../plans/2026-08-18-P3-ui-overhaul.md).
 
 This specification translates the approved product model and generated UI concepts into concrete implementation rules. The canonical product remains a domain × view system:
 
@@ -352,21 +356,21 @@ Do not use monospace for normal numeric fields. Inter with tabular figures keeps
 
 # 7. Core color system
 
-The generated images do not provide exact CSS colors, so these become the normalized implementation tokens.
+The generated images do not provide exact CSS colors, so these become the normalized implementation tokens. All tokens use the `--editor-` prefix so the editor never collides with the host app or the `/museum` visitor.
 
 ## Dark shell
 
 ```css
---bg-app:          #071019;
---bg-panel:        #0A141F;
---bg-panel-raised: #0D1925;
---bg-control:      #0E1A26;
---bg-hover:        #142230;
---bg-selected:     #0C3766;
+--editor-bg-app:          #071019;
+--editor-bg-panel:        #0A141F;
+--editor-bg-panel-raised: #0D1925;
+--editor-bg-control:      #0E1A26;
+--editor-bg-hover:        #142230;
+--editor-bg-selected:     #0C3766;
 
---border-subtle:   #1A2936;
---border-normal:   #243544;
---border-strong:   #32485A;
+--editor-border-subtle:   #1A2936;
+--editor-border-normal:   #243544;
+--editor-border-strong:   #32485A;
 ```
 
 Keep chrome slightly blue rather than neutral charcoal.
@@ -378,20 +382,20 @@ No frosted-glass SaaS cards.
 ## Text
 
 ```css
---text-primary:    #EDF3F8;
---text-secondary:  #A7B3BF;
---text-muted:      #71808E;
---text-disabled:   #52606C;
+--editor-text-primary:    #EDF3F8;
+--editor-text-secondary:  #A7B3BF;
+--editor-text-muted:      #71808E;
+--editor-text-disabled:   #52606C;
 ```
 
 ## Primary blue
 
 ```css
---accent:          #2F8CFF;
---accent-hover:    #55A1FF;
---accent-pressed:  #1976DF;
---accent-soft:     rgba(47, 140, 255, 0.16);
---accent-border:   rgba(47, 140, 255, 0.62);
+--editor-accent:          #2F8CFF;
+--editor-accent-hover:    #55A1FF;
+--editor-accent-pressed:  #1976DF;
+--editor-accent-soft:     rgba(47, 140, 255, 0.16);
+--editor-accent-border:   rgba(47, 140, 255, 0.62);
 ```
 
 Blue means:
@@ -411,14 +415,14 @@ Do not make every clickable control blue.
 ## Semantic colors
 
 ```css
---success:         #31C985;
---success-soft:    rgba(49, 201, 133, 0.14);
+--editor-success:         #31C985;
+--editor-success-soft:    rgba(49, 201, 133, 0.14);
 
---warning:         #D9A441;
---warning-soft:    rgba(217, 164, 65, 0.14);
+--editor-warning:         #D9A441;
+--editor-warning-soft:    rgba(217, 164, 65, 0.14);
 
---danger:          #EF626C;
---danger-soft:     rgba(239, 98, 108, 0.14);
+--editor-danger:          #EF626C;
+--editor-danger-soft:     rgba(239, 98, 108, 0.14);
 ```
 
 Use green for:
@@ -440,6 +444,53 @@ Use red only for:
 * errors
 * invalid state
 
+## Alternate palette (Option B — "Vault & Lens")
+
+An optional, more distinctive palette. It is expressible through the same
+token architecture as the default blue — a theme is just a different set of
+`--editor-*` values — so both options coexist with no component changes.
+
+Concept: the editor is a dark gallery vault. Scene-domain work is warm and
+material (gallery brass — curating the collection); Camera-domain work is cool
+and optical (lens cyan — operating the camera). The accent color itself encodes
+which domain is active: warm brass in Scene, cool cyan in Camera. That is the
+single signature move of the palette; everything else stays quiet.
+
+```css
+/* Dark chrome — green-ink gallery wall, not neutral charcoal */
+--editor-bg-app:          #0E110F;
+--editor-bg-panel:        #141815;
+--editor-bg-panel-raised: #1A1F1C;
+--editor-bg-control:      #1A201C;
+--editor-bg-hover:        #1F2621;
+--editor-bg-selected:     #26331C;
+
+--editor-border-subtle:   #1D2620;
+--editor-border-normal:   #2A362E;
+--editor-border-strong:   #3B4A40;
+
+--editor-text-primary:    #F2F4EF;
+--editor-text-secondary:  #A9B3AA;
+--editor-text-muted:      #737E75;
+--editor-text-disabled:   #545E57;
+
+/* Two domain accents — the signature */
+--editor-accent-scene:    #E2B15C;  /* gallery brass → Scene selection/active */
+--editor-accent-camera:   #47C6E8;  /* lens cyan → Camera selection, framing, timeline */
+
+--editor-success:         #31C985;  /* also the free-camera ring */
+--editor-warning:         #E0764B;  /* burnt orange — kept off the brass hue */
+--editor-danger:          #EF626C;
+
+/* The bright drafting Plan surface carries the light in both themes */
+--editor-plan-bg:         #F6F2EA;
+```
+
+The domain accents split `--editor-accent` into `--editor-accent-scene` and
+`--editor-accent-camera`. Domain-agnostic chrome (focus rings, generic toggles,
+status) uses the active domain's accent; any component that still consumes the
+single default `--editor-accent` maps to the Scene accent.
+
 ---
 
 # 8. Transform-axis colors
@@ -447,9 +498,9 @@ Use red only for:
 Reserve strong RGB colors for spatial axes:
 
 ```css
---axis-x: #F05252;
---axis-y: #45C878;
---axis-z: #3B82F6;
+--editor-axis-x: #F05252;
+--editor-axis-y: #45C878;
+--editor-axis-z: #3B82F6;
 ```
 
 Use them in:
@@ -468,17 +519,17 @@ Do not use these exact saturated colors as general application decoration.
 Scene Plan and Camera Plan use a deliberately bright drafting surface against the dark shell.
 
 ```css
---plan-bg:           #F5F3EE;
---plan-grid-major:   #D2CEC5;
---plan-grid-minor:   #E4E0D9;
---plan-wall:         #625F59;
---plan-wall-fill:    #D5D1C8;
---plan-object:       #B7B2A8;
---plan-label:        #292D31;
---plan-muted:        #77766F;
---plan-measure:      #2F8CFF;
---plan-selection:    #2F8CFF;
---plan-readonly:     #92908A;
+--editor-plan-bg:           #F5F3EE;
+--editor-plan-grid-major:   #D2CEC5;
+--editor-plan-grid-minor:   #E4E0D9;
+--editor-plan-wall:         #625F59;
+--editor-plan-wall-fill:    #D5D1C8;
+--editor-plan-object:       #B7B2A8;
+--editor-plan-label:        #292D31;
+--editor-plan-muted:        #77766F;
+--editor-plan-measure:      #2F8CFF;
+--editor-plan-selection:    #2F8CFF;
+--editor-plan-readonly:     #92908A;
 ```
 
 Context objects should render around **35–55% visual strength** relative to authored architecture.
@@ -549,13 +600,13 @@ Keep chrome neutral.
 Use lane colors only inside data visualization.
 
 ```css
---timeline-path:       #2F8CFF;
---timeline-fov:        #4F9EFF;
---timeline-look:       #8C7CF3;
---timeline-roll:       #C9944B;
---timeline-envelope:   #D9A441;
---timeline-free:       #31C985;
---timeline-playhead:   #2F8CFF;
+--editor-timeline-path:       #2F8CFF;
+--editor-timeline-fov:        #4F9EFF;
+--editor-timeline-look:       #8C7CF3;
+--editor-timeline-roll:       #C9944B;
+--editor-timeline-envelope:   #D9A441;
+--editor-timeline-free:       #31C985;
+--editor-timeline-playhead:   #2F8CFF;
 ```
 
 Shots use actual muted thumbnails rather than another bright lane color.
@@ -621,13 +672,13 @@ Do not turn every Inspector section into a rounded card.
 Panel separation:
 
 ```text
-1px solid --border-subtle
+1px solid --editor-border-subtle
 ```
 
 Inputs:
 
 ```text
-1px solid --border-normal
+1px solid --editor-border-normal
 ```
 
 Focus:
@@ -745,14 +796,14 @@ secondary text
 Hover:
 
 ```text
---bg-hover
+--editor-bg-hover
 primary text
 ```
 
 Selected:
 
 ```text
---accent-soft
+--editor-accent-soft
 accent border
 white/light text
 ```
@@ -1288,18 +1339,18 @@ Resizable:
 Use CSS Grid variables:
 
 ```css
---left-panel-width
---right-panel-width
---timeline-height
+--editor-left-width
+--editor-right-width
+--editor-timeline-height
 ```
 
 Example shell:
 
 ```css
 grid-template-columns:
-  var(--left-panel-width)
+  var(--editor-left-width)
   minmax(0, 1fr)
-  var(--right-panel-width);
+  var(--editor-right-width);
 ```
 
 Do not trigger undo history when resizing UI panels.
@@ -1475,31 +1526,55 @@ Example:
 
 ```css
 :root {
-  --editor-bg: #071019;
-  --editor-panel: #0A141F;
-  --editor-border: #1A2936;
+  --editor-bg-app:          #071019;
+  --editor-bg-panel:        #0A141F;
+  --editor-bg-panel-raised: #0D1925;
+  --editor-bg-control:      #0E1A26;
+  --editor-bg-hover:        #142230;
+  --editor-bg-selected:     #0C3766;
 
-  --editor-text: #EDF3F8;
-  --editor-text-secondary: #A7B3BF;
+  --editor-border-subtle:   #1A2936;
+  --editor-border-normal:   #243544;
+  --editor-border-strong:   #32485A;
 
-  --editor-accent: #2F8CFF;
-  --editor-success: #31C985;
-  --editor-warning: #D9A441;
-  --editor-danger: #EF626C;
+  --editor-text-primary:    #EDF3F8;
+  --editor-text-secondary:  #A7B3BF;
+  --editor-text-muted:      #71808E;
+  --editor-text-disabled:   #52606C;
+
+  --editor-accent:          #2F8CFF;
+  --editor-accent-hover:    #55A1FF;
+  --editor-accent-pressed:  #1976DF;
+
+  --editor-success:         #31C985;
+  --editor-warning:         #D9A441;
+  --editor-danger:          #EF626C;
 
   --editor-radius-sm: 4px;
-  --editor-radius-md: 6px;
+  --editor-radius-md: 5px;
+  --editor-radius-lg: 7px;
 
-  --editor-appbar-height: 56px;
-  --editor-status-height: 36px;
-
-  --editor-left-width: 300px;
-  --editor-right-width: 320px;
-  --editor-timeline-height: 288px;
+  --editor-appbar-height:    56px;
+  --editor-status-height:    36px;
+  --editor-left-width:       300px;
+  --editor-right-width:      320px;
+  --editor-timeline-height:  288px;
+  --editor-timeline-collapsed: 48px;
 }
 ```
 
 Use component-scoped styles for layout details but use tokens for all shared visual decisions.
+
+### Theme switching (future expansion)
+
+Because every color is a token, switching themes is a value swap, not a
+redesign: define each palette as a `:root` / `[data-editor-theme]` block and
+flip one attribute. DOM chrome and SVG (Plan, timeline) read the tokens
+directly and theme for free. The only non-free surface is Three.js overlays
+(camera nodes, frustums, path splines), which read colors through code rather
+than CSS — full theming there needs the resolved token values threaded into
+the materials. Not required for P3; `tokens.css` is the prerequisite and P3.2
+builds it.
 
 ---
 

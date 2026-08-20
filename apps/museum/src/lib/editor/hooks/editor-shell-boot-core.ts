@@ -54,8 +54,10 @@ export type UnloadGuard = {
 
 /**
  * The dirty-gated `beforeunload` guard. `attach` registers the prevent-unload
- * listener exactly once; `detach` removes it. Both are idempotent so the
- * reactive glue can branch on dirty state without tracking its own flag.
+ * listener exactly once; `detach` removes it. Both are idempotent, so callers
+ * can attach/detach defensively without tracking their own flag — the Svelte
+ * glue creates the guard lazily inside its `$effect` and lets effect teardown
+ * remove the listener on the dirty→clean flip and on unmount.
  */
 export function createUnloadGuard(target: EventTargetLike): UnloadGuard {
 	const onBeforeUnload = (event: BeforeUnloadEvent) => {

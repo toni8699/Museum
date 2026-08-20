@@ -5,6 +5,7 @@ import type {
 	SceneConnection,
 	ScenePathAnchor
 } from '$lib/content/scene';
+import type { LayoutVec2 } from '$lib/layout/layout-types';
 import {
 	createCameraPositionPath,
 	type CameraPositionPathPart,
@@ -323,6 +324,27 @@ export function getCameraPathInsertionIndex(
 	const cumulativeLengths = path.getCurveLengths();
 	const index = cumulativeLengths.findIndex((curveEnd) => distance <= curveEnd);
 	return index < 0 ? path.curves.length - 1 : index;
+}
+
+/**
+ * Sample the exact shared draft curve onto the plan plane (world X/Z) with
+ * the existing visual sample-count policy. Used by the Camera Plan surface
+ * for display and hit testing; generated endpoints never enter scene JSON.
+ */
+export function sampleDraftConnectionPath2D(
+	document: MuseumSceneDocument,
+	connectionId: string,
+	rooms: LayoutRoomRegistry = chopinRuntime.rooms
+): LayoutVec2[] {
+	const path = createDraftConnectionPositionPath(document, connectionId, 'forward', rooms);
+	const count = getCameraPathVisualSampleCount(path);
+	const point = new Vector3();
+	const polyline: LayoutVec2[] = [];
+	for (let index = 0; index < count; index += 1) {
+		path.getPointAt(index / (count - 1), point);
+		polyline.push([point.x, point.z]);
+	}
+	return polyline;
 }
 
 export function getCameraPathVisualSampleCount(path: CurvePath<Vector3>) {

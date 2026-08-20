@@ -32,8 +32,9 @@
 	import EditorAppBar from './EditorAppBar.svelte';
 	import PlanWorkspace from './PlanWorkspace.svelte';
 	import Workspace3DView from './Workspace3DView.svelte';
-	import CameraPlanPlaceholder from './CameraPlanPlaceholder.svelte';
+	import CameraPlanWorkspace from './CameraPlanWorkspace.svelte';
 	import StatusBar from './StatusBar.svelte';
+	import { createCameraPlanState } from '$lib/editor/camera-plan/camera-plan-state.svelte';
 	import { EditorViewState } from './editor-view-state.svelte';
 	import {
 		ACTIVE_EDITOR_SELECTION_KEY,
@@ -59,6 +60,9 @@
 		// (detach-then-attach: the new domain lands, the previous one drops).
 		onSelectionActivate: () => clearLayoutSelection(layoutInteraction)
 	});
+	// P1.5 — Camera Plan session state owned here, high enough to survive the
+	// Camera Plan ↔ Camera 3D component swap and separate from Scene Plan state.
+	const cameraPlanState = createCameraPlanState();
 	// P1.1 — construct the view state before the selection store: the store's
 	// domain gate reads `viewState.domain`.
 	const viewState = new EditorViewState();
@@ -239,8 +243,8 @@
 		{#if viewState.activeView === 'plan' && viewState.domain === 'scene'}
 			<PlanWorkspace {store} {layoutPreview} {layoutInteraction} />
 		{:else if viewState.activeView === 'plan'}
-			<!-- P1.1 — Camera → Plan is a placeholder cell until P1.5. -->
-			<CameraPlanPlaceholder />
+			<!-- P1.5 — Camera → Plan is the live camera-graph authoring surface. -->
+			<CameraPlanWorkspace {store} {layoutPreview} cameraPlan={cameraPlanState} />
 		{:else}
 			<!-- explicit 3D context seam: camera authoring overlays and
 			     the bottom timeline are Camera-only; Scene stays scene chrome. -->

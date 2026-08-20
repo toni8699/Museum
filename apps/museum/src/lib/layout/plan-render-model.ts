@@ -28,6 +28,24 @@ export type PlanStyleToken =
 	| 'portal-crossing'
 	| 'collision-warning'
 	| 'timing-label'
+	// P1.5 — Camera Plan authoring tokens (live camera-graph overlay).
+	| 'camera-edge'
+	| 'camera-edge-selected'
+	| 'camera-edge-hovered'
+	| 'camera-edge-retained'
+	| 'camera-node'
+	| 'camera-node-selected'
+	| 'camera-node-hovered'
+	| 'camera-node-free'
+	| 'camera-free-badge'
+	| 'camera-anchor'
+	| 'camera-anchor-selected'
+	| 'camera-anchor-hovered'
+	| 'camera-order-label'
+	| 'camera-timing-label'
+	| 'camera-connect-band'
+	| 'camera-placement-ghost'
+	| 'camera-placement-ghost-invalid'
 	| 'selection-bounds'
 	| 'rotation-arm'
 	| 'rotation-handle'
@@ -132,6 +150,78 @@ export type PlanCameraProjection = {
 	portalCrossings?: readonly { key: string; point: LayoutVec2; openingId: string }[];
 	collisionWarnings?: readonly { key: string; point: LayoutVec2; issueCode: string }[];
 	timingLabels?: readonly { key: string; anchor: LayoutVec2; text: string; connectionId: string }[];
+	/**
+	 * P1.5 — live Camera-authoring profile. When present it replaces the tour
+	 * layers 6–9 (no view cones, look targets, portals, or tour timing labels
+	 * are emitted) and owns the transient interaction layer 10.
+	 */
+	authoring?: PlanCameraAuthoringProjection;
+};
+
+/** Per-direction effective timing readout for one undirected camera edge (P1.5). */
+export type PlanCameraDirectionTiming = {
+	direction: 'forward' | 'reverse';
+	/** Playback path length in metres from the exact per-direction CameraMotion. */
+	pathLengthMeters: number;
+	/** Effective duration in seconds (authored value or formula fallback). */
+	durationSeconds: number;
+	/** True when the connection authored `durationSeconds` for this direction. */
+	authoredDuration: boolean;
+	/** Derived `pathLengthMeters / durationSeconds`; 0 for zero-length/zero-duration paths. */
+	speedMetersPerSecond: number;
+};
+
+/** One undirected camera topology edge projected onto the plan plane (P1.5). */
+export type PlanCameraAuthoringConnection = {
+	key: string;
+	connectionId: string;
+	/** Exact shared draft-curve samples, world X/Z, once per connection. */
+	polyline: LayoutVec2[];
+	fromNodeId: string;
+	toNodeId: string;
+	selected: boolean;
+	hovered: boolean;
+	/** Authored but not used by the main flow (still visible). */
+	retained: boolean;
+	timing: readonly PlanCameraDirectionTiming[];
+};
+
+/** One camera node at its resolved world X/Z with order/free semantics (P1.5). */
+export type PlanCameraAuthoringNode = {
+	key: string;
+	nodeId: string;
+	point: LayoutVec2;
+	/** 1-based flow order, or null for a free ("not in order yet") node. */
+	order: number | null;
+	selected: boolean;
+	hovered: boolean;
+};
+
+/** One visible interior path anchor of the relevant connection (P1.5). */
+export type PlanCameraAuthoringAnchor = {
+	key: string;
+	connectionId: string;
+	anchorId: string;
+	point: LayoutVec2;
+	selected: boolean;
+	hovered: boolean;
+};
+
+/**
+ * Live Camera-authoring overlay (P1.5). Emitted by the editor-side authoring
+ * profile; `buildPlanRenderModel` maps it onto layers 6–10 in place of the
+ * tour projection. Never includes cones, targets, framing, or heading
+ * primitives.
+ */
+export type PlanCameraAuthoringProjection = {
+	connections: readonly PlanCameraAuthoringConnection[];
+	nodes: readonly PlanCameraAuthoringNode[];
+	/** Interior anchors only for the selected/relevant connection. */
+	anchors: readonly PlanCameraAuthoringAnchor[];
+	/** Order numbers, free badges, and per-direction timing readouts. */
+	labels: readonly PlanRenderPrimitive[];
+	/** Transient interaction primitives (rubber band, placement feedback). */
+	interaction: readonly PlanRenderPrimitive[];
 };
 
 /**
@@ -329,6 +419,53 @@ export function buildPlanRenderModel(
 	const viewConesAndLookTargets: PlanRenderPrimitive[] = [];
 	const portalCrossingsAndWarnings: PlanRenderPrimitive[] = [];
 	const timingLabels: PlanRenderPrimitive[] = [];
+	const authoring = camera?.authoring;
+	const cameraEdges: PlanRenderPrimitive[] = [];
+	const cameraAnchors: PlanRenderPrimitive[] = [];
+	const cameraNodes: PlanRenderPrimitive[] = [];
+
+	for (const connection of authoring?.connections ?? []) {
+		cameraEdges.push({
+			kind: 'polyline',
+			key: connection.key,
+			points: connection.polyline,
+			style: connection.retained
+				? 'camera-edge-retained'
+				: connection.selected
+					? 'camera-edge-selected'
+					: connection.hovered
+						? 'camera-edge-hovered'
+						: 'camera-edge'
+		});
+	}
+	for (const anchor of authoring?.anchors ?? []) {
+		cameraAnchors.push({
+			kind: 'circle',
+			key: anchor.key,
+			center: anchor.point,
+			radiusPx: 5,
+			style: anchor.selected
+				? 'camera-anchor-selected'
+				: anchor.hovered
+					? 'camera-anchor-hovered'
+					: 'camera-anchor'
+		});
+	}
+	for (const node of authoring?.nodes ?? []) {
+		cameraNodes.push({
+			kind: 'circle',
+			key: node.key,
+			center: node.point,
+			radiusPx: 11,
+			style: node.selected
+				? 'camera-node-selected'
+				: node.hovered
+					? 'camera-node-hovered'
+					: node.order === null
+						? 'camera-node-free'
+						: 'camera-node'
+		});
+	}
 
 	for (const path of camera?.paths ?? []) {
 		cameraPaths.push({ kind: 'polyline', key: path.key, points: path.polyline, style: 'camera-path' });
@@ -372,14 +509,18 @@ export function buildPlanRenderModel(
 		timingLabels.push({ kind: 'text', key: label.key, anchor: label.anchor, text: label.text, style: 'timing-label' });
 	}
 
-	layers.push({ order: 6, primitives: cameraPaths });
-	layers.push({ order: 7, primitives: viewConesAndLookTargets });
-	layers.push({ order: 8, primitives: portalCrossingsAndWarnings });
-	layers.push({ order: 9, primitives: timingLabels });
+	// P1.5 — the live Camera-authoring profile replaces the tour projection in
+	// layers 6–9 (and owns layer 10 for its transient interaction primitives),
+	// so the Camera Plan surface can never fall back to view cones, look
+	// targets, portals, warnings, or tour timing labels.
+	layers.push({ order: 6, primitives: authoring ? cameraEdges : cameraPaths });
+	layers.push({ order: 7, primitives: authoring ? cameraAnchors : viewConesAndLookTargets });
+	layers.push({ order: 8, primitives: authoring ? cameraNodes : portalCrossingsAndWarnings });
+	layers.push({ order: 9, primitives: authoring ? [...(authoring?.labels ?? [])] : timingLabels });
 
-	layers.push({ order: 10, primitives: [...(interaction?.selection ?? [])] });
-	layers.push({ order: 11, primitives: [...(interaction?.handles ?? []), ...(interaction?.drafts ?? [])] });
-	layers.push({ order: 12, primitives: [...(interaction?.labels ?? [])] });
+	layers.push({ order: 10, primitives: authoring ? [...(authoring?.interaction ?? [])] : [...(interaction?.selection ?? [])] });
+	layers.push({ order: 11, primitives: authoring ? [] : [...(interaction?.handles ?? []), ...(interaction?.drafts ?? [])] });
+	layers.push({ order: 12, primitives: authoring ? [] : [...(interaction?.labels ?? [])] });
 
 	return { layers, bounds: planBounds(compiled) };
 }

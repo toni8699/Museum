@@ -1,13 +1,13 @@
 # Museum Editor — Shell & Workspace Exposure Specification
 
-**Status:** proposed canonical shell/workspace specification
+**Status:** canonical shell/workspace specification — **ratified 2026-08-19**
 **Purpose:** codebase conformance review
 **Scope:** editor shell composition, workspace ownership, component visibility, interaction authority, persistence, and cross-workspace transitions.
 **Last amended:** 2026-08-19 — P2 Shell-A…Shell-J: Scene → Plan local authoring mode
 (Layout | Staging), mode-routed toolbar/Inspector/hit-testing, staging footprint
 states, Scene selection continuity, room-drag rule.
 
-This specification complements the visual UI specification.
+This specification complements the [visual UI specification](./Design-specs.md).
 
 The visual specification answers:
 

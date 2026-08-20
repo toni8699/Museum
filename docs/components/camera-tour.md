@@ -1,7 +1,7 @@
 # Camera and tour
 
 **Read when:** nodes, connections, paths, guided order, timeline, framing, tour preview.  
-**Last reviewed:** 2026-08-18
+**Last reviewed:** 2026-08-19
 **Deep dump (rare):** [`../archive/CAMERA_AND_LAYOUT.md`](../archive/CAMERA_AND_LAYOUT.md)
 
 ---
@@ -44,6 +44,53 @@ One exception is deliberate, not a defect: **zero-width envelope ramps**
 (`enterStart = enterEnd` or `exitStart = exitEnd`) are legal intentional steps.
 They are exempt from the smooth-ramp rate assertion; they must still be
 deterministic, finite, non-degenerate, and exact on both sides of the bound.
+
+## Camera Plan (P1.5)
+
+Camera → Plan is the live top-down camera-graph authoring surface over the
+architectural backdrop. It answers **where** cameras and paths are; framing
+stays in Camera 3D. Camera Plan reads `store.document` + `store.rooms`
+(`resolvePlanSceneGraphFromDocument`), samples the exact shared draft curve
+(`createDraftConnectionPositionPath` + the visual sample-count policy), and
+reuses every store command (`beginCameraPlacement`,
+`createPendingNavigationNodeAt`, `beginConnectExistingNodes`,
+`connectPendingNavigationNode`, `connectNavigationNodes`,
+`deleteNavigationNode`, `deleteConnection`, `setConnectionTiming`) and
+selection action (`selectNavigationNode`, `selectConnection`,
+`selectCameraConnectionDirection`, `selectAnchor`). Node/edge/connection
+selection, discovery direction, Sequence panel, timeline, and history survive
+Plan ↔ 3D; a persisted view-keyframe selection gets only a passive
+“Edit framing in Camera 3D” message.
+
+- **Backdrop:** live compiled geometry, subdued, never selectable — Camera
+  Plan contains no `selectLayout*`/`clearLayoutSelection`/`layoutInteraction`
+  path (source-asserted). Add Camera needs a room-floor hit.
+- **Hit priority:** camera node → visible interior anchor → connection curve →
+  empty (deselects the active camera selection). Tolerances are screen-px
+  constants divided by `pixelsPerMeter`.
+- **Edges:** every connection once, undirected, no arrowheads; retained
+  (non-flow) edges stay visible in a distinct style. Order changes numbering,
+  never the edge set.
+- **Order/free:** ordered nodes show stable `1…N` labels from
+  `store.mainFlowNodeIds`; free nodes show an unnumbered dashed ring and
+  “Not in order yet” in the inspector.
+- **Anchors:** interior anchors render only for the selected connection;
+  dragging an edge with no anchor inserts one at the nearest curve progress
+  (shared `getCameraPathInsertionIndex` / `insertConnectionAnchorAtWorldPoint`
+  ownership rules) then drags it. Authored node/anchor Y is preserved
+  byte-for-byte; snap adjusts X/Z only.
+- **Timing:** each edge labels both directions with the effective duration
+  (`A→B` / `B→A`), authored values distinguished from automatic fallbacks.
+  The Camera Plan connection inspector authors `durationSeconds` per direction
+  through `setConnectionTiming` (finite-positive validation, one undo step,
+  “Use automatic” removes only duration, preserving easing). Path length,
+  effective duration, and derived speed come from the exact per-direction
+  `CameraMotion` the timeline constructs — never UI-local math.
+- **History:** add, connect, delete, node drag, anchor insert/drag, and timing
+  edits each produce one scene-history entry; selection/hover/pan/zoom/toolbar
+  changes and failed/cancelled gestures produce none. Escape cancels an active
+  drag first (capture-phase, cannot fall through to pending-command
+  cancellation), then the pending navigation command, then returns to Select.
 
 Visitor: plays the open-chain order (loop derived); free nodes via BFS; transitioning = no nav; Paris = fixed eye + free-look. No ribbons on `/museum`.
 

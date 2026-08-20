@@ -435,13 +435,13 @@ the one shell-region gap — the rest of the Camera Plan content lands with P1.5
 | 6 | Scene → Plan authoring | ✅ shipped (pre-P1) |
 | 7 | Scene → 3D authoring | ✅ shipped (pre-P1) |
 | 8 | Asset-management state | deferred (not in P1) |
-| 9 | Camera → Plan surface (backdrop, X/Z, Y preserved, no framing; connection timing/duration authoring — F5) | P1.5 |
+| 9 | Camera → Plan surface (backdrop, X/Z, Y preserved, no framing; connection timing/duration authoring — F5) | ✅ P1.5 (2026-08-19) |
 | 10 | Camera → 3D (framing authority + lanes) | ✅ viewport shipped; framing lanes → P1.6–P1.7 |
 | 11 | Timeline = Camera-domain infrastructure | ✅ P1.1 |
 | 12 | Timeline exposure (heights, tour controls, lanes) | ✅ heights/controls; lanes → P1.6–P1.7 |
 | 13 | Camera shared selection across Plan/3D | ✅ P1.1 |
 | 14–15 | Domain boundaries / no leakage | ✅ P1.1 (domain gate) |
-| 16 | Toolbar ownership matrix | ✅ P1.1 (existing cells); Camera Plan toolbar → P1.5 |
+| 16 | Toolbar ownership matrix | ✅ P1.1 (existing cells); Camera Plan toolbar → ✅ P1.5 (2026-08-19) |
 | 17 | Viewport utilities | ✅ shipped |
 | 18 | Status bar | ✅ P1.1 (folded in) |
 | 19 | Workspace state persistence | ✅ P1.1 |

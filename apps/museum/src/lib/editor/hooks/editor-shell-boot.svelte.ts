@@ -10,7 +10,7 @@
  */
 
 import { beforeNavigate } from '$app/navigation';
-import { onDestroy, onMount } from 'svelte';
+import { onMount } from 'svelte';
 import {
 	computeConfirmNavigation,
 	createEditorSourceLoader,
@@ -41,12 +41,17 @@ export function useEditorShellBoot(input: {
 		return () => textureLifecycle.teardown();
 	});
 
-	const unloadGuard = createUnloadGuard(window);
+	// The beforeunload guard is created lazily inside the effect — never at
+	// component setup — so `window` is only referenced on the client, after
+	// mount. SSR-safe by construction: `$effect` never runs during server
+	// rendering, so a server render cannot touch `window`. The effect's
+	// teardown removes the listener on a dirty→clean flip and on unmount.
 	$effect(() => {
-		if (store.isDirty || layoutPreviewIsDirty(layoutPreview)) unloadGuard.attach();
-		else unloadGuard.detach();
+		if (!store.isDirty && !layoutPreviewIsDirty(layoutPreview)) return;
+		const unloadGuard = createUnloadGuard(window);
+		unloadGuard.attach();
+		return () => unloadGuard.detach();
 	});
-	onDestroy(() => unloadGuard.detach());
 
 	function confirmSceneReplacement(): boolean {
 		return !store.isDirty || window.confirm('Discard unsaved scene changes?');

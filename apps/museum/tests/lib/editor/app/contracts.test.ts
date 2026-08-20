@@ -984,19 +984,15 @@ describe('camera context contracts', () => {
 		expect(app).toContain("store.setWorkspace('camera')");
 	});
 
-	it('mounts the Camera Plan placeholder cell with no camera mutation surface', () => {
+	it('mounts the live Camera Plan workspace in the Camera → Plan cell (P1.5, placeholder gone)', () => {
 		const app = readLibSource('editor/app/EditorApp.svelte');
-		const placeholder = readLibSource('editor/app/CameraPlanPlaceholder.svelte');
-		// The center-cell matrix mounts the placeholder only for Camera → Plan.
-		expect(app).toContain('<CameraPlanPlaceholder');
+		// The center-cell matrix mounts the live authoring surface only for
+		// Camera → Plan; Scene → Plan stays PlanWorkspace.
+		expect(app).toContain('<CameraPlanWorkspace');
 		expect(app).toContain("viewState.activeView === 'plan' && viewState.domain === 'scene'");
-		// It is deliberately inert — no camera mutation surface (mirrors the
-		// PlanWorkspace no-mutator pin).
-		expect(placeholder).not.toContain('connectNavigationNodes');
-		expect(placeholder).not.toContain('beginCameraPlacement');
-		expect(placeholder).not.toContain('closeGuidedTourLoop');
-		expect(placeholder).not.toContain('deleteConnection');
-		expect(placeholder).not.toContain('updateNavigationNodePoint');
+		expect(
+			fs.existsSync(path.join(LIB_DIR, 'editor/app/CameraPlanPlaceholder.svelte'))
+		).toBe(false);
 	});
 
 	it('mounts a persistent status bar region in every workspace with no authoring actions', () => {
@@ -1257,5 +1253,50 @@ describe('cross-domain selection contracts', () => {
 		expect(store.selectedRoomId).toBeNull();
 		expect(store.navigationSelection).toBeNull();
 		expect(store.canUndo).toBe(false);
+	});
+});
+
+describe('P1.5 Camera Plan source contracts', () => {
+	it('EditorApp mounts the live Camera Plan workspace, never a placeholder', () => {
+		const editorApp = readLibSource('editor/app/EditorApp.svelte');
+		expect(editorApp).toContain('CameraPlanWorkspace');
+		expect(editorApp).toContain('createCameraPlanState');
+		expect(editorApp).not.toContain('CameraPlanPlaceholder');
+		expect(
+			fs.existsSync(path.join(LIB_DIR, 'editor/app/CameraPlanPlaceholder.svelte'))
+		).toBe(false);
+	});
+
+	it('Camera Plan helpers carry no layout-selection mutation path', () => {
+		for (const { name, source } of readAllSourceFiles('editor/camera-plan')) {
+			expect(source, `${name} contains no selectLayout*`).not.toContain('selectLayout');
+			expect(source, `${name} contains no clearLayoutSelection`).not.toContain('clearLayoutSelection');
+			expect(source, `${name} never touches layoutInteraction`).not.toContain('layoutInteraction');
+		}
+		const projection = readLibSource('editor/layout/plan-camera-projection.ts');
+		expect(projection).toContain('buildPlanCameraAuthoringProjection');
+		expect(projection).toContain('resolvePlanSceneGraphFromDocument');
+		expect(projection).not.toContain('selectLayout');
+		expect(projection).not.toContain('clearLayoutSelection');
+	});
+
+	it('keeps Camera Plan editor-only: /museum routes import no camera-plan code', () => {
+		const museum = readRouteSource('museum/+page.svelte');
+		expect(museum).not.toContain('camera-plan');
+		expect(museum).not.toContain('CameraPlan');
+		expect(museum).not.toContain('plan-camera-projection');
+	});
+
+	it('the shared Camera Delete/Backspace branch routes anchors through deleteSelectedAnchor', () => {
+		const shortcuts = readLibSource('editor/hooks/shortcuts.svelte.ts');
+		expect(shortcuts).toContain("selection?.kind === 'anchor'");
+		expect(shortcuts).toContain('store.deleteSelectedAnchor()');
+	});
+
+	it('EditorInspector routes Camera → Plan to the Plan inspector and keeps Scene Plan read-only', () => {
+		const inspector = readLibSource('editor/EditorInspector.svelte');
+		expect(inspector).toContain('CameraPlanInspector');
+		expect(inspector).toContain("const isCameraPlan = $derived(viewMode === 'plan' && domain === 'camera')");
+		expect(inspector).toContain("const readOnly = $derived(viewMode !== '3d' && !isCameraPlan)");
 	});
 });

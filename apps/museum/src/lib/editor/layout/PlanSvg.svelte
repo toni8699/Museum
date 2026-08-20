@@ -23,7 +23,25 @@
 		'interior-anchor-selected': 'interior-anchor selected',
 		'primitive-ghost-circle': 'primitive-ghost circle',
 		'primitive-ghost-sphere': 'primitive-ghost sphere',
-		'primitive-ghost-invalid': 'primitive-ghost invalid'
+		'primitive-ghost-invalid': 'primitive-ghost invalid',
+		// P1.5 — Camera Plan authoring tokens.
+		'camera-edge': 'camera-edge',
+		'camera-edge-selected': 'camera-edge selected',
+		'camera-edge-hovered': 'camera-edge hovered',
+		'camera-edge-retained': 'camera-edge retained',
+		'camera-node': 'camera-node',
+		'camera-node-selected': 'camera-node selected',
+		'camera-node-hovered': 'camera-node hovered',
+		'camera-node-free': 'camera-node free',
+		'camera-free-badge': 'camera-free-badge',
+		'camera-anchor': 'camera-anchor',
+		'camera-anchor-selected': 'camera-anchor selected',
+		'camera-anchor-hovered': 'camera-anchor hovered',
+		'camera-order-label': 'camera-order-label',
+		'camera-timing-label': 'camera-timing-label',
+		'camera-connect-band': 'camera-connect-band',
+		'camera-placement-ghost': 'camera-placement-ghost',
+		'camera-placement-ghost-invalid': 'camera-placement-ghost invalid'
 	};
 
 	function tokenClass(style: PlanStyleToken): string {
@@ -87,6 +105,24 @@
 	.portal-crossing { fill: #77c6b0; stroke: #b8f0de; stroke-width: 1; pointer-events: none; }
 	.collision-warning { fill: #d96b6b; stroke: #efc7c7; stroke-width: 1; pointer-events: none; }
 	.timing-label { fill: #9bd8ff; font: 10px ui-monospace, monospace; paint-order: stroke; stroke: #0d0d12; stroke-width: 3px; stroke-linejoin: round; pointer-events: none; }
+	/* P1.5 — Camera Plan authoring styles (live camera-graph overlay). */
+	.camera-edge { fill: none; stroke: #9bd8ff; stroke-width: 2; vector-effect: non-scaling-stroke; }
+	.camera-edge.selected { stroke: #fff2c7; stroke-width: 3.5; }
+	.camera-edge.hovered { stroke: #cfe9ff; stroke-width: 3; }
+	.camera-edge.retained { stroke: #6d7f90; stroke-width: 2; stroke-dasharray: 5 4; }
+	.camera-node { fill: #27495f; stroke: #9bd8ff; stroke-width: 2; vector-effect: non-scaling-stroke; }
+	.camera-node.selected { fill: #d6b35f; stroke: #fff2c7; stroke-width: 3; }
+	.camera-node.hovered { fill: #33607d; stroke: #cfe9ff; stroke-width: 3; }
+	.camera-node.free { fill: #2c2c38; stroke: #b7b1a4; stroke-width: 2; stroke-dasharray: 3 3; }
+	.camera-free-badge { fill: none; stroke: #8d887f; stroke-width: 1.5; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; pointer-events: none; }
+	.camera-anchor { fill: #d6b35f; stroke: #fff2c7; stroke-width: 2; vector-effect: non-scaling-stroke; }
+	.camera-anchor.selected { fill: #fff2c7; stroke: #d6b35f; stroke-width: 2.5; }
+	.camera-anchor.hovered { fill: #f1d99a; stroke: #fff2c7; stroke-width: 2.5; }
+	.camera-order-label { fill: #fff2c7; font: 700 11px ui-monospace, monospace; text-anchor: middle; dominant-baseline: middle; paint-order: stroke; stroke: #0d0d12; stroke-width: 3px; stroke-linejoin: round; pointer-events: none; }
+	.camera-timing-label { fill: #f1d99a; font: 10px ui-monospace, monospace; text-anchor: middle; paint-order: stroke; stroke: #0d0d12; stroke-width: 3px; stroke-linejoin: round; pointer-events: none; }
+	.camera-connect-band { fill: none; stroke: #fff2c7; stroke-width: 2; stroke-dasharray: 6 4; vector-effect: non-scaling-stroke; pointer-events: none; }
+	.camera-placement-ghost { fill: rgba(214, 179, 95, 0.35); stroke: #fff2c7; stroke-width: 2; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; pointer-events: none; }
+	.camera-placement-ghost.invalid { fill: rgba(217, 107, 107, 0.3); stroke: #efc7c7; }
 	.primitive-ghost { fill: #d6b35f; fill-opacity: 0.25; stroke: #f1d99a; stroke-width: 2; stroke-dasharray: 7 4; vector-effect: non-scaling-stroke; pointer-events: none; }
 	.primitive-ghost.circle { fill: #77c6b0; stroke: #b8f0de; }
 	.primitive-ghost.sphere { fill: #aa8ed4; stroke: #e0cfff; }

@@ -142,9 +142,11 @@ function isEditableTarget(target: EventTarget | null) {
 			const deleted =
 				selection?.kind === 'node' && !store.isPendingNavigationNode(selection.nodeId)
 					? store.deleteNavigationNode(selection.nodeId)
-					: selection?.kind === 'connection'
-						? store.deleteConnection(selection.connectionId)
-						: false;
+					: selection?.kind === 'anchor'
+						? store.deleteSelectedAnchor()
+						: selection?.kind === 'connection'
+							? store.deleteConnection(selection.connectionId)
+							: false;
 			if (deleted) {
 				event.preventDefault();
 				event.stopPropagation();

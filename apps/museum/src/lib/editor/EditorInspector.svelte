@@ -6,6 +6,7 @@
 	import { tick } from 'svelte';
 	import type { EditorWorkspace } from './museum-editor.types';
 	import EditorCameraInspector from './EditorCameraInspector.svelte';
+	import CameraPlanInspector from './app/CameraPlanInspector.svelte';
 	import EditorLightInspector from './EditorLightInspector.svelte';
 	import EditorMaterialInspector from './EditorMaterialInspector.svelte';
 	import EditorPlacementInspector from './EditorPlacementInspector.svelte';
@@ -115,10 +116,12 @@
 			? activeSelection.active.domain
 			: store.currentWorkspace
 	);
-	// Plan read-only gate — Plan is layout CAD only. A scene/camera selection
-	// survives the Plan ↔ 3D switch (S3) and keeps its panel, but every
-	// non-layout mutation control must be inert while in Plan.
-	const readOnly = $derived(viewMode !== '3d');
+	// Plan authority is workspace-specific (P1.5): Camera → Plan mounts the
+	// live Camera Plan inspector (timing + X/Z authoring); Scene → Plan stays
+	// the layout-CAD read-only gate — a preserved scene/camera selection keeps
+	// its panel but every non-layout mutation control is inert.
+	const isCameraPlan = $derived(viewMode === 'plan' && domain === 'camera');
+	const readOnly = $derived(viewMode !== '3d' && !isCameraPlan);
 	const readOnlyNonLayout = $derived(readOnly && domain !== 'layout');
 	const showAssetInspector = $derived(
 		domain === 'scene' &&
@@ -667,7 +670,9 @@
 			</section>
 		{/if}
 	{:else if selectedNavigation}
-		{#if !readOnlyNonLayout}
+		{#if isCameraPlan}
+			<CameraPlanInspector {store} />
+		{:else if !readOnlyNonLayout}
 			<EditorCameraInspector {store} />
 		{/if}
 	{:else if hasPlacementSelection}

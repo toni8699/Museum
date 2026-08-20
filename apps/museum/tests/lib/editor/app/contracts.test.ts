@@ -1256,11 +1256,35 @@ describe('cross-domain selection contracts', () => {
 	});
 });
 
+describe('asset library selection contracts', () => {
+	it('an explicit Models-tab click deselects the active selection so the asset panel shows; filters never do', () => {
+		const library = readLibSource('editor/EditorAssetLibrary.svelte');
+		const sidebar = readLibSource('editor/app/EditorSidebar.svelte');
+		const app = readLibSource('editor/app/EditorApp.svelte');
+		// The explicit-click channel is distinct from `onselectionchange` (which
+		// also fires on filter-driven list changes and must never deselect a
+		// scene pick).
+		expect(library).toContain('onSelectAsset');
+		expect(library).toContain('onSelectAsset?.(asset)');
+		expect(library).toContain('onselectionchange');
+		expect(sidebar).toContain('onSelectAsset');
+		expect(app).toContain('onSelectAsset');
+		expect(app).toContain('activeSelection.deselectActive()');
+		// The relic keeps frozen behavior: no deselect-on-asset-click wiring.
+		expect(readLibSource('editor/EditorLeftSidebar.svelte')).not.toContain('onSelectAsset');
+	});
+});
+
 describe('P1.5 Camera Plan source contracts', () => {
 	it('EditorApp mounts the live Camera Plan workspace, never a placeholder', () => {
 		const editorApp = readLibSource('editor/app/EditorApp.svelte');
 		expect(editorApp).toContain('CameraPlanWorkspace');
 		expect(editorApp).toContain('createCameraPlanState');
+		// P1.5 reactivity pin: the session state must be deep-proxied via
+		// `$state`, or the viewport's pan/zoom/hover/tool mutations are
+		// invisible and the surface renders frozen (no pan/zoom, stale
+		// framing, ghost misalignment after resize).
+		expect(editorApp).toContain('$state(createCameraPlanState())');
 		expect(editorApp).not.toContain('CameraPlanPlaceholder');
 		expect(
 			fs.existsSync(path.join(LIB_DIR, 'editor/app/CameraPlanPlaceholder.svelte'))

@@ -60,14 +60,12 @@ export type PlanCameraSelectionInput =
 	| { kind: 'anchor'; connectionId: string; anchorId: string }
 	| null;
 
-/** Hover state, purely visual and owned by the Camera Plan viewport. */
-export type PlanCameraHoverInput =
-	| { kind: 'node'; nodeId: string }
-	| { kind: 'anchor'; connectionId: string; anchorId: string }
-	| { kind: 'edge'; connectionId: string }
-	| null;
-
-/** Transient pointer state the viewport feeds into the interaction layer. */
+/**
+ * Transient pointer state the viewport feeds into the interaction layer.
+ * Hover is presentation-only and applied post-model (`applyCameraPlanHover`),
+ * never fed into the document-driven projection. `CameraPlanHit` is the hover
+ * identity shape (see `camera-plan/camera-plan-hit.ts`).
+ */
 export type CameraPlanTransientState = {
 	/** Connect rubber band from the resolved source node X/Z to the cursor. */
 	rubberBand: { from: LayoutVec2; to: LayoutVec2 } | null;
@@ -122,8 +120,10 @@ function directionLabel(
  * P1.5 — build the live Camera-authoring profile. Reads the draft document
  * through the supplied room registry and emits every topology edge once (as
  * exact shared draft-curve samples), every node at resolved world X/Z with
- * order/free semantics, relevant interior anchors, selection/hover state, and
- * per-direction effective timing. The returned projection carries empty tour
+ * order/free semantics, relevant interior anchors, selection state, and
+ * per-direction effective timing. Hover is not a projection concern; the
+ * viewport applies it post-model via `applyCameraPlanHover` so pointer moves
+ * never re-resolve the document. The returned projection carries empty tour
  * layers and an `authoring` profile: the Camera Plan render model must assert
  * at the model level that no cone/target/portal/framing primitives exist.
  */
@@ -132,14 +132,12 @@ export function buildPlanCameraAuthoringProjection(
 	rooms: LayoutRoomRegistry,
 	options: {
 		selection?: PlanCameraSelectionInput;
-		hover?: PlanCameraHoverInput;
 		mainFlowNodeIds?: readonly string[];
 		retainedConnectionIds?: ReadonlySet<string> | readonly string[];
 	} = {}
 ): PlanCameraProjection {
 	const graph = resolvePlanSceneGraphFromDocument(document, rooms);
 	const selection = options.selection ?? null;
-	const hover = options.hover ?? null;
 	const orderByNodeId = new Map(
 		(options.mainFlowNodeIds ?? []).map((nodeId, index) => [nodeId, index + 1] as const)
 	);
@@ -173,7 +171,6 @@ export function buildPlanCameraAuthoringProjection(
 			fromNodeId: connection.fromNodeId,
 			toNodeId: connection.toNodeId,
 			selected: selection?.kind === 'connection' && selection.connectionId === connection.id,
-			hovered: hover?.kind === 'edge' && hover.connectionId === connection.id,
 			retained: retained.has(connection.id),
 			timing
 		});
@@ -208,8 +205,7 @@ export function buildPlanCameraAuthoringProjection(
 			nodeId: node.id,
 			point,
 			order,
-			selected: selection?.kind === 'node' && selection.nodeId === node.id,
-			hovered: hover?.kind === 'node' && hover.nodeId === node.id
+			selected: selection?.kind === 'node' && selection.nodeId === node.id
 		});
 		if (order !== null) {
 			labels.push({
@@ -245,8 +241,7 @@ export function buildPlanCameraAuthoringProjection(
 				connectionId: relevantConnectionId,
 				anchorId: anchor.id,
 				point,
-				selected: selection?.kind === 'anchor' && selection.anchorId === anchor.id,
-				hovered: hover?.kind === 'anchor' && hover.anchorId === anchor.id
+				selected: selection?.kind === 'anchor' && selection.anchorId === anchor.id
 			});
 		}
 	}

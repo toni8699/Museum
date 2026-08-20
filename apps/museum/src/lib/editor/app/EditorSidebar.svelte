@@ -27,7 +27,8 @@
 		activeSelection,
 		viewState,
 		outlinerElement = $bindable(),
-		onAssetSelection
+		onAssetSelection,
+		onSelectAsset
 	}: {
 		store: MuseumEditorStore;
 		layoutPreview: LayoutPreviewState;
@@ -36,6 +37,7 @@
 		viewState: EditorViewState;
 		outlinerElement?: HTMLElement | null;
 		onAssetSelection?: (asset: MuseumAsset | undefined) => void;
+		onSelectAsset?: (asset: MuseumAsset) => void;
 	} = $props();
 
 	const domain = $derived(viewState.domain);
@@ -114,7 +116,7 @@
 	</div>
 	{#if showScenePanelTabs}
 		<div class="panel-content" class:panel-content--hidden={store.leftPanel !== 'assets'}>
-			<EditorAssetLibrary {store} onselectionchange={onAssetSelection} />
+			<EditorAssetLibrary {store} onselectionchange={onAssetSelection} {onSelectAsset} />
 		</div>
 	{/if}
 

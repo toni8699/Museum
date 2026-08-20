@@ -35,9 +35,9 @@
 		buildCameraPlanTransientPrimitives,
 		buildPlanCameraAuthoringProjection,
 		type CameraPlanTransientState,
-		type PlanCameraHoverInput,
 		type PlanCameraSelectionInput
 	} from '../layout/plan-camera-projection';
+	import { applyCameraPlanHover } from './camera-plan-hover';
 	import {
 		nearestPolylineProgress,
 		resolveCameraPlanHit
@@ -95,12 +95,11 @@
 
 	const authoringProjection = $derived.by(() => {
 		try {
-			return buildPlanCameraAuthoringProjection(store.document, store.rooms, {
-				selection: navigationSelectionToInput(store.navigationSelection),
-				hover: hoverToInput(cameraPlan.hover),
-				mainFlowNodeIds: store.mainFlowNodeIds,
-				retainedConnectionIds: store.flowRetainedConnectionIds
-			});
+		return buildPlanCameraAuthoringProjection(store.document, store.rooms, {
+			selection: navigationSelectionToInput(store.navigationSelection),
+			mainFlowNodeIds: store.mainFlowNodeIds,
+			retainedConnectionIds: store.flowRetainedConnectionIds
+		});
 		} catch (error) {
 			// Scene/layout divergence must not break the plan surface.
 			console.error('Camera Plan: authoring projection failed', error);
@@ -122,6 +121,14 @@
 			}
 		});
 	});
+	// P1.5 — hover is presentation-only and applied as a post-model token remap,
+	// so pointer moves (per-move `cameraPlan.hover` writes) never re-run the
+	// document-driven authoring projection or render-model build.
+	const hoveredModel = $derived(
+		planModel && authoringProjection?.authoring
+			? applyCameraPlanHover(planModel, authoringProjection.authoring, cameraPlan.hover)
+			: planModel
+	);
 
 	const pendingMessage = $derived.by(() => {
 		const pending = store.pendingNavigationCommand;
@@ -159,11 +166,12 @@
 		return null;
 	}
 
-	function hoverToInput(hover: CameraPlanState['hover']): PlanCameraHoverInput {
-		return hover;
-	}
-
 	onMount(() => {
+		// P1.5 — hover is session state owned at the app root, so it survives the
+		// Camera Plan ↔ 3D swap; clear it on mount (and unmount) so a leftover
+		// hover from a previous Plan session can never render after switching
+		// back to Plan before the pointer moves.
+		cameraPlan.hover = null;
 		const svg = svgElement;
 		if (!svg) return;
 		const resize = () => {
@@ -179,6 +187,7 @@
 		return () => {
 			observer.disconnect();
 			cancelDrag();
+			cameraPlan.hover = null;
 			store.setDirectPathDragCanceler(null);
 			window.removeEventListener('keydown', onKeyDown, true);
 		};
@@ -693,8 +702,8 @@
 				<text class="grid-label" x={line.start[0] + 4} y={line.start[1] + 12}>{line.value.toFixed(0)} m</text>
 			{/each}
 		{/if}
-		{#if planModel}
-			<PlanSvg model={planModel} planView={cameraPlan.planView} />
+		{#if hoveredModel}
+			<PlanSvg model={hoveredModel} planView={cameraPlan.planView} />
 		{/if}
 		<text class="scale-label" x="16" y={cameraPlan.planView.height - 18}>{scaleMeters.toFixed(2)} m / 100 px</text>
 		<line class="scale-bar" x1="16" y1={cameraPlan.planView.height - 10} x2="116" y2={cameraPlan.planView.height - 10} />

@@ -62,7 +62,10 @@
 	});
 	// P1.5 — Camera Plan session state owned here, high enough to survive the
 	// Camera Plan ↔ Camera 3D component swap and separate from Scene Plan state.
-	const cameraPlanState = createCameraPlanState();
+	// `$state` deep-proxies `planView`/`tool`/`hover` so the viewport's pan,
+	// zoom, hover, and tool mutations stay reactive (Scene Plan wraps the same
+	// way via `layoutInteraction`).
+	const cameraPlanState = $state(createCameraPlanState());
 	// P1.1 — construct the view state before the selection store: the store's
 	// domain gate reads `viewState.domain`.
 	const viewState = new EditorViewState();
@@ -229,6 +232,11 @@
 		{viewState}
 		bind:outlinerElement
 		onAssetSelection={(asset) => (selectedAsset = asset)}
+		// Explicit Models-tab click: detach the active scene selection so the
+		// asset panel (details + Place) shows immediately — browsing/filtering
+		// never fires this (only `onAssetSelection`), so a scene pick survives
+		// search. Deselection is not a document mutation — no history entry.
+		onSelectAsset={() => activeSelection.deselectActive()}
 	/>
 	<!-- svelte-ignore a11y_no_noninteractive_tabindex (the WebGL viewport owns guarded editor shortcuts) -->
 	<div

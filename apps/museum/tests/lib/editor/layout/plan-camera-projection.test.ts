@@ -188,13 +188,11 @@ describe('resolvePlanSceneGraphFromDocument (P1.5 document-level resolver)', () 
 });	describe('buildPlanCameraAuthoringProjection (P1.5)', () => {
 	function authoring(overrides: {
 		selection?: NonNullable<Parameters<typeof buildPlanCameraAuthoringProjection>[2]>['selection'];
-		hover?: NonNullable<Parameters<typeof buildPlanCameraAuthoringProjection>[2]>['hover'];
 		mainFlowNodeIds?: string[];
 		retainedConnectionIds?: string[];
 	} = {}) {
 		return buildPlanCameraAuthoringProjection(authoringDocument(), authoringRooms(), {
 			selection: overrides.selection,
-			hover: overrides.hover,
 			mainFlowNodeIds: overrides.mainFlowNodeIds,
 			retainedConnectionIds: overrides.retainedConnectionIds
 		});
@@ -266,10 +264,9 @@ describe('resolvePlanSceneGraphFromDocument (P1.5 document-level resolver)', () 
 		).toBe(true);
 	});
 
-	it('carries selected/hovered state and keeps retained edges visible', () => {
+	it('carries selected state and keeps retained edges visible (hover is post-model only)', () => {
 		const projection = authoring({
 			selection: { kind: 'connection', connectionId: 'c-ab' },
-			hover: { kind: 'node', nodeId: 'n-c' },
 			retainedConnectionIds: ['c-bc']
 		});
 		const ab = projection.authoring!.connections.find((c) => c.connectionId === 'c-ab')!;
@@ -278,7 +275,6 @@ describe('resolvePlanSceneGraphFromDocument (P1.5 document-level resolver)', () 
 		expect(ab.retained).toBe(false);
 		expect(bc.selected).toBe(false);
 		expect(bc.retained).toBe(true);
-		expect(projection.authoring!.nodes.find((n) => n.nodeId === 'n-c')!.hovered).toBe(true);
 	});
 
 	it('exposes interior anchors only for the relevant connection', () => {

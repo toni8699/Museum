@@ -17,10 +17,15 @@
 
 	let {
 		store,
-		onselectionchange
+		onselectionchange,
+		onSelectAsset
 	}: {
 		store: MuseumEditorStore;
 		onselectionchange?: (asset: MuseumAsset | undefined) => void;
+		/** Explicit Models-tab click (never filter-driven). The editor shell
+		 * uses this to detach the active scene selection so the asset panel
+		 * shows immediately. Absent on the relic — frozen legacy behavior. */
+		onSelectAsset?: (asset: MuseumAsset) => void;
 	} = $props();
 
 	const categories = [...new Set(museumAssets.map((asset) => asset.category))];
@@ -105,6 +110,9 @@
 	function selectAsset(asset: MuseumAsset) {
 		selectedAssetId = asset.id;
 		libraryTab = 'models';
+		// Explicit Models click only — `onselectionchange` also fires on
+		// filter-driven list changes, which must never deselect a scene pick.
+		onSelectAsset?.(asset);
 	}
 
 	function selectShape(item: PrimitiveLibraryItem) {

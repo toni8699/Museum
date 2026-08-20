@@ -180,7 +180,6 @@ export type PlanCameraAuthoringConnection = {
 	fromNodeId: string;
 	toNodeId: string;
 	selected: boolean;
-	hovered: boolean;
 	/** Authored but not used by the main flow (still visible). */
 	retained: boolean;
 	timing: readonly PlanCameraDirectionTiming[];
@@ -194,7 +193,6 @@ export type PlanCameraAuthoringNode = {
 	/** 1-based flow order, or null for a free ("not in order yet") node. */
 	order: number | null;
 	selected: boolean;
-	hovered: boolean;
 };
 
 /** One visible interior path anchor of the relevant connection (P1.5). */
@@ -204,7 +202,6 @@ export type PlanCameraAuthoringAnchor = {
 	anchorId: string;
 	point: LayoutVec2;
 	selected: boolean;
-	hovered: boolean;
 };
 
 /**
@@ -433,9 +430,7 @@ export function buildPlanRenderModel(
 				? 'camera-edge-retained'
 				: connection.selected
 					? 'camera-edge-selected'
-					: connection.hovered
-						? 'camera-edge-hovered'
-						: 'camera-edge'
+					: 'camera-edge'
 		});
 	}
 	for (const anchor of authoring?.anchors ?? []) {
@@ -444,11 +439,7 @@ export function buildPlanRenderModel(
 			key: anchor.key,
 			center: anchor.point,
 			radiusPx: 5,
-			style: anchor.selected
-				? 'camera-anchor-selected'
-				: anchor.hovered
-					? 'camera-anchor-hovered'
-					: 'camera-anchor'
+			style: anchor.selected ? 'camera-anchor-selected' : 'camera-anchor'
 		});
 	}
 	for (const node of authoring?.nodes ?? []) {
@@ -459,11 +450,9 @@ export function buildPlanRenderModel(
 			radiusPx: 11,
 			style: node.selected
 				? 'camera-node-selected'
-				: node.hovered
-					? 'camera-node-hovered'
-					: node.order === null
-						? 'camera-node-free'
-						: 'camera-node'
+				: node.order === null
+					? 'camera-node-free'
+					: 'camera-node'
 		});
 	}
 

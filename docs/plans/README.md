@@ -28,6 +28,28 @@ The tracker is authoritative when a plan doc's `**Status:**` drifts.
 6. Execution order is **pinned in the table's depends-on column**, not implied
    by the numbers (registration order ≠ priority).
 
+## Model routing
+
+Per-increment difficulty (1–100) and model routing live in the living
+assessment doc — [`model-assessment.md`](model-assessment.md) — not in this
+tracker. Update it as increments ship.
+
+Policy rules:
+
+- **DeepSeek V4 Flash substitution (2026-08-20):** Luna max ≈ DeepSeek V4
+  Flash. Any increment rated at **Luna difficulty (any effort)** routes to
+  **DeepSeek V4 Flash** — the Luna effort is retained as the capability
+  reference, not replaced. Sol tiers unchanged.
+- **Never route to Terra (all efforts) or Sol low** — dominated points on the
+  cost/intelligence frontier.
+- **Escalate by evidence, not habit:** start at the cheapest tier clearing the
+  required index; escalate one tier on a demonstrated capability failure,
+  sending the stronger model the original failure state (not a summary).
+- **Margin** = chosen tier index − required index. Margin 0 → escalate on
+  first failure; don't pre-pay.
+- Adjacent tiers differ 2–8% capability for 1.3–2.6× per-task cost — pay the
+  jump only when the threshold matters.
+
 ## Active
 
 | # | Plan | Status | Depends on | Doc |

@@ -47,6 +47,10 @@ deterministic, finite, non-degenerate, and exact on both sides of the bound.
 
 ## Camera Plan (P1.5)
 
+**Canonical for camera-graph authoring behavior.** Routing/chrome:
+[`shell.md`](./shell.md) · exposure MUSTs:
+[`../Design-specs/Shell-camera-workspaces.md`](../Design-specs/Shell-camera-workspaces.md) §9.
+
 Camera → Plan is the live top-down camera-graph authoring surface over the
 architectural backdrop. It answers **where** cameras and paths are; framing
 stays in Camera 3D. Camera Plan reads `store.document` + `store.rooms`

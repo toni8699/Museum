@@ -30,7 +30,7 @@ shipped/next lists never accumulate.## Working tree
 - Previous slice: **P1.6 implemented (2026-08-20)** — pure framing-authoring
   model + controller policy/history binding and the timeline band/handles +
   F1 viewMode threading + comfort diagnostics.
-  Brief: [`../plans/2026-08-20-P1.6-framing-authoring.md`](../plans/2026-08-20-P1.6-framing-authoring.md).
+  Brief: [`../archive/plans/2026-08-20-P1.6-framing-authoring.md`](../archive/plans/2026-08-20-P1.6-framing-authoring.md).
 
 ## Next action
 

@@ -27,6 +27,8 @@ The tracker is authoritative when a plan doc's `**Status:**` drifts.
    originals deleted). Only shipped/superseded docs archive.
 6. Execution order is **pinned in the table's depends-on column**, not implied
    by the numbers (registration order ≠ priority).
+7. **No narrative in this tracker.** Rows and stubs stay one line each;
+   shipped detail lives in the plan doc (archived on close), never here.
 
 ## Model routing
 
@@ -76,45 +78,14 @@ P7.3** as serial green diffs. The order is committed by the
 [2026-08-18 scope decision](archive/plans/2026-08-18-scope-decision-camera-first.md)
 (camera first, plan staging second, UI overhaul last).
 
-**P1.1 (successor domain×view shell) shipped 2026-08-18** — shell inversion
-ratified (§A); the Camera → Plan placeholder cell is ready for **P1.5** to
-mount into; the engine track **P1.2–P1.4** runs in parallel. The design-spec
-conformance mapping is **P1 §A.2** (target:
-`docs/Design-specs/Design-shell-specs.md`).
+P1 increments ship as serial green diffs; each closed brief archives with a
+one-line stub below. **P1.8** — camera sequence authoring per
+[`Camera-flow-specs.md`](../Design-specs/Camera-flow-specs.md): Unsequenced
+naming, entrance-start re-root "Set as First", per-camera preview — is the
+last P1 increment; its naming amendment already landed via P1.7 (sidebar ·
+shell spec §4 · visual spec §10, 2026-08-21).
 
-**P1.2 shipped 2026-08-18** — archived →
-[2026-08-18-P1.2-framing-envelope-serialization.md](../archive/plans/2026-08-18-P1.2-framing-envelope-serialization.md).
-
-**P1.3 shipped 2026-08-18** — archived →
-[2026-08-18-P1.3-envelope-sampler-guards.md](../archive/plans/2026-08-18-P1.3-envelope-sampler-guards.md).
-**P1.4 shipped 2026-08-19** — archived →
-[2026-08-19-P1.4-envelope-invariants-policy.md](../archive/plans/2026-08-19-P1.4-envelope-invariants-policy.md).
-The engine track (P1.2–P1.4) is complete; **P7.4 shipped 2026-08-19** (Option B,
-before P1.5). **P1.5 shipped 2026-08-19** — archived →
-[2026-08-19-P1.5-camera-plan-surface.md](../archive/plans/2026-08-19-P1.5-camera-plan-surface.md).
-The Camera → Plan placeholder is replaced by the live top-down camera-graph
-authoring surface (Add/Connect/XZ-drag/path-bend via existing store commands,
-bidirectional effective timing labels + Plan-only timing Inspector, Y
-preserved, no framing, no layout-selection path). **P1.6** converges both
-tracks ([implementation brief](2026-08-20-P1.6-framing-authoring.md): framing
-authoring UX + Camera 3D duration controls). **P1.7 shipped 2026-08-21** —
-archived →
-[2026-08-20-P1.7-camera-ui-reconciliation.md](../archive/plans/2026-08-20-P1.7-camera-ui-reconciliation.md)
-(four-section Camera Sidebar · Sequence Inspector / Unsequenced / Connections,
-tour selector, domain-switch fade, review fixes: Camera 3D order digits +
-Unsequenced badges per shell spec "Viewport MUST show", 2D keep-mounted parity
-with 3D; manual walk owner-waived). **P1.8** (camera sequence authoring per
-[`Camera-flow-specs.md`](../Design-specs/Camera-flow-specs.md) — Unsequenced
-naming, entrance-start re-root "Set as First", per-camera preview) is the
-remaining P1 increment; P1.8's naming amendment already landed via P1.7 in the
-sidebar, the shell spec §4, and the visual spec §10 (2026-08-21).
-
-**P3 retargeted 2026-08-19:** conformance targets are the canonical specs
-[`Design-specs.md`](../Design-specs/Design-specs.md) (visual — blue token
-system **supersedes the S10.1.7 gold/charcoal**) + [`Design-shell-specs.md`](../Design-specs/Design-shell-specs.md)
-(exposure); QA ground truth is [`Design-png/`](../../Design-png/).
-
-## Archived plans (2026-08-10 → 2026-08-18)
+## Archived plans
 
 All archived: `archived → docs/archive/plans/pre-h1-letters/<file>`. Shipped
 or superseded; non-authoritative. Links are relative to `docs/plans/` unless
@@ -158,13 +129,19 @@ prefixed.
 - `archived → archive/plans/pre-h1-letters/2026-08-18-camera-framing-design-review.md`
 - `archived → archive/plans/pre-h1-letters/2026-08-15-geometry-kernel-library-review.md`
 - `archived → archive/plans/pre-h1-letters/2026-08-13-layout-viewport-switch-optimization.md`
+- `archived → ../archive/superpowers/plans/2026-08-12-layout-room-name-canonical-export.md` (letter-era implementation plan; behavior landed via the A-track layout work)
 
-**Archived (renewal era, shipped 2026-08-18):**
+**Archived (renewal era):**
 
 - `archived → archive/plans/2026-08-17-plan-system-renewal.md` (process row)
 - `archived → archive/plans/2026-08-18-scope-decision-camera-first.md`
-- `archived → archive/plans/2026-08-18-P6-editor-rename.md`
-- `archived → archive/plans/2026-08-18-P1.3-envelope-sampler-guards.md`
+- `archived → archive/plans/2026-08-18-P6-editor-rename.md` (shipped 2026-08-18)
+- `archived → archive/plans/2026-08-18-P1.2-framing-envelope-serialization.md` (shipped 2026-08-18)
+- `archived → archive/plans/2026-08-18-P1.3-envelope-sampler-guards.md` (shipped 2026-08-18)
+- `archived → archive/plans/2026-08-19-P1.4-envelope-invariants-policy.md` (shipped 2026-08-19)
+- `archived → archive/plans/2026-08-19-P1.5-camera-plan-surface.md` (shipped 2026-08-19)
+- `archived → archive/plans/2026-08-20-P1.6-framing-authoring.md` (shipped 2026-08-20)
+- `archived → archive/plans/2026-08-20-P1.7-camera-ui-reconciliation.md` (shipped 2026-08-21)
 
 **Sources:** all source content is folded into the umbrella docs (P1 §A–§D ·
 P2 §A · P4 §A · P5 §A); the original source files were deleted 2026-08-18.

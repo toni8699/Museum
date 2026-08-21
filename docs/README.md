@@ -36,7 +36,7 @@ conflicts — never "resolve" a product question by doc order.
 | Work on a surface | relevant `components/<surface>.md` (`CURRENT.md` only if it touches current work) |
 | Architecture / ownership question | [`architecture.md`](./architecture.md) → relevant component |
 | Product / design question | [`north-star.md`](./north-star.md) → relevant component |
-| UI / shell / workspace spec | [`Design-specs/Design-specs.md`](./Design-specs/Design-specs.md) (visual) · [`Design-specs/Design-shell-specs.md`](./Design-specs/Design-shell-specs.md) (exposure) |
+| UI / shell / workspace spec | [`Design-specs/Design-specs.md`](./Design-specs/Design-specs.md) (visual) · [`Design-specs/Design-shell-specs.md`](./Design-specs/Design-shell-specs.md) (global/cross-domain) · [`Shell-scene-workspaces.md`](./Design-specs/Shell-scene-workspaces.md) · [`Shell-camera-workspaces.md`](./Design-specs/Shell-camera-workspaces.md) (per-domain §6–§13) |
 | Historical question | [`archive/`](./archive/) (opt-in; nothing here is current truth) |
 
 ## Folder map
@@ -73,7 +73,7 @@ or migrated. Persistence is portable export/import only.
 
 | Surface | Contract doc | Key source |
 |---------|--------------|------------|
-| Shell / workspaces / timeline | [`components/shell.md`](./components/shell.md) · [`Design-specs/Design-shell-specs.md`](./Design-specs/Design-shell-specs.md) | `apps/museum/src/lib/editor/app/` |
+| Shell / workspaces / timeline | [`components/shell.md`](./components/shell.md) · [`Design-specs/Design-shell-specs.md`](./Design-specs/Design-shell-specs.md) (+ per-domain [`Shell-scene-workspaces.md`](./Design-specs/Shell-scene-workspaces.md) / [`Shell-camera-workspaces.md`](./Design-specs/Shell-camera-workspaces.md)) | `apps/museum/src/lib/editor/app/` |
 | Scene entities / materials / lights | [`components/scene-content.md`](./components/scene-content.md) | `apps/museum/src/lib/content/` |
 | Gizmo / placement / transforms | [`components/placement.md`](./components/placement.md) | `apps/museum/src/lib/editor/gizmo/` |
 | Camera / tour / motion | [`components/camera-tour.md`](./components/camera-tour.md) | `apps/museum/src/lib/museum/navigation/` |

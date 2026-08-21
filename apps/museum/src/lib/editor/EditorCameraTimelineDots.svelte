@@ -9,8 +9,21 @@
 	} from './editor-camera-timeline';
 	import { useCameraTimeline } from './hooks/use-camera-timeline.svelte';
 	import type { MuseumEditorStore } from './museum-editor.svelte';
+	import {
+		CAMERA_FRAMING_AUTHORING_COMFORT,
+		clampRampEdgeProgress,
+		ENVELOPE_HANDLE_LABELS,
+		ENVELOPE_HANDLE_NAMES,
+		type EnvelopeHandleName
+	} from './editor-camera-framing-authoring';
+	import {
+		cameraMotionProgressAtEdgeProgress,
+		createCameraMotionSample,
+		sampleCameraMotion
+	} from '$lib/museum/navigation/camera-motion';
+	import type { CameraFramingEnvelope } from '$lib/content/scene';
 
-	let { store }: { store: MuseumEditorStore } = $props();
+	let { store, viewMode = '3d' }: { store: MuseumEditorStore; viewMode?: 'plan' | '3d' } = $props();
 
 	type TimelineViewKeyMarker = {
 		connectionId: string;
@@ -81,6 +94,294 @@
 	}
 
 	const viewKeyMarkers = $derived(readViewKeyMarkers(timeline));
+
+	// ===================================================================
+	// P1.6 — Envelope band rendering (viewMode-gated)
+	// ===================================================================
+
+	type EnvelopeBand = {
+		connectionId: string;
+		direction: CameraConnectionDirection;
+		/** Timeline progress [0..1] for each envelope bound. */
+		enterStart: number;
+		enterEnd: number;
+		exitStart: number;
+		exitEnd: number;
+	};
+
+	const envelopeBands = $derived.by((): EnvelopeBand[] => {
+		if (viewMode !== '3d' || !timeline) return [];
+		const bands: EnvelopeBand[] = [];
+		for (const edge of timeline.edges) {
+			const direction = edgeDirection(edge);
+			const connection = store.document.connections.find(
+				(candidate) => candidate.id === edge.connectionId
+			);
+			const envelope = connection?.viewTracks?.framingEnvelope?.[direction];
+			if (!envelope) continue;
+			const enterStart = cameraTimelineProgressAtEdgeProgress(
+				timeline, edge.connectionId, direction, envelope.enterStart
+			);
+			const enterEnd = cameraTimelineProgressAtEdgeProgress(
+				timeline, edge.connectionId, direction, envelope.enterEnd
+			);
+			const exitStart = cameraTimelineProgressAtEdgeProgress(
+				timeline, edge.connectionId, direction, envelope.exitStart
+			);
+			const exitEnd = cameraTimelineProgressAtEdgeProgress(
+				timeline, edge.connectionId, direction, envelope.exitEnd
+			);
+			if (enterStart === null || enterEnd === null || exitStart === null || exitEnd === null) continue;
+			bands.push({
+				connectionId: edge.connectionId,
+				direction,
+				enterStart,
+				enterEnd,
+				exitStart,
+				exitEnd
+			});
+		}
+		return bands;
+	});
+
+	// ===================================================================
+	// P1.6 — Envelope handles (drag + keyboard, viewMode-gated)
+	// ===================================================================
+
+	type ActiveEnvelopeHandles = {
+		connectionId: string;
+		direction: CameraConnectionDirection;
+		edge: EditorCameraTimelineEdge;
+		envelope: CameraFramingEnvelope;
+		positions: Record<EnvelopeHandleName, number>;
+	};
+
+	const activeEnvelopeHandles = $derived.by((): ActiveEnvelopeHandles | null => {
+		if (viewMode !== '3d' || !timeline) return null;
+		const connectionId = store.activeCameraConnectionId;
+		if (!connectionId) return null;
+		const direction = store.activeCameraDirection;
+		const connection = store.document.connections.find(
+			(candidate) => candidate.id === connectionId
+		);
+		const envelope = connection?.viewTracks?.framingEnvelope?.[direction];
+		if (!envelope) return null;
+		const edge = timeline.edges.find(
+			(candidate) =>
+				candidate.connectionId === connectionId &&
+				edgeDirection(candidate) === direction
+		);
+		if (!edge) return null;
+		const positions = {} as Record<EnvelopeHandleName, number>;
+		for (const handle of ENVELOPE_HANDLE_NAMES) {
+			const progress = cameraTimelineProgressAtEdgeProgress(
+				timeline,
+				connectionId,
+				direction,
+				envelope[handle]
+			);
+			if (progress === null) return null;
+			positions[handle] = progress;
+		}
+		return { connectionId, direction, edge, envelope, positions };
+	});
+
+	let envelopeHandleDrag = $state<{
+		pointerId: number;
+		target: HTMLElement;
+		connectionId: string;
+		direction: CameraConnectionDirection;
+		handle: EnvelopeHandleName;
+	} | null>(null);
+
+	function isEnvelopeHandleDragging(handle: EnvelopeHandleName) {
+		return Boolean(envelopeHandleDrag && envelopeHandleDrag.handle === handle);
+	}
+
+	function releaseEnvelopeHandleCapture(active: NonNullable<typeof envelopeHandleDrag>) {
+		if (active.target.hasPointerCapture(active.pointerId)) {
+			active.target.releasePointerCapture(active.pointerId);
+		}
+	}
+
+	function cancelEnvelopeHandleDrag() {
+		const active = envelopeHandleDrag;
+		if (!active) return false;
+		envelopeHandleDrag = null;
+		releaseEnvelopeHandleCapture(active);
+		store.cancelFramingEnvelopeHandleDrag();
+		return true;
+	}
+
+	function clampOrderedHandleValue(
+		envelope: CameraFramingEnvelope,
+		handle: EnvelopeHandleName,
+		value: number
+	): number {
+		const clamped = Math.min(1, Math.max(0, value));
+		switch (handle) {
+			case 'enterStart':
+				return Math.min(clamped, envelope.enterEnd);
+			case 'enterEnd':
+				return Math.min(Math.max(clamped, envelope.enterStart), envelope.exitStart);
+			case 'exitStart':
+				return Math.min(Math.max(clamped, envelope.enterEnd), envelope.exitEnd);
+			case 'exitEnd':
+				return Math.max(clamped, envelope.exitStart);
+		}
+	}
+
+	function fixedBoundForHandle(
+		envelope: CameraFramingEnvelope,
+		handle: EnvelopeHandleName
+	): number {
+		switch (handle) {
+			case 'enterStart':
+				return envelope.enterEnd;
+			case 'enterEnd':
+				return envelope.enterStart;
+			case 'exitStart':
+				return envelope.exitEnd;
+			case 'exitEnd':
+				return envelope.exitStart;
+		}
+	}
+
+	function clampComfortRamp(
+		active: NonNullable<typeof envelopeHandleDrag>,
+		edge: EditorCameraTimelineEdge,
+		envelope: CameraFramingEnvelope,
+		proposedEdgeProgress: number
+	): number {
+		const motion = edge.motions[active.direction];
+		if (!motion) return proposedEdgeProgress;
+		const fixed = fixedBoundForHandle(envelope, active.handle);
+		if (proposedEdgeProgress === fixed) return proposedEdgeProgress;
+		const mapProgress = (p: number) =>
+			cameraMotionProgressAtEdgeProgress(motion, 0, p);
+		const sample = createCameraMotionSample();
+		const fovAt = (p: number) => {
+			sampleCameraMotion(motion, mapProgress(p), sample);
+			return sample.fov;
+		};
+		const a = Math.min(fixed, proposedEdgeProgress);
+		const b = Math.max(fixed, proposedEdgeProgress);
+		if (Math.abs(fovAt(b) - fovAt(a)) < 1e-3) return proposedEdgeProgress;
+		return clampRampEdgeProgress(
+			fixed,
+			proposedEdgeProgress,
+			mapProgress,
+			motion.durationSeconds,
+			CAMERA_FRAMING_AUTHORING_COMFORT.minFovRampSeconds
+		);
+	}
+
+	function beginEnvelopeHandleDrag(
+		event: PointerEvent,
+		connectionId: string,
+		direction: CameraConnectionDirection,
+		handle: EnvelopeHandleName
+	) {
+		if (event.button !== 0 || disabled || envelopeHandleDrag) return;
+		if (!store.beginFramingEnvelopeHandleDrag(connectionId, direction)) return;
+		const target = event.currentTarget as HTMLElement;
+		envelopeHandleDrag = { pointerId: event.pointerId, target, connectionId, direction, handle };
+		target.setPointerCapture(event.pointerId);
+		event.preventDefault();
+		event.stopPropagation();
+	}
+
+	function updateEnvelopeHandleDrag(event: PointerEvent) {
+		const active = envelopeHandleDrag;
+		if (
+			!active ||
+			event.pointerId !== active.pointerId ||
+			!timeline ||
+			!framingTrackElement
+		) {
+			return;
+		}
+		const rect = framingTrackElement.getBoundingClientRect();
+		const rulerProgress =
+			rect.width > 0 ? (event.clientX - rect.left) / rect.width : playhead;
+		const edgeProgress = cameraTimelineEdgeProgressAtProgress(
+			timeline,
+			active.connectionId,
+			active.direction,
+			rulerProgress
+		);
+		if (edgeProgress === null) return;
+		const connection = store.document.connections.find(
+			(candidate) => candidate.id === active.connectionId
+		);
+		const envelope = connection?.viewTracks?.framingEnvelope?.[active.direction];
+		const edge = timeline.edges.find(
+			(candidate) =>
+				candidate.connectionId === active.connectionId &&
+				edgeDirection(candidate) === active.direction
+		);
+		if (!envelope || !edge) return;
+		const ordered = clampOrderedHandleValue(envelope, active.handle, edgeProgress);
+		const clamped = event.altKey
+			? ordered
+			: clampComfortRamp(active, edge, envelope, ordered);
+		store.updateFramingEnvelopeHandleDrag(
+			active.connectionId,
+			active.direction,
+			active.handle,
+			clamped
+		);
+		event.preventDefault();
+		event.stopPropagation();
+	}
+
+	function commitEnvelopeHandleDrag(event: PointerEvent) {
+		const active = envelopeHandleDrag;
+		if (!active || event.pointerId !== active.pointerId || event.button !== 0) return;
+		envelopeHandleDrag = null;
+		releaseEnvelopeHandleCapture(active);
+		store.commitFramingEnvelopeHandleDrag();
+		event.preventDefault();
+		event.stopPropagation();
+	}
+
+	function cancelEnvelopeHandleDragPointer(event: PointerEvent) {
+		if (envelopeHandleDrag?.pointerId !== event.pointerId) return;
+		cancelEnvelopeHandleDrag();
+	}
+
+	function handleKeydown(
+		event: KeyboardEvent,
+		connectionId: string,
+		direction: CameraConnectionDirection,
+		handle: EnvelopeHandleName
+	) {
+		if (disabled) return;
+		const connection = store.document.connections.find(
+			(candidate) => candidate.id === connectionId
+		);
+		const envelope = connection?.viewTracks?.framingEnvelope?.[direction];
+		if (!envelope) return;
+
+		let nextValue: number;
+		if (event.key === 'Home') {
+			nextValue = clampOrderedHandleValue(envelope, handle, 0);
+		} else if (event.key === 'End') {
+			nextValue = clampOrderedHandleValue(envelope, handle, 1);
+		} else if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') {
+			const step = event.shiftKey ? 0.05 : 0.01;
+			nextValue = clampOrderedHandleValue(envelope, handle, envelope[handle] - step);
+		} else if (event.key === 'ArrowRight' || event.key === 'ArrowUp') {
+			const step = event.shiftKey ? 0.05 : 0.01;
+			nextValue = clampOrderedHandleValue(envelope, handle, envelope[handle] + step);
+		} else {
+			return;
+		}
+		event.preventDefault();
+		event.stopPropagation();
+		if (Math.abs(nextValue - envelope[handle]) < 1e-9) return;
+		store.commitEnvelopeHandle(connectionId, direction, { ...envelope, [handle]: nextValue });
+	}
 
 	function formatTime(seconds: number) {
 		const safe = Math.max(0, seconds);
@@ -269,17 +570,34 @@
 		}
 	});
 
+	$effect(() => {
+		const active = envelopeHandleDrag;
+		if (
+			active &&
+			(active.connectionId !== store.activeCameraConnectionId ||
+				active.direction !== store.activeCameraDirection)
+		) {
+			cancelEnvelopeHandleDrag();
+		}
+	});
+
 	onMount(() => {
 		const onKeyDown = (event: KeyboardEvent) => {
-			if (event.key !== 'Escape' || !cancelKeyDrag()) return;
+			if (event.key !== 'Escape') return;
+			const cancelled = cancelKeyDrag() || cancelEnvelopeHandleDrag();
+			if (!cancelled) return;
 			event.preventDefault();
 			event.stopImmediatePropagation();
 		};
-		const onBlur = () => cancelKeyDrag();
+		const onBlur = () => {
+			cancelKeyDrag();
+			cancelEnvelopeHandleDrag();
+		};
 		window.addEventListener('keydown', onKeyDown, true);
 		window.addEventListener('blur', onBlur);
 		return () => {
 			cancelKeyDrag();
+			cancelEnvelopeHandleDrag();
 			window.removeEventListener('keydown', onKeyDown, true);
 			window.removeEventListener('blur', onBlur);
 		};
@@ -342,6 +660,87 @@
 		</div>
 		<div bind:this={framingTrackElement} class="track framing-track" aria-label="Camera Framing">
 			<div class="rail"></div>
+
+			<!-- P1.6 — Envelope influence bands (viewMode === '3d' only) -->
+			{#each envelopeBands as band (`${band.connectionId}:${band.direction}`)}
+				{@const isActive = store.activeCameraConnectionId === band.connectionId && store.activeCameraDirection === band.direction}
+				<!-- Automatic region: 0 → enterStart -->
+				{#if band.enterStart > 0}
+					<div
+						class="envelope-band auto"
+						class:active-edge={isActive}
+						style={`left: 0; width: ${percent(band.enterStart)};`}
+						aria-hidden="true"
+					></div>
+				{/if}
+				<!-- Enter blend: enterStart → enterEnd -->
+				<div
+					class="envelope-band blend"
+					class:active-edge={isActive}
+					style={`left: ${percent(band.enterStart)}; width: ${percent(band.enterEnd - band.enterStart)};`}
+					aria-hidden="true"
+				></div>
+				<!-- Authored plateau: enterEnd → exitStart -->
+				{#if band.exitStart > band.enterEnd}
+					<div
+						class="envelope-band authored"
+						class:active-edge={isActive}
+						style={`left: ${percent(band.enterEnd)}; width: ${percent(band.exitStart - band.enterEnd)};`}
+						aria-hidden="true"
+					></div>
+				{/if}
+				<!-- Exit blend: exitStart → exitEnd -->
+				<div
+					class="envelope-band blend"
+					class:active-edge={isActive}
+					style={`left: ${percent(band.exitStart)}; width: ${percent(band.exitEnd - band.exitStart)};`}
+					aria-hidden="true"
+				></div>
+				<!-- Automatic region: exitEnd → 1 -->
+				{#if band.exitEnd < 1}
+					<div
+						class="envelope-band auto"
+						class:active-edge={isActive}
+						style={`left: ${percent(band.exitEnd)}; width: ${percent(1 - band.exitEnd)};`}
+						aria-hidden="true"
+					></div>
+				{/if}
+			{/each}
+
+			<!-- P1.6 — Envelope handles for the active connection+direction -->
+			{#if activeEnvelopeHandles}
+				{#each ENVELOPE_HANDLE_NAMES as handle (handle)}
+					<button
+						type="button"
+						class="envelope-handle"
+						class:dragging={isEnvelopeHandleDragging(handle)}
+						style={`left: ${percent(activeEnvelopeHandles.positions[handle])};`}
+						aria-label={ENVELOPE_HANDLE_LABELS[handle]}
+						title={ENVELOPE_HANDLE_LABELS[handle]}
+						disabled={disabled && !isEnvelopeHandleDragging(handle)}
+						onpointerdown={(event) =>
+							beginEnvelopeHandleDrag(
+								event,
+								activeEnvelopeHandles.connectionId,
+								activeEnvelopeHandles.direction,
+								handle
+							)}
+						onpointermove={updateEnvelopeHandleDrag}
+						onpointerup={commitEnvelopeHandleDrag}
+						onpointercancel={cancelEnvelopeHandleDragPointer}
+						onlostpointercapture={cancelEnvelopeHandleDragPointer}
+						onkeydown={(event) =>
+							handleKeydown(
+								event,
+								activeEnvelopeHandles.connectionId,
+								activeEnvelopeHandles.direction,
+								handle
+							)}
+						onclick={(event) => event.stopPropagation()}
+					></button>
+				{/each}
+			{/if}
+
 			{#if viewKeyMarkers.length === 0}
 				<span class="no-keys">No camera keys on visible tracks</span>
 			{/if}
@@ -398,6 +797,20 @@
 	.diamond.key.dragging { color: #fff; cursor: grabbing; text-shadow: 0 0 10px rgb(121 216 255 / 90%); }
 	.playhead { position: absolute; top: 0; bottom: 0; z-index: 2; width: 1px; transform: translateX(-0.5px); background: #e7c87a; pointer-events: none; box-shadow: 0 0 5px rgb(231 200 122 / 45%); }
 	.no-keys { position: absolute; top: 50%; left: 0.6rem; transform: translateY(-50%); color: #5f5b56; font-size: 0.6rem; }
+
+	/* P1.6 — envelope influence bands */
+	.envelope-band { position: absolute; top: 0; bottom: 0; pointer-events: none; }
+	.envelope-band.auto { background: rgb(74 72 82 / 18%); }
+	.envelope-band.blend { background: rgb(180 150 60 / 22%); }
+	.envelope-band.authored { background: rgb(200 170 70 / 35%); }
+	.envelope-band.active-edge.auto { background: rgb(74 72 82 / 28%); }
+	.envelope-band.active-edge.blend { background: rgb(200 170 70 / 30%); }
+	.envelope-band.active-edge.authored { background: rgb(214 179 95 / 45%); }
+
+	/* P1.6 — envelope handles */
+	.envelope-handle { position: absolute; top: 50%; z-index: 4; width: 0.6rem; height: 1.5rem; transform: translate(-50%, -50%); padding: 0; border: 1px solid #d6b35f; border-radius: 2px; background: #2a2618; cursor: ew-resize; }
+	.envelope-handle:hover:not(:disabled), .envelope-handle.dragging { border-color: #ffe08a; background: #fff2c7; }
+	.envelope-handle:disabled { opacity: 0.35; cursor: default; }
 
 	@media (max-width: 44rem) {
 		.lanes { grid-template-columns: 7rem minmax(30rem, 1fr); }

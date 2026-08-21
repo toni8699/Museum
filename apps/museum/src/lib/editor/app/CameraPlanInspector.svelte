@@ -6,7 +6,7 @@
 	import { formatCameraNodeLabel } from '../editor-outliner';
 	import { getScenePathAnchorWorldPosition } from '../editor-camera-path';
 	import { resolvePlanSceneGraphFromDocument } from '../layout/plan-camera-projection';
-	import { resolveCameraConnectionTiming } from '../camera-plan/camera-plan-timing';
+	import EditorCameraConnectionTiming from '../EditorCameraConnectionTiming.svelte';
 
 	let { store }: { store: MuseumEditorStore } = $props();
 
@@ -73,21 +73,6 @@
 			timingDirection = store.activeCameraDirection;
 		}
 	});
-
-	const timingReadout = $derived(
-		connection && graph && selection?.kind === 'connection'
-			? resolveCameraConnectionTiming(
-					connection.id,
-					timingDirection,
-					graph
-			  )
-			: null
-	);
-	const authoredDuration = $derived(
-		connection && selection?.kind === 'connection'
-			? connection.timing?.[timingDirection]?.durationSeconds !== undefined
-			: false
-	);
 
 	let labelDraft = $state('');
 	$effect(() => {
@@ -284,58 +269,17 @@
 			<div><dt>Clearance</dt><dd>{connection.clearance.toFixed(2)} m</dd></div>
 		</dl>
 
-		<section class="timing" aria-label="Connection timing">
-			<div class="section-heading">
-				<h3>Timing</h3>
-				<div class="direction-switch" role="group" aria-label="Timing direction">
-					<button
-						type="button"
-						class:active={timingDirection === 'forward'}
-						aria-pressed={timingDirection === 'forward'}
-						onclick={() => selectDirection('forward')}
-					>A→B</button>
-					<button
-						type="button"
-						class:active={timingDirection === 'reverse'}
-						aria-pressed={timingDirection === 'reverse'}
-						onclick={() => selectDirection('reverse')}
-					>B→A</button>
-				</div>
-			</div>
-			{#if timingReadout}
-				<dl>
-					<div><dt>Path length</dt><dd>{timingReadout.pathLengthMeters.toFixed(2)} m</dd></div>
-					<div>
-						<dt>Effective</dt>
-						<dd>
-							{timingReadout.durationSeconds.toFixed(2)} s
-							{#if !timingReadout.authoredDuration}<span class="auto-tag">automatic</span>{/if}
-						</dd>
-					</div>
-					<div><dt>Speed</dt><dd>{timingReadout.speedMetersPerSecond.toFixed(2)} m/s</dd></div>
-				</dl>
-				{#key `${connection.id}:${timingDirection}`}
-					<EditorNumberField
-						label="Authored duration (s)"
-						value={timingReadout.durationSeconds}
-						step={0.1}
-						min={0.01}
-						fractionDigits={2}
-						oncommit={commitDuration}
-					/>
-				{/key}
-				{#if authoredDuration}
-					<button
-						type="button"
-						class="secondary"
-						disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
-						onclick={useAutomatic}
-					>Use automatic</button>
-				{/if}
-			{:else}
-				<p class="timing-unavailable">Timing unavailable — resolve the scene first.</p>
-			{/if}
-		</section>
+		{#if graph}
+			<EditorCameraConnectionTiming
+				{connection}
+				direction={timingDirection}
+				graph={graph}
+				disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
+				oncommit={commitDuration}
+				onDirectionChange={selectDirection}
+				onUseAutomatic={useAutomatic}
+			/>
+		{/if}
 
 		<button
 			type="button"
@@ -420,9 +364,7 @@
 	.xz-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.45rem; }
 	.topology { display: grid; grid-template-columns: 1fr; gap: 0.35rem; }
 	button { padding: 0.42rem 0.4rem; border: 1px solid #3a3a46; border-radius: 0.3rem; background: #1a1a22; color: #ddd6ca; font: inherit; font-size: 0.72rem; cursor: pointer; }
-	button.active { border-color: #d6b35f; background: #2a2618; color: #fff2c7; }
 	button.danger { border-color: #744; color: #f1b1aa; }
-	button.secondary { border-color: #4a4650; color: #d6d0c4; }
 	button:disabled, input:disabled { opacity: 0.42; cursor: default; }
 	.connections { display: flex; flex-direction: column; gap: 0.45rem; padding-top: 0.4rem; border-top: 1px solid #2a2a33; }
 	.connections h3 { margin: 0; font-size: 0.78rem; letter-spacing: 0.02em; color: #d6c7a8; }
@@ -436,11 +378,5 @@
 	.partner { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.72rem; color: #f4efe4; }
 	.room { color: #918c84; font: 0.6rem/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
 	.meta { color: #918c84; font-size: 0.6rem; }
-	.timing { display: flex; flex-direction: column; gap: 0.55rem; padding: 0.6rem; border: 1px solid #34313a; border-radius: 0.4rem; background: #17171f; }
-	.timing h3 { margin: 0; font-size: 0.78rem; letter-spacing: 0.02em; color: #d6c7a8; }
-	.direction-switch { display: flex; gap: 0.25rem; }
-	.direction-switch button { padding: 0.28rem 0.45rem; font-size: 0.66rem; }
-	.auto-tag { align-self: flex-start; padding: 0.08rem 0.35rem; border: 1px dashed #6d687e; border-radius: 999px; color: #b7b1a4; font-size: 0.6rem; }
-	.timing-unavailable { margin: 0; color: #918c84; font-size: 0.68rem; }
 	.passive-note { margin: 0; padding: 0.55rem; border: 1px solid #35506e; border-radius: 0.35rem; background: #151b26; color: #b9c6d8; font-size: 0.7rem; line-height: 1.45; }
 </style>

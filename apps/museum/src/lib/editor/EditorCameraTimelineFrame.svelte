@@ -9,7 +9,7 @@
 		type MuseumEditorStore
 	} from './museum-editor.svelte';
 
-	let { store }: { store: MuseumEditorStore } = $props();
+	let { store, viewMode = '3d' }: { store: MuseumEditorStore; viewMode?: 'plan' | '3d' } = $props();
 	const expanded = $derived(store.timelineExpanded);
 	const height = $derived(
 		expanded ? store.timelineHeight : EDITOR_TIMELINE_COLLAPSED_HEIGHT
@@ -107,7 +107,7 @@
 
 	{#if expanded}
 		<div class="content">
-			<EditorCameraTimelinePanel {store} />
+			<EditorCameraTimelinePanel {store} {viewMode} />
 		</div>
 	{/if}
 </section>

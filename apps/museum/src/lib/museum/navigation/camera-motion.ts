@@ -160,6 +160,43 @@ export const CAMERA_MOTION_PATH = {
   autoBezierAlpha: 0.5
 } as const;
 
+/**
+ * F3 — Public, readonly guard-status accessor. Derived from the private compiled
+ * guard; no sampler or runtime behaviour change. The single permitted
+ * `camera-motion.ts` type/API addition for P1.6.
+ */
+export type CameraFramingGuardStatus = {
+  readonly limitsAngularRate: boolean;
+  readonly hasBypass: boolean;
+  readonly hasStandoff: boolean;
+};
+
+/**
+ * Read the compiled oriented-edge guard status for one edge view.
+ * Returns null when no authored framing envelope or guard is compiled for
+ * the requested edge.
+ */
+export function readCameraFramingGuardStatus(
+  motion: CameraMotion,
+  edgeIndex: number
+): CameraFramingGuardStatus | null {
+  if (
+    !Number.isInteger(edgeIndex) ||
+    edgeIndex < 0 ||
+    edgeIndex >= motion.edgeViews.length
+  ) {
+    return null;
+  }
+  const edgeView = motion.edgeViews[edgeIndex];
+  if (!edgeView?.guard) return null;
+  const guard = edgeView.guard;
+  return {
+    limitsAngularRate: guard.limitsAngularRate,
+    hasBypass: guard.bypass !== null,
+    hasStandoff: guard.hasStandoffDanger
+  };
+}
+
 export const CAMERA_FRAMING_GUARD_POLICY = {
   minTargetStandoffMeters: VISITOR_CAMERA_PROJECTION.near,
   targetStandoffShoulderMeters: VISITOR_CAMERA_PROJECTION.near * 2,
@@ -241,6 +278,8 @@ type CameraFramingBypass = {
 type CameraFramingGuard = {
   readonly directions: readonly CameraFramingDirectionSample[];
   readonly limitsAngularRate: boolean;
+  /** True when any sampled target distance fell below the standoff shoulder. */
+  readonly hasStandoffDanger: boolean;
   readonly bypass: CameraFramingBypass | null;
 };
 
@@ -1759,6 +1798,7 @@ function compileCameraFramingGuard(
       directionZ: limited.directions[index].z
     })),
     limitsAngularRate: limited.changed,
+    hasStandoffDanger,
     bypass
   };
 }

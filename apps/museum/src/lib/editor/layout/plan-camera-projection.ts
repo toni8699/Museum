@@ -14,7 +14,7 @@ import type {
 	PlanRenderPrimitive
 } from '$lib/layout/plan-render-model';	import { sampleDraftConnectionPath2D } from '../editor-camera-path';
 	import { formatCameraNodeLabel } from '../editor-outliner';
-	import { resolveCameraConnectionTiming } from '../camera-plan/camera-plan-timing';
+	import { resolveCameraConnectionTiming } from '../editor-camera-timing';
 
 /**
  * Editor-side camera/tour projection. Projects the existing scene/navigation

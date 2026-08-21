@@ -1,13 +1,22 @@
 <script lang="ts">
 	import type { Vec3 } from '$lib/types/museum';
+	import type { CameraConnectionDirection } from '$lib/types/museum';
 	import EditorVec3Field from './EditorVec3Field.svelte';
 	import EditorCameraFovField from './EditorCameraFovField.svelte';
 	import EditorProgressField from './EditorProgressField.svelte';
 	import EditorNumberField from './EditorNumberField.svelte';
+	import EditorCameraConnectionTiming from './EditorCameraConnectionTiming.svelte';
+	import EditorCameraFramingControls from './EditorCameraFramingControls.svelte';
 	import type { EditorCameraHandle } from './editor-selection';
 	import type { MuseumEditorStore } from './museum-editor.svelte';
 	import { getNodeConnections } from './editor-camera-connections';
 	import { formatCameraNodeLabel } from './editor-outliner';
+	import {
+		CAMERA_FOCUS_TIMING_PRESETS,
+		clampEnvelopeHandle,
+		type FocusTimingPresetName,
+		type EnvelopeHandleName
+	} from './editor-camera-framing-authoring';
 
 	let { store }: { store: MuseumEditorStore } = $props();
 
@@ -102,6 +111,70 @@
 	function finishViewKeyframeEditing() {
 		store.finishViewKeyframeEditing();
 	}
+
+	// ===================================================================
+	// P1.6 — Camera 3D framing authoring
+	// ===================================================================
+
+	/** Active direction for framing controls — from selection or preview. */
+	const framingDirection = $derived<CameraConnectionDirection>(
+		selection?.kind === 'view-keyframe'
+			? selection.direction
+			: selection?.kind === 'connection'
+				? store.activeCameraDirection
+				: 'forward'
+	);
+
+	/** Session-only envelope policy for the active connection+direction. */
+	const envelopePolicy = $derived(
+		connection
+			? store.getEnvelopePolicy(connection.id, framingDirection)
+			: null
+	);
+
+	/** Resolve a navigation graph for timing computation. */
+	const cameraGraph = $derived.by(() => {
+		try {
+			return store.resolveCameraGraph();
+		} catch {
+			return null;
+		}
+	});
+
+	function applyPreset(presetName: FocusTimingPresetName) {
+		if (!connection) return;
+		const preset = CAMERA_FOCUS_TIMING_PRESETS[presetName];
+		store.applyFocusTimingPreset(connection.id, framingDirection, preset);
+	}
+
+	function commitHandle(handle: EnvelopeHandleName, value: number) {
+		if (!connection || !envelopePolicy) return false;
+		const next = clampEnvelopeHandle(envelopePolicy.envelope, handle, value);
+		if (!next) return false;
+		return store.commitEnvelopeHandle(connection.id, framingDirection, next);
+	}
+
+	function commitTimingDuration(value: number) {
+		if (!connection || selection?.kind !== 'connection') return;
+		const timing = connection.timing?.[framingDirection];
+		store.setConnectionTiming(connection.id, framingDirection, {
+			durationSeconds: value,
+			...(timing?.easing !== undefined ? { easing: timing.easing } : {})
+		});
+	}
+
+	function commitTimingAutomatic() {
+		if (!connection || selection?.kind !== 'connection') return;
+		const timing = connection.timing?.[framingDirection];
+		if (!timing) return;
+		if (timing.easing !== undefined) {
+			store.setConnectionTiming(connection.id, framingDirection, {
+				easing: timing.easing
+			});
+		} else {
+			store.setConnectionTiming(connection.id, framingDirection, null);
+		}
+	}
 </script>
 
 {#if selection?.kind === 'node' && node && point}
@@ -156,6 +229,7 @@
 
 		<EditorCameraFovField
 			value={node.fov}
+			showLensPresets={true}
 			disabled={store.isCameraFramingMutationBlocked || store.isEditorInteractionActive}
 			oncommit={(fov) => store.commitSelectedNodeFov(fov)}
 		/>
@@ -244,6 +318,30 @@
 			<div><dt>Forward views</dt><dd>{connection.viewTracks?.forward.length ?? 0}</dd></div>
 			<div><dt>Reverse views</dt><dd>{connection.viewTracks?.reverse.length ?? 0}</dd></div>
 		</dl>
+		<!-- P1.6 — Connection-Inspector timing (shared with Camera Plan) -->
+		{#if cameraGraph}
+			<EditorCameraConnectionTiming
+				{connection}
+				direction={framingDirection}
+				graph={cameraGraph}
+				disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
+				oncommit={commitTimingDuration}
+				onDirectionChange={(d) => store.selectionActions.selectCameraConnectionDirection(connection.id, d)}
+				onUseAutomatic={commitTimingAutomatic}
+			/>
+		{/if}
+
+		<!-- P1.6 — Framing controls (presets, envelope, diagnostics, Advanced) -->
+		<EditorCameraFramingControls
+			{connection}
+			direction={framingDirection}
+			policyState={envelopePolicy}
+			graph={cameraGraph}
+			disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
+			onPresetClick={applyPreset}
+			onHandleCommit={commitHandle}
+		/>
+
 		<button
 			type="button"
 			disabled={connection.positionPath.kind === 'auto-bezier' || store.isEditorInteractionActive || store.isDocumentMutationBlocked}
@@ -284,9 +382,22 @@
 		{/key}
 		<EditorCameraFovField
 			value={viewKeyframe.fov}
+			showLensPresets={true}
 			disabled={store.isCameraFramingMutationBlocked || store.isEditorInteractionActive}
 			oncommit={(fov) => store.commitSelectedViewKeyframeFov(fov)}
 		/>
+
+		<!-- P1.6 — Framing controls for this key's direction -->
+		<EditorCameraFramingControls
+			{connection}
+			direction={selection.direction}
+			policyState={envelopePolicy}
+			graph={cameraGraph}
+			disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
+			onPresetClick={applyPreset}
+			onHandleCommit={commitHandle}
+		/>
+
 		<div class="aim" aria-label="Aim look target">
 			<div class="section-heading">
 				<h3>Aim look target</h3>
@@ -297,14 +408,18 @@
 					value={aimYawDeg}
 					step={5}
 					fractionDigits={1}
-					oncommit={(value) => (aimYawDeg = value)}
+					oncommit={(value) => {
+						aimYawDeg = value;
+					}}
 				/>
 				<EditorNumberField
 					label="Pitch Δ (°)"
 					value={aimPitchDeg}
 					step={5}
 					fractionDigits={1}
-					oncommit={(value) => (aimPitchDeg = value)}
+					oncommit={(value) => {
+						aimPitchDeg = value;
+					}}
 				/>
 			</div>
 			<button

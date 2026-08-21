@@ -269,7 +269,7 @@
 		bind:clusterNameInput
 	/>
 	{#if viewState.domain === 'camera'}
-		<EditorCameraTimelineFrame {store} />
+		<EditorCameraTimelineFrame {store} viewMode={viewState.activeView} />
 	{/if}
 	<!-- P1.1 (design-spec §2/§18) — persistent status bar in every workspace. -->
 	<StatusBar {store} {layoutPreview} {layoutInteraction} {viewState} {activeSelection} />

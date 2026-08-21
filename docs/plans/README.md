@@ -96,7 +96,8 @@ The Camera → Plan placeholder is replaced by the live top-down camera-graph
 authoring surface (Add/Connect/XZ-drag/path-bend via existing store commands,
 bidirectional effective timing labels + Plan-only timing Inspector, Y
 preserved, no framing, no layout-selection path). **P1.6** converges both
-tracks (framing authoring UX + Camera 3D duration controls).
+tracks ([implementation brief](2026-08-20-P1.6-framing-authoring.md): framing
+authoring UX + Camera 3D duration controls).
 
 **P3 retargeted 2026-08-19:** conformance targets are the canonical specs
 [`Design-specs.md`](../Design-specs/Design-specs.md) (visual — blue token

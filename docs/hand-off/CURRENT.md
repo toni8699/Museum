@@ -5,7 +5,14 @@ only the immediate previous slice (back-pointer) and the single next action
 live here. History chains backward through the tracker's depends-on column —
 shipped/next lists never accumulate.## Working tree
 
-- Current delta: **P1.5 shipped (2026-08-19)** — Camera Plan surface mounted
+- Current delta: **P1.6 implemented (2026-08-20)** — both checkpoints landed:
+  pure framing-authoring model + controller policy/history binding (F2/F3,
+  first-key seed, auto-expand, forward↔reverse mirror, preset/handle manual
+  flips) and the timeline band/handles + F1 viewMode threading + comfort
+  diagnostics. Store/history and F3 guard-status tests added. Manual
+  acceptance scenarios still to be walked in the GUI before closeout.
+  Brief: [`../plans/2026-08-20-P1.6-framing-authoring.md`](../plans/2026-08-20-P1.6-framing-authoring.md).
+- Previous slice: **P1.5 shipped (2026-08-19)** — Camera Plan surface mounted
   in the P1.1 Camera → Plan cell: live architectural backdrop + top-down
   camera-graph authoring (Add Camera / Connect / XZ node+anchor drag / direct
   path bend via existing store commands, one history entry each), exact shared
@@ -16,23 +23,17 @@ shipped/next lists never accumulate.## Working tree
   and anchor Delete/Backspace routing. `CameraPlanPlaceholder` removed. Archived
   brief:
   [`../archive/plans/2026-08-19-P1.5-camera-plan-surface.md`](../archive/plans/2026-08-19-P1.5-camera-plan-surface.md).
-- Previous slice: **P7.4 shipped (2026-08-19)** — shared editor-shell boot
-  composable (`useEditorShellBoot`) extracted from `MuseumEditorApp.svelte` +
-  `app/EditorApp.svelte`: dirty guard (`beforeNavigate` + `beforeunload`) and
-  texture-loader lifecycle; shortcut wiring stays shell-owned. Brief: §P7.4 of
-  [`../plans/2026-08-19-P7-editor-facade-collapse.md`](../plans/2026-08-19-P7-editor-facade-collapse.md).
 
 ## Next action
 
-- **One action:** implement **P1.6** — converge both tracks: framing authoring
-  UX bound to P1.4's pure envelope policy plus the Camera 3D Connection-
-  Inspector duration field (same per-direction connection timing authored in
-  P1.5).
+- **One action:** walk the P1.6 **manual acceptance** scenarios (Camera 3D
+  presets/handles/diagnostics, Plan ⇄ 3D timing parity, Undo atomicity), then
+  archive the brief and start **P1.7** camera UI reconciliation.
 
 ## Verification
 
-- **1,834 tests green (1 skipped) · `svelte-check` 0 errors / 0 warnings · build
-  clean** (P1.5 closeout, 2026-08-19).
+- **1,888 tests green (1 skipped) · `svelte-check` 0 errors / 0 warnings ·
+  `vite build` clean** (P1.6 implementation, 2026-08-20).
 
 ## Known bugs / deferred
 

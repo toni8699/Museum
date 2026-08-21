@@ -3,6 +3,7 @@ import { Object3D } from 'three';
 import { cloneFixtureDocument } from '../content/__fixtures__/load-fixture-scene';
 import {
 	assertNavigationGraphMatchesScene,
+	type CameraFramingEnvelope,
 	type MuseumSceneDocument,
 	type SceneNavigationNode
 } from '$lib/content/scene';
@@ -37,6 +38,10 @@ import {
 	createRelicFixtureEditorStore,
 	FIXTURE_GUIDED_ORDER
 } from './editor-test-utils';
+import {
+	CAMERA_FOCUS_TIMING_PRESETS,
+	mirrorFramingEnvelope
+} from '$lib/editor/editor-camera-framing-authoring';
 
 describe('MuseumEditorStore Phase 6 camera nodes', () => {
 	it('uses one camera selection, defaults rows to position, and avoids redundant focus', () => {
@@ -1423,7 +1428,7 @@ describe('MuseumEditorStore camera view authoring', () => {
 		store.setCameraPreviewPlayhead(0.5);
 		store.addViewKeyframeAtPlayhead();
 		store.selectedConnection!.viewTracks!.framingEnvelope = {
-			forward: { enterStart: 0.1, enterEnd: 0.2, exitStart: 0.8, exitEnd: 0.9 }
+			forward: { enterStart: 0.25, enterEnd: 0.5, exitStart: 0.75, exitEnd: 1 }
 		};
 		const selection = store.navigationSelection;
 		if (selection?.kind !== 'view-keyframe') throw new Error('Expected view selection');
@@ -1451,7 +1456,9 @@ describe('MuseumEditorStore camera view authoring', () => {
 			forward: [],
 			reverse: [],
 			framingEnvelope: {
-				forward: { enterStart: 0.1, enterEnd: 0.2, exitStart: 0.8, exitEnd: 0.9 }
+				forward: { enterStart: 0.25, enterEnd: 0.5, exitStart: 0.75, exitEnd: 1 },
+				// Forward edits mirror onto the auto-managed reverse envelope.
+				reverse: { enterStart: 0, enterEnd: 0.25, exitStart: 0.5, exitEnd: 0.75 }
 			}
 		});
 		store.unregisterViewKeyframeTargetHelperRoot(
@@ -3467,5 +3474,323 @@ describe('MuseumEditorStore Phase 3.6 history + framing-drag cleanup', () => {
 		expect(store.directFramingInteractionActive).toBe(true);
 		expect(store.statusMessage).toContain('framing drag');
 		expect(JSON.stringify(store.document)).toBe(documentBefore);
+	});
+});
+
+describe('MuseumEditorStore P1.6 framing-envelope authoring', () => {
+	function previewAt(
+		store: MuseumEditorStore,
+		direction: 'forward' | 'reverse',
+		playhead: number
+	) {
+		const connection = store.document.connections[0]!;
+		store.selectionActions.selectConnection(connection.id);
+		store.previewSelectedConnection(direction, 'director');
+		store.setCameraPreviewPlayhead(playhead);
+		return connection;
+	}
+
+	function addKey(
+		store: MuseumEditorStore,
+		direction: 'forward' | 'reverse',
+		playhead: number
+	) {
+		previewAt(store, direction, playhead);
+		expect(store.addViewKeyframeAtPlayhead()).toBe(true);
+	}
+
+	it('first forward key seeds forward + mirrored reverse envelopes in one history entry', () => {
+		const store = createFixtureEditorStore();
+		const connection = store.document.connections[0]!;
+		const historyBefore = store.historyVersion;
+		addKey(store, 'forward', 0.4);
+
+		const tracks = store.selectedConnection!.viewTracks!;
+		expect(store.historyVersion).toBe(historyBefore + 1);
+		expect(tracks.forward).toHaveLength(1);
+		expect(tracks.reverse).toHaveLength(1);
+		const forwardEnvelope = tracks.framingEnvelope!.forward!;
+		const reverseEnvelope = tracks.framingEnvelope!.reverse!;
+		expect(forwardEnvelope).toBeDefined();
+		expect(reverseEnvelope).toEqual(mirrorFramingEnvelope(forwardEnvelope));
+		expect(store.getEnvelopePolicy(connection.id, 'forward')?.management).toBe('auto');
+		expect(store.getEnvelopePolicy(connection.id, 'reverse')?.management).toBe('auto');
+
+		// One undo removes the key plus both derived directional envelopes.
+		expect(store.undo()).toBe(true);
+		expect(store.selectedConnection!.viewTracks).toBeUndefined();
+		expect(store.getEnvelopePolicy(connection.id, 'forward')).toBeNull();
+		expect(store.getEnvelopePolicy(connection.id, 'reverse')).toBeNull();
+	});
+
+	it('first reverse key creates only its own envelope', () => {
+		const store = createFixtureEditorStore();
+		const connection = store.document.connections[0]!;
+		addKey(store, 'reverse', 0.4);
+
+		const tracks = store.selectedConnection!.viewTracks!;
+		expect(tracks.reverse).toHaveLength(1);
+		expect(tracks.forward).toHaveLength(0);
+		expect(tracks.framingEnvelope!.reverse).toBeDefined();
+		expect(tracks.framingEnvelope!.forward).toBeUndefined();
+		expect(store.getEnvelopePolicy(connection.id, 'reverse')?.management).toBe('auto');
+		expect(store.getEnvelopePolicy(connection.id, 'forward')).toBeNull();
+	});
+
+	it('a later earlier key expands an auto envelope inside its own history entry', () => {
+		const store = createFixtureEditorStore();
+		addKey(store, 'forward', 0.6);
+		const before = { ...store.selectedConnection!.viewTracks!.framingEnvelope!.forward! };
+		const historyBefore = store.historyVersion;
+
+		addKey(store, 'forward', 0.2);
+		const after = store.selectedConnection!.viewTracks!.framingEnvelope!.forward!;
+		expect(store.historyVersion).toBe(historyBefore + 1);
+		expect(after.enterStart).toBeLessThan(before.enterStart);
+		expect(after.enterEnd).toBeLessThanOrEqual(before.enterEnd);
+	});
+
+	it('a manual preset prevents later auto expansion', () => {
+		const store = createFixtureEditorStore();
+		const connection = store.document.connections[0]!;
+		addKey(store, 'forward', 0.5);
+
+		expect(
+			store.applyFocusTimingPreset(
+				connection.id,
+				'forward',
+				CAMERA_FOCUS_TIMING_PRESETS.early
+			)
+		).toBe(true);
+		expect(store.getEnvelopePolicy(connection.id, 'forward')?.management).toBe('manual');
+		const envelope = { ...store.selectedConnection!.viewTracks!.framingEnvelope!.forward! };
+
+		addKey(store, 'forward', 0.2);
+		expect(store.selectedConnection!.viewTracks!.framingEnvelope!.forward!).toEqual(envelope);
+	});
+
+	it('centered preset contracts an auto-expanded seed and marks manual (F6)', () => {
+		const store = createFixtureEditorStore();
+		const connection = store.document.connections[0]!;
+		addKey(store, 'forward', 0.4);
+		const expanded = store.selectedConnection!.viewTracks!.framingEnvelope!.forward!;
+		// The centered seed expands so the first key reaches the plateau.
+		expect(expanded.enterEnd).toBeLessThan(
+			CAMERA_FOCUS_TIMING_PRESETS.centered.enterEnd
+		);
+
+		expect(
+			store.applyFocusTimingPreset(
+				connection.id,
+				'forward',
+				CAMERA_FOCUS_TIMING_PRESETS.centered
+			)
+		).toBe(true);
+		expect(
+			store.selectedConnection!.viewTracks!.framingEnvelope!.forward!
+		).toEqual(CAMERA_FOCUS_TIMING_PRESETS.centered);
+		expect(store.getEnvelopePolicy(connection.id, 'forward')?.management).toBe('manual');
+	});
+
+	it('a changed preset creates one entry; an equal preset creates none but stays manual', () => {
+		const store = createFixtureEditorStore();
+		const connection = store.document.connections[0]!;
+		addKey(store, 'forward', 0.5);
+		const historyBefore = store.historyVersion;
+
+		// Changed preset: one history entry and manual policy.
+		expect(
+			store.applyFocusTimingPreset(
+				connection.id,
+				'forward',
+				CAMERA_FOCUS_TIMING_PRESETS.early
+			)
+		).toBe(true);
+		expect(store.historyVersion).toBe(historyBefore + 1);
+		expect(store.getEnvelopePolicy(connection.id, 'forward')?.management).toBe('manual');
+
+		// Equal preset: no document delta, so no history entry, but still manual.
+		const historyAfter = store.historyVersion;
+		expect(
+			store.applyFocusTimingPreset(
+				connection.id,
+				'forward',
+				CAMERA_FOCUS_TIMING_PRESETS.early
+			)
+		).toBe(false);
+		expect(store.historyVersion).toBe(historyAfter);
+		expect(store.getEnvelopePolicy(connection.id, 'forward')?.management).toBe('manual');
+	});
+
+	it('manual reverse survives forward sync while auto reverse mirrors forward', () => {
+		const store = createFixtureEditorStore();
+		const connection = store.document.connections[0]!;
+		addKey(store, 'forward', 0.5);
+
+		// Auto reverse mirrors a forward preset.
+		expect(store.getEnvelopePolicy(connection.id, 'reverse')?.management).toBe('auto');
+		expect(
+			store.applyFocusTimingPreset(
+				connection.id,
+				'forward',
+				CAMERA_FOCUS_TIMING_PRESETS.early
+			)
+		).toBe(true);
+		expect(
+			store.selectedConnection!.viewTracks!.framingEnvelope!.reverse!
+		).toEqual(
+			mirrorFramingEnvelope(
+				store.selectedConnection!.viewTracks!.framingEnvelope!.forward!
+			)
+		);
+
+		// Mark reverse manual; a later forward edit preserves it.
+		const manualReverse: CameraFramingEnvelope = {
+			enterStart: 0.05,
+			enterEnd: 0.2,
+			exitStart: 1,
+			exitEnd: 1
+		};
+		expect(
+			store.applyFocusTimingPreset(connection.id, 'reverse', manualReverse)
+		).toBe(true);
+		expect(store.getEnvelopePolicy(connection.id, 'reverse')?.management).toBe('manual');
+		expect(
+			store.applyFocusTimingPreset(
+				connection.id,
+				'forward',
+				CAMERA_FOCUS_TIMING_PRESETS.full
+			)
+		).toBe(true);
+		expect(
+			store.selectedConnection!.viewTracks!.framingEnvelope!.reverse!
+		).toEqual(manualReverse);
+	});
+
+	it('explicit copy forward mirrors the envelope into reverse and marks it manual', () => {
+		const store = createFixtureEditorStore();
+		const connection = store.document.connections[0]!;
+		addKey(store, 'forward', 0.4);
+		addKey(store, 'forward', 0.7);
+		expect(
+			store.applyFocusTimingPreset(
+				connection.id,
+				'forward',
+				CAMERA_FOCUS_TIMING_PRESETS.early
+			)
+		).toBe(true);
+
+		expect(store.copySelectedConnectionViewTrack('forward')).toBe(true);
+		const forward = store.selectedConnection!.viewTracks!.framingEnvelope!.forward!;
+		const reverse = store.selectedConnection!.viewTracks!.framingEnvelope!.reverse!;
+		expect(reverse).toEqual(mirrorFramingEnvelope(forward));
+		expect(store.getEnvelopePolicy(connection.id, 'reverse')?.management).toBe('manual');
+	});
+
+	it('imported envelopes reconcile to manual policy', () => {
+		const document = cloneFixtureDocument();
+		const connection = document.connections[0]!;
+		connection.viewTracks = {
+			forward: [
+				{
+					id: `${connection.id}-view-forward-01`,
+					progress: 0.5,
+					cameraTarget: [2, 1.5, 3],
+					fov: 48
+				}
+			],
+			reverse: [],
+			framingEnvelope: {
+				forward: { enterStart: 0.1, enterEnd: 0.3, exitStart: 0.8, exitEnd: 1 }
+			}
+		};
+		const store = createFixtureEditorStore();
+		expect(store.importDocument(document)).toBe(true);
+
+		const policy = store.getEnvelopePolicy(connection.id, 'forward');
+		expect(policy?.management).toBe('manual');
+		expect(policy?.envelope).toEqual({
+			enterStart: 0.1,
+			enterEnd: 0.3,
+			exitStart: 0.8,
+			exitEnd: 1
+		});
+	});
+
+	it('undo-restored envelopes reconcile conservatively to manual', () => {
+		const store = createFixtureEditorStore();
+		const connection = store.document.connections[0]!;
+		addKey(store, 'forward', 0.5);
+		expect(store.getEnvelopePolicy(connection.id, 'forward')?.management).toBe('auto');
+
+		expect(
+			store.applyFocusTimingPreset(
+				connection.id,
+				'forward',
+				CAMERA_FOCUS_TIMING_PRESETS.early
+			)
+		).toBe(true);
+		expect(store.undo()).toBe(true);
+
+		const policy = store.getEnvelopePolicy(connection.id, 'forward');
+		expect(policy?.management).toBe('manual');
+	});
+
+	it('handle drag commits once and cancel restores document and policy', () => {
+		const store = createFixtureEditorStore();
+		const connection = store.document.connections[0]!;
+		addKey(store, 'forward', 0.5);
+
+		const envelopeBefore = JSON.stringify(
+			store.selectedConnection!.viewTracks!.framingEnvelope
+		);
+		const policyBefore = store.getEnvelopePolicy(connection.id, 'forward');
+
+		expect(store.beginFramingEnvelopeHandleDrag(connection.id, 'forward')).toBe(true);
+		// Gesture intent marks manual even before any numeric change.
+		expect(store.getEnvelopePolicy(connection.id, 'forward')?.management).toBe('manual');
+		expect(
+			store.updateFramingEnvelopeHandleDrag(connection.id, 'forward', 'enterEnd', 0.4)
+		).toBe(true);
+		expect(store.cancelFramingEnvelopeHandleDrag()).toBe(true);
+
+		expect(
+			JSON.stringify(store.selectedConnection!.viewTracks!.framingEnvelope)
+		).toBe(envelopeBefore);
+		expect(store.getEnvelopePolicy(connection.id, 'forward')).toEqual(policyBefore);
+	});
+
+	it('handle drag commit creates exactly one history entry', () => {
+		const store = createFixtureEditorStore();
+		const connection = store.document.connections[0]!;
+		addKey(store, 'forward', 0.5);
+		const historyBefore = store.historyVersion;
+
+		expect(store.beginFramingEnvelopeHandleDrag(connection.id, 'forward')).toBe(true);
+		expect(
+			store.updateFramingEnvelopeHandleDrag(connection.id, 'forward', 'enterEnd', 0.4)
+		).toBe(true);
+		expect(store.commitFramingEnvelopeHandleDrag()).toBe(true);
+
+		expect(store.historyVersion).toBe(historyBefore + 1);
+		expect(
+			store.selectedConnection!.viewTracks!.framingEnvelope!.forward!.enterEnd
+		).toBeCloseTo(0.4, 6);
+		expect(store.getEnvelopePolicy(connection.id, 'forward')?.management).toBe('manual');
+	});
+
+	it('rejects out-of-order handle drafts without committing', () => {
+		const store = createFixtureEditorStore();
+		const connection = store.document.connections[0]!;
+		addKey(store, 'forward', 0.5);
+		const envelopeBefore = { ...store.selectedConnection!.viewTracks!.framingEnvelope!.forward! };
+
+		expect(store.beginFramingEnvelopeHandleDrag(connection.id, 'forward')).toBe(true);
+		// enterEnd past exitStart breaks ordering; the draft is refused.
+		expect(
+			store.updateFramingEnvelopeHandleDrag(connection.id, 'forward', 'enterEnd', 2)
+		).toBe(false);
+		expect(store.cancelFramingEnvelopeHandleDrag()).toBe(true);
+		expect(store.selectedConnection!.viewTracks!.framingEnvelope!.forward!).toEqual(envelopeBefore);
 	});
 });

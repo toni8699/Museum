@@ -12,7 +12,7 @@
 		step: number;
 		min?: number;
 		fractionDigits?: number;
-		oncommit: (value: number) => void;
+		oncommit: (value: number) => boolean | void;
 	} = $props();
 
 	const format = (current: number) =>
@@ -47,9 +47,13 @@
 			return;
 		}
 
-		oncommit(parsed);
+		const committed = oncommit(parsed);
 		dirty = false;
 		editing = false;
+		if (committed === false) {
+			restore();
+			return;
+		}
 		draft = format(parsed);
 	}
 

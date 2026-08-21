@@ -5,7 +5,7 @@ import { createLayoutRoomRegistry } from '$lib/project/project-layout-semantics'
 import { resolvePlanSceneGraphFromDocument } from '$lib/editor/layout/plan-camera-projection';
 import { createCameraMotion } from '$lib/museum/navigation/camera-motion';
 import { getCameraConnectionRoute, getCameraMotionOptions } from '$lib/museum/navigation/camera-route';
-import { resolveCameraConnectionTiming } from '$lib/editor/camera-plan/camera-plan-timing';
+import { resolveCameraConnectionTiming } from '$lib/editor/editor-camera-timing';
 
 function documentWith(overrides: {
 	timingForward?: { durationSeconds: number; easing?: string } | null;

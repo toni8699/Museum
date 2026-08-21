@@ -82,6 +82,19 @@ import type {
 } from '../museum-editor.types';
 import type { EditorSelectionStore } from './selection-store.svelte';
 import type { EditorSelectionActions } from './selection-actions.svelte';
+import {
+	createAutoManagedFramingEnvelope,
+	isOrderedCameraFramingEnvelope,
+	markFramingEnvelopeManual,
+	updateFramingEnvelopeForKeyProgresses,
+	type CameraFramingEnvelopePolicyState
+} from '../editor-camera-framing-envelope';
+import {
+	CENTERED_SEED,
+	mirrorFramingEnvelope,
+	type EnvelopeHandleName
+} from '../editor-camera-framing-authoring';
+import type { CameraFramingEnvelope } from '$lib/content/scene';
 
 type ConnectionCameraPreview = Extract<
 	Exclude<EditorCameraPreview, null>,
@@ -165,10 +178,365 @@ export class EditorViewKeyframeController {
 	/** Phase 2.4 progress drag. The original progress stays private with the transaction. */
 	#viewKeyframeProgressDragInitialProgress: number | null = null;
 
+	/** P1.6 envelope-handle drag. Snapshot of document + policy for cancel-safe restore. */
+	#framingEnvelopeHandleDrag: {
+		connectionId: string;
+		direction: CameraConnectionDirection;
+		initialEnvelope: CameraFramingEnvelope;
+		initialPolicy: CameraFramingEnvelopePolicyState | null;
+	} | null = null;
+
+	/**
+	 * F2 — Session-only framing-envelope policy state. Keyed by
+	 * `${connectionId}:${direction}`. Not serialized; reconciled from the live
+	 * document on every `replace()` (commit, undo, redo, import, reset).
+	 */
+	readonly #envelopePolicy = new Map<string, CameraFramingEnvelopePolicyState>();
+
 	constructor(
 		private readonly selectionActions: EditorSelectionActions,
 		private readonly host: EditorViewKeyframeControllerHost
 	) {}
+
+	// ===================================================================
+	 // F2 — Envelope policy reconciliation
+	 // ===================================================================
+
+	/** Read the current policy state for one connection+direction, or null. */
+	getEnvelopePolicy(
+		connectionId: string,
+		direction: CameraConnectionDirection
+	): CameraFramingEnvelopePolicyState | null {
+		return this.#envelopePolicy.get(`${connectionId}:${direction}`) ?? null;
+	}
+
+	/** Write (stage) a policy state for one connection+direction. */
+	setEnvelopePolicy(
+		connectionId: string,
+		direction: CameraConnectionDirection,
+		state: CameraFramingEnvelopePolicyState
+	): void {
+		this.#envelopePolicy.set(`${connectionId}:${direction}`, state);
+	}
+
+	/** Remove the policy state for one connection+direction. */
+	deleteEnvelopePolicy(
+		connectionId: string,
+		direction: CameraConnectionDirection
+	): void {
+		this.#envelopePolicy.delete(`${connectionId}:${direction}`);
+	}
+
+	/**
+	 * F2 — Reconcile session-only policy from the live document after every
+	 * `replace()` (commit, undo, redo, import, reset). Keep management only
+	 * when the live envelope equals the staged envelope; unknown/different
+	 * values reconcile to `manual`; missing directions are pruned.
+	 */
+	afterDocumentReplaced(): void {
+		const document = this.host.document;
+		const stagedKeys = [...this.#envelopePolicy.keys()];
+		const liveKeys = new Set<string>();
+
+		for (const connection of document.connections) {
+			const viewTracks = connection.viewTracks;
+			if (!viewTracks) continue;
+			for (const direction of ['forward', 'reverse'] as const) {
+				const liveEnvelope = viewTracks.framingEnvelope?.[direction];
+				const key = `${connection.id}:${direction}`;
+				if (!liveEnvelope) {
+					// No envelope on the live document — prune the staged policy.
+					this.#envelopePolicy.delete(key);
+					continue;
+				}
+				liveKeys.add(key);
+				const staged = this.#envelopePolicy.get(key);
+				if (
+					staged &&
+						staged.management === 'auto' &&
+						isOrderedCameraFramingEnvelope(liveEnvelope) &&
+						liveEnvelope.enterStart === staged.envelope.enterStart &&
+						liveEnvelope.enterEnd === staged.envelope.enterEnd &&
+						liveEnvelope.exitStart === staged.envelope.exitStart &&
+						liveEnvelope.exitEnd === staged.envelope.exitEnd
+				) {
+					// Live matches staged auto — keep management.
+					continue;
+				}
+				// Unknown, different, or staged-manual: reconcile to manual.
+				if (isOrderedCameraFramingEnvelope(liveEnvelope)) {
+					this.#envelopePolicy.set(key, {
+						envelope: { ...liveEnvelope },
+						management: 'manual'
+					});
+				} else {
+					this.#envelopePolicy.delete(key);
+				}
+			}
+		}
+
+		// Prune staged keys that no longer exist on the live document.
+		for (const key of stagedKeys) {
+			if (!liveKeys.has(key)) {
+				this.#envelopePolicy.delete(key);
+			}
+		}
+	}
+
+	// ===================================================================
+	// P1.6 — Envelope policy binding (auto-managed + mirror)
+	// ===================================================================
+
+	#envelopeKey(connectionId: string, direction: CameraConnectionDirection): string {
+		return `${connectionId}:${direction}`;
+	}
+
+	#directionalKeyProgresses(
+		connection: SceneConnection,
+		direction: CameraConnectionDirection
+	): number[] {
+		return (connection.viewTracks?.[direction] ?? []).map((key) => key.progress);
+	}
+
+	/**
+	 * Seed the first directional key's centered auto envelope, or expand an
+	 * existing auto envelope to contain the current keys. Manual envelopes are
+	 * left untouched; envelopes without policy are reconciled later.
+	 */
+	#reconcileEnvelopeAfterKeyChange(
+		connection: SceneConnection,
+		direction: CameraConnectionDirection
+	): void {
+		const tracks = connection.viewTracks;
+		if (!tracks) return;
+		const existingEnvelope = tracks.framingEnvelope?.[direction];
+		const keyProgresses = this.#directionalKeyProgresses(connection, direction);
+
+		if (!existingEnvelope) {
+			if (keyProgresses.length === 0) return;
+			const seeded = createAutoManagedFramingEnvelope(keyProgresses[0], CENTERED_SEED);
+			tracks.framingEnvelope ??= {};
+			tracks.framingEnvelope[direction] = { ...seeded.envelope };
+			this.setEnvelopePolicy(connection.id, direction, {
+				envelope: { ...seeded.envelope },
+				management: 'auto'
+			});
+			return;
+		}
+
+		const policy = this.getEnvelopePolicy(connection.id, direction);
+		if (!policy) return;
+		const next = updateFramingEnvelopeForKeyProgresses(policy, keyProgresses);
+		if (next === policy) return;
+		tracks.framingEnvelope ??= {};
+		tracks.framingEnvelope[direction] = { ...next.envelope };
+		this.setEnvelopePolicy(connection.id, direction, next);
+	}
+
+	/** Mirror the forward envelope onto reverse while reverse stays auto-managed. */
+	#syncReverseEnvelopeFromForward(connection: SceneConnection): void {
+		const tracks = connection.viewTracks;
+		const forward = tracks?.framingEnvelope?.forward;
+		if (!tracks || !forward) return;
+		const reversePolicy = this.getEnvelopePolicy(connection.id, 'reverse');
+		if (reversePolicy?.management === 'manual') return;
+		const mirrored = mirrorFramingEnvelope(forward);
+		tracks.framingEnvelope ??= {};
+		tracks.framingEnvelope.reverse = { ...mirrored };
+		this.setEnvelopePolicy(connection.id, 'reverse', {
+			envelope: { ...mirrored },
+			management: 'auto'
+		});
+	}
+
+	/** Reconcile the edited direction, then mirror reverse for forward edits. */
+	#reconcileEditedDirection(
+		connection: SceneConnection,
+		direction: CameraConnectionDirection
+	): void {
+		this.#reconcileEnvelopeAfterKeyChange(connection, direction);
+		if (direction === 'forward') {
+			this.#syncReverseEnvelopeFromForward(connection);
+		}
+	}
+
+	/**
+	 * P1.6 — Apply a focus-timing preset. Writes the exact preset, marks the
+	 * direction manual (F5), and mirrors a forward edit onto the auto-managed
+	 * reverse envelope. An equal preset produces no document delta (so no
+	 * history entry) but still stages manual policy.
+	 */
+	applyFocusTimingPreset(
+		connectionId: string,
+		direction: CameraConnectionDirection,
+		envelope: CameraFramingEnvelope
+	): boolean {
+		if (
+			this.host.isDocumentMutationBlocked ||
+			this.host.isEditorInteractionActive ||
+			!isOrderedCameraFramingEnvelope(envelope)
+		) {
+			return false;
+		}
+		const connection = this.host.document.connections.find(
+			(candidate) => candidate.id === connectionId
+		);
+		if (!connection || !this.host.beginDocumentTransaction()) return false;
+		connection.viewTracks ??= { forward: [], reverse: [] };
+		connection.viewTracks.framingEnvelope ??= {};
+		connection.viewTracks.framingEnvelope[direction] = { ...envelope };
+		this.setEnvelopePolicy(connectionId, direction, {
+			envelope: { ...envelope },
+			management: 'manual'
+		});
+		if (direction === 'forward') {
+			this.#syncReverseEnvelopeFromForward(connection);
+		}
+		return this.host.commitDocumentTransaction();
+	}
+
+	/** P1.6 — Full Move preset (`w = 1` escape hatch). */
+	applyFullMovePreset(
+		connectionId: string,
+		direction: CameraConnectionDirection
+	): boolean {
+		return this.applyFocusTimingPreset(connectionId, direction, {
+			enterStart: 0,
+			enterEnd: 0,
+			exitStart: 1,
+			exitEnd: 1
+		});
+	}
+
+	/**
+	 * P1.6 — Commit an advanced handle edit. Ordered-invalid drafts do not
+	 * commit and restore the last valid value; valid edits mark the direction
+	 * manual and mirror a forward edit onto the auto-managed reverse envelope.
+	 */
+	commitEnvelopeHandle(
+		connectionId: string,
+		direction: CameraConnectionDirection,
+		envelope: CameraFramingEnvelope
+	): boolean {
+		if (
+			this.host.isDocumentMutationBlocked ||
+			this.host.isEditorInteractionActive ||
+			!isOrderedCameraFramingEnvelope(envelope)
+		) {
+			return false;
+		}
+		const connection = this.host.document.connections.find(
+			(candidate) => candidate.id === connectionId
+		);
+		if (!connection || !this.host.beginDocumentTransaction()) return false;
+		connection.viewTracks ??= { forward: [], reverse: [] };
+		connection.viewTracks.framingEnvelope ??= {};
+		connection.viewTracks.framingEnvelope[direction] = { ...envelope };
+		this.setEnvelopePolicy(connectionId, direction, {
+			envelope: { ...envelope },
+			management: 'manual'
+		});
+		if (direction === 'forward') {
+			this.#syncReverseEnvelopeFromForward(connection);
+		}
+		return this.host.commitDocumentTransaction();
+	}
+
+	// ===================================================================
+	// P1.6 — Envelope-handle drag (cancel-safe)
+	// ===================================================================
+
+	beginFramingEnvelopeHandleDrag(
+		connectionId: string,
+		direction: CameraConnectionDirection
+	): boolean {
+		if (
+			this.host.isDocumentMutationBlocked ||
+			this.host.isEditorInteractionActive ||
+			this.host.isDocumentTransactionActive ||
+			this.host.pendingNavigationCommand
+		) {
+			return false;
+		}
+		const connection = this.host.document.connections.find(
+			(candidate) => candidate.id === connectionId
+		);
+		const envelope = connection?.viewTracks?.framingEnvelope?.[direction];
+		if (!connection || !envelope || !this.host.beginDocumentTransaction()) return false;
+
+		const initialPolicy = this.getEnvelopePolicy(connectionId, direction);
+		this.#framingEnvelopeHandleDrag = {
+			connectionId,
+			direction,
+			initialEnvelope: { ...envelope },
+			initialPolicy: initialPolicy
+				? { envelope: { ...initialPolicy.envelope }, management: initialPolicy.management }
+				: null
+		};
+		// Mark manual from gesture intent, even if the drag ends unchanged.
+		if (initialPolicy) {
+			this.setEnvelopePolicy(connectionId, direction, markFramingEnvelopeManual(initialPolicy));
+		} else {
+			this.setEnvelopePolicy(connectionId, direction, {
+				envelope: { ...envelope },
+				management: 'manual'
+			});
+		}
+		return true;
+	}
+
+	updateFramingEnvelopeHandleDrag(
+		connectionId: string,
+		direction: CameraConnectionDirection,
+		handle: EnvelopeHandleName,
+		value: number
+	): boolean {
+		const drag = this.#framingEnvelopeHandleDrag;
+		if (
+			!drag ||
+			drag.connectionId !== connectionId ||
+			drag.direction !== direction ||
+			!this.host.historyDocumentUndoBlocked
+		) {
+			return false;
+		}
+		const connection = this.host.document.connections.find(
+			(candidate) => candidate.id === connectionId
+		);
+		const tracks = connection?.viewTracks;
+		const current = tracks?.framingEnvelope?.[direction];
+		if (!tracks || !current) return false;
+		const next = { ...current, [handle]: value };
+		if (!isOrderedCameraFramingEnvelope(next)) return false;
+		tracks.framingEnvelope ??= {};
+		tracks.framingEnvelope[direction] = next;
+		this.setEnvelopePolicy(connectionId, direction, {
+			envelope: { ...next },
+			management: 'manual'
+		});
+		return true;
+	}
+
+	commitFramingEnvelopeHandleDrag(): boolean {
+		const drag = this.#framingEnvelopeHandleDrag;
+		if (!drag) return false;
+		this.#framingEnvelopeHandleDrag = null;
+		return this.host.commitDocumentTransaction();
+	}
+
+	cancelFramingEnvelopeHandleDrag(): boolean {
+		const drag = this.#framingEnvelopeHandleDrag;
+		if (!drag) return false;
+		this.#framingEnvelopeHandleDrag = null;
+		// Restore policy before the document swap so afterReplace reconciliation
+		// keeps the pre-drag auto/manual state.
+		if (drag.initialPolicy) {
+			this.setEnvelopePolicy(drag.connectionId, drag.direction, drag.initialPolicy);
+		} else {
+			this.deleteEnvelopePolicy(drag.connectionId, drag.direction);
+		}
+		return this.host.cancelDocumentTransaction();
+	}
 
 	// ===================================================================
 	// Authoring sample + add
@@ -298,6 +666,7 @@ export class EditorViewKeyframeController {
 		if (preview.direction === 'forward') {
 			syncReverseViewTrackFromForward(connection);
 		}
+		this.#reconcileEditedDirection(connection, preview.direction);
 		this.host.navigationSelection = {
 			kind: 'view-keyframe',
 			connectionId: connection.id,
@@ -483,6 +852,7 @@ export class EditorViewKeyframeController {
 		if (selection.direction === 'forward') {
 			syncReverseViewTrackFromForward(connection);
 		}
+		this.#reconcileEditedDirection(connection, selection.direction);
 		return this.host.commitDocumentTransaction();
 	}
 
@@ -682,12 +1052,13 @@ export class EditorViewKeyframeController {
 
 		this.host.viewKeyframeProgressDrag = null;
 		this.#viewKeyframeProgressDragInitialProgress = null;
+		const connection = this.host.document.connections.find(
+			(candidate) => candidate.id === selection.connectionId
+		);
 		if (selection.direction === 'forward') {
-			const connection = this.host.document.connections.find(
-				(candidate) => candidate.id === selection.connectionId
-			);
 			if (connection) syncReverseViewTrackFromForward(connection);
 		}
+		if (connection) this.#reconcileEditedDirection(connection, selection.direction);
 		const committed = this.host.commitDocumentTransaction();
 		if (!committed) {
 			this.host.selectCameraTimelineViewKeyframe(
@@ -743,6 +1114,7 @@ export class EditorViewKeyframeController {
 		) {
 			connection.viewTracks.reverse = [];
 		}
+		this.#reconcileEditedDirection(connection, selection.direction);
 		if (
 			connection.viewTracks.forward.length === 0 &&
 			connection.viewTracks.reverse.length === 0 &&
@@ -784,6 +1156,24 @@ export class EditorViewKeyframeController {
 		if (!this.host.beginDocumentTransaction()) return false;
 		connection.viewTracks ??= { forward: [], reverse: [] };
 		connection.viewTracks[destination] = copied;
+		// Explicit copy mirrors the source envelope and marks destination manual;
+		// a missing source envelope removes the destination envelope.
+		const sourceEnvelope = connection.viewTracks.framingEnvelope?.[source];
+		if (sourceEnvelope) {
+			const mirrored = mirrorFramingEnvelope(sourceEnvelope);
+			connection.viewTracks.framingEnvelope ??= {};
+			connection.viewTracks.framingEnvelope[destination] = { ...mirrored };
+			this.setEnvelopePolicy(connection.id, destination, {
+				envelope: { ...mirrored },
+				management: 'manual'
+			});
+		} else if (connection.viewTracks.framingEnvelope?.[destination]) {
+			delete connection.viewTracks.framingEnvelope[destination];
+			this.deleteEnvelopePolicy(connection.id, destination);
+			if (Object.keys(connection.viewTracks.framingEnvelope).length === 0) {
+				delete connection.viewTracks.framingEnvelope;
+			}
+		}
 		if (
 			connection.viewTracks.forward.length === 0 &&
 			connection.viewTracks.reverse.length === 0 &&

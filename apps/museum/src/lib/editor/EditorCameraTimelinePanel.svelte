@@ -6,7 +6,7 @@
 	import { useCameraTimeline } from './hooks/use-camera-timeline.svelte';
 	import type { MuseumEditorStore } from './museum-editor.svelte';
 
-	let { store }: { store: MuseumEditorStore } = $props();
+	let { store, viewMode = '3d' }: { store: MuseumEditorStore; viewMode?: 'plan' | '3d' } = $props();
 
 	// svelte-ignore state_referenced_locally
 	const timelineApi = useCameraTimeline(store);
@@ -84,7 +84,7 @@
 		{#if preview}
 			<EditorCameraPreviewControls {store} />
 		{/if}
-		<EditorCameraTimelineDots {store} />
+		<EditorCameraTimelineDots {store} {viewMode} />
 	</div>
 {:else}
 	<div class="timeline-error" role="status">

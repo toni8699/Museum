@@ -1,6 +1,9 @@
 import {
 	getNode,
+	createNavigationGraph,
+	resolveSceneDocument,
 	type MuseumSceneDocument,
+	type NavigationGraph,
 	type RuntimeMuseumScene,
 	type SceneCameraViewKeyframe,
 	type SceneObjectCluster,
@@ -552,6 +555,12 @@ export class MuseumEditorStore {
 		});
 		this.documentStore.addAfterReplaceListener(() => this.previewController.pruneIfStale());
 		this.documentStore.addAfterReplaceListener(() => this.previewController.invalidateGraph());
+		// F2 — framing-envelope policy reconciliation after every document replace
+		// (commit, undo, redo, import, reset). Re-derives auto/manual management
+		// from the live document; unknown or changed values reconcile to manual.
+		this.documentStore.addAfterReplaceListener(() =>
+			this.viewKeyframeController.afterDocumentReplaced()
+		);
 	}
 
 	// Slice 4 — selection parallel-tuple. Reads are derived from `selectionStore`;
@@ -1757,6 +1766,97 @@ export class MuseumEditorStore {
 	copySelectedConnectionViewTrack(source: CameraConnectionDirection) {
 		return this.viewKeyframeController.copySelectedConnectionViewTrack(source);
 	}
+
+	// ===================================================================
+	// P1.6 — Camera 3D framing authoring facade
+	// ===================================================================
+
+	/** Resolve a navigation graph from the live document for timing/framing computation. */
+	resolveCameraGraph(): NavigationGraph {
+		return createNavigationGraph(resolveSceneDocument(this.document, this.rooms));
+	}
+
+	/** Read the session-only envelope policy state for one connection+direction. */
+	getEnvelopePolicy(
+		connectionId: string,
+		direction: CameraConnectionDirection
+	) {
+		return this.viewKeyframeController.getEnvelopePolicy(connectionId, direction);
+	}
+
+	/** Apply a focus timing preset to a connection+direction. One history entry per commit. */
+	applyFocusTimingPreset(
+		connectionId: string,
+		direction: CameraConnectionDirection,
+		envelope: import('$lib/content/scene').CameraFramingEnvelope
+	): boolean {
+		return this.viewKeyframeController.applyFocusTimingPreset(
+			connectionId,
+			direction,
+			envelope
+		);
+	}
+
+	/** Edit an envelope handle value. One history entry per commit. */
+	commitEnvelopeHandle(
+		connectionId: string,
+		direction: CameraConnectionDirection,
+		envelope: import('$lib/content/scene').CameraFramingEnvelope
+	): boolean {
+		return this.viewKeyframeController.commitEnvelopeHandle(
+			connectionId,
+			direction,
+			envelope
+		);
+	}
+
+	/** Apply the Full Move preset (w = 1 escape hatch). One history entry per commit. */
+	applyFullMovePreset(
+		connectionId: string,
+		direction: CameraConnectionDirection
+	): boolean {
+		return this.viewKeyframeController.applyFullMovePreset(
+			connectionId,
+			direction
+		);
+	}
+
+	/** Begin a cancel-safe envelope-handle drag for one connection+direction. */
+	beginFramingEnvelopeHandleDrag(
+		connectionId: string,
+		direction: CameraConnectionDirection
+	): boolean {
+		return this.viewKeyframeController.beginFramingEnvelopeHandleDrag(
+			connectionId,
+			direction
+		);
+	}
+
+	/** Preview a handle drag value inside the open transaction. */
+	updateFramingEnvelopeHandleDrag(
+		connectionId: string,
+		direction: CameraConnectionDirection,
+		handle: import('$lib/editor/editor-camera-framing-authoring').EnvelopeHandleName,
+		value: number
+	): boolean {
+		return this.viewKeyframeController.updateFramingEnvelopeHandleDrag(
+			connectionId,
+			direction,
+			handle,
+			value
+		);
+	}
+
+	/** Commit a handle drag as exactly one history entry. */
+	commitFramingEnvelopeHandleDrag(): boolean {
+		return this.viewKeyframeController.commitFramingEnvelopeHandleDrag();
+	}
+
+	/** Restore the pre-drag document and policy, creating no history entry. */
+	cancelFramingEnvelopeHandleDrag(): boolean {
+		return this.viewKeyframeController.cancelFramingEnvelopeHandleDrag();
+	}
+
 	// Slice 2 — preview + timeline playback orchestration. Each method here is
 	// a one-line delegate to `cameraPreviewCommands`; the controller owns the
 	// verbatim body (see `store/camera-preview-commands.svelte.ts`). Inside

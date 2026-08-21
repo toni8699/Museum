@@ -20,8 +20,7 @@ import {
 	validateGuidedTourInsertion,
 	validateGuidedTourOrder,
 	validateGuidedTourRemoval,
-	validateNavigationNodeDeletion,
-	validateTimelineGuidedTourDrop
+	validateNavigationNodeDeletion
 } from '$lib/editor/editor-navigation-graph';
 
 const FIXTURE_GUIDED_ORDER = ['tour-a', 'tour-b', 'tour-paris', 'tour-d'] as const;
@@ -303,88 +302,6 @@ describe('editor guided-tour order validation', () => {
 		});
 	});
 
-	it('plans one atomic timeline insertion with exactly one missing straight edge', () => {
-		const document = documentClone();
-		addFreeNode(document, 'free-node', 'tour-paris');
-
-		expect(
-			validateTimelineGuidedTourDrop(document, 'free-node', 'tour-b', 'tour-paris')
-		).toEqual({
-			ok: true,
-			nodeIds: ['tour-a', 'tour-b', 'free-node', 'tour-paris', 'tour-d'],
-			missingConnection: {
-				fromNodeId: 'tour-b',
-				toNodeId: 'free-node'
-			},
-			focusConnection: {
-				fromNodeId: 'tour-b',
-				toNodeId: 'free-node'
-			}
-		});
-	});
-
-	it('uses existing edges and rejects self, invalid-gap, and multi-edge drops', () => {
-		const insertable = documentClone();
-		addFreeNode(insertable, 'free-node', 'tour-b');
-		addConnection(insertable, 'free-node', 'tour-paris', 'free-paris');
-		expect(
-			validateTimelineGuidedTourDrop(
-				insertable,
-				'free-node',
-				'tour-b',
-				'tour-paris'
-			)
-		).toEqual(expect.objectContaining({ ok: true, missingConnection: null }));
-
-		const document = documentClone();
-		expect(
-			validateTimelineGuidedTourDrop(
-				document,
-				'tour-b',
-				'tour-b',
-				'tour-paris'
-			)
-		).toEqual(expect.objectContaining({ ok: false, code: 'guided_self_drop' }));
-		expect(
-			validateTimelineGuidedTourDrop(document, 'tour-b', 'tour-a', 'tour-d')
-		).toEqual(expect.objectContaining({ ok: false, code: 'invalid_guided_gap' }));
-
-		addFreeNode(document, 'free-node', 'tour-d');
-		expect(
-			validateTimelineGuidedTourDrop(document, 'free-node', 'tour-b', 'tour-paris')
-		).toEqual(
-			expect.objectContaining({
-				ok: false,
-				code: 'too_many_missing_guided_connections'
-			})
-		);
-	});
-
-	it('moves a guided node when final order needs at most one new edge', () => {
-		const document = documentClone();
-		addConnection(document, 'tour-a', 'tour-paris', 'tour-a-paris');
-		const result = validateTimelineGuidedTourDrop(
-			document,
-			'tour-b',
-			'tour-paris',
-			'tour-d'
-		);
-		expect(result).toEqual(
-			expect.objectContaining({
-				ok: true,
-				missingConnection: {
-					fromNodeId: 'tour-b',
-					toNodeId: 'tour-d'
-				}
-			})
-		);
-		expect(result.ok ? result.nodeIds : []).toEqual([
-			'tour-a',
-			'tour-paris',
-			'tour-b',
-			'tour-d'
-		]);
-	});
 });
 
 describe('S10.2 — flow walk and detour validation', () => {
@@ -691,10 +608,6 @@ describe('S10.2 — flow walk and detour validation', () => {
 		expect(validateGuidedTourInsertion(withDetour, 'detour-head', 1)).toEqual(
 			expect.objectContaining({ ok: false, code: 'detour_node_not_free' })
 		);
-		// The drag-drop path refuses a detour chain node the same way.
-		expect(
-			validateTimelineGuidedTourDrop(withDetour, 'detour-head', 'tour-a', 'tour-b')
-		).toEqual(expect.objectContaining({ ok: false, code: 'detour_node_not_free' }));
 	});
 
 	it('stays pure and renderer-neutral (no three/svelte imports)', () => {

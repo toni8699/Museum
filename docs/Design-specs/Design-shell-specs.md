@@ -6,6 +6,10 @@
 **Last amended:** 2026-08-19 — P2 Shell-A…Shell-J: Scene → Plan local authoring mode
 (Layout | Staging), mode-routed toolbar/Inspector/hit-testing, staging footprint
 states, Scene selection continuity, room-drag rule.
+**Amended 2026-08-21 — P1.8:** the Camera-domain section **"Free Cameras" is
+renamed "Unsequenced"** (terminology per [`Camera-flow-specs.md`](./Camera-flow-specs.md)
+§2 — Sequence = ordered subset of the graph; Unsequenced = not currently in the
+sequence); all camera-domain references below use it.
 
 This specification complements the [visual UI specification](./Design-specs.md).
 
@@ -172,11 +176,19 @@ Changing `Plan ↔ 3D` MUST NOT change domain.
 
 Changing `Scene ↔ Camera` MUST NOT be represented as entering a separate application.
 
+**Amended 2026-08-21 — owner decision (P1.7 follow-up):** the `Plan | 3D`
+view is **shared across domains**. Switching `Scene ↔ Camera` keeps the
+current view, and a view switch applies to both domains — the viewport never
+snaps between Plan and 3D on a domain change. (Supersedes any per-domain view
+memory.)
+
 Workspace switches should preserve as much useful state as the product model permits.
 
 Recommended boot state:
 
 `Scene → 3D`
+
+> **Amended 2026-08-21:** boot is **Scene → Plan** (owner decision above).
 
 ---
 
@@ -215,7 +227,7 @@ Canonical sections:
 ```text
 Environment
 Sequence Inspector
-Free Cameras
+Unsequenced
 Connections
 ```
 
@@ -248,11 +260,11 @@ Rows may expose:
 * contextual actions
 * optional timing information
 
-### Free Cameras
+### Unsequenced
 
-Contains camera nodes not currently participating in guided sequence.
+Contains camera nodes not currently participating in the sequence.
 
-Free cameras may still participate in graph connections.
+Unsequenced cameras may still participate in graph connections.
 
 ### Connections
 
@@ -265,6 +277,8 @@ Representation must remain undirected:
 not:
 
 `Camera 1 → Camera 2`
+
+> **Sketch note (no PNG edit):** `Design-png/Camera/Camera-2D.png`, `Camera-3D.png`, `Camera-sequence.png`, `Timeline-expanded.png` (pre-2026-08-21) and the 3 new P1.8 PNGs show `→` in sidebar Connections lists — **keep as-is**, docs are canonical; P3.1 logs as minor convention deviation per `P1.8-designer-brief.md §1`.
 
 ---
 
@@ -856,7 +870,7 @@ Clicking a wall must not enter Scene wall-editing mode.
 * rooms and spatial context
 * camera nodes
 * guided sequence numbering
-* free-camera distinction
+* unsequenced distinction
 * camera connections
 * selected node/connection
 * path anchors when relevant
@@ -871,14 +885,14 @@ Guided camera example:
 ③ Sculpture Gallery
 ```
 
-Free camera example:
+Unsequenced camera example:
 
 ```text
 ◯ Overlook A
-Not in order yet
+Unsequenced
 ```
 
-Ordered and free cameras MUST remain visually distinguishable.
+Ordered and unsequenced cameras MUST remain visually distinguishable.
 
 ---
 
@@ -988,7 +1002,7 @@ Camera Sidebar:
 ```text
 Environment
 Sequence Inspector
-Free Cameras
+Unsequenced
 Connections
 ```
 
@@ -1145,7 +1159,7 @@ Same Camera Sidebar used by Camera Plan:
 ```text
 Environment
 Sequence Inspector
-Free Cameras
+Unsequenced
 Connections
 ```
 
@@ -1528,6 +1542,11 @@ Recommended timeline transition:
 * height
 * opacity
 * approximately 180–220 ms
+
+> **Amended 2026-08-21 — owner decision (P1.7 follow-up):** shell view/domain
+> switches are **instant** — no fade on workspace, sidebar, timeline, or
+> viewport swaps. The Camera Timeline appears/disappears without animation.
+> ("Do not animate the entire editor" now applies to all shell swaps.)
 
 ## Camera → Scene
 

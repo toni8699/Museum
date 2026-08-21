@@ -219,10 +219,10 @@ export function buildPlanCameraAuthoringProjection(
 		} else {
 			labels.push({
 				kind: 'circle',
-				key: geometryId(['plan', 'camera-free-badge', node.id]),
+				key: geometryId(['plan', 'camera-unsequenced-badge', node.id]),
 				center: point,
 				radiusPx: 15,
-				style: 'camera-free-badge'
+				style: 'camera-unsequenced-badge'
 			});
 		}
 	}

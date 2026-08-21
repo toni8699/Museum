@@ -5,35 +5,43 @@ only the immediate previous slice (back-pointer) and the single next action
 live here. History chains backward through the tracker's depends-on column —
 shipped/next lists never accumulate.## Working tree
 
-- Current delta: **P1.6 implemented (2026-08-20)** — both checkpoints landed:
-  pure framing-authoring model + controller policy/history binding (F2/F3,
-  first-key seed, auto-expand, forward↔reverse mirror, preset/handle manual
-  flips) and the timeline band/handles + F1 viewMode threading + comfort
-  diagnostics. Store/history and F3 guard-status tests added. Manual
-  acceptance scenarios still to be walked in the GUI before closeout.
+- Current delta: **P1.7 shipped (2026-08-21)** — Camera domain reconciled:
+  dedicated four-section `CameraSidebar` (Environment · Sequence Inspector ·
+  Unsequenced · Connections; connections = chain records + retained tray,
+  undirected `A — B`, delete only on retained rows), read-only "Main Visitor
+  Tour" timeline selector, shared reduced-motion-aware `editorWorkspaceFade`
+  (~200 ms) on workspace/timeline/sidebar roots. Review fixes folded in:
+  **Camera 3D now shows guided order digits + Unsequenced badges**
+  (`editor-camera-labels.ts` model + `EditorCameraLabelProjector`/
+  `EditorCameraLabelsOverlay`, gizmo writer/overlay pattern, order from
+  `store.mainFlowNodeIds` so Plan and 3D agree) and **2D keeps its viewport
+  across Scene ⇄ Camera** (`EditorApp` renders both plan workspaces keep-mounted
+  in `plan-cell` wrappers — G3 pattern; hidden cell `inert` + class-faded, each
+  surface retains pan/zoom). Timeline drag-connect removed as the documented
+  P1.8 prerequisite (P1.8 §6). **Owner follow-ups: the Camera timeline never
+  auto-expands on a domain switch** (expansion state persists verbatim;
+  `sceneTimelineExpanded` memory removed); **the Plan | 3D view is shared
+  across domains** (`EditorViewState` single view, boot Scene → Plan — a
+  Scene ⇄ Camera switch keeps the current view; shell spec §2 amended); and
+  **all view/domain switches are instant** (shared fade helper + S10.1.6
+  mount/context fades removed; shell spec §20 transition superseded). Brief archived:
+  [`../archive/plans/2026-08-20-P1.7-camera-ui-reconciliation.md`](../archive/plans/2026-08-20-P1.7-camera-ui-reconciliation.md)
+  (manual GUI walk owner-waived).
+- Previous slice: **P1.6 implemented (2026-08-20)** — pure framing-authoring
+  model + controller policy/history binding and the timeline band/handles +
+  F1 viewMode threading + comfort diagnostics.
   Brief: [`../plans/2026-08-20-P1.6-framing-authoring.md`](../plans/2026-08-20-P1.6-framing-authoring.md).
-- Previous slice: **P1.5 shipped (2026-08-19)** — Camera Plan surface mounted
-  in the P1.1 Camera → Plan cell: live architectural backdrop + top-down
-  camera-graph authoring (Add Camera / Connect / XZ node+anchor drag / direct
-  path bend via existing store commands, one history entry each), exact shared
-  draft-curve projection with order/free/retained/selection visuals, node →
-  anchor → edge → empty hit priority, no-framing profile assertions,
-  bidirectional effective timing labels, Plan-only timing Inspector with
-  authored/automatic switching, workspace-specific Plan inspector authority,
-  and anchor Delete/Backspace routing. `CameraPlanPlaceholder` removed. Archived
-  brief:
-  [`../archive/plans/2026-08-19-P1.5-camera-plan-surface.md`](../archive/plans/2026-08-19-P1.5-camera-plan-surface.md).
 
 ## Next action
 
-- **One action:** walk the P1.6 **manual acceptance** scenarios (Camera 3D
-  presets/handles/diagnostics, Plan ⇄ 3D timing parity, Undo atomicity), then
-  archive the brief and start **P1.7** camera UI reconciliation.
+- **One action:** start **P1.8** camera sequence authoring
+  ([brief](../plans/2026-08-21-P1.8-camera-sequence-authoring.md)) — last P1
+  increment; ratify its D1/D2 gates first.
 
 ## Verification
 
-- **1,888 tests green (1 skipped) · `svelte-check` 0 errors / 0 warnings ·
-  `vite build` clean** (P1.6 implementation, 2026-08-20).
+- **1,894 tests green (1 skipped) · `svelte-check` 0 errors / 0 warnings ·
+  `vite build` clean** (P1.7 implementation + review fixes, 2026-08-21).
 
 ## Known bugs / deferred
 
@@ -48,6 +56,20 @@ shipped/next lists never accumulate.## Working tree
 
 ## Traps
 
+- **Keep-mounted plan cells (P1.7):** both plan workspaces stay mounted in
+  `EditorApp` — the hidden one must keep `inert` + `plan-cell--hidden`, or it
+  eats pointer/shortcut input while invisible. The shared fade on their roots
+  fires only on Plan ↔ 3D mount/unmount; domain switches use the class fade.
+- **Shared view axis (P1.7 follow-up):** `EditorViewState.view` is one shared
+  Plan|3D mode for both domains — never reintroduce per-domain view memory
+  (`sceneView`/`cameraView`); domain switches must not touch the view.
+- **Instant shell swaps (P1.7 follow-up):** no fade/animation on view, domain,
+  sidebar, or timeline swaps — `editorWorkspaceFade`, `view-fade-in`,
+  `plan-fade-in` are deleted by owner decision; contracts pin their absence.
+- **Camera 3D labels (P1.7):** positions resolve through
+  `store.getRuntimeNavigationNode` (runtime scene = rooms truth), order from
+  `store.mainFlowNodeIds` (not `guidedTourNodeIds`) to match the Plan
+  projection; overlay is display-only (`aria-hidden`, no pointer events).
 - **Two-node camera cycle:** timeline edges must key
   `` `${connectionId}:${direction}` ``, never `connectionId` alone
   (`each_key_duplicate` crash).

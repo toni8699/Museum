@@ -55,7 +55,7 @@ Policy rules:
 | # | Plan | Status | Depends on | Doc |
 |---|------|--------|------------|-----|
 | — | Plan-system renewal + documentation rework (process row — created this tracker and the five-doc model) | shipped | H1 gate | archived → [2026-08-17-plan-system-renewal.md](archive/plans/2026-08-17-plan-system-renewal.md) |
-| P1 | Camera overhaul | in-progress — **P1.1–P1.3 shipped 2026-08-18**; **P1.4 + P1.5 shipped 2026-08-19** | renewal | [2026-08-18-P1-camera-overhaul.md](2026-08-18-P1-camera-overhaul.md) |
+| P1 | Camera overhaul | in-progress — **P1.1–P1.3 shipped 2026-08-18**; **P1.4–P1.6 shipped 2026-08-19/20**; **P1.7 shipped 2026-08-21**; **P1.8 drafted 2026-08-21 (last increment)** | renewal | [2026-08-18-P1-camera-overhaul.md](2026-08-18-P1-camera-overhaul.md) |
 | P2 | Plan staging mode — 2D furnishing | approved | P1 | [2026-08-18-P2-plan-staging.md](2026-08-18-P2-plan-staging.md) |
 | P3 | UI overhaul — reconciliation/refresh pass over settled surfaces | approved | P1, P2 | [2026-08-18-P3-ui-overhaul.md](2026-08-18-P3-ui-overhaul.md) |
 | P4 | Client GLB import | proposed | renewal | [2026-08-18-P4-gltb-import.md](2026-08-18-P4-gltb-import.md) |
@@ -97,7 +97,17 @@ authoring surface (Add/Connect/XZ-drag/path-bend via existing store commands,
 bidirectional effective timing labels + Plan-only timing Inspector, Y
 preserved, no framing, no layout-selection path). **P1.6** converges both
 tracks ([implementation brief](2026-08-20-P1.6-framing-authoring.md): framing
-authoring UX + Camera 3D duration controls).
+authoring UX + Camera 3D duration controls). **P1.7 shipped 2026-08-21** —
+archived →
+[2026-08-20-P1.7-camera-ui-reconciliation.md](../archive/plans/2026-08-20-P1.7-camera-ui-reconciliation.md)
+(four-section Camera Sidebar · Sequence Inspector / Unsequenced / Connections,
+tour selector, domain-switch fade, review fixes: Camera 3D order digits +
+Unsequenced badges per shell spec "Viewport MUST show", 2D keep-mounted parity
+with 3D; manual walk owner-waived). **P1.8** (camera sequence authoring per
+[`Camera-flow-specs.md`](../Design-specs/Camera-flow-specs.md) — Unsequenced
+naming, entrance-start re-root "Set as First", per-camera preview) is the
+remaining P1 increment; P1.8's naming amendment already landed via P1.7 in the
+sidebar, the shell spec §4, and the visual spec §10 (2026-08-21).
 
 **P3 retargeted 2026-08-19:** conformance targets are the canonical specs
 [`Design-specs.md`](../Design-specs/Design-specs.md) (visual — blue token

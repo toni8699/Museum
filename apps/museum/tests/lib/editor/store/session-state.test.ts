@@ -188,11 +188,9 @@ describe('EditorSessionState', () => {
 			expect(session.leftPanel).toBe('scene');
 		});
 
-		it('round-trips setTimelineExpanded / setSceneTimelineExpanded ↔ fields', () => {
+		it('round-trips setTimelineExpanded ↔ field', () => {
 			session.setTimelineExpanded(true);
 			expect(session.timelineExpanded).toBe(true);
-			session.setSceneTimelineExpanded(true);
-			expect(session.sceneTimelineExpanded).toBe(true);
 		});
 
 		it('setTimelineHeight persists numeric value', () => {

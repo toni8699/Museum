@@ -62,8 +62,11 @@
 		const timing = connection?.timing?.forward;
 		return typeof timing?.durationSeconds === 'number' ? timing.durationSeconds : null;
 	});
-	// Unused Connections tray: authored records not used by the ordered chain
-	// and not the derived loop record (retained, deletable — never auto-deleted).
+	// Connections section (canonical sidebar): every connection appears exactly
+	// once — the sequence's chain-transition records plus the retained tray.
+	// Labels stay undirected (`A — B`, never `→`); the derived loop record
+	// lives in the loop row. Chain records are sequence-required (no delete);
+	// retained rows stay deletable.
 	const unusedConnectionRows = $derived.by(() => {
 		const chainRecords = new Set<string>();
 		for (let index = 0; index + 1 < guidedTourChain.length; index += 1) {
@@ -87,6 +90,28 @@
 				toNodeId: connection.toNodeId
 			}));
 	});
+	const chainConnectionRows = $derived.by(() => {
+		const rows: Array<{ id: string; fromNodeId: string; toNodeId: string }> = [];
+		for (let index = 0; index + 1 < guidedTourChain.length; index += 1) {
+			const fromId = guidedTourChain[index];
+			const toId = guidedTourChain[index + 1];
+			const record = store.document.connections.find(
+				(candidate) =>
+					(candidate.fromNodeId === fromId && candidate.toNodeId === toId) ||
+					(candidate.fromNodeId === toId && candidate.toNodeId === fromId)
+			);
+			if (record) {
+				rows.push({
+					id: record.id,
+					fromNodeId: record.fromNodeId,
+					toNodeId: record.toNodeId
+				});
+			}
+		}
+		return rows;
+	});
+	const unusedRowIds = $derived(new Set(unusedConnectionRows.map((row) => row.id)));
+	const connectionRows = $derived([...chainConnectionRows, ...unusedConnectionRows]);
 
 	let draggedNodeId = $state<string | null>(null);
 	let expandedNodeIds = $state<string[]>([]);
@@ -218,11 +243,11 @@
 </script>
 
 <div class="sidebar-section-header">
-	<h2>Camera Flow</h2>
-	<span aria-label={`${guidedTourChain.length} flow stops`}>{guidedTourChain.length}</span>
+	<h2>Sequence Inspector</h2>
+	<span aria-label={`${guidedTourChain.length} sequence stops`}>{guidedTourChain.length}</span>
 </div>
 {#if guidedTourChain.length > 0}
-	<ul role="tree" aria-label="Camera flow stops">
+	<ul role="tree" aria-label="Sequence stops">
 		{#each guidedTourChain as nodeId, index (nodeId)}
 			{@const node = store.document.navigationNodes.find((candidate) => candidate.id === nodeId)}
 			{#if node}
@@ -355,16 +380,13 @@
 		</div>
 	{/if}
 {:else}
-	<p class="empty"><strong>No camera flow</strong></p>
+	<p class="empty"><strong>No sequence</strong></p>
 	<p class="empty">Place and connect camera nodes to build the path.</p>
 {/if}
 
 {#if detourGroups.length > 0}
-	<div class="sidebar-section-header">
-		<h2>Detours</h2>
-		<span aria-label={`${detourGroups.length} detours`}>{detourGroups.length}</span>
-	</div>
-	<ul role="tree" aria-label="Camera flow detours">
+	<h3 class="sub-section-header">Detours · {detourGroups.length}</h3>
+	<ul role="tree" aria-label="Sequence detours">
 		{#each detourGroups as group (group.originNodeId)}
 			{@const origin = store.document.navigationNodes.find((node) => node.id === group.originNodeId)}
 			<li class="detour-group">
@@ -443,10 +465,10 @@
 
 {#if freeNodeIds.length > 0}
 	<div class="sidebar-section-header">
-		<h2>Not in order yet</h2>
-		<span aria-label={`${freeNodeIds.length} free nodes`}>{freeNodeIds.length}</span>
+		<h2>Unsequenced</h2>
+		<span aria-label={`${freeNodeIds.length} unsequenced cameras`}>{freeNodeIds.length}</span>
 	</div>
-	<ul role="tree" aria-label="Free navigation nodes">
+	<ul role="tree" aria-label="Unsequenced cameras">
 		{#each freeNodeIds as nodeId (nodeId)}
 			{@const node = store.document.navigationNodes.find(
 				(candidate) => candidate.id === nodeId
@@ -484,7 +506,7 @@
 							<span class="tree-row__label" title={nodeLabel(node.id)}>
 								{nodeLabel(node.id)}
 							</span>
-							<span class="tree-row__meta">Drag to flow</span>
+							<span class="tree-row__meta">Drag to sequence</span>
 						</button>
 					</div>
 					{#if isNodeExpanded(node.id)}
@@ -501,25 +523,27 @@
 	</ul>
 {/if}
 
-{#if unusedConnectionRows.length > 0}
+{#if connectionRows.length > 0}
 	<div class="sidebar-section-header">
-		<h2>Connections / Advanced</h2>
-		<span aria-label={`${unusedConnectionRows.length} unused connections`}>{unusedConnectionRows.length}</span>
+		<h2>Connections</h2>
+		<span aria-label={`${connectionRows.length} connections`}>{connectionRows.length}</span>
 	</div>
-	<ul role="tree" aria-label="Unused connections">
-		{#each unusedConnectionRows as row (row.id)}
+	<ul role="tree" aria-label="Camera connections">
+		{#each connectionRows as row (row.id)}
 			<li class="unused-row">
 				<span class="unused-pair" title={row.id}>
-					{nodeLabel(row.fromNodeId)} ↔ {nodeLabel(row.toNodeId)}
+					{nodeLabel(row.fromNodeId)} — {nodeLabel(row.toNodeId)}
 				</span>
-				<button
-					type="button"
-					class="guided-remove"
-					aria-label={`Delete unused connection between ${nodeLabel(row.fromNodeId)} and ${nodeLabel(row.toNodeId)}`}
-					title="Delete this retained connection (its motion is discarded)"
-					disabled={guidedEditingBlocked}
-					onclick={() => store.deleteConnection(row.id)}
-				><X size={13} aria-hidden="true" /></button>
+				{#if unusedRowIds.has(row.id)}
+					<button
+						type="button"
+						class="guided-remove"
+						aria-label={`Delete unused connection between ${nodeLabel(row.fromNodeId)} and ${nodeLabel(row.toNodeId)}`}
+						title="Delete this retained connection (its motion is discarded)"
+						disabled={guidedEditingBlocked}
+						onclick={() => store.deleteConnection(row.id)}
+					><X size={13} aria-hidden="true" /></button>
+				{/if}
 			</li>
 		{/each}
 	</ul>
@@ -768,6 +792,16 @@
 	.loop-action:disabled {
 		opacity: 0.4;
 		cursor: default;
+	}
+
+	.sub-section-header {
+		margin: 0.45rem 0 0.2rem;
+		padding: 0 0.45rem;
+		color: #a89a72;
+		font-size: 0.66rem;
+		font-weight: 650;
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
 	}
 
 	.detour-group {

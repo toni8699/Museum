@@ -259,7 +259,7 @@ describe('resolvePlanSceneGraphFromDocument (P1.5 document-level resolver)', () 
 		expect(orderLabels.map((label) => (label.kind === 'text' ? label.text : ''))).toEqual(['1', '2']);
 		expect(
 			projection.authoring!.labels.some(
-				(primitive) => primitive.style === 'camera-free-badge'
+				(primitive) => primitive.style === 'camera-unsequenced-badge'
 			)
 		).toBe(true);
 	});

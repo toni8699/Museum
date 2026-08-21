@@ -37,7 +37,7 @@ export type PlanStyleToken =
 	| 'camera-node-selected'
 	| 'camera-node-hovered'
 	| 'camera-node-free'
-	| 'camera-free-badge'
+	| 'camera-unsequenced-badge'
 	| 'camera-anchor'
 	| 'camera-anchor-selected'
 	| 'camera-anchor-hovered'

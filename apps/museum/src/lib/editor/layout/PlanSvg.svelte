@@ -33,7 +33,7 @@
 		'camera-node-selected': 'camera-node selected',
 		'camera-node-hovered': 'camera-node hovered',
 		'camera-node-free': 'camera-node free',
-		'camera-free-badge': 'camera-free-badge',
+		'camera-unsequenced-badge': 'camera-unsequenced-badge',
 		'camera-anchor': 'camera-anchor',
 		'camera-anchor-selected': 'camera-anchor selected',
 		'camera-anchor-hovered': 'camera-anchor hovered',
@@ -114,7 +114,7 @@
 	.camera-node.selected { fill: #d6b35f; stroke: #fff2c7; stroke-width: 3; }
 	.camera-node.hovered { fill: #33607d; stroke: #cfe9ff; stroke-width: 3; }
 	.camera-node.free { fill: #2c2c38; stroke: #b7b1a4; stroke-width: 2; stroke-dasharray: 3 3; }
-	.camera-free-badge { fill: none; stroke: #8d887f; stroke-width: 1.5; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; pointer-events: none; }
+	.camera-unsequenced-badge { fill: none; stroke: #8d887f; stroke-width: 1.5; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; pointer-events: none; }
 	.camera-anchor { fill: #d6b35f; stroke: #fff2c7; stroke-width: 2; vector-effect: non-scaling-stroke; }
 	.camera-anchor.selected { fill: #fff2c7; stroke: #d6b35f; stroke-width: 2.5; }
 	.camera-anchor.hovered { fill: #f1d99a; stroke: #fff2c7; stroke-width: 2.5; }

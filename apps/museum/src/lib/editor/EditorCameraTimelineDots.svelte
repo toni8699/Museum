@@ -38,9 +38,6 @@
 	const playhead = $derived(timelineApi.playhead);
 	const disabled = $derived(timelineApi.disabled);
 	const selected = $derived(store.navigationSelection);
-	const dragConnectDisabled = $derived(
-		disabled || store.pendingNavigationCommand !== null
-	);
 	const activeTrackLabel = $derived(
 		store.activeCameraConnectionId
 			? `${store.activeCameraDirection === 'forward' ? '▶' : '◀'} ${store.activeCameraConnectionId}`
@@ -53,8 +50,6 @@
 		target: HTMLElement;
 		marker: TimelineViewKeyMarker;
 	} | null>(null);
-	let draggedTimelineNodeId = $state<string | null>(null);
-	let dragOverConnectionId = $state<string | null>(null);
 
 	function edgeDirection(
 		edge: EditorCameraTimelineEdge
@@ -424,52 +419,6 @@
 		return selected?.kind === 'node' && selected.nodeId === nodeId;
 	}
 
-	function beginTimelineNodeDrag(event: DragEvent, nodeId: string) {
-		if (dragConnectDisabled || nodeId === timeline?.startNodeId) {
-			event.preventDefault();
-			return;
-		}
-		draggedTimelineNodeId = nodeId;
-		event.dataTransfer?.setData('application/x-museum-camera-node', nodeId);
-		event.dataTransfer?.setData('text/plain', nodeId);
-		if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
-	}
-
-	function finishTimelineNodeDrag() {
-		draggedTimelineNodeId = null;
-		dragOverConnectionId = null;
-	}
-
-	function allowTimelineEdgeDrop(event: DragEvent, edge: EditorCameraTimelineEdge) {
-		if (dragConnectDisabled) return;
-		const types = Array.from(event.dataTransfer?.types ?? []);
-		if (
-			!draggedTimelineNodeId &&
-			!types.includes('application/x-museum-camera-node') &&
-			!types.includes('text/plain')
-		) {
-			return;
-		}
-		event.preventDefault();
-		dragOverConnectionId = edge.connectionId;
-		if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
-	}
-
-	function leaveTimelineEdge(edge: EditorCameraTimelineEdge) {
-		if (dragOverConnectionId === edge.connectionId) dragOverConnectionId = null;
-	}
-
-	function dropNodeOnTimelineEdge(event: DragEvent, edge: EditorCameraTimelineEdge) {
-		event.preventDefault();
-		const nodeId =
-			draggedTimelineNodeId ||
-			event.dataTransfer?.getData('application/x-museum-camera-node') ||
-			event.dataTransfer?.getData('text/plain');
-		finishTimelineNodeDrag();
-		if (!nodeId || dragConnectDisabled) return;
-		store.timelineDragConnectNode(nodeId, edge.fromNodeId, edge.toNodeId);
-	}
-
 	function isKeySelected(marker: TimelineViewKeyMarker) {
 		return (
 			selected?.kind === 'view-keyframe' &&
@@ -619,13 +568,9 @@
 					type="button"
 					class="edge"
 					class:selected={isEdgeSelected(edge)}
-					class:drop-target={dragOverConnectionId === edge.connectionId}
 					style={`left: ${percent(start)}; width: ${percent(end - start)};`}
-					title={`${edge.connectionId} · ${edge.direction} · drop a camera node here to insert it`}
+					title={`${edge.connectionId} · ${edge.direction}`}
 					disabled={disabled}
-					ondragover={(event) => allowTimelineEdgeDrop(event, edge)}
-					ondragleave={() => leaveTimelineEdge(edge)}
-					ondrop={(event) => dropNodeOnTimelineEdge(event, edge)}
 					onclick={(event) => selectEdge(event, edge)}
 				>
 					<span>{edge.connectionId}</span>
@@ -641,10 +586,6 @@
 					title={`${node?.label ?? boundary.nodeId} · ${formatTime(boundary.timeSeconds)}`}
 					aria-label={`Select camera node ${node?.label ?? boundary.nodeId}`}
 					disabled={disabled}
-					draggable={boundary.nodeId !== timeline.startNodeId && !dragConnectDisabled}
-					aria-grabbed={draggedTimelineNodeId === boundary.nodeId}
-					ondragstart={(event) => beginTimelineNodeDrag(event, boundary.nodeId)}
-					ondragend={finishTimelineNodeDrag}
 					onclick={(event) => {
 						event.stopPropagation();
 						store.selectCameraTimelineNode(boundary.nodeId, boundary.boundaryIndex);
@@ -785,12 +726,9 @@
 	.rail { position: absolute; top: 50%; left: 0; right: 0; height: 1px; background: #4a4852; }
 	.edge { position: absolute; top: 50%; z-index: 1; height: 1.55rem; min-width: 1px; transform: translateY(-50%); overflow: hidden; padding: 0 0.25rem; border: 0; border-left: 1px solid #6a6772; background: rgb(78 76 88 / 42%); color: #aaa5af; font: 0.54rem/1 ui-monospace, SFMono-Regular, Menlo, monospace; text-align: left; cursor: crosshair; }
 	.edge:hover:not(:disabled), .edge.selected { background: rgb(159 125 55 / 42%); color: #fff2c7; }
-	.edge.drop-target { background: rgb(96 160 116 / 55%); color: #f2ffe9; box-shadow: inset 0 0 0 1px #83c797; }
 	.edge span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 	.diamond { position: absolute; top: 50%; z-index: 3; width: 1.25rem; height: 1.75rem; transform: translate(-50%, -50%); padding: 0; border: 0; background: transparent; color: #c7c1b8; font: 0.78rem/1 sans-serif; cursor: pointer; }
 	.diamond:hover:not(:disabled), .diamond.selected { color: #ffe08a; text-shadow: 0 0 8px rgb(255 213 104 / 72%); }
-	.diamond.node[draggable='true'] { cursor: grab; }
-	.diamond.node[aria-grabbed='true'] { cursor: grabbing; }
 	.diamond.key { color: #79d8ff; }
 	.diamond.key.reverse { color: #d6a2ff; }
 	.diamond.key.selected { color: #fff; }

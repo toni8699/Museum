@@ -42,7 +42,6 @@ describe('MuseumEditorStore Phase 1 shell session state', () => {
 		expect(store.currentWorkspace).toBe('scene');
 		expect(store.leftPanel).toBe('scene');
 		expect(store.timelineExpanded).toBe(false);
-		expect(store.sceneTimelineExpanded).toBe(false);
 		expect(store.timelineHeight).toBe(280);
 		expect(store.cameraTimelinePlayhead).toBe(0);
 		expect(store.transformGizmoVisible).toBe(true);
@@ -51,27 +50,24 @@ describe('MuseumEditorStore Phase 1 shell session state', () => {
 		expect(store.treeExpandedClusterIds).toEqual([]);
 	});
 
-	it('auto-expands Camera while restoring Scene\'s remembered timeline choice', () => {
+	it('never auto-expands the timeline on a workspace switch (P1.7 owner follow-up)', () => {
 		const store = createFixtureEditorStore();
+		// Entering Camera keeps the panel collapsed — no forced expansion.
 		expect(store.setWorkspace('camera')).toBe(true);
 		expect(store.currentWorkspace).toBe('camera');
-		expect(store.timelineExpanded).toBe(true);
-
-		// Scene started collapsed and restores that preference after Camera forced the panel open.
-		expect(store.setWorkspace('scene')).toBe(true);
 		expect(store.timelineExpanded).toBe(false);
 
-		// A user choice made in Scene survives a full Camera round trip.
+		// The user's choice persists verbatim across every domain round trip.
 		store.toggleTimeline();
 		expect(store.timelineExpanded).toBe(true);
-		expect(store.sceneTimelineExpanded).toBe(true);
+		expect(store.setWorkspace('scene')).toBe(true);
+		expect(store.timelineExpanded).toBe(true);
 		expect(store.setWorkspace('camera')).toBe(true);
 		expect(store.timelineExpanded).toBe(true);
 		store.toggleTimeline();
 		expect(store.timelineExpanded).toBe(false);
-		expect(store.sceneTimelineExpanded).toBe(true);
 		expect(store.setWorkspace('scene')).toBe(true);
-		expect(store.timelineExpanded).toBe(true);
+		expect(store.timelineExpanded).toBe(false);
 	});
 
 	it('enters and leaves Layout without changing scene document history', () => {

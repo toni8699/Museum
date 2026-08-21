@@ -125,7 +125,7 @@ Both Scene Plan and Camera Plan consume the **same underlying Plan render model*
 Camera Plan then adds a filtered overlay containing only:
 
 * camera nodes
-* free-camera nodes
+* unsequenced nodes
 * connection curves
 * selected connection
 * interior path anchors
@@ -287,7 +287,7 @@ Some editor concepts deserve custom graphics:
 * orientation cube
 * XYZ transform gizmo
 * camera numbered node marker
-* free-camera green ring
+* unsequenced green ring
 * path anchor
 * timeline keyframe diamond
 * connection endpoint marker
@@ -429,7 +429,7 @@ Use green for:
 
 * saved state
 * valid/success state
-* free camera distinction
+* unsequenced camera distinction
 
 Use amber for:
 
@@ -478,7 +478,7 @@ single signature move of the palette; everything else stays quiet.
 --editor-accent-scene:    #E2B15C;  /* gallery brass → Scene selection/active */
 --editor-accent-camera:   #47C6E8;  /* lens cyan → Camera selection, framing, timeline */
 
---editor-success:         #31C985;  /* also the free-camera ring */
+--editor-success:         #31C985;  /* also the unsequenced ring */
 --editor-warning:         #E0764B;  /* burnt orange — kept off the brass hue */
 --editor-danger:          #EF626C;
 
@@ -555,7 +555,7 @@ normal node: 24px
 selected node: 28px
 ```
 
-## Free camera
+## Unsequenced camera
 
 ```text
 transparent/dark center
@@ -565,6 +565,9 @@ no sequence number
 ```
 
 This distinction is mandatory.
+
+(Terminology renamed 2026-08-21 per [`Camera-flow-specs.md`](./Camera-flow-specs.md)
+§2 — the visual state is unchanged.)
 
 ## Connections
 

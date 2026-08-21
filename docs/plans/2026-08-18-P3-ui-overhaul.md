@@ -51,21 +51,22 @@ visual state to the canonical `Design-specs.md` state.
 
 ### P3.1 sketch → surface mapping
 
-| Sketch | Surface |
-|---|---|
-| `Design-png/Scene/Scene-2D.png` | Scene → Plan (incl. P2 staging) |
-| `Design-png/Scene/Plan-Staging.png` | Staging footprint states (P2) |
-| `Design-png/Scene/Empty-staging.png` | Empty staging state |
-| `Design-png/Scene/Empty-plan.png` | Empty plan state |
-| `Design-png/Scene/Scene-3D.png` · `Scene-3D-2.png` · `Scene-3D-assets.png` | Scene → 3D + asset library |
-| `Design-png/Scene/Scene-Object-Inspector.png` | Inspector |
-| `Design-png/Camera/Camera-2D.png` | Camera → Plan (P1.5) |
-| `Design-png/Camera/Camera-3D.png` | Camera → 3D |
-| `Design-png/Camera/Framing-Authoring-3D.png` | Framing authoring (P1.6) |
-| `Design-png/Camera/Camera-sequence.png` · `Camera-sidebar.png` | Camera sidebar / sequence |
-| `Design-png/Camera/Timeline-expanded.png` | Camera Timeline expanded (P1.6) |
-| `Design-png/Camera/Collapsed-camera.png` | Camera Timeline collapsed |
-| `Design-png/Scene/Asset management.png` | Asset management (deferred, out of P3 scope) |
+| Sketch | Surface | Note |
+|---|--:|---|
+| `Design-png/Scene/Scene-2D.png` | Scene → Plan (incl. P2 staging) | |
+| `Design-png/Scene/Plan-Staging.png` | Staging footprint states (P2) | |
+| `Design-png/Scene/Empty-staging.png` | Empty staging state | |
+| `Design-png/Scene/Empty-plan.png` | Empty plan state | |
+| `Design-png/Scene/Scene-3D.png` · `Scene-3D-2.png` · `Scene-3D-assets.png` | Scene → 3D + asset library | |
+| `Design-png/Scene/Scene-Object-Inspector.png` | Inspector | |
+| `Design-png/Camera/Camera-2D.png` | Camera → Plan (P1.5) | **keep — minor convention only** (sketch shows `Free Cameras / →` / editable `Y`; docs canonical `Unsequenced / — / Y preserved` per `Camera-flow-specs.md §2`, `Shell §4`/`§9` — P3.1 logs deviation, no PNG edit) |
+| `Design-png/Camera/Camera-3D.png` | Camera → 3D | **keep — minor convention only** (`Free → Unsequenced` per `Camera-flow-specs.md §2`) |
+| `Design-png/Camera/Framing-Authoring-3D.png` | Framing authoring (P1.6) | **redesign left 30%** — viewport/inspector envelope keep; left `Shots 01-08` → `Sequence Inspector / Unsequenced / Connections` per `Shell §4` (see `P1.8-designer-brief.md §2`) |
+| `Design-png/Camera/Camera-sequence.png` · `Camera-sidebar.png` | Camera sidebar / sequence | `Camera-sequence.png` **keep — minor** (`Free → Unsequenced`); `Camera-sidebar.png` **redesign** — 8-shot model → canonical 4-section sidebar per `Shell §4` |
+| `Design-png/Camera/Timeline-expanded.png` | Camera Timeline expanded (P1.6) | **keep — minor** (`Free → Unsequenced`); lanes `Camera Path/Shots/FOV/Look At/Roll` keep (`Shell §12`) |
+| `Design-png/Camera/Collapsed-camera.png` | Camera Timeline collapsed | **redesign** — sketch duplicates framing viewport; needs true `48px` collapsed strip per `Shell §12` |
+| `Design-png/Camera/Sequence-reroot.png` · `New-Camera-flow-plan.png` · `Unsequenced-branch.png` | P1.8 Camera flow (Sequence re-root / branch) | **keep — minor** (new P1.8 truth; docs note `→` → `—`, `Measure`/`Yaw/Y` vs `Shell §4/§9/§16`, timing label `Shell §9` gap — sketch kept as-is) |
+| `Design-png/Scene/Asset management.png` | Asset management (deferred, out of P3 scope) | |
 
 ## Decisions (2026-08-19)
 

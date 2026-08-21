@@ -1,7 +1,7 @@
 # P1 — Camera overhaul (umbrella)
 
 **Date:** 2026-08-18
-**Status:** In-progress — **P1.1–P1.3 shipped 2026-08-18**; **P1.4 shipped 2026-08-19**; umbrella; remaining increments execute in order below
+**Status:** In-progress — **P1.1–P1.3 shipped 2026-08-18**; **P1.4–P1.6 shipped 2026-08-19/20**; **P1.8 drafted 2026-08-21**; umbrella; remaining increments execute in order below
 **Tracker:** [`docs/plans/README.md`](README.md) — **P1**, depends on: renewal
 **Folded sources (2026-08-18, content preserved; originals deleted):**
 - §A — successor shell ratification (the P1.1 gate)
@@ -80,9 +80,10 @@ by the ratified shell contract (§A).
 | **P1.2** | `framingEnvelope` serialization + ordering validation + `resolveSceneDocument` threading (+ runtime types) + **FOV copy fix, specs/docs wording (F1)** + **clone-survival test through `helpers/route-clone` + preview controller (F3)** — **shipped 2026-08-18** | §B, §D | — |
 | **P1.3** | Envelope sampler blend `w(p)` in `sampleCameraMotion` + **engine guards (ext. review): POI singularity angular clamp + standoff · collinear-zero stability guard (Cartesian blend retained) · double-whip dynamic bypass** — **shipped 2026-08-18**; [archived brief](../archive/plans/2026-08-18-P1.3-envelope-sampler-guards.md) | §B, §D | P1.2 |
 | **P1.4** | Envelope invariant + auto-managed/manual policy tests + **guard acceptance criteria (ext. review): non-degeneracy (`target–eye ≥ near-clip`) · smooth continuity (no 180° pops) · singularity · double-whip · FOV pacing** — **shipped 2026-08-19**; [archived brief](../archive/plans/2026-08-19-P1.4-envelope-invariants-policy.md) | §B, §D | P1.2, P1.3 |
-| **P1.5** | [Camera Plan surface + backdrop/visual-rule assertions](./2026-08-19-P1.5-camera-plan-surface.md) + **connection timing authoring (F5 resolved: duration authored on the plan edge — per-direction `durationSeconds` via the shipped `setConnectionTiming` mutator, derived speed readout `length/time`, plan-edge timing labels un-gated)** (B0 Add-camera mutator already shipped in S10.1 closeout, `674d597`; **F4**) | §C | P1.1 |
-| **P1.6** | [Framing authoring UX](./2026-08-20-P1.6-framing-authoring.md) + FOV copy fix (**UI wording; spec/docs copy lands in P1.2**) + **intent-first surface (ext. review): focus-timing presets Early/Centered/Full Move + lens presets · envelope handles in advanced drawer · parallax warning + FOV ramp guardrail + comfort diagnostic** + **Camera 3D Connection-Inspector duration field (same per-direction connection timing authored in P1.5)** | §B | P1.2–P1.4, P1.1 |
-| **P1.7** | [Camera UI reconciliation pass (light — not the P3 overhaul)](./2026-08-20-P1.7-camera-ui-reconciliation.md) | — | P1.5, P1.6 |
+| **P1.5** | [Camera Plan surface + backdrop/visual-rule assertions](./2026-08-19-P1.5-camera-plan-surface.md) + **connection timing authoring (F5 resolved: duration authored on the plan edge — per-direction `durationSeconds` via the shipped `setConnectionTiming` mutator, derived speed readout `length/time`, plan-edge timing labels un-gated)** (B0 Add-camera mutator already shipped in S10.1 closeout, `674d597`; **F4**) — **shipped 2026-08-20** | §C | P1.1 |
+| **P1.6** | [Framing authoring UX](./2026-08-20-P1.6-framing-authoring.md) + FOV copy fix (**UI wording; spec/docs copy lands in P1.2**) + **intent-first surface (ext. review): focus-timing presets Early/Centered/Full Move + lens presets · envelope handles in advanced drawer · parallax warning + FOV ramp guardrail + comfort diagnostic** + **Camera 3D Connection-Inspector duration field (same per-direction connection timing authored in P1.5)** — **shipped 2026-08-20** | §B | P1.2–P1.4, P1.1 |
+| **P1.7** | [Camera UI reconciliation pass (light — not the P3 overhaul)](../archive/plans/2026-08-20-P1.7-camera-ui-reconciliation.md) — four-section Camera Sidebar, Unsequenced terminology, tour selector, domain-switch fade; review fixes: **Camera 3D order digits + Unsequenced badges** (shell-spec "Viewport MUST show" gap closed) + **2D keep-mounted parity with 3D** (both plan surfaces stay mounted across Scene ⇄ Camera) — **shipped 2026-08-21** ([archived brief](../archive/plans/2026-08-20-P1.7-camera-ui-reconciliation.md); manual walk owner-waived) | — | P1.5, P1.6 |
+| **P1.8** | [Camera sequence authoring — Camera-flow-specs conformance (**draft**)](./2026-08-21-P1.8-camera-sequence-authoring.md): Unsequenced terminology (amend shell spec §4 + P1.7 naming first) · re-root **Set as First** (entrance-start pin → default) · per-camera preview wiring · rejection-copy audit — timeline drag-connect removal already landed 2026-08-21 | §C, §D + [Camera-flow-specs](../Design-specs/Camera-flow-specs.md) | P1.5–P1.7 |
 
 ## Sequencing
 
@@ -121,6 +122,8 @@ converges both tracks. **P1.7** last.
 - **External-review guards landed and tested** — singularity, collinear-zero,
   double-whip, and FOV-pacing acceptance criteria green (P1.3/P1.4).
 - P1.7 reconciliation done (interim presentation; the P3 pass is separate).
+- P1.8 sequence-authoring reconciliation done (Unsequenced naming · re-root
+  "Set as First" · per-camera preview).
 - Tracker marks **P1 shipped**; this umbrella moves to archive with a stub.
 
 ---
@@ -458,8 +461,9 @@ the one shell-region gap — the rest of the Camera Plan content lands with P1.5
 Plan` (deferred, non-architectural); the Camera Sidebar is today the unified
 tree with read-only environment rows and the embedded Camera Flow panel
 (Scene-only Hierarchy/Assets tabs and Add Room are absent; dedicated
-Environment / Sequence Inspector / Free Cameras / Connections sections →
-P1.7); the timeline domain-switch animation is instant (polish, deferred).
+Environment / Sequence Inspector / Unsequenced / Connections sections →
+P1.7 — sidebar naming per `Camera-flow-specs.md` / P1.8); the timeline
+domain-switch animation is instant (polish, deferred).
 
 ---
 

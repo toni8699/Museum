@@ -51,8 +51,7 @@ import {
 	validateGuidedTourInsertion,
 	validateGuidedTourOrder,
 	validateGuidedTourRemoval,
-	validateNavigationNodeDeletion,
-	validateTimelineGuidedTourDrop
+	validateNavigationNodeDeletion
 } from '../editor-navigation-graph';
 import { runOrFail } from '../helpers/validators-runner';
 import { CAMERA_DIRECTION_TREE_KEY_SEPARATOR } from '../helpers/scene-keys';
@@ -860,75 +859,6 @@ export class EditorNavigationGraphMutator {
 		if (!this.host.commitDocumentTransaction()) return false;
 		this.host.setStatusMessage(
 			`Removed the detour at ${detourPlan.originNode.label} — the camera nodes are kept as free`
-		);
-		return true;
-	}
-
-	/**
-	 * Phase 3.5 — move an existing node onto one guided timeline edge. The
-	 * reciprocal cycle rewrite and optional single straight edge commit once.
-	 */
-	timelineDragConnectNode(
-		nodeId: string,
-		gapFromNodeId: string,
-		gapToNodeId: string
-	) {
-		if (!this.#canEditGuidedTour()) return false;
-		const dropPlan = runOrFail(this.host, () =>
-			validateTimelineGuidedTourDrop(this.host.document, nodeId, gapFromNodeId, gapToNodeId)
-		);
-		if (!dropPlan) return false;
-
-		const missing = dropPlan.missingConnection;
-		const connectionId = missing
-			? reserveEntityId(
-					`${missing.fromNodeId}-${missing.toNodeId}`,
-					new Set(this.host.document.connections.map((connection) => connection.id))
-			  )
-			: this.host.document.connections.find(
-					(connection) =>
-						(connection.fromNodeId === dropPlan.focusConnection.fromNodeId &&
-							connection.toNodeId === dropPlan.focusConnection.toNodeId) ||
-						(connection.fromNodeId === dropPlan.focusConnection.toNodeId &&
-							connection.toNodeId === dropPlan.focusConnection.fromNodeId)
-			  )?.id;
-		if (!connectionId) {
-			this.host.setStatusMessage('The guided connection selected for fine-tuning is unavailable');
-			return false;
-		}
-
-		if (!this.host.beginDocumentTransaction()) return false;
-		if (missing) {
-			const from = this.host.document.navigationNodes.find(
-				(node) => node.id === missing.fromNodeId
-			);
-			const to = this.host.document.navigationNodes.find(
-				(node) => node.id === missing.toNodeId
-			);
-			if (!from || !to) {
-				this.host.cancelDocumentTransaction();
-				this.host.setStatusMessage('The timeline drag-connect endpoints became unavailable');
-				return false;
-			}
-			this.#appendStraightConnection(from, to, connectionId);
-		}
-		this.#rewriteGuidedTourOrder(dropPlan.nodeIds);
-		if (!this.host.commitDocumentTransaction()) return false;
-
-		const connection = this.host.document.connections.find(
-			(candidate) => candidate.id === connectionId
-		)!;
-		const direction: CameraConnectionDirection =
-			connection.fromNodeId === dropPlan.focusConnection.fromNodeId &&
-			connection.toNodeId === dropPlan.focusConnection.toNodeId
-				? 'forward'
-				: 'reverse';
-		this.selectionActions.selectCameraConnectionDirection(connection.id, direction);
-		const node = this.host.document.navigationNodes.find((candidate) => candidate.id === nodeId)!;
-		this.host.setStatusMessage(
-			missing
-				? `Moved ${node.label} — created the missing transition ${missing.fromNodeId} → ${missing.toNodeId}`
-				: `Moved ${node.label} in the camera flow`
 		);
 		return true;
 	}

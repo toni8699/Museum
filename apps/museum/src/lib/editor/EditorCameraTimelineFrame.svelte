@@ -83,8 +83,21 @@
 	<header>
 		<div class="heading">
 			<span class="legend">Camera timeline</span>
-			<span class="phase-label">Camera flow · exact shared motion</span>
+			<span class="phase-label">Sequence · guided route &amp; framing</span>
 		</div>
+		<!-- P1.7 §3 — the canonical single-tour selector. The skeleton has
+		     exactly one guided tour, so this is a read-only presentation of it
+		     (aria-disabled, zero handlers): no multi-tour semantics exist yet,
+		     and sequence order is authored in the sidebar's Sequence Inspector. -->
+		<button
+			type="button"
+			class="tour-selector"
+			aria-disabled="true"
+			title="Main Visitor Tour — the single tour. Edit the order in the sidebar's Sequence Inspector."
+		>
+			<span>Main Visitor Tour</span>
+			<ChevronDown size={13} aria-hidden="true" />
+		</button>
 		{#if store.cameraPreview}
 			<span class="preview-badge">Preview active</span>
 		{:else if expanded}
@@ -161,6 +174,19 @@
 	.legend { font-weight: 650; font-size: 0.78rem; letter-spacing: 0.02em; color: #f4efe4; }
 	.phase-label,
 	.workspace-label { color: #77736d; font-size: 0.65rem; }
+	.tour-selector {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+		padding: 0.26rem 0.5rem;
+		border: 1px solid #3a3a46;
+		border-radius: 0.3rem;
+		background: #1a1a22;
+		color: #ddd6ca;
+		font: inherit;
+		font-size: 0.68rem;
+		cursor: default;
+	}
 	.workspace-label { margin-left: auto; text-transform: capitalize; }
 	.preview-badge {
 		margin-left: auto;

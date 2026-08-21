@@ -107,7 +107,6 @@ export class EditorSessionState {
 	currentWorkspace = $state<EditorWorkspace>('scene');
 	leftPanel = $state<EditorLeftPanel>('scene');
 	timelineExpanded = $state(false);
-	sceneTimelineExpanded = $state(false);
 	timelineHeight = $state(DEFAULT_TIMELINE_HEIGHT);
 
 	setWorkspace(value: EditorWorkspace) {
@@ -120,10 +119,6 @@ export class EditorSessionState {
 
 	setTimelineExpanded(value: boolean) {
 		this.timelineExpanded = value;
-	}
-
-	setSceneTimelineExpanded(value: boolean) {
-		this.sceneTimelineExpanded = value;
 	}
 
 	setTimelineHeight(value: number) {

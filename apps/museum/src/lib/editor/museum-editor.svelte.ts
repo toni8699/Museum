@@ -735,13 +735,6 @@ export class MuseumEditorStore {
 	set timelineExpanded(value: boolean) {
 		this.session.setTimelineExpanded(value);
 	}
-	/** Scene workspace preference is restored after Camera forces the panel open. */
-	get sceneTimelineExpanded(): boolean {
-		return this.session.sceneTimelineExpanded;
-	}
-	set sceneTimelineExpanded(value: boolean) {
-		this.session.setSceneTimelineExpanded(value);
-	}
 	get timelineHeight(): number {
 		return this.session.timelineHeight;
 	}
@@ -2049,7 +2042,9 @@ export class MuseumEditorStore {
 			this.stopCameraPreview();
 		}
 		this.currentWorkspace = workspace;
-		this.timelineExpanded = workspace === 'camera' ? true : this.sceneTimelineExpanded;
+		// P1.7 follow-up (owner): the Camera timeline never auto-expands on a
+		// domain switch — the panel keeps whatever expanded state the user last
+		// set, across every workspace change.
 		return true;
 	}
 
@@ -2068,9 +2063,6 @@ export class MuseumEditorStore {
 	setTimelineExpanded(value: boolean) {
 		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
 		this.timelineExpanded = Boolean(value);
-		if (this.currentWorkspace === 'scene') {
-			this.sceneTimelineExpanded = this.timelineExpanded;
-		}
 		return true;
 	}
 
@@ -2089,9 +2081,6 @@ export class MuseumEditorStore {
 	toggleTimeline() {
 		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
 		this.timelineExpanded = !this.timelineExpanded;
-		if (this.currentWorkspace === 'scene') {
-			this.sceneTimelineExpanded = this.timelineExpanded;
-		}
 		return true;
 	}
 
@@ -2367,22 +2356,6 @@ export class MuseumEditorStore {
 	/** S10.2 — remove a whole detour; chain nodes become free. */
 	removeDetour(originNodeId: string) {
 		return this.navigationGraphMutator.removeDetour(originNodeId);
-	}
-
-	/**
-	 * Phase 3.5 — move an existing node onto one guided timeline edge. The
-	 * reciprocal cycle rewrite and optional single straight edge commit once.
-	 */
-	timelineDragConnectNode(
-		nodeId: string,
-		gapFromNodeId: string,
-		gapToNodeId: string
-	) {
-		return this.navigationGraphMutator.timelineDragConnectNode(
-			nodeId,
-			gapFromNodeId,
-			gapToNodeId
-		);
 	}
 
 	/** Delete one non-guided, non-bridge edge and both directional view tracks. */

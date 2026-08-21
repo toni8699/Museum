@@ -17,6 +17,7 @@
 	import { setLayoutDraftTool, type LayoutInteractionState } from '$lib/editor/layout/layout-interaction';
 	import type { MuseumEditorStore } from '$lib/editor/museum-editor.svelte';
 	import UnifiedProjectTree from '$lib/editor/UnifiedProjectTree.svelte';
+	import CameraSidebar from './CameraSidebar.svelte';
 	import type { EditorActiveSelectionStore } from './active-editor-selection.svelte';
 	import type { EditorViewState } from './editor-view-state.svelte';
 
@@ -101,23 +102,36 @@
 		</div>
 	{/if}
 
-	<!-- Both panels stay mounted; the inactive one is hidden by class so the
-	     tree's component-local expansion state survives tab switches. -->
-	<div class="panel-content" class:panel-content--hidden={showScenePanelTabs && store.leftPanel === 'assets'}>
-		<UnifiedProjectTree
-			{store}
-			{layoutPreview}
-			{layoutInteraction}
-			{activeSelection}
-			domain={viewState.domain}
-			view={viewState.activeView}
-			onAddRoom={domain === 'scene' ? startRoomDraft : undefined}
-		/>
-	</div>
-	{#if showScenePanelTabs}
-		<div class="panel-content" class:panel-content--hidden={store.leftPanel !== 'assets'}>
-			<EditorAssetLibrary {store} onselectionchange={onAssetSelection} {onSelectAsset} />
+	{#if domain === 'camera'}
+		<!-- P1.7 — Camera domain gets the dedicated four-section sidebar
+		     (Environment · Sequence Inspector · Unsequenced · Connections),
+		     fading in via the shared shell transition on its root. -->
+		<div class="panel-content">
+			<CameraSidebar
+				{store}
+				{layoutPreview}
+				activeDomain={activeSelection.active.domain}
+			/>
 		</div>
+	{:else}
+		<!-- Both panels stay mounted; the inactive one is hidden by class so the
+		     tree's component-local expansion state survives tab switches. -->
+		<div class="panel-content" class:panel-content--hidden={showScenePanelTabs && store.leftPanel === 'assets'}>
+			<UnifiedProjectTree
+				{store}
+				{layoutPreview}
+				{layoutInteraction}
+				{activeSelection}
+				domain={viewState.domain}
+				view={viewState.activeView}
+				onAddRoom={domain === 'scene' ? startRoomDraft : undefined}
+			/>
+		</div>
+		{#if showScenePanelTabs}
+			<div class="panel-content" class:panel-content--hidden={store.leftPanel !== 'assets'}>
+				<EditorAssetLibrary {store} onselectionchange={onAssetSelection} {onSelectAsset} />
+			</div>
+		{/if}
 	{/if}
 
 	<a class="back" href="/museum">Back to museum</a>

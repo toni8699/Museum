@@ -402,6 +402,38 @@ describe('unified hierarchy contracts', () => {
 		expect(guided.match(/aria-disabled=\{interactive \? undefined : true\}/g)).toHaveLength(7);
 	});
 
+	it('routes the Camera domain to the four-section Camera Sidebar and keeps Scene on the unified tree', () => {
+		const sidebar = readLibSource('editor/app/EditorSidebar.svelte');
+		// Camera domain renders the dedicated sidebar; the unified tree (with
+		// the Assets sibling) stays the Scene-domain panel.
+		expect(sidebar).toContain('CameraSidebar');
+		expect(sidebar).toContain("domain === 'camera'");
+		expect(sidebar).toContain('<UnifiedProjectTree');
+
+		const cameraSidebar = readLibSource('editor/app/CameraSidebar.svelte');
+		// Canonical four sections: Environment header + the panel's three.
+		expect(cameraSidebar).toContain('<h2>Environment</h2>');
+		expect(cameraSidebar).toContain('CameraFlowPanel');
+		// Environment is read-only context: rows carry aria-disabled and no
+		// select/mutation handlers.
+		expect(cameraSidebar.match(/aria-disabled="true"/g)?.length ?? 0).toBeGreaterThanOrEqual(3);
+		expect(cameraSidebar).not.toContain('onclick={() => store');
+		expect(cameraSidebar).not.toContain('deleteLayout');
+
+		const panel = readLibSource('editor/CameraFlowPanel.svelte');
+		// Amended terminology: Sequence Inspector / Unsequenced / Connections.
+		expect(panel).toContain('<h2>Sequence Inspector</h2>');
+		expect(panel).toContain('<h2>Unsequenced</h2>');
+		expect(panel).toContain('<h2>Connections</h2>');
+		expect(panel).not.toContain('Not in order yet');
+		expect(panel).not.toContain('Free navigation nodes');
+		expect(panel).not.toContain('Connections / Advanced');
+		expect(panel).not.toContain('↔');
+		// Undirected topology labels only (chain records + retained tray).
+		expect(panel).toContain('chainConnectionRows');
+		expect(panel).toContain('connectionRows');
+	});
+
 	it('keeps the unified tree mounted across Hierarchy|Assets tabs and hides the boot header correctly', () => {
 		const sidebar = readLibSource('editor/app/EditorSidebar.svelte');
 		// The tree must not unmount when the Assets tab is active (its
@@ -974,6 +1006,75 @@ describe('camera context contracts', () => {
 		expect(frame).toContain('grid-area: bottom');
 	});
 
+	it('presents the single tour as a read-only selector in the timeline header (P1.7 §3)', () => {
+		const frame = readLibSource('editor/EditorCameraTimelineFrame.svelte');
+		// The canonical tour is a read-only presentation — the skeleton has
+		// exactly one guided tour, so the selector itself must carry zero
+		// mutation path (no multi-tour semantics exist yet; order is authored
+		// in the sidebar's Sequence Inspector).
+		const selector = frame.match(/class="tour-selector"[\s\S]*?<\/button>/)?.[0];
+		expect(selector).toBeTruthy();
+		expect(selector!).toContain('Main Visitor Tour');
+		expect(selector!).toContain('aria-disabled="true"');
+		expect(selector!).not.toContain('onclick');
+		// The interim dev phase label is gone from the header.
+		expect(frame).not.toContain('exact shared motion');
+	});
+
+	it('switches views and domains instantly — no fade on any shell swap (P1.7 owner follow-up)', () => {
+		// Owner decision 2026-08-21: view/domain switches snap instantly.
+		// The shared fade helper is deleted and no swappable surface may
+		// carry a swap fade again.
+		for (const path of [
+			'editor/app/PlanWorkspace.svelte',
+			'editor/app/CameraPlanWorkspace.svelte',
+			'editor/app/Workspace3DView.svelte',
+			'editor/EditorCameraTimelineFrame.svelte',
+			'editor/app/CameraSidebar.svelte',
+			'editor/UnifiedProjectTree.svelte',
+			'editor/app/EditorApp.svelte'
+		]) {
+			const source = readLibSource(path);
+			expect(source, path).not.toContain('editorWorkspaceFade');
+			expect(source, path).not.toContain('view-fade-in');
+			expect(source, path).not.toContain('plan-fade-in');
+		}
+		expect(fs.existsSync(path.join(LIB_DIR, 'editor/editor-transitions.ts'))).toBe(false);
+		// The plan-cell flip is visibility-only (instant), and the 3D cell
+		// stays one component for both domains — a Scene ⇄ Camera switch in
+		// 3D never remounts the canvas.
+		const app = readLibSource('editor/app/EditorApp.svelte');
+		expect(app).toContain('.plan-cell--hidden');
+		expect(app).not.toContain('transition: opacity');
+		expect(app).toContain('<Workspace3DView');
+		expect(app).toContain('context={viewState.domain}');
+	});
+
+	it('shows guided order digits and Unsequenced badges in Camera 3D (shell spec "Viewport MUST show")', () => {
+		const view = readLibSource('editor/app/Workspace3DView.svelte');
+		// The 3D cell projects the same main-flow accessor the Camera Plan
+		// projection uses, and mounts the projector inside the Canvas plus the
+		// DOM overlay beside the orientation gizmo — camera context only,
+		// never during visitor preview.
+		expect(view).toContain('buildCameraNodeLabelKinds(store.mainFlowNodeIds');
+		expect(view).toContain('<EditorCameraLabelProjector');
+		expect(view).toContain('<EditorCameraLabelsOverlay />');
+		const overlay = readLibSource('editor/EditorCameraLabelsOverlay.svelte');
+		expect(overlay).toContain('Unsequenced');
+		expect(overlay).toContain('pointer-events: none');
+		expect(overlay).toContain('aria-hidden="true"');
+	});
+
+	it('renders Camera 3D connection paths without arrows or cones', () => {
+		const paths = readLibSource('editor/EditorCameraPathHelpers.svelte');
+		// Undirected topology: the 3D splines are Line2 samples only — no
+		// cone/arrow geometry may appear (mirrors the Plan-level assertion).
+		expect(paths).toContain('Line2');
+		expect(paths).not.toContain('ConeGeometry');
+		expect(paths).not.toContain('ArrowHelper');
+		expect(paths).not.toContain('Arrow');
+	});
+
 	it('keeps both Camera cells on the camera workspace so timeline state persists across views (G3)', () => {
 		const app = readLibSource('editor/app/EditorApp.svelte');
 		// G3 — `store.setWorkspace` collapses the timeline, stops previews, and
@@ -984,12 +1085,20 @@ describe('camera context contracts', () => {
 		expect(app).toContain("store.setWorkspace('camera')");
 	});
 
-	it('mounts the live Camera Plan workspace in the Camera → Plan cell (P1.5, placeholder gone)', () => {
+	it('mounts both plan workspaces keep-mounted in the Plan cell (P1.7 review fix — 2D parity with 3D)', () => {
 		const app = readLibSource('editor/app/EditorApp.svelte');
-		// The center-cell matrix mounts the live authoring surface only for
-		// Camera → Plan; Scene → Plan stays PlanWorkspace.
+		// Both plan surfaces stay mounted across Scene ⇄ Camera (the G3
+		// pattern): each keeps its pan/zoom and component-local state, the
+		// hidden one is `inert` + faded by class, and only the sidebar/menu
+		// functionality swaps — mirroring how the single Workspace3DView cell
+		// serves both domains without remounting.
+		expect(app).toContain('<PlanWorkspace');
 		expect(app).toContain('<CameraPlanWorkspace');
-		expect(app).toContain("viewState.activeView === 'plan' && viewState.domain === 'scene'");
+		expect(app).toContain("class:plan-cell--hidden={viewState.domain !== 'scene'}");
+		expect(app).toContain("class:plan-cell--hidden={viewState.domain !== 'camera'}");
+		expect(app).toContain("inert={viewState.domain !== 'scene'}");
+		expect(app).toContain("inert={viewState.domain !== 'camera'}");
+		expect(app).toContain('cameraPlan={cameraPlanState}');
 		expect(
 			fs.existsSync(path.join(LIB_DIR, 'editor/app/CameraPlanPlaceholder.svelte'))
 		).toBe(false);
@@ -1111,15 +1220,16 @@ describe('camera context contracts', () => {
 		expect(panel).not.toContain('findClosableGuidedChain');
 	});
 
-	it('renders the detour groups and the Unused Connections tray in the Sequence Inspector', () => {
+	it('renders the detour groups and the undirected Connections list in the Sequence Inspector', () => {
 		const panel = readLibSource('editor/CameraFlowPanel.svelte');
 		expect(panel).toContain('store.flowDetourGroups');
 		expect(panel).toContain('store.flowLoopConnectionId');
 		expect(panel).toContain('Detour at');
 		expect(panel).toContain('store.removeDetour(');
 		expect(panel).toContain('store.removeDetourNode(');
-		expect(panel).toContain('Not in order yet');
-		expect(panel).toContain('Connections / Advanced');
+		expect(panel).toContain('<h2>Unsequenced</h2>');
+		expect(panel).toContain('<h2>Connections</h2>');
+		expect(panel).toContain('chainConnectionRows');
 		expect(panel).toContain('store.appendDetourNode(');
 	});
 
@@ -1158,13 +1268,14 @@ describe('camera context contracts', () => {
 
 	// S10.1.6 — workspace transition polish: canvas never remounts; fades are
 	// CSS-only and disabled under prefers-reduced-motion.
-	it('animates workspace switches with CSS fades and honors reduced motion', () => {
+	it('switches workspace surfaces instantly — S10.1.6 fades superseded (P1.7 owner follow-up)', () => {
+		// Superseded: the owner removed all shell swap fades (2026-08-21).
+		// The old view-fade/plan-fade keyframes must stay gone.
 		const ws3d = readLibSource('editor/app/Workspace3DView.svelte');
 		const planView = readLibSource('editor/app/PlanWorkspace.svelte');
-		expect(ws3d).toContain('@keyframes view-fade-in');
-		expect(ws3d).toContain('prefers-reduced-motion');
-		expect(planView).toContain('@keyframes plan-fade-in');
-		expect(planView).toContain('prefers-reduced-motion');
+		expect(ws3d).not.toContain('@keyframes view-fade-in');
+		expect(ws3d).not.toContain('prefers-reduced-motion');
+		expect(planView).not.toContain('@keyframes plan-fade-in');
 	});
 
 	// S10.1 — Rooms hierarchy tree: per-row visibility + kebab actions + add.

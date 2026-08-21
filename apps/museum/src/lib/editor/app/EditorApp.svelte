@@ -248,11 +248,30 @@
 		onpointerdown={(event) => event.currentTarget.focus()}
 		style="grid-area: center;"
 	>
-		{#if viewState.activeView === 'plan' && viewState.domain === 'scene'}
-			<PlanWorkspace {store} {layoutPreview} {layoutInteraction} />
-		{:else if viewState.activeView === 'plan'}
-			<!-- P1.5 — Camera → Plan is the live camera-graph authoring surface. -->
-			<CameraPlanWorkspace {store} {layoutPreview} cameraPlan={cameraPlanState} />
+		<!-- P1.7 owner follow-up — view/domain switches are INSTANT (no fade):
+		     the 3D cell is one component for both domains and both plan
+		     surfaces stay mounted, so a switch only toggles visibility. -->
+		{#if viewState.activeView === 'plan'}
+			<!-- P1.7 review fix — Plan parity with the 3D cell: both plan
+		     surfaces stay mounted across Scene ⇄ Camera (G3 pattern), so
+		     each keeps its pan/zoom and local state; only the sidebar/menu
+		     functionality swaps, instantly (owner: no fade). The hidden cell
+		     is `inert` + visibility-hidden. -->
+			<div
+				class="plan-cell"
+				class:plan-cell--hidden={viewState.domain !== 'scene'}
+				inert={viewState.domain !== 'scene'}
+			>
+				<PlanWorkspace {store} {layoutPreview} {layoutInteraction} />
+			</div>
+			<div
+				class="plan-cell"
+				class:plan-cell--hidden={viewState.domain !== 'camera'}
+				inert={viewState.domain !== 'camera'}
+			>
+				<!-- P1.5 — Camera → Plan is the live camera-graph authoring surface. -->
+				<CameraPlanWorkspace {store} {layoutPreview} cameraPlan={cameraPlanState} />
+			</div>
 		{:else}
 			<!-- explicit 3D context seam: camera authoring overlays and
 			     the bottom timeline are Camera-only; Scene stays scene chrome. -->
@@ -296,6 +315,19 @@
 	}
 	.center { position: relative; min-width: 0; min-height: 0; outline: none; }
 	.center:focus-visible { box-shadow: inset 0 0 0 1px #d6b35f; }
+
+	/* P1.7 review fix — both plan surfaces stay mounted (G3 pattern). The
+	   hidden cell flips instantly (owner: no fade on view/domain switches)
+	   and `inert` strips it from interaction + the a11y tree. */
+	.plan-cell {
+		position: absolute;
+		inset: 0;
+		min-width: 0;
+		min-height: 0;
+	}
+	.plan-cell--hidden {
+		visibility: hidden;
+	}
 
 	@media (max-width: 78rem) {
 		.page { grid-template-columns: minmax(14rem, 22vw) minmax(0, 1fr) minmax(14rem, 24vw); }

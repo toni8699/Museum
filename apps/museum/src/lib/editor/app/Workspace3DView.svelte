@@ -11,6 +11,9 @@
 	import EditorGrid from '$lib/editor/EditorGrid.svelte';
 	import EditorOrientationGizmo from '$lib/editor/EditorOrientationGizmo.svelte';
 	import EditorOrientationGizmoOverlay from '$lib/editor/EditorOrientationGizmoOverlay.svelte';
+	import EditorCameraLabelProjector from '$lib/editor/EditorCameraLabelProjector.svelte';
+	import EditorCameraLabelsOverlay from '$lib/editor/EditorCameraLabelsOverlay.svelte';
+	import { buildCameraNodeLabelKinds } from '$lib/editor/editor-camera-labels';
 	import EditorViewportGridControls from '$lib/editor/EditorViewportGridControls.svelte';
 	import EditorPlacementTools from '$lib/editor/EditorPlacementTools.svelte';
 	import EditorSelection from '$lib/editor/EditorSelection.svelte';
@@ -68,19 +71,21 @@
 		context: 'scene' | 'camera';
 	} = $props();
 	const isCameraContext = $derived(context === 'camera');
+	// P1.7 — shell spec "Viewport MUST show": order/badge kinds for the 3D
+	// label overlay, from the same main-flow accessor the Camera Plan
+	// projection uses (`store.mainFlowNodeIds`), so Plan and 3D agree.
+	const cameraLabelKinds = $derived(
+		isCameraContext && !store.isVisitorCameraPreview
+			? buildCameraNodeLabelKinds(store.mainFlowNodeIds, store.document.navigationNodes)
+			: []
+	);
 	const interactionStore = getContext<EditorInteractionStore | undefined>(
 		EDITOR_INTERACTION_STORE_KEY
 	);
 
-	// S10.1.6 — Scene ↔ Camera transition (180–220 ms fade). The Canvas stays
-	// mounted across context switches (only camera-chrome mounts/unmounts), so
-	// the fade animates shell content, never a Canvas remount. The class toggle
-	// is UI-local: no state mutation, no timers — the animationend clears it.
-	let transitioning = $state(false);
-	$effect(() => {
-		void context;
-		transitioning = true;
-	});
+	// S10.1.6 amendment (P1.7 owner follow-up): Scene ↔ Camera context switches
+	// are instant — the Canvas stays mounted across context switches (only
+	// camera-chrome mounts/unmounts) and no fade plays.
 	const activeSelection = getContext<EditorActiveSelectionStore | undefined>(
 		ACTIVE_EDITOR_SELECTION_KEY
 	);
@@ -210,12 +215,8 @@
 	)}
 	class:bending={Boolean(store.hoveredConnectionId || store.hoveredAnchorId)}
 	class:dragging-camera-key={store.viewKeyframeProgressDrag !== null}
-	class:transitioning
 	style:cursor={interactionStore?.cursor ?? 'default'}
 	aria-label="Unified 3D editor viewport"
-	onanimationend={(event) => {
-		if (event.animationName === 'view-fade-in') transitioning = false;
-	}}
 >
 	<EditorViewportToolbar
 		{store}
@@ -265,6 +266,10 @@
 		/>
 		<EditorGrid visible={store.gridVisible && !store.isVisitorCameraPreview} opacity={store.gridOpacity} />
 		<EditorOrientationGizmo />
+		{#if isCameraContext && !store.isVisitorCameraPreview}
+			<!-- P1.7 — projects the guided/unsequenced label positions each frame. -->
+			<EditorCameraLabelProjector {store} kinds={cameraLabelKinds} />
+		{/if}
 		{#if isCameraContext && store.viewportShowPaths}
 			<EditorCameraPathHelpers {store} />
 		{/if}
@@ -348,6 +353,11 @@
 		</div>
 	{/if}
 	<EditorOrientationGizmoOverlay />
+	<!-- P1.7 — shell spec "Viewport MUST show": guided order digits +
+	     Unsequenced badges over the Camera 3D viewport. -->
+	{#if isCameraContext && !store.isVisitorCameraPreview}
+		<EditorCameraLabelsOverlay />
+	{/if}
 	<EditorViewportGridControls {store} />
 </div>
 
@@ -358,22 +368,7 @@
 		height: 100%;
 		min-height: 0;
 		background: #050508;
-		/* S10.1.6 — mount fade (Plan ↔ 3D, 220 ms) and context-switch fade
-		   (Scene ↔ Camera, 200 ms). The canvas never remounts. */
-		animation: view-fade-in 220ms ease both;
-	}
-	.viewport.transitioning {
-		animation: view-fade-in 200ms ease both;
-	}
-	@keyframes view-fade-in {
-		from { opacity: 0; }
-		to { opacity: 1; }
-	}
-	@media (prefers-reduced-motion: reduce) {
-		.viewport,
-		.viewport.transitioning {
-			animation: none;
-		}
+		/* S10.1.6 amendment — view/domain switches are instant (no fade). */
 	}
 
 	.viewport.placing :global(canvas) {

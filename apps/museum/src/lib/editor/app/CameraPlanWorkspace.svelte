@@ -29,14 +29,6 @@
 		min-height: 0;
 		overflow: hidden;
 		background: #0b0b10;
-		/* S10.1.6 — Plan ↔ 3D mount fade (220–280 ms). */
-		animation: plan-fade-in 240ms ease both;
-	}
-	@keyframes plan-fade-in {
-		from { opacity: 0; }
-		to { opacity: 1; }
-	}
-	@media (prefers-reduced-motion: reduce) {
-		.camera-plan-workspace { animation: none; }
+		/* S10.1.6 amendment — Plan ↔ 3D swaps are instant (no fade). */
 	}
 </style>

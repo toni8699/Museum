@@ -293,6 +293,7 @@ Detail: [Slice 4 design](#slice-4--design-detail-folded-2026-08-22).
   state; Plan↔3D shared-view switch never stops a running preview.
 - Full interaction coverage of §G matrix (selection/scope/undo/delete/view
   switches) at component level.
+Detail: [Slice 5 design](#slice-5--design-detail-folded-2026-08-22).
 
 ### Slice 6 — Legacy retirement (mechanical, optional timing)
 
@@ -659,6 +660,98 @@ No `cameraTimelinePlayhead` ownership move (post-S4 fold; P7.5 conflict per trac
 - **Label churn** — "Preview Flow" → "Preview Sequence" touches two AppBar files + possibly screenshot/golden references; keep the copy change in this slice, not S3.
 - Rollback: `use-camera-timeline` + AppBar ×2 + `camera-timeline-controller` guard + test file — five files, no data migration. Revert to S3 green tree.
 
+## Slice 5 — design detail (folded 2026-08-22)
+
+Detail for §F Slice 5, written into the umbrella per fold-and-delete (no
+standalone doc existed). The readiness survey is grep-verified against the
+tree on 2026-08-22; re-grep at implementation time.
+**Routing:** P8.S5 — Luna high (46, 78% Luna high, DeepSeek V4 Flash, 0, open)
+per `docs/plans/model-assessment.md`.
+
+### S5 readiness survey (grep-verified)
+
+| Area | File:line | What it owns today | S5 relevance |
+|---|---|---|---|
+| Camera Plan invocations | `app/CameraPlanInspector.svelte:257,299-322` | Node section: Preview Camera (`viewState.setView('camera','3d')` + `previewSelectedNode('visitor')`). Connection section (S3): Preview Edge ▶/◀ (`previewEdge(id,dir,'director')`), Reverse (`swapEdgePreviewDirection`, paused-only), Repeat (`setEdgePreviewRepeat`); direction chooser via `EditorCameraConnectionTiming` (`timingDirection` synced from `store.activeCameraDirection`, `selectDirection` → `selectCameraConnectionDirection`) | **All §F S5 Camera-Plan invocations already shipped (S3).** Verify-only + regression |
+| 3D inspector | `EditorCameraInspector.svelte:252` | Preview Camera (node section only); connection/view-key sections expose framing + direction readout (`selection.direction` dd); edge preview is started from the Plan inspector or the candidate EdgeRuler CTA | Verify-only — no new buttons (owner 2026-08-22: selecting an edge + Play already previews) |
+| Scope + transport readout | `EditorCameraPreviewControls.svelte:23-42` | kind·direction·transport·% readout (`Camera flow` / `Forward edge` / `Reverse edge` / `Holding authored node pose`), mode toggle, play/pause/Replay, Follow/Recenter, Stop | Verify-only: the §F "scope + direction readout, transport state" is this control, mounted in both views via the timeline panel |
+| Ruler per scope | `EditorCameraTimelineFrame.svelte:123` + `EditorCameraTimelinePanel.svelte:57-70` | Timeline frame mounts for camera domain in BOTH views (`EditorApp.svelte:292` `viewMode={viewState.activeView}`); panel branches `edge`→EdgeRuler / `camera`→controls only / `sequence`→guided (S3/S4) | Verify-only: "correct ruler per scope" is shipped |
+| Topology read-only while visitor playback | `store/mutation-guards.svelte.ts:27-33` | `isDocumentMutationBlocked` = preview && (mode==='visitor' \|\| transport!=='paused'); gated by `CameraPlanViewport.svelte:446` (node-drag begin), `CameraPlanToolbar.svelte:19`, inspector buttons | Already enforced — S5 pins with tests, no new guard |
+| Plan↔3D preview preservation | `app/EditorApp.svelte:130-145` + `museum-editor.svelte.ts:2083-2101` | Both Camera cells map to `setWorkspace('camera')` (G3); `setWorkspace` stops preview only when leaving the camera workspace, so Camera Plan↔3D toggles are no-ops | Code-verified; **behavioral test missing** (only a source-inspection contract at `app/contracts.test.ts:1109-1118`) — headline S5 row |
+| Playhead advance | `EditorCameraRig.svelte:521` | The ONLY tick: threlte `useTask` computes `progress = (performance.now() - startedAtMs)/duration` while the 3D Canvas is mounted; a view switch never stops or resets the preview | Pin "not stopped, value preserved at switch" (D2); advancement stays Rig-owned and unchanged |
+| Undo/redo prune | `museum-editor.svelte.ts:1378,2667,2687` | `#pruneInvalidCameraPreview` runs from `undo()`/`redo()`; `pruneIfStale` covers live document edits | Strict facade path untested (S2:251 called `pruneIfStale` directly) — D3 |
+| Facade commands | `museum-editor.svelte.ts:1905-1917` | `previewSelectedNode` / `previewSelectedConnection` / `previewSelectedTransition` | `previewSelectedConnection` unwired in UI; Preview Edge covers edge transport — keep unwired (D5) |
+| Selection continuity | `navigationSelection` on store + `app/active-editor-selection.svelte` | Selection lives on the store; `EditorViewState.setView` is pure state (no preview/selection side effects) | View switches touch neither — pin with a `wired()`-style composition test (D1) |
+
+### S5 design decisions
+
+- **D1 — §G is a test slice.** Every §G row is either shipped (S2/S3/S4) or enforced by existing guards. S5's deliverable is the interaction-matrix suite (store-level + `wired()` composition) — no new commands, FSM, selection-semantics, or UI changes (the first-pass idea of 3D Preview Edge buttons was dropped: selecting an edge + Play already previews).
+- **D2 — Plan↔3D preservation = "not stopped, value preserved at the switch moment".** With a `connection`/`tour` preview active, `viewState.setView('camera','plan')` → `setView('camera','3d')` leaves the preview installed with the same `runId`, `transport`, `playhead` value, `previewScope`, direction, and `navigationSelection`. Advancement is Rig-owned and runs only while the 3D Canvas is mounted; a switch never stops or resets a preview. **Owner-ratified 2026-08-22:** no advancement change and no auto-pause — the frozen-on-screen-while-in-Plan behavior is accepted as-is.
+- **D3 — Undo/redo row through the real facade path.** Begin transaction → delete the edge with an active preview → `undo()` → `#pruneInvalidCameraPreview` rebuilds; valid IDs + time location → scope/playhead preserved; deleted connection → safe reset. The S2:251 test bypassed the facade (`pruneIfStale()` direct call); S5 adds the strict-path regression so `undo()` is never regressed by a menu/delete path change.
+- **D4 — Sequence edited while previewing. Hard reset, tour-scoped (owner decision 2026-08-22; the blanket draft was rejected — 5 `museum-editor-camera` authoring tests prove connection/node previews must keep refreshing).** Playing → any mutation returns false (guards). Paused **Director tour** → any document replace stops it (`refreshPausedDirector` tour branch: preview null, captured route + `edgeRepeat` cleared, status "Camera preview stopped — … re-run Preview Sequence"). Paused **connection/node/transition** previews keep the refresh contract — they ARE the framing-authoring surface (add/move view keys, edit FOV while paused; S3 D5), so their re-resolution is the authoring feedback loop, not drift. **Finding 2 resolved at the root:** replace-driven runId bumps are gone for tours (the only replace-driven bumps that existed); runId now changes only on deliberate restarts (install/play/swap/repeat). View switches are NOT replaces — D2 preservation unchanged.
+- **D5 — `previewSelectedConnection` stays unwired.** Preview Edge owns edge transport (started from the Plan inspector or the candidate EdgeRuler CTA); node Preview Camera owns node poses. No third button.
+- **D6 — Readouts are verify-only.** scope+direction+transport (`EditorCameraPreviewControls`), direction in the 3D inspector, ruler-per-scope via the panel branch (S3/S4) mounted in both views — no new UI.
+
+### Work items by file
+
+1. New `tests/lib/editor/app/p8-s5-interaction-matrix.test.ts` — `wired()` composition mirroring `EditorApp`'s workspace mapping (store + layoutInteraction + `EditorViewState`; reuse the `active-editor-selection.test.ts` pattern, including the exact `viewState.domain === 'camera'` → `setWorkspace('camera')` mapping so the no-op is real, not vacuous). Rows: Plan↔3D preservation (connection + tour, D2), undo/redo strict path (D3), sequence-edited-while-previewing (D4), delete-selected-edge facade path (status + selection downgrade + preview stop).
+2. Docs: CURRENT.md + tracker after green.
+
+### Test matrix — §G rows → concrete tests
+
+All via `createMuseumEditorStore` fixtures + the `wired()` composition (existing `app/active-editor-selection.test.ts` pattern). Record real suite counts at implementation.
+
+| §G row | Test |
+|---|---|
+| Plan ↔ 3D switch | `wired()`: install `connection` preview (previewEdge) → `setView('camera','plan')` → `setView('camera','3d')` → same `runId`, transport, playhead value, scope, direction; `navigationSelection` unchanged; repeat for `tour` preview. Also: switch while `playing` → not stopped, not reset (transport still `playing`, same `runId`) |
+| Undo/redo | transaction: delete connection with active edge preview → `undo()` → preview survives when the connection + time location resolve; delete → `redo()` → preview safely reset (S2 D6 global-position rule). Assert the facade `#pruneInvalidCameraPreview` path, not `pruneIfStale` |
+| Sequence edited while previewing | paused **tour** → delete an off-flow connection → **preview stopped** (hard reset; unconditional — even though the timeline still builds); undo while paused → stopped + "Camera preview stopped" status; paused **connection** preview → a framing edit (FOV/view key) keeps it refreshing (authoring contract); playing → same mutation returns `false` (guard) |
+| Deleting selected edge | facade `deleteConnection` with active edge preview → preview stopped (null), captured route cleared, selection downgraded/cleared, status message set |
+| Missing connection | already S2:64 — re-run, no new test |
+| Reversed / Unsequenced / Zero-duration / Parallel | covered by S1–S4 suites — re-run, no new tests |
+
+Acceptance: all §G rows green; the two rows that were untested (Plan↔3D,
+strict undo/redo) now covered; no new commands or UI; existing suites stay
+green.
+
+### Boundaries / out of scope
+
+No playhead-advancement change — Rig remains the only tick source;
+owner-ratified (no auto-pause, no store-level tick). No new UI: the 3D
+connection inspector stays as-is (selecting an edge + Play already
+previews). No `previewSelectedConnection` wiring. No new commands / FSM /
+selection semantics. No visitor/CameraDirector, no schema/codec, no
+plan-project changes. Dots/envelope rendering untouched (S3/S6). Domain
+switches (Scene↔Camera) stay out — §G covers the shared-view Plan↔3D axis
+only; the existing `canSwitch` gate on visitor playback is unchanged.
+
+**Deletion gating is accepted as-is in P8** — the `guided_connection` (flow
+edges locked) and `disconnected_graph` (no stranded nodes / islands) locks
+stay. How the UI should *surface* a locked delete (disable vs hide vs
+explain-with-status) is a **future P3 UX design discussion** (context-menu
+Delete actions), not P8 scope.
+
+**Hard reset is tour-scoped (D4).** Paused Director **tour** previews stop on
+any document replace; paused connection/node previews keep the refresh
+contract because they are the framing-authoring surface (proven by the 5
+`museum-editor-camera` authoring tests — a blanket reset would make view-key
+authoring impossible). **Finding 2 (runId bumps on replace) is resolved at
+the root:** the only replace-driven bumps were `refreshPausedDirector`'s tour
+re-resolution, which hard reset removes — runId now changes only on
+deliberate restarts (install/play/swap/repeat), so
+`getCapturedCameraPreviewRoute(oldRunId)` nulls are only ever true after a
+real restart.
+
+### Risks & rollback
+
+- **Vacuous no-op test:** the `wired()` Plan↔3D row must mirror `EditorApp`'s
+  workspace mapping exactly (`viewState.domain === 'camera'` →
+  `store.setWorkspace('camera')`), or the "preview survives" assertion passes
+  because the store was never touched. Reuse the mapping expression, don't
+  re-derive it.
+- Rollback: the new test file only — one file, no data migration. Revert to
+  S4 green tree.
+
 ## G. Edge-case matrix
 
 | Case | Behavior |
@@ -669,7 +762,7 @@ No `cameraTimelinePlayhead` ownership move (post-S4 fold; P7.5 conflict per trac
 | Missing connection | Fail before installing preview state; disappearing while paused → stop + clear edge preview |
 | Deleting selected edge | Stop preview, clear captured route, downgrade/clear selection, status message |
 | Undo/redo | Rebuild caches; preserve scope/playhead only if IDs + time location still valid, else safe reset |
-| Sequence edited while previewing | Playing state mutation-blocked (existing); paused → rebuild timeline post-commit, preserve time only if edges still resolve |
+| Sequence edited while previewing | Playing state mutation-blocked (existing); paused Director **tour** → hard reset on any replace (P8 S5 owner decision 2026-08-22, status message); paused connection/node → keep refreshing (framing-authoring surface, S3 D5) |
 | Plan ↔ 3D switch | Preserve scope, direction, time, selection; shared view axis untouched (P1.7 trap) |
 | One-node Sequence | Static/no-motion representation; no fake edge |
 | Two-node Sequence | Single edge, plays once; no implicit loop |

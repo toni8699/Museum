@@ -73,7 +73,7 @@ Shipped as of 2026-08-21 (not assessed here): **P1.1–P1.9, P6, P7.4.**
 | **P8.S2** | 54 | 92% | — | Sol medium | 0 | open |
 | **P8.S3** | 49 | 83% | Luna xhigh | DeepSeek V4 Flash | 0 | open |
 | **P8.S4** | 48 | 81% | Luna xhigh | DeepSeek V4 Flash | +1 | open |
-| **P8.S5** | 46 | 78% | Luna high | DeepSeek V4 Flash | 0 | open |
+| **P8.S5** | 46 | 78% | Luna high | DeepSeek V4 Flash | 0 | shipped |
 | **P8.S6** | 33 | 56% | Luna low | DeepSeek V4 Flash | 0 | open |
 | **D1** | 59 | 100% | — | Sol max | 0 | out of tracker — P4 companion, own plan |
 

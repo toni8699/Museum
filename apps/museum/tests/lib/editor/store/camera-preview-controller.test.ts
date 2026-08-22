@@ -153,11 +153,13 @@ describe('EditorCameraPreviewController', () => {
 		expect(preview.preview).toBe(before);
 	});
 
-	it('refreshPausedDirector() bumps runId for paused director previews', () => {
+	it('refreshPausedDirector() bumps runId for paused director node previews', () => {
 		const { preview } = makeControllers();
 		// refreshPausedDirector requires mode === 'director' AND transport
-		// === 'paused' (pre-slice god-file line 4316 precondition). Visitor
-		// mode previews are intentionally early-returned.
+		// === 'paused'. Visitor mode previews are intentionally
+		// early-returned. Node/connection/transition previews KEEP
+		// refreshing (they are the framing-authoring surface — P8 S5 hard
+		// reset applies to paused Director TOUR previews only).
 		preview.startNode('paris-seat', 'director');
 		expect(preview.preview?.mode).toBe('director');
 		expect(preview.preview?.transport).toBe('paused');
@@ -166,6 +168,21 @@ describe('EditorCameraPreviewController', () => {
 		// Node kind → capturedRoute cleared, runId bumped.
 		expect(preview.preview?.runId).toBeGreaterThan(initialRunId);
 		expect(preview.preview?.kind).toBe('node');
+	});
+
+	it('refreshPausedDirector() hard-resets a paused director TOUR preview', () => {
+		const { preview } = makeControllers();
+		// P8 S5 owner decision — hard reset is scoped to paused Director
+		// TOUR previews: any document swap stops them (a tour is not an
+		// authoring surface; re-resolving would silently re-map the pause
+		// point onto edited flow content).
+		expect(preview.startTour('director')).toBe(true);
+		expect(preview.preview?.kind).toBe('tour');
+		expect(preview.preview?.transport).toBe('playing');
+		preview.preview = { ...preview.preview!, transport: 'paused' };
+		const error = preview.refreshPausedDirector();
+		expect(error).toBeInstanceOf(Error);
+		expect(preview.preview).toBeNull();
 	});
 
 	it('refreshPausedDirector() is a no-op for visitor-mode previews', () => {
@@ -177,7 +194,7 @@ describe('EditorCameraPreviewController', () => {
 		expect(preview.preview?.runId).toBe(initialRunId);
 	});
 
-	it('refreshPausedDirector() keeps preview and returns Error on route failure', () => {
+	it('refreshPausedDirector() keeps non-tour previews and returns Error on route failure', () => {
 		const { preview } = makeControllers();
 		preview.startTransition('paris-seat', 'director');
 		expect(preview.preview?.kind).toBe('transition');
@@ -191,6 +208,8 @@ describe('EditorCameraPreviewController', () => {
 		};
 		const error = preview.refreshPausedDirector();
 		expect(error).toBeInstanceOf(Error);
+		// Non-tour previews keep the refresh contract (P8 S5 hard reset is
+		// tour-scoped): the preview stays, route failure is reported.
 		expect(preview.preview).toEqual({
 			...before!,
 			kind: 'transition',

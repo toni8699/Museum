@@ -15,9 +15,9 @@
  * **Document coupling.** Takes the document store in the constructor and
  * reads `document.state.graph` for route resolution. The composition root
  * registers two `afterReplace` listeners on the document store: this
- * controller's `refreshPausedDirector()` (re-resolves the captured route;
- * on failure keeps the preview and returns Error for the root status channel)
- * if the document changes mid-pause) and `pruneIfStale()` (drops the FSM
+ * controller's `refreshPausedDirector()` (hard-resets a paused Director TOUR preview or re-resolves/keeps the others;
+ * returns Error for the root status channel if the document changes mid-pause)
+ * and `pruneIfStale()` (drops the FSM
  * to idle when the source node no longer exists).
  *
  * **Locally-redeclared `EditorCameraPreview` types** mirror the god-file's
@@ -698,30 +698,35 @@ export class EditorCameraPreviewController {
 	// ============================================================
 
 	/**
-	 * `afterReplace` listener — called by `EditorDocumentStore` whenever
-	 * the document is swapped. Re-resolves the captured route (or nulls
-	 * the preview) when topology changed under a paused director preview.
-	 */
-	/**
-	 * Re-resolve a paused Director preview after a document swap.
-	 * Pre-slice semantics: on route failure **keep** the preview and return
-	 * the error so the composition root can `setStatusMessage`. Do not clear.
+	 * `afterReplace` listener — **P8 S5 owner decision (2026-08-22): hard
+	 * reset for paused Director TOUR previews only.** A tour is not an
+	 * authoring surface, so any document swap stops it — no live re-
+	 * resolution (re-resolving would silently re-map the pause point onto
+	 * edited flow content and bump the runId — the stale-snapshot trap), and
+	 * the returned error surfaces a status message telling the user to
+	 * re-run Preview Sequence. Connection and node previews keep refreshing
+	 * below: they ARE the framing-authoring surface (add/move view keys and
+	 * edit framing while paused — pinned by `museum-editor-camera` tests), so
+	 * their re-resolution is the authoring feedback loop, not a drift bug.
+	 * Visitor-mode previews are intentionally early-returned (immutable
+	 * ownership — never re-resolved).
 	 */
 	refreshPausedDirector(): Error | null {
 		this.invalidateGraph();
 		const preview = this.preview;
 		if (!preview || preview.mode !== 'director' || preview.transport !== 'paused') return null;
+		if (preview.kind === 'tour') {
+			this.preview = null;
+			this.#capturedRoute = null;
+			this.edgeRepeat = false;
+			return new Error(
+				'Camera preview stopped — the document changed while paused; re-run Preview Sequence'
+			);
+		}
 		const runId = this.#nextRunId++;
 		if (preview.kind === 'node') {
 			this.#capturedRoute = null;
 			this.preview = { ...preview, runId };
-			return null;
-		}
-		if (preview.kind === 'tour') {
-			this.#capturedRoute = null;
-			this.#timelineCache = null;
-			this.#timelineGraph = null;
-			if (this.#readCameraTimeline()) this.preview = { ...preview, runId };
 			return null;
 		}
 		try {

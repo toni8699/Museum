@@ -109,14 +109,14 @@
 		{#if domain === 'scene' && activeView === '3d'}
 			<a class="preview-action" href="/museum" target="_blank" rel="noreferrer">Preview Museum</a>
 		{:else if domain === 'camera'}
-			<!-- P1.1 — Preview Flow moves to the Camera domain (both views),
-			     matching timeline persistence. -->
+			<!-- P1.1 — Preview Sequence lives in the Camera domain (both views),
+			     matching timeline persistence. S4: explicit Preview Sequence entry. -->
 			<button
 				type="button"
 				disabled={!canPreviewTour}
-				title="Preview the camera flow"
-				onclick={() => store.previewGuidedTour()}
-				><Play size={14} aria-hidden="true" /> Preview Flow</button>
+				title="Preview the camera sequence"
+				onclick={() => store.previewSequence()}
+				><Play size={14} aria-hidden="true" /> Preview Sequence</button>
 		{/if}
 		<EditorProjectMenu
 			{store}

@@ -137,9 +137,8 @@ export function useCameraTimeline(store: MuseumEditorStore) {
 		},
 		get playLabel() {
 			if (store.cameraPreview?.transport === 'playing') return 'Pause';
-			if (store.activeCameraDirection === 'reverse' && store.activeCameraConnectionId) {
-				return 'Play reverse edge';
-			}
+			// S4 D2 — guided play is sequence-transport only; reverse-edge
+			// transport lives in the S3 EdgeRuler (toggleEdgePlayback).
 			return 'Play camera flow';
 		},
 		seek(progress: number) {
@@ -153,11 +152,9 @@ export function useCameraTimeline(store: MuseumEditorStore) {
 				store.pauseCameraPreview();
 				return;
 			}
-			if (store.activeCameraDirection === 'reverse' && store.activeCameraConnectionId) {
-				store.playActiveConnectionEdge();
-				return;
-			}
-			store.previewGuidedTour('director');
+			// S4 D2 — no context hijack to reverse-edge transport; the S3
+			// EdgeRuler owns edge playback. Explicit Preview Sequence entry.
+			store.previewSequence('director');
 		},
 		toggleReverse() {
 			store.toggleCameraEdgeReverse();

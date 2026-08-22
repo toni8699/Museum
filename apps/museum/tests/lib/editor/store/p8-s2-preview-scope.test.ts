@@ -106,7 +106,7 @@ describe('P8 S2 explicit preview scopes', () => {
 		expect(store.cameraTimelinePlayhead).toBeCloseTo(saved, 6);
 	});
 
-	it('Preview Sequence return (invalid) resets to 0 only when timeline unbuildable', () => {
+	it('Preview Sequence return (invalid) resets to 0 when timeline unbuildable, even from a non-zero playhead', () => {
 		const store = createFixtureEditorStore();
 		store.setWorkspace('camera');
 		expect(store.seekCameraTimeline(0.3)).toBe(true);
@@ -114,21 +114,18 @@ describe('P8 S2 explicit preview scopes', () => {
 		expect(store.pauseCameraPreview()).toBe(true);
 		const connId = store.document.connections[0]!.id;
 		expect(store.previewEdge(connId, 'forward')).toBe(true);
-		// Make timeline unbuildable by reducing guided nodes to <2 (empty flow)
+		// Unbuildable flow: clearing next/prev on every node makes the timeline throw
 		const doc = cloneFixtureDocument();
 		doc.navigationNodes.forEach((n) => {
 			delete (n as any).nextNodeId;
 			delete (n as any).previousNodeId;
 		});
-		// Keep only one node guidable? Actually clear next/prev makes timeline throw
 		const badStore = createMuseumEditorStore({ document: doc });
-		// transplant lastSequencePlayhead
+		// Transplant the saved playhead, and seed a non-zero prior playhead so the
+		// reset-to-0 branch is actually exercised (regression: S4 left it untouched).
 		(badStore as any).lastSequencePlayhead = store.lastSequencePlayhead;
-		// timeline should be null
+		(badStore as any).cameraTimelinePlayhead = 0.3;
 		expect(badStore.getCameraTimeline()).toBeNull();
-		// Now previewSequence should reset to 0
-		// Use original store but mutate its document to be unbuildable
-		// Instead simulate by directly testing previewSequence on badStore
 		expect(badStore.previewSequence('director')).toBe(false);
 		expect(badStore.cameraTimelinePlayhead).toBe(0);
 	});

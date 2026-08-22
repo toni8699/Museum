@@ -26,6 +26,7 @@
 	const canPreviewTour = $derived(
 		!store.isEditorInteractionActive &&
 		!store.isDocumentTransactionActive &&
+		store.canStartTourPreview &&
 		(!store.cameraPreview || store.cameraPreview.transport !== 'playing')
 	);
 	let projectMenuOpen = $state(false);
@@ -79,9 +80,9 @@
 			<button
 				type="button"
 				disabled={!canPreviewTour}
-				title="Preview the camera flow"
-				onclick={() => store.previewGuidedTour()}
-				>Preview Flow</button>
+				title="Preview the camera sequence"
+				onclick={() => store.previewSequence()}
+				>Preview Sequence</button>
 		{/if}
 		<EditorProjectMenu
 			{store}

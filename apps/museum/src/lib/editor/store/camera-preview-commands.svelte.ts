@@ -576,20 +576,27 @@ export class EditorCameraPreviewCommands {
 	}
 
 	/**
-	 * S2 explicit Preview Sequence — restores `lastSequencePlayhead` when valid,
-	 * otherwise starts at 0, then delegates to `previewGuidedTour` (inherits its
-	 * tour-playing no-op).
+	 * S2 explicit Preview Sequence — restores `lastSequencePlayhead` when valid;
+	 * with no saved playhead, keeps the current `cameraTimelinePlayhead` so a
+	 * fresh scrub carries into playback (S4: play continues from exact local
+	 * progress). Then delegates to `previewGuidedTour` (inherits its tour-playing
+	 * no-op).
 	 */
 	previewSequence(mode: EditorCameraPreviewMode = 'visitor'): boolean {
 		const host = this.host;
 		if (host.isEditorInteractionActive || host.isDocumentTransactionActive) return false;
 		const current = host.cameraPreview;
 		if (current?.kind === 'tour' && current.transport === 'playing') return false;
-		// D6 amended 2026-08-22: restore global playhead when timeline still builds; reset to 0 only when unbuildable
-		let restore = 0;
+		// D6 amended 2026-08-22: restore the saved playhead when the timeline
+		// still builds; when saved-but-unbuildable, reset to 0. With no saved
+		// playhead, leave `cameraTimelinePlayhead` untouched (scrub carries over).
+		let restore: number | null = null;
 		if (host.lastSequencePlayhead !== null) {
 			const timeline = host.previewController.getTimeline();
-			if (timeline) {
+			if (!timeline) {
+				// saved-but-unbuildable → reset to 0 (S2 D6 amended 2026-08-22)
+				restore = 0;
+			} else {
 				const p = host.lastSequencePlayhead;
 				if (Number.isFinite(p) && p >= 0 && p <= 1) {
 					try {
@@ -598,10 +605,12 @@ export class EditorCameraPreviewCommands {
 					} catch {
 						restore = 0;
 					}
+				} else {
+					restore = 0;
 				}
 			}
 		}
-		host.cameraTimelinePlayhead = restore;
+		if (restore !== null) host.cameraTimelinePlayhead = restore;
 		return this.previewGuidedTour(mode);
 	}
 

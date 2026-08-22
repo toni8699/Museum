@@ -5,19 +5,20 @@ only the immediate previous slice (back-pointer) and the single next action
 live here. History chains backward through the tracker's depends-on column.
 ## Working tree
 
-- Current delta: **P8 S3 implemented (2026-08-22) — edge-local timeline + Preview Edge UI (primary local authoring preview)**. New
+- Current delta: **P8 S4 implemented (2026-08-22) — explicit Preview Sequence scope**.
+  `previewSequence` is now the canonical entry: AppBar ×2 ("Preview Flow" → "Preview Sequence", both call `store.previewSequence()`), hook `toggleTourPlayback` → pause or `previewSequence('director')` — context-sensitive reverse-edge hijack removed (edge transport owned by the S3 EdgeRuler), PreviewControls label "Resume preview" → "Replay" at `transport === 'complete'`. S4 acceptance fix: `previewSequence` keeps the current (scrubbed) playhead when nothing is saved — "play continues from exact local progress" from idle. Post-review D6 fix: saved-but-unbuildable timeline → reset to 0, even from a non-zero playhead (regression test strengthened in `p8-s2-preview-scope.test.ts` to seed `cameraTimelinePlayhead = 0.3`). Legacy `EditorAppBar.svelte` `canPreviewTour` now gates on `canStartTourPreview` (parity with `app/EditorAppBar.svelte`). Implementation finding: `walkFlowChain` throws on <2 ordered nodes (camera-route.ts:442) — one-node flows resolve to the null-timeline path, never a 0-edge timeline (plan D5/readiness/matrix amended; `seekCameraTimeline` no-op already covers). 10 new tests in `p8-s4-preview-sequence.test.ts` (boundary epsilon, play-from-scrub parity, end-of-sequence Replay, holds, one/two-node flows, loop-topology derivation + `edgeRepeat` topology invariant, demoted context-sensitive play, D6 valid-restore).
+- Previous slice: **P8 S3 implemented (2026-08-22)** — edge-local timeline + Preview Edge UI (primary local authoring preview). New
   `editor-camera-timeline.ts:createEdgeLocalTimeline(graph,id,dir,{route?})` pure wrapper around `resolveDirectedEdgeMotionByDirection`; hook `hooks/use-camera-timeline.svelte.ts` exposes `edgeTimeline` memoized by `graph+id+dir+preview.runId` (stable vs `cloneResolvedCameraRoute` thrash at `camera-preview-controller.svelte.ts:673`/`museum-editor.svelte.ts:1960`), `edgePlayhead`/`edgeDurationSeconds`/`edgeEndpoints`/`edgeScrubDisabled`/`edgeReverseDisabled`/`edgeRepeat`; new `EditorCameraEdgeRuler.svelte` local ruler `00:02.10 / 00:04.20`, scrub `0..1 step 0.0005`, endpoint labels, Reverse (paused-only, `1-e` flip), Repeat (edge-only) with candidate/read-only mode; `EditorCameraTimelinePanel.svelte` scope branch **before** `{#if timeline}` (`edge`→EdgeRuler, `camera`→controls only, `sequence`→guided, `!preview && activeConnectionId`→candidate — fixes legacy `transition` regression), idle candidate keeps disabled scrub/Reverse/Repeat + CTA; `app/CameraPlanInspector.svelte` adds Preview Edge forward/reverse + Repeat/Reverse sync (Unsequenced endpoints included). Consume-only — no visitor/Rig/controller mutation. 7 new tests in `p8-s3-edge-timeline.test.ts` (unsequenced `C—E`, distinct-instance parity, active-preview precedence, disabled-state contract).
-- Previous slice: **P8 S2 implemented (2026-08-22)** — explicit preview scopes + transport semantics (`previewScopeOf`, `edgeRepeat` scoped to `connection`, `swapEdgeDirection` via fresh opposite route + `1-e` edge-domain flip, `previewEdge`/`previewSequence`/`swapEdgePreviewDirection`/`setEdgePreviewRepeat`/`resetPreviewToScopeStart`, `completeCameraPreview` repeat branch with zero-duration guard). Brief: S2 design detail folded 2026-08-21/22 in P8 umbrella.
-- Docs synced this slice: P8 Slice 3 design detail folded 2026-08-22 (runId memo fix `controller:673`/`facade:1960`, `1-e` flip, idle candidate disabled state, panel `!preview` guard) + review fixes; `Neighbour-2D.png` / `Empty-3D.png` rename carried.
+- Docs synced this slice: P8 Slice 4 design detail folded 2026-08-22 in P8 umbrella (D6 null-timeline reset noted); CURRENT.md advanced to S5.
 
 ## Next action
 
-- **One action:** open **P8 Slice 4** — explicit Preview Sequence scope (global ruler becomes sequence-scoped, `Sequence = adjacent pairs` via S1 primitive, global seconds domain, loop derived from real tail→head topology) per [`plans/2026-08-21-P8-camera-preview-scopes.md`](../plans/2026-08-21-P8-camera-preview-scopes.md) §F S4 (routing: DeepSeek V4 Flash per [`plans/model-assessment.md`](../plans/model-assessment.md)).
+- **One action:** open **P8 Slice 5** — Plan / Camera 3D integration + interaction matrix (Preview Camera + Preview Edge invocations with direction chooser in connection inspector; switching to Camera 3D preserves selection; Plan↔3D shared-view switch never stops a running preview; full §G interaction coverage of selection/scope/undo/delete/view switches at component level) per [`plans/2026-08-21-P8-camera-preview-scopes.md`](../plans/2026-08-21-P8-camera-preview-scopes.md) §F S5 (routing: DeepSeek V4 Flash per [`plans/model-assessment.md`](../plans/model-assessment.md)).
 
 ## Verification
 
-- **1,952 tests green (1 skipped) · `svelte-check` 0 errors / 0 warnings ·
-  `vite build` clean** (P8 S3 implementation, 2026-08-22).
+- **1,962 tests green (1 skipped) · `svelte-check` 0 errors / 0 warnings ·
+  `vite build` clean** (P8 S4 implementation, 2026-08-22).
 
 ## Known bugs / deferred
 

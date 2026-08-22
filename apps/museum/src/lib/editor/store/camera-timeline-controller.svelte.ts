@@ -283,6 +283,9 @@ export class EditorCameraTimelineController {
 	seekCameraTimeline(progress: number) {
 		if (!this.#canSeekCameraTimeline() || !Number.isFinite(progress)) return false;
 		const timeline = this.readCameraTimeline();
+		// S4 D5 — a one-node/no-flow graph is unbuildable (`walkFlowChain`
+		// requires ≥1 edge), so `readCameraTimeline()` returns null and scrub
+		// no-ops here: static/no-motion state, no fake edge.
 		if (!timeline) return false;
 		const location = getEditorCameraTimelineLocation(timeline, progress);
 		const direction = this.#timelineTravelDirection(

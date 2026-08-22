@@ -39,7 +39,8 @@
 					<button type="button" class="active" onclick={() => store.pauseCameraPreview()}><Pause size={14} aria-hidden="true" /> Pause</button>
 				{:else}
 					<button type="button" class="active" onclick={() => store.playCameraPreview()}>
-						<Play size={14} aria-hidden="true" /> Resume preview
+						<Play size={14} aria-hidden="true" />
+						{preview.transport === 'complete' ? 'Replay' : 'Resume preview'}
 					</button>
 				{/if}
 			</div>

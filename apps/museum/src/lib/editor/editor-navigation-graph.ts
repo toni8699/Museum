@@ -400,12 +400,7 @@ export function validateCurrentGuidedTourOrder(
 	document: MuseumSceneDocument
 ): EditorGuidedTourOrderPlan | EditorNavigationGraphFailure {
 	const flowNodes = document.navigationNodes.filter(isFlowNode);
-	if (flowNodes.length < 2) {
-		return fail(
-			'minimum_guided_nodes',
-			'The camera flow must contain at least two camera nodes'
-		);
-	}
+
 	const nodeById = new Map(document.navigationNodes.map((node) => [node.id, node]));
 	const start = mainFlowStart(document, nodeById);
 	const walked = walkFlowComponentFrom(document, start.id, nodeById);
@@ -428,12 +423,6 @@ export function validateGuidedTourOrder(
 	document: MuseumSceneDocument,
 	nodeIds: readonly string[]
 ): EditorGuidedTourOrderPlan | EditorNavigationGraphFailure {
-	if (nodeIds.length < 2) {
-		return fail(
-			'minimum_guided_nodes',
-			'The camera flow must contain at least two camera nodes'
-		);
-	}
 	const uniqueNodeIds = new Set(nodeIds);
 	if (uniqueNodeIds.size !== nodeIds.length) {
 		return fail(
@@ -929,12 +918,6 @@ export function validateNavigationNodeDeletion(
 	const mainFlow = currentMainFlowNodeIds(document);
 	const nodeOnMainFlow = mainFlow?.includes(node.id) ?? false;
 	if (nodeOnMainFlow) {
-		if (mainFlow!.length - 1 < 2) {
-			return fail(
-				'minimum_guided_nodes',
-				`Cannot delete ${nodeName(node)}: the camera flow must retain at least two nodes`
-			);
-		}
 	} else if (isFlowNode(node) && mainFlow === null) {
 		return fail(
 			'invalid_guided_cycle',

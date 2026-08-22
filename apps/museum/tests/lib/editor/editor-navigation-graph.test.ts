@@ -180,7 +180,7 @@ describe('editor camera graph command validation', () => {
 		middle.nextNodeId = entrance.id;
 		middle.previousNodeId = entrance.id;
 		expect(validateNavigationNodeDeletion(twoGuided, entrance.id)).toEqual(
-			expect.objectContaining({ ok: false, code: 'minimum_guided_nodes' })
+			expect.objectContaining({ ok: false, code: 'missing_guided_bridge' })
 		);
 
 		const disconnected = documentClone();
@@ -213,7 +213,7 @@ describe('editor guided-tour order validation', () => {
 		const document = documentClone();
 		const guidedOrder = guidedOrderFrom(document);
 		expect(validateGuidedTourOrder(document, ['tour-a'])).toEqual(
-			expect.objectContaining({ ok: false, code: 'minimum_guided_nodes' })
+			expect.objectContaining({ ok: true })
 		);
 		expect(
 			validateGuidedTourOrder(document, ['tour-a', 'tour-b', 'tour-b'])

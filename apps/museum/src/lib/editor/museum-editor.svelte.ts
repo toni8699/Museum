@@ -60,6 +60,7 @@ import type { LightFieldPatch } from './editor-lights';
 import {
 	cameraTimelineEdgePlayheadAtProgress,
 	cameraTimelineProgressAtEdgeProgress,
+	getEditorCameraTimelineLocation,
 	type EditorCameraTimeline
 } from './editor-camera-timeline';
 import {
@@ -72,7 +73,11 @@ import {
 import { EditorSessionState } from './store/session-state.svelte';
 import { EditorSceneRoots } from './store/scene-roots.svelte';
 import { EditorDocumentStore } from './store/document-store.svelte';
-import { EditorCameraPreviewController } from './store/camera-preview-controller.svelte';
+import {
+	EditorCameraPreviewController,
+	isPreviewStale,
+	previewScopeOf
+} from './store/camera-preview-controller.svelte';
 import { EditorHistoryController, type LayoutHistoryHost } from './store/history-controller.svelte';
 import { EditorSelectionStore } from './store/selection-store.svelte';
 import { EditorSelectionActions } from './store/selection-actions.svelte';
@@ -414,6 +419,18 @@ export class MuseumEditorStore {
 	get cameraPreviewRecenterVersion(): number {
 		return this.previewController.recenterVersion;
 	}
+	/** S2 — edge repeat flag, scoped to `kind === 'connection'`. UI reads via getter; writes delegate through commands layer to enforce guard. */
+	get edgeRepeat(): boolean {
+		return this.previewController.edgeRepeat;
+	}
+	set edgeRepeat(value: boolean) {
+		// Delegate through commands guard (kind === 'connection' check) to avoid bypassing D2 scoping.
+		this.cameraPreviewCommands.setEdgePreviewRepeat(value);
+	}
+	/** S2 — derived scope, single source via previewScopeOf. */
+	get previewScope(): import('./museum-editor.types').PreviewScope | null {
+		return previewScopeOf(this.cameraPreview);
+	}
 
 	// Slice 3 v2 sub-task 3.6 — history + peer-link (Option 3).
 	// Instantiated after previewController so the peer-link ctor arg exists.
@@ -743,6 +760,8 @@ export class MuseumEditorStore {
 	}
 	/** Phase 2.2 global guided-tour ruler. Session-only and normalized to [0, 1]. */
 	cameraTimelinePlayhead = $state(0);
+	/** S2 in-memory last Sequence playhead, preserved when leaving sequence scope. */
+	lastSequencePlayhead = $state<number | null>(null);
 	get pendingFramePlacementIds(): string[] {
 		return this.session.pendingFramePlacementIds;
 	}
@@ -1359,31 +1378,36 @@ export class MuseumEditorStore {
 	#pruneInvalidCameraPreview() {
 		this.previewController.pruneIfStale();
 		const preview = this.cameraPreview;
-		if (!preview) return;
-		const nodes = this.document.navigationNodes;
-		const connections = this.document.connections;
-		const hasNode = (id: string) => nodes.some((node) => node.id === id);
-		const hasConnection = (id: string) =>
-			connections.some((connection) => connection.id === id);
-		let valid = true;
-		switch (preview.kind) {
-			case 'node':
-				valid = hasNode(preview.nodeId);
-				break;
-			case 'connection':
-				valid =
-					hasConnection(preview.connectionId) &&
-					hasNode(preview.fromNodeId) &&
-					hasNode(preview.toNodeId);
-				break;
-			case 'transition':
-				valid = hasNode(preview.fromNodeId) && hasNode(preview.toNodeId);
-				break;
-			case 'tour':
-				valid = hasNode(preview.startNodeId);
-				break;
+		if (!preview) {
+			// S2 — validate lastSequencePlayhead even when no preview active
+			if (this.lastSequencePlayhead !== null) {
+				const timeline = this.previewController.getTimeline();
+				if (!timeline) this.lastSequencePlayhead = null;
+				else {
+					try {
+						getEditorCameraTimelineLocation(timeline, this.lastSequencePlayhead);
+					} catch {
+						this.lastSequencePlayhead = null;
+					}
+				}
+			}
+			return;
 		}
-		if (!valid) this.stopCameraPreview();
+		if (isPreviewStale(preview, this.documentStore)) {
+			this.stopCameraPreview();
+			return;
+		}
+		if (
+			preview.kind === 'tour' &&
+			!this.document.navigationNodes.some((node) => node.id === preview.startNodeId)
+		) {
+			this.stopCameraPreview();
+		}
+		// S2 — validate lastSequencePlayhead when preview still active
+		if (this.lastSequencePlayhead !== null) {
+			const timeline = this.previewController.getTimeline();
+			if (!timeline) this.lastSequencePlayhead = null;
+		}
 	}
 
 	get selectedObject() {
@@ -1935,6 +1959,35 @@ export class MuseumEditorStore {
 
 	getCapturedCameraPreviewRoute(runId: number) {
 		return this.cameraPreviewCommands.getCapturedCameraPreviewRoute(runId);
+	}
+
+	/** S2 — explicit Preview Edge entry, snapshots Sequence playhead first. */
+	previewEdge(
+		connectionId: string,
+		direction: CameraConnectionDirection,
+		mode: EditorCameraPreviewMode = 'director'
+	) {
+		return this.cameraPreviewCommands.previewEdge(connectionId, direction, mode);
+	}
+
+	/** S2 — explicit Preview Sequence entry, restores last Sequence playhead when valid. */
+	previewSequence(mode: EditorCameraPreviewMode = 'visitor') {
+		return this.cameraPreviewCommands.previewSequence(mode);
+	}
+
+	/** S2 — swap edge direction preserving physical location (paused only). */
+	swapEdgePreviewDirection() {
+		return this.cameraPreviewCommands.swapEdgePreviewDirection();
+	}
+
+	/** S2 — toggle edge repeat flag. */
+	setEdgePreviewRepeat(value: boolean) {
+		return this.cameraPreviewCommands.setEdgePreviewRepeat(value);
+	}
+
+	/** S2 — additive reset to scope start (paused + playhead 0, tour syncs global). */
+	resetPreviewToScopeStart() {
+		return this.cameraPreviewCommands.resetPreviewToScopeStart();
 	}
 
 	requestDropToFloor() {

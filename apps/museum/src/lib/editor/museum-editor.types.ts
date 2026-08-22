@@ -85,6 +85,8 @@ export type EditorCameraPreview =
 	| CameraPreviewConnection
 	| CameraPreviewTour;
 
+export type PreviewScope = 'camera' | 'edge' | 'sequence' | 'legacy';
+
 // =====================================================================
 // Pending navigation command + workspace + panel chrome (god file lines
 // 182-203). Single discriminated union; "kind === 'place-camera'" lives at

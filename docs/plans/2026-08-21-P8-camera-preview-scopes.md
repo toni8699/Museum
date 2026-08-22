@@ -444,8 +444,8 @@ record the real numbers at implementation.
 | Missing connection (pre-install) | `previewEdge(unknown connection)` → status message, preview stays null |
 | select-edge while sequence playing | seek blocked + `previewSelectedConnection` no-ops → tour still `playing` |
 | Preview Edge explicit switch | saves `lastSequencePlayhead` (= prior `cameraTimelinePlayhead`), installs `connection` paused |
-| Preview Sequence return (valid) | restores `lastSequencePlayhead` when edge still present (`cameraTimelineProgressAtEdgeProgress` non-null) |
-| Preview Sequence return (invalid) | resets to 0 when connection deleted / timeline rebuilt without that edge |
+| Preview Sequence return (valid) | restores `lastSequencePlayhead` (global position) when timeline still builds; validated via `getEditorCameraTimelineLocation` |
+| Preview Sequence return (invalid) | resets to 0 only when timeline unbuildable (e.g. `< 2` guided nodes) — preserves global position even if saved edge was deleted (amended 2026-08-22 per counter-review; matches §G “preserve time only if edges still resolve” as global-position preserve) |
 | edgeRepeat auto-restart | `completeCameraPreview` with `edgeRepeat=true` → new runId `playing` at 0, not `complete` |
 | edgeRepeat + zero-duration | zero-duration edge with `edgeRepeat=true` → stays `complete`, **no restart loop** |
 | edgeRepeat cleared | cleared on new `startConnection` and on `stop`; kept across direction swap |

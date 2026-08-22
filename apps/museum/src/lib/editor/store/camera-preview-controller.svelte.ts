@@ -26,8 +26,9 @@
  */
 
 import {
-	createCameraMotion,
+	cameraMotionEdgeProgressAtProgress,
 	cameraMotionProgressAtEdgeProgress,
+	createCameraMotion,
 	type Vector3Like
 } from '$lib/museum/navigation/camera-motion';
 import {
@@ -59,7 +60,8 @@ import type {
 	CameraPreviewTransition,
 	EditorCameraPreview,
 	EditorCameraPreviewMode,
-	EditorCameraPreviewTransport
+	EditorCameraPreviewTransport,
+	PreviewScope
 } from '../museum-editor.types';
 
 function cloneRoutePoint(point: Vector3Like): Vec3 {
@@ -138,6 +140,59 @@ function cloneResolvedCameraRoute(route: ResolvedCameraRoute): ResolvedCameraRou
 // imports `CameraPreviewNode` from the controller keeps compiling.
 export type { CameraPreviewNode, CameraPreviewTransition, CameraPreviewConnection, CameraPreviewTour };
 
+/**
+ * Derived scope mapping — S2 interim representation. No kind rename in S2;
+ * discriminated `PreviewScope` lands in S6 with the kind rename.
+ * `node → camera`, `connection → edge`, `tour → sequence`, `transition → legacy`.
+ */
+export function previewScopeOf(preview: EditorCameraPreview): PreviewScope | null {
+	if (!preview) return null;
+	switch (preview.kind) {
+		case 'node':
+			return 'camera';
+		case 'connection':
+			return 'edge';
+		case 'tour':
+			return 'sequence';
+		case 'transition':
+			return 'legacy';
+		default:
+			return null;
+	}
+}
+
+/**
+ * S2 helper — shared staleness check for `preview` against the live document.
+ * Extracted so facade `#pruneInvalidCameraPreview` can reuse the same
+ * endpoint checks without duplication (D7).
+ */
+export function isPreviewStale(
+	preview: EditorCameraPreview,
+	document: EditorDocumentStore
+): boolean {
+	if (!preview) return false;
+	const nodes = document.document.navigationNodes;
+	const connections = document.document.connections;
+	const hasNode = (id: string) => nodes.some((node) => node.id === id);
+	const hasConnection = (id: string) => connections.some((c) => c.id === id);
+	switch (preview.kind) {
+		case 'node':
+			return !hasNode(preview.nodeId);
+		case 'connection':
+			return (
+				!hasConnection(preview.connectionId) ||
+				!hasNode(preview.fromNodeId) ||
+				!hasNode(preview.toNodeId)
+			);
+		case 'transition':
+			return !hasNode(preview.fromNodeId) || !hasNode(preview.toNodeId);
+		case 'tour':
+			return false;
+		default:
+			return false;
+	}
+}
+
 export class EditorCameraPreviewController {
 	/** The active preview, or null when FSM is idle. */
 	preview = $state<EditorCameraPreview | null>(null);
@@ -151,6 +206,9 @@ export class EditorCameraPreviewController {
 	 * Same pattern as `EditorSceneRoots.version`.
 	 */
 	recenterVersion = $state(0);
+
+	/** S2 — edge-local repeat flag, scoped strictly to `kind === 'connection'`. */
+	edgeRepeat = $state(false);
 
 	/** Deep-cloned route snapshot, keyed by `runId`. */
 	#capturedRoute: { runId: number; route: ResolvedCameraRoute } | null = null;
@@ -273,6 +331,7 @@ export class EditorCameraPreviewController {
 		this.#capturedRoute = { runId, route: cloneResolvedCameraRoute(route) };
 		this.followEnabled = true;
 		this.recenterVersion += 1;
+		this.edgeRepeat = false;
 		this.preview = {
 			kind: 'connection',
 			connectionId,
@@ -519,7 +578,95 @@ export class EditorCameraPreviewController {
 		this.preview = null;
 		this.#capturedRoute = null;
 		this.followEnabled = true;
+		this.edgeRepeat = false;
 		return true;
+	}
+
+	/**
+	 * S2 additive transport — return to scope start without tearing down preview.
+	 * For `tour`, caller also resets `cameraTimelinePlayhead` to 0; for
+	 * `connection`, facade playhead is untouched.
+	 * Keeps same runId — `EditorCameraRig` re-samples paused previews at `preview.playhead` every tick, so the camera moves to 0 without a new runId.
+	 */
+	resetToScopeStart(): boolean {
+		const preview = this.preview;
+		if (!preview || preview.kind === 'node') return false;
+		this.preview = {
+			...preview,
+			transport: 'paused',
+			playhead: 0,
+			startedAtMs: null
+		};
+		return true;
+	}
+
+	setEdgeRepeat(value: boolean): boolean {
+		const preview = this.preview;
+		if (!preview || preview.kind !== 'connection') return false;
+		this.edgeRepeat = Boolean(value);
+		return true;
+	}
+
+	/**
+	 * S2 direction swap — only when `kind === 'connection' && paused`.
+	 * Resolves a fresh opposite-direction route (never reuses captured snapshot),
+	 * preserves physical camera location via edge-domain `1 - e` flip.
+	 * Keeps `edgeRepeat`, updates discovery via caller (commands layer does setDiscovery).
+	 * Returns new playhead or null on failure.
+	 */
+	swapEdgeDirection(): { playhead: number; runId: number } | null {
+		const preview = this.preview;
+		if (!preview || preview.kind !== 'connection' || preview.transport !== 'paused') return null;
+		// Ensure director/visitor mode preserved
+		const opposite: CameraConnectionDirection = preview.direction === 'forward' ? 'reverse' : 'forward';
+		const graph = this.#graph();
+		// Resolve fresh opposite route — never reuse captured snapshot geometry
+		let oppositeRoute: ResolvedCameraRoute;
+		try {
+			oppositeRoute = getCameraConnectionRoute(preview.connectionId, opposite, graph);
+		} catch {
+			return null;
+		}
+		let oldMotion;
+		let newMotion;
+		try {
+			oldMotion = resolveDirectedEdgeMotionByDirection(graph, preview.connectionId, preview.direction, {
+				route: this.getCapturedRoute(preview.runId) ?? undefined
+			}).motion;
+			newMotion = resolveDirectedEdgeMotionByDirection(graph, preview.connectionId, opposite).motion;
+		} catch {
+			return null;
+		}
+		// Edge-domain flip: e = edgeProgress(old, playhead), e' = 1 - e, playhead' = progressAtEdge(new, e')
+		let e: number;
+		try {
+			e = cameraMotionEdgeProgressAtProgress(oldMotion, 0, preview.playhead);
+		} catch {
+			return null;
+		}
+		const ePrime = 1 - e;
+		let newPlayhead: number;
+		try {
+			newPlayhead = cameraMotionProgressAtEdgeProgress(newMotion, 0, ePrime);
+		} catch {
+			return null;
+		}
+		const fromNodeId = opposite === 'forward' ? oppositeRoute.nodeIds[0]! : oppositeRoute.nodeIds.at(-1)!;
+		const toNodeId = opposite === 'forward' ? oppositeRoute.nodeIds.at(-1)! : oppositeRoute.nodeIds[0]!;
+		const runId = this.#nextRunId++;
+		this.#capturedRoute = { runId, route: cloneResolvedCameraRoute(oppositeRoute) };
+		this.recenterVersion += 1;
+		this.preview = {
+			...preview,
+			direction: opposite,
+			fromNodeId,
+			toNodeId,
+			runId,
+			playhead: Math.min(1, Math.max(0, newPlayhead)),
+			startedAtMs: null
+		};
+		// keep edgeRepeat as-is
+		return { playhead: this.preview.playhead, runId };
 	}
 
 	/** Deep clone of the captured route for the matching `runId`. */
@@ -600,7 +747,16 @@ export class EditorCameraPreviewController {
 		if (preview.kind === 'node' && !this.#nodeExists(preview.nodeId)) {
 			this.preview = null;
 			this.#capturedRoute = null;
+			this.edgeRepeat = false;
 			return;
+		}
+		if (preview.kind === 'connection') {
+			if (isPreviewStale(preview, this.document)) {
+				this.preview = null;
+				this.#capturedRoute = null;
+				this.edgeRepeat = false;
+				return;
+			}
 		}
 		if (preview.kind === 'tour') {
 			// Drop if the timeline can't be built from the new document.
@@ -632,6 +788,7 @@ export class EditorCameraPreviewController {
 		if (!hit) return false;
 		this.preview = null;
 		this.#capturedRoute = null;
+		this.edgeRepeat = false;
 		return true;
 	}
 

@@ -64,8 +64,8 @@ Use:
 * **Unsequenced** — cameras without an explicit sequence position.
 * **Connection** — an undirected travel relationship between two cameras.
 * **Sequence connection** — an existing connection currently used between two adjacent sequence nodes.
-* **Branch** — connected graph content that is not currently part of the sequence.
-* **Detour** — an explicitly authored branch behavior that leaves and later rejoins sequence playback.
+* **Neighbor** — an unsequenced camera directly connected to a sequenced camera; relationship labels never overclaim adjacency (a chain `C — E — F` makes E a neighbor of C, while F is "Connected to E").
+* **Branch** — an explicitly authored alternate traversal that leaves sequence playback; return-to-origin is shipped, rejoin into a later stop is an unscheduled experiment.
 
 Retire **Free Cameras** as primary terminology.
 
@@ -73,7 +73,7 @@ An Unsequenced camera may still:
 
 * have multiple connections
 * belong to a branch
-* participate in a detour
+* head a Branch
 * have a fully authored pose
 * be previewed independently
 
@@ -137,10 +137,10 @@ SEQUENCE
 UNSEQUENCED
 
 ◯ Camera A
-  Connected to B
+  Neighbor of B
 
 ◯ Camera E
-  Connected to C
+  Neighbor of C
 ```
 
 The two sections together account for every camera node exactly once.
@@ -291,7 +291,7 @@ E becomes:
 UNSEQUENCED
 
 ◯ E
-  Connected to C
+  Neighbor of C
 ```
 
 The graph still contains:
@@ -306,10 +306,12 @@ E can later:
 
 * be inserted into Sequence where connectivity permits
 * remain an optional branch
-* become part of a detour
+* become part of a Branch
 * be previewed independently
 
-An Unsequenced branch is **not automatically a detour**. Detour behavior remains an explicit higher-level playback decision.
+An Unsequenced neighbor is **not automatically a Branch**. Branch behavior remains an explicit higher-level playback decision.
+
+Relationship labels never overclaim adjacency: "Neighbor of ⟨camera⟩" means a direct edge to a *sequenced* camera; otherwise the label is "Connected to ⟨camera⟩" — a chain `C — E — F` shows F as "Connected to E", never "Neighbor of C". (P1.9.)
 
 ---
 
@@ -349,10 +351,10 @@ SEQUENCE
 UNSEQUENCED
 
 ◯ A
-  Connected to B
+  Neighbor of B
 
 ◯ E
-  Connected to C
+  Neighbor of C
 ```
 
 A is not deleted and `A — B` remains.
@@ -806,7 +808,7 @@ The primary Camera Path lane shows:
 
 Unsequenced cameras do not appear as normal Sequence stops.
 
-They may appear only in explicit branch/detour presentation where applicable.
+They may appear only in explicit Branch presentation where applicable.
 
 Timeline reordering uses the same validity rules as the Sequence Inspector:
 
@@ -860,7 +862,7 @@ This tells the user immediately:
 
 ---
 
-# 21. Branch and detour interpretation
+# 21. Branch interpretation
 
 Given:
 
@@ -878,11 +880,12 @@ Sequence:
 ③ D
 ```
 
-A and E are connected branches.
+A and E are connected neighbors.
 
-They do not need sequence numbers.
+They do not need sequence numbers — and they are **not** Branches until
+explicitly authored as alternate traversals.
 
-A future or existing detour system may explicitly define traversal through these branches.
+A future Branch authoring system may explicitly define traversal through these neighbors.
 
 For example, if topology supports:
 
@@ -896,9 +899,11 @@ then:
 B → X → Y → C
 ```
 
-may be authored as a detour while B and C retain their Sequence positions.
+may be authored as a Branch while B and C retain their Sequence positions.
 
 This does not rewrite Sequence itself.
+
+Rejoin into a **later** Sequence stop (`B → X → Y → C` with C after B) is a recognized future extension, not yet modeled — see the [branch-rejoin experiment brief](../plans/2026-08-21-branch-rejoin-experiment.md) (unscheduled).
 
 ---
 

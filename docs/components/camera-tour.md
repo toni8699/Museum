@@ -11,7 +11,7 @@
 | Camera node | Eye / target / FOV (room-local) |
 | Connection | Edge; JSON stores **interior** anchors only |
 | Path kinds | `rounded-polyline` · `auto-bezier` (no tangent handles) |
-| Order | Open chain (main route + detours); loop derived from a distinct tail↔head connection |
+| Order | Open chain (main route + branches); loop derived from a distinct tail↔head connection |
 
 Defaults: eye **1.65 m**, target **1.25 m**, distance **3 m**, clearance **0.35 m**.  
 Resolver inserts `node:<id>:position` — **never** persist those as interiors.  
@@ -76,8 +76,8 @@ Plan ↔ 3D; a persisted view-keyframe selection gets only a passive
   (non-flow) edges stay visible in a distinct style. Order changes numbering,
   never the edge set.
 - **Order/free:** ordered nodes show stable `1…N` labels from
-  `store.mainFlowNodeIds`; free nodes show an unnumbered dashed ring and
-  “Not in order yet” in the inspector.
+  `store.mainFlowNodeIds`; unsequenced nodes show an unnumbered dashed ring and
+  “Unsequenced” in the inspector.
 - **Anchors:** interior anchors render only for the selected connection;
   dragging an edge with no anchor inserts one at the nearest curve progress
   (shared `getCameraPathInsertionIndex` / `insertConnectionAnchorAtWorldPoint`

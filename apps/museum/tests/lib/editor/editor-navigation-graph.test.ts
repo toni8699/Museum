@@ -17,6 +17,7 @@ import {
 	validateDetourCreation,
 	validateDetourNodeRemoval,
 	validateDetourRemoval,
+	moveGuidedTourNodeIndex,
 	validateGuidedTourInsertion,
 	validateGuidedTourOrder,
 	validateGuidedTourRemoval,
@@ -241,32 +242,31 @@ describe('editor guided-tour order validation', () => {
 		});
 	});
 
-	it('plans free-node insertion with at most one auto-created edge', () => {
-		// One missing consecutive edge is supplied (the mutator auto-creates it).
+	it('plans free-node insertion strictly — no auto-created edges (P1.8 D2)', () => {
+		// P1.8 D2 — strict: a gap with a missing edge rejects with copy
+		// naming the missing pair. No auto-create.
 		const missing = documentClone();
 		addFreeNode(missing, 'free-node', 'tour-paris');
-		expect(validateGuidedTourInsertion(missing, 'free-node', 2)).toEqual({
-			ok: true,
-			nodeIds: ['tour-a', 'tour-b', 'free-node', 'tour-paris', 'tour-d'],
-			missingConnection: { fromNodeId: 'tour-b', toNodeId: 'free-node' }
-		});
+		expect(validateGuidedTourInsertion(missing, 'free-node', 2)).toEqual(
+			expect.objectContaining({ ok: false, code: 'missing_guided_connection' })
+		);
 
 		const insertable = documentClone();
 		addFreeNode(insertable, 'free-node', 'tour-b');
 		addConnection(insertable, 'free-node', 'tour-paris', 'free-paris');
 		expect(validateGuidedTourInsertion(insertable, 'free-node', 2)).toEqual({
 			ok: true,
-			nodeIds: ['tour-a', 'tour-b', 'free-node', 'tour-paris', 'tour-d'],
-			missingConnection: null
+			nodeIds: ['tour-a', 'tour-b', 'free-node', 'tour-paris', 'tour-d']
 		});
 		expect(validateGuidedTourInsertion(insertable, 'tour-a', 2)).toEqual(
 			expect.objectContaining({ ok: false, code: 'node_already_guided' })
 		);
+		// P1.8 D1 — index 0 is now a valid insertion position (head gap).
 		expect(validateGuidedTourInsertion(insertable, 'free-node', 0)).toEqual(
-			expect.objectContaining({ ok: false, code: 'invalid_guided_index' })
+			expect.objectContaining({ ok: false, code: 'missing_guided_connection' })
 		);
 
-		// Two missing consecutive edges reject.
+		// Two missing consecutive edges also reject (same strict path).
 		const twoMissing = documentClone();
 		twoMissing.navigationNodes.push({
 			id: 'free-node',
@@ -280,19 +280,21 @@ describe('editor guided-tour order validation', () => {
 		expect(validateGuidedTourInsertion(twoMissing, 'free-node', 2)).toEqual(
 			expect.objectContaining({
 				ok: false,
-				code: 'too_many_missing_guided_connections'
+				code: 'missing_guided_connection'
 			})
 		);
 	});
 
-	it('plans removal only when the predecessor-successor edge exists', () => {
+	it('plans removal only when the predecessor-successor edge exists (P1.8 D1: head removal valid)', () => {
 		const missing = documentClone();
 		expect(validateGuidedTourRemoval(missing, 'tour-b')).toEqual(
 			expect.objectContaining({ ok: false, code: 'missing_guided_connection' })
 		);
-		expect(validateGuidedTourRemoval(missing, 'tour-a')).toEqual(
-			expect.objectContaining({ ok: false, code: 'protected_guided_start' })
-		);
+		// P1.8 D1 — head removal is now valid (spec §12 "Head — always valid").
+		expect(validateGuidedTourRemoval(missing, 'tour-a')).toEqual({
+			ok: true,
+			nodeIds: FIXTURE_GUIDED_ORDER.filter((nodeId) => nodeId !== 'tour-a')
+		});
 
 		const removable = documentClone();
 		addConnection(removable, 'tour-a', 'tour-paris', 'tour-a-paris');
@@ -300,6 +302,44 @@ describe('editor guided-tour order validation', () => {
 			ok: true,
 			nodeIds: FIXTURE_GUIDED_ORDER.filter((nodeId) => nodeId !== 'tour-b')
 		});
+	});
+
+	it('moves a guided node one position within bounds — head reorder no longer pinned (P1.8)', () => {
+		const order = [...FIXTURE_GUIDED_ORDER];
+		// P1.8 D1 — the second row may move up to index 0 (plain reorder,
+		// all nodes stay sequenced). The old `destination <= 0` guard made
+		// this a silent no-op.
+		expect(moveGuidedTourNodeIndex(order, 'tour-b', -1)).toEqual([
+			'tour-b',
+			'tour-a',
+			'tour-paris',
+			'tour-d'
+		]);
+		// The head may move down (old `index <= 0` guard blocked it).
+		expect(moveGuidedTourNodeIndex(order, 'tour-a', 1)).toEqual([
+			'tour-b',
+			'tour-a',
+			'tour-paris',
+			'tour-d'
+		]);
+		// Interior moves still work.
+		expect(moveGuidedTourNodeIndex(order, 'tour-paris', -1)).toEqual([
+			'tour-a',
+			'tour-paris',
+			'tour-b',
+			'tour-d'
+		]);
+		expect(moveGuidedTourNodeIndex(order, 'tour-paris', 1)).toEqual([
+			'tour-a',
+			'tour-b',
+			'tour-d',
+			'tour-paris'
+		]);
+		// Out of bounds and unknown nodes return null (no mutation).
+		expect(moveGuidedTourNodeIndex(order, 'tour-a', -1)).toBeNull();
+		expect(moveGuidedTourNodeIndex(order, 'tour-d', 1)).toBeNull();
+		expect(moveGuidedTourNodeIndex(order, 'missing', -1)).toBeNull();
+		expect(order).toEqual([...FIXTURE_GUIDED_ORDER]);
 	});
 
 });

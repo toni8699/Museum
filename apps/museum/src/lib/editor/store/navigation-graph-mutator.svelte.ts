@@ -42,6 +42,7 @@ import { reserveEntityId } from '../editor-assets';
 import type { EditorNavigationSelection } from '../editor-selection';
 import {
 	currentMainFlowNodeIds,
+	validateCurrentGuidedTourOrder,
 	validateConnectionCreation,
 	validateConnectionDeletion,
 	validateDetourAppend,
@@ -345,7 +346,7 @@ export class EditorNavigationGraphMutator {
 		};
 
 		// closeout (B0) — standalone placement. Every placed node
-		// commits immediately as a free node ("not in order yet"); connecting
+		// commits immediately as an unsequenced node; connecting
 		// happens later through the ordinary connect-existing flow. The frozen
 		// relic keeps the connect-pending-node contract (its checked-in graph
 		// already has nodes, so the blank-graph case never fires there).
@@ -353,7 +354,7 @@ export class EditorNavigationGraphMutator {
 			return this.#commitStandaloneNode(
 				node,
 				nodeId,
-				`Added ${node.label} — not in order yet`
+				`Added ${node.label} — unsequenced`
 			);
 		}
 
@@ -662,12 +663,11 @@ export class EditorNavigationGraphMutator {
 		const committed = this.#applyGuidedTourOrder(orderPlan.nodeIds);
 		if (committed) this.host.setStatusMessage('Updated camera flow order');
 		return committed;
-	}
-
-	/**
-	 * Insert one free camera node into an existing flow gap. Per the S10.2
-	 * mutation contract at most ONE missing consecutive edge may be
-	 * auto-created in the same transaction; any more rejects before mutation.
+	}	/**
+	 * P1.8 D2 — Insert one unsequenced camera node into an existing flow gap.
+	 * Strict: no silent connection creation. Both gap edges must already
+	 * exist; otherwise the validator rejects with copy naming the missing
+	 * pair.
 	 */
 	insertNodeIntoGuidedTour(nodeId: string, index: number) {
 		if (!this.#canEditGuidedTour()) return false;
@@ -679,14 +679,6 @@ export class EditorNavigationGraphMutator {
 			(candidate) => candidate.id === nodeId
 		)!;
 		if (!this.host.beginDocumentTransaction()) return false;
-		if (insertionPlan.missingConnection) {
-			if (
-				!this.#appendMissingConnection(insertionPlan.missingConnection)
-			) {
-				this.host.cancelDocumentTransaction();
-				return false;
-			}
-		}
 		this.#rewriteGuidedTourOrder(insertionPlan.nodeIds);
 		if (!this.host.commitDocumentTransaction()) return false;
 		const labels = insertionPlan.nodeIds.map(
@@ -695,23 +687,51 @@ export class EditorNavigationGraphMutator {
 				candidate
 		);
 		const indexOfNode = insertionPlan.nodeIds.indexOf(node.id);
-		let message: string;
-		if (indexOfNode === insertionPlan.nodeIds.length - 1) {
-			message = `Added ${node.label} after ${labels.at(-2)} — the path now ends at ${node.label}`;
-		} else {
-			message = `Added ${node.label} between ${labels[indexOfNode - 1]} and ${labels[indexOfNode + 1]}`;
-		}
-		if (insertionPlan.missingConnection) {
-			const from = this.host.document.navigationNodes.find(
-				(n) => n.id === insertionPlan.missingConnection!.fromNodeId
-			);
-			const to = this.host.document.navigationNodes.find(
-				(n) => n.id === insertionPlan.missingConnection!.toNodeId
-			);
-			message += ` — created the missing transition ${from?.label ?? insertionPlan.missingConnection!.fromNodeId} → ${to?.label ?? insertionPlan.missingConnection!.toNodeId}`;
-		}
+		const message =
+			indexOfNode === 0
+				? `Added ${node.label} before ${labels[1]} — ${node.label} now leads the tour`
+				: indexOfNode === insertionPlan.nodeIds.length - 1
+					? `Added ${node.label} after ${labels.at(-2)} — the path now ends at ${node.label}`
+					: `Added ${node.label} between ${labels[indexOfNode - 1]} and ${labels[indexOfNode + 1]}`;
 		this.host.setStatusMessage(message);
 		return true;
+	}
+
+	/**
+	 * P1.8 D1 — Re-root: set one node as the new sequence first. Preserves
+	 * the valid forward suffix from that node (consecutive chain links are
+	 * always connected), demotes earlier nodes to Unsequenced, one history
+	 * entry. No new mutator path needed — computes the suffix and calls
+	 * `setGuidedTourOrder`.
+	 */
+	reRootGuidedTour(nodeId: string) {
+		if (!this.#canEditGuidedTour()) return false;
+		const current = validateCurrentGuidedTourOrder(this.host.document);
+		if (!current.ok) {
+			this.host.setStatusMessage(current.message);
+			return false;
+		}
+		const currentIndex = current.nodeIds.indexOf(nodeId);
+		if (currentIndex < 0) {
+			this.host.setStatusMessage(
+				`${this.host.document.navigationNodes.find((n) => n.id === nodeId)?.label ?? nodeId} is not on the camera flow`
+			);
+			return false;
+		}
+		// D4 — re-root that would leave a one-stop (two-node) sequence rejects.
+		// The forward suffix from the node is [node, ...rest]; if that suffix
+		// has fewer than 2 nodes, the new sequence would violate the minimum.
+		const suffix = current.nodeIds.slice(currentIndex);
+		if (suffix.length < 2) {
+			this.host.setStatusMessage(
+				`Cannot set ${this.host.document.navigationNodes.find((n) => n.id === nodeId)?.label ?? nodeId} as first — the sequence must keep at least two stops`
+			);
+			return false;
+		}
+		// The suffix is already a valid connected chain (consecutive pairs are
+		// chain transitions). The order rewrite demotes everything before
+		// `nodeId` to Unsequenced (their links clear).
+		return this.setGuidedTourOrder(suffix);
 	}
 
 	/** Remove one non-start node from the flow while retaining graph topology. */
@@ -727,7 +747,7 @@ export class EditorNavigationGraphMutator {
 		const committed = this.#applyGuidedTourOrder(removalPlan.nodeIds);
 		if (committed) {
 			this.host.setStatusMessage(
-				`Removed ${node.label} from the path — ${node.label} is now a free node`
+				`Removed ${node.label} from the path — ${node.label} is now unsequenced`
 			);
 		}
 		return committed;
@@ -929,26 +949,6 @@ export class EditorNavigationGraphMutator {
 			}
 		}
 		return detourNodeIds;
-	}
-
-	/** Append one missing straight edge inside the active transaction. */
-	#appendMissingConnection(missing: { fromNodeId: string; toNodeId: string }) {
-		const from = this.host.document.navigationNodes.find(
-			(node) => node.id === missing.fromNodeId
-		);
-		const to = this.host.document.navigationNodes.find(
-			(node) => node.id === missing.toNodeId
-		);
-		if (!from || !to) {
-			this.host.setStatusMessage('The flow transition endpoints became unavailable');
-			return false;
-		}
-		const connectionId = reserveEntityId(
-			`${from.id}-${to.id}`,
-			new Set(this.host.document.connections.map((connection) => connection.id))
-		);
-		this.#appendStraightConnection(from, to, connectionId);
-		return true;
 	}
 
 	/** Ensure an undirected edge exists between two nodes (F5 — create once, never delete). */

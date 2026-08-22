@@ -270,12 +270,25 @@ Rows may expose:
 * visibility
 * contextual actions
 * optional timing information
+* collapsible neighbor list — directly-connected cameras (graph truth, never
+  reachability): sequenced neighbors show their order number, unsequenced
+  neighbors show as unsequenced, neighbors that head an explicit Branch carry
+  a `Branch` tag
+
+Per-row connection trees are not part of Sequence rows — connections live in
+the Connections section (undirected) and the Inspector. Reordering is
+drag-only; no per-row order-arrow controls. (P1.9 sidebar simplification.)
 
 ### Unsequenced
 
 Contains camera nodes not currently participating in the sequence.
 
 Unsequenced cameras may still participate in graph connections.
+
+Rows may expose a collapsible neighbor list and a relationship line that
+never overclaims adjacency: "Neighbor of ⟨camera⟩" for a direct edge to a
+sequenced camera, otherwise "Connected to ⟨camera⟩" (per
+`Camera-flow-specs.md` §8). (P1.9 sidebar simplification.)
 
 ### Connections
 

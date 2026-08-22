@@ -57,13 +57,14 @@ Policy rules:
 | # | Plan | Status | Depends on | Doc |
 |---|------|--------|------------|-----|
 | — | Plan-system renewal + documentation rework (process row — created this tracker and the five-doc model) | shipped | H1 gate | archived → [2026-08-17-plan-system-renewal.md](archive/plans/2026-08-17-plan-system-renewal.md) |
-| P1 | Camera overhaul | in-progress — **P1.1–P1.3 shipped 2026-08-18**; **P1.4–P1.6 shipped 2026-08-19/20**; **P1.7 shipped 2026-08-21**; **P1.8 drafted 2026-08-21 (last increment)** | renewal | [2026-08-18-P1-camera-overhaul.md](2026-08-18-P1-camera-overhaul.md) |
+| P1 | Camera overhaul | in-progress — **P1.1–P1.3 shipped 2026-08-18**; **P1.4–P1.6 shipped 2026-08-19/20**; **P1.7–P1.8 shipped 2026-08-21**; **P1.9 (sidebar simplification) approved 2026-08-21 (final slice)** | renewal | [2026-08-18-P1-camera-overhaul.md](2026-08-18-P1-camera-overhaul.md) |
 | P2 | Plan staging mode — 2D furnishing | approved | P1 | [2026-08-18-P2-plan-staging.md](2026-08-18-P2-plan-staging.md) |
 | P3 | UI overhaul — reconciliation/refresh pass over settled surfaces | approved | P1, P2 | [2026-08-18-P3-ui-overhaul.md](2026-08-18-P3-ui-overhaul.md) |
 | P4 | Client GLB import | proposed | renewal | [2026-08-18-P4-gltb-import.md](2026-08-18-P4-gltb-import.md) |
 | P5 | Measured optimization and scale | proposed | renewal | [2026-08-18-P5-measured-optimization.md](2026-08-18-P5-measured-optimization.md) |
 | P6 | Editor artifact rename (de-H1) | shipped | renewal | archived → [2026-08-18-P6-editor-rename.md](archive/plans/2026-08-18-P6-editor-rename.md) |
 | P7 | Museum-editor facade decoupling — finish the deferred H1 splits (selection de-coupling, facade thinning, type collapse, shims, Chopin defaults, shell boot) | approved — **Option B: P7.4 shipped 2026-08-19; P7.1–P7.5 wait for P1 close** | P1 | [2026-08-19-P7-editor-facade-collapse.md](2026-08-19-P7-editor-facade-collapse.md) |
+| — | Branch rejoin — **experiment, no schedule** (rejoin into a later Sequence stop; dead-end return already ships) | proposed | — | [2026-08-21-branch-rejoin-experiment.md](2026-08-21-branch-rejoin-experiment.md) |
 | … | future work re-registers here | | | |
 
 Execution order: **P6 (before P1.1) → P1 → P2 → P3**. P6 is the mechanical
@@ -81,9 +82,12 @@ P7.3** as serial green diffs. The order is committed by the
 P1 increments ship as serial green diffs; each closed brief archives with a
 one-line stub below. **P1.8** — camera sequence authoring per
 [`Camera-flow-specs.md`](../Design-specs/Camera-flow-specs.md): Unsequenced
-naming, entrance-start re-root "Set as First", per-camera preview — is the
-last P1 increment; its naming amendment already landed via P1.7 (sidebar ·
-shell spec §4 · visual spec §10, 2026-08-21).
+naming, entrance-start re-root "Set as First", per-camera preview — shipped
+2026-08-21; its naming amendment already landed via P1.7 (sidebar · shell
+spec §4 · visual spec §10, 2026-08-21). **P1.9** — camera sidebar
+simplification (neighbor dropdown · drag-only reorder · empty-chain
+promotion), approved 2026-08-21, is the **final P1 slice**: it reconciles the
+sidebar to `Design-shell-specs.md` §4 so P3 stays purely cosmetic.
 
 ## Archived plans
 
@@ -142,6 +146,7 @@ prefixed.
 - `archived → archive/plans/2026-08-19-P1.5-camera-plan-surface.md` (shipped 2026-08-19)
 - `archived → archive/plans/2026-08-20-P1.6-framing-authoring.md` (shipped 2026-08-20)
 - `archived → archive/plans/2026-08-20-P1.7-camera-ui-reconciliation.md` (shipped 2026-08-21)
+- `archived → archive/plans/2026-08-21-P1.8-camera-sequence-authoring.md` (shipped 2026-08-21)
 
 **Sources:** all source content is folded into the umbrella docs (P1 §A–§D ·
 P2 §A · P4 §A · P5 §A); the original source files were deleted 2026-08-18.

@@ -1,7 +1,7 @@
 # P1 — Camera overhaul (umbrella)
 
 **Date:** 2026-08-18
-**Status:** In-progress — **P1.1–P1.3 shipped 2026-08-18**; **P1.4–P1.6 shipped 2026-08-19/20**; **P1.8 drafted 2026-08-21**; umbrella; remaining increments execute in order below
+**Status:** In-progress — **P1.1–P1.3 shipped 2026-08-18**; **P1.4–P1.6 shipped 2026-08-19/20**; **P1.7–P1.8 shipped 2026-08-21**; **P1.9 (sidebar simplification) approved 2026-08-21**; umbrella; remaining increments execute in order below
 **Tracker:** [`docs/plans/README.md`](README.md) — **P1**, depends on: renewal
 **Folded sources (2026-08-18, content preserved; originals deleted):**
 - §A — successor shell ratification (the P1.1 gate)
@@ -83,7 +83,8 @@ by the ratified shell contract (§A).
 | **P1.5** | [Camera Plan surface + backdrop/visual-rule assertions](./2026-08-19-P1.5-camera-plan-surface.md) + **connection timing authoring (F5 resolved: duration authored on the plan edge — per-direction `durationSeconds` via the shipped `setConnectionTiming` mutator, derived speed readout `length/time`, plan-edge timing labels un-gated)** (B0 Add-camera mutator already shipped in S10.1 closeout, `674d597`; **F4**) — **shipped 2026-08-20** | §C | P1.1 |
 | **P1.6** | [Framing authoring UX](../archive/plans/2026-08-20-P1.6-framing-authoring.md) + FOV copy fix (**UI wording; spec/docs copy lands in P1.2**) + **intent-first surface (ext. review): focus-timing presets Early/Centered/Full Move + lens presets · envelope handles in advanced drawer · parallax warning + FOV ramp guardrail + comfort diagnostic** + **Camera 3D Connection-Inspector duration field (same per-direction connection timing authored in P1.5)** — **shipped 2026-08-20** | §B | P1.2–P1.4, P1.1 |
 | **P1.7** | [Camera UI reconciliation pass (light — not the P3 overhaul)](../archive/plans/2026-08-20-P1.7-camera-ui-reconciliation.md) — four-section Camera Sidebar, Unsequenced terminology, tour selector, domain-switch fade; review fixes: **Camera 3D order digits + Unsequenced badges** (shell-spec "Viewport MUST show" gap closed) + **2D keep-mounted parity with 3D** (both plan surfaces stay mounted across Scene ⇄ Camera) — **shipped 2026-08-21** ([archived brief](../archive/plans/2026-08-20-P1.7-camera-ui-reconciliation.md); manual walk owner-waived) | — | P1.5, P1.6 |
-| **P1.8** | [Camera sequence authoring — Camera-flow-specs conformance (**draft**)](./2026-08-21-P1.8-camera-sequence-authoring.md): Unsequenced terminology (amend shell spec §4 + P1.7 naming first) · re-root **Set as First** (entrance-start pin → default) · per-camera preview wiring · rejection-copy audit — timeline drag-connect removal already landed 2026-08-21 | §C, §D + [Camera-flow-specs](../Design-specs/Camera-flow-specs.md) | P1.5–P1.7 |
+| **P1.8** | [Camera sequence authoring — Camera-flow-specs conformance (**shipped 2026-08-21**)](../archive/plans/2026-08-21-P1.8-camera-sequence-authoring.md): Unsequenced terminology (amend shell spec §4 + P1.7 naming first) · re-root **Set as First** (entrance-start pin → default) · per-camera preview wiring · rejection-copy audit — timeline drag-connect removal already landed 2026-08-21 | §C, §D + [Camera-flow-specs](../Design-specs/Camera-flow-specs.md) | P1.5–P1.7 |
+| **P1.9** | [Camera sidebar simplification — neighbor dropdown · drag-only reorder · empty-chain promotion](./2026-08-21-P1.9-sidebar-simplification.md): reconcile sidebar rows to `Design-shell-specs.md` §4 (neighbor dropdown replaces the connection-tree accordion · ↑/↓ removed · tail-row Set-as-First hidden) · **bug fix** — empty-chain "Start Sequence" pair promotion (no auto-promote, D4 floor intact) · unsequenced relationship meta · terminology sweep — **approved 2026-08-21 (final P1 slice)** | §C, §D + [Camera-flow-specs](../Design-specs/Camera-flow-specs.md) + [Shell spec §4](../Design-specs/Design-shell-specs.md) | P1.8 |
 
 ## Sequencing
 
@@ -124,6 +125,9 @@ converges both tracks. **P1.7** last.
 - P1.7 reconciliation done (interim presentation; the P3 pass is separate).
 - P1.8 sequence-authoring reconciliation done (Unsequenced naming · re-root
   "Set as First" · per-camera preview).
+- P1.9 sidebar simplification done (neighbor dropdown · drag-only reorder ·
+  empty-chain promotion; sidebar matches `Design-shell-specs.md` §4 so P3
+  stays cosmetic-only).
 - Tracker marks **P1 shipped**; this umbrella moves to archive with a stub.
 
 ---
@@ -189,7 +193,7 @@ findings (G1–G6) are folded below; the brief's scope (§A) is unchanged.
 5. **G5 — `cameraTourOpen` auto-expand:** the tree's camera-tour auto-expand
    fires on `domain === 'camera'`, both views (intended; §4).
 6. **G6 — panel-gate naming:** the three CameraFlowPanel row gates are the
-   chain / loop / detour sections behind `guidedEditingBlocked` (§5 test 3).
+   chain / loop / branch sections behind `guidedEditingBlocked` (§5 test 3).
 
 ### 1. User outcome and out-of-scope behavior
 
@@ -322,7 +326,7 @@ Unit / contract tests (all under `tests/lib/editor/app/`):
    `viewState.domain === 'camera'`; the tree's `interactive` gate follows the
    G1 per-row-type decomposition (scene rows interactive only in Scene → 3D,
    camera rows in both Camera views); the three CameraFlowPanel row gates
-   (chain / loop / detour sections behind `guidedEditingBlocked` — G6) +
+   (chain / loop / branch sections behind `guidedEditingBlocked` — G6) +
    seven `aria-disabled` marks keep their shape but are domain-driven.
    **Relic assertions stay byte-for-byte** (`EditorViewport.svelte`
    untouched, `/museum/editor` route untouched, `museum/navigation/**`
@@ -703,7 +707,7 @@ confirmed by review, then hardened by a second review round (see §10):
 | Create a node (free node) | **Shipped** — click a room floor → camera node | `beginCameraPlacement` / `createPendingNavigationNodeAt`; "free node" state exists (S10.2, "Not in order yet") |
 | Drag nodes | **Shipped** — full XYZ translate; rotate orbits look target around eye | camera gizmo adapter |
 | Delete nodes / connections | **Shipped** — validated, one history entry, undo | `deleteNavigationNode`, `deleteConnection` |
-| Insert / reorder / detour in the flow | **Shipped** (S10.2) | insert-into-gap, remove-from-flow, timeline drag-reorder, detours |
+| Insert / reorder / branch in the flow | **Shipped** (S10.2) | insert-into-gap, remove-from-flow, timeline drag-reorder, branches |
 | Connect two nodes | **Shipped** — click source, click destination | `beginConnectExistingNodes` + `connectNavigationNodes` |
 | Straight-line connection auto-appears | **Shipped** — a fresh connection stores zero interior anchors; the runtime resolver synthesizes node endpoints, and the two-point auto-bézier renders as a straight line | `resolveSceneDocument` (resolver-owned endpoints) + `createDraftConnectionPositionPath` (editor preview) |
 | Fine-tuning stays manual | **Shipped** — dragging adds interior anchors to bend the line into a curve | path-anchor authoring |
@@ -884,7 +888,7 @@ not silently mutate the order. **Invariant: deleting a connection never
 implicitly reorders the guided sequence.** The shipped rule is stricter than
 "playback stops and reports": `validateConnectionDeletion` **refuses** deletion of
 any flow-required edge (`guided_connection` — "the flow order requires the edge
-between X and Y"), refuses detour return edges, and refuses any deletion that
+between X and Y"), refuses branch return edges, and refuses any deletion that
 would disconnect the graph. Deletion is atomic: either the connection is
 deletable and the order is untouched, or the operation is rejected with a status
 message. The general principle for the future: if a route ever becomes
@@ -988,7 +992,7 @@ specification hardenings — all folded in:
 | R7 | `[Plan \| 3D]` vs `[3D \| Plan]` order inconsistent across domains | **Folded into §5.1** — fixed `[Plan \| 3D]` order everywhere; default view is separate state (boot default still free, §7). |
 | R8 | Free/unordered nodes need visual state; order numbers were "optional" | **Folded into §5.2** — flow membership must be visually distinguishable (numbers for ordered, distinct ring/badge for free); the semantic distinction is not optional. |
 | R9 | "Read-only backdrop" could be read as `pointer-events: none` | **Folded into §4.6** — backdrop is non-selectable/non-editable but remains hit-testable for camera placement and spatial interaction. |
-| R10 | Connection deletion vs. flow order needs an explicit invariant | **Folded into §5.5** — deletion never reorders the sequence; verified the shipped validator already refuses flow-required edges, detour returns, and graph-disconnecting deletions atomically. |
+| R10 | Connection deletion vs. flow order needs an explicit invariant | **Folded into §5.5** — deletion never reorders the sequence; verified the shipped validator already refuses flow-required edges, branch returns, and graph-disconnecting deletions atomically. |
 
 **Reviewer's own verdict:** the domain×view matrix is now justified rather than
 clever-for-clever's-sake (each cell has a distinct responsibility; fake symmetry
@@ -1050,7 +1054,7 @@ Current-state findings that drove the sectioning (kept for the record):
    duration authored on the plan edge; §D §6.6)**. It is not "the Plan Tour
    layer made editable."
 4. **The connection-deletion invariant is already shipped** (S10.2
-   `validateConnectionDeletion` refuses flow-required edges, detour returns,
+   `validateConnectionDeletion` refuses flow-required edges, branch returns,
    and graph-disconnecting deletions atomically) — Camera Plan must not offer a
    bypass.
 5. **The matrix rework touches freshly landed S10.1 files** — `EditorApp`,

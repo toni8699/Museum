@@ -573,7 +573,7 @@ describe('MuseumEditorStore Phase 6.5 camera paths', () => {
 		expect(node.connectedNodeIds).toEqual([]);
 		expect(node.nextNodeId).toBeUndefined();
 		expect(node.previousNodeId).toBeUndefined();
-		expect(store.statusMessage).toContain('not in order yet');
+		expect(store.statusMessage).toContain('unsequenced');
 
 		expect(store.commitSelectedNodeLabel('  Workshop close-up  ')).toBe(true);
 		expect(store.commitSelectedNodeFov(62)).toBe(true);
@@ -2496,13 +2496,16 @@ describe('MuseumEditorStore Phase 3.4 guided-order editing', () => {
 		expect(store.validation.success).toBe(true);
 	});
 
-	it('requires a retained bridge when removing a guided node and pins the start', () => {
+	it('requires a retained bridge when removing a guided node; head removal is valid (P1.8 D1)', () => {
 		const rejected = createFixtureEditorStore();
 		expect(rejected.removeNodeFromGuidedTour('tour-b')).toBe(false);
 		expect(rejected.statusMessage).toContain('Missing transition');
-		expect(rejected.removeNodeFromGuidedTour('tour-a')).toBe(false);
-		expect(rejected.statusMessage).toContain('display start is pinned');
-		expect(rejected.canUndo).toBe(false);
+		// P1.8 D1 — head removal is now valid (was pinned). The old head
+		// demotes to Unsequenced; the new head is the former second node.
+		expect(rejected.removeNodeFromGuidedTour('tour-a')).toBe(true);
+		expect(rejected.statusMessage).toContain('is now unsequenced');
+		expect(rejected.guidedTourNodeIds).toEqual(['tour-b', 'tour-paris', 'tour-d']);
+		expect(rejected.canUndo).toBe(true);
 
 		const document = cloneFixtureDocument();
 		addDocumentConnection(document, 'tour-a', 'tour-paris', 'tour-a-paris');
@@ -2719,7 +2722,7 @@ describe('MuseumEditorStore S10.2 camera-flow mutations', () => {
 		expect(store.guidedTourNodeIds).toEqual([...FIXTURE_GUIDED_ORDER, tailId]);
 	});
 
-	it('inserts a free node with at most one auto-created edge and announces it', () => {
+	it('rejects insertion when gap edges are missing (P1.8 D2 — strict, no auto-create)', () => {
 		const document = cloneFixtureDocument();
 		addFreeNode(document, 'free-node');
 		addDocumentConnection(document, 'tour-paris', 'free-node', 'tour-paris-free');
@@ -2727,27 +2730,10 @@ describe('MuseumEditorStore S10.2 camera-flow mutations', () => {
 		expect(store.importDocument(document)).toBe(true);
 		const historyBefore = store.historyVersion;
 
-		expect(store.insertNodeIntoGuidedTour('free-node', 2)).toBe(true);
-		const node = store.document.navigationNodes.find(
-			(candidate) => candidate.id === 'free-node'
-		)!;
-		expect(node.previousNodeId).toBe('tour-b');
-		expect(node.nextNodeId).toBe('tour-paris');
-		// The one missing edge (tour-b → free-node) was auto-created in the
-		// same transaction.
-		expect(hasConnection(store.document, 'tour-b', 'free-node')).toBe(true);
-		// The pre-existing tour-paris edge is retained, never auto-deleted.
-		expect(hasConnection(store.document, 'tour-paris', 'free-node')).toBe(true);
-		expect(store.statusMessage).toContain('created the missing transition');
-		expect(store.historyVersion).toBe(historyBefore + 1);
-		expect(store.validation.success).toBe(true);
-
-		expect(store.undo()).toBe(true);
-		const undone = store.document.navigationNodes.find(
-			(candidate) => candidate.id === 'free-node'
-		)!;
-		expect(undone.nextNodeId).toBeUndefined();
-		expect(undone.previousNodeId).toBeUndefined();
+		// P1.8 D2 — the missing tour-b → free-node edge rejects; no auto-create.
+		expect(store.insertNodeIntoGuidedTour('free-node', 2)).toBe(false);
+		expect(store.statusMessage).toContain('no connection between');
+		expect(store.historyVersion).toBe(historyBefore);
 		expect(store.document.connections).toHaveLength(document.connections.length);
 	});
 
@@ -2767,7 +2753,7 @@ describe('MuseumEditorStore S10.2 camera-flow mutations', () => {
 		)!;
 		expect(middle.nextNodeId).toBeUndefined();
 		expect(middle.previousNodeId).toBeUndefined();
-		expect(store.statusMessage).toContain('is now a free node');
+		expect(store.statusMessage).toContain('is now unsequenced');
 		expect(store.guidedTourNodeIds).toEqual(['tour-a', 'tour-paris', 'tour-d']);
 		expect(store.validation.success).toBe(true);
 	});
@@ -3598,5 +3584,201 @@ describe('MuseumEditorStore P1.6 framing-envelope authoring', () => {
 		).toBe(false);
 		expect(store.cancelFramingEnvelopeHandleDrag()).toBe(true);
 		expect(store.selectedConnection!.viewTracks!.framingEnvelope!.forward!).toEqual(envelopeBefore);
+	});
+});
+
+describe('MuseumEditorStore P1.8 — camera sequence authoring (re-root + strict + preview)', () => {
+	function hasConnection(
+		document: MuseumSceneDocument,
+		fromNodeId: string,
+		toNodeId: string
+	) {
+		return document.connections.some(
+			(connection) =>
+				(connection.fromNodeId === fromNodeId && connection.toNodeId === toNodeId) ||
+				(connection.fromNodeId === toNodeId && connection.toNodeId === fromNodeId)
+		);
+	}
+
+	function addDocumentConnection(
+		document: MuseumSceneDocument,
+		fromNodeId: string,
+		toNodeId: string,
+		id: string
+	) {
+		const from = document.navigationNodes.find((node) => node.id === fromNodeId)!;
+		const to = document.navigationNodes.find((node) => node.id === toNodeId)!;
+		from.connectedNodeIds.push(to.id);
+		to.connectedNodeIds.push(from.id);
+		document.connections.push({
+			id,
+			fromNodeId,
+			toNodeId,
+			clearance: 0.35,
+			positionPath: { kind: 'auto-bezier', anchors: [] }
+		});
+	}
+
+	function addFreeNode(document: MuseumSceneDocument, id: string) {
+		document.navigationNodes.push({
+			id,
+			roomId: 'paris',
+			label: id,
+			position: [0, 1.65, 0],
+			cameraTarget: [0, 1.25, -3],
+			fov: 54,
+			connectedNodeIds: []
+		});
+	}
+
+	it('re-roots: Set as First preserves forward suffix + demotes earlier nodes (D1)', () => {
+		// chain: tour-a → tour-b → tour-paris → tour-d; E unsequenced, B—E connected
+		const document = cloneFixtureDocument();
+		addFreeNode(document, 'free-e');
+		addDocumentConnection(document, 'tour-b', 'free-e', 'tour-b-e');
+		const store = createFixtureEditorStore();
+		expect(store.importDocument(document)).toBe(true);
+		const historyBefore = store.historyVersion;
+
+		// Set tour-paris as first → forward suffix [tour-paris, tour-d]; earlier
+		// [tour-a, tour-b] demote to Unsequenced; connections all intact.
+		expect(store.reRootGuidedTour('tour-paris')).toBe(true);
+		expect(store.guidedTourNodeIds).toEqual(['tour-paris', 'tour-d']);
+		expect(store.historyVersion).toBe(historyBefore + 1);
+		// demoted nodes lose order links
+		const tourA = store.document.navigationNodes.find((n) => n.id === 'tour-a')!;
+		const tourB = store.document.navigationNodes.find((n) => n.id === 'tour-b')!;
+		expect(tourA.nextNodeId).toBeUndefined();
+		expect(tourA.previousNodeId).toBeUndefined();
+		expect(tourB.nextNodeId).toBeUndefined();
+		expect(tourB.previousNodeId).toBeUndefined();
+		// connections preserved (off-sequence branch)
+		expect(hasConnection(store.document, 'tour-a', 'tour-b')).toBe(true);
+		expect(hasConnection(store.document, 'tour-b', 'tour-paris')).toBe(true);
+		expect(hasConnection(store.document, 'tour-paris', 'tour-d')).toBe(true);
+		expect(store.validation.success).toBe(true);
+
+		// undo removes the whole re-root in one step
+		expect(store.undo()).toBe(true);
+		expect(store.guidedTourNodeIds).toEqual([...FIXTURE_GUIDED_ORDER]);
+		expect(store.document.navigationNodes.find((n) => n.id === 'tour-a')!.nextNodeId)
+			.toBe('tour-b');
+	});
+
+	it('re-root on a two-node chain rejects (D4 minimum)', () => {
+		// Use the store API to set a two-node chain [tour-a, tour-b].
+		// tour-a → tour-b connection already exists in the fixture.
+		const store = createFixtureEditorStore();
+		expect(store.setGuidedTourOrder(['tour-a', 'tour-b'])).toBe(true);
+		expect(store.guidedTourNodeIds).toEqual(['tour-a', 'tour-b']);
+		// re-rooting tour-b as first would leave a one-stop sequence
+		expect(store.reRootGuidedTour('tour-b')).toBe(false);
+		expect(store.statusMessage).toContain('at least two stops');
+	});
+
+	it('re-root then promote a connected unsequenced camera to first (B-first case, D1)', () => {
+		// Start: tour-a → tour-b → tour-paris → tour-d; free-e connected to tour-b
+		const document = cloneFixtureDocument();
+		addFreeNode(document, 'free-e');
+		addDocumentConnection(document, 'tour-b', 'free-e', 'tour-b-e');
+		const store = createFixtureEditorStore();
+		expect(store.importDocument(document)).toBe(true);
+
+		// re-root to tour-paris → [tour-paris, tour-d]; tour-a, tour-b demoted
+		expect(store.reRootGuidedTour('tour-paris')).toBe(true);
+		expect(store.guidedTourNodeIds).toEqual(['tour-paris', 'tour-d']);
+
+		// Now free-e is unsequenced, connected to tour-b (which is also unsequenced).
+		// Insert free-e at the head gap (index 0) — needs free-e → tour-paris edge.
+		// Since free-e is not connected to tour-paris, the strict insertion rejects.
+		expect(store.insertNodeIntoGuidedTour('free-e', 0)).toBe(false);
+		expect(store.statusMessage).toContain('no connection between');
+
+		// Connect free-e to tour-paris, then head-gap promotion works.
+		addDocumentConnection(store.document, 'free-e', 'tour-paris', 'free-paris-edge');
+		expect(store.insertNodeIntoGuidedTour('free-e', 0)).toBe(true);
+		expect(store.guidedTourNodeIds).toEqual(['free-e', 'tour-paris', 'tour-d']);
+		// nothing treats old entrance tour-a as privileged
+		expect(store.validation.success).toBe(true);
+	});
+
+	it('head removal now succeeds and demotes the old head (D1)', () => {
+		const document = cloneFixtureDocument();
+		// need A—C (tour-a → tour-paris) for B removal to work, but here we
+		// remove the head A directly — always valid.
+		const store = createFixtureEditorStore();
+		expect(store.importDocument(document)).toBe(true);
+		expect(store.removeNodeFromGuidedTour('tour-a')).toBe(true);
+		expect(store.guidedTourNodeIds).toEqual(['tour-b', 'tour-paris', 'tour-d']);
+		const tourA = store.document.navigationNodes.find((n) => n.id === 'tour-a')!;
+		expect(tourA.nextNodeId).toBeUndefined();
+		expect(tourA.previousNodeId).toBeUndefined();
+		expect(store.statusMessage).toContain('is now unsequenced');
+		expect(store.validation.success).toBe(true);
+	});
+
+	it('head-gap promotion announces the new first stop, never "undefined" (P1.8 head-insert copy)', () => {
+		const document = cloneFixtureDocument();
+		addFreeNode(document, 'free-e');
+		addDocumentConnection(document, 'tour-a', 'free-e', 'tour-a-e');
+		const store = createFixtureEditorStore();
+		expect(store.importDocument(document)).toBe(true);
+
+		expect(store.insertNodeIntoGuidedTour('free-e', 0)).toBe(true);
+		expect(store.guidedTourNodeIds).toEqual(['free-e', ...FIXTURE_GUIDED_ORDER]);
+		// The head-insert branch names the node it lands before — never
+		// `labels[-1]` (the old copy read "between undefined and …").
+		expect(store.statusMessage).toContain('free-e before Tour A: Entrance');
+		expect(store.statusMessage).toContain('now leads the tour');
+		expect(store.statusMessage).not.toContain('undefined');
+		expect(store.validation.success).toBe(true);
+	});
+
+	it('strict insertion rejects without both gap edges and names the missing pair (D2)', () => {
+		const document = cloneFixtureDocument();
+		addFreeNode(document, 'free-node');
+		// Only connect free-node to tour-paris, not tour-b
+		addDocumentConnection(document, 'tour-paris', 'free-node', 'tour-paris-free');
+		const store = createFixtureEditorStore();
+		expect(store.importDocument(document)).toBe(true);
+
+		expect(store.insertNodeIntoGuidedTour('free-node', 2)).toBe(false);
+		expect(store.statusMessage).toContain('no connection between');
+		expect(store.statusMessage).toContain('free-node');
+		// no connection was created
+		expect(hasConnection(store.document, 'tour-b', 'free-node')).toBe(false);
+		expect(store.validation.success).toBe(true);
+	});
+
+	it('preview works for an unsequenced fixture node (P1.8 §4)', () => {
+		const document = cloneFixtureDocument();
+		addFreeNode(document, 'free-node');
+		addDocumentConnection(document, 'tour-paris', 'free-node', 'tour-paris-free');
+		const store = createFixtureEditorStore();
+		expect(store.importDocument(document)).toBe(true);
+
+		store.selectionActions.selectNavigationNode('free-node');
+		expect(store.previewSelectedNode('visitor')).toBe(true);
+		expect(store.cameraPreview?.kind).toBe('node');
+		if (store.cameraPreview?.kind === 'node') {
+			expect(store.cameraPreview.nodeId).toBe('free-node');
+		}
+		expect(store.stopCameraPreview()).toBe(true);
+	});
+
+	it('re-rooted fixture plays the tour from the new head', () => {
+		const document = cloneFixtureDocument();
+		const store = createFixtureEditorStore();
+		expect(store.importDocument(document)).toBe(true);
+
+		expect(store.reRootGuidedTour('tour-paris')).toBe(true);
+		expect(store.guidedTourNodeIds).toEqual(['tour-paris', 'tour-d']);
+		// the timeline start resolves to the new head
+		const timeline = store.getCameraTimeline();
+		expect(timeline).not.toBeNull();
+		expect(timeline!.startNodeId).toBe('tour-paris');
+		expect(timeline!.edges).toHaveLength(1);
+		expect(timeline!.edges[0]!.fromNodeId).toBe('tour-paris');
+		expect(timeline!.edges[0]!.toNodeId).toBe('tour-d');
 	});
 });

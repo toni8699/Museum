@@ -23,7 +23,7 @@ The specs below are **canonical** and define the overhaul's target state:
 - **QA ground truth:** the generated UI concepts in
   [`Design-png/`](../../Design-png/) (repo root, `Scene/` + `Camera/`) — the
   sketches the visual spec normalizes. P3.1 QAs the live shell against both
-  the sketches and the spec. **Update 2026-08-21:** 2 new PNGs `Camera-3D-Framing-new.png` + `Camera-3D-timeline-expanded.png` added; `Collapsed-camera.png` → `camera-timeline-collapsed.png`, `Camera-sidebar.png` → `camera-sidebar.png`/`Side-bar.png` (case-alias).
+  the sketches and the spec. **Update 2026-08-21:** 2 new PNGs `Camera-3D-Framing-new.png` + `Camera-3D-timeline-expanded.png` added; `Collapsed-camera.png` → `camera-timeline-collapsed.png`, `Camera-sidebar.png` → `camera-sidebar.png`/`Side-bar.png` (case-alias); `Empty-staging.png` → `Empty-3D.png` (rename matches content — Scene → 3D empty state).
 
 ## Outcome
 
@@ -31,6 +31,12 @@ A single **reconciliation/refresh pass** over the settled surfaces — not an
 open-ended redesign. The product stays visually raw through P1 + P2; this is
 the refresh that follows them. P3 moves the editor from the interim S10.1.7
 visual state to the canonical `Design-specs.md` state.
+
+**Update 2026-08-21:** P1.9 (sidebar simplification, approved 2026-08-21)
+reshapes the Camera Sidebar before P3 — neighbor dropdown replaces the
+connection-tree accordion, drag-only reorder, empty-chain promotion — so the
+sidebar matches `Design-shell-specs.md` §4's row model when P3 starts. P3
+stays purely cosmetic and P3.1 QAs against the P1.9 state.
 
 ## Scope (pinned)
 
@@ -55,7 +61,7 @@ visual state to the canonical `Design-specs.md` state.
 |---|--:|---|
 | `Design-png/Scene/Scene-2D.png` | Scene → Plan (incl. P2 staging) | |
 | `Design-png/Scene/Plan-Staging.png` | Staging footprint states (P2) | |
-| `Design-png/Scene/Empty-staging.png` | Empty staging state | |
+| `Design-png/Scene/Empty-3D.png` | Empty Scene → 3D state (renamed from `Empty-staging.png` — content is Scene 3D empty, not staging) | |
 | `Design-png/Scene/Empty-plan.png` | Empty plan state | |
 | `Design-png/Scene/Scene-3D.png` · `Scene-3D-2.png` · `Scene-3D-assets.png` | Scene → 3D + asset library | |
 | `Design-png/Scene/Scene-Object-Inspector.png` | Inspector | |
@@ -63,7 +69,7 @@ visual state to the canonical `Design-specs.md` state.
 | `Design-png/Camera/Camera-3D.png` | Camera → 3D | **keep — minor convention only** (`Free → Unsequenced` per `Camera-flow-specs.md §2`) |
 | `Design-png/Camera/Framing-Authoring-3D.png` | Framing authoring (P1.6) alt concept | **archived — superseded by `Camera-3D-Framing-new.png` delivered 2026-08-21** (viewport/inspector envelope `Safe Frame 90%` / `Framing Envelope 14%→86%` keep; old left `Shots 01-08` non-canonical) |
 | `Design-png/Camera/Camera-sequence.png` · `Camera-sidebar.png` (old) | Camera sidebar / sequence alt concept | `Camera-sequence.png` **keep — minor** (`Free → Unsequenced`); old `Camera-sidebar.png` (capital C) **archived — superseded by `camera-sidebar.png` (lowercase) + `Side-bar.png` delivered 2026-08-21** — canonical 4-section `Environment / Sequence Inspector / Unsequenced / Connections` per `Shell §4` |
-| `Design-png/Camera/camera-sidebar.png` · `Side-bar.png` | Camera sidebar 4-section (Aug 21) | **delivered 2026-08-21** — canonical `Environment / Sequence Inspector / Unsequenced / Connections` per `Shell §4`; `A — B` undirected; `Side-bar.png` shows `Drop a camera here` empty state (P1.8 §6) |
+| `Design-png/Camera/camera-sidebar.png` · `Side-bar.png` | Camera sidebar 4-section (Aug 21) | **delivered 2026-08-21** — canonical `Environment / Sequence Inspector / Unsequenced / Connections` per `Shell §4`; `A — B` undirected; `Side-bar.png` shows `Drop a camera here` empty state (P1.8 §6). **P1.9 (2026-08-21):** the PNG shows no accordion; P1.9 extends the sidebar with a neighbor collapsible (neighbor dropdown, replacing the implementation's connection-tree accordion), drag-only reorder, no order arrows; P3.1 QAs against the P1.9 state |
 | `Design-png/Camera/Timeline-expanded.png` | Camera Timeline expanded (P1.6) | **keep — minor** (`Free → Unsequenced`); lanes `Camera Path/Shots/FOV/Look At/Roll` keep (`Shell §12`) — now correctly shown in `Camera-3D-timeline-expanded.png` |
 | `Design-png/Camera/Camera-3D-timeline-expanded.png` | Camera Timeline expanded canonical (Aug 21) | **delivered 2026-08-21** — canonical 5 lanes `Camera Path / Shots / FOV / Look At / Roll` per `Shell §12` (`Design-specs §24`); `Sequence Path B→C→D` vs `Branch E`, legends `TIMELINE (Sequence only)` + `SEQUENCE MODEL` + timing `B—C 4.2s / C—D 5.1s` + branch pill |
 | `Design-png/Camera/camera-timeline-collapsed.png` | Camera Timeline collapsed 48px (Aug 21) | **delivered 2026-08-21** — true `48px` collapsed strip `Tour + Play/Pause/Follow/Recenter/Stop + Snap + time + Zoom + Collapse` per `Shell §12` (`Design-specs §16`); old `Collapsed-camera.png` missing on disk — ref updated |
@@ -107,7 +113,7 @@ All requested sketches delivered and verified in `Design-png/`; Aug 21 batch add
 | 1 | Scene → Plan — Staging footprint states | `Scene/Plan-Staging.png` |
 | 2 | Camera → 3D — Framing authoring | `Camera/Framing-Authoring-3D.png` (alt concept) → **superseded by `Camera/Camera-3D-Framing-new.png` (2026-08-21)** — canonical 4-section sidebar + correct framing envelope |
 | 3 | Collapsed Camera Timeline | `Camera/Collapsed-camera.png` (missing) → **superseded by `Camera/camera-timeline-collapsed.png` (2026-08-21)** — true `48px` strip per `Shell §12` |
-| 4 | Boot / empty states | `Scene/Empty-plan.png` (updated) + `Scene/Empty-staging.png` |
+| 4 | Boot / empty states | `Scene/Empty-plan.png` (updated) + `Scene/Empty-3D.png` (renamed from `Empty-staging.png`) |
 | 5 | Camera Sidebar (4 sections) | `Camera/Camera-sidebar.png` (old, archived) → **superseded by `Camera/camera-sidebar.png` (lowercase) + `Camera/Side-bar.png` (2026-08-21)** — canonical `Environment / Sequence Inspector / Unsequenced / Connections`; `Side-bar.png` also covers P1.8 §6 empty `Drop a camera here` |
 | 6 | Asset management (optional) | `Scene/Asset management.png` — delivered, out of P3 scope |
 | 7 | P1.8 Camera flow — re-root / branch (new 2026-08-21) | `Camera/Sequence-reroot.png` + `Camera/New-Camera-flow-plan.png` + `Camera/Unsequenced-branch.png` — keep minor convention only |

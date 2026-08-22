@@ -7,8 +7,12 @@
 	import { getScenePathAnchorWorldPosition } from '../editor-camera-path';
 	import { resolvePlanSceneGraphFromDocument } from '../layout/plan-camera-projection';
 	import EditorCameraConnectionTiming from '../EditorCameraConnectionTiming.svelte';
+	import type { EditorViewState } from './editor-view-state.svelte';
 
-	let { store }: { store: MuseumEditorStore } = $props();
+	let {
+		store,
+		viewState = null
+	}: { store: MuseumEditorStore; viewState?: EditorViewState | null } = $props();
 
 	const selection = $derived(store.navigationSelection);
 	const node = $derived(store.selectedNavigationNode);
@@ -177,7 +181,7 @@
 					{#if nodeOrder !== null}
 						<span class="order-badge">#{nodeOrder}</span>
 					{:else}
-						<span class="free-badge">Not in order yet</span>
+						<span class="free-badge">Unsequenced</span>
 					{/if}
 				</dd>
 			</div>
@@ -242,6 +246,11 @@
 		{/if}
 
 		<div class="topology" aria-label="Camera topology commands">
+			<button
+				type="button"
+				disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
+				onclick={() => { viewState?.setView('camera', '3d'); store.previewSelectedNode('visitor'); }}
+			>Preview Camera</button>
 			<button
 				type="button"
 				disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}

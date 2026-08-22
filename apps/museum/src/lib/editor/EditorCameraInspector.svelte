@@ -249,6 +249,11 @@
 				<button
 					type="button"
 					disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
+					onclick={() => store.previewSelectedNode('visitor')}
+				>Preview Camera</button>
+				<button
+					type="button"
+					disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
 					onclick={() => store.beginConnectExistingNodes()}
 				>Connect to another node</button>
 				<button

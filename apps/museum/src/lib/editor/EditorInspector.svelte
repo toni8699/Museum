@@ -7,6 +7,7 @@
 	import type { EditorWorkspace } from './museum-editor.types';
 	import EditorCameraInspector from './EditorCameraInspector.svelte';
 	import CameraPlanInspector from './app/CameraPlanInspector.svelte';
+	import type { EditorViewState } from './app/editor-view-state.svelte';
 	import EditorLightInspector from './EditorLightInspector.svelte';
 	import EditorMaterialInspector from './EditorMaterialInspector.svelte';
 	import EditorPlacementInspector from './EditorPlacementInspector.svelte';
@@ -53,7 +54,8 @@
 		activeSelection,
 		selectedAsset,
 		clusterNameInput = $bindable(),
-		viewMode = '3d'
+		viewMode = '3d',
+		viewState = null
 	}: {
 		store: MuseumEditorStore;
 		layoutPreview: LayoutPreviewState;
@@ -72,6 +74,9 @@
 		 *  no non-layout mutation path). Legacy mounts omit it and stay fully
 		 *  interactive. */
 		viewMode?: EditorViewMode;
+		/** P1.8 — the shell view state, so the Camera Plan inspector can
+		 *  switch to 3D when previewing a camera. Omitted by the relic. */
+		viewState?: EditorViewState | null;
 	} = $props();
 
 	let clusterNameDraft = $state('');
@@ -671,7 +676,7 @@
 		{/if}
 	{:else if selectedNavigation}
 		{#if isCameraPlan}
-			<CameraPlanInspector {store} />
+			<CameraPlanInspector {store} {viewState} />
 		{:else if !readOnlyNonLayout}
 			<EditorCameraInspector {store} />
 		{/if}

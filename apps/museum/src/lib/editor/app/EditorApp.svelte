@@ -285,6 +285,7 @@
 		{activeSelection}
 		{selectedAsset}
 		viewMode={viewState.activeView}
+		{viewState}
 		bind:clusterNameInput
 	/>
 	{#if viewState.domain === 'camera'}

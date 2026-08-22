@@ -1,7 +1,8 @@
 <script lang="ts">
-	import { ArrowDown, ArrowUp, ChevronRight, Diamond, Link, Unlink, X } from 'lucide-svelte';
+	import { ArrowDown, ArrowUp, ChevronRight, Diamond, Eye, Link, Unlink, X } from 'lucide-svelte';
 	import NodeConnectionsPanel from './NodeConnectionsPanel.svelte';
 	import { formatCameraNodeLabel } from './editor-outliner';
+	import { moveGuidedTourNodeIndex } from './editor-navigation-graph';
 	import type { MuseumEditorStore } from './museum-editor.svelte';
 
 	// optional interactivity gate. The unified tree embeds this panel
@@ -187,15 +188,12 @@
 	}
 
 	function moveGuidedNode(nodeId: string, delta: -1 | 1) {
-		const nodeIds = [...guidedTourChain];
-		const index = nodeIds.indexOf(nodeId);
-		const destination = index + delta;
-		if (index <= 0 || destination <= 0 || destination >= nodeIds.length) return;
-		[nodeIds[index], nodeIds[destination]] = [
-			nodeIds[destination]!,
-			nodeIds[index]!
-		];
-		store.setGuidedTourOrder(nodeIds);
+		// P1.8 — the head is no longer pinned, so the second row may move up
+		// to index 0 and the head may move down (plain reorder, all nodes
+		// stay sequenced — distinct from Set as First re-root).
+		const next = moveGuidedTourNodeIndex(guidedTourChain, nodeId, delta);
+		if (next === null) return;
+		store.setGuidedTourOrder(next);
 	}
 
 	function dropNodeAfter(event: DragEvent, anchorNodeId: string, gapIndex: number) {
@@ -205,6 +203,13 @@
 		if (!nodeId || guidedEditingBlocked) return;
 		if (!guidedTourChain.includes(nodeId)) {
 			store.insertNodeIntoGuidedTour(nodeId, gapIndex);
+			return;
+		}
+		// P1.8 D1 — a sequence node dropped at the head gap is a re-root
+		// (preserve forward suffix, demote earlier nodes to Unsequenced),
+		// not an ordinary reorder.
+		if (gapIndex === 0) {
+			store.reRootGuidedTour(nodeId);
 			return;
 		}
 		if (nodeId === anchorNodeId) return;
@@ -234,6 +239,23 @@
 		store.beginConnectExistingNodes();
 	}
 
+	// P1.8 §4 — per-camera preview: works for any node (sequenced or
+	// unsequenced). Selects the node first so the facade's
+	// previewSelectedNode resolves it, then previews in visitor mode.
+	function previewNode(nodeId: string) {
+		if (guidedEditingBlocked) return;
+		store.selectionActions.selectNavigationNode(nodeId);
+		store.previewSelectedNode('visitor');
+	}
+
+	// P1.8 §4 — Preview Connection: selects the connection (forward dir)
+	// then previews it. Works for any connection in the list.
+	function previewConnection(connectionId: string) {
+		if (guidedEditingBlocked) return;
+		store.selectionActions.selectConnection(connectionId);
+		store.previewSelectedConnection('forward', 'visitor');
+	}
+
 	function appendDetourNode(originNodeId: string) {
 		const newNodeId = detourAddSelection[originNodeId];
 		if (!newNodeId || guidedEditingBlocked) return;
@@ -248,6 +270,30 @@
 </div>
 {#if guidedTourChain.length > 0}
 	<ul role="tree" aria-label="Sequence stops">
+		{#if (draggedNodeId || selectedFreeNodeId) && guidedTourChain.length > 0}
+			<li
+				role="none"
+				class="guided-gap guided-gap--head"
+				class:guided-gap--dragging={draggedNodeId !== null}
+				ondragover={(event) => event.preventDefault()}
+				ondrop={(event) => dropNodeAfter(event, '', 0)}
+			>
+				{#if selectedFreeNodeId}
+					{@const selectedFreeNode = store.document.navigationNodes.find(
+						(candidate) => candidate.id === selectedFreeNodeId
+					)}
+					<button
+						type="button"
+						disabled={guidedEditingBlocked}
+						onclick={() => store.insertNodeIntoGuidedTour(selectedFreeNodeId, 0)}
+					>
+						+ Insert {selectedFreeNode?.label ?? selectedFreeNodeId} first
+					</button>
+				{:else}
+					<span>Drop before first</span>
+				{/if}
+			</li>
+		{/if}
 		{#each guidedTourChain as nodeId, index (nodeId)}
 			{@const node = store.document.navigationNodes.find((candidate) => candidate.id === nodeId)}
 			{#if node}
@@ -257,7 +303,7 @@
 					aria-selected={isNodeSelected(node.id)}
 					aria-grabbed={draggedNodeId === node.id}
 					aria-disabled={interactive ? undefined : true}
-					draggable={index > 0 && !guidedEditingBlocked}
+					draggable={!guidedEditingBlocked}
 					ondragstart={(event) => beginNodeDrag(event, node.id)}
 					ondragend={finishNodeDrag}
 				>
@@ -287,28 +333,46 @@
 							</span>
 							{#if index === 0}<span class="tree-row__meta">Start</span>{/if}
 						</button>
-						<div class="guided-actions" aria-label={`Edit ${node.label} flow order`}>
-							<button
-								type="button"
-								aria-label={`Move ${node.label} earlier`}
+					<div class="guided-actions" aria-label={`Edit ${node.label} flow order`}>
+						<button
+							type="button"
+							class="guided-preview"
+							aria-label={`Preview ${node.label}`}
+							title="Preview Camera"
+							disabled={guidedEditingBlocked}
+							onclick={() => previewNode(node.id)}
+						><Eye size={13} aria-hidden="true" /></button>
+						{#if index > 0 && guidedTourChain.length > 2}
+						<button
+							type="button"
+							class="guided-reroot"
+							aria-label={`Set ${node.label} as first`}
+							title="Set as First"
+							disabled={guidedEditingBlocked}
+							onclick={() => store.reRootGuidedTour(node.id)}
+						>1</button>
+						{/if}
+						<button
+							type="button"
+							aria-label={`Move ${node.label} earlier`}
 								title="Move earlier"
-								disabled={guidedEditingBlocked || index <= 1}
-								onclick={() => moveGuidedNode(node.id, -1)}
+						disabled={guidedEditingBlocked || index === 0}
+						onclick={() => moveGuidedNode(node.id, -1)}
 							><ArrowUp size={13} aria-hidden="true" /></button>
 							<button
 								type="button"
 								aria-label={`Move ${node.label} later`}
 								title="Move later"
-								disabled={guidedEditingBlocked || index === 0 || index >= guidedTourChain.length - 1}
-								onclick={() => moveGuidedNode(node.id, 1)}
+						disabled={guidedEditingBlocked || index >= guidedTourChain.length - 1}
+						onclick={() => moveGuidedNode(node.id, 1)}
 							><ArrowDown size={13} aria-hidden="true" /></button>
 							<button
 								type="button"
-								class="guided-remove"
-								aria-label={`Remove ${node.label} from camera flow`}
-								title={index === 0 ? 'Flow start is pinned' : 'Remove from camera flow'}
-								disabled={guidedEditingBlocked || index === 0 || guidedTourChain.length <= 2}
-								onclick={() => store.removeNodeFromGuidedTour(node.id)}
+						class="guided-remove"
+						aria-label={`Remove ${node.label} from camera flow`}
+						title="Remove from camera flow"
+						disabled={guidedEditingBlocked || guidedTourChain.length <= 2}
+						onclick={() => store.removeNodeFromGuidedTour(node.id)}
 							><X size={13} aria-hidden="true" /></button>
 						</div>
 					</div>
@@ -381,7 +445,7 @@
 	{/if}
 {:else}
 	<p class="empty"><strong>No sequence</strong></p>
-	<p class="empty">Place and connect camera nodes to build the path.</p>
+	<p class="empty">Drop a camera here to start the sequence.</p>
 {/if}
 
 {#if detourGroups.length > 0}
@@ -506,8 +570,18 @@
 							<span class="tree-row__label" title={nodeLabel(node.id)}>
 								{nodeLabel(node.id)}
 							</span>
-							<span class="tree-row__meta">Drag to sequence</span>
+							<span class="tree-row__meta">Drag to Sequence</span>
 						</button>
+						<div class="free-actions" aria-label={`Preview ${node.label}`}>
+							<button
+								type="button"
+								class="guided-preview"
+								aria-label={`Preview ${node.label}`}
+								title="Preview Camera"
+								disabled={guidedEditingBlocked}
+								onclick={() => previewNode(node.id)}
+							><Eye size={13} aria-hidden="true" /></button>
+						</div>
 					</div>
 					{#if isNodeExpanded(node.id)}
 						<NodeConnectionsPanel
@@ -534,6 +608,14 @@
 				<span class="unused-pair" title={row.id}>
 					{nodeLabel(row.fromNodeId)} — {nodeLabel(row.toNodeId)}
 				</span>
+				<button
+					type="button"
+					class="guided-preview"
+					aria-label={`Preview connection between ${nodeLabel(row.fromNodeId)} and ${nodeLabel(row.toNodeId)}`}
+					title="Preview Connection"
+					disabled={guidedEditingBlocked}
+					onclick={() => previewConnection(row.id)}
+				><Eye size={13} aria-hidden="true" /></button>
 				{#if unusedRowIds.has(row.id)}
 					<button
 						type="button"
@@ -590,7 +672,7 @@
 	.free-line {
 		display: grid;
 		min-width: 0;
-		grid-template-columns: 1.7rem minmax(0, 1fr);
+		grid-template-columns: 1.7rem minmax(0, 1fr) auto;
 		gap: 0.1rem;
 	}
 	.guided-actions {
@@ -618,6 +700,42 @@
 	}
 	.guided-actions button.guided-remove {
 		color: #c9877f;
+	}
+	.guided-actions button.guided-reroot {
+		color: #8fae8a;
+		font-size: 0.6rem;
+		font-weight: 700;
+	}
+	.guided-actions button.guided-preview,
+	.free-actions button.guided-preview {
+		color: #8fae8a;
+	}
+	.free-actions {
+		display: flex;
+		align-items: stretch;
+		gap: 0.08rem;
+	}
+	.free-actions button {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 1.45rem;
+		min-height: 2rem;
+		padding: 0;
+		border: 1px solid transparent;
+		border-radius: 0.25rem;
+		background: transparent;
+		color: #aaa39a;
+		cursor: pointer;
+	}
+	.free-actions button:hover:not(:disabled) {
+		border-color: #3a3a46;
+		background: #202029;
+		color: #fff2c7;
+	}
+	.free-actions button:disabled {
+		opacity: 0.25;
+		cursor: default;
 	}
 	.guided-actions button:disabled {
 		opacity: 0.25;
@@ -921,7 +1039,8 @@
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}
-	.unused-row .guided-remove {
+	.unused-row .guided-remove,
+	.unused-row .guided-preview {
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
@@ -934,12 +1053,20 @@
 		color: #c9877f;
 		cursor: pointer;
 	}
-	.unused-row .guided-remove:hover:not(:disabled) {
+	.unused-row .guided-preview {
+		color: #8fae8a;
+	}
+	.unused-row .guided-remove:hover:not(:disabled),
+	.unused-row .guided-preview:hover:not(:disabled) {
 		border-color: #3a3a46;
 		background: #202029;
 		color: #ffb3a8;
 	}
-	.unused-row .guided-remove:disabled {
+	.unused-row .guided-preview:hover:not(:disabled) {
+		color: #fff2c7;
+	}
+	.unused-row .guided-remove:disabled,
+	.unused-row .guided-preview:disabled {
 		opacity: 0.25;
 		cursor: default;
 	}

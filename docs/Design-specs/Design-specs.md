@@ -1117,7 +1117,7 @@ Use SVG for:
 * curves
 * keyframes
 * framing envelope
-* detour preview
+* branch preview
 * selection overlays
 
 Use DOM/Svelte elements for:

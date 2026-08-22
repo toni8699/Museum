@@ -196,6 +196,10 @@ Unsequenced
 Connections
 ```
 
+Rows follow `Design-shell-specs.md` §4: order number + name + collapsible
+neighbor list (directly-connected cameras); drag-only reorder, no per-row
+order arrows (P1.9).
+
 ---
 
 ## Inspector
@@ -352,6 +356,10 @@ Sequence Inspector
 Unsequenced
 Connections
 ```
+
+Rows follow `Design-shell-specs.md` §4: order number + name + collapsible
+neighbor list (directly-connected cameras); drag-only reorder, no per-row
+order arrows (P1.9).
 
 The user should not feel that switching to Camera 3D opens another Camera system.
 

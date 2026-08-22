@@ -2328,12 +2328,17 @@ export class MuseumEditorStore {
 		return this.navigationGraphMutator.setGuidedTourOrder(nodeIds);
 	}
 
-	/** Insert one free camera node into an existing flow gap (≤1 edge auto-created). */
+	/** P1.8 D2 — Insert one unsequenced camera into a flow gap (strict: no auto-create). */
 	insertNodeIntoGuidedTour(nodeId: string, index: number) {
 		return this.navigationGraphMutator.insertNodeIntoGuidedTour(nodeId, index);
 	}
 
-	/** Remove one non-start node from the flow while retaining graph topology. */
+	/** P1.8 D1 — Re-root: set one node as the new sequence first (preserves forward suffix). */
+	reRootGuidedTour(nodeId: string) {
+		return this.navigationGraphMutator.reRootGuidedTour(nodeId);
+	}
+
+	/** Remove one node from the flow (head removal now valid per D1). */
 	removeNodeFromGuidedTour(nodeId: string) {
 		return this.navigationGraphMutator.removeNodeFromGuidedTour(nodeId);
 	}

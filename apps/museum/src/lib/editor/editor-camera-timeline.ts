@@ -14,6 +14,7 @@ import {
 	getFlowRoute
 } from '$lib/museum/navigation/camera-route';
 import { isFlowNode } from '$lib/content/scene';
+import { EDITOR_GUIDED_TOUR_START_NODE_ID } from './editor-navigation-graph';
 
 const TIMELINE_EPSILON = 1e-9;
 
@@ -127,7 +128,7 @@ function findGuidedStart(graph: NavigationGraph, preferredStartNodeId: string) {
  */
 export function createEditorCameraTimeline(
 	graph: NavigationGraph,
-	preferredStartNodeId = 'entrance-start'
+	preferredStartNodeId = EDITOR_GUIDED_TOUR_START_NODE_ID
 ): EditorCameraTimeline {
 	const start = findGuidedStart(graph, preferredStartNodeId);
 	// Loop playback is derived (distinct-connection test): when the closing

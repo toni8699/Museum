@@ -18,14 +18,10 @@ export type EditorNavigationGraphFailureCode =
 	| 'missing_guided_bridge'
 	| 'invalid_guided_cycle'
 	| 'duplicate_guided_node'
-	| 'missing_guided_start'
-	| 'guided_start_not_first'
 	| 'missing_guided_connection'
 	| 'node_already_guided'
 	| 'node_not_guided'
-	| 'protected_guided_start'
 	| 'invalid_guided_index'
-	| 'too_many_missing_guided_connections'
 	// S10.2 detour failures.
 	| 'unknown_detour'
 	| 'detour_origin_not_on_flow'
@@ -66,6 +62,13 @@ export type EditorGuidedTourOrderPlan = {
 	nodeIds: string[];
 };
 
+/**
+ * P1.8 D1 — the preferred/default start when resolving or seeding sequence
+ * state where author intent has not overridden it. This defines only the
+ * preferred seed in `mainFlowStart` / `findGuidedStart`; it no longer
+ * defines valid sequence structure. Do not restore the pin from the name
+ * alone — any camera can head the sequence.
+ */
 export const EDITOR_GUIDED_TOUR_START_NODE_ID = 'entrance-start';
 
 function fail(
@@ -389,8 +392,9 @@ export function flowRetainedConnectionIds(
 
 /**
  * Read and validate the document's existing main flow order. The returned
- * display order is pinned to entrance-start whenever that node is on the
- * flow; detour components are ignored. No document state is changed.
+ * display order follows the component head (resolved by `mainFlowStart` —
+ * the entrance-start node is preferred as seed but not pinned); detour
+ * components are ignored. No document state is changed.
  */
 export function validateCurrentGuidedTourOrder(
 	document: MuseumSceneDocument
@@ -445,20 +449,9 @@ export function validateGuidedTourOrder(
 			return fail('unknown_node', `Camera node is unavailable: ${nodeId}`);
 		}
 	}
-	if (nodeById.has(EDITOR_GUIDED_TOUR_START_NODE_ID)) {
-		if (!uniqueNodeIds.has(EDITOR_GUIDED_TOUR_START_NODE_ID)) {
-			return fail(
-				'missing_guided_start',
-				`The flow must include ${EDITOR_GUIDED_TOUR_START_NODE_ID}`
-			);
-		}
-		if (nodeIds[0] !== EDITOR_GUIDED_TOUR_START_NODE_ID) {
-			return fail(
-				'guided_start_not_first',
-				`Flow display order must start at ${EDITOR_GUIDED_TOUR_START_NODE_ID}`
-			);
-		}
-	}
+	// P1.8 D1 — the entrance-start pin is retired. The constant survives
+	// only as a preferred/default seed in `mainFlowStart` / timeline
+	// `findGuidedStart`; it no longer constrains valid sequence structure.
 
 	const missing = missingConsecutiveConnections(document, nodeById, nodeIds);
 	if (missing.length > 0) {
@@ -469,6 +462,27 @@ export function validateGuidedTourOrder(
 		);
 	}
 	return { ok: true, nodeIds: [...nodeIds] };
+}
+
+/**
+ * P1.8 — move one guided node one position up (-1) or down (+1) in a
+ * display order. Pure swap; the caller validates the resulting order. Returns
+ * null when the move is out of bounds (unknown node, head cannot move up,
+ * tail cannot move down). The head is no longer pinned, so the second row
+ * may move up to index 0 and the head may move down — both produce a plain
+ * reorder (all nodes stay sequenced), distinct from re-root (Set as First).
+ */
+export function moveGuidedTourNodeIndex(
+	nodeIds: readonly string[],
+	nodeId: string,
+	delta: -1 | 1
+): string[] | null {
+	const index = nodeIds.indexOf(nodeId);
+	const destination = index + delta;
+	if (index < 0 || destination < 0 || destination >= nodeIds.length) return null;
+	const next = [...nodeIds];
+	[next[index], next[destination]] = [next[destination]!, next[index]!];
+	return next;
 }
 
 /** Consecutive open-chain pairs lacking a direct connection. */
@@ -489,15 +503,13 @@ function missingConsecutiveConnections(
 	return missing;
 }
 
-export type EditorGuidedTourInsertionPlan = EditorGuidedTourOrderPlan & {
-	/** The single missing consecutive edge the mutator may auto-create. */
-	missingConnection: { fromNodeId: string; toNodeId: string } | null;
-};
+export type EditorGuidedTourInsertionPlan = EditorGuidedTourOrderPlan;
 
 /**
- * Pure plan for inserting one free node at a display-order gap. At most ONE
- * missing consecutive edge may be supplied (the mutator auto-creates it in
- * the same transaction per the plan's append/insert rule); more rejects.
+ * P1.8 D2 — strict: no silent connection creation anywhere, insertion
+ * included. A drop whose gap edges are not both present rejects with a copy
+ * naming the missing pair. The old `missingConnection` auto-create field
+ * is retired.
  */
 export function validateGuidedTourInsertion(
 	document: MuseumSceneDocument,
@@ -528,10 +540,10 @@ export function validateGuidedTourInsertion(
 			`${nodeName(node)} is on a detour — remove it from the detour first`
 		);
 	}
-	if (!Number.isInteger(index) || index < 1 || index > current.nodeIds.length) {
+	if (!Number.isInteger(index) || index < 0 || index > current.nodeIds.length) {
 		return fail(
 			'invalid_guided_index',
-			'Choose a flow gap after the pinned start'
+			'Choose a flow gap'
 		);
 	}
 	const nodeIds = [...current.nodeIds];
@@ -540,17 +552,19 @@ export function validateGuidedTourInsertion(
 	const nodeById = new Map(
 		document.navigationNodes.map((candidate) => [candidate.id, candidate])
 	);
+	// P1.8 D2 — strict: any missing gap edge rejects with copy naming the
+	// missing pair. No auto-create, no silent topology mutation.
 	const missing = missingConsecutiveConnections(document, nodeById, nodeIds);
-	if (missing.length > 1) {
+	if (missing.length > 0) {
+		const first = missing[0]!;
 		return fail(
-			'too_many_missing_guided_connections',
-			'A flow insertion can auto-create only one missing connection'
+			'missing_guided_connection',
+			`Cannot insert ${nodeName(node)} here — no connection between ${nodeName(nodeById.get(first.fromNodeId)!)} and ${nodeName(nodeById.get(first.toNodeId)!)}`
 		);
 	}
 	return {
 		ok: true,
-		nodeIds,
-		missingConnection: missing[0] ?? null
+		nodeIds
 	};
 }
 
@@ -569,12 +583,10 @@ export function validateGuidedTourRemoval(
 			`${nodeName(node)} is not on the camera flow`
 		);
 	}
-	if (node.id === current.nodeIds[0]) {
-		return fail(
-			'protected_guided_start',
-			`Cannot remove ${nodeName(node)}: the guided display start is pinned`
-		);
-	}
+	// P1.8 D1 — head removal is now valid (spec §12 "Head — always valid").
+	// The old `protected_guided_start` pin is retired; the remaining order
+	// is validated as a connected chain (a two-node chain rejects via the
+	// minimum floor below, matching D4).
 	return validateGuidedTourOrder(
 		document,
 		current.nodeIds.filter((candidate) => candidate !== node.id)

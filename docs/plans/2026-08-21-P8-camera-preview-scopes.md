@@ -282,6 +282,7 @@ Sequence topology, key authoring on reverse direction.
 Acceptance: timeline tests for boundary epsilon (scrub + playback),
 end-of-sequence Replay, holds, one/two-node flows, loop-topology derivation;
 UI test for the demoted context-sensitive play button.
+Detail: [Slice 4 design](#slice-4--design-detail-folded-2026-08-22).
 
 ### Slice 5 — Plan / Camera 3D integration + interaction matrix
 
@@ -479,6 +480,185 @@ migration.
   conflict until P7 resumes post-S4.
 - Rollback: three files (`museum-editor.types`, controller, commands) + one
   facade slot; no data migration.
+
+## Slice 3 — design detail (folded 2026-08-22)
+
+Detail for §F Slice 3, folded from `docs/p8-slice-3-edge-timeline-ui.md`
+(original deleted per fold-and-delete). The readiness survey is grep-verified
+against the tree on 2026-08-22; re-grep at implementation time.
+**Routing:** DeepSeek V4 Flash (49, 83% Luna xhigh), margin 0 → escalate on
+first failure (`docs/plans/model-assessment.md`).
+
+### S3 readiness survey (grep-verified)
+
+| Area | File:line | What it owns today | S3 relevance |
+|---|---|---|---|
+| Guided timeline model | `editor-camera-timeline.ts:125-209` | `createEditorCameraTimeline(graph)` builds `EditorCameraTimeline` from `getFlowRoute(loop:true)` + `resolveConnectionEdgeMotions`; holds `motionStartSeconds/motionEndSeconds/holdEndSeconds`, `nodeBoundaries`, `edges[].motions[direction]` | Unchanged for guided Sequence. S3 adds a **pure edge-local timeline** — one `ResolvedCameraRoute` + one `CameraMotion` → `EdgeLocalTimeline { durationSeconds, motion }`. No `getFlowRoute` / `isFlowNode` in the edge path; reuses `resolveDirectedEdgeMotionByDirection` (S1) |
+| Timeline hooks | `hooks/use-camera-timeline.svelte.ts:1-100` | `useCameraTimeline(store)` exposes `timeline` (`getCameraTimeline()`), `playhead` (`cameraTimelinePlayhead`), `disabled/scrubDisabled`, `reverseEdgeActive/Disabled/Label`, `seek/step/toggleTourPlayback/toggleReverse/addViewKeyframeAtPlayhead` | Fork: when `previewScopeOf(preview)==='edge'` the hook exposes `edgeTimeline`, `edgePlayhead` (preview.playhead), `edgeDurationSeconds`, `edgeEndpoints` labels. Guided branch keeps existing facade playhead; edge branch reads controller playhead directly. S4 will add sequence-global hook |
+| Ruler / transport | `EditorCameraTimelineRuler.svelte:1-107` | Ruler owns `transport` row: step ◀/▶, Play/Pause (tour), Reverse toggle, `formatTime(duration*playhead)`, range scrub `seek()` → `seekCameraTimeline` | **Split in S3:** guided ruler stays for `sequence` scope. New `EditorCameraEdgeRuler.svelte` (or `EditorCameraTimelineRuler` branch) renders **local** `2.1 / 4.2s` readout, local scrubber (`min 0 max 1 step 0.0005`), endpoint labels (`A → B`), Reverse control (delegates to `swapEdgePreviewDirection` when paused), optional Repeat toggle (`edgeRepeat`). Scrub calls `setCameraPreviewPlayhead` for edge; `seekCameraTimeline` for sequence |
+| Dots / lanes | `EditorCameraTimelineDots.svelte:1-756` | Two lanes `Guided Route / Camera Framing` with `timeline.edges`, `nodeBoundaries`, `viewKeyMarkers`, `envelopeBands`; uses `cameraTimelineProgressAtEdgeProgress` for mapping | **Minimal S3 (acceptable):** Dots hidden for `scope==='edge'` (guided-only, mounted only when `scope==='sequence'` or idle-with-Sequence). **Polished S3:** single edge-local marker lane (one span + view-key markers for `activeConnectionId+direction`); envelope bands read `createEdgeLocalTimeline(...).motion` directly, not `timeline.edges` |
+| Preview FSM | `store/camera-preview-controller.svelte.ts:196-854` | `preview` (`node/transition/connection/tour`), `edgeRepeat`, `previewScopeOf`, `swapEdgeDirection` (fresh opposite route + `1-e` flip), `resetToScopeStart`, `pruneIfStale` connection branch | S3 **consumes** `edgeRepeat` + `swapEdgeDirection`; adds no new FSM state. No helper added here — edge motion helper lives in `editor-camera-timeline.ts` / `hooks/use-camera-timeline.svelte.ts` so the controller stays consume-only (work item 8) |
+| Preview commands | `store/camera-preview-commands.svelte.ts:508-643` | `previewEdge` (snapshot `lastSequencePlayhead`, installs `connection` paused), `previewSequence`, `swapEdgePreviewDirection`, `setEdgePreviewRepeat`, `completeCameraPreview` repeat branch | S3 wires UI to existing commands: Reverse button → `swapEdgePreviewDirection` (paused only); Repeat checkbox → `setEdgePreviewRepeat`; local scrub → `setCameraPreviewPlayhead`; Play/Pause → `playCameraPreview/pauseCameraPreview`. No new command except optional `seekEdgePlayhead` alias |
+| Rig / sampling | `EditorCameraRig.svelte:369-419` + `hooks/use-camera-preview.svelte.ts:45-83` | Rig resolves `activeMotion` via `resolveDirectedEdgeMotionByDirection(graph,id,dir,{route})` for `connection`, `createCameraMotion(route)` for `transition`; samples via `director.sampleMotion(preview,playhead,activeMotion)`; `use-camera-preview` wraps `sampleCameraMotion` vs `sampleEditorCameraTimeline` | S3 **no Rig change** — already samples edge previews through the resolver, so scrub and playback are identical poses by construction. Parity test asserts `sample(oldMotion,playhead) ≈ sample(newMotion,playhead)` across both paths. Zero-duration `motion.durationSeconds===0` → immediate `complete` already handled |
+| Plan inspector | `app/CameraPlanInspector.svelte:149-298` | Node/connection/anchor/view-keyframe panels; connection panel shows `EditorCameraConnectionTiming` + `Delete`; `timingDirection` follows `activeCameraDirection`; View-keyframe panel is passive note only | S3 adds **Preview Edge** entry points: connection panel gains `Preview Edge ▸ Forward / Reverse` buttons (visible even when endpoint Unsequenced) + live `edgeRepeat` + `Reverse` sync; node panel keeps `Preview Camera`. `selectCameraConnectionDirection` already updates `timingDirection` via `$effect` |
+| Selection continuity | `store/selection-store.svelte.ts` + `app/active-editor-selection.svelte.ts` | `navigation` (`node/connection/anchor/view-keyframe`), `activeCameraConnectionId/Direction` derived from selection/discovery | Edge-local timeline builds from `activeCameraConnectionId/Direction` directly; works for Unsequenced endpoints because it never asks `getFlowRoute`. `C → E` (E unsequenced) resolves via `getCameraConnectionRoute(C-E, dir)` — already animates per §B |
+| Framing authoring | `store/view-keyframe-controller.svelte.ts:545-680,976` + `editor-camera-view.ts` | `canAddViewKeyframeAtPlayhead` / `addViewKeyframeAtPlayhead` gate on `preview.kind==='connection' && mode==='director' && transport==='paused'` (never `readCameraTimeline()`); `#getViewKeyframeAuthoringSample` already maps via `resolveDirectedEdgeMotionForConnection` + `cameraMotionEdgeProgressAtProgress` / `cameraMotionProgressAtEdgeProgress`; `updateViewKeyframeProgressDrag` (:976) uses draft path directly; unsequenced `C → E` already valid | S3: authoring already shipped in S1/S2 — no new mapping. S3 gap is **rendering only**: `EditorCameraTimelineDots` `envelopeBands` / `activeEnvelopeHandles` (:107-174) iterate `timeline.edges`; edge scope with Unsequenced endpoint needs single-span envelope/marker rendering via the edge motion |
+
+**Gap closed:** prior S3 readiness note asked for "edge-local timeline model, local ruler, repeat, reverse" — the table enumerates the hook points. The Rig already provides scrub-vs-play parity and `view-keyframe-controller` already resolves through the S1 resolver for connection previews; the gap is **UI mounting** (ruler/dots scope branching) and **edge-local envelope/marker rendering** (Dots single-span) — not new authoring math.
+
+### S3 design decisions (corrected 2026-08-22)
+
+- **D1 edge-local model (pure, no timeline mutation):** new helper `createEdgeLocalTimeline(graph, connectionId, direction, opts?: { route?: ResolvedCameraRoute }): EdgeLocalTimeline | null` wraps `resolveDirectedEdgeMotionByDirection(graph, id, dir, opts)` — no new duration math, no `getFlowRoute`. When a preview is active, caller forwards `{ route: getCapturedRoute(preview.runId) }` so the helper's `motion` equals the Rig's `activeMotion` (which samples with `{ route: captured }` at `EditorCameraRig.svelte:383-390`); idle readout uses live route (no `route` param). The hook `useCameraTimeline` memoizes by `graph` identity + `connectionId+direction` + `preview.runId` (stable monotonic snapshot key — `getCapturedRoute`/`getCapturedCameraPreviewRoute` at `camera-preview-controller.svelte.ts:673` / `museum-editor.svelte.ts:1960` return fresh `cloneResolvedCameraRoute` clones, so route identity would thrash); returns `null` when no connection selected. Lives in `editor-camera-timeline.ts` (or the hook), **not** in `camera-preview-controller.svelte.ts` — controller stays consume-only. **Not serialized, not a second motion engine.** Readout = live duration; pose = captured route (divergence acknowledged — see D7).
+- **D2 scope-conditional mounting (takes precedence over `{#if timeline}`):** `EditorCameraTimelinePanel.svelte` today is `{#if timeline}`-gated (`EditorCameraTimelinePanel.svelte:53`) — with an Unsequenced connection there may be no guided timeline, so it would render "Camera timeline unavailable." S3 branches **before** that gate on `previewScopeOf(preview)` / `activeCameraConnectionId`:
+  - `scope==='edge'` → mount **Edge Ruler** (local duration, endpoint labels, live scrubber, Reverse when paused, Repeat when `kind==='connection'`). Scrub bound to `preview.playhead`.
+  - idle-with-connection (no preview, `activeCameraConnectionId` set) → mount **Edge Ruler in candidate/read-only mode**: endpoint labels + `durationSeconds` readout, but scrub/Reverse/Repeat **disabled** and a `Preview Edge` CTA (§D6) — avoids the D3 dead-controls contradiction (`setCameraPreviewPlayhead` / `swapEdgePreviewDirection` no-op without a preview).
+  - `scope==='sequence'` or idle-with-Sequence → mount guided `EditorCameraTimelineRuler` + `EditorCameraTimelineDots` (existing).
+  - `scope==='camera'` → no ruler (static pose); preview controls only.
+  - `scope===null` idle with no selection → existing empty-state.
+  No new `viewMode` or `editorWorkspaceFade` changes; Plan ↔ 3D keep-mounted pattern (P1.7 trap) still applies.
+- **D3 local ruler contract:**
+  - Readout: `formatTime` in the existing ruler is `mm:ss.cs` (`EditorCameraTimelineRuler.svelte:20-25` → `00:04.20`); edge ruler uses the same helper for consistency — display as `00:02.10 / 00:04.20` (doc shorthand `2.1 / 4.2s` maps to this). When `durationSeconds===0` show `00:00.00 / 00:00.00` with scrub disabled.
+  - Scrubber: `<input type="range" min 0 max 1 step 0.0005>` bound to `preview.playhead` for edge (via `setCameraPreviewPlayhead`) — **enabled only when `preview.kind==='connection'`**; idle candidate mode (D2) keeps it disabled. Sequence scrub stays `cameraTimelinePlayhead`.
+  - Endpoint labels: `A → B` vs `B → A` derived from `DirectedEdgeMotion.fromNodeId/toNodeId` + `formatCameraNodeLabel`.
+  - Reverse: button calls `swapEdgePreviewDirection()` when `transport==='paused'`; disabled when `playing` or no preview (idle candidate disabled per D2). Preserves physical pose via S2's `1-e` edge-domain flip — no `1-p` on playhead.
+  - Repeat: checkbox bound to `controller.edgeRepeat` via `setEdgePreviewRepeat`; visible and enabled only for `kind==='connection'`; idle candidate shows disabled unchecked. Auto-restart semantics already land in S2 `completeCameraPreview`.
+- **D4 scrub-vs-play parity (distinct instances, same captured route):** edge helper and Rig must be compared on **different** `CameraMotion` instances derived from the **same captured route** — otherwise `sample(motion, scrub) ≈ sample(motion, playback)` is trivially self-equal. On an unchanged document: `left = createEdgeLocalTimeline(graph, id, dir, { route: captured }).motion` and `right = resolveDirectedEdgeMotionByDirection(graph, id, dir, { route: captured }).motion` (Rig path) must satisfy `sample(left, p).position ≈ sample(right, p).position` within `1e-4m` / `1e-3°` FOV (and `fov` within `1e-3°`) for all `p ∈ [0,1]` forward and reverse. Readout divergence noted: live `durationSeconds` (helper without `route`) vs pose `motion` (helper with `captured`) may differ mid-preview after an edit that changes timing — this is intentional (readout is live).
+- **D5 framing authoring direction-aware → rendering only (authoring already shipped):** `addViewKeyframeAtPlayhead` / `updateViewKeyframeProgressDrag` already resolve through `resolveDirectedEdgeMotionForConnection` for `preview.kind==='connection'` (see `view-keyframe-controller.svelte.ts:545-680,976`) — no new mapping. Unsequenced `E` needs no `isFlowNode` check. S3's remaining work is **Dots rendering**: `envelopeBands` / `activeEnvelopeHandles` in `EditorCameraTimelineDots.svelte:107-174` iterate `timeline.edges` and are gated on `viewMode==='3d' && timeline`; edge scope needs a single-span band/marker pass that reads `createEdgeLocalTimeline(graph, id, dir).motion.viewTrack.framingEnvelope[direction]` and view-key markers for the active `connectionId+direction` without touching `timeline.edges`.
+- **D6 selection → preview affordance:** selecting `C — E` (even with E Unsequenced) **does not auto-start** preview (D1 §D1: selection ≠ scope). The inspector/timeline exposes an explicit `Preview Edge` button; clicking it calls `previewEdge(connectionId, direction)` (S2) which snapshots `lastSequencePlayhead` if leaving `sequence`. If a `connection` preview is already active, selecting a different connection only updates the edge-local ruler's *candidate* until the user clicks Preview Edge again.
+- **D7 invalidation / zero-duration:** edge-local memo invalidates on every `graph` key change (`document.state.graph` identity), on `activeCameraConnectionId/Direction` change, and on `preview.runId` when a preview is active (new captured snapshot — route identity thrashes, so key by `runId`). Zero-duration edges remain scrubbable at `0` but Play immediate-completes (`EditorCameraRig:398,533` + S2 `completeCameraPreview` guard `durationSeconds===0 → stay complete, no repeat loop`).
+
+### State model delta
+
+```ts
+// no new persisted/document/session state in S3
+// editor-camera-timeline.ts — new pure helper (not EditorCameraTimeline):
+// createEdgeLocalTimeline(
+//   graph, connectionId, direction, opts?: { route?: ResolvedCameraRoute }
+// ): EdgeLocalTimeline | null
+//   → { motion: CameraMotion; durationSeconds: number; fromNodeId; toNodeId; connectionId; direction }
+//   // opts.route forwarded to resolveDirectedEdgeMotionByDirection so
+//   // helper+ Rig share captured geometry; idle call omits opts.
+// hooks/use-camera-timeline.svelte.ts — derived selectors:
+//   edgeTimeline, edgePlayhead, edgeDurationSeconds, edgeEndpoints
+//   // memo key: graph identity + connectionId+direction + preview.runId (not route identity —
+//   // getCapturedRoute clones per read at controller:673 / facade:1960)
+// EditorCameraTimelinePanel.svelte — branch on previewScopeOf(preview) BEFORE {#if timeline} gate
+```
+
+Both new slots are **in-memory, derived, never persisted**.
+
+### Work items by file
+
+1. `editor-camera-timeline.ts` — add `createEdgeLocalTimeline` (with optional `{ route }`) wrapping `resolveDirectedEdgeMotionByDirection`; no new motion engine.
+2. `hooks/use-camera-timeline.svelte.ts` — add `edgeTimeline/edgePlayhead/edgeDurationSeconds/edgeEndpoints/edgeRepeat/reverseEdgeLabel` derived (memo by `graph` + `id+dir` + `preview.runId` — not `capturedRoute` identity which thrashes via `cloneResolvedCameraRoute` at `controller:673`); keep guided selectors for S4.
+3. `EditorCameraTimelinePanel.svelte` — scope branch **before** `{#if timeline}`: `edge` → Edge Ruler; `idle-with-connection` → Edge Ruler candidate/read-only (disabled scrub/Reverse/Repeat + CTA); `sequence` → guided Ruler+Dots; `camera` → preview controls only. Preserve empty-state for no-timeline && no-connection.
+4. `EditorCameraTimelineRuler.svelte` vs new `EditorCameraEdgeRuler.svelte` — either split or branch: live `formatTime` double-readout `00:02.10 / 00:04.20`, scrubber bound to `preview.playhead` (disabled in candidate mode), Reverse → `swapEdgePreviewDirection` (disabled unless paused), Repeat → `setEdgePreviewRepeat` (disabled unless `kind==='connection'`), endpoint labels.
+5. `EditorCameraTimelineDots.svelte` — for edge scope, render single-span envelope/marker pass from `createEdgeLocalTimeline(...).motion.viewTrack` (framingEnvelope + viewKeys for `activeConnectionId+direction`); guided-only hidden is acceptable for S3 minimal acceptance, full single-span is the polished acceptance.
+6. `app/CameraPlanInspector.svelte` — connection panel: add `Preview Edge` forward/reverse buttons + Repeat toggle readout; wire to `store.previewEdge` / `store.setEdgePreviewRepeat`. Keep `timingDirection` sync.
+7. `store/view-keyframe-controller.svelte.ts` / `EditorCameraTimelineDots` drag helpers — **no new mapping** (already S1/S2). Verify only: existing `updateViewKeyframeProgressDrag` / `#getViewKeyframeAuthoringSample` already handle connection previews and Unsequenced endpoints; add regression assertion.
+8. **No changes:** `CameraDirector.svelte`, `museum-state`, visitor chunks, `EditorCameraRig.svelte` sampling, `camera-preview-controller/commands` (consume only), `camera-timeline-controller` (S4 owns sequence global ruler); resolver reused as-is.
+
+### Test matrix — §G rows → concrete tests
+
+All via `createMuseumEditorStore` fixtures (existing `museum-editor-camera.test.ts` pattern) + browser/component tests where noted. Record real suite counts at implementation.
+
+| §G row / Acceptance | Test |
+|---|---|
+| Unsequenced edge `C — E` visible | `activeCameraConnectionId='C-E'` with `E ∉ mainFlowNodeIds` → `edgeTimeline` non-null, `durationSeconds` finite, inspector shows `Preview Edge` buttons |
+| Selecting `C — E` exposes Preview Edge (candidate mode) | selection `connection:C-E forward` without preview → ruler shows endpoint labels `C → E`, readout `00:XX.XX / 00:YY.YY`, scrub/Reverse/Repeat **disabled** + CTA; no guided Dots |
+| Local ruler readout (active edge) | with `connection` preview at `playhead` → `formatTime(edgeDuration*playhead) / formatTime(edgeDuration)` e.g. `00:02.10 / 00:04.20` updates on scrub; zero-duration → `00:00.00 / 00:00.00` disabled |
+| Local scrubber (active edge) | range `0..1 step 0.0005` enabled only when `kind==='connection'` → `setCameraPreviewPlayhead` updates `preview.playhead` and Rig pose; candidate idle scrub disabled |
+| Scrub vs play pose equality (distinct instances) | on unchanged doc, `left=createEdgeLocalTimeline(graph,id,dir,{route:captured}).motion`, `right=resolveDirectedEdgeMotionByDirection(graph,id,dir,{route:captured}).motion` → `sample(left,p) ≈ sample(right,p)` for all `p` (pos `1e-4m`, fov `1e-3°`) forward and reverse; live readout vs captured pose divergence noted |
+| Reverse control | paused edge: click Reverse → `swapEdgePreviewDirection` preserves `sample(old,playhead).position ≈ sample(new,playhead').position` via S2 `1-e` flip; `activeCameraDirection` flips; disabled while `playing` or idle candidate |
+| Repeat loops without touching Sequence topology | `edgeRepeat=true` + `completeCameraPreview` → new runId `playing` at 0, not `complete`; guided `timeline.durationSeconds` unchanged; zero-duration with repeat → stays `complete`, no busy loop |
+| FOV / Look At / view-key / envelope (regression) | `addViewKeyframeAtPlayhead` on edge forward at `0.3` then reverse at `0.7` already creates key at correct `keyframe.progress` via S1 resolver (`view-keyframe-controller:545-680`); test asserts Unsequenced `C → E` keys not rejected and `updateViewKeyframeProgressDrag` preserves behavior — Dots envelope rendering is the new assertion |
+| Preview Edge while Sequence playing | explicit `previewEdge(connectionId,dir)` **even while `tour` is `playing`** snapshots `lastSequencePlayhead` and installs `connection` paused (no transport guard); `selection`/`seekCameraTimeline`/`previewSelectedConnection` do not interrupt playing tour |
+| Zero-duration edge | `durationSeconds===0` edge: scrubber disabled, readout `00:00.00 / 00:00.00`, Play → immediate `complete`, Repeat does not loop |
+| Contracts | `components/camera-tour.md` + `Shell-camera-workspaces.md` §9–§11 still pass: Camera Plan shows per-direction duration, `speed = length/duration`, Plan ↔ 3D selection continuity |
+
+Acceptance: all §F S3 bullets covered; scrub and playback sample identical poses (shared sampler); `C—E` scenario green; existing suites stay green (expect `1,921+` baseline from S1, record S2's delta).
+
+### Boundaries / out of scope
+
+No whole-Sequence global ruler composition change — S4. No Plan/3D cross-workspace preservation beyond existing selection continuity — S5. No `transition` kind removal — S6. No visitor runtime change. No schema/codec change. Roll/Shots lanes remain visual-only (reserved).
+
+### Risks & rollback
+
+- **Ruler fork vs branch** — single-file branch minimizes churn; split into `EditorCameraEdgeRuler` if the conditional grows >80 lines. Either rollback is one file.
+- **Dots coupling** — `EditorCameraTimelineDots` is heavily guided-timeline-coupled (envelope bands, `timeline.edges`); hiding it for edge scope is the smallest safe step. Full edge-local lane can land as S3 polish without breaking acceptance.
+- **Hook memo churn** — edge memo keyed on `graph` identity + `connectionId+direction` + `preview.runId` (stable; live readout omits route, active preview forwards `getCapturedRoute(runId)` — route identity thrashes because `getCapturedRoute` at `controller:673` / facade `1960` clones per read); stale motion replaced synchronously on graph swap, no extra snapshot capture needed beyond the controller's `capturedRoute` keyed by `runId`.
+- Rollback: `EditorCameraTimelinePanel` + `use-camera-timeline` + `CameraPlanInspector` + view-keyframe controller mapping — four files, no data migration. Revert to S2 green tree.
+
+## Slice 4 — design detail (folded 2026-08-22)
+
+Detail for §F Slice 4, written into the umbrella per fold-and-delete (no
+standalone doc existed). The readiness survey is grep-verified against the
+tree on 2026-08-22; re-grep at implementation time.
+**Routing:** P8.S4 — Luna xhigh (48, 81% Luna xhigh, DeepSeek V4 Flash,
++1, open) per `docs/plans/model-assessment.md`.
+
+### S4 readiness survey (grep-verified)
+
+| Area | File:line | What it owns today | S4 relevance |
+|---|---|---|---|
+| Sequence entry commands | `store/camera-preview-commands.svelte.ts:323,583-605` | `previewGuidedTour(mode)` installs `kind:'tour'` playing at `cameraTimelinePlayhead` (tour-playing no-op, complete→0); `previewSequence(mode)` (S2) restores `lastSequencePlayhead` when the timeline still builds (D6 amended 2026-08-22: `getEditorCameraTimelineLocation` validity, else 0), sets `cameraTimelinePlayhead = restore`, delegates to `previewGuidedTour` | **Both commands already exist.** S4 wires every sequence entry point (AppBar ×2, hook `toggleTourPlayback`, Ruler play) to `previewSequence` and demotes the guided play button; no new FSM command |
+| Global playhead | `museum-editor.svelte.ts:762` | `cameraTimelinePlayhead = $state(0)` — facade `$state` per the 9.3 gotcha; written by seek (:312), tour play/resume (:737), `setCameraPreviewPlayhead` tour sync (:770), `resetToScopeStart` tour (:639), complete (:916) | Stays facade-owned in S4 (ownership folds to the timeline controller post-S4 per tracker; P7.5 conflict). The "play continues from exact local progress" claim depends on the live tour sync at :770 |
+| Sequence scrub | `store/camera-timeline-controller.svelte.ts:283-330` | `seekCameraTimeline(progress)` maps global → `getEditorCameraTimelineLocation` → edge-local playhead via `cameraTimelineEdgePlayheadAtProgress`, honors `#timelineTravelDirection` (reverse stays on the active edge), updates `cameraTimelinePlayhead`; `#canSeekCameraTimeline` blocks while playing/interacting | Scrub-into-any-transition already works. S4 pins boundary epsilon + the **one-node guard**: `getEditorCameraTimelineLocation` throws "The camera timeline has no guided edges" on a 0-edge timeline (editor-camera-timeline.ts:228-231) and `seekCameraTimeline` does not catch |
+| Global timeline build | `editor-camera-timeline.ts:129-214` | `createEditorCameraTimeline` = `getFlowRoute(loop:true)` + per-edge S1 resolver motions + destination holds; `nodeBoundaries`; `TIMELINE_EPSILON = 1e-9`; `getEditorCameraScheduleLocation` (:232-287) walks motion + hold tails | Loop closing edge is derived (real tail→head). One-node → `edges: []`, `durationSeconds: 0` — builds without throwing (no fake edge); two-node → one edge |
+| Loop derivation | `editor-navigation-graph.ts:241` + facade `museum-editor.svelte.ts:1158-1170` | `flowLoopConnectionId(document)` — closing edge iff a distinct real tail→head record exists (two-node pairs never loop — their only record is also the chain transition, T5/T8); `guidedTourNodeIds` chain | Already consumed by the S3 panel + `CameraFlowPanel` (S10.1.4 readout, `disconnectLoop` / `connectTailToHead` buttons). S4 pins the derivation at timeline level; does not touch the shipped buttons |
+| Guided play button | `hooks/use-camera-timeline.svelte.ts:138-161` + `EditorCameraTimelineRuler.svelte:43-46` | `playLabel` ("Play reverse edge" when reverse + connection, else "Play camera flow"); `toggleTourPlayback` → pause / `playActiveConnectionEdge` (context-sensitive reverse branch) / `previewGuidedTour('director')` | S4 removes the reverse branch — edge transport already lives in the S3 EdgeRuler (`toggleEdgePlayback` / `stepEdge`); guided play becomes sequence-transport only |
+| AppBar entry | `EditorAppBar.svelte:83` + `app/EditorAppBar.svelte:118` | "Preview Flow" buttons call `store.previewGuidedTour()` (visitor default) | S4 renames to "Preview Sequence" → `store.previewSequence()` (same default mode) |
+| Replay | `store/camera-preview-commands.svelte.ts:717-737` | `playCameraPreview`: `playhead = transport==='complete' ? 0 : playhead`; new runId + re-capture | No new `replay()` (S2 D3) — resume-from-complete IS replay; S4 pins it with a test, label polish optional |
+| Transport controls | `EditorCameraPreviewControls.svelte` | mode toggle, play/pause ("Resume preview"), Follow/Recenter (director), Stop | Sequence-scope readout already shows `kind · transport · %`. Optional cosmetic: relabel "Resume preview" → "Replay" when `transport === 'complete'` |
+
+### S4 design decisions
+
+- **D1 — Sequence entry = `previewSequence` everywhere; `previewGuidedTour` stays the internal delegate.** No new command. Hook `toggleTourPlayback` → `store.previewSequence('director')`; both AppBar buttons → `store.previewSequence()` (visitor default, matches today). `previewGuidedTour` keeps its install semantics (snapshot-free, tour-playing no-op, complete→0 via `setCameraPreviewPlayhead(0, runId)`).
+- **D2 — Context-sensitive play demoted.** `toggleTourPlayback` drops the `activeCameraDirection==='reverse' && activeCameraConnectionId → playActiveConnectionEdge` branch; `playLabel` drops the "Play reverse edge" variant (reverse travel on the guided ruler remains available via the existing Reverse toggle — the *transport* for a reverse edge preview is the S3 EdgeRuler). Guided Ruler play is sequence-only. **Before removing:** grep `playActiveConnectionEdge` / `toggleTourPlayback` / `playLabel` test usage — existing `museum-editor-camera` tests may assert the old context-sensitive behavior and need to move to the EdgeRuler path.
+- **D3 — Global seconds domain is pinned, not built.** The mapping already exists end-to-end (`getEditorCameraTimelineLocation` + `cameraTimelineEdgePlayheadAtProgress` + `cameraTimelineProgressAtEdgeProgress` + `getEditorCameraScheduleLocation` hold walk + `1e-9` epsilon). S4's real work: (a) boundary-epsilon tests — scrub exactly onto a node boundary lands the destination edge/direction and Play continues from the exact local progress (2.8s inside B→C = `cameraTimelineProgressAtEdgeProgress`); (b) hold-span tests via the schedule walk; (c) **one-node guard** — `seekCameraTimeline` returns false when `timeline.edges.length === 0` (today the uncaught throw reaches the Ruler scrub).
+- **D4 — Loop semantics pinned.** Loop exists iff `flowLoopConnectionId(document)` is non-null; `createEditorCameraTimeline`'s `getFlowRoute(loop:true)` includes the closing edge as a real timeline edge. `edgeRepeat` is connection-preview transport state and never alters timeline topology — test that `edgeRepeat` on/off leaves `timeline.edges.length` / `durationSeconds` unchanged. The S3 loop readout buttons (`disconnectLoop` / `connectTailToHead`) are shipped UI — not S4's concern beyond the derivation tests.
+- **D5 — One/two-node flows.** One node: timeline builds (`edges: []`, `durationSeconds: 0`) — idle presentation is static/no-motion, seek no-ops, **no fake edge**; a forced `previewSequence` install rides the existing zero-duration immediate-complete path (Rig EditorCameraRig:398,533 + S2 D4 guard), pin both with tests rather than adding a guard that changes semantics. Two nodes: exactly one edge, plays once, ends at tail (`flowLoopConnectionId` null).
+- **D6 — No playhead ownership change, no new `replay()`.** `cameraTimelinePlayhead` stays facade `$state` (9.3 gotcha; the post-S4 fold to the timeline controller is the tracker's P7.5 item). Replay = play-from-complete (S2 D3): `playCameraPreview` restarts at 0 with a new runId + re-captured route. Optionally relabel the PreviewControls button when `transport === 'complete'` (cosmetic).
+
+### Work items by file
+
+1. `hooks/use-camera-timeline.svelte.ts` — `toggleTourPlayback`: remove the reverse-edge branch → pause / `store.previewSequence('director')`; `playLabel` → sequence-only label (drop "Play reverse edge").
+2. `EditorAppBar.svelte` + `app/EditorAppBar.svelte` — "Preview Flow" → "Preview Sequence"; `store.previewGuidedTour()` → `store.previewSequence()`.
+3. `store/camera-timeline-controller.svelte.ts` — `seekCameraTimeline`: guard `timeline.edges.length === 0` → return false before `getEditorCameraTimelineLocation` (one-node no-op).
+4. `store/camera-preview-commands.svelte.ts` — **verify-only**; no mutation changes. Confirm `previewSequence` mode pass-through (`previewGuidedTour(mode)`) and the one-node tour install path.
+5. `EditorCameraTimelineRuler.svelte` — play button uses the demoted label/binding; verify the seconds readout (`formatTime(timeline.durationSeconds * playhead)` is already the global-seconds domain).
+6. `EditorCameraPreviewControls.svelte` — optional cosmetic: "Resume preview" → "Replay" when `transport === 'complete'` (may defer).
+7. New `tests/lib/editor/store/p8-s4-preview-sequence.test.ts` — see matrix below.
+
+### Test matrix — §F Slice 4 rows → concrete tests
+
+All via `createMuseumEditorStore` fixtures (existing `museum-editor-camera.test.ts` pattern). Record real suite counts at implementation.
+
+| §F row / Acceptance | Test |
+|---|---|
+| Boundary epsilon (scrub + playback) | `seekCameraTimeline` onto a node boundary (within `1e-9`) from below and from above → correct edge + `#timelineTravelDirection`; paused pose at boundary equals `getEditorCameraTimelineLocation` edge-end pose |
+| Play continues from exact local progress | scrub to 2.8s inside B→C → `cameraTimelinePlayhead === cameraTimelineProgressAtEdgeProgress(...)`; `previewSequence` installs `tour` at that exact playhead; sampled pose equals the paused scrub pose (parity) |
+| End-of-sequence Replay | tour `complete` (playhead 1) → `playCameraPreview` → new runId, `playing` at 0, `startedAtMs: null` |
+| Holds | `getEditorCameraScheduleLocation` returns motion + hold spans; scrub into a hold keeps the destination pose; end-of-timeline hold → `complete` at 1 |
+| One-node flow | `createEditorCameraTimeline` → `edges: []`, `durationSeconds: 0`; `seekCameraTimeline` no-ops (false); forced `previewSequence` installs and immediate-completes via the zero-duration path (no busy loop, no fake edge) |
+| Two-node flow | exactly one edge; `flowLoopConnectionId` null; tour plays once and completes at 1 |
+| Loop-topology derivation | real tail→head record → closing edge present in `timeline.edges` + `flowLoopConnectionId` non-null; two-node never loops; **`edgeRepeat` on/off leaves `timeline.edges.length` and `durationSeconds` unchanged** |
+| Context-sensitive play demoted | `toggleTourPlayback` with reverse + selected connection in guided context → sequence transport (no hijack to `playActiveConnectionEdge`); S3 EdgeRuler `toggleEdgePlayback` still covers reverse-edge transport |
+| `previewSequence` restore | valid `lastSequencePlayhead` → tour installs at restored playhead; timeline unbuildable → 0 (S2 D6 regression) |
+
+Acceptance: all §F Slice 4 bullets covered; one/two-node and loop-topology rows green; existing suites stay green (expect the S3 baseline + S2's delta).
+
+### Boundaries / out of scope
+
+No `cameraTimelinePlayhead` ownership move (post-S4 fold; P7.5 conflict per tracker). No new `replay()` command (S2 D3). No visitor/CameraDirector change, no schema/codec change. No scope-kind rename (S6), no `transition` retirement. Dots/envelope rendering untouched (S3 polish owns the edge single-span). The S3 loop readout buttons (`disconnectLoop` / `connectTailToHead`) already shipped — not S4.
+
+### Risks & rollback
+
+- **Reverse-branch removal** — the `toggleTourPlayback` context-sensitive branch may be asserted by existing `museum-editor-camera` tests; grep `playActiveConnectionEdge|toggleTourPlayback|playLabel` before removing and migrate those assertions to the EdgeRuler path. Behavior is preserved, only the control surface changes.
+- **One-node seek throw** — `getEditorCameraTimelineLocation` throws uncaught on 0-edge timelines; guard in `seekCameraTimeline` (work item 3) before the Ruler can reach it. Also sweep the Ruler/Dots for other `getEditorCameraTimelineLocation` call sites reachable with a one-node timeline.
+- **One-node tour install** — `previewGuidedTour` accepts a 0-edge timeline (`readCameraTimeline` returns it), so a forced install immediate-completes via the zero-duration path. Intentional (matches two-node semantics); pin with a test, do not add a guard that changes semantics.
+- **Label churn** — "Preview Flow" → "Preview Sequence" touches two AppBar files + possibly screenshot/golden references; keep the copy change in this slice, not S3.
+- Rollback: `use-camera-timeline` + AppBar ×2 + `camera-timeline-controller` guard + test file — five files, no data migration. Revert to S3 green tree.
 
 ## G. Edge-case matrix
 

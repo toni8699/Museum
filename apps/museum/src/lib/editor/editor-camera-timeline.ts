@@ -10,7 +10,11 @@ import {
 import { getFlowRoute } from '$lib/museum/navigation/camera-route';
 import { isFlowNode } from '$lib/content/scene';
 import { EDITOR_GUIDED_TOUR_START_NODE_ID } from './editor-navigation-graph';
-import { resolveConnectionEdgeMotions } from './editor-directed-edge-motion';
+import {
+	resolveConnectionEdgeMotions,
+	resolveDirectedEdgeMotionByDirection
+} from './editor-directed-edge-motion';
+import type { ResolvedCameraRoute } from '$lib/museum/navigation/camera-route';
 
 const TIMELINE_EPSILON = 1e-9;
 
@@ -438,4 +442,45 @@ function findMotionSpanEdgeIndex(timeline: EditorCameraTimeline, seconds: number
 		if (seconds >= edge.motionStartSeconds - epsilon) return index;
 	}
 	return lastIndex;
+}
+
+/**
+ * S3 — edge-local timeline (one connection, one direction).
+ * Pure wrapper around the S1 directed-edge resolver so scrub and
+ * playback sample the same `CameraMotion` instance. Memo key in the
+ * hook is `graph + id+dir + preview.runId` — not route identity,
+ * which thrashes because `getCapturedRoute` clones per read.
+ */
+export type EdgeLocalTimeline = {
+	connectionId: string;
+	direction: CameraConnectionDirection;
+	fromNodeId: string;
+	toNodeId: string;
+	durationSeconds: number;
+	motion: CameraMotion;
+	durationFallback: boolean;
+	route: ResolvedCameraRoute;
+};
+
+export function createEdgeLocalTimeline(
+	graph: NavigationGraph,
+	connectionId: string,
+	direction: CameraConnectionDirection,
+	opts?: { route?: ResolvedCameraRoute }
+): EdgeLocalTimeline | null {
+	try {
+		const result = resolveDirectedEdgeMotionByDirection(graph, connectionId, direction, opts ?? {});
+		return {
+			connectionId: result.connectionId,
+			direction: result.direction,
+			fromNodeId: result.fromNodeId,
+			toNodeId: result.toNodeId,
+			durationSeconds: result.motion.durationSeconds,
+			motion: result.motion,
+			durationFallback: result.durationFallback,
+			route: result.route
+		};
+	} catch {
+		return null;
+	}
 }

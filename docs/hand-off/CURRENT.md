@@ -5,46 +5,19 @@ only the immediate previous slice (back-pointer) and the single next action
 live here. History chains backward through the tracker's depends-on column.
 ## Working tree
 
-- Current delta: **P8 S1 implemented (2026-08-21) — directed-edge motion
-  resolver + editor timing parity**. New
-  `lib/editor/editor-directed-edge-motion.ts`: pure core
-  `resolveDirectedEdgeMotionForConnection` (+ graph-based `…ByDirection`,
-  orientation-checked `resolveDirectedEdgeMotion`, pair helper);
-  `durationFallback` flags rejected authored durations (codec validation
-  already blocks those upstream — defense-in-depth only). The guided
-  timeline (`editor-camera-timeline.ts`) and Plan timing readout compile
-  through it; six previously-bare preview/authoring sites now apply authored
-  timing/easing: preview-controller/preview-commands step breakpoints, Rig
-  sampling, view-key authoring sample, drag-preview sync, keyframe-selection
-  playhead jump. Legacy `kind:'transition'` keeps bare compilation (multi-edge
-  BFS route; retired in S6); visitor `CameraDirector` untouched — authored-
-  timing parity there remains a **documented discrepancy** for a separate
-  runtime slice. `getCameraMotionOptions` widened structurally (reads
-  `timing` only) so persisted + runtime connection records both feed the
-  resolver. 11 new tests in `editor-directed-edge-motion.test.ts`, incl.
-  direct-edge == guided-timeline sampling parity and Unsequenced-endpoint
-  resolution.
-- Previous slice: **P1.8 implemented (2026-08-21)** — sequence authoring
-  (re-root, strict insertion, preview). Brief:
-  [`../archive/plans/2026-08-21-P1.8-camera-sequence-authoring.md`](../archive/plans/2026-08-21-P1.8-camera-sequence-authoring.md).
-- Docs synced this slice: `Neighbour-2D.png` registered as the neighbor-
-  accordion ground truth ([`2026-08-18-P3-ui-overhaul.md`](../plans/2026-08-18-P3-ui-overhaul.md)
-  mapping #10 + QA note; P1.9 Decisions updated), `Empty-staging.png` →
-  `Empty-3D.png` rename recorded.
+- Current delta: **P8 S3 implemented (2026-08-22) — edge-local timeline + Preview Edge UI (primary local authoring preview)**. New
+  `editor-camera-timeline.ts:createEdgeLocalTimeline(graph,id,dir,{route?})` pure wrapper around `resolveDirectedEdgeMotionByDirection`; hook `hooks/use-camera-timeline.svelte.ts` exposes `edgeTimeline` memoized by `graph+id+dir+preview.runId` (stable vs `cloneResolvedCameraRoute` thrash at `camera-preview-controller.svelte.ts:673`/`museum-editor.svelte.ts:1960`), `edgePlayhead`/`edgeDurationSeconds`/`edgeEndpoints`/`edgeScrubDisabled`/`edgeReverseDisabled`/`edgeRepeat`; new `EditorCameraEdgeRuler.svelte` local ruler `00:02.10 / 00:04.20`, scrub `0..1 step 0.0005`, endpoint labels, Reverse (paused-only, `1-e` flip), Repeat (edge-only) with candidate/read-only mode; `EditorCameraTimelinePanel.svelte` scope branch **before** `{#if timeline}` (`edge`→EdgeRuler, `camera`→controls only, `sequence`→guided, `!preview && activeConnectionId`→candidate — fixes legacy `transition` regression), idle candidate keeps disabled scrub/Reverse/Repeat + CTA; `app/CameraPlanInspector.svelte` adds Preview Edge forward/reverse + Repeat/Reverse sync (Unsequenced endpoints included). Consume-only — no visitor/Rig/controller mutation. 7 new tests in `p8-s3-edge-timeline.test.ts` (unsequenced `C—E`, distinct-instance parity, active-preview precedence, disabled-state contract).
+- Previous slice: **P8 S2 implemented (2026-08-22)** — explicit preview scopes + transport semantics (`previewScopeOf`, `edgeRepeat` scoped to `connection`, `swapEdgeDirection` via fresh opposite route + `1-e` edge-domain flip, `previewEdge`/`previewSequence`/`swapEdgePreviewDirection`/`setEdgePreviewRepeat`/`resetPreviewToScopeStart`, `completeCameraPreview` repeat branch with zero-duration guard). Brief: S2 design detail folded 2026-08-21/22 in P8 umbrella.
+- Docs synced this slice: P8 Slice 3 design detail folded 2026-08-22 (runId memo fix `controller:673`/`facade:1960`, `1-e` flip, idle candidate disabled state, panel `!preview` guard) + review fixes; `Neighbour-2D.png` / `Empty-3D.png` rename carried.
 
 ## Next action
 
-- **One action:** open **P8 Slice 2** — readiness survey + design detail
-  folded into the umbrella ([Slice 2 design — design detail folded 2026-08-21](../plans/2026-08-21-P8-camera-preview-scopes.md#slice-2--design-detail-folded-2026-08-21),
-  grep-verified inventory of preview FSM / session / history hook points),
-  then implement explicit preview scopes + transport semantics per
-  [`plans/2026-08-21-P8-camera-preview-scopes.md`](../plans/2026-08-21-P8-camera-preview-scopes.md)
-  §F S2 (routing: Sol medium per [`plans/model-assessment.md`](../plans/model-assessment.md)).
+- **One action:** open **P8 Slice 4** — explicit Preview Sequence scope (global ruler becomes sequence-scoped, `Sequence = adjacent pairs` via S1 primitive, global seconds domain, loop derived from real tail→head topology) per [`plans/2026-08-21-P8-camera-preview-scopes.md`](../plans/2026-08-21-P8-camera-preview-scopes.md) §F S4 (routing: DeepSeek V4 Flash per [`plans/model-assessment.md`](../plans/model-assessment.md)).
 
 ## Verification
 
-- **1,921 tests green (1 skipped) · `svelte-check` 0 errors / 0 warnings ·
-  `vite build` clean** (P8 S1 implementation, 2026-08-21).
+- **1,952 tests green (1 skipped) · `svelte-check` 0 errors / 0 warnings ·
+  `vite build` clean** (P8 S3 implementation, 2026-08-22).
 
 ## Known bugs / deferred
 
@@ -59,6 +32,7 @@ live here. History chains backward through the tracker's depends-on column.
 
 ## Traps
 
+- **Edge timeline memo must key on `preview.runId`, not route identity:** `getCapturedCameraPreviewRoute(runId)` at `camera-preview-controller.svelte.ts:673`/`museum-editor.svelte.ts:1960` returns `cloneResolvedCameraRoute` per call — route identity thrashes every `$derived`; `createEdgeLocalTimeline` opts `{route}` must be fetched via `preview.runId` stable key.
 - **Zero-flow documents are legal (P1.9):** `validateCurrentGuidedTourOrder`
   must keep its `< 2` guard before `mainFlowStart` — the seed dereference has
   no internal guard, and flowless graphs are reachable (no auto-promote on

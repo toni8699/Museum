@@ -78,6 +78,11 @@
 		}
 	});
 
+	// S3 — edge preview actions in connection panel
+	const edgePreview = $derived(store.cameraPreview?.kind === 'connection' ? store.cameraPreview : null);
+	const isEdgePreviewForThis = $derived(edgePreview?.connectionId === connection?.id);
+	const edgeRepeatChecked = $derived(store.edgeRepeat);
+
 	let labelDraft = $state('');
 	$effect(() => {
 		labelDraft = node?.label ?? '';
@@ -290,6 +295,39 @@
 			/>
 		{/if}
 
+		<!-- S3 — Preview Edge entry points (visible even for Unsequenced endpoints) -->
+		<div class="edge-preview" aria-label="Preview Edge">
+			<div class="edge-preview__row">
+				<button
+					type="button"
+					class:active={isEdgePreviewForThis && edgePreview?.direction === 'forward'}
+					disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
+					onclick={() => store.previewEdge(connection.id, 'forward', 'director')}
+				>Preview Edge ▶</button>
+				<button
+					type="button"
+					class:active={isEdgePreviewForThis && edgePreview?.direction === 'reverse'}
+					disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
+					onclick={() => store.previewEdge(connection.id, 'reverse', 'director')}
+				>◀ Preview Edge</button>
+			</div>
+			<div class="edge-preview__row">
+				<button
+					type="button"
+					disabled={!isEdgePreviewForThis || edgePreview?.transport !== 'paused'}
+					onclick={() => store.swapEdgePreviewDirection()}
+				>Reverse</button>
+				<label class="edge-repeat">
+					<input
+						type="checkbox"
+						checked={edgeRepeatChecked}
+						disabled={!isEdgePreviewForThis}
+						onchange={(e) => store.setEdgePreviewRepeat((e.currentTarget as HTMLInputElement).checked)}
+					/> Repeat
+				</label>
+			</div>
+		</div>
+
 		<button
 			type="button"
 			class="danger"
@@ -388,4 +426,9 @@
 	.room { color: #918c84; font: 0.6rem/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
 	.meta { color: #918c84; font-size: 0.6rem; }
 	.passive-note { margin: 0; padding: 0.55rem; border: 1px solid #35506e; border-radius: 0.35rem; background: #151b26; color: #b9c6d8; font-size: 0.7rem; line-height: 1.45; }
+	.edge-preview { display: flex; flex-direction: column; gap: 0.35rem; padding: 0.5rem; border: 1px solid #2a2a33; border-radius: 0.35rem; background: #1a1a22; }
+	.edge-preview__row { display: flex; gap: 0.35rem; align-items: center; flex-wrap: wrap; }
+	.edge-preview__row button.active { border-color: #d6b35f; background: #2a2618; color: #fff2c7; }
+	.edge-repeat { display: inline-flex; align-items: center; gap: 0.3rem; color: #c9c3b8; font-size: 0.68rem; cursor: pointer; }
+	.edge-repeat input { accent-color: #d6b35f; }
 </style>

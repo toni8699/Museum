@@ -3,6 +3,7 @@
 	import EditorCameraPreviewControls from './EditorCameraPreviewControls.svelte';
 	import EditorCameraTimelineDots from './EditorCameraTimelineDots.svelte';
 	import EditorCameraTimelineRuler from './EditorCameraTimelineRuler.svelte';
+	import EditorCameraEdgeRuler from './EditorCameraEdgeRuler.svelte';
 	import { useCameraTimeline } from './hooks/use-camera-timeline.svelte';
 	import type { MuseumEditorStore } from './museum-editor.svelte';
 
@@ -12,6 +13,9 @@
 	const timelineApi = useCameraTimeline(store);
 	const timeline = $derived(timelineApi.timeline);
 	const preview = $derived(timelineApi.preview);
+	const previewScope = $derived(timelineApi.previewScope);
+	const edgeTimeline = $derived(timelineApi.edgeTimeline);
+	const activeConnectionId = $derived(store.activeCameraConnectionId);
 
 	// S10.1.4 — derived loop readout. The loop is never a mutation: it exists
 	// iff a distinct tail→head connection record exists (two-node pairs never
@@ -50,7 +54,65 @@
 	}
 </script>
 
-{#if timeline}
+{#if previewScope === 'edge'}
+	<!-- S3 — active Preview Edge: edge-local ruler + preview controls, no guided Dots (minimal) -->
+	<div class="timeline-panel">
+		<EditorCameraEdgeRuler {store} />
+		<EditorCameraPreviewControls {store} />
+	</div>
+{:else if previewScope === 'camera'}
+	<!-- S3 — Preview Camera: static pose, no ruler -->
+	<div class="timeline-panel">
+		<EditorCameraPreviewControls {store} />
+	</div>
+{:else if previewScope === 'sequence'}
+	{#if timeline}
+		<div class="timeline-panel">
+			{#if chain.length > 0}
+				<div class="loop-readout" aria-label="Derived loop state">
+					{#if showLoopRow && flowHasLoop}
+						<span class="loop-readout__text">
+							<strong>Loops via:</strong> {nodeLabel(chainTailNodeId!)} → {nodeLabel(chainHeadNodeId!)}
+							{#if loopDurationSeconds !== null}
+								<span class="loop-duration">({loopDurationSeconds.toFixed(1)}s)</span>
+							{/if}
+						</span>
+						<button
+							type="button"
+							class="loop-action"
+							title="Delete the closing connection — playback reverts to stopping at the tail"
+							onclick={disconnectLoop}
+						><Unlink size={13} aria-hidden="true" /> Disconnect Loop</button>
+					{:else if showLoopRow}
+						<span class="loop-readout__text">
+							<strong>Stops at</strong> {nodeLabel(chainTailNodeId!)}
+						</span>
+						<button
+							type="button"
+							class="loop-action"
+							title="Connect the last node back to the first — the path then loops"
+							onclick={connectTailToHead}
+						><Link size={13} aria-hidden="true" /> Connect to {nodeLabel(chainHeadNodeId!)}</button>
+					{/if}
+				</div>
+			{/if}
+			<EditorCameraTimelineRuler {store} />
+			<EditorCameraPreviewControls {store} />
+			<EditorCameraTimelineDots {store} {viewMode} />
+		</div>
+	{:else}
+		<div class="timeline-error" role="status">
+			<strong>Camera preview active</strong>
+			<span>Stop preview to return to camera editing.</span>
+			<EditorCameraPreviewControls {store} />
+		</div>
+	{/if}
+{:else if !preview && activeConnectionId && edgeTimeline}
+	<!-- S3 — idle-with-connection candidate: read-only edge ruler + CTA (takes precedence over guided timeline) -->
+	<div class="timeline-panel">
+		<EditorCameraEdgeRuler {store} />
+	</div>
+{:else if timeline}
 	<div class="timeline-panel">
 		{#if chain.length > 0}
 			<div class="loop-readout" aria-label="Derived loop state">

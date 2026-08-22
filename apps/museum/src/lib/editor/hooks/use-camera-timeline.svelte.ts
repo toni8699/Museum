@@ -1,7 +1,10 @@
 /**
  * Slice 8 — timeline transport / playhead hook for camera timeline UI.
+ * S3 — exposes edge-local timeline (one connection) for Preview Edge.
  */
 
+import { createEdgeLocalTimeline } from '../editor-camera-timeline';
+import { previewScopeOf } from '../store/camera-preview-controller.svelte';
 import type { MuseumEditorStore } from '../museum-editor.svelte';
 
 export function useCameraTimeline(store: MuseumEditorStore) {
@@ -14,6 +17,72 @@ export function useCameraTimeline(store: MuseumEditorStore) {
 		},
 		get preview() {
 			return store.cameraPreview;
+		},
+		get previewScope() {
+			return previewScopeOf(store.cameraPreview);
+		},
+		// S3 — edge-local timeline (memo key: graph + id+dir + preview.runId)
+		get edgeTimeline() {
+			const graph = store.state.graph;
+			const preview = store.cameraPreview;
+			// Active Preview Edge takes precedence over selection (previewScope === 'edge').
+			// Use captured route keyed by runId — not route identity which thrashes.
+			if (preview?.kind === 'connection') {
+				const route = store.getCapturedCameraPreviewRoute(preview.runId);
+				if (route) return createEdgeLocalTimeline(graph, preview.connectionId, preview.direction, { route });
+				return createEdgeLocalTimeline(graph, preview.connectionId, preview.direction);
+			}
+			const connectionId = store.activeCameraConnectionId;
+			if (!connectionId) return null;
+			const direction = store.activeCameraDirection;
+			return createEdgeLocalTimeline(graph, connectionId, direction);
+		},
+		get edgePlayhead() {
+			const preview = store.cameraPreview;
+			return preview?.kind === 'connection' ? preview.playhead : 0;
+		},
+		get edgeDurationSeconds() {
+			return this.edgeTimeline?.durationSeconds ?? 0;
+		},
+		get edgeEndpoints() {
+			const tl = this.edgeTimeline;
+			if (!tl) return null;
+			const fromNode = store.document.navigationNodes.find((n) => n.id === tl.fromNodeId);
+			const toNode = store.document.navigationNodes.find((n) => n.id === tl.toNodeId);
+			return {
+				fromNodeId: tl.fromNodeId,
+				toNodeId: tl.toNodeId,
+				fromLabel: fromNode?.label ?? tl.fromNodeId,
+				toLabel: toNode?.label ?? tl.toNodeId
+			};
+		},
+		get edgeRepeat() {
+			return store.edgeRepeat;
+		},
+		get edgeScrubDisabled() {
+			const tl = this.edgeTimeline;
+			if (!tl) return true;
+			if (tl.durationSeconds <= 1e-9) return true;
+			if (store.isEditorInteractionActive || store.isDocumentTransactionActive) return true;
+			const preview = store.cameraPreview;
+			if (!preview || preview.kind !== 'connection') return true;
+			return preview.transport !== 'paused';
+		},
+		get edgeReverseDisabled() {
+			const tl = this.edgeTimeline;
+			if (!tl) return true;
+			if (store.isEditorInteractionActive || store.isDocumentTransactionActive) return true;
+			const preview = store.cameraPreview;
+			// S3 D3 — reverse enabled only for paused edge preview; idle candidate disabled.
+			if (!preview || preview.kind !== 'connection') return true;
+			return preview.transport !== 'paused';
+		},
+		get edgeRepeatDisabled() {
+			// Repeat toggle visible but disabled unless active edge preview.
+			if (store.isEditorInteractionActive || store.isDocumentTransactionActive) return true;
+			const preview = store.cameraPreview;
+			if (!preview || preview.kind !== 'connection') return true;
+			return false;
 		},
 		get disabled() {
 			return (
@@ -95,6 +164,37 @@ export function useCameraTimeline(store: MuseumEditorStore) {
 		},
 		addViewKeyframeAtPlayhead() {
 			store.addViewKeyframeAtPlayhead();
+		},
+		// S3 — edge ruler actions
+		seekEdge(progress: number) {
+			store.setCameraPreviewPlayhead(progress);
+		},
+		toggleEdgeReverse() {
+			store.swapEdgePreviewDirection();
+		},
+		setEdgeRepeat(value: boolean) {
+			store.setEdgePreviewRepeat(value);
+		},
+		previewActiveEdge() {
+			const id = store.activeCameraConnectionId;
+			if (!id) return false;
+			return store.previewEdge(id, store.activeCameraDirection, 'director');
+		},
+		stepEdge(direction: -1 | 1) {
+			store.stepCameraPreview(direction);
+		},
+		toggleEdgePlayback() {
+			const preview = store.cameraPreview;
+			if (preview?.kind === 'connection' && preview.transport === 'playing') {
+				store.pauseCameraPreview();
+				return;
+			}
+			if (preview?.kind === 'connection' && preview.transport === 'paused') {
+				store.playCameraPreview();
+				return;
+			}
+			// idle candidate — install paused edge first, then playing on next click
+			this.previewActiveEdge();
 		}
 	};
 }

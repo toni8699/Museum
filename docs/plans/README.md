@@ -64,7 +64,7 @@ Policy rules:
 | P5 | Measured optimization and scale | proposed | renewal | [2026-08-18-P5-measured-optimization.md](2026-08-18-P5-measured-optimization.md) |
 | P6 | Editor artifact rename (de-H1) | shipped | renewal | archived → [2026-08-18-P6-editor-rename.md](archive/plans/2026-08-18-P6-editor-rename.md) |
 | P7 | Museum-editor facade decoupling — finish the deferred H1 splits (selection de-coupling, facade thinning, type collapse, shims, Chopin defaults, shell boot) | approved — **Option B: P7.4 shipped 2026-08-19; P7.1–P7.5 sequenced behind P8 S1–S4 (2026-08-21)** | P1 | [2026-08-19-P7-editor-facade-collapse.md](2026-08-19-P7-editor-facade-collapse.md) |
-| P8 | Camera preview scopes — Preview Camera / Preview Edge / Preview Sequence; directed-edge motion resolver + timing parity; edge-local timeline | in-progress — **S1 shipped 2026-08-21** | P1 | [2026-08-21-P8-camera-preview-scopes.md](2026-08-21-P8-camera-preview-scopes.md) |
+| P8 | Camera preview scopes — Preview Camera / Preview Edge / Preview Sequence; directed-edge motion resolver + timing parity; edge-local timeline | in-progress — **S1–S3 shipped 2026-08-22** | P1 | [2026-08-21-P8-camera-preview-scopes.md](2026-08-21-P8-camera-preview-scopes.md) |
 | — | Branch rejoin — **experiment, no schedule** (rejoin into a later Sequence stop; dead-end return already ships; multi-edge playback would compose P8's edge primitive) | proposed | P8 conceptually | [2026-08-21-branch-rejoin-experiment.md](2026-08-21-branch-rejoin-experiment.md) |
 | … | future work re-registers here | | | |
 

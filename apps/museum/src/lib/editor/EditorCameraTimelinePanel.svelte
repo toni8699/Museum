@@ -88,12 +88,18 @@
 	</div>
 {:else}
 	<div class="timeline-error" role="status">
-		<strong>{chain.length > 0 ? 'Camera timeline unavailable' : 'No camera flow yet'}</strong>
-		<span>
-			{chain.length > 0
-				? 'The flow has a missing transition — connect the two stops to continue.'
-				: 'Place and connect camera nodes to build the path.'}
-		</span>
+		{#if preview}
+			<strong>Camera preview active</strong>
+			<span>Stop preview to return to camera editing.</span>
+			<EditorCameraPreviewControls {store} />
+		{:else}
+			<strong>{chain.length > 0 ? 'Camera timeline unavailable' : 'No camera flow yet'}</strong>
+			<span>
+				{chain.length > 0
+					? 'The flow has a missing transition — connect the two stops to continue.'
+					: 'Place and connect camera nodes to build the path.'}
+			</span>
+		{/if}
 	</div>
 {/if}
 
@@ -107,6 +113,7 @@
 	.timeline-error { display: flex; height: 100%; min-height: 7rem; flex-direction: column; align-items: center; justify-content: center; gap: 0.3rem; color: #a8a29a; text-align: center; }
 	.timeline-error strong { color: #d5cec2; font-size: 0.78rem; }
 	.timeline-error span { font-size: 0.68rem; }
+	.timeline-error :global(.preview-transport) { width: min(100%, 54rem); justify-content: center; margin-top: 0.55rem; }
 
 	/* S10.1.4 — derived loop readout strip (matches the Sequence Inspector's
 	   loop row; the timeline reads the same distinct-connection test). */

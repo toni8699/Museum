@@ -33,15 +33,17 @@
 							? `Forward edge · ${preview.transport} · ${(preview.playhead * 100).toFixed(1)}%`
 							: `${preview.transport} · ${(preview.playhead * 100).toFixed(1)}%`}
 		</p>
-		<div class="transport">
-			{#if preview.transport === 'playing'}
-				<button type="button" class="active" onclick={() => store.pauseCameraPreview()}><Pause size={14} aria-hidden="true" /> Pause</button>
-			{:else}
-				<button type="button" class="active" onclick={() => store.previewGuidedTour()}>
-					<Play size={14} aria-hidden="true" /> Play camera flow
-				</button>
-			{/if}
-		</div>
+		{#if preview.kind !== 'node'}
+			<div class="transport">
+				{#if preview.transport === 'playing'}
+					<button type="button" class="active" onclick={() => store.pauseCameraPreview()}><Pause size={14} aria-hidden="true" /> Pause</button>
+				{:else}
+					<button type="button" class="active" onclick={() => store.playCameraPreview()}>
+						<Play size={14} aria-hidden="true" /> Resume preview
+					</button>
+				{/if}
+			</div>
+		{/if}
 		{#if preview.mode === 'director'}
 			<div class="director">
 				<button
@@ -58,19 +60,52 @@
 {/if}
 
 <style>
-	.preview-transport { display: flex; flex-wrap: wrap; align-items: center; gap: 0.55rem; }
-	.modes, .director { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.35rem; min-width: 12rem; }
-	.transport { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.35rem; min-width: 8rem; }
-	p { flex: 0 0 8rem; margin: 0; color: #8d887f; font-size: 0.68rem; text-transform: capitalize; }
-	button { display: inline-flex; align-items: center; justify-content: center; gap: 0.3rem; padding: 0.42rem 0.4rem; border: 1px solid #3a3a46; border-radius: 0.3rem; background: #1a1a22; color: #ddd6ca; font: inherit; font-size: 0.72rem; cursor: pointer; }
+	/* Keep every preview action in one predictable toolbar row. The old
+	   wrapping flex layout pushed Stop preview onto a second row for the
+	   single-camera/no-timeline state. */
+	.preview-transport {
+		display: grid;
+		grid-auto-flow: column;
+		grid-auto-columns: max-content;
+		align-items: center;
+		justify-content: center;
+		width: 100%;
+		max-width: 54rem;
+		margin-inline: auto;
+		gap: 0.55rem;
+	}
+	.modes, .director {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 0.35rem;
+		min-width: 12rem;
+	}
+	.transport {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr);
+		gap: 0.35rem;
+		min-width: 8rem;
+	}
+	p {
+		width: 10rem;
+		min-width: 0;
+		margin: 0;
+		color: #8d887f;
+		font-size: 0.68rem;
+		text-align: center;
+		text-transform: capitalize;
+		white-space: nowrap;
+	}
+	button { display: inline-flex; align-items: center; justify-content: center; gap: 0.3rem; padding: 0.42rem 0.4rem; border: 1px solid #3a3a46; border-radius: 0.3rem; background: #1a1a22; color: #ddd6ca; font: inherit; font-size: 0.72rem; cursor: pointer; white-space: nowrap; }
 	button.active, button.stop { border-color: #d6b35f; background: #2a2618; color: #fff2c7; }
 	button:disabled { opacity: 0.42; cursor: default; }
-	.stop { margin-left: auto; }
+	.stop { margin-left: 0; }
+	.preview-transport :global(svg) { flex: 0 0 auto; }
 
 	@media (max-width: 44rem) {
-		.preview-transport { align-items: stretch; }
+		.preview-transport { display: flex; flex-wrap: wrap; align-items: stretch; }
 		.modes, .director, .transport { min-width: 0; flex: 1 1 100%; }
-		p { flex-basis: auto; }
+		p { width: auto; flex: 1 1 100%; }
 		.stop { width: 100%; margin-left: 0; }
 	}
 </style>

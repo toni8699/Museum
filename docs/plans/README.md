@@ -57,37 +57,39 @@ Policy rules:
 | # | Plan | Status | Depends on | Doc |
 |---|------|--------|------------|-----|
 | — | Plan-system renewal + documentation rework (process row — created this tracker and the five-doc model) | shipped | H1 gate | archived → [2026-08-17-plan-system-renewal.md](archive/plans/2026-08-17-plan-system-renewal.md) |
-| P1 | Camera overhaul | in-progress — **P1.1–P1.3 shipped 2026-08-18**; **P1.4–P1.6 shipped 2026-08-19/20**; **P1.7–P1.8 shipped 2026-08-21**; **P1.9 (sidebar simplification) approved 2026-08-21 (final slice)** | renewal | [2026-08-18-P1-camera-overhaul.md](2026-08-18-P1-camera-overhaul.md) |
+| P1 | Camera overhaul | shipped | renewal | archived → [2026-08-18-P1-camera-overhaul.md](../archive/plans/2026-08-18-P1-camera-overhaul.md) |
 | P2 | Plan staging mode — 2D furnishing | approved | P1 | [2026-08-18-P2-plan-staging.md](2026-08-18-P2-plan-staging.md) |
-| P3 | UI overhaul — reconciliation/refresh pass over settled surfaces | approved | P1, P2 | [2026-08-18-P3-ui-overhaul.md](2026-08-18-P3-ui-overhaul.md) |
+| P3 | UI overhaul — primarily visual reconciliation/refresh pass over settled surfaces; context-menu interaction slice folded in (P3.4/P3.5) | approved | P1 (per-increment; P3.5 also P8 S2–S4; staging-dependent items await P2) | [2026-08-18-P3-ui-overhaul.md](2026-08-18-P3-ui-overhaul.md) |
 | P4 | Client GLB import | proposed | renewal | [2026-08-18-P4-gltb-import.md](2026-08-18-P4-gltb-import.md) |
 | P5 | Measured optimization and scale | proposed | renewal | [2026-08-18-P5-measured-optimization.md](2026-08-18-P5-measured-optimization.md) |
 | P6 | Editor artifact rename (de-H1) | shipped | renewal | archived → [2026-08-18-P6-editor-rename.md](archive/plans/2026-08-18-P6-editor-rename.md) |
-| P7 | Museum-editor facade decoupling — finish the deferred H1 splits (selection de-coupling, facade thinning, type collapse, shims, Chopin defaults, shell boot) | approved — **Option B: P7.4 shipped 2026-08-19; P7.1–P7.5 wait for P1 close** | P1 | [2026-08-19-P7-editor-facade-collapse.md](2026-08-19-P7-editor-facade-collapse.md) |
-| — | Branch rejoin — **experiment, no schedule** (rejoin into a later Sequence stop; dead-end return already ships) | proposed | — | [2026-08-21-branch-rejoin-experiment.md](2026-08-21-branch-rejoin-experiment.md) |
+| P7 | Museum-editor facade decoupling — finish the deferred H1 splits (selection de-coupling, facade thinning, type collapse, shims, Chopin defaults, shell boot) | approved — **Option B: P7.4 shipped 2026-08-19; P7.1–P7.5 sequenced behind P8 S1–S4 (2026-08-21)** | P1 | [2026-08-19-P7-editor-facade-collapse.md](2026-08-19-P7-editor-facade-collapse.md) |
+| P8 | Camera preview scopes — Preview Camera / Preview Edge / Preview Sequence; directed-edge motion resolver + timing parity; edge-local timeline | in-progress — **S1 shipped 2026-08-21** | P1 | [2026-08-21-P8-camera-preview-scopes.md](2026-08-21-P8-camera-preview-scopes.md) |
+| — | Branch rejoin — **experiment, no schedule** (rejoin into a later Sequence stop; dead-end return already ships; multi-edge playback would compose P8's edge primitive) | proposed | P8 conceptually | [2026-08-21-branch-rejoin-experiment.md](2026-08-21-branch-rejoin-experiment.md) |
 | … | future work re-registers here | | | |
 
-Execution order: **P6 (before P1.1) → P1 → P2 → P3**. P6 is the mechanical
-editor rename so P1.1's shell-inversion diff stays behavior-only. P4/P5/P7 and
-later entries do not start until P1–P3 are scheduled or re-prioritized by the
-owner. **P7** is a behavior-preserving refactor (facade collapse, shim
-deletion, Chopin-default removal, shell-boot extraction). **Option B approved
-2026-08-19; P7.4 shipped 2026-08-19** — the shared shell-boot composable landed
-before P1.5 (smallest collision window — both touch `EditorApp.svelte`); the
-remaining increments wait for P1 close and then execute **P7.1 → P7.5 → P7.2 →
-P7.3** as serial green diffs. The order is committed by the
-[2026-08-18 scope decision](archive/plans/2026-08-18-scope-decision-camera-first.md)
-(camera first, plan staging second, UI overhaul last).
+Execution order: **P6 → P1 → P8 → P2 → P3** — P1 shipped 2026-08-21; the
+owner re-prioritized **P8 ahead of P2** on 2026-08-21
+([scope decision](archive/plans/2026-08-21-scope-decision-p8-before-p2.md)),
+so **P8 is the active gate**: finish the camera domain while P1 context is
+warm, fix the editor timing-parity gap early, keep P3 last. P3 is now visual
+polish **plus** the folded context-menu interaction slice: **P3.4** (shared
+shell + Scene 3D / Layout / Outliner adapters) is P8-independent, while
+**P3.5** (Camera / Timeline adapters binding Preview Camera / Edge / Sequence)
+lands after **P8 S2–S4**.
+P6 is the mechanical editor rename so P1.1's shell-inversion diff stays
+behavior-only. **P7**'s remaining increments (**P7.1 → P7.5 → P7.2 → P7.3**)
+resume **after P8 Slices 1–4 land**, never interleaved with P8 Slices 2–4;
+P7.5's `cameraTimelinePlayhead` ownership item folds into P8 Slice 2
+acceptance. The prior camera-first order was committed by the
+[2026-08-18 scope decision](archive/plans/2026-08-18-scope-decision-camera-first.md);
+the 2026-08-21 decision extends the camera phase rather than reversing it.
+P4/P5 stay unscheduled until the owner re-prioritizes.
 
-P1 increments ship as serial green diffs; each closed brief archives with a
-one-line stub below. **P1.8** — camera sequence authoring per
-[`Camera-flow-specs.md`](../Design-specs/Camera-flow-specs.md): Unsequenced
-naming, entrance-start re-root "Set as First", per-camera preview — shipped
-2026-08-21; its naming amendment already landed via P1.7 (sidebar · shell
-spec §4 · visual spec §10, 2026-08-21). **P1.9** — camera sidebar
-simplification (neighbor dropdown · drag-only reorder · empty-chain
-promotion), approved 2026-08-21, is the **final P1 slice**: it reconciles the
-sidebar to `Design-shell-specs.md` §4 so P3 stays purely cosmetic.
+P1 shipped 2026-08-21 — all increments through **P1.9** (camera sidebar
+simplification: neighbor dropdown · drag-only reorder · empty-chain promotion;
+sidebar matches `Design-shell-specs.md` §4 so P3 stays primarily visual).
+Umbrella + briefs archived with stubs below.
 
 ## Archived plans
 
@@ -139,6 +141,7 @@ prefixed.
 
 - `archived → archive/plans/2026-08-17-plan-system-renewal.md` (process row)
 - `archived → archive/plans/2026-08-18-scope-decision-camera-first.md`
+- `archived → archive/plans/2026-08-21-scope-decision-p8-before-p2.md` (owner priority call; P8 ahead of P2)
 - `archived → archive/plans/2026-08-18-P6-editor-rename.md` (shipped 2026-08-18)
 - `archived → archive/plans/2026-08-18-P1.2-framing-envelope-serialization.md` (shipped 2026-08-18)
 - `archived → archive/plans/2026-08-18-P1.3-envelope-sampler-guards.md` (shipped 2026-08-18)
@@ -146,6 +149,8 @@ prefixed.
 - `archived → archive/plans/2026-08-19-P1.5-camera-plan-surface.md` (shipped 2026-08-19)
 - `archived → archive/plans/2026-08-20-P1.6-framing-authoring.md` (shipped 2026-08-20)
 - `archived → archive/plans/2026-08-20-P1.7-camera-ui-reconciliation.md` (shipped 2026-08-21)
+- `archived → archive/plans/2026-08-21-P1.8-camera-sequence-authoring.md` (shipped 2026-08-21)
+- `archived → archive/plans/2026-08-21-P1.9-sidebar-simplification.md` (shipped 2026-08-21 — final P1 slice)
 - `archived → archive/plans/2026-08-21-P1.8-camera-sequence-authoring.md` (shipped 2026-08-21)
 
 **Sources:** all source content is folded into the umbrella docs (P1 §A–§D ·

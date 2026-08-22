@@ -27,9 +27,9 @@ import type {
 } from '$lib/content/scene';
 import type { ResolvedCameraRoute } from '$lib/museum/navigation/camera-route';
 import {
-	cameraMotionProgressAtEdgeProgress,
-	createCameraMotion
+	cameraMotionProgressAtEdgeProgress
 } from '$lib/museum/navigation/camera-motion';
+import { resolveDirectedEdgeMotionForConnection } from '../editor-directed-edge-motion';
 import { findSceneCameraViewKeyframe } from '../editor-camera-view';
 import type {
 	EditorCameraHandle,
@@ -322,12 +322,20 @@ export class EditorSelectionActions {
 		) {
 			const route = this.host.getCapturedCameraPreviewRoute(preview.runId);
 			if (route) {
-				const progress = cameraMotionProgressAtEdgeProgress(
-					createCameraMotion(route),
-					0,
-					keyframe.progress
+				// P8 S1 parity — keyframe selection maps through the same authored
+				// timing/easing the paused preview plays with.
+				const connection = this.host.document.connections.find(
+					(candidate) => candidate.id === preview.connectionId
 				);
-				movedPlayhead = this.host.setCameraPreviewPlayhead(progress);
+				if (connection) {
+					const progress = cameraMotionProgressAtEdgeProgress(
+						resolveDirectedEdgeMotionForConnection(connection, preview.direction, route)
+							.motion,
+						0,
+						keyframe.progress
+					);
+					movedPlayhead = this.host.setCameraPreviewPlayhead(progress);
+				}
 			}
 		}
 		return changed || movedPlayhead;

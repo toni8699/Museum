@@ -1,28 +1,22 @@
 <script lang="ts">
-	import { ArrowDown, ArrowUp, ChevronRight, Diamond, Eye, Link, Unlink, X } from 'lucide-svelte';
-	import NodeConnectionsPanel from './NodeConnectionsPanel.svelte';
+	import { ChevronRight, Diamond, Eye, Link, Unlink, X } from 'lucide-svelte';
 	import { formatCameraNodeLabel } from './editor-outliner';
-	import { moveGuidedTourNodeIndex } from './editor-navigation-graph';
+	import { getNodeConnections } from './editor-camera-connections';
+	import { isFlowNode } from '$lib/content/scene';
 	import type { MuseumEditorStore } from './museum-editor.svelte';
 
 	// optional interactivity gate. The unified tree embeds this panel
 	// read-only in Plan (Plan exposes no camera mutation path), so `false` must
 	// gate **every** mutation surface, not just clicks: native HTML5 drag
 	// (`draggable`, dragstart, the drop gap, "Drag to guided") and the
-	// move/insert/remove buttons all fold into `guidedEditingBlocked` below.
+	// insert/remove buttons all fold into `guidedEditingBlocked` below.
 	// The relic never passes the prop and is unchanged.
 	let {
 		store,
-		interactive = true,
-		activeDomain = null
+		interactive = true
 	}: {
 		store: MuseumEditorStore;
 		interactive?: boolean;
-		// the S3 active selection domain, forwarded to
-		// NodeConnectionsPanel so its discovery-driven direction highlight is
-		// gated to camera-or-none. The relic never passes it and keeps the
-		// legacy selection-gated behavior.
-		activeDomain?: 'layout' | 'scene' | 'camera' | 'none' | null;
 	} = $props();
 
 	const guidedTourChain = $derived(store.guidedTourNodeIds);
@@ -112,6 +106,14 @@
 		return rows;
 	});
 	const unusedRowIds = $derived(new Set(unusedConnectionRows.map((row) => row.id)));
+	// A two-stop Sequence can be dissolved by deleting its only chain edge;
+	// longer chain edges remain protected because they would leave an invalid
+	// partial order.
+	const finalPairConnectionIds = $derived(
+		guidedTourChain.length === 2
+			? new Set(chainConnectionRows.map((row) => row.id))
+			: new Set<string>()
+	);
 	const connectionRows = $derived([...chainConnectionRows, ...unusedConnectionRows]);
 
 	let draggedNodeId = $state<string | null>(null);
@@ -130,7 +132,7 @@
 		return expandedNodeIds.includes(nodeId);
 	}
 
-	function toggleNodeConnections(nodeId: string) {
+	function toggleNodeNeighbors(nodeId: string) {
 		if (expandedNodeIds.includes(nodeId)) {
 			expandedNodeIds = expandedNodeIds.filter((id) => id !== nodeId);
 			return;
@@ -187,20 +189,18 @@
 		draggedNodeId = null;
 	}
 
-	function moveGuidedNode(nodeId: string, delta: -1 | 1) {
-		// P1.8 — the head is no longer pinned, so the second row may move up
-		// to index 0 and the head may move down (plain reorder, all nodes
-		// stay sequenced — distinct from Set as First re-root).
-		const next = moveGuidedTourNodeIndex(guidedTourChain, nodeId, delta);
-		if (next === null) return;
-		store.setGuidedTourOrder(next);
-	}
-
 	function dropNodeAfter(event: DragEvent, anchorNodeId: string, gapIndex: number) {
 		event.preventDefault();
 		const nodeId = draggedNodeId ?? event.dataTransfer?.getData('text/plain');
 		draggedNodeId = null;
 		if (!nodeId || guidedEditingBlocked) return;
+		if (guidedTourChain.length === 0) {
+			// An empty Sequence has no insertion gap for the strict validator to
+			// inspect. Dropping a connected Unsequenced row is the drag equivalent
+			// of Start Sequence and seeds the existing two-node pair.
+			startSequence(nodeId);
+			return;
+		}
 		if (!guidedTourChain.includes(nodeId)) {
 			store.insertNodeIntoGuidedTour(nodeId, gapIndex);
 			return;
@@ -223,6 +223,89 @@
 	function nodeLabel(nodeId: string) {
 		const node = store.document.navigationNodes.find((candidate) => candidate.id === nodeId);
 		return node ? formatCameraNodeLabel(node.label, node.id) : nodeId;
+	}
+
+	// P1.9 — the row expansion is a flat sidequest list: directly-connected
+	// cameras that are outside the ordered Sequence, outgoing before incoming.
+	// Ordered neighbors are already implied by the Sequence rows and must not
+	// be repeated in the accordion. Connection detail (direction, key counts,
+	// timing) stays in the Connections section / Inspector / Plan edges /
+	// Timeline.
+	type NeighborRow = { connectionId: string; partnerId: string };
+
+	function directNeighborRowsOf(nodeId: string): NeighborRow[] {
+		const { outgoing, incoming } = getNodeConnections(store.document, nodeId);
+		return [
+			...outgoing.map((row) => ({ connectionId: row.connectionId, partnerId: row.partnerId })),
+			...incoming.map((row) => ({ connectionId: row.connectionId, partnerId: row.partnerId }))
+		];
+	}
+
+	function neighborRowsOf(nodeId: string): NeighborRow[] {
+		return directNeighborRowsOf(nodeId).filter(
+			(row) => !guidedTourChain.includes(row.partnerId)
+		);
+	}
+
+	function isNodeSequenced(nodeId: string) {
+		return guidedTourChain.includes(nodeId);
+	}
+
+	// A node heads an explicit Branch when it carries the serialized branch
+	// link (`detourOfNodeId` — schema field stays for back-compat).
+	function isBranchHead(nodeId: string) {
+		return (
+			store.document.navigationNodes.find((candidate) => candidate.id === nodeId)
+				?.detourOfNodeId !== undefined
+		);
+	}
+
+	/**
+	 * P1.9 — Unsequenced relationship meta, per Camera-flow-specs §8 graph
+	 * truth (never overclaims adjacency): "Neighbor of ⟨camera⟩" only for a
+	 * direct edge to a sequenced camera, else "Connected to ⟨camera⟩".
+	 * Up to two names, then "+n". Null when there is nothing to claim.
+	 */
+	function relationshipMeta(nodeId: string): string | null {
+		const partners = directNeighborRowsOf(nodeId)
+			.map((row) => row.partnerId)
+			.filter((partnerId, index, all) => all.indexOf(partnerId) === index);
+		if (partners.length === 0) return null;
+		const sequenced = partners.filter((partnerId) => isNodeSequenced(partnerId));
+		const targets = sequenced.length > 0 ? sequenced : partners;
+		const prefix = sequenced.length > 0 ? 'Neighbor of' : 'Connected to';
+		const shown = targets.slice(0, 2).map((partnerId) => nodeLabel(partnerId));
+		const suffix = targets.length > 2 ? ` +${targets.length - 2}` : '';
+		return `${prefix} ${shown.join(', ')}${suffix}`;
+	}
+
+	/**
+	 * P1.9 — empty-chain promotion eligibility: no flow exists and this
+	 * unsequenced camera has at least one direct connection to another
+	 * unsequenced (non-branch) camera. Isolated nodes show no affordance.
+	 */
+	function startSequenceEligible(nodeId: string) {
+		if (store.isRelic || guidedTourChain.length > 0) return false;
+		const node = store.document.navigationNodes.find(
+			(candidate) => candidate.id === nodeId
+		);
+		if (!node || isFlowNode(node) || node.detourOfNodeId !== undefined) return false;
+		return directNeighborRowsOf(nodeId).some((row) => {
+			const partner = store.document.navigationNodes.find(
+				(candidate) => candidate.id === row.partnerId
+			);
+			return (
+				partner !== undefined &&
+				!isFlowNode(partner) &&
+				partner.detourOfNodeId === undefined
+			);
+		});
+	}
+
+	/** Manual pair promotion — one transaction through the mutator. */
+	function startSequence(nodeId: string) {
+		if (guidedEditingBlocked) return;
+		store.startSequenceFromNode(nodeId);
 	}
 
 	// S10.1.3 — Sequence Inspector actions: [Disconnect Loop] is a plain
@@ -308,31 +391,31 @@
 					ondragend={finishNodeDrag}
 				>
 					<div class="guided-line">
-						<button
-							type="button"
-							class="tree-row__chevron"
-							aria-label={`${isNodeExpanded(node.id) ? 'Collapse' : 'Expand'} connections for ${node.label}`}
-							aria-expanded={isNodeExpanded(node.id)}
-							aria-disabled={interactive ? undefined : true}
-							onclick={interactive ? () => toggleNodeConnections(node.id) : undefined}
-						>
-							<span class="chevron" class:open={isNodeExpanded(node.id)} aria-hidden="true"><ChevronRight size={14} /></span>
-						</button>
-						<button
-							type="button"
-							class="tree-row"
-							class:tree-row--selected={isNodeSelected(node.id)}
-							aria-disabled={interactive ? undefined : true}
-							onclick={interactive ? () => selectNode(node.id) : undefined}
-						>
-							<span class="tree-row__sequence" aria-hidden="true">
-								{String(index + 1).padStart(2, '0')}
-							</span>
-							<span class="tree-row__label" title={nodeLabel(node.id)}>
-								{nodeLabel(node.id)}
-							</span>
-							{#if index === 0}<span class="tree-row__meta">Start</span>{/if}
-						</button>
+					<button
+						type="button"
+						class="tree-row__chevron"
+						aria-label={`${isNodeExpanded(node.id) ? 'Collapse' : 'Expand'} neighbors of ${node.label}`}
+						aria-expanded={isNodeExpanded(node.id)}
+						aria-disabled={interactive ? undefined : true}
+						onclick={interactive ? () => toggleNodeNeighbors(node.id) : undefined}
+					>
+						<span class="chevron" class:open={isNodeExpanded(node.id)} aria-hidden="true"><ChevronRight size={14} /></span>
+					</button>
+					<button
+						type="button"
+						class="tree-row"
+						class:tree-row--selected={isNodeSelected(node.id)}
+						aria-disabled={interactive ? undefined : true}
+						onclick={interactive ? () => selectNode(node.id) : undefined}
+					>
+						<span class="tree-row__sequence" aria-hidden="true">
+							{String(index + 1).padStart(2, '0')}
+						</span>
+						<span class="tree-row__label" title={nodeLabel(node.id)}>
+							{nodeLabel(node.id)}
+						</span>
+						{#if index === 0}<span class="tree-row__meta">Start</span>{/if}
+					</button>
 					<div class="guided-actions" aria-label={`Edit ${node.label} flow order`}>
 						<button
 							type="button"
@@ -342,7 +425,7 @@
 							disabled={guidedEditingBlocked}
 							onclick={() => previewNode(node.id)}
 						><Eye size={13} aria-hidden="true" /></button>
-						{#if index > 0 && guidedTourChain.length > 2}
+						{#if index > 0 && index < guidedTourChain.length - 1 && guidedTourChain.length > 2}
 						<button
 							type="button"
 							class="guided-reroot"
@@ -354,37 +437,57 @@
 						{/if}
 						<button
 							type="button"
-							aria-label={`Move ${node.label} earlier`}
-								title="Move earlier"
-						disabled={guidedEditingBlocked || index === 0}
-						onclick={() => moveGuidedNode(node.id, -1)}
-							><ArrowUp size={13} aria-hidden="true" /></button>
-							<button
-								type="button"
-								aria-label={`Move ${node.label} later`}
-								title="Move later"
-						disabled={guidedEditingBlocked || index >= guidedTourChain.length - 1}
-						onclick={() => moveGuidedNode(node.id, 1)}
-							><ArrowDown size={13} aria-hidden="true" /></button>
-							<button
-								type="button"
-						class="guided-remove"
-						aria-label={`Remove ${node.label} from camera flow`}
-						title="Remove from camera flow"
-						disabled={guidedEditingBlocked || guidedTourChain.length <= 2}
-						onclick={() => store.removeNodeFromGuidedTour(node.id)}
+							class="guided-remove"
+							aria-label={`Remove ${node.label} from camera flow`}
+							title="Remove from camera flow"
+							disabled={guidedEditingBlocked || guidedTourChain.length <= 2}
+							onclick={() => store.removeNodeFromGuidedTour(node.id)}
 							><X size={13} aria-hidden="true" /></button>
-						</div>
 					</div>
-					{#if isNodeExpanded(node.id)}
-						<NodeConnectionsPanel
-							{store}
-							nodeId={node.id}
-							interactive={interactive}
-							{activeDomain}
-						/>
+				</div>
+				{#if isNodeExpanded(node.id)}
+					{@const neighbors = neighborRowsOf(node.id)}
+					{#if neighbors.length === 0}
+						<p class="neighbor-empty">No sidequest cameras</p>
+					{:else}
+						<ul class="neighbor-list" role="group" aria-label={`Neighbors of ${node.label}`}>
+							{#each neighbors as neighbor (neighbor.connectionId)}
+								{@const partner = store.document.navigationNodes.find(
+									(candidate) => candidate.id === neighbor.partnerId
+								)}
+								{#if partner}
+									<li class="neighbor-line">
+										<button
+											type="button"
+											class="tree-row neighbor-row"
+											class:tree-row--selected={isNodeSelected(partner.id)}
+											aria-disabled={interactive ? undefined : true}
+											onclick={interactive ? () => selectNode(partner.id) : undefined}
+										>
+											{#if isBranchHead(partner.id)}
+												<span class="neighbor-tag">Branch</span>
+											{:else}
+												<span class="tree-row__diamond" aria-hidden="true"><Diamond size={12} /></span>
+											{/if}
+											<span class="tree-row__label" title={nodeLabel(partner.id)}>
+												{nodeLabel(partner.id)}
+											</span>
+										</button>
+										<button
+											type="button"
+											class="guided-preview"
+											aria-label={`Preview ${partner.label}`}
+											title="Preview Camera"
+											disabled={guidedEditingBlocked}
+											onclick={() => previewNode(partner.id)}
+										><Eye size={13} aria-hidden="true" /></button>
+									</li>
+								{/if}
+							{/each}
+						</ul>
 					{/if}
-				</li>
+				{/if}
+			</li>
 				{#if draggedNodeId || selectedFreeNodeId}
 					<li
 						role="none"
@@ -445,24 +548,51 @@
 	{/if}
 {:else}
 	<p class="empty"><strong>No sequence</strong></p>
-	<p class="empty">Drop a camera here to start the sequence.</p>
+	<div
+		class="guided-gap guided-gap--empty"
+		role="group"
+		aria-label="Start camera sequence"
+		class:guided-gap--dragging={draggedNodeId !== null}
+		ondragover={(event) => {
+			if (!guidedEditingBlocked) event.preventDefault();
+		}}
+		ondrop={(event) => dropNodeAfter(event, '', 0)}
+	>
+		{#if selectedFreeNodeId && startSequenceEligible(selectedFreeNodeId)}
+			{@const selectedFreeNode = store.document.navigationNodes.find(
+				(candidate) => candidate.id === selectedFreeNodeId
+			)}
+			<button
+				type="button"
+				disabled={guidedEditingBlocked}
+				onclick={() => startSequence(selectedFreeNodeId)}
+			>
+				+ Start with {selectedFreeNode?.label ?? selectedFreeNodeId}
+			</button>
+		{:else}
+			<span>Drop a connected Unsequenced camera here to start</span>
+		{/if}
+	</div>
+	{#if freeNodeIds.length > 0}
+		<p class="empty">Isolated cameras need a connection before they can start the sequence.</p>
+	{/if}
 {/if}
 
 {#if detourGroups.length > 0}
-	<h3 class="sub-section-header">Detours · {detourGroups.length}</h3>
-	<ul role="tree" aria-label="Sequence detours">
+	<h3 class="sub-section-header">Branches · {detourGroups.length}</h3>
+	<ul role="tree" aria-label="Sequence branches">
 		{#each detourGroups as group (group.originNodeId)}
 			{@const origin = store.document.navigationNodes.find((node) => node.id === group.originNodeId)}
 			<li class="detour-group">
 				<div class="detour-head">
 					<span class="detour-origin" title={nodeLabel(group.originNodeId)}>
-						Detour at {origin?.label ?? nodeLabel(group.originNodeId)}
+						Branch at {origin?.label ?? nodeLabel(group.originNodeId)}
 					</span>
 					<button
 						type="button"
 						class="guided-remove"
-						aria-label={`Remove the detour at ${origin?.label ?? group.originNodeId}`}
-						title="Remove the whole detour — nodes are kept as free"
+						aria-label={`Remove the branch at ${origin?.label ?? group.originNodeId}`}
+						title="Remove the whole branch — nodes return to Unsequenced"
 						disabled={guidedEditingBlocked}
 						onclick={() => store.removeDetour(group.originNodeId)}
 					><X size={13} aria-hidden="true" /></button>
@@ -489,8 +619,8 @@
 								<button
 									type="button"
 									class="detour-remove"
-									aria-label={`Remove ${node.label} from the detour`}
-									title="Remove from detour — the camera node is kept as free"
+									aria-label={`Remove ${node.label} from the branch`}
+									title="Remove from branch — the camera node returns to Unsequenced"
 									disabled={guidedEditingBlocked}
 									onclick={() => store.removeDetourNode(group.originNodeId, node.id)}
 								><X size={13} aria-hidden="true" /></button>
@@ -501,7 +631,7 @@
 				{#if freeNodeIds.length > 0}
 					<div class="detour-add">
 						<select
-							aria-label={`Add a node to the detour at ${origin?.label ?? group.originNodeId}`}
+							aria-label={`Add a camera to the branch at ${origin?.label ?? group.originNodeId}`}
 							disabled={guidedEditingBlocked}
 							value={detourAddSelection[group.originNodeId] ?? ''}
 							onchange={(event) =>
@@ -552,10 +682,10 @@
 						<button
 							type="button"
 							class="tree-row__chevron"
-							aria-label={`${isNodeExpanded(node.id) ? 'Collapse' : 'Expand'} connections for ${node.label}`}
+							aria-label={`${isNodeExpanded(node.id) ? 'Collapse' : 'Expand'} neighbors of ${node.label}`}
 							aria-expanded={isNodeExpanded(node.id)}
 							aria-disabled={interactive ? undefined : true}
-							onclick={interactive ? () => toggleNodeConnections(node.id) : undefined}
+							onclick={interactive ? () => toggleNodeNeighbors(node.id) : undefined}
 						>
 							<span class="chevron" class:open={isNodeExpanded(node.id)} aria-hidden="true"><ChevronRight size={14} /></span>
 						</button>
@@ -570,7 +700,13 @@
 							<span class="tree-row__label" title={nodeLabel(node.id)}>
 								{nodeLabel(node.id)}
 							</span>
-							<span class="tree-row__meta">Drag to Sequence</span>
+							{#if isBranchHead(node.id)}
+								<span class="neighbor-tag">Branch</span>
+							{:else if relationshipMeta(node.id)}
+								<span class="tree-row__meta">{relationshipMeta(node.id)}</span>
+							{:else if guidedTourChain.length > 0}
+								<span class="tree-row__meta">Drag to Sequence</span>
+							{/if}
 						</button>
 						<div class="free-actions" aria-label={`Preview ${node.label}`}>
 							<button
@@ -581,15 +717,59 @@
 								disabled={guidedEditingBlocked}
 								onclick={() => previewNode(node.id)}
 							><Eye size={13} aria-hidden="true" /></button>
+							{#if startSequenceEligible(node.id)}
+								<button
+									type="button"
+									class="start-sequence"
+									aria-label={`Start the sequence at ${node.label}`}
+									title="Start Sequence"
+									disabled={guidedEditingBlocked}
+									onclick={() => startSequence(node.id)}
+								>Start Sequence</button>
+							{/if}
 						</div>
 					</div>
 					{#if isNodeExpanded(node.id)}
-						<NodeConnectionsPanel
-							{store}
-							nodeId={node.id}
-							interactive={interactive}
-							{activeDomain}
-						/>
+						{@const neighbors = neighborRowsOf(node.id)}
+						{#if neighbors.length === 0}
+							<p class="neighbor-empty">No sidequest cameras</p>
+						{:else}
+							<ul class="neighbor-list" role="group" aria-label={`Neighbors of ${node.label}`}>
+								{#each neighbors as neighbor (neighbor.connectionId)}
+									{@const partner = store.document.navigationNodes.find(
+										(candidate) => candidate.id === neighbor.partnerId
+									)}
+									{#if partner}
+										<li class="neighbor-line">
+											<button
+												type="button"
+												class="tree-row neighbor-row"
+												class:tree-row--selected={isNodeSelected(partner.id)}
+												aria-disabled={interactive ? undefined : true}
+												onclick={interactive ? () => selectNode(partner.id) : undefined}
+											>
+												{#if isBranchHead(partner.id)}
+													<span class="neighbor-tag">Branch</span>
+												{:else}
+													<span class="tree-row__diamond" aria-hidden="true"><Diamond size={12} /></span>
+												{/if}
+												<span class="tree-row__label" title={nodeLabel(partner.id)}>
+													{nodeLabel(partner.id)}
+												</span>
+											</button>
+											<button
+												type="button"
+												class="guided-preview"
+												aria-label={`Preview ${partner.label}`}
+												title="Preview Camera"
+												disabled={guidedEditingBlocked}
+												onclick={() => previewNode(partner.id)}
+											><Eye size={13} aria-hidden="true" /></button>
+										</li>
+									{/if}
+								{/each}
+							</ul>
+						{/if}
 					{/if}
 				</li>
 			{/if}
@@ -616,12 +796,20 @@
 					disabled={guidedEditingBlocked}
 					onclick={() => previewConnection(row.id)}
 				><Eye size={13} aria-hidden="true" /></button>
-				{#if unusedRowIds.has(row.id)}
+				{#if unusedRowIds.has(row.id) || finalPairConnectionIds.has(row.id)}
 					<button
 						type="button"
 						class="guided-remove"
-						aria-label={`Delete unused connection between ${nodeLabel(row.fromNodeId)} and ${nodeLabel(row.toNodeId)}`}
-						title="Delete this retained connection (its motion is discarded)"
+						aria-label={
+							finalPairConnectionIds.has(row.id)
+								? `Delete connection between ${nodeLabel(row.fromNodeId)} and ${nodeLabel(row.toNodeId)} and return both cameras to Unsequenced`
+								: `Delete unused connection between ${nodeLabel(row.fromNodeId)} and ${nodeLabel(row.toNodeId)}`
+						}
+						title={
+							finalPairConnectionIds.has(row.id)
+								? 'Delete the final sequence connection — both cameras return to Unsequenced'
+								: 'Delete this retained connection (its motion is discarded)'
+						}
 						disabled={guidedEditingBlocked}
 						onclick={() => store.deleteConnection(row.id)}
 					><X size={13} aria-hidden="true" /></button>
@@ -737,6 +925,60 @@
 		opacity: 0.25;
 		cursor: default;
 	}
+	/* P1.9 — sidequest list (flat, graph truth) + empty-chain promotion. */
+	.neighbor-list {
+		gap: 0.08rem;
+		margin: 0.1rem 0 0.2rem 1.7rem;
+		padding-left: 0.55rem;
+		border-left: 1px solid #36323a;
+	}
+	.neighbor-line {
+		display: grid;
+		min-width: 0;
+		grid-template-columns: minmax(0, 1fr) auto;
+		align-items: center;
+		gap: 0.1rem;
+	}
+	.neighbor-row {
+		min-height: 1.7rem;
+		padding-block: 0.18rem;
+	}
+	.neighbor-tag {
+		flex: 0 0 auto;
+		padding: 0.05rem 0.34rem;
+		border: 1px solid #4a5a48;
+		border-radius: 999px;
+		color: #8fae8a;
+		font-size: 0.58rem;
+		font-weight: 650;
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
+	}
+	.neighbor-empty {
+		margin: 0.1rem 0 0.2rem 1.7rem;
+		color: #918c84;
+		font-size: 0.66rem;
+	}
+	.start-sequence {
+		display: inline-flex;
+		align-items: center;
+		padding: 0.22rem 0.45rem;
+		border: 1px solid #6f5c31;
+		border-radius: 0.28rem;
+		background: #211e15;
+		color: #e8d5a3;
+		font: inherit;
+		font-size: 0.6rem;
+		cursor: pointer;
+	}
+	.start-sequence:hover:not(:disabled) {
+		border-color: #d6b35f;
+		color: #fff2c7;
+	}
+	.start-sequence:disabled {
+		opacity: 0.25;
+		cursor: default;
+	}
 	.guided-actions button:disabled {
 		opacity: 0.25;
 		cursor: default;
@@ -758,6 +1000,27 @@
 		font-size: 0.64rem;
 		cursor: pointer;
 	}
+	.guided-gap--empty {
+		min-height: 2rem;
+		margin: 0.25rem 0;
+		padding: 0.2rem;
+		border: 1px dashed #6f5c31;
+		border-radius: 0.25rem;
+		color: #9f8c5b;
+		font-size: 0.62rem;
+	}
+	.guided-gap--empty button {
+		width: 100%;
+		padding: 0.2rem 0.4rem;
+		border: 0;
+		background: transparent;
+		color: #d9c27f;
+		font: inherit;
+		font-size: 0.64rem;
+		cursor: pointer;
+	}
+	.guided-gap--empty button:hover:not(:disabled) { color: #fff2c7; }
+	.guided-gap--empty button:disabled { opacity: 0.4; cursor: default; }
 	.guided-gap--dragging {
 		min-height: 1.5rem;
 		border: 1px dashed #6f5c31;

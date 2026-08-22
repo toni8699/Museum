@@ -181,7 +181,7 @@
 					{#if nodeOrder !== null}
 						<span class="order-badge">#{nodeOrder}</span>
 					{:else}
-						<span class="free-badge">Unsequenced</span>
+						<span class="unsequenced-badge">Unsequenced</span>
 					{/if}
 				</dd>
 			</div>
@@ -369,7 +369,7 @@
 	.label-field { display: flex; flex-direction: column; gap: 0.3rem; }
 	.label-field input { width: 100%; box-sizing: border-box; padding: 0.42rem; border: 1px solid #3a3a46; border-radius: 0.3rem; background: #101016; color: #f4efe4; }
 	.order-badge { align-self: flex-start; padding: 0.14rem 0.5rem; border: 1px solid #8d753c; border-radius: 999px; background: #2a2618; color: #f4dc9b; font-size: 0.68rem; font-weight: 650; }
-	.free-badge { align-self: flex-start; padding: 0.14rem 0.5rem; border: 1px dashed #6d687e; border-radius: 999px; color: #b7b1a4; font-size: 0.66rem; }
+	.unsequenced-badge { align-self: flex-start; padding: 0.14rem 0.5rem; border: 1px dashed #6d687e; border-radius: 999px; color: #b7b1a4; font-size: 0.66rem; }
 	.xz-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.45rem; }
 	.topology { display: grid; grid-template-columns: 1fr; gap: 0.35rem; }
 	button { padding: 0.42rem 0.4rem; border: 1px solid #3a3a46; border-radius: 0.3rem; background: #1a1a22; color: #ddd6ca; font: inherit; font-size: 0.72rem; cursor: pointer; }

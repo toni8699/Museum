@@ -1,10 +1,6 @@
 import type { NavigationGraph } from '$lib/content/scene';
 import type { CameraConnectionDirection } from '$lib/types/museum';
-import { createCameraMotion } from '$lib/museum/navigation/camera-motion';
-import {
-	getCameraConnectionRoute,
-	getCameraMotionOptions
-} from '$lib/museum/navigation/camera-route';
+import { resolveDirectedEdgeMotionByDirection } from './editor-directed-edge-motion';
 
 /**
  * Pure Camera Plan timing display model (P1.5). Every readout is derived from
@@ -38,11 +34,9 @@ export function resolveCameraConnectionTiming(
 	if (!connection) {
 		throw new Error(`Unknown camera connection: ${connectionId}`);
 	}
-	const motion = createCameraMotion(
-		getCameraConnectionRoute(connectionId, direction, graph),
-		undefined,
-		getCameraMotionOptions(connection, direction)
-	);
+	// P8 S1 — resolve through the shared directed-edge resolver so the Plan
+	// timing readout matches timeline/preview sampling exactly.
+	const motion = resolveDirectedEdgeMotionByDirection(graph, connectionId, direction).motion;
 	const pathLengthMeters = motion.totalPositionDistance;
 	const durationSeconds = motion.durationSeconds;
 	const speedMetersPerSecond =

@@ -24,6 +24,7 @@
 
 import type { LayoutRoomRegistry } from '$lib/project/project-layout-semantics';
 import { cameraSceneConnectionTimingFailureReason } from '$lib/content/scene-codec';
+import { isFlowNode } from '$lib/content/scene';
 import type {
 	MuseumSceneDocument,
 	SceneConnection,
@@ -753,6 +754,68 @@ export class EditorNavigationGraphMutator {
 		return committed;
 	}
 
+	/**
+	 * P1.9 — empty-chain promotion: seed a two-node flow from one unsequenced
+	 * camera and an already-connected unsequenced partner. Manual only —
+	 * connecting 3+ cameras never auto-promotes (confirmed behavior), and a
+	 * one-node flow is invalid (the D4 ≥ 2 floor), so the pair seeds through
+	 * the existing open-pair order links (S10.2 `seedTwoNodeFlow` shape) in
+	 * one document transaction. The clicked row becomes stop 1; its connected
+	 * Unsequenced partner becomes stop 2. No new connection is created — the
+	 * pair must already be connected.
+	 */
+	startSequenceFromNode(nodeId: string) {
+		if (this.host.isRelic) return false;
+		if (!this.#canEditGuidedTour()) return false;
+		if (currentMainFlowNodeIds(this.host.document) !== null) {
+			this.host.setStatusMessage('A camera flow already exists');
+			return false;
+		}
+		const node = this.host.document.navigationNodes.find(
+			(candidate) => candidate.id === nodeId
+		);
+		if (!node || isFlowNode(node) || node.detourOfNodeId !== undefined) {
+			this.host.setStatusMessage('Choose an Unsequenced camera to start the sequence');
+			return false;
+		}
+		const partner = this.host.document.connections
+			.map((connection) => {
+				if (connection.fromNodeId === node.id) return connection.toNodeId;
+				if (connection.toNodeId === node.id) return connection.fromNodeId;
+				return null;
+			})
+			.filter((candidateId): candidateId is string => candidateId !== null)
+			.map((candidateId) =>
+				this.host.document.navigationNodes.find(
+					(candidate) => candidate.id === candidateId
+				)
+			)
+			.find(
+				(candidate) =>
+					candidate !== undefined &&
+					!isFlowNode(candidate) &&
+					candidate.detourOfNodeId === undefined
+			);
+		if (!partner) {
+			this.host.setStatusMessage(
+				`${node.label} has no connected Unsequenced camera — connect two cameras first`
+			);
+			return false;
+		}
+		if (!this.host.beginDocumentTransaction()) return false;
+		node.nextNodeId = partner.id;
+		partner.previousNodeId = node.id;
+		if (!this.host.commitDocumentTransaction()) return false;
+		// Use the normal selection orchestration after the document commit so
+		// Start Sequence also cancels latent placement/frame state and keeps the
+		// camera timeline/pose in sync with the newly-created head.
+		this.selectionActions.selectNavigationNode(node.id);
+		this.host.setStatusMessage(
+			`Started the camera flow: ${node.label} → ${partner.label}`
+		);
+		return true;
+	}
+
 	// ===================================================================
 	// Detours (S10.2)
 	// ===================================================================
@@ -777,7 +840,7 @@ export class EditorNavigationGraphMutator {
 		this.#ensureConnectionBetween(originNodeId, headNodeId);
 		if (!this.host.commitDocumentTransaction()) return false;
 		this.host.setStatusMessage(
-			`Detour added at ${detourPlan.originNode.label}: ${head.label}`
+			`Branch added at ${detourPlan.originNode.label}: ${head.label}`
 		);
 		return true;
 	}
@@ -806,7 +869,7 @@ export class EditorNavigationGraphMutator {
 		this.#ensureConnectionBetween(newNode.id, originNodeId);
 		if (!this.host.commitDocumentTransaction()) return false;
 		this.host.setStatusMessage(
-			`Added ${newNode.label} to the detour at ${detourPlan.originNode.label}`
+			`Added ${newNode.label} to the branch at ${detourPlan.originNode.label}`
 		);
 		return true;
 	}
@@ -855,7 +918,7 @@ export class EditorNavigationGraphMutator {
 		delete node.detourOfNodeId;
 		if (!this.host.commitDocumentTransaction()) return false;
 		this.host.setStatusMessage(
-			`Removed ${node.label} from the detour — the camera node is kept as free`
+			`Removed ${node.label} from the branch — the camera node is now Unsequenced`
 		);
 		return true;
 	}
@@ -878,7 +941,7 @@ export class EditorNavigationGraphMutator {
 		}
 		if (!this.host.commitDocumentTransaction()) return false;
 		this.host.setStatusMessage(
-			`Removed the detour at ${detourPlan.originNode.label} — the camera nodes are kept as free`
+			`Removed the branch at ${detourPlan.originNode.label} — the camera nodes are now Unsequenced`
 		);
 		return true;
 	}
@@ -1013,6 +1076,19 @@ export class EditorNavigationGraphMutator {
 		}
 
 		if (!this.host.beginDocumentTransaction()) return false;
+		if (deletionPlan.dissolvesGuidedFlow) {
+			// The final two-node sequence edge is the sequence's only order
+			// membership. Removing it intentionally demotes both endpoints to
+			// Unsequenced while retaining the rest of their authored state.
+			for (const nodeId of [connection.fromNodeId, connection.toNodeId]) {
+				const node = this.host.document.navigationNodes.find(
+					(candidate) => candidate.id === nodeId
+				);
+				if (!node) continue;
+				delete node.nextNodeId;
+				delete node.previousNodeId;
+			}
+		}
 		this.host.document.connections = this.host.document.connections.filter(
 			(candidate) => candidate.id !== connection.id
 		);
@@ -1029,7 +1105,11 @@ export class EditorNavigationGraphMutator {
 		}
 		if (!this.host.commitDocumentTransaction()) return false;
 		this.#clearDeletedConnectionSessionState(new Set([connection.id]));
-		this.host.setStatusMessage(`Deleted camera connection ${connection.id}`);
+		this.host.setStatusMessage(
+			deletionPlan.dissolvesGuidedFlow
+				? `Deleted camera connection ${connection.id} — both cameras are now Unsequenced`
+				: `Deleted camera connection ${connection.id}`
+		);
 		return true;
 	}
 
@@ -1112,7 +1192,7 @@ export class EditorNavigationGraphMutator {
 		this.#clearDeletedConnectionSessionState(incidentConnectionIds);
 		if (nodePlan.detourChainNodeIds && nodePlan.detourChainNodeIds.length > 0) {
 			this.host.setStatusMessage(
-				`Deleted camera node ${nodePlan.node.label} and the detour at ${originLabel}`
+				`Deleted camera node ${nodePlan.node.label} and the branch at ${originLabel}`
 			);
 		} else {
 			this.host.setStatusMessage(`Deleted camera node ${nodePlan.node.label}`);

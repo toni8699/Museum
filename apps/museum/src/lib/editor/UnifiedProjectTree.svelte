@@ -3,12 +3,11 @@
 	//
 	// Rooms come from the layout (document order, via the pure model); clusters
 	// and entities nest under their explicit roomId. Camera Flow embeds the
-	// existing CameraFlowPanel (connections → directions → view keys stay in the
-	// panel internals, unchanged). Selection is domain-driven: picks call the
+	// existing CameraFlowPanel (P1.9: row expansion is a flat neighbor list —
+	// connection detail lives in Connections / Inspector / Timeline).
+	// Selection is domain-driven: picks call the
 	// source APIs the viewport calls, S3's hooks own cross-domain exclusivity,
-	// and the highlight reads `ActiveEditorSelection.active` (plus the store's
-	// camera discovery slots for direction rows — but direction rows render
-	// inside the embedded panel, which already owns that rule).
+	// and the highlight reads `ActiveEditorSelection.active`.
 	import { onMount } from 'svelte';
 	import { EllipsisVertical, Eye, EyeOff, ListFilter, Plus, Scan, Search, Trash2 } from 'lucide-svelte';
 	import { getMuseumAsset } from '$lib/content/assets';
@@ -16,6 +15,7 @@
 	import { formatPlacementLabel } from './editor-outliner';
 	import type { LayoutPreviewState } from './layout/layout-preview-state.svelte';
 	import { deleteLayoutObject, deleteLayoutOpening, deleteLayoutRoom } from './layout/layout-preview-state.svelte';
+	import { layoutMutationRunnerFor, runLayoutMutation } from './layout/layout-mutation-runner';
 	import {
 		selectLayoutInteriorAnchor,
 		selectLayoutObject,
@@ -256,19 +256,45 @@
 		store.deletePlacements([entityId]);
 	}
 
+	// one layout mutation = one undo entry: begin → mutate → commit/cancel.
+	function runLayoutMutationGuarded<T>(mutate: () => T, didSucceed: (result: T) => boolean) {
+		return runLayoutMutation(layoutMutationRunnerFor(store, layoutPreview), mutate, didSucceed);
+	}
+
 	function deleteRoom(roomId: string) {
-		const result = deleteLayoutRoom(layoutPreview, roomId, store.document);
-		if (!result.success) store.setStatusMessage(result.message);
+		const outcome = runLayoutMutationGuarded(
+			() => deleteLayoutRoom(layoutPreview, roomId, store.document),
+			(result) => result.success
+		);
+		if (outcome.kind === 'skipped') {
+			store.setStatusMessage('Finish the current layout interaction first');
+			return;
+		}
+		store.setStatusMessage(outcome.result.success ? 'Deleted room' : outcome.result.message);
 	}
 
 	function deleteObject(objectId: string) {
-		const result = deleteLayoutObject(layoutPreview, objectId);
-		if (!result.success) store.setStatusMessage(result.message);
+		const outcome = runLayoutMutationGuarded(
+			() => deleteLayoutObject(layoutPreview, objectId),
+			(result) => result.success
+		);
+		if (outcome.kind === 'skipped') {
+			store.setStatusMessage('Finish the current layout interaction first');
+			return;
+		}
+		store.setStatusMessage(outcome.result.success ? 'Deleted layout object' : outcome.result.message);
 	}
 
 	function deleteOpening(roomId: string, openingId: string) {
-		const result = deleteLayoutOpening(layoutPreview, roomId, openingId);
-		if (!result.success) store.setStatusMessage(result.message);
+		const outcome = runLayoutMutationGuarded(
+			() => deleteLayoutOpening(layoutPreview, roomId, openingId),
+			(result) => result.success
+		);
+		if (outcome.kind === 'skipped') {
+			store.setStatusMessage('Finish the current layout interaction first');
+			return;
+		}
+		store.setStatusMessage(outcome.result.success ? 'Deleted opening' : outcome.result.message);
 	}
 
 	function toggleEntityHidden(entityId: string) {
@@ -673,7 +699,7 @@
 			{#if store.document.navigationNodes.length === 0}
 				<p class="empty">No cameras</p>
 			{:else}
-				<CameraFlowPanel {store} interactive={cameraInteractive} activeDomain={active.domain} />
+				<CameraFlowPanel {store} interactive={cameraInteractive} />
 			{/if}
 		{/if}
 	</div>

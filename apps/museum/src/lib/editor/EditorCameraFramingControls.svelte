@@ -25,13 +25,12 @@
 	} from './editor-camera-framing-envelope';
 	import {
 		cameraMotionProgressAtEdgeProgress,
-		createCameraMotion,
 		createCameraMotionSample,
 		sampleCameraMotion,
 		readCameraFramingGuardStatus,
 		type CameraMotion
 	} from '$lib/museum/navigation/camera-motion';
-	import { getCameraConnectionRoute, getCameraMotionOptions } from '$lib/museum/navigation/camera-route';
+	import { resolveDirectedEdgeMotionByDirection } from './editor-directed-edge-motion';
 	import EditorNumberField from './EditorNumberField.svelte';
 
 	let {
@@ -105,11 +104,8 @@
 	 */
 	const resolvedMotion = $derived.by((): CameraMotion | null => {
 		if (!graph || keyCount === 0) return null;
-		const graphConnection = graph.connections.find((c) => c.id === connection.id);
-		if (!graphConnection) return null;
 		try {
-			const route = getCameraConnectionRoute(connection.id, direction, graph);
-			return createCameraMotion(route, undefined, getCameraMotionOptions(graphConnection, direction));
+			return resolveDirectedEdgeMotionByDirection(graph, connection.id, direction).motion;
 		} catch {
 			return null;
 		}

@@ -493,24 +493,68 @@ single default `--editor-accent` maps to the Scene accent.
 
 ---
 
-# 8. Transform-axis colors
+# 8. Transform-axis and Scene 3D overlay colors
 
-Reserve strong RGB colors for spatial axes:
+Reserve strong RGB colors for spatial axes. These values are shared by the
+Scene 3D transform gizmo, the upper-right orientation box, axis labels, and
+axis-specific Inspector inputs:
 
 ```css
---editor-axis-x: #F05252;
---editor-axis-y: #45C878;
---editor-axis-z: #3B82F6;
+--editor-axis-x: #F05252; /* X — red */
+--editor-axis-y: #45C878; /* Y — green */
+--editor-axis-z: #3B82F6; /* Z — blue */
 ```
 
-Use them in:
+Use the same values everywhere an axis is represented. Do not use these exact
+saturated colors as general application decoration.
 
-* transform gizmos
-* X/Y/Z labels
-* orientation cube
-* axis-specific Inspector inputs
+## Scene 3D overlay aliases
 
-Do not use these exact saturated colors as general application decoration.
+The PNGs use a quiet dark viewport with blue selection feedback and bright RGB
+axis accents. Keep those semantics in named tokens rather than hardcoding
+colors in SVG, DOM, or Three.js materials:
+
+```css
+--editor-gizmo-x:                 #F05252;
+--editor-gizmo-y:                 #45C878;
+--editor-gizmo-z:                 #3B82F6;
+--editor-gizmo-active:            #2F8CFF;
+--editor-gizmo-hover:             #55A1FF;
+
+--editor-selection-outline:       #2F8CFF;
+--editor-selection-outline-hover: #55A1FF;
+--editor-selection-fill:          rgba(47, 140, 255, 0.10);
+--editor-selection-handle:        #EDF3F8;
+--editor-outline-muted:           #92908A;
+--editor-layout-box:              #92908A;
+--editor-layout-box-hover:        #77766F;
+
+--editor-orientation-surface:     #0D1925;
+--editor-orientation-hover:       #142230;
+--editor-orientation-border:      #32485A;
+--editor-orientation-label:       #EDF3F8;
+```
+
+`--editor-selection-outline` is the primary Scene 3D object outline and
+`--editor-layout-box` is reserved for passive/context geometry. The aliases
+must resolve to the same canonical palette in §37. P3 may change their visual
+presentation and state styling; P3 must not change transform, selection, or
+camera semantics.
+
+## Orientation-box sizing tokens
+
+The custom orientation graphic is a compact viewport utility, not a panel:
+
+```css
+--editor-orientation-size:        88px;
+--editor-orientation-inset-top:   16px;
+--editor-orientation-inset-right: 16px;
+--editor-orientation-padding:      8px;
+--editor-orientation-label-size:  11px;
+```
+
+These are reference values for matching `Scene-3D.png`; visual QA may tune
+sub-pixel geometry without changing the top-right placement or token mapping.
 
 ---
 
@@ -1237,29 +1281,106 @@ The generated Camera 3D concepts demonstrate this hierarchy: rich museum remains
 
 ---
 
+# 28A. Scene 3D gizmo, selection outlines, and orientation box
+
+`Design-png/Scene/Scene-3D.png`, `Scene-3D-2.png`, and
+`Scene-3D-assets.png` are the visual references for Scene → 3D. They define
+composition, visual emphasis, and overlay treatment; the existing Scene
+selection and transform contracts remain behaviorally authoritative.
+
+## Selected-object transform and scale gizmo
+
+The selected-object gizmo is an authoring overlay owned by **Scene → 3D**:
+
+* show it only for the current selected Scene object and the active
+  Select/Move/Rotate/Scale context;
+* keep it aligned to the selected object's rotation-aware bounds and centered
+  on its active pivot;
+* use the RGB axis mapping from §8 for X/Y/Z handles and the primary blue
+  tokens for active/hover emphasis;
+* present independent X/Y/Z scale handles and a visually distinct uniform
+  center affordance when Scale is active; the presentation must reflect the
+  current uniform/independent scale state;
+* keep the gizmo visually above the object outline but below menus, Inspector
+  chrome, and the separate orientation utility.
+
+P3 owns the cosmetic match: handle proportions, line weight, opacity, axis
+colors, active/hover treatment, and scale-chain presentation. P3 does **not**
+change local/world space, snapping, pointer capture, independent versus
+uniform scale semantics, selected-object identity, or one-gesture/one-history
+behavior. Plan never gains this 3D gizmo or a Plan scaling gesture.
+
+## Selection and object/layout boxes
+
+Selection feedback is layered and must not be confused with hover or context:
+
+| State | Scene 3D treatment | Plan/layout treatment |
+|---|---|---|
+| Passive/context | no transform gizmo; no selection color | muted or dashed `--editor-layout-box` / `--editor-plan-readonly` |
+| Hover | thin `--editor-selection-outline-hover`; no gizmo and no selection fill | stronger context stroke; bridge affordance only where the active mode allows it |
+| Selected | rotation-aware `--editor-selection-outline`, optional light inner/bounds line, and transform gizmo | `--editor-plan-selection` stroke and only the handles allowed by Layout or Staging |
+| Multi-selected | same blue outline language with a clear group/bounds treatment | shared selection treatment without activating Scene 3D controls |
+
+The object outline is an OBB/rotation-aware visual boundary, not a second
+selection store. Hover must never look selected, and the orientation box must
+never select an object. Layout boxes and passive Scene Plan footprints remain
+read-only outside their owning mode. P3 owns color, stroke, dash, opacity,
+layering, and spacing reconciliation; existing selection priority and
+selection continuity remain frozen.
+
+## Upper-right XYZ orientation box
+
+The orientation box is a custom SVG/DOM viewport utility, not a Lucide icon,
+not the selected-object gizmo, and not a local/world space switch:
+
+* place it in the **upper-right corner of the Scene → 3D viewport**, with the
+  §8 inset/size tokens and no bottom-left fallback;
+* render a compact isometric cube/axis construction with visible X/Y/Z labels,
+  crisp axis edges, and the canonical red/green/blue mapping;
+* use the quiet dark orientation surface and border tokens so the graphic reads
+  over a rich museum scene without becoming a second toolbar;
+* keep the widget visually separate from TransformControls, object outlines,
+  Inspector chrome, and viewport edge controls;
+* style hover, pressed, disabled, and focus-visible states with the shared
+  editor tokens even while the P3 implementation remains non-interactive.
+
+P3 owns the graphic, top-right placement, dimensions, spacing, axis colors,
+label treatment, and state styling. **P3B** enables the input contract: the
+camera-following orientation state, click/keyboard activation of visible axes
+or faces, canonical camera snap, isolated hit testing, and no-drag behavior.
+P3B must not select an object, mutate `SceneDocument`, create history, or
+change the current selection when the box is activated. The widget is visible
+and interactive only in Scene → 3D; it is absent from both Scene Plan modes,
+Camera Plan, and Camera 3D.
+
+---
+
 # 29. Selection hierarchy
 
-Selection should be obvious without overpowering scene content.
+Selection should be obvious without overpowering scene content. The hierarchy
+below is a visual contract; it does not create a second selection model.
 
 3D object:
 
 ```text
-thin blue outline
-optional white/blue bounding box
-transform gizmo
+hover:    thin --editor-selection-outline-hover, no gizmo
+selected: thin --editor-selection-outline
+          optional light/blue bounding box
+          active transform gizmo
 ```
 
 Plan object:
 
 ```text
-blue stroke
-small blue/white handles
+passive/context: dashed --editor-layout-box or --editor-plan-readonly
+selected:        --editor-plan-selection stroke
+                 small blue/white handles allowed by the active mode
 ```
 
 Tree:
 
 ```text
-blue-soft row
+--editor-accent-soft row
 ```
 
 Inspector:
@@ -1273,6 +1394,13 @@ Timeline:
 ```text
 matching blue selection
 ```
+
+Hover must remain visually distinct from selection. A selected Scene 3D
+object may show its gizmo and outline together; a hovered object never gains
+transform handles. Scene Plan Layout may show passive scene footprints but
+cannot activate Scene selection, while Staging may show the selected footprint
+and its Plan rotation handle. P3 owns these colors, strokes, dashes, opacity,
+and spacing; P2/P3B own the interaction and authority contracts.
 
 Same Camera selection must appear consistently in:
 
@@ -1544,6 +1672,28 @@ Example:
   --editor-accent:          #2F8CFF;
   --editor-accent-hover:    #55A1FF;
   --editor-accent-pressed:  #1976DF;
+
+  --editor-axis-x:          #F05252;
+  --editor-axis-y:          #45C878;
+  --editor-axis-z:          #3B82F6;
+  --editor-gizmo-active:    #2F8CFF;
+  --editor-gizmo-hover:     #55A1FF;
+
+  --editor-selection-outline:       #2F8CFF;
+  --editor-selection-outline-hover: #55A1FF;
+  --editor-selection-fill:          rgba(47, 140, 255, 0.10);
+  --editor-selection-handle:        #EDF3F8;
+  --editor-outline-muted:           #92908A;
+  --editor-layout-box:              #92908A;
+  --editor-layout-box-hover:        #77766F;
+
+  --editor-orientation-surface:     #0D1925;
+  --editor-orientation-hover:       #142230;
+  --editor-orientation-border:      #32485A;
+  --editor-orientation-label:       #EDF3F8;
+  --editor-orientation-size:        88px;
+  --editor-orientation-inset-top:   16px;
+  --editor-orientation-inset-right: 16px;
 
   --editor-success:         #31C985;
   --editor-warning:         #D9A441;

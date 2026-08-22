@@ -9,6 +9,7 @@
 		createCameraMotion,
 		type CameraMotion
 	} from '$lib/museum/navigation/camera-motion';
+	import { resolveDirectedEdgeMotionByDirection } from './editor-directed-edge-motion';
 	import { T, useTask, useThrelte } from '@threlte/core';
 	import { OrbitControls } from '@threlte/extras';
 	import {
@@ -374,7 +375,17 @@
 			} else {
 				const route = store.getCapturedCameraPreviewRoute(preview.runId);
 				if (!route) throw new Error('Camera preview route capture is unavailable');
-				activeMotion = createCameraMotion(route);
+				// P8 S1 parity — exact-edge previews sample with authored
+				// timing/easing; legacy transition routes keep bare compilation.
+				activeMotion =
+					preview.kind === 'connection'
+						? resolveDirectedEdgeMotionByDirection(
+								graph,
+								preview.connectionId,
+								preview.direction,
+								{ route }
+							).motion
+						: createCameraMotion(route);
 				director.sampleMotion(preview, preview.playhead, activeMotion);
 			}
 			applyPausedFramingOverride(preview);

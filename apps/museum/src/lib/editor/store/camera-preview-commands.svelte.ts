@@ -40,6 +40,7 @@ import { getNode, type MuseumSceneDocument, type SceneConnection, type RuntimeMu
 import type { MuseumStateStore } from '$lib/state/museum-state.svelte';
 import { getCameraConnectionRoute, getCameraRoute, type ResolvedCameraRoute } from '$lib/museum/navigation/camera-route';
 import { cameraMotionProgressAtEdgeProgress, createCameraMotion } from '$lib/museum/navigation/camera-motion';
+import { resolveDirectedEdgeMotionByDirection } from '../editor-directed-edge-motion';
 import { cameraTimelineEdgePlayheadAtProgress, cameraTimelineProgressAtEdgeProgress, type EditorCameraTimeline } from '../editor-camera-timeline';
 import { seedEmptyReverseViewTrack, syncReverseViewTrackFromForward } from '../editor-camera-view';
 import type { EditorCameraSelection, EditorNavigationSelection } from '../editor-selection';
@@ -651,7 +652,17 @@ export class EditorCameraPreviewCommands {
 		} else {
 			const route = this.getCapturedCameraPreviewRoute(preview.runId);
 			if (!route) return false;
-			const motion = createCameraMotion(route);
+			// P8 S1 parity — connection previews step with authored timing/easing
+			// applied; legacy multi-edge transition routes keep bare compilation.
+			const motion =
+				preview.kind === 'connection'
+					? resolveDirectedEdgeMotionByDirection(
+							host.state.graph,
+							preview.connectionId,
+							preview.direction,
+							{ route }
+						).motion
+					: createCameraMotion(route);
 			for (const [edgeIndex, edge] of motion.positionEdgeSpans.entries()) {
 				breakpoints.push(cameraMotionProgressAtEdgeProgress(motion, edgeIndex, 0));
 				breakpoints.push(cameraMotionProgressAtEdgeProgress(motion, edgeIndex, 1));

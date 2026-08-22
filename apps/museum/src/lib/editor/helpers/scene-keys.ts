@@ -40,9 +40,9 @@ export function viewKeyframeHelperKey(
 
 /**
  * Stable `${connectionId}::${direction}` key for Camera workspace tree
- * expansion. Single source of truth shared by
- * `MuseumEditorStore.toggleCameraDirectionTreeExpansion` (tree expand
- * writes) and `EditorNavigationGraphMutator` (delete-time key parsing).
+ * expansion. Single source of truth shared by the facade re-export
+ * (public-surface preservation) and `EditorNavigationGraphMutator`
+ * (delete-time key parsing of stale session keys).
  *
  * Slice 3 of the Priority-1 file-split refactor moves this helper out of
  * the facade so both call sites import from one place.

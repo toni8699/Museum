@@ -326,6 +326,8 @@ ghost-placement slice.
 * Camera envelope controls
 * (Staging) Camera nodes, camera graph, guided sequence, or Camera Plan's
   selection domain
+* a Scene 3D TransformControls gizmo or 3D orientation box in either Scene
+  Plan mode
 
 Scene Plan is 2D scene authoring, not camera authoring.
 
@@ -368,6 +370,71 @@ The composed museum scene:
 * visibility editing
 * shadow settings
 * placement/surface behavior
+
+## Scene 3D overlay contract
+
+The Scene 3D references (`Scene-3D.png`, `Scene-3D-2.png`, and
+`Scene-3D-assets.png`) define the visual target for object selection and
+spatial overlays. They do not create a second document or selection model.
+
+### Selected-object transform and scale gizmo
+
+The selected-object TransformControls gizmo is available only in **Scene →
+3D**:
+
+* it follows the active Select/Move/Rotate/Scale context and the selected
+  object's rotation-aware bounds and pivot;
+* X/Y/Z handles use the canonical red/green/blue values from
+  [`Design-specs.md` §8](./Design-specs.md#8-transform-axis-and-scene-3d-overlay-colors);
+* Scale presents independent X/Y/Z handles and a distinct uniform center
+  affordance when the current scale mode is uniform;
+* the gizmo sits above the selected object's outline but remains below shell
+  chrome and separate from the upper-right orientation utility.
+
+P3 owns the cosmetic match to the PNG: handle proportions, line weight,
+opacity, active/hover colors, scale-chain presentation, and layering. P3 does
+not change local/world space, snapping, pointer capture, selected identity,
+uniform/independent scale semantics, or history behavior. Scene Plan never
+gets this 3D gizmo or a Plan scaling gesture.
+
+### Object selection and layout boxes
+
+Scene 3D selection presentation is stateful but selection authority stays with
+the canonical Scene selection:
+
+| State | Scene 3D | Scene Plan |
+|---|---|---|
+| Passive/context | no gizmo; muted context geometry | dashed/muted layout or scene footprint box |
+| Hover | thin blue hover outline; no gizmo or selection fill | stronger passive stroke or Layout → Staging bridge affordance |
+| Selected | blue rotation-aware object outline, optional light bounds line, and gizmo | blue selected footprint/architecture stroke with only mode-allowed handles |
+
+Hover must not look selected. Layout boxes and passive Scene Plan footprints
+are not Scene selection, and Staging handles cannot leak into Layout. P3 owns
+colors, strokes, dashes, opacity, spacing, and visual state treatment; P2
+owns Plan authority and P3B does not change object-selection semantics.
+
+### Upper-right XYZ orientation box
+
+The orientation box is a custom SVG/DOM view utility, not a transform gizmo,
+local/world switch, or selection target:
+
+* place it in the **upper-right of the Scene → 3D viewport**, using the
+  `--editor-orientation-*` size, inset, surface, border, and label tokens;
+* render the compact cube/axis construction with visible X/Y/Z labels and the
+  canonical axis colors; keep it crisp over the rich scene without becoming a
+  second toolbar;
+* keep it separate from TransformControls, object outlines, Inspector chrome,
+  and viewport-edge controls;
+* render its hover, pressed, disabled, and focus-visible states in P3 even
+  though P3 does not add input behavior.
+
+P3 owns the graphic, top-right placement, dimensions, spacing, color tokens,
+and state styling. Post-P3 **P3B** owns the camera-following orientation
+state, isolated pointer/keyboard hit targets, click-to-snap axis/face
+activation, selection preservation, no document/history mutation, and the
+explicit no-drag-orbit rule. The widget is present and interactive only in
+Scene → 3D; it is absent from Scene Plan Layout/Staging, Camera Plan, and
+Camera 3D.
 
 ## Context toolbar
 
@@ -600,4 +667,9 @@ returning to Staging restores the selected Scene entity where practical
 ```
 
 This avoids destructive selection resets while preserving mode authority.
+
+The Scene 3D outline and gizmo are view-scoped presentation. Returning to
+Scene Plan may preserve the logical Scene identity, but it must never carry a
+3D gizmo, 3D orientation-box input target, or 3D scale gesture into Layout or
+Staging.
 

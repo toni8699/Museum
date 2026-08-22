@@ -252,6 +252,7 @@
 
 	function cancelActiveLayoutDrag() {
 		if (dragSnapshot) restoreLayoutPreviewSnapshot(preview, dragSnapshot);
+		onLayoutTransactionCancel();
 		clearActiveLayoutDrag();
 		suppressNextClick = true;
 	}
@@ -276,6 +277,10 @@
 	function beginPendingWallBend(event: PointerEvent) {
 		const pending = pendingWallBend;
 		if (!pending || pending.pointerId !== event.pointerId) return;
+		if (!onLayoutTransactionBegin()) {
+			pendingWallBend = null;
+			return;
+		}
 		dragSnapshot = captureLayoutPreviewSnapshot(preview);
 		const inserted = insertLayoutWallInteriorAnchor(
 			preview,
@@ -289,6 +294,7 @@
 			return;
 		}
 		dragSnapshot = null;
+		onLayoutTransactionCancel();
 	}
 
 	function onPointerDown(event: PointerEvent) {
@@ -324,6 +330,7 @@
 		if (isPrimitiveTool(interaction.tool)) {
 			const snapped = draftPoint(event, null);
 			if (!snapped || !svgElement) return;
+			if (!onLayoutTransactionBegin()) return;
 			pointerId = event.pointerId;
 			svgElement.setPointerCapture(event.pointerId);
 			const allowedRoomIds = new Set((preview.project.layout.floors[0]?.rooms ?? []).map((room) => room.id));
@@ -361,6 +368,7 @@
 			if (!room) return;
 			selectLayoutRoom(interaction, target.roomId);
 			if (svgElement) {
+				if (!onLayoutTransactionBegin()) return;
 				pointerId = event.pointerId;
 				svgElement.setPointerCapture(event.pointerId);
 				beginRoomEdit(interaction, 'vertex', target.roomId, point, roomVertices(room), target.vertexIndex);
@@ -368,6 +376,7 @@
 			return;
 		}
 		if (target.kind === 'interiorAnchor') {
+			if (!onLayoutTransactionBegin()) return;
 			beginInteriorAnchorDrag(event, target.roomId, target.segmentId, target.anchorId);
 			return;
 		}
@@ -376,6 +385,7 @@
 			const opening = room?.openings.find((candidate) => candidate.id === target.openingId);
 			selectLayoutOpening(interaction, target.roomId, target.segmentId, target.openingId);
 			if (svgElement) {
+				if (!onLayoutTransactionBegin()) return;
 				dragSnapshot = captureLayoutPreviewSnapshot(preview);
 				openingDrag = {
 					roomId: target.roomId,
@@ -392,6 +402,7 @@
 			const object = model.objects.find((candidate) => candidate.objectId === target.objectId);
 			selectLayoutObject(interaction, target.objectId);
 			if (object && !object.readonly && svgElement) {
+				if (!onLayoutTransactionBegin()) return;
 				pointerId = event.pointerId;
 				svgElement.setPointerCapture(event.pointerId);
 				beginLayoutObjectDrag(interaction, target.objectId, object.position);
@@ -527,6 +538,7 @@
 			interiorAnchorPointerId = null;
 			draggedInteriorAnchor = null;
 			dragSnapshot = null;
+			onLayoutTransactionCommit();
 			suppressNextClick = true;
 			svgElement?.releasePointerCapture(event.pointerId);
 			return;
@@ -538,6 +550,7 @@
 			const draft = interaction.primitiveDraft;
 			if (!draft?.valid || !draft.roomId) {
 				preview.statusMessage = 'Choose a non-zero gesture inside a first-floor room';
+				onLayoutTransactionCancel();
 			} else {
 				const result = commitLayoutPrimitive(
 					preview,
@@ -550,8 +563,10 @@
 				if (result.success) {
 					selectLayoutObject(interaction, result.objectId);
 					preview.statusMessage = `Created ${draft.kind} object`;
+					onLayoutTransactionCommit();
 				} else {
 					preview.statusMessage = result.message;
+					onLayoutTransactionCancel();
 				}
 			}
 			cancelLayoutPrimitiveDraft(interaction);
@@ -575,9 +590,19 @@
 			const result = updateLayoutObjectFields(preview, drag.objectId, {
 				position: drag.candidatePosition
 			});
+			if (result.success) onLayoutTransactionCommit();
+			else onLayoutTransactionCancel();
 			cancelLayoutObjectDrag(interaction);
 			pointerId = null;
 			preview.statusMessage = result.success ? 'Moved layout object' : result.message;
+			svgElement?.releasePointerCapture(event.pointerId);
+			return;
+		}
+		if (openingDrag) {
+			onLayoutTransactionCommit();
+			openingDrag = null;
+			dragSnapshot = null;
+			pointerId = null;
 			svgElement?.releasePointerCapture(event.pointerId);
 			return;
 		}
@@ -593,13 +618,16 @@
 		}
 		if (interaction.tool === 'select' && interaction.editing) {
 			const edit = interaction.editing;
-			commitLayoutRoomEdit(preview, edit.roomId, edit.currentPoints);
+			const result = commitLayoutRoomEdit(preview, edit.roomId, edit.currentPoints);
+			if (result.success) onLayoutTransactionCommit();
+			else onLayoutTransactionCancel();
 			cancelRoomEdit(interaction);
 		}
 	}
 
 	function onPointerCancel(event: PointerEvent) {
 		if (interaction.primitiveDraft && pointerId === event.pointerId) {
+			onLayoutTransactionCancel();
 			cancelLayoutPrimitiveDraft(interaction);
 			pointerId = null;
 		}
@@ -608,6 +636,19 @@
 			cancelLayoutRoomUnitDrag(interaction);
 			roomUnitSnapshot = null;
 			rotationHoverScreen = null;
+			pointerId = null;
+		}
+		if (interaction.objectDrag && pointerId === event.pointerId) {
+			onLayoutTransactionCancel();
+			cancelLayoutObjectDrag(interaction);
+			pointerId = null;
+		}
+		if (interiorAnchorPointerId === event.pointerId || (openingDrag && pointerId === event.pointerId)) {
+			cancelActiveLayoutDrag();
+		}
+		if (interaction.editing && pointerId === event.pointerId) {
+			onLayoutTransactionCancel();
+			cancelRoomEdit(interaction);
 			pointerId = null;
 		}
 		if (svgElement?.hasPointerCapture(event.pointerId)) svgElement.releasePointerCapture(event.pointerId);
@@ -669,11 +710,13 @@
 				return;
 			}
 			if (interaction.objectDrag) {
+				onLayoutTransactionCancel();
 				cancelLayoutObjectDrag(interaction);
 				pointerId = null;
 				return;
 			}
 			if (interaction.primitiveDraft) {
+				onLayoutTransactionCancel();
 				cancelLayoutPrimitiveDraft(interaction);
 				pointerId = null;
 				return;
@@ -682,6 +725,7 @@
 				setLayoutDraftTool(interaction, 'select');
 				return;
 			}
+			onLayoutTransactionCancel();
 			clearLayoutDraft(interaction);
 			cancelRoomEdit(interaction);
 			return;
@@ -693,6 +737,10 @@
 		) {
 			event.preventDefault();
 			const selection = interaction.selection;
+			if (!onLayoutTransactionBegin()) {
+				preview.statusMessage = 'Finish the current layout interaction first';
+				return;
+			}
 			const result = deleteLayoutWallInteriorAnchor(
 				preview,
 				selection.roomId,
@@ -700,7 +748,11 @@
 				selection.anchorId
 			);
 			if (result.success) {
+				onLayoutTransactionCommit();
 				selectLayoutWall(interaction, selection.roomId, selection.segmentId);
+			} else {
+				onLayoutTransactionCancel();
+				preview.statusMessage = result.message;
 			}
 			return;
 		}
@@ -711,8 +763,17 @@
 		}
 		if ((event.key === 'Delete' || event.key === 'Backspace') && interaction.tool === 'select' && interaction.selection.kind === 'object') {
 			event.preventDefault();
+			if (!onLayoutTransactionBegin()) {
+				preview.statusMessage = 'Finish the current layout interaction first';
+				return;
+			}
 			const result = deleteLayoutObject(preview, interaction.selection.objectId);
-			if (result.success) clearLayoutSelection(interaction);
+			if (result.success) {
+				onLayoutTransactionCommit();
+				clearLayoutSelection(interaction);
+			} else {
+				onLayoutTransactionCancel();
+			}
 			preview.statusMessage = result.success ? 'Deleted layout object' : result.message;
 			return;
 		}

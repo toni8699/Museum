@@ -532,9 +532,9 @@ export function getFlowRoute(
   return buildResolvedRoute(chain.head.id, endNodeId, path, graph);
 }
 
-/** Phase 3.7: project a connection's authored timing pair onto per-direction motion options consumed by `createCameraMotion`. */
+/** Phase 3.7: project a connection's authored timing pair onto per-direction motion options consumed by `createCameraMotion`. Accepts persisted (`SceneConnection`) and runtime (`MuseumConnection`) records — only `timing` is read. */
 export function getCameraMotionOptions(
-  connection: MuseumConnection,
+  connection: Pick<MuseumConnection, 'timing'>,
   direction: CameraConnectionDirection
 ): CameraMotionOptions {
   const timing = connection.timing?.[direction];

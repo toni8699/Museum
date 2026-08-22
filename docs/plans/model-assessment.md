@@ -42,12 +42,12 @@ never let it go stale.** Status authority remains the
 
 ## Assessment — active pipeline
 
-Shipped as of 2026-08-20 (not assessed here): **P1.1–P1.5, P6, P7.4.**
+Shipped as of 2026-08-21 (not assessed here): **P1.1–P1.9, P6, P7.4.**
 
 | Increment | Difficulty (req. index) | Capability % | Luna ref | Recommendation | Margin | Status |
 |---|---|---|---|---|---|---|
-| **P1.6** | 56 | 95% | — | Sol high | 0 | open |
-| **P1.7** | 45 | 76% | Luna high | DeepSeek V4 Flash | +1 | open |
+| **P1.6** | 56 | 95% | — | Sol high | 0 | shipped |
+| **P1.7** | 45 | 76% | Luna high | DeepSeek V4 Flash | +1 | shipped |
 | **P2.1** | 48 | 81% | Luna xhigh | DeepSeek V4 Flash | +1 | open |
 | **P2.2** | 53 | 90% | — | Sol medium | +1 | open |
 | **P2.3** | 55 | 93% | — | Sol high | +1 | open |
@@ -55,6 +55,8 @@ Shipped as of 2026-08-20 (not assessed here): **P1.1–P1.5, P6, P7.4.**
 | **P3.1** | 52 | 88% | — | Sol medium | +2 | open |
 | **P3.2** | 51 | 86% | Luna max | DeepSeek V4 Flash (→ Sol medium if typography/icon judgment bites) | 0 | open |
 | **P3.3** | 45 | 76% | Luna high | DeepSeek V4 Flash | +1 | open |
+| **P3.4** | 54 | 92% | — | Sol medium (selection-before-menu + kebab command reuse) | 0 | open |
+| **P3.5** | 52 | 88% | — | Sol medium (depends P8 S2–S4; preview-FSM boundary + guards) | +2 | open |
 | **P4.1** | 54 | 92% | — | Sol medium | 0 | open |
 | **P4.2** | 49 | 83% | Luna xhigh | DeepSeek V4 Flash | 0 | open |
 | **P4.3** | 56 | 95% | — | Sol high | 0 | open |
@@ -67,6 +69,12 @@ Shipped as of 2026-08-20 (not assessed here): **P1.1–P1.5, P6, P7.4.**
 | **P7.2** | 33 | 56% | Luna low | DeepSeek V4 Flash | 0 | open |
 | **P7.3** | 37 | 63% | Luna medium | DeepSeek V4 Flash | +1 | open |
 | **P7.5** | 57 | 97% | — | Sol xhigh | +1 | open |
+| **P8.S1** | 47 | 80% | Luna xhigh | DeepSeek V4 Flash | +2 | shipped |
+| **P8.S2** | 54 | 92% | — | Sol medium | 0 | open |
+| **P8.S3** | 49 | 83% | Luna xhigh | DeepSeek V4 Flash | 0 | open |
+| **P8.S4** | 48 | 81% | Luna xhigh | DeepSeek V4 Flash | +1 | open |
+| **P8.S5** | 46 | 78% | Luna high | DeepSeek V4 Flash | 0 | open |
+| **P8.S6** | 33 | 56% | Luna low | DeepSeek V4 Flash | 0 | open |
 | **D1** | 59 | 100% | — | Sol max | 0 | out of tracker — P4 companion, own plan |
 
 **Capability spread check:** P1.6 (56, 95%) vs P1.7 (45, 76%) — 19% capability

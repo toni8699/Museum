@@ -2128,30 +2128,6 @@ export class MuseumEditorStore {
 		return true;
 	}
 
-	/** Phase 2.1 — toggle a connection's collapsible body in the Camera sidebar tree. */
-	toggleCameraConnectionTreeExpansion(connectionId: string) {
-		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
-		const expanded = this.session.treeExpandedCameraConnectionIds;
-		this.session.treeExpandedCameraConnectionIds = expanded.includes(connectionId)
-			? expanded.filter((candidate) => candidate !== connectionId)
-			: [...expanded, connectionId];
-		return true;
-	}
-
-	/** Phase 2.1 — toggle a Forward/Reverse subsection under a connection. */
-	toggleCameraDirectionTreeExpansion(
-		connectionId: string,
-		direction: CameraConnectionDirection
-	) {
-		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
-		const key = cameraDirectionTreeKey(connectionId, direction);
-		const expanded = this.session.treeExpandedCameraDirectionKeys;
-		this.session.treeExpandedCameraDirectionKeys = expanded.includes(key)
-			? expanded.filter((candidate) => candidate !== key)
-			: [...expanded, key];
-		return true;
-	}
-
 	setTransformInteractionActive(
 		active: boolean,
 		kind: 'placement' | 'camera' | 'anchor' | 'view-target' | 'layout' | null = active
@@ -2341,6 +2317,11 @@ export class MuseumEditorStore {
 	/** Remove one node from the flow (head removal now valid per D1). */
 	removeNodeFromGuidedTour(nodeId: string) {
 		return this.navigationGraphMutator.removeNodeFromGuidedTour(nodeId);
+	}
+
+	/** P1.9 — empty-chain promotion: seed a two-node flow from a connected Unsequenced pair. */
+	startSequenceFromNode(nodeId: string) {
+		return this.navigationGraphMutator.startSequenceFromNode(nodeId);
 	}
 
 	/** S10.2 — branch a free node from a main-route origin (origin–head edge auto-created). */

@@ -28,6 +28,7 @@
 		deleteLayoutOpening,
 		deleteLayoutRoom
 	} from './layout/layout-preview-state.svelte';
+	import { layoutMutationRunnerFor, runLayoutMutation } from './layout/layout-mutation-runner';
 	import type { LayoutOpeningKind } from './layout/layout-opening-editing';
 	import type { MuseumEditorStore } from './museum-editor.svelte';
 	import { resolveEditorPlacementScale } from './scale-vector';
@@ -73,7 +74,15 @@
 	let transformControls = $state<TransformControls>();
 
 	function commitDraftRoom(points: [number, number][]): boolean {
-		const result = commitLayoutDraftRoom(layoutPreview, points);
+		const outcome = runLayoutMutationGuarded(
+			() => commitLayoutDraftRoom(layoutPreview, points),
+			(result) => result.success
+		);
+		if (outcome.kind === 'skipped') {
+			store.setStatusMessage('Finish the current layout interaction first');
+			return false;
+		}
+		const result = outcome.result;
 		if (result.success) {
 			store.setStatusMessage(`Created ${result.roomId}`);
 		} else {
@@ -83,11 +92,18 @@
 	}
 
 	function createOpening(roomId: string, segmentId: string, kind: LayoutOpeningKind, clickOffset: number) {
-		const result = commitLayoutOpening(layoutPreview, roomId, segmentId, kind, clickOffset, layoutInteraction.planView.snapEnabled);
-		if (result.success) {
-			layoutInteraction.selection = { kind: 'opening', roomId, segmentId, openingId: result.openingId };
+		const outcome = runLayoutMutationGuarded(
+			() => commitLayoutOpening(layoutPreview, roomId, segmentId, kind, clickOffset, layoutInteraction.planView.snapEnabled),
+			(result) => result.success
+		);
+		if (outcome.kind === 'skipped') {
+			store.setStatusMessage('Finish the current layout interaction first');
+			return;
 		}
-		store.setStatusMessage(result.success ? `Created ${kind} opening` : `Opening rejected: ${result.message}`);
+		if (outcome.result.success) {
+			layoutInteraction.selection = { kind: 'opening', roomId, segmentId, openingId: outcome.result.openingId };
+		}
+		store.setStatusMessage(outcome.result.success ? `Created ${kind} opening` : `Opening rejected: ${outcome.result.message}`);
 	}
 
 	function beginLayoutTransaction(): boolean {
@@ -102,30 +118,43 @@
 		return store.cancelLayoutTransaction();
 	}
 
+	// one layout mutation = one undo entry: begin → mutate → commit/cancel.
+	function runLayoutMutationGuarded<T>(mutate: () => T, didSucceed: (result: T) => boolean) {
+		return runLayoutMutation(layoutMutationRunnerFor(store, layoutPreview), mutate, didSucceed);
+	}
+
 	function deleteOpening(roomId: string, openingId: string) {
 		const selection = layoutInteraction.selection;
-		const result = deleteLayoutOpening(layoutPreview, roomId, openingId);
-		if (result.success && selection.kind === 'opening' && selection.openingId === openingId) {
+		const outcome = runLayoutMutationGuarded(
+			() => deleteLayoutOpening(layoutPreview, roomId, openingId),
+			(result) => result.success
+		);
+		if (outcome.kind === 'skipped') {
+			store.setStatusMessage('Finish the current layout interaction first');
+			return;
+		}
+		if (outcome.result.success && selection.kind === 'opening' && selection.openingId === openingId) {
 			layoutInteraction.selection = { kind: 'wall', roomId: selection.roomId, segmentId: selection.segmentId };
 		}
-		store.setStatusMessage(result.success ? 'Deleted opening' : `Opening delete failed: ${result.message}`);
+		store.setStatusMessage(outcome.result.success ? 'Deleted opening' : `Opening delete failed: ${outcome.result.message}`);
 	}
 
 	// room deletion: guarded layout transaction + reject-when-
 	// scene-referenced policy. (Unreachable in the relic, which cannot enter
 	// the layout workspace, but kept in parity with the editor shell.)
 	function deleteRoom(roomId: string): boolean {
-		if (!store.beginLayoutTransaction()) {
+		const outcome = runLayoutMutationGuarded(
+			() => deleteLayoutRoom(layoutPreview, roomId, store.document),
+			(result) => result.success
+		);
+		if (outcome.kind === 'skipped') {
 			store.setStatusMessage('Finish the current layout interaction first');
 			return false;
 		}
-		const result = deleteLayoutRoom(layoutPreview, roomId, store.document);
-		if (!result.success) {
-			store.cancelLayoutTransaction();
-			store.setStatusMessage(`Room delete failed: ${result.message}`);
+		if (!outcome.result.success) {
+			store.setStatusMessage(`Room delete failed: ${outcome.result.message}`);
 			return false;
 		}
-		store.commitLayoutTransaction(captureLayoutPreviewSnapshot(layoutPreview));
 		layoutInteraction.selection = { kind: 'none' };
 		store.setStatusMessage('Deleted room');
 		return true;

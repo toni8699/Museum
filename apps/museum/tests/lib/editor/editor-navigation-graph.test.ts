@@ -120,6 +120,29 @@ describe('editor camera graph command validation', () => {
 		);
 	});
 
+	it('allows deleting the final two-node sequence edge and marks the flow for dissolution', () => {
+		const pair = documentClone();
+		for (const node of pair.navigationNodes) {
+			delete node.nextNodeId;
+			delete node.previousNodeId;
+			delete node.detourOfNodeId;
+		}
+		pair.navigationNodes = pair.navigationNodes.filter((node) =>
+			['tour-a', 'tour-b'].includes(node.id)
+		);
+		pair.connections = pair.connections.filter((connection) => connection.id === 'tour-a-b');
+
+		expect(validateConnectionDeletion(pair, 'tour-a-b')).toEqual(
+			expect.objectContaining({ ok: false, code: 'disconnected_graph' })
+		);
+
+		pair.navigationNodes.find((node) => node.id === 'tour-a')!.nextNodeId = 'tour-b';
+		pair.navigationNodes.find((node) => node.id === 'tour-b')!.previousNodeId = 'tour-a';
+		expect(validateConnectionDeletion(pair, 'tour-a-b')).toEqual(
+			expect.objectContaining({ ok: true, dissolvesGuidedFlow: true })
+		);
+	});
+
 	it('allows a free leaf node deletion and rejects deleting a free articulation node', () => {
 		const leaf = documentClone();
 		addFreeNode(leaf, 'free-leaf', 'tour-paris');

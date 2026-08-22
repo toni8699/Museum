@@ -23,14 +23,10 @@
 
 	let {
 		store,
-		layoutPreview,
-		activeDomain = 'none'
+		layoutPreview
 	}: {
 		store: MuseumEditorStore;
 		layoutPreview: LayoutPreviewState;
-		// The S3 active selection domain, forwarded to CameraFlowPanel so its
-		// discovery-driven direction highlight is gated to camera-or-none.
-		activeDomain?: 'layout' | 'scene' | 'camera' | 'none' | null;
 	} = $props();
 
 	const model = $derived(
@@ -123,7 +119,7 @@
 		</ul>
 	{/if}
 
-	<CameraFlowPanel {store} activeDomain={activeDomain} />
+	<CameraFlowPanel {store} />
 </section>
 
 <style>

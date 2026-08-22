@@ -45,9 +45,9 @@
 	bind:this={outlinerElement}
 	class="panel outliner"
 	aria-label="Editor sidebar"
-	inert={store.isDocumentMutationBlocked}
 	style="grid-area: left;"
 >
+	<div class="sidebar-content" inert={store.isDocumentMutationBlocked}>
 	{#if store.currentWorkspace === 'scene'}
 		<div class="panel-tabs" role="tablist" aria-label="Editor panels">
 			<button
@@ -102,8 +102,8 @@
 			<EditorCameraTree {store} />
 		</div>
 	{/if}
+	</div>
 
-	<a class="back" href="/museum">Back to museum</a>
 </aside>
 
 <style>
@@ -116,6 +116,7 @@
 		overflow: auto;
 		background: #121218;
 	}
+	.sidebar-content { display: flex; min-width: 0; min-height: 0; flex: 1; flex-direction: column; gap: 1rem; }
 	.panel-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 0.3rem; }
 	.panel-tabs button { padding: 0.42rem; border: 1px solid #3a3a46; border-radius: 0.32rem; background: #1a1a22; color: #a8a29a; font: inherit; font-size: 0.73rem; cursor: pointer; }
 	.panel-tabs button.active { border-color: #d6b35f; background: #2a2618; color: #fff2c7; }
@@ -134,9 +135,6 @@
 	.layout-actions button:hover { border-color: #d6b35f; }
 	.layout-note { margin: 0; color: #a8a29a; font-size: 0.7rem; line-height: 1.4; }
 	.layout-error { margin: 0; color: #efc7c7; font-size: 0.7rem; line-height: 1.4; }
-	.back { margin-top: auto; color: #d6c7a8; font-size: 0.85rem; text-decoration: none; }
-	.back:hover { text-decoration: underline; }
-
 	@media (max-width: 62rem) {
 		.panel { min-height: 0; max-height: 34rem; border-top: 1px solid #2a2a33; }
 	}

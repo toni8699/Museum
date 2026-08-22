@@ -472,6 +472,31 @@ These controls affect how workspace is viewed.
 
 They should not be confused with authoring modes.
 
+## Scene 3D gizmo and orientation-box contract
+
+The detailed Scene → 3D overlay contract is defined in
+[`Shell-scene-workspaces.md` §7](./Shell-scene-workspaces.md#7-scene--3d) and
+[`Design-specs.md` §28A](./Design-specs.md#28a-scene-3d-gizmo-selection-outlines-and-orientation-box).
+The shell owns exposure and isolation:
+
+* the selected-object Move/Rotate/Scale gizmo is an authoring overlay exposed
+  only in Scene → 3D;
+* the compact XYZ orientation box is a view utility exposed only in Scene → 3D,
+  pinned to the viewport's upper-right corner rather than the bottom-left;
+* the orientation box is not a selection target, transform-space switch, or
+  replacement for TransformControls;
+* the RGB axis mapping is X `#F05252`, Y `#45C878`, Z `#3B82F6`, and the
+  selection/outline language uses the canonical blue tokens in Design-specs §8.
+
+P3 is cosmetic only: it reconciles the PNG-matching geometry, placement,
+colors, line weights, opacity, selection outlines, layout boxes, gizmo handles,
+and widget states without changing authority or input semantics. Post-P3
+**P3B** adds only the orientation-box interaction: camera-following state,
+axis/face click or keyboard activation, canonical camera snap, isolated hit
+testing, selection preservation, no document/history mutation, and no
+widget-drag orbit. P3B does not add Plan scaling or change Scene object
+selection/transform semantics.
+
 ---
 
 # 18. Status Bar
@@ -632,6 +657,10 @@ Legend:
 | Scene object Y     |                   — |         preserved only |                      E |              — |         — |
 | Scene object scale |                   — |   V — projection only |                      E |              — |         — |
 | Scene full rotation |                  — |                    — |                      E |              — |         — |
+| Scene 3D transform gizmo |                — |                    — |                      E |              — |         — |
+| Scene 3D object outline |                   — |                    — |                      E |              — |         — |
+| XYZ orientation box (visual) |               — |                    — |                      V |              — |         — |
+| XYZ orientation box (input, P3B) |           — |                    — |                      E |              — |         — |
 | Add scene asset    | existing workflows only | no 2D placement in P2 v1 |     E |              — |         — |
 | Asset Library      |                 E/C |                 E/C  |                      E |              — |         — |
 | Scene Hierarchy    |                   E |                    E |                      E |              — |         — |
@@ -665,6 +694,11 @@ Camera timeline appears.
 **Scene Plan — Layout**
 
 A passive scene footprint activates Scene editing.
+
+**Scene Plan — Layout / Staging**
+
+A Scene 3D TransformControls gizmo or XYZ orientation-box input target
+appears in either Plan mode, or Plan exposes a 3D scaling gesture.
 
 **Scene Plan — Staging**
 
@@ -841,6 +875,20 @@ commit exactly one tagged `scene` history entry per completed gesture.
 
 Verify layout room motion never silently moves Scene furniture.
 
+### S. Scene 3D visual overlay contract
+
+Verify Scene 3D uses the canonical RGB axis tokens, blue selected/hovered
+outline states, rotation-aware object boxes, and the separate selected-object
+transform gizmo. Verify P3 visual work does not alter selection authority,
+scale semantics, pointer priority, or history.
+
+### T. Orientation-box interaction contract
+
+Verify the XYZ orientation box is upper-right and Scene 3D-only; after P3B,
+axis/face click or keyboard activation changes only the camera view, preserves
+selection, cannot be dragged to orbit, and creates no document/history entry.
+Verify its hit targets do not compete with object selection or TransformControls.
+
 ---
 
 # 25. Recommended Shell State Model for Review
@@ -900,6 +948,21 @@ select statue
 → switch Plan
 project remains same scene
 ```
+
+### Scene 3D gizmo and orientation utility
+
+```text
+Scene 3D
+select statue
+→ blue outline + selected-object transform gizmo
+→ use upper-right XYZ box
+camera view snaps/follows as specified
+→ statue remains selected
+→ SceneDocument/history unchanged by the widget
+```
+
+The orientation box is not present in Scene Plan or Camera workspaces, and
+Plan staging never exposes a 3D scale gizmo.
 
 ### Scene Plan mode continuity
 

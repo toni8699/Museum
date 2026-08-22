@@ -69,9 +69,9 @@
 	bind:this={outlinerElement}
 	class="panel outliner"
 	aria-label="Editor sidebar"
-	inert={store.isDocumentMutationBlocked}
 	style="grid-area: left;"
 >
+	<div class="sidebar-content" inert={store.isDocumentMutationBlocked}>
 	{#if showHeaderStrip}
 		<div class="header-strip" aria-label="Layout preview source">
 			<span class="source-badge">
@@ -107,11 +107,7 @@
 		     (Environment · Sequence Inspector · Unsequenced · Connections),
 		     fading in via the shared shell transition on its root. -->
 		<div class="panel-content">
-			<CameraSidebar
-				{store}
-				{layoutPreview}
-				activeDomain={activeSelection.active.domain}
-			/>
+			<CameraSidebar {store} {layoutPreview} />
 		</div>
 	{:else}
 		<!-- Both panels stay mounted; the inactive one is hidden by class so the
@@ -133,8 +129,8 @@
 			</div>
 		{/if}
 	{/if}
+	</div>
 
-	<a class="back" href="/museum">Back to museum</a>
 </aside>
 
 <style>
@@ -147,6 +143,7 @@
 		overflow: auto;
 		background: #121218;
 	}
+	.sidebar-content { display: flex; min-width: 0; min-height: 0; flex: 1; flex-direction: column; gap: 1rem; }
 	.header-strip { display: flex; flex-direction: column; gap: 0.45rem; }
 	.source-badge {
 		align-self: flex-start;
@@ -164,8 +161,6 @@
 	.panel-content { display: contents; }
 	.panel-content--hidden { display: none; }
 	.layout-error { margin: 0; color: #efc7c7; font-size: 0.7rem; line-height: 1.4; }
-	.back { margin-top: auto; color: #d6c7a8; font-size: 0.85rem; text-decoration: none; }
-	.back:hover { text-decoration: underline; }
 
 	@media (max-width: 62rem) {
 		.panel { min-height: 0; max-height: 34rem; border-top: 1px solid #2a2a33; }

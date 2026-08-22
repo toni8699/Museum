@@ -3,18 +3,14 @@ import type { CameraConnectionDirection } from '$lib/types/museum';
 import {
 	cameraMotionEdgeProgressAtProgress,
 	cameraMotionProgressAtEdgeProgress,
-	createCameraMotion,
 	sampleCameraMotion,
 	type CameraMotionSample,
 	type CameraMotion
 } from '$lib/museum/navigation/camera-motion';
-import {
-	getCameraConnectionRoute,
-	getCameraMotionOptions,
-	getFlowRoute
-} from '$lib/museum/navigation/camera-route';
+import { getFlowRoute } from '$lib/museum/navigation/camera-route';
 import { isFlowNode } from '$lib/content/scene';
 import { EDITOR_GUIDED_TOUR_START_NODE_ID } from './editor-navigation-graph';
+import { resolveConnectionEdgeMotions } from './editor-directed-edge-motion';
 
 const TIMELINE_EPSILON = 1e-9;
 
@@ -141,24 +137,10 @@ export function createEditorCameraTimeline(
 	let totalElapsedSeconds = 0;
 
 	for (const routeEdge of guidedRoute.edges) {
-		const connection = graph.connections.find(
-			(candidate) => candidate.id === routeEdge.connectionId
-		);
-		if (!connection) {
-			throw new Error(`Unknown camera connection: ${routeEdge.connectionId}`);
-		}
-		const forwardMotion = createCameraMotion(
-			getCameraConnectionRoute(connection.id, 'forward', graph),
-			undefined,
-			getCameraMotionOptions(connection, 'forward')
-		);
-		const reverseMotion = createCameraMotion(
-			getCameraConnectionRoute(connection.id, 'reverse', graph),
-			undefined,
-			getCameraMotionOptions(connection, 'reverse')
-		);
-		const motion =
-			routeEdge.direction === 'forward' ? forwardMotion : reverseMotion;
+		// P8 S1 — per-direction motions resolve through the shared directed-edge
+		// resolver (authored timing/easing applied exactly once, canonically).
+		const motions = resolveConnectionEdgeMotions(graph, routeEdge.connectionId);
+		const motion = motions[routeEdge.direction];
 		const durationSeconds = motion.durationSeconds;
 		const destination = nodeById.get(routeEdge.toNodeId);
 		const holdSeconds = destination?.holdSeconds ?? 0;
@@ -166,7 +148,7 @@ export function createEditorCameraTimeline(
 		const motionEnd = motionStart + durationSeconds;
 		const holdEnd = motionEnd + holdSeconds;
 		edges.push({
-			connectionId: connection.id,
+			connectionId: routeEdge.connectionId,
 			direction: routeEdge.direction,
 			fromNodeId: routeEdge.fromNodeId,
 			toNodeId: routeEdge.toNodeId,
@@ -175,7 +157,7 @@ export function createEditorCameraTimeline(
 			motionDurationSeconds: durationSeconds,
 			holdSeconds,
 			holdEndSeconds: holdEnd,
-			motions: { forward: forwardMotion, reverse: reverseMotion }
+			motions
 		});
 		motionElapsedSeconds += durationSeconds;
 		totalElapsedSeconds = holdEnd;

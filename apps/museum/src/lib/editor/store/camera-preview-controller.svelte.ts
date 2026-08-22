@@ -40,6 +40,7 @@ import {
 	createEditorCameraTimeline,
 	type EditorCameraTimeline
 } from '../editor-camera-timeline';
+import { resolveDirectedEdgeMotionByDirection } from '../editor-directed-edge-motion';
 import {
 	createNavigationGraph,
 	getNode,
@@ -405,7 +406,17 @@ export class EditorCameraPreviewController {
 		} else {
 			const route = this.getCapturedRoute(preview.runId);
 			if (!route) return false;
-			const motion = createCameraMotion(route);
+			// P8 S1 parity — connection previews step with authored timing/easing
+			// applied; legacy multi-edge transition routes keep bare compilation.
+			const motion =
+				preview.kind === 'connection'
+					? resolveDirectedEdgeMotionByDirection(
+							this.#graph(),
+							preview.connectionId,
+							preview.direction,
+							{ route }
+						).motion
+					: createCameraMotion(route);
 			for (const [edgeIndex, edge] of motion.positionEdgeSpans.entries()) {
 				breakpoints.push(cameraMotionProgressAtEdgeProgress(motion, edgeIndex, 0));
 				breakpoints.push(cameraMotionProgressAtEdgeProgress(motion, edgeIndex, 1));

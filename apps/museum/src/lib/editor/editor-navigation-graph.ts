@@ -44,6 +44,8 @@ export type EditorConnectionCreationPlan = {
 export type EditorConnectionDeletionPlan = {
 	ok: true;
 	connection: SceneConnection;
+	/** Deleting the last two-node sequence edge intentionally returns both nodes to Unsequenced. */
+	dissolvesGuidedFlow?: boolean;
 };
 
 export type EditorNavigationNodeDeletionPlan = {
@@ -400,6 +402,15 @@ export function validateCurrentGuidedTourOrder(
 	document: MuseumSceneDocument
 ): EditorGuidedTourOrderPlan | EditorNavigationGraphFailure {
 	const flowNodes = document.navigationNodes.filter(isFlowNode);
+	// P1.9 — zero-flow documents are reachable (3+ connected cameras with no
+	// sequence never auto-promote). Fail with the D4 floor code instead of
+	// letting `mainFlowStart` dereference a missing seed.
+	if (flowNodes.length < 2) {
+		return fail(
+			'minimum_guided_nodes',
+			'The camera flow must contain at least two camera nodes'
+		);
+	}
 
 	const nodeById = new Map(document.navigationNodes.map((node) => [node.id, node]));
 	const start = mainFlowStart(document, nodeById);
@@ -526,7 +537,7 @@ export function validateGuidedTourInsertion(
 	if (node.detourOfNodeId !== undefined || detourOrigin !== undefined) {
 		return fail(
 			'detour_node_not_free',
-			`${nodeName(node)} is on a detour — remove it from the detour first`
+			`${nodeName(node)} is on a branch — remove it from the branch first`
 		);
 	}
 	if (!Number.isInteger(index) || index < 0 || index > current.nodeIds.length) {
@@ -624,7 +635,7 @@ export function validateDetourCreation(
 	if (document.navigationNodes.some((node) => node.detourOfNodeId === origin.id)) {
 		return fail(
 			'detour_already_exists',
-			`${nodeName(origin)} already branches a detour`
+			`${nodeName(origin)} already heads a branch`
 		);
 	}
 	// F4 — the origin must live on the main route.
@@ -710,7 +721,7 @@ export function validateDetourNodeRemoval(
 	if (!node || !chain.chainNodeIds.includes(node.id)) {
 		return fail(
 			'detour_node_not_in_chain',
-			`${node?.label ?? nodeId} is not on the detour at ${nodeName(origin)}`
+			`${node?.label ?? nodeId} is not on the branch at ${nodeName(origin)}`
 		);
 	}
 	const predecessorNodeId = node.previousNodeId;
@@ -789,6 +800,23 @@ export function validateConnectionCreation(
 	return { ok: true, sourceNode, destinationNode };
 }
 
+/**
+ * A two-node sequence has no removable sequence membership of its own: its
+ * only chain edge is also the only connection that keeps the pair sequenced.
+ * Deleting that edge is therefore an explicit, reversible transition back to
+ * two Unsequenced cameras rather than a rejected guided-edge deletion.
+ */
+function isFinalTwoNodeFlowConnection(
+	document: MuseumSceneDocument,
+	connection: SceneConnection
+): boolean {
+	const flowNodeIds = currentMainFlowNodeIds(document);
+	if (!flowNodeIds || flowNodeIds.length !== 2) return false;
+	const [headId, tailId] = flowNodeIds;
+	if (!headId || !tailId) return false;
+	return findConnectionBetween(document, headId, tailId)?.id === connection.id;
+}
+
 /** Pure validation for deleting one connection without changing guided order. */
 export function validateConnectionDeletion(
 	document: MuseumSceneDocument,
@@ -806,11 +834,13 @@ export function validateConnectionDeletion(
 	const toNode = document.navigationNodes.find(
 		(node) => node.id === connection.toNodeId
 	)!;
+	const dissolvesGuidedFlow = isFinalTwoNodeFlowConnection(document, connection);
 	if (
-		fromNode.nextNodeId === toNode.id ||
-		fromNode.previousNodeId === toNode.id ||
-		toNode.nextNodeId === fromNode.id ||
-		toNode.previousNodeId === fromNode.id
+		!dissolvesGuidedFlow &&
+		(fromNode.nextNodeId === toNode.id ||
+			fromNode.previousNodeId === toNode.id ||
+			toNode.nextNodeId === fromNode.id ||
+			toNode.previousNodeId === fromNode.id)
 	) {
 		return fail(
 			'guided_connection',
@@ -822,10 +852,11 @@ export function validateConnectionDeletion(
 	if (isDetourReturnEdge(document, connection)) {
 		return fail(
 			'guided_connection',
-			`Cannot delete ${connection.id}: the edge returns a detour to its origin`
+			`Cannot delete ${connection.id}: the edge returns a branch to its origin`
 		);
 	}
 	if (
+		!dissolvesGuidedFlow &&
 		!graphRemainsConnected(
 			document,
 			new Set(),
@@ -837,7 +868,11 @@ export function validateConnectionDeletion(
 			`Cannot delete ${connection.id}: the navigation graph would become disconnected`
 		);
 	}
-	return { ok: true, connection };
+	return {
+		ok: true,
+		connection,
+		...(dissolvesGuidedFlow ? { dissolvesGuidedFlow: true } : {})
+	};
 }
 
 /**
@@ -931,7 +966,7 @@ export function validateNavigationNodeDeletion(
 		if (!chain) {
 			return fail(
 				'invalid_guided_cycle',
-				`Cannot delete ${nodeName(node)}: the detour order is not a valid open chain`
+				`Cannot delete ${nodeName(node)}: the branch order is not a valid open chain`
 			);
 		}
 	}

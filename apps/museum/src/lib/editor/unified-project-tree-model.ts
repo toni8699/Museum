@@ -11,10 +11,10 @@
  * selection matching is exact, never coordinate- or index-guessed.
  *
  * Camera connection/direction rows are not modeled here: the tree embeds the
- * existing `CameraFlowPanel` / `NodeConnectionsPanel` /
- * `DirectionalKeyframeList`, which derive them from `getNodeConnections` and
- * own their selection/expansion behavior. The matcher still pins the camera
- * row contract (and the discovery-driven direction-row rule) for tests.
+ * existing `CameraFlowPanel` (P1.9 — row expansion is a flat neighbor list
+ * derived from `getNodeConnections`; connection detail lives in the
+ * Connections section / Inspector / Timeline). The matcher still pins the
+ * camera row contract (and the discovery-driven direction-row rule) for tests.
  */
 
 import type { LayoutDocument } from '$lib/layout/layout-types';

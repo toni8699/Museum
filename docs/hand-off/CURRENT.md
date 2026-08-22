@@ -2,46 +2,48 @@
 
 Template per [`../README.md`](../README.md). This is a **sliding window**:
 only the immediate previous slice (back-pointer) and the single next action
-live here. History chains backward through the tracker's depends-on column —
-shipped/next lists never accumulate.## Working tree
+live here. History chains backward through the tracker's depends-on column.
+## Working tree
 
-- Current delta: **P1.7 shipped (2026-08-21)** — Camera domain reconciled:
-  dedicated four-section `CameraSidebar` (Environment · Sequence Inspector ·
-  Unsequenced · Connections; connections = chain records + retained tray,
-  undirected `A — B`, delete only on retained rows), read-only "Main Visitor
-  Tour" timeline selector, shared reduced-motion-aware `editorWorkspaceFade`
-  (~200 ms) on workspace/timeline/sidebar roots. Review fixes folded in:
-  **Camera 3D now shows guided order digits + Unsequenced badges**
-  (`editor-camera-labels.ts` model + `EditorCameraLabelProjector`/
-  `EditorCameraLabelsOverlay`, gizmo writer/overlay pattern, order from
-  `store.mainFlowNodeIds` so Plan and 3D agree) and **2D keeps its viewport
-  across Scene ⇄ Camera** (`EditorApp` renders both plan workspaces keep-mounted
-  in `plan-cell` wrappers — G3 pattern; hidden cell `inert` + class-faded, each
-  surface retains pan/zoom). Timeline drag-connect removed as the documented
-  P1.8 prerequisite (P1.8 §6). **Owner follow-ups: the Camera timeline never
-  auto-expands on a domain switch** (expansion state persists verbatim;
-  `sceneTimelineExpanded` memory removed); **the Plan | 3D view is shared
-  across domains** (`EditorViewState` single view, boot Scene → Plan — a
-  Scene ⇄ Camera switch keeps the current view; shell spec §2 amended); and
-  **all view/domain switches are instant** (shared fade helper + S10.1.6
-  mount/context fades removed; shell spec §20 transition superseded). Brief archived:
-  [`../archive/plans/2026-08-20-P1.7-camera-ui-reconciliation.md`](../archive/plans/2026-08-20-P1.7-camera-ui-reconciliation.md)
-  (manual GUI walk owner-waived).
-- Previous slice: **P1.6 implemented (2026-08-20)** — pure framing-authoring
-  model + controller policy/history binding and the timeline band/handles +
-  F1 viewMode threading + comfort diagnostics.
-  Brief: [`../archive/plans/2026-08-20-P1.6-framing-authoring.md`](../archive/plans/2026-08-20-P1.6-framing-authoring.md).
+- Current delta: **P8 S1 implemented (2026-08-21) — directed-edge motion
+  resolver + editor timing parity**. New
+  `lib/editor/editor-directed-edge-motion.ts`: pure core
+  `resolveDirectedEdgeMotionForConnection` (+ graph-based `…ByDirection`,
+  orientation-checked `resolveDirectedEdgeMotion`, pair helper);
+  `durationFallback` flags rejected authored durations (codec validation
+  already blocks those upstream — defense-in-depth only). The guided
+  timeline (`editor-camera-timeline.ts`) and Plan timing readout compile
+  through it; six previously-bare preview/authoring sites now apply authored
+  timing/easing: preview-controller/preview-commands step breakpoints, Rig
+  sampling, view-key authoring sample, drag-preview sync, keyframe-selection
+  playhead jump. Legacy `kind:'transition'` keeps bare compilation (multi-edge
+  BFS route; retired in S6); visitor `CameraDirector` untouched — authored-
+  timing parity there remains a **documented discrepancy** for a separate
+  runtime slice. `getCameraMotionOptions` widened structurally (reads
+  `timing` only) so persisted + runtime connection records both feed the
+  resolver. 11 new tests in `editor-directed-edge-motion.test.ts`, incl.
+  direct-edge == guided-timeline sampling parity and Unsequenced-endpoint
+  resolution.
+- Previous slice: **P1.8 implemented (2026-08-21)** — sequence authoring
+  (re-root, strict insertion, preview). Brief:
+  [`../archive/plans/2026-08-21-P1.8-camera-sequence-authoring.md`](../archive/plans/2026-08-21-P1.8-camera-sequence-authoring.md).
+- Docs synced this slice: `Neighbour-2D.png` registered as the neighbor-
+  accordion ground truth ([`2026-08-18-P3-ui-overhaul.md`](../plans/2026-08-18-P3-ui-overhaul.md)
+  mapping #10 + QA note; P1.9 Decisions updated), `Empty-staging.png` →
+  `Empty-3D.png` rename recorded.
 
 ## Next action
 
-- **One action:** start **P1.8** camera sequence authoring
-  ([brief](../plans/2026-08-21-P1.8-camera-sequence-authoring.md)) — last P1
-  increment; ratify its D1/D2 gates first.
+- **One action:** open **P8 Slice 2** — grep-verified readiness survey of the
+  preview FSM / session-state / history-invalidation hook points, then
+  implement explicit preview scopes + transport semantics per
+  [`plans/2026-08-21-P8-camera-preview-scopes.md`](../plans/2026-08-21-P8-camera-preview-scopes.md)
+  §F S2 (routing: Sol medium per [`plans/model-assessment.md`](../plans/model-assessment.md)).
 
 ## Verification
 
-- **1,894 tests green (1 skipped) · `svelte-check` 0 errors / 0 warnings ·
-  `vite build` clean** (P1.7 implementation + review fixes, 2026-08-21).
+- **1,921 tests green (1 skipped) · `svelte-check` 0 errors / 0 warnings ·
+  `vite build` clean** (P8 S1 implementation, 2026-08-21).
 
 ## Known bugs / deferred
 
@@ -56,6 +58,14 @@ shipped/next lists never accumulate.## Working tree
 
 ## Traps
 
+- **Zero-flow documents are legal (P1.9):** `validateCurrentGuidedTourOrder`
+  must keep its `< 2` guard before `mainFlowStart` — the seed dereference has
+  no internal guard, and flowless graphs are reachable (no auto-promote on
+  connect). Empty-chain recovery is the manual Start Sequence path only.
+- **Sidebar expansion is component-local (P1.9):** `expandedNodeIds` lives in
+  `CameraFlowPanel`; do not reintroduce store-level tree-expansion APIs for
+  node rows (the surviving `treeExpandedCameraConnectionIds` session keys are
+  delete-time prune targets only).
 - **Keep-mounted plan cells (P1.7):** both plan workspaces stay mounted in
   `EditorApp` — the hidden one must keep `inert` + `plan-cell--hidden`, or it
   eats pointer/shortcut input while invisible. The shared fade on their roots

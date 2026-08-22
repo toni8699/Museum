@@ -26,10 +26,10 @@
 		updateLayoutOpeningFields,
 		updateLayoutRoomFields,
 		previewLayoutRoomUnit,
-		captureLayoutPreviewSnapshot,
 		type LayoutPreviewState,
 		type LayoutRoomFieldPatch
 	} from './layout/layout-preview-state.svelte';
+	import { layoutMutationRunnerFor, runLayoutMutation } from './layout/layout-mutation-runner';
 	import {
 		selectLayoutObject,
 		selectedLayoutRoomId,
@@ -242,6 +242,11 @@
 		setLayoutDraftTool(layoutInteraction, kind);
 	}
 
+	// one layout mutation = one undo entry: begin → mutate → commit/cancel.
+	function runLayoutMutationGuarded<T>(mutate: () => T, didSucceed: (result: T) => boolean) {
+		return runLayoutMutation(layoutMutationRunnerFor(store, layoutPreview), mutate, didSucceed);
+	}
+
 	function updateOpeningField(field: 'offset' | 'width' | 'height' | 'sillHeight', event: Event) {
 		const selection = layoutInteraction.selection;
 		if (selection.kind !== 'opening' || !selectedLayoutOpening) return;
@@ -252,7 +257,16 @@
 			input.value = String(selectedLayoutOpening[field]);
 			return;
 		}
-		const result = updateLayoutOpeningFields(layoutPreview, selection.roomId, selection.openingId, { [field]: value });
+		const outcome = runLayoutMutationGuarded(
+			() => updateLayoutOpeningFields(layoutPreview, selection.roomId, selection.openingId, { [field]: value }),
+			(result) => result.success
+		);
+		if (outcome.kind === 'skipped') {
+			store.setStatusMessage('Finish the current layout interaction first');
+			input.value = String(selectedLayoutOpening[field]);
+			return;
+		}
+		const result = outcome.result;
 		if (!result.success) {
 			store.setStatusMessage(`Opening rejected: ${result.message}`);
 			input.value = String(selectedLayoutOpening[field]);
@@ -265,16 +279,30 @@
 		const selection = layoutInteraction.selection;
 		if (selection.kind !== 'opening' || !selectedLayoutOpening) return;
 		const profile = (event.currentTarget as HTMLSelectElement).value as typeof selectedLayoutOpening.profile;
-		const result = updateLayoutOpeningFields(layoutPreview, selection.roomId, selection.openingId, { profile });
-		if (!result.success) store.setStatusMessage(`Opening rejected: ${result.message}`);
+		const outcome = runLayoutMutationGuarded(
+			() => updateLayoutOpeningFields(layoutPreview, selection.roomId, selection.openingId, { profile }),
+			(result) => result.success
+		);
+		if (outcome.kind === 'skipped') {
+			store.setStatusMessage('Finish the current layout interaction first');
+			return;
+		}
+		if (!outcome.result.success) store.setStatusMessage(`Opening rejected: ${outcome.result.message}`);
 	}
 
 	function removeSelectedOpening() {
 		const selection = layoutInteraction.selection;
 		if (selection.kind !== 'opening') return;
-		const result = deleteLayoutOpening(layoutPreview, selection.roomId, selection.openingId);
-		if (!result.success) {
-			store.setStatusMessage(`Opening delete failed: ${result.message}`);
+		const outcome = runLayoutMutationGuarded(
+			() => deleteLayoutOpening(layoutPreview, selection.roomId, selection.openingId),
+			(result) => result.success
+		);
+		if (outcome.kind === 'skipped') {
+			store.setStatusMessage('Finish the current layout interaction first');
+			return;
+		}
+		if (!outcome.result.success) {
+			store.setStatusMessage(`Opening delete failed: ${outcome.result.message}`);
 			return;
 		}
 		layoutInteraction.selection = { kind: 'wall', roomId: selection.roomId, segmentId: selection.segmentId };
@@ -285,12 +313,20 @@
 		if (!selectedLayoutRoom) return;
 		const input = event.currentTarget as HTMLInputElement;
 		const roomId = selectedLayoutRoom.id;
-		const result = updateLayoutRoomFields(layoutPreview, roomId, { name: input.value });
+		const outcome = runLayoutMutationGuarded(
+			() => updateLayoutRoomFields(layoutPreview, roomId, { name: input.value }),
+			(result) => result.success
+		);
+		if (outcome.kind === 'skipped') {
+			store.setStatusMessage('Finish the current layout interaction first');
+			input.value = selectedLayoutRoom.name;
+			return;
+		}
 		const committed = layoutPreview.project.layout.floors
 			.flatMap((floor) => floor.rooms)
 			.find((room) => room.id === roomId);
 		input.value = committed?.name ?? selectedLayoutRoom.name;
-		store.setStatusMessage(result.success ? 'Updated room name' : `Room rejected: ${result.message}`);
+		store.setStatusMessage(outcome.result.success ? 'Updated room name' : `Room rejected: ${outcome.result.message}`);
 	}
 
 	function rotateSelectedRoom(event: Event) {
@@ -303,20 +339,21 @@
 			return;
 		}
 		if (Math.abs(degrees) <= 1e-9) return;
-		if (!store.beginLayoutTransaction()) {
+		const outcome = runLayoutMutationGuarded(
+			() => previewLayoutRoomUnit(layoutPreview, selectedLayoutRoom.id, {
+				translation: [0, 0],
+				yaw: (degrees * Math.PI) / 180
+			}),
+			(result) => result.success
+		);
+		if (outcome.kind === 'skipped') {
 			store.setStatusMessage('Finish the current layout interaction first');
 			return;
 		}
-		const result = previewLayoutRoomUnit(layoutPreview, selectedLayoutRoom.id, {
-			translation: [0, 0],
-			yaw: (degrees * Math.PI) / 180
-		});
-		if (!result.success) {
-			store.cancelLayoutTransaction();
-			store.setStatusMessage(`Room rotation rejected: ${result.message}`);
+		if (!outcome.result.success) {
+			store.setStatusMessage(`Room rotation rejected: ${outcome.result.message}`);
 			return;
 		}
-		store.commitLayoutTransaction(captureLayoutPreviewSnapshot(layoutPreview));
 		store.setStatusMessage(`Rotated room by ${degrees}°`);
 	}
 
@@ -330,9 +367,17 @@
 			store.setStatusMessage('Layout value must be finite');
 			return;
 		}
-		const result = updateLayoutRoomFields(layoutPreview, selectedLayoutRoom.id, { [field]: value });
-		if (!result.success) input.value = String(previous);
-		store.setStatusMessage(result.success ? `Updated ${field}` : `Room rejected: ${result.message}`);
+		const outcome = runLayoutMutationGuarded(
+			() => updateLayoutRoomFields(layoutPreview, selectedLayoutRoom.id, { [field]: value }),
+			(result) => result.success
+		);
+		if (outcome.kind === 'skipped') {
+			store.setStatusMessage('Finish the current layout interaction first');
+			input.value = String(previous);
+			return;
+		}
+		if (!outcome.result.success) input.value = String(previous);
+		store.setStatusMessage(outcome.result.success ? `Updated ${field}` : `Room rejected: ${outcome.result.message}`);
 	}
 
 	function updateObjectVector(
@@ -349,9 +394,17 @@
 		}
 		const vector = [...selectedLayoutObject[field]] as [number, number, number];
 		vector[index] = value;
-		const result = updateLayoutObjectFields(layoutPreview, selectedLayoutObject.id, { [field]: vector });
-		if (!result.success) input.value = String(selectedLayoutObject[field][index]);
-		store.setStatusMessage(result.success ? `Updated object ${field}` : `Object rejected: ${result.message}`);
+		const outcome = runLayoutMutationGuarded(
+			() => updateLayoutObjectFields(layoutPreview, selectedLayoutObject.id, { [field]: vector }),
+			(result) => result.success
+		);
+		if (outcome.kind === 'skipped') {
+			store.setStatusMessage('Finish the current layout interaction first');
+			input.value = String(selectedLayoutObject[field][index]);
+			return;
+		}
+		if (!outcome.result.success) input.value = String(selectedLayoutObject[field][index]);
+		store.setStatusMessage(outcome.result.success ? `Updated object ${field}` : `Object rejected: ${outcome.result.message}`);
 	}
 
 	function armLayoutPlaceTool(tool: 'door' | 'window' | LayoutPrimitiveTool) {
@@ -388,22 +441,44 @@
 			dimensions[0] = value * 2;
 			dimensions[2] = value * 2;
 		}
-		const result = updateLayoutObjectFields(layoutPreview, selectedLayoutObject.id, { dimensions });
-		if (!result.success) input.value = String(metric === 'radius' ? selectedLayoutObject.dimensions[0] / 2 : metric === 'width' ? selectedLayoutObject.dimensions[0] : metric === 'depth' ? selectedLayoutObject.dimensions[2] : selectedLayoutObject.dimensions[1]);
-		store.setStatusMessage(result.success ? `Updated object ${metric}` : `Object rejected: ${result.message}`);
+		const outcome = runLayoutMutationGuarded(
+			() => updateLayoutObjectFields(layoutPreview, selectedLayoutObject.id, { dimensions }),
+			(result) => result.success
+		);
+		if (outcome.kind === 'skipped') {
+			store.setStatusMessage('Finish the current layout interaction first');
+			input.value = String(metric === 'radius' ? selectedLayoutObject.dimensions[0] / 2 : metric === 'width' ? selectedLayoutObject.dimensions[0] : metric === 'depth' ? selectedLayoutObject.dimensions[2] : selectedLayoutObject.dimensions[1]);
+			return;
+		}
+		if (!outcome.result.success) input.value = String(metric === 'radius' ? selectedLayoutObject.dimensions[0] / 2 : metric === 'width' ? selectedLayoutObject.dimensions[0] : metric === 'depth' ? selectedLayoutObject.dimensions[2] : selectedLayoutObject.dimensions[1]);
+		store.setStatusMessage(outcome.result.success ? `Updated object ${metric}` : `Object rejected: ${outcome.result.message}`);
 	}
 
 	function updateObjectRoom(event: Event) {
 		if (!selectedLayoutObject || selectedLayoutObject.kind === 'profile') return;
 		const roomId = (event.currentTarget as HTMLSelectElement).value || undefined;
-		const result = updateLayoutObjectFields(layoutPreview, selectedLayoutObject.id, { roomId });
-		store.setStatusMessage(result.success ? 'Updated object room' : `Object rejected: ${result.message}`);
+		const outcome = runLayoutMutationGuarded(
+			() => updateLayoutObjectFields(layoutPreview, selectedLayoutObject.id, { roomId }),
+			(result) => result.success
+		);
+		if (outcome.kind === 'skipped') {
+			store.setStatusMessage('Finish the current layout interaction first');
+			return;
+		}
+		store.setStatusMessage(outcome.result.success ? 'Updated object room' : `Object rejected: ${outcome.result.message}`);
 	}
 
 	function removeLayoutObject(objectId: string) {
-		const result = deleteLayoutObject(layoutPreview, objectId);
-		if (result.success && selectedLayoutObjectId === objectId) layoutInteraction.selection = { kind: 'none' };
-		store.setStatusMessage(result.success ? 'Deleted layout object' : `Object delete failed: ${result.message}`);
+		const outcome = runLayoutMutationGuarded(
+			() => deleteLayoutObject(layoutPreview, objectId),
+			(result) => result.success
+		);
+		if (outcome.kind === 'skipped') {
+			store.setStatusMessage('Finish the current layout interaction first');
+			return;
+		}
+		if (outcome.result.success && selectedLayoutObjectId === objectId) layoutInteraction.selection = { kind: 'none' };
+		store.setStatusMessage(outcome.result.success ? 'Deleted layout object' : `Object delete failed: ${outcome.result.message}`);
 	}
 
 	function removeSelectedObject() {
@@ -425,17 +500,18 @@
 
 	function removeSelectedRoom() {
 		if (!selectedLayoutRoom) return;
-		if (!store.beginLayoutTransaction()) {
+		const outcome = runLayoutMutationGuarded(
+			() => deleteLayoutRoom(layoutPreview, selectedLayoutRoom.id, store.document),
+			(result) => result.success
+		);
+		if (outcome.kind === 'skipped') {
 			store.setStatusMessage('Finish the current layout interaction first');
 			return;
 		}
-		const result = deleteLayoutRoom(layoutPreview, selectedLayoutRoom.id, store.document);
-		if (!result.success) {
-			store.cancelLayoutTransaction();
-			store.setStatusMessage(`Room delete failed: ${result.message}`);
+		if (!outcome.result.success) {
+			store.setStatusMessage(`Room delete failed: ${outcome.result.message}`);
 			return;
 		}
-		store.commitLayoutTransaction(captureLayoutPreviewSnapshot(layoutPreview));
 		layoutInteraction.selection = { kind: 'none' };
 		store.setStatusMessage('Deleted room');
 	}

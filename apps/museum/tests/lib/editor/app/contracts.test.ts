@@ -38,6 +38,10 @@ function readLibSource(relativePath: string): string {
 	return fs.readFileSync(path.join(LIB_DIR, relativePath), 'utf8');
 }
 
+function existsLibSource(relativePath: string): boolean {
+	return fs.existsSync(path.join(LIB_DIR, relativePath));
+}
+
 /** Recursively read every .ts/.svelte source under a `$lib` sub-directory. */
 function readAllSourceFiles(relativeDir: string): { name: string; source: string }[] {
 	const root = path.join(LIB_DIR, relativeDir);
@@ -375,31 +379,27 @@ describe('unified hierarchy contracts', () => {
 
 	it('keeps the camera tree internals reusable behind optional props (relic default behavior)', () => {
 		const guided = readLibSource('editor/CameraFlowPanel.svelte');
-		const connections = readLibSource('editor/NodeConnectionsPanel.svelte');
-		const keyframes = readLibSource('editor/DirectionalKeyframeList.svelte');
-		// The optional gate props default to true when absent.
+		// The optional gate prop defaults to true when absent (the relic never
+		// passes it and keeps its legacy behavior).
 		expect(guided).toMatch(/interactive\??:/);
-		expect(connections).toMatch(/interactive\??:/);
-		expect(keyframes).toMatch(/interactive\??:/);
 	});
 
 	it('gates every guided/free node-row pick in CameraFlowPanel behind interactive (Plan gate)', () => {
 		// The Plan gate is behavioral, not just prop presence: the node-row
-		// select click (and the connections chevron) must be no-ops when
-		// interactive is false, exactly like the connection/direction rows — a
-		// plain `onclick={() => selectNode(node.id)}` would leak the camera
-		// domain into Plan (the plan's locked "scene/camera rows aria-disabled
-		// no-ops" decision).
+		// select click (and the neighbors chevron) must be no-ops when
+		// interactive is false — a plain `onclick={() => selectNode(node.id)}`
+		// would leak the camera domain into Plan (the plan's locked
+		// "scene/camera rows aria-disabled no-ops" decision).
 		const guided = readLibSource('editor/CameraFlowPanel.svelte');
-		// Row select is gated and carries aria-disabled on both guided + free
-		// rows (the three byte-identical row blocks share one handler shape;
-		// S10.1.3 added the detour rows, which are gated identically).
+		// Row select is gated and carries aria-disabled on guided + free rows;
+		// P1.9 neighbor rows are gated identically (select = partner row).
 		expect(guided).not.toContain('onclick={() => selectNode(node.id)}');
 		expect(guided.match(/onclick=\{interactive \? \(\) => selectNode\(node\.id\) : undefined\}/g)).toHaveLength(3);
-		expect(guided.match(/onclick=\{interactive \? \(\) => toggleNodeConnections\(node\.id\) : undefined\}/g)).toHaveLength(2);
+		expect(guided.match(/onclick=\{interactive \? \(\) => selectNode\(partner\.id\) : undefined\}/g)).toHaveLength(2);
+		expect(guided.match(/onclick=\{interactive \? \(\) => toggleNodeNeighbors\(node\.id\) : undefined\}/g)).toHaveLength(2);
 		// aria-disabled appears on every gated surface: guided li + chevron +
-		// row, free li + chevron + row, detour row.
-		expect(guided.match(/aria-disabled=\{interactive \? undefined : true\}/g)).toHaveLength(7);
+		// row, free li + chevron + row, detour row, both neighbor rows.
+		expect(guided.match(/aria-disabled=\{interactive \? undefined : true\}/g)).toHaveLength(9);
 	});
 
 	it('routes the Camera domain to the four-section Camera Sidebar and keeps Scene on the unified tree', () => {
@@ -432,6 +432,15 @@ describe('unified hierarchy contracts', () => {
 		// Undirected topology labels only (chain records + retained tray).
 		expect(panel).toContain('chainConnectionRows');
 		expect(panel).toContain('connectionRows');
+		// P1.9 — drag-only reorder (no per-row order arrows), tail-row
+		// "Set as First" hidden, Branches terminology, flat neighbor list.
+		expect(panel).not.toContain('ArrowUp');
+		expect(panel).not.toContain('ArrowDown');
+		expect(panel).not.toContain('moveGuidedNode');
+		expect(panel).toContain('index > 0 && index < guidedTourChain.length - 1');
+		expect(panel).toContain('<h3 class="sub-section-header">Branches ·');
+		expect(panel).not.toContain('kept as free');
+		expect(panel).toContain('neighborRowsOf');
 	});
 
 	it('keeps the unified tree mounted across Hierarchy|Assets tabs and hides the boot header correctly', () => {
@@ -448,20 +457,41 @@ describe('unified hierarchy contracts', () => {
 		expect(sidebar).toContain('layoutPreview.importError !== null');
 	});
 
-	it('threads the active domain so the camera direction highlight is discovery-driven, gated to camera-or-none', () => {
-		const connections = readLibSource('editor/NodeConnectionsPanel.svelte');
+	it('owns neighbor expansion in the sidebar and leaves the discovery direction highlight to the Inspector', () => {
+		// P1.9 — NodeConnectionsPanel is deleted: row expansion is a flat
+		// neighbor list (graph truth) owned by CameraFlowPanel, and the
+		// discovery-driven direction highlight left the sidebar with it
+		// (a node list has no direction). Connection detail stays available
+		// via the Connections section / Inspector / Plan edges / Timeline.
+		expect(existsLibSource('editor/NodeConnectionsPanel.svelte')).toBe(false);
 		const guided = readLibSource('editor/CameraFlowPanel.svelte');
-		const tree = readLibSource('editor/UnifiedProjectTree.svelte');
-		// The panel accepts the S3 active domain and highlights the discovery
-		// direction row when domain is camera-or-none (scrubbing sets discovery
-		// with no navigation selection); layout/scene never co-highlights.
-		expect(connections).toMatch(/activeDomain\??:/);
-		expect(connections).toContain("activeDomain === 'camera' || activeDomain === 'none'");
-		// CameraFlowPanel forwards the domain to every embedded panel, and the
-		// unified tree supplies it from the S3 active selection.
-		// Svelte shorthand `{activeDomain}` on both embedded connections panels.
-		expect(guided.match(/\{activeDomain\}/g)?.length).toBe(2);
-		expect(tree).toContain('activeDomain={active.domain}');
+		expect(guided).not.toContain('activeDomain');
+		expect(guided).toContain('neighborRowsOf');
+		// The accordion is sidequest-only: ordered Sequence neighbors are already
+		// represented by the list and must not be repeated in its sub-list.
+		expect(guided).toContain('!guidedTourChain.includes(row.partnerId)');
+		expect(guided).toContain('sidequest list');
+		// No store toggle API for the deleted per-connection tree.
+		const facade = readLibSource('editor/museum-editor.svelte.ts');
+		expect(facade).not.toContain('toggleCameraConnectionTreeExpansion');
+		expect(facade).not.toContain('toggleCameraDirectionTreeExpansion');
+	});
+
+	it('seeds the empty chain only through the manual Start Sequence affordance', () => {
+		const guided = readLibSource('editor/CameraFlowPanel.svelte');
+		// P1.9 — empty-chain promotion is manual (connecting 3+ cameras never
+		// auto-promotes): eligible unsequenced rows carry Start Sequence,
+		// isolated rows show nothing, one transaction per seed.
+		expect(guided).toContain('startSequenceEligible');
+		expect(guided).toContain('store.startSequenceFromNode(nodeId)');
+		expect(guided).toContain('title="Start Sequence"');
+		// Empty Sequence has a real drop target; dropping a row uses the same
+		// manual pair-promotion command instead of the strict insertion validator.
+		expect(guided).toContain('guided-gap--empty');
+		expect(guided).toContain('guidedTourChain.length === 0');
+		expect(guided).toContain('startSequence(nodeId);');
+		const facade = readLibSource('editor/museum-editor.svelte.ts');
+		expect(facade).toContain('startSequenceFromNode(nodeId)');
 	});
 
 	it('expands the ancestor chain for every active layout/scene selection, not just rooms', () => {
@@ -1224,13 +1254,33 @@ describe('camera context contracts', () => {
 		const panel = readLibSource('editor/CameraFlowPanel.svelte');
 		expect(panel).toContain('store.flowDetourGroups');
 		expect(panel).toContain('store.flowLoopConnectionId');
-		expect(panel).toContain('Detour at');
+		expect(panel).toContain('Branch at');
 		expect(panel).toContain('store.removeDetour(');
 		expect(panel).toContain('store.removeDetourNode(');
 		expect(panel).toContain('<h2>Unsequenced</h2>');
 		expect(panel).toContain('<h2>Connections</h2>');
 		expect(panel).toContain('chainConnectionRows');
 		expect(panel).toContain('store.appendDetourNode(');
+		expect(panel).toContain('finalPairConnectionIds');
+		expect(panel).toContain('both cameras return to Unsequenced');
+	});
+
+	// Preview escape controls must remain available when there is no valid
+	// guided timeline (for example, a single-camera node preview).
+	it('keeps single-camera preview stop outside the locked editor surface', () => {
+		const timeline = readLibSource('editor/EditorCameraTimelinePanel.svelte');
+		const controls = readLibSource('editor/EditorCameraPreviewControls.svelte');
+		const sidebar = readLibSource('editor/app/EditorSidebar.svelte');
+		const relicSidebar = readLibSource('editor/EditorLeftSidebar.svelte');
+		expect(timeline).toContain('Camera preview active');
+		expect(timeline).toContain('<EditorCameraPreviewControls {store} />');
+		expect(controls).toContain('preview.kind !== \'node\'');
+		expect(controls).toContain('store.playCameraPreview()');
+		expect(controls).toContain('store.stopCameraPreview()');
+		expect(controls).toContain('grid-auto-flow: column;');
+		expect(sidebar).toContain('<div class="sidebar-content" inert={store.isDocumentMutationBlocked}>');
+		expect(sidebar).not.toContain('Back to museum');
+		expect(relicSidebar).not.toContain('Back to museum');
 	});
 
 	// S10.1.4 — timeline derived-loop readout (replaces the dead-end message).

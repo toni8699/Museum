@@ -1,7 +1,7 @@
 # P2 — Plan staging mode (umbrella)
 
 **Date:** 2026-08-18
-**Status:** Approved — umbrella; content unchanged from the approved C1 plan (re-registered, no re-scope)
+**Status:** Approved — umbrella; scope unchanged from the approved C1 plan. Execution decomposition and review findings expanded 2026-08-21.
 **Tracker:** [`docs/plans/README.md`](README.md) — **P2**, depends on: P1
 **Canonical specs (2026-08-19):** [`Design-shell-specs.md`](../Design-specs/Design-shell-specs.md)
 (shell/workspace exposure) · [`Design-specs.md`](../Design-specs/Design-specs.md)
@@ -30,6 +30,26 @@ the approved execution spec.
 | **P2.2** | Staging tool (`PlanViewMode: 'layout' \| 'staging'`) + `plan-scene-hit.ts` + scene-domain selection | 2 | P2.1 |
 | **P2.3** | 2D scene mutations: drag/rotate/delete via existing mutators, tagged `scene` history entries + universal-history wrap (`beginLayoutTransaction`/`commitLayoutTransaction`) | 3 | P2.2 |
 | **P2.4** | Invariants + regression documentation (B3 room-drag as designed; component docs update) | 4 | P2.3 |
+
+### Proposed execution subslices (2026-08-21)
+
+The umbrella increments remain the scheduling units. The following smaller
+sub-slices make the approved work implementation-ready without changing scope:
+
+| Sub-slice | Content | Exit signal |
+|---|---|---|
+| **P2.1a** | Lock footprint data contract: `MuseumAsset.footprint`, optional authored outline, model/primitive/light rules, and the effective scale source (uniform plus session-resolved `scaleVector`). | Metadata validates; scale source is shared with Scene 3D. |
+| **P2.1b** | Implement pure catalogue and primitive footprint projection from the live Scene document; include translation, yaw, scale, drop-Y, rotation, and per-kind tests. | Projection tests are green and never read the boot-time preview scene copy. |
+| **P2.1c** | Add passive scene primitives to the shared Plan render model at layer 5.5; render faint dashed outlines with no selection or mutation authority. | Layout mode shows context without activating Scene selection. |
+| **P2.2a** | Add Scene Plan-local `PlanViewMode: 'layout' | 'staging'` and an explicit contextual `Layout | Staging` control; keep global `Scene | Camera` and `Plan | 3D` unchanged. | Mode is visible, session-local, and absent from Camera Plan. |
+| **P2.2b** | Add isolated scene-footprint hit testing and route active selection through canonical Scene identity; enforce mode-specific hit priority. | Layout selects architecture; Staging selects supported scene entities. |
+| **P2.2c** | Add the Layout → Staging hover bridge, keep `Hierarchy | Assets` available in Scene Plan, and gate camera/tour overlays and controls out of Staging. | No misleading tools, duplicate staging hierarchy, or Camera leakage. |
+| **P2.3a** | Add direct Staging X/Z drag through existing Scene mutators; preserve Y, pitch, roll, and other 3D-only state. | Drag preview and commit update only horizontal placement. |
+| **P2.3b** | Add selected-footprint rotation arm with center pivot, positive-Y yaw, continuous rotation, and Shift 15° snap. | Handle rotation and numeric yaw have identical results. |
+| **P2.3c** | Route staging Inspector fields and Delete/Backspace through the Scene domain; preserve the full 3D Inspector in Scene 3D. | Inspector is mode-correct; deletion is one Scene command. |
+| **P2.3d** | Wrap staging gestures and every existing Plan layout mutation path in the correct transaction (`scene` or `layout`) and close no-op/cancel behavior. | One completed gesture produces one correctly tagged history entry. |
+| **P2.4a** | Add pure hit, transform, selection-continuity, Y-preservation, overlap, bridge, and history regression tests. | P2 acceptance matrix passes. |
+| **P2.4b** | Record the B3 room-drag rule, update placement/component handoff docs, and hand P3 the visual deviation register. | P2 is behavior-complete and ready for visual QA. |
 
 ## Gates
 
@@ -128,6 +148,44 @@ existing scene furniture and objects.
 - **P2-K — staging content scope.** Camera/tour content — camera nodes, camera
   graph, guided sequence, timeline, framing — is not part of Plan staging;
   lights have no interactive footprint in P2 v1.
+
+### Review baseline and deviations carried into execution (2026-08-21)
+
+The following findings were recorded against the live editor before the P2
+slice was implemented. They are requirements or implementation risks, not
+permission to broaden the approved scope:
+
+- `PlanWorkspace` currently mounts a Layout-only toolbar and
+  `LayoutPlanViewport`; there is no `PlanViewMode` or visible `Layout |
+  Staging` control.
+- `LayoutInteractionState` currently owns only the global `plan | 3d` view,
+  layout tools, and `LayoutSelection`. The active-selection facade is already
+  domain-generic, but no Scene Plan staging path feeds it.
+- `PlanSvg`/`buildPlanRenderModel` currently receive layout geometry plus
+  camera/interaction projections; no live Scene entity footprint projection,
+  scene hit resolver, or Scene Plan mutation route exists.
+- `EditorInspector` still communicates that Plan is layout-only and routes
+  scene transforms to 3D. It must be changed only for the approved staging
+  surface; Scene Plan must not expose full 3D rotation or a Plan scale gesture.
+- `EditorSidebar` exposes `Hierarchy | Assets` only in Scene 3D in the review
+  baseline, while the canonical Scene Plan contract requires both tabs. The
+  Asset Library remains browse-only for unplaced assets in P2.
+- The existing Plan tour-overlay preference must be mode-gated so Staging
+  cannot expose Camera/tour authoring content.
+- Several legacy Plan opening/layout-object handlers call preview mutators
+  directly while room-unit movement uses an explicit layout transaction. P2.3d
+  must audit and wrap every create/move/delete/resize path, not only staging.
+- The persisted Scene transform currently has a scalar `scale`; independent
+  scale vectors are editor-session state in the current schema. P2.1a must
+  use the effective Scene 3D transform for projection and must not imply that
+  session-only scale survives serialization until the schema is upgraded.
+- The blank document and tree hint exist, but the complete `Empty-plan.png`
+  onboarding treatment remains a P3 visual QA item.
+- Scene 3D gizmo, selection-color, object-outline/layout-box, and upper-right
+  XYZ box visual treatment belongs to cosmetic P3. The interactive orientation
+  box (camera response, click-to-snap, no drag rotation) belongs to post-P3
+  **P3B**. P2 must not add 3D gizmo behavior or Plan scaling while solving
+  staging.
 
 ### Selection & mutation authority
 

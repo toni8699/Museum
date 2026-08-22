@@ -1702,27 +1702,10 @@ describe('MuseumEditorStore Phase 2.1 persistent camera discovery', () => {
 		expect(store.isCameraKeyHelpersActive).toBe(false);
 	});
 
-	it('camera connection and direction expansion toggle independently and persist', () => {
-		const store = createFixtureEditorStore();
-		const connectionId = store.document.connections[0]!.id;
-		expect(store.toggleCameraConnectionTreeExpansion(connectionId)).toBe(true);
-		expect(store.treeExpandedCameraConnectionIds).toContain(connectionId);
-		expect(store.toggleCameraDirectionTreeExpansion(connectionId, 'reverse')).toBe(
-			true
-		);
-		expect(store.treeExpandedCameraDirectionKeys).toContain(
-			`${connectionId}::reverse`
-		);
-		expect(store.toggleCameraConnectionTreeExpansion(connectionId)).toBe(true);
-		expect(store.treeExpandedCameraConnectionIds).not.toContain(connectionId);
-		expect(store.toggleCameraDirectionTreeExpansion(connectionId, 'reverse')).toBe(
-			true
-		);
-		expect(store.treeExpandedCameraDirectionKeys).not.toContain(
-			`${connectionId}::reverse`
-		);
-	});
-
+	// P1.9 — the per-connection/direction tree expansion left the sidebar with
+	// the deleted NodeConnectionsPanel: row expansion is component-local in
+	// CameraFlowPanel (flat neighbor list), so no store toggle API remains.
+	// The session keys survive only as delete-time prune targets.
 	it('selecting a node or placement clears the active connection discovery', () => {
 		const store = createFixtureEditorStore();
 		const connectionId = store.document.connections[0]!.id;
@@ -2817,7 +2800,7 @@ describe('MuseumEditorStore S10.2 camera-flow mutations', () => {
 		)!;
 		expect(detour1.detourOfNodeId).toBe('tour-b');
 		expect(hasConnection(store.document, 'tour-b', 'detour-1')).toBe(true);
-		expect(store.statusMessage).toContain('Detour added at');
+		expect(store.statusMessage).toContain('Branch added at');
 		expect(store.guidedTourNodeIds).toEqual([...FIXTURE_GUIDED_ORDER]);
 		expect(store.historyVersion).toBe(historyBefore + 1);
 		expect(store.validation.success).toBe(true);
@@ -2843,7 +2826,7 @@ describe('MuseumEditorStore S10.2 camera-flow mutations', () => {
 				(connection.fromNodeId === 'tour-b' && connection.toNodeId === 'detour-2')
 		)!;
 		expect(store.deleteConnection(returnEdge.id)).toBe(false);
-		expect(store.statusMessage).toContain('returns a detour');
+		expect(store.statusMessage).toContain('returns a branch');
 
 		// Strict T9: removing the middle node needs a direct detour-1–detour-3
 		// edge; the mutator rejects without mutation.
@@ -2866,14 +2849,14 @@ describe('MuseumEditorStore S10.2 camera-flow mutations', () => {
 		expect(removedHead.nextNodeId).toBeUndefined();
 		expect(removedHead.previousNodeId).toBeUndefined();
 		expect(removedHead.detourOfNodeId).toBeUndefined();
-		expect(store.statusMessage).toContain('kept as free');
+		expect(store.statusMessage).toContain('now Unsequenced');
 		expect(store.validation.success).toBe(true);
 
 		// Whole-detour removal clears the marker and links; edges stay authored.
 		expect(store.removeDetour('tour-b')).toBe(true);
 		expect(newHead.detourOfNodeId).toBeUndefined();
 		expect(hasConnection(store.document, 'detour-2', 'tour-b')).toBe(true);
-		expect(store.statusMessage).toContain('Removed the detour at');
+		expect(store.statusMessage).toContain('Removed the branch at');
 		expect(store.validation.success).toBe(true);
 	});
 
@@ -2934,7 +2917,7 @@ describe('MuseumEditorStore S10.2 camera-flow mutations', () => {
 		// Deleting the origin deletes the whole detour in one transaction.
 		const historyBefore = store.historyVersion;
 		expect(store.deleteNavigationNode('tour-b')).toBe(true);
-		expect(store.statusMessage).toContain('and the detour at');
+		expect(store.statusMessage).toContain('and the branch at');
 		expect(
 			store.document.navigationNodes.some(
 				(node) => node.id === 'detour-1' || node.id === 'detour-2'
@@ -2954,7 +2937,7 @@ describe('MuseumEditorStore S10.2 camera-flow mutations', () => {
 		expect(headStore.addDetourNode('tour-b', 'detour-3')).toBe(true);
 		expect(headStore.appendDetourNode('tour-b', 'detour-4')).toBe(true);
 		expect(headStore.deleteNavigationNode('detour-3')).toBe(true);
-		expect(headStore.statusMessage).toContain('and the detour at Tour B');
+		expect(headStore.statusMessage).toContain('and the branch at Tour B');
 		expect(
 			headStore.document.navigationNodes.some(
 				(node) => node.id === 'detour-3' || node.id === 'detour-4'
@@ -3012,7 +2995,7 @@ describe('MuseumEditorStore S10.2 camera-flow mutations', () => {
 		// (remove-from-detour + insert-into-main is a separate combined op).
 		const before = store.canonicalJson;
 		expect(store.insertNodeIntoGuidedTour('detour-1', 1)).toBe(false);
-		expect(store.statusMessage).toContain('remove it from the detour first');
+		expect(store.statusMessage).toContain('remove it from the branch first');
 		expect(store.canonicalJson).toBe(before);
 
 		expect(store.canonicalJson).toBe(before);
@@ -3766,6 +3749,26 @@ describe('MuseumEditorStore P1.8 — camera sequence authoring (re-root + strict
 		expect(store.stopCameraPreview()).toBe(true);
 	});
 
+	it('keeps a single-camera Visitor preview stoppable when no timeline exists', () => {
+		const document = cloneFixtureDocument();
+		const node = document.navigationNodes[0]!;
+		delete node.nextNodeId;
+		delete node.previousNodeId;
+		delete node.detourOfNodeId;
+		node.connectedNodeIds = [];
+		document.navigationNodes = [node];
+		document.connections = [];
+		const store = createMuseumEditorStore({ document });
+
+		store.selectionActions.selectNavigationNode(node.id);
+		expect(store.getCameraTimeline()).toBeNull();
+		expect(store.previewSelectedNode('visitor')).toBe(true);
+		expect(store.cameraPreview).toMatchObject({ kind: 'node', nodeId: node.id });
+		expect(store.isDocumentMutationBlocked).toBe(true);
+		expect(store.stopCameraPreview()).toBe(true);
+		expect(store.cameraPreview).toBeNull();
+	});
+
 	it('re-rooted fixture plays the tour from the new head', () => {
 		const document = cloneFixtureDocument();
 		const store = createFixtureEditorStore();
@@ -3780,5 +3783,99 @@ describe('MuseumEditorStore P1.8 — camera sequence authoring (re-root + strict
 		expect(timeline!.edges).toHaveLength(1);
 		expect(timeline!.edges[0]!.fromNodeId).toBe('tour-paris');
 		expect(timeline!.edges[0]!.toNodeId).toBe('tour-d');
+	});
+});
+
+describe('MuseumEditorStore P1.9 — empty-chain promotion (manual Start Sequence)', () => {
+	function createFlowlessConnectedStore() {
+		const document = cloneFixtureDocument();
+		// Strip the fixture's flow order — graph connections stay, sequence is
+		// empty (the confirmed-but-unreachable state P1.9 fixes).
+		for (const node of document.navigationNodes) {
+			delete node.nextNodeId;
+			delete node.previousNodeId;
+			delete node.detourOfNodeId;
+		}
+		return createMuseumEditorStore({ document });
+	}
+
+	it('Start Sequence seeds a two-node flow through the existing edge in one history entry', () => {
+		const store = createFlowlessConnectedStore();
+		expect(store.guidedTourNodeIds).toEqual([]);
+
+		const connection = store.document.connections[0]!;
+		const headId = connection.fromNodeId;
+		const partnerId = connection.toNodeId;
+
+		// The old dead end: with no flow, gap insertion rejects on the D4 floor.
+		expect(store.insertNodeIntoGuidedTour(headId, 0)).toBe(false);
+		expect(store.guidedTourNodeIds).toEqual([]);
+
+		// Manual pair promotion: clicked row = stop 1, connected partner = stop 2.
+		expect(store.startSequenceFromNode(headId)).toBe(true);
+		expect(store.guidedTourNodeIds).toEqual([headId, partnerId]);
+		expect(store.navigationSelection).toEqual({
+			kind: 'node',
+			nodeId: headId,
+			handle: 'position'
+		});
+		expect(store.statusMessage).toContain('Started the camera flow');
+
+		// One gesture = one tagged scene history entry — a single undo restores
+		// the empty-chain state; the graph edge survives (order-only seed).
+		expect(store.undo()).toBe(true);
+		expect(store.guidedTourNodeIds).toEqual([]);
+		const head = store.document.navigationNodes.find((node) => node.id === headId)!;
+		const partner = store.document.navigationNodes.find((node) => node.id === partnerId)!;
+		expect(head.connectedNodeIds).toContain(partnerId);
+		expect(partner.connectedNodeIds).toContain(headId);
+	});
+
+	it('deleting the final two-node connection dissolves the sequence and is undoable', () => {
+		const store = createFixtureEditorStore();
+		expect(store.setGuidedTourOrder(['tour-a', 'tour-b'])).toBe(true);
+		expect(store.guidedTourNodeIds).toEqual(['tour-a', 'tour-b']);
+		const historyBeforeDelete = store.historyVersion;
+
+		expect(store.deleteConnection('tour-a-b')).toBe(true);
+		expect(store.historyVersion).toBe(historyBeforeDelete + 1);
+		expect(store.guidedTourNodeIds).toEqual([]);
+		expect(store.document.connections.some((connection) => connection.id === 'tour-a-b')).toBe(false);
+		for (const nodeId of ['tour-a', 'tour-b']) {
+			const node = store.document.navigationNodes.find((candidate) => candidate.id === nodeId)!;
+			expect(node.nextNodeId).toBeUndefined();
+			expect(node.previousNodeId).toBeUndefined();
+		}
+		expect(store.statusMessage).toContain('both cameras are now Unsequenced');
+		expect(store.validation.success).toBe(true);
+
+		expect(store.undo()).toBe(true);
+		expect(store.guidedTourNodeIds).toEqual(['tour-a', 'tour-b']);
+		expect(store.document.connections.some((connection) => connection.id === 'tour-a-b')).toBe(true);
+	});
+
+	it('rejects promotion when a flow already exists or the row has no connected Unsequenced partner', () => {
+		const store = createFixtureEditorStore();
+		// Fixture has a live flow — promotion is an empty-chain-only path.
+		expect(store.guidedTourNodeIds.length).toBeGreaterThan(0);
+		const anyNodeId = store.document.navigationNodes[0]!.id;
+		expect(store.startSequenceFromNode(anyNodeId)).toBe(false);
+		expect(store.statusMessage).toContain('already exists');
+	});
+
+	it('seeding routes through the selection orchestration — latent placement is cancelled and the timeline syncs', () => {
+		const store = createFlowlessConnectedStore();
+		const connection = store.document.connections[0]!;
+		const headId = connection.fromNodeId;
+		// A latent asset placement must not survive (nor block) Start Sequence.
+		store.setWorkspace('camera');
+		expect(store.beginAssetPlacement('paris-salon-chair')).toBe(true);
+		expect(store.pendingPlacementAssetId).toBe('paris-salon-chair');
+		expect(store.startSequenceFromNode(headId)).toBe(true);
+		expect(store.guidedTourNodeIds).toEqual([headId, connection.toNodeId]);
+		expect(store.pendingPlacementAssetId).toBeNull();
+		// The camera timeline reflects the newly-seeded flow.
+		const timeline = store.getCameraTimeline();
+		expect(timeline).not.toBeNull();
 	});
 });

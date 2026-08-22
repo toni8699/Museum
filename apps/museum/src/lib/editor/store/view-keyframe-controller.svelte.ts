@@ -43,7 +43,6 @@ import {
 import {
 	cameraMotionEdgeProgressAtProgress,
 	cameraMotionProgressAtEdgeProgress,
-	createCameraMotion,
 	createCameraMotionSample,
 	sampleCameraMotion,
 	type Vector3Like
@@ -52,6 +51,7 @@ import {
 	getCameraConnectionRoute,
 	type ResolvedCameraRoute
 } from '$lib/museum/navigation/camera-route';
+import { resolveDirectedEdgeMotionForConnection } from '../editor-directed-edge-motion';
 import {
 	createDraftConnectionPositionPath,
 	findNearestCurveProgress,
@@ -573,7 +573,17 @@ export class EditorViewKeyframeController {
 	#getViewKeyframeAuthoringSample(preview: ConnectionCameraPreview) {
 		const route = this.host.getCapturedCameraPreviewRoute(preview.runId);
 		if (!route) return null;
-		const motion = createCameraMotion(route);
+		const connection = this.host.document.connections.find(
+			(candidate) => candidate.id === preview.connectionId
+		);
+		if (!connection) return null;
+		// P8 S1 parity — key authoring parameterizes against the same authored
+		// timing/easing the preview plays with (captured route + live options).
+		const motion = resolveDirectedEdgeMotionForConnection(
+			connection,
+			preview.direction,
+			route
+		).motion;
 		let playhead = preview.playhead;
 		let edgeProgress: number;
 		const selection = this.host.navigationSelection;
@@ -881,12 +891,18 @@ export class EditorViewKeyframeController {
 			selection.direction,
 			draftGraph
 		);
-		const motion = createCameraMotion(route);
-		const playhead = cameraMotionProgressAtEdgeProgress(motion, 0, progress);
 		const connection = this.host.document.connections.find(
 			(candidate) => candidate.id === selection.connectionId
 		);
 		if (!connection) throw new Error('The camera connection is unavailable');
+		// P8 S1 parity — the drag's preview sync uses the same authored
+		// timing/easing as preview playback and the timeline.
+		const motion = resolveDirectedEdgeMotionForConnection(
+			connection,
+			selection.direction,
+			route
+		).motion;
+		const playhead = cameraMotionProgressAtEdgeProgress(motion, 0, progress);
 
 		const runId = this.host.allocPreviewRunId();
 		this.host.setCapturedPreviewRoute(runId, route);

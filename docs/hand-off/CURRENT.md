@@ -34,9 +34,10 @@ live here. History chains backward through the tracker's depends-on column.
 
 ## Next action
 
-- **One action:** open **P8 Slice 2** — grep-verified readiness survey of the
-  preview FSM / session-state / history-invalidation hook points, then
-  implement explicit preview scopes + transport semantics per
+- **One action:** open **P8 Slice 2** — readiness survey + design detail
+  folded into the umbrella ([Slice 2 design — design detail folded 2026-08-21](../plans/2026-08-21-P8-camera-preview-scopes.md#slice-2--design-detail-folded-2026-08-21),
+  grep-verified inventory of preview FSM / session / history hook points),
+  then implement explicit preview scopes + transport semantics per
   [`plans/2026-08-21-P8-camera-preview-scopes.md`](../plans/2026-08-21-P8-camera-preview-scopes.md)
   §F S2 (routing: Sol medium per [`plans/model-assessment.md`](../plans/model-assessment.md)).
 

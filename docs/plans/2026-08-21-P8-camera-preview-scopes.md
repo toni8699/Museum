@@ -165,6 +165,15 @@ Migration mapping: `node → camera`, `connection → edge`, `tour → sequence`
 `transition` retained as legacy compatibility (multi-edge BFS route) until
 callers migrate, then removed (mechanical cleanup slice).
 
+**S2 ratification (2026-08-21):** Slice 2 ships an *interim* representation —
+a derived `previewScopeOf(preview)` helper plus an `edgeRepeat` flag scoped
+strictly to `kind === 'connection'` — instead of replacing the preview `kind`
+union (which would break exhaustive switches). Semantics match §D4 today
+(`node→camera`, `connection→edge`, `tour→sequence`, `transition→legacy`); the
+discriminated `PreviewScope` state above remains the target shape and lands in
+**Slice 6** with the `node/connection/tour → camera/edge/sequence` kind rename
+(D6). Detail: [Slice 2 design](#slice-2--design-detail-folded-2026-08-21).
+
 **D5 — Roll/Shots deferred** (see Out of scope). Timeline may reserve lanes
 visually only.
 
@@ -223,11 +232,14 @@ asserting direct-edge sample == timeline-edge sample for the same
 
 ### Slice 2 — Explicit preview scope state + transport semantics
 
-- Extend preview FSM with `PreviewScope` per §D4; `tour → sequence`,
-  `connection → edge` mappings; `transition` kept as legacy.
-- Transport: Play resumes current playhead; Pause freezes; Stop returns to
-  scope start; completed previews restart on Play; Sequence end marks
-  complete + Replay affordance.
+- Extend preview FSM with `PreviewScope` per §D4 (**S2 interim**: derived
+  `previewScopeOf` + `edgeRepeat`; discriminated state in S6 — see §D4
+  ratification). Mappings `tour → sequence`, `connection → edge`;
+  `transition` kept as legacy. Detail: [Slice 2 design](#slice-2--design-detail-folded-2026-08-21).
+- Transport: Play resumes current playhead; Pause freezes; **Stop keeps its
+  teardown semantics (selection preserved)**; new `resetToScopeStart()`
+  returns to scope start; completed previews restart on Play; Sequence end
+  marks complete + Replay affordance.
 - Scope transitions: selecting an edge never interrupts playing Sequence;
   explicit Preview Edge/Preview Sequence commands switch scope; last Sequence
   playhead preserved separately and restored when valid.
@@ -287,11 +299,192 @@ UI test for the demoted context-sensitive play button.
   `tour`/`guided`-era aliases (D6); sweep internal naming to
   camera/edge/sequence. Behavior-neutral; may ride with any later slice.
 
+## Slice 2 — design detail (folded 2026-08-21)
+
+Detail for §F Slice 2, folded from `docs/p8-slice-2-preview-scope-state.md`
+(original deleted per fold-and-delete). The readiness survey is grep-verified
+against the tree on 2026-08-21; re-grep at implementation time.
+**Routing:** Sol medium (54, 92% Sol max), margin 0 → escalate on first
+failure (`docs/plans/model-assessment.md`).
+
+### S2 readiness survey (grep-verified)
+
+| Area | File:line | What it owns today | S2 relevance |
+|---|---|---|---|
+| Preview union | `museum-editor.types.ts:53-85` | `EditorCameraPreviewState{mode,transport,runId,playhead,startedAtMs}` + kinds `node{nodeId}`, `transition{from,to}`, `connection{connectionId,direction,from,to}`, `tour{startNodeId}` | Maps `node→camera`, `connection→edge`, `tour→sequence`, `transition→legacy`. Adding a `scope` field would break exhaustive switches — S2 adds derived `previewScopeOf()` instead; kind rename deferred to S6 (see §D4 ratification) |
+| Preview controller | `camera-preview-controller.svelte.ts:141-697` | `$state preview`, `followEnabled`, `recenterVersion`, captured-route/runId/timeline caches; entries `startNode/Transition/Connection/Tour`; `play()` (resume, complete→0, re-capture director route), `pause()`, `setPlayhead()`, `step()` (S1 resolver patched), `markStarted/complete`, `setMode`, `stop()` (null+clear+follow), snapshot ops; `refreshPausedDirector` (keep-on-failure, `#resolveRoute`), `pruneIfStale` (**node+tour only — gap**), `releaseIfTouches`, `invalidateGraph`, `getTimeline()` | New `edgeRepeat` `$state`; new `resetToScopeStart()`; extend `pruneIfStale` for connection; validate `lastSequencePlayhead` in `refreshPausedDirector`; `swapEdgeDirection()` arc-length remap |
+| Timeline controller | `camera-timeline-controller.svelte.ts` | `cameraTimelinePlayhead` stays facade `$state` (9.3 gotcha); `seekCameraTimeline` with `#timelineTravelDirection`; `show*Pose`; `toggle/setCameraEdgeTravel` (arc-length remap via `cameraTimelineEdgePlayheadAtProgress`, seeds reverse track) | Swap reuses the same arc-length pattern; `findEditorCameraTimelineEdge` validates `lastSequencePlayhead` restore |
+| Selection/discovery | `selection-store.svelte.ts:1-157` + facade `museum-editor.svelte.ts:761-772` | `navigation` (5 kinds), `workspace`, `discoveryConnectionId/direction` with reducer invariants; facade `activeCameraConnectionId/Direction` → `setDiscovery` | Swap calls `setDiscovery` + `expandActiveCameraDirection`; `lastSequencePlayhead` lives on the facade next to `cameraTimelinePlayhead` |
+| Commands layer | `camera-preview-commands.svelte.ts:152-748` | `prepareCameraPreview`; `previewGuidedTour` (reuses `cameraTimelinePlayhead`), `previewSelectedNode`/`Transition`/`Connection` (block while `cameraPreview` exists); `playCameraPreview` (director re-resolves, complete→0, syncs playhead), `setCameraPreviewPlayhead`, `completeCameraPreview` (playing + started only), `stopCameraPreview` (cancels drag + framing, **preserves selection** per Phase 2.1) | New `previewEdge(connectionId,direction)` (snapshots playhead→`lastSequencePlayhead` first), `previewSequence()` (restore + delegate to `previewGuidedTour` — inherits its tour-playing no-op), `swapEdgePreviewDirection()`, `setEdgePreviewRepeat()`, `resetPreviewToScopeStart()`, `completeCameraPreview` repeat branch |
+| Facade wiring | `museum-editor.svelte.ts:547-561,1359-1386` | afterReplace chain: reconcile → `refreshPausedDirector`(status) → `pruneIfStale` → `invalidateGraph` → view-keyframe reconcile. `#pruneInvalidCameraPreview` (1359) is the **stricter** facade prune (connection + endpoints) — runs on `undo()`/`redo()` only, not afterReplace | `lastSequencePlayhead` `$state` + delegates; **no new afterReplace listener** — reuse the existing three preview listeners |
+| Session | `store/session-state.svelte.ts` | Expand/collapse, discovery persistence | No change in S2 |
+| Resolver (S1) | `editor-directed-edge-motion.ts` | `ForConnection/ByDirection/orientationPair` + widened `getCameraMotionOptions` | Reused for direction-swap remap via `edgeProgress` round-trip |
+
+**Gap closed:** the prior S2 readiness note asked for "FSM/session/history hook
+points" — the table enumerates them all. Layering note: the facade's
+`#pruneInvalidCameraPreview` (undo/redo only) is separate from the controller's
+`pruneIfStale` (afterReplace, node+tour only); D7 below extends the latter to
+connection without duplicating the endpoint checks.
+
+### S2 design decisions (corrected 2026-08-21)
+
+- **D1 scope representation:** derived `previewScopeOf(preview):
+  'camera'|'edge'|'sequence'|'legacy'|null`. No kind rename in S2 (§D4
+  ratification); `transition` → `legacy`.
+- **D2 new session slots:** `lastSequencePlayhead: number|null` (facade
+  `$state`; written when leaving `sequence` scope, read when entering
+  `sequence` if the edge still resolves); `edgeRepeat: boolean` (controller
+  `$state`, default false, per-preview like `followEnabled`; cleared on new
+  `startConnection`/stop, kept across direction swap). **Both slots are
+  in-memory-only: never serialized to codec, history, or session
+  persistence** (session state is otherwise persisted — expand/collapse,
+  discovery).
+- **D3 transport — additive:** keep `stopCameraPreview()` teardown semantics
+  (≈22 `museum-editor-camera` tests depend — estimate, verify at
+  implementation); add `resetToScopeStart()` (paused + playhead 0 + sync
+  facade playhead 0 **for tour only** — connection keeps its paused
+  playhead; preview stays installed). Play-from-complete already restarts
+  at 0 — Replay is UI (S3/S4), no new `replay()`.
+- **D4 repeat:** when `edgeRepeat && kind==='connection' &&
+  transport==='playing'` completes, `completeCameraPreview()` auto-restarts
+  with **new runId, `playing` at 0, `startedAtMs: null`** (matching `play()`;
+  the Rig re-marks on the new runId) instead of staying `complete`.
+  **Zero-duration guard:** if the resolved motion's `durationSeconds === 0`
+  (or `reducedMotion`), **stay `complete`** — the Rig already
+  immediate-completes those (EditorCameraRig.svelte:398, :533), so a repeat
+  restart would busy-loop every frame.
+- **D5 direction swap:** `swapEdgePreviewDirection()` only when
+  `kind==='connection' && paused`. Resolve a **fresh** opposite-direction
+  route — `getCameraConnectionRoute(connectionId, oppositeDir, graph)` or
+  `resolveDirectedEdgeMotionByDirection(graph, id, oppositeDir)` **without a
+  `route` option**. Never reuse the captured snapshot: the resolver applies
+  a supplied route's geometry verbatim (editor-directed-edge-motion.ts:40-48),
+  so `ForConnection(connection, oppositeDir, capturedRoute)` would compile
+  reverse timing onto forward A→B geometry. Then preserve physical location
+  via the **edge-domain flip**: `e =
+  cameraMotionEdgeProgressAtProgress(oldMotion,0,playhead)`; `e' = 1 − e`
+  (reverse edge 0 runs B→A, so the same world point sits at `1 − e`, not
+  `e` — the canonical pattern is `cameraTimelineProgressAtEdgePlayhead`/
+  `cameraTimelineEdgePlayheadAtProgress`, editor-camera-timeline.ts:340-344,
+  :386-388); `playhead' = cameraMotionProgressAtEdgeProgress(newMotion,0,e')`.
+  The plan's earlier "(physical location, not `1-p`)" applies to playhead
+  remap only — the edge-domain `1 − e` is required. New runId; update
+  discovery (`setDiscovery` + `expandActiveCameraDirection`); keep
+  `edgeRepeat`.
+- **Naming contract:** `previewEdge(connectionId, direction)` = explicit
+  scope switch (snapshots playhead → `lastSequencePlayhead`, installs
+  `connection` paused); `playActiveConnectionEdge`/`previewSelectedConnection`
+  = transport play of an already-active edge. The swap's `setDiscovery` is
+  selection upkeep, not a re-enter.
+- **D6 preservation:** Edge→Sequence restores `lastSequencePlayhead` only if
+  `findEditorCameraTimelineEdge()` ≠ null **and**
+  `cameraTimelineProgressAtEdgeProgress()` ≠ null; `getTimeline()` null or
+  either null → start at 0.
+- **D7 invalidation (layering):** extend the controller's `pruneIfStale` to
+  drop `connection` when the connection or either endpoint is gone — this
+  closes the afterReplace (commit/import/reset) gap. Keep the facade's
+  `#pruneInvalidCameraPreview` (undo/redo, full `stopCameraPreview` teardown)
+  as the stricter second layer; extract a shared
+  `isPreviewStale(preview, document)` helper so the endpoint checks are not
+  duplicated. `refreshPausedDirector` tour branch keeps only if
+  `readCameraTimeline()` succeeds and the restored `lastSequencePlayhead`
+  still maps; `releaseIfTouches` already covers mutation-time deletion.
+  AfterReplace order is already safe: `pruneIfStale` begins with
+  `invalidateGraph()` (camera-preview-controller.svelte.ts:597), so the new
+  connection branch runs against a fresh graph before the facade's
+  `invalidateGraph` listener.
+- **D8 P7.5 fold-in:** `cameraTimelinePlayhead` stays facade-owned through
+  S2 (9.3); ownership folds to the timeline controller post-S4 (tracker).
+
+### State model delta
+
+```ts
+// museum-editor.types.ts — no type added; helper in controller:
+// previewScopeOf(p): 'camera'|'edge'|'sequence'|'legacy'|null
+// museum-editor.svelte.ts facade:
+lastSequencePlayhead = $state<number | null>(null)
+// camera-preview-controller.svelte.ts:
+edgeRepeat = $state(false)
+// Both slots in-memory only — never codec/history/session-persistence.
+```
+
+### Work items by file
+
+1. `museum-editor.types.ts` — optional `PreviewScope` type alias; no breaking
+   change.
+2. `camera-preview-controller.svelte.ts` — `edgeRepeat`, `previewScopeOf`,
+   `resetToScopeStart()`, `swapEdgeDirection()` (fresh opposite-direction
+   route, never the captured snapshot; `1 − e` edge-progress flip),
+   `pruneIfStale` connection branch, `refreshPausedDirector`
+   `lastSequencePlayhead` validity, clear `edgeRepeat` on
+   `startConnection`/stop.
+3. `camera-preview-commands.svelte.ts` — `previewEdge`, `previewSequence`
+   (save/restore `lastSequencePlayhead`, delegate to `previewGuidedTour`),
+   `swapEdgePreviewDirection`, `setEdgePreviewRepeat`, `resetPreviewToScopeStart`,
+   `completeCameraPreview` repeat branch. `stopCameraPreview` untouched.
+4. `museum-editor.svelte.ts` — `lastSequencePlayhead` `$state` + accessors,
+   new delegates, expose `edgeRepeat` for UI reads.
+5. Controller host interface — expose `lastSequencePlayhead` read to the
+   controller (needed for D7's `refreshPausedDirector` tour-branch validity
+   check); facade keeps write ownership.
+6. **No changes:** `CameraDirector.svelte`, `museum-state`, visitor chunks;
+   resolver reused as-is; `camera-timeline-controller` unchanged except
+   optional helper exposure.
+
+### Test matrix — §G rows → concrete tests
+
+All via `createMuseumEditorStore` fixtures (existing
+`museum-editor-camera.test.ts` pattern) + `previewScopeOf` unit tests.
+Existing-suite counts (≈1921 total, ≈22 stop-semantics) are estimates —
+record the real numbers at implementation.
+
+| §G row | Test |
+|---|---|
+| scope mapping | `previewScopeOf` unit: node→camera, connection→edge, tour→sequence, transition→legacy, null→null |
+| Missing connection (pre-install) | `previewEdge(unknown connection)` → status message, preview stays null |
+| select-edge while sequence playing | seek blocked + `previewSelectedConnection` no-ops → tour still `playing` |
+| Preview Edge explicit switch | saves `lastSequencePlayhead` (= prior `cameraTimelinePlayhead`), installs `connection` paused |
+| Preview Sequence return (valid) | restores `lastSequencePlayhead` when edge still present (`cameraTimelineProgressAtEdgeProgress` non-null) |
+| Preview Sequence return (invalid) | resets to 0 when connection deleted / timeline rebuilt without that edge |
+| edgeRepeat auto-restart | `completeCameraPreview` with `edgeRepeat=true` → new runId `playing` at 0, not `complete` |
+| edgeRepeat + zero-duration | zero-duration edge with `edgeRepeat=true` → stays `complete`, **no restart loop** |
+| edgeRepeat cleared | cleared on new `startConnection` and on `stop`; kept across direction swap |
+| resetToScopeStart playhead sync | facade `cameraTimelinePlayhead = 0` for tour; connection playhead untouched |
+| direction swap preserves pose | paused swap: `sample(oldMotion,playhead).position ≈ sample(newMotion,playhead').position` |
+| direction swap keeps repeat+discovery | repeat retained, `activeCameraDirection` flipped |
+| delete selected edge | `releaseIfTouches` / extended `pruneIfStale` → preview null after document replace |
+| undo restores edge | `refreshPausedDirector` keeps preview (no status) when connection reappears |
+| zero-duration edge | resolver `durationFallback` path → Rig immediate complete, transport `complete` |
+| one/two-node flow | `previewSequence` fails gracefully (existing `minimum_guided_nodes` status) when timeline unbuildable |
+
+Acceptance: all §G rows covered, no visible UI beyond labels, existing suites
+stay green.
+
+### Boundaries / out of scope
+
+No timeline UI (local ruler, scrubber) — S3. No whole-Sequence global ruler
+composition change — S4. No Plan/3D integration — S5. No `transition` kind
+removal — S6. No visitor runtime change (`CameraDirector`). No schema
+migration.
+
+### Risks & rollback
+
+- **Stop reinterpretation** — additive `resetToScopeStart` (no teardown
+  change); if the owner later wants Stop=reset, swap wiring in S3.
+- **Stale snapshot vs live timing** — the captured-route + live-timing
+  pattern applies to **same-direction** re-resolution only (play/resume/
+  refresh); the **direction swap resolves a fresh opposite route** per D5
+  and never reuses the snapshot geometry.
+- **P7.5 overlap** — `cameraTimelinePlayhead` ownership stays facade; no
+  conflict until P7 resumes post-S4.
+- Rollback: three files (`museum-editor.types`, controller, commands) + one
+  facade slot; no data migration.
+
 ## G. Edge-case matrix
 
 | Case | Behavior |
 |---|---|
-| Reversed edge | Topology canonical; swap from/to; reverse view/timing tracks; arc-length position remap (never `1 − p`) |
+| Reversed edge | Topology canonical; swap from/to; reverse view/timing tracks; arc-length position remap: edge-domain `1 − e` flip (playhead `1 − p` is never used) |
 | Unsequenced endpoint | Edge timeline built straight from the connection; no flow-route/order-link calls |
 | Zero/invalid duration | Static/completed pose for zero motion; invalid authored values → automatic duration + validation signal; never NaN/Infinity |
 | Missing connection | Fail before installing preview state; disappearing while paused → stop + clear edge preview |

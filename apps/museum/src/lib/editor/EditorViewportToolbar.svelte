@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { ChevronDown, Eye, MousePointer2, Move, Rotate3d, Scaling, Video } from 'lucide-svelte';
 	import type { EditorTransformMode } from './editor-transform';
-	import type { MuseumEditorStore } from './museum-editor.svelte';
+	import type { EditorStore } from './editor-store.svelte';
 	import { onMount, getContext } from 'svelte';
 	import {
 		EDITOR_INTERACTION_STORE_KEY,
@@ -26,7 +26,7 @@
 		// which keeps the legacy navigation-before-placement arbitration.
 		gizmoCapabilities = null
 	}: {
-		store: MuseumEditorStore;
+		store: EditorStore;
 		// editor 3D (restored 2026-08-16): the layout ceiling toggle that the
 		// unification dropped lives in the View menu when these props are
 		// provided; the relic mount leaves them absent and keeps its own

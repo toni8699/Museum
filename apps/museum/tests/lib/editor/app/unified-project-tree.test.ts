@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { LayoutDocument } from '$lib/layout/layout-types';
-import type { MuseumSceneDocument, SceneEntity } from '$lib/content/scene';
+import type { SceneDocument, SceneEntity } from '$lib/content/scene';
 import type { ActiveEditorSelection } from '$lib/editor/app/active-editor-selection.svelte';	import {
 		buildUnifiedProjectTreeModel,
 		filterUnifiedProjectTreeModel,
@@ -121,7 +121,7 @@ function makeEntity(
 	};
 }
 
-function makeScene(): MuseumSceneDocument {
+function makeScene(): SceneDocument {
 	return {
 		textures: [],
 		materials: [],

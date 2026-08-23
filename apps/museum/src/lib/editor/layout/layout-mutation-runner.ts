@@ -4,7 +4,7 @@ import {
 } from './layout-preview-state.svelte';
 
 /**
- * The transaction surface of `MuseumEditorStore` the runner needs. Kept
+ * The transaction surface of `EditorStore` the runner needs. Kept
  * structural so the runner never imports the store facade (and the frozen
  * relic can keep its own begin/commit/cancel wrappers if it must).
  */

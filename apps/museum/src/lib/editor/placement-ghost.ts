@@ -15,7 +15,7 @@
  */
 
 import { Box3, Euler, Matrix4, Vector3 } from 'three';
-import type { Vec3 } from '$lib/types/museum';
+import type { Vec3 } from '$lib/types/scene';
 import type { ScenePrimitiveDimensions, ScenePrimitiveKind } from '$lib/content/scene';
 
 /** What the user is about to place. Consumed by `placement-ghost.svelte` + the

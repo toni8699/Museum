@@ -1,7 +1,7 @@
 /**
  * Validator helpers (audit §3.F, Slice 3 debt 3.12).
  *
- * `runOrFail` collapses the eight occurrences in `museum-editor.svelte.ts`
+ * `runOrFail` collapses the eight occurrences in `editor-store.svelte.ts`
  * of the dance
  *
  * ```ts

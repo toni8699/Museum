@@ -2,10 +2,10 @@
 	import { ExternalLink, Info, Lightbulb } from 'lucide-svelte';
 	import { resolveAssetFallback } from '$lib/content/assets';
 	import { isSceneLightEntity, isSceneModelEntity, isScenePrimitiveEntity } from '$lib/content/scene';
-	import type { MuseumAsset } from '$lib/types/assets';
+	import type { Asset } from '$lib/types/assets';
 	import { tick } from 'svelte';
-	import type { EditorWorkspace } from './museum-editor.types';
-	import EditorCameraInspector from './EditorCameraInspector.svelte';
+	import type { EditorWorkspace } from './editor-types';
+	import EditorCameraInspector from './camera/EditorCameraInspector.svelte';
 	import CameraPlanInspector from './app/CameraPlanInspector.svelte';
 	import type { EditorViewState } from './app/editor-view-state.svelte';
 	import EditorLightInspector from './EditorLightInspector.svelte';
@@ -42,8 +42,8 @@
 	import {
 		EDITOR_BRIGHT_LIGHTING,
 		EDITOR_VISITOR_LIGHTING,
-		type MuseumEditorStore
-	} from './museum-editor.svelte';
+		type EditorStore
+	} from './editor-store.svelte';
 	import type { EditorActiveSelectionStore } from './app/active-editor-selection.svelte';
 	import type { EditorViewMode } from './app/editor-view-mode';
 
@@ -57,7 +57,7 @@
 		viewMode = '3d',
 		viewState = null
 	}: {
-		store: MuseumEditorStore;
+		store: EditorStore;
 		layoutPreview: LayoutPreviewState;
 		layoutInteraction: LayoutInteractionState;
 		/** optional domain-driven panel switch. When provided and a
@@ -66,7 +66,7 @@
 		 *  falls back to `store.currentWorkspace` — the relic passes nothing
 		 *  and is byte-for-byte unchanged. */
 		activeSelection?: EditorActiveSelectionStore;
-		selectedAsset?: MuseumAsset;
+		selectedAsset?: Asset;
 		clusterNameInput?: HTMLInputElement;
 		/** Authoritative shell view mode. the editor passes the top-level Plan | 3D
 		 *  switch so the domain-driven panel can keep a preserved scene/camera

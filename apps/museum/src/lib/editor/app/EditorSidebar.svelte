@@ -7,7 +7,7 @@
 	// source/status badge + import error move to a compact header strip, hidden
 	// for the common boot-empty case. "Reset empty" is dropped (it duplicated
 	// the Project menu's resetLayout).
-	import type { MuseumAsset } from '$lib/types/assets';
+	import type { Asset } from '$lib/types/assets';
 	import EditorAssetLibrary from '$lib/editor/EditorAssetLibrary.svelte';
 	import {
 		layoutPreviewSessionStatus,
@@ -15,7 +15,7 @@
 		type LayoutPreviewState
 	} from '$lib/editor/layout/layout-preview-state.svelte';
 	import { setLayoutDraftTool, type LayoutInteractionState } from '$lib/editor/layout/layout-interaction';
-	import type { MuseumEditorStore } from '$lib/editor/museum-editor.svelte';
+	import type { EditorStore } from '$lib/editor/editor-store.svelte';
 	import UnifiedProjectTree from '$lib/editor/UnifiedProjectTree.svelte';
 	import CameraSidebar from './CameraSidebar.svelte';
 	import type { EditorActiveSelectionStore } from './active-editor-selection.svelte';
@@ -31,14 +31,14 @@
 		onAssetSelection,
 		onSelectAsset
 	}: {
-		store: MuseumEditorStore;
+		store: EditorStore;
 		layoutPreview: LayoutPreviewState;
 		layoutInteraction: LayoutInteractionState;
 		activeSelection: EditorActiveSelectionStore;
 		viewState: EditorViewState;
 		outlinerElement?: HTMLElement | null;
-		onAssetSelection?: (asset: MuseumAsset | undefined) => void;
-		onSelectAsset?: (asset: MuseumAsset) => void;
+		onAssetSelection?: (asset: Asset | undefined) => void;
+		onSelectAsset?: (asset: Asset) => void;
 	} = $props();
 
 	const domain = $derived(viewState.domain);

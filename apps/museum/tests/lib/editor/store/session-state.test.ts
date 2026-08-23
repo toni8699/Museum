@@ -7,7 +7,7 @@ import {
 	vi
 } from 'vitest';
 import { EditorSessionState } from '$lib/editor/store/session-state.svelte';
-// Inlined to match `museum-editor.svelte.ts` `EDITOR_VISITOR_LIGHTING` /
+// Inlined to match `editor-store.svelte.ts` `EDITOR_VISITOR_LIGHTING` /
 // `EDITOR_BRIGHT_LIGHTING`. The constants stay on the god file outside the
 // types-only barrel per Slice 1 debt 3.11.
 const EDITOR_VISITOR_LIGHTING = {

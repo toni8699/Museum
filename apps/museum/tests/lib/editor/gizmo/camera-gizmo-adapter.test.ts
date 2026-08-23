@@ -1,7 +1,7 @@
 /**
  * S7 step 4 — camera-gizmo-adapter session tests.
  *
- * Drives `createCameraGizmoAdapter` against a real `MuseumEditorStore` with
+ * Drives `createCameraGizmoAdapter` against a real `EditorStore` with
  * registered helper roots, exercising the session seams the monolith ran
  * inline: node position/target previews (world → room-local), authored-node
  * always-commit (no epsilon), pending-node draft path, path-anchor and
@@ -11,7 +11,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { Object3D, Vector3 } from 'three';
-import type { Vec3 } from '$lib/types/museum';
+import type { Vec3 } from '$lib/types/scene';
 import { createCameraGizmoAdapter } from '$lib/editor/gizmo/camera-gizmo-adapter.svelte';
 import { deriveShowAxes } from '$lib/editor/gizmo/editor-gizmo-policy';
 import { createFixtureEditorStore, createRelicFixtureEditorStore } from '../editor-test-utils';
@@ -19,8 +19,8 @@ import { cloneFixtureDocument } from '../../content/__fixtures__/load-fixture-sc
 import {
 	EDITOR_CAMERA_PATH_MOVE_EPSILON,
 	getScenePathAnchorWorldPosition
-} from '$lib/editor/editor-camera-path';
-import { EDITOR_CAMERA_VIEW_MOVE_EPSILON } from '$lib/editor/editor-camera-view';
+} from '$lib/editor/camera/editor-camera-path';
+import { EDITOR_CAMERA_VIEW_MOVE_EPSILON } from '$lib/editor/camera/editor-camera-view';
 
 function makeRoot(position: Vec3): Object3D {
 	const root = new Object3D();

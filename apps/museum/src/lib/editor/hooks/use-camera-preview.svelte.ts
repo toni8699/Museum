@@ -13,12 +13,12 @@ import {
 import {
 	followEditorDirectorObserver,
 	recenterEditorDirectorObserver
-} from '../editor-camera';
-import { sampleEditorCameraTimeline } from '../editor-camera-timeline';
+} from '../camera/editor-camera';
+import { sampleEditorCameraTimeline } from '../camera/editor-camera-timeline';
 import type {
 	EditorCameraPreview,
-	MuseumEditorStore
-} from '../museum-editor.svelte';
+	EditorStore
+} from '../editor-store.svelte';
 import type { PerspectiveCamera } from 'three';
 import { Vector3 } from 'three';
 import type { OrbitControls as ThreeOrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
@@ -42,7 +42,7 @@ type PreviewSampler = {
 	) => boolean;
 };
 
-function createPreviewSampler(store: MuseumEditorStore): PreviewSampler {
+function createPreviewSampler(store: EditorStore): PreviewSampler {
 	const sample = createCameraMotionSample();
 
 	function durationSeconds(preview: ActiveCameraPreview, motion: CameraMotion | null) {
@@ -82,7 +82,7 @@ function createPreviewSampler(store: MuseumEditorStore): PreviewSampler {
 	};
 }
 
-export function useDirectorPreview(store: MuseumEditorStore) {
+export function useDirectorPreview(store: EditorStore) {
 	const base = createPreviewSampler(store);
 
 	function recenter(camera: PerspectiveCamera, controls: ThreeOrbitControls) {
@@ -128,7 +128,7 @@ export function useDirectorPreview(store: MuseumEditorStore) {
 }
 
 export function useVisitorPreview(
-	store: MuseumEditorStore,
+	store: EditorStore,
 	shared?: ReturnType<typeof useDirectorPreview>
 ) {
 	const base = shared ?? createPreviewSampler(store);

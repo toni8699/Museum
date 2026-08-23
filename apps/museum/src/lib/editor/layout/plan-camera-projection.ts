@@ -1,6 +1,6 @@
-import { createNavigationGraph, resolveSceneDocument, type MuseumSceneDocument, type NavigationGraph } from '$lib/content/scene';
+import { createNavigationGraph, resolveSceneDocument, type SceneDocument, type NavigationGraph } from '$lib/content/scene';
 import { createLayoutRoomRegistry, type LayoutRoomRegistry } from '$lib/project/project-layout-semantics';
-import type { MuseumProject } from '$lib/project/project-types';
+import type { Project } from '$lib/project/project-types';
 import { getCameraConnectionRoute, getCameraMotionOptions } from '$lib/museum/navigation/camera-route';
 import type { Vector3Like } from '$lib/museum/navigation/camera-motion';
 import { projectLayoutPortalRelations, type LayoutPortalRelation } from '$lib/layout/layout-portals';
@@ -12,9 +12,9 @@ import type {
 	PlanCameraAuthoringNode,
 	PlanCameraProjection,
 	PlanRenderPrimitive
-} from '$lib/layout/plan-render-model';	import { sampleDraftConnectionPath2D } from '../editor-camera-path';
+} from '$lib/layout/plan-render-model';	import { sampleDraftConnectionPath2D } from '../camera/editor-camera-path';
 	import { formatCameraNodeLabel } from '../editor-outliner';
-	import { resolveCameraConnectionTiming } from '../editor-camera-timing';
+	import { resolveCameraConnectionTiming } from '../camera/editor-camera-timing';
 
 /**
  * Editor-side camera/tour projection. Projects the existing scene/navigation
@@ -80,7 +80,7 @@ export const CAMERA_PLAN_HIT_RADIUS_PX = 8;
  * Resolve the project's scene document into the same `NavigationGraph` the
  * visitor uses, but against the editor's current (possibly edited) layout.
  */
-export function resolvePlanSceneGraph(project: MuseumProject): NavigationGraph {
+export function resolvePlanSceneGraph(project: Project): NavigationGraph {
 	const rooms = createLayoutRoomRegistry(project.layout);
 	const scene = resolveSceneDocument(project.scene, rooms);
 	return createNavigationGraph(scene);
@@ -93,7 +93,7 @@ export function resolvePlanSceneGraph(project: MuseumProject): NavigationGraph {
  * `createNavigationGraph`, nothing else.
  */
 export function resolvePlanSceneGraphFromDocument(
-	document: MuseumSceneDocument,
+	document: SceneDocument,
 	rooms: LayoutRoomRegistry
 ): NavigationGraph {
 	const scene = resolveSceneDocument(document, rooms);
@@ -128,7 +128,7 @@ function directionLabel(
  * at the model level that no cone/target/portal/framing primitives exist.
  */
 export function buildPlanCameraAuthoringProjection(
-	document: MuseumSceneDocument,
+	document: SceneDocument,
 	rooms: LayoutRoomRegistry,
 	options: {
 		selection?: PlanCameraSelectionInput;
@@ -391,7 +391,7 @@ export function buildPlanCameraProjection(
  * relations, then project. Reuses the shared scene resolution path.
  */
 export function planCameraProjectionForProject(
-	project: MuseumProject,
+	project: Project,
 	compiled: CompiledLayoutGeometry,
 	issues?: readonly LayoutGeometryIssue[]
 ): PlanCameraProjection {

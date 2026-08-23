@@ -2,10 +2,10 @@
   import MuseumCanvas from '$lib/museum/MuseumCanvas.svelte';
   import MuseumHUD from '$lib/museum/ui/MuseumHUD.svelte';
   import { chopinRuntime } from '$lib/content/chopin-project';
-  import { createMuseumState } from '$lib/state/museum-state.svelte';
+  import { createRuntimeState } from '$lib/state/runtime-state.svelte';
 
   const runtime = chopinRuntime;
-  const state = createMuseumState(runtime.graph);
+  const state = createRuntimeState(runtime.graph);
 </script>
 
 <svelte:head>

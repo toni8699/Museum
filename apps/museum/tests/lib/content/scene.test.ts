@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { getRoom, museumRooms, roomLocalPoint, roomPoint } from '$lib/content/rooms';
+import { getRoom, rooms, roomLocalPoint, roomPoint } from '$lib/content/rooms';
 import {
 	assertNavigationGraphMatchesScene,
 	createNavigationGraph,
 	modelEntityToPlacement,
 	resolveSceneDocument as resolveSceneDocumentWithRooms,
-	type MuseumSceneDocument,
+	type SceneDocument,
 	type SceneModelEntity
 } from '$lib/content/scene';
-import { chopinRuntime, museumSceneDocument } from '$lib/content/chopin-project';
+import { chopinRuntime, sceneDocument } from '$lib/content/chopin-project';
 import {
 	serializeSceneDocument,
 	validateSceneDocument
@@ -21,11 +21,11 @@ import {
 const resolveSceneDocument = (input: unknown) =>
 	resolveSceneDocumentWithRooms(input, chopinRuntime.rooms);
 
-function fixtureDocument(): MuseumSceneDocument {
+function fixtureDocument(): SceneDocument {
 	return cloneFixtureDocument('tour-minimal');
 }
 
-function assertGuidedCycleInvariant(document: MuseumSceneDocument) {
+function assertGuidedCycleInvariant(document: SceneDocument) {
 	const guided = document.navigationNodes.filter(
 		(node) => node.nextNodeId !== undefined || node.previousNodeId !== undefined
 	);
@@ -45,25 +45,25 @@ function assertGuidedCycleInvariant(document: MuseumSceneDocument) {
 	expect(cursor?.id).toBe(startId);
 }
 
-describe('checked-in museum-scene.json smoke', () => {
+describe('checked-in scene.json smoke', () => {
 	it('validates, resolves, and serializes without mutation', () => {
-		const before = JSON.stringify(museumSceneDocument);
-		const validation = validateSceneDocument(museumSceneDocument);
+		const before = JSON.stringify(sceneDocument);
+		const validation = validateSceneDocument(sceneDocument);
 		expect(validation.success).toBe(true);
 		if (!validation.success) return;
 
-		const resolved = resolveSceneDocument(museumSceneDocument);
+		const resolved = resolveSceneDocument(sceneDocument);
 		expect(resolved.navigationNodes.length).toBeGreaterThan(0);
 		expect(resolved.connections.length).toBeGreaterThan(0);
-		expect(resolved.entities).toHaveLength(museumSceneDocument.entities.length);
+		expect(resolved.entities).toHaveLength(sceneDocument.entities.length);
 
-		const json = serializeSceneDocument(museumSceneDocument);
+		const json = serializeSceneDocument(sceneDocument);
 		expect(json).toMatch(/^\{\n  "textures": \[\],\n  "materials": \[\],\n  "entities": \[/);
-		expect(JSON.stringify(museumSceneDocument)).toBe(before);
+		expect(JSON.stringify(sceneDocument)).toBe(before);
 	});
 
 	it('keeps guided tour links as one reciprocal cycle when guided links exist', () => {
-		assertGuidedCycleInvariant(museumSceneDocument);
+		assertGuidedCycleInvariant(sceneDocument);
 	});
 
 	it('survives adding a free-only node without breaking smoke invariants', () => {
@@ -111,7 +111,7 @@ describe('resolveSceneDocument', () => {
 			)
 		};
 
-		expect(() => resolveSceneDocument(invalid)).toThrow(/Unknown museum asset/);
+		expect(() => resolveSceneDocument(invalid)).toThrow(/Unknown asset/);
 	});
 
 	it('rejects invalid scene-authoritative placement fallbacks', () => {
@@ -150,7 +150,7 @@ describe('resolveSceneDocument', () => {
 
 	it('projects primitive and light entities into runtime without converting them to objects', () => {
 		const base = fixtureDocument();
-		const withExtras: MuseumSceneDocument = {
+		const withExtras: SceneDocument = {
 			...base,
 			entities: [
 				...base.entities,
@@ -255,14 +255,14 @@ describe('resolveSceneDocument', () => {
 
 	it('survives a JSON serialization round-trip', () => {
 		const document = fixtureDocument();
-		const roundTripped = JSON.parse(JSON.stringify(document)) as MuseumSceneDocument;
+		const roundTripped = JSON.parse(JSON.stringify(document)) as SceneDocument;
 
 		expect(roundTripped).toEqual(document);
 		expect(resolveSceneDocument(roundTripped)).toEqual(resolveSceneDocument(document));
 	});
 
 	it('resolves mixed-space position and target waypoints with fresh endpoints', () => {
-		const document: MuseumSceneDocument = {
+		const document: SceneDocument = {
 			textures: [],
 			materials: [],
 			entities: [
@@ -493,15 +493,15 @@ describe('resolveSceneDocument', () => {
 		);
 		expect(resolved).not.toHaveProperty('clusters');
 
-		const duplicateMember = JSON.parse(JSON.stringify(document)) as MuseumSceneDocument;
+		const duplicateMember = JSON.parse(JSON.stringify(document)) as SceneDocument;
 		duplicateMember.clusters![0]!.memberIds = [first.id, first.id];
 		expect(() => resolveSceneDocument(duplicateMember)).toThrow('Duplicate member');
 
-		const tooSmall = JSON.parse(JSON.stringify(document)) as MuseumSceneDocument;
+		const tooSmall = JSON.parse(JSON.stringify(document)) as SceneDocument;
 		tooSmall.clusters![0]!.memberIds = [first.id];
 		expect(() => resolveSceneDocument(tooSmall)).toThrow('at least two members');
 
-		const missing = JSON.parse(JSON.stringify(document)) as MuseumSceneDocument;
+		const missing = JSON.parse(JSON.stringify(document)) as SceneDocument;
 		missing.clusters![0]!.memberIds = [first.id, 'missing'];
 		expect(() => resolveSceneDocument(missing)).toThrow('Unknown member');
 	});
@@ -514,7 +514,7 @@ describe('resolveSceneDocument', () => {
 
 		expect(() => assertNavigationGraphMatchesScene(graph, first)).not.toThrow();
 		expect(() => assertNavigationGraphMatchesScene(graph, second)).toThrow(
-			'Museum navigation state must use the same resolved scene instance'
+			'Navigation state must use the same resolved scene instance'
 		);
 	});
 
@@ -551,7 +551,7 @@ describe('room coordinate transforms', () => {
 		[19.1, -0.2, -17.6]
 	] as const;
 
-	for (const room of museumRooms) {
+	for (const room of rooms) {
 		it(`round-trips local and world points for ${room.id}`, () => {
 			for (const local of localSamples) {
 				const recovered = roomLocalPoint(room.id, roomPoint(room.id, [...local]));

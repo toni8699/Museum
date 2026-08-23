@@ -491,7 +491,7 @@ Look At
 Roll
 ```
 
-> **Cosmetic 2026-08-21 (P3):** Current impl is 2 lanes `Guided Route / Camera Framing` (`EditorCameraTimelineDots.svelte:556` / `editor-camera-timeline.ts:56`). 5-lane is visual split for `Camera-3D-timeline-expanded.png:1` — `Camera Path` ← `timeline.edges`, `Shots` ← node labels/holds (no store entity yet), `FOV`/`Look At` ← `RuntimeCameraViewKeyframe` (`types/museum.ts:78` — one key split in UI), `Roll` ← `0°` quiet (`editor-camera-view.ts:136` not representable). Timeline remains projection `Graph + Sequence → Timeline` (`editor-camera-timeline.ts:128`).
+> **Cosmetic 2026-08-21 (P3):** Current impl is 2 lanes `Guided Route / Camera Framing` (`EditorCameraTimelineDots.svelte:556` / `editor-camera-timeline.ts:56`). 5-lane is visual split for `Camera-3D-timeline-expanded.png:1` — `Camera Path` ← `timeline.edges`, `Shots` ← node labels/holds (no store entity yet), `FOV`/`Look At` ← `RuntimeCameraViewKeyframe` (`types/scene.ts:78` — one key split in UI), `Roll` ← `0°` quiet (`editor-camera-view.ts:136` not representable). Timeline remains projection `Graph + Sequence → Timeline` (`editor-camera-timeline.ts:128`).
 
 Timeline is Camera-tour semantic UI.
 

@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { chopinRuntime, museumSceneDocument } from '$lib/content/chopin-project';
-import { createEmptySceneDocument, type MuseumSceneDocument } from '$lib/content/scene';
+import { chopinRuntime, sceneDocument } from '$lib/content/chopin-project';
+import { createEmptySceneDocument, type SceneDocument } from '$lib/content/scene';
 import { serializeSceneDocument } from '$lib/content/scene-codec';
-import { createMuseumEditorStore } from '$lib/editor/museum-editor.svelte';
+import { createEditorStore } from '$lib/editor/editor-store.svelte';
 import {
 	captureLayoutPreviewSnapshot,
 	commitLayoutDraftRoom,
@@ -28,11 +28,11 @@ function draftRoom(state: ReturnType<typeof createEmptyLayoutPreviewState>, poin
 function referenceScene(
 	roomId: string,
 	kind: 'entity' | 'cluster' | 'navigation-node' | 'path-anchor' | 'waypoint' | 'view-keyframe'
-): MuseumSceneDocument {
+): SceneDocument {
 	const scene = createEmptySceneDocument();
 	switch (kind) {
 		case 'entity': {
-			const entity = structuredClone(museumSceneDocument.entities[0]!);
+			const entity = structuredClone(sceneDocument.entities[0]!);
 			scene.entities.push({ ...entity, roomId });
 			return scene;
 		}
@@ -41,12 +41,12 @@ function referenceScene(
 			return scene;
 		}
 		case 'navigation-node': {
-			const node = structuredClone(museumSceneDocument.navigationNodes[0]!);
+			const node = structuredClone(sceneDocument.navigationNodes[0]!);
 			scene.navigationNodes.push({ ...node, roomId });
 			return scene;
 		}
 		case 'path-anchor': {
-			const connection = structuredClone(museumSceneDocument.connections[0]!);
+			const connection = structuredClone(sceneDocument.connections[0]!);
 			connection.positionPath.anchors[0] = {
 				...connection.positionPath.anchors[0]!,
 				roomId
@@ -55,13 +55,13 @@ function referenceScene(
 			return scene;
 		}
 		case 'waypoint': {
-			const connection = structuredClone(museumSceneDocument.connections[0]!);
+			const connection = structuredClone(sceneDocument.connections[0]!);
 			connection.targetWaypoints = [{ position: [0, 0, 0], roomId }];
 			scene.connections.push(connection);
 			return scene;
 		}
 		case 'view-keyframe': {
-			const connection = structuredClone(museumSceneDocument.connections[0]!);
+			const connection = structuredClone(sceneDocument.connections[0]!);
 			connection.viewTracks = {
 				forward: [{ id: 'keyframe-test', progress: 0, cameraTarget: [0, 0, 0], roomId, fov: 50 }],
 				reverse: []
@@ -76,8 +76,8 @@ describe('listLayoutRoomSceneReferences', () => {
 	it('counts each reference kind independently', () => {
 		const roomId = 'room-a';
 		const scene = createEmptySceneDocument();
-		const entity = structuredClone(museumSceneDocument.entities[0]!);
-		const node = structuredClone(museumSceneDocument.navigationNodes[0]!);
+		const entity = structuredClone(sceneDocument.entities[0]!);
+		const node = structuredClone(sceneDocument.navigationNodes[0]!);
 		scene.entities.push({ ...entity, roomId }, { ...entity, roomId });
 		scene.clusters = [{ id: 'c1', name: 'C', roomId, memberIds: [] }];
 		scene.navigationNodes.push({ ...node, roomId });
@@ -168,8 +168,8 @@ describe('deleteLayoutRoom (preview state)', () => {
 
 describe('guarded B3 transaction', () => {
 	function makeStore() {
-		const store = createMuseumEditorStore({
-			document: museumSceneDocument,
+		const store = createEditorStore({
+			document: sceneDocument,
 			rooms: chopinRuntime.rooms
 		});
 		const layoutPreview = createEmptyLayoutPreviewState();

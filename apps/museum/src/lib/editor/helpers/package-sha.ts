@@ -3,7 +3,7 @@
  * format, importer, and exporter.
  *
  * **Single source for fingerprints.** Every `SceneTextureAsset.uri` that lives
- * in a `.museumpack.zip` is bookmarked by sha256(bytes) so the manifest can
+ * in a `.scenepack.zip` is bookmarked by sha256(bytes) so the manifest can
  * verify integrity on re-import. The fingerprint format is a 64-char lowercase
  * hex digest prefixed by `sha256-` (matches the spec's `manifest.textures[*].fingerprint`).
  *

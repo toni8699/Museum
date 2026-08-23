@@ -5,7 +5,7 @@
  * `editor/import/package-importer.ts` and `editor/export/package-exporter.ts`.
  *
  * Format:
- * - `museum-scene.json` (canonical, rewritten URIs)
+ * - `scene.json` (canonical, rewritten URIs)
  * - `manifest.json` (single source of truth; per-texture sha256 fingerprints)
  * - `textures/<sanitizedFilename>` × N
  *
@@ -174,15 +174,15 @@ export function buildPackageManifest(input: {
 		package: {
 			id: input.packageId,
 			createdAt: input.createdAt.toISOString(),
-			generator: 'museum-editor-5.4',
-			documentTitle: input.documentTitle || 'museum-scene'
+			generator: 'editor-5.4',
+			documentTitle: input.documentTitle || 'scene'
 		},
 		textures: [...input.textures]
 	};
 }
 
 /**
- * Produce `<slug>-<yyyyMMdd>-<HHMM>.museumpack.zip` for the given document
+ * Produce `<slug>-<yyyyMMdd>-<HHMM>.scenepack.zip` for the given document
  * title and date. UTC parts so filenames are stable across dev machines.
  */
 export function packageFilenameFor(documentTitle: string, now: Date): string {
@@ -195,12 +195,12 @@ export function packageFilenameFor(documentTitle: string, now: Date): string {
 		`-` +
 		`${pad(now.getUTCHours())}` +
 		`${pad(now.getUTCMinutes())}`;
-	return `${slug}-${stamp}.museumpack.zip`;
+	return `${slug}-${stamp}.scenepack.zip`;
 }
 
 function slugify(input: string): string {
 	const trimmed = (input || '').trim().toLowerCase();
-	if (trimmed.length === 0) return 'museum-scene';
+	if (trimmed.length === 0) return 'scene';
 	let out = '';
 	let lastUnderscore = false;
 	for (const ch of trimmed) {
@@ -213,7 +213,7 @@ function slugify(input: string): string {
 		}
 	}
 	const trimmedOut = out.replace(/^-+|-+$/g, '');
-	return trimmedOut.length > 0 ? trimmedOut : 'museum-scene';
+	return trimmedOut.length > 0 ? trimmedOut : 'scene';
 }
 
 // Internal helper used by the importer/exporter to reflect a stable MIME

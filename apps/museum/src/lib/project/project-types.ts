@@ -1,19 +1,19 @@
-import type { MuseumSceneDocument } from '$lib/content/scene';
+import type { SceneDocument } from '$lib/content/scene';
 import type { LayoutDocument } from '$lib/layout/layout-types';
 
-export type MuseumProject = {
+export type Project = {
 	id: string;
 	name: string;
 	layout: LayoutDocument;
-	scene: MuseumSceneDocument;
+	scene: SceneDocument;
 };
 
-export type MuseumProjectIssue = {
+export type ProjectIssue = {
 	path: string;
 	code: string;
 	message: string;
 };
 
-export type MuseumProjectValidationResult =
-	| { success: true; project: MuseumProject; canonicalJson: string }
-	| { success: false; issues: MuseumProjectIssue[] };
+export type ProjectValidationResult =
+	| { success: true; project: Project; canonicalJson: string }
+	| { success: false; issues: ProjectIssue[] };

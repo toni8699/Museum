@@ -1,4 +1,4 @@
-import type { Vec3 } from '$lib/types/museum';
+import type { Vec3 } from '$lib/types/scene';
 
 export type AssetId = string;
 
@@ -40,7 +40,7 @@ export type FallbackKind =
 /** Normalized fallback value persisted by scene object placements. */
 export type SceneObjectFallback = FallbackKind;
 
-export type MuseumAsset = {
+export type Asset = {
   id: AssetId;
   name: string;
   category: AssetCategory;

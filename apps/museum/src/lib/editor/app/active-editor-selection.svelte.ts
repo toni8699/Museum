@@ -22,7 +22,7 @@
  *   store so the gate can read `domain`.
  *
  * Activation itself stays in the source stores: `EditorSelectionStore` fires
- * the `onSelectionActivate` hook (wired through `createMuseumEditorStore`
+ * the `onSelectionActivate` hook (wired through `createEditorStore`
  * options) on actionable scene/camera picks, and the editor shell clears the
  * scene slot when `layoutInteraction.selection` becomes actionable. This module
  * therefore adapts the stores without merging their types, and the machinery
@@ -31,8 +31,8 @@
  */
 
 import { clearLayoutSelection, type LayoutInteractionState, type LayoutSelection } from '../layout/layout-interaction';
-import type { NavigationSelection, WorkspaceSelection } from '../museum-editor.types';
-import type { MuseumEditorStore } from '../museum-editor.svelte';
+import type { NavigationSelection, WorkspaceSelection } from '../editor-types';
+import type { EditorStore } from '../editor-store.svelte';
 import type { EditorViewState } from './editor-view-state.svelte';
 
 /** Context key so editor children (hierarchy, selection, gizmo) can read `active`. */
@@ -86,13 +86,13 @@ export function deriveActiveSelection(
 }
 
 export class EditorActiveSelectionStore {
-	readonly #store: MuseumEditorStore;
+	readonly #store: EditorStore;
 	readonly #layoutInteraction: LayoutInteractionState;
 	readonly #viewState: EditorViewState;
 	readonly #clearLayoutSelection: () => void;
 
 	constructor(
-		store: MuseumEditorStore,
+		store: EditorStore,
 		layoutInteraction: LayoutInteractionState,
 		viewState: EditorViewState,
 		clearLayoutSelectionCallback: () => void

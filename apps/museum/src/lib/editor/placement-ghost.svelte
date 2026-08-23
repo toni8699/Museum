@@ -21,12 +21,12 @@
 		isValidGhostPlacement,
 		type PlacementGhostPrototype
 	} from './placement-ghost';
-	import type { MuseumEditorStore } from './museum-editor.svelte';
+	import type { EditorStore } from './editor-store.svelte';
 	import { getAssetById } from '$lib/content/assets';
-	import type { MuseumRoomId, Vec3 } from '$lib/types/museum';
+	import type { RoomId, Vec3 } from '$lib/types/scene';
 	import type { ScenePrimitiveDimensions, ScenePrimitiveKind } from '$lib/content/scene';
 
-	let { store }: { store: MuseumEditorStore } = $props();
+	let { store }: { store: EditorStore } = $props();
 
 	const { scene, camera: threlteCamera, invalidate, dom } = useThrelte();
 	const raycaster = new Raycaster();
@@ -64,7 +64,7 @@
 		if (!assetId) return null;
 		const asset = getAssetById(assetId);
 		if (!asset) return null;
-		// `MuseumAsset` doesn't carry authoritative bounds; the renderer derives
+		// `Asset` doesn't carry authoritative bounds; the renderer derives
 		// them from the cached GLTF. Default to a 1×1×1 placeholder so the ghost
 		// OBB is visible before the asset's first on-mount.
 		const bounds: Vec3 = [1, 1, 1];
@@ -183,7 +183,7 @@
 	}
 
 	function projectCursorToFloor():
-		| { point: Vec3; roomId: MuseumRoomId | null }
+		| { point: Vec3; roomId: RoomId | null }
 		| null {
 		const target = dom as HTMLElement | undefined;
 		if (!target) return null;
@@ -216,7 +216,7 @@
 				if (surface?.type === 'floor' && surface.placeable && surface.roomId) {
 					return {
 						point: [hit.point.x, hit.point.y, hit.point.z],
-						roomId: surface.roomId as MuseumRoomId
+						roomId: surface.roomId as RoomId
 					};
 				}
 				cursor = cursor.parent;

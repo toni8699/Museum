@@ -1,5 +1,5 @@
 import type {
-	MuseumSceneDocument,
+	SceneDocument,
 	SceneEntity,
 	SceneTextureAsset
 } from '$lib/content/scene';
@@ -8,13 +8,13 @@ import {
 	type SelectionHitInfo
 } from './editor-selection';
 
-export const TEXTURE_DRAG_MIME = 'application/x-museum-texture';
+export const TEXTURE_DRAG_MIME = 'application/x-editor-texture';
 
 export type {
 	MaterialShareMode,
 	MaterialInstancePatch,
 	MaterialEditDecision
-} from './museum-editor.types';
+} from './editor-types';
 
 export function filterTextureLibraryItems(
 	textures: readonly SceneTextureAsset[],
@@ -51,7 +51,7 @@ export function reserveResourceId(base: string, ids: Iterable<string>): string {
 }
 
 export function materialInstanceUsageCount(
-	document: MuseumSceneDocument,
+	document: SceneDocument,
 	materialInstanceId: string
 ): number {
 	return document.entities.filter(

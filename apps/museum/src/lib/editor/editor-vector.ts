@@ -1,4 +1,4 @@
-import type { Vec3 } from '$lib/types/museum';
+import type { Vec3 } from '$lib/types/scene';
 
 export type EditorVec3Drafts = [string, string, string];
 

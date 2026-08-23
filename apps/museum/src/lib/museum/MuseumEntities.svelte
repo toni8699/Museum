@@ -1,8 +1,8 @@
 <script lang="ts">
   import { T } from '@threlte/core';
   import type {
-    MuseumSceneDocument,
-    RuntimeMuseumScene,
+    SceneDocument,
+    RuntimeScene,
     SceneEntity,
     SceneModelEntity,
     ScenePrimitiveEntity
@@ -14,7 +14,7 @@
     modelEntityToPlacement
   } from '$lib/content/scene';
   import { resolveSceneMaterial } from '$lib/museum/materials/scene-instance-material';
-  import type { MuseumRoomId } from '$lib/types/museum';
+  import type { RoomId } from '$lib/types/scene';
   import type { LayoutRoomRegistry } from '$lib/project/project-layout-semantics';
   import AssetModel from './assets/AssetModel.svelte';
   import EntityLight from './entities/EntityLight.svelte';
@@ -27,14 +27,14 @@
     preloadParisHero = false,
     loadParisSalon = false
   }: {
-    scene: RuntimeMuseumScene;
+    scene: RuntimeScene;
     rooms: LayoutRoomRegistry;
     preloadParisHero?: boolean;
     loadParisSalon?: boolean;
   } = $props();
 
   const roomGroups = $derived.by(() => {
-    const entitiesByRoom = new Map<MuseumRoomId, SceneEntity[]>();
+    const entitiesByRoom = new Map<RoomId, SceneEntity[]>();
     for (const entity of scene.entities) {
       const entities = entitiesByRoom.get(entity.roomId) ?? [];
       entities.push(entity);
@@ -51,7 +51,7 @@
   ): ReturnType<typeof resolveSceneMaterial> {
     return resolveSceneMaterial(
       { materials: scene.materials, textures: scene.textures } as Pick<
-        MuseumSceneDocument,
+        SceneDocument,
         'materials' | 'textures'
       >,
       {

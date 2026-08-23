@@ -2,7 +2,7 @@
   import type { Snippet } from 'svelte';
   import { T } from '@threlte/core';
   import { interactivity } from '@threlte/extras';
-  import { chopinRuntime, type MuseumRuntime } from '$lib/content/chopin-project';
+  import { chopinRuntime, type Runtime } from '$lib/content/chopin-project';
   import type { LayoutDocument } from '$lib/layout/layout-types';
   import type { CompiledLayoutGeometry } from '$lib/layout/layout-geometry-types';
   import type { LayoutRoomRegistry } from '$lib/project/project-layout-semantics';
@@ -11,12 +11,12 @@
     assertNavigationGraphMatchesScene,
     createNavigationGraph,
     type NavigationGraph,
-    type RuntimeMuseumScene
+    type RuntimeScene
   } from '$lib/content/scene';
   import {
-    createMuseumState,
-    type MuseumStateStore
-  } from '$lib/state/museum-state.svelte';
+    createRuntimeState,
+    type RuntimeStateStore
+  } from '$lib/state/runtime-state.svelte';
   import LayoutMuseumShell from './layout/LayoutMuseumShell.svelte';
   import GroundPlinth from './layout/GroundPlinth.svelte';
   import CentralChamber from './layout/CentralChamber.svelte';
@@ -46,7 +46,7 @@
     layout = runtime.project.layout,
     geometry = runtime.geometry,
     presentation = runtime.presentation,
-    state = createMuseumState(runtime.graph),
+    state = createRuntimeState(runtime.graph),
     camera,
     entityRenderer,
     showNavigationNodes = true,
@@ -58,16 +58,16 @@
     forceParisAssets = false,
     showArchitecture = true
   }: {
-    runtime?: MuseumRuntime;
-    scene?: RuntimeMuseumScene;
+    runtime?: Runtime;
+    scene?: RuntimeScene;
     rooms?: LayoutRoomRegistry;
     layout?: LayoutDocument;
     geometry?: CompiledLayoutGeometry;
     presentation?: Readonly<Record<string, ChopinRoomPresentation>>;
-    state?: MuseumStateStore;
-    camera?: Snippet<[NavigationGraph, MuseumStateStore]>;
+    state?: RuntimeStateStore;
+    camera?: Snippet<[NavigationGraph, RuntimeStateStore]>;
     entityRenderer?: Snippet<[
-      RuntimeMuseumScene,
+      RuntimeScene,
       LayoutRoomRegistry,
       ReturnType<typeof getParisAssetActivation>
     ]>;

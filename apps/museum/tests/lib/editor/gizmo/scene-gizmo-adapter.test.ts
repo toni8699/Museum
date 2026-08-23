@@ -1,7 +1,7 @@
 /**
  * S7 step 3 — scene-gizmo-adapter session tests.
  *
- * Drives `createSceneGizmoAdapter` against a real `MuseumEditorStore` with
+ * Drives `createSceneGizmoAdapter` against a real `EditorStore` with
  * registered placement roots, exercising the adapter seams the monolith ran
  * inline: null resolution (empty/partial selection), pivot prepare, begin's
  * transaction + baseline + restore capture, preview writes through the rigid
@@ -24,8 +24,8 @@ import {
 	PlaneGeometry,
 	Scene
 } from 'three';
-import type { Vec3 } from '$lib/types/museum';
-import type { MuseumEditorStore } from '$lib/editor/museum-editor.svelte';
+import type { Vec3 } from '$lib/types/scene';
+import type { EditorStore } from '$lib/editor/editor-store.svelte';
 import {
 	SCENE_GIZMO_POLICY,
 	createSceneGizmoAdapter,
@@ -47,7 +47,7 @@ function makeRoot(id: string, position: Vec3): Mesh {
  * the rigid delta math are exact.
  */
 function selectPlacementRoots(
-	store: MuseumEditorStore,
+	store: EditorStore,
 	count = 2
 ): { ids: string[]; roots: Mesh[]; roomId: string } {
 	const roomId = store.document.entities[0]!.roomId;
@@ -89,7 +89,7 @@ function makeFloorScene(roomId: string): Scene {
 }
 
 function makeInput(
-	store: MuseumEditorStore,
+	store: EditorStore,
 	overrides: Partial<SceneGizmoAdapterInput> = {}
 ): SceneGizmoAdapterInput {
 	const scene = new Scene();

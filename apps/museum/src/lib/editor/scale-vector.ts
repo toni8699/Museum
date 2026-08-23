@@ -15,7 +15,7 @@
  * always self-consistent.
  */
 
-import type { Vec3 } from '$lib/types/museum';
+import type { Vec3 } from '$lib/types/scene';
 
 export type ScaleMode = 'uniform' | 'independent';
 

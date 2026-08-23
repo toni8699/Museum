@@ -2,12 +2,12 @@
  * `EditorPlacementClusterMutator` — placement / cluster / asset-drop mutation
  * controller (Phase 9.5).
  *
- * The god file (`museum-editor.svelte.ts`) historically owned placement
+ * The god file (`editor-store.svelte.ts`) historically owned placement
  * transforms, cluster CRUD/membership, multi-select duplicate/delete, pending
  * asset placement, and drop-to-floor. Phase 9.5 hard-moves those method bodies
  * here, following the `EditorNavigationGraphMutator` + host-injection pattern.
  *
- * `MuseumEditorStore` keeps identical public method signatures as thin
+ * `EditorStore` keeps identical public method signatures as thin
  * delegates, so components keep importing the store facade unchanged.
  *
  * Everything the composition root still owns — mutation guards, document /
@@ -20,7 +20,7 @@
 import { getAssetById, resolveAssetFallback } from '$lib/content/assets';
 import { isMaterialId } from '$lib/content/materials';
 import type {
-	MuseumSceneDocument,
+	SceneDocument,
 	SceneEntity,
 	SceneLightEntity,
 	SceneLightKind,
@@ -37,7 +37,7 @@ import {
 	isScenePrimitiveEntity
 } from '$lib/content/scene';
 import type { MaterialId } from '$lib/types/materials';
-import type { MuseumRoomId, Vec3 } from '$lib/types/museum';
+import type { RoomId, Vec3 } from '$lib/types/scene';
 import { reserveEntityId } from '../editor-assets';
 import {
 	applyLightFieldPatch,
@@ -60,7 +60,7 @@ import type { EditorSelectionActions } from './selection-actions.svelte';
 
 /**
  * Composition-root surface the placement/cluster mutator depends on. Everything
- * here stays owned by `MuseumEditorStore`; the mutator never mutates the
+ * here stays owned by `EditorStore`; the mutator never mutates the
  * document store or history controller directly, only through the transaction
  * wrappers and accessors exposed below.
  */
@@ -72,8 +72,8 @@ export interface EditorPlacementClusterMutatorHost {
 	readonly isRelic: boolean;
 
 	// Document + selection state.
-	readonly document: MuseumSceneDocument;
-	readonly selectedRoomId: MuseumRoomId | null;
+	readonly document: SceneDocument;
+	readonly selectedRoomId: RoomId | null;
 	readonly selectedPlacementIds: string[];
 	readonly primaryPlacementId: string | null;
 	readonly clusters: SceneObjectCluster[];
@@ -128,7 +128,7 @@ export class EditorPlacementClusterMutator {
 		const asset = getAssetById(assetId);
 		if (!asset) {
 			this.cancelAssetPlacement();
-			this.host.setStatusMessage(`Unknown museum asset: ${assetId}`);
+			this.host.setStatusMessage(`Unknown asset: ${assetId}`);
 			return false;
 		}
 		if (asset.placementSurface !== 'floor') {
@@ -156,7 +156,7 @@ export class EditorPlacementClusterMutator {
 		this.host.setStatusMessage(
 			this.host.isRelic
 				? `Click the Paris floor to place ${asset.name}`
-				: `Click a tagged museum-room floor to place ${asset.name}`
+				: `Click a tagged room floor to place ${asset.name}`
 		);
 		return true;
 	}
@@ -184,7 +184,7 @@ export class EditorPlacementClusterMutator {
 		this.host.pendingPlacementPrimitiveKind = kind;
 		this.host.setNavigationHover(null);
 		this.host.setStatusMessage(
-			`Click a tagged museum-room floor to place ${primitiveDisplayName(kind)}`
+			`Click a tagged room floor to place ${primitiveDisplayName(kind)}`
 		);
 		return true;
 	}
@@ -203,7 +203,7 @@ export class EditorPlacementClusterMutator {
 		this.host.pendingPlacementLightKind = kind;
 		this.host.setNavigationHover(null);
 		this.host.setStatusMessage(
-			`Click a tagged museum-room floor to place ${lightDisplayName(kind)}`
+			`Click a tagged room floor to place ${lightDisplayName(kind)}`
 		);
 		return true;
 	}
@@ -212,7 +212,7 @@ export class EditorPlacementClusterMutator {
 		return this.cancelAssetPlacement(message);
 	}
 
-	createPendingPlacementAt(position: Vec3, roomId: MuseumRoomId) {
+	createPendingPlacementAt(position: Vec3, roomId: RoomId) {
 		if (this.host.isDocumentMutationBlocked || this.host.isEditorInteractionActive) {
 			return null;
 		}
@@ -259,7 +259,7 @@ export class EditorPlacementClusterMutator {
 		return id;
 	}
 
-	createPendingPrimitiveAt(roomId: MuseumRoomId, position: Vec3) {
+	createPendingPrimitiveAt(roomId: RoomId, position: Vec3) {
 		if (this.host.isDocumentMutationBlocked || this.host.isEditorInteractionActive) {
 			return null;
 		}
@@ -325,7 +325,7 @@ export class EditorPlacementClusterMutator {
 			return false;
 		}
 		if (!isMaterialId(materialId)) {
-			this.host.setStatusMessage(`Unknown museum material: ${materialId}`);
+			this.host.setStatusMessage(`Unknown material: ${materialId}`);
 			return false;
 		}
 		const entity = this.findPrimitive(id);
@@ -360,7 +360,7 @@ export class EditorPlacementClusterMutator {
 		return entity && isScenePrimitiveEntity(entity) ? entity : undefined;
 	}
 
-	createPendingLightAt(roomId: MuseumRoomId, position: Vec3) {
+	createPendingLightAt(roomId: RoomId, position: Vec3) {
 		if (this.host.isDocumentMutationBlocked || this.host.isEditorInteractionActive) {
 			return null;
 		}

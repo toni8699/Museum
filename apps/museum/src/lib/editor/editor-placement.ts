@@ -1,6 +1,6 @@
 import { degreesToRadians } from './editor-transform';
 import { roomById } from '$lib/content/rooms';
-import type { MuseumRoomId } from '$lib/types/museum';
+import type { RoomId } from '$lib/types/scene';
 import {
 	Box3,
 	Raycaster,
@@ -34,7 +34,7 @@ export type FloorHit = {
 
 export type PlaceableFloorIntersection = {
 	intersection: Intersection;
-	roomId: MuseumRoomId;
+	roomId: RoomId;
 };
 
 export function rotationSnapRadians(degrees: number) {
@@ -68,8 +68,8 @@ export function getEditorPlaceableFloor(
 /** Intersections are already nearest-first; accept only exact semantic floor metadata. */
 export function findPlaceableFloorIntersection(
 	intersections: Intersection[],
-	roomId?: MuseumRoomId,
-	isKnownRoom: (roomId: string) => boolean = (id) => roomById.has(id as MuseumRoomId)
+	roomId?: RoomId,
+	isKnownRoom: (roomId: string) => boolean = (id) => roomById.has(id as RoomId)
 ): PlaceableFloorIntersection | null {
 	for (const hit of intersections) {
 		const floor = getEditorPlaceableFloor(hit.object, roomId);
@@ -78,7 +78,7 @@ export function findPlaceableFloorIntersection(
 		if (!surface.roomId || !isKnownRoom(surface.roomId)) continue;
 		return {
 			intersection: hit,
-			roomId: surface.roomId as MuseumRoomId
+			roomId: surface.roomId as RoomId
 		};
 	}
 	return null;

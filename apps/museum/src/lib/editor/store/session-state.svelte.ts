@@ -2,7 +2,7 @@
  * Editor session state — the Svelte 5 sub-store that owns volatile UI state
  * that lives only for the current editor session (refresh wipes).
  *
- * Slice 1 of the museum-editor refactor plan proved the composition-root
+ * Slice 1 of the editor-facade refactor plan proved the composition-root
  * pattern with status + viewport flags. Slice 3 debt 3.13 expands the surface
  * to the full **22 slot** set named in audit §3.C. Every slot is a real
  * `$state` on the sub-store so Slice 5's `bind:` migration can delete the
@@ -27,13 +27,13 @@ import type {
 	EditorViewKeyframeProgressDragSelection,
 	EditorWorkspace,
 	EditorLightingSettings
-} from '../museum-editor.types';
+} from '../editor-types';
 import type { EditorTransformMode } from '../editor-transform';
 import {
 	DEFAULT_ROTATION_SNAP_DEGREES,
 	DEFAULT_TRANSLATION_SNAP
 } from '../editor-placement';
-import type { CameraConnectionDirection, MuseumRoomId, Vec3 } from '$lib/types/museum';
+import type { CameraConnectionDirection, RoomId, Vec3 } from '$lib/types/scene';
 import type { SceneLightKind, ScenePrimitiveKind } from '$lib/content/scene';
 
 /** Phase 5.2 — Phase 4.5 gate, fixed cap of recently used texture ids. */
@@ -371,24 +371,24 @@ export class EditorSessionState {
 	// Tree expansion (audit §3.C).
 	// ============================================================
 
-	treeExpandedRoomIds = $state<MuseumRoomId[]>(['paris']);
+	treeExpandedRoomIds = $state<RoomId[]>(['paris']);
 	treeExpandedClusterIds = $state<string[]>([]);
 	treeExpandedCameraConnectionIds = $state<string[]>([]);
 	treeExpandedCameraDirectionKeys = $state<string[]>([]);
 
-	expandRoom(roomId: MuseumRoomId): boolean {
+	expandRoom(roomId: RoomId): boolean {
 		if (this.treeExpandedRoomIds.includes(roomId)) return false;
 		this.treeExpandedRoomIds = [...this.treeExpandedRoomIds, roomId];
 		return true;
 	}
 
-	collapseRoom(roomId: MuseumRoomId): boolean {
+	collapseRoom(roomId: RoomId): boolean {
 		if (!this.treeExpandedRoomIds.includes(roomId)) return false;
 		this.treeExpandedRoomIds = this.treeExpandedRoomIds.filter((id) => id !== roomId);
 		return true;
 	}
 
-	toggleRoomExpanded(roomId: MuseumRoomId): boolean {
+	toggleRoomExpanded(roomId: RoomId): boolean {
 		return this.treeExpandedRoomIds.includes(roomId)
 			? this.collapseRoom(roomId)
 			: this.expandRoom(roomId);
@@ -500,7 +500,7 @@ export class EditorSessionState {
 	// Phase 1a follow-up: independent per-axis scale memory.
 	// Schema v6 only persists `placement.scale: number`, so the per-axis
 	// vector lives in this session-only Map and is layered back on top of
-	// the document read in `MuseumEditorStore.selectedTransform`. Cleared on
+	// the document read in `EditorStore.selectedTransform`. Cleared on
 	// reset; never carries data across sessions.
 	// ============================================================
 

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { MuseumEditorStore } from '../museum-editor.svelte';
+	import type { EditorStore } from '../editor-store.svelte';
 	import {
 		setCameraPlanTool,
 		type CameraPlanState,
@@ -10,7 +10,7 @@
 		store,
 		cameraPlan
 	}: {
-		store: MuseumEditorStore;
+		store: EditorStore;
 		cameraPlan: CameraPlanState;
 	} = $props();
 

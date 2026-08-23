@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { SceneObjectPlacement } from '$lib/content/scene';
-import type { Vec3 } from '$lib/types/museum';
+import type { Vec3 } from '$lib/types/scene';
 import { Object3D } from 'three';
-import { museumSceneDocument } from '$lib/content/chopin-project';
-import { cloneMuseumSceneDocument } from '$lib/editor/museum-editor.svelte';
+import { sceneDocument } from '$lib/content/chopin-project';
+import { cloneSceneDocument } from '$lib/editor/editor-store.svelte';
 import {
 	degreesToRadians,
 	enforceUniformObjectScale,
@@ -41,7 +41,7 @@ describe('editor placement transforms', () => {
 	});
 
 	it('omits unit scale and rejects invalid transform values', () => {
-		const placement = cloneMuseumSceneDocument(museumSceneDocument).entities[0]!;
+		const placement = cloneSceneDocument(sceneDocument).entities[0]!;
 		const transform = placementTransformFromDocument(placement);
 		transform.scale = 1;
 		transform.scaleScalar = 1;

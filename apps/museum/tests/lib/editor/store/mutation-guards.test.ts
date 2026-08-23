@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { EditorMutationGuards, type EditorMutationGuardsHost } from '$lib/editor/store/mutation-guards.svelte';
-import type { EditorCameraPreview } from '$lib/editor/museum-editor.types';
+import type { EditorCameraPreview } from '$lib/editor/editor-types';
 
 function host(partial: Partial<EditorMutationGuardsHost> = {}): EditorMutationGuardsHost {
 	return {

@@ -11,11 +11,11 @@
     getNode,
     type NavigationGraph
   } from '$lib/content/scene';
-  import { museumNavigationGraph } from '$lib/content/chopin-project';
+  import { navigationGraph } from '$lib/content/chopin-project';
   import {
-    museumState,
-    type MuseumStateStore
-  } from '$lib/state/museum-state.svelte';
+    runtimeState,
+    type RuntimeStateStore
+  } from '$lib/state/runtime-state.svelte';
   import {
     CAMERA_FOV_UPDATE_EPSILON,
     createCameraMotion,
@@ -27,11 +27,11 @@
   import { getCameraRoute } from './camera-route';
 
   let {
-    graph = museumNavigationGraph,
-    state: store = museumState
+    graph = navigationGraph,
+    state: store = runtimeState
   }: {
     graph?: NavigationGraph;
-    state?: MuseumStateStore;
+    state?: RuntimeStateStore;
   } = $props();
 
   let cameraRef = $state<PerspectiveCamera>();

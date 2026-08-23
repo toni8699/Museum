@@ -3,12 +3,12 @@ import type {
   AssetId,
   AssetStatus,
   FallbackKind,
-  MuseumAsset,
+  Asset,
   PlacementSurface,
   SceneObjectFallback
 } from '$lib/types/assets';
 
-export const museumAssets: MuseumAsset[] = [
+export const assets: Asset[] = [
   {
     id: 'paris-grand-piano',
     name: 'Paris Salon Grand Piano',
@@ -194,8 +194,8 @@ export const museumAssets: MuseumAsset[] = [
   }
 ];
 
-const museumAssetById = new Map<string, MuseumAsset>(
-  museumAssets.map((asset) => [asset.id, asset])
+const assetById = new Map<string, Asset>(
+  assets.map((asset) => [asset.id, asset])
 );
 
 const assetCategories: readonly AssetCategory[] = [
@@ -219,10 +219,10 @@ export function isSceneObjectFallback(value: unknown): value is SceneObjectFallb
  * Normalize manifest fallback metadata into the scalar value persisted by scene objects.
  * The input asset is never mutated.
  */
-export function resolveAssetFallback(asset: MuseumAsset): SceneObjectFallback {
+export function resolveAssetFallback(asset: Asset): SceneObjectFallback {
   if (asset.fallback !== undefined) {
     if (!isSceneObjectFallback(asset.fallback)) {
-      throw new Error(`Invalid fallback for museum asset: ${asset.id}`);
+      throw new Error(`Invalid fallback for asset: ${asset.id}`);
     }
     return asset.fallback;
   }
@@ -230,53 +230,53 @@ export function resolveAssetFallback(asset: MuseumAsset): SceneObjectFallback {
   if (asset.category === 'book') return 'books';
   if (asset.category === 'decor') return 'rug';
   if (isSceneObjectFallback(asset.category)) return asset.category;
-  throw new Error(`Museum asset has no valid fallback mapping: ${asset.id}`);
+  throw new Error(`Asset has no valid fallback mapping: ${asset.id}`);
 }
 
-export function validateMuseumAssetManifest(assets: readonly MuseumAsset[] = museumAssets): void {
+export function validateAssetManifest(manifest: readonly Asset[] = assets): void {
   const ids = new Set<string>();
-  for (const asset of assets) {
-    if (!asset.id.trim()) throw new Error('Museum asset IDs must be non-empty');
-    if (ids.has(asset.id)) throw new Error(`Duplicate museum asset id: ${asset.id}`);
+  for (const asset of manifest) {
+    if (!asset.id.trim()) throw new Error('Asset IDs must be non-empty');
+    if (ids.has(asset.id)) throw new Error(`Duplicate asset id: ${asset.id}`);
     ids.add(asset.id);
     if (!isOneOf(asset.category, assetCategories)) throw new Error(`Invalid asset category: ${asset.category}`);
     if (!isOneOf(asset.status, assetStatuses)) throw new Error(`Invalid asset status: ${asset.status}`);
     if (!isOneOf(asset.placementSurface, placementSurfaces)) {
-      throw new Error(`Invalid placement surface for museum asset: ${asset.id}`);
+      throw new Error(`Invalid placement surface for asset: ${asset.id}`);
     }
     if (!Number.isFinite(asset.defaultScale) || asset.defaultScale <= 0) {
-      throw new Error(`Invalid default scale for museum asset: ${asset.id}`);
+      throw new Error(`Invalid default scale for asset: ${asset.id}`);
     }
     if (
       asset.defaultRotation &&
       (asset.defaultRotation.length !== 3 || asset.defaultRotation.some((value) => !Number.isFinite(value)))
     ) {
-      throw new Error(`Invalid default rotation for museum asset: ${asset.id}`);
+      throw new Error(`Invalid default rotation for asset: ${asset.id}`);
     }
     if (asset.fallback && !isOneOf(asset.fallback, fallbackKinds)) {
-      throw new Error(`Invalid fallback for museum asset: ${asset.id}`);
+      throw new Error(`Invalid fallback for asset: ${asset.id}`);
     }
     resolveAssetFallback(asset);
     if (asset.status === 'approved' && !asset.productionFile?.trim()) {
-      throw new Error(`Approved museum asset requires a production file: ${asset.id}`);
+      throw new Error(`Approved asset requires a production file: ${asset.id}`);
     }
     if (!asset.productionFile?.trim() && !asset.fallback) {
-      throw new Error(`Museum asset without a production file requires a fallback: ${asset.id}`);
+      throw new Error(`Asset without a production file requires a fallback: ${asset.id}`);
     }
   }
 }
 
-validateMuseumAssetManifest();
+validateAssetManifest();
 
-export type MuseumAssetFilters = {
+export type AssetFilters = {
   query?: string;
   category?: AssetCategory;
   status?: AssetStatus;
 };
 
-export function listMuseumAssets(filters: MuseumAssetFilters = {}): MuseumAsset[] {
+export function listAssets(filters: AssetFilters = {}): Asset[] {
   const query = filters.query?.trim().toLocaleLowerCase() ?? '';
-  return museumAssets.filter((asset) => {
+  return assets.filter((asset) => {
     if (filters.category && asset.category !== filters.category) return false;
     if (filters.status && asset.status !== filters.status) return false;
     if (!query) return true;
@@ -286,12 +286,12 @@ export function listMuseumAssets(filters: MuseumAssetFilters = {}): MuseumAsset[
   });
 }
 
-export function getAssetById(id: string): MuseumAsset | undefined {
-  return museumAssetById.get(id);
+export function getAssetById(id: string): Asset | undefined {
+  return assetById.get(id);
 }
 
-export function getMuseumAsset(id: AssetId): MuseumAsset {
+export function getAsset(id: AssetId): Asset {
   const asset = getAssetById(id);
-  if (!asset) throw new Error(`Unknown museum asset: ${id}`);
+  if (!asset) throw new Error(`Unknown asset: ${id}`);
   return asset;
 }

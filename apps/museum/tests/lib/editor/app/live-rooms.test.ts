@@ -3,28 +3,28 @@ import type { Intersection, Object3D } from 'three';
 
 import { createEmptySceneDocument } from '$lib/content/scene';
 import { findPlaceableFloorIntersection } from '$lib/editor/editor-placement';
-import { chopinRuntime, museumSceneDocument } from '$lib/content/chopin-project';
-import { createMuseumEditorStore } from '$lib/editor/museum-editor.svelte';
+import { chopinRuntime, sceneDocument } from '$lib/content/chopin-project';
+import { createEditorStore } from '$lib/editor/editor-store.svelte';
 import {
 	commitLayoutDraftRoom,
 	createEmptyLayoutPreviewState
 } from '$lib/editor/layout/layout-preview-state.svelte';
 import { createLayoutRoomRegistry } from '$lib/project/project-layout-semantics';
-import type { Vec3 } from '$lib/types/museum';
+import type { Vec3 } from '$lib/types/scene';
 
 /**
  * the store's room registry must stay live against the project layout.
  * The boot-empty editor re-derives `createLayoutRoomRegistry(layoutPreview.project.layout)`
  * after every layout mutation; without that sync, `store.rooms.has(draftedRoomId)`
  * stays false and camera/primitive placement on a drafted room is rejected with
- * "Click a tagged museum-room floor" (and node creation would throw on the
+ * "Click a tagged room floor" (and node creation would throw on the
  * unknown room). These tests pin the seam: `store.updateRooms` + the acceptance
  * predicate the placement branches use.
  */
 describe('live room registry', () => {
 	it('drafted rooms are unknown until the registry is synced, then placeable', () => {
 		const layoutPreview = createEmptyLayoutPreviewState();
-		const store = createMuseumEditorStore({
+		const store = createEditorStore({
 			document: createEmptySceneDocument(),
 			rooms: createLayoutRoomRegistry(layoutPreview.project.layout)
 		});
@@ -43,7 +43,7 @@ describe('live room registry', () => {
 
 	it('the floor-acceptance predicate accepts a drafted room once synced', () => {
 		const layoutPreview = createEmptyLayoutPreviewState();
-		const store = createMuseumEditorStore({
+		const store = createEditorStore({
 			document: createEmptySceneDocument(),
 			rooms: createLayoutRoomRegistry(layoutPreview.project.layout)
 		});
@@ -71,7 +71,7 @@ describe('live room registry', () => {
 
 	it('places and commits a camera node on a drafted room through the live registry', () => {
 		const layoutPreview = createEmptyLayoutPreviewState();
-		const store = createMuseumEditorStore({
+		const store = createEditorStore({
 			document: createEmptySceneDocument(),
 			rooms: createLayoutRoomRegistry(layoutPreview.project.layout)
 		});
@@ -98,7 +98,7 @@ describe('live room registry', () => {
 
 	it('re-resolves the runtime scene when a room moves (updateRooms rebuild)', () => {
 		const layoutPreview = createEmptyLayoutPreviewState();
-		const store = createMuseumEditorStore({
+		const store = createEditorStore({
 			document: createEmptySceneDocument(),
 			rooms: createLayoutRoomRegistry(layoutPreview.project.layout)
 		});
@@ -133,8 +133,8 @@ describe('live room registry', () => {
 
 describe('updateRooms is a no-op for the frozen relic', () => {
 	it('keeps the Chopin registry until explicitly swapped', () => {
-		const store = createMuseumEditorStore({
-			document: museumSceneDocument,
+		const store = createEditorStore({
+			document: sceneDocument,
 			rooms: chopinRuntime.rooms
 		});
 		expect(store.rooms.has('paris')).toBe(true);

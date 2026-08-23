@@ -3,24 +3,24 @@
 	import { useThrelte } from '@threlte/core';
 	import { useOrbitControls } from '@threlte/extras';
 	import { roomLocalPoint } from '$lib/content/rooms';
-	import type { Vec3 } from '$lib/types/museum';
+	import type { Vec3 } from '$lib/types/scene';
 	import { Plane, Raycaster, Vector2, Vector3, type Intersection } from 'three';
 	import type { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
-	import type { MuseumEditorStore } from './museum-editor.svelte';
+	import type { EditorStore } from './editor-store.svelte';
 	import {
 		createDraftConnectionPositionPath,
 		EDITOR_CAMERA_PATH_MOVE_EPSILON,
 		findNearestCurveProgress,
 		getCameraPathInsertionIndex,
 		getScenePathAnchorWorldPosition
-	} from './editor-camera-path';
+	} from './camera/editor-camera-path';
 	import {
 		createEditorCameraFramingBasis,
 		clampEditorCameraFrustumDepth,
 		EDITOR_CAMERA_FRAMING_FOV_EPSILON,
 		EDITOR_CAMERA_FRAMING_MOVE_EPSILON,
 		verticalFovFromEditorCameraFrustumPoint
-	} from './editor-camera-framing';
+	} from './camera/editor-camera-framing';
 	import {
 		findCameraFovHandleFromObject,
 		findCameraSelectionFromObject,
@@ -45,7 +45,7 @@
 	import {
 		getSceneCameraViewKeyframeWorldPosition,
 		getSceneCameraViewKeyframeWorldTarget
-	} from './editor-camera-view';
+	} from './camera/editor-camera-view';
 	import { findPlaceableFloorIntersection } from './editor-placement';
 	import { getContext } from 'svelte';
 	import {
@@ -60,7 +60,7 @@
 		onLayoutPick,
 		onLayoutHover
 	}: {
-		store: MuseumEditorStore;
+		store: EditorStore;
 		transformControls?: TransformControls;
 		/** deselect the *active* domain (default: scene-owned deselect, so the frozen relic is untouched). */
 		onDeselect?: () => void;
@@ -838,7 +838,7 @@
 				(id) => store.rooms.has(id)
 			);
 			if (!floorHit) {
-				store.setStatusMessage('Click a tagged museum-room floor');
+				store.setStatusMessage('Click a tagged room floor');
 				return;
 			}
 			currentCamera.getWorldDirection(cameraForward);
@@ -858,7 +858,7 @@
 				(id) => store.rooms.has(id)
 			);
 			if (!floorHit) {
-				store.setStatusMessage('Click a tagged museum-room floor');
+				store.setStatusMessage('Click a tagged room floor');
 				return;
 			}
 			const worldPoint = floorHit.intersection.point.toArray() as Vec3;
@@ -877,7 +877,7 @@
 				(id) => store.rooms.has(id)
 			);
 			if (!floorHit) {
-				store.setStatusMessage('Click a tagged museum-room floor');
+				store.setStatusMessage('Click a tagged room floor');
 				return;
 			}
 			const worldPoint = floorHit.intersection.point.toArray() as Vec3;
@@ -907,7 +907,7 @@
 				(id) => store.rooms.has(id)
 			);
 			if (!floorHit) {
-				store.setStatusMessage('Click a tagged museum-room floor to place');
+				store.setStatusMessage('Click a tagged room floor to place');
 				return;
 			}
 			const worldPoint = floorHit.intersection.point.toArray() as Vec3;

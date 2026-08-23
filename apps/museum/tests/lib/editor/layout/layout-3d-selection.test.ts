@@ -25,7 +25,7 @@ import {
 	type LayoutInteractionState
 } from '$lib/editor/layout/layout-interaction';
 import { deriveActiveSelection } from '$lib/editor/app/active-editor-selection.svelte';
-import { createMuseumEditorStore } from '$lib/editor/museum-editor.svelte';
+import { createEditorStore } from '$lib/editor/editor-store.svelte';
 import { cloneFixtureDocument } from '../../content/__fixtures__/load-fixture-scene';
 import { g1MultipleOpeningsDocument } from '../../layout/__fixtures__/layout-g1-fixtures';
 
@@ -170,7 +170,7 @@ describe('commit route (pure shell mirror)', () => {
 	it('commits the resolved layout pick and reports the layout domain', () => {
 		const { mesh, indices, wallTriangle } = wallFixture();
 		const interaction = createLayoutInteractionState();
-		const store = createMuseumEditorStore({
+		const store = createEditorStore({
 			document: cloneFixtureDocument(),
 			rooms: chopinRuntime.rooms,
 			onSelectionActivate: () => clearLayoutSelection(interaction)
@@ -204,7 +204,7 @@ describe('commit route (pure shell mirror)', () => {
 	it('a follow-up scene pick clears the layout selection through the store hook', () => {
 		const { mesh, indices, wallTriangle } = wallFixture();
 		const interaction = createLayoutInteractionState();
-		const store = createMuseumEditorStore({
+		const store = createEditorStore({
 			document: cloneFixtureDocument(),
 			rooms: chopinRuntime.rooms,
 			onSelectionActivate: () => clearLayoutSelection(interaction)

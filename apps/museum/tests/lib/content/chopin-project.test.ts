@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import rawProject from '$lib/content/chopin-project.json';
 import { chopinProject, chopinRuntime } from '$lib/content/chopin-project';
-import { serializeMuseumProject, validateMuseumProject } from '$lib/project/project-codec';
+import { serializeProject, validateProject } from '$lib/project/project-codec';
 import {
 	createLayoutRoomRegistry,
 	validateProjectSceneRooms
 } from '$lib/project/project-layout-semantics';
 import { projectLayoutPortalRelations } from '$lib/layout/layout-portals';
-import type { Vec3 } from '$lib/types/museum';
+import type { Vec3 } from '$lib/types/scene';
 
 const legacyFrames = {
 	entrance: { origin: [0, 18], yaw: 0 },
@@ -39,10 +39,10 @@ function expectVecClose(actual: Vec3, expected: Vec3, digits = 9): void {
 
 describe('canonical Chopin project', () => {
 	it('is canonical: raw JSON round-trips byte-stably through the codec', () => {
-		const result = validateMuseumProject(rawProject);
+		const result = validateProject(rawProject);
 		expect(result.success).toBe(true);
 		if (!result.success) return;
-		expect(JSON.stringify(rawProject, null, 2) + '\n').toBe(serializeMuseumProject(chopinProject));
+		expect(JSON.stringify(rawProject, null, 2) + '\n').toBe(serializeProject(chopinProject));
 	});
 
 	it('loads seven stable frames and seven explicit portal relations', () => {
@@ -121,7 +121,7 @@ describe('canonical Chopin project', () => {
 		for (const testCase of cases) {
 			const input = JSON.parse(JSON.stringify(chopinProject));
 			testCase.mutate(input);
-			const result = validateMuseumProject(input);
+			const result = validateProject(input);
 			expect(result.success, testCase.path).toBe(false);
 			if (!result.success) {
 				expect(result.issues, testCase.path).toContainEqual(expect.objectContaining({
@@ -139,10 +139,10 @@ describe('canonical Chopin project', () => {
 		connection.viewTracks.framingEnvelope = {
 			forward: { enterStart: 0.1, enterEnd: 0.25, exitStart: 0.75, exitEnd: 1 }
 		};
-		const valid = validateMuseumProject(input);
+		const valid = validateProject(input);
 		expect(valid.success).toBe(true);
 		if (!valid.success) return;
-		expect(serializeMuseumProject(input)).toBe(valid.canonicalJson);
+		expect(serializeProject(input)).toBe(valid.canonicalJson);
 
 		const connectionIndex = valid.project.scene.connections.findIndex(
 			(candidate) => candidate.id === connection.id
@@ -150,7 +150,7 @@ describe('canonical Chopin project', () => {
 		const invalidInput = JSON.parse(JSON.stringify(input));
 		invalidInput.scene.connections[connectionIndex].viewTracks
 			.framingEnvelope.forward.exitStart = 0.2;
-		const invalid = validateMuseumProject(invalidInput);
+		const invalid = validateProject(invalidInput);
 		expect(invalid.success).toBe(false);
 		if (!invalid.success) {
 			expect(invalid.issues).toContainEqual(expect.objectContaining({

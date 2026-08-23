@@ -5,10 +5,10 @@
 	`useEditorShellBoot`; only shortcut wiring stays shell-owned.
 -->
 <script lang="ts">
-	import type { MuseumAsset } from '$lib/types/assets';
+	import type { Asset } from '$lib/types/assets';
 	import { onMount, untrack } from 'svelte';
 	import EditorAppBar from './EditorAppBar.svelte';
-	import EditorCameraTimelineFrame from './EditorCameraTimelineFrame.svelte';
+	import EditorCameraTimelineFrame from './camera/EditorCameraTimelineFrame.svelte';
 	import EditorInspector from './EditorInspector.svelte';
 	import EditorLeftSidebar from './EditorLeftSidebar.svelte';
 	import EditorMaterialChoiceDialog from './EditorMaterialChoiceDialog.svelte';
@@ -19,7 +19,7 @@
 		EditorInteractionStore,
 		EDITOR_INTERACTION_STORE_KEY
 	} from './store/editor-interaction-store.svelte';
-	import { createMuseumEditorStore } from './museum-editor.svelte';
+	import { createEditorStore } from './editor-store.svelte';
 	import {
 		captureLayoutPreviewSnapshot,
 		createLayoutPreviewState,
@@ -28,7 +28,7 @@
 	// P7.3 — the relic is the one editor-domain site that seeds Chopin
 	// explicitly (document + rooms + layout preview); everything else boots
 	// empty or from an imported project.
-	import { chopinProject, chopinRuntime, museumSceneDocument } from '$lib/content/chopin-project';
+	import { chopinProject, chopinRuntime, sceneDocument } from '$lib/content/chopin-project';
 	import { useEditorShellBoot } from './hooks/editor-shell-boot.svelte';
 	import { createLayoutInteractionState } from './layout/layout-interaction';
 
@@ -37,13 +37,13 @@
 	// `relic` is a mount-time prop: read it once, non-reactively, to configure the
 	// store and the layout history bridge. A relic mount never gains (or loses)
 	// Layout mid-session.
-	const store = createMuseumEditorStore({
-		document: museumSceneDocument,
+	const store = createEditorStore({
+		document: sceneDocument,
 		rooms: chopinRuntime.rooms,
 		relic: untrack(() => relic)
 	});
 	const layoutPreview = $state(
-		createLayoutPreviewState(chopinProject.layout, museumSceneDocument)
+		createLayoutPreviewState(chopinProject.layout, sceneDocument)
 	);
 	const layoutInteraction = $state(createLayoutInteractionState());
 	// Relic isolation: the frozen Scene · Camera editor never registers a layout
@@ -65,7 +65,7 @@
 	let outlinerElement = $state<HTMLElement | null>(null);
 	let viewportElement = $state<HTMLElement | null>(null);
 	let clusterNameInput = $state<HTMLInputElement>();
-	let selectedAsset = $state<MuseumAsset>();
+	let selectedAsset = $state<Asset>();
 
 	// P7.4 — shared boot composable (dirty guard + texture lifecycle only).
 	// Shortcut wiring stays shell-owned; see `useEditorShellBoot`.

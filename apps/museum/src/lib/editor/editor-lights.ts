@@ -1,5 +1,5 @@
 import type { SceneLightEntity, SceneLightKind } from '$lib/content/scene';
-import type { MuseumRoomId, Vec3 } from '$lib/types/museum';
+import type { RoomId, Vec3 } from '$lib/types/scene';
 
 export type LightLibraryItem = {
 	kind: SceneLightKind;
@@ -43,7 +43,7 @@ export function isPositiveFinite(value: number): boolean {
 export function createLightEntity(input: {
 	id: string;
 	kind: SceneLightKind;
-	roomId: MuseumRoomId;
+	roomId: RoomId;
 	position: Vec3;
 	name?: string;
 	color?: string;

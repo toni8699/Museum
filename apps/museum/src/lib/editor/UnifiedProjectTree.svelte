@@ -10,7 +10,7 @@
 	// and the highlight reads `ActiveEditorSelection.active`.
 	import { onMount } from 'svelte';
 	import { EllipsisVertical, Eye, EyeOff, ListFilter, Plus, Scan, Search, Trash2 } from 'lucide-svelte';
-	import { getMuseumAsset } from '$lib/content/assets';
+	import { getAsset } from '$lib/content/assets';
 	import { isSceneModelEntity, type SceneEntity } from '$lib/content/scene';
 	import { formatPlacementLabel } from './editor-outliner';
 	import type { LayoutPreviewState } from './layout/layout-preview-state.svelte';
@@ -25,7 +25,7 @@
 		setLayoutDraftTool,
 		type LayoutInteractionState
 	} from './layout/layout-interaction';
-	import type { MuseumEditorStore } from './museum-editor.svelte';
+	import type { EditorStore } from './editor-store.svelte';
 	import CameraFlowPanel from './CameraFlowPanel.svelte';
 	import type { EditorActiveSelectionStore } from './app/active-editor-selection.svelte';
 	import {
@@ -50,7 +50,7 @@
 		view,
 		onAddRoom = undefined
 	}: {
-		store: MuseumEditorStore;
+		store: EditorStore;
 		layoutPreview: LayoutPreviewState;
 		layoutInteraction: LayoutInteractionState;
 		activeSelection: EditorActiveSelectionStore;
@@ -232,7 +232,7 @@
 
 	function entityMeta(entity: SceneEntity) {
 		if (isSceneModelEntity(entity)) {
-			return formatPlacementLabel(getMuseumAsset(entity.assetId).category);
+			return formatPlacementLabel(getAsset(entity.assetId).category);
 		}
 		if (entity.kind === 'primitive') return formatPlacementLabel(entity.primitive);
 		return formatPlacementLabel(entity.light);

@@ -1,5 +1,5 @@
 import type { NavigationGraph } from '$lib/content/scene';
-import type { MuseumConnection, NavigationNodeData, Vec3 } from '$lib/types/museum';
+import type { RuntimeConnection, NavigationNodeData, Vec3 } from '$lib/types/scene';
 import type { LayoutVec2 } from '$lib/layout/layout-types';
 import {
 	geometryId,
@@ -331,7 +331,7 @@ function g2Connection(
 	fromNodeId: string,
 	toNodeId: string,
 	points: readonly Vec3[]
-): MuseumConnection {
+): RuntimeConnection {
 	return {
 		id,
 		fromNodeId,
@@ -375,7 +375,7 @@ export function g2SceneNavigationGraph(): NavigationGraph {
 		)
 	);
 	const nodeById = new Map(navigationNodes.map((node) => [node.id, node]));
-	const connections: MuseumConnection[] = [
+	const connections: RuntimeConnection[] = [
 		g2Connection('c0', 'n0', 'n1', [navigationNodes[0]!.position, navigationNodes[1]!.position]),
 		g2Connection('c1', 'n1', 'n2', [navigationNodes[1]!.position, navigationNodes[2]!.position]),
 		g2Connection('c2', 'n2', 'n0', [navigationNodes[2]!.position, navigationNodes[0]!.position])

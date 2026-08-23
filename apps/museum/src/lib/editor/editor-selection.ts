@@ -1,5 +1,5 @@
 import type { Intersection, Material, Mesh, Object3D } from 'three';
-import type { CameraConnectionDirection } from '$lib/types/museum';
+import type { CameraConnectionDirection } from '$lib/types/scene';
 
 /** Shared opacity floor for normal and Alt selection hit filtering. */
 export const NEAR_INVISIBLE_OPACITY = 0.05;

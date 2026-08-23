@@ -14,7 +14,7 @@
 import { getAssetById, isSceneObjectFallback } from '../assets';
 import { isMaterialId } from '../materials';
 import { isSafeTextureUri } from '../texture-uri';
-import type { Vec3 } from '$lib/types/museum';
+import type { Vec3 } from '$lib/types/scene';
 import type { MaterialId } from '$lib/types/materials';
 import type {
 	SceneBoxDimensions,
@@ -102,7 +102,7 @@ export function parseMaterialInstance(
 			issues,
 			`${path}.baseMaterialId`,
 			'unknown_material',
-			`Unknown museum material: ${baseMaterialIdRaw}`
+			`Unknown material: ${baseMaterialIdRaw}`
 		);
 	}
 	const baseTextureId = readOptionalString(input, 'baseTextureId', path, issues);
@@ -227,7 +227,7 @@ export function parseModelEntity(
 	const roomId = readRoomId(input, 'roomId', path, issues);
 	const assetId = readRequiredString(input, 'assetId', path, issues);
 	if (assetId && !getAssetById(assetId)) {
-		addIssue(issues, `${path}.assetId`, 'unknown_asset', `Unknown museum asset: ${assetId}`);
+		addIssue(issues, `${path}.assetId`, 'unknown_asset', `Unknown asset: ${assetId}`);
 	}
 	const fallback = readRequiredString(input, 'fallback', path, issues);
 	if (fallback && !isSceneObjectFallback(fallback)) {
@@ -305,7 +305,7 @@ export function parsePrimitiveEntity(
 	const materialId =
 		materialIdRaw && isMaterialId(materialIdRaw) ? (materialIdRaw as MaterialId) : undefined;
 	if (materialIdRaw && !materialId) {
-		addIssue(issues, `${path}.materialId`, 'unknown_material', `Unknown museum material: ${materialIdRaw}`);
+		addIssue(issues, `${path}.materialId`, 'unknown_material', `Unknown material: ${materialIdRaw}`);
 	}
 	const castShadow = readRequiredBoolean(input, 'castShadow', path, issues);
 	const receiveShadow = readRequiredBoolean(input, 'receiveShadow', path, issues);

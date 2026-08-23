@@ -1,7 +1,7 @@
 import { untrack } from 'svelte';
 import type { Object3D } from 'three';
 
-import type { CameraConnectionDirection } from '$lib/types/museum';
+import type { CameraConnectionDirection } from '$lib/types/scene';
 import type { EditorCameraHandle } from '../editor-selection';
 import {
 	anchorHelperKey,
@@ -12,10 +12,10 @@ import {
 
 /**
  * `Object3D` registry for editor-only scene helpers. Slice 2 of the
- * museum-editor refactor plan collapses what was previously four
+ * editor-facade refactor plan collapses what was previously four
  * `#…Roots = new Map<string, Object3D>()` private fields +
  * `registryVersion = $state(0)` + `#bumpRegistryVersion()` punchline
- * on `MuseumEditorStore` into one focused sub-store with a single
+ * on `EditorStore` into one focused sub-store with a single
  * tagged-key union vector (we keep four `Map`s because the four
  * families use disjoint ID space; revision bumping is unified through
  * the single `version` $state, which god-file getters `void` to

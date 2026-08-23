@@ -6,8 +6,8 @@ import { fileURLToPath } from 'node:url';
 
 import { createEmptySceneDocument } from '$lib/content/scene';
 import { getRoom } from '$lib/content/rooms';
-import { createEditorRoomBoundsCameraFrame } from '$lib/editor/editor-camera';
-import { createMuseumEditorStore, type MuseumEditorStore } from '$lib/editor/museum-editor.svelte';
+import { createEditorRoomBoundsCameraFrame } from '$lib/editor/camera/editor-camera';
+import { createEditorStore, type EditorStore } from '$lib/editor/editor-store.svelte';
 import {
 	commitLayoutDraftRoom,
 	createEmptyLayoutPreviewState,
@@ -28,12 +28,12 @@ function readLibSource(relativePath: string): string {
 }
 
 function draftRoomAndSync(): {
-	store: MuseumEditorStore;
+	store: EditorStore;
 	layoutPreview: LayoutPreviewState;
 	roomId: string;
 } {
 	const layoutPreview = createEmptyLayoutPreviewState();
-	const store = createMuseumEditorStore({
+	const store = createEditorStore({
 		document: createEmptySceneDocument(),
 		rooms: createLayoutRoomRegistry(layoutPreview.project.layout)
 	});

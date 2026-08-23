@@ -21,7 +21,7 @@ import {
 	layoutPreviewIsDirty,
 	type LayoutPreviewState
 } from '../layout/layout-preview-state.svelte';
-import type { MuseumEditorStore } from '../museum-editor.svelte';
+import type { EditorStore } from '../editor-store.svelte';
 
 export type EditorShellBootResult = {
 	confirmSceneReplacement: () => boolean;
@@ -30,7 +30,7 @@ export type EditorShellBootResult = {
 };
 
 export function useEditorShellBoot(input: {
-	store: MuseumEditorStore;
+	store: EditorStore;
 	layoutPreview: LayoutPreviewState;
 }): EditorShellBootResult {
 	const { store, layoutPreview } = input;

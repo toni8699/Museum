@@ -1,42 +1,42 @@
 <script lang="ts">
-	import { getMuseumAsset } from '$lib/content/assets';
-	import { museumRooms } from '$lib/content/rooms';
+	import { getAsset } from '$lib/content/assets';
+	import { rooms } from '$lib/content/rooms';
 	import {
 		isSceneModelEntity,
 		type SceneEntity
 	} from '$lib/content/scene';
-	import type { MuseumRoomId } from '$lib/types/museum';
+	import type { RoomId } from '$lib/types/scene';
 	import { formatPlacementLabel } from './editor-outliner';
-	import type { MuseumEditorStore } from './museum-editor.svelte';
+	import type { EditorStore } from './editor-store.svelte';
 
-	let { store }: { store: MuseumEditorStore } = $props();
+	let { store }: { store: EditorStore } = $props();
 
 	const openClusterIds = $derived(store.treeExpandedClusterIds);
 	const clusteredPlacementIds = $derived(
 		new Set((store.document.clusters ?? []).flatMap((cluster) => cluster.memberIds))
 	);
 
-	function roomEntities(roomId: MuseumRoomId) {
+	function roomEntities(roomId: RoomId) {
 		return store.document.entities.filter((entity) => entity.roomId === roomId);
 	}
 
-	function roomClusters(roomId: MuseumRoomId) {
+	function roomClusters(roomId: RoomId) {
 		return (store.document.clusters ?? []).filter((cluster) => cluster.roomId === roomId);
 	}
 
-	function ungroupedEntities(roomId: MuseumRoomId) {
+	function ungroupedEntities(roomId: RoomId) {
 		return roomEntities(roomId).filter((entity) => !clusteredPlacementIds.has(entity.id));
 	}
 
-	function roomOpen(roomId: MuseumRoomId) {
+	function roomOpen(roomId: RoomId) {
 		return store.treeExpandedRoomIds.includes(roomId);
 	}
 
-	function roomHasContent(roomId: MuseumRoomId) {
+	function roomHasContent(roomId: RoomId) {
 		return roomEntities(roomId).length > 0 || roomClusters(roomId).length > 0;
 	}
 
-	function selectRoom(roomId: MuseumRoomId) {
+	function selectRoom(roomId: RoomId) {
 		if (store.isDocumentMutationBlocked) return;
 		store.selectionActions.selectRoom(roomId);
 		if (roomId === 'paris') store.focusRoom('paris');
@@ -59,7 +59,7 @@
 
 	function entityMeta(entity: SceneEntity) {
 		if (isSceneModelEntity(entity)) {
-			return formatPlacementLabel(getMuseumAsset(entity.assetId).category);
+			return formatPlacementLabel(getAsset(entity.assetId).category);
 		}
 		if (entity.kind === 'primitive') return formatPlacementLabel(entity.primitive);
 		return formatPlacementLabel(entity.light);
@@ -70,8 +70,8 @@
 	<div class="sidebar-section-header">
 		<h2>Rooms</h2>
 	</div>
-	<ul class="rooms" role="tree" aria-label="Museum rooms and objects">
-		{#each museumRooms as room (room.id)}
+	<ul class="rooms" role="tree" aria-label="Rooms and objects">
+		{#each rooms as room (room.id)}
 			{@const open = roomOpen(room.id)}
 			{@const entities = roomEntities(room.id)}
 			{@const clusters = roomClusters(room.id)}

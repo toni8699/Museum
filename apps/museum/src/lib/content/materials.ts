@@ -1,6 +1,6 @@
 import type { MaterialDefinition, MaterialId } from '$lib/types/materials';
 
-export const museumMaterials: MaterialDefinition[] = [
+export const materials: MaterialDefinition[] = [
   {
     id: 'plaster-warm',
     label: 'Warm Plaster',
@@ -63,12 +63,12 @@ export const museumMaterials: MaterialDefinition[] = [
 ];
 
 export const materialById = new Map<MaterialId, MaterialDefinition>(
-  museumMaterials.map((material) => [material.id, material])
+  materials.map((material) => [material.id, material])
 );
 
 export function getMaterial(id: MaterialId): MaterialDefinition {
   const material = materialById.get(id);
-  if (!material) throw new Error(`Unknown museum material: ${id}`);
+  if (!material) throw new Error(`Unknown material: ${id}`);
   return material;
 }
 

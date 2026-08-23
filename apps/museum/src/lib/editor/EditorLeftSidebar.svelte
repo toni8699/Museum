@@ -1,7 +1,7 @@
 <script lang="ts">
-	import type { MuseumAsset } from '$lib/types/assets';
+	import type { Asset } from '$lib/types/assets';
 	import EditorAssetLibrary from './EditorAssetLibrary.svelte';
-	import EditorCameraTree from './EditorCameraTree.svelte';
+	import EditorCameraTree from './camera/EditorCameraTree.svelte';
 	import EditorSceneTree from './EditorSceneTree.svelte';
 	import {
 		layoutPreviewSessionStatus,
@@ -9,7 +9,7 @@
 		resetLayoutPreview,
 		type LayoutPreviewState
 	} from './layout/layout-preview-state.svelte';
-	import type { MuseumEditorStore } from './museum-editor.svelte';
+	import type { EditorStore } from './editor-store.svelte';
 
 	let {
 		store,
@@ -19,11 +19,11 @@
 		onAssetSelection,
 		onReset
 	}: {
-		store: MuseumEditorStore;
+		store: EditorStore;
 		layoutPreview: LayoutPreviewState;
 		confirmLayoutReplacement: () => boolean;
 		outlinerElement?: HTMLElement | null;
-		onAssetSelection?: (asset: MuseumAsset | undefined) => void;
+		onAssetSelection?: (asset: Asset | undefined) => void;
 		/** fired after the sidebar "Reset empty" action; the shell clears the active selection. */
 		onReset?: () => void;
 	} = $props();

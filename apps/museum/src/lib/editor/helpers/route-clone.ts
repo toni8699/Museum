@@ -4,7 +4,7 @@
  *
  * Slice 3 of the Priority-1 file-split refactor extracts this helper
  * (and its private `cloneRoutePoint` / `isRoutePointTuple` pair) from
- * `museum-editor.svelte.ts` so the function can be reused by future
+ * `editor-store.svelte.ts` so the function can be reused by future
  * controllers and tested in isolation without dragging the god-file class
  * along.
  *
@@ -18,7 +18,7 @@
  */
 import type { Vector3Like } from '$lib/museum/navigation/camera-motion';
 import type { ResolvedCameraRoute } from '$lib/museum/navigation/camera-route';
-import type { Vec3 } from '$lib/types/museum';
+import type { Vec3 } from '$lib/types/scene';
 
 /** Tuple check — `Vector3Like` is either `{x,y,z}` or `[x,y,z]`. */
 export function isRoutePointTuple(

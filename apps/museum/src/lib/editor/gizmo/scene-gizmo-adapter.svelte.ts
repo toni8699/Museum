@@ -20,7 +20,7 @@
 
 import { Group, Matrix4, Quaternion, Vector3 } from 'three';
 import type { Object3D, Scene } from 'three';
-import type { MuseumEditorStore } from '../museum-editor.svelte';
+import type { EditorStore } from '../editor-store.svelte';
 import type { EditorInteractionStore } from '../store/editor-interaction-store.svelte';
 import {
 	applyRigidPivotDelta,
@@ -58,7 +58,7 @@ export const SCENE_GIZMO_POLICY: EditorGizmoPolicy = {
 };
 
 export interface SceneGizmoAdapterInput {
-	store: MuseumEditorStore;
+	store: EditorStore;
 	/** Threlte scene used for keep-on-floor grounding raycasts. */
 	scene: Scene;
 	/** Shared session pivot (adapter-created via `createSceneGizmoPivot`, pose managed here). */
@@ -255,7 +255,7 @@ function cancelPlacementSession(
 	}
 }
 
-function placementSnapPreferences(store: MuseumEditorStore) {
+function placementSnapPreferences(store: EditorStore) {
 	return {
 		translationSnap: store.translationSnap,
 		translationSnapEnabled: store.translationSnapEnabled,

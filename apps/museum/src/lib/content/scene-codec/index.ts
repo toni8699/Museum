@@ -1,5 +1,5 @@
 /**
- * `scene-codec/index.ts` — public barrel for the museum scene document codec.
+ * `scene-codec/index.ts` — public barrel for the scene document codec.
  *
  * The document has one canonical shape (textures, materials, entities,
  * clusters, navigation nodes, connections). No version field, no migrations.
@@ -18,7 +18,7 @@
  * `@internal` and consumers should not import the sibling modules
  * directly.
  */
-import type { MuseumSceneDocument } from '../scene';
+import type { SceneDocument } from '../scene';
 import { addIssue, assertAllowedKeys, isRecord } from './readers';
 import {
 	parseCluster,
@@ -30,7 +30,7 @@ import { parseConnection, parseNode, validateSemantics } from './parse-document'
 import { canonicalDocument } from './canonical';
 
 /**
- * Public surface types for the museum scene document codec. The document has
+ * Public surface types for the scene document codec. The document has
  * one canonical shape; there are no versioned legacy forms to migrate.
  */
 export type SceneDocumentIssue = {
@@ -40,7 +40,7 @@ export type SceneDocumentIssue = {
 };
 
 export type SceneDocumentValidationResult =
-	| { success: true; document: MuseumSceneDocument; canonicalJson: string }
+	| { success: true; document: SceneDocument; canonicalJson: string }
 	| { success: false; issues: SceneDocumentIssue[] };
 
 export class SceneDocumentValidationError extends Error {

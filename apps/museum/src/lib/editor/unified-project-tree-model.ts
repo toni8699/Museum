@@ -18,10 +18,10 @@
  */
 
 import type { LayoutDocument } from '$lib/layout/layout-types';
-import type { MuseumSceneDocument } from '$lib/content/scene';
-import type { CameraConnectionDirection } from '$lib/types/museum';
+import type { SceneDocument } from '$lib/content/scene';
+import type { CameraConnectionDirection } from '$lib/types/scene';
 import type { LayoutSelection } from './layout/layout-interaction';
-import type { WorkspaceSelection, NavigationSelection } from './museum-editor.types';
+import type { WorkspaceSelection, NavigationSelection } from './editor-types';
 import type { ActiveEditorSelection } from './app/active-editor-selection.svelte';
 import type { EditorDomain } from './app/editor-view-state.svelte';
 import type { EditorViewMode } from './app/editor-view-mode';
@@ -114,7 +114,7 @@ export type UnifiedProjectTreeModel = {
  */
 export function buildUnifiedProjectTreeModel(input: {
 		layout: LayoutDocument;
-		scene: MuseumSceneDocument;
+		scene: SceneDocument;
 		guidedTourNodeIds: string[];
 	}): UnifiedProjectTreeModel {
 		const { layout, scene } = input;

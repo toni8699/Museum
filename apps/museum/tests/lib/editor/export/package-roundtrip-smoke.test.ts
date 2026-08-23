@@ -20,8 +20,8 @@ import { importPackage } from '$lib/editor/import/package-importer';
 import {
 	REWRITE_URI_PREFIX
 } from '$lib/content/package-format';
-import baseSceneFixture from '$lib/content/museum-scene.json';
-import type { MuseumSceneDocument, SceneTextureAsset } from '$lib/content/scene';
+import baseSceneFixture from '$lib/content/scene.json';
+import type { SceneDocument, SceneTextureAsset } from '$lib/content/scene';
 
 // 1×1 transparent PNG.
 const PNG_BYTES = new Uint8Array([
@@ -41,8 +41,8 @@ const FIXTURE_TEXTURES: ReadonlyArray<{ id: string; name: string; uri: string }>
 	{ id: 'plaster', name: 'Plaster', uri: '/museum/textures/Plaster%20Wall.png' }
 ];
 
-function makeScene(): MuseumSceneDocument {
-	const baseScene = baseSceneFixture as unknown as MuseumSceneDocument;
+function makeScene(): SceneDocument {
+	const baseScene = baseSceneFixture as unknown as SceneDocument;
 	return {
 		...baseScene,
 		textures: FIXTURE_TEXTURES.map((t) => ({ ...t })),
@@ -87,7 +87,7 @@ describe('Phase 5.4 package round-trip smoke', () => {
 				destinationPath: string;
 			}>;
 		};
-		expect(manifest.package.generator).toBe('museum-editor-5.4');
+		expect(manifest.package.generator).toBe('editor-5.4');
 		expect(manifest.package.id).toMatch(/^package-[0-9a-f]{12}$/);
 		expect(manifest.textures.length).toBe(FIXTURE_TEXTURES.length);
 
@@ -166,6 +166,7 @@ describe('Phase 5.4 package round-trip smoke', () => {
 		}
 
 		// Filename returned for download.
-		expect(exportResult.filename).toMatch(/^museum-scene-20260807-1830\.museumpack\.zip$/);
+		expect(exportResult.filename).toMatch(/^scene-20260807-1830\.scenepack\.zip$/
+);
 	});
 });

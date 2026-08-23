@@ -42,7 +42,7 @@ describe('PlanRenderModel boundary', () => {
 		const source = sourceOf(MODEL_FILE);
 		expect(source).not.toContain('camera-route');
 		expect(source).not.toContain('camera-motion');
-		expect(source).not.toContain('museumNavigationGraph');
+		expect(source).not.toContain('navigationGraph');
 		expect(source).not.toContain('resolveSceneDocument');
 	});
 

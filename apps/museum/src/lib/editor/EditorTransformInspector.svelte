@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { getContext } from 'svelte';
-	import EditorNumberField from './EditorNumberField.svelte';
+	import EditorNumberField from './fields/EditorNumberField.svelte';
 	import {
 		degreesToRadians,
 		MIN_PLACEMENT_SCALE,
@@ -8,14 +8,14 @@
 		type PlacementTransform
 	} from './editor-transform';
 	import type { ScaleMode } from './scale-vector';
-	import type { Vec3 } from '$lib/types/museum';
-	import type { MuseumEditorStore } from './museum-editor.svelte';
+	import type { Vec3 } from '$lib/types/scene';
+	import type { EditorStore } from './editor-store.svelte';
 	import {
 		EDITOR_INTERACTION_STORE_KEY,
 		type EditorInteractionStore
 	} from './store/editor-interaction-store.svelte';
 
-	let { store }: { store: MuseumEditorStore } = $props();
+	let { store }: { store: EditorStore } = $props();
 
 	const interactionStore = getContext<EditorInteractionStore | undefined>(
 		EDITOR_INTERACTION_STORE_KEY
@@ -337,7 +337,7 @@
 		border-radius: 0.3rem;
 		border: 1px solid #3a3644;
 		background: rgba(255, 255, 255, 0.04);
-		color: var(--museum-editor-fg, #e9e3f0);
+		color: var(--editor-fg, #e9e3f0);
 		cursor: pointer;
 		transition: background 80ms ease;
 	}

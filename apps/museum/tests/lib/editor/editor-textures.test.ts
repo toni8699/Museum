@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type {
-	MuseumSceneDocument,
+	SceneDocument,
 	SceneEntity,
 	SceneLightEntity,
 	SceneModelEntity,
@@ -66,7 +66,7 @@ const light: SceneLightEntity = {
 	castShadow: false
 };
 
-function sceneDocument(entities: SceneEntity[]): MuseumSceneDocument {
+function sceneDocument(entities: SceneEntity[]): SceneDocument {
 	return {
 		textures: [],
 		materials: [],
@@ -82,7 +82,7 @@ function hit(opacity: number, placementId: string | null): SelectionHitInfo {
 
 describe('editor texture helpers', () => {
 	it('uses the exact custom drag MIME type', () => {
-		expect(TEXTURE_DRAG_MIME).toBe('application/x-museum-texture');
+		expect(TEXTURE_DRAG_MIME).toBe('application/x-editor-texture');
 	});
 
 	it('searches texture names and URIs case-insensitively without mutating the source', () => {

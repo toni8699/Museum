@@ -3,9 +3,9 @@
 	import { useThrelte } from '@threlte/core';
 	import { GROUND_EPSILON, groundPlacementToFloor } from './editor-placement';
 	import { placementTransformFromObject } from './editor-transform';
-	import type { MuseumEditorStore } from './museum-editor.svelte';
+	import type { EditorStore } from './editor-store.svelte';
 
-	let { store }: { store: MuseumEditorStore } = $props();
+	let { store }: { store: EditorStore } = $props();
 	const { scene } = useThrelte();
 	let lastHandledDropRequestId = 0;
 

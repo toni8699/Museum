@@ -12,16 +12,16 @@
  * `scene-codec/`.
  */
 import {
-	MUSEUM_CAMERA_EASING,
-	MUSEUM_CAMERA_FOV,
+	CAMERA_EASING,
+	CAMERA_FOV,
 	type CameraEasing,
-	type MuseumRoomId,
+	type RoomId,
 	type SceneConnectionTiming,
 	type Vec3
-} from '$lib/types/museum';
+} from '$lib/types/scene';
 import type {
 	CameraFramingEnvelope,
-	MuseumSceneDocument,
+	SceneDocument,
 	SceneCameraViewKeyframe,
 	SceneConnection,
 	SceneConnectionTimingPair,
@@ -82,13 +82,13 @@ export function parseNode(
 	const fov = readRequiredNumber(input, 'fov', path, issues);
 	if (
 		fov !== undefined &&
-		(fov < MUSEUM_CAMERA_FOV.min || fov > MUSEUM_CAMERA_FOV.max)
+		(fov < CAMERA_FOV.min || fov > CAMERA_FOV.max)
 	) {
 		addIssue(
 			issues,
 			`${path}.fov`,
 			'invalid_fov',
-			`FOV must be between ${MUSEUM_CAMERA_FOV.min} and ${MUSEUM_CAMERA_FOV.max} degrees`
+			`FOV must be between ${CAMERA_FOV.min} and ${CAMERA_FOV.max} degrees`
 		);
 	}
 	const connectedNodeIds = readStringArray(
@@ -111,8 +111,8 @@ export function parseNode(
 		!position ||
 		!cameraTarget ||
 		fov === undefined ||
-		fov < MUSEUM_CAMERA_FOV.min ||
-		fov > MUSEUM_CAMERA_FOV.max ||
+		fov < CAMERA_FOV.min ||
+		fov > CAMERA_FOV.max ||
 		!connectedNodeIds
 	) {
 		return undefined;
@@ -143,7 +143,7 @@ export function parseWaypoint(
 		return undefined;
 	}
 	assertAllowedKeys(input, ['roomId', 'position'], path, issues);
-	let roomId: MuseumRoomId | undefined;
+	let roomId: RoomId | undefined;
 	if ('roomId' in input) roomId = readRoomId(input, 'roomId', path, issues);
 	const position = readVec3(input.position, `${path}.position`, issues);
 	if (!position) return undefined;
@@ -161,7 +161,7 @@ export function parsePathAnchor(
 	}
 	assertAllowedKeys(input, ['id', 'roomId', 'position'], path, issues);
 	const id = readRequiredString(input, 'id', path, issues);
-	let roomId: MuseumRoomId | undefined;
+	let roomId: RoomId | undefined;
 	if ('roomId' in input) roomId = readRoomId(input, 'roomId', path, issues);
 	const position = readVec3(input.position, `${path}.position`, issues);
 	if (!id || !position) return undefined;
@@ -286,18 +286,18 @@ export function parseViewKeyframe(
 		);
 	}
 	const cameraTarget = readVec3(input.cameraTarget, `${path}.cameraTarget`, issues);
-	let roomId: MuseumRoomId | undefined;
+	let roomId: RoomId | undefined;
 	if ('roomId' in input) roomId = readRoomId(input, 'roomId', path, issues);
 	const fov = readRequiredNumber(input, 'fov', path, issues);
 	if (
 		fov !== undefined &&
-		(fov < MUSEUM_CAMERA_FOV.min || fov > MUSEUM_CAMERA_FOV.max)
+		(fov < CAMERA_FOV.min || fov > CAMERA_FOV.max)
 	) {
 		addIssue(
 			issues,
 			`${path}.fov`,
 			'invalid_fov',
-			`FOV must be between ${MUSEUM_CAMERA_FOV.min} and ${MUSEUM_CAMERA_FOV.max} degrees`
+			`FOV must be between ${CAMERA_FOV.min} and ${CAMERA_FOV.max} degrees`
 		);
 	}
 	let holdSeconds: number | undefined;
@@ -326,8 +326,8 @@ export function parseViewKeyframe(
 		progress >= 1 ||
 		!cameraTarget ||
 		fov === undefined ||
-		fov < MUSEUM_CAMERA_FOV.min ||
-		fov > MUSEUM_CAMERA_FOV.max
+		fov < CAMERA_FOV.min ||
+		fov > CAMERA_FOV.max
 	) {
 		return undefined;
 	}
@@ -469,12 +469,12 @@ export function readEasing(
 	const candidate = readRequiredString(value, key, path, issues);
 	if (candidate === undefined) return undefined;
 	const normalised = candidate === 'ease-in-out' ? 'smoothstep' : candidate;
-	if (!MUSEUM_CAMERA_EASING.includes(normalised as CameraEasing)) {
+	if (!CAMERA_EASING.includes(normalised as CameraEasing)) {
 		addIssue(
 			issues,
 			`${path}.${key}`,
 			'invalid_easing',
-			`Expected easing ${MUSEUM_CAMERA_EASING.join(', ')}, received: ${stringifyUnknown(candidate)}`
+			`Expected easing ${CAMERA_EASING.join(', ')}, received: ${stringifyUnknown(candidate)}`
 		);
 		return undefined;
 	}
@@ -497,8 +497,8 @@ export function cameraSceneConnectionTimingFailureReason(
 	) {
 		return 'durationSeconds must be a finite positive number';
 	}
-	if (timing.easing !== undefined && !MUSEUM_CAMERA_EASING.includes(timing.easing)) {
-		return `easing must be one of ${MUSEUM_CAMERA_EASING.join(', ')}`;
+	if (timing.easing !== undefined && !CAMERA_EASING.includes(timing.easing)) {
+		return `easing must be one of ${CAMERA_EASING.join(', ')}`;
 	}
 	return null;
 }
@@ -627,7 +627,7 @@ export function assertUnique(
 export function distance(a: Vec3, b: Vec3) {
 	return Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 }
-export function validateSemantics(document: MuseumSceneDocument, issues: SceneDocumentIssue[]) {
+export function validateSemantics(document: SceneDocument, issues: SceneDocumentIssue[]) {
 	const entities = document.entities;
 	assertUnique(entities, 'scene entity', '$.entities', issues);
 	assertUnique(document.navigationNodes, 'navigation node', '$.navigationNodes', issues);

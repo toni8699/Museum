@@ -13,7 +13,7 @@
 	} from './layout/layout-preview-state.svelte';
 	import { onMount } from 'svelte';
 	import { acquireObjectUrl, releaseObjectUrl } from './store/binary-texture-store.svelte';
-	import type { MuseumEditorStore } from './museum-editor.svelte';
+	import type { EditorStore } from './editor-store.svelte';
 
 	let {
 		store,
@@ -24,7 +24,7 @@
 		open = $bindable(false),
 		onReset
 	}: {
-		store: MuseumEditorStore;
+		store: EditorStore;
 		layoutPreview: LayoutPreviewState;
 		confirmSceneReplacement: () => boolean;
 		confirmLayoutReplacement: () => boolean;
@@ -117,7 +117,7 @@
 		const url = URL.createObjectURL(new Blob([json], { type: 'application/json;charset=utf-8' }));
 		const anchor = document.createElement('a');
 		anchor.href = url;
-		anchor.download = 'museum-scene.json';
+		anchor.download = 'scene.json';
 		anchor.style.display = 'none';
 		document.body.append(anchor);
 		anchor.click();
@@ -146,7 +146,7 @@
 			const url = URL.createObjectURL(new Blob([json], { type: 'application/json;charset=utf-8' }));
 			const anchor = document.createElement('a');
 			anchor.href = url;
-			anchor.download = 'museum-layout.json';
+			anchor.download = 'layout.json';
 			anchor.style.display = 'none';
 			document.body.append(anchor);
 			anchor.click();
@@ -261,7 +261,7 @@
 			bind:this={packageImportInput}
 			class="visually-hidden"
 			type="file"
-			accept=".zip,.museumpack.zip,application/zip"
+			accept=".zip,.scenepack.zip,application/zip"
 			onchange={importPackageArchive}
 		/>
 		<div class="project-actions">

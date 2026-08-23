@@ -1,15 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
   createNavigationGraph,
-  type RuntimeMuseumScene
+  type RuntimeScene
 } from '$lib/content/scene';
-import { museumNavigationGraph, museumScene } from '$lib/content/chopin-project';
+import { navigationGraph, scene } from '$lib/content/chopin-project';
 import { loadFixtureScene } from '../../content/__fixtures__/load-fixture-scene';
 import type {
-  MuseumConnection,
+  RuntimeConnection,
   NavigationNodeData,
   Vec3
-} from '$lib/types/museum';
+} from '$lib/types/scene';
 import {
   CAMERA_MOTION_TIMING,
   createCameraMotion,
@@ -71,7 +71,7 @@ function runtimeAnchors(connectionId: string, positions: readonly Vec3[]) {
   }));
 }
 
-const connections: MuseumConnection[] = [
+const connections: RuntimeConnection[] = [
   {
     id: 'a-b',
     fromNodeId: 'a',
@@ -102,7 +102,7 @@ const connections: MuseumConnection[] = [
   }
 ];
 
-const customScene: RuntimeMuseumScene = {
+const customScene: RuntimeScene = {
   textures: [],
   materials: [],
   entities: [],
@@ -457,7 +457,7 @@ describe('getCameraRoute', () => {
         connectedNodeIds: ['c']
       }
     ];
-    const mixedConnections: MuseumConnection[] = [
+    const mixedConnections: RuntimeConnection[] = [
       connections[0],
       {
         ...connections[1],
@@ -639,16 +639,16 @@ describe('getCameraRoute', () => {
   });
 
   it('keeps checked-in scene as default graph (identity smoke)', () => {
-    const start = museumNavigationGraph.navigationNodes[0]!;
+    const start = navigationGraph.navigationNodes[0]!;
     const neighbor = start.connectedNodeIds[0];
     if (!neighbor) {
-      expect(museumNavigationGraph.connections.length).toBeGreaterThan(0);
+      expect(navigationGraph.connections.length).toBeGreaterThan(0);
       return;
     }
     expect(getCameraRoute(start.id, neighbor)).toEqual(
-      getCameraRoute(start.id, neighbor, museumNavigationGraph)
+      getCameraRoute(start.id, neighbor, navigationGraph)
     );
-    expect(museumNavigationGraph.navigationNodes).toBe(museumScene.navigationNodes);
+    expect(navigationGraph.navigationNodes).toBe(scene.navigationNodes);
   });
 });
 
@@ -669,7 +669,7 @@ describe('getCameraConnectionRoute', () => {
   );
 
   it('resolves exact selected edge instead of using BFS and supports both directions', () => {
-    const parallelConnections: MuseumConnection[] = [
+    const parallelConnections: RuntimeConnection[] = [
       {
         id: 'direct',
         fromNodeId: 'a',
@@ -757,7 +757,7 @@ describe('getCameraConnectionRoute', () => {
       { ...nodes[0], fov: 42 },
       { ...nodes[1], fov: 68 }
     ];
-    const directionalConnection: MuseumConnection = {
+    const directionalConnection: RuntimeConnection = {
       ...connections[0],
       viewTracks: {
         forward: [

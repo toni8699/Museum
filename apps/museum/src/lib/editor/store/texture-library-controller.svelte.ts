@@ -4,7 +4,7 @@
  *
  * Slice 3 of the Priority-1 file-split refactor lifts the facade's texture
  * library orchestration (≈ 160 LOC, lines ~2195–2358) out of
- * `museum-editor.svelte.ts`:
+ * `editor-store.svelte.ts`:
  *
  * - `registerTexture` — async; verifies URI safety, dedupes exact-URI
  *   hits, awaits the verifier, re-checks the document after the await,
@@ -34,16 +34,16 @@
  *
  * `textureVerifier` ownership moves from the facade to this controller
  * (the constructor receives both `host` + the verifier so the
- * `MuseumEditorStore` constructor's `options.textureVerifier ??
+ * `EditorStore` constructor's `options.textureVerifier ??
  * createTextureVerifier()` defaulting stays intact).
  */
 
 import { isSafeTextureUri } from '$lib/content/texture-uri';
-import type { MuseumSceneDocument } from '$lib/content/scene';
+import type { SceneDocument } from '$lib/content/scene';
 import type {
 	MaterialEditDecision,
 	MaterialInstancePatch
-} from '../museum-editor.types';
+} from '../editor-types';
 import type { TextureVerifier } from '../texture-verifier';
 import type { EditorSelectionActions } from './selection-actions.svelte';
 import type { EditorSessionState } from './session-state.svelte';
@@ -53,7 +53,7 @@ import { extensionForMime, isSupportedMime } from '$lib/content/package-format';
 
 /**
  * Composition-root surface `EditorTextureLibraryController` depends on.
- * Everything here is owned by `MuseumEditorStore`; the controller never
+ * Everything here is owned by `EditorStore`; the controller never
  * mutates the document store, history controller, or material-resource
  * mutator directly — only through the accessors / methods below.
  */
@@ -64,7 +64,7 @@ export interface EditorTextureLibraryControllerHost {
 
 	// Document + selection + the pure material-resource mutator + the
 	// session-only state the orchestration reads / writes.
-	readonly document: MuseumSceneDocument;
+	readonly document: SceneDocument;
 	readonly selectionActions: EditorSelectionActions;
 	readonly materialResourceMutator: EditorMaterialResourceMutator;
 	readonly session: EditorSessionState;

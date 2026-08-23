@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import { createEmptySceneDocument } from '$lib/content/scene';
 import { serializeLayoutDocument } from '$lib/layout/layout-codec';
-import { chopinRuntime, museumSceneDocument } from '$lib/content/chopin-project';
-import { createMuseumEditorStore } from '$lib/editor/museum-editor.svelte';
+import { chopinRuntime, sceneDocument } from '$lib/content/chopin-project';
+import { createEditorStore } from '$lib/editor/editor-store.svelte';
 import {
 	captureLayoutPreviewSnapshot,
 	commitLayoutDraftRoom,
@@ -25,8 +25,8 @@ import {
 } from '$lib/editor/layout/layout-mutation-runner';
 
 function makeStore() {
-	const store = createMuseumEditorStore({
-		document: museumSceneDocument,
+	const store = createEditorStore({
+		document: sceneDocument,
 		rooms: chopinRuntime.rooms
 	});
 	const layoutPreview = createEmptyLayoutPreviewState();
@@ -49,7 +49,7 @@ function draftRoom(layoutPreview: ReturnType<typeof createEmptyLayoutPreviewStat
 }
 
 /** A single successful mutation must be undoable exactly once (no merged stack). */
-function expectExactlyOneUndo(store: ReturnType<typeof createMuseumEditorStore>) {
+function expectExactlyOneUndo(store: ReturnType<typeof createEditorStore>) {
 	expect(store.canUndo).toBe(true);
 	expect(store.undo()).toBe(true);
 	expect(store.canUndo).toBe(false);

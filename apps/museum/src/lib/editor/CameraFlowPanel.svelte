@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { ChevronRight, Diamond, Eye, Link, Unlink, X } from 'lucide-svelte';
 	import { formatCameraNodeLabel } from './editor-outliner';
-	import { getNodeConnections } from './editor-camera-connections';
+	import { getNodeConnections } from './camera/editor-camera-connections';
 	import { isFlowNode } from '$lib/content/scene';
-	import type { MuseumEditorStore } from './museum-editor.svelte';
+	import type { EditorStore } from './editor-store.svelte';
 
 	// optional interactivity gate. The unified tree embeds this panel
 	// read-only in Plan (Plan exposes no camera mutation path), so `false` must
@@ -15,7 +15,7 @@
 		store,
 		interactive = true
 	}: {
-		store: MuseumEditorStore;
+		store: EditorStore;
 		interactive?: boolean;
 	} = $props();
 
@@ -180,7 +180,7 @@
 			return;
 		}
 		draggedNodeId = nodeId;
-		event.dataTransfer?.setData('application/x-museum-camera-node', nodeId);
+		event.dataTransfer?.setData('application/x-editor-camera-node', nodeId);
 		event.dataTransfer?.setData('text/plain', nodeId);
 		if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
 	}

@@ -2,7 +2,7 @@
 	import { Box, Play, Redo2, Route, Undo2 } from 'lucide-svelte';
 	import EditorProjectMenu from '$lib/editor/EditorProjectMenu.svelte';
 	import type { LayoutPreviewState } from '$lib/editor/layout/layout-preview-state.svelte';
-	import type { MuseumEditorStore } from '$lib/editor/museum-editor.svelte';
+	import type { EditorStore } from '$lib/editor/editor-store.svelte';
 	import type { EditorDomain, EditorViewState } from './editor-view-state.svelte';
 	import type { EditorViewMode } from './editor-view-mode';
 
@@ -15,7 +15,7 @@
 		projectName,
 		onReset
 	}: {
-		store: MuseumEditorStore;
+		store: EditorStore;
 		layoutPreview: LayoutPreviewState;
 		viewState: EditorViewState;
 		confirmSceneReplacement: () => boolean;
@@ -58,7 +58,7 @@
 	}
 </script>
 
-<header class="app-bar" aria-label="Museum editor shell" style="grid-area: top;">
+<header class="app-bar" aria-label="Editor shell" style="grid-area: top;">
 	<div class="brand">
 		<span class="title">Museum editor</span>
 		<span class="subtitle">{projectName}</span>

@@ -1,15 +1,15 @@
 <script lang="ts">
-	import { museumMaterials } from '$lib/content/materials';
+	import { materials } from '$lib/content/materials';
 	import {
 		isScenePrimitiveEntity,
 		type ScenePrimitiveDimensions,
 		type ScenePrimitiveEntity
 	} from '$lib/content/scene';
 	import type { MaterialId } from '$lib/types/materials';
-	import EditorNumberField from './EditorNumberField.svelte';
-	import type { MuseumEditorStore } from './museum-editor.svelte';
+	import EditorNumberField from './fields/EditorNumberField.svelte';
+	import type { EditorStore } from './editor-store.svelte';
 
-	let { store }: { store: MuseumEditorStore } = $props();
+	let { store }: { store: EditorStore } = $props();
 
 	const entity = $derived(
 		store.selectedObject && isScenePrimitiveEntity(store.selectedObject)
@@ -108,7 +108,7 @@
 		<label>
 			<span>Fallback material</span>
 			<select value={entity.materialId} onchange={commitMaterial}>
-				{#each museumMaterials as material}
+				{#each materials as material}
 					<option value={material.id}>{material.label}</option>
 				{/each}
 			</select>

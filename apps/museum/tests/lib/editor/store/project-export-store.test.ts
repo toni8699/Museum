@@ -22,7 +22,7 @@ import {
 	unresolvedCount,
 	unresolvedIds
 } from '$lib/editor/store/project-export-store.svelte';
-import type { MuseumSceneDocument, SceneTextureAsset } from '$lib/content/scene';
+import type { SceneDocument, SceneTextureAsset } from '$lib/content/scene';
 
 const PRIVATE_PKG_ID = 'package-aabbccddeeff';
 
@@ -35,7 +35,7 @@ function makeTexture(overrides: Partial<SceneTextureAsset>): SceneTextureAsset {
 	};
 }
 
-function makeDocument(textures: SceneTextureAsset[]): MuseumSceneDocument {
+function makeDocument(textures: SceneTextureAsset[]): SceneDocument {
 	return {
 		textures,
 		materials: [],
@@ -46,7 +46,7 @@ function makeDocument(textures: SceneTextureAsset[]): MuseumSceneDocument {
 		cameras: []
 		// The cast bypasses the v6 codec but keeps the call sites ergonomic
 		// — the predicate only reads `textures`.
-	} as unknown as MuseumSceneDocument;
+	} as unknown as SceneDocument;
 }
 
 type StubBinaryStore = { has: (uri: string) => boolean };

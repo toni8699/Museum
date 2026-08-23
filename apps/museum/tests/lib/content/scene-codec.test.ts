@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
 	resolveSceneDocument as resolveSceneDocumentWithRooms,
-	type MuseumSceneDocument
+	type SceneDocument
 } from '$lib/content/scene';
-import { chopinRuntime, museumSceneDocument } from '$lib/content/chopin-project';
+import { chopinRuntime, sceneDocument } from '$lib/content/chopin-project';
 import { chopinProject } from '$lib/content/chopin-project';
-import { validateMuseumProject } from '$lib/project/project-codec';
+import { validateProject } from '$lib/project/project-codec';
 import { createCameraPositionPath } from '$lib/museum/navigation/camera-motion';
 import {
 	parseSceneDocumentJson,
@@ -32,8 +32,8 @@ function expectIssue(input: unknown, code: string, path?: string) {
 
 describe('scene document codec', () => {
 	it('serializes the checked-in scene canonically without mutating it', () => {
-		const before = JSON.stringify(museumSceneDocument);
-		const json = serializeSceneDocument(museumSceneDocument);
+		const before = JSON.stringify(sceneDocument);
+		const json = serializeSceneDocument(sceneDocument);
 		const parsed = parseSceneDocumentJson(json);
 
 		expect(json).toMatch(
@@ -44,7 +44,7 @@ describe('scene document codec', () => {
 		expect(json.endsWith('\n')).toBe(true);
 		expect(parsed.success).toBe(true);
 		if (parsed.success) expect(parsed.canonicalJson).toBe(json);
-		expect(JSON.stringify(museumSceneDocument)).toBe(before);
+		expect(JSON.stringify(sceneDocument)).toBe(before);
 	});
 
 	it('canonicalizes numeric spelling while preserving array order and optional empty arrays', () => {
@@ -52,7 +52,7 @@ describe('scene document codec', () => {
 		document.clusters = [];
 		document.entities[0]!.position[0] = -0;
 		const json = serializeSceneDocument(document);
-		const parsed = JSON.parse(json) as MuseumSceneDocument;
+		const parsed = JSON.parse(json) as SceneDocument;
 
 		expect(json).toContain('"clusters": []');
 		expect(Object.is(parsed.entities[0]!.position[0], -0)).toBe(false);
@@ -510,7 +510,7 @@ describe('scene document codec', () => {
 			reverse: []
 		};
 		expect(validateSceneDocument(unknownRoom).success).toBe(true);
-		const projectResult = validateMuseumProject({
+		const projectResult = validateProject({
 			id: 'project:test',
 			name: 'Test',
 			layout: chopinProject.layout,
@@ -555,7 +555,7 @@ describe('scene document codec', () => {
 				fov: 54
 			});
 
-			const projectResult = validateMuseumProject({
+			const projectResult = validateProject({
 				id: 'project:test',
 				name: 'Test',
 				layout: chopinProject.layout,
@@ -889,7 +889,7 @@ describe('scene document codec', () => {
 		const unknownBase = cloneDocument();
 		unknownBase.materials = [
 			{ id: 'bad-base', name: 'Bad Base', baseMaterialId: 'missing-material' }
-		] as unknown as MuseumSceneDocument['materials'];
+		] as unknown as SceneDocument['materials'];
 		expectIssue(unknownBase, 'unknown_material', '$.materials[0].baseMaterialId');
 
 		for (const [key, value] of [

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { LayoutPreviewState } from '$lib/editor/layout/layout-preview-state.svelte';
-	import type { MuseumEditorStore } from '$lib/editor/museum-editor.svelte';
+	import type { EditorStore } from '$lib/editor/editor-store.svelte';
 	import CameraPlanToolbar from '$lib/editor/camera-plan/CameraPlanToolbar.svelte';
 	import CameraPlanViewport from '$lib/editor/camera-plan/CameraPlanViewport.svelte';
 	import type { CameraPlanState } from '$lib/editor/camera-plan/camera-plan-state.svelte';
@@ -10,7 +10,7 @@
 		layoutPreview,
 		cameraPlan
 	}: {
-		store: MuseumEditorStore;
+		store: EditorStore;
 		layoutPreview: LayoutPreviewState;
 		cameraPlan: CameraPlanState;
 	} = $props();

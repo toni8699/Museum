@@ -1,18 +1,18 @@
 <script lang="ts">
   import { Canvas } from '@threlte/core';
-  import { chopinRuntime, type MuseumRuntime } from '$lib/content/chopin-project';
+  import { chopinRuntime, type Runtime } from '$lib/content/chopin-project';
   import {
-    createMuseumState,
-    type MuseumStateStore
-  } from '$lib/state/museum-state.svelte';
+    createRuntimeState,
+    type RuntimeStateStore
+  } from '$lib/state/runtime-state.svelte';
   import MuseumScene from './MuseumScene.svelte';
 
   let {
     runtime = chopinRuntime,
-    state = createMuseumState(runtime.graph)
+    state = createRuntimeState(runtime.graph)
   }: {
-    runtime?: MuseumRuntime;
-    state?: MuseumStateStore;
+    runtime?: Runtime;
+    state?: RuntimeStateStore;
   } = $props();
 </script>
 

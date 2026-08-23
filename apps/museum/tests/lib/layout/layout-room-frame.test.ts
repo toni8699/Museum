@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { chopinProject } from '$lib/content/chopin-project';
 import { validateLayoutDocument } from '$lib/layout/layout-codec';
 import { layoutRoomLocalPoint, layoutRoomPoint } from '$lib/layout/layout-room-frame';
-import type { Vec3 } from '$lib/types/museum';
+import type { Vec3 } from '$lib/types/scene';
 
 describe('layout room frames', () => {
 	it('round-trips room-local/world points with Three.js positive-Y yaw', () => {

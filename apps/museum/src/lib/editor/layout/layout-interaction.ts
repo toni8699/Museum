@@ -1,7 +1,7 @@
 import type { DraftSegment, LayoutDocument, LayoutRoom, LayoutVec2 } from '$lib/layout/layout-types';
 import type { LayoutRoomUnitTransform } from './layout-room-transform';
 import { createPlanViewportState, snapToGrid, type PlanViewportState } from './layout-plan-transform';
-import type { Vec3 } from '$lib/types/museum';
+import type { Vec3 } from '$lib/types/scene';
 export type LayoutViewMode = 'plan' | '3d';
 export type LayoutPrimitiveTool = 'box' | 'cylinder' | 'sphere';
 export type LayoutDraftTool = 'select' | 'rectangle' | 'polygon' | 'door' | 'window' | LayoutPrimitiveTool;

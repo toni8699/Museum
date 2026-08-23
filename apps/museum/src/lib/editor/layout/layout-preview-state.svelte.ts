@@ -1,6 +1,6 @@
 
-import { createEmptySceneDocument, type MuseumSceneDocument } from '$lib/content/scene';
-import type { MuseumProject } from '$lib/project/project-types';
+import { createEmptySceneDocument, type SceneDocument } from '$lib/content/scene';
+import type { Project } from '$lib/project/project-types';
 import {
 	createEmptyLayoutDocument,
 	parseLayoutDocumentJson,
@@ -40,7 +40,7 @@ import {
 	type AuthoredLayoutObjectKind,
 	type LayoutObjectPatch
 } from './layout-object-editing';
-import type { Vec3 } from '$lib/types/museum';
+import type { Vec3 } from '$lib/types/scene';
 import type { CompiledLayoutGeometry } from '$lib/layout/layout-geometry-types';
 import { buildRoomWallMesh, type IndexedWallMesh } from '$lib/layout/wall-mesh-builder';
 import { buildLayout3dTriangleIndex, type Layout3dPickIndex } from './layout-3d-picking';
@@ -56,7 +56,7 @@ export type LayoutSessionStatus = 'blank' | 'dirty' | 'imported';
 
 export type LayoutPreviewState = {
 	source: LayoutPreviewSource;
-	project: MuseumProject;
+	project: Project;
 	model: LayoutPreviewModel;
 	geometry: CompiledLayoutGeometry;
 	/**
@@ -112,7 +112,7 @@ export type LayoutRoomFieldPatch = Partial<
 
 export function createLayoutPreviewState(
 	layout: LayoutDocument,
-	scene: MuseumSceneDocument
+	scene: SceneDocument
 ): LayoutPreviewState {
 	return createState('chopin-fixture', layout, scene, 0);
 }
@@ -210,10 +210,10 @@ function applyCompiledLayout(state: LayoutPreviewState, result: LayoutPreviewMod
 export function derivePreviewBundle(
 	projectId: string,
 	projectName: string,
-	layout: MuseumProject['layout'],
-	scene: MuseumProject['scene']
+	layout: Project['layout'],
+	scene: Project['scene']
 ): {
-	project: MuseumProject;
+	project: Project;
 	model: LayoutPreviewModel;
 	geometry: CompiledLayoutGeometry;
 	wallMeshesByRoom: ReadonlyMap<string, IndexedWallMesh>;
@@ -371,7 +371,7 @@ export type LayoutRoomSceneReferences = {
  * counts as a reference.
  */
 export function listLayoutRoomSceneReferences(
-	scene: MuseumSceneDocument,
+	scene: SceneDocument,
 	roomId: string
 ): LayoutRoomSceneReferences {
 	let entities = 0;
@@ -442,7 +442,7 @@ export function layoutRoomSceneReferenceSummary(refs: LayoutRoomSceneReferences)
 export function deleteLayoutRoom(
 	state: LayoutPreviewState,
 	roomId: string,
-	scene: MuseumSceneDocument
+	scene: SceneDocument
 ): LayoutRoomEditResult {
 	const refs = listLayoutRoomSceneReferences(scene, roomId);
 	if (layoutRoomSceneReferenceTotal(refs) > 0) {
@@ -854,8 +854,8 @@ function createPreviewProject(input: {
 	id: string;
 	name: string;
 	layout: unknown;
-	scene: MuseumProject['scene'];
-}): MuseumProject {
+	scene: Project['scene'];
+}): Project {
 	const validation = validateLayoutDocument(input.layout);
 	if (!validation.success) {
 		const first = validation.issues[0]!;
@@ -872,7 +872,7 @@ function createPreviewProject(input: {
 function createState(
 	source: LayoutPreviewSource,
 	layout: ReturnType<typeof createEmptyLayoutDocument>,
-	scene: MuseumProject['scene'],
+	scene: Project['scene'],
 	previousVersion: number
 ): LayoutPreviewState {
 	const bundle = derivePreviewBundle(
@@ -903,7 +903,7 @@ function createState(
 	};
 }
 
-function cloneLayout(layout: MuseumProject['layout']): MuseumProject['layout'] {
+function cloneLayout(layout: Project['layout']): Project['layout'] {
 	return cloneJson(layout);
 }
 
@@ -921,7 +921,7 @@ function nextRoomId(rooms: readonly LayoutRoom[]): string {
 
 function applyLayoutMutation(
 	state: LayoutPreviewState,
-	layout: MuseumProject['layout'],
+	layout: Project['layout'],
 	openingId?: string
 ): LayoutOpeningMutationResult {
 	try {

@@ -1,4 +1,4 @@
-import type { Vec3 } from '$lib/types/museum';
+import type { Vec3 } from '$lib/types/scene';
 import type { LayoutDocument, LayoutObject, LayoutRoom, LayoutVec2 } from '$lib/layout/layout-types';
 import {
 	describeLayoutObject,

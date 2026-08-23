@@ -1,5 +1,5 @@
 import type { Object3D } from 'three';
-import type { Vec3 } from '$lib/types/museum';
+import type { Vec3 } from '$lib/types/scene';
 
 /** Ephemeral editor placement roots — never part of scene JSON / snapshots. */
 export type EditorPlacementRegistry = {

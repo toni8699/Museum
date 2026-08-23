@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { serializeSceneDocument } from '$lib/content/scene-codec';
-import { chopinProject, museumSceneDocument } from '$lib/content/chopin-project';
+import { chopinProject, sceneDocument } from '$lib/content/chopin-project';
 import { createEmptyLayoutDocument, serializeLayoutDocument } from '$lib/layout/layout-codec';
 import {
 	captureLayoutPreviewSnapshot,
@@ -34,7 +34,7 @@ import {
 
 describe('layout preview state', () => {
 	it('starts with a validated seven-room Chopin project', () => {
-		const state = createLayoutPreviewState(chopinProject.layout, museumSceneDocument);
+		const state = createLayoutPreviewState(chopinProject.layout, sceneDocument);
 
 		expect(state.source).toBe('chopin-fixture');
 		expect(state.project.layout.floors[0]!.rooms).toHaveLength(7);
@@ -44,7 +44,7 @@ describe('layout preview state', () => {
 	});
 
 	it('prebuilds a procedural wall mesh per compiled room', () => {
-		const state = createLayoutPreviewState(chopinProject.layout, museumSceneDocument);
+		const state = createLayoutPreviewState(chopinProject.layout, sceneDocument);
 		expect(state.wallMeshesByRoom).toBeInstanceOf(Map);
 		expect(state.wallMeshesByRoom.size).toBe(state.geometry.rooms.length);
 		for (const room of state.geometry.rooms) {
@@ -55,7 +55,7 @@ describe('layout preview state', () => {
 	});
 
 	it('rebuilds the pick-index cache with the wall-mesh cache on every mutation/reset', () => {
-		const state = createLayoutPreviewState(chopinProject.layout, museumSceneDocument);
+		const state = createLayoutPreviewState(chopinProject.layout, sceneDocument);
 		expect(state.layout3dPickIndexByRoom).toBeInstanceOf(Map);
 		expect(state.layout3dPickIndexByRoom.size).toBe(state.wallMeshesByRoom.size);
 		for (const room of state.geometry.rooms) {
@@ -77,7 +77,7 @@ describe('layout preview state', () => {
 	});
 
 	it('resets to empty while preserving the canonical scene document', () => {
-		const state = createLayoutPreviewState(chopinProject.layout, museumSceneDocument);
+		const state = createLayoutPreviewState(chopinProject.layout, sceneDocument);
 		const sceneJson = serializeSceneDocument(state.project.scene);
 		const version = state.previewVersion;
 		const reframeVersion = state.reframeVersion;
@@ -93,7 +93,7 @@ describe('layout preview state', () => {
 	});
 
 	it('reloads the deterministic Chopin fixture', () => {
-		const state = createLayoutPreviewState(chopinProject.layout, museumSceneDocument);
+		const state = createLayoutPreviewState(chopinProject.layout, sceneDocument);
 		resetLayoutPreview(state);
 		const version = state.previewVersion;
 		const reframeVersion = state.reframeVersion;
@@ -109,7 +109,7 @@ describe('layout preview state', () => {
 	});
 
 	it('commits rectangle and polygon drafts into the layout without changing scene data', () => {
-		const state = createLayoutPreviewState(chopinProject.layout, museumSceneDocument);
+		const state = createLayoutPreviewState(chopinProject.layout, sceneDocument);
 		const sceneJson = serializeSceneDocument(state.project.scene);
 
 		const rectangleResult = commitLayoutDraftRoom(state, [[0, 0], [4, 0], [4, 3], [0, 3]]);
@@ -124,7 +124,7 @@ describe('layout preview state', () => {
 	});
 
 	it('commits auto-bezier rooms and inserts/moves/deletes interior anchors', () => {
-		const state = createLayoutPreviewState(chopinProject.layout, museumSceneDocument);
+		const state = createLayoutPreviewState(chopinProject.layout, sceneDocument);
 		resetLayoutPreview(state);
 		const segments = [
 			{
@@ -176,7 +176,7 @@ describe('layout preview state', () => {
 	});
 
 	it('restores a captured preview snapshot after anchor edits', () => {
-		const state = createLayoutPreviewState(chopinProject.layout, museumSceneDocument);
+		const state = createLayoutPreviewState(chopinProject.layout, sceneDocument);
 		resetLayoutPreview(state);
 		const roomResult = commitLayoutDraftRoom(state, [[0, 0], [4, 0], [4, 3], [0, 3]]);
 		expect(roomResult.success).toBe(true);
@@ -193,7 +193,7 @@ describe('layout preview state', () => {
 	});
 
 	it('captures snapshots from reactive proxies (Svelte $state) so Plan bend drag can begin', () => {
-		const state = createLayoutPreviewState(chopinProject.layout, museumSceneDocument);
+		const state = createLayoutPreviewState(chopinProject.layout, sceneDocument);
 		// MuseumEditorApp wraps preview in $state(); structuredClone cannot clone those proxies.
 		state.project = new Proxy(state.project, {});
 		state.model = new Proxy(state.model, {});
@@ -205,7 +205,7 @@ describe('layout preview state', () => {
 	});
 
 	it('commits auto-bezier rooms with empty interiors', () => {
-		const state = createLayoutPreviewState(chopinProject.layout, museumSceneDocument);
+		const state = createLayoutPreviewState(chopinProject.layout, sceneDocument);
 		resetLayoutPreview(state);
 		const segments = [
 			{
@@ -223,7 +223,7 @@ describe('layout preview state', () => {
 	});
 
 	it('rejects invalid drafts without mutating the preview', () => {
-		const state = createLayoutPreviewState(chopinProject.layout, museumSceneDocument);
+		const state = createLayoutPreviewState(chopinProject.layout, sceneDocument);
 		const roomCount = state.project.layout.floors[0]!.rooms.length;
 		const version = state.previewVersion;
 
@@ -236,7 +236,7 @@ describe('layout preview state', () => {
 	});
 
 	it('edits a committed room without changing scene data or segment ids', () => {
-		const state = createLayoutPreviewState(chopinProject.layout, museumSceneDocument);
+		const state = createLayoutPreviewState(chopinProject.layout, sceneDocument);
 		const room = state.project.layout.floors[0]!.rooms[0]!;
 		const ids = room.boundary.segments.map((segment) => segment.id);
 		const points = room.boundary.segments.map((segment) => [segment.start[0] + 2, segment.start[1] - 1] as [number, number]);
@@ -249,7 +249,7 @@ describe('layout preview state', () => {
 	});
 
 	it('rejects invalid room edits without mutating committed geometry', () => {
-		const state = createLayoutPreviewState(chopinProject.layout, museumSceneDocument);
+		const state = createLayoutPreviewState(chopinProject.layout, sceneDocument);
 		const room = state.project.layout.floors[0]!.rooms[0]!;
 		const before = JSON.stringify(state.project.layout);
 		const points = room.boundary.segments.map((segment) => [...segment.start] as [number, number]);
@@ -260,7 +260,7 @@ describe('layout preview state', () => {
 	});
 
 	it('creates, updates, and deletes geometry-only openings without changing scene data', () => {
-		const state = createLayoutPreviewState(chopinProject.layout, museumSceneDocument);
+		const state = createLayoutPreviewState(chopinProject.layout, sceneDocument);
 		resetLayoutPreview(state);
 		const sceneJson = serializeSceneDocument(state.project.scene);
 		const roomResult = commitLayoutDraftRoom(state, [[0, 0], [4, 0], [4, 3], [0, 3]]);
@@ -282,7 +282,7 @@ describe('layout preview state', () => {
 	});
 
 	it('rejects invalid opening edits and room edits that would break openings', () => {
-		const state = createLayoutPreviewState(chopinProject.layout, museumSceneDocument);
+		const state = createLayoutPreviewState(chopinProject.layout, sceneDocument);
 		resetLayoutPreview(state);
 		const roomResult = commitLayoutDraftRoom(state, [[0, 0], [4, 0], [4, 3], [0, 3]]);
 		expect(roomResult.success).toBe(true);
@@ -304,7 +304,7 @@ describe('layout preview state', () => {
 	});
 
 	it('rejects overlapping opening creation without advancing preview version', () => {
-		const state = createLayoutPreviewState(chopinProject.layout, museumSceneDocument);
+		const state = createLayoutPreviewState(chopinProject.layout, sceneDocument);
 		resetLayoutPreview(state);
 		const roomResult = commitLayoutDraftRoom(state, [[0, 0], [6, 0], [6, 4], [0, 4]]);
 		expect(roomResult.success).toBe(true);
@@ -323,7 +323,7 @@ describe('layout preview state', () => {
 	});
 
 	it('keeps openings stable when editing an unrelated room', () => {
-		const state = createLayoutPreviewState(chopinProject.layout, museumSceneDocument);
+		const state = createLayoutPreviewState(chopinProject.layout, sceneDocument);
 		resetLayoutPreview(state);
 		const firstRoom = commitLayoutDraftRoom(state, [[0, 0], [4, 0], [4, 3], [0, 3]]);
 		const secondRoom = commitLayoutDraftRoom(state, [[6, 0], [10, 0], [10, 3], [6, 3]]);
@@ -346,7 +346,7 @@ describe('layout preview state', () => {
 	});
 
 	it('keeps ceiling visibility layout-local', () => {
-		const state = createLayoutPreviewState(chopinProject.layout, museumSceneDocument);
+		const state = createLayoutPreviewState(chopinProject.layout, sceneDocument);
 		expect(state.showCeilings).toBe(false);
 		toggleLayoutCeilings(state);
 		expect(state.showCeilings).toBe(true);
@@ -355,7 +355,7 @@ describe('layout preview state', () => {
 	});
 
 	it('refreshes geometry issues without mutating the source document', () => {
-		const state = createLayoutPreviewState(chopinProject.layout, museumSceneDocument);
+		const state = createLayoutPreviewState(chopinProject.layout, sceneDocument);
 		const source = state.project.layout.floors[0]!.rooms[0]!;
 		source.boundary.segments[0] = {
 			id: source.boundary.segments[0]!.id,
@@ -373,7 +373,7 @@ describe('layout preview state', () => {
 	});
 
 	it('tracks canonical baseline independently from invalid import feedback', () => {
-		const state = createLayoutPreviewState(chopinProject.layout, museumSceneDocument);
+		const state = createLayoutPreviewState(chopinProject.layout, sceneDocument);
 		expect(layoutPreviewSessionStatus(state)).toBe('imported');
 		expect(layoutPreviewIsDirty(state)).toBe(false);
 		const baseline = state.baselineLayoutJson;
@@ -390,7 +390,7 @@ describe('layout preview state', () => {
 	});
 
 	it('keeps a dirty baseline intact while reporting a file-read import failure', () => {
-		const state = createLayoutPreviewState(chopinProject.layout, museumSceneDocument);
+		const state = createLayoutPreviewState(chopinProject.layout, sceneDocument);
 		expect(commitLayoutDraftRoom(state, [[30, 0], [34, 0], [34, 3], [30, 3]]).success).toBe(true);
 		const before = layoutPreviewCanonicalJson(state);
 		const baseline = state.baselineLayoutJson;
@@ -406,7 +406,7 @@ describe('layout preview state', () => {
 	});
 
 	it('distinguishes imported empty baseline from blank reset', () => {
-		const state = createLayoutPreviewState(chopinProject.layout, museumSceneDocument);
+		const state = createLayoutPreviewState(chopinProject.layout, sceneDocument);
 		resetLayoutPreview(state);
 		expect(layoutPreviewSessionStatus(state)).toBe('blank');
 		expect(state.baselineKind).toBe('blank');
@@ -418,7 +418,7 @@ describe('layout preview state', () => {
 	});
 
 	it('commits Plan primitive gestures with floor-relative placement', () => {
-		const state = createLayoutPreviewState(chopinProject.layout, museumSceneDocument);
+		const state = createLayoutPreviewState(chopinProject.layout, sceneDocument);
 		const room = state.project.layout.floors[0]!.rooms[0]!;
 		const center = room.boundary.segments.reduce(
 			(sum, segment) => [sum[0] + segment.start[0], sum[1] + segment.start[1]] as [number, number],
@@ -440,7 +440,7 @@ describe('layout preview state', () => {
 	});
 
 	it('keeps sphere height, stored center, model bounds, and JSON geometry unified', () => {
-		const state = createLayoutPreviewState(chopinProject.layout, museumSceneDocument);
+		const state = createLayoutPreviewState(chopinProject.layout, sceneDocument);
 		const room = state.project.layout.floors[0]!.rooms[0]!;
 		const center = room.boundary.segments.reduce(
 			(sum, segment) => [sum[0] + segment.start[0], sum[1] + segment.start[1]] as [number, number],
@@ -466,7 +466,7 @@ describe('layout preview state', () => {
 	});
 
 	it('creates, edits, and deletes authored objects while profiles remain read-only', () => {
-		const state = createLayoutPreviewState(chopinProject.layout, museumSceneDocument);
+		const state = createLayoutPreviewState(chopinProject.layout, sceneDocument);
 		const room = state.project.layout.floors[0]!.rooms[0]!;
 		const created = commitLayoutObject(state, 'box', [1, 0.5, 2], room.id);
 		expect(created.success).toBe(true);
@@ -498,7 +498,7 @@ describe('layout preview state', () => {
 	});
 
 	it('updates shared room/floor fields and rejects an over-height floor mutation', () => {
-		const state = createLayoutPreviewState(chopinProject.layout, museumSceneDocument);
+		const state = createLayoutPreviewState(chopinProject.layout, sceneDocument);
 		const room = state.project.layout.floors[0]!.rooms[0]!;
 		expect(updateLayoutRoomFields(state, room.id, { name: 'Gallery A', wallThickness: 0.25 })).toEqual({ success: true });
 		expect(state.project.layout.floors[0]!.rooms[0]).toMatchObject({ name: 'Gallery A', wallThickness: 0.25 });
@@ -510,7 +510,7 @@ describe('layout preview state', () => {
 	});
 
 	it('persists draft room renames into canonical layout JSON', () => {
-		const state = createLayoutPreviewState(chopinProject.layout, museumSceneDocument);
+		const state = createLayoutPreviewState(chopinProject.layout, sceneDocument);
 		resetLayoutPreview(state);
 		const committed = commitLayoutDraftRoom(state, [
 			[0, 0],

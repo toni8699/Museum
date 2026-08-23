@@ -1,14 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 import { resolveSceneMaterial } from '$lib/museum/materials/scene-instance-material';
-import type { MuseumSceneDocument } from '$lib/content/scene';
+import type { SceneDocument } from '$lib/content/scene';
 
 const WALL_TEXTURE = { id: 'wall-detail', name: 'Wall Detail', uri: '/textures/wall-detail.webp' };
 const FLOOR_TEXTURE = { id: 'floor-grain', name: 'Floor Grain', uri: '/textures/floor-grain.png' };
 
 function doc(
-	materials: MuseumSceneDocument['materials'],
-	textures: MuseumSceneDocument['textures'] = [WALL_TEXTURE, FLOOR_TEXTURE]
-): Pick<MuseumSceneDocument, 'materials' | 'textures'> {
+	materials: SceneDocument['materials'],
+	textures: SceneDocument['textures'] = [WALL_TEXTURE, FLOOR_TEXTURE]
+): Pick<SceneDocument, 'materials' | 'textures'> {
 	return { materials, textures };
 }
 

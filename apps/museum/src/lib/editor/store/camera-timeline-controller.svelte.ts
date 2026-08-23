@@ -2,14 +2,14 @@
  * `EditorCameraTimelineController` — guided-tour ruler seek / select / step /
  * edge-travel orchestration (Phase 9.4).
  *
- * The god file (`museum-editor.svelte.ts`) historically owned every timeline
+ * The god file (`editor-store.svelte.ts`) historically owned every timeline
  * *interaction*: building/reading the timeline index, syncing the global
  * playhead to a connection or node pose, scrubbing the ruler, selecting edges
  * / nodes / view keys from the timeline chrome, stepping cues, and toggling
  * forward/reverse edge travel. Phase 9.4 hard-moves those method bodies here,
  * following the `EditorViewKeyframeController` + host-injection pattern.
  *
- * `MuseumEditorStore` keeps identical public method signatures as thin
+ * `EditorStore` keeps identical public method signatures as thin
  * delegates (`seekCameraTimeline(p) { return this.cameraTimelineController
  * .seekCameraTimeline(p); }`), so components keep importing the store facade
  * unchanged.
@@ -27,9 +27,9 @@
  */
 
 import type {
-	MuseumSceneDocument,
+	SceneDocument,
 	NavigationGraph,
-	RuntimeMuseumScene
+	RuntimeScene
 } from '$lib/content/scene';
 import {
 	cameraMotionProgressAtEdgeProgress
@@ -38,7 +38,7 @@ import {
 	getCameraConnectionRoute,
 	type ResolvedCameraRoute
 } from '$lib/museum/navigation/camera-route';
-import type { CameraConnectionDirection } from '$lib/types/museum';
+import type { CameraConnectionDirection } from '$lib/types/scene';
 import {
 	cameraTimelineEdgePlayheadAtProgress,
 	cameraTimelineProgressAtEdgePlayhead,
@@ -48,15 +48,15 @@ import {
 	getEditorCameraTimelineLocation,
 	type EditorCameraTimeline,
 	type EditorCameraTimelineNodeBoundary
-} from '../editor-camera-timeline';
+} from '../camera/editor-camera-timeline';
 import {
 	findSceneCameraViewKeyframe,
 	seedEmptyReverseViewTrack
-} from '../editor-camera-view';
+} from '../camera/editor-camera-view';
 import type {
 	EditorCameraPreview,
 	EditorPendingNavigationCommand
-} from '../museum-editor.types';
+} from '../editor-types';
 import type { EditorSelectionActions } from './selection-actions.svelte';
 import type { EditorSelectionStore } from './selection-store.svelte';
 
@@ -76,7 +76,7 @@ type EditorCameraTimelineCue =
 
 /**
  * Composition-root surface the camera-timeline controller depends on.
- * Everything here stays owned by `MuseumEditorStore`; the controller never
+ * Everything here stays owned by `EditorStore`; the controller never
  * mutates the document store, history controller, or preview controller
  * directly — only through the accessors and wrappers below.
  */
@@ -88,8 +88,8 @@ export interface EditorCameraTimelineControllerHost {
 	readonly pendingNavigationCommand: EditorPendingNavigationCommand;
 
 	// Document + resolved scene / graph.
-	readonly document: MuseumSceneDocument;
-	readonly scene: RuntimeMuseumScene;
+	readonly document: SceneDocument;
+	readonly scene: RuntimeScene;
 	readonly graph: NavigationGraph;
 
 	// Selection reducer (discovery accessors used by setCameraEdgeTravel).

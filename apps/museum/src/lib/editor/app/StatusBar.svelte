@@ -3,7 +3,7 @@
      workspace, selection, save state, navigation hints, and viewport
      settings. Major authoring actions MUST NOT migrate into it. -->
 <script lang="ts">
-	import type { MuseumEditorStore } from '$lib/editor/museum-editor.svelte';
+	import type { EditorStore } from '$lib/editor/editor-store.svelte';
 	import type { LayoutInteractionState } from '$lib/editor/layout/layout-interaction';
 	import {
 		layoutPreviewIsDirty,
@@ -19,7 +19,7 @@
 		viewState,
 		activeSelection
 	}: {
-		store: MuseumEditorStore;
+		store: EditorStore;
 		layoutPreview: LayoutPreviewState;
 		layoutInteraction: LayoutInteractionState;
 		viewState: EditorViewState;

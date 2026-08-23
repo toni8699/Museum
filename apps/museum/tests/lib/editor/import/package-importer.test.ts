@@ -7,7 +7,7 @@ import {
 } from '$lib/content/package-format';
 import { parseSceneDocumentJson } from '$lib/content/scene-codec';
 import { sha256Bytes } from '$lib/editor/helpers/package-sha';
-import baseSceneFixture from '$lib/content/museum-scene.json';
+import baseSceneFixture from '$lib/content/scene.json';
 
 async function buildMinimalValidPackage(): Promise<Uint8Array> {
 	const textureBytes = new TextEncoder().encode('PNG_BYTES_PLACEHOLDER');
@@ -32,8 +32,8 @@ async function buildMinimalValidPackage(): Promise<Uint8Array> {
 		package: {
 			id: pkg,
 			createdAt: '2026-08-07T18:30:00.000Z',
-			generator: 'museum-editor-5.4',
-			documentTitle: 'museum-scene'
+			generator: 'editor-5.4',
+			documentTitle: 'scene'
 		},
 		textures: [
 			{
@@ -48,7 +48,7 @@ async function buildMinimalValidPackage(): Promise<Uint8Array> {
 	};
 	return zipSync(
 		{
-			'museum-scene.json': new TextEncoder().encode(sceneParse.canonicalJson),
+			'scene.json': new TextEncoder().encode(sceneParse.canonicalJson),
 			'manifest.json': new TextEncoder().encode(JSON.stringify(manifest)),
 			'textures/walnut.png': textureBytes
 		},
@@ -79,7 +79,7 @@ describe('package-importer', () => {
 		bundle = await buildMinimalValidPackage();
 	});
 
-	it('accepts a minimal valid .museumpack.zip', async () => {
+	it('accepts a minimal valid .scenepack.zip', async () => {
 		const result = await importPackage(bundle);
 		if (result.status !== 'ok') {
 			throw new Error(`expected ok, got rejected: ${result.reason} — ${result.detail}`);
@@ -95,20 +95,38 @@ describe('package-importer', () => {
 		if (result.status === 'rejected') expect(result.reason).toBe('format-unsupported');
 	});
 
-	it('rejects missing museum-scene.json', async () => {
+	it('rejects missing scene.json', async () => {
 		const manifestBytes = readJson(bundle, 'manifest.json');
 		const map = unzipSync(bundle);
-		const sceneBytes = map['museum-scene.json']!;
+		const sceneBytes = map['scene.json']!;
 		void sceneBytes;
 		const result = await importPackage(packZip({ 'manifest.json': manifestBytes }));
 		expect(result.status).toBe('rejected');
 		if (result.status === 'rejected') expect(result.reason).toBe('missing-bytes');
 	});
 
+	it('rejects legacy archive carrying museum-scene.json (format hard break)', async () => {
+		// Everything is byte-identical to the valid bundle except the scene
+		// member's name — a legacy fallback would have to accept this archive.
+		const map = unzipSync(bundle);
+		const sceneBytes = map['scene.json']!;
+		const manifestBytes = map['manifest.json']!;
+		const textureBytes = map['textures/walnut.png']!;
+		const result = await importPackage(
+			packZip({
+				'museum-scene.json': sceneBytes,
+				'manifest.json': manifestBytes,
+				'textures/walnut.png': textureBytes
+			})
+		);
+		expect(result.status).toBe('rejected');
+		if (result.status === 'rejected') expect(result.reason).toBe('missing-bytes');
+	});
+
 	it('rejects missing manifest.json', async () => {
 		const map = unzipSync(bundle);
-		const sceneBytes = map['museum-scene.json']!;
-		const result = await importPackage(packZip({ 'museum-scene.json': sceneBytes }));
+		const sceneBytes = map['scene.json']!;
+		const result = await importPackage(packZip({ 'scene.json': sceneBytes }));
 		expect(result.status).toBe('rejected');
 		if (result.status === 'rejected') expect(result.reason).toBe('missing-bytes');
 	});
@@ -118,11 +136,11 @@ describe('package-importer', () => {
 		const bytes = map['textures/walnut.png']!;
 		const tampered = new Uint8Array(bytes);
 		tampered[tampered.length - 1] = (tampered[tampered.length - 1]! ^ 0xff) & 0xff;
-		const sceneBytes = map['museum-scene.json']!;
+		const sceneBytes = map['scene.json']!;
 		const manifestBytes = map['manifest.json']!;
 		const result = await importPackage(
 			packZip({
-				'museum-scene.json': sceneBytes,
+				'scene.json': sceneBytes,
 				'manifest.json': manifestBytes,
 				'textures/walnut.png': tampered
 			})
@@ -144,8 +162,8 @@ describe('package-importer', () => {
 			});
 			return o;
 		});
-		const sceneBytes = unzipSync(bundle)['museum-scene.json']!;
-		const result = await importPackage(packZip({ 'museum-scene.json': sceneBytes, 'manifest.json': manifestBytes }));
+		const sceneBytes = unzipSync(bundle)['scene.json']!;
+		const result = await importPackage(packZip({ 'scene.json': sceneBytes, 'manifest.json': manifestBytes }));
 		expect(result.status).toBe('rejected');
 		if (result.status === 'rejected') expect(result.reason).toBe('manifest-mismatch');
 	});
@@ -155,13 +173,13 @@ describe('package-importer', () => {
 		// error before the importer cross-check runs. Either 'schema-mismatch'
 		// or 'unsafe-uri' is acceptable defence-in-depth; we only assert the
 		// package is rejected.
-		const sceneBytes = readJson(bundle, 'museum-scene.json', (obj) => {
+		const sceneBytes = readJson(bundle, 'scene.json', (obj) => {
 			const o = obj as { textures: Array<{ uri: string }> };
 			o.textures[0]!.uri = 'https://example.com/x.png';
 			return o;
 		});
 		const manifestBytes = unzipSync(bundle)['manifest.json']!;
-		const result = await importPackage(packZip({ 'museum-scene.json': sceneBytes, 'manifest.json': manifestBytes }));
+		const result = await importPackage(packZip({ 'scene.json': sceneBytes, 'manifest.json': manifestBytes }));
 		expect(result.status).toBe('rejected');
 		if (result.status === 'rejected') {
 			expect(['unsafe-uri', 'schema-mismatch']).toContain(result.reason);
@@ -173,7 +191,7 @@ describe('package-importer', () => {
 			'{"version":99,"textures":[],"materials":[],"entities":[],"navigationNodes":[],"connections":[]}'
 		);
 		const manifestBytes = unzipSync(bundle)['manifest.json']!;
-		const result = await importPackage(packZip({ 'museum-scene.json': invalidScene, 'manifest.json': manifestBytes }));
+		const result = await importPackage(packZip({ 'scene.json': invalidScene, 'manifest.json': manifestBytes }));
 		expect(result.status).toBe('rejected');
 		if (result.status === 'rejected') expect(result.reason).toBe('schema-mismatch');
 	});

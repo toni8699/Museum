@@ -141,8 +141,8 @@ describe('package-format', () => {
 				package: {
 					id: 'package-aabbccddeeff',
 					createdAt: '2026-08-07T18:30:00.000Z',
-					generator: 'museum-editor-5.4',
-					documentTitle: 'museum-scene'
+					generator: 'editor-5.4',
+					documentTitle: 'scene'
 				},
 				textures: entries
 			};
@@ -160,14 +160,16 @@ describe('package-format', () => {
 		it('produces a slug + timestamp + extension filename', () => {
 			const date = new Date('2026-08-07T18:30:00.000Z');
 			expect(packageFilenameFor('Museum Salon', date)).toMatch(
-				/^museum-salon-20260807-1830\.museumpack\.zip$/
+				/^museum-salon-20260807-1830\.scenepack\.zip$/
+
 			);
 		});
 
 		it('falls back to default name when documentTitle is empty', () => {
 			const date = new Date('2026-08-07T08:05:09.000Z');
 			expect(packageFilenameFor('', date)).toMatch(
-				/^museum-scene-20260807-0805\.museumpack\.zip$/
+				/^scene-20260807-0805\.scenepack\.zip$/
+
 			);
 		});
 	});

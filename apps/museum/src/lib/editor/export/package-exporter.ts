@@ -9,7 +9,7 @@
  *        filename. Apply collision suffix against the entry list produced so far.
  *     c. Resolve bytes via caller-supplied resolver.
  *  3. Compute fingerprints and derive packageId.
- *  4. Rewrite `museum-scene.json` so each texture's `uri` becomes
+ *  4. Rewrite `scene.json` so each texture's `uri` becomes
  *     `/textures/<packageId>/<sanitizedFilename>`.
  *  5. Compose `manifest.json`. Compose the archive with `fflate.zip`.
  *  6. Return `{ status: 'ok', zip, manifest, filename }` (or `'rejected'`).
@@ -33,7 +33,7 @@ import {
 } from '$lib/content/package-format';
 import { sha256Bytes } from '$lib/editor/helpers/package-sha';
 import { sniffImageMime } from '$lib/editor/helpers/mime-sniff';
-import type { MuseumSceneDocument, SceneTextureAsset } from '$lib/content/scene';
+import type { SceneDocument, SceneTextureAsset } from '$lib/content/scene';
 
 export type ExportRejectionReason =
 	| 'unresolved-binary'
@@ -54,7 +54,7 @@ export type PackageExportResult =
 	  };
 
 export interface PackageExportInput {
-	document: MuseumSceneDocument;
+	document: SceneDocument;
 	resolveBytesByUri: (uri: string) => Promise<Uint8Array | null>;
 	now?: Date;
 }
@@ -134,22 +134,22 @@ export async function buildPackage(input: PackageExportInput): Promise<PackageEx
 		textures: manifestEntries
 	});
 
-	// Build the rewritten museum-scene.json.
+	// Build the rewritten scene.json.
 	const rewrittenTextures: SceneTextureAsset[] = resolvedEntries.map((e) => ({
 		...e.original,
 		uri: `${REWRITE_URI_PREFIX(packageId)}${e.sanitizedFilename}`
 	}));
-	const rewrittenDoc: MuseumSceneDocument = {
+	const rewrittenDoc: SceneDocument = {
 		...document,
 		textures: rewrittenTextures
 	};
 	const canonicalJson = serializeSceneDocument(rewrittenDoc);
-	const museumSceneBytes = new TextEncoder().encode(canonicalJson);
+	const sceneBytes = new TextEncoder().encode(canonicalJson);
 	const manifestBytes = new TextEncoder().encode(JSON.stringify(manifest));
 
 	// Compose zip.
 	const entries: Record<string, Uint8Array> = {
-		'museum-scene.json': museumSceneBytes,
+		'scene.json': sceneBytes,
 		'manifest.json': manifestBytes
 	};
 	for (const e of resolvedEntries) {
@@ -173,14 +173,14 @@ export function buildPackageFilename(documentTitle: string, now: Date): string {
  * Resolve a human-readable title for the package. The current v6 document
  * has no `documentTitle` field; this hook is forward-compatibility shim so
  * future schema additions can light up without changing call sites. It
- * currently always returns `'museum-scene'`.
+ * currently always returns `'scene'`.
  */
-export function exportDocumentTitle(document: MuseumSceneDocument): string {
+export function exportDocumentTitle(document: SceneDocument): string {
 	const title = (document as { documentTitle?: string }).documentTitle;
 	if (typeof title === 'string' && title.trim().length > 0) {
 		return title.trim();
 	}
-	return 'museum-scene';
+	return 'scene';
 }
 
 /**

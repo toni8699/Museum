@@ -7,7 +7,7 @@
  *
  * **Rejection matrix** (matches the design spec):
  * - `format-unsupported` — invalid zip bytes, unparsable manifest.
- * - `missing-bytes` — `museum-scene.json`, `manifest.json`, or any
+ * - `missing-bytes` — `scene.json`, `manifest.json`, or any
  *   `manifest.textures[*].destinationPath` is absent.
  * - `fingerprint-mismatch` — a manifest entry's bytes do not match its
  *   claimed sha256.
@@ -15,7 +15,7 @@
  * - `manifest-mismatch` — manifest entry is not referenced by any texture uri,
  *   or a scene texture uri falls outside the rewrite prefix, or the manifest's
  *   package.id does not match the derived id from its sorted fingerprints.
- * - `schema-mismatch` — strict v6 parse of `museum-scene.json` fails.
+ * - `schema-mismatch` — strict v6 parse of `scene.json` fails.
  *
  * **On `ok`** the binary map is keyed by the rewritten `SceneTextureAsset.uri`
  * (NOT by `destinationPath`) so callers can hand it directly to the
@@ -32,7 +32,7 @@ import {
 	type SupportedMime
 } from '$lib/content/package-format';
 import { sha256Bytes } from '$lib/editor/helpers/package-sha';
-import type { MuseumSceneDocument, SceneTextureAsset } from '$lib/content/scene';
+import type { SceneDocument, SceneTextureAsset } from '$lib/content/scene';
 
 export type ImportRejectionReason =
 	| 'format-unsupported'
@@ -51,7 +51,7 @@ export type PackageImportBinary = {
 export type PackageImportResult =
 	| {
 			status: 'ok';
-			document: MuseumSceneDocument;
+			document: SceneDocument;
 			binaries: Map<string, PackageImportBinary>;
 			packageId: string;
 	  }
@@ -73,11 +73,11 @@ export async function importPackage(zip: Uint8Array): Promise<PackageImportResul
 		};
 	}
 
-	if (!files['museum-scene.json'] || !files['manifest.json']) {
+	if (!files['scene.json'] || !files['manifest.json']) {
 		return {
 			status: 'rejected',
 			reason: 'missing-bytes',
-			detail: 'museum-scene.json or manifest.json is missing from the archive'
+			detail: 'scene.json or manifest.json is missing from the archive'
 		};
 	}
 
@@ -87,7 +87,7 @@ export async function importPackage(zip: Uint8Array): Promise<PackageImportResul
 	}
 	const manifest = manifestResult.manifest;
 
-	const sceneResult = decodeScene(files['museum-scene.json']);
+	const sceneResult = decodeScene(files['scene.json']);
 	if (sceneResult.status === 'rejected') {
 		return sceneResult;
 	}
@@ -175,7 +175,7 @@ function decodeScene(
 	bytes: Uint8Array
 ):
 	| { status: 'rejected'; reason: ImportRejectionReason; detail: string }
-	| { status: 'ok'; document: MuseumSceneDocument } {
+	| { status: 'ok'; document: SceneDocument } {
 	let text: string;
 	try {
 		text = new TextDecoder().decode(bytes);
@@ -183,7 +183,7 @@ function decodeScene(
 		return {
 			status: 'rejected',
 			reason: 'schema-mismatch',
-			detail: `museum-scene.json decode failure: ${errorDetail(err)}`
+			detail: `scene.json decode failure: ${errorDetail(err)}`
 		};
 	}
 	const parsed = parseSceneDocumentJson(text);
@@ -191,7 +191,7 @@ function decodeScene(
 		return {
 			status: 'rejected',
 			reason: 'schema-mismatch',
-			detail: `museum-scene.json strict parse failed: ${parsed.issues
+			detail: `scene.json strict parse failed: ${parsed.issues
 				.map((i) => `${i.path}:${i.code}`)
 				.join('; ')}`
 		};
@@ -234,7 +234,7 @@ async function verifyManifestBinaries(
 
 async function crossCheckManifestAndScene(
 	manifest: PackageManifest,
-	document: MuseumSceneDocument
+	document: SceneDocument
 ): Promise<
 	| { status: 'rejected'; reason: ImportRejectionReason; detail: string }
 	| { status: 'ok' }

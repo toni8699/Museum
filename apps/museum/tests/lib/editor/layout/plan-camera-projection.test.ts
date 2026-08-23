@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { chopinProject } from '$lib/content/chopin-project';
-import type { MuseumSceneDocument } from '$lib/content/scene';
+import type { SceneDocument } from '$lib/content/scene';
 import { geometryId } from '$lib/layout/layout-geometry-types';
 import { compileLayoutGeometry } from '$lib/layout/layout-geometry';
 import { g2MultipleOpeningsDocument, g2ObjectMatrixDocument, g2SceneNavigationGraph } from '../../layout/__fixtures__/layout-g2-fixtures';
@@ -15,7 +15,7 @@ import {
 } from '$lib/editor/layout/plan-camera-projection';
 
 /** Minimal two-node graph over one unrotated room (room-a at 0,0 6×4). */
-function authoringDocument(): MuseumSceneDocument {
+function authoringDocument(): SceneDocument {
 	return {
 		textures: [],
 		materials: [],

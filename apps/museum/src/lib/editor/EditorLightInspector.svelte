@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { isSceneLightEntity } from '$lib/content/scene';
-	import EditorNumberField from './EditorNumberField.svelte';
-	import type { MuseumEditorStore } from './museum-editor.svelte';
+	import EditorNumberField from './fields/EditorNumberField.svelte';
+	import type { EditorStore } from './editor-store.svelte';
 
-	let { store }: { store: MuseumEditorStore } = $props();
+	let { store }: { store: EditorStore } = $props();
 
 	const entity = $derived(
 		store.selectedObject && isSceneLightEntity(store.selectedObject)

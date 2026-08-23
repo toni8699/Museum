@@ -1,6 +1,6 @@
 import type {
-	MuseumSceneDocument,
-	RuntimeMuseumScene,
+	SceneDocument,
+	RuntimeScene,
 	SceneCameraViewKeyframe,
 	SceneConnection,
 	SceneLightKind,
@@ -10,18 +10,18 @@ import type {
 	ScenePrimitiveKind
 } from '$lib/content/scene';
 import type { LayoutRoomRegistry } from '$lib/project/project-layout-semantics';
-import type { MuseumStateStore } from '$lib/state/museum-state.svelte';
-import type { CameraConnectionDirection, MuseumRoomId } from '$lib/types/museum';
+import type { RuntimeStateStore } from '$lib/state/runtime-state.svelte';
+import type { CameraConnectionDirection, RoomId } from '$lib/types/scene';
 import type { ResolvedCameraRoute } from '$lib/museum/navigation/camera-route';
 import type { EditorCameraSelection, EditorNavigationSelection } from '../editor-selection';
-import type { EditorCameraTimeline } from '../editor-camera-timeline';
+import type { EditorCameraTimeline } from '../camera/editor-camera-timeline';
 import type { EditorTransformMode } from '../editor-transform';
 import type {
 	EditorCameraPreview,
 	EditorPendingNavigationCommand,
 	EditorViewKeyframeProgressDragSelection,
 	EditorWorkspace
-} from '../museum-editor.types';
+} from '../editor-types';
 import type { EditorSelectionStore } from './selection-store.svelte';
 import type { EditorCameraPreviewController } from './camera-preview-controller.svelte';
 import type { EditorHistoryController } from './history-controller.svelte';
@@ -37,7 +37,7 @@ import type { EditorMaterialResourceMutatorHost } from './material-resource-muta
 
 /**
  * Slice 1 (Priority-1 file splits) — the seven controller host factories used
- * to live as private `#createXxxHost()` methods on `MuseumEditorStore` (~450
+ * to live as private `#createXxxHost()` methods on `EditorStore` (~450
  * LOC of pure object-literal wiring). They are now module-level factories in
  * this file keyed on a single structural source surface, so the composition
  * root stops carrying the literals.
@@ -50,7 +50,7 @@ import type { EditorMaterialResourceMutatorHost } from './material-resource-muta
 /**
  * Every facade member the seven controller host literals read or write.
  * Type-checked against the store's public surface at the single call site in
- * `museum-editor.svelte.ts`; the host literals below are contextually checked
+ * `editor-store.svelte.ts`; the host literals below are contextually checked
  * against their own `*Host` interfaces, so a drift here surfaces as a compile
  * error instead of a silent runtime gap.
  */
@@ -68,10 +68,10 @@ export interface EditorControllerHostSource {
 	readonly historyFramingTransactionActive: boolean;
 
 	// Document + resolved scene + selection reducer.
-	readonly document: MuseumSceneDocument;
-	readonly scene: RuntimeMuseumScene;
+	readonly document: SceneDocument;
+	readonly scene: RuntimeScene;
 	readonly rooms: LayoutRoomRegistry;
-	readonly state: MuseumStateStore;
+	readonly state: RuntimeStateStore;
 	readonly selectionStore: EditorSelectionStore;
 
 	// Sub-controllers the host literals delegate to.
@@ -85,7 +85,7 @@ export interface EditorControllerHostSource {
 	// `selectionActions` (post-commit/restore seams).
 	readonly cameraSelection: EditorCameraSelection | null;
 	readonly navigationSelection: EditorNavigationSelection;
-	readonly selectedRoomId: MuseumRoomId | null;
+	readonly selectedRoomId: RoomId | null;
 	readonly selectedPlacementId: string | null;
 	readonly selectedPlacementIds: string[];
 	readonly selectedClusterId: string | null;
@@ -121,7 +121,7 @@ export interface EditorControllerHostSource {
 	focusNavigationNode(id: string): boolean;
 	focusPlacement(id: string): boolean;
 	focusSelection(): boolean;
-	ensureRoomTreeExpanded(roomId: MuseumRoomId): boolean;
+	ensureRoomTreeExpanded(roomId: RoomId): boolean;
 	ensureClusterTreeExpanded(clusterId: string): boolean;
 	isPlacementSelectable(id: string): boolean;
 	getCapturedCameraPreviewRoute(runId: number): ResolvedCameraRoute | null;
@@ -219,7 +219,7 @@ export function createControllerHosts(
 		focusNavigationNode: (id: string) => source.focusNavigationNode(id),
 		focusPlacement: (id: string) => source.focusPlacement(id),
 		focusSelection: () => source.focusSelection(),
-		ensureRoomTreeExpanded: (roomId: MuseumRoomId) => source.ensureRoomTreeExpanded(roomId),
+		ensureRoomTreeExpanded: (roomId: RoomId) => source.ensureRoomTreeExpanded(roomId),
 		ensureClusterTreeExpanded: (clusterId: string) =>
 			source.ensureClusterTreeExpanded(clusterId),
 		isPlacementSelectable: (id: string) => source.isPlacementSelectable(id),

@@ -17,7 +17,7 @@ import type {
 	ScenePrimitiveEntity,
 	SceneWaypoint
 } from '../scene';
-import type { MuseumSceneDocument } from '../scene';
+import type { SceneDocument } from '../scene';
 
 export function cloneWaypoint(value: SceneWaypoint): SceneWaypoint {
 	return {
@@ -134,7 +134,7 @@ export function cloneEntity(entity: SceneEntity): SceneEntity {
 	};
 }
 
-export function canonicalDocument(document: MuseumSceneDocument): MuseumSceneDocument {
+export function canonicalDocument(document: SceneDocument): SceneDocument {
 	return {
 		textures: document.textures.map((texture) => ({
 			id: texture.id,

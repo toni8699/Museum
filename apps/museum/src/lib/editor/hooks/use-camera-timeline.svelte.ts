@@ -3,11 +3,11 @@
  * S3 — exposes edge-local timeline (one connection) for Preview Edge.
  */
 
-import { createEdgeLocalTimeline } from '../editor-camera-timeline';
+import { createEdgeLocalTimeline } from '../camera/editor-camera-timeline';
 import { previewScopeOf } from '../store/camera-preview-controller.svelte';
-import type { MuseumEditorStore } from '../museum-editor.svelte';
+import type { EditorStore } from '../editor-store.svelte';
 
-export function useCameraTimeline(store: MuseumEditorStore) {
+export function useCameraTimeline(store: EditorStore) {
 	return {
 		get timeline() {
 			return store.getCameraTimeline();

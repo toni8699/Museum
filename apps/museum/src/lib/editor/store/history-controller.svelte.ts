@@ -1,10 +1,10 @@
 /**
  * `EditorHistoryController` — the undo/redo + transaction FSM.
  *
- * Slice 3 of the museum-editor refactor plan lifts `#past`, `#future`,
+ * Slice 3 of the editor-facade refactor plan lifts `#past`, `#future`,
  * `#transactionBefore`, `#cameraFramingTransaction`, `historyVersion`, the
  * `begin/commit/cancel/undo/redo` method zoo, and the `#bumpHistoryVersion`
- * helper out of `museum-editor.svelte.ts`.
+ * helper out of `editor-store.svelte.ts`.
  *
  * **Critical atomic constraint** (audit §3.A.2 / F6): `canUndo` cannot be a
  * pure data predicate. When the camera preview is `playing`, undo is
@@ -29,11 +29,11 @@
 
 import { untrack } from 'svelte';
 
-import { resolveSceneDocument, type MuseumSceneDocument } from '$lib/content/scene';
+import { resolveSceneDocument, type SceneDocument } from '$lib/content/scene';
 
 import {
 	EditorDocumentStore,
-	cloneMuseumSceneDocument
+	cloneSceneDocument
 } from './document-store.svelte';
 import type { EditorCameraPreviewController } from './camera-preview-controller.svelte';
 
@@ -63,7 +63,7 @@ export type HistoryCommitResult = {
 
 type SceneHistoryEntry = {
 	domain: 'scene';
-	before: MuseumSceneDocument;
+	before: SceneDocument;
 };
 type LayoutHistoryEntry = { domain: 'layout'; before: unknown };
 type HistoryEntry = SceneHistoryEntry | LayoutHistoryEntry;
@@ -76,7 +76,7 @@ export class EditorHistoryController {
 	 * The pre-transaction document snapshot. Set by `beginDocument` or
 	 * `beginFraming`, consumed by `commit` / `cancel`.
 	 */
-	#before: MuseumSceneDocument | null = null;
+	#before: SceneDocument | null = null;
 
 	/** Chronological undo entries, oldest at index 0. */
 	#past: HistoryEntry[] = [];
@@ -108,7 +108,7 @@ export class EditorHistoryController {
 	/** Begin a regular scene transaction. */
 	beginDocument(): boolean {
 		if (this.#before || this.#layoutBefore !== null) return false;
-		this.#before = cloneMuseumSceneDocument(this.document.document);
+		this.#before = cloneSceneDocument(this.document.document);
 		this.#framingTransaction = false;
 		return true;
 	}
@@ -123,7 +123,7 @@ export class EditorHistoryController {
 	/** Begin a camera-framing transaction. */
 	beginFraming(): boolean {
 		if (this.#before || this.#layoutBefore !== null) return false;
-		this.#before = cloneMuseumSceneDocument(this.document.document);
+		this.#before = cloneSceneDocument(this.document.document);
 		this.#framingTransaction = true;
 		return true;
 	}
@@ -134,7 +134,7 @@ export class EditorHistoryController {
 	 * restores `before`, returns `{ changed:false, error }` so the facade can
 	 * `setStatusMessage`. On no-op `documentsMatch`: clears tx, no stack push.
 	 */
-	commit(next: MuseumSceneDocument): HistoryCommitResult {
+	commit(next: SceneDocument): HistoryCommitResult {
 		const before = this.#before;
 		if (!before) return { changed: false, type: null, error: null };
 		const type: CommitKind = this.#framingTransaction ? 'framing' : 'doc';
@@ -160,7 +160,7 @@ export class EditorHistoryController {
 
 		this.#before = null;
 		this.#framingTransaction = false;
-		this.#past.push({ domain: 'scene', before: cloneMuseumSceneDocument(before) });
+		this.#past.push({ domain: 'scene', before: cloneSceneDocument(before) });
 		if (this.#past.length > HISTORY_LIMIT) this.#past.shift();
 		this.#future = [];
 		this.document.replace(next);
@@ -208,7 +208,7 @@ export class EditorHistoryController {
 		const previous = this.#past.pop();
 		if (!previous) return false;
 		if (previous.domain === 'scene') {
-			this.#future.push({ domain: 'scene', before: cloneMuseumSceneDocument(this.document.document) });
+			this.#future.push({ domain: 'scene', before: cloneSceneDocument(this.document.document) });
 			this.document.replace(previous.before);
 			this.preview.pruneIfStale();
 		} else if (this.#layoutHost) {
@@ -227,7 +227,7 @@ export class EditorHistoryController {
 		const next = this.#future.pop();
 		if (!next) return false;
 		if (next.domain === 'scene') {
-			this.#past.push({ domain: 'scene', before: cloneMuseumSceneDocument(this.document.document) });
+			this.#past.push({ domain: 'scene', before: cloneSceneDocument(this.document.document) });
 			this.document.replace(next.before);
 			this.preview.pruneIfStale();
 		} else if (this.#layoutHost) {

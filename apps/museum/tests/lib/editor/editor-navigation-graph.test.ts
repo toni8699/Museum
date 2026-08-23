@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { cloneFixtureDocument } from '../content/__fixtures__/load-fixture-scene';
 import type {
-	MuseumSceneDocument,
+	SceneDocument,
 	SceneConnection,
 	SceneNavigationNode
 } from '$lib/content/scene';
@@ -26,11 +26,11 @@ import {
 
 const FIXTURE_GUIDED_ORDER = ['tour-a', 'tour-b', 'tour-paris', 'tour-d'] as const;
 
-function documentClone(): MuseumSceneDocument {
+function documentClone(): SceneDocument {
 	return cloneFixtureDocument();
 }
 
-function guidedOrderFrom(document: MuseumSceneDocument): string[] {
+function guidedOrderFrom(document: SceneDocument): string[] {
 	const result = validateCurrentGuidedTourOrder(document);
 	if (!result.ok) {
 		throw new Error(`Fixture guided order invalid: ${result.code}`);
@@ -39,7 +39,7 @@ function guidedOrderFrom(document: MuseumSceneDocument): string[] {
 }
 
 function addConnection(
-	document: MuseumSceneDocument,
+	document: SceneDocument,
 	fromNodeId: string,
 	toNodeId: string,
 	id = `${fromNodeId}-${toNodeId}`
@@ -58,7 +58,7 @@ function addConnection(
 }
 
 function addFreeNode(
-	document: MuseumSceneDocument,
+	document: SceneDocument,
 	id: string,
 	connectedNodeId: string
 ) {
@@ -369,7 +369,7 @@ describe('editor guided-tour order validation', () => {
 
 describe('S10.2 — flow walk and detour validation', () => {
 	/** The 4-node fixture cycle broken into an open chain tour-a → tour-b → tour-paris → tour-d. */
-	function openChainDocument(): MuseumSceneDocument {
+	function openChainDocument(): SceneDocument {
 		const document = documentClone();
 		const tourA = document.navigationNodes.find((node) => node.id === 'tour-a')!;
 		const tourD = document.navigationNodes.find((node) => node.id === 'tour-d')!;
@@ -378,7 +378,7 @@ describe('S10.2 — flow walk and detour validation', () => {
 		return document;
 	}
 
-	function addFreeNode(document: MuseumSceneDocument, id: string): SceneNavigationNode {
+	function addFreeNode(document: SceneDocument, id: string): SceneNavigationNode {
 		const node: SceneNavigationNode = {
 			id,
 			roomId: 'paris',
@@ -647,7 +647,7 @@ describe('S10.2 — flow walk and detour validation', () => {
 					positionPath: { kind: 'auto-bezier', anchors: [] } as const
 				} as SceneConnection
 			]
-		} as MuseumSceneDocument;
+		} as SceneDocument;
 		expect(validateNavigationNodeDeletion(detourDocument, 'tour-b')).toEqual(
 			expect.objectContaining({
 				ok: true,

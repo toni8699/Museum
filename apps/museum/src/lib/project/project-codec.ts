@@ -10,38 +10,38 @@ import {
 } from '$lib/content/scene-codec';
 import { createLayoutRoomRegistry, validateProjectSceneRooms } from './project-layout-semantics';
 import type {
-	MuseumProject,
-	MuseumProjectIssue,
-	MuseumProjectValidationResult
+	Project,
+	ProjectIssue,
+	ProjectValidationResult
 } from './project-types';
 
 const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
 const ROOT_KEYS = ['id', 'name', 'layout', 'scene'] as const;
 type JsonRecord = Record<string, unknown>;
 
-export type MuseumProjectInput = {
+export type ProjectInput = {
 	id: string;
 	name: string;
 	layout: unknown;
 	scene: unknown;
 };
 
-export class MuseumProjectValidationError extends Error {
-	readonly issue: MuseumProjectIssue;
-	constructor(issue: MuseumProjectIssue) {
+export class ProjectValidationError extends Error {
+	readonly issue: ProjectIssue;
+	constructor(issue: ProjectIssue) {
 		super(`${issue.path} (${issue.code}): ${issue.message}`);
-		this.name = 'MuseumProjectValidationError';
+		this.name = 'ProjectValidationError';
 		this.issue = issue;
 	}
 }
 
-export function createMuseumProject(input: MuseumProjectInput): MuseumProject {
-	const result = validateMuseumProject(input);
-	if (!result.success) throw new MuseumProjectValidationError(result.issues[0]!);
+export function createProject(input: ProjectInput): Project {
+	const result = validateProject(input);
+	if (!result.success) throw new ProjectValidationError(result.issues[0]!);
 	return result.project;
 }
 
-export type EmptyMuseumProjectInput = {
+export type EmptyProjectInput = {
 	id: string;
 	name: string;
 };
@@ -51,7 +51,7 @@ export type EmptyMuseumProjectInput = {
  * This is the editor's boot state. There is no New Project command — importing
  * a package is the only way to load prior work, and export is the only save.
  */
-export function createEmptyMuseumProject(input: EmptyMuseumProjectInput): MuseumProject {
+export function createEmptyProject(input: EmptyProjectInput): Project {
 	return {
 		id: input.id,
 		name: input.name,
@@ -60,9 +60,9 @@ export function createEmptyMuseumProject(input: EmptyMuseumProjectInput): Museum
 	};
 }
 
-export function validateMuseumProject(input: unknown): MuseumProjectValidationResult {
-	const issues: MuseumProjectIssue[] = [];
-	if (!record(input)) return { success: false, issues: [issue('$', 'invalid_type', 'Expected a museum project object')] };
+export function validateProject(input: unknown): ProjectValidationResult {
+	const issues: ProjectIssue[] = [];
+	if (!record(input)) return { success: false, issues: [issue('$', 'invalid_type', 'Expected a project object')] };
 	for (const key of Object.keys(input)) {
 		if (!ROOT_KEYS.includes(key as (typeof ROOT_KEYS)[number])) {
 			issues.push(issue(`$.${key}`, 'unknown_key', `Unknown key '${key}'`));
@@ -80,7 +80,7 @@ export function validateMuseumProject(input: unknown): MuseumProjectValidationRe
 	if (!id || !name || !layoutResult.success || !sceneResult.success || issues.length > 0) {
 		return { success: false, issues };
 	}
-	const project: MuseumProject = {
+	const project: Project = {
 		id,
 		name,
 		layout: layoutResult.document,
@@ -89,24 +89,24 @@ export function validateMuseumProject(input: unknown): MuseumProjectValidationRe
 	return { success: true, project, canonicalJson: JSON.stringify(project, null, 2) + '\n' };
 }
 
-export function parseMuseumProjectJson(json: string): MuseumProjectValidationResult {
+export function parseProjectJson(json: string): ProjectValidationResult {
 	try {
-		return validateMuseumProject(JSON.parse(json) as unknown);
+		return validateProject(JSON.parse(json) as unknown);
 	} catch (error) {
 		return { success: false, issues: [issue('$', 'invalid_json', invalidJsonMessage(error, json))] };
 	}
 }
 
-export function serializeMuseumProject(project: unknown): string {
-	const result = validateMuseumProject(project);
-	if (!result.success) throw new MuseumProjectValidationError(result.issues[0]!);
+export function serializeProject(project: unknown): string {
+	const result = validateProject(project);
+	if (!result.success) throw new ProjectValidationError(result.issues[0]!);
 	return result.canonicalJson;
 }
 
 function prefixIssues(
 	prefix: '$.layout' | '$.scene',
 	result: LayoutValidationResult | SceneDocumentValidationResult
-): MuseumProjectIssue[] {
+): ProjectIssue[] {
 	if (result.success) return [];
 	return result.issues.map((item) => ({
 		...item,
@@ -118,7 +118,7 @@ function record(value: unknown): value is JsonRecord {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function readId(value: unknown, path: string, issues: MuseumProjectIssue[]): string | undefined {
+function readId(value: unknown, path: string, issues: ProjectIssue[]): string | undefined {
 	if (typeof value !== 'string' || !ID_PATTERN.test(value)) {
 		issues.push(issue(path, 'invalid_id', 'Expected an ID matching /^[A-Za-z0-9][A-Za-z0-9._:-]*$/'));
 		return undefined;
@@ -126,7 +126,7 @@ function readId(value: unknown, path: string, issues: MuseumProjectIssue[]): str
 	return value;
 }
 
-function readName(value: unknown, path: string, issues: MuseumProjectIssue[]): string | undefined {
+function readName(value: unknown, path: string, issues: ProjectIssue[]): string | undefined {
 	if (typeof value !== 'string') {
 		issues.push(issue(path, 'invalid_type', 'Expected a string'));
 		return undefined;
@@ -138,7 +138,7 @@ function readName(value: unknown, path: string, issues: MuseumProjectIssue[]): s
 	return value;
 }
 
-function issue(path: string, code: string, message: string): MuseumProjectIssue {
+function issue(path: string, code: string, message: string): ProjectIssue {
 	return { path, code, message };
 }
 

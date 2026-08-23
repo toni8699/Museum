@@ -1,9 +1,9 @@
-import type { MuseumSceneDocument, SceneRoomResolver } from '$lib/content/scene';
+import type { SceneDocument, SceneRoomResolver } from '$lib/content/scene';
 import { createCameraPositionPath } from '$lib/museum/navigation/camera-motion';
 import { layoutRoomLocalPoint, layoutRoomPoint } from '$lib/layout/layout-room-frame';
 import type { LayoutDocument, LayoutFloor, LayoutRoom } from '$lib/layout/layout-types';
-import type { Vec3 } from '$lib/types/museum';
-import type { MuseumProjectIssue } from './project-types';
+import type { Vec3 } from '$lib/types/scene';
+import type { ProjectIssue } from './project-types';
 
 const CAMERA_EPSILON = 1e-6;
 
@@ -59,10 +59,10 @@ export function createLayoutRoomRegistry(layout: LayoutDocument): LayoutRoomRegi
 }
 
 export function validateProjectSceneRooms(
-	scene: MuseumSceneDocument,
+	scene: SceneDocument,
 	rooms: LayoutRoomRegistry
-): MuseumProjectIssue[] {
-	const issues: MuseumProjectIssue[] = [];
+): ProjectIssue[] {
+	const issues: ProjectIssue[] = [];
 	const check = (roomId: string | undefined, path: string) => {
 		if (roomId !== undefined && !rooms.has(roomId)) {
 			issues.push({ path, code: 'unknown_room', message: `Unknown project layout room: ${roomId}` });
@@ -113,9 +113,9 @@ export function validateProjectSceneRooms(
 }
 
 function validateProjectCameraPoses(
-	scene: MuseumSceneDocument,
+	scene: SceneDocument,
 	rooms: LayoutRoomRegistry,
-	issues: MuseumProjectIssue[]
+	issues: ProjectIssue[]
 ): void {
 	const nodeById = new Map(scene.navigationNodes.map((node) => [node.id, node]));
 	for (const [connectionIndex, connection] of scene.connections.entries()) {

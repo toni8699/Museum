@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { museumAssets } from '$lib/content/assets';
-	import type { AssetCategory, MuseumAsset } from '$lib/types/assets';
+	import { assets as assetCatalog } from '$lib/content/assets';
+	import type { AssetCategory, Asset } from '$lib/types/assets';
 	import type { SceneTextureAsset } from '$lib/content/scene';
 	import { listAssetLibraryItems, type AssetLibraryStatusFilter } from './editor-assets';
 	import { LIGHT_LIBRARY, type LightLibraryItem } from './editor-lights';
@@ -11,7 +11,7 @@
 		TEXTURE_DRAG_MIME
 	} from './editor-textures';
 	import { sniffImageMime } from '$lib/editor/helpers/mime-sniff';
-	import type { MuseumEditorStore } from './museum-editor.svelte';
+	import type { EditorStore } from './editor-store.svelte';
 
 	type SourceMode = 'public' | 'local';
 
@@ -20,15 +20,15 @@
 		onselectionchange,
 		onSelectAsset
 	}: {
-		store: MuseumEditorStore;
-		onselectionchange?: (asset: MuseumAsset | undefined) => void;
+		store: EditorStore;
+		onselectionchange?: (asset: Asset | undefined) => void;
 		/** Explicit Models-tab click (never filter-driven). The editor shell
 		 * uses this to detach the active scene selection so the asset panel
 		 * shows immediately. Absent on the relic — frozen legacy behavior. */
-		onSelectAsset?: (asset: MuseumAsset) => void;
+		onSelectAsset?: (asset: Asset) => void;
 	} = $props();
 
-	const categories = [...new Set(museumAssets.map((asset) => asset.category))];
+	const categories = [...new Set(assetCatalog.map((asset) => asset.category))];
 	let libraryTab = $state<'models' | 'shapes' | 'lights' | 'textures'>('models');
 	let query = $state('');
 	let category = $state<AssetCategory | ''>('');
@@ -107,7 +107,7 @@
 		}
 	});
 
-	function selectAsset(asset: MuseumAsset) {
+	function selectAsset(asset: Asset) {
 		selectedAssetId = asset.id;
 		libraryTab = 'models';
 		// Explicit Models click only — `onselectionchange` also fires on

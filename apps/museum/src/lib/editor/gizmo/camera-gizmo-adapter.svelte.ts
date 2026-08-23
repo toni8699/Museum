@@ -29,10 +29,10 @@
 
 import { Euler, Quaternion, Vector3 } from 'three';
 import type { Object3D } from 'three';
-import type { Vec3 } from '$lib/types/museum';
-import type { MuseumEditorStore } from '../museum-editor.svelte';
-import { EDITOR_CAMERA_PATH_MOVE_EPSILON } from '../editor-camera-path';
-import { EDITOR_CAMERA_VIEW_MOVE_EPSILON, orbitWorldLookTarget } from '../editor-camera-view';
+import type { Vec3 } from '$lib/types/scene';
+import type { EditorStore } from '../editor-store.svelte';
+import { EDITOR_CAMERA_PATH_MOVE_EPSILON } from '../camera/editor-camera-path';
+import { EDITOR_CAMERA_VIEW_MOVE_EPSILON, orbitWorldLookTarget } from '../camera/editor-camera-view';
 import type {
 	EditorGizmoCancelReason,
 	EditorGizmoDragSession,
@@ -90,7 +90,7 @@ const CAMERA_TRANSLATE_ONLY_POLICY: EditorGizmoPolicy = {
 };
 
 export interface CameraGizmoAdapterInput {
-	store: MuseumEditorStore;
+	store: EditorStore;
 }
 
 type CameraTarget =
@@ -245,7 +245,7 @@ export function createCameraGizmoAdapter(
 }
 
 function makeCameraSession(
-	store: MuseumEditorStore,
+	store: EditorStore,
 	session: CameraDragSession
 ): EditorGizmoDragSession {
 	return {
@@ -261,7 +261,7 @@ function makeCameraSession(
 	};
 }
 
-function previewCameraSession(store: MuseumEditorStore, session: CameraDragSession) {
+function previewCameraSession(store: EditorStore, session: CameraDragSession) {
 	const world = session.root.getWorldPosition(new Vector3()).toArray() as Vec3;
 	const target = session.target;
 	if (target.kind === 'camera') {
@@ -301,7 +301,7 @@ function previewCameraSession(store: MuseumEditorStore, session: CameraDragSessi
 	store.updateSelectedViewKeyframeTargetWorldPoint(world);
 }
 
-function commitCameraSession(store: MuseumEditorStore, session: CameraDragSession) {
+function commitCameraSession(store: EditorStore, session: CameraDragSession) {
 	previewCameraSession(store, session);
 	if (session.target.kind === 'camera' && session.pending) {
 		// Pending drafts stay out of history; the commit just ends the session.
@@ -333,7 +333,7 @@ function commitCameraSession(store: MuseumEditorStore, session: CameraDragSessio
 }
 
 function cancelCameraSession(
-	store: MuseumEditorStore,
+	store: EditorStore,
 	session: CameraDragSession,
 	reason: EditorGizmoCancelReason
 ) {
@@ -379,7 +379,7 @@ function cancelCameraSession(
  * no authored roll). Returns the new room-local camera target.
  */
 function orbitCameraTargetAroundEye(
-	store: MuseumEditorStore,
+	store: EditorStore,
 	session: CameraDragSession,
 	roomId: string
 ): Vec3 {

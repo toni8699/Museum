@@ -1142,7 +1142,7 @@ Look At:            36px
 Roll:               32px
 ```
 
-> **Cosmetic 2026-08-21 (P3):** 5 lanes are presentational projection of current 2-lane infra (`Guided Route` + `Camera Framing` in `EditorCameraTimelineDots.svelte:556` / `editor-camera-timeline.ts:56`). `Camera Path` ← `timeline.edges` + `timing`, `FOV`/`Look At` ← `RuntimeCameraViewKeyframe {fov, cameraTarget}` (`types/museum.ts:78` — currently one combined key, split in UI only), `Shots` ← derived from node labels/holds (no `Shot` entity yet), `Roll` ← quiet `0°` (not representable per `editor-camera-view.ts:136`). Ground truth `Camera-3D-timeline-expanded.png` shows 5 lanes correctly; no new store model for P3.
+> **Cosmetic 2026-08-21 (P3):** 5 lanes are presentational projection of current 2-lane infra (`Guided Route` + `Camera Framing` in `EditorCameraTimelineDots.svelte:556` / `editor-camera-timeline.ts:56`). `Camera Path` ← `timeline.edges` + `timing`, `FOV`/`Look At` ← `RuntimeCameraViewKeyframe {fov, cameraTarget}` (`types/scene.ts:78` — currently one combined key, split in UI only), `Shots` ← derived from node labels/holds (no `Shot` entity yet), `Roll` ← quiet `0°` (not representable per `editor-camera-view.ts:136`). Ground truth `Camera-3D-timeline-expanded.png` shows 5 lanes correctly; no new store model for P3.
 
 Selected-transition drill-down may consume the remaining expanded area below those lanes.
 

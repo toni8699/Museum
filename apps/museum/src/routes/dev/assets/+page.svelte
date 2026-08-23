@@ -1,14 +1,14 @@
 <script lang="ts">
   import { Canvas, T } from '@threlte/core';
   import { OrbitControls } from '@threlte/extras';
-  import { getMuseumAsset, museumAssets } from '$lib/content/assets';
+  import { getAsset, assets } from '$lib/content/assets';
   import AssetModel from '$lib/museum/assets/AssetModel.svelte';
   import type {
     AssetId,
     AssetLoadStatus,
     AssetMetrics
   } from '$lib/types/assets';
-  import type { Vec3 } from '$lib/types/museum';
+  import type { Vec3 } from '$lib/types/scene';
 
   let selectedAssetId = $state<AssetId>('paris-grand-piano');
   let wireframe = $state(false);
@@ -22,7 +22,7 @@
   let error = $state<string>();
   let copied = $state(false);
 
-  const selectedAsset = $derived(getMuseumAsset(selectedAssetId));
+  const selectedAsset = $derived(getAsset(selectedAssetId));
   const previewRotation = $derived<Vec3>([0, rotateQuarter ? Math.PI / 2 : 0, 0]);
 
   $effect(() => {
@@ -63,7 +63,7 @@
     <label>
       Registered asset
       <select bind:value={selectedAssetId}>
-        {#each museumAssets as asset (asset.id)}
+        {#each assets as asset (asset.id)}
           <option value={asset.id}>{asset.name} · {asset.status}</option>
         {/each}
       </select>

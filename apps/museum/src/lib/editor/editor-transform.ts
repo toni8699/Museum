@@ -1,5 +1,5 @@
 import type { SceneObjectPlacement } from '$lib/content/scene';
-import type { Vec3 } from '$lib/types/museum';
+import type { Vec3 } from '$lib/types/scene';
 import type { Object3D } from 'three';
 import type { EditorCameraSelection } from './editor-selection';
 import type { EditorNavigationSelection } from './editor-selection';

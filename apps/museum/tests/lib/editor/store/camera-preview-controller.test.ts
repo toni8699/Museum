@@ -1,17 +1,17 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-	cloneMuseumSceneDocument,
+	cloneSceneDocument,
 	EditorDocumentStore
 } from '$lib/editor/store/document-store.svelte';
 import { EditorCameraPreviewController } from '$lib/editor/store/camera-preview-controller.svelte';
 import {
 	chopinRuntime,
-	museumSceneDocument
+	sceneDocument
 } from '$lib/content/chopin-project';
 
 function makeControllers() {
-	const document = new EditorDocumentStore(museumSceneDocument, chopinRuntime.rooms);
+	const document = new EditorDocumentStore(sceneDocument, chopinRuntime.rooms);
 	const preview = new EditorCameraPreviewController(document);
 	return { document, preview };
 }
@@ -126,7 +126,7 @@ describe('EditorCameraPreviewController', () => {
 		// Simulate the post-afterReplace state where paris-seat has been
 		// removed from the document. Direct proxy write mirrors the
 		// integration scenario without needing to construct a
-		// cross-ref-free document (museumSceneDocument references
+		// cross-ref-free document (sceneDocument references
 		// paris-seat from connectedNodeIds — adding it back breaks
 		// SceneDocumentValidationError). releaseIfTouches covers the
 		// topology-mutation path; this covers the afterReplace-listener
@@ -281,7 +281,7 @@ describe('EditorCameraPreviewController', () => {
 			const { document, preview } = makeControllers();
 			// Unbuildable flow: clearing next/prev on every node makes the
 			// timeline throw (same recipe as p8-s2 D6).
-			const doc = cloneMuseumSceneDocument(museumSceneDocument);
+			const doc = cloneSceneDocument(sceneDocument);
 			doc.navigationNodes.forEach((node) => {
 				delete (node as any).nextNodeId;
 				delete (node as any).previousNodeId;

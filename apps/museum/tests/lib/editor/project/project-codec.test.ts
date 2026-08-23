@@ -1,36 +1,36 @@
 import { describe, expect, it } from 'vitest';
 
-import type { MuseumSceneDocument } from '$lib/content/scene';
-import { museumSceneDocument } from '$lib/content/chopin-project';
+import type { SceneDocument } from '$lib/content/scene';
+import { sceneDocument } from '$lib/content/chopin-project';
 import { roomsToLayout } from '$lib/content/rooms-to-layout';
 import { createEmptyLayoutDocument } from '$lib/layout/layout-codec';
 
 import {
-	createMuseumProject,
-	MuseumProjectValidationError,
-	parseMuseumProjectJson,
-	serializeMuseumProject,
-	validateMuseumProject
+	createProject,
+	ProjectValidationError,
+	parseProjectJson,
+	serializeProject,
+	validateProject
 } from '$lib/project/project-codec';
-import type { MuseumProject } from '$lib/project/project-types';
+import type { Project } from '$lib/project/project-types';
 
-function validScene(): MuseumSceneDocument {
-	return JSON.parse(JSON.stringify(museumSceneDocument)) as MuseumSceneDocument;
+function validScene(): SceneDocument {
+	return JSON.parse(JSON.stringify(sceneDocument)) as SceneDocument;
 }
 
-function chopinProject(): MuseumProject {
-	return createMuseumProject({
+function chopinProject(): Project {
+	return createProject({
 		id: 'project:chopin',
 		name: 'Chopin Museum',
 		layout: roomsToLayout(),
-		scene: museumSceneDocument
+		scene: sceneDocument
 	});
 }
 
-describe('MuseumProject codec', () => {
+describe('Project codec', () => {
 	it('rejects a scene whose room references are absent from the project layout', () => {
 		const scene = validScene();
-		const result = validateMuseumProject({
+		const result = validateProject({
 			id: 'project:empty',
 			name: 'Empty Museum',
 			layout: createEmptyLayoutDocument(),
@@ -54,13 +54,13 @@ describe('MuseumProject codec', () => {
 
 	it('round-trips a canonical Chopin project without changing data', () => {
 		const project = chopinProject();
-		const json = serializeMuseumProject(project);
-		const parsed = parseMuseumProjectJson(json);
+		const json = serializeProject(project);
+		const parsed = parseProjectJson(json);
 
 		expect(parsed.success).toBe(true);
 		if (!parsed.success) return;
 		expect(parsed.project).toEqual(project);
-		expect(serializeMuseumProject(parsed.project)).toBe(json);
+		expect(serializeProject(parsed.project)).toBe(json);
 	});
 
 	it('uses stable root key order regardless of input key order', () => {
@@ -72,7 +72,7 @@ describe('MuseumProject codec', () => {
 			id: project.id
 		};
 
-		const canonical = validateMuseumProject(reordered);
+		const canonical = validateProject(reordered);
 		expect(canonical.success).toBe(true);
 		if (!canonical.success) return;
 		expect(canonical.canonicalJson.indexOf('"id"')).toBeLessThan(
@@ -84,12 +84,12 @@ describe('MuseumProject codec', () => {
 		expect(canonical.canonicalJson.indexOf('"layout"')).toBeLessThan(
 			canonical.canonicalJson.indexOf('"scene"')
 		);
-		expect(canonical.canonicalJson).toBe(serializeMuseumProject(project));
+		expect(canonical.canonicalJson).toBe(serializeProject(project));
 	});
 
 	it('preserves layout and scene array ordering', () => {
 		const project = chopinProject();
-		const result = validateMuseumProject(project);
+		const result = validateProject(project);
 
 		expect(result.success).toBe(true);
 		if (!result.success) return;
@@ -111,16 +111,16 @@ describe('MuseumProject codec', () => {
 		];
 
 		for (const [field, input] of cases) {
-			const result = validateMuseumProject(input);
+			const result = validateProject(input);
 			expect(result.success, field).toBe(false);
 		}
 	});
 
 	it('rejects unknown root keys and partial nested documents', () => {
 		const project = chopinProject();
-		const unknown = validateMuseumProject({ ...project, assets: [] });
-		const partialLayout = validateMuseumProject({ ...project, layout: {} });
-		const partialScene = validateMuseumProject({ ...project, scene: {} });
+		const unknown = validateProject({ ...project, assets: [] });
+		const partialLayout = validateProject({ ...project, layout: {} });
+		const partialScene = validateProject({ ...project, scene: {} });
 
 		expect(unknown.success).toBe(false);
 		expect(unknown.success ? [] : unknown.issues).toContainEqual(
@@ -138,11 +138,11 @@ describe('MuseumProject codec', () => {
 
 	it('prefixes nested layout and scene issue paths', () => {
 		const project = chopinProject();
-		const layoutIssue = validateMuseumProject({
+		const layoutIssue = validateProject({
 			...project,
 			layout: { ...project.layout, units: 'feet' }
 		});
-		const sceneIssue = validateMuseumProject({
+		const sceneIssue = validateProject({
 			...project,
 			scene: { ...project.scene, version: 99 }
 		});
@@ -158,7 +158,7 @@ describe('MuseumProject codec', () => {
 	});
 
 	it('reports malformed JSON as one invalid_json issue', () => {
-		const result = parseMuseumProjectJson('{"formatVersion":');
+		const result = parseProjectJson('{"formatVersion":');
 
 		expect(result).toEqual({
 			success: false,
@@ -168,14 +168,14 @@ describe('MuseumProject codec', () => {
 
 	it('does not mutate input and throws typed errors for invalid serialization', () => {
 		const project = chopinProject();
-		const input = JSON.parse(JSON.stringify(project)) as MuseumProject;
+		const input = JSON.parse(JSON.stringify(project)) as Project;
 		const before = JSON.stringify(input);
 
-		validateMuseumProject(input);
-		createMuseumProject(input);
-		serializeMuseumProject(input);
+		validateProject(input);
+		createProject(input);
+		serializeProject(input);
 
 		expect(JSON.stringify(input)).toBe(before);
-		expect(() => serializeMuseumProject({})).toThrow(MuseumProjectValidationError);
+		expect(() => serializeProject({})).toThrow(ProjectValidationError);
 	});
 });

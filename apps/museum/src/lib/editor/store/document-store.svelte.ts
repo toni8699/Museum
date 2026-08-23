@@ -1,8 +1,8 @@
 /**
  * `EditorDocumentStore` — owns the authoring document + its derived runtime.
  *
- * Slice 3 of the museum-editor refactor plan lifts what used to be five top-of-
- * class fields on `MuseumEditorStore` (`document`, `validation`,
+ * Slice 3 of the editor-facade refactor plan lifts what used to be five top-of-
+ * class fields on `EditorStore` (`document`, `validation`,
  * `baselineCanonicalJson`, `scene`, `state`) plus the `#replaceDocument` /
  * `#rebuildRuntime` / `#replaceRuntime` private dance into one focused sub-store.
  *
@@ -17,7 +17,7 @@
  * comparison. `HistoryController` reads `documentsMatch()` for its `commit()`
  * no-op detection but never touches the private runtime directly.
  *
- * **Clone cycle.** `cloneMuseumSceneDocument` is defined here as an internal
+ * **Clone cycle.** `cloneSceneDocument` is defined here as an internal
  * helper; the facade keeps its export, and this sub-store owns the local
  * definition.
  */
@@ -30,26 +30,26 @@ import {
 import {
 	createNavigationGraph,
 	resolveSceneDocument,
-	type MuseumSceneDocument,
-	type RuntimeMuseumScene
+	type SceneDocument,
+	type RuntimeScene
 } from '$lib/content/scene';
 import type { LayoutRoomRegistry } from '$lib/project/project-layout-semantics';
 
-import { createMuseumState, type MuseumStateStore } from '$lib/state/museum-state.svelte';
+import { createRuntimeState, type RuntimeStateStore } from '$lib/state/runtime-state.svelte';
 
 export type AfterReplaceListener = () => void;
 
 /**
  * Deep-clone helper used by the document/history sub-stores. Mirrors the
- * pre-slice god-file's `cloneMuseumSceneDocument` (line 116) but lives here
+ * pre-slice god-file's `cloneSceneDocument` (line 116) but lives here
  * to break the sub-store ↔ god-file import cycle that would otherwise
  * arise (god-file imports the sub-stores, so sub-stores can't import
  * god-file utilities). Behaviour-identical: deep-equals the underlying
  * JSON shape because every persisted leaf is a primitive, an array of
  * primitives, or a recursively-shaped object.
  */
-export function cloneMuseumSceneDocument(doc: MuseumSceneDocument): MuseumSceneDocument {
-	return JSON.parse(JSON.stringify(doc)) as MuseumSceneDocument;
+export function cloneSceneDocument(doc: SceneDocument): SceneDocument {
+	return JSON.parse(JSON.stringify(doc)) as SceneDocument;
 }
 
 /**
@@ -60,7 +60,7 @@ export function cloneMuseumSceneDocument(doc: MuseumSceneDocument): MuseumSceneD
  * free camera has no tour-FSM node yet, so callers treat `null` as "no node
  * authored" instead of throwing.
  */
-export function pickInitialNavigationNodeId(scene: RuntimeMuseumScene): string | null {
+export function pickInitialNavigationNodeId(scene: RuntimeScene): string | null {
 	const preferred = scene.navigationNodes.some((node) => node.id === 'paris-seat')
 		? 'paris-seat'
 		: scene.navigationNodes[0]?.id;
@@ -69,7 +69,7 @@ export function pickInitialNavigationNodeId(scene: RuntimeMuseumScene): string |
 
 export class EditorDocumentStore {
 	/** Authoring document. The source of truth; everything else is derived. */
-	document = $state<MuseumSceneDocument>(null!);
+	document = $state<SceneDocument>(null!);
 
 	/** Validator re-runs on every document change. */
 	validation = $derived<SceneDocumentValidationResult>(
@@ -90,13 +90,13 @@ export class EditorDocumentStore {
 	 * every dependent read would recompute the full topology. Recomputed
 	 * lazily by `replace()`.
 	 */
-	scene = $state.raw<RuntimeMuseumScene>(null!);
+	scene = $state.raw<RuntimeScene>(null!);
 
 	/**
 	 * Visitor-FSM store clone. Same `$state.raw` discipline as `scene`.
 	 * Recomputed lazily by `replace()` after the scene rebuild.
 	 */
-	state = $state.raw<MuseumStateStore>(null!);
+	state = $state.raw<RuntimeStateStore>(null!);
 
 	/**
 	 * Listeners invoked at the end of every successful `replace()`. The
@@ -111,7 +111,7 @@ export class EditorDocumentStore {
 	/**
 	 * the room registry is a live seam, not a boot-time constant: the
 	 * boot-empty editor swaps it whenever the project layout gains/loses rooms
-	 * (see `MuseumEditorStore.updateRooms`). Every derived-runtime rebuild
+	 * (see `EditorStore.updateRooms`). Every derived-runtime rebuild
 	 * (`replace()`) reads the current registry, so scene content that
 	 * references drafted rooms stays resolvable. The frozen relic never calls
 	 * `updateRooms` — its Chopin registry is unchanged.
@@ -119,10 +119,10 @@ export class EditorDocumentStore {
 	rooms: LayoutRoomRegistry;
 
 	constructor(
-		initialDocument: MuseumSceneDocument,
+		initialDocument: SceneDocument,
 		rooms: LayoutRoomRegistry
 	) {
-		const cloned = cloneMuseumSceneDocument(initialDocument);
+		const cloned = cloneSceneDocument(initialDocument);
 		this.document = cloned;
 		this.rooms = rooms;
 		this.baselineCanonicalJson = serializeSceneDocument(cloned);
@@ -151,8 +151,8 @@ export class EditorDocumentStore {
 	 * listener atomically. Used by `commitDocumentTransaction`,
 	 * `undo/redo`, `importDocument`, and `resetToCheckedInDocument`.
 	 */
-	replace(next: MuseumSceneDocument) {
-		this.document = cloneMuseumSceneDocument(next);
+	replace(next: SceneDocument) {
+		this.document = cloneSceneDocument(next);
 		this.#rebuildRuntime();
 		this.#fireAfterReplace();
 	}
@@ -199,7 +199,7 @@ export class EditorDocumentStore {
 	 * static so `HistoryController` can use it without re-implementing
 	 * the same JSON-stringify comparison.
 	 */
-	static documentsMatch(a: MuseumSceneDocument, b: MuseumSceneDocument): boolean {
+	static documentsMatch(a: SceneDocument, b: SceneDocument): boolean {
 		return JSON.stringify(a) === JSON.stringify(b);
 	}
 
@@ -211,7 +211,7 @@ export class EditorDocumentStore {
 	#rebuildRuntime(rooms: LayoutRoomRegistry = this.rooms) {
 		const nextScene = resolveSceneDocument(this.document, rooms);
 		const initialNodeId = pickInitialNavigationNodeId(nextScene);
-		const nextState = createMuseumState(createNavigationGraph(nextScene), initialNodeId);
+		const nextState = createRuntimeState(createNavigationGraph(nextScene), initialNodeId);
 		// Re-assigning `$state.raw` outside an `untrack` wrap inside the
 		// sub-store is safe; the watcher pipeline ignores `$state.raw`
 		// reads. Match the pre-slice god-file (lines 4311–4312) — do not

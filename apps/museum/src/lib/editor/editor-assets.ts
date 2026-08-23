@@ -1,17 +1,17 @@
-import { museumAssets, type MuseumAssetFilters } from '$lib/content/assets';
-import type { AssetStatus, MuseumAsset } from '$lib/types/assets';
+import { assets, type AssetFilters } from '$lib/content/assets';
+import type { AssetStatus, Asset } from '$lib/types/assets';
 
 export type AssetLibraryStatusFilter = 'usable' | AssetStatus;
 
-export type AssetLibraryFilters = Omit<MuseumAssetFilters, 'status'> & {
+export type AssetLibraryFilters = Omit<AssetFilters, 'status'> & {
 	status?: AssetLibraryStatusFilter;
 };
 
 /** Default editor browsing excludes rejected assets without changing the public manifest API. */
 export function filterAssetLibraryItems(
-	assets: readonly MuseumAsset[],
+	assets: readonly Asset[],
 	filters: AssetLibraryFilters = {}
-): MuseumAsset[] {
+): Asset[] {
 	const { status = 'usable', ...manifestFilters } = filters;
 	const query = manifestFilters.query?.trim().toLocaleLowerCase() ?? '';
 	return assets.filter((asset) => {
@@ -24,8 +24,8 @@ export function filterAssetLibraryItems(
 	});
 }
 
-export function listAssetLibraryItems(filters: AssetLibraryFilters = {}): MuseumAsset[] {
-	return filterAssetLibraryItems(museumAssets, filters);
+export function listAssetLibraryItems(filters: AssetLibraryFilters = {}): Asset[] {
+	return filterAssetLibraryItems(assets, filters);
 }
 
 /** Allocate base, then base-2, base-3, ... while reserving the returned ID immediately. */

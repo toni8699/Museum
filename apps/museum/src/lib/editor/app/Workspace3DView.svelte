@@ -2,18 +2,18 @@
 	import { Canvas } from '@threlte/core';
 	import MuseumScene from '$lib/museum/MuseumScene.svelte';
 	import type { EditorPlacementRegistry } from '$lib/museum/placement-registry';
-	import EditorMuseumEntities from '$lib/editor/EditorMuseumEntities.svelte';
-	import EditorCameraHelpers from '$lib/editor/EditorCameraHelpers.svelte';
-	import EditorCameraFramingHelpers from '$lib/editor/EditorCameraFramingHelpers.svelte';
-	import EditorCameraPathHelpers from '$lib/editor/EditorCameraPathHelpers.svelte';
-	import EditorCameraViewHelpers from '$lib/editor/EditorCameraViewHelpers.svelte';
-	import EditorCameraRig from '$lib/editor/EditorCameraRig.svelte';
+	import EditorSceneEntities from '$lib/editor/EditorSceneEntities.svelte';
+	import EditorCameraHelpers from '$lib/editor/camera/EditorCameraHelpers.svelte';
+	import EditorCameraFramingHelpers from '$lib/editor/camera/EditorCameraFramingHelpers.svelte';
+	import EditorCameraPathHelpers from '$lib/editor/camera/EditorCameraPathHelpers.svelte';
+	import EditorCameraViewHelpers from '$lib/editor/camera/EditorCameraViewHelpers.svelte';
+	import EditorCameraRig from '$lib/editor/camera/EditorCameraRig.svelte';
 	import EditorGrid from '$lib/editor/EditorGrid.svelte';
 	import EditorOrientationGizmo from '$lib/editor/EditorOrientationGizmo.svelte';
 	import EditorOrientationGizmoOverlay from '$lib/editor/EditorOrientationGizmoOverlay.svelte';
-	import EditorCameraLabelProjector from '$lib/editor/EditorCameraLabelProjector.svelte';
-	import EditorCameraLabelsOverlay from '$lib/editor/EditorCameraLabelsOverlay.svelte';
-	import { buildCameraNodeLabelKinds } from '$lib/editor/editor-camera-labels';
+	import EditorCameraLabelProjector from '$lib/editor/camera/EditorCameraLabelProjector.svelte';
+	import EditorCameraLabelsOverlay from '$lib/editor/camera/EditorCameraLabelsOverlay.svelte';
+	import { buildCameraNodeLabelKinds } from '$lib/editor/camera/editor-camera-labels';
 	import EditorViewportGridControls from '$lib/editor/EditorViewportGridControls.svelte';
 	import EditorPlacementTools from '$lib/editor/EditorPlacementTools.svelte';
 	import EditorSelection from '$lib/editor/EditorSelection.svelte';
@@ -38,7 +38,7 @@
 		toggleLayoutCeilings,
 		type LayoutPreviewState
 	} from '$lib/editor/layout/layout-preview-state.svelte';
-	import type { MuseumEditorStore } from '$lib/editor/museum-editor.svelte';
+	import type { EditorStore } from '$lib/editor/editor-store.svelte';
 	import { resolveEditorPlacementScale } from '$lib/editor/scale-vector';
 	import type { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 	import { getContext } from 'svelte';
@@ -65,7 +65,7 @@
 		// Camera context; the editor camera rig stays mounted in both.
 		context = 'scene'
 	}: {
-		store: MuseumEditorStore;
+		store: EditorStore;
 		layoutPreview: LayoutPreviewState;
 		layoutInteraction: LayoutInteractionState;
 		context: 'scene' | 'camera';
@@ -249,7 +249,7 @@
 				/>
 			{/snippet}
 		</MuseumScene>
-		<EditorMuseumEntities
+		<EditorSceneEntities
 			scene={store.scene}
 			rooms={store.rooms}
 			{placementRegistry}
@@ -326,7 +326,7 @@
 	{/if}
 	{#if store.pendingPlacementAssetId}
 		<div class="placement-hint" role="status">
-			Click a tagged museum-room floor to place · Escape cancels
+			Click a tagged room floor to place · Escape cancels
 		</div>
 	{/if}
 	{#if store.pendingPlacementPrimitiveKind}

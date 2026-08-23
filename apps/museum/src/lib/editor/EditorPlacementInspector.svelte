@@ -3,9 +3,9 @@
 		ROTATION_SNAP_DEGREES_OPTIONS,
 		TRANSLATION_SNAP_STEPS
 	} from './editor-placement';
-	import type { MuseumEditorStore } from './museum-editor.svelte';
+	import type { EditorStore } from './editor-store.svelte';
 
-	let { store }: { store: MuseumEditorStore } = $props();
+	let { store }: { store: EditorStore } = $props();
 
 	const hasSelection = $derived(store.selectedPlacementId != null);
 

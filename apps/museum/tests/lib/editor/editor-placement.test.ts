@@ -22,7 +22,7 @@ import {
 	rotationSnapRadians,
 	snapRoomLocalPosition
 } from '$lib/editor/editor-placement';
-import { museumRooms } from '$lib/content/rooms';
+import { rooms } from '$lib/content/rooms';
 
 function makeFloor(y = 0, roomId?: string) {
 	const mesh = new Mesh(new PlaneGeometry(20, 20), new MeshBasicMaterial());
@@ -94,7 +94,7 @@ describe('findPlaceableFloorIntersection', () => {
 		expect(result?.roomId).toBe('paris');
 	});
 
-	it('accepts any tagged museum floor when roomId is omitted', () => {
+	it('accepts any tagged room floor when roomId is omitted', () => {
 		const workshopFloor = makeFloor(0.5, 'workshop');
 		const parisFloor = makeFloor(0.01, 'paris');
 		const result = findPlaceableFloorIntersection([
@@ -105,8 +105,8 @@ describe('findPlaceableFloorIntersection', () => {
 		expect(result?.roomId).toBe('workshop');
 	});
 
-	it('resolves room ownership for every tagged museum floor', () => {
-		for (const room of museumRooms) {
+	it('resolves room ownership for every tagged room floor', () => {
+		for (const room of rooms) {
 			const floor = makeFloor(0, room.id);
 			expect(findPlaceableFloorIntersection([hit(floor, 1, 0)])?.roomId).toBe(
 				room.id

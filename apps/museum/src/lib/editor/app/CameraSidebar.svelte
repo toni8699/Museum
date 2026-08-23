@@ -5,7 +5,7 @@
 	//
 	//   Environment · Sequence Inspector · Unsequenced · Connections
 	//
-	// Environment is read-only spatial context (museum / floors / rooms /
+	// Environment is read-only spatial context (scene / floors / rooms /
 	// architectural elements), rebuilt from the same pure unified-tree model
 	// the Scene tree uses — Camera domain must never mutate it. The other three
 	// sections come from the existing CameraFlowPanel (chain + loop row +
@@ -14,7 +14,7 @@
 	// selection, drag reorder, and history semantics.
 	import { formatPlacementLabel } from '$lib/editor/editor-outliner';
 	import CameraFlowPanel from '$lib/editor/CameraFlowPanel.svelte';
-	import type { MuseumEditorStore } from '$lib/editor/museum-editor.svelte';
+	import type { EditorStore } from '$lib/editor/editor-store.svelte';
 	import {
 		buildUnifiedProjectTreeModel,
 		type UnifiedTreeRoom
@@ -25,7 +25,7 @@
 		store,
 		layoutPreview
 	}: {
-		store: MuseumEditorStore;
+		store: EditorStore;
 		layoutPreview: LayoutPreviewState;
 	} = $props();
 
@@ -64,7 +64,7 @@
 		<span aria-label={`${model.rooms.length} rooms`}>{model.rooms.length}</span>
 	</div>
 	{#if model.rooms.length === 0}
-		<p class="empty">No museum environment yet</p>
+		<p class="empty">No environment yet</p>
 	{:else}
 		<ul role="tree" aria-label="Environment rooms">
 			{#each model.rooms as room (room.roomId)}

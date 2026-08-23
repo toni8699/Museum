@@ -8,7 +8,7 @@
  * `SCENE_LIGHT_KINDS`, `HEX_COLOR_PATTERN`) live here because the entity/light
  * parsers read them.
  */
-import type { MuseumRoomId, Vec3 } from '$lib/types/museum';
+import type { RoomId, Vec3 } from '$lib/types/scene';
 import type { MaterialId } from '$lib/types/materials';
 import { isMaterialId } from '../materials';
 import { isSafeTextureUri } from '../texture-uri';
@@ -151,9 +151,9 @@ export function readRoomId(
 	key: string,
 	path: string,
 	issues: SceneDocumentIssue[]
-): MuseumRoomId | undefined {
+): RoomId | undefined {
 	const roomId = readRequiredString(value, key, path, issues);
-	return roomId as MuseumRoomId | undefined;
+	return roomId as RoomId | undefined;
 }
 
 export function readStringArray(

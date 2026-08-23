@@ -2,14 +2,14 @@ import {
   getNode,
   type NavigationGraph
 } from '$lib/content/scene';
-import { museumNavigationGraph } from '$lib/content/chopin-project';
+import { navigationGraph } from '$lib/content/chopin-project';
 import type {
   CameraConnectionDirection,
-  MuseumConnection,
+  RuntimeConnection,
   NavigationNodeData,
   Vec3
-} from '$lib/types/museum';
-export type { CameraConnectionDirection } from '$lib/types/museum';
+} from '$lib/types/scene';
+export type { CameraConnectionDirection } from '$lib/types/scene';
 import type {
   CameraMotionOptions,
   CameraPositionPathPart,
@@ -19,7 +19,7 @@ import type {
 } from './camera-motion';
 
 type OrientedConnection = {
-  connection: MuseumConnection;
+  connection: RuntimeConnection;
   fromNodeId: string;
   toNodeId: string;
   reversed: boolean;
@@ -369,7 +369,7 @@ function buildResolvedRoute(
 export function getCameraRoute(
   fromNodeId: string,
   toNodeId: string,
-  graph: NavigationGraph = museumNavigationGraph
+  graph: NavigationGraph = navigationGraph
 ): ResolvedCameraRoute {
   if (fromNodeId === toNodeId) {
     const node = getNode(fromNodeId, graph);
@@ -402,7 +402,7 @@ export function getCameraRoute(
 export function getCameraConnectionRoute(
   connectionId: string,
   direction: CameraConnectionDirection,
-  graph: NavigationGraph = museumNavigationGraph
+  graph: NavigationGraph = navigationGraph
 ): ResolvedCameraRoute {
   if (direction !== 'forward' && direction !== 'reverse') {
     throw new Error(`Unknown camera connection direction: ${String(direction)}`);
@@ -488,7 +488,7 @@ function walkFlowChain(startNodeId: string, graph: NavigationGraph): FlowChain {
  */
 export function getFlowLoopConnectionId(
   startNodeId: string,
-  graph: NavigationGraph = museumNavigationGraph
+  graph: NavigationGraph = navigationGraph
 ): string | null {
   const chain = walkFlowChain(startNodeId, graph);
   const closing = findDirectConnectionSafe(chain.tail.id, chain.head.id, graph);
@@ -505,7 +505,7 @@ export function getFlowLoopConnectionId(
  */
 export function getFlowRoute(
   startNodeId: string,
-  graph: NavigationGraph = museumNavigationGraph,
+  graph: NavigationGraph = navigationGraph,
   options: { loop?: boolean } = {}
 ): ResolvedCameraRoute {
   const chain = walkFlowChain(startNodeId, graph);
@@ -532,9 +532,9 @@ export function getFlowRoute(
   return buildResolvedRoute(chain.head.id, endNodeId, path, graph);
 }
 
-/** Phase 3.7: project a connection's authored timing pair onto per-direction motion options consumed by `createCameraMotion`. Accepts persisted (`SceneConnection`) and runtime (`MuseumConnection`) records — only `timing` is read. */
+/** Phase 3.7: project a connection's authored timing pair onto per-direction motion options consumed by `createCameraMotion`. Accepts persisted (`SceneConnection`) and runtime (`RuntimeConnection`) records — only `timing` is read. */
 export function getCameraMotionOptions(
-  connection: Pick<MuseumConnection, 'timing'>,
+  connection: Pick<RuntimeConnection, 'timing'>,
   direction: CameraConnectionDirection
 ): CameraMotionOptions {
   const timing = connection.timing?.[direction];

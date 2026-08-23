@@ -3,14 +3,14 @@ import {
 	createNavigationGraph,
 	resolveSceneDocument,
 	type NavigationGraph,
-	type RuntimeMuseumScene
+	type RuntimeScene
 } from './scene';
-import { validateMuseumProject } from '$lib/project/project-codec';
+import { validateProject } from '$lib/project/project-codec';
 import {
 	createLayoutRoomRegistry,
 	type LayoutRoomRegistry
 } from '$lib/project/project-layout-semantics';
-import type { MuseumProject } from '$lib/project/project-types';
+import type { Project } from '$lib/project/project-types';
 import {
 	chopinRoomPresentation,
 	validateChopinRoomPresentation,
@@ -20,16 +20,16 @@ import { compileLayoutGeometry } from '$lib/layout/layout-geometry';
 import { hasBlockingLayoutIssues } from '$lib/layout/layout-geometry-validation';
 import type { CompiledLayoutGeometry } from '$lib/layout/layout-geometry-types';
 
-export type MuseumRuntime = {
-	project: MuseumProject;
+export type Runtime = {
+	project: Project;
 	rooms: LayoutRoomRegistry;
-	scene: RuntimeMuseumScene;
+	scene: RuntimeScene;
 	graph: NavigationGraph;
 	presentation: Readonly<Record<string, ChopinRoomPresentation>>;
 	geometry: CompiledLayoutGeometry;
 };
 
-const validation = validateMuseumProject(rawChopinProject);
+const validation = validateProject(rawChopinProject);
 if (!validation.success) {
 	const first = validation.issues[0]!;
 	throw new Error(`Invalid Chopin project: ${first.path} (${first.code}) — ${first.message}`);
@@ -39,8 +39,8 @@ export const chopinProject = validation.project;
 validateChopinRoomPresentation(chopinProject);
 
 const rooms = createLayoutRoomRegistry(chopinProject.layout);
-const scene = resolveSceneDocument(chopinProject.scene, rooms);
-const graph = createNavigationGraph(scene);
+const resolvedScene = resolveSceneDocument(chopinProject.scene, rooms);
+const graph = createNavigationGraph(resolvedScene);
 
 const geometryResult = compileLayoutGeometry(chopinProject.layout);
 if (hasBlockingLayoutIssues(geometryResult.issues)) {
@@ -48,17 +48,17 @@ if (hasBlockingLayoutIssues(geometryResult.issues)) {
 	throw new Error(`Invalid Chopin layout geometry: ${first.path} (${first.code}) — ${first.message}`);
 }
 
-export const chopinRuntime: MuseumRuntime = {
+export const chopinRuntime: Runtime = {
 	project: chopinProject,
 	rooms,
-	scene,
+	scene: resolvedScene,
 	graph,
 	presentation: chopinRoomPresentation,
 	geometry: geometryResult.geometry
 };
 
 /** Compatibility aliases. All derive from the same validated project instance. */
-export const museumSceneDocument = chopinProject.scene;
-export const museumScene = chopinRuntime.scene;
-export const museumNavigationGraph = chopinRuntime.graph;
+export const sceneDocument = chopinProject.scene;
+export const scene = chopinRuntime.scene;
+export const navigationGraph = chopinRuntime.graph;
 export const nodeById = chopinRuntime.graph.nodeById;

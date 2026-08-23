@@ -1,18 +1,18 @@
 import { describe, expect, it } from 'vitest';
 
 import { cloneFixtureDocument } from '../../content/__fixtures__/load-fixture-scene';
-import type { MuseumSceneDocument } from '$lib/content/scene';
+import type { SceneDocument } from '$lib/content/scene';
 import { chopinRuntime } from '$lib/content/chopin-project';
 
 import {
-	cloneMuseumSceneDocument,
+	cloneSceneDocument,
 	EditorDocumentStore
 } from '$lib/editor/store/document-store.svelte';
 import { EditorCameraPreviewController } from '$lib/editor/store/camera-preview-controller.svelte';
 import { EditorHistoryController } from '$lib/editor/store/history-controller.svelte';
 
-function fingerprint(doc: MuseumSceneDocument): MuseumSceneDocument {
-	const next = cloneMuseumSceneDocument(doc);
+function fingerprint(doc: SceneDocument): SceneDocument {
+	const next = cloneSceneDocument(doc);
 	const first = next.entities[0];
 	if (!first) throw new Error('scene document has no entities');
 	first.rotation = [
@@ -56,7 +56,7 @@ describe('EditorHistoryController', () => {
 	it('commit() no-ops when the document is unchanged', () => {
 		const { document, history } = makeControllers();
 		expect(history.beginDocument()).toBe(true);
-		const result = history.commit(cloneMuseumSceneDocument(document.document));
+		const result = history.commit(cloneSceneDocument(document.document));
 		expect(result.changed).toBe(false);
 		expect(result.type).toBe(null);
 		expect(history.pastDepth).toBe(0);

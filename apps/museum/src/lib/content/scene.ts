@@ -8,25 +8,25 @@ import type { MaterialId } from '$lib/types/materials';
 import type {
   CameraConnectionDirection,
   CameraEasing,
-  MuseumConnection,
-  MuseumRoomId,
+  RuntimeConnection,
+  RoomId,
   NavigationNodeData,
   RuntimeCameraViewKeyframe,
   RuntimePathAnchor,
   SceneConnectionTiming,
   SceneViewKeyframeTiming,
   Vec3
-} from '$lib/types/museum';
+} from '$lib/types/scene';
 
 /** Runtime / editor projection of a model entity (no kind/name). */
 export type SceneObjectPlacement = AssetPlacement & {
-  roomId: MuseumRoomId;
+  roomId: RoomId;
 };
 
 export type SceneObjectCluster = {
   id: string;
   name: string;
-  roomId: MuseumRoomId;
+  roomId: RoomId;
   memberIds: string[];
 };
 
@@ -57,7 +57,7 @@ export type SceneEntityTransform = {
 export type SceneEntityBase = SceneEntityTransform & {
   id: string;
   name: string;
-  roomId: MuseumRoomId;
+  roomId: RoomId;
 };
 
 export type SceneRenderableEntityBase = SceneEntityBase & {
@@ -188,7 +188,7 @@ export type SceneCameraViewKeyframe = {
   progress: number;
   /** Room-local when roomId is present, otherwise world-space. */
   cameraTarget: Vec3;
-  roomId?: MuseumRoomId;
+  roomId?: RoomId;
   /** Vertical PerspectiveCamera field of view in degrees. */
   fov: number;
   /** Phase 3.7 authored post-key timing. */
@@ -220,7 +220,7 @@ export type SceneConnectionTimingPair = {
 export type SceneWaypoint = {
   /** Room-local when roomId is present, otherwise world-space. */
   position: Vec3;
-  roomId?: MuseumRoomId;
+  roomId?: RoomId;
 };
 
 export type ScenePathAnchor = SceneWaypoint & {
@@ -239,7 +239,7 @@ export type ScenePositionPath =
     };
 
 export type SceneConnection = Omit<
-  MuseumConnection,
+  RuntimeConnection,
   'positionPath' | 'viewTracks' | 'targetWaypoints' | 'timing'
 > & {
   /** Interior anchors only; the resolver inserts fresh node endpoints. */
@@ -258,7 +258,7 @@ export type SceneConnection = Omit<
  * document — the runtime tour/preview guards a blank project separately, so a
  * project with no navigation graph cannot start a broken tour.
  */
-export function createEmptySceneDocument(): MuseumSceneDocument {
+export function createEmptySceneDocument(): SceneDocument {
 	return {
 		textures: [],
 		materials: [],
@@ -268,7 +268,7 @@ export function createEmptySceneDocument(): MuseumSceneDocument {
 	};
 }
 
-export type MuseumSceneDocument = {
+export type SceneDocument = {
   textures: SceneTextureAsset[];
   materials: SceneMaterialInstance[];
   entities: SceneEntity[];
@@ -279,9 +279,9 @@ export type MuseumSceneDocument = {
 };
 
 /** Runtime type that the document parser canonicalises into. */
-export type CanonicalMuseumSceneDocument = MuseumSceneDocument;
+export type CanonicalSceneDocument = SceneDocument;
 
-export type RuntimeMuseumScene = {
+export type RuntimeScene = {
   /** Registered texture assets; rendering support lands in Phase 5.3. */
   textures: SceneTextureAsset[];
   /** Material instances; rendering support lands in Phase 5.3. */
@@ -299,7 +299,7 @@ export type RuntimeMuseumScene = {
   /** World-space camera poses. */
   navigationNodes: NavigationNodeData[];
   /** World-space waypoints, including fresh node endpoints. */
-  connections: MuseumConnection[];
+  connections: RuntimeConnection[];
 };
 
 export function isSceneModelEntity(entity: SceneEntity): entity is SceneModelEntity {
@@ -317,7 +317,7 @@ export function isSceneLightEntity(entity: SceneEntity): entity is SceneLightEnt
 }
 
 export function listSceneModelEntities(
-  document: MuseumSceneDocument
+  document: SceneDocument
 ): SceneModelEntity[] {
   return document.entities.filter(isSceneModelEntity);
 }
@@ -428,7 +428,7 @@ export function placementToModelEntity(
 
 export type NavigationGraph = {
   navigationNodes: readonly NavigationNodeData[];
-  connections: readonly MuseumConnection[];
+  connections: readonly RuntimeConnection[];
   nodeById: ReadonlyMap<string, NavigationNodeData>;
 };
 
@@ -463,7 +463,7 @@ function resolveViewKeyframe(
   };
 }
 
-export function resolveSceneDocument(input: unknown, rooms: SceneRoomResolver): RuntimeMuseumScene {
+export function resolveSceneDocument(input: unknown, rooms: SceneRoomResolver): RuntimeScene {
   const validation = validateSceneDocument(input);
   if (!validation.success) throw new SceneDocumentValidationError(validation.issues[0]!);
   const document = validation.document;
@@ -483,7 +483,7 @@ export function resolveSceneDocument(input: unknown, rooms: SceneRoomResolver): 
     return node;
   };
 
-  const connections = document.connections.map((connection): MuseumConnection => {
+  const connections = document.connections.map((connection): RuntimeConnection => {
     const fromNode = getResolvedNode(connection.fromNodeId);
     const toNode = getResolvedNode(connection.toNodeId);
     const interiorAnchors = connection.positionPath.anchors.map(
@@ -492,7 +492,7 @@ export function resolveSceneDocument(input: unknown, rooms: SceneRoomResolver): 
         position: resolveWaypoint(anchor, rooms)
       })
     );
-    const resolved: MuseumConnection = {
+    const resolved: RuntimeConnection = {
       id: connection.id,
       fromNodeId: connection.fromNodeId,
       toNodeId: connection.toNodeId,
@@ -564,7 +564,7 @@ export function resolveSceneDocument(input: unknown, rooms: SceneRoomResolver): 
 }
 
 export function createNavigationGraph<
-  T extends Pick<RuntimeMuseumScene, 'navigationNodes' | 'connections'>
+  T extends Pick<RuntimeScene, 'navigationNodes' | 'connections'>
 >(
   scene: T
 ): NavigationGraph {
@@ -577,13 +577,13 @@ export function createNavigationGraph<
 
 export function assertNavigationGraphMatchesScene(
   graph: NavigationGraph,
-  scene: RuntimeMuseumScene
+  scene: RuntimeScene
 ) {
   if (
     graph.navigationNodes !== scene.navigationNodes ||
     graph.connections !== scene.connections
   ) {
-    throw new Error('Museum navigation state must use the same resolved scene instance');
+    throw new Error('Navigation state must use the same resolved scene instance');
   }
 }
 

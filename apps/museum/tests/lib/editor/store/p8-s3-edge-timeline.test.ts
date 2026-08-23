@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { chopinRuntime } from '$lib/content/chopin-project';
-import { createMuseumEditorStore } from '$lib/editor/museum-editor.svelte';
+import { createEditorStore } from '$lib/editor/editor-store.svelte';
 import { createFixtureEditorStore } from '../editor-test-utils';
 import { cloneFixtureDocument } from '../../content/__fixtures__/load-fixture-scene';
-import { createEdgeLocalTimeline } from '$lib/editor/editor-camera-timeline';
-import { resolveDirectedEdgeMotionByDirection } from '$lib/editor/editor-directed-edge-motion';
+import { createEdgeLocalTimeline } from '$lib/editor/camera/editor-camera-timeline';
+import { resolveDirectedEdgeMotionByDirection } from '$lib/editor/camera/editor-directed-edge-motion';
 import { useCameraTimeline } from '$lib/editor/hooks/use-camera-timeline.svelte';
 import { createCameraMotionSample, sampleCameraMotion } from '$lib/museum/navigation/camera-motion';
 
@@ -35,7 +35,7 @@ describe('P8 S3 edge-local timeline — C—E unsequenced scenario', () => {
 	it('Unsequenced C—E → edgeTimeline non-null with finite duration (no getFlowRoute)', () => {
 		const document = cloneFixtureDocument();
 		const connId = addFreeNodeWithConnection(document);
-		const store = createMuseumEditorStore({ document, rooms: chopinRuntime.rooms });
+		const store = createEditorStore({ document, rooms: chopinRuntime.rooms });
 		// Select the unsequenced connection (simulates user picking C—E)
 		store.selectionActions.selectConnection(connId);
 		const api = useCameraTimeline(store);
@@ -57,7 +57,7 @@ describe('P8 S3 edge-local timeline — C—E unsequenced scenario', () => {
 	it('idle-with-connection candidate shows disabled controls (no preview)', () => {
 		const document = cloneFixtureDocument();
 		const connId = addFreeNodeWithConnection(document);
-		const store = createMuseumEditorStore({ document, rooms: chopinRuntime.rooms });
+		const store = createEditorStore({ document, rooms: chopinRuntime.rooms });
 		store.selectionActions.selectConnection(connId);
 		const api = useCameraTimeline(store);
 		// No preview yet — candidate mode
@@ -125,7 +125,7 @@ describe('P8 S3 active-preview precedence', () => {
 	it('with connection preview active, edgeTimeline resolves preview id+dir not selection', () => {
 		const document = cloneFixtureDocument();
 		const connFree = addFreeNodeWithConnection(document);
-		const store = createMuseumEditorStore({ document, rooms: chopinRuntime.rooms });
+		const store = createEditorStore({ document, rooms: chopinRuntime.rooms });
 		const firstConn = document.connections.find((c) => c.id !== connFree)!.id;
 		// Start preview for first connection (tour-a-b)
 		expect(store.previewEdge(firstConn, 'forward', 'director')).toBe(true);

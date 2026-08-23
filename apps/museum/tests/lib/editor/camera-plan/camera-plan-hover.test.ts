@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { MuseumSceneDocument } from '$lib/content/scene';
+import type { SceneDocument } from '$lib/content/scene';
 import { geometryId } from '$lib/layout/layout-geometry-types';
 import { compileLayoutGeometry } from '$lib/layout/layout-geometry';
 import { buildPlanRenderModel, type PlanRenderPrimitive } from '$lib/layout/plan-render-model';
@@ -9,7 +9,7 @@ import { buildPlanCameraAuthoringProjection } from '$lib/editor/layout/plan-came
 import { applyCameraPlanHover } from '$lib/editor/camera-plan/camera-plan-hover';
 
 /** Three-node graph over one unrotated room (room-a at 0,0 6×4), one auto-bezier + one rounded-polyline edge. */
-function authoringDocument(): MuseumSceneDocument {
+function authoringDocument(): SceneDocument {
 	return {
 		textures: [],
 		materials: [],

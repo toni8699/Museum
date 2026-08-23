@@ -28,9 +28,9 @@
 import type {
 	NavigationSelection,
 	WorkspaceSelection
-} from '../museum-editor.types';
+} from '../editor-types';
 import type { EditorSessionState } from './session-state.svelte';
-import type { CameraConnectionDirection, MuseumRoomId } from '$lib/types/museum';
+import type { CameraConnectionDirection, RoomId } from '$lib/types/scene';
 import type { EditorNavigationSelection } from '../editor-selection';
 
 /**
@@ -67,11 +67,11 @@ export function navigationSelectionFromState(
 	}
 }
 
-function roomOnly(roomId: MuseumRoomId): WorkspaceSelection {
+function roomOnly(roomId: RoomId): WorkspaceSelection {
 	return { kind: 'placement', ids: [], clusterId: null, roomId };
 }
 
-function workspaceRoomId(workspace: WorkspaceSelection): MuseumRoomId | null {
+function workspaceRoomId(workspace: WorkspaceSelection): RoomId | null {
 	return workspace.kind === 'none' ? null : workspace.roomId;
 }
 
@@ -95,8 +95,8 @@ export class EditorSelectionStore {
 
 	/**
 	 * the only injection seam for the cross-domain hook: the store is
-	 * a private field initializer inside `MuseumEditorStore`, so the shell
-	 * passes the callback through `createMuseumEditorStore` options and this
+	 * a private field initializer inside `EditorStore`, so the shell
+	 * passes the callback through `createEditorStore` options and this
 	 * setter, not a constructor arg.
 	 */
 	setOnSelectionActivate(callback: (() => void) | null): void {
@@ -115,7 +115,7 @@ export class EditorSelectionStore {
 		this.#session = session;
 	}
 
-	expandRoom(roomId: MuseumRoomId): boolean {
+	expandRoom(roomId: RoomId): boolean {
 		return this.#requireSession().expandRoom(roomId);
 	}
 

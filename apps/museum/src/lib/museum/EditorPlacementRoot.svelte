@@ -3,7 +3,7 @@
   import type { Group } from 'three';
   import type { Snippet } from 'svelte';
   import type { EditorPlacementRegistry } from './placement-registry';
-  import type { MuseumRoomId, Vec3 } from '$lib/types/museum';
+  import type { RoomId, Vec3 } from '$lib/types/scene';
 
   let {
     placementId,
@@ -18,7 +18,7 @@
     children
   }: {
     placementId: string;
-    roomId: MuseumRoomId;
+    roomId: RoomId;
     placementRegistry: EditorPlacementRegistry;
     position?: Vec3;
     rotation?: Vec3;

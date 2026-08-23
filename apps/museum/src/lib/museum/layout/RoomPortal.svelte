@@ -1,7 +1,7 @@
 <script lang="ts">
   import { T } from '@threlte/core';
   import type { MaterialId } from '$lib/types/materials';
-  import type { Vec3 } from '$lib/types/museum';
+  import type { Vec3 } from '$lib/types/scene';
   import MuseumMaterial from '../materials/MuseumMaterial.svelte';
 
   let {

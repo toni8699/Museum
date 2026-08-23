@@ -28,7 +28,7 @@ import type {
 } from '$lib/layout/layout-geometry-types';
 import { geometryId } from '$lib/layout/layout-geometry-types';
 import { pointAlongSamples } from '$lib/layout/layout-geometry-curve';
-import type { Vec3 } from '$lib/types/museum';
+import type { Vec3 } from '$lib/types/scene';
 
 /** A pose TransformControls would read/write on a session-only proxy object. */
 export type LayoutGizmoProxyPose = {

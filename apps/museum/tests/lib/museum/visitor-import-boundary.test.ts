@@ -50,7 +50,7 @@ describe('visitor import boundary', () => {
 		expect(relative.some((file) => file.includes('/editor/'))).toBe(false);
 		expect(relative).not.toContain('lib/content/rooms.ts');
 		expect(relative).not.toContain('lib/content/rooms-to-layout.ts');
-		expect(relative).not.toContain('lib/content/museum-scene.json');
+		expect(relative).not.toContain('lib/content/scene.json');
 		expect(relative).not.toContain('lib/museum/layout/MuseumShell.svelte');
 	});
 

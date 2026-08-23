@@ -22,7 +22,7 @@
 
 import { isMaterialId } from '$lib/content/materials';
 import type {
-	MuseumSceneDocument,
+	SceneDocument,
 	SceneEntity,
 	SceneMaterialInstance,
 	SceneModelEntity,
@@ -43,7 +43,7 @@ import {
 export interface EditorMaterialResourceMutatorHost {
 	readonly isDocumentMutationBlocked: boolean;
 	readonly isEditorInteractionActive: boolean;
-	readonly document: MuseumSceneDocument;
+	readonly document: SceneDocument;
 	setStatusMessage(message: string | null): void;
 	beginDocumentTransaction(): boolean;
 	commitDocumentTransaction(): boolean;
@@ -528,7 +528,7 @@ export class EditorMaterialResourceMutator {
 	}
 }
 
-function ownerEntityId(document: MuseumSceneDocument, instanceId: string): string | null {
+function ownerEntityId(document: SceneDocument, instanceId: string): string | null {
 	for (const entity of document.entities) {
 		if (
 			(entity.kind === 'model' || entity.kind === 'primitive') &&

@@ -2,13 +2,13 @@
  * `EditorNavigationGraphMutator` — camera-graph topology / guided-tour /
  * timing mutation controller (Phase 9.2).
  *
- * The god file (`museum-editor.svelte.ts`) historically owned every
+ * The god file (`editor-store.svelte.ts`) historically owned every
  * navigation-graph *write*: pending-camera placement flows, node/connection
  * connect commands, guided-tour ordering, topology deletion, and per-edge /
  * per-node timing. Phase 9.2 hard-moves those method bodies here, following
  * the `EditorSelectionActions` + host-injection pattern.
  *
- * `MuseumEditorStore` keeps identical public method signatures as thin
+ * `EditorStore` keeps identical public method signatures as thin
  * delegates (`beginCameraPlacement() { return this.navigationGraphMutator
  * .beginCameraPlacement(); }`), so components keep importing the store facade
  * unchanged.
@@ -26,19 +26,19 @@ import type { LayoutRoomRegistry } from '$lib/project/project-layout-semantics';
 import { cameraSceneConnectionTimingFailureReason } from '$lib/content/scene-codec';
 import { isFlowNode } from '$lib/content/scene';
 import type {
-	MuseumSceneDocument,
+	SceneDocument,
 	SceneConnection,
 	SceneNavigationNode
 } from '$lib/content/scene';
 import {
-	MUSEUM_CAMERA_EASING,
-	MUSEUM_CAMERA_FOV,
+	CAMERA_EASING,
+	CAMERA_FOV,
 	type CameraConnectionDirection,
-	type MuseumRoomId,
+	type RoomId,
 	type SceneConnectionTiming,
 	type Vec3
-} from '$lib/types/museum';
-import type { EditorCameraTimeline } from '../editor-camera-timeline';
+} from '$lib/types/scene';
+import type { EditorCameraTimeline } from '../camera/editor-camera-timeline';
 import { reserveEntityId } from '../editor-assets';
 import type { EditorNavigationSelection } from '../editor-selection';
 import {
@@ -63,7 +63,7 @@ import type {
 	EditorPendingNavigationCommand,
 	EditorWorkspace,
 	NavigationSelection
-} from '../museum-editor.types';
+} from '../editor-types';
 import type { EditorSelectionStore } from './selection-store.svelte';
 import type { EditorSelectionActions } from './selection-actions.svelte';
 
@@ -72,7 +72,7 @@ export const CAMERA_NODE_CREATION_DEFAULTS = {
 	eyeHeight: 1.65,
 	targetHeight: 1.25,
 	targetDistance: 3,
-	fov: MUSEUM_CAMERA_FOV.default,
+	fov: CAMERA_FOV.default,
 	clearance: 0.35
 } as const;
 
@@ -86,7 +86,7 @@ export function validateSceneConnectionTiming(
 	) {
 		return null;
 	}
-	if (timing.easing !== undefined && !MUSEUM_CAMERA_EASING.includes(timing.easing)) {
+	if (timing.easing !== undefined && !CAMERA_EASING.includes(timing.easing)) {
 		return null;
 	}
 	return { ...timing };
@@ -131,7 +131,7 @@ function cloneNavigation(state: NavigationSelection): NavigationSelection {
 
 /**
  * Composition-root surface the navigation-graph mutator depends on. Everything
- * here stays owned by `MuseumEditorStore`; the mutator never mutates the
+ * here stays owned by `EditorStore`; the mutator never mutates the
  * document store or history controller directly, only through the transaction
  * wrappers and reducer access exposed below.
  */
@@ -142,7 +142,7 @@ export interface EditorNavigationGraphMutatorHost {
 	readonly isDocumentTransactionActive: boolean;
 
 	// Document + selection state.
-	readonly document: MuseumSceneDocument;
+	readonly document: SceneDocument;
 	/** project-relative room frames for camera-node placement. */
 	readonly rooms: LayoutRoomRegistry;
 	readonly selection: EditorSelectionStore;
@@ -288,7 +288,7 @@ export class EditorNavigationGraphMutator {
 	}
 
 	createPendingNavigationNodeAt(
-		roomId: MuseumRoomId,
+		roomId: RoomId,
 		floorWorld: Vec3,
 		cameraForwardWorld: Vec3
 	) {

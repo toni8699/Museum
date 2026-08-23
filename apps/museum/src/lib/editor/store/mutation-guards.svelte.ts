@@ -1,7 +1,7 @@
 /**
  * Shared mutation / interaction / undo guards (Phase 9.1).
  *
- * Extracted from `MuseumEditorStore` so future controllers (nav mutator,
+ * Extracted from `EditorStore` so future controllers (nav mutator,
  * view-keyframe, timeline) share one predicate surface instead of re-copying
  * preview × interaction × history checks.
  *
@@ -9,8 +9,8 @@
  * this module owns only the Boolean composition.
  */
 
-import type { EditorCameraPreview } from '../museum-editor.types';
-import type { EditorViewKeyframeProgressDragSelection } from '../museum-editor.types';
+import type { EditorCameraPreview } from '../editor-types';
+import type { EditorViewKeyframeProgressDragSelection } from '../editor-types';
 
 export interface EditorMutationGuardsHost {
 	readonly cameraPreview: EditorCameraPreview | null;

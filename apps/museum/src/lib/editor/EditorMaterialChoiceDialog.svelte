@@ -1,10 +1,10 @@
 <script lang="ts">
-	import { museumMaterials } from '$lib/content/materials';
+	import { materials } from '$lib/content/materials';
 	import type { MaterialId } from '$lib/types/materials';
-	import type { MaterialShareMode } from './museum-editor.types';
-	import type { MuseumEditorStore } from './museum-editor.svelte';
+	import type { MaterialShareMode } from './editor-types';
+	import type { EditorStore } from './editor-store.svelte';
 
-	let { store }: { store: MuseumEditorStore } = $props();
+	let { store }: { store: EditorStore } = $props();
 
 	const pending = $derived(store.pendingMaterialEdit);
 
@@ -66,7 +66,7 @@
 					<span>Base material</span>
 					<select bind:value={baseMaterialId}>
 						<option value="">Choose…</option>
-						{#each museumMaterials as material}
+						{#each materials as material}
 							<option value={material.id}>{material.label}</option>
 						{/each}
 					</select>

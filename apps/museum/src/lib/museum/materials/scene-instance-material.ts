@@ -5,7 +5,7 @@ import type {
 	MaterialTextureSlot
 } from '$lib/types/materials';
 import type {
-	MuseumSceneDocument,
+	SceneDocument,
 	SceneMaterialInstance,
 	SceneTextureAsset
 } from '$lib/content/scene';
@@ -46,7 +46,7 @@ function djb2(input: string): string {
 }
 
 function findTexture(
-	document: Pick<MuseumSceneDocument, 'textures'>,
+	document: Pick<SceneDocument, 'textures'>,
 	textureId: string | undefined
 ): SceneTextureAsset | undefined {
 	if (!textureId) return undefined;
@@ -63,7 +63,7 @@ function findTexture(
  * produce the same seed and therefore share the same variant.
  */
 export function resolveSceneMaterial(
-	document: Pick<MuseumSceneDocument, 'materials' | 'textures'>,
+	document: Pick<SceneDocument, 'materials' | 'textures'>,
 	target: ResolveTarget
 ): EffectiveSceneMaterial {
 	const instance: SceneMaterialInstance | undefined = target.materialInstanceId

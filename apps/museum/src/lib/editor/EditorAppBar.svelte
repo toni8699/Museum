@@ -1,6 +1,6 @@
 <script lang="ts">
-	import type { MuseumEditorStore } from './museum-editor.svelte';
-	import type { EditorWorkspace } from './museum-editor.types';
+	import type { EditorStore } from './editor-store.svelte';
+	import type { EditorWorkspace } from './editor-types';
 	import EditorProjectMenu from './EditorProjectMenu.svelte';
 
 	let {
@@ -10,7 +10,7 @@
 		confirmLayoutReplacement,
 		relic = false
 	}: {
-		store: MuseumEditorStore;
+		store: EditorStore;
 		layoutPreview: import('./layout/layout-preview-state.svelte').LayoutPreviewState;
 		confirmSceneReplacement: () => boolean;
 		confirmLayoutReplacement: () => boolean;
@@ -37,10 +37,10 @@
 	}
 </script>
 
-<header class="app-bar" aria-label="Museum editor shell" style="grid-area: top;">
+<header class="app-bar" aria-label="Editor shell" style="grid-area: top;">
 	<div class="brand">
 		<span class="title">Museum editor</span>
-		<span class="subtitle">museum-scene.json</span>
+		<span class="subtitle">scene.json</span>
 	</div>
 	<div class="workspaces" role="tablist" aria-label="Editor workspaces">
 		<button

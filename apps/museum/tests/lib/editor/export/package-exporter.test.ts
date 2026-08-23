@@ -5,8 +5,8 @@ import {
 	buildPackageFilename,
 	exportDocumentTitle
 } from '$lib/editor/export/package-exporter';
-import type { MuseumSceneDocument } from '$lib/content/scene';
-import baseSceneFixture from '$lib/content/museum-scene.json';
+import type { SceneDocument } from '$lib/content/scene';
+import baseSceneFixture from '$lib/content/scene.json';
 
 // 1x1 transparent PNG (canonical byte sequence).
 const PNG_BYTES = new Uint8Array([
@@ -27,8 +27,8 @@ const WEBP_BYTES = new Uint8Array([
 	0x52, 0x49, 0x46, 0x46, 0x1a, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50, 0x56, 0x50
 ]);
 
-function makeScene(textures: MuseumSceneDocument['textures']): MuseumSceneDocument {
-	const baseScene = baseSceneFixture as unknown as MuseumSceneDocument;
+function makeScene(textures: SceneDocument['textures']): SceneDocument {
+	const baseScene = baseSceneFixture as unknown as SceneDocument;
 	return {
 		...baseScene,
 		textures,
@@ -53,7 +53,7 @@ describe('package-exporter', () => {
 		expect(map['manifest.json']).toBeDefined();
 		expect(Object.keys(map).filter((n) => n.startsWith('textures/')).length).toBe(1);
 		const manifest = JSON.parse(new TextDecoder().decode(map['manifest.json']!));
-		expect(manifest.package.generator).toBe('museum-editor-5.4');
+		expect(manifest.package.generator).toBe('editor-5.4');
 		expect(manifest.textures.length).toBe(1);
 		expect(manifest.textures[0].fingerprint).toMatch(/^sha256-[0-9a-f]{64}$/);
 	});
@@ -111,20 +111,20 @@ describe('package-exporter', () => {
 		const result = await buildPackage({ document: doc, resolveBytesByUri: resolver, now: new Date('2026-08-07T18:30:00.000Z') });
 		if (result.status !== 'ok') throw new Error('expected ok');
 		const map = unzipSync(result.zip);
-		const sceneJson = JSON.parse(new TextDecoder().decode(map['museum-scene.json']!)) as {
+		const sceneJson = JSON.parse(new TextDecoder().decode(map['scene.json']!)) as {
 			textures: Array<{ id: string; uri: string }>;
 		};
 		expect(sceneJson.textures[0]!.uri).toMatch(/^\/textures\/package-[0-9a-f]{12}\/.+\.png$/);
 	});
 
 	it('buildPackageFilename includes a UTC stamp', () => {
-		expect(buildPackageFilename('museum-scene', new Date('2026-08-07T18:30:00.000Z'))).toBe(
-			'museum-scene-20260807-1830.museumpack.zip'
+		expect(buildPackageFilename('scene', new Date('2026-08-07T18:30:00.000Z'))).toBe(
+			'scene-20260807-1830.scenepack.zip'
 		);
 	});
 
-	it('exportDocumentTitle falls back to "museum-scene" when document has no title', () => {
-		expect(exportDocumentTitle({} as MuseumSceneDocument)).toBe('museum-scene');
+	it('exportDocumentTitle falls back to "scene" when document has no title', () => {
+		expect(exportDocumentTitle({} as SceneDocument)).toBe('scene');
 	});
 
 	it('round-trips: an exported package is accepted by the importer with identical textures', async () => {
@@ -190,7 +190,7 @@ describe('package-exporter', () => {
 				throw new Error(`export failed for ${sniffedExt}: ${result.detail ?? result.reason}`);
 			}
 			const unzipped = unzipSync(result.zip);
-			const sceneJson = unzipped['museum-scene.json'];
+			const sceneJson = unzipped['scene.json'];
 			expect(sceneJson).toBeDefined();
 			const scene = JSON.parse(new TextDecoder().decode(sceneJson!));
 			const rewrittenUri: string = scene.textures[0]!.uri;

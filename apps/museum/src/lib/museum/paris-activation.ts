@@ -3,11 +3,11 @@ import {
   type NavigationGraph,
   type SceneObjectPlacement
 } from '$lib/content/scene';
-import type { MuseumRoomId } from '$lib/types/museum';
+import type { RoomId } from '$lib/types/scene';
 import { getCameraRoute } from './navigation/camera-route';
 
 export type MuseumNavigationStatus = {
-  currentRoomId: MuseumRoomId;
+  currentRoomId: RoomId;
   activeNodeId: string;
   targetNodeId: string | null;
 };

@@ -3,13 +3,13 @@ import { Vector3, type Intersection, type Object3D } from 'three';
 
 import { createEmptySceneDocument } from '$lib/content/scene';
 import { findPlaceableFloorIntersection } from '$lib/editor/editor-placement';
-import { createMuseumEditorStore, type MuseumEditorStore } from '$lib/editor/museum-editor.svelte';
+import { createEditorStore, type EditorStore } from '$lib/editor/editor-store.svelte';
 import {
 	commitLayoutDraftRoom,
 	createEmptyLayoutPreviewState
 } from '$lib/editor/layout/layout-preview-state.svelte';
 import { createLayoutRoomRegistry } from '$lib/project/project-layout-semantics';
-import type { Vec3 } from '$lib/types/museum';
+import type { Vec3 } from '$lib/types/scene';
 import { createRelicFixtureEditorStore } from '../editor-test-utils';
 
 /**
@@ -18,9 +18,9 @@ import { createRelicFixtureEditorStore } from '../editor-test-utils';
  * are room-agnostic in editor; the relic keeps its Paris-oriented behavior.
  */
 
-function draftRoomAndSync(): { store: MuseumEditorStore; roomId: string } {
+function draftRoomAndSync(): { store: EditorStore; roomId: string } {
 	const layoutPreview = createEmptyLayoutPreviewState();
-	const store = createMuseumEditorStore({
+	const store = createEditorStore({
 		document: createEmptySceneDocument(),
 		rooms: createLayoutRoomRegistry(layoutPreview.project.layout)
 	});
@@ -54,7 +54,7 @@ describe('room-agnostic catalogue placement', () => {
 		expect(store.beginAssetPlacement('paris-salon-chair')).toBe(true);
 		expect(store.pendingPlacementAssetId).toBe('paris-salon-chair');
 		expect(store.selectedRoomId).toBeNull();
-		expect(store.statusMessage).toMatch(/tagged museum-room floor/);
+		expect(store.statusMessage).toMatch(/tagged room floor/);
 	});
 
 	it('keeps the relic arm Paris-oriented (preselection + Paris message)', () => {

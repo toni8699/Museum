@@ -2,7 +2,7 @@
  * `EditorViewKeyframeController` — directional camera view-keyframe authoring /
  * framing / progress-drag / timing mutation controller (Phase 9.3).
  *
- * The god file (`museum-editor.svelte.ts`) historically owned every
+ * The god file (`editor-store.svelte.ts`) historically owned every
  * view-keyframe *write*: adding a key at the paused Director playhead, editing
  * its world target / FOV, moving its progress (both single-commit and the
  * cancel-safe drag), deleting it, mirroring one directional track onto the
@@ -10,7 +10,7 @@
  * hard-moves those method bodies here, following the
  * `EditorNavigationGraphMutator` + host-injection pattern.
  *
- * `MuseumEditorStore` keeps identical public method signatures as thin
+ * `EditorStore` keeps identical public method signatures as thin
  * delegates (`addViewKeyframeAtPlayhead() { return this.viewKeyframeController
  * .addViewKeyframeAtPlayhead(); }`), so components keep importing the store
  * facade unchanged.
@@ -26,20 +26,20 @@
 import {
 	createNavigationGraph,
 	resolveSceneDocument,
-	type MuseumSceneDocument,
+	type SceneDocument,
 	type SceneCameraViewKeyframe,
 	type SceneConnection,
 	type ScenePathAnchor
 } from '$lib/content/scene';
 import type { LayoutRoomRegistry } from '$lib/project/project-layout-semantics';
 import {
-	MUSEUM_CAMERA_EASING,
-	MUSEUM_CAMERA_FOV,
+	CAMERA_EASING,
+	CAMERA_FOV,
 	type CameraConnectionDirection,
 	type CameraEasing,
-	type MuseumRoomId,
+	type RoomId,
 	type Vec3
-} from '$lib/types/museum';
+} from '$lib/types/scene';
 import {
 	cameraMotionEdgeProgressAtProgress,
 	cameraMotionProgressAtEdgeProgress,
@@ -51,12 +51,12 @@ import {
 	getCameraConnectionRoute,
 	type ResolvedCameraRoute
 } from '$lib/museum/navigation/camera-route';
-import { resolveDirectedEdgeMotionForConnection } from '../editor-directed-edge-motion';
+import { resolveDirectedEdgeMotionForConnection } from '../camera/editor-directed-edge-motion';
 import {
 	createDraftConnectionPositionPath,
 	findNearestCurveProgress,
 	getScenePathAnchorWorldPosition
-} from '../editor-camera-path';
+} from '../camera/editor-camera-path';
 import {
 	allocateCameraViewKeyframeId,
 	createSceneCameraViewKeyframeAtWorldTarget,
@@ -69,17 +69,17 @@ import {
 	getSceneCameraViewKeyframeWorldTarget,
 	orbitWorldLookTarget,
 	writeSceneCameraViewKeyframeWorldTarget
-} from '../editor-camera-view';
+} from '../camera/editor-camera-view';
 import {
 	cameraTimelineProgressAtEdgeProgress,
 	type EditorCameraTimeline
-} from '../editor-camera-timeline';
+} from '../camera/editor-camera-timeline';
 import type { EditorNavigationSelection } from '../editor-selection';
 import type {
 	EditorCameraPreview,
 	EditorPendingNavigationCommand,
 	EditorViewKeyframeProgressDragSelection
-} from '../museum-editor.types';
+} from '../editor-types';
 import type { EditorSelectionStore } from './selection-store.svelte';
 import type { EditorSelectionActions } from './selection-actions.svelte';
 import {
@@ -88,12 +88,12 @@ import {
 	markFramingEnvelopeManual,
 	updateFramingEnvelopeForKeyProgresses,
 	type CameraFramingEnvelopePolicyState
-} from '../editor-camera-framing-envelope';
+} from '../camera/editor-camera-framing-envelope';
 import {
 	CENTERED_SEED,
 	mirrorFramingEnvelope,
 	type EnvelopeHandleName
-} from '../editor-camera-framing-authoring';
+} from '../camera/editor-camera-framing-authoring';
 import type { CameraFramingEnvelope } from '$lib/content/scene';
 
 type ConnectionCameraPreview = Extract<
@@ -115,7 +115,7 @@ function isFiniteVec3(value: Vec3) {
 
 /**
  * Composition-root surface the view-keyframe controller depends on. Everything
- * here stays owned by `MuseumEditorStore`; the controller never mutates the
+ * here stays owned by `EditorStore`; the controller never mutates the
  * document store, history controller, or preview controller directly, only
  * through the transaction wrappers and accessors exposed below.
  */
@@ -132,13 +132,13 @@ export interface EditorViewKeyframeControllerHost {
 	readonly pendingNavigationCommand: EditorPendingNavigationCommand;
 
 	// Document + selection state.
-	readonly document: MuseumSceneDocument;
+	readonly document: SceneDocument;
 	readonly rooms: LayoutRoomRegistry;
 	readonly selection: EditorSelectionStore;
 	readonly selectedConnection: SceneConnection | undefined;
 	readonly selectedAnchor: ScenePathAnchor | undefined;
 	readonly selectedViewKeyframe: SceneCameraViewKeyframe | undefined;
-	readonly selectedRoomId: MuseumRoomId | null;
+	readonly selectedRoomId: RoomId | null;
 	readonly cameraPreview: EditorCameraPreview;
 
 	navigationSelection: EditorNavigationSelection;
@@ -790,8 +790,8 @@ export class EditorViewKeyframeController {
 			this.host.isCameraFramingMutationBlocked ||
 			this.host.isEditorInteractionActive ||
 			!Number.isFinite(fov) ||
-			fov < MUSEUM_CAMERA_FOV.min ||
-			fov > MUSEUM_CAMERA_FOV.max
+			fov < CAMERA_FOV.min ||
+			fov > CAMERA_FOV.max
 		) {
 			return false;
 		}
@@ -808,8 +808,8 @@ export class EditorViewKeyframeController {
 			this.host.isCameraFramingMutationBlocked ||
 			!this.host.historyFramingTransactionActive ||
 			!Number.isFinite(fov) ||
-			fov < MUSEUM_CAMERA_FOV.min ||
-			fov > MUSEUM_CAMERA_FOV.max
+			fov < CAMERA_FOV.min ||
+			fov > CAMERA_FOV.max
 		) {
 			return false;
 		}
@@ -1288,10 +1288,10 @@ export class EditorViewKeyframeController {
 			delete keyframe.holdSeconds;
 		}
 		if (easing !== null) {
-			if (!MUSEUM_CAMERA_EASING.includes(easing)) {
+			if (!CAMERA_EASING.includes(easing)) {
 				this.host.cancelDocumentTransaction();
 				this.host.setStatusMessage(
-					`Easing must be one of ${MUSEUM_CAMERA_EASING.join(', ')}`
+					`Easing must be one of ${CAMERA_EASING.join(', ')}`
 				);
 				return false;
 			}

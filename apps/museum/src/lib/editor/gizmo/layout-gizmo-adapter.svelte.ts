@@ -21,7 +21,7 @@
 
 import { Object3D } from 'three';
 import type { Scene } from 'three';
-import type { MuseumEditorStore } from '../museum-editor.svelte';
+import type { EditorStore } from '../editor-store.svelte';
 import type { LayoutInteractionState } from '../layout/layout-interaction';
 import type { LayoutPreviewState } from '../layout/layout-preview-state.svelte';
 import {
@@ -46,7 +46,7 @@ import {
 } from './layout-gizmo-candidate';
 
 export interface LayoutGizmoAdapterInput {
-	store: MuseumEditorStore;
+	store: EditorStore;
 	layoutPreview: LayoutPreviewState;
 	layoutInteraction: LayoutInteractionState;
 	descriptor: LayoutGizmoTargetDescriptor;

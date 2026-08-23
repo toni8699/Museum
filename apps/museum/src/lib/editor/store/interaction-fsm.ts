@@ -1,5 +1,5 @@
 /**
- * Phase 6.1 — interaction FSM for the museum editor selection / gizmo / drag state.
+ * Phase 6.1 — interaction FSM for the editor selection / gizmo / drag state.
  *
  * Pure reducer only — no `$state` runes, no Three imports, no DOM access.
  * The reactive wrapper lives in `editor-interaction-store.svelte.ts`. Side

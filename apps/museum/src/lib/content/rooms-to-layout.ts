@@ -1,5 +1,5 @@
-import type { MuseumRoom, RoomOpeningSide } from '$lib/types/museum';
-import { museumRooms, roomPoint } from './rooms';
+import type { Room, RoomOpeningSide } from '$lib/types/scene';
+import { rooms as chopinRoomSeed, roomPoint } from './rooms';
 import type {
   DraftSegment,
   LayoutDocument,
@@ -33,7 +33,7 @@ const CHOPIN_PORTAL_RELATIONS: Readonly<Record<string, [string, string]>> = {
 };
 
 /** Compile static room architecture without importing editor code. */
-export function roomsToLayout(rooms: readonly MuseumRoom[] = museumRooms): LayoutDocument {
+export function roomsToLayout(rooms: readonly Room[] = chopinRoomSeed): LayoutDocument {
   const roomIds = new Set(rooms.map((room) => room.id));
   const floorHeight = rooms.reduce((maxHeight, room) => Math.max(maxHeight, room.dimensions[1]), 0);
   const floor: LayoutFloor = {
@@ -46,7 +46,7 @@ export function roomsToLayout(rooms: readonly MuseumRoom[] = museumRooms): Layou
   return { units: 'meters', floors: [floor], objects: [] };
 }
 
-function compileRoom(room: MuseumRoom, roomIds: ReadonlySet<string>): LayoutRoom {
+function compileRoom(room: Room, roomIds: ReadonlySet<string>): LayoutRoom {
   const segments = createRoomSegments(room);
   const segmentBySide = new Map<RoomOpeningSide, DraftSegment>(
     SIDE_ORDER.map((side, index) => [side, segments[index]!])
@@ -68,7 +68,7 @@ function compileRoom(room: MuseumRoom, roomIds: ReadonlySet<string>): LayoutRoom
   };
 }
 
-function createRoomSegments(room: MuseumRoom): DraftSegment[] {
+function createRoomSegments(room: Room): DraftSegment[] {
   const [width, , depth] = room.dimensions;
   const halfWidth = width / 2;
   const halfDepth = depth / 2;
@@ -90,8 +90,8 @@ function createRoomSegments(room: MuseumRoom): DraftSegment[] {
 }
 
 function compileOpening(
-  room: MuseumRoom,
-  opening: MuseumRoom['openings'][number],
+  room: Room,
+  opening: Room['openings'][number],
   segment: DraftSegment,
   roomIds: ReadonlySet<string>
 ): LayoutOpening {
@@ -124,7 +124,7 @@ function centeredOffsetToDistance(side: RoomOpeningSide, centeredOffset: number,
     : halfLength - centeredOffset - halfOpening;
 }
 
-function toLayoutPoint(room: MuseumRoom, [x, z]: [number, number]): LayoutVec2 {
+function toLayoutPoint(room: Room, [x, z]: [number, number]): LayoutVec2 {
   const worldPoint = roomPoint(room.id, [x, 0, z]);
   return [worldPoint[0], worldPoint[2]];
 }

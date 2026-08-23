@@ -1,11 +1,11 @@
 <script lang="ts">
 	import { Eye, EyeOff, Grid3x3 } from 'lucide-svelte';
-	import type { MuseumEditorStore } from './museum-editor.svelte';
+	import type { EditorStore } from './editor-store.svelte';
 
 	// S10.1.7 — grid control lives in the 3D viewport, bottom-right overlay
 	// (not the sidebar, not the timeline): visibility toggle reuses
 	// `session.gridVisible`; opacity slider drives `session.gridOpacity`.
-	let { store }: { store: MuseumEditorStore } = $props();
+	let { store }: { store: EditorStore } = $props();
 
 	let open = $state(false);
 	const gridVisible = $derived(store.gridVisible);

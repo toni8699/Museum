@@ -1,8 +1,8 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
 
-import { chopinRuntime, museumSceneDocument } from '$lib/content/chopin-project';
+import { chopinRuntime, sceneDocument } from '$lib/content/chopin-project';
 import { createEmptySceneDocument, resolveSceneDocument } from '$lib/content/scene';
-import { createMuseumEditorStore } from '$lib/editor/museum-editor.svelte';
+import { createEditorStore } from '$lib/editor/editor-store.svelte';
 import {
 	EditorDocumentStore,
 	pickInitialNavigationNodeId
@@ -12,10 +12,10 @@ import type { EditorViewMode } from '$lib/editor/app/editor-view-mode';
 import { createEmptyLayoutDocument } from '$lib/layout/layout-codec';
 import { createLayoutRoomRegistry } from '$lib/project/project-layout-semantics';
 import {
-	createEmptyMuseumProject,
-	parseMuseumProjectJson,
-	serializeMuseumProject,
-	validateMuseumProject
+	createEmptyProject,
+	parseProjectJson,
+	serializeProject,
+	validateProject
 } from '$lib/project/project-codec';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -64,7 +64,7 @@ function readAllSourceFiles(relativeDir: string): { name: string; source: string
 
 describe('empty project contract', () => {
 	it('creates a codec-valid, fully-empty project', () => {
-		const project = createEmptyMuseumProject({ id: 'project:blank', name: 'Blank' });
+		const project = createEmptyProject({ id: 'project:blank', name: 'Blank' });
 
 		expect(project.layout.units).toBe('meters');
 		expect(project.layout.floors).toEqual([]);
@@ -75,23 +75,23 @@ describe('empty project contract', () => {
 		expect(project.scene.navigationNodes).toEqual([]);
 		expect(project.scene.connections).toEqual([]);
 
-		const result = validateMuseumProject(project);
+		const result = validateProject(project);
 		expect(result.success).toBe(true);
 	});
 
 	it('round-trips a blank project byte-stably through the codec', () => {
-		const project = createEmptyMuseumProject({ id: 'project:blank', name: 'Blank' });
-		const json = serializeMuseumProject(project);
-		const parsed = parseMuseumProjectJson(json);
+		const project = createEmptyProject({ id: 'project:blank', name: 'Blank' });
+		const json = serializeProject(project);
+		const parsed = parseProjectJson(json);
 
 		expect(parsed.success).toBe(true);
 		if (!parsed.success) return;
 		expect(parsed.project).toEqual(project);
-		expect(serializeMuseumProject(parsed.project)).toBe(json);
+		expect(serializeProject(parsed.project)).toBe(json);
 	});
 
 	it('accepts an authoring-empty scene document with an empty layout', () => {
-		const result = validateMuseumProject({
+		const result = validateProject({
 			id: 'project:blank',
 			name: 'Blank',
 			layout: createEmptyLayoutDocument(),
@@ -102,11 +102,11 @@ describe('empty project contract', () => {
 	});
 
 	it('keeps non-empty scene invariants: a populated scene still requires its rooms', () => {
-		const result = validateMuseumProject({
+		const result = validateProject({
 			id: 'project:blank',
 			name: 'Blank',
 			layout: createEmptyLayoutDocument(),
-			scene: museumSceneDocument
+			scene: sceneDocument
 		});
 
 		expect(result.success).toBe(false);
@@ -148,12 +148,12 @@ describe('zero-node policy + room-resolver seam', () => {
 	it('relic store rejects setWorkspace("layout"); the full editor allows it', () => {
 		// P7.3 — no-options boot is gone; both stores seed the Chopin
 		// document + registry explicitly, relic toggles isolation.
-		const chopin = { document: museumSceneDocument, rooms: chopinRuntime.rooms };
-		const relic = createMuseumEditorStore({ ...chopin, relic: true });
+		const chopin = { document: sceneDocument, rooms: chopinRuntime.rooms };
+		const relic = createEditorStore({ ...chopin, relic: true });
 		expect(relic.setWorkspace('layout')).toBe(false);
 		expect(relic.currentWorkspace).toBe('scene');
 
-		const full = createMuseumEditorStore(chopin);
+		const full = createEditorStore(chopin);
 		expect(full.setWorkspace('layout')).toBe(true);
 		expect(full.currentWorkspace).toBe('layout');
 	});
@@ -161,8 +161,8 @@ describe('zero-node policy + room-resolver seam', () => {
 
 describe('boot into an empty project', () => {
 	it('boots blank: zero navigation nodes, no persisted node, no tour preview', () => {
-		const project = createEmptyMuseumProject({ id: 'project:blank', name: 'Blank' });
-		const store = createMuseumEditorStore({
+		const project = createEmptyProject({ id: 'project:blank', name: 'Blank' });
+		const store = createEditorStore({
 			document: project.scene,
 			rooms: createLayoutRoomRegistry(project.layout)
 		});
@@ -177,8 +177,8 @@ describe('boot into an empty project', () => {
 
 	it('locks tour preview until a guided chain exists (zero nodes, lone node, guided)', () => {
 		// Zero nodes.
-		const empty = createMuseumEditorStore({
-			document: createEmptyMuseumProject({ id: 'p0', name: 'Empty' }).scene,
+		const empty = createEditorStore({
+			document: createEmptyProject({ id: 'p0', name: 'Empty' }).scene,
 			rooms: createLayoutRoomRegistry(createEmptyLayoutDocument())
 		});
 		expect(empty.canStartTourPreview).toBe(false);
@@ -191,16 +191,16 @@ describe('boot into an empty project', () => {
 		node.nextNodeId = undefined;
 		node.previousNodeId = undefined;
 		node.connectedNodeIds = [];
-		expect(createMuseumEditorStore({ document: lone, rooms: chopinRuntime.rooms }).canStartTourPreview).toBe(false);
+		expect(createEditorStore({ document: lone, rooms: chopinRuntime.rooms }).canStartTourPreview).toBe(false);
 
 		// A guided chain exists.
 		expect(
-			createMuseumEditorStore({ document: cloneFixtureDocument(), rooms: chopinRuntime.rooms }).canStartTourPreview
+			createEditorStore({ document: cloneFixtureDocument(), rooms: chopinRuntime.rooms }).canStartTourPreview
 		).toBe(true);
 	});
 
 	it('reset restores the boot document (not Chopin) and clears history', () => {
-		const store = createMuseumEditorStore({ document: cloneFixtureDocument(), rooms: chopinRuntime.rooms });
+		const store = createEditorStore({ document: cloneFixtureDocument(), rooms: chopinRuntime.rooms });
 		const bootCanonical = store.canonicalJson;
 
 		expect(store.beginDocumentTransaction()).toBe(true);
@@ -224,7 +224,7 @@ describe('boot into an empty project', () => {
 		const fixture = cloneFixtureDocument();
 		fixture.navigationNodes = [];
 		fixture.connections = [];
-		const store = createMuseumEditorStore({ document: fixture, rooms: chopinRuntime.rooms });
+		const store = createEditorStore({ document: fixture, rooms: chopinRuntime.rooms });
 
 		const roomId = store.rooms.entries[0]!.id;
 		const floorWorld = store.rooms.point(roomId, [0, 0, 0]);
@@ -263,13 +263,13 @@ describe('boot into an empty project', () => {
 });
 
 // The S1/S2 playback-lock contract (view switching rejected during camera
-// playback) is already pinned by museum-editor-shell.test.ts — "rejects
+// playback) is already pinned by editor-store-shell.test.ts — "rejects
 // workspace switches during interaction or modal preview" — so it is not
 // re-pinned here.
 
 describe('Plan ↔ 3D switch preserves session state', () => {
 	it('switches workspace without touching document, history, dirty state, or selection', () => {
-		const store = createMuseumEditorStore({ document: cloneFixtureDocument(), rooms: chopinRuntime.rooms });
+		const store = createEditorStore({ document: cloneFixtureDocument(), rooms: chopinRuntime.rooms });
 
 		// Make one real mutation so the undo stack is non-empty and the doc is dirty.
 		expect(store.beginDocumentTransaction()).toBe(true);
@@ -371,7 +371,7 @@ describe('unified hierarchy contracts', () => {
 
 		for (const component of [
 			'editor/EditorSceneTree.svelte',
-			'editor/EditorCameraTree.svelte'
+			'editor/camera/EditorCameraTree.svelte'
 		]) {
 			expect(readLibSource(component)).not.toContain('UnifiedProjectTree');
 			expect(readLibSource(component)).not.toContain('EditorSidebar');
@@ -473,7 +473,7 @@ describe('unified hierarchy contracts', () => {
 		expect(guided).toContain('!guidedTourChain.includes(row.partnerId)');
 		expect(guided).toContain('sidequest list');
 		// No store toggle API for the deleted per-connection tree.
-		const facade = readLibSource('editor/museum-editor.svelte.ts');
+		const facade = readLibSource('editor/editor-store.svelte.ts');
 		expect(facade).not.toContain('toggleCameraConnectionTreeExpansion');
 		expect(facade).not.toContain('toggleCameraDirectionTreeExpansion');
 	});
@@ -491,7 +491,7 @@ describe('unified hierarchy contracts', () => {
 		expect(guided).toContain('guided-gap--empty');
 		expect(guided).toContain('guidedTourChain.length === 0');
 		expect(guided).toContain('startSequence(nodeId);');
-		const facade = readLibSource('editor/museum-editor.svelte.ts');
+		const facade = readLibSource('editor/editor-store.svelte.ts');
 		expect(facade).toContain('startSequenceFromNode(nodeId)');
 	});
 
@@ -1030,7 +1030,7 @@ describe('camera context contracts', () => {
 
 	it('mounts the camera timeline bottom frame for the Camera domain in both views, never Scene', () => {
 		const app = readLibSource('editor/app/EditorApp.svelte');
-		const frame = readLibSource('editor/EditorCameraTimelineFrame.svelte');
+		const frame = readLibSource('editor/camera/EditorCameraTimelineFrame.svelte');
 		expect(app).toContain("viewState.domain === 'camera'");
 		// The frame keeps its full-width bottom-strip contract; only its mount
 		// point is Camera-domain gated.
@@ -1038,7 +1038,7 @@ describe('camera context contracts', () => {
 	});
 
 	it('presents the single tour as a read-only selector in the timeline header (P1.7 §3)', () => {
-		const frame = readLibSource('editor/EditorCameraTimelineFrame.svelte');
+		const frame = readLibSource('editor/camera/EditorCameraTimelineFrame.svelte');
 		// The canonical tour is a read-only presentation — the skeleton has
 		// exactly one guided tour, so the selector itself must carry zero
 		// mutation path (no multi-tour semantics exist yet; order is authored
@@ -1060,7 +1060,7 @@ describe('camera context contracts', () => {
 			'editor/app/PlanWorkspace.svelte',
 			'editor/app/CameraPlanWorkspace.svelte',
 			'editor/app/Workspace3DView.svelte',
-			'editor/EditorCameraTimelineFrame.svelte',
+			'editor/camera/EditorCameraTimelineFrame.svelte',
 			'editor/app/CameraSidebar.svelte',
 			'editor/UnifiedProjectTree.svelte',
 			'editor/app/EditorApp.svelte'
@@ -1090,14 +1090,14 @@ describe('camera context contracts', () => {
 		expect(view).toContain('buildCameraNodeLabelKinds(store.mainFlowNodeIds');
 		expect(view).toContain('<EditorCameraLabelProjector');
 		expect(view).toContain('<EditorCameraLabelsOverlay />');
-		const overlay = readLibSource('editor/EditorCameraLabelsOverlay.svelte');
+		const overlay = readLibSource('editor/camera/EditorCameraLabelsOverlay.svelte');
 		expect(overlay).toContain('Unsequenced');
 		expect(overlay).toContain('pointer-events: none');
 		expect(overlay).toContain('aria-hidden="true"');
 	});
 
 	it('renders Camera 3D connection paths without arrows or cones', () => {
-		const paths = readLibSource('editor/EditorCameraPathHelpers.svelte');
+		const paths = readLibSource('editor/camera/EditorCameraPathHelpers.svelte');
 		// Undirected topology: the 3D splines are Line2 samples only — no
 		// cone/arrow geometry may appear (mirrors the Plan-level assertion).
 		expect(paths).toContain('Line2');
@@ -1225,7 +1225,7 @@ describe('camera context contracts', () => {
 
 	// S10.1 closeout — view-breakpoint Aim control (inspector yaw/pitch).
 	it('exposes the inspector Aim control and routes it through the shared aim mutator', () => {
-		const inspector = readLibSource('editor/EditorCameraInspector.svelte');
+		const inspector = readLibSource('editor/camera/EditorCameraInspector.svelte');
 		expect(inspector).toContain('Aim look target');
 		expect(inspector).toContain('Yaw Δ (°)');
 		expect(inspector).toContain('Pitch Δ (°)');
@@ -1269,8 +1269,8 @@ describe('camera context contracts', () => {
 	// Preview escape controls must remain available when there is no valid
 	// guided timeline (for example, a single-camera node preview).
 	it('keeps single-camera preview stop outside the locked editor surface', () => {
-		const timeline = readLibSource('editor/EditorCameraTimelinePanel.svelte');
-		const controls = readLibSource('editor/EditorCameraPreviewControls.svelte');
+		const timeline = readLibSource('editor/camera/EditorCameraTimelinePanel.svelte');
+		const controls = readLibSource('editor/camera/EditorCameraPreviewControls.svelte');
 		const sidebar = readLibSource('editor/app/EditorSidebar.svelte');
 		const relicSidebar = readLibSource('editor/EditorLeftSidebar.svelte');
 		expect(timeline).toContain('Camera preview active');
@@ -1285,7 +1285,7 @@ describe('camera context contracts', () => {
 
 	// S10.1.4 — timeline derived-loop readout (replaces the dead-end message).
 	it('shows the derived loop readout in the timeline panel with no Close-loop language', () => {
-		const panel = readLibSource('editor/EditorCameraTimelinePanel.svelte');
+		const panel = readLibSource('editor/camera/EditorCameraTimelinePanel.svelte');
 		expect(panel).toContain('Loops via:');
 		expect(panel).toContain('Stops at');
 		expect(panel).toContain('store.flowLoopConnectionId');
@@ -1346,7 +1346,7 @@ describe('camera context contracts', () => {
 	});
 
 	it('exposes session-only entity visibility through the store facade', () => {
-		const facade = readLibSource('editor/museum-editor.svelte.ts');
+		const facade = readLibSource('editor/editor-store.svelte.ts');
 		expect(facade).toContain('get hiddenEntityIds()');
 		expect(facade).toContain('toggleEntityVisibility(');
 	});
@@ -1355,7 +1355,7 @@ describe('camera context contracts', () => {
 describe('cross-domain selection contracts', () => {
 	it('forwards onSelectionActivate from the store options into the reducer', () => {
 		let fired = 0;
-		const store = createMuseumEditorStore({
+		const store = createEditorStore({
 			document: cloneFixtureDocument(),
 			rooms: chopinRuntime.rooms,
 			onSelectionActivate: () => {
@@ -1374,7 +1374,7 @@ describe('cross-domain selection contracts', () => {
 	});
 
 	it('preserves the active domain across view switches (pure mapping over untouched slots)', () => {
-		const store = createMuseumEditorStore({ document: cloneFixtureDocument(), rooms: chopinRuntime.rooms });
+		const store = createEditorStore({ document: cloneFixtureDocument(), rooms: chopinRuntime.rooms });
 		const entityId = store.document.entities[0]!.id;
 		expect(store.selectionActions.selectPlacement(entityId)).toBe(true);
 
@@ -1403,7 +1403,7 @@ describe('cross-domain selection contracts', () => {
 	});
 
 	it('importDocument clears the scene selection slots; import begins with no active selection', () => {
-		const store = createMuseumEditorStore({ document: cloneFixtureDocument(), rooms: chopinRuntime.rooms });
+		const store = createEditorStore({ document: cloneFixtureDocument(), rooms: chopinRuntime.rooms });
 		const entityId = store.document.entities[0]!.id;
 		expect(store.selectionActions.selectPlacement(entityId)).toBe(true);
 		expect(
@@ -1467,10 +1467,10 @@ describe('P1.5 Camera Plan source contracts', () => {
 	});
 
 	it('keeps Camera Plan editor-only: /museum routes import no camera-plan code', () => {
-		const museum = readRouteSource('museum/+page.svelte');
-		expect(museum).not.toContain('camera-plan');
-		expect(museum).not.toContain('CameraPlan');
-		expect(museum).not.toContain('plan-camera-projection');
+		const visitor = readRouteSource('museum/+page.svelte');
+		expect(visitor).not.toContain('camera-plan');
+		expect(visitor).not.toContain('CameraPlan');
+		expect(visitor).not.toContain('plan-camera-projection');
 	});
 
 	it('the shared Camera Delete/Backspace branch routes anchors through deleteSelectedAnchor', () => {

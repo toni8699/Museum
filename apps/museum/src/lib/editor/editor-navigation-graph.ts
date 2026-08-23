@@ -1,6 +1,6 @@
 import {
 	isFlowNode,
-	type MuseumSceneDocument,
+	type SceneDocument,
 	type SceneConnection,
 	type SceneNavigationNode
 } from '$lib/content/scene';
@@ -86,7 +86,7 @@ function nodeName(node: SceneNavigationNode) {
 
 
 function findConnectionBetween(
-	document: MuseumSceneDocument,
+	document: SceneDocument,
 	leftNodeId: string,
 	rightNodeId: string,
 	excludedConnectionIds: ReadonlySet<string> = new Set()
@@ -102,7 +102,7 @@ function findConnectionBetween(
 }
 
 function graphRemainsConnected(
-	document: MuseumSceneDocument,
+	document: SceneDocument,
 	excludedNodeIds: ReadonlySet<string>,
 	excludedConnectionIds: ReadonlySet<string>
 ) {
@@ -164,7 +164,7 @@ function graphRemainsConnected(
  * structure is invalid (unknown link target, non-reciprocal link, repeat).
  */
 function walkFlowComponentFrom(
-	document: MuseumSceneDocument,
+	document: SceneDocument,
 	startNodeId: string,
 	nodeById: ReadonlyMap<string, SceneNavigationNode>
 ): { nodeIds: string[]; headId: string; tailId: string } | null {
@@ -195,7 +195,7 @@ function walkFlowComponentFrom(
  * its display order (the walk stops at the node whose next = start).
  */
 function mainFlowStart(
-	document: MuseumSceneDocument,
+	document: SceneDocument,
 	nodeById: ReadonlyMap<string, SceneNavigationNode>
 ): SceneNavigationNode {
 	const flowNodes = document.navigationNodes.filter(isFlowNode);
@@ -221,7 +221,7 @@ function mainFlowStart(
  * and excluded by design.
  */
 export function currentMainFlowNodeIds(
-	document: MuseumSceneDocument
+	document: SceneDocument
 ): string[] | null {
 	const flowNodes = document.navigationNodes.filter(isFlowNode);
 	if (flowNodes.length === 0) return null;
@@ -239,7 +239,7 @@ export function currentMainFlowNodeIds(
  * Inspector loop row and the timeline readout.
  */
 export function flowLoopConnectionId(
-	document: MuseumSceneDocument
+	document: SceneDocument
 ): string | null {
 	const flowNodeIds = currentMainFlowNodeIds(document);
 	if (!flowNodeIds || flowNodeIds.length < 3) return null;
@@ -260,7 +260,7 @@ export function flowLoopConnectionId(
  * (head → … → tail). Used by the Sequence Inspector's detour grouping.
  */
 export function flowDetourGroups(
-	document: MuseumSceneDocument
+	document: SceneDocument
 ): Array<{ originNodeId: string; headNodeId: string; chainNodeIds: string[] }> {
 	const nodeById = new Map(document.navigationNodes.map((node) => [node.id, node]));
 	const groups: Array<{ originNodeId: string; headNodeId: string; chainNodeIds: string[] }> = [];
@@ -283,7 +283,7 @@ export function flowDetourGroups(
  * singleton chain.
  */
 function findDetourChain(
-	document: MuseumSceneDocument,
+	document: SceneDocument,
 	originNodeId: string,
 	nodeById: ReadonlyMap<string, SceneNavigationNode>
 ): { headNode: SceneNavigationNode; chainNodeIds: string[] } | null {
@@ -298,7 +298,7 @@ function findDetourChain(
 
 /** S10.2 — the detour origin a node belongs to, or undefined when it is not on a detour. */
 export function detourOriginOf(
-	document: MuseumSceneDocument,
+	document: SceneDocument,
 	nodeId: string,
 	nodeById: ReadonlyMap<string, SceneNavigationNode>
 ): string | undefined {
@@ -318,7 +318,7 @@ export function detourOriginOf(
 
 /** S10.2 — true when the connection is a detour's return edge (detour tail ↔ origin). */
 function isDetourReturnEdge(
-	document: MuseumSceneDocument,
+	document: SceneDocument,
 	connection: SceneConnection
 ) {
 	const nodeById = new Map(document.navigationNodes.map((node) => [node.id, node]));
@@ -345,7 +345,7 @@ function isDetourReturnEdge(
  * in the Camera viewport with a View-menu visibility toggle.
  */
 export function flowRetainedConnectionIds(
-	document: MuseumSceneDocument
+	document: SceneDocument
 ): string[] {
 	const activeIds = new Set<string>();
 	const flowNodeIds = currentMainFlowNodeIds(document);
@@ -399,7 +399,7 @@ export function flowRetainedConnectionIds(
  * components are ignored. No document state is changed.
  */
 export function validateCurrentGuidedTourOrder(
-	document: MuseumSceneDocument
+	document: SceneDocument
 ): EditorGuidedTourOrderPlan | EditorNavigationGraphFailure {
 	const flowNodes = document.navigationNodes.filter(isFlowNode);
 	// P1.9 — zero-flow documents are reachable (3+ connected cameras with no
@@ -431,7 +431,7 @@ export function validateCurrentGuidedTourOrder(
  * order requirement (S10.2).
  */
 export function validateGuidedTourOrder(
-	document: MuseumSceneDocument,
+	document: SceneDocument,
 	nodeIds: readonly string[]
 ): EditorGuidedTourOrderPlan | EditorNavigationGraphFailure {
 	const uniqueNodeIds = new Set(nodeIds);
@@ -487,7 +487,7 @@ export function moveGuidedTourNodeIndex(
 
 /** Consecutive open-chain pairs lacking a direct connection. */
 function missingConsecutiveConnections(
-	document: MuseumSceneDocument,
+	document: SceneDocument,
 	nodeById: ReadonlyMap<string, SceneNavigationNode>,
 	nodeIds: readonly string[]
 ) {
@@ -512,7 +512,7 @@ export type EditorGuidedTourInsertionPlan = EditorGuidedTourOrderPlan;
  * is retired.
  */
 export function validateGuidedTourInsertion(
-	document: MuseumSceneDocument,
+	document: SceneDocument,
 	nodeId: string,
 	index: number
 ): EditorGuidedTourInsertionPlan | EditorNavigationGraphFailure {
@@ -570,7 +570,7 @@ export function validateGuidedTourInsertion(
 
 /** Pure plan for removing one non-start guided node. */
 export function validateGuidedTourRemoval(
-	document: MuseumSceneDocument,
+	document: SceneDocument,
 	nodeId: string
 ): EditorGuidedTourOrderPlan | EditorNavigationGraphFailure {
 	const node = document.navigationNodes.find((candidate) => candidate.id === nodeId);
@@ -613,7 +613,7 @@ export type EditorDetourNodeRemovalPlan = EditorDetourPlan & {
  * The origin–head edge is auto-created by the mutator when missing (F5).
  */
 export function validateDetourCreation(
-	document: MuseumSceneDocument,
+	document: SceneDocument,
 	originNodeId: string,
 	headNodeId: string
 ): EditorDetourPlan | EditorNavigationGraphFailure {
@@ -669,7 +669,7 @@ export function validateDetourCreation(
  * (F5) when missing.
  */
 export function validateDetourAppend(
-	document: MuseumSceneDocument,
+	document: SceneDocument,
 	originNodeId: string,
 	newNodeId: string
 ): (EditorDetourPlan & { tailNode: SceneNavigationNode }) | EditorNavigationGraphFailure {
@@ -706,7 +706,7 @@ export function validateDetourAppend(
  * adjacency, that pair must already have a connection.
  */
 export function validateDetourNodeRemoval(
-	document: MuseumSceneDocument,
+	document: SceneDocument,
 	originNodeId: string,
 	nodeId: string
 ): EditorDetourNodeRemovalPlan | EditorNavigationGraphFailure {
@@ -751,7 +751,7 @@ export function validateDetourNodeRemoval(
 
 /** S10.2 — plan removing a whole detour (chain nodes become free). */
 export function validateDetourRemoval(
-	document: MuseumSceneDocument,
+	document: SceneDocument,
 	originNodeId: string
 ): EditorDetourPlan | EditorNavigationGraphFailure {
 	const nodeById = new Map(document.navigationNodes.map((node) => [node.id, node]));
@@ -772,7 +772,7 @@ export function validateDetourRemoval(
 }
 /** Pure validation for one new undirected camera connection. */
 export function validateConnectionCreation(
-	document: MuseumSceneDocument,
+	document: SceneDocument,
 	sourceNodeId: string,
 	destinationNodeId: string
 ): EditorConnectionCreationPlan | EditorNavigationGraphFailure {
@@ -807,7 +807,7 @@ export function validateConnectionCreation(
  * two Unsequenced cameras rather than a rejected guided-edge deletion.
  */
 function isFinalTwoNodeFlowConnection(
-	document: MuseumSceneDocument,
+	document: SceneDocument,
 	connection: SceneConnection
 ): boolean {
 	const flowNodeIds = currentMainFlowNodeIds(document);
@@ -819,7 +819,7 @@ function isFinalTwoNodeFlowConnection(
 
 /** Pure validation for deleting one connection without changing guided order. */
 export function validateConnectionDeletion(
-	document: MuseumSceneDocument,
+	document: SceneDocument,
 	connectionId: string
 ): EditorConnectionDeletionPlan | EditorNavigationGraphFailure {
 	const connection = document.connections.find(
@@ -886,7 +886,7 @@ export function validateConnectionDeletion(
  * (one transaction, one status message).
  */
 export function validateNavigationNodeDeletion(
-	document: MuseumSceneDocument,
+	document: SceneDocument,
 	nodeId: string
 ): EditorNavigationNodeDeletionPlan | EditorNavigationGraphFailure {
 	const node = document.navigationNodes.find((candidate) => candidate.id === nodeId);

@@ -5,7 +5,7 @@
 	import { TransformControls as ThreeTransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 	import type { EditorInteractionStore } from '../store/editor-interaction-store.svelte';
 	import { EDITOR_INTERACTION_STORE_KEY } from '../store/editor-interaction-store.svelte';
-	import type { MuseumEditorStore } from '../museum-editor.svelte';
+	import type { EditorStore } from '../editor-store.svelte';
 	import type { EditorGizmoTargetAdapter } from './editor-gizmo-contract';
 	import {
 		EditorGizmoHostController,
@@ -18,7 +18,7 @@
 		controls = $bindable(),
 		controller = $bindable()
 	}: {
-		store: MuseumEditorStore;
+		store: EditorStore;
 		/** One nullable target adapter; the composer resolves it each derive. */
 		adapter: EditorGizmoTargetAdapter | null;
 		controls?: ThreeTransformControls;

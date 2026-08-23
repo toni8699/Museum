@@ -7,12 +7,12 @@ import {
   Vector3
 } from 'three';
 import {
-  MUSEUM_CAMERA_EASING,
-  MUSEUM_CAMERA_FOV,
+  CAMERA_EASING,
+  CAMERA_FOV,
   type CameraConnectionDirection,
   type CameraEasing,
   type RuntimeCameraFramingEnvelope
-} from '$lib/types/museum';
+} from '$lib/types/scene';
 
 export type Vector3Like =
   | readonly [number, number, number]
@@ -136,7 +136,7 @@ export type CompiledCameraPositionPath = {
 };
 
 export const VISITOR_CAMERA_PROJECTION = {
-  fov: MUSEUM_CAMERA_FOV.default,
+  fov: CAMERA_FOV.default,
   near: 0.1,
   far: 90
 } as const;
@@ -307,11 +307,11 @@ function readVector3(value: Vector3Like, label: string) {
 function readFov(value: number, label: string) {
   if (
     !Number.isFinite(value) ||
-    value < MUSEUM_CAMERA_FOV.min ||
-    value > MUSEUM_CAMERA_FOV.max
+    value < CAMERA_FOV.min ||
+    value > CAMERA_FOV.max
   ) {
     throw new Error(
-      `${label} must be a finite number between ${MUSEUM_CAMERA_FOV.min} and ${MUSEUM_CAMERA_FOV.max}`
+      `${label} must be a finite number between ${CAMERA_FOV.min} and ${CAMERA_FOV.max}`
     );
   }
   return value;
@@ -970,11 +970,11 @@ export function createCameraMotion(
     prepareRouteEdge(edge, edgeIndex)
   );
   let startFov = readFov(
-    route.startFov ?? edges[0]?.viewTrack?.start.fov ?? MUSEUM_CAMERA_FOV.default,
+    route.startFov ?? edges[0]?.viewTrack?.start.fov ?? CAMERA_FOV.default,
     'Camera route start fov'
   );
   const endFov = readFov(
-    route.endFov ?? edges.at(-1)?.viewTrack?.end.fov ?? MUSEUM_CAMERA_FOV.default,
+    route.endFov ?? edges.at(-1)?.viewTrack?.end.fov ?? CAMERA_FOV.default,
     'Camera route end fov'
   );
 
@@ -1081,7 +1081,7 @@ export function createCameraMotionSample(): CameraMotionSample {
   return {
     position: new Vector3(),
     target: new Vector3(),
-    fov: MUSEUM_CAMERA_FOV.default
+    fov: CAMERA_FOV.default
   };
 }
 

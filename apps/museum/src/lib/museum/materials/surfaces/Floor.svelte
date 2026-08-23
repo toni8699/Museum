@@ -1,7 +1,7 @@
 <script lang="ts">
   import { T } from '@threlte/core';
   import type { MaterialId, Vec2 } from '$lib/types/materials';
-  import type { MuseumRoomId, Vec3 } from '$lib/types/museum';
+  import type { RoomId, Vec3 } from '$lib/types/scene';
   import type { Mesh } from 'three';
   import MuseumMaterial from '../MuseumMaterial.svelte';
 
@@ -22,7 +22,7 @@
     tint?: string;
     textures?: 'auto' | 'off';
     receiveShadow?: boolean;
-    roomId?: MuseumRoomId;
+    roomId?: RoomId;
   } = $props();
 
   const surfaceSize: Vec2 = $derived([width, depth]);

@@ -3,9 +3,9 @@
 	// replaces the top-level chrome; the boot glue (dirty guard + texture
 	// lifecycle) is shared via `useEditorShellBoot`, and only the shortcut wiring
 	// below is shell-owned.
-	import type { MuseumAsset } from '$lib/types/assets';
+	import type { Asset } from '$lib/types/assets';
 	import { onMount, setContext } from 'svelte';
-	import EditorCameraTimelineFrame from '$lib/editor/EditorCameraTimelineFrame.svelte';
+	import EditorCameraTimelineFrame from '$lib/editor/camera/EditorCameraTimelineFrame.svelte';
 	import EditorInspector from '$lib/editor/EditorInspector.svelte';
 	import EditorMaterialChoiceDialog from '$lib/editor/EditorMaterialChoiceDialog.svelte';
 	import EditorSidebar from './EditorSidebar.svelte';
@@ -14,8 +14,8 @@
 		EditorInteractionStore,
 		EDITOR_INTERACTION_STORE_KEY
 	} from '$lib/editor/store/editor-interaction-store.svelte';
-	import { createMuseumEditorStore } from '$lib/editor/museum-editor.svelte';
-	import { createEmptyMuseumProject } from '$lib/project/project-codec';
+	import { createEditorStore } from '$lib/editor/editor-store.svelte';
+	import { createEmptyProject } from '$lib/project/project-codec';
 	import { createLayoutRoomRegistry } from '$lib/project/project-layout-semantics';
 	import {
 		captureLayoutPreviewSnapshot,
@@ -47,13 +47,13 @@
 
 	// the editor boots blank on every load: one canonical empty project
 	// seeds both the scene-only store and the layout-only preview surface.
-	const bootProject = createEmptyMuseumProject({
+	const bootProject = createEmptyProject({
 		id: 'project:untitled',
 		name: 'Untitled project'
 	});
 	const layoutPreview = $state(createEmptyLayoutPreviewState());
 	const layoutInteraction = $state(createLayoutInteractionState());
-	const store = createMuseumEditorStore({
+	const store = createEditorStore({
 		document: bootProject.scene,
 		rooms: createLayoutRoomRegistry(bootProject.layout),
 		// an actionable scene/camera pick clears the layout selection
@@ -87,7 +87,7 @@
 	// replaces `layoutPreview.project`, so re-derive the registry from the
 	// current layout. Without this, `store.rooms.has(draftedRoomId)` stays
 	// false and camera/primitive placement on a drafted room is rejected
-	// ("Click a tagged museum-room floor") and node creation would throw on
+	// ("Click a tagged room floor") and node creation would throw on
 	// the unknown room. `updateRooms` also re-resolves the runtime scene, so a
 	// moved room immediately moves the rendered node/entity helpers.
 	$effect(() => {
@@ -184,7 +184,7 @@
 	let outlinerElement = $state<HTMLElement | null>(null);
 	let viewportElement = $state<HTMLElement | null>(null);
 	let clusterNameInput = $state<HTMLInputElement>();
-	let selectedAsset = $state<MuseumAsset>();
+	let selectedAsset = $state<Asset>();
 
 	// P7.4 — shared boot composable (dirty guard + texture lifecycle only).
 	// Shortcut wiring stays shell-owned; see `useEditorShellBoot`.

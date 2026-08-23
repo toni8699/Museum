@@ -30,7 +30,7 @@ imports back to `$lib`.
 
 - **Boundary tests walk `src/` via `import.meta.url`** (`bench-boundary`,
   `plan-render-boundary`, `layout-geometry-boundary`, `visitor-import-boundary`,
-  `museum-editor-bind-migration`, `wall-mesh-builder`). They compute roots as
+  `editor-store-bind-migration`, `wall-mesh-builder`). They compute roots as
   `resolve(import.meta.url, '../../../src')` — update them if `tests/` moves.
 - **The dev perf route** (`src/routes/dev/perf/+page.svelte`) imports scale fixtures
   from here via a relative path. Keep that in sync if fixtures move.

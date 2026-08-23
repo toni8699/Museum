@@ -1,12 +1,12 @@
 /**
  * Shared test fixtures + store factory used by every themed test suite
- * (`museum-editor-selection.test.ts` /
- * `museum-editor-placement.test.ts` /
- * `museum-editor-camera.test.ts` /
- * `museum-editor-textures.test.ts`).
+ * (`editor-store-selection.test.ts` /
+ * `editor-store-placement.test.ts` /
+ * `editor-store-camera.test.ts` /
+ * `editor-store-textures.test.ts`).
  *
  * Slice 4 of the Priority-1 file-split refactor pulls these helpers out of
- * the 4 350-LOC `museum-editor.test.ts` mega-suite so each new themed suite
+ * the 4 350-LOC `editor-store.test.ts` mega-suite so each new themed suite
  * gets the same authoring baseline without dragging the god-file class
  * along. Per-describe local helpers (e.g. `translateTransform`,
  * `importWithViewKeys`, `makeHistory`) stay in their describing blocks —
@@ -16,7 +16,7 @@
  */
 import { cloneFixtureDocument } from '../content/__fixtures__/load-fixture-scene';
 import { chopinRuntime } from '$lib/content/chopin-project';
-import { createMuseumEditorStore, type MuseumEditorStore, type MuseumSceneDocument } from '$lib/editor/museum-editor.svelte';
+import { createEditorStore, type EditorStore, type SceneDocument } from '$lib/editor/editor-store.svelte';
 
 /** Stable tour ordering the integration suite asserts against after edit. */
 export const FIXTURE_GUIDED_ORDER = ['tour-a', 'tour-b', 'tour-paris', 'tour-d'] as const;
@@ -26,7 +26,7 @@ export const FIXTURE_GUIDED_ORDER = ['tour-a', 'tour-b', 'tour-paris', 'tour-d']
  * (offsets each added entity by 0.5 m on world-X). Used by selection /
  * cluster / placement describes that need predictable multi-entity state.
  */
-export function cloneFixtureDocumentWithEntityCount(minCount: number): MuseumSceneDocument {
+export function cloneFixtureDocumentWithEntityCount(minCount: number): SceneDocument {
 	const document = cloneFixtureDocument();
 	const template = document.entities[0]!;
 	while (document.entities.length < minCount) {
@@ -46,12 +46,12 @@ export function cloneFixtureDocumentWithEntityCount(minCount: number): MuseumSce
 	return document;
 }
 
-/** Build a `MuseumEditorStore` from the cloned fixture (optionally padded). */
-export function createFixtureEditorStore(entityCount?: number): MuseumEditorStore {
+/** Build a `EditorStore` from the cloned fixture (optionally padded). */
+export function createFixtureEditorStore(entityCount?: number): EditorStore {
 	const document = entityCount
 		? cloneFixtureDocumentWithEntityCount(entityCount)
 		: cloneFixtureDocument();
-	return createMuseumEditorStore({ document, rooms: chopinRuntime.rooms });
+	return createEditorStore({ document, rooms: chopinRuntime.rooms });
 }
 
 /**
@@ -59,9 +59,9 @@ export function createFixtureEditorStore(entityCount?: number): MuseumEditorStor
  * Paris-oriented placement behavior (`/museum/editor`). The default fixture is
  * non-relic, so Paris-preselection/entity-room assertions must opt in here.
  */
-export function createRelicFixtureEditorStore(entityCount?: number): MuseumEditorStore {
+export function createRelicFixtureEditorStore(entityCount?: number): EditorStore {
 	const document = entityCount
 		? cloneFixtureDocumentWithEntityCount(entityCount)
 		: cloneFixtureDocument();
-	return createMuseumEditorStore({ document, rooms: chopinRuntime.rooms, relic: true });
+	return createEditorStore({ document, rooms: chopinRuntime.rooms, relic: true });
 }

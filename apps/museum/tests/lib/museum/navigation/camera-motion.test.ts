@@ -28,10 +28,10 @@ import {
   type CameraRoute
 } from '$lib/museum/navigation/camera-motion';
 import {
-  MUSEUM_CAMERA_FOV,
+  CAMERA_FOV,
   type CameraEasing,
   type RuntimeCameraFramingEnvelope
-} from '$lib/types/museum';
+} from '$lib/types/scene';
 
 function sample(motion: ReturnType<typeof createCameraMotion>, progress: number) {
   const output = createCameraMotionSample();
@@ -2411,10 +2411,10 @@ function assertNonDegenerateSamples(
     );
     expect(gazeDirection(result).toArray().every(Number.isFinite)).toBe(true);
     expect(result.fov).toBeGreaterThanOrEqual(
-      MUSEUM_CAMERA_FOV.min - NON_DEGENERACY_EPSILON
+      CAMERA_FOV.min - NON_DEGENERACY_EPSILON
     );
     expect(result.fov).toBeLessThanOrEqual(
-      MUSEUM_CAMERA_FOV.max + NON_DEGENERACY_EPSILON
+      CAMERA_FOV.max + NON_DEGENERACY_EPSILON
     );
     expect(result.fov).toBeGreaterThanOrEqual(fovRange.min - NON_DEGENERACY_EPSILON);
     expect(result.fov).toBeLessThanOrEqual(fovRange.max + NON_DEGENERACY_EPSILON);

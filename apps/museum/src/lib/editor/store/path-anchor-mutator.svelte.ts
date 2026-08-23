@@ -7,26 +7,26 @@
  * Phase 9.5 hard-moves node point/FOV/label writes and connection draft /
  * anchor insert/update/delete bodies here.
  *
- * `MuseumEditorStore` keeps identical public method signatures as thin
+ * `EditorStore` keeps identical public method signatures as thin
  * delegates. The mutator never touches the document store or history
  * controller directly — only through host transaction wrappers.
  */
 
 import type {
-	MuseumSceneDocument,
+	SceneDocument,
 	SceneNavigationNode,
 	SceneConnection,
 	ScenePathAnchor
 } from '$lib/content/scene';
 import type { LayoutRoomRegistry } from '$lib/project/project-layout-semantics';
-import { MUSEUM_CAMERA_FOV, type MuseumRoomId, type Vec3 } from '$lib/types/museum';
+import { CAMERA_FOV, type RoomId, type Vec3 } from '$lib/types/scene';
 import {
 	allocateCameraPathAnchorId,
 	createScenePathAnchorAtWorldPoint,
 	findScenePathAnchor,
 	getScenePathAnchorWorldPosition,
 	writeScenePathAnchorWorldPosition
-} from '../editor-camera-path';
+} from '../camera/editor-camera-path';
 import type {
 	EditorCameraHandle,
 	EditorCameraSelection,
@@ -44,7 +44,7 @@ function isFiniteVec3(value: Vec3) {
 
 /**
  * Composition-root surface the path/anchor mutator depends on. Everything
- * here stays owned by `MuseumEditorStore`.
+ * here stays owned by `EditorStore`.
  */
 export interface EditorPathAnchorMutatorHost {
 	// Mutation guards.
@@ -57,13 +57,13 @@ export interface EditorPathAnchorMutatorHost {
 	readonly historyFramingTransactionActive: boolean;
 
 	// Document + selection state.
-	readonly document: MuseumSceneDocument;
+	readonly document: SceneDocument;
 	readonly rooms: LayoutRoomRegistry;
 	readonly cameraSelection: EditorCameraSelection | null;
 	readonly selectedNavigationNode: SceneNavigationNode | undefined;
 	readonly selectedConnection: SceneConnection | undefined;
 	readonly selectedAnchor: ScenePathAnchor | undefined;
-	readonly selectedRoomId: MuseumRoomId | null;
+	readonly selectedRoomId: RoomId | null;
 	readonly pendingNavigationNode: SceneNavigationNode | undefined;
 
 	readonly navigationSelection: EditorNavigationSelection;
@@ -185,8 +185,8 @@ export class EditorPathAnchorMutator {
 			this.host.isCameraFramingMutationBlocked ||
 			this.host.isEditorInteractionActive ||
 			!Number.isFinite(fov) ||
-			fov < MUSEUM_CAMERA_FOV.min ||
-			fov > MUSEUM_CAMERA_FOV.max
+			fov < CAMERA_FOV.min ||
+			fov > CAMERA_FOV.max
 		) {
 			return false;
 		}
@@ -205,8 +205,8 @@ export class EditorPathAnchorMutator {
 		if (
 			this.host.isCameraFramingMutationBlocked ||
 			!Number.isFinite(fov) ||
-			fov < MUSEUM_CAMERA_FOV.min ||
-			fov > MUSEUM_CAMERA_FOV.max
+			fov < CAMERA_FOV.min ||
+			fov > CAMERA_FOV.max
 		) {
 			return false;
 		}

@@ -15,7 +15,7 @@
  * `{ bundle: null, issue }` and the adapter keeps the last valid bundle.
  */
 
-import type { MuseumProject } from '$lib/project/project-types';
+import type { Project } from '$lib/project/project-types';
 import type {
 	LayoutDocument,
 	LayoutOpening,
@@ -47,7 +47,7 @@ import type {
  * full `LayoutPreviewState` in one shot.
  */
 export type LayoutGizmoCandidateBundle = {
-	project: MuseumProject;
+	project: Project;
 	model: LayoutPreviewModel;
 	geometry: CompiledLayoutGeometry;
 	wallMeshesByRoom: ReadonlyMap<string, IndexedWallMesh>;
@@ -286,7 +286,7 @@ export function deriveLayoutCandidate(
 	descriptor: LayoutGizmoTargetDescriptor,
 	delta: LayoutGizmoDelta,
 	layout: LayoutDocument,
-	scene: MuseumProject['scene'],
+	scene: Project['scene'],
 	geometry: CompiledLayoutGeometry,
 	projectId: string,
 	projectName: string

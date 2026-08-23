@@ -1,7 +1,7 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
 
 import { chopinRuntime } from '$lib/content/chopin-project';
-import { createMuseumEditorStore, type MuseumEditorStore } from '$lib/editor/museum-editor.svelte';
+import { createEditorStore, type EditorStore } from '$lib/editor/editor-store.svelte';
 import {
 	EditorActiveSelectionStore,
 	deriveActiveSelection,
@@ -19,7 +19,7 @@ import {
 import type {
 	NavigationSelection,
 	WorkspaceSelection
-} from '$lib/editor/museum-editor.types';
+} from '$lib/editor/editor-types';
 import { cloneFixtureDocumentWithEntityCount } from '../editor-test-utils';
 
 /**
@@ -32,13 +32,13 @@ import { cloneFixtureDocumentWithEntityCount } from '../editor-test-utils';
  * the shell does — the store's domain gate reads `viewState.domain`).
  */
 function wired(): {
-	store: MuseumEditorStore;
+	store: EditorStore;
 	layoutInteraction: LayoutInteractionState;
 	viewState: EditorViewState;
 	activeSelection: EditorActiveSelectionStore;
 } {
 	const layoutInteraction = createLayoutInteractionState();
-	const store = createMuseumEditorStore({
+	const store = createEditorStore({
 		document: cloneFixtureDocumentWithEntityCount(3),
 		rooms: chopinRuntime.rooms,
 		onSelectionActivate: () => clearLayoutSelection(layoutInteraction)
@@ -155,7 +155,7 @@ describe('deriveActiveSelection (P1.1 domain gate)', () => {
 describe('onSelectionActivate seam', () => {
 	it('fires only for actionable picks; deselect and room-only never fire', () => {
 		const fired: string[] = [];
-		const store = createMuseumEditorStore({
+		const store = createEditorStore({
 		document: cloneFixtureDocumentWithEntityCount(3),
 		rooms: chopinRuntime.rooms,
 		onSelectionActivate: () => fired.push('activate')
@@ -178,7 +178,7 @@ describe('onSelectionActivate seam', () => {
 	});
 
 	it('defaults to a no-op so the frozen relic is untouched', () => {
-		const store = createMuseumEditorStore({
+		const store = createEditorStore({
 			document: cloneFixtureDocumentWithEntityCount(1),
 			rooms: chopinRuntime.rooms
 		});
@@ -332,7 +332,7 @@ describe('construction-time behavior (P1.1 domain-gated memory, G2)', () => {
 	// no inactive domain's memory is ever destroyed.
 	function storeWithAllSlots() {
 		const layoutInteraction = createLayoutInteractionState();
-		const store = createMuseumEditorStore({
+		const store = createEditorStore({
 			document: cloneFixtureDocumentWithEntityCount(3),
 		rooms: chopinRuntime.rooms
 		});
@@ -392,7 +392,7 @@ describe('construction-time behavior (P1.1 domain-gated memory, G2)', () => {
 
 	it('scene domain with scene + camera memory: active is scene; the navigation slot stays memory', () => {
 		const layoutInteraction = createLayoutInteractionState();
-		const store = createMuseumEditorStore({
+		const store = createEditorStore({
 			document: cloneFixtureDocumentWithEntityCount(3),
 		rooms: chopinRuntime.rooms
 		});

@@ -5,7 +5,7 @@
  * reducer (`workspace` / `navigation` / `discovery`). The god file kept the
  * imperative `selectX` orchestration — guards, focus, timeline sync, tree
  * expansion, asset-placement/pending-frame resets — as ~15 methods on
- * `MuseumEditorStore`.
+ * `EditorStore`.
  *
  * Slice 6 hard-deletes those methods off the god file and moves them here.
  * The controller owns the orchestration; the reducer stays pure. Everything
@@ -18,10 +18,10 @@
 import type { EditorSelectionStore } from './selection-store.svelte';
 import type {
 	CameraConnectionDirection,
-	MuseumRoomId
-} from '$lib/types/museum';
+	RoomId
+} from '$lib/types/scene';
 import type {
-	MuseumSceneDocument,
+	SceneDocument,
 	SceneNavigationNode,
 	SceneObjectCluster
 } from '$lib/content/scene';
@@ -29,8 +29,8 @@ import type { ResolvedCameraRoute } from '$lib/museum/navigation/camera-route';
 import {
 	cameraMotionProgressAtEdgeProgress
 } from '$lib/museum/navigation/camera-motion';
-import { resolveDirectedEdgeMotionForConnection } from '../editor-directed-edge-motion';
-import { findSceneCameraViewKeyframe } from '../editor-camera-view';
+import { resolveDirectedEdgeMotionForConnection } from '../camera/editor-directed-edge-motion';
+import { findSceneCameraViewKeyframe } from '../camera/editor-camera-view';
 import type {
 	EditorCameraHandle,
 	EditorCameraSelection,
@@ -44,7 +44,7 @@ import type {
 	EditorPlacementTreeSelectionOptions,
 	EditorWorkspace,
 	NavigationSelection
-} from '../museum-editor.types';
+} from '../editor-types';
 
 /**
  * Captured legacy selection snapshot restored by `restoreSelectionSnapshot`
@@ -95,7 +95,7 @@ function navigationStateFromLegacy(
 
 /**
  * Composition-root surface the selection controller depends on. Everything
- * here stays owned by `MuseumEditorStore`; the controller never mutates the
+ * here stays owned by `EditorStore`; the controller never mutates the
  * document or history directly.
  */
 export interface EditorSelectionActionsHost {
@@ -104,14 +104,14 @@ export interface EditorSelectionActionsHost {
 	readonly isCameraFramingMutationBlocked: boolean;
 	readonly pendingNavigationCommand: EditorPendingNavigationCommand;
 	readonly pendingNavigationNode: SceneNavigationNode | undefined;
-	readonly document: MuseumSceneDocument;
+	readonly document: SceneDocument;
 	readonly cameraSelection: EditorCameraSelection | null;
 	readonly currentWorkspace: EditorWorkspace;
 	readonly cameraPreview: EditorCameraPreview;
 	readonly activeCameraConnectionId: string | null;
 	readonly activeCameraDirection: CameraConnectionDirection;
 	readonly navigationSelection: EditorNavigationSelection;
-	readonly selectedRoomId: MuseumRoomId | null;
+	readonly selectedRoomId: RoomId | null;
 	readonly selectedPlacementId: string | null;
 	readonly selectedPlacementIds: string[];
 	readonly selectedClusterId: string | null;
@@ -126,7 +126,7 @@ export interface EditorSelectionActionsHost {
 	focusNavigationNode(id: string): boolean;
 	focusPlacement(id: string): boolean;
 	focusSelection(): boolean;
-	ensureRoomTreeExpanded(roomId: MuseumRoomId): void;
+	ensureRoomTreeExpanded(roomId: RoomId): void;
 	ensureClusterTreeExpanded(clusterId: string): void;
 	isPlacementSelectable(id: string): boolean;
 	getCapturedCameraPreviewRoute(runId: number): ResolvedCameraRoute | null;
@@ -393,7 +393,7 @@ export class EditorSelectionActions {
 	// Room + placement + cluster selection
 	// ===================================================================
 
-	selectRoom(id: MuseumRoomId) {
+	selectRoom(id: RoomId) {
 		if (this.host.isDocumentMutationBlocked || this.host.isEditorInteractionActive) return false;
 		const changed = this.host.selectedRoomId !== id;
 		if (!changed) return false;
@@ -441,7 +441,7 @@ export class EditorSelectionActions {
 		const placement = this.host.document.entities.find((object) => object.id === id);
 		if (!placement) return false;
 		if (this.host.selectedRoomId !== placement.roomId) {
-			this.selectRoom(placement.roomId as MuseumRoomId);
+			this.selectRoom(placement.roomId as RoomId);
 		}
 		if (!this.host.isPlacementSelectable(id)) return false;
 		// setWorkspace auto-cross-clears nav; reducer model.
@@ -449,7 +449,7 @@ export class EditorSelectionActions {
 			kind: 'placement',
 			ids: [id],
 			clusterId: null,
-			roomId: placement.roomId as MuseumRoomId
+			roomId: placement.roomId as RoomId
 		});
 		this.lastSelectedId = id;
 		return true;
@@ -471,7 +471,7 @@ export class EditorSelectionActions {
 			kind: 'placement',
 			ids: next,
 			clusterId: null,
-			roomId: firstPlacement.roomId as MuseumRoomId
+			roomId: firstPlacement.roomId as RoomId
 		});
 		this.lastSelectedId = next[next.length - 1] ?? null;
 		return true;
@@ -493,7 +493,7 @@ export class EditorSelectionActions {
 			kind: 'placement',
 			ids: nextIds,
 			clusterId: null,
-			roomId: placement.roomId as MuseumRoomId
+			roomId: placement.roomId as RoomId
 		});
 		this.lastSelectedId = id;
 		return true;

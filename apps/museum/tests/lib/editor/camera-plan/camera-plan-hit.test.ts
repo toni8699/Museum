@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { MuseumSceneDocument } from '$lib/content/scene';
+import type { SceneDocument } from '$lib/content/scene';
 import { g1DocumentWithRooms, g1RectangleRoom } from '../../layout/__fixtures__/layout-g1-fixtures';
 import { createLayoutRoomRegistry } from '$lib/project/project-layout-semantics';
 import { buildPlanCameraAuthoringProjection } from '$lib/editor/layout/plan-camera-projection';
@@ -10,7 +10,7 @@ import {
 	resolveCameraPlanHit
 } from '$lib/editor/camera-plan/camera-plan-hit';
 
-function authoringDocument(): MuseumSceneDocument {
+function authoringDocument(): SceneDocument {
 	return {
 		textures: [],
 		materials: [],

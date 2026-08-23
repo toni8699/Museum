@@ -1,4 +1,4 @@
-import type { MuseumProject } from '$lib/project/project-types';
+import type { Project } from '$lib/project/project-types';
 
 export type ChopinRoomId =
 	| 'entrance'
@@ -54,7 +54,7 @@ export const chopinRoomPresentation: Readonly<Record<ChopinRoomId, ChopinRoomPre
 	}
 };
 
-export function validateChopinRoomPresentation(project: MuseumProject): void {
+export function validateChopinRoomPresentation(project: Project): void {
 	const roomIds = new Set(project.layout.floors.flatMap((floor) => floor.rooms.map((room) => room.id)));
 	for (const roomId of Object.keys(chopinRoomPresentation)) {
 		if (!roomIds.has(roomId)) throw new Error(`Chopin presentation references unknown project room: ${roomId}`);

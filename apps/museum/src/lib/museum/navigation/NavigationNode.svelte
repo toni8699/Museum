@@ -1,18 +1,18 @@
 <script lang="ts">
   import { T } from '@threlte/core';
   import type { IntersectionEvent } from '@threlte/extras';
-  import type { NavigationNodeData } from '$lib/types/museum';
+  import type { NavigationNodeData } from '$lib/types/scene';
   import {
-    museumState,
-    type MuseumStateStore
-  } from '$lib/state/museum-state.svelte';
+    runtimeState,
+    type RuntimeStateStore
+  } from '$lib/state/runtime-state.svelte';
 
   let {
     node,
-    state: store = museumState
+    state: store = runtimeState
   }: {
     node: NavigationNodeData;
-    state?: MuseumStateStore;
+    state?: RuntimeStateStore;
   } = $props();
 
   let hovered = $state(false);

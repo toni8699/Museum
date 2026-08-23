@@ -29,7 +29,7 @@
  * predicate + the blocker shape.
  */
 
-import type { MuseumSceneDocument, SceneTextureAsset } from '$lib/content/scene';
+import type { SceneDocument, SceneTextureAsset } from '$lib/content/scene';
 import { isSafeTextureUri } from '$lib/content/texture-uri';
 
 /** Structural blocker surfaced to the project menu / status bar. */
@@ -72,7 +72,7 @@ export function isTextureUriResolved(uri: string, hasFn: (uri: string) => boolea
  * Returns `null` if every texture is resolved.
  */
 export function computeProjectExportBlocker(
-	document: MuseumSceneDocument,
+	document: SceneDocument,
 	binaryStore: BinaryLike
 ): ProjectExportBlocker | null {
 	const unresolved: SceneTextureAsset[] = [];
@@ -92,7 +92,7 @@ export function computeProjectExportBlocker(
  * Cheap count helper. Equivalent to
  * `computeProjectExportBlocker(doc, store)?.unresolvedTextures.length ?? 0`.
  */
-export function unresolvedCount(document: MuseumSceneDocument, binaryStore: BinaryLike): number {
+export function unresolvedCount(document: SceneDocument, binaryStore: BinaryLike): number {
 	return computeProjectExportBlocker(document, binaryStore)?.unresolvedTextures.length ?? 0;
 }
 
@@ -100,7 +100,7 @@ export function unresolvedCount(document: MuseumSceneDocument, binaryStore: Bina
  * ID list helper. Equivalent to
  * `computeProjectExportBlocker(doc, store)?.unresolvedTextures.map(t => t.id) ?? []`.
  */
-export function unresolvedIds(document: MuseumSceneDocument, binaryStore: BinaryLike): string[] {
+export function unresolvedIds(document: SceneDocument, binaryStore: BinaryLike): string[] {
 	const blocker = computeProjectExportBlocker(document, binaryStore);
 	if (!blocker) return [];
 	return blocker.unresolvedTextures.map((t) => t.id);

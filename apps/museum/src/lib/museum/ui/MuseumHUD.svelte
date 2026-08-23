@@ -1,23 +1,23 @@
 <script lang="ts">
   import { getChopinRoomPresentation } from '$lib/content/chopin-room-presentation';
-  import { chopinRuntime, type MuseumRuntime } from '$lib/content/chopin-project';
+  import { chopinRuntime, type Runtime } from '$lib/content/chopin-project';
   import {
     assertNavigationGraphMatchesScene,
-    type RuntimeMuseumScene
+    type RuntimeScene
   } from '$lib/content/scene';
   import {
-    createMuseumState,
-    type MuseumStateStore
-  } from '$lib/state/museum-state.svelte';
+    createRuntimeState,
+    type RuntimeStateStore
+  } from '$lib/state/runtime-state.svelte';
 
   let {
     runtime = chopinRuntime,
     scene = runtime.scene,
-    state = createMuseumState(runtime.graph)
+    state = createRuntimeState(runtime.graph)
   }: {
-    runtime?: MuseumRuntime;
-    scene?: RuntimeMuseumScene;
-    state?: MuseumStateStore;
+    runtime?: Runtime;
+    scene?: RuntimeScene;
+    state?: RuntimeStateStore;
   } = $props();
 
   const navigationNodes = $derived.by(() => {

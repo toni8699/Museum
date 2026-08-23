@@ -4,7 +4,7 @@ import {
 	type EditorMaterialResourceMutatorHost
 } from '$lib/editor/store/material-resource-mutator.svelte';
 import type {
-	MuseumSceneDocument,
+	SceneDocument,
 	SceneEntity,
 	SceneMaterialInstance,
 	SceneModelEntity,
@@ -21,7 +21,7 @@ interface HostRig extends EditorMaterialResourceMutatorHost {
 	recents: string[];
 }
 
-function baseDocument(): MuseumSceneDocument {
+function baseDocument(): SceneDocument {
 	return {
 		textures: [],
 		materials: [],
@@ -32,7 +32,7 @@ function baseDocument(): MuseumSceneDocument {
 }
 
 function rig(options: {
-	document?: MuseumSceneDocument;
+	document?: SceneDocument;
 	blocked?: boolean;
 	active?: boolean;
 	commitResult?: boolean;
@@ -41,7 +41,7 @@ function rig(options: {
 	const active = options.active ?? false;
 	const commitResult = options.commitResult ?? true;
 	const recents: string[] = [];
-	let doc: MuseumSceneDocument = options.document ?? baseDocument();
+	let doc: SceneDocument = options.document ?? baseDocument();
 	const rig: HostRig = {
 		get isDocumentMutationBlocked() {
 			return blocked;
@@ -52,7 +52,7 @@ function rig(options: {
 		get document() {
 			return doc;
 		},
-		set document(next: MuseumSceneDocument) {
+		set document(next: SceneDocument) {
 			doc = next;
 		},
 		setStatusMessage: () => undefined,
@@ -155,7 +155,7 @@ function documentOf(
 	textures: SceneTextureAsset[],
 	materials: SceneMaterialInstance[],
 	entities: SceneEntity[]
-): MuseumSceneDocument {
+): SceneDocument {
 	return {
 		textures,
 		materials,

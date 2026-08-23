@@ -5,16 +5,16 @@
 import { chopinRuntime } from './chopin-project';
 import { getChopinRoomPresentation } from './chopin-room-presentation';
 import type {
-	MuseumRoom,
-	MuseumRoomId,
+	Room,
+	RoomId,
 	RoomOpening,
 	RoomOpeningSide,
 	Vec3
-} from '$lib/types/museum';
+} from '$lib/types/scene';
 
 const SIDES = ['neg-z', 'pos-x', 'pos-z', 'neg-x'] as const satisfies readonly RoomOpeningSide[];
 
-export const museumRooms: MuseumRoom[] = chopinRuntime.rooms.entries.map((entry) => {
+export const rooms: Room[] = chopinRuntime.rooms.entries.map((entry) => {
 	const presentation = getChopinRoomPresentation(entry.id);
 	const localBoundary = entry.room.boundary.segments.map((segment) =>
 		chopinRuntime.rooms.localPoint(entry.id, [segment.start[0], entry.floor.elevation, segment.start[1]])
@@ -60,24 +60,24 @@ export const museumRooms: MuseumRoom[] = chopinRuntime.rooms.entries.map((entry)
 	};
 });
 
-export const roomById = new Map<MuseumRoomId, MuseumRoom>(museumRooms.map((room) => [room.id, room]));
+export const roomById = new Map<RoomId, Room>(rooms.map((room) => [room.id, room]));
 
-export function getRoom(id: MuseumRoomId): MuseumRoom {
+export function getRoom(id: RoomId): Room {
 	const room = roomById.get(id);
-	if (!room) throw new Error(`Unknown museum room: ${id}`);
+	if (!room) throw new Error(`Unknown room: ${id}`);
 	return room;
 }
 
-export function roomPoint(roomId: MuseumRoomId, localPoint: Vec3): Vec3 {
+export function roomPoint(roomId: RoomId, localPoint: Vec3): Vec3 {
 	return chopinRuntime.rooms.point(roomId, localPoint);
 }
 
-export function roomLocalPoint(roomId: MuseumRoomId, worldPoint: Vec3): Vec3 {
+export function roomLocalPoint(roomId: RoomId, worldPoint: Vec3): Vec3 {
 	return chopinRuntime.rooms.localPoint(roomId, worldPoint);
 }
 
 export function isWorldPointInsideRoomXZ(
-	roomId: MuseumRoomId,
+	roomId: RoomId,
 	worldPoint: Vec3,
 	epsilon = 1e-6
 ): boolean {

@@ -14,7 +14,7 @@ Conflict: **`docs/` component files + hub win** over this file for product detai
 
 1. **One nav + one motion** — `camera-route.ts` + `camera-motion.ts` only.
 2. **Architecture SoT today** — `rooms.ts` until B4/B5. New rooms → `LayoutDocument`; layout must not drive `/museum` before those gates.
-3. **Scene SoT** — `museum-scene.json` v6; interior connection anchors only; never persist generated endpoints.
+3. **Scene SoT** — `scene.json` v6; interior connection anchors only; never persist generated endpoints.
 4. **Visitor isolation** — the editor ships in production at `/`, `/editor`, and `/museum/editor` (no build-flag gating). `/museum` is visitor-only: no editor/layout UI or editor code in its chunks.
 5. Editor helpers outside `MuseumScene` / visitor imports.
 6. No nav arrays in `rooms.ts`; no second graph/motion; prefer Floor/Wall/Ceiling planes.

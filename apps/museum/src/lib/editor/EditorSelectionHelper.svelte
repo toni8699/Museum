@@ -10,7 +10,7 @@
 	} from 'three';
 	import { useTask, useThrelte } from '@threlte/core';
 	import { getContext } from 'svelte';
-	import type { MuseumEditorStore } from './museum-editor.svelte';
+	import type { EditorStore } from './editor-store.svelte';
 	import {
 		EDITOR_INTERACTION_STORE_KEY,
 		type EditorInteractionStore
@@ -18,7 +18,7 @@
 	import { box3CornersToLineGeometry, localCornersInto } from './obb-util';
 	import { computeClusterOBB, computeRootLocalBox } from './cluster-obb';
 
-	let { store }: { store: MuseumEditorStore } = $props();
+	let { store }: { store: EditorStore } = $props();
 	const { scene } = useThrelte();
 	const interactionStore = getContext<EditorInteractionStore | undefined>(
 		EDITOR_INTERACTION_STORE_KEY

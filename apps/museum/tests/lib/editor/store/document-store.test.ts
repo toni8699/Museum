@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest';
 
 import { cloneFixtureDocument } from '../../content/__fixtures__/load-fixture-scene';
 import { serializeSceneDocument } from '$lib/content/scene-codec';
-import type { MuseumSceneDocument } from '$lib/content/scene';
-import { museumSceneDocument, chopinRuntime } from '$lib/content/chopin-project';
+import type { SceneDocument } from '$lib/content/scene';
+import { sceneDocument, chopinRuntime } from '$lib/content/chopin-project';
 
 import {
-	cloneMuseumSceneDocument,
+	cloneSceneDocument,
 	EditorDocumentStore,
 	pickInitialNavigationNodeId
 } from '$lib/editor/store/document-store.svelte';
@@ -16,8 +16,8 @@ import {
  * and that produces a distinct canonical JSON. `entities[0].rotation[1]` is
  * a float angle; nudging it 0.001 keeps the value plausible.
  */
-function fingerprint(doc: MuseumSceneDocument): MuseumSceneDocument {
-	const next = cloneMuseumSceneDocument(doc);
+function fingerprint(doc: SceneDocument): SceneDocument {
+	const next = cloneSceneDocument(doc);
 	const first = next.entities[0];
 	if (!first) throw new Error('scene document has no entities');
 	first.rotation = [
@@ -30,8 +30,8 @@ function fingerprint(doc: MuseumSceneDocument): MuseumSceneDocument {
 
 describe('EditorDocumentStore', () => {
 	it('starts with the bundled scene document as the source of truth', () => {
-		const store = new EditorDocumentStore(museumSceneDocument, chopinRuntime.rooms);
-		expect(store.document).toEqual(museumSceneDocument);
+		const store = new EditorDocumentStore(sceneDocument, chopinRuntime.rooms);
+		expect(store.document).toEqual(sceneDocument);
 		expect(store.validation.success).toBe(true);
 		expect(
 			store.document.navigationNodes.some((node) => node.id === store.state.activeNodeId)
@@ -40,7 +40,7 @@ describe('EditorDocumentStore', () => {
 	});
 
 	it('reports not-dirty at boot (baseline matches live canonical JSON)', () => {
-		const store = new EditorDocumentStore(museumSceneDocument, chopinRuntime.rooms);
+		const store = new EditorDocumentStore(sceneDocument, chopinRuntime.rooms);
 		expect(store.isDirty).toBe(false);
 		expect(store.canonicalJson).toBe(store.baselineCanonicalJson);
 	});
@@ -70,7 +70,7 @@ describe('EditorDocumentStore', () => {
 		expect(store.validation.success).toBe(true);
 		// Invalid: a node whose cameraTarget points at its own position is
 		// rejected by the validator (same recipe as the facade import tests).
-		const invalid = cloneMuseumSceneDocument(seed);
+		const invalid = cloneSceneDocument(seed);
 		invalid.navigationNodes[0]!.cameraTarget = [...invalid.navigationNodes[0]!.position];
 		// Direct assignment through the public `$state` document seam —
 		// `replace()` validates and would throw, so this pins the getter
@@ -125,16 +125,16 @@ describe('EditorDocumentStore', () => {
 
 	it('documentsMatch(a, b) reflects JSON-shape equality', () => {
 		const seed = cloneFixtureDocument();
-		const a = cloneMuseumSceneDocument(seed);
-		const b = cloneMuseumSceneDocument(seed);
+		const a = cloneSceneDocument(seed);
+		const b = cloneSceneDocument(seed);
 		expect(EditorDocumentStore.documentsMatch(a, b)).toBe(true);
 		const another = fingerprint(seed);
 		expect(EditorDocumentStore.documentsMatch(a, another)).toBe(false);
 	});
 
-	it('cloneMuseumSceneDocument returns a deep-clone (not the same reference)', () => {
+	it('cloneSceneDocument returns a deep-clone (not the same reference)', () => {
 		const seed = cloneFixtureDocument();
-		const cloned = cloneMuseumSceneDocument(seed);
+		const cloned = cloneSceneDocument(seed);
 		expect(cloned).toEqual(seed);
 		expect(cloned).not.toBe(seed);
 		cloned.entities[0]!.rotation[1] = 999;

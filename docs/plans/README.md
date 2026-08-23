@@ -63,7 +63,7 @@ Policy rules:
 | P4 | Client GLB import | proposed | renewal | [2026-08-18-P4-gltb-import.md](2026-08-18-P4-gltb-import.md) |
 | P5 | Measured optimization and scale | proposed | renewal | [2026-08-18-P5-measured-optimization.md](2026-08-18-P5-measured-optimization.md) |
 | P6 | Editor artifact rename (de-H1) | shipped | renewal | archived → [2026-08-18-P6-editor-rename.md](archive/plans/2026-08-18-P6-editor-rename.md) |
-| P7 | Museum-editor facade decoupling — finish the deferred H1 splits (selection de-coupling, facade thinning, type collapse, shims, Chopin defaults, shell boot) + P7.6 museum-vocabulary scrub (drop-prefix scene vocabulary, relic keeps museum; format hard break) | **in progress — P7.1 + P7.5 + P7.2 + P7.3 shipped 2026-08-23 (facade decoupling complete); P7.6 next (the museum-vocabulary scrub)** | P1 | [2026-08-19-P7-editor-facade-collapse.md](2026-08-19-P7-editor-facade-collapse.md) + [P7.6 strings pre-inventory (annex)](2026-08-23-P7.6-strings-pre-inventory.md) |
+| P7 | Museum-editor facade decoupling — finish the deferred H1 splits (selection de-coupling, facade thinning, type collapse, shims, Chopin defaults, shell boot) + P7.6 museum-vocabulary scrub (drop-prefix scene vocabulary, relic keeps museum; format hard break) | **shipped 2026-08-23 — P7.1 + P7.5 + P7.2 + P7.3 + P7.6 all complete; P7 closed** | P1 | [2026-08-19-P7-editor-facade-collapse.md](2026-08-19-P7-editor-facade-collapse.md) + [P7.6 strings pre-inventory (annex)](2026-08-23-P7.6-strings-pre-inventory.md) |
 | P8 | Camera preview scopes — Preview Camera / Preview Edge / Preview Sequence; directed-edge motion resolver + timing parity; edge-local timeline | **shipped — S1–S6 (2026-08-22)** | P1 | [2026-08-21-P8-camera-preview-scopes.md](2026-08-21-P8-camera-preview-scopes.md) |
 | — | Branch rejoin — **experiment, no schedule** (rejoin into a later Sequence stop; dead-end return already ships; multi-edge playback would compose P8's edge primitive) | proposed | P8 conceptually | [2026-08-21-branch-rejoin-experiment.md](2026-08-21-branch-rejoin-experiment.md) |
 | … | future work re-registers here | | | |
@@ -73,14 +73,16 @@ owner re-prioritized **P8 ahead of P2** on 2026-08-21
 ([scope decision](archive/plans/2026-08-21-scope-decision-p8-before-p2.md));
 P8 shipped **S1–S6 on 2026-08-22**, completing the camera phase. On 2026-08-22
 the owner re-prioritized **P7 (facade refactor) ahead of P2**: **P7.1, P7.5,
-P7.2, and P7.3 all shipped 2026-08-23** — the facade-decoupling increments
-are complete, so **P7.6 (the museum-vocabulary scrub) is the active next
-action**, landing last as designed; P2 resumes after P7, P3 stays
-last. **P7.6** (added 2026-08-22) is the museum-vocabulary scrub — owner
-decisions recorded in its pre-brief: drop-prefix scene vocabulary (relic
-subtree keeps museum) and a hard-break format rename (`.scenepack.zip` /
-`scene.json`); it lands last as its own commit series on top of the settled
-P7.1–P7.5 code.
+P7.2, P7.3, and P7.6 all shipped 2026-08-23 — P7 is closed** (P7.4 shipped
+earlier via P1); P2 resumes next, P3 stays last. **P7.6** (added 2026-08-22)
+was the museum-vocabulary scrub — owner decisions recorded in its pre-brief:
+drop-prefix scene vocabulary (relic subtree keeps museum) and a hard-break
+format rename (`.scenepack.zip` / `scene.json`); it landed last as its own
+commit series on top of the settled P7.1–P7.5 code, with the identifier
+zero-match gate (keep-list 41) and the bare-museum tolerated-set gate (179/184
+P/T; +2 legacy-format pin lines added post-close — the hard-break test now also
+rejects the pre-break `museum-scene.json` member, documented in the annex §4)
+both green.
 P3 is now visual polish **plus** the folded context-menu interaction slice:
 **P3.4** (shared shell + Scene 3D / Layout / Outliner adapters) is
 P8-independent, while **P3.5** (Camera / Timeline adapters binding Preview

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { T } from '@threlte/core';
-  import type { Vec3 } from '$lib/types/museum';
+  import type { Vec3 } from '$lib/types/scene';
 
   const floatingNotes = [
     [3.2, 1.1, 1.2],

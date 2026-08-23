@@ -6,7 +6,7 @@ import {
 	EditorSelectionActions,
 	type EditorSelectionActionsHost
 } from '$lib/editor/store/selection-actions.svelte';
-import type { MuseumSceneDocument, SceneObjectCluster } from '$lib/content/scene';
+import type { SceneDocument, SceneObjectCluster } from '$lib/content/scene';
 import type { EditorTransformMode } from '$lib/editor/editor-transform';
 
 /**
@@ -32,7 +32,7 @@ function createHarness(
 		connections: [],
 		navigationNodes: [],
 		clusters: [] as SceneObjectCluster[]
-	} as unknown as MuseumSceneDocument;
+	} as unknown as SceneDocument;
 
 	let transformMode: EditorTransformMode = initialMode;
 	const guards = {
@@ -296,7 +296,7 @@ describe('EditorSelectionActions — Phase 6.4 keep-action invariant', () => {
 			connections: [],
 			navigationNodes: [],
 			clusters: [cluster]
-		} as unknown as MuseumSceneDocument;
+		} as unknown as SceneDocument;
 		const guards = {
 			isDocumentMutationBlocked: false,
 			isEditorInteractionActive: false,

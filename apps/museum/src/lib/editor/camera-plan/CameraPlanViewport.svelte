@@ -7,9 +7,9 @@
 	// layout selection is ever written here.
 	import { getContext, onMount } from 'svelte';
 	import type { LayoutVec2 } from '$lib/layout/layout-types';
-	import type { Vec3 } from '$lib/types/museum';
+	import type { Vec3 } from '$lib/types/scene';
 	import { Vector3 } from 'three';
-	import type { MuseumEditorStore } from '../museum-editor.svelte';
+	import type { EditorStore } from '../editor-store.svelte';
 	import type { LayoutPreviewState } from '../layout/layout-preview-state.svelte';
 	import type { EditorNavigationSelection } from '../editor-selection';
 	import {
@@ -17,7 +17,7 @@
 		EDITOR_CAMERA_PATH_MOVE_EPSILON,
 		getCameraPathInsertionIndex,
 		getScenePathAnchorWorldPosition
-	} from '../editor-camera-path';
+	} from '../camera/editor-camera-path';
 	import { findPlanHitRoom } from '../layout/plan-hit';
 	import {
 		buildPlanGrid,
@@ -53,7 +53,7 @@
 		preview,
 		cameraPlan
 	}: {
-		store: MuseumEditorStore;
+		store: EditorStore;
 		preview: LayoutPreviewState;
 		cameraPlan: CameraPlanState;
 	} = $props();
@@ -252,12 +252,12 @@
 		if (!world) return;
 		const candidate = placementCandidateAt(world);
 		if (!candidate.roomId) {
-			store.setStatusMessage('Click a tagged museum-room floor');
+			store.setStatusMessage('Click a tagged room floor');
 			return;
 		}
 		const entry = store.rooms.get(candidate.roomId);
 		if (!entry) {
-			store.setStatusMessage('Click a tagged museum-room floor');
+			store.setStatusMessage('Click a tagged room floor');
 			return;
 		}
 		const floorWorld: Vec3 = [

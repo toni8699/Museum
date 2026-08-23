@@ -1,17 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import type { MuseumSceneDocument } from '$lib/content/scene';
+import type { SceneDocument } from '$lib/content/scene';
 import { g1DocumentWithRooms, g1RectangleRoom } from '../../layout/__fixtures__/layout-g1-fixtures';
 import { createLayoutRoomRegistry } from '$lib/project/project-layout-semantics';
 import { resolvePlanSceneGraphFromDocument } from '$lib/editor/layout/plan-camera-projection';
 import { createCameraMotion } from '$lib/museum/navigation/camera-motion';
 import { getCameraConnectionRoute, getCameraMotionOptions } from '$lib/museum/navigation/camera-route';
-import { resolveCameraConnectionTiming } from '$lib/editor/editor-camera-timing';
+import { resolveCameraConnectionTiming } from '$lib/editor/camera/editor-camera-timing';
 
 function documentWith(overrides: {
 	timingForward?: { durationSeconds: number; easing?: string } | null;
 	timingReverse?: { durationSeconds: number; easing?: string } | null;
 	positionB?: [number, number, number];
-}): MuseumSceneDocument {
+}): SceneDocument {
 	const timing: Record<string, unknown> = {};
 	if (overrides.timingForward) timing.forward = overrides.timingForward;
 	if (overrides.timingReverse) timing.reverse = overrides.timingReverse;

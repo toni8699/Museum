@@ -3,14 +3,14 @@
   import { T } from '@threlte/core';
   import { useGltf, useMeshopt } from '@threlte/extras';
   import { Box3, type Object3D } from 'three';
-  import { getMuseumAsset, resolveAssetFallback } from '$lib/content/assets';
+  import { getAsset, resolveAssetFallback } from '$lib/content/assets';
   import type {
     AssetId,
     AssetLoadStatus,
     AssetMetrics,
     FallbackKind
   } from '$lib/types/assets';
-  import type { Vec3 } from '$lib/types/museum';
+  import type { Vec3 } from '$lib/types/scene';
   import type { EffectiveSceneMaterial } from '$lib/museum/materials/scene-instance-material';
   import AssetFallback from './AssetFallback.svelte';
   import { assetFallbackDimensions } from './fallbacks';
@@ -65,7 +65,7 @@
   } = $props();
 
   const loader = useGltf({ meshoptDecoder: useMeshopt() });
-  const asset = $derived(getMuseumAsset(assetId));
+  const asset = $derived(getAsset(assetId));
   // Placement fallback is authoritative. Manifest resolution is compatibility-only
   // for preview/renderer callers that do not provide a scene placement fallback.
   const fallbackKind = $derived(fallback ?? resolveAssetFallback(asset));

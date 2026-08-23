@@ -1,7 +1,7 @@
 # Persistence and schema
 
 **Read when:** scene/layout/project codecs, undo/history, import/export, dirty, fidelity.  
-**Last reviewed:** 2026-08-18
+**Last reviewed:** 2026-08-23
 
 ---
 
@@ -9,7 +9,7 @@
 
 **Layout:** canonical `units: 'meters'`, floors → rooms → stable room frame + draft paths → openings → layout objects. No version field; rooms always carry a finite `frame.origin: [x, z]` + normalized radian `frame.yaw`. Opening `offset` = meters along a segment, never a sample index. Door-only `connectsRoomIds: [string, string]` relations explicit, validated, never inferred from geometry; windows unpaired.
 
-**Editor layout session:** canonical `serializeLayoutDocument()` output = layout baseline. Status = `blank | dirty | imported`; invalid-import feedback independent, preserves prior layout, model, selection, source, baseline, dirty state. Layout import/copy/download/reset operate only on layout JSON (`museum-layout.json`). Scene replacement checks scene dirtiness, layout replacement checks layout dirtiness, navigation/unload checks both. Room-unit relocation moves frame, boundary, owned objects atomically in one tagged `layout` history entry; vertex, bend, opening edits leave frame unchanged. Editor may hold intentionally independent transient scene/layout documents, so preview state validates each edited domain without requiring every intermediate pair to form valid project.
+**Editor layout session:** canonical `serializeLayoutDocument()` output = layout baseline. Status = `blank | dirty | imported`; invalid-import feedback independent, preserves prior layout, model, selection, source, baseline, dirty state. Layout import/copy/download/reset operate only on layout JSON (`layout.json`). Scene replacement checks scene dirtiness, layout replacement checks layout dirtiness, navigation/unload checks both. Room-unit relocation moves frame, boundary, owned objects atomically in one tagged `layout` history entry; vertex, bend, opening edits leave frame unchanged. Editor may hold intentionally independent transient scene/layout documents, so preview state validates each edited domain without requiring every intermediate pair to form valid project.
 
 **Layout object transforms:** `position` = world/layout center; Euler `rotation` = radians; `dimensions` = full local extents before rotation. Plan footprints + bounds use rotation-aware world AABBs. Authored `box | plane | cylinder | sphere` objects editable; imported `profile` objects round-trip unchanged, read-only in A4.
 

@@ -10,7 +10,7 @@
  * `markCameraPreviewStarted`, `completeCameraPreview`, `stopCameraPreview`,
  * `getCapturedCameraPreviewRoute`), and the private route plumbing
  * (`resolveCameraPreviewRoute`, `prepareCameraPreview`,
- * `seedEmptyReverseForSelectedForwardTrack`) out of `museum-editor.svelte.ts`.
+ * `seedEmptyReverseForSelectedForwardTrack`) out of `editor-store.svelte.ts`.
  *
  * The **FSM state** already lives in `camera-preview-controller.svelte.ts`
  * (Slice 3 v2 sub-task 3.5); the **timeline ruler** lives in
@@ -36,28 +36,28 @@
  * the two private methods on the facade are replaced by one-line delegates.
  */
 
-import { getNode, type MuseumSceneDocument, type SceneConnection, type RuntimeMuseumScene } from '$lib/content/scene';
-import type { MuseumStateStore } from '$lib/state/museum-state.svelte';
+import { getNode, type SceneDocument, type SceneConnection, type RuntimeScene } from '$lib/content/scene';
+import type { RuntimeStateStore } from '$lib/state/runtime-state.svelte';
 import { getCameraConnectionRoute, getCameraRoute, type ResolvedCameraRoute } from '$lib/museum/navigation/camera-route';
 import {
 	cameraMotionProgressAtEdgeProgress,
 	createCameraMotion
 } from '$lib/museum/navigation/camera-motion';
-import { resolveDirectedEdgeMotionByDirection } from '../editor-directed-edge-motion';
+import { resolveDirectedEdgeMotionByDirection } from '../camera/editor-directed-edge-motion';
 import {
 	cameraTimelineEdgePlayheadAtProgress,
 	cameraTimelineProgressAtEdgeProgress,
 	getEditorCameraTimelineLocation,
 	type EditorCameraTimeline
-} from '../editor-camera-timeline';
-import { seedEmptyReverseViewTrack, syncReverseViewTrackFromForward } from '../editor-camera-view';
+} from '../camera/editor-camera-timeline';
+import { seedEmptyReverseViewTrack, syncReverseViewTrackFromForward } from '../camera/editor-camera-view';
 import type { EditorCameraSelection, EditorNavigationSelection } from '../editor-selection';
 import type {
 	EditorCameraPreview,
 	EditorCameraPreviewMode,
 	EditorViewKeyframeProgressDragSelection
-} from '../museum-editor.types';
-import type { CameraConnectionDirection } from '$lib/types/museum';
+} from '../editor-types';
+import type { CameraConnectionDirection } from '$lib/types/scene';
 
 import type { EditorSelectionActions } from './selection-actions.svelte';
 import type { EditorSelectionStore } from './selection-store.svelte';
@@ -66,7 +66,7 @@ import type { EditorCameraTimelineController } from './camera-timeline-controlle
 
 /**
  * Composition-root surface `EditorCameraPreviewCommands` depends on.
- * Everything here is owned by `MuseumEditorStore`; this controller never
+ * Everything here is owned by `EditorStore`; this controller never
  * mutates the document store, history controller, or preview controller
  * directly — only through the accessors and wrappers below.
  */
@@ -79,9 +79,9 @@ export interface EditorCameraPreviewCommandsHost {
 	readonly directPathInteractionActive: boolean;
 
 	// Document + resolved scene + state graph + selection reducer.
-	readonly document: MuseumSceneDocument;
-	readonly scene: RuntimeMuseumScene;
-	readonly state: MuseumStateStore;
+	readonly document: SceneDocument;
+	readonly scene: RuntimeScene;
+	readonly state: RuntimeStateStore;
 	readonly selection: EditorSelectionStore;
 	readonly selectionActions: EditorSelectionActions;
 

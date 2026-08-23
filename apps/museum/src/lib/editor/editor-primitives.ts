@@ -8,7 +8,7 @@ import type {
 	SceneSphereDimensions
 } from '$lib/content/scene';
 import type { MaterialId } from '$lib/types/materials';
-import type { MuseumRoomId, Vec3 } from '$lib/types/museum';
+import type { RoomId, Vec3 } from '$lib/types/scene';
 
 export type PrimitiveLibraryItem = {
 	kind: ScenePrimitiveKind;
@@ -48,7 +48,7 @@ export function primitiveDisplayName(kind: ScenePrimitiveKind): string {
 export function createPrimitiveEntity(input: {
 	id: string;
 	kind: ScenePrimitiveKind;
-	roomId: MuseumRoomId;
+	roomId: RoomId;
 	position: Vec3;
 	name?: string;
 	materialId?: MaterialId;

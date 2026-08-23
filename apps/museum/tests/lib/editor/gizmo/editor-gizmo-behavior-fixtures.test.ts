@@ -34,11 +34,11 @@ import { placementTransformFromObject } from '$lib/editor/editor-transform';
 import {
 	EDITOR_CAMERA_PATH_MOVE_EPSILON,
 	getScenePathAnchorWorldPosition
-} from '$lib/editor/editor-camera-path';
-import { EDITOR_CAMERA_VIEW_MOVE_EPSILON } from '$lib/editor/editor-camera-view';
+} from '$lib/editor/camera/editor-camera-path';
+import { EDITOR_CAMERA_VIEW_MOVE_EPSILON } from '$lib/editor/camera/editor-camera-view';
 import { createFixtureEditorStore, createRelicFixtureEditorStore } from '../editor-test-utils';
 import { cloneFixtureDocument } from '../../content/__fixtures__/load-fixture-scene';
-import type { Vec3 } from '$lib/types/museum';
+import type { Vec3 } from '$lib/types/scene';
 
 function makeRoot(id: string, position: Vec3): Mesh {
 	const root = new Mesh(new BoxGeometry(0.5, 0.5, 0.5), new MeshBasicMaterial());

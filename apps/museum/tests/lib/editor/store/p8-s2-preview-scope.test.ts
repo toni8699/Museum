@@ -3,9 +3,9 @@ import { chopinRuntime } from '$lib/content/chopin-project';
 import { previewScopeOf } from '$lib/editor/store/camera-preview-controller.svelte';
 import { createFixtureEditorStore } from '../editor-test-utils';
 import { cloneFixtureDocument } from '../../content/__fixtures__/load-fixture-scene';
-import { createMuseumEditorStore } from '$lib/editor/museum-editor.svelte';
+import { createEditorStore } from '$lib/editor/editor-store.svelte';
 import { createCameraMotionSample, sampleCameraMotion } from '$lib/museum/navigation/camera-motion';
-import { resolveDirectedEdgeMotionByDirection } from '$lib/editor/editor-directed-edge-motion';
+import { resolveDirectedEdgeMotionByDirection } from '$lib/editor/camera/editor-directed-edge-motion';
 
 describe('P8 S2 previewScopeOf', () => {
 	it('maps kinds to scopes', () => {
@@ -109,7 +109,7 @@ describe('P8 S2 explicit preview scopes', () => {
 			delete (n as any).nextNodeId;
 			delete (n as any).previousNodeId;
 		});
-		const badStore = createMuseumEditorStore({ document: doc, rooms: chopinRuntime.rooms });
+		const badStore = createEditorStore({ document: doc, rooms: chopinRuntime.rooms });
 		// Transplant the saved playhead, and seed a non-zero prior playhead so the
 		// reset-to-0 branch is actually exercised (regression: S4 left it untouched).
 		// P7.5 — the playheads are owned by the sub-controllers; the facade keeps
@@ -264,7 +264,7 @@ describe('P8 S2 explicit preview scopes', () => {
 			delete (n as any).nextNodeId;
 			delete (n as any).previousNodeId;
 		});
-		const store = createMuseumEditorStore({ document: doc, rooms: chopinRuntime.rooms });
+		const store = createEditorStore({ document: doc, rooms: chopinRuntime.rooms });
 		expect(store.getCameraTimeline()).toBeNull();
 		expect(store.previewSequence()).toBe(false);
 		expect(store.statusMessage).toMatch(/flow|tour|guided/i);

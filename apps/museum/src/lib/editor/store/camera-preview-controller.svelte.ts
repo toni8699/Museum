@@ -1,11 +1,11 @@
 /**
  * `EditorCameraPreviewController` — owns the camera preview FSM.
  *
- * Slice 3 of the museum-editor refactor plan lifts `cameraPreview`,
+ * Slice 3 of the editor-facade refactor plan lifts `cameraPreview`,
  * `cameraPreviewFollowEnabled`, `cameraPreviewRecenterVersion`,
  * `#capturedCameraPreviewRoute`, `#nextCameraPreviewRunId`, and the full	 * `play/pause/stop/setPlayhead/step/start…` method zoo (plus the
 	 * timeline-scrub helpers per audit §3.7) out of
- * `museum-editor.svelte.ts`.
+ * `editor-store.svelte.ts`.
  *
  * **Peer-link surface.** `HistoryController.canUndo` reads `transportState`
  * here. Exposing the FSM through a single read-only getter is the entire
@@ -19,7 +19,7 @@
  * to idle when the source node no longer exists).
  *
  * **Locally-redeclared `EditorCameraPreview` types** mirror the
- * `museum-editor.types.ts` barrel; structural typing keeps the two in sync.
+ * `editor-types.ts` barrel; structural typing keeps the two in sync.
  */
 
 import {
@@ -38,15 +38,15 @@ import {
 	createEditorCameraTimeline,
 	getEditorCameraTimelineLocation,
 	type EditorCameraTimeline
-} from '../editor-camera-timeline';
-import { resolveDirectedEdgeMotionByDirection } from '../editor-directed-edge-motion';
+} from '../camera/editor-camera-timeline';
+import { resolveDirectedEdgeMotionByDirection } from '../camera/editor-directed-edge-motion';
 import {
 	createNavigationGraph,
 	getNode,
 	type NavigationGraph
 } from '$lib/content/scene';
 
-import type { CameraConnectionDirection, Vec3 } from '$lib/types/museum';
+import type { CameraConnectionDirection, Vec3 } from '$lib/types/scene';
 // `CameraConnectionDirection` is needed here for the `startConnection` method
 // parameter; mode + transport literals come from the barrel instead.
 
@@ -59,7 +59,7 @@ import type {
 	EditorCameraPreviewMode,
 	EditorCameraPreviewTransport,
 	PreviewScope
-} from '../museum-editor.types';
+} from '../editor-types';
 
 function cloneRoutePoint(point: Vector3Like): Vec3 {
 	if (Array.isArray(point)) {
@@ -127,7 +127,7 @@ function cloneResolvedCameraRoute(route: ResolvedCameraRoute): ResolvedCameraRou
 		}))
 	};
 }// =====================================================================
-// Locally-redeclared preview types (mirror the `museum-editor.types.ts`
+// Locally-redeclared preview types (mirror the `editor-types.ts`
 // barrel). The four `kind`-tagged variant interfaces are imported here so
 // the discriminated union is composable from one source.
 // =====================================================================
@@ -645,7 +645,7 @@ export function isPreviewStale(
 	 * the returned error surfaces a status message telling the user to
 	 * re-run Preview Sequence. Connection and node previews keep refreshing
 	 * below: they ARE the framing-authoring surface (add/move view keys and
-	 * edit framing while paused — pinned by `museum-editor-camera` tests), so
+	 * edit framing while paused — pinned by `editor-store-camera` tests), so
 	 * their re-resolution is the authoring feedback loop, not a drift bug.
 	 * Visitor-mode previews are intentionally early-returned (immutable
 	 * ownership — never re-resolved).

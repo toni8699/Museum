@@ -7,7 +7,7 @@
  * cancelPendingNavigation → cancelAssetPlacement → finishAnchorEditing →
  * finishViewKeyframeEditing → deselect (scene-owned only)
  */import { tick, getContext } from 'svelte';
-	import type { MuseumEditorStore } from '../museum-editor.svelte';
+	import type { EditorStore } from '../editor-store.svelte';
 	import type { EditorInteractionStore } from '../store/editor-interaction-store.svelte';
 	import type { EditorGizmoCapabilities } from '../gizmo/editor-gizmo-policy';
 
@@ -23,7 +23,7 @@ function isEditableTarget(target: EventTarget | null) {
 	if (target.isContentEditable) return true;
 	return ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName);
 }	export function createEditorShortcutHandler(
-		store: MuseumEditorStore,
+		store: EditorStore,
 		host: EditorShortcutHost,
 		interactionStore?: EditorInteractionStore,
 		deselectActive?: () => void,
@@ -274,7 +274,7 @@ function isEditableTarget(target: EventTarget | null) {
 }
 
 export function registerEditorShortcuts(
-	store: MuseumEditorStore,
+	store: EditorStore,
 	host: EditorShortcutHost,
 	interactionStore?: EditorInteractionStore,
 	deselectActive?: () => void,

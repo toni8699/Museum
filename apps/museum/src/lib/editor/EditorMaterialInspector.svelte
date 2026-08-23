@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { museumMaterials } from '$lib/content/materials';
+	import { materials } from '$lib/content/materials';
 	import type { MaterialId } from '$lib/types/materials';
 	import {
 		isSceneModelEntity,
@@ -9,10 +9,10 @@
 	} from '$lib/content/scene';
 	import { materialInstanceUsageCount } from './editor-textures';
 	import { BinaryTextureStore } from './store/binary-texture-store.svelte';
-	import EditorNumberField from './EditorNumberField.svelte';
-	import type { MuseumEditorStore } from './museum-editor.svelte';
+	import EditorNumberField from './fields/EditorNumberField.svelte';
+	import type { EditorStore } from './editor-store.svelte';
 
-	let { store }: { store: MuseumEditorStore } = $props();
+	let { store }: { store: EditorStore } = $props();
 
 	type MaterialTarget = SceneModelEntity | ScenePrimitiveEntity;
 
@@ -116,7 +116,7 @@
 				onchange={requestBaseMaterial}
 			>
 				<option value="" disabled>Choose base material…</option>
-				{#each museumMaterials as material}
+				{#each materials as material}
 					<option value={material.id}>{material.label}</option>
 				{/each}
 			</select>

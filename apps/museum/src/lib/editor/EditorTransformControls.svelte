@@ -2,7 +2,7 @@
 	import { getContext, onDestroy } from 'svelte';
 	import { useThrelte } from '@threlte/core';
 	import type { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
-	import type { MuseumEditorStore } from './museum-editor.svelte';
+	import type { EditorStore } from './editor-store.svelte';
 	import {
 		EDITOR_INTERACTION_STORE_KEY,
 		type EditorInteractionStore
@@ -39,7 +39,7 @@
 		layoutInteraction,
 		onLayoutTransient
 	}: {
-		store: MuseumEditorStore;
+		store: EditorStore;
 		controls?: TransformControls;
 		activeSelection?: EditorActiveSelectionStore;
 		layoutPreview?: LayoutPreviewState;

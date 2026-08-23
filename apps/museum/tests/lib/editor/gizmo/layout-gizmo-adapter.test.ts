@@ -1,7 +1,7 @@
 /**
  * S8 step 2 — layout-gizmo-adapter session tests.
  *
- * Drives `createLayoutGizmoAdapter` against a real `MuseumEditorStore` with a
+ * Drives `createLayoutGizmoAdapter` against a real `EditorStore` with a
  * registered layout history host + a `LayoutPreviewState` surface, exercising
  * the candidate-session seams: begin refusal, canonical-untouched preview,
  * last-valid retention on an invalid candidate, one atomic install + one
@@ -15,8 +15,8 @@
 
 import { describe, expect, it } from 'vitest';
 import { Object3D } from 'three';
-import { createMuseumEditorStore } from '$lib/editor/museum-editor.svelte';
-import { createEmptyMuseumProject } from '$lib/project/project-codec';
+import { createEditorStore } from '$lib/editor/editor-store.svelte';
+import { createEmptyProject } from '$lib/project/project-codec';
 import { createLayoutRoomRegistry } from '$lib/project/project-layout-semantics';
 import {
 	captureLayoutPreviewSnapshot,
@@ -50,11 +50,11 @@ const ROOM_POINTS = [
 ] as const;
 
 function setup() {
-	const bootProject = createEmptyMuseumProject({
+	const bootProject = createEmptyProject({
 		id: 'project:untitled',
 		name: 'Untitled project'
 	});
-	const store = createMuseumEditorStore({
+	const store = createEditorStore({
 		document: bootProject.scene,
 		rooms: createLayoutRoomRegistry(bootProject.layout)
 	});

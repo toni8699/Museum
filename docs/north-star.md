@@ -23,13 +23,13 @@ or Layout-3D workspace.
 
 `/museum` = frozen Chopin visitor relic; `/museum/editor` = frozen legacy
 Scene · Camera editor relic (no Layout tab). Both keep checked-in
-`chopin-project.json` / `museum-scene.json`; the editor never loads or
-migrates Chopin project, legacy workspace state, selection, or history.
+`chopin-project.json` / `scene.json`; the editor never loads or migrates
+Chopin project, legacy workspace state, selection, or history.
 
 ## Project truth
 
 ```text
-MuseumProject
+Project
   ├─ layout   ← rooms, boundaries, openings, rough layout objects
   └─ scene    ← entities, materials, lights, camera graph
 

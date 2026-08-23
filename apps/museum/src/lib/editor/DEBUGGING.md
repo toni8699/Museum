@@ -46,7 +46,7 @@ npx vitest run tests/lib/editor/gizmo/scene-gizmo-adapter.test.ts
 Lives in:
 
 - `app/Workspace3DView.svelte` — `placementRegistry.getPlacementScale`
-- `EditorMuseumEntities.svelte` — `editorScale`
+- `EditorSceneEntities.svelte` — `editorScale`
 - `museum/EditorPlacementRoot.svelte` — `<T.Group {position} {rotation} {scale}>`
 - Threlte `T` + `useProps` (scalar props are memoized; arrays always re-apply)
 
@@ -128,7 +128,7 @@ npx vitest run tests/lib/editor/gizmo/layout-gizmo-target.test.ts \
   that "does nothing" can be this, not a commit failure.
 - **Document mutation does not re-render the scene.** `store.scene` is
   `$state.raw`, reassigned only by `documentStore.replace()`. Deep `$state`
-  writes to `store.document` do **not** re-render `EditorMuseumEntities`.
+  writes to `store.document` do **not** re-render `EditorSceneEntities`.
 - **Uniform vs independent scale use different persistence.** Uniform writes
   `placement.scale` (scalar); independent writes the average scalar and keeps
   the per-axis vector in session memory only (`stashPlacementScaleVector`).

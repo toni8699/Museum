@@ -1,10 +1,10 @@
-import type { CameraConnectionDirection } from '$lib/types/museum';
+import type { CameraConnectionDirection } from '$lib/types/scene';
 import type { EditorCameraHandle } from '../editor-selection';
 
 /**
  * Separator used to compose multi-part Object3D registry keys for the four
  * helper families (`camera-helper`, `anchor-helper`, `view-keyframe-target-
- * helper`). Existed as an inline constant in `museum-editor.svelte.ts`
+ * helper`). Existed as an inline constant in `editor-store.svelte.ts`
  * before Slice 2; pulled into this module so the `EditorSceneRoots`
  * sub-store can read these keys without importing the god-file class.
  */
@@ -13,7 +13,7 @@ export const CAMERA_HELPER_KEY_SEPARATOR = ':';
 /**
  * Separator used to compose Camera-workspace tree expansion keys
  * (`${connectionId}::${direction}`). Distinct from the Object3D registry
- * separator above. Shared by `MuseumEditorStore.cameraDirectionTreeKey` (tree
+ * separator above. Shared by `EditorStore.cameraDirectionTreeKey` (tree
  * expand writes) and `EditorNavigationGraphMutator` (delete-time key parsing),
  * so it lives here as the single source of truth.
  */

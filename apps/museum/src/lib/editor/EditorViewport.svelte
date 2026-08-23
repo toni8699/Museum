@@ -2,13 +2,13 @@
 	import { Canvas } from '@threlte/core';
 	import MuseumScene from '$lib/museum/MuseumScene.svelte';
 	import type { EditorPlacementRegistry } from '$lib/museum/placement-registry';
-	import EditorMuseumEntities from './EditorMuseumEntities.svelte';
-	import EditorCameraHelpers from './EditorCameraHelpers.svelte';
-	import EditorCameraFramingHelpers from './EditorCameraFramingHelpers.svelte';
+	import EditorSceneEntities from './EditorSceneEntities.svelte';
+	import EditorCameraHelpers from './camera/EditorCameraHelpers.svelte';
+	import EditorCameraFramingHelpers from './camera/EditorCameraFramingHelpers.svelte';
 	import EditorGrid from './EditorGrid.svelte';
-	import EditorCameraPathHelpers from './EditorCameraPathHelpers.svelte';
-	import EditorCameraViewHelpers from './EditorCameraViewHelpers.svelte';
-	import EditorCameraRig from './EditorCameraRig.svelte';
+	import EditorCameraPathHelpers from './camera/EditorCameraPathHelpers.svelte';
+	import EditorCameraViewHelpers from './camera/EditorCameraViewHelpers.svelte';
+	import EditorCameraRig from './camera/EditorCameraRig.svelte';
 	import EditorPlacementTools from './EditorPlacementTools.svelte';
 	import EditorSelection from './EditorSelection.svelte';
 	import EditorSelectionHelper from './EditorSelectionHelper.svelte';
@@ -30,7 +30,7 @@
 	} from './layout/layout-preview-state.svelte';
 	import { layoutMutationRunnerFor, runLayoutMutation } from './layout/layout-mutation-runner';
 	import type { LayoutOpeningKind } from './layout/layout-opening-editing';
-	import type { MuseumEditorStore } from './museum-editor.svelte';
+	import type { EditorStore } from './editor-store.svelte';
 	import { resolveEditorPlacementScale } from './scale-vector';
 	import type { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 	import { getContext } from 'svelte';
@@ -44,7 +44,7 @@
 		layoutPreview,
 		layoutInteraction
 	}: {
-		store: MuseumEditorStore;
+		store: EditorStore;
 		layoutPreview: LayoutPreviewState;
 		layoutInteraction: LayoutInteractionState;
 	} = $props();
@@ -172,7 +172,7 @@
 	class:bending={Boolean(store.hoveredConnectionId || store.hoveredAnchorId)}
 	class:dragging-camera-key={store.viewKeyframeProgressDrag !== null}
 	style:cursor={interactionStore?.cursor ?? 'default'}
-	aria-label="Museum editor viewport"
+	aria-label="Editor viewport"
 >
 	{#if store.currentWorkspace === 'layout'}
 		<LayoutDraftToolbar interaction={layoutInteraction} preview={layoutPreview} onCancelLayoutTransaction={cancelLayoutTransaction} />
@@ -199,7 +199,7 @@
 					/>
 				{/snippet}
 				{#snippet entityRenderer(scene, rooms, _activation)}
-					<EditorMuseumEntities {scene} {rooms} {placementRegistry} />
+					<EditorSceneEntities {scene} {rooms} {placementRegistry} />
 				{/snippet}
 			</MuseumScene>
 			<LayoutPreviewScene
@@ -253,7 +253,7 @@
 					/>
 				{/snippet}
 				{#snippet entityRenderer(scene, rooms, _activation)}
-					<EditorMuseumEntities {scene} {rooms} {placementRegistry} />
+					<EditorSceneEntities {scene} {rooms} {placementRegistry} />
 				{/snippet}
 			</MuseumScene>
 			<EditorGrid

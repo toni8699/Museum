@@ -1,18 +1,18 @@
 <script lang="ts">
-	import type { CameraConnectionDirection } from '$lib/types/museum';
-	import type { MuseumEditorStore } from '../museum-editor.svelte';
-	import EditorNumberField from '../EditorNumberField.svelte';
-	import { getNodeConnections } from '../editor-camera-connections';
+	import type { CameraConnectionDirection } from '$lib/types/scene';
+	import type { EditorStore } from '../editor-store.svelte';
+	import EditorNumberField from '../fields/EditorNumberField.svelte';
+	import { getNodeConnections } from '../camera/editor-camera-connections';
 	import { formatCameraNodeLabel } from '../editor-outliner';
-	import { getScenePathAnchorWorldPosition } from '../editor-camera-path';
+	import { getScenePathAnchorWorldPosition } from '../camera/editor-camera-path';
 	import { resolvePlanSceneGraphFromDocument } from '../layout/plan-camera-projection';
-	import EditorCameraConnectionTiming from '../EditorCameraConnectionTiming.svelte';
+	import EditorCameraConnectionTiming from '../camera/EditorCameraConnectionTiming.svelte';
 	import type { EditorViewState } from './editor-view-state.svelte';
 
 	let {
 		store,
 		viewState = null
-	}: { store: MuseumEditorStore; viewState?: EditorViewState | null } = $props();
+	}: { store: EditorStore; viewState?: EditorViewState | null } = $props();
 
 	const selection = $derived(store.navigationSelection);
 	const node = $derived(store.selectedNavigationNode);

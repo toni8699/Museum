@@ -12,7 +12,7 @@
 	} from '$lib/editor/layout/layout-preview-state.svelte';
 	import { layoutMutationRunnerFor, runLayoutMutation } from '$lib/editor/layout/layout-mutation-runner';
 	import type { LayoutOpeningKind } from '$lib/editor/layout/layout-opening-editing';
-	import type { MuseumEditorStore } from '$lib/editor/museum-editor.svelte';
+	import type { EditorStore } from '$lib/editor/editor-store.svelte';
 	import { getContext } from 'svelte';
 	import {
 		ACTIVE_EDITOR_SELECTION_KEY,
@@ -24,7 +24,7 @@
 		layoutPreview,
 		layoutInteraction
 	}: {
-		store: MuseumEditorStore;
+		store: EditorStore;
 		layoutPreview: LayoutPreviewState;
 		layoutInteraction: LayoutInteractionState;
 	} = $props();

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { museumRooms, roomPoint } from '$lib/content/rooms';
+import { rooms, roomPoint } from '$lib/content/rooms';
 
 import {
 	CHOPIN_LAYOUT_CEILING_THICKNESS,
@@ -116,24 +116,24 @@ describe('roomsToLayout', () => {
 	});
 
 	it('preserves every source opening with a stable room-qualified ID', () => {
-		const sourceOpenings = museumRooms.flatMap((room) => room.openings);
+		const sourceOpenings = rooms.flatMap((room) => room.openings);
 		const compiledOpenings = roomsToLayout().floors[0]!.rooms.flatMap((room) => room.openings);
 		expect(compiledOpenings).toHaveLength(sourceOpenings.length);
 		expect(compiledOpenings.map((opening) => opening.id)).toEqual(
-			sourceOpenings.map((opening) => `opening:${museumRooms.find((room) => room.openings.includes(opening))!.id}:${opening.id}`)
+			sourceOpenings.map((opening) => `opening:${rooms.find((room) => room.openings.includes(opening))!.id}:${opening.id}`)
 		);
 	});
 
 	it('is deterministic and does not mutate source rooms', () => {
-		const before = JSON.stringify(museumRooms);
+		const before = JSON.stringify(rooms);
 		const first = roomsToLayout();
-		const second = roomsToLayout([...museumRooms]);
+		const second = roomsToLayout([...rooms]);
 		expect(serializeLayoutDocument(first)).toBe(serializeLayoutDocument(second));
-		expect(JSON.stringify(museumRooms)).toBe(before);
+		expect(JSON.stringify(rooms)).toBe(before);
 	});
 
 	it('compiles a selected room subset without hidden global state', () => {
-		const document = roomsToLayout([museumRooms[3]!]);
+		const document = roomsToLayout([rooms[3]!]);
 		expect(document.floors[0]!.rooms.map((room) => room.id)).toEqual(['paris']);
 		expect(document.floors[0]!.height).toBe(4.2);
 	});

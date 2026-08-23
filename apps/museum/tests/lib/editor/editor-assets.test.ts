@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { museumAssets } from '$lib/content/assets';
+import { assets } from '$lib/content/assets';
 import { filterAssetLibraryItems, reserveEntityId } from '$lib/editor/editor-assets';
 
 describe('asset library filters', () => {
-	const approved = { ...museumAssets[0], id: 'approved', status: 'approved' as const };
-	const rejected = { ...museumAssets[1], id: 'rejected', status: 'rejected' as const };
+	const approved = { ...assets[0], id: 'approved', status: 'approved' as const };
+	const rejected = { ...assets[1], id: 'rejected', status: 'rejected' as const };
 
 	it('hides rejected assets by default and isolates an explicit rejected filter', () => {
 		expect(filterAssetLibraryItems([approved, rejected]).map((asset) => asset.id)).toEqual([

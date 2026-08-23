@@ -138,7 +138,7 @@ Per-increment status after the pre-implementation surveys (grep-verified):
 | **P7.3** | **ready** | Signature trap recorded (re-verified 2026-08-22); call-site inventory refreshed: 6 rooms-defaults in `editor-camera-path` (incl. the new 337), 4 in `editor-camera-view`, 10 src + 3 test callsites; 21 test files call the factory, 6 files / 9 callsites zero-options. Two relic-sensitive sites added: `MuseumEditorApp.svelte:37` (`createLayoutPreviewState()` Chopin seed) + test-only `loadChopinLayoutPreview`. |
 | **P7.4** | **shipped 2026-08-19** | Implemented during P1 via Option B (non-blocking — touched only the two shells); brief collapsed to a completion stub below, detail removed. |
 | **P7.5** | **planned** | Pre-brief refreshed 2026-08-22. Playhead rewiring is **three surfaces** (viewKeyframe host 422–426, cameraTimeline host 489–493, and the `EditorCameraPreviewCommandsHost` interface — its `cameraTimelinePlayhead` writable slot at camera-preview-commands:112 via the whole-facade cast at facade:500). Writer survey complete: timeline ×6, view-keyframe ×1 (:909), preview-commands ×5 (531/596/694/727/873). **New since the survey:** `lastSequencePlayhead` facade `$state` (763) → preview controller. Hover owner resolved → session-state (zero mutator readership). `pendingFrame*` and `projectExportBlocker` are **no-ops** (already delegates). isDirty divergence still live (facade:372 vs document-store:172). 9.3-gotcha history check added. |
-| **P7.6** | **planned** | Pre-brief added 2026-08-22 (§P7.6 below). Owner decisions recorded: drop-prefix scene vocabulary + format hard break. Inventory grep-verified: ~30 distinct identifiers / ~1,400 occurrences across 155 live src + 81 test files; 15 file renames (collision-checked — the facade suites take `editor-store-*`, not `editor-*`, which collide with existing module tests). Relic keep-list + shared-type boundary in §3. Grep gate + `svelte-check` 0/0 + suite green; the format roundtrip test pins the hard break. |
+| **P7.6** | **planned** | Pre-brief added 2026-08-22 (§P7.6 below). Owner decisions recorded: drop-prefix scene vocabulary + format hard break. Inventory grep-verified: ~30 distinct identifiers / ~1,400 occurrences across 155 live src + 81 test files; 15 file renames (collision-checked — the facade suites take `editor-store-*`, not `editor-*`, which collide with existing module tests). Relic keep-list + shared-type boundary in §3. Two-gate acceptance (§5): identifier zero-match outside the §3 keep-list (incl. `MUSEUM_*`, mid-word `RuntimeMuseumScene`, and the 13 derived function names — `createMuseumEditorStore` → `createEditorStore` recorded explicitly) + tolerated prose/path list, with `tests/lib/museum/**` excluded; `svelte-check` 0/0 + suite green; the format roundtrip test pins the hard break. §4 extended 2026-08-22 with the **camera/ + fields/ folder-placement commit group** (30-file camera surface + 3 generic widgets; `EditorCameraFovField` stays camera-side; test tree mirrored to `tests/lib/editor/camera/`) landing as pure `git mv`s before the rename series. |
 
 All pre-briefs are written (P7.1, P7.5, and P7.6, 2026-08-22, §P7.1 / §P7.5 / §P7.6 below) and every slice is now pick-up-able — the readiness table has no remaining **need plan** items.
 
@@ -820,6 +820,7 @@ folder is a separate, heavier decision and would fight the `/museum` route.
 | `MuseumAssetFilters` | `AssetFilters` | |
 | `MuseumConnection` | `RuntimeConnection` | `types/museum.ts:124` — the *runtime* connection; `SceneConnection` (authored, `scene.ts:241`) already exists, so bare `Connection` is avoided |
 | `MuseumStateStore` | `RuntimeStateStore` | `state/museum-state.svelte.ts:8` — shared museum-runtime state; "Runtime" mirrors `RuntimeScene` |
+| `MuseumState` | `RuntimeState` | `types/museum.ts:154` — the runtime state snapshot shape; parallels `RuntimeStateStore` |
 | `MuseumRuntime` | `Runtime` | `content/chopin-project.ts:23` |
 | `MUSEUM_CAMERA_FOV` | `CAMERA_FOV` | `types/museum.ts` |
 | `MUSEUM_CAMERA_EASING` | `CAMERA_EASING` | `types/museum.ts` |
@@ -834,13 +835,37 @@ folder is a separate, heavier decision and would fight the `/museum` route.
 | `museumState` / `museumScene` (vars) | `runtimeState` / `scene` | |
 | `museumpack` | `scenepack` | format string (§4) |
 
+**Functions / derived names** — a prefix rule plus explicit targets. General
+rule: every `Museum*` / `museum*` identifier not listed above or in the §3
+keep-list drops the `Museum`/`museum` prefix per the pattern. The 13 derived
+function names are enumerated (grep-verified 2026-08-22, ~229 occurrences
+incl. tests) so their targets are deliberate, not improvised mid-slice:
+
+| Old | New |
+|---|---|
+| `createMuseumEditorStore` | `createEditorStore` | ← the umbrella's most-cited symbol; P7.3 treats it as a surviving API name, so its target is recorded once |
+| `cloneMuseumSceneDocument` | `cloneSceneDocument` |
+| `validateMuseumProject` | `validateProject` |
+| `serializeMuseumProject` | `serializeProject` |
+| `createMuseumState` | `createRuntimeState` |
+| `createEmptyMuseumProject` | `createEmptyProject` |
+| `createMuseumProject` | `createProject` |
+| `parseMuseumProjectJson` | `parseProjectJson` |
+| `EmptyMuseumProjectInput` | `EmptyProjectInput` |
+| `validateMuseumAssetManifest` | `validateAssetManifest` |
+| `getMuseumAsset` | `getAsset` |
+| `listMuseumAssets` | `listAssets` |
+| `CanonicalMuseumSceneDocument` | `CanonicalSceneDocument` |
+
 **Code-adjacent strings** (user-visible but code-domain — renamed):
 
 | Old | New | Where |
 |---|---|---|
-| `.museumpack.zip` | `.scenepack.zip` | `package-format.ts:198`; comments in `museum-editor.svelte.ts:2473/2490`, `package-sha.ts:6` |
-| `'museum-scene.json'` archive member | `'scene.json'` | `package-importer.ts:76/80/90/186/194`, `package-exporter.ts:152`, `package-format.ts:8` |
-| default title / slug fallback `'museum-scene'` | `'scene'` | `package-format.ts:178/203/216`; app-bar subtitle `EditorAppBar.svelte:43` shows it |
+| `.museumpack.zip` | `.scenepack.zip` | `content/package-format.ts:198`; comments in `editor/museum-editor.svelte.ts:2473/2490`, `helpers/package-sha.ts:6` |
+| `'museum-scene.json'` archive member | `'scene.json'` | `editor/import/package-importer.ts:76/80/90/186/194`, `editor/export/package-exporter.ts:152`, `content/package-format.ts:8` |
+| `'museum-scene.json'` plain-JSON export filename | `'scene.json'` | `editor/EditorProjectMenu.svelte:120` (`anchor.download`) |
+| `'museum-layout.json'` plain-JSON export filename | `'layout.json'` | `editor/EditorProjectMenu.svelte:149` (`anchor.download`) |
+| default title / slug fallback `'museum-scene'` | `'scene'` | `content/package-format.ts:178/203/216`; app-bar subtitle `EditorAppBar.svelte:43` shows it |
 | "Museum asset has no valid fallback mapping: …" | "Asset has no valid fallback mapping: …" | `content/assets.ts:233` |
 | "Museum asset IDs must be non-empty" | "Asset IDs must be non-empty" | `content/assets.ts:239` |
 | "Museum asset without a production file requires a fallback: …" | "Asset without a production file requires a fallback: …" | `content/assets.ts:264` |
@@ -854,11 +879,18 @@ folder is a separate, heavier decision and would fight the `/museum` route.
 - **Keeps museum naming:** `src/lib/museum/**`, `src/routes/museum/**`, and
   the relic editor mount chain — `MuseumEditorApp.svelte` (legacy shell,
   mounted only at `/museum/editor`), `MuseumEditorEntry`,
-  `virtual:museum-editor-entry`, `vite/museum-editor-entry-plugin.ts`.
+  `virtual:museum-editor-entry`, `vite/museum-editor-entry-plugin.ts`,
+  **`museumEditorEntryPlugin`** (the plugin file's exported function;
+  added to the keep-list 2026-08-23 — it matches the identifier gate at
+  `vite/museum-editor-entry-plugin.ts:11` and `contracts.test.ts:27/339`,
+  and it is the mount chain's public entry; alternative would be a rename,
+  rejected as fighting the keep-listed file identity).
 - **Relic components imported by live code keep their names:**
   `MuseumScene` (`EditorViewport`, `Workspace3DView`) and `MuseumEntities` —
   the editor renders the museum for preview; the import stays, the name
-  stays.
+  stays. **`LayoutMuseumShell`** is also listed: it is not imported by live
+  code, but appears as prose in live `bench/` comments (7 hits) that match
+  the identifier gate — listing it keeps the gate honest.
 - **Shared museum-domain types get renamed** (`MuseumStateStore` →
   `RuntimeStateStore`, `MuseumRoomId` → `RoomId`, `MuseumRuntime` →
   `Runtime`, `MuseumConnection` → `RuntimeConnection`, the chopin seeds
@@ -866,11 +898,20 @@ folder is a separate, heavier decision and would fight the `/museum` route.
   them receive mechanical import updates. The frozen invariant is
   *behavior*; the P7.4 smoke gate (relic routes behavior-equivalent) applies
   to this slice.
-- Grep gate is run with `-g '!src/lib/museum/**' -g '!src/routes/museum/**'`
-  exclusions, then the keep-list is verified individually — never exclude a
-  directory without confirming each remaining hit is on the list.
+- Grep gate is run with `-g '!src/lib/museum/**' -g '!src/routes/museum/**'
+  -g '!tests/lib/museum/**'` exclusions (the relic test tree lives at
+  `tests/lib/museum/`, e.g. `navigation/camera-motion.test.ts`), then the
+  keep-list is verified individually — never exclude a directory without
+  confirming each remaining hit is on the list.
 
-### 4. File renames (15 — `git mv`, one commit per group)
+### 4. File placement (renames + folder moves — `git mv`, one commit per group)
+
+Two kinds of move in this slice, as **separate commit groups**: the 15
+rename-required moves below (the old names must die with the vocabulary), and
+the pure-organization folder moves in §4b. Same mechanical wave and gates, but
+the §4b group is reviewable on its own — no identifiers change there.
+
+#### 4a. Rename-required moves (15)
 
 | Old | New |
 |---|---|
@@ -895,11 +936,142 @@ folder is a separate, heavier decision and would fight the `/museum` route.
 `editor-textures.test.ts` already exist as module unit tests. The `editor-store-*`
 scheme above is collision-checked (verified 2026-08-22).
 
+#### 4b. Folder placement — `camera/` + `fields/` (new commit group, pure organization)
+
+Decision (2026-08-22): the flat editor root is dominated by the **30-file
+camera surface** built out by P8 (37% of the flat count). Move it and the
+reusable field widgets into folders; everything else stays flat — the panels,
+viewport, and geometry modules are individually large and cross-import each
+other, and the `Editor*`/`editor-*` prefixes already organize them
+alphabetically (grouping those is aesthetic churn with no payoff).
+
+- **`src/lib/editor/camera/`** — the 30-file camera surface: 18
+  `EditorCamera*.svelte` + 12 `editor-camera*.ts` /
+  `editor-directed-edge-motion.ts`. **Names are kept as-is** —
+  `Editor*`/`editor-*` are *domain* markers (editor vs the relic's visitor
+  camera code in `src/lib/museum/navigation/`), not location markers; no
+  rename inside the folder.
+- **`src/lib/editor/fields/`** — the 3 *generic* widgets only: `EditorNumberField`,
+  `EditorVec3Field`, `EditorProgressField`. **`EditorCameraFovField` stays in
+  `camera/`** — it is camera-domain (the FOV input for framing), not a generic
+  widget; the widget folder stays purely generic.
+- **Test-tree mirroring (decision 2026-08-22): mirror.** The 10 flat camera
+  tests — `editor-camera.test.ts`, `editor-camera-connections.test.ts`,
+  `editor-camera-framing*.test.ts`, `editor-camera-labels.test.ts`,
+  `editor-camera-path.test.ts`, `editor-camera-timeline.test.ts`,
+  `editor-camera-view.test.ts`, `editor-directed-edge-motion.test.ts` — move
+  to `tests/lib/editor/camera/`, matching the src tree. Precedent: `app/`,
+  `store/`, `export/`, `import/` test subdirs already exist.
+- **`MuseumEditorApp.svelte` stays at editor root** — it is the relic entry
+  and the vite plugin resolves it from `editorRoot`; moving it would update
+  the plugin path for zero benefit.
+- **Import-path updates:** every importer of a moved file changes —
+  `$lib/editor/X` → `$lib/editor/camera/X` (or `../camera/X` from the
+  subdirs); a missed path fails `svelte-check`, same gate as the renames.
+
+#### 4b-i. Placement file inventory (grep-verified 2026-08-22 — pick-up-ready)
+
+**Move → `src/lib/editor/camera/` (30 files):**
+
+```
+EditorCameraConnectionTiming.svelte   EditorCameraEdgeRuler.svelte
+EditorCameraFovField.svelte           EditorCameraFramingControls.svelte
+EditorCameraFramingHelpers.svelte     EditorCameraHelpers.svelte
+EditorCameraInspector.svelte          EditorCameraLabelProjector.svelte
+EditorCameraLabelsOverlay.svelte      EditorCameraPathHelpers.svelte
+EditorCameraPreviewControls.svelte    EditorCameraRig.svelte
+EditorCameraTimelineDots.svelte       EditorCameraTimelineFrame.svelte
+EditorCameraTimelinePanel.svelte      EditorCameraTimelineRuler.svelte
+EditorCameraTree.svelte               EditorCameraViewHelpers.svelte
+editor-camera-connections.ts          editor-camera-framing-authoring.ts
+editor-camera-framing-envelope.ts     editor-camera-framing.ts
+editor-camera-labels.svelte.ts        editor-camera-labels.ts
+editor-camera-path.ts                 editor-camera-timeline.ts
+editor-camera-timing.ts               editor-camera-view.ts
+editor-camera.ts                      editor-directed-edge-motion.ts
+```
+
+**Move → `src/lib/editor/fields/` (3 files):**
+
+```
+EditorNumberField.svelte   EditorVec3Field.svelte   EditorProgressField.svelte
+```
+
+**Move → `tests/lib/editor/camera/` (10 files, mirror):**
+
+```
+editor-camera.test.ts                  editor-camera-connections.test.ts
+editor-camera-framing-authoring.test.ts  editor-camera-framing-envelope.test.ts
+editor-camera-framing.test.ts          editor-camera-labels.test.ts
+editor-camera-path.test.ts             editor-camera-timeline.test.ts
+editor-camera-view.test.ts             editor-directed-edge-motion.test.ts
+```
+
+**Import-edit surface** (paths change; sibling `./` imports *inside*
+`camera/` are unchanged — they move together):
+
+- **27 external src importers** (path gains `camera/` or `fields/`):
+  `CameraFlowPanel`, `EditorInspector`, `EditorLeftSidebar`,
+  `EditorLightInspector`, `EditorMaterialInspector`, `EditorPrimitiveInspector`,
+  `EditorSelection`, `EditorTransformInspector`, `EditorViewport`,
+  `MuseumEditorApp`, `app/CameraPlanInspector`, `app/EditorApp`,
+  `app/Workspace3DView`, `camera-plan/CameraPlanViewport`,
+  `gizmo/camera-gizmo-adapter`, `hooks/use-camera-preview`,
+  `hooks/use-camera-timeline`, `layout/plan-camera-projection`,
+  `museum-editor.svelte.ts`, `store/camera-preview-commands`,
+  `store/camera-preview-controller`, `store/camera-timeline-controller`,
+  `store/controller-hosts`, `store/navigation-graph-mutator`,
+  `store/path-anchor-mutator`, `store/selection-actions`,
+  `store/view-keyframe-controller`.
+- **8 external test importers:** `app/room-focus`,
+  `camera-plan/camera-plan-timing`, `gizmo/camera-gizmo-adapter`,
+  `gizmo/editor-gizmo-behavior-fixtures`, `museum-editor-camera`,
+  `store/p8-s2-preview-scope`, `store/p8-s3-edge-timeline`,
+  `store/p8-s4-preview-sequence`.
+- **Moved files' own non-sibling imports** gain one `../` level (most camera
+  files import `store/`, `layout/`, or root components — `./store/X` →
+  `../store/X`, `./EditorViewport.svelte` → `../EditorViewport.svelte`).
+- **Composition with §4a:** the §4a test renames and §4b paths compose — e.g.
+  `museum-editor-camera.test.ts` is both renamed (`editor-store-camera.test.ts`)
+  and has its `$lib` camera imports updated; each group is green on its own.
+
 ### 5. Acceptance tests and manual scenarios
 
-- **Grep gate:** `rg '\b[Mm]useum[A-Za-z_]*' src tests vite` with
-  `-g '!src/lib/museum/**' -g '!src/routes/museum/**'` → **zero matches**;
-  keep-list hits verified individually (§3).
+**Two gates** — the naive single grep would conflate identifiers with prose
+and paths: a zero-match bare-museum gate flags ~315 live-scope `\bmuseum\b`
+occurrences across three populations (rename targets that will disappear,
+~10+ permanent relic import paths like `'$lib/museum/MuseumScene.svelte'`, and
+hundreds of prose/comment hits that would force ~450 editorial decisions
+mid-slice). The split keeps the slice mechanical.
+
+- **Identifier gate (zero-match — the enforceable one):**
+  `rg '\b[A-Za-z_]*[Mm]useum[A-Z][A-Za-z_]*|MUSEUM_[A-Z_]+|\b(museumNavigationGraph|museumRooms|museumAssets|museumMaterials|museumSceneDocument|museumSceneBytes|museumAssetById|museumState|museumScene|museumpack)\b' src tests vite`
+  with `-g '!src/lib/museum/**' -g '!src/routes/museum/**' -g '!tests/lib/museum/**'`
+  → **zero matches outside the §3 keep-list** — the keep-list names appear at
+  live import/usage sites and always match the pattern (~41 hits, verified
+  2026-08-23: `MuseumScene` ×11, `MuseumEntities` ×2, `MuseumEditorApp` ×11,
+  `MuseumEditorEntry` ×2, `LayoutMuseumShell` ×12 incl. bench + relic-source
+  boundary tests, `museumEditorEntryPlugin` ×3). Covers
+  every prefixed identifier (§2 incl. the 13 derived function names)
+  *including mid-word shapes* (`RuntimeMuseumScene` — `\b[Mm]useum` alone
+  misses it), the uppercase `MUSEUM_*` constants (`[Mm]useum` never matches
+  them), and the explicitly lowercased seed-variable map.
+- **Prose/path gate (tolerated-list, not zero-match):** bare `\bmuseum\b` in
+  live scope must fall into exactly one of: (1) relic import paths
+  (`from '$lib/museum/...'` and relative museum paths — ~10+ files incl.
+  `EditorViewport`, `Workspace3DView`, the camera files, dev routes,
+  `bench/record-baseline`; permanent and legitimate); (2) the §3 keep-list
+  names (`MuseumScene`, `MuseumEntities`, `MuseumEditorApp`,
+  `MuseumEditorEntry`, `virtual:museum-editor-entry`); (3) tolerated product
+  prose — browser titles, "Preview Museum", relic references in comments.
+  Policy: **editor-internal prose is reworded in the strings pass;
+  product/relic references are tolerated and documented** — not hundreds of
+  individual adjudications. The full per-line classification lives in
+  [`2026-08-23-P7.6-strings-pre-inventory.md`](./2026-08-23-P7.6-strings-pre-inventory.md)
+  — every live-scope bare `\bmuseum\b` hit pre-bucketed (517 lines / 523
+  occurrences: R 341 / P 147 / T 35, machine-verified 2026-08-23) so the
+  strings pass is a checklist, not a judgment call. **The "~315" figure
+  above predates the P8 S1–S6 delta; the inventory supersedes it.**
 - **`svelte-check` 0/0** — the compiler is the enforcement backstop (every
   missed identifier fails; unlike P7.1, no regex-gate blind spot exists).
 - **Full suite green** — 1,970 baseline; all 81 test files touched. The
@@ -911,6 +1083,10 @@ scheme above is collision-checked (verified 2026-08-22).
   acceptance, not a bug.
 - **Relic smoke (P7.4 record):** `/museum` + `/museum/editor` boot and behave
   as before.
+- **Placement gate (§4b):** after the folder-move commit, `svelte-check` 0/0
+  proves every moved file's importers were updated (a missed path fails
+  compile), and the full suite stays green with the 10 camera tests now
+  running from `tests/lib/editor/camera/`.
 
 ### 6. Ordering / boundaries
 
@@ -923,9 +1099,16 @@ scheme above is collision-checked (verified 2026-08-22).
   format rename (owner-approved hard break) and the code-adjacent string
   renames are deliberate, test-pinned changes — carve-out to the umbrella
   Boundaries section (see the note added there).
-- **Commit shape:** one commit per group (identifier core → content seeds →
-  format → strings → file renames → docs), each green, mirroring P7.2's
-  per-namespace rollback split.
+- **Commit shape:** one commit per group (**§4b folder placement first** —
+  pure `git mv`, no identifier changes. Camera files DO reference museum
+  identifiers (e.g. `editor-camera-path.ts` uses `MuseumRoomId`/
+  `MuseumSceneDocument`), but the placement commit changes none of them —
+  the rename pass edits the moved files' contents afterward, so the moves
+  are fully order-independent. Then identifier core → content seeds →
+  format → strings → the 15 §4a rename-required moves → docs), each green,
+  mirroring P7.2's per-namespace rollback split. The placement group lands
+  as a clean pure-moves diff, and the giant rename diff reviews on top of
+  an already-settled tree.
 
 ### 7. Rollback / fallback split
 

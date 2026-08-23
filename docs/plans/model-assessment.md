@@ -69,6 +69,7 @@ Shipped as of 2026-08-22 (not assessed here): **P1.1–P1.9, P1.7 review-fixes c
 | **P7.2** | 33 | 56% | Luna low | DeepSeek V4 Flash | 0 | open |
 | **P7.3** | 37 | 63% | Luna medium | DeepSeek V4 Flash | +1 | open |
 | **P7.5** | 57 | 97% | — | Sol xhigh | +1 | open |
+| **P7.6** | 36 | 61% | Luna medium | DeepSeek V4 Flash (compile-gated find-replace at ~10× P7.2's volume; gate + name-map decisions already made in the brief) | +1 | open |
 | **P8.S1** | 47 | 80% | Luna xhigh | DeepSeek V4 Flash | +2 | shipped |
 | **P8.S2** | 54 | 92% | — | Sol medium | 0 | shipped |
 | **P8.S3** | 49 | 83% | Luna xhigh | DeepSeek V4 Flash | 0 | shipped |

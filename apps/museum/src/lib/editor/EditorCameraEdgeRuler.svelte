@@ -11,9 +11,9 @@
 	const edgeDuration = $derived(timelineApi.edgeDurationSeconds);
 	const endpoints = $derived(timelineApi.edgeEndpoints);
 	const preview = $derived(timelineApi.preview);
-	const isEdgePreview = $derived(preview?.kind === 'connection');
+	const isEdgePreview = $derived(preview?.kind === 'edge');
 	const isCandidate = $derived(!isEdgePreview && Boolean(edgeTimeline));
-	const previewPlaying = $derived(preview?.kind === 'connection' && preview.transport === 'playing');
+	const previewPlaying = $derived(preview?.kind === 'edge' && preview.transport === 'playing');
 	const reverseActive = $derived(timelineApi.reverseEdgeActive);
 	const reverseDisabled = $derived(timelineApi.edgeReverseDisabled);
 	const scrubDisabled = $derived(timelineApi.edgeScrubDisabled);

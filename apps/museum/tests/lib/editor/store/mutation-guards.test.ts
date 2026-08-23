@@ -15,10 +15,10 @@ function host(partial: Partial<EditorMutationGuardsHost> = {}): EditorMutationGu
 }
 
 function preview(
-	overrides: Partial<Extract<EditorCameraPreview, { kind: 'node' }>> = {}
+	overrides: Partial<Extract<EditorCameraPreview, { kind: 'camera' }>> = {}
 ): EditorCameraPreview {
 	return {
-		kind: 'node',
+		kind: 'camera',
 		nodeId: 'n1',
 		mode: 'director',
 		transport: 'playing',

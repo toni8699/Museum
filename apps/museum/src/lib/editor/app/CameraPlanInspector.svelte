@@ -79,7 +79,7 @@
 	});
 
 	// S3 — edge preview actions in connection panel
-	const edgePreview = $derived(store.cameraPreview?.kind === 'connection' ? store.cameraPreview : null);
+	const edgePreview = $derived(store.cameraPreview?.kind === 'edge' ? store.cameraPreview : null);
 	const isEdgePreviewForThis = $derived(edgePreview?.connectionId === connection?.id);
 	const edgeRepeatChecked = $derived(store.edgeRepeat);
 

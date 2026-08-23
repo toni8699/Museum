@@ -236,7 +236,7 @@
 
 		{#if pendingNode}
 			<div class="topology" aria-label="Pending camera actions">
-				<p>Choose any existing camera node in viewport or Camera Tour to create first connection.</p>
+				<p>Choose any existing camera node in viewport or the Sequence Inspector to create first connection.</p>
 				<button
 					type="button"
 					class="danger"

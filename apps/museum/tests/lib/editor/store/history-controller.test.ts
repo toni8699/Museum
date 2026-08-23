@@ -156,7 +156,9 @@ describe('EditorHistoryController', () => {
 		expect(history.canUndo).toBe(true);
 		expect(history.canRedo).toBe(true);
 		preview['preview'] = {
-			kind: 'transition',
+			kind: 'edge',
+			connectionId: 'tour-paris-d',
+			direction: 'forward',
 			fromNodeId: 'tour-paris',
 			toNodeId: 'tour-d',
 			mode: 'director',

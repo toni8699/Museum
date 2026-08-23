@@ -63,32 +63,42 @@ Policy rules:
 | P4 | Client GLB import | proposed | renewal | [2026-08-18-P4-gltb-import.md](2026-08-18-P4-gltb-import.md) |
 | P5 | Measured optimization and scale | proposed | renewal | [2026-08-18-P5-measured-optimization.md](2026-08-18-P5-measured-optimization.md) |
 | P6 | Editor artifact rename (de-H1) | shipped | renewal | archived → [2026-08-18-P6-editor-rename.md](archive/plans/2026-08-18-P6-editor-rename.md) |
-| P7 | Museum-editor facade decoupling — finish the deferred H1 splits (selection de-coupling, facade thinning, type collapse, shims, Chopin defaults, shell boot) | approved — **Option B: P7.4 shipped 2026-08-19; P7.1–P7.5 sequenced behind P8 S1–S4 (2026-08-21)** | P1 | [2026-08-19-P7-editor-facade-collapse.md](2026-08-19-P7-editor-facade-collapse.md) |
-| P8 | Camera preview scopes — Preview Camera / Preview Edge / Preview Sequence; directed-edge motion resolver + timing parity; edge-local timeline | in-progress — **S1–S3 shipped 2026-08-22** | P1 | [2026-08-21-P8-camera-preview-scopes.md](2026-08-21-P8-camera-preview-scopes.md) |
+| P7 | Museum-editor facade decoupling — finish the deferred H1 splits (selection de-coupling, facade thinning, type collapse, shims, Chopin defaults, shell boot) + P7.6 museum-vocabulary scrub (drop-prefix scene vocabulary, relic keeps museum; format hard break) | **scheduled next (2026-08-22)** — P7.4 shipped 2026-08-19; P7.1–P7.6 unblocked by P8 S1–S6 | P1 | [2026-08-19-P7-editor-facade-collapse.md](2026-08-19-P7-editor-facade-collapse.md) |
+| P8 | Camera preview scopes — Preview Camera / Preview Edge / Preview Sequence; directed-edge motion resolver + timing parity; edge-local timeline | **shipped — S1–S6 (2026-08-22)** | P1 | [2026-08-21-P8-camera-preview-scopes.md](2026-08-21-P8-camera-preview-scopes.md) |
 | — | Branch rejoin — **experiment, no schedule** (rejoin into a later Sequence stop; dead-end return already ships; multi-edge playback would compose P8's edge primitive) | proposed | P8 conceptually | [2026-08-21-branch-rejoin-experiment.md](2026-08-21-branch-rejoin-experiment.md) |
 | … | future work re-registers here | | | |
 
-Execution order: **P6 → P1 → P8 → P2 → P3** — P1 shipped 2026-08-21; the
+Execution order: **P6 → P1 → P8 → P7 → P2 → P3** — P1 shipped 2026-08-21; the
 owner re-prioritized **P8 ahead of P2** on 2026-08-21
-([scope decision](archive/plans/2026-08-21-scope-decision-p8-before-p2.md)),
-so **P8 is the active gate**: finish the camera domain while P1 context is
-warm, fix the editor timing-parity gap early, keep P3 last. P3 is now visual
-polish **plus** the folded context-menu interaction slice: **P3.4** (shared
-shell + Scene 3D / Layout / Outliner adapters) is P8-independent, while
-**P3.5** (Camera / Timeline adapters binding Preview Camera / Edge / Sequence)
-lands after **P8 S2–S4**.
-P6 is the mechanical editor rename so P1.1's shell-inversion diff stays
-behavior-only. **P7**'s remaining increments (**P7.1 → P7.5 → P7.2 → P7.3**)
-resume **after P8 Slices 1–4 land**, never interleaved with P8 Slices 2–4;
-P7.5's `cameraTimelinePlayhead` ownership item folds into P8 Slice 2
-acceptance. The prior camera-first order was committed by the
+([scope decision](archive/plans/2026-08-21-scope-decision-p8-before-p2.md));
+P8 shipped **S1–S6 on 2026-08-22**, completing the camera phase. On 2026-08-22
+the owner re-prioritized **P7 (facade refactor) ahead of P2**: **P7.1 is the
+active next action**, with P7's remaining increments (**P7.1 → P7.5 → P7.2 →
+P7.3 → P7.6**) serial and green before the next; P2 resumes after P7, P3 stays
+last. **P7.6** (added 2026-08-22) is the museum-vocabulary scrub — owner
+decisions recorded in its pre-brief: drop-prefix scene vocabulary (relic
+subtree keeps museum) and a hard-break format rename (`.scenepack.zip` /
+`scene.json`); it lands last as its own commit series on top of the settled
+P7.1–P7.5 code.
+P3 is now visual polish **plus** the folded context-menu interaction slice:
+**P3.4** (shared shell + Scene 3D / Layout / Outliner adapters) is
+P8-independent, while **P3.5** (Camera / Timeline adapters binding Preview
+Camera / Edge / Sequence) landed its P8 S2–S4 dependency when P8 completed.
+P6 was the mechanical editor rename so P1.1's shell-inversion diff stays
+behavior-only. P7.5's `cameraTimelinePlayhead` ownership item was partially
+folded into P8 S2 acceptance (P8 S2/S4 added `lastSequencePlayhead` next to
+it); the P7.5 brief was **re-baselined against that on 2026-08-22** (refresh
+note + §3 in the umbrella; `lastSequencePlayhead` → preview controller,
+three-surface playhead rewiring) before that increment starts. The prior camera-first order was committed by the
 [2026-08-18 scope decision](archive/plans/2026-08-18-scope-decision-camera-first.md);
 the 2026-08-21 decision extends the camera phase rather than reversing it.
 P4/P5 stay unscheduled until the owner re-prioritizes.
 
-P1 shipped 2026-08-21 — all increments through **P1.9** (camera sidebar
-simplification: neighbor dropdown · drag-only reorder · empty-chain promotion;
-sidebar matches `Design-shell-specs.md` §4 so P3 stays primarily visual).
+P1 **closed 2026-08-22** — shipped 2026-08-21 with all increments through
+**P1.9** (camera sidebar simplification: neighbor dropdown · drag-only reorder
+· empty-chain promotion; sidebar matches `Design-shell-specs.md` §4 so P3
+stays primarily visual), plus the P1.7 review-fixes + close-out pass archived
+with a stub below.
 Umbrella + briefs archived with stubs below.
 
 ## Archived plans
@@ -151,7 +161,7 @@ prefixed.
 - `archived → archive/plans/2026-08-20-P1.7-camera-ui-reconciliation.md` (shipped 2026-08-21)
 - `archived → archive/plans/2026-08-21-P1.8-camera-sequence-authoring.md` (shipped 2026-08-21)
 - `archived → archive/plans/2026-08-21-P1.9-sidebar-simplification.md` (shipped 2026-08-21 — final P1 slice)
-- `archived → archive/plans/2026-08-21-P1.8-camera-sequence-authoring.md` (shipped 2026-08-21)
+- `archived → archive/plans/2026-08-21-P1.7-review-fixes-2d-viewport-persistence.md` (P1.7 review fixes + close-out — shipped 2026-08-21, archived 2026-08-22; closes P1)
 
 **Sources:** all source content is folded into the umbrella docs (P1 §A–§D ·
 P2 §A · P4 §A · P5 §A); the original source files were deleted 2026-08-18.

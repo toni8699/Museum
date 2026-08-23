@@ -26,9 +26,10 @@ The facade split's origin is the archived
 - **The suggested next slice is explicit.** Slice 6's hand-off pointer: "fold
   `navigationStateFromLegacy` / `navigationSelectionFromState` into
   `selection-store.svelte.ts`". Both helpers are still in the facade today
-  (lines 126–220) — but only the **read** adapter (`navigationSelectionFromState`)
-  moves: `navigationStateFromLegacy` is a write-side adapter whose sole caller
-  is the bridging setter P7.1 deletes (facade line 615), so it dies with it.
+  (134–190) — the **read** adapter (`navigationSelectionFromState`) moves into
+  `selection-store`; `navigationStateFromLegacy` moves into `selection-actions`
+  as the session-restore adapter (the P7.1 §4 refresh: its surviving callers are
+  the three UI restore sites, not just the deleted bridging setter).
 - **The selection end-state was designed in H1 s4** (archived
   [`2026-08-15-graphics-h1-s4-unified-hierarchy.md`](../archive/plans/pre-h1-letters/2026-08-15-graphics-h1-s4-unified-hierarchy.md)):
   reads derived from `selectionStore`, writes via `selectionActions`, camera
@@ -56,8 +57,8 @@ the de-coupling rather than stop at residue removal. Zero user-visible
 behavior change: the editor and the `/museum/editor` relic keep working
 exactly as today. End state: `MuseumEditorStore` is a **composition root +
 delegation surface** — every piece of state and real logic is owned by a
-sub-store/controller, and the public surface stays importable forthe relic, the 45 modules that import `MuseumEditorStore` today (39 `.svelte`
-components — regenerate the inventory with `grep -rl "MuseumEditorStore"
+sub-store/controller, and the public surface stays importable forthe relic, the 74 files that import `MuseumEditorStore` today (re-verified
+2026-08-22 — regenerate the inventory with `grep -rl "MuseumEditorStore"
 apps/museum/src` at scheduling time; fixed counts rot), and the integration
 suite (the freeze the original plan demanded).
 
@@ -76,30 +77,39 @@ suite (the freeze the original plan demanded).
 
 **Definition of done (P7 close):**
 - P7.1 — `navigationSelectionFromState` lives in `selection-store.svelte.ts`;
-  `navigationStateFromLegacy` deleted with the bridging setter it feeds; zero
-  bridging setters on the facade; every write site uses `selectionActions`;
-  reads are derived getters.
+  `navigationStateFromLegacy` lives in `selection-actions.svelte.ts` as the
+  session-restore adapter (moved, not deleted — see §4); zero bridging setters
+  on the facade; every write site uses `selectionActions` or the reducer
+  (`host.selection`); reads are derived getters.
 - P7.5 — zero **misplaced single-owner** logic on the facade beyond
   composition + delegation: `isDirty` / `validation*` semantics canonical on
   `document-store` **with the validation pre-check** (the sub-store currently
   drops it — the facade's version is the correct one); hover state owned by
-  its controller; `cameraTimelinePlayhead` owned by the timeline controller.
+  `session-state`; `cameraTimelinePlayhead` owned by the timeline controller
+  and `lastSequencePlayhead` by the preview controller (2026-08-22 refresh
+  adds the second field — P8 S2/S4 deferred its fold).
   Cross-store combinators stay at the composition root by design: `canExport`
   (validation × transaction state), the cluster → member-id expansion
   (`selection-store` owns no document data), and the `getSelected*Root`
   selectors (selection × roots — the registries already live in
   `scene-roots`).
-- P7.2 — zero shim files under `editor/project/` + `editor/layout/`;
-  `layout-preview-geometry.ts` de-hybridized.
+- P7.2 — zero shim files under `editor/project/` + `editor/layout/`
+  (the `layout-preview-geometry.ts` de-hybridization is **already done** —
+  it is a pure 11-line module, no re-export line remains; only its
+  `./layout-types` import rewrite is left).
 - P7.3 — zero Chopin symbols in `lib/editor/` outside `MuseumEditorApp.svelte`:
   grep gate on `chopinRuntime | chopinProject | museumSceneDocument` and on
   `$lib/content/chopin-` imports.
 - P7.4 — both shells share the boot composable (dirty-guard + texture
   lifecycle; shortcuts shell-owned).
-- Zero `Slice N` / "re-exported so consumers stable" comment tombstones.
-- **1,802+ tests green · `svelte-check` 0/0 · build clean · relic routes
-  behavior-equivalent** (route smoke per §P7.4 item 5 — not byte-identical,
-  which is unverifiable after code moves).
+- Zero `Slice N` / "re-exported so consumers stable" comment tombstones
+  (**owner: P7.2**, assigned 2026-08-22 — P7.1c covers only the
+  selection-adjacent subset; the type-collapse + 9.3-gotcha sweep rides with
+  the shim wave).
+- **1,970 tests green (1 skipped) · `svelte-check` 0/0 · build clean · relic
+  routes behavior-equivalent** (baseline re-verified 2026-08-22; route smoke
+  gate per the P7.4 record — not byte-identical, which is unverifiable after
+  code moves).
 
 **Not a DoD:** a line-count target. The original plan's ≈2,400-LOC end-state
 assumed only the three Priority-1 extractions; P7's thinning goes further and
@@ -111,10 +121,11 @@ set. The itemized DoD above is the gate.
 | ID | Content | Finding | Depends | Behavior change |
 |---|---|---|---|---|
 | **P7.1** | Selection decoupling: read adapter folds into `selection-store`; write adapter dies with the bridging setters; write sites → `selectionActions` (the original plan's suggested slice) | 1 | — | none |
-| **P7.2** | Delete dual-namespace shims (`editor/project/*`, `editor/layout/*`, de-hybrid `layout-preview-geometry.ts`) | 3 | — | none |
+| **P7.2** | Delete dual-namespace shims (`editor/project/*`, `editor/layout/*`; the `layout-preview-geometry.ts` de-hybrid is already done — only its `./layout-types` import rewrite remains) | 3 | — | none |
 | **P7.3** | Chopin defaults → explicit inputs (`createMuseumEditorStore`, `editor-camera-path`, `editor-camera-view`) | 4 | — | none (relic passes Chopin explicitly) |
-| **P7.4** | Extract shared editor-shell boot composable (`MuseumEditorApp` + `EditorApp`) — dirty guards + texture lifecycle only; shortcuts stay shell-owned | 2 | — | none |
+| **P7.4** | Extract shared editor-shell boot composable (`MuseumEditorApp` + `EditorApp`) — dirty guards + texture lifecycle only; shortcuts stay shell-owned — **shipped 2026-08-19 (implemented during P1, non-blocking)** | 2 | — | none |
 | **P7.5** | Facade thinning: move remaining single-owner reads to owning sub-stores (the deferred "future slice"); close the `isDirty` divergence | 1 | P7.1 | none |
+| **P7.6** | Museum-vocabulary scrub: drop-prefix scene vocabulary across the live model, relic subtree keeps museum; file renames (facade, types, state, content, 9 test files); format hard break (`.museumpack.zip` → `.scenepack.zip`, `museum-scene.json` → `scene.json`) | — | P7.1–P7.5 (lands last) | **format rename + code-adjacent strings only** (owner-approved 2026-08-22; the one non-zero-behavior increment) |
 
 ## Implementation readiness (2026-08-19)
 
@@ -122,13 +133,14 @@ Per-increment status after the pre-implementation surveys (grep-verified):
 
 | ID | Status | Notes |
 |---|---|---|
-| **P7.1** | **need plan** | Write-site model incomplete: most writes are host-mediated, not `store.X =`. Writable host slots at `controller-hosts.ts` 315/414/564/641, consumed by `path-anchor-mutator` (×2), `navigation-graph-mutator` (×2), `view-keyframe-controller` (×2), `placement-cluster-mutator` (×1) via `this.host.… =`. Direct writes: `EditorSelection.svelte` 230–232, `camera-gizmo-adapter.svelte.ts` 342, facade internals 2531–2646. The acceptance grep misses host writes (only `svelte-check` catches them). Open decision: rewire the 4 host slots to `selectionActions`, or delete the slots and have controllers call `selectionActions` directly. |
+| **P7.1** | **planned** | Pre-brief refreshed 2026-08-22: residue is 13 verified write sites (7 host-mediated, 3 UI restore, 3 facade-internal), not the survey's incomplete model. Decision resolved: **delete** the 4 writable host slots; in-transaction writes → reducer (`host.selection`), post-commit → `selectionActions`; `restoreSelectionSnapshot` adapter for the 3 restore sites. Direction trap documented (§2/§3). |
 | **P7.2** | **ready** | Mechanical; site list generated by grep; gates defined. |
-| **P7.3** | **ready** | 10-site signature-trap inventory recorded; ~15 test files confirmed. Optional: enumerate `editor-camera-view`'s 4 default-site callers (covered by the pass-`store.rooms` pattern + `svelte-check`). |
-| **P7.4** | **ready** | Contract decided (dirty-guard + texture lifecycle only); pure-core extraction + route smoke defined. |
-| **P7.5** | **need plan** | Playhead has **three** write paths, not two: `viewKeyframe` host (422–426) → `view-keyframe-controller` (523); `cameraTimeline` host (489–493) → `camera-timeline-controller` (161/178/312/441/454/499); `camera-preview-commands` casts the **whole facade** as its host (`this as unknown as EditorCameraPreviewCommandsHost`, facade 480) and writes `facade.cameraTimelinePlayhead` directly (585/618/713) — a read-only facade getter breaks it at compile time. Hover owner open: single writer `setNavigationHover` (facade 2101–2102); readers `EditorViewport.svelte` 143, `Workspace3DView.svelte` 211, `EditorCameraPathHelpers.svelte` 188–189. `pendingFramePlacementIds`/`pendingFrameVersion` confirmation deferred. |
+| **P7.3** | **ready** | Signature trap recorded (re-verified 2026-08-22); call-site inventory refreshed: 6 rooms-defaults in `editor-camera-path` (incl. the new 337), 4 in `editor-camera-view`, 10 src + 3 test callsites; 21 test files call the factory, 6 files / 9 callsites zero-options. Two relic-sensitive sites added: `MuseumEditorApp.svelte:37` (`createLayoutPreviewState()` Chopin seed) + test-only `loadChopinLayoutPreview`. |
+| **P7.4** | **shipped 2026-08-19** | Implemented during P1 via Option B (non-blocking — touched only the two shells); brief collapsed to a completion stub below, detail removed. |
+| **P7.5** | **planned** | Pre-brief refreshed 2026-08-22. Playhead rewiring is **three surfaces** (viewKeyframe host 422–426, cameraTimeline host 489–493, and the `EditorCameraPreviewCommandsHost` interface — its `cameraTimelinePlayhead` writable slot at camera-preview-commands:112 via the whole-facade cast at facade:500). Writer survey complete: timeline ×6, view-keyframe ×1 (:909), preview-commands ×5 (531/596/694/727/873). **New since the survey:** `lastSequencePlayhead` facade `$state` (763) → preview controller. Hover owner resolved → session-state (zero mutator readership). `pendingFrame*` and `projectExportBlocker` are **no-ops** (already delegates). isDirty divergence still live (facade:372 vs document-store:172). 9.3-gotcha history check added. |
+| **P7.6** | **planned** | Pre-brief added 2026-08-22 (§P7.6 below). Owner decisions recorded: drop-prefix scene vocabulary + format hard break. Inventory grep-verified: ~30 distinct identifiers / ~1,400 occurrences across 155 live src + 81 test files; 15 file renames (collision-checked — the facade suites take `editor-store-*`, not `editor-*`, which collide with existing module tests). Relic keep-list + shared-type boundary in §3. Grep gate + `svelte-check` 0/0 + suite green; the format roundtrip test pins the hard break. |
 
-Both **need plan** items are small pre-briefs (the surveys above are already answered); they do not block scheduling, but a developer cannot pick up P7.1 or P7.5 without them.
+All pre-briefs are written (P7.1, P7.5, and P7.6, 2026-08-22, §P7.1 / §P7.5 / §P7.6 below) and every slice is now pick-up-able — the readiness table has no remaining **need plan** items.
 
 ## Sequencing
 
@@ -147,6 +159,12 @@ and converge framing authoring; both edit the facade, its consumers, and
   `createMuseumEditorStore` options; `store/document-store.svelte.ts` —
   P7.3's Chopin seeds, P7.5's `isDirty`/validation moves), so concurrent
   branches collide on those diffs. Serial order, each green before the next.
+- **Wave 3 (rename):** P7.6 lands **last** (after P7.3) — the biggest
+  mechanical diff in the repo's history (~1,400 identifier occurrences, 155
+  src + 81 test files, 15 renames) and must review as its own commit series
+  on top of settled code; the line-preserving rename would not invalidate
+  earlier anchors, but landing it first would bury every later slice's diff
+  under a mega-rename.
 - P7.4 is independent of the facade; see Option B.
 
 **Option B (recommended, needs owner decision):** schedule **P7.4 before
@@ -155,7 +173,8 @@ and stops the two-shell divergence before P1.5 edits `EditorApp.svelte` —
 smallest collision window. Requires the owner to (1) approve P7 and (2)
 record the re-prioritization in the tracker + point CURRENT's single next
 action at P7.4; otherwise Option A stands and the plan claims nothing about
-order.
+order. **Outcome:** P7.4 shipped 2026-08-19 under this option while P1 was
+in progress; its brief below is now a completion stub (detail removed).
 
 **Never:** Wave 1 concurrently with in-flight P1 slices.
 
@@ -167,8 +186,12 @@ tracker + CURRENT.
 
 ## Boundaries
 
-- **Behavior-preserving refactor.** No schema, export format, selection
+- **Behavior-preserving refactor.** No schema, selection
   semantics, or rendered output changes. No new props on public components.
+  **The one carve-out is P7.6 (owner-approved 2026-08-22):** the export
+  format rename (`.scenepack.zip` / `scene.json`, hard break, no import
+  shim) and the code-adjacent string renames in §P7.6.2 are deliberate
+  changes, not moves — pinned by the roundtrip test and the grep gate.
 - **Public-surface freeze (from the original plan).** `MuseumEditorStore`
   exports and every consumer-visible method/getter stay importable with
   identical signatures — the facade shrinks by *delegation*, not by removal,
@@ -198,80 +221,140 @@ tracker + CURRENT.
 
 ---
 
-## P7.1 — Selection decoupling (brief)
+## P7.1 — Selection decoupling (brief, refreshed 2026-08-22)
+
+> **Refresh note.** The survey below was written 2026-08-19 against a
+> pre-implementation tree. Since then `store/selection-store.svelte.ts`
+> (`EditorSelectionStore`) and `store/selection-actions.svelte.ts`
+> (`EditorSelectionActions`) landed and were injected into every
+> mutator/controller, and the facade's four selection get/set pairs
+> (museum-editor.svelte.ts 586–641) already delegate to
+> `selectionStore.setNavigation` / `setWorkspace`. The bulk of the original
+> "write sites → selectionActions" migration is **already done**. This refresh
+> replaces the survey's write-site model with the grep-verified residue and
+> resolves its open decision.
 
 ### 1. User outcome and out-of-scope behavior
 
-**Outcome:** the selection model reaches the H1 s4 end-state the original
-plan designed. The facade's selection surface becomes **read-only derived**:
-- `navigationSelectionFromState` moves into `store/selection-store.svelte.ts`
-  (the original plan's explicit suggested next slice). `navigationStateFromLegacy`
-  is **deleted, not moved** — its sole caller is the deleted `set
-  navigationSelection` (facade line 615); it is a write-side adapter for the
-  pre-slice surface and has no read role. Direction stays owned by the
-  discovery slots per H1 s4 (`navigationSelectionFromState` drops direction —
-  "discovery owns it").
-- The four bridging setters (`set selectedRoomId`, `set selectedPlacementIds`,
-  `set selectedClusterId`, `set navigationSelection`) are deleted **only
-after every write site migrates** to `selectionActions` / the reducer; the
-read getters stay, derived from `selectionStore`.
-- No feature changes; components and tests that import `MuseumEditorStore`
-  keep working (reads unchanged).
+**Outcome:** the selection model reaches the H1 s4 end-state the original plan
+designed. The facade's selection surface becomes **read-only derived**:
+- `navigationSelectionFromState` (facade 169–190) moves into
+  `store/selection-store.svelte.ts` (the original plan's explicit suggested
+  slice). Direction stays owned by the discovery slots per H1 s4
+  (`navigationSelectionFromState` drops direction — "discovery owns it").
+- The four facade bridging setters (`set selectedRoomId` 590, `set
+  selectedPlacementIds` 611, `set selectedClusterId` 626, `set
+  navigationSelection` 638) are deleted **only after every write site migrates**
+  to `selectionActions` / the reducer; the read getters stay, derived from
+  `selectionStore`.
+- No feature changes; components and tests that import `MuseumEditorStore` keep
+  working (reads unchanged).
 
-**Out of scope:** the state moves (`cameraTimelinePlayhead`, hover) — those
-are P7.5; the alias-block deletion — P7.1c; stale "Slice 6" tombstone comment
+**Out of scope:** the state moves (`cameraTimelinePlayhead`, hover) — those are
+P7.5; the alias-block deletion — P7.1c; stale "Slice 6" tombstone comment
 cleanup — residue removal. This increment is selection only.
 
-### 2. Source components and existing APIs to reuse
+### 2. Decision (resolves the survey's open question): delete the host slots, do not rewire
 
-- `store/selection-store.svelte.ts` — the target home for the two navigation
-  helpers and the derived getters.
-- `store/selection-actions.svelte.ts` — the write path every bridged call
-  site migrates to (already the reducer for the parallel-tuple model).
-- The archived H1 s4 contract
-  ([`2026-08-15-graphics-h1-s4-unified-hierarchy.md`](../archive/plans/pre-h1-letters/2026-08-15-graphics-h1-s4-unified-hierarchy.md))
-  — the authoritative read/write semantics; its contract tests are the model
-  for the migration assertions.
-- `tests/lib/editor/app/contracts.test.ts` — pins the facade surface; stays
-  green.
-- `tests/lib/editor/editor-test-utils.ts` — shared test factory.
+The survey asked whether to "rewire the 4 host slots to `selectionActions`, or
+delete the slots and have controllers call `selectionActions` directly."
+**Delete the slots.** The remaining host-mediated writes fall into two seams —
+and the second one is why "call `selectionActions` directly" is not the answer:
 
-### 3. New props / state / dependencies
+- **In-transaction writes → the reducer directly (`host.selection.setNavigation`).**
+  Writes that land between `beginDocumentTransaction` /
+  `commitDocumentTransaction` (view-keyframe 680/1141, path-anchor 279/335)
+  must **not** go through `selectionActions`: every `select*` guards on
+  `isDocumentMutationBlocked`, which is true during a transaction, so the action
+  would silently no-op. The reducer is the established in-transaction seam
+  (already used at navigation-graph 281/373/413/500, view-keyframe 1228,
+  camera-preview 252+, camera-timeline 406).
+- **Post-commit writes → `selectionActions`.** navigation-graph 590 (select the
+  just-created connection) uses `selectionActions.selectConnection(...)`, which
+  resolves the default direction internally.
+- **Direction trap (the one real gap).** The legacy bridge defaulted
+  connection-kind writes to the current discovery direction
+  (`navigationStateFromLegacy(value, this.selectionStore.discoveryDirection)`),
+  but the reducer *requires* `direction` on `kind: 'connection'` (it mirrors it
+  into discovery, selection-store:125). Migrated writes must supply it
+  explicitly: `{ kind: 'connection', connectionId, direction:
+  host.selection.discoveryDirection }` (or the operation's own direction).
+- **placement-cluster-mutator 575 is redundant, not migrated** — the following
+  `selectionActions.selectPlacements(cluster.memberIds)` already writes
+  `clusterId: null` via `setWorkspace` (selection-actions 532–541). The raw
+  `host.selectedClusterId = null` line is deleted.
+- **Why delete beats re-point.** Keeping the four host slots and re-pointing
+  their setters at the reducer would leave a legacy-shaped write surface alive
+  behind the gate — `this.host.navigationSelection = { kind:'connection',
+  connectionId }` carries no direction, so the slot would need
+  `navigationStateFromLegacy` to survive as the slot-level translator, which is
+  exactly the surface P7.1 exists to kill. Deleting costs only a one-line
+  `selection` getter on the pathAnchor host (the other three hosts already
+  expose it); every other seam already has a reducer path.
 
-- **Moved (verbatim, `@internal` to `selection-store`):**
-  `navigationSelectionFromState` (facade lines 161–220).
-- **Deleted (after migration, compile-gated):** the four bridging setters
-  and, with them, `navigationStateFromLegacy` (facade lines 126–158) — it
-  exists only to serve the deleted setter. The read getters stay, now pure
-  `selectionStore` derivations. The cluster → member-id expansion in
-  `selectedPlacementIds` **stays at the composition root**: `selection-store`
-  owns no document data (clusters resolve against `document.placements`), so
-  moving it would force a new document dependency into the selection store.
-- **No new dependencies.** No new public store options.
+### 3. Write-site residue inventory (grep-verified 2026-08-22)
 
-### 4. Mount/unmount and selection semantics
+| Site | Current write | Migration |
+|---|---|---|
+| `path-anchor-mutator.svelte.ts:279` (insert anchor) | `host.navigationSelection = { kind:'anchor', connectionId, anchorId }` | `host.selection.setNavigation(...)` — in-transaction; add `selection` to the pathAnchor host slot |
+| `path-anchor-mutator.svelte.ts:335` (delete anchor) | `host.navigationSelection = { kind:'connection', connectionId }` | `host.selection.setNavigation({ kind:'connection', connectionId, direction: host.selection.discoveryDirection })` |
+| `navigation-graph-mutator.svelte.ts:233` (place-camera start) | `host.navigationSelection = null` | `host.selection.setNavigation({ kind:'none' })` |
+| `navigation-graph-mutator.svelte.ts:590` (connect done) | `host.navigationSelection = { kind:'connection', connectionId }` | `this.selectionActions.selectConnection(connectionId)` — post-commit |
+| `view-keyframe-controller.svelte.ts:680` (add keyframe) | `host.navigationSelection = { kind:'view-keyframe', ... }` | `host.selection.setNavigation(...)` — in-transaction |
+| `view-keyframe-controller.svelte.ts:1141` (delete keyframe) | `host.navigationSelection = { kind:'connection', connectionId }` | `host.selection.setNavigation({ kind:'connection', connectionId, direction: host.selection.discoveryDirection })` |
+| `placement-cluster-mutator.svelte.ts:575` (ungroup) | `host.selectedClusterId = null` | **delete** — redundant with the following `selectPlacements` (writes `clusterId:null`) |
+| `EditorSelection.svelte:230–232` (drag-session restore) | `store.navigationSelection = active.originalNavigationSelection` (+ placementIds, clusterId) | `selectionActions.restoreSelectionSnapshot(...)` — see §4 |
+| `camera-gizmo-adapter.svelte.ts:342` (cancel restore) | `store.navigationSelection = { kind:'node', nodeId, handle }` | `selectionActions.restoreSelectionSnapshot(...)` |
+| `CameraPlanViewport.svelte:369` (drag restore) | `store.navigationSelection = session.originalSelection` | `selectionActions.restoreSelectionSnapshot(...)` |
+| `museum-editor.svelte.ts:2634–2635` (importDocument) | `this.navigationSelection = null; this.selectedRoomId = null` | `this.selectionStore.setNavigation({kind:'none'})` + `setWorkspace({kind:'none'})` |
+| `museum-editor.svelte.ts:2694–2731` (#reconcileSelection) | `this.navigationSelection = null` / `{kind:'connection',...}` | `this.selectionStore.setNavigation(...)` with explicit direction |
+| `museum-editor.svelte.ts:2749` (#reconcileSelection) | `this.selectedPlacementIds = filter(...)` | `this.selectionStore.setWorkspace(...)` preserving roomId |
 
-- **Mount/unmount:** none — selection is store-internal plumbing.
-- **Selection semantics (unchanged, per H1 s4):** writes via
-  `selectionActions` (workspace set, navigation set); direction stays owned
-  by the reducer's discovery slots, never carried in the navigation
-  selection type; room-only selection and deselect never fire
-  `onSelectionActivate`; the S3 detach-then-attach contract is untouched.
-- `#reconcileSelection` and the after-replace listener list stay on the
-  facade (composition root) and keep reading through the same getters.
+### 4. Session-restore seam (the one new adapter)
+
+The three UI restore sites (EditorSelection drag-session restore, gizmo cancel,
+Plan viewport drag restore) restore a **captured legacy snapshot** — they are
+not user gestures, so the guarded `select*` actions are wrong for them (they
+would no-op under `isEditorInteractionActive` during drag teardown and would
+fire focus/status side-effects a restore must not trigger). One new guard-free
+action on `EditorSelectionActions`:
+
+- `restoreSelectionSnapshot(snapshot: { navigation: EditorNavigationSelection;
+  placementIds: string[]; clusterId: string | null })` — translates the legacy
+  shapes and calls `selection.setNavigation` / `selection.setWorkspace` only
+  (no guards, no side-effects). This keeps the "zero facade bridging setters"
+  DoD intact and gives restores an explicit seam.
+- Consequence: `navigationStateFromLegacy` (facade 134–158) **moves** into
+  `selection-actions.svelte.ts` as this adapter's translator (`@internal`,
+  module scope) — it is **not deleted**, because its surviving callers are the
+  session-restore sites, not just the deleted facade setter. This corrects the
+  original plan's "deleted, not moved" assumption.
 
 ### 5. Acceptance tests and manual scenarios
 
-- Grep gate (compile-time): `store.selectedRoomId =`, `store.
-  selectedPlacementIds =`, `store.selectedClusterId =`, `store.
-  navigationSelection =` → **zero matches** in `src/` after P7.1.
+- Grep gate (compile-time) — **one regex covering all three write classes**
+  (component `store.`, host `host.`, facade-internal `this.`):
+  `\.(navigationSelection|selectedRoomId|selectedPlacementIds|selectedClusterId)\s*=[^=]`
+  over `src/lib/editor/**`, excluding `selection-store.svelte.ts` itself →
+  **zero matches** in `src/` after P7.1. The `[^=]` guard excludes
+  `==`/`===` comparisons; the alternation names exactly the four selection
+  fields. This subsumes the old `store.`/`host.` lists and catches the
+  facade-internal `this.` writes (`#reconcileSelection`, `importDocument`)
+  the earlier gate missed.
+  - `svelte-check` 0/0 is the enforcement backstop: deleting the host slots
+    and facade setters turns any missed site into a compile error.
 - `contracts.test.ts` green unchanged; existing selection/cluster/navigation
   describes in `museum-editor-*.test.ts` green with zero expectation edits.
 - New/extended tests on `selection-store`: the moved read adapter behaves
   identically (direction dropped on read, discovery slot written on set).
+- New regression tests: (a) connection-kind reducer writes carry `direction`
+  (direction trap); (b) in-transaction selection writes land (reducer seam, not
+  blocked by `isDocumentMutationBlocked`); (c) `restoreSelectionSnapshot`
+  round-trips `null` → `{kind:'none'}` and restores placement/cluster ids.
 - Manual: select room / multi-select placements / select cluster / select
   camera node + connection + direction via tree, viewport, and timeline;
-  undo/redo across each; relic `/museum/editor` same smoke minus layout.
+  undo/redo across each; drag a path anchor and cancel → selection restores
+  exactly; relic `/museum/editor` same smoke minus layout.
 
 ### 6. Relic / Plan / visitor boundaries
 
@@ -282,15 +365,16 @@ cleanup — residue removal. This increment is selection only.
 
 ### 7. Rollback / fallback split
 
-- 7.1a move the two helpers into `selection-store` + migrate every write site
-  to `selectionActions` (reversible; suite green — this is the bulk).
-- 7.1b delete the four bridging setters (compile-gated).
+- 7.1a move the two helpers (read → `selection-store`, write → the restore
+  adapter in `selection-actions`) + migrate every write site (reversible; suite
+  green — this is the bulk).
+- 7.1b delete the four facade bridging setters + four host slots
+  (compile-gated; svelte-check catches stragglers).
 - 7.1c delete the selection-adjacent alias blocks + tombstones.
-- If a write site is found after 7.1b (missed grep), restore that setter for
-  the site only — do not reintroduce the block.
+- If a write site is found after 7.1b (missed grep), restore that setter for the
+  site only — do not reintroduce the block.
 
 ---
-
 ## P7.2 — Shim deletion (brief)
 
 ### 1. Outcome / out of scope
@@ -303,18 +387,35 @@ One canonical path per module. Delete:
   `layout-types.ts`, `layout-validation.ts`, `rooms-to-layout.ts`
   (canonical: `$lib/layout/*`; `rooms-to-layout` canonical:
   `$lib/content/rooms-to-layout`).
-- De-hybrid `layout-preview-geometry.ts`: move `floorShapePoints` /
-  `ceilingShapePoints` to a real module (e.g. `layout-shape-points.ts` under
-  `editor/layout/`), delete the re-export line.
-- The `museum-editor.svelte.ts` alias re-exports covered in P7.1c.
+- `layout-preview-geometry.ts` (**already de-hybridized** — 2026-08-22
+  re-verified: 11 lines, only `floorShapePoints` / `ceilingShapePoints`, no
+  re-export line remains). Remaining work for this file is only the
+  `./layout-types` import rewrite; the earlier proposal to move the two
+  functions to a new `layout-shape-points.ts` is now optional cosmetics.
+- The `museum-editor.svelte.ts` alias re-exports are **owned by P7.1c, not
+  P7.2** (P7.1's rollback split deletes the selection-adjacent alias blocks;
+  P7.2 stays `Depends: —`).
+- **Owns the type-collapse tombstone sweep** (assigned 2026-08-22 — DoD
+  line 105 demands zero `Slice N` / "re-exported so consumers stable"
+  tombstones, but P7.1c covers only selection-adjacent ones): delete the
+  stale "Slice 6 collapses" / re-export-narrative comments in
+  `camera-preview-controller.svelte.ts` (23–24, 130), `document-store
+  svelte.ts` (25), and the facade's Slice-3 re-export narrative (225–241),
+  plus the P8-era `camera-timeline-controller.svelte.ts:21` ("9.3 gotcha"
+  — already checked for history in P7.5 §4) and the
+  `unified-project-tree-model.ts:46` comment-only reference.
 
 Out of scope: renaming any canonical module; touching `$lib/layout/*` contents.
 
 ### 2. Reuse
 
 Existing canonical modules are the targets; `grep -rl` over `apps/museum/src`
-for each shim name yields the full site list (~36 sites; 15 are relative
-`./layout-types`-style imports inside `editor/layout/`).
+for each shim name yields the full site list (re-verified 2026-08-22: 23
+absolute `$lib/editor/layout/` / `$lib/editor/project/` import statements
+across 11 src files, plus 52 relative `./layout-*` import statements inside
+`editor/layout/` across 18 files; 1 test file imports `$lib/editor/project/*`
+— `tests/lib/editor/project/project-codec.test.ts`). Counts are
+informational — the grep gate in §5 is the acceptance.
 
 ### 3. New props/state/dependencies
 
@@ -329,10 +430,18 @@ only job was a stable relative path.
 ### 5. Acceptance tests
 
 - `svelte-check` 0/0 (compile gate for all sites).
-- Full suite green (tests import both namespaces today; update the ~4 test
-  files that import `$lib/editor/project/*` to `$lib/project/*`).
-- Grep gate: zero matches for `$lib/editor/project/` and `editor/layout/`
-  shim names outside removed files.
+- Full suite green (1 test file imports `$lib/editor/project/*` today —
+  `tests/lib/editor/project/project-codec.test.ts` — plus 2 src importers
+  `layout-gizmo-candidate.ts` and `layout-preview-state.svelte.ts`; update
+  them to `$lib/project/*`).
+- Grep gate — **the 10 shim filenames by name** (NOT the directory prefix:
+  `$lib/editor/layout/` legitimately hosts real modules like
+  `layout-preview-state.svelte.ts`, `layout-interaction.ts`, `plan-hit.ts`):
+  `project-codec`, `project-types`, `arch-profile`, `curve-geometry`,
+  `draft-geometry`, `layout-auto-bezier`, `layout-preview-bounds`,
+  `layout-types`, `layout-validation`, `rooms-to-layout` → zero matches for
+  each shim name outside its removed file (and outside canonical targets in
+  `$lib/layout/*` / `$lib/project/*` / `$lib/content/rooms-to-layout`).
 
 ### 6. Boundaries
 
@@ -354,9 +463,11 @@ Editor-domain code never silently resolves against the frozen relic. Changes:
   `MuseumEditorApp.svelte` passes
   `{ document: museumSceneDocument, rooms: chopinRuntime.rooms, relic }`
   explicitly.
-- `editor-camera-path.ts` (**5** default params: lines 111, 136, 180, 192,
-  207) and `editor-camera-view.ts` (**4** default params: lines 126, 165,
-  181, 202): `rooms` becomes a required argument; callers pass `store.rooms`
+- `editor-camera-path.ts` (**6** default params — re-verified 2026-08-22:
+  lines 112, 137, 181, 193, 208, and the 6th at 337 inside
+  `sampleDraftConnectionPath2D`, which the survey missed; plan said 5) and
+  `editor-camera-view.ts` (**4** default params: lines 126, 165, 181, 202):
+  `rooms` becomes a required argument; callers pass `store.rooms`
   (already the pattern at the surviving call sites).
   **Signature trap (must land in the same diff):**
   `createDraftConnectionPositionPath(document, connectionId, direction =
@@ -365,10 +476,10 @@ Editor-domain code never silently resolves against the frozen relic. Changes:
   default creates a required parameter after an optional one — does not
   compile. **Best fix (verified against source): preserve parameter order,
   make both required** — `(document, connectionId, direction, rooms)`.
-  Reordering is **not** an option: all 7 source callers pass `direction`
+  Reordering is **not** an option: all source callers pass `direction`
   positionally as the 3rd argument, so a reorder would silently land
-  `direction` in the `rooms` slot. **Call-site migration (recorded — 10
-  call sites across 5 files):**
+  `direction` in the `rooms` slot. **Call-site migration (re-verified
+  2026-08-22 — 10 src call sites across 6 files + 3 test calls):**
   - 7 source calls already fit the required signature unchanged (each
     already passes all four args): `EditorSelection.svelte` (×3: ~540,
     ~712, ~756 — `handle.direction` / `'forward'` / `'forward'`),
@@ -376,6 +487,12 @@ Editor-domain code never silently resolves against the frozen relic. Changes:
     .svelte` (~217 — `'forward'`), `store/view-keyframe-controller
     .svelte.ts` (×2: ~218, ~609 — `preview.direction` /
     `selection.direction`).
+  - 2 **new since the survey** (both safe — pass `'forward'` +
+    `store.rooms` explicitly): `camera-plan/CameraPlanViewport.svelte`
+    (×2: ~311, ~502).
+  - 1 internal call at `editor-camera-path.ts:337`
+    (`sampleDraftConnectionPath2D` → `createDraftConnectionPositionPath`,
+    passes `'forward'` + `rooms` positionally) — the 6th rooms-default.
   - 3 test calls in `tests/lib/editor/editor-camera-path.test.ts` (~111,
     ~122, ~123–127) update to explicit `direction` + registry: two currently
     omit direction (default), one passes `'reverse'` positionally without
@@ -385,6 +502,19 @@ Editor-domain code never silently resolves against the frozen relic. Changes:
   (note `layout-preview-state.svelte.ts:1` imports both `chopinProject` and
   `museumSceneDocument` — both must go, see gate below); `EditorApp.svelte`
   already passes explicit seeds — extend to the remaining default sites.
+  **Two relic-sensitive sites the survey never named (2026-08-22 re-verify):**
+  - `createLayoutPreviewState()` (layout-preview-state.svelte.ts:107) is
+    **Chopin-seeded and consumed by the relic shell directly** —
+    `MuseumEditorApp.svelte:37` calls it no-args. The main editor correctly
+    uses `createEmptyLayoutPreviewState()` at `EditorApp.svelte:54`.
+    Migrate by parameterizing the factory: `createLayoutPreviewState(
+    project, scene)` with the relic passing `chopinProject.layout` +
+    `museumSceneDocument` explicitly (relic-freeze: boot must stay Chopin).
+  - `loadChopinLayoutPreview(state)` (layout-preview-state.svelte.ts:266)
+    is exported from src but called **only by tests**
+    (`layout-preview-state.test.ts:21,100`); its `chopinProject` import will
+    trip the gate. Decide its fate in the same diff: move it to the test
+    fixture, or parameterize it like the factory above.
 
 **Counts are informational, not the acceptance gate.** The gate is a grep:
 `grep -rn "chopinRuntime\|chopinProject\|museumSceneDocument" apps/museum/src/lib/editor`
@@ -400,8 +530,21 @@ Out of scope: changing the relic's boot data, `museum-scene.json`,
 ### 2. Reuse
 
 - `tests/lib/editor/editor-test-utils.ts` — add `createTestEditorStore()`
-  that passes an explicit empty or fixture document + registry, and update the
-  ~15 test files that call `createMuseumEditorStore(` with no options.
+  that passes an explicit empty or fixture document + registry, and update
+  the test files that call `createMuseumEditorStore(` with no options
+  (re-verified 2026-08-22: 21 test files call the factory today; 6 files /
+  9 callsites pass zero options — `contracts`, `live-rooms`, `room-delete`,
+  `layout-mutation-runner`, `museum-editor` ×2, `museum-editor-bind-
+  migration` ×3).
+- **`contracts.test.ts` needs a semantic rewrite, not an args patch
+  (2026-08-22).** The "relic isolation" contract (:155) calls
+  `createMuseumEditorStore()` no-options and asserts full-editor workspace
+  switching — under required `document`/`rooms` it fails to **compile**,
+  and its assertion (default-boot behavior) is what P7.3 removes by design.
+  Decide in the same diff: re-express it with explicit empty-project args,
+  or fold its workspace-switching assertion into the new relic-boot test
+  (§5). This is the highest-value test in the suite; do not lose its
+  isolation coverage in the mechanical update.
 - `MuseumEditorApp.svelte` is the relic seed site (imports `chopinRuntime`
   once, deliberately).
 
@@ -444,118 +587,25 @@ helper land together so the suite is green in one diff.
 
 ---
 
-## P7.4 — Shared shell-boot extraction (brief)
+## P7.4 — Shared shell-boot extraction — **COMPLETE (shipped 2026-08-19)**
 
-### 1. User outcome and out-of-scope behavior
-
-**Outcome:** the boot glue duplicated between `MuseumEditorApp.svelte` (relic,
-`/museum/editor`) and `EditorApp.svelte` (`/`, `/editor`) lives in one
-composable. A dirty-tracking or texture-lifecycle fix is written once and both
-routes pick it up.
-
-**Out of scope:** merging the two shells' chrome (left sidebar, viewport,
-workspace cells differ by design — P1.1 shell inversion). The relic stays a
-separate component; only the shared *boot plumbing* is extracted.
-
-**Scope boundary (review fix): dirty-guard + texture lifecycle only.**
-Shortcut wiring is **not** extracted: the relic registers
-`registerEditorShortcuts(store, refs, interactionStore)` (3-arg,
-`MuseumEditorApp.svelte` ~line 121) while the editor passes deselection,
-stale-layout, and gizmo-capability callbacks (6-arg, `EditorApp.svelte` ~line
-228). A single composable signature cannot cover both without leaking the new
-shell's gating model into the relic — so shortcuts stay shell-owned, and the
-composable accepts no shortcut callbacks. If the two ever converge on the
-capability model, that is a relic-unfreeze decision, not this plan.
-
-### 2. Reuse
-
-- `store/binary-texture-store.svelte.ts` — `clearExcept` teardown.
-- `$lib/museum/materials/texture-cache` — `setDefaultTextureSourceLoader`.
-- The `confirmSceneReplacement` / `confirmLayoutReplacement` /
-  `confirmNavigation` + `beforeNavigate` + `beforeunload` block is currently
-  copy-pasted verbatim in both files (verified identical in the audit).
-
-### 3. New props/state/dependencies
-
-New file `hooks/editor-shell-boot.svelte.ts` exporting a composable, e.g.
-`useEditorShellBoot({ store, layoutPreview })`, returning the confirm helpers
-(`confirmSceneReplacement`, `confirmLayoutReplacement`, `confirmNavigation`)
-the shells pass to their app bars. Signature: reads `store.isDirty` +
-`layoutPreviewIsDirty(layoutPreview)`; no new state beyond what the shells
-already hold; **no `relic` flag and no shortcut/config callbacks** (the relic
-needs no special handling once shortcuts stay shell-owned — both shells have
-the same store + layoutPreview shapes). The composable also owns the
-`beforeNavigate` guard + `beforeunload` effect + texture-loader
-install/teardown, all parameterized only by the same two inputs.
-
-### 4. Mount/unmount and selection semantics
-
-- Mount: `setDefaultTextureSourceLoader(editorSourceLoader)` (loader created
-  inside the composable).
-- Unmount: `setDefaultTextureSourceLoader(null)` + `BinaryTextureStore
-  .clearExcept(new Set())` (HMR object-URL revocation, per the existing
-  comment).
-- `beforeNavigate` + `beforeunload` effects registered/unregistered exactly as
-the shells do today.
-- Selection: untouched — the composable has no selection role.
-
-### 5. Acceptance tests and manual scenarios
-
-**Existing coverage is insufficient — do not assume it.**
-`museum-editor-shell.test.ts` covers only the shortcut Escape cascade; nothing
-tests `beforeNavigate`, `beforeunload`, or loader teardown. The composable
-needs focused tests — but the harness does not exist yet: `vitest.config.ts`
-runs `environment: 'node'` and the repo has no jsdom, happy-dom, or Svelte
-component-testing dependency (`onMount` / `$effect` / `beforeNavigate` cannot
-run under the current harness). Two options; **option 1 is preferred** (no new
-dependency, matches "no new abstraction"):
-
-1. **Pure-core extraction.** The composable file exposes the guard logic as
-   pure, node-testable functions; the `.svelte.ts` wrapper stays a thin glue
-   of `onMount` / `$effect` / `beforeNavigate` around them:
-   - `computeConfirmNavigation({ sceneDirty, layoutDirty })` → boolean +
-     label (the two shells' label logic preserved).
-   - `createUnloadGuard(target: EventTargetLike)` → `{ attach, detach }`
-     (listener added when dirty, removed when clean — testable against an
-     injected fake `window`/`EventTarget` under node).
-   - `createTextureLifecycle(loader, binaryStore)` → `{ install, teardown }`
-     (`setDefaultTextureSourceLoader(…)` on install; `null` +
-     `clearExcept` on teardown).
-   Unit tests cover these three; the thin glue is verified by manual route
-   smoke only.
-2. **Add harness** (only if owner wants mounted-component tests): add
-   `jsdom` (or `happy-dom`) + `@testing-library/svelte` to devDependencies
-   and a jsdom `environmentMatchGlobs`/per-file environment for the composable
-   test. This is a new dependency + config change; not required by the
-   plan's outcome.
-
-**Manual route smoke (the gate for the thin glue):**
-- `/` and `/editor`: edit scene → navigate → confirm dialog; edit layout →
-  navigate → confirm; reload mid-edit → beforeunload prompt; texture re-load
-  after HMR remount (the original clearExcept bug scenario); shortcut smoke
-  (W/E/R/T + Escape).
-- `/museum/editor` (relic is **layout-less** — no layout scenario): edit
-  scene → navigate → confirm; reload mid-edit → beforeunload prompt;
-  shortcut smoke. Layout edit/confirm applies to `/` and `/editor` only.
-
-### 6. Boundaries
-
-- Relic behavior-equivalent (extraction moves code, so "identical" is
-  unverifiable; the route smoke above is the gate). The composable must not
-  import layout-preview gating into the relic path — both shells already pass
-  a `layoutPreview` state, so no `relic` flag is needed.
-- Visitor `/museum` untouched; composable is editor-side.
-
-### 7. Rollback
-
-Single-diff extraction; revert restores both shells. If the relic's
-behavior forks during extraction (e.g. its `layoutPreview` state shape
-differs), keep the composable's `layoutPreview` parameter optional and pass
-the relic's instance — fallback split documented, not a design change.
+Implemented while P1 was in progress (Option B: touched only
+`MuseumEditorApp.svelte` + `EditorApp.svelte`, so it did not block any P1
+increment). Detail removed — see the tracker row; the remaining P7
+increments (P7.1 → P7.5 → P7.2 → P7.3) are the live scope.
 
 ---
 
-## P7.5 — Facade thinning: reads onto sub-stores (brief)
+## P7.5 — Facade thinning: reads onto sub-stores (brief, refreshed 2026-08-22)
+
+> **Refresh note.** The survey below was written 2026-08-19 and predates
+> P1.8/P1.9 and the full P8 S1–S6 run. Re-verified against the current tree
+> 2026-08-22: the isDirty divergence and hover state are unchanged (still on
+> the facade, same semantics), `cameraTimelinePlayhead` is a raw facade
+> `$state` at line **761**, and **P8 S2/S4 added a new `lastSequencePlayhead`
+> facade `$state` (line 763) the survey does not know about** — its ownership
+> fold was explicitly deferred past S4. All anchors below are current; the
+> survey's cited lines have drifted and are not to be trusted.
 
 ### 1. User outcome and out-of-scope behavior
 
@@ -567,7 +617,10 @@ document-transaction glue, `#prepareDocumentReplacement`), one-line
 delegates, and the cross-store combinators that are the composition root's
 actual job (`canExport`, cluster → member-id expansion, `getSelected*Root`
 selectors) — no **misplaced single-owner** logic. No feature changes; the
-public surface is unchanged (delegates keep the signatures).
+public surface is unchanged (delegates keep the signatures). This slice now
+**also folds the two playhead fields** (`cameraTimelinePlayhead`,
+`lastSequencePlayhead`) off the facade — the ownership fold P8 S2/S4 deferred
+by design.
 
 **Out of scope:** selection migration (P7.1), shims (P7.2), Chopin defaults
 (P7.3), shell boot (P7.4), stale type-collapse tombstones (residue removal).
@@ -575,53 +628,98 @@ public surface is unchanged (delegates keep the signatures).
 ### 2. Source components and existing APIs to reuse
 
 - `store/document-store.svelte.ts` — takes `isDirty` / `validationIssues`
-  semantics. **Divergence to close:** the facade's `isDirty` preserves
-  `!validation.success || …` (the pre-check), the sub-store's drops it (the
-  facade comment calls the sub-store version a "behavioural regression caught
-  by the review pass"). The sub-store adopts the pre-check; the facade getter
-  becomes a delegate. `canExport` **stays at the composition root** — it
-  combines document validation with `isDocumentTransactionActive`, two
-  ownership domains.
+  semantics. **Divergence still live (verified 2026-08-22):** the facade's
+  `isDirty` (museum-editor.svelte.ts:372) preserves `!v.success || …` (the
+  pre-check; the comment at 323–324 calls the sub-store version a "behavioural
+  regression caught by the review pass"); the sub-store's (document-store
+  svelte.ts:172) drops it. The sub-store adopts the pre-check; the facade
+  getter becomes a delegate. `canExport` (facade:379) **stays at the
+  composition root** — it combines document validation with
+  `isDocumentTransactionActive`, two ownership domains.
+- `store/camera-timeline-controller.svelte.ts` — takes `cameraTimelinePlayhead`
+  as **owned `$state`** (currently it writes the facade field through the host
+  at 161/178/315/444/457/502; after the move those become self-writes).
+- `store/camera-preview-controller.svelte.ts` — takes `lastSequencePlayhead`
+  as **owned `$state`**: it already owns the preview FSM, the timeline cache
+  (`getTimeline()`), and the stale-prune logic the facade delegates into; the
+  S2/S4 sequence-scope semantics (save on scope exit, validate on replace)
+  are preview-domain, not facade-domain. The facade's
+  `#pruneInvalidCameraPreview` lastSequence validation (1384/1389/1408) moves
+  into the controller's `pruneIfStale()`.
 - `store/selection-store.svelte.ts` — does **not** take the cluster →
   member-id expansion; `selectedPlacementIds` stays at the composition root
   (`selection-store` owns no document data, and clusters resolve against
   `document.placements`).
 - `store/scene-roots.svelte.ts` — already owns the roots registries; the
   facade's register/unregister/get delegates are already one-line
-  `this.roots.*` calls (facade 2680–2710) and stay as-is. The
-  `getSelected*Root` selectors (facade 2708, 2728, 2776) **stay at the
-  composition root** — they combine selection + root lookup, a cross-store
-  combinator, not single-owner logic.
-- `store/camera-timeline-controller.svelte.ts` — takes `cameraTimelinePlayhead`.
-- `store/navigation-graph-mutator.svelte.ts` (or `session-state` per
-  readership survey) — takes `hoveredConnectionId` / `hoveredAnchorId`.
+  `this.roots.*` calls and stay as-is. The `getSelected*Root` selectors
+  **stay at the composition root** — they combine selection + root lookup, a
+  cross-store combinator, not single-owner logic.
+- `store/session-state.svelte.ts` — takes `hoveredConnectionId` /
+  `hoveredAnchorId` (session-only UI state; `pendingFramePlacementIds` /
+  `pendingFrameVersion` already live there — see §3).
 - `store/controller-hosts.ts` — host slots for the moved state (see §3).
 
 ### 3. New props / state / dependencies
 
 - **State moves:**
-  - `cameraTimelinePlayhead` (facade `$state` ~line 743) → timeline
-    controller as owned `$state`. **Host rewiring (mandatory):**
-    `controller-hosts.ts` declares `cameraTimelinePlayhead: number` with
-    **get+set** on two hosts (lines 107, 422–426, 489–493) assigning
-    `source.cameraTimelinePlayhead = value`. Rewire both host setters to the
-    controller's owned setter (e.g. `setPlayhead(value)`); getters read the
-    controller state. Facade getter becomes read-only — never a write target.
-    Survey which hosts write (preview FSM during playback, timeline
-    controller on scrub) before dropping any setter.
-  - `hoveredConnectionId` / `hoveredAnchorId` (facade `$state` ~804–805) →
-    owner per readership; facade getter + `setNavigationHover` delegate keep
-    the null-clears-anchor behavior.
-  - `pendingFramePlacementIds` / `pendingFrameVersion` — confirm the getter
-    path (already written to `session`) and remove any duplicated facade
-    field.
+  - `cameraTimelinePlayhead` (facade raw `$state`, line 761) → timeline
+    controller as owned `$state`. **Host rewiring — THREE surfaces
+    (verified 2026-08-22), not two:**
+    1. `viewKeyframe` host (controller-hosts 422–426) — setter re-points to
+       the controller's owned setter; getter reads controller state.
+    2. `cameraTimeline` host (controller-hosts 489–493) — same re-point.
+    3. **`camera-preview-commands` host interface** (camera-preview-commands
+       svelte.ts:73–130) declares `cameraTimelinePlayhead: number` and
+       `lastSequencePlayhead: number | null` as **writable slots** (lines
+       112–113), satisfied by the whole-facade cast (`this as unknown as
+       EditorCameraPreviewCommandsHost`, facade:500). This interface is a
+       **third write surface the brief must scope**: either re-point its
+       `cameraTimelinePlayhead` member at the timeline controller's setter
+       (the interface gains a `setCameraTimelinePlayhead(value)` method the
+       cast satisfies via the controller), or pass the timeline controller
+       into the cast. As written before this refresh, an implementer
+       following the two-host rewiring literally would hit a compile wall at
+       the cast mid-slice.
+    **Writer survey (complete — no other writers exist):** timeline
+    controller ×6 (161/178/315/444/457/502, become self-writes after the
+    move), view-keyframe controller ×1 (909), preview-commands ×5 via the
+    cast (531/596/694/727/873). Facade field becomes a read-only getter —
+    never a write target; the five cast sites are the compile-time forcing
+    function.
+  - `lastSequencePlayhead` (facade raw `$state`, line 763 — **new since the
+    survey**) → preview controller as owned `$state`. Writers migrate:
+    preview-commands:449 (`host.lastSequencePlayhead =
+    host.cameraTimelinePlayhead`) becomes a controller call; the facade's
+    `#pruneInvalidCameraPreview` writes (1384/1389/1408) fold into
+    `pruneIfStale()` (it already receives the timeline and the document).
+    Read path (`get lastSequencePlayhead`) becomes a one-line delegate or is
+    dropped if the only reader is preview-commands (grep at impl time).
+  - `hoveredConnectionId` / `hoveredAnchorId` (facade `$state`, lines
+    824–825) → **session-state** as owned `$state` (owner decision recorded:
+    **no mutator reads hover anywhere in `src/`** — verified 2026-08-22, the
+    only `store/*.ts` references are the host slots and
+    `setNavigationHover` itself; ownership by navigation-graph-mutator would
+    add a dependency with zero existing readership). Hover is UI-session
+    state with a single guarded writer and three display-only readers
+    (`EditorViewport.svelte:172`, `Workspace3DView.svelte:216`,
+    `EditorCameraPathHelpers.svelte:188–189`), and session-state already
+    hosts `pendingFrame*`. Facade getter + `setNavigationHover` (2193)
+    become delegates that keep the null-clears-anchor behavior; host slots
+    (controller-hosts 332, 586) re-point to the session store.
+  - `pendingFramePlacementIds` / `pendingFrameVersion` — **NO-OP, already
+    done**: facade get/set at 764–771 are already pure delegation to
+    `this.session.pendingFrame*`; no duplicated facade `$state` field
+    remains. Nothing to remove or move — keep the one-line delegates.
 - **Read moves:** `isDirty` / `validationIssues` / `baselineCanonicalJson`
-  semantics → `document-store` (pre-check adopted). **Stays at the
-  composition root:** `canExport` (validation × transaction state), the
-  cluster → member-id expansion (`selectedPlacementIds`), and the
-  `getSelected*Root` selectors (selection × roots). `projectExportBlocker`
-  stays where it is (`store/project-export-store` already owns it — the
-  facade getter becomes a delegate).
+  semantics → `document-store` (pre-check adopted — close the divergence).
+  **Stays at the composition root:** `canExport` (validation × transaction
+  state), the cluster → member-id expansion (`selectedPlacementIds`), and
+  the `getSelected*Root` selectors (selection × roots).
+  `projectExportBlocker` — **NO-OP, already a delegate**: the logic lives in
+  `store/project-export-store.svelte.ts:74` as pure
+  `computeProjectExportBlocker(...)` and the facade getter (393) is already a
+  one-line call. Nothing to move.
 - **No new dependencies.** No new public store options; `createMuseumEditorStore`
   signature unchanged.
 
@@ -629,6 +727,21 @@ public surface is unchanged (delegates keep the signatures).
 
 - None — state/read plumbing inside the already-mounted store. Selection
   reads still route through the same facade getters (now one-line delegates).
+- The playhead move must **preserve the S2/S4 transport contract**:
+  `startConnectionPreview`/`stop` teardown and the `resetToScopeStart`
+  round-trip behave identically; `lastSequencePlayhead` is session-only,
+  never codec/history (in-memory by design).
+- **9.3-gotcha history check (pre-move, amendment from counter-review).**
+  `camera-timeline-controller.svelte.ts:21` still says
+  "`cameraTimelinePlayhead` remains facade `$state` (9.3 gotcha)" — a stale
+  tombstone that documents a reason the playhead once had to stay on the
+  facade. Before moving owned `$state` into the controller, verify that
+  gotcha against git history. Svelte 5 class-field `$state` demonstrably
+  works in controllers today (`selection-store.svelte.ts` owns
+  `lastSelectedId` as a class field), so the gotcha is **likely obsolete** —
+  but verify rather than assume. If it still holds, the fallback is a
+  controller-held plain field + explicit `$derived`-free getter wired through
+  the facade (behavior identical, ownership moved).
 
 ### 5. Acceptance tests and manual scenarios
 
@@ -636,11 +749,16 @@ public surface is unchanged (delegates keep the signatures).
 - New test: `documentStore.isDirty` returns true for an invalid document even
   when canonical JSON matches baseline (the pre-check the sub-store currently
   drops) — pins the divergence close.
-- Move the playhead/hover assertions with the state into their owners' suites
-  (session-state / camera-timeline / navigation-graph-mutator tests).
+- New tests: playhead ownership moves with the state into the
+  camera-timeline-controller suite (scrub writes land, facade getter reads
+  through); `lastSequencePlayhead` prune folds into the preview-controller
+  suite (null-timeline → reset to 0, invalid p → 0 — the S2 D6 regression
+  already pinned in `p8-s2-preview-scope.test.ts` must stay green); hover
+  assertions move into the session-state suite.
 - Manual: dirty → export blocked; undo/redo → dirty flips; timeline scrub
-  playhead; hover a connection edge in 3D; roots-driven gizmo behavior
-  (transform on selected placement/camera helper); relic smoke.
+  playhead; Preview Sequence exit/restore round-trip; hover a connection edge
+  in 3D; roots-driven gizmo behavior (transform on selected placement/camera
+  helper); relic smoke.
 
 ### 6. Relic / Plan / visitor boundaries
 
@@ -649,12 +767,175 @@ public surface is unchanged (delegates keep the signatures).
 
 ### 7. Rollback
 
-- One diff per moved group (playhead+hover, dirty/validation, cluster
+- One diff per moved group (playhead pair, hover, dirty/validation, cluster
   expansion, roots). Each is reversible independently; suite green after
-  each.
+  each. The playhead pair lands as **one diff** (the two fields share the
+  preview-commands whole-facade cast and the controller seams), not two.
+
+## P7.6 — Museum-vocabulary scrub (brief, added 2026-08-22)
+
+### 0. Owner decisions (2026-08-22)
+
+- **Drop-prefix scene vocabulary** — every `Museum*` identifier in the live
+  model loses the prefix per the collision-checked map in §2; the relic
+  subtree keeps museum naming.
+- **Format hard break** — `.museumpack.zip` → `.scenepack.zip` and the
+  `museum-scene.json` archive member → `scene.json`, with **no legacy-import
+  shim** (pre-release product; existing exported archives intentionally stop
+  importing).
+
+### 1. User outcome and out-of-scope behavior
+
+After P7.6, `rg '\b[Mm]useum[A-Za-z_]*'` over live paths (`src` excl. relic
+subtree, `tests`, `vite`) returns **zero matches** except the keep-list in
+§3. Zero behavior change other than the owner-approved format rename
+(extension + archive member) and the code-adjacent string renames in §2.
+
+**Out of scope (flagged, not scrubbed):** package identity (`apps/museum/`,
+`@portfolio/museum`, `node_modules/.vite/museum` cache dir), the `/museum`
+route, browser titles ("Museum Editor", "Museum editor — relic"), the
+"Preview Museum" link text (points at `/museum`), dev-route titles ("Chopin
+Museum Dev"), and this plan/tracker doc titles. These are product branding
+and package identity, not editor-internal vocabulary; renaming the package
+folder is a separate, heavier decision and would fight the `/museum` route.
+
+### 2. Name map (collision-checked, grep-verified 2026-08-22)
+
+**Types / classes / consts** (identifiers — mechanical find-replace):
+
+| Old | New | Notes |
+|---|---|---|
+| `MuseumEditorStore` | `EditorStore` | the facade (composition root) |
+| `MuseumEditorStoreOptions` | `EditorStoreOptions` | |
+| `MuseumSceneDocument` | `SceneDocument` | `content/scene.ts:271` |
+| `RuntimeMuseumScene` | `RuntimeScene` | `content/scene.ts:284` |
+| `MuseumRoomId` | `RoomId` | `types/museum.ts` |
+| `MuseumRoom` | `Room` | `types/museum.ts:141` |
+| `MuseumProject` | `Project` | `project/project-types.ts:4` |
+| `MuseumProjectInput` | `ProjectInput` | `project/project-codec.ts:22` |
+| `MuseumProjectIssue` | `ProjectIssue` | `project/project-types.ts:11` |
+| `MuseumProjectValidationResult` | `ProjectValidationResult` | |
+| `MuseumProjectValidationError` | `ProjectValidationError` | |
+| `MuseumAsset` | `Asset` | `types/assets.ts:43` |
+| `MuseumAssetFilters` | `AssetFilters` | |
+| `MuseumConnection` | `RuntimeConnection` | `types/museum.ts:124` — the *runtime* connection; `SceneConnection` (authored, `scene.ts:241`) already exists, so bare `Connection` is avoided |
+| `MuseumStateStore` | `RuntimeStateStore` | `state/museum-state.svelte.ts:8` — shared museum-runtime state; "Runtime" mirrors `RuntimeScene` |
+| `MuseumRuntime` | `Runtime` | `content/chopin-project.ts:23` |
+| `MUSEUM_CAMERA_FOV` | `CAMERA_FOV` | `types/museum.ts` |
+| `MUSEUM_CAMERA_EASING` | `CAMERA_EASING` | `types/museum.ts` |
+| `EditorMuseumEntities` (component) | `EditorSceneEntities` | + file rename |
+| `museumSceneDocument` (var) | `sceneDocument` | |
+| `museumNavigationGraph` | `navigationGraph` | |
+| `museumRooms` | `rooms` | |
+| `museumAssets` | `assets` | |
+| `museumMaterials` | `materials` | |
+| `museumSceneBytes` | `sceneBytes` | |
+| `museumAssetById` | `assetById` | |
+| `museumState` / `museumScene` (vars) | `runtimeState` / `scene` | |
+| `museumpack` | `scenepack` | format string (§4) |
+
+**Code-adjacent strings** (user-visible but code-domain — renamed):
+
+| Old | New | Where |
+|---|---|---|
+| `.museumpack.zip` | `.scenepack.zip` | `package-format.ts:198`; comments in `museum-editor.svelte.ts:2473/2490`, `package-sha.ts:6` |
+| `'museum-scene.json'` archive member | `'scene.json'` | `package-importer.ts:76/80/90/186/194`, `package-exporter.ts:152`, `package-format.ts:8` |
+| default title / slug fallback `'museum-scene'` | `'scene'` | `package-format.ts:178/203/216`; app-bar subtitle `EditorAppBar.svelte:43` shows it |
+| "Museum asset has no valid fallback mapping: …" | "Asset has no valid fallback mapping: …" | `content/assets.ts:233` |
+| "Museum asset IDs must be non-empty" | "Asset IDs must be non-empty" | `content/assets.ts:239` |
+| "Museum asset without a production file requires a fallback: …" | "Asset without a production file requires a fallback: …" | `content/assets.ts:264` |
+| "Museum navigation state must use the same resolved scene instance" | "Navigation state must use the same resolved scene instance" | `content/scene.ts:586` |
+| `aria-label="Museum editor shell"` | `"Editor shell"` | both `EditorAppBar.svelte` files (40, 61) |
+| `aria-label="Museum editor viewport"` | `"Editor viewport"` | `EditorViewport.svelte:175` |
+| `aria-label="Museum rooms and objects"` | `"Rooms and objects"` | `EditorSceneTree.svelte:73` |
+
+### 3. Relic boundary (keep-list — the ONLY museum allowed in live code)
+
+- **Keeps museum naming:** `src/lib/museum/**`, `src/routes/museum/**`, and
+  the relic editor mount chain — `MuseumEditorApp.svelte` (legacy shell,
+  mounted only at `/museum/editor`), `MuseumEditorEntry`,
+  `virtual:museum-editor-entry`, `vite/museum-editor-entry-plugin.ts`.
+- **Relic components imported by live code keep their names:**
+  `MuseumScene` (`EditorViewport`, `Workspace3DView`) and `MuseumEntities` —
+  the editor renders the museum for preview; the import stays, the name
+  stays.
+- **Shared museum-domain types get renamed** (`MuseumStateStore` →
+  `RuntimeStateStore`, `MuseumRoomId` → `RoomId`, `MuseumRuntime` →
+  `Runtime`, `MuseumConnection` → `RuntimeConnection`, the chopin seeds
+  `museumNavigationGraph/Rooms/Assets/Materials`) — relic files that import
+  them receive mechanical import updates. The frozen invariant is
+  *behavior*; the P7.4 smoke gate (relic routes behavior-equivalent) applies
+  to this slice.
+- Grep gate is run with `-g '!src/lib/museum/**' -g '!src/routes/museum/**'`
+  exclusions, then the keep-list is verified individually — never exclude a
+  directory without confirming each remaining hit is on the list.
+
+### 4. File renames (15 — `git mv`, one commit per group)
+
+| Old | New |
+|---|---|
+| `src/lib/editor/museum-editor.svelte.ts` | `src/lib/editor/editor-store.svelte.ts` |
+| `src/lib/editor/museum-editor.types.ts` | `src/lib/editor/editor-types.ts` |
+| `src/lib/types/museum.ts` | `src/lib/types/scene.ts` |
+| `src/lib/state/museum-state.svelte.ts` | `src/lib/state/runtime-state.svelte.ts` |
+| `src/lib/content/museum-scene.json` | `src/lib/content/scene.json` |
+| `src/lib/editor/EditorMuseumEntities.svelte` | `src/lib/editor/EditorSceneEntities.svelte` |
+| `tests/lib/editor/museum-editor.test.ts` | `tests/lib/editor/editor-store.test.ts` |
+| `tests/lib/editor/museum-editor-camera.test.ts` | `tests/lib/editor/editor-store-camera.test.ts` |
+| `tests/lib/editor/museum-editor-placement.test.ts` | `tests/lib/editor/editor-store-placement.test.ts` |
+| `tests/lib/editor/museum-editor-selection.test.ts` | `tests/lib/editor/editor-store-selection.test.ts` |
+| `tests/lib/editor/museum-editor-textures.test.ts` | `tests/lib/editor/editor-store-textures.test.ts` |
+| `tests/lib/editor/museum-editor-shell.test.ts` | `tests/lib/editor/editor-store-shell.test.ts` |
+| `tests/lib/editor/museum-editor-bind-migration.test.ts` | `tests/lib/editor/editor-store-bind-migration.test.ts` |
+| `tests/lib/editor/museum-editor-package-archive.test.ts` | `tests/lib/editor/editor-store-package-archive.test.ts` |
+| `tests/lib/state/museum-state.test.ts` | `tests/lib/state/runtime-state.test.ts` |
+
+⚠️ The facade test suites **cannot** take the plain `editor-*` names —
+`editor-camera.test.ts`, `editor-placement.test.ts`, `editor-selection.test.ts`,
+`editor-textures.test.ts` already exist as module unit tests. The `editor-store-*`
+scheme above is collision-checked (verified 2026-08-22).
+
+### 5. Acceptance tests and manual scenarios
+
+- **Grep gate:** `rg '\b[Mm]useum[A-Za-z_]*' src tests vite` with
+  `-g '!src/lib/museum/**' -g '!src/routes/museum/**'` → **zero matches**;
+  keep-list hits verified individually (§3).
+- **`svelte-check` 0/0** — the compiler is the enforcement backstop (every
+  missed identifier fails; unlike P7.1, no regex-gate blind spot exists).
+- **Full suite green** — 1,970 baseline; all 81 test files touched. The
+  "zero expectation edits" gate cannot hold (every test file changes); the
+  gate is "suite green after rename", which is airtight in a different way.
+- **Format roundtrip:** `package-roundtrip-smoke.test.ts` green with the new
+  member name; a crafted old-format archive (`.museumpack.zip` /
+  `museum-scene.json`) **fails import** — that failure is the hard-break
+  acceptance, not a bug.
+- **Relic smoke (P7.4 record):** `/museum` + `/museum/editor` boot and behave
+  as before.
+
+### 6. Ordering / boundaries
+
+- **Last increment: P7.1 → P7.5 → P7.2 → P7.3 → P7.6.** The rename is
+  line-preserving (it would not invalidate the refreshed anchors), but
+  landing last means it renames already-thinned, settled code and no later
+  slice reviews through the mega-diff. Land on top of the committed P8+P7
+  delta (commit the current uncommitted tree first).
+- **This is the one P7 increment that is NOT zero-behavior-change:** the
+  format rename (owner-approved hard break) and the code-adjacent string
+  renames are deliberate, test-pinned changes — carve-out to the umbrella
+  Boundaries section (see the note added there).
+- **Commit shape:** one commit per group (identifier core → content seeds →
+  format → strings → file renames → docs), each green, mirroring P7.2's
+  per-namespace rollback split.
+
+### 7. Rollback / fallback split
+
+- Per-group `git revert` in reverse order; file renames are `git mv` so a
+  revert restores paths. The hard-break format change is the only item not
+  fully reversible for *external* archives — owner-accepted (pre-release).
 
 ---
 
+---
 ## Appendix — verified residue inventory (2026-08-19)
 
 - `museum-editor.svelte.ts`: 2,850 lines; `$state` fields at ~743
@@ -668,12 +949,16 @@ public surface is unchanged (delegates keep the signatures).
   `editor/layout/` — `arch-profile` (8), `curve-geometry` (20), `draft-geometry`
   (9), `layout-auto-bezier` (11), `layout-preview-bounds` (1),
   `layout-types` (12), `layout-validation` (7), `rooms-to-layout` (8);
-  `layout-preview-geometry.ts` hybrid (real fns + re-export).
-- Chopin coupling: 18 `chopinRuntime`/`museumSceneDocument` references across
-  `editor-camera-path.ts`, `editor-camera-view.ts`, `museum-editor.svelte.ts`,
-  `store/document-store.svelte.ts`, `layout/layout-preview-state.svelte.ts`;
-  `CURRENT.md` Traps documents the `store.rooms`-vs-`chopinRuntime.rooms`
-  foot-gun.
+  `layout-preview-geometry.ts` — **de-hybridized 2026-08-22 re-verify: 11
+  lines, pure real fns, no re-export remains** (only its `./layout-types`
+  import rewrite is left for P7.2).
+- Chopin coupling: `chopinRuntime`/`museumSceneDocument` references across
+  `editor-camera-path.ts` (6 rooms-defaults: 112/137/181/193/208/337),
+  `editor-camera-view.ts` (4: 126/165/181/202), `museum-editor.svelte.ts`,
+  `store/document-store.svelte.ts`, `layout/layout-preview-state.svelte.ts`
+  (incl. the relic-seeded `createLayoutPreviewState()` and the test-only
+  `loadChopinLayoutPreview()`); `CURRENT.md` Traps documents the
+  `store.rooms`-vs-`chopinRuntime.rooms` foot-gun.
 - Shell duplication: `confirm*` trio + `beforeNavigate` + `beforeunload` +
   texture loader + `BinaryTextureStore.clearExcept` + shortcut registration
   duplicated in `MuseumEditorApp.svelte` (225 lines) and `EditorApp.svelte`
@@ -688,7 +973,10 @@ public surface is unchanged (delegates keep the signatures).
   .ts` 25 — that one about the duplicated `cloneMuseumSceneDocument`, not
   preview types) are stale → comment cleanup under residue removal.
 - Host writable state: `controller-hosts.ts` `cameraTimelinePlayhead`
-  get+set on two hosts (107, 422–426, 489–493) — P7.5 rewiring.
+  get+set on two hosts (107, 422–426, 489–493) — P7.5 rewiring
+  (2026-08-22: re-baselined anchors 422–426 / 489–493; the facade field is
+  now a raw `$state` at 761 and `lastSequencePlayhead` at 763 joins the
+  move).
 - Archive pointer: original split intent in
   [`2026-08-03-priority-1-file-splits-plan.md`](../archive/plans/phase-5-textures/2026-08-03-priority-1-file-splits-plan.md)
   (deferred-thinning note in Slice 3; suggested next slice in Slice 6);

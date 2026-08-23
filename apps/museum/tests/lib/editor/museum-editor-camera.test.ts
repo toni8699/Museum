@@ -260,7 +260,7 @@ describe('MuseumEditorStore Phase 6 camera nodes', () => {
 		store.requestPlacementFrame([placementId]);
 
 		expect(store.previewSelectedNode()).toBe(true);
-		expect(store.cameraPreview).toMatchObject({ kind: 'node', nodeId: 'tour-paris' });
+		expect(store.cameraPreview).toMatchObject({ kind: 'camera', nodeId: 'tour-paris' });
 		expect(store.pendingPlacementAssetId).toBeNull();
 		expect(store.pendingFramePlacementIds).toEqual([]);
 		expect(store.cameraFocusKind).toBeNull();
@@ -272,10 +272,15 @@ describe('MuseumEditorStore Phase 6 camera nodes', () => {
 		expect(store.stopCameraPreview()).toBe(true);
 		expect(store.cameraSelection?.nodeId).toBe('tour-paris');
 
-		expect(store.previewSelectedTransition()).toBe(true);
+		// S6: the legacy transition preview path is retired — the same
+		// lifecycle is exercised through the exact-edge preview command.
+		expect(store.selectionActions.selectConnection('tour-paris-d')).toBe(true);
+		expect(store.previewSelectedConnection('forward')).toBe(true);
 		const preview = store.cameraPreview;
 		expect(preview).toMatchObject({
-			kind: 'transition',
+			kind: 'edge',
+			connectionId: 'tour-paris-d',
+			direction: 'forward',
 			fromNodeId: 'tour-paris',
 			toNodeId: 'tour-d',
 			startedAtMs: null,
@@ -353,7 +358,10 @@ describe('MuseumEditorStore Phase 6 camera nodes', () => {
 		).toBe(true);
 		expect(store.undo()).toBe(true);
 		expect(store.canRedo).toBe(true);
-		expect(store.previewSelectedTransition()).toBe(true);
+		// S6: legacy transition preview retired — the guard surface is
+		// identical through the exact-edge preview command.
+		expect(store.selectionActions.selectConnection('tour-paris-d')).toBe(true);
+		expect(store.previewSelectedConnection('forward')).toBe(true);
 
 		const documentBefore = JSON.stringify(store.document);
 		const dropRequestBefore = store.dropToFloorRequestId;
@@ -402,42 +410,21 @@ describe('MuseumEditorStore Phase 6 camera nodes', () => {
 		expect(store.canRedo).toBe(true);
 	});
 
-	it('rejects invalid outgoing transitions without entering preview', () => {
+	it('rejects missing selections without starting preview', () => {
+		// S6: the legacy node-following transition validation is retired;
+		// the exact-edge command refuses without entering preview.
 		const store = createFixtureEditorStore();
-		const nodeId = 'tour-paris';
-		store.selectionActions.selectNavigationNode(nodeId);
-		expect(store.beginDocumentTransaction()).toBe(true);
-		store.document.navigationNodes.find((node) => node.id === nodeId)!.nextNodeId = 'missing';
-		expect(store.commitDocumentTransaction()).toBe(false);
+		// No selected connection → guidance status, no preview.
+		expect(store.previewSelectedConnection('forward')).toBe(false);
+		expect(store.cameraPreview).toBeNull();
+		expect(store.statusMessage).toContain('Select a camera connection to preview');
 
-		expect(store.previewSelectedTransition()).toBe(true);
-		expect(store.cameraPreview).not.toBeNull();
-		store.stopCameraPreview();
-		expect(store.statusMessage).toContain('Unknown navigation node');
-	});
-
-	it('reports missing and unroutable next nodes without starting preview', () => {
-		const missingStore = createFixtureEditorStore();
-		missingStore.selectionActions.selectNavigationNode('tour-paris');
-		expect(missingStore.beginDocumentTransaction()).toBe(true);
-		delete missingStore.document.navigationNodes.find(
-			(node) => node.id === 'tour-paris'
-		)!.nextNodeId;
-		expect(missingStore.commitDocumentTransaction()).toBe(false);
-		expect(missingStore.previewSelectedTransition()).toBe(true);
-		expect(missingStore.cameraPreview).not.toBeNull();
-		missingStore.stopCameraPreview();
-		expect(missingStore.statusMessage).toContain('non_reciprocal_tour_link');
-
-		const unroutableStore = createFixtureEditorStore();
-		unroutableStore.selectionActions.selectNavigationNode('tour-paris');
-		expect(unroutableStore.beginDocumentTransaction()).toBe(true);
-		unroutableStore.document.connections = [];
-		expect(unroutableStore.commitDocumentTransaction()).toBe(false);
-		expect(unroutableStore.previewSelectedTransition()).toBe(true);
-		expect(unroutableStore.cameraPreview).not.toBeNull();
-		unroutableStore.stopCameraPreview();
-		expect(unroutableStore.statusMessage).toContain('No connection exists');
+		// A live preview already active → command no-ops (never stacks).
+		const activeStore = createFixtureEditorStore();
+		expect(activeStore.selectionActions.selectNavigationNode('tour-paris')).toBe(true);
+		expect(activeStore.previewSelectedNode()).toBe(true);
+		expect(activeStore.previewSelectedConnection('forward')).toBe(false);
+		expect(activeStore.cameraPreview?.kind).toBe('camera');
 	});
 });
 
@@ -914,7 +901,7 @@ describe('MuseumEditorStore Phase 6.5 camera paths', () => {
 		const capturedJson = JSON.stringify(captured);
 		expect(store.cameraPreview).toEqual(
 			expect.objectContaining({
-				kind: 'connection',
+				kind: 'edge',
 				connectionId,
 				direction: 'reverse'
 			})
@@ -1362,7 +1349,7 @@ describe('MuseumEditorStore camera view authoring', () => {
 		expect(store.activeCameraDirection).toBe('reverse');
 		expect(store.selectedConnection?.viewTracks?.reverse).toHaveLength(1);
 		expect(store.cameraPreview).toMatchObject({
-			kind: 'connection',
+			kind: 'edge',
 			connectionId: connection.id,
 			direction: 'reverse',
 			mode: 'visitor',
@@ -1396,7 +1383,7 @@ describe('MuseumEditorStore camera view authoring', () => {
 		expect(store.seekCameraTimeline(mid)).toBe(true);
 		expect(store.activeCameraDirection).toBe('reverse');
 		expect(store.cameraPreview).toMatchObject({
-			kind: 'connection',
+			kind: 'edge',
 			connectionId: connection.id,
 			direction: 'reverse',
 			transport: 'paused'
@@ -1689,7 +1676,7 @@ describe('MuseumEditorStore Phase 2.1 persistent camera discovery', () => {
 
 		expect(store.selectionActions.selectNavigationNode('tour-paris')).toBe(true);
 		expect(store.cameraPreview).toMatchObject({
-			kind: 'node',
+			kind: 'camera',
 			nodeId: 'tour-paris',
 			mode: 'director',
 			transport: 'paused'
@@ -1771,7 +1758,7 @@ describe('MuseumEditorStore Phase 2.2 timeline selection and scrub', () => {
 		});
 		expect(store.activeCameraDirection).toBe(edge.direction);
 		expect(store.cameraPreview).toMatchObject({
-			kind: 'connection',
+			kind: 'edge',
 			mode: 'director',
 			transport: 'paused',
 			connectionId: edge.connectionId,
@@ -1804,7 +1791,7 @@ describe('MuseumEditorStore Phase 2.2 timeline selection and scrub', () => {
 		expect(store.cameraPreviewFollowEnabled).toBe(false);
 		expect(store.cameraPreviewRecenterVersion).toBe(recenterVersion);
 		expect(store.cameraPreview).toMatchObject({
-			kind: 'connection',
+			kind: 'edge',
 			connectionId: secondEdge.connectionId,
 			direction: secondEdge.direction
 		});
@@ -1828,7 +1815,7 @@ describe('MuseumEditorStore Phase 2.2 timeline selection and scrub', () => {
 		expect(store.seekCameraTimeline(secondProgress)).toBe(true);
 		expect(store.cameraTimelinePlayhead).toBe(secondProgress);
 		expect(store.cameraPreview).toMatchObject({
-			kind: 'connection',
+			kind: 'edge',
 			mode: 'visitor',
 			transport: 'paused',
 			connectionId: timeline.edges[1]!.connectionId
@@ -1854,7 +1841,7 @@ describe('MuseumEditorStore Phase 2.2 timeline selection and scrub', () => {
 			handle: 'position'
 		});
 		expect(store.cameraPreview).toMatchObject({
-			kind: 'node',
+			kind: 'camera',
 			nodeId: 'tour-a',
 			mode: 'director'
 		});
@@ -1890,7 +1877,7 @@ describe('MuseumEditorStore Phase 2.2 timeline selection and scrub', () => {
 			keyframeId: keyframe.id
 		});
 		expect(store.cameraPreview).toMatchObject({
-			kind: 'connection',
+			kind: 'edge',
 			connectionId: connection.id,
 			direction: 'reverse',
 			playhead: expectedPlayhead
@@ -1951,9 +1938,9 @@ describe('MuseumEditorStore Phase 2.3 whole guided-tour playback', () => {
 		store.setWorkspace('camera');
 		const before = store.canonicalJson;
 
-		expect(store.previewGuidedTour()).toBe(true);
+		expect(store.previewSequence()).toBe(true);
 		expect(store.cameraPreview).toMatchObject({
-			kind: 'tour',
+			kind: 'sequence',
 			startNodeId: 'tour-a',
 			mode: 'visitor',
 			transport: 'playing',
@@ -1972,7 +1959,7 @@ describe('MuseumEditorStore Phase 2.3 whole guided-tour playback', () => {
 		expect(store.cameraTimelinePlayhead).toBe(0.63);
 		expect(store.completeCameraPreview(runId)).toBe(true);
 		expect(store.cameraPreview).toMatchObject({
-			kind: 'tour',
+			kind: 'sequence',
 			transport: 'complete',
 			playhead: 1
 		});
@@ -1986,14 +1973,14 @@ describe('MuseumEditorStore Phase 2.3 whole guided-tour playback', () => {
 		store.setWorkspace('camera');
 		expect(store.seekCameraTimeline(0.38)).toBe(true);
 		expect(store.cameraPreview).toMatchObject({
-			kind: 'connection',
+			kind: 'edge',
 			mode: 'director',
 			transport: 'paused'
 		});
 
-		expect(store.previewGuidedTour('director')).toBe(true);
+		expect(store.previewSequence('director')).toBe(true);
 		expect(store.cameraPreview).toMatchObject({
-			kind: 'tour',
+			kind: 'sequence',
 			mode: 'director',
 			transport: 'playing',
 			playhead: 0.38
@@ -2002,7 +1989,7 @@ describe('MuseumEditorStore Phase 2.3 whole guided-tour playback', () => {
 		expect(store.setCameraPreviewPlayhead(0.41)).toBe(true);
 		expect(store.setCameraPreviewMode('visitor')).toBe(true);
 		expect(store.cameraPreview).toMatchObject({
-			kind: 'tour',
+			kind: 'sequence',
 			mode: 'visitor',
 			transport: 'paused',
 			playhead: 0.41
@@ -2019,7 +2006,7 @@ describe('MuseumEditorStore Phase 2.3 whole guided-tour playback', () => {
 		const poland = store.state.graph.nodeById.get('tour-b')!;
 		poland.previousNodeId = 'tour-d';
 
-		expect(store.previewGuidedTour()).toBe(false);
+		expect(store.previewSequence()).toBe(false);
 		expect(store.cameraPreview).toBeNull();
 		expect(store.statusMessage).toMatch(/not reciprocal/);
 	});
@@ -2041,7 +2028,7 @@ describe('MuseumEditorStore Phase 3.1 selection and primary Play parity', () => 
 			);
 		expect(store.cameraTimelinePlayhead).toBe(boundary.progress);
 		expect(store.cameraPreview).toMatchObject({
-			kind: 'node',
+			kind: 'camera',
 			nodeId: 'tour-paris',
 			mode: 'director',
 			transport: 'paused'
@@ -2056,7 +2043,7 @@ describe('MuseumEditorStore Phase 3.1 selection and primary Play parity', () => 
 
 		expect(store.selectionActions.selectNavigationNode('tour-d')).toBe(true);
 		expect(store.cameraPreview).toMatchObject({
-			kind: 'node',
+			kind: 'camera',
 			nodeId: 'tour-d',
 			mode: 'director',
 			transport: 'paused'
@@ -2073,7 +2060,7 @@ describe('MuseumEditorStore Phase 3.1 selection and primary Play parity', () => 
 			store.selectionActions.selectCameraConnectionDirection(connection.id, 'forward')
 		).toBe(true);
 		expect(store.cameraPreview).toMatchObject({
-			kind: 'connection',
+			kind: 'edge',
 			connectionId: connection.id,
 			direction: 'forward',
 			mode: 'director',
@@ -2093,7 +2080,7 @@ describe('MuseumEditorStore Phase 3.1 selection and primary Play parity', () => 
 			store.selectionActions.selectCameraConnectionDirection(connection.id, 'reverse')
 		).toBe(true);
 		expect(store.cameraPreview).toMatchObject({
-			kind: 'connection',
+			kind: 'edge',
 			connectionId: connection.id,
 			direction: 'reverse',
 			playhead: 0
@@ -2137,9 +2124,9 @@ describe('MuseumEditorStore Phase 3.1 selection and primary Play parity', () => 
 		store.setWorkspace('camera');
 
 		expect(store.seekCameraTimeline(0.38)).toBe(true);
-		expect(store.previewGuidedTour()).toBe(true);
+		expect(store.previewSequence()).toBe(true);
 		expect(store.cameraPreview).toMatchObject({
-			kind: 'tour',
+			kind: 'sequence',
 			mode: 'director',
 			transport: 'playing',
 			playhead: 0.38
@@ -2147,9 +2134,9 @@ describe('MuseumEditorStore Phase 3.1 selection and primary Play parity', () => 
 
 		expect(store.pauseCameraPreview()).toBe(true);
 		expect(store.setCameraPreviewPlayhead(0.46)).toBe(true);
-		expect(store.previewGuidedTour('visitor')).toBe(true);
+		expect(store.previewSequence('visitor')).toBe(true);
 		expect(store.cameraPreview).toMatchObject({
-			kind: 'tour',
+			kind: 'sequence',
 			mode: 'director',
 			transport: 'playing',
 			playhead: 0.46
@@ -2158,9 +2145,9 @@ describe('MuseumEditorStore Phase 3.1 selection and primary Play parity', () => 
 		const runId = store.cameraPreview!.runId;
 		expect(store.markCameraPreviewStarted(runId, 100)).toBe(true);
 		expect(store.completeCameraPreview(runId)).toBe(true);
-		expect(store.previewGuidedTour()).toBe(true);
+		expect(store.previewSequence()).toBe(true);
 		expect(store.cameraPreview).toMatchObject({
-			kind: 'tour',
+			kind: 'sequence',
 			mode: 'director',
 			transport: 'playing',
 			playhead: 0
@@ -2169,9 +2156,9 @@ describe('MuseumEditorStore Phase 3.1 selection and primary Play parity', () => 
 		expect(store.stopCameraPreview()).toBe(true);
 		expect(store.seekCameraTimeline(0.62)).toBe(true);
 		expect(store.stopCameraPreview()).toBe(true);
-		expect(store.previewGuidedTour()).toBe(true);
+		expect(store.previewSequence()).toBe(true);
 		expect(store.cameraPreview).toMatchObject({
-			kind: 'tour',
+			kind: 'sequence',
 			mode: 'visitor',
 			transport: 'playing',
 			playhead: 0.62
@@ -2235,7 +2222,7 @@ describe('MuseumEditorStore Phase 2.4 camera-key progress drag', () => {
 		expect(store.updateViewKeyframeProgressDrag(0.48)).toBe(true);
 		expect(store.selectedViewKeyframe?.progress).toBe(0.48);
 		expect(store.cameraPreview).toMatchObject({
-			kind: 'connection',
+			kind: 'edge',
 			mode: 'director',
 			transport: 'paused'
 		});
@@ -3010,7 +2997,7 @@ describe('MuseumEditorStore Phase 3.6 framing controls', () => {
 		expect(store.selectionActions.selectNavigationNode('tour-paris')).toBe(true);
 		expect(store.setCameraPreviewMode('visitor')).toBe(true);
 		expect(store.cameraPreview).toMatchObject({
-			kind: 'node',
+			kind: 'camera',
 			mode: 'visitor',
 			transport: 'paused'
 		});
@@ -3023,7 +3010,12 @@ describe('MuseumEditorStore Phase 3.6 framing controls', () => {
 		expect(store.undo()).toBe(true);
 		expect(store.selectedNavigationNode!.fov).toBe(initialFov);
 
-		expect(store.previewSelectedTransition('visitor')).toBe(true);
+		// S6: legacy transition preview retired — selecting the connection
+		// installs a paused edge preview; Play starts it. The same
+		// framing-lock surface is exercised while it plays.
+		expect(store.selectionActions.selectConnection('tour-paris-d')).toBe(true);
+		expect(store.cameraPreview?.kind).toBe('edge');
+		expect(store.playCameraPreview()).toBe(true);
 		expect(store.isCameraPreviewPlaying).toBe(true);
 		expect(store.isCameraFramingMutationBlocked).toBe(true);
 		expect(store.commitSelectedNodeFov(initialFov - 1)).toBe(false);
@@ -3098,7 +3090,7 @@ describe('MuseumEditorStore Phase 3.6 history + framing-drag cleanup', () => {
 
 	function installPausedVisitorNodePreview(store: MuseumEditorStore, nodeId: string) {
 		const preview: EditorCameraPreview = {
-			kind: 'node',
+			kind: 'camera',
 			nodeId,
 			mode: 'visitor',
 			transport: 'paused',
@@ -3145,7 +3137,7 @@ describe('MuseumEditorStore Phase 3.6 history + framing-drag cleanup', () => {
 		const store = createFixtureEditorStore();
 		makeHistory(store);
 		const tourPreview: EditorCameraPreview = {
-			kind: 'tour',
+			kind: 'sequence',
 			startNodeId: 'missing-tour-node',
 			mode: 'director',
 			transport: 'paused',
@@ -3742,8 +3734,8 @@ describe('MuseumEditorStore P1.8 — camera sequence authoring (re-root + strict
 
 		store.selectionActions.selectNavigationNode('free-node');
 		expect(store.previewSelectedNode('visitor')).toBe(true);
-		expect(store.cameraPreview?.kind).toBe('node');
-		if (store.cameraPreview?.kind === 'node') {
+		expect(store.cameraPreview?.kind).toBe('camera');
+		if (store.cameraPreview?.kind === 'camera') {
 			expect(store.cameraPreview.nodeId).toBe('free-node');
 		}
 		expect(store.stopCameraPreview()).toBe(true);
@@ -3763,7 +3755,7 @@ describe('MuseumEditorStore P1.8 — camera sequence authoring (re-root + strict
 		store.selectionActions.selectNavigationNode(node.id);
 		expect(store.getCameraTimeline()).toBeNull();
 		expect(store.previewSelectedNode('visitor')).toBe(true);
-		expect(store.cameraPreview).toMatchObject({ kind: 'node', nodeId: node.id });
+		expect(store.cameraPreview).toMatchObject({ kind: 'camera', nodeId: node.id });
 		expect(store.isDocumentMutationBlocked).toBe(true);
 		expect(store.stopCameraPreview()).toBe(true);
 		expect(store.cameraPreview).toBeNull();

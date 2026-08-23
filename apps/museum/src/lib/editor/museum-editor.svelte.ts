@@ -198,8 +198,9 @@ import type {
 	EditorCameraPreviewTransport,
 	EditorCameraPreviewState,
 	EditorCameraPreview,
-	CameraPreviewTransition,
-	CameraPreviewTour,
+	CameraPreviewCamera,
+	CameraPreviewEdge,
+	CameraPreviewSequence,
 	EditorPendingNavigationCommand,
 	EditorWorkspace,
 	EditorLeftPanel,
@@ -272,10 +273,9 @@ export type {
 	EditorCameraPreviewTransport,
 	EditorCameraPreviewState,
 	EditorCameraPreview,
-	CameraPreviewNode,
-	CameraPreviewTransition,
-	CameraPreviewConnection,
-	CameraPreviewTour,
+	CameraPreviewCamera,
+	CameraPreviewEdge,
+	CameraPreviewSequence,
 	EditorPendingNavigationCommand,
 	EditorWorkspace,
 	EditorLeftPanel,
@@ -419,12 +419,12 @@ export class MuseumEditorStore {
 	get cameraPreviewRecenterVersion(): number {
 		return this.previewController.recenterVersion;
 	}
-	/** S2 — edge repeat flag, scoped to `kind === 'connection'`. UI reads via getter; writes delegate through commands layer to enforce guard. */
+	/** S2 — edge repeat flag, scoped to `kind === 'edge'`. UI reads via getter; writes delegate through commands layer to enforce guard. */
 	get edgeRepeat(): boolean {
 		return this.previewController.edgeRepeat;
 	}
 	set edgeRepeat(value: boolean) {
-		// Delegate through commands guard (kind === 'connection' check) to avoid bypassing D2 scoping.
+		// Delegate through commands guard (kind === 'edge' check) to avoid bypassing D2 scoping.
 		this.cameraPreviewCommands.setEdgePreviewRepeat(value);
 	}
 	/** S2 — derived scope, single source via previewScopeOf. */
@@ -441,8 +441,7 @@ export class MuseumEditorStore {
 
 	// Slice 2 (Priority-1 file splits) — preview + timeline playback
 	// orchestration. Owns the move of `playActiveConnectionEdge`,
-	// `previewActiveConnectionReverse`, `previewGuidedTour`,
-	// `previewSelectedNode`, `previewSelectedTransition`,
+	// `previewActiveConnectionReverse`, `previewSelectedNode`,
 	// `previewSelectedConnection`, the FSM command zoo
 	// (`setCameraPreviewMode` … `getCapturedCameraPreviewRoute`), and the
 	// private route plumbing (`resolveCameraPreviewRoute`,
@@ -1267,7 +1266,7 @@ export class MuseumEditorStore {
 
 	get activeViewKeyframeDirection(): CameraConnectionDirection | null {
 		const preview = this.cameraPreview;
-		if (preview?.kind === 'connection' && preview.mode === 'director') {
+		if (preview?.kind === 'edge' && preview.mode === 'director') {
 			return preview.direction;
 		}
 		const selection = this.navigationSelection;
@@ -1398,7 +1397,7 @@ export class MuseumEditorStore {
 			return;
 		}
 		if (
-			preview.kind === 'tour' &&
+			preview.kind === 'sequence' &&
 			!this.document.navigationNodes.some((node) => node.id === preview.startNodeId)
 		) {
 			this.stopCameraPreview();
@@ -1898,16 +1897,8 @@ export class MuseumEditorStore {
 		return this.cameraPreviewCommands.previewActiveConnectionReverse(mode);
 	}
 
-	previewGuidedTour(mode: EditorCameraPreviewMode = 'visitor') {
-		return this.cameraPreviewCommands.previewGuidedTour(mode);
-	}
-
 	previewSelectedNode(mode: EditorCameraPreviewMode = 'visitor') {
 		return this.cameraPreviewCommands.previewSelectedNode(mode);
-	}
-
-	previewSelectedTransition(mode: EditorCameraPreviewMode = 'visitor') {
-		return this.cameraPreviewCommands.previewSelectedTransition(mode);
 	}
 
 	previewSelectedConnection(

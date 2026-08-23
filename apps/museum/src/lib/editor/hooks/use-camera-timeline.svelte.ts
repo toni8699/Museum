@@ -27,7 +27,7 @@ export function useCameraTimeline(store: MuseumEditorStore) {
 			const preview = store.cameraPreview;
 			// Active Preview Edge takes precedence over selection (previewScope === 'edge').
 			// Use captured route keyed by runId — not route identity which thrashes.
-			if (preview?.kind === 'connection') {
+			if (preview?.kind === 'edge') {
 				const route = store.getCapturedCameraPreviewRoute(preview.runId);
 				if (route) return createEdgeLocalTimeline(graph, preview.connectionId, preview.direction, { route });
 				return createEdgeLocalTimeline(graph, preview.connectionId, preview.direction);
@@ -39,7 +39,7 @@ export function useCameraTimeline(store: MuseumEditorStore) {
 		},
 		get edgePlayhead() {
 			const preview = store.cameraPreview;
-			return preview?.kind === 'connection' ? preview.playhead : 0;
+			return preview?.kind === 'edge' ? preview.playhead : 0;
 		},
 		get edgeDurationSeconds() {
 			return this.edgeTimeline?.durationSeconds ?? 0;
@@ -65,7 +65,7 @@ export function useCameraTimeline(store: MuseumEditorStore) {
 			if (tl.durationSeconds <= 1e-9) return true;
 			if (store.isEditorInteractionActive || store.isDocumentTransactionActive) return true;
 			const preview = store.cameraPreview;
-			if (!preview || preview.kind !== 'connection') return true;
+			if (!preview || preview.kind !== 'edge') return true;
 			return preview.transport !== 'paused';
 		},
 		get edgeReverseDisabled() {
@@ -74,14 +74,14 @@ export function useCameraTimeline(store: MuseumEditorStore) {
 			if (store.isEditorInteractionActive || store.isDocumentTransactionActive) return true;
 			const preview = store.cameraPreview;
 			// S3 D3 — reverse enabled only for paused edge preview; idle candidate disabled.
-			if (!preview || preview.kind !== 'connection') return true;
+			if (!preview || preview.kind !== 'edge') return true;
 			return preview.transport !== 'paused';
 		},
 		get edgeRepeatDisabled() {
 			// Repeat toggle visible but disabled unless active edge preview.
 			if (store.isEditorInteractionActive || store.isDocumentTransactionActive) return true;
 			const preview = store.cameraPreview;
-			if (!preview || preview.kind !== 'connection') return true;
+			if (!preview || preview.kind !== 'edge') return true;
 			return false;
 		},
 		get disabled() {
@@ -137,7 +137,7 @@ export function useCameraTimeline(store: MuseumEditorStore) {
 		},
 		get playLabel() {
 			if (store.cameraPreview?.transport === 'playing') return 'Pause';
-			// S4 D2 — guided play is sequence-transport only; reverse-edge
+			// S4 D2 — sequence play is sequence-transport only; reverse-edge
 			// transport lives in the S3 EdgeRuler (toggleEdgePlayback).
 			return 'Play camera flow';
 		},
@@ -182,11 +182,11 @@ export function useCameraTimeline(store: MuseumEditorStore) {
 		},
 		toggleEdgePlayback() {
 			const preview = store.cameraPreview;
-			if (preview?.kind === 'connection' && preview.transport === 'playing') {
+			if (preview?.kind === 'edge' && preview.transport === 'playing') {
 				store.pauseCameraPreview();
 				return;
 			}
-			if (preview?.kind === 'connection' && preview.transport === 'paused') {
+			if (preview?.kind === 'edge' && preview.transport === 'paused') {
 				store.playCameraPreview();
 				return;
 			}

@@ -11,7 +11,7 @@ describe('P8 S2 previewScopeOf', () => {
 		expect(previewScopeOf(null)).toBe(null);
 		expect(
 			previewScopeOf({
-				kind: 'node',
+				kind: 'camera',
 				nodeId: 'x',
 				mode: 'director',
 				transport: 'paused',
@@ -22,7 +22,7 @@ describe('P8 S2 previewScopeOf', () => {
 		).toBe('camera');
 		expect(
 			previewScopeOf({
-				kind: 'connection',
+				kind: 'edge',
 				connectionId: 'c',
 				direction: 'forward',
 				fromNodeId: 'a',
@@ -36,7 +36,7 @@ describe('P8 S2 previewScopeOf', () => {
 		).toBe('edge');
 		expect(
 			previewScopeOf({
-				kind: 'tour',
+				kind: 'sequence',
 				startNodeId: 'a',
 				mode: 'director',
 				transport: 'playing',
@@ -45,18 +45,6 @@ describe('P8 S2 previewScopeOf', () => {
 				startedAtMs: null
 			})
 		).toBe('sequence');
-		expect(
-			previewScopeOf({
-				kind: 'transition',
-				fromNodeId: 'a',
-				toNodeId: 'b',
-				mode: 'director',
-				transport: 'paused',
-				runId: 1,
-				playhead: 0,
-				startedAtMs: null
-			})
-		).toBe('legacy');
 	});
 });
 
@@ -71,11 +59,11 @@ describe('P8 S2 explicit preview scopes', () => {
 	it('select-edge while sequence playing → seek blocked + previewSelectedConnection no-ops', () => {
 		const store = createFixtureEditorStore();
 		store.setWorkspace('camera');
-		expect(store.previewGuidedTour('director')).toBe(true);
+		expect(store.previewSequence('director')).toBe(true);
 		expect(store.cameraPreview?.transport).toBe('playing');
 		expect(store.seekCameraTimeline(0.2)).toBe(false);
 		expect(store.previewSelectedConnection('forward')).toBe(false);
-		expect(store.cameraPreview?.kind).toBe('tour');
+		expect(store.cameraPreview?.kind).toBe('sequence');
 		expect(store.cameraPreview?.transport).toBe('playing');
 	});
 
@@ -83,12 +71,12 @@ describe('P8 S2 explicit preview scopes', () => {
 		const store = createFixtureEditorStore();
 		store.setWorkspace('camera');
 		expect(store.seekCameraTimeline(0.37)).toBe(true);
-		expect(store.previewGuidedTour('director')).toBe(true);
+		expect(store.previewSequence('director')).toBe(true);
 		expect(store.pauseCameraPreview()).toBe(true);
 		const prior = store.cameraTimelinePlayhead;
 		const connId = store.document.connections[0]!.id;
 		expect(store.previewEdge(connId, 'forward', 'director')).toBe(true);
-		expect(store.cameraPreview).toMatchObject({ kind: 'connection', direction: 'forward', transport: 'paused', playhead: 0 });
+		expect(store.cameraPreview).toMatchObject({ kind: 'edge', direction: 'forward', transport: 'paused', playhead: 0 });
 		expect(store.lastSequencePlayhead).toBe(prior);
 	});
 
@@ -96,13 +84,13 @@ describe('P8 S2 explicit preview scopes', () => {
 		const store = createFixtureEditorStore();
 		store.setWorkspace('camera');
 		expect(store.seekCameraTimeline(0.42)).toBe(true);
-		expect(store.previewGuidedTour('director')).toBe(true);
+		expect(store.previewSequence('director')).toBe(true);
 		expect(store.pauseCameraPreview()).toBe(true);
 		const saved = store.cameraTimelinePlayhead;
 		const connId = store.document.connections[0]!.id;
 		expect(store.previewEdge(connId, 'forward')).toBe(true);
 		expect(store.previewSequence('director')).toBe(true);
-		expect(store.cameraPreview?.kind).toBe('tour');
+		expect(store.cameraPreview?.kind).toBe('sequence');
 		expect(store.cameraTimelinePlayhead).toBeCloseTo(saved, 6);
 	});
 
@@ -110,7 +98,7 @@ describe('P8 S2 explicit preview scopes', () => {
 		const store = createFixtureEditorStore();
 		store.setWorkspace('camera');
 		expect(store.seekCameraTimeline(0.3)).toBe(true);
-		expect(store.previewGuidedTour('director')).toBe(true);
+		expect(store.previewSequence('director')).toBe(true);
 		expect(store.pauseCameraPreview()).toBe(true);
 		const connId = store.document.connections[0]!.id;
 		expect(store.previewEdge(connId, 'forward')).toBe(true);
@@ -206,7 +194,7 @@ describe('P8 S2 explicit preview scopes', () => {
 		const store = createFixtureEditorStore();
 		store.setWorkspace('camera');
 		expect(store.seekCameraTimeline(0.4)).toBe(true);
-		expect(store.previewGuidedTour('director')).toBe(true);
+		expect(store.previewSequence('director')).toBe(true);
 		expect(store.pauseCameraPreview()).toBe(true);
 		expect(store.setCameraPreviewPlayhead(0.6)).toBe(true);
 		expect(store.resetPreviewToScopeStart()).toBe(true);
@@ -233,12 +221,12 @@ describe('P8 S2 explicit preview scopes', () => {
 		expect(store.previewEdge(connId, 'forward', 'director')).toBe(true);
 		expect(store.setEdgePreviewRepeat(true)).toBe(true);
 		expect(store.setCameraPreviewPlayhead(0.37)).toBe(true);
-		const before = store.cameraPreview as Extract<typeof store.cameraPreview, { kind: 'connection' }>;
+		const before = store.cameraPreview as Extract<typeof store.cameraPreview, { kind: 'edge' }>;
 		const oldMotion = resolveDirectedEdgeMotionByDirection(store.state.graph, connId, 'forward').motion;
 		const sampleBefore = createCameraMotionSample();
 		sampleCameraMotion(oldMotion, before.playhead, sampleBefore);
 		expect(store.swapEdgePreviewDirection()).toBe(true);
-		const after = store.cameraPreview as Extract<typeof store.cameraPreview, { kind: 'connection' }>;
+		const after = store.cameraPreview as Extract<typeof store.cameraPreview, { kind: 'edge' }>;
 		expect(after.direction).toBe('reverse');
 		expect(store.edgeRepeat).toBe(true);
 		expect(store.activeCameraDirection).toBe('reverse');
@@ -254,7 +242,7 @@ describe('P8 S2 explicit preview scopes', () => {
 		const conn = store.document.connections[0]!;
 		const connId = conn.id;
 		expect(store.previewEdge(connId, 'forward')).toBe(true);
-		expect(store.cameraPreview?.kind).toBe('connection');
+		expect(store.cameraPreview?.kind).toBe('edge');
 		// Mutate live document to remove the connection and its adjacency, then prune
 		(store.document as any).connections = store.document.connections.filter((c: any) => c.id !== connId);
 		store.document.navigationNodes.forEach((n: any) => {

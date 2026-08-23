@@ -193,7 +193,7 @@ export class EditorCameraTimelineController {
 		if (!this.#canSeekCameraTimeline()) return false;
 		if (!this.host.scene.navigationNodes.some((node) => node.id === nodeId)) return false;
 		if (
-			this.host.cameraPreview?.kind === 'node' &&
+			this.host.cameraPreview?.kind === 'camera' &&
 			this.host.cameraPreview.nodeId === nodeId &&
 			this.host.cameraPreview.mode === 'director' &&
 			this.host.cameraPreview.transport === 'paused'
@@ -208,7 +208,7 @@ export class EditorCameraTimelineController {
 		this.host.followEnabled = true;
 		this.host.recenterVersion += 1;
 		this.host.cameraPreview = {
-			kind: 'node',
+			kind: 'camera',
 			nodeId,
 			mode: 'director',
 			transport: 'paused',
@@ -229,7 +229,7 @@ export class EditorCameraTimelineController {
 		if (!this.#canSeekCameraTimeline() || !Number.isFinite(playhead)) return false;
 		const preview = this.host.cameraPreview;
 		if (
-			preview?.kind === 'connection' &&
+			preview?.kind === 'edge' &&
 			preview.connectionId === connectionId &&
 			preview.direction === direction &&
 			preview.transport === 'paused'
@@ -264,7 +264,7 @@ export class EditorCameraTimelineController {
 		const toNodeId =
 			direction === 'forward' ? connection.toNodeId : connection.fromNodeId;
 		this.host.cameraPreview = {
-			kind: 'connection',
+			kind: 'edge',
 			connectionId,
 			direction,
 			fromNodeId,

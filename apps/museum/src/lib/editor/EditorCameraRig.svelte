@@ -6,7 +6,6 @@
 	import {
 		CAMERA_FOV_UPDATE_EPSILON,
 		VISITOR_CAMERA_PROJECTION,
-		createCameraMotion,
 		type CameraMotion
 	} from '$lib/museum/navigation/camera-motion';
 	import { resolveDirectedEdgeMotionByDirection } from './editor-directed-edge-motion';
@@ -120,7 +119,7 @@
 		const selection = store.navigationSelection;
 		if (
 			selection?.kind === 'node' &&
-			preview.kind === 'node' &&
+			preview.kind === 'camera' &&
 			preview.nodeId === selection.nodeId
 		) {
 			const node = store.selectedNavigationNode;
@@ -132,7 +131,7 @@
 		}
 		if (
 			selection?.kind === 'view-keyframe' &&
-			preview.kind === 'connection' &&
+			preview.kind === 'edge' &&
 			preview.connectionId === selection.connectionId &&
 			preview.direction === selection.direction
 		) {
@@ -361,31 +360,29 @@
 
 			if (activePreviewRunId === preview.runId) return;
 			activePreviewRunId = preview.runId;
-			if (preview.kind === 'node') {
+			if (preview.kind === 'camera') {
 				const node = getNode(preview.nodeId, graph);
 				previewPosition.set(...node.position);
 				previewTarget.set(...node.cameraTarget);
 				previewSample.fov = node.fov;
 				activeMotion = null;
-			} else if (preview.kind === 'tour') {
+			} else if (preview.kind === 'sequence') {
 				activeMotion = null;
 				if (!director.sampleMotion(preview, preview.playhead, activeMotion)) {
-					throw new Error('The guided camera timeline is unavailable');
+					throw new Error('The camera sequence timeline is unavailable');
 				}
 			} else {
+				// P8 S1 parity — exact-edge previews sample with authored
+				// timing/easing (S6: the legacy transition route path is gone;
+				// the only remaining kind here is `edge`).
 				const route = store.getCapturedCameraPreviewRoute(preview.runId);
 				if (!route) throw new Error('Camera preview route capture is unavailable');
-				// P8 S1 parity — exact-edge previews sample with authored
-				// timing/easing; legacy transition routes keep bare compilation.
-				activeMotion =
-					preview.kind === 'connection'
-						? resolveDirectedEdgeMotionByDirection(
-								graph,
-								preview.connectionId,
-								preview.direction,
-								{ route }
-							).motion
-						: createCameraMotion(route);
+				activeMotion = resolveDirectedEdgeMotionByDirection(
+					graph,
+					preview.connectionId,
+					preview.direction,
+					{ route }
+				).motion;
 				director.sampleMotion(preview, preview.playhead, activeMotion);
 			}
 			applyPausedFramingOverride(preview);
@@ -393,7 +390,7 @@
 			if (preview.mode === 'visitor') applyPreviewPose(currentCamera);
 			else syncDirectorObserver(currentCamera, controls);
 
-			if (preview.kind !== 'node' && preview.transport === 'playing') {
+			if (preview.kind !== 'camera' && preview.transport === 'playing') {
 				const durationSeconds = director.durationSeconds(preview, activeMotion);
 				if (durationSeconds === 0 || reducedMotion) {
 					if (!director.sampleMotion(preview, 1, activeMotion)) {
@@ -526,7 +523,7 @@
 		const preview = director.preview;
 		if (preview && activePreviewRunId === preview.runId) {
 			let reachedEnd = false;
-			if (preview.kind !== 'node') {
+			if (preview.kind !== 'camera') {
 				let progress = preview.playhead;
 				if (preview.transport === 'playing' && preview.startedAtMs !== null) {
 					const durationSeconds = director.durationSeconds(preview, activeMotion);
@@ -550,7 +547,7 @@
 			if (preview.mode === 'visitor') applyPreviewPose(currentCamera);
 			else syncDirectorObserver(currentCamera, controls);
 			if (
-				preview.kind !== 'node' &&
+				preview.kind !== 'camera' &&
 				preview.transport === 'playing' &&
 				reachedEnd
 			) {

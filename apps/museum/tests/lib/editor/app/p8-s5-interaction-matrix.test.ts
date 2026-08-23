@@ -126,7 +126,7 @@ describe('P8 S5 interaction matrix — §G rows', () => {
 
 		expect(store.seekCameraTimeline(0.4)).toBe(true);
 		expect(store.previewSequence('director')).toBe(true);
-		expect(store.cameraPreview?.kind).toBe('tour');
+		expect(store.cameraPreview?.kind).toBe('sequence');
 		expect(store.cameraPreview!.transport).toBe('playing');
 		const runId = store.cameraPreview!.runId;
 		const playhead = store.cameraTimelinePlayhead;

@@ -23,17 +23,15 @@
 			>Through Camera</button>
 		</div>
 		<p role="status">
-			{preview.kind === 'node'
+			{preview.kind === 'camera'
 				? 'Holding authored node pose'
-				: preview.kind === 'tour'
+				: preview.kind === 'sequence'
 					? `Camera flow · ${preview.transport} · ${(preview.playhead * 100).toFixed(1)}%`
-					: preview.kind === 'connection' && preview.direction === 'reverse'
+					: preview.kind === 'edge' && preview.direction === 'reverse'
 						? `Reverse edge · ${preview.transport} · ${(preview.playhead * 100).toFixed(1)}%`
-						: preview.kind === 'connection'
-							? `Forward edge · ${preview.transport} · ${(preview.playhead * 100).toFixed(1)}%`
-							: `${preview.transport} · ${(preview.playhead * 100).toFixed(1)}%`}
+						: `Forward edge · ${preview.transport} · ${(preview.playhead * 100).toFixed(1)}%`}
 		</p>
-		{#if preview.kind !== 'node'}
+		{#if preview.kind !== 'camera'}
 			<div class="transport">
 				{#if preview.transport === 'playing'}
 					<button type="button" class="active" onclick={() => store.pauseCameraPreview()}><Pause size={14} aria-hidden="true" /> Pause</button>

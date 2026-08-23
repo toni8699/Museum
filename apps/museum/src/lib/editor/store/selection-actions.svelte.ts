@@ -314,7 +314,7 @@ export class EditorSelectionActions {
 		const preview = this.host.cameraPreview;
 		let movedPlayhead = false;
 		if (
-			preview?.kind === 'connection' &&
+			preview?.kind === 'edge' &&
 			preview.mode === 'director' &&
 			preview.transport === 'paused' &&
 			preview.connectionId === connectionId &&

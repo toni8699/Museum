@@ -298,10 +298,10 @@ describe('deselectActive', () => {
 		const entityId = store.document.entities[0]!.id;
 
 		// Scene branch inherits deselect()'s isDocumentMutationBlocked guard.
-		// previewGuidedTour starts a *playing* tour preview without touching
+		// previewSequence starts a *playing* sequence preview without touching
 		// the selection slots, so the scene pick stays active while blocked.
 		expect(store.selectionActions.selectPlacement(entityId)).toBe(true);
-		expect(store.previewGuidedTour()).toBe(true);
+		expect(store.previewSequence()).toBe(true);
 		expect(store.isDocumentMutationBlocked).toBe(true);
 		expect(activeSelection.deselectActive()).toBe(false);
 		expect(store.selectedPlacementIds).toEqual([entityId]);
@@ -309,7 +309,7 @@ describe('deselectActive', () => {
 
 		// Layout branch is unguarded — pinned as intentional asymmetry.
 		selectLayoutRoom(layoutInteraction, 'room-a');
-		expect(store.previewGuidedTour()).toBe(true);
+		expect(store.previewSequence()).toBe(true);
 		expect(store.isDocumentMutationBlocked).toBe(true);
 		expect(activeSelection.deselectActive()).toBe(true);
 		expect(layoutInteraction.selection).toEqual({ kind: 'none' });

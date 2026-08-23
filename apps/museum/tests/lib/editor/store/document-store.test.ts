@@ -121,4 +121,38 @@ describe('EditorDocumentStore', () => {
 		cloned.entities[0]!.rotation[1] = 999;
 		expect(seed.entities[0]!.rotation[1]).not.toBe(999);
 	});
+
+	it('replace(next) atomically rebuilds scene + state.graph — committed topology is never stale', () => {
+		// Regression for the P8 S6 "stale graph" red herring: `state.graph`
+		// is rebuilt on every successful replace (commit/undo/redo/import),
+		// so route resolution always sees committed topology.
+		const seed = cloneFixtureDocument();
+		const store = new EditorDocumentStore(seed, chopinRuntime.rooms);
+		const sceneBefore = store.scene;
+		const graphBefore = store.state.graph;
+		const connection = store.document.connections.find((candidate) => candidate.id === 'tour-paris-d');
+		expect(connection).toBeDefined();
+
+		// Simulate an authoring mutation: clear every interior anchor.
+		connection!.positionPath.anchors = [];
+		store.replace(store.document);
+
+		// replace() swapped scene and state to fresh instances built from
+		// the mutated document — no cached stale graph survives.
+		expect(store.scene).not.toBe(sceneBefore);
+		expect(store.state.graph).not.toBe(graphBefore);
+
+		// The resolved scene always injects the two node endpoints, so a
+		// zero-interior-anchor connection still resolves to exactly 2
+		// anchors — a legal straight-line route, never an unresolvable
+		// one (this is why the retired transition tests' "unroutable"
+		// setups can never produce a route error through the exact-edge
+		// command: resolved connections always have >= 2 anchors).
+		const resolved = store.scene.connections.find(
+			(candidate) => candidate.id === 'tour-paris-d'
+		)!;
+		expect(resolved.positionPath.anchors).toHaveLength(2);
+		expect(resolved.positionPath.anchors[0]!.id).toContain('node:');
+		expect(resolved.positionPath.anchors[1]!.id).toContain('node:');
+	});
 });

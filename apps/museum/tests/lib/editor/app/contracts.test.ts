@@ -1273,8 +1273,7 @@ describe('camera context contracts', () => {
 		const sidebar = readLibSource('editor/app/EditorSidebar.svelte');
 		const relicSidebar = readLibSource('editor/EditorLeftSidebar.svelte');
 		expect(timeline).toContain('Camera preview active');
-		expect(timeline).toContain('<EditorCameraPreviewControls {store} />');
-		expect(controls).toContain('preview.kind !== \'node\'');
+		expect(timeline).toContain('<EditorCameraPreviewControls {store} />');	  expect(controls).toContain('preview.kind !== \'camera\'');
 		expect(controls).toContain('store.playCameraPreview()');
 		expect(controls).toContain('store.stopCameraPreview()');
 		expect(controls).toContain('grid-auto-flow: column;');

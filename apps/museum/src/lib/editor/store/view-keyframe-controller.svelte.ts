@@ -98,7 +98,7 @@ import type { CameraFramingEnvelope } from '$lib/content/scene';
 
 type ConnectionCameraPreview = Extract<
 	Exclude<EditorCameraPreview, null>,
-	{ kind: 'connection' }
+	{ kind: 'edge' }
 >;
 
 function vec3Matches(a: Vec3, b: Vec3) {
@@ -547,7 +547,7 @@ export class EditorViewKeyframeController {
 		const connection = this.host.selectedConnection;
 		if (
 			!preview ||
-			preview.kind !== 'connection' ||
+			preview.kind !== 'edge' ||
 			preview.mode !== 'director' ||
 			preview.transport !== 'paused' ||
 			preview.connectionId !== connection?.id ||
@@ -615,7 +615,7 @@ export class EditorViewKeyframeController {
 		const connection = this.host.selectedConnection;
 		if (
 			!preview ||
-			preview.kind !== 'connection' ||
+			preview.kind !== 'edge' ||
 			preview.mode !== 'director' ||
 			preview.transport !== 'paused' ||
 			preview.connectionId !== connection?.id ||
@@ -908,7 +908,7 @@ export class EditorViewKeyframeController {
 		this.host.setCapturedPreviewRoute(runId, route);
 		this.host.cameraTimelinePlayhead = timelineProgress;
 		this.host.setCameraPreview({
-			kind: 'connection',
+			kind: 'edge',
 			connectionId: connection.id,
 			direction: selection.direction,
 			fromNodeId:

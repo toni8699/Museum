@@ -300,6 +300,7 @@ Detail: [Slice 5 design](#slice-5--design-detail-folded-2026-08-22).
 - Remove `kind: 'transition'` compatibility path once callers migrate; delete
   `tour`/`guided`-era aliases (D6); sweep internal naming to
   camera/edge/sequence. Behavior-neutral; may ride with any later slice.
+Detail: [Slice 6 design](#slice-6--design-detail-folded-2026-08-22).
 
 ## Slice 2 — design detail (folded 2026-08-21)
 
@@ -751,6 +752,94 @@ real restart.
   re-derive it.
 - Rollback: the new test file only — one file, no data migration. Revert to
   S4 green tree.
+
+## Slice 6 — design detail (folded 2026-08-22)
+
+Detail for §F Slice 6, written into the umbrella per fold-and-delete (no
+standalone doc existed). The readiness survey is grep-verified against the
+tree on 2026-08-22; re-grep at implementation time.
+**Routing:** P8.S6 — Luna low (33, 56% Luna low, DeepSeek V4 Flash, 0, open)
+per `docs/plans/model-assessment.md`. Mechanical slice; may ride with any
+later slice per §F.
+
+### S6 readiness survey (grep-verified)
+
+| Area | File:line | What it owns today | S6 relevance |
+|---|---|---|---|
+| Transition kind | `museum-editor.types.ts:63`, `store/camera-preview-controller.svelte.ts:157,187,302,787`, `store/camera-preview-commands.svelte.ts:417`, `store/navigation-graph-mutator.svelte.ts:1237`, `EditorCameraRig.svelte:379` (comment) | `CameraPreviewTransition` + FSM `startTransition` branch + `previewSelectedTransition` command + `releasePausedPreviewForTopology` case + `isPreviewStale` case + `previewScopeOf` `'legacy'` case | **UI-unreachable** — no component calls `previewSelectedTransition`/`startTransition` (grep-verified across `*.svelte`). Part A deletes the whole path; `previewScopeOf` loses `'legacy'` |
+| Kind switches | 139 sites / 33 files (src + tests) | Discriminated `kind: 'node' \| 'connection' \| 'tour' \| 'transition'` preview union | Part B rename: `node`→`camera`, `connection`→`edge`, `tour`→`sequence` (types, FSM, rig, commands, components, tests). Compiler-checked — missed sites fail `tsc` loudly |
+| `previewScopeOf` | `store/camera-preview-controller.svelte.ts:148-163` | Maps kinds → scopes (`node`→`camera`, `connection`→`edge`, `tour`→`sequence`, `transition`→`legacy`); comment: "No kind rename in S2; discriminated `PreviewScope` lands in S6 with the kind rename" | After Part B: identity mapping (`kind === scope`); `PreviewScope` drops `'legacy'` (`museum-editor.types.ts:88`); default → `null`. No component branches on `'legacy'` (panel falls through to the guided `{:else if timeline}` branch) — the S4 candidate-guard legacy-fallthrough note becomes moot |
+| `previewGuidedTour` alias | `museum-editor.svelte.ts:1901` (facade), `store/camera-preview-commands.svelte.ts:323` (impl), delegation at `:614` (`previewSequence` → `previewGuidedTour`) | S4 made `previewSequence` canonical (AppBar ×2 + hook migrated); guided-era entry remains as internal delegate + facade alias | Part C: fold the impl into `previewSequence`, delete the facade alias; migrate **16 test callers across 4 files** (`p8-s2`, `p8-s4`, `museum-editor-camera`, `active-editor-selection`) |
+| Guided identifiers | `museum-editor.svelte.ts:1158` `guidedTourNodeIds` (validated order — **≠** `mainFlowNodeIds` `:1164`, raw main flow), guided-ruler comments (`:761,892,906,1567,1585,1598,1616`), `EditorCameraTimelinePanel.svelte:23` chain | Preview-domain "guided" language | Part C sweep: preview-domain identifiers/comments/status messages → sequence language (`guidedTourNodeIds` → `sequenceNodeIds`). **Boundary:** P1.9/S10.1 flow machinery (`validateCurrentGuidedTourOrder`, `currentMainFlowNodeIds`, graph validation) keeps its naming — renaming churns unrelated P1.9/S10.1 tests for zero preview value |
+| Serialization | Session-only runtime state (S2: never codec/history) | Preview kinds are never persisted | Rename/removal is safe — no codec/history/schema touch |
+
+### S6 design decisions
+
+- **D1 — Three mechanical parts, each independently revertible.** **A** transition retirement (smallest — do first), **B** kind rename, **C** alias + naming sweep. No FSM semantic change, no command-surface change, no UI behavior change in any part.
+- **D2 — Kind rename is type-level only.** `node`→`camera`, `connection`→`edge`, `tour`→`sequence`; `PreviewScope` loses `'legacy'`; `previewScopeOf` becomes identity (`kind === scope`, default → `null`). Behavior-neutral: kinds are runtime-only session state (never codec/history — S2), so nothing persists the old names.
+- **D3 — Transition removal is safe because the path is UI-unreachable today.** No component calls `previewSelectedTransition`/`startTransition` (grep-verified). Delete: the `CameraPreviewTransition` type, the FSM `startTransition` branch, `previewSelectedTransition` (commands + facade), the `releasePausedPreviewForTopology` + `isPreviewStale` cases, `previewScopeOf` `'legacy'`, and the transition coverage in 4 test files (migrate to connection previews or delete). `previewSelectedTransition` gets no public-API retention — nothing calls it.
+- **D4 — `previewGuidedTour` folds into `previewSequence`.** S4 already migrated every UI caller; the internal impl + facade alias are now pure duplication. Fold the install logic into `previewSequence` and delete both the commands method and the facade getter. The 16 test callers migrate to `previewSequence` — the D6 restore branch only fires when `lastSequencePlayhead` is non-null, so fresh-install test callers are behaviorally equivalent; migrate in the same change or the suite breaks.
+- **D5 — Naming-sweep boundary is preview-domain only.** `guidedTourNodeIds` → `sequenceNodeIds` (the timeline-panel chain); preview comments/status messages → sequence language. P1.9/S10.1 flow-validation and navigation-graph machinery (`validateCurrentGuidedTourOrder`, `currentMainFlowNodeIds`, `mainFlowNodeIds`) keeps its naming — separate domain, unrelated tests.
+- **D6 — The test sweep is the bulk of the slice.** Strategy: type-level rename first (`tsc`-guided — every missed site is a compile error), then mechanical find/replace in tests, then run suites. Re-grep for `'tour'`/`'guided'`/`'transition'` string literals afterward (comments, status messages, test titles) — the compiler does not catch those.
+
+### Work items by file
+
+1. **Part A (transition retirement):** `museum-editor.types.ts` (drop `CameraPreviewTransition`), `store/camera-preview-controller.svelte.ts` (`startTransition` branch, `isPreviewStale` case, `releasePausedPreviewForTopology` case, `previewScopeOf` `'legacy'`), `store/camera-preview-commands.svelte.ts` + `museum-editor.svelte.ts` (`previewSelectedTransition`), transition coverage in `camera-preview-controller.test.ts` / `museum-editor-camera.test.ts` / `history-controller.test.ts` / `p8-s2-preview-scope.test.ts` → connection previews or delete.
+2. **Part B (kind rename):** `node`→`camera`, `connection`→`edge`, `tour`→`sequence` across the 33 files (types, controller, commands, mutator, rig, `EditorCameraPreviewControls`, `EditorCameraTimelinePanel`, `hooks/use-camera-timeline`, `hooks/use-camera-preview`, `museum-editor.svelte.ts`, all P8 test files). `PreviewScope` drops `'legacy'`; `previewScopeOf` becomes identity.
+3. **Part C (alias + naming):** fold `previewGuidedTour` into `previewSequence` (commands + facade), migrate the 16 test callers; preview-domain comment/status sweep. Re-grep `'guided'` in the preview domain.
+4. Docs: CURRENT.md + tracker after green.
+
+**Implementation notes (2026-08-22, all shipped green — 1970 tests / 1 skipped (net −1 from the transition-test merge, +1 contract test from the graph-invalidation follow-up), `svelte-check` 0/0, `vite build` clean):**
+
+- **D5 boundary refinement — `guidedTourNodeIds` kept.** The plan's sweep listed `guidedTourNodeIds` → `sequenceNodeIds`, but the getter is the validated-order surface fed by `validateCurrentGuidedTourOrder` and consumed by the tree model, `CameraFlowPanel`, `EditorCameraTimelinePanel`, and 30+ P1.9 flow-order tests. Renaming it churns exactly the P1.9/S10.1 tests D5 says to leave alone, for zero preview value. The preview-domain sweep (kinds, commands, status messages, preview comments) is complete instead. Similarly, the timeline's "guided edge / guided direction / guided node" vocabulary is flow-domain and kept.
+- **Transition test migration — the old error-path tests are unreachable for the exact-edge command.** Three mechanisms, all verified (follow-up investigation 2026-08-22): (1) **commit-failure rollback** — constructing an "unroutable" state by `begin → mutate live document → failing commit` is self-defeating: `HistoryController.commit` restores `document.replace(before)` on resolver failure, so the graph and document roll back together and the command sees a consistent (reverted) document (`connections = []` probe: commit false → connections restored to 4 → `previewSelectedConnection` succeeds). (2) **Endpoint injection** — `resolveSceneDocument` always injects the two node endpoints as the first/last anchors, so a legitimately committed zero-interior-anchor connection resolves to exactly 2 anchors, a legal straight-line route; "has no position anchors" is unreachable from any committed document (it exists as a defensive assertion for hand-built graphs). (3) **`state.graph` does NOT lag committed topology** — `EditorDocumentStore.replace()` atomically rebuilds `scene` + `state` on every successful commit/undo/redo/import (the original note's "stale graph" framing was a misdiagnosis: the probe's "2 anchors" were the injected endpoints, not stale data). All three pinned by a new contract test in `document-store.test.ts`. The replacement tests pin the command's two real guards: no selection → guidance status + no preview; live preview already active → no-op (never stacks).
+- **The framing test's migration is select-then-play.** `selectConnection` auto-installs a paused edge preview (S3), so `previewSelectedConnection` after selection no-ops; the test now selects the edge, asserts `kind === 'edge'`, then `playCameraPreview()` to exercise the playing-preview framing lock.
+- **`#resolveRoute` simplification.** With the transition kind gone, the controller's route resolver no longer has a `getCameraRoute(from,to)` fallback — `edge` is the only routed kind; `sequence` throws (exact timeline motions), `camera` throws (no route).
+- **Rig branch collapse.** The else-branch ternary (`edge ? directed : createCameraMotion(route)`) collapsed to the directed-edge call only; the `createCameraMotion` import was dropped.
+
+**Guided-vocabulary audit (2026-08-22, follow-up): decision = keep flow-derived terms, rename preview-domain surface.** Full inventory across the timeline domain, classified into three buckets:
+
+1. **Flow-derived vocabulary — KEEP (accurate + load-bearing).** `editor-camera-timeline.ts` ("guided edge" type doc, `guidedRoute`/`guidedEdgeProgress`/`guidedPlayhead` locals, "has no guided edges" errors, "global guided ruler" docs), `camera-timeline-controller.svelte.ts` + facade doc comments ("guided edge" / "guided node" selection+seek docs, `guidedDirection` param), and `CameraFlowPanel` (chain authoring UI + `guided-*` CSS — P1.9, out of scope by D5). Rationale: the sequence timeline is *derived from the guided flow route* (`getFlowRoute`); "guided" here distinguishes flow-derived edges/nodes/direction from the S3 edge-local timeline and manual constructs. Renaming to "sequence edge" would be semantically wrong — the edges are flow edges; "sequence" names the preview mode that consumes them. `EditorCameraTimelineFrame.svelte:86` already composes both correctly: "Sequence · guided route & framing".
+2. **Preview-domain user-visible — RENAMED.** `EditorCameraRig.svelte` error "The guided camera timeline is unavailable" → "The camera sequence timeline is unavailable" — the one user-facing string on the shipped sequence preview path; the surface is labeled "Preview Sequence" in the UI.
+3. **Preview-domain comments — RENAMED (trivial).** `use-camera-timeline.svelte.ts` "guided play" → "sequence play"; `EditorCameraTimelinePanel.svelte` "no guided Dots" → "no sequence Dots" and "guided timeline" → "sequence timeline" (scope-branching panel); matching test title in `p8-s4-preview-sequence.test.ts`.
+
+Separately: the word "transition" in `editor-camera-timeline.ts` ("camera transition", "chain transition") means the **motion between stops** (a duration), not the retired preview kind — keep; do not conflate in future sweeps.
+
+**User-visible string sweep (2026-08-22, follow-up): renamed the stragglers, kept the flow product terms.**
+
+- **Renamed (preview-era panel naming):** legacy shell header `EditorLeftSidebar.svelte` "Camera Tour" → "Camera Sequence"; 3D connection-inspector hint "viewport or Camera Tour" → "viewport or the Sequence Inspector" (matches the canonical P1.7 sidebar section name). Also cleaned 6 stale preview-kind comments ("TOUR preview" / "non-tour" / "tour-mode" / "For `tour`") in `camera-preview-controller.svelte.ts` + `camera-preview-commands.svelte.ts` — the S6 sweep had missed these because they don't use the `kind === 'tour'` literal pattern.
+- **Kept (flow product vocabulary — accurate, and the S6 D5 boundary keeps the flow's "tour" naming):** "Main Visitor Tour" selector + title (`EditorCameraTimelineFrame` — the flow being previewed; the title already points to the Sequence Inspector for editing), "Tour playhead" vs "Reverse playhead" (`EditorCameraTimelineRuler` — direction semantics, same as the kept `guidedDirection`), "Tour paths" / "Tour" overlay toggles (`EditorViewportToolbar`, `LayoutDraftToolbar`), the flow-ordering status messages "…end of the tour" / "…leads the tour" (`navigation-graph-mutator` — pinned by tests), and "The flow has a missing transition…" (`EditorCameraTimelinePanel` — the motion between stops, not the retired kind).
+
+**Graph-invalidation map (follow-up investigation 2026-08-22): the invalidation already lives in the right place — do not move it.**
+
+1. **Single atomic rebuild point — `EditorDocumentStore.#rebuildRuntime()`** (`document-store.svelte.ts:196`). Called only by `replace()` (commit/undo/redo/import) and `updateRooms()`; it resolves the scene from the live document and constructs a fresh `MuseumStateStore` (graph included) in one assignment. This is the correct home: the graph is a *derived runtime of the committed document*, so per-mutation invalidation would be wrong (transactions would see half-mutated topology).
+2. **Derived caches — the afterReplace listener chain** (`museum-editor.svelte.ts:563-577`): `#reconcileSelection()`, `refreshPausedDirector()`, `pruneIfStale()` (which calls `invalidateGraph()`), `invalidateGraph()`, and the Slice-4 listener. The preview controller's `#graphCache`/`#timelineCache` are key-cached and invalidated here — every successful replace touches them atomically.
+3. **Mid-transaction semantics — intended.** Between begin and commit, `state.graph` reflects the pre-transaction document. That is safe because every route-resolving preview/timeline command guards on `isDocumentTransactionActive`, and the authoring mutators validate + commit atomically. The Plan surface reads the live document through its own per-call graph (`resolvePlanSceneGraphFromDocument`), so it sees mid-transaction state by design.
+4. **Enforcement — `assertNavigationGraphMatchesScene`** (`scene.ts:577`): any hand-built graph must reference the same resolved scene instance. Keep using it; it is the tripwire if someone reintroduces a second graph source.
+
+**Recommendation:** no code change needed. The only gap was documentation — the S6 note's "stale graph" framing was wrong and is corrected above, with the atomic-rebuild + endpoint-injection invariant pinned in `document-store.test.ts` so the confusion cannot recur.
+
+### Test matrix — §F Slice 6 rows → concrete tests
+
+| §F row | Test |
+|---|---|
+| Transition path removed | typecheck clean + `grep -r "transition" src/lib/editor` finds no preview-domain matches (FSM/command/type/scope); `previewScopeOf` never returns `'legacy'` |
+| Kind rename behavior-neutral | full suite green after the rename (missed sites fail `tsc`); S2's `maps kinds to scopes` test rewritten as `previewScopeOf` identity |
+| `previewGuidedTour` retired | no live callers (method + facade alias deleted; 16 test callers migrated); only an intentional historical note remains at `camera-preview-commands.svelte.ts:497` documenting the S6 fold; S4 matrix (previewSequence install/restore/one-node/loop) re-run green — no semantic drift |
+| Naming sweep | preview-domain `'guided'`/`'tour'` string literals gone (comments, status messages, test titles); P1.9/S10.1 machinery untouched (its tests untouched) |
+
+Acceptance: §F S6 bullets all green; no preview-domain `transition`/`tour`/`guided` remnants; existing suites stay green (P8 S5 baseline).
+
+### Boundaries / out of scope
+
+No FSM semantic change, no command-surface change, no UI behavior change. No serialization/codec/history/schema touch (preview kinds are runtime-only session state). P1.9/S10.1 flow-validation and navigation-graph machinery naming untouched. Visitor chunk untouched. Roll/Shots stay deferred (D5 umbrella).
+
+### Risks & rollback
+
+- **Kind rename is compiler-checked:** `tsc` surfaces every missed site; rollback = revert the rename change. The risk is test-title/comment remnants, caught by the final string-literal re-grep (D6).
+- **`previewGuidedTour` fold must be atomic:** the 16 test callers migrate in the same change or the suite breaks; verify no drift on the restore branch (D4).
+- **`'legacy'` removal:** grep-verified no component branches on it before deleting the scope case (D3).
+- Rollback: three independently revertible parts (A/B/C) — each is a behavior-neutral mechanical change over the previous green tree.
 
 ## G. Edge-case matrix
 

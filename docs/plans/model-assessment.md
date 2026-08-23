@@ -42,7 +42,7 @@ never let it go stale.** Status authority remains the
 
 ## Assessment — active pipeline
 
-Shipped as of 2026-08-21 (not assessed here): **P1.1–P1.9, P6, P7.4.**
+Shipped as of 2026-08-22 (not assessed here): **P1.1–P1.9, P1.7 review-fixes close-out, P6, P7.4, P8 S1–S6.**
 
 | Increment | Difficulty (req. index) | Capability % | Luna ref | Recommendation | Margin | Status |
 |---|---|---|---|---|---|---|
@@ -70,11 +70,11 @@ Shipped as of 2026-08-21 (not assessed here): **P1.1–P1.9, P6, P7.4.**
 | **P7.3** | 37 | 63% | Luna medium | DeepSeek V4 Flash | +1 | open |
 | **P7.5** | 57 | 97% | — | Sol xhigh | +1 | open |
 | **P8.S1** | 47 | 80% | Luna xhigh | DeepSeek V4 Flash | +2 | shipped |
-| **P8.S2** | 54 | 92% | — | Sol medium | 0 | open |
-| **P8.S3** | 49 | 83% | Luna xhigh | DeepSeek V4 Flash | 0 | open |
-| **P8.S4** | 48 | 81% | Luna xhigh | DeepSeek V4 Flash | +1 | open |
+| **P8.S2** | 54 | 92% | — | Sol medium | 0 | shipped |
+| **P8.S3** | 49 | 83% | Luna xhigh | DeepSeek V4 Flash | 0 | shipped |
+| **P8.S4** | 48 | 81% | Luna xhigh | DeepSeek V4 Flash | +1 | shipped |
 | **P8.S5** | 46 | 78% | Luna high | DeepSeek V4 Flash | 0 | shipped |
-| **P8.S6** | 33 | 56% | Luna low | DeepSeek V4 Flash | 0 | open |
+| **P8.S6** | 33 | 56% | Luna low | DeepSeek V4 Flash | 0 | shipped |
 | **D1** | 59 | 100% | — | Sol max | 0 | out of tracker — P4 companion, own plan |
 
 **Capability spread check:** P1.6 (56, 95%) vs P1.7 (45, 76%) — 19% capability

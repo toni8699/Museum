@@ -3,8 +3,8 @@
  *
  * Slice 2 of the Priority-1 file-split refactor lifts the facade's preview
  * entry rituals (`playActiveConnectionEdge`, `previewActiveConnectionReverse`,
- * `previewGuidedTour`, `previewSelectedNode`, `previewSelectedTransition`,
- * `previewSelectedConnection`), FSM commands (`setCameraPreviewMode`,
+ * `previewSelectedNode`, `previewSelectedConnection`), FSM commands
+ * (`setCameraPreviewMode`,
  * `playCameraPreview`, `pauseCameraPreview`, `setCameraPreviewPlayhead`,
  * `stepCameraPreview`, `toggleCameraPreviewFollow`, `recenterCameraPreview`,
  * `markCameraPreviewStarted`, `completeCameraPreview`, `stopCameraPreview`,
@@ -135,22 +135,19 @@ export class EditorCameraPreviewCommands {
 	// the facade `commitDocumentTransaction` can call `seedEmpty…` directly.
 	// =========================================================================
 
-	/** Resolve the exact route a non-tour preview is animating along. */
+	/** Resolve the exact route a non-sequence preview is animating along. */
 	resolveCameraPreviewRoute(preview: Exclude<EditorCameraPreview, null>): ResolvedCameraRoute {
-		if (preview.kind === 'node') {
-			throw new Error('A node preview has no camera route');
+		if (preview.kind === 'camera') {
+			throw new Error('A camera preview has no route');
 		}
-		if (preview.kind === 'connection') {
+		if (preview.kind === 'edge') {
 			return getCameraConnectionRoute(
 				preview.connectionId,
 				preview.direction,
 				this.host.state.graph
 			);
 		}
-		if (preview.kind === 'tour') {
-			throw new Error('Camera flow preview uses exact camera timeline motions');
-		}
-		return getCameraRoute(preview.fromNodeId, preview.toNodeId, this.host.state.graph);
+		throw new Error('Sequence preview uses exact camera timeline motions');
 	}
 
 	/**
@@ -190,13 +187,13 @@ export class EditorCameraPreviewCommands {
 	}
 
 	// =========================================================================
-	// Edge / guide / node / transition preview entry
+	// Edge / sequence / camera preview entry
 	// =========================================================================
 
 	/**
 	 * Play the active connection edge in the current travel direction (forward
 	 * or reverse). Seeds empty reverse from forward when needed. Used by ▶
-	 * while Reverse is toggled; guided-tour play remains previewGuidedTour.
+	 * while Reverse is toggled; sequence play lives in `previewSequence`.
 	 */
 	playActiveConnectionEdge(mode?: EditorCameraPreviewMode) {
 		const host = this.host;
@@ -230,7 +227,7 @@ export class EditorCameraPreviewCommands {
 				? preview.mode
 				: 'director');
 		if (
-			preview?.kind === 'connection' &&
+			preview?.kind === 'edge' &&
 			preview.connectionId === connectionId &&
 			preview.direction === direction &&
 			preview.transport === 'paused'
@@ -278,7 +275,7 @@ export class EditorCameraPreviewCommands {
 		host.previewController.followEnabled = true;
 		host.previewController.recenterVersion += 1;
 		host.previewController.preview = {
-			kind: 'connection',
+			kind: 'edge',
 			connectionId: connection.id,
 			direction,
 			fromNodeId,
@@ -319,45 +316,7 @@ export class EditorCameraPreviewCommands {
 		return this.playActiveConnectionEdge(mode);
 	}
 
-	/** Phase 3.1 — primary Play promotes the current global ruler into one guided cycle. */
-	previewGuidedTour(mode: EditorCameraPreviewMode = 'visitor') {
-		const host = this.host;
-		if (host.isEditorInteractionActive || host.isDocumentTransactionActive) {
-			return false;
-		}
-		const current = host.cameraPreview;
-		if (current?.kind === 'tour') {
-			if (current.transport === 'playing') return false;
-			if (host.cameraPreview?.transport === 'complete') {
-				this.setCameraPreviewPlayhead(0, host.cameraPreview.runId);
-			}
-			return this.playCameraPreview();
-		}
-		if (current?.transport === 'playing') return false;
 
-		const timeline = host.cameraTimelineController.readCameraTimeline();
-		if (!timeline) return false;
-		if (!current && !this.prepareCameraPreview()) return false;
-
-		const runId = host.previewController.allocRunId();
-		host.previewController.clearCapturedRoute();
-		if (!current) {
-			host.previewController.followEnabled = true;
-			host.previewController.recenterVersion += 1;
-		}
-		const playhead = Math.min(1, Math.max(0, host.cameraTimelinePlayhead));
-		host.previewController.preview = {
-			kind: 'tour',
-			startNodeId: timeline.startNodeId,
-			mode: current?.mode ?? mode,
-			transport: 'playing',
-			runId,
-			playhead,
-			startedAtMs: null
-		};
-		host.timelineExpanded = true;
-		return true;
-	}
 
 	previewSelectedNode(mode: EditorCameraPreviewMode = 'visitor') {
 		const host = this.host;
@@ -372,7 +331,7 @@ export class EditorCameraPreviewCommands {
 		host.previewController.followEnabled = true;
 		host.previewController.recenterVersion += 1;
 		host.previewController.preview = {
-			kind: 'node',
+			kind: 'camera',
 			nodeId,
 			mode,
 			transport: 'paused',
@@ -381,48 +340,6 @@ export class EditorCameraPreviewCommands {
 			startedAtMs: null
 		};
 		host.cameraTimelineController.syncCameraTimelineForNode(nodeId);
-		host.timelineExpanded = true;
-		return true;
-	}
-
-	previewSelectedTransition(mode: EditorCameraPreviewMode = 'visitor') {
-		const host = this.host;
-		if (host.cameraPreview) return false;
-		const nodeId = host.cameraSelection?.nodeId;
-		if (!nodeId) {
-			host.setStatusMessage('Select a camera node to preview');
-			return false;
-		}
-
-		let toNodeId: string;
-		let route: ResolvedCameraRoute;
-		try {
-			const node = getNode(nodeId, host.state.graph);
-			if (!node.nextNodeId) throw new Error(`Camera node has no nextNodeId: ${nodeId}`);
-			toNodeId = node.nextNodeId;
-			route = getCameraRoute(nodeId, toNodeId, host.state.graph);
-		} catch (error) {
-			host.setStatusMessage(
-				error instanceof Error ? error.message : 'Camera transition is unavailable'
-			);
-			return false;
-		}
-
-		if (!this.prepareCameraPreview()) return false;
-		const runId = host.previewController.allocRunId();
-		host.previewController.setCapturedRoute(runId, route);
-		host.previewController.followEnabled = true;
-		host.previewController.recenterVersion += 1;
-		host.previewController.preview = {
-			kind: 'transition',
-			fromNodeId: nodeId,
-			toNodeId,
-			mode,
-			transport: mode === 'director' ? 'paused' : 'playing',
-			runId,
-			playhead: 0,
-			startedAtMs: null
-		};
 		host.timelineExpanded = true;
 		return true;
 	}
@@ -480,7 +397,7 @@ export class EditorCameraPreviewCommands {
 		host.previewController.followEnabled = true;
 		host.previewController.recenterVersion += 1;
 		host.previewController.preview = {
-			kind: 'connection',
+			kind: 'edge',
 			connectionId: connection.id,
 			direction,
 			fromNodeId,
@@ -528,7 +445,7 @@ export class EditorCameraPreviewCommands {
 		}
 		// Snapshot last Sequence playhead if currently in sequence scope
 		const current = host.cameraPreview;
-		if (current?.kind === 'tour') {
+		if (current?.kind === 'sequence') {
 			host.lastSequencePlayhead = host.cameraTimelinePlayhead;
 		}
 		if (!this.prepareCameraPreview()) return false;
@@ -559,7 +476,7 @@ export class EditorCameraPreviewCommands {
 		// Clear repeat for new edge preview (controller's startConnection does, but we bypass it)
 		host.previewController.edgeRepeat = false;
 		host.previewController.preview = {
-			kind: 'connection',
+			kind: 'edge',
 			connectionId,
 			direction,
 			fromNodeId,
@@ -576,17 +493,18 @@ export class EditorCameraPreviewCommands {
 	}
 
 	/**
-	 * S2 explicit Preview Sequence — restores `lastSequencePlayhead` when valid;
-	 * with no saved playhead, keeps the current `cameraTimelinePlayhead` so a
-	 * fresh scrub carries into playback (S4: play continues from exact local
-	 * progress). Then delegates to `previewGuidedTour` (inherits its tour-playing
-	 * no-op).
+	 * S2 explicit Preview Sequence — the sole sequence entry (S6 folded
+	 * `previewGuidedTour` into this). Restores `lastSequencePlayhead` when
+	 * valid; with no saved playhead, keeps the current `cameraTimelinePlayhead`
+	 * so a fresh scrub carries into playback (S4: play continues from exact
+	 * local progress). A paused/complete sequence resumes via play; otherwise
+	 * installs `kind: 'sequence'` playing at the current playhead.
 	 */
 	previewSequence(mode: EditorCameraPreviewMode = 'visitor'): boolean {
 		const host = this.host;
 		if (host.isEditorInteractionActive || host.isDocumentTransactionActive) return false;
 		const current = host.cameraPreview;
-		if (current?.kind === 'tour' && current.transport === 'playing') return false;
+		if (current?.kind === 'sequence' && current.transport === 'playing') return false;
 		// D6 amended 2026-08-22: restore the saved playhead when the timeline
 		// still builds; when saved-but-unbuildable, reset to 0. With no saved
 		// playhead, leave `cameraTimelinePlayhead` untouched (scrub carries over).
@@ -611,19 +529,49 @@ export class EditorCameraPreviewCommands {
 			}
 		}
 		if (restore !== null) host.cameraTimelinePlayhead = restore;
-		return this.previewGuidedTour(mode);
+		if (current?.kind === 'sequence') {
+			// Resume a paused/complete sequence (replay from 0 when complete).
+			if (current.transport === 'complete') {
+				this.setCameraPreviewPlayhead(0, current.runId);
+			}
+			return this.playCameraPreview();
+		}
+		if (current?.transport === 'playing') return false;
+
+		const timeline = host.cameraTimelineController.readCameraTimeline();
+		if (!timeline) return false;
+		if (!current && !this.prepareCameraPreview()) return false;
+
+		const runId = host.previewController.allocRunId();
+		host.previewController.clearCapturedRoute();
+		if (!current) {
+			host.previewController.followEnabled = true;
+			host.previewController.recenterVersion += 1;
+		}
+		const playhead = Math.min(1, Math.max(0, host.cameraTimelinePlayhead));
+		host.previewController.preview = {
+			kind: 'sequence',
+			startNodeId: timeline.startNodeId,
+			mode: current?.mode ?? mode,
+			transport: 'playing',
+			runId,
+			playhead,
+			startedAtMs: null
+		};
+		host.timelineExpanded = true;
+		return true;
 	}
 
 	/** S2 — direction swap preserving physical location (paused only). */
 	swapEdgePreviewDirection(): boolean {
 		const host = this.host;
 		const preview = host.cameraPreview;
-		if (!preview || preview.kind !== 'connection' || preview.transport !== 'paused') return false;
+		if (!preview || preview.kind !== 'edge' || preview.transport !== 'paused') return false;
 		if (host.isEditorInteractionActive || host.isDocumentTransactionActive) return false;
 		const result = host.previewController.swapEdgeDirection();
 		if (!result) return false;
-		const updated = host.cameraPreview as Extract<EditorCameraPreview, { kind: 'connection' }>;
-		if (!updated || updated.kind !== 'connection') return false;
+		const updated = host.cameraPreview as Extract<EditorCameraPreview, { kind: 'edge' }>;
+		if (!updated || updated.kind !== 'edge') return false;
 		host.selection.setDiscovery(updated.connectionId, updated.direction);
 		host.selectionActions.expandActiveCameraDirection(updated.direction);
 		host.cameraTimelineController.syncCameraTimelineForConnection(
@@ -641,10 +589,10 @@ export class EditorCameraPreviewCommands {
 	resetPreviewToScopeStart(): boolean {
 		const host = this.host;
 		const preview = host.cameraPreview;
-		if (!preview || preview.kind === 'node') return false;
+		if (!preview || preview.kind === 'camera') return false;
 		const ok = host.previewController.resetToScopeStart();
 		if (!ok) return false;
-		if (preview.kind === 'tour') {
+		if (preview.kind === 'sequence') {
 			host.cameraTimelinePlayhead = 0;
 		}
 		// For `connection`, per matrix: facade `cameraTimelinePlayhead` untouched — do not sync.
@@ -667,7 +615,7 @@ export class EditorCameraPreviewCommands {
 			return false;
 		}
 		let route: ResolvedCameraRoute | null = null;
-		if (preview.kind !== 'node' && preview.kind !== 'tour') {
+		if (preview.kind !== 'camera' && preview.kind !== 'sequence') {
 			try {
 				route = this.resolveCameraPreviewRoute(preview);
 			} catch (error) {
@@ -701,7 +649,7 @@ export class EditorCameraPreviewCommands {
 		const preview = host.cameraPreview;
 		if (
 			!preview ||
-			preview.kind === 'node' ||
+			preview.kind === 'camera' ||
 			preview.transport === 'playing' ||
 			host.isEditorInteractionActive ||
 			host.isDocumentTransactionActive
@@ -709,7 +657,7 @@ export class EditorCameraPreviewCommands {
 			return false;
 		}
 		let route: ResolvedCameraRoute | null = null;
-		if (preview.kind === 'tour') {
+		if (preview.kind === 'sequence') {
 			if (!host.cameraTimelineController.readCameraTimeline()) return false;
 		} else {
 			try {
@@ -736,13 +684,13 @@ export class EditorCameraPreviewCommands {
 			playhead,
 			startedAtMs: null
 		};
-		if (preview.kind === 'connection') {
+		if (preview.kind === 'edge') {
 			host.cameraTimelineController.syncCameraTimelineForConnection(
 				preview.connectionId,
 				preview.direction,
 				playhead
 			);
-		} else if (preview.kind === 'tour') {
+		} else if (preview.kind === 'sequence') {
 			host.cameraTimelinePlayhead = playhead;
 		}
 		return true;
@@ -755,7 +703,7 @@ export class EditorCameraPreviewCommands {
 	setCameraPreviewPlayhead(progress: number, runId = this.host.cameraPreview?.runId) {
 		const host = this.host;
 		const preview = host.cameraPreview;
-		if (!preview || preview.kind === 'node' || preview.runId !== runId || !Number.isFinite(progress)) {
+		if (!preview || preview.kind === 'camera' || preview.runId !== runId || !Number.isFinite(progress)) {
 			return false;
 		}
 		const playhead = Math.min(1, Math.max(0, progress));
@@ -769,13 +717,13 @@ export class EditorCameraPreviewCommands {
 				? { transport: 'paused' as const, startedAtMs: null }
 				: {})
 		};
-		if (preview.kind === 'connection') {
+		if (preview.kind === 'edge') {
 			host.cameraTimelineController.syncCameraTimelineForConnection(
 				preview.connectionId,
 				preview.direction,
 				playhead
 			);
-		} else if (preview.kind === 'tour') {
+		} else if (preview.kind === 'sequence') {
 			host.cameraTimelinePlayhead = playhead;
 		}
 		return true;
@@ -787,13 +735,13 @@ export class EditorCameraPreviewCommands {
 		if (
 			!preview ||
 			preview.mode !== 'director' ||
-			preview.kind === 'node' ||
+			preview.kind === 'camera' ||
 			preview.transport === 'playing'
 		) {
 			return false;
 		}
 		const breakpoints = [0, 1];
-		if (preview.kind === 'tour') {
+		if (preview.kind === 'sequence') {
 			const timeline = host.cameraTimelineController.readCameraTimeline();
 			if (!timeline) return false;
 			breakpoints.push(...timeline.nodeBoundaries.map((boundary) => boundary.progress));
@@ -812,10 +760,10 @@ export class EditorCameraPreviewCommands {
 		} else {
 			const route = this.getCapturedCameraPreviewRoute(preview.runId);
 			if (!route) return false;
-			// P8 S1 parity — connection previews step with authored timing/easing
-			// applied; legacy multi-edge transition routes keep bare compilation.
+			// P8 S1 parity — edge previews step with authored timing/easing
+			// applied (S6: the legacy multi-edge transition route path is gone).
 			const motion =
-				preview.kind === 'connection'
+				preview.kind === 'edge'
 					? resolveDirectedEdgeMotionByDirection(
 							host.state.graph,
 							preview.connectionId,
@@ -861,7 +809,7 @@ export class EditorCameraPreviewCommands {
 		const preview = host.cameraPreview;
 		if (
 			!preview ||
-			preview.kind === 'node' ||
+			preview.kind === 'camera' ||
 			preview.runId !== runId ||
 			preview.transport !== 'playing' ||
 			preview.startedAtMs === null
@@ -869,7 +817,7 @@ export class EditorCameraPreviewCommands {
 			return false;
 		}
 		// D4 repeat — auto-restart for edge repeat (guard zero-duration + reducedMotion)
-		if (preview.kind === 'connection' && host.previewController.edgeRepeat) {
+		if (preview.kind === 'edge' && host.previewController.edgeRepeat) {
 			try {
 				const motion = resolveDirectedEdgeMotionByDirection(
 					host.state.graph,
@@ -915,13 +863,13 @@ export class EditorCameraPreviewCommands {
 			playhead: 1,
 			startedAtMs: null
 		};
-		if (preview.kind === 'connection') {
+		if (preview.kind === 'edge') {
 			host.cameraTimelineController.syncCameraTimelineForConnection(
 				preview.connectionId,
 				preview.direction,
 				1
 			);
-		} else if (preview.kind === 'tour') {
+		} else if (preview.kind === 'sequence') {
 			host.cameraTimelinePlayhead = 1;
 		}
 		return true;

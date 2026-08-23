@@ -1,7 +1,7 @@
 # Camera and tour
 
-**Read when:** nodes, connections, paths, guided order, timeline, framing, tour preview.  
-**Last reviewed:** 2026-08-19
+**Read when:** nodes, connections, paths, guided order, timeline, framing, sequence preview.  
+**Last reviewed:** 2026-08-22
 **Deep dump (rare):** [`../archive/CAMERA_AND_LAYOUT.md`](../archive/CAMERA_AND_LAYOUT.md)
 
 ---

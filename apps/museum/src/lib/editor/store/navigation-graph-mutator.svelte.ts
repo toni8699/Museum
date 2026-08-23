@@ -1227,22 +1227,13 @@ export class EditorNavigationGraphMutator {
 		const preview = this.host.cameraPreview;
 		if (!preview) return true;
 		let touchesDeletedTopology = false;
-		if (preview.kind === 'node') {
+		if (preview.kind === 'camera') {
 			touchesDeletedTopology = nodeIds.has(preview.nodeId);
-		} else if (preview.kind === 'connection') {
+		} else if (preview.kind === 'edge') {
 			touchesDeletedTopology =
 				connectionIds.has(preview.connectionId) ||
 				nodeIds.has(preview.fromNodeId) ||
 				nodeIds.has(preview.toNodeId);
-		} else if (preview.kind === 'transition') {
-			touchesDeletedTopology =
-				nodeIds.has(preview.fromNodeId) || nodeIds.has(preview.toNodeId);
-			const captured = this.host.getCapturedCameraPreviewRoute(preview.runId);
-			if (captured) {
-				touchesDeletedTopology ||=
-					captured.nodeIds.some((id) => nodeIds.has(id)) ||
-					captured.edges.some((edge) => connectionIds.has(edge.connectionId));
-			}
 		} else {
 			const timeline = this.host.getCameraTimeline();
 			touchesDeletedTopology = Boolean(

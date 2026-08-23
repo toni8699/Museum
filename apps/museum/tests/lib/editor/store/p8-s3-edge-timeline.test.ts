@@ -78,7 +78,7 @@ describe('P8 S3 scrub-vs-play parity — distinct instances same captured route'
 		// Install edge preview to capture a route
 		expect(store.previewEdge(connId, 'forward', 'director')).toBe(true);
 		const preview = store.cameraPreview!;
-		expect(preview.kind).toBe('connection');
+		expect(preview.kind).toBe('edge');
 		const captured = store.getCapturedCameraPreviewRoute(preview.runId);
 		expect(captured).not.toBeNull();
 		const graph = store.state.graph;
@@ -128,14 +128,14 @@ describe('P8 S3 active-preview precedence', () => {
 		const firstConn = document.connections.find((c) => c.id !== connFree)!.id;
 		// Start preview for first connection (tour-a-b)
 		expect(store.previewEdge(firstConn, 'forward', 'director')).toBe(true);
-		expect(store.cameraPreview?.kind).toBe('connection');
+		expect(store.cameraPreview?.kind).toBe('edge');
 		// Select different connection (free)
 		store.selectionActions.selectConnection(connFree);
 		expect(store.activeCameraConnectionId).toBe(connFree);
 		const api = useCameraTimeline(store);
 		// Edge timeline should still be for preview's connection, not selection
 		expect(api.edgeTimeline?.connectionId).toBe(firstConn);
-		expect(api.edgeEndpoints?.fromNodeId).toBe(store.cameraPreview?.kind === 'connection' ? (store.cameraPreview as any).fromNodeId : null);
+		expect(api.edgeEndpoints?.fromNodeId).toBe(store.cameraPreview?.kind === 'edge' ? (store.cameraPreview as any).fromNodeId : null);
 		// After installing preview for free, it switches
 		expect(store.previewEdge(connFree, 'reverse', 'director')).toBe(true);
 		const api2 = useCameraTimeline(store);

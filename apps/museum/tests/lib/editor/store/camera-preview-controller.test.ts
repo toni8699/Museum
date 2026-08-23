@@ -22,7 +22,7 @@ describe('EditorCameraPreviewController', () => {
 	it('startNode() resets followEnabled + bumps recenter + sets transport=paused', () => {
 		const { preview } = makeControllers();
 		expect(preview.startNode('paris-seat', 'visitor')).toBe(true);
-		expect(preview.preview?.kind).toBe('node');
+		expect(preview.preview?.kind).toBe('camera');
 		expect(preview.preview?.transport).toBe('paused');
 		expect(preview.transportState).toBe('paused');
 		expect(preview.followEnabled).toBe(true);
@@ -124,9 +124,9 @@ describe('EditorCameraPreviewController', () => {
 		// paris-seat from connectedNodeIds — adding it back breaks
 		// SceneDocumentValidationError). releaseIfTouches covers the
 		// topology-mutation path; this covers the afterReplace-listener
-		// path (audit §3.A.2 — `kind === 'node'` branch).
+		// path (audit §3.A.2 — `kind === 'camera'` branch).
 		preview['preview'] = {
-			kind: 'node',
+			kind: 'camera',
 			nodeId: 'paris-deleted',
 			mode: 'visitor',
 			transport: 'paused',
@@ -138,16 +138,16 @@ describe('EditorCameraPreviewController', () => {
 		expect(preview.preview).toBe(null);
 	});
 
-	it('pruneIfStale() is a no-op for an alive tour preview', () => {
+	it('pruneIfStale() is a no-op for an alive sequence preview', () => {
 		const { preview } = makeControllers();
-		// startTour() sets kind === 'tour' and primes the timeline cache
+		// startTour() sets kind === 'sequence' and primes the timeline cache
 		// for the live document. Subsequent pruneIfStale() enters the
-		// `kind === 'tour'` branch, re-resolves the timeline (still
+		// `kind === 'sequence'` branch, re-resolves the timeline (still
 		// resolvable from the live scene's guided tour), and skips the
-		// drop-FSM defensive path. (audit §3.A.2 — `kind === 'tour'`
+		// drop-FSM defensive path. (audit §3.A.2 — `kind === 'sequence'`
 		// alive path.)
 		expect(preview.startTour('director')).toBe(true);
-		expect(preview.preview?.kind).toBe('tour');
+		expect(preview.preview?.kind).toBe('sequence');
 		const before = preview.preview;
 		preview.pruneIfStale();
 		expect(preview.preview).toBe(before);
@@ -157,27 +157,27 @@ describe('EditorCameraPreviewController', () => {
 		const { preview } = makeControllers();
 		// refreshPausedDirector requires mode === 'director' AND transport
 		// === 'paused'. Visitor mode previews are intentionally
-		// early-returned. Node/connection/transition previews KEEP
+		// early-returned. Camera/edge previews KEEP
 		// refreshing (they are the framing-authoring surface — P8 S5 hard
-		// reset applies to paused Director TOUR previews only).
+		// reset applies to paused Director SEQUENCE previews only).
 		preview.startNode('paris-seat', 'director');
 		expect(preview.preview?.mode).toBe('director');
 		expect(preview.preview?.transport).toBe('paused');
 		const initialRunId = preview.preview?.runId ?? 0;
 		expect(preview.refreshPausedDirector()).toBeNull();
-		// Node kind → capturedRoute cleared, runId bumped.
+		// Camera kind → capturedRoute cleared, runId bumped.
 		expect(preview.preview?.runId).toBeGreaterThan(initialRunId);
-		expect(preview.preview?.kind).toBe('node');
+		expect(preview.preview?.kind).toBe('camera');
 	});
 
-	it('refreshPausedDirector() hard-resets a paused director TOUR preview', () => {
+	it('refreshPausedDirector() hard-resets a paused director SEQUENCE preview', () => {
 		const { preview } = makeControllers();
 		// P8 S5 owner decision — hard reset is scoped to paused Director
-		// TOUR previews: any document swap stops them (a tour is not an
-		// authoring surface; re-resolving would silently re-map the pause
-		// point onto edited flow content).
+		// SEQUENCE previews: any document swap stops them (a sequence is
+		// not an authoring surface; re-resolving would silently re-map the
+		// pause point onto edited flow content).
 		expect(preview.startTour('director')).toBe(true);
-		expect(preview.preview?.kind).toBe('tour');
+		expect(preview.preview?.kind).toBe('sequence');
 		expect(preview.preview?.transport).toBe('playing');
 		preview.preview = { ...preview.preview!, transport: 'paused' };
 		const error = preview.refreshPausedDirector();
@@ -194,27 +194,40 @@ describe('EditorCameraPreviewController', () => {
 		expect(preview.preview?.runId).toBe(initialRunId);
 	});
 
-	it('refreshPausedDirector() keeps non-tour previews and returns Error on route failure', () => {
-		const { preview } = makeControllers();
-		preview.startTransition('paris-seat', 'director');
-		expect(preview.preview?.kind).toBe('transition');
+	it('refreshPausedDirector() keeps edge previews and returns Error on route failure', () => {
+		const { document, preview } = makeControllers();
+		const connection = document.document.connections[0]!;
+		expect(preview.startConnection(connection.id, 'forward', 'director')).toBe(true);
+		expect(preview.preview?.kind).toBe('edge');
 		const before = preview.preview;
-		// Force a resolve failure by pointing at a missing destination.
+		// Force a resolve failure by pointing at a missing connection.
 		preview.preview = {
-			...before!,
-			kind: 'transition',
-			fromNodeId: 'paris-seat',
-			toNodeId: 'no-such-node'
+			kind: 'edge',
+			connectionId: 'no-such-connection',
+			direction: 'forward',
+			fromNodeId: connection.fromNodeId,
+			toNodeId: connection.toNodeId,
+			mode: before!.mode,
+			transport: 'paused',
+			runId: before!.runId,
+			playhead: before!.playhead,
+			startedAtMs: before!.startedAtMs
 		};
 		const error = preview.refreshPausedDirector();
 		expect(error).toBeInstanceOf(Error);
-		// Non-tour previews keep the refresh contract (P8 S5 hard reset is
-		// tour-scoped): the preview stays, route failure is reported.
+		// Non-sequence previews keep the refresh contract (P8 S5 hard reset
+		// is sequence-scoped): the preview stays, route failure is reported.
 		expect(preview.preview).toEqual({
-			...before!,
-			kind: 'transition',
-			fromNodeId: 'paris-seat',
-			toNodeId: 'no-such-node'
+			kind: 'edge',
+			connectionId: 'no-such-connection',
+			direction: 'forward',
+			fromNodeId: connection.fromNodeId,
+			toNodeId: connection.toNodeId,
+			mode: before!.mode,
+			transport: 'paused',
+			runId: before!.runId,
+			playhead: before!.playhead,
+			startedAtMs: before!.startedAtMs
 		});
 	});
 

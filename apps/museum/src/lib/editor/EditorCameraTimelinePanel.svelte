@@ -55,7 +55,7 @@
 </script>
 
 {#if previewScope === 'edge'}
-	<!-- S3 — active Preview Edge: edge-local ruler + preview controls, no guided Dots (minimal) -->
+	<!-- S3 — active Preview Edge: edge-local ruler + preview controls, no sequence Dots (minimal) -->
 	<div class="timeline-panel">
 		<EditorCameraEdgeRuler {store} />
 		<EditorCameraPreviewControls {store} />
@@ -108,7 +108,7 @@
 		</div>
 	{/if}
 {:else if !preview && activeConnectionId && edgeTimeline}
-	<!-- S3 — idle-with-connection candidate: read-only edge ruler + CTA (takes precedence over guided timeline) -->
+	<!-- S3 — idle-with-connection candidate: read-only edge ruler + CTA (takes precedence over the sequence timeline) -->
 	<div class="timeline-panel">
 		<EditorCameraEdgeRuler {store} />
 	</div>

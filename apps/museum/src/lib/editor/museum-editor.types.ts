@@ -54,38 +54,31 @@ export interface EditorCameraPreviewState {
 	startedAtMs: number | null;
 }
 
-export type CameraPreviewNode = EditorCameraPreviewState & {
-	kind: 'node';
+export type CameraPreviewCamera = EditorCameraPreviewState & {
+	kind: 'camera';
 	nodeId: string;
 };
 
-export type CameraPreviewTransition = EditorCameraPreviewState & {
-	kind: 'transition';
-	fromNodeId: string;
-	toNodeId: string;
-};
-
-export type CameraPreviewConnection = EditorCameraPreviewState & {
-	kind: 'connection';
+export type CameraPreviewEdge = EditorCameraPreviewState & {
+	kind: 'edge';
 	connectionId: string;
 	direction: CameraConnectionDirection;
 	fromNodeId: string;
 	toNodeId: string;
 };
 
-export type CameraPreviewTour = EditorCameraPreviewState & {
-	kind: 'tour';
+export type CameraPreviewSequence = EditorCameraPreviewState & {
+	kind: 'sequence';
 	startNodeId: string;
 };
 
 export type EditorCameraPreview =
 	| null
-	| CameraPreviewNode
-	| CameraPreviewTransition
-	| CameraPreviewConnection
-	| CameraPreviewTour;
+	| CameraPreviewCamera
+	| CameraPreviewEdge
+	| CameraPreviewSequence;
 
-export type PreviewScope = 'camera' | 'edge' | 'sequence' | 'legacy';
+export type PreviewScope = 'camera' | 'edge' | 'sequence';
 
 // =====================================================================
 // Pending navigation command + workspace + panel chrome (god file lines

@@ -46,7 +46,7 @@ function createPreviewSampler(store: MuseumEditorStore): PreviewSampler {
 	const sample = createCameraMotionSample();
 
 	function durationSeconds(preview: ActiveCameraPreview, motion: CameraMotion | null) {
-		return preview.kind === 'tour'
+		return preview.kind === 'sequence'
 			? (store.getCameraTimeline()?.durationSeconds ?? 0)
 			: (motion?.durationSeconds ?? 0);
 	}
@@ -56,7 +56,7 @@ function createPreviewSampler(store: MuseumEditorStore): PreviewSampler {
 		playhead: number,
 		activeMotion: CameraMotion | null
 	) {
-		if (preview.kind === 'tour') {
+		if (preview.kind === 'sequence') {
 			const timeline = store.getCameraTimeline();
 			if (!timeline) return false;
 			sampleEditorCameraTimeline(timeline, playhead, sample);

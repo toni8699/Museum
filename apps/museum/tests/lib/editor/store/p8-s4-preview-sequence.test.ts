@@ -63,7 +63,7 @@ describe('P8 S4 — global seconds domain / local-progress continuation', () => 
 
 		// Preview Sequence carries the scrubbed position into playback — no reset to 0.
 		expect(store.previewSequence('director')).toBe(true);
-		expect(store.cameraPreview?.kind).toBe('tour');
+		expect(store.cameraPreview?.kind).toBe('sequence');
 		expect(store.cameraPreview?.playhead).toBeCloseTo(progress!, 6);
 		expect(store.cameraTimelinePlayhead).toBeCloseTo(progress!, 6);
 	});
@@ -229,7 +229,7 @@ describe('P8 S4 — loop-topology derivation', () => {
 });
 
 describe('P8 S4 — context-sensitive play demoted', () => {
-	it('guided play is sequence-only — reverse + selected connection no longer hijacks to edge transport', () => {
+	it('sequence play is sequence-transport only — reverse + selected connection no longer hijacks to edge transport', () => {
 		const store = createFixtureEditorStore();
 		store.setWorkspace('camera');
 		const conn = store.document.connections[0]!;
@@ -238,15 +238,15 @@ describe('P8 S4 — context-sensitive play demoted', () => {
 		expect(store.activeCameraDirection).toBe('reverse');
 
 		useCameraTimeline(store).toggleTourPlayback();
-		expect(store.cameraPreview?.kind).toBe('tour');
+		expect(store.cameraPreview?.kind).toBe('sequence');
 		expect(store.cameraPreview?.transport).toBe('playing');
 
 		// Explicit edge transport stays available via the EdgeRuler command path.
 		expect(store.pauseCameraPreview()).toBe(true);
 		expect(store.stopCameraPreview()).toBe(true);
 		expect(store.previewEdge(conn.id, 'reverse')).toBe(true);
-		expect(store.cameraPreview?.kind).toBe('connection');
-		const preview = store.cameraPreview as Extract<typeof store.cameraPreview, { kind: 'connection' }>;
+		expect(store.cameraPreview?.kind).toBe('edge');
+		const preview = store.cameraPreview as Extract<typeof store.cameraPreview, { kind: 'edge' }>;
 		expect(preview.direction).toBe('reverse');
 	});
 });
@@ -256,13 +256,13 @@ describe('P8 S4 — previewSequence restore (S2 D6 regression)', () => {
 		const store = createFixtureEditorStore();
 		store.setWorkspace('camera');
 		expect(store.seekCameraTimeline(0.42)).toBe(true);
-		expect(store.previewGuidedTour('director')).toBe(true);
+		expect(store.previewSequence('director')).toBe(true);
 		expect(store.pauseCameraPreview()).toBe(true);
 		const saved = store.cameraTimelinePlayhead;
 		const connId = store.document.connections[0]!.id;
 		expect(store.previewEdge(connId, 'forward')).toBe(true);
 		expect(store.previewSequence('director')).toBe(true);
-		expect(store.cameraPreview?.kind).toBe('tour');
+		expect(store.cameraPreview?.kind).toBe('sequence');
 		expect(store.cameraTimelinePlayhead).toBeCloseTo(saved, 6);
 	});
 });

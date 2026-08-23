@@ -95,7 +95,7 @@
 		</section>
 	{:else}
 		<header class="camera-workspace-header">
-			<h1>Camera Tour</h1>
+			<h1>Camera Sequence</h1>
 		</header>
 
 		<div class="panel-content">

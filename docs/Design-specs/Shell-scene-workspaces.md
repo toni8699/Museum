@@ -74,7 +74,7 @@ It is not a schematic diagram.
 
 ### Scene footprints in Layout
 
-Scene furniture and primitive footprints render as faint dashed layer-5.5
+Eligible floor-model and primitive footprints render as faint dashed layer-6
 outlines — passive spatial context:
 
 * visible
@@ -87,13 +87,11 @@ Passive footprint projection must not itself activate Scene editing.
 ### Room drag behavior
 
 Room drag relocates the room and its owned layout objects only
-(`transformLayoutRoomUnit` semantics). Scene furniture keeps its world
-X/Z — staged furniture is never implicitly collected into a room move.
-
-If furniture ends up outside valid room/placement geometry, the existing
-warning system surfaces the issue; the operation must not silently
-relocate furniture. The editor must not imply compound room + furniture
-movement exists.
+(`transformLayoutRoomUnit` semantics). Scene entities retain room-local
+transforms, so their derived world transforms follow the moved/rotated room
+frame. `SceneDocument` is not mutated and no Scene history entry is created;
+the room gesture remains one `layout` entry. The editor must not imply
+compound room + furniture compensation exists.
 
 ### Bridge to Staging
 
@@ -312,8 +310,8 @@ misleadingly active while Staging owns pointer authority.
 The Asset Library remains available in Scene → Plan, but selecting an
 **unplaced** catalogue asset does not enter a Plan placement gesture in
 P2 v1 — staging applies to existing placed Scene entities only. 2D
-placement and its staging auto-activation belong to the follow-up
-ghost-placement slice.
+placement belongs to the follow-up ghost-placement slice; P2 has no
+auto-activation path for unplaced assets.
 
 ## MUST NOT expose
 
@@ -604,30 +602,34 @@ The shell/visual spec defines four staging footprint states.
 * clear selection outline using the editor's standard primary interaction
   accent
 * handles appropriate to supported operations
-* rotation handle (pivot at footprint center)
+* rotation handle (pivot at canonical placement pivot, `[0,0]`)
 * drag affordance
 * Inspector synchronized
 
 ### Rotation interaction
 
 * rotation arm/handle on the selected footprint
-* pivot at footprint center
+* pivot at canonical placement pivot (`[0,0]`), not polygon centroid/AABB center
 * continuous yaw, positive-Y rotation semantics
-* Shift = 15° snap
+* Shift = 15° angular snap for rotation; Shift disables positional snap during
+  translation
 * direct-manipulation control, not necessarily a permanent toolbar mode
 * Inspector numeric yaw is semantically identical to handle rotation
 
 ### Footprint content rules (P2 v1)
 
-* catalogue models — authored asset footprint metadata
-* imported project models — derived/session-cached footprint
-* primitives — footprint derived from dimensions
+* floor catalogue models — authored canonical asset footprint metadata
+* box/plane/cylinder/sphere primitives — footprint derived from dimensions
+* wall/ceiling/surface catalogue models — omitted from P2 projection
+* imported project models — unsupported until P4 imported-bounds registry
 * lights — no interactive footprint
 * camera/tour content — not part of Plan staging
 
-Footprint representation includes translation → yaw → scale (uniform +
-`scaleVector`), matching the 3D world transform; a model scaled 2× in
-Scene 3D shows a corresponding 2× Plan footprint.
+Footprint representation applies canonical asset-local point → placement scale
+→ placement yaw → placement local translation → room frame → Plan world X/Z.
+Matrix form is `Room × T × R × S`; point-operation order is
+scale → rotate → translate → room transform. A model scaled 2× in Scene 3D
+shows a corresponding 2× Plan footprint.
 
 ---
 

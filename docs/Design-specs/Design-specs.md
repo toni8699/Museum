@@ -9,8 +9,8 @@ reconciled 2026-08-23 by P9. Blue `#2F8CFF` is the sole target accent system.
 
 This specification translates the approved product model and generated UI concepts into concrete implementation rules. The canonical product remains a domain × view system:
 
-* Scene → Plan = build space
-* Scene → 3D = place things
+* Scene → Plan = author the museum spatially in 2D (Layout | Staging)
+* Scene → 3D = full scene-object authoring and new placement
 * Camera → Plan = route things
 * Camera → 3D = frame things
 
@@ -121,6 +121,10 @@ PlanViewport
 ```
 
 Both Scene Plan and Camera Plan consume the **same underlying Plan render model**.
+
+Scene Plan may add eligible Scene footprint projection at render layer 6;
+Camera Plan passes no Scene footprint projection and shows only its permitted
+architectural/camera layers.
 
 Camera Plan then adds a filtered overlay containing only:
 
@@ -991,6 +995,7 @@ Toolbar floats near top center/left of viewport.
 Scene → Plan:
 
 ```text
+Layout | Staging
 Select
 Wall
 Room

@@ -18,8 +18,9 @@ New Project
   → later import and continue
 ```
 
-Plan = layout CAD. 3D = integrated project editor. No separate Scene, Camera,
-or Layout-3D workspace.
+Plan = layout CAD plus Scene Plan staging for already-placed floor objects.
+3D = integrated project editor and the home for full scene-object authoring and
+new placement. No separate Scene, Camera, or Layout-3D workspace.
 
 `/museum` = frozen Chopin visitor relic; `/museum/editor` = frozen legacy
 Scene · Camera editor relic (no Layout tab). Both keep checked-in

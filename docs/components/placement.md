@@ -21,6 +21,30 @@ Scale: **uniform** (default, scalar in v6) vs **independent** (session `scaleVec
 
 Nav selection ⊥ placement selection. **No** viewport DnD for place. Plan rectangle click-drag = CAD exception only ([`../north-star.md`](../north-star.md)).
 
+## Scene Plan staging (P2)
+
+P2 stages **already-placed** eligible Scene content; Asset Library selection
+does not begin Plan placement. Floor catalogue models require valid canonical
+footprints; box/plane/cylinder/sphere primitives derive footprints from their
+dimensions; lights, imported GLBs, and wall/ceiling/surface catalogue models
+are outside P2 staging projection.
+
+Scene entity transforms remain room-local. Scene Plan projects through the
+live `SceneDocument` plus `LayoutRoomRegistry`:
+
+```text
+asset-local footprint
+  → placement scale/yaw/translation
+  → room frame
+  → Plan world X/Z
+```
+
+Staging drag performs the inverse world-to-room conversion and writes Scene
+local X/Z only. Local Y, pitch, and roll remain unchanged. Room drag changes
+the room frame, so contained Scene entities follow in derived world space;
+the room gesture mutates `LayoutDocument` only and creates one `layout` history
+entry.
+
 ## Layout objects
 
 Layout object placement = editor-local, separate from scene placement/history:

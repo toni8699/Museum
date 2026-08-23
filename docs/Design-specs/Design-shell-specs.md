@@ -52,7 +52,7 @@ This produces four canonical workspaces:
 | Workspace     | Primary job                                          |
 | ------------- | ---------------------------------------------------- |
 | Scene → Plan  | Author the museum spatially in 2D (Layout \| Staging) |
-| Scene → 3D    | Place and manipulate things                          |
+| Scene → 3D    | Full scene-object authoring and new placement         |
 | Camera → Plan | Route cameras                                        |
 | Camera → 3D   | Frame camera movement                                |
 
@@ -630,7 +630,7 @@ Legend:
 | Feature            | Scene Plan — Layout | Scene Plan — Staging | Scene 3D | Camera Plan | Camera 3D |
 | ------------------ | ------------------: | -------------------: | -------: | ----------: | --------: |
 | Architecture       |                   E |                    V | V/E where applicable |              V |         V |
-| Scene objects      |                   V |                    E |                      E |              V |         V |
+| Scene objects      |        V (eligible footprints) | E (eligible placements) |                      E |              — |         V |
 | Scene object Y     |                   — |         preserved only |                      E |              — |         — |
 | Scene object scale |                   — |   V — projection only |                      E |              — |         — |
 | Scene full rotation |                  — |                    — |                      E |              — |         — |
@@ -848,9 +848,11 @@ inactive/passive without destroying identity.
 Verify staging operations change only X/Z/yaw, preserve Y exactly, and
 commit exactly one tagged `scene` history entry per completed gesture.
 
-### R. Room drag isolation
+### R. Room-local Scene follow
 
-Verify layout room motion never silently moves Scene furniture.
+Verify layout room motion changes the room frame and therefore changes
+contained Scene entities' derived world transforms, while leaving
+`SceneDocument` unchanged and creating exactly one `layout` history entry.
 
 ### S. Scene 3D visual overlay contract
 

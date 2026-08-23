@@ -67,8 +67,6 @@ Use:
 * **Neighbor** — an unsequenced camera directly connected to a sequenced camera; relationship labels never overclaim adjacency (a chain `C — E — F` makes E a neighbor of C, while F is "Connected to E").
 * **Branch** — an explicitly authored alternate traversal that leaves sequence playback; return-to-origin is shipped, rejoin into a later stop is an unscheduled experiment.
 
-Retire **Free Cameras** as primary terminology.
-
 An Unsequenced camera may still:
 
 * have multiple connections

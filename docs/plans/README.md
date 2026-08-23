@@ -58,17 +58,18 @@ Policy rules:
 |---|------|--------|------------|-----|
 | — | Plan-system renewal + documentation rework (process row — created this tracker and the five-doc model) | shipped | H1 gate | archived → [2026-08-17-plan-system-renewal.md](archive/plans/2026-08-17-plan-system-renewal.md) |
 | P1 | Camera overhaul | shipped | renewal | archived → [2026-08-18-P1-camera-overhaul.md](../archive/plans/2026-08-18-P1-camera-overhaul.md) |
-| P2 | Plan staging mode — 2D furnishing | approved | P1 | [2026-08-18-P2-plan-staging.md](2026-08-18-P2-plan-staging.md) |
-| P3 | UI overhaul — primarily visual reconciliation/refresh pass over settled surfaces; context-menu interaction slice folded in (P3.4/P3.5) | approved | P1 (per-increment; P3.5 also P8 S2–S4; staging-dependent items await P2) | [2026-08-18-P3-ui-overhaul.md](2026-08-18-P3-ui-overhaul.md) |
-| P4 | Client GLB import | proposed | renewal | [2026-08-18-P4-gltb-import.md](2026-08-18-P4-gltb-import.md) |
+| P2 | Plan staging mode — 2D furnishing | approved | P1 + P9 | [2026-08-18-P2-plan-staging.md](2026-08-18-P2-plan-staging.md) |
+| P3 | UI overhaul — primarily visual reconciliation/refresh pass over settled surfaces; context-menu interaction slice folded in (P3.4/P3.5) | approved | P9 + P1 (per-increment; P3.5 also P8; staging-dependent items await P2) | [2026-08-18-P3-ui-overhaul.md](2026-08-18-P3-ui-overhaul.md) |
+| P4 | Client GLB import | proposed | renewal | [2026-08-18-P4-glb-import.md](2026-08-18-P4-glb-import.md) |
 | P5 | Measured optimization and scale | proposed | renewal | [2026-08-18-P5-measured-optimization.md](2026-08-18-P5-measured-optimization.md) |
 | P6 | Editor artifact rename (de-H1) | shipped | renewal | archived → [2026-08-18-P6-editor-rename.md](archive/plans/2026-08-18-P6-editor-rename.md) |
 | P7 | Museum-editor facade decoupling — finish the deferred H1 splits (selection de-coupling, facade thinning, type collapse, shims, Chopin defaults, shell boot) + P7.6 museum-vocabulary scrub (drop-prefix scene vocabulary, relic keeps museum; format hard break) | **shipped 2026-08-23 — P7.1 + P7.5 + P7.2 + P7.3 + P7.6 all complete; P7 closed** | P1 | [2026-08-19-P7-editor-facade-collapse.md](2026-08-19-P7-editor-facade-collapse.md) + [P7.6 strings pre-inventory (annex)](2026-08-23-P7.6-strings-pre-inventory.md) |
 | P8 | Camera preview scopes — Preview Camera / Preview Edge / Preview Sequence; directed-edge motion resolver + timing parity; edge-local timeline | **shipped — S1–S6 (2026-08-22)** | P1 | [2026-08-21-P8-camera-preview-scopes.md](2026-08-21-P8-camera-preview-scopes.md) |
+| P9 | Design reconciliation — current shell/spec truth + one canonical PNG set before P2 | **shipped 2026-08-23** | P7 + P8 | archived → [2026-08-23-P9-design-reconciliation.md](../archive/plans/2026-08-23-P9-design-reconciliation.md) |
 | — | Branch rejoin — **experiment, no schedule** (rejoin into a later Sequence stop; dead-end return already ships; multi-edge playback would compose P8's edge primitive) | proposed | P8 conceptually | [2026-08-21-branch-rejoin-experiment.md](2026-08-21-branch-rejoin-experiment.md) |
 | … | future work re-registers here | | | |
 
-Execution order: **P6 → P1 → P8 → P7 → P2 → P3** — P1 shipped 2026-08-21; the
+Execution order: **P6 → P1 → P8 → P7 → P9 → P2 → P3** — P1 shipped 2026-08-21; the
 owner re-prioritized **P8 ahead of P2** on 2026-08-21
 ([scope decision](archive/plans/2026-08-21-scope-decision-p8-before-p2.md));
 P8 shipped **S1–S6 on 2026-08-22**, completing the camera phase. On 2026-08-22
@@ -95,7 +96,8 @@ note + §3 in the umbrella; `lastSequencePlayhead` → preview controller,
 three-surface playhead rewiring) before that increment starts. The prior camera-first order was committed by the
 [2026-08-18 scope decision](archive/plans/2026-08-18-scope-decision-camera-first.md);
 the 2026-08-21 decision extends the camera phase rather than reversing it.
-P4/P5 stay unscheduled until the owner re-prioritizes.
+P9 shipped 2026-08-23 as the docs/PNG-only canonical design reconciliation;
+P2 is now the next action. P4/P5 stay unscheduled until the owner re-prioritizes.
 
 P1 **closed 2026-08-22** — shipped 2026-08-21 with all increments through
 **P1.9** (camera sidebar simplification: neighbor dropdown · drag-only reorder
@@ -165,6 +167,7 @@ prefixed.
 - `archived → archive/plans/2026-08-21-P1.8-camera-sequence-authoring.md` (shipped 2026-08-21)
 - `archived → archive/plans/2026-08-21-P1.9-sidebar-simplification.md` (shipped 2026-08-21 — final P1 slice)
 - `archived → archive/plans/2026-08-21-P1.7-review-fixes-2d-viewport-persistence.md` (P1.7 review fixes + close-out — shipped 2026-08-21, archived 2026-08-22; closes P1)
+- `archived → ../archive/plans/2026-08-23-P9-design-reconciliation.md` (shipped 2026-08-23 — docs/PNG prerequisite before P2)
 
 **Sources:** all source content is folded into the umbrella docs (P1 §A–§D ·
 P2 §A · P4 §A · P5 §A); the original source files were deleted 2026-08-18.

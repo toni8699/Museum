@@ -196,9 +196,11 @@ Unsequenced
 Connections
 ```
 
-Rows follow `Design-shell-specs.md` §4: order number + name + collapsible
-neighbor list (directly-connected cameras); drag-only reorder, no per-row
-order arrows (P1.9).
+Rows follow `Design-shell-specs.md` §4: order number + name, drag-only reorder,
+and no per-row order arrows (P1.9). A row chevron expands a flat list of its
+directly connected Unsequenced sidequest cameras; ordered Sequence neighbors
+are omitted. Expansion is component-local, and Environment remains read-only.
+There is no standalone Neighbors section.
 
 ---
 
@@ -357,9 +359,11 @@ Unsequenced
 Connections
 ```
 
-Rows follow `Design-shell-specs.md` §4: order number + name + collapsible
-neighbor list (directly-connected cameras); drag-only reorder, no per-row
-order arrows (P1.9).
+Rows follow `Design-shell-specs.md` §4: order number + name, drag-only reorder,
+and no per-row order arrows (P1.9). Per-camera chevrons disclose only directly
+connected Unsequenced sidequests; ordered Sequence neighbors are omitted.
+Expansion is component-local, Environment is read-only, and there is no
+standalone Neighbors section.
 
 The user should not feel that switching to Camera 3D opens another Camera system.
 
@@ -453,13 +457,9 @@ Whether the DOM component literally remains mounted is an implementation choice 
 
 # 12. Timeline Exposure
 
-Default expanded target:
+Default expanded height: `288px`. User-resized range: `240–300px`.
 
-approximately `240–300 px`.
-
-Collapsed target:
-
-approximately `48 px`.
+Collapsed height: `48px`.
 
 Timeline includes:
 
@@ -491,7 +491,15 @@ Look At
 Roll
 ```
 
-> **Cosmetic 2026-08-21 (P3):** Current impl is 2 lanes `Guided Route / Camera Framing` (`EditorCameraTimelineDots.svelte:556` / `editor-camera-timeline.ts:56`). 5-lane is visual split for `Camera-3D-timeline-expanded.png:1` — `Camera Path` ← `timeline.edges`, `Shots` ← node labels/holds (no store entity yet), `FOV`/`Look At` ← `RuntimeCameraViewKeyframe` (`types/scene.ts:78` — one key split in UI), `Roll` ← `0°` quiet (`editor-camera-view.ts:136` not representable). Timeline remains projection `Graph + Sequence → Timeline` (`editor-camera-timeline.ts:128`).
+The current implementation has two backing lanes, `Guided Route / Camera
+Framing` (`EditorCameraTimelineDots.svelte:556` /
+`editor-camera-timeline.ts:56`). The canonical five-lane display in
+`Design-png/Camera/camera-timeline-expanded.png` is a visual projection:
+`Camera Path` ← `timeline.edges`; `Shots` ← node labels/holds (no store entity
+yet); `FOV`/`Look At` ← one `RuntimeCameraViewKeyframe`
+(`types/scene.ts:78`); `Roll` ← quiet `0°`
+(`editor-camera-view.ts:136`, not representable). Timeline remains
+`Graph + Sequence → Timeline` (`editor-camera-timeline.ts:128`).
 
 Timeline is Camera-tour semantic UI.
 
@@ -534,4 +542,3 @@ This applies to:
 Plan and 3D are representations of the same camera graph.
 
 They MUST NOT maintain independent duplicate selections that drift apart.
-

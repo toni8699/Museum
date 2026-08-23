@@ -1,11 +1,11 @@
 # Museum Editor — UI Design System & Implementation Specification
 
-**Status:** canonical UI implementation specification — **ratified 2026-08-19** as
-the visual target for P3 (UI overhaul); its color system supersedes the
-S10.1.7 gold/charcoal tokens landed earlier in the working tree.
+**Status:** canonical UI implementation specification — ratified 2026-08-19;
+reconciled 2026-08-23 by P9. Blue `#2F8CFF` is the sole target accent system.
 **Scope:** technology, component stack, visual tokens, typography, iconography, panel sizing, interaction states, Scene/Camera × Plan/3D workspaces, Inspector, Asset Library, Outliner, Camera Timeline.
-**Provenance:** normalizes the generated UI concepts in [`Design-png/`](../../Design-png/)
-(repo root, `Scene/` + `Camera/`); executed by [P3](../plans/2026-08-18-P3-ui-overhaul.md).
+**Provenance:** governs the canonical concepts registered in
+[`Design-png/README.md`](../../Design-png/README.md); executed by
+[P3](../plans/2026-08-18-P3-ui-overhaul.md).
 
 This specification translates the approved product model and generated UI concepts into concrete implementation rules. The canonical product remains a domain × view system:
 
@@ -444,55 +444,6 @@ Use red only for:
 * errors
 * invalid state
 
-## Alternate palette (Option B — "Vault & Lens")
-
-An optional, more distinctive palette. It is expressible through the same
-token architecture as the default blue — a theme is just a different set of
-`--editor-*` values — so both options coexist with no component changes.
-
-Concept: the editor is a dark gallery vault. Scene-domain work is warm and
-material (gallery brass — curating the collection); Camera-domain work is cool
-and optical (lens cyan — operating the camera). The accent color itself encodes
-which domain is active: warm brass in Scene, cool cyan in Camera. That is the
-single signature move of the palette; everything else stays quiet.
-
-```css
-/* Dark chrome — green-ink gallery wall, not neutral charcoal */
---editor-bg-app:          #0E110F;
---editor-bg-panel:        #141815;
---editor-bg-panel-raised: #1A1F1C;
---editor-bg-control:      #1A201C;
---editor-bg-hover:        #1F2621;
---editor-bg-selected:     #26331C;
-
---editor-border-subtle:   #1D2620;
---editor-border-normal:   #2A362E;
---editor-border-strong:   #3B4A40;
-
---editor-text-primary:    #F2F4EF;
---editor-text-secondary:  #A9B3AA;
---editor-text-muted:      #737E75;
---editor-text-disabled:   #545E57;
-
-/* Two domain accents — the signature */
---editor-accent-scene:    #E2B15C;  /* gallery brass → Scene selection/active */
---editor-accent-camera:   #47C6E8;  /* lens cyan → Camera selection, framing, timeline */
-
---editor-success:         #31C985;  /* also the unsequenced ring */
---editor-warning:         #E0764B;  /* burnt orange — kept off the brass hue */
---editor-danger:          #EF626C;
-
-/* The bright drafting Plan surface carries the light in both themes */
---editor-plan-bg:         #F6F2EA;
-```
-
-The domain accents split `--editor-accent` into `--editor-accent-scene` and
-`--editor-accent-camera`. Domain-agnostic chrome (focus rings, generic toggles,
-status) uses the active domain's accent; any component that still consumes the
-single default `--editor-accent` maps to the Scene accent.
-
----
-
 # 8. Transform-axis and Scene 3D overlay colors
 
 Reserve strong RGB colors for spatial axes. These values are shared by the
@@ -553,7 +504,8 @@ The custom orientation graphic is a compact viewport utility, not a panel:
 --editor-orientation-label-size:  11px;
 ```
 
-These are reference values for matching `Scene-3D.png`; visual QA may tune
+These are reference values for matching the canonical Scene 3D sketches in
+[`Design-png/README.md`](../../Design-png/README.md); visual QA may tune
 sub-pixel geometry without changing the top-right placement or token mapping.
 
 ---
@@ -764,7 +716,7 @@ Right Inspector:    320px
 minimum:            280px
 maximum:            420px
 
-Status bar:         36px
+Status bar:         32px
 
 Floating toolbar:   38–40px high
 ```
@@ -790,7 +742,7 @@ Bottom = temporal Camera authoring.
 
 # 16. Camera Timeline dimensions
 
-For the newest expanded timeline concept:
+Canonical dimensions:
 
 ```text
 default expanded: 288px
@@ -1137,12 +1089,16 @@ ruler/header:       28px
 
 Camera Path:        44px
 Shots:              48px
-FOV:                36px
-Look At:            36px
+FOV:                34px
+Look At:            34px
 Roll:               32px
 ```
 
-> **Cosmetic 2026-08-21 (P3):** 5 lanes are presentational projection of current 2-lane infra (`Guided Route` + `Camera Framing` in `EditorCameraTimelineDots.svelte:556` / `editor-camera-timeline.ts:56`). `Camera Path` ← `timeline.edges` + `timing`, `FOV`/`Look At` ← `RuntimeCameraViewKeyframe {fov, cameraTarget}` (`types/scene.ts:78` — currently one combined key, split in UI only), `Shots` ← derived from node labels/holds (no `Shot` entity yet), `Roll` ← quiet `0°` (not representable per `editor-camera-view.ts:136`). Ground truth `Camera-3D-timeline-expanded.png` shows 5 lanes correctly; no new store model for P3.
+Five lanes are a presentational projection of the current two-lane backing
+model (`Guided Route` + `Camera Framing`). `Camera Path` projects edges/timing;
+`FOV` and `Look At` project the combined view key; `Shots` derives from node
+labels/holds; `Roll` remains quiet `0°`. P3 adds no new store entities. Visual
+truth: `Design-png/Camera/camera-timeline-expanded.png`.
 
 Selected-transition drill-down may consume the remaining expanded area below those lanes.
 
@@ -1283,10 +1239,18 @@ The generated Camera 3D concepts demonstrate this hierarchy: rich museum remains
 
 # 28A. Scene 3D gizmo, selection outlines, and orientation box
 
-`Design-png/Scene/Scene-3D.png`, `Scene-3D-2.png`, and
-`Scene-3D-assets.png` are the visual references for Scene → 3D. They define
-composition, visual emphasis, and overlay treatment; the existing Scene
-selection and transform contracts remain behaviorally authoritative.
+`scene-3d-object-selection.png`, `scene-3d-layout-selection.png`, and
+`scene-3d-assets.png` are the canonical Scene → 3D references registered in
+[`Design-png/README.md`](../../Design-png/README.md). They define composition,
+visual emphasis, and overlay treatment; the existing Scene selection and
+transform contracts remain behaviorally authoritative.
+
+> **Amendment 2026-08-23 — complete XYZ gizmo:**
+> `scene-3d-object-selection-xyz-gizmo.png` supersedes only the transform-gizmo
+> rendering in `scene-3d-object-selection.png`. Red X, green Y, and blue Z
+> arrows must all be visible and meet at the selected pivot. The original PNG
+> remains registered for its base composition; no other PNG requires
+> regeneration for this correction.
 
 ## Selected-object transform and scale gizmo
 
@@ -1430,16 +1394,16 @@ Selection changes:
 Workspace transitions:
 
 ```text
-instant — no fade on view/domain/sidebar/timeline swaps (amended 2026-08-21 per `Design-shell-specs.md §20` + `hand-off/CURRENT.md` P1.7 — supersedes 180–220ms)
+instant — no fade on view/domain/sidebar/timeline swaps
 ```
 
 Camera timeline entering / leaving:
 
 ```text
-instant — appearance/disappearance without height+opacity animation (same 2026-08-21 amend.; expansion state persists verbatim)
+instant — appearance/disappearance without height/opacity animation; expansion state persists verbatim
 ```
 
-Do not animate the full shell moving around — this now applies to all shell swaps (view, domain, sidebar, timeline).
+Do not animate the full shell moving around. This applies to every shell swap.
 
 Honor:
 
@@ -1447,7 +1411,8 @@ Honor:
 @media (prefers-reduced-motion: reduce)
 ```
 
-and reduce workspace animation to near-instant state changes. This matches the canonical motion rules.
+and disable the remaining hover/selection transitions. Workspace swaps are
+already instant under the canonical motion rules.
 
 ---
 
@@ -1704,7 +1669,7 @@ Example:
   --editor-radius-lg: 7px;
 
   --editor-appbar-height:    56px;
-  --editor-status-height:    36px;
+  --editor-status-height:    32px;
   --editor-left-width:       300px;
   --editor-right-width:      320px;
   --editor-timeline-height:  288px;
@@ -1713,17 +1678,6 @@ Example:
 ```
 
 Use component-scoped styles for layout details but use tokens for all shared visual decisions.
-
-### Theme switching (future expansion)
-
-Because every color is a token, switching themes is a value swap, not a
-redesign: define each palette as a `:root` / `[data-editor-theme]` block and
-flip one attribute. DOM chrome and SVG (Plan, timeline) read the tokens
-directly and theme for free. The only non-free surface is Three.js overlays
-(camera nodes, frustums, path splines), which read colors through code rather
-than CSS — full theming there needs the resolved token values threaded into
-the materials. Not required for P3; `tokens.css` is the prerequisite and P3.2
-builds it.
 
 ---
 

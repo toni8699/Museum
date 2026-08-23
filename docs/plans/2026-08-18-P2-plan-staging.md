@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-18
 **Status:** Approved — umbrella; scope unchanged from the approved C1 plan. Execution decomposition and review findings expanded 2026-08-21.
-**Tracker:** [`docs/plans/README.md`](README.md) — **P2**, depends on: P1
+**Tracker:** [`docs/plans/README.md`](README.md) — **P2**, depends on: P1 + P9
 **Canonical specs (2026-08-19):** [`Design-shell-specs.md`](../Design-specs/Design-shell-specs.md)
 (shell/workspace exposure) · [`Design-specs.md`](../Design-specs/Design-specs.md)
 (UI design system). P2 is a **workspace-local mode inside Scene → Plan**, not a
@@ -26,7 +26,7 @@ the approved execution spec.
 
 | ID | Content | §A phase | Depends |
 |---|---|---|---|
-| **P2.1** | `MuseumAsset.footprint` metadata + `plan-scene-footprint.ts` passive projection (layer-5.5 dashed outlines, read-only) | 1 (Path A) | P1 |
+| **P2.1** | `Asset.footprint` metadata + `plan-scene-footprint.ts` passive projection (layer-5.5 dashed outlines, read-only) | 1 (Path A) | P1 |
 | **P2.2** | Staging tool (`PlanViewMode: 'layout' \| 'staging'`) + `plan-scene-hit.ts` + scene-domain selection | 2 | P2.1 |
 | **P2.3** | 2D scene mutations: drag/rotate/delete via existing mutators, tagged `scene` history entries + universal-history wrap (`beginLayoutTransaction`/`commitLayoutTransaction`) | 3 | P2.2 |
 | **P2.4** | Invariants + regression documentation (B3 room-drag as designed; component docs update) | 4 | P2.3 |
@@ -38,7 +38,7 @@ sub-slices make the approved work implementation-ready without changing scope:
 
 | Sub-slice | Content | Exit signal |
 |---|---|---|
-| **P2.1a** | Lock footprint data contract: `MuseumAsset.footprint`, optional authored outline, model/primitive/light rules, and the effective scale source (uniform plus session-resolved `scaleVector`). | Metadata validates; scale source is shared with Scene 3D. |
+| **P2.1a** | Lock footprint data contract: `Asset.footprint`, optional authored outline, model/primitive/light rules, and the effective scale source (uniform plus session-resolved `scaleVector`). | Metadata validates; scale source is shared with Scene 3D. |
 | **P2.1b** | Implement pure catalogue and primitive footprint projection from the live Scene document; include translation, yaw, scale, drop-Y, rotation, and per-kind tests. | Projection tests are green and never read the boot-time preview scene copy. |
 | **P2.1c** | Add passive scene primitives to the shared Plan render model at layer 5.5; render faint dashed outlines with no selection or mutation authority. | Layout mode shows context without activating Scene selection. |
 | **P2.2a** | Add Scene Plan-local `PlanViewMode: 'layout' | 'staging'` and an explicit contextual `Layout | Staging` control; keep global `Scene | Camera` and `Plan | 3D` unchanged. | Mode is visible, session-local, and absent from Camera Plan. |
@@ -53,7 +53,8 @@ sub-slices make the approved work implementation-ready without changing scope:
 
 ## Gates
 
-- **P1 close** — plan staging starts after the camera overhaul lands.
+- **P1 + P9 close** — plan staging starts after the camera overhaul and
+  canonical design reconciliation land. Both gates are shipped.
 
 ## Boundaries
 
@@ -74,10 +75,14 @@ sub-slices make the approved work implementation-ready without changing scope:
 - Footprint projection pure-module tests (catalogue + derived) green;
   staging interactions + history-tag assertions pass; suite green,
   `svelte-check` 0, build clean; tracker marks **P2 shipped**.
+- Scene Plan uses one consistently-positioned, always-visible
+  `Layout | Staging` local-mode control in populated, empty, Layout, and
+  Staging states; visual target is the canonical `Design-png/README.md`
+  Scene Plan set. Camera Plan never mounts this control.
 
 ---
 
-## B — Shell & workspace amendments (2026-08-19)
+## B — Shell & workspace contract
 
 Reconciles P2 with the canonical shell/workspace specification
 ([`../Design-specs/Design-shell-specs.md`](../Design-specs/Design-shell-specs.md),
@@ -179,8 +184,8 @@ permission to broaden the approved scope:
   scale vectors are editor-session state in the current schema. P2.1a must
   use the effective Scene 3D transform for projection and must not imply that
   session-only scale survives serialization until the schema is upgraded.
-- The blank document and tree hint exist, but the complete `Empty-plan.png`
-  onboarding treatment remains a P3 visual QA item.
+- The blank document and tree hint exist, but the complete
+  `scene-empty-plan.png` onboarding treatment remains a P3 visual QA item.
 - Scene 3D gizmo, selection-color, object-outline/layout-box, and upper-right
   XYZ box visual treatment belongs to cosmetic P3. The interactive orientation
   box (camera response, click-to-snap, no drag rotation) belongs to post-P3
@@ -285,7 +290,7 @@ execution-spec amendments from that review are folded into the phases below:
 1. **Scaled footprints.** The layer-5.5 projection applies each entity's
    placement scale (uniform + independent `scaleVector`) in addition to
    translation + yaw — a 2×-scaled model has a 2× footprint.
-2. **Per-kind footprint rules.** Models use authored `MuseumAsset.footprint`
+2. **Per-kind footprint rules.** Models use authored `Asset.footprint`
    × scale; primitives derive footprints from dimensions × scale (no GLB,
    no metadata); lights render no footprint in v1.
 3. **2D rotation gesture.** Staging rotation uses a footprint rotate handle
@@ -343,7 +348,7 @@ PlanViewMode
 - One tagged `scene` history entry per completed gesture (pointerup commit) —
   parity with 3D gizmo drags.
 - Plan never loads GLBs. Rendering + hit-testing use footprint polygons:
-  catalogue footprints from authored `MuseumAsset.footprint` metadata;
+  catalogue footprints from authored `Asset.footprint` metadata;
   imported footprints derived from the loaded model's world AABB at render
   time, session-cached, never serialized.
 - Snapping reads `LayoutDocument` (walls / corners / rooms), writes only
@@ -370,7 +375,7 @@ PlanViewMode
 
 ### Phase 1 — Metadata & passive projection (Path A)
 
-- Author `MuseumAsset.footprint: { width, depth, height }` (+ optional
+- Author `Asset.footprint: { width, depth, height }` (+ optional
   `footprintOutline: LayoutVec2[]`) from the existing `notes` text.
 - `plan-scene-footprint.ts` — pure projection module: reads the **live
   editor scene document** (the store's authoritative `SceneDocument` — never
@@ -378,7 +383,7 @@ PlanViewMode
   edits, mirroring the room-delete policy) → layer-5.5 renderable vector
   model (sibling of `plan-camera-projection.ts`; drop Y).
 - **Per-kind footprint rules (locked):**
-  - **Model entities** → authored `MuseumAsset.footprint` × placement scale,
+  - **Model entities** → authored `Asset.footprint` × placement scale,
     rotated by `rotation[1]` (yaw).
   - **Primitive entities** (box / cylinder / sphere) → footprint derived from
     `dimensions` × placement scale (rectangle / circle / ellipse; no GLB, no
@@ -426,7 +431,7 @@ PlanViewMode
 
 | Asset origin | Footprint source | Persisted? |
 |---|---|---|
-| Catalogue (`MuseumAsset`) | Authored `footprint` metadata | In the asset manifest (not the package) |
+| Catalogue (`Asset`) | Authored `footprint` metadata | In the asset manifest (not the package) |
 | Imported project-local GLB | Derived from loaded model world AABB at render time | No — session-cached |
 
 ## Dependencies / gates

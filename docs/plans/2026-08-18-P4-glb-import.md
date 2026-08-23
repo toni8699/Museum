@@ -11,13 +11,15 @@ S9a plan seed (deferred from H1, owner decision 2026-08-15).
 User GLB import into the project: **upload → validate/optimize → asset record
 → Assets panel → ghost placement → scene entity commit**. The client is
 implemented against a **typed stub asset-record API** so it is fully testable
-before any server exists.
+before any server exists. The stub models the future service boundary; the
+browser does not become the canonical optimizer.
 
 ## Scope — two contract-first halves
 
 - **P4 (this plan) — client import → workspace → place.** Asset record
-  `{ id, status, optimizedBytes, footprint }`; Assets panel states
-  (processing → ready); ghost placement → scene entity commit. Effort 5 ·
+  `{ id, importState, curationStatus, optimizedBytes, footprint }`; Assets panel
+  shows import lifecycle separately from curation state; ghost placement →
+  scene entity commit. Effort 5 ·
   risk 5 → **6/10** — plan Frontier, implementation Frontier.
 - **D1 — server asset pipeline + account persistence** (upload endpoint,
   GLB compression, texture downscaling, size limits, hashing) — the companion
@@ -27,9 +29,23 @@ before any server exists.
 
 | ID | Content | Depends |
 |---|---|---|
-| **P4.1** | Typed stub asset-record API + contracts (`{ id, status, optimizedBytes, footprint }`) | — |
+| **P4.1** | Typed stub asset-record API + contracts (`{ id, importState, curationStatus, optimizedBytes, footprint }`) | — |
 | **P4.2** | Upload → fingerprint / validate / optimize against the stub | P4.1 |
 | **P4.3** | Assets panel (processing → ready) + ghost placement + scene-entity commit | P4.2 |
+
+### Asset-state contract (P9 reconciliation)
+
+Two independent axes; never overload one `status` field:
+
+```ts
+importState: 'processing' | 'ready' | 'failed';
+curationStatus: 'approved' | 'testing' | 'placeholder' | 'rejected' | null;
+```
+
+`importState` describes pipeline readiness and owns progress/failure UI.
+`curationStatus` describes reusable-asset review and owns the compact badge from
+`Design-specs.md` §21. P4 does not decide curation workflow or placement policy;
+that remains part of the full P4 brief before code.
 
 ## Definition of done (P4 close)
 
@@ -58,7 +74,8 @@ before any server exists.
 ## Scope — two contract-first halves
 
 **S9a — client import → workspace → place.** Upload → server fingerprint /
-validate / optimize → asset-record `{ id, status, optimizedBytes, footprint }` →
+validate / optimize → asset-record
+`{ id, importState, curationStatus, optimizedBytes, footprint }` →
 Assets panel (processing → ready) → ghost placement → scene entity commit.
 Implemented against a **typed stub asset-record API** so the client is fully
 testable before any server exists. Effort 5 · risk 5 → **6/10** — plan
@@ -82,7 +99,7 @@ implement; the visitor never gains a network dependency.
 - Manifest schema: per-asset entry (id, fingerprint/hash, mime, byte length,
   referenced-by), its canonical key order, and its format version.
 - **Footprints (locked):** the manifest persists no footprint fields.
-  Catalogue footprints are authored `MuseumAsset.footprint` metadata; imported
+  Catalogue footprints are authored `Asset.footprint` metadata; imported
   footprints are computed by the server at import time (world AABB) and live in
   the asset record — never a manifest field. C2 (layout asset objects) is
   rejected — the composite registry stays scene-only.
@@ -114,12 +131,12 @@ implement; the visitor never gains a network dependency.
 
 ## Explicitly out of scope
 
-- Changing `SceneDocument` / `MuseumProject` schemas — assets stay referenced by
+- Changing `SceneDocument` / `Project` schemas — assets stay referenced by
   `assetId`, bytes stay in the package store / server asset store.
 - Layout asset objects (`LayoutObject.kind: 'asset'`) — rejected; 2D furnishing
   is the Plan staging slice (P2).
 - Persisting footprint fields in the manifest — imported footprints are computed
-  at import (server asset record); catalogue footprints stay in `MuseumAsset`
+  at import (server asset record); catalogue footprints stay in `Asset`
   metadata.
 - Making the server a boot dependency or adding a visitor network dependency.
 

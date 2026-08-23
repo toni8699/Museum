@@ -30,7 +30,8 @@ Scene Plan therefore no longer means architecture exclusively.
 domain × view axes (§1 Workspace-local authoring mode).
 
 The mode control lives in the **Scene Plan contextual toolbar region**,
-never the global domain/view switchers. Active mode must be visually
+in one consistent position for populated, empty, Layout, and Staging states;
+never in the global domain/view switchers. Active mode must be visually
 obvious — not hidden in hover behavior or inferred from selection. The
 user must be able to answer immediately:
 
@@ -373,9 +374,11 @@ The composed museum scene:
 
 ## Scene 3D overlay contract
 
-The Scene 3D references (`Scene-3D.png`, `Scene-3D-2.png`, and
-`Scene-3D-assets.png`) define the visual target for object selection and
-spatial overlays. They do not create a second document or selection model.
+The canonical Scene 3D references (`scene-3d-object-selection.png`,
+`scene-3d-layout-selection.png`, and `scene-3d-assets.png`) are registered in
+[`Design-png/README.md`](../../Design-png/README.md). They define the visual
+target for object selection and spatial overlays without creating a second
+document or selection model.
 
 ### Selected-object transform and scale gizmo
 
@@ -540,11 +543,11 @@ The Asset Library may expose:
 * filters
 * categories
 * thumbnail previews
-* status
+* curation badge
 * placement
 * replacement
 
-Possible states:
+`curationStatus` values:
 
 ```text
 Approved
@@ -552,6 +555,10 @@ Testing
 Placeholder
 Rejected
 ```
+
+For imported assets these values are separate from `importState`:
+`processing | ready | failed`. `importState` owns progress/error treatment;
+`curationStatus` owns the compact badge.
 
 The Objects/Outliner side represents **placed scene instances**.
 
@@ -672,4 +679,3 @@ The Scene 3D outline and gizmo are view-scoped presentation. Returning to
 Scene Plan may preserve the logical Scene identity, but it must never carry a
 3D gizmo, 3D orientation-box input target, or 3D scale gesture into Layout or
 Staging.
-

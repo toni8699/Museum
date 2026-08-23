@@ -3,13 +3,10 @@
 **Status:** canonical shell/workspace specification — **ratified 2026-08-19**
 **Purpose:** codebase conformance review
 **Scope:** editor shell composition, workspace ownership, component visibility, interaction authority, persistence, and cross-workspace transitions.
-**Last amended:** 2026-08-19 — P2 Shell-A…Shell-J: Scene → Plan local authoring mode
-(Layout | Staging), mode-routed toolbar/Inspector/hit-testing, staging footprint
-states, Scene selection continuity, room-drag rule.
-**Amended 2026-08-21 — P1.8:** the Camera-domain section **"Free Cameras" is
-renamed "Unsequenced"** (terminology per [`Camera-flow-specs.md`](./Camera-flow-specs.md)
-§2 — Sequence = ordered subset of the graph; Unsequenced = not currently in the
-sequence); all camera-domain references below use it.
+**Last reconciled:** 2026-08-23 — P9. Scene → Plan exposes the local
+`Layout | Staging` mode; Camera uses `Unsequenced` for cameras outside the
+ordered subset. Current rules are written directly below rather than layered
+as amendments.
 
 **Split 2026-08-21:** scene/camera workspace sections moved verbatim to
 [`Shell-scene-workspaces.md`](./Shell-scene-workspaces.md) ·
@@ -244,18 +241,8 @@ Connections
 
 The Camera Sidebar owns camera-tour structure.
 
-### Environment
-
-Environment is context.
-
-It may expose:
-
-* museum
-* floor
-* rooms
-* architectural elements
-
-Environment is read-only from Camera domain.
+Environment is read-only architectural context. Its local expansion state
+must never mutate layout, selection, or history.
 
 ### Sequence Inspector
 
@@ -270,14 +257,13 @@ Rows may expose:
 * visibility
 * contextual actions
 * optional timing information
-* collapsible neighbor list — directly-connected cameras (graph truth, never
-  reachability): sequenced neighbors show their order number, unsequenced
-  neighbors show as unsequenced, neighbors that head an explicit Branch carry
-  a `Branch` tag
+* a per-camera disclosure chevron
 
-Per-row connection trees are not part of Sequence rows — connections live in
-the Connections section (undirected) and the Inspector. Reordering is
-drag-only; no per-row order-arrow controls. (P1.9 sidebar simplification.)
+An expanded camera row shows a flat list of its directly connected
+Unsequenced sidequest cameras. Ordered Sequence neighbors are already implied
+by the ordered list and MUST NOT be repeated in the disclosure. Expansion is
+component-local. Reordering is drag-only; no per-row order-arrow controls.
+(P1.9 sidebar simplification.)
 
 ### Unsequenced
 
@@ -285,10 +271,11 @@ Contains camera nodes not currently participating in the sequence.
 
 Unsequenced cameras may still participate in graph connections.
 
-Rows may expose a collapsible neighbor list and a relationship line that
-never overclaims adjacency: "Neighbor of ⟨camera⟩" for a direct edge to a
-sequenced camera, otherwise "Connected to ⟨camera⟩" (per
-`Camera-flow-specs.md` §8). (P1.9 sidebar simplification.)
+Rows expose camera identity, drag handle, selection, a relationship line that
+never overclaims adjacency, and the same per-camera disclosure chevron.
+Disclosed neighbor rows identify explicit Branch state where applicable and
+never use topology arrows or order-arrow controls. There is no standalone
+Neighbors section.
 
 ### Connections
 
@@ -302,7 +289,8 @@ not:
 
 `Camera 1 → Camera 2`
 
-> **Sketch note (no PNG edit):** `Design-png/Camera/Camera-2D.png`, `Camera-3D.png`, `Camera-sequence.png`, `Timeline-expanded.png` (pre-2026-08-21) and the 3 new P1.8 PNGs show `→` in sidebar Connections lists — **keep as-is**, docs are canonical; P3.1 logs as minor convention deviation per `P1.8-designer-brief.md §1`.
+Every active sketch follows this rule. `Design-png/README.md` is the canonical
+visual registry; no active topology list uses directional arrows.
 
 ---
 
@@ -549,28 +537,24 @@ Useful editor state should survive workspace switching during session.
 * timeline height
 * Camera playback context where valid
 
-### SHOULD preserve globally where practical
+### Shared view axis
 
-* active view per domain
-* active local authoring mode per workspace (e.g. Scene Plan `layout | staging`,
-  remembered for the session and never carried into Camera Plan)
-* relevant panel expansion state
-* selected entity
-* viewport preferences
-* snap/grid settings where semantically shared
-
-Example desired behavior:
+`Plan | 3D` is one shared shell value. Domain changes preserve that value:
 
 ```text
-Scene → 3D
+Scene → Plan
 switch Camera
-→ Camera opens previous Camera view
+→ Camera → Plan
 
+Camera → 3D
 switch Scene
-→ Scene returns to previous Scene view
+→ Scene → 3D
 ```
 
-This is preferred workspace memory, not a requirement to duplicate shell instances.
+Never restore a separate previous view per domain. Preserve the active Scene
+Plan local mode (`layout | staging`) for the session, but never carry it into
+Camera Plan. Relevant panel expansion, logical selection, viewport preferences,
+and semantically shared grid/snap settings should survive switching where valid.
 
 ---
 
@@ -588,16 +572,9 @@ Changes:
 * Camera Timeline expands from bottom
 * viewport becomes Camera representation of selected Plan/3D view
 
-Recommended timeline transition:
-
-* height
-* opacity
-* approximately 180–220 ms
-
-> **Amended 2026-08-21 — owner decision (P1.7 follow-up):** shell view/domain
-> switches are **instant** — no fade on workspace, sidebar, timeline, or
-> viewport swaps. The Camera Timeline appears/disappears without animation.
-> ("Do not animate the entire editor" now applies to all shell swaps.)
+Shell view/domain switches are **instant** — no fade on workspace, sidebar,
+timeline, or viewport swaps. Camera Timeline appears/disappears without
+animation; its expansion state remains unchanged.
 
 ## Camera → Scene
 

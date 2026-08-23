@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { chopinRuntime } from '$lib/content/chopin-project';
 import { cloneFixtureDocument } from '../content/__fixtures__/load-fixture-scene';
 import { createEditorShortcutHandler } from '$lib/editor/hooks/shortcuts.svelte';
@@ -366,6 +366,78 @@ describe('registerEditorShortcuts Escape cascade', () => {
 
 		expect(store.pendingNavigationCommand).toBeNull();
 		expect(store.statusMessage).toBe('Camera command cancelled');
+	});
+});
+
+describe('createEditorShortcutHandler — Scene mutation authority (P2.3)', () => {
+	it('keeps ineligible Staging-owned Scene shortcuts selection-only', () => {
+		const store = createFixtureEditorStore();
+		const entityId = store.document.entities[0]!.id;
+		expect(store.selectionActions.selectPlacement(entityId)).toBe(true);
+		const activeElement = {};
+		vi.stubGlobal('document', { activeElement });
+		vi.stubGlobal('HTMLElement', class {});
+		const handler = createEditorShortcutHandler(
+			store,
+			{
+				getViewportElement: () => ({ contains: () => true }) as unknown as HTMLElement,
+				getOutlinerElement: () => null,
+				getClusterNameInput: () => null
+			},
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			() => false
+		);
+		const beforeJson = store.canonicalJson;
+		const beforeHistory = store.historyVersion;
+
+		try {
+			for (const key of ['Delete', 'End']) handler(makeKeyEvent(key));
+			for (const key of ['d', 'g', 'a']) {
+				const event = makeKeyEvent(key);
+				Object.defineProperty(event, 'metaKey', { value: true });
+				handler(event);
+			}
+		} finally {
+			vi.unstubAllGlobals();
+		}
+
+		expect(store.canonicalJson).toBe(beforeJson);
+		expect(store.historyVersion).toBe(beforeHistory);
+		expect(store.selectedPlacementIds).toEqual([entityId]);
+	});
+
+	it('allows exactly the staging Delete command through the narrow delete gate', () => {
+		const store = createFixtureEditorStore();
+		const entityId = store.document.entities[0]!.id;
+		expect(store.selectionActions.selectPlacement(entityId)).toBe(true);
+		const activeElement = {};
+		vi.stubGlobal('document', { activeElement });
+		vi.stubGlobal('HTMLElement', class {});
+		const handler = createEditorShortcutHandler(
+			store,
+			{
+				getViewportElement: () => ({ contains: () => true }) as unknown as HTMLElement,
+				getOutlinerElement: () => null,
+				getClusterNameInput: () => null
+			},
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			() => false,
+			() => true
+		);
+		try {
+			handler(makeKeyEvent('Delete'));
+		} finally {
+			vi.unstubAllGlobals();
+		}
+		expect(store.document.entities.some((entity) => entity.id === entityId)).toBe(false);
+		expect(store.undo()).toBe(true);
+		expect(store.document.entities.some((entity) => entity.id === entityId)).toBe(true);
 	});
 });
 

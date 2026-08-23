@@ -1159,7 +1159,7 @@ describe('camera context contracts', () => {
 	it('keeps Scene-only sidebar controls out of the Camera domain and mounts no empty camera rail', () => {
 		const app = readLibSource('editor/app/EditorApp.svelte');
 		const sidebar = readLibSource('editor/app/EditorSidebar.svelte');
-		expect(sidebar).toContain("domain === 'scene' && in3d");
+		expect(sidebar).toContain("domain === 'scene'");
 		expect(sidebar).toContain("onAddRoom={domain === 'scene' ? startRoomDraft : undefined}");
 		expect(sidebar).toContain('{#if showScenePanelTabs}');
 		expect(app).not.toContain('CameraDomainRail');
@@ -1353,6 +1353,35 @@ describe('camera context contracts', () => {
 });
 
 describe('cross-domain selection contracts', () => {
+	it('keeps the Scene Plan Staging inspector eligibility-aware and Plan-transform scoped', () => {
+		const inspector = readLibSource('editor/EditorInspector.svelte');
+		expect(inspector).toContain('aria-label="Staging selection"');
+		expect(inspector).toContain('buildPlanSceneFootprintProjection');
+		expect(inspector).toContain('Not editable in Plan. Edit position in 3D.');
+		expect(inspector).toContain('Room-local Plan transform');
+		expect(inspector).toContain('Delete selected');
+		expect(inspector).toContain('{#if readOnly && !scenePlanStaging}');
+	});
+
+	it('routes Staging gestures through the existing Scene transaction and placement mutator seam', () => {
+		const workspace = readLibSource('editor/app/PlanWorkspace.svelte');
+		const viewport = readLibSource('editor/layout/LayoutPlanViewport.svelte');
+		expect(workspace).toContain('store.beginDocumentTransaction()');
+		expect(workspace).toContain('store.updatePlacementTransform(');
+		expect(workspace).toContain('store.commitDocumentTransaction()');
+		expect(workspace).toContain('store.cancelDocumentTransaction()');
+		expect(viewport).toContain('translatePlanSceneMembers(');
+		expect(viewport).toContain('rotatePlanSceneMembers(');
+		expect(viewport).toContain('withPlanSceneRotationHandle(');
+		expect(viewport).toContain('onSceneDelete?.()');
+	});
+
+	it('does not rerun cross-domain selection clearing on Plan mode switches', () => {
+		const shell = readLibSource('editor/app/EditorApp.svelte');
+		expect(shell).toContain('JSON.stringify(layoutInteraction.selection);');
+		expect(shell).toContain('untrack(() => activeSelection.onLayoutSelectionChanged())');
+	});
+
 	it('forwards onSelectionActivate from the store options into the reducer', () => {
 		let fired = 0;
 		const store = createEditorStore({

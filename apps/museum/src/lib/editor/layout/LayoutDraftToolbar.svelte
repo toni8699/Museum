@@ -3,6 +3,7 @@
 		cancelLayoutPrimitiveDraft,
 		clearLayoutDraft,
 		setLayoutDraftTool,
+		setPlanViewMode,
 		setLayoutViewMode,
 		togglePlanViewportOption,
 		type LayoutInteractionState,
@@ -16,13 +17,18 @@
 		interaction,
 		preview,
 		onCancelLayoutTransaction = () => false,
-		showViewToggle = true
+		showViewToggle = true,
+		showPlanModeToggle = false,
+		onPlanModeChange
 	}: {
 		interaction: LayoutInteractionState;
 		preview: LayoutPreviewState;
 		onCancelLayoutTransaction?: () => boolean;
 		/** the editor hides this when the top-level Plan | 3D switch owns view selection. */
 		showViewToggle?: boolean;
+		/** Scene Plan only; absent on Camera Plan, Scene 3D, and the relic. */
+		showPlanModeToggle?: boolean;
+		onPlanModeChange?: (mode: 'layout' | 'staging') => void;
 	} = $props();
 
 	function chooseView(mode: LayoutViewMode) {
@@ -35,6 +41,11 @@
 		setLayoutDraftTool(interaction, tool);
 	}
 
+	function choosePlanMode(mode: 'layout' | 'staging') {
+		if (onPlanModeChange) onPlanModeChange(mode);
+		else setPlanViewMode(interaction, mode);
+	}
+
 	function cancel() {
 		if (interaction.roomUnitDrag) onCancelLayoutTransaction();
 		clearLayoutDraft(interaction);
@@ -43,7 +54,13 @@
 	}
 </script>
 
-<div class="layout-toolbar" role="toolbar" aria-label="Layout drafting tools">
+<div class="layout-toolbar" role="toolbar" aria-label={interaction.planViewMode === 'staging' ? 'Scene Plan staging tools' : 'Layout drafting tools'}>
+	{#if showPlanModeToggle}
+		<div class="tool-group mode-group" role="group" aria-label="Scene Plan mode">
+			<button type="button" class:active={interaction.planViewMode === 'layout'} aria-pressed={interaction.planViewMode === 'layout'} onclick={() => choosePlanMode('layout')}>Layout</button>
+			<button type="button" class:active={interaction.planViewMode === 'staging'} aria-pressed={interaction.planViewMode === 'staging'} onclick={() => choosePlanMode('staging')}>Staging</button>
+		</div>
+	{/if}
 	{#if showViewToggle}
 		<div class="tool-group" aria-label="Layout view">
 			<button type="button" class:active={interaction.viewMode === 'plan'} aria-pressed={interaction.viewMode === 'plan'} onclick={() => chooseView('plan')}>Plan</button>
@@ -52,19 +69,23 @@
 	{/if}
 	<div class="tool-group" aria-label="Room drafting tool">
 		<button type="button" class:active={interaction.tool === 'select'} aria-pressed={interaction.tool === 'select'} onclick={() => chooseTool('select')}>Select</button>
-		<button type="button" class:active={interaction.tool === 'rectangle'} aria-pressed={interaction.tool === 'rectangle'} onclick={() => chooseTool('rectangle')}>Rect room</button>
-		<button type="button" class:active={interaction.tool === 'polygon'} aria-pressed={interaction.tool === 'polygon'} onclick={() => chooseTool('polygon')}>Polygon room</button>
+		{#if interaction.planViewMode === 'layout'}
+			<button type="button" class:active={interaction.tool === 'rectangle'} aria-pressed={interaction.tool === 'rectangle'} onclick={() => chooseTool('rectangle')}>Rect room</button>
+			<button type="button" class:active={interaction.tool === 'polygon'} aria-pressed={interaction.tool === 'polygon'} onclick={() => chooseTool('polygon')}>Polygon room</button>
+		{/if}
 	</div>
 	{#if interaction.viewMode === 'plan'}
 		<div class="tool-group options" aria-label="Plan options">
 			<button type="button" class:active={interaction.planView.snapEnabled} aria-pressed={interaction.planView.snapEnabled} onclick={() => togglePlanViewportOption(interaction, 'snapEnabled')}>Snap 0.25m</button>
 			<button type="button" class:active={interaction.planView.gridEnabled} aria-pressed={interaction.planView.gridEnabled} onclick={() => togglePlanViewportOption(interaction, 'gridEnabled')}>Grid</button>
-			<button type="button" class:active={interaction.planView.showTourOverlay} aria-pressed={interaction.planView.showTourOverlay} onclick={() => togglePlanViewportOption(interaction, 'showTourOverlay')}>Tour</button>
+			{#if interaction.planViewMode === 'layout'}
+				<button type="button" class:active={interaction.planView.showTourOverlay} aria-pressed={interaction.planView.showTourOverlay} onclick={() => togglePlanViewportOption(interaction, 'showTourOverlay')}>Tour</button>
+			{/if}
 		</div>
 	{:else}
 		<button type="button" class:active={preview.showCeilings} aria-pressed={preview.showCeilings} onclick={() => toggleLayoutCeilings(preview)}>Ceiling</button>
 	{/if}
-	{#if interaction.polygonPoints.length > 0 || interaction.rectangleStart || interaction.primitiveDraft || interaction.roomUnitDrag || interaction.tool === 'door' || interaction.tool === 'window'}
+	{#if interaction.planViewMode === 'layout' && (interaction.polygonPoints.length > 0 || interaction.rectangleStart || interaction.primitiveDraft || interaction.roomUnitDrag || interaction.tool === 'door' || interaction.tool === 'window')}
 		<button type="button" class="cancel" onclick={cancel}>Cancel</button>
 	{/if}
 </div>

@@ -15,7 +15,14 @@ export type PlanSceneFootprint = {
 	kind: 'model' | 'primitive';
 	primitive?: ScenePrimitiveEntity['primitive'];
 	points: LayoutVec2[];
+	presentation?: PlanSceneFootprintPresentation;
 };
+
+export type PlanSceneFootprintPresentation =
+	| 'passive'
+	| 'bridge-hover'
+	| 'active'
+	| 'selected';
 
 export type PlanSceneProjection = {
 	footprints: readonly PlanSceneFootprint[];
@@ -28,6 +35,8 @@ export type PlanSceneFootprintOptions = {
 	assetById?: (assetId: string) => Pick<Asset, 'placementSurface' | 'footprint'> | undefined;
 	/** Resolves session-aware scale; document scalar remains the fallback. */
 	getEffectiveScale?: (entity: SceneEntity) => PlanSceneEffectiveScale | undefined;
+	/** UI-only presentation; geometry/eligibility stays independent of it. */
+	presentationForEntity?: (entityId: string) => PlanSceneFootprintPresentation | undefined;
 };
 
 /**
@@ -53,13 +62,15 @@ export function buildPlanSceneFootprintProjection(
 		if (!scale) continue;
 		const points = projectFootprint(entity, localOutline, scale, rooms);
 		if (!points) continue;
+		const presentation = options.presentationForEntity?.(entity.id);
 		footprints.push({
 			key: geometryId(['plan', 'scene-footprint', entity.id]),
 			entityId: entity.id,
 			roomId: entity.roomId,
 			kind: entity.kind,
 			...(entity.kind === 'primitive' ? { primitive: entity.primitive } : {}),
-			points
+			points,
+			...(presentation ? { presentation } : {})
 		});
 	}
 

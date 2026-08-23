@@ -20,7 +20,7 @@
 import type { LayoutDocument } from '$lib/layout/layout-types';
 import type { SceneDocument } from '$lib/content/scene';
 import type { CameraConnectionDirection } from '$lib/types/scene';
-import type { LayoutSelection } from './layout/layout-interaction';
+import type { LayoutSelection, PlanViewMode } from './layout/layout-interaction';
 import type { WorkspaceSelection, NavigationSelection } from './editor-types';
 import type { ActiveEditorSelection } from './app/active-editor-selection.svelte';
 import type { EditorDomain } from './app/editor-view-state.svelte';
@@ -380,25 +380,26 @@ export function isUnifiedTreeRowSelected(
  * Domain×view-aware pick gating (P1.1, G1). One predicate over the shell's
  * two axes:
  *
- * - **layout rows** (room/wall/opening/anchor/object) are interactive in the
- *   Scene domain, both views (Scene → Plan drafting + Scene → 3D picks). In
- *   the Camera domain they are read-only spatial context (§C §4.6).
- * - **scene rows** (cluster/entity) are interactive only in Scene → 3D — in
- *   Scene → Plan they render read-only (`aria-disabled`, no-op) per S3's
- *   locked "Plan selection always activates the layout domain".
+ * - **layout rows** (room/wall/opening/anchor/object) are interactive in Scene
+ *   3D and Scene Plan Layout mode. Staging keeps them visible but inert.
+ * - **scene rows** (cluster/entity) are interactive in Scene 3D and Scene Plan
+ *   Staging mode. Layout mode keeps them visible but inert.
  * - **camera rows** are interactive in the Camera domain, both views (the
  *   tree embeds the live `CameraFlowPanel`; its own `interactive` prop keys
  *   off the camera-domain rule).
  *
  * Read-only rows stay `aria-disabled` no-ops; they never activate a domain
- * outside their own. P2 (plan staging) flips the scene branch by extending
- * this predicate.
+ * outside their own.
  */
 export function isUnifiedTreeRowInteractive(
 	row: UnifiedTreeRow,
 	domain: EditorDomain,
-	view: EditorViewMode
+	view: EditorViewMode,
+	planViewMode: PlanViewMode = 'layout'
 ): boolean {
+	const scene3d = domain === 'scene' && view === '3d';
+	const scenePlanLayout = domain === 'scene' && view === 'plan' && planViewMode === 'layout';
+	const scenePlanStaging = domain === 'scene' && view === 'plan' && planViewMode === 'staging';
 	switch (row.kind) {
 		case 'camera-node':
 		case 'camera-connection':
@@ -410,9 +411,9 @@ export function isUnifiedTreeRowInteractive(
 		case 'opening':
 		case 'interiorAnchor':
 		case 'object':
-			return domain === 'scene';
+			return scene3d || scenePlanLayout;
 		default:
-			return domain === 'scene' && view === '3d';
+			return scene3d || scenePlanStaging;
 	}
 }
 

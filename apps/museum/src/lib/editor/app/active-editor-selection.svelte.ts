@@ -30,7 +30,12 @@
  * scene-activation through it without rework.
  */
 
-import { clearLayoutSelection, type LayoutInteractionState, type LayoutSelection } from '../layout/layout-interaction';
+import {
+	clearLayoutSelection,
+	type LayoutInteractionState,
+	type LayoutSelection,
+	type PlanViewMode
+} from '../layout/layout-interaction';
 import type { NavigationSelection, WorkspaceSelection } from '../editor-types';
 import type { EditorStore } from '../editor-store.svelte';
 import type { EditorViewState } from './editor-view-state.svelte';
@@ -58,8 +63,9 @@ export function isWorkspaceSelectionActionable(workspace: WorkspaceSelection): b
  *
  * - **camera** domain → navigation slot if non-none, else `none` (scene/layout
  *   slots are memory, never active).
- * - **scene** domain → layout > scene priority; the navigation slot is ignored
- *   (camera picks are memory while Scene is active).
+ * - **scene** domain → Layout Plan keeps layout > scene priority; Staging Plan
+ *   gives authority to the Scene placement slot. The navigation slot stays
+ *   memory while Scene is active.
  *
  * View switches never change the result (the slots are untouched); domain
  * switches re-gate which slot is active.
@@ -68,13 +74,19 @@ export function deriveActiveSelection(
 	domain: 'scene' | 'camera',
 	workspace: WorkspaceSelection,
 	navigation: NavigationSelection,
-	layoutSelection: LayoutSelection
+	layoutSelection: LayoutSelection,
+	planViewMode: PlanViewMode = 'layout'
 ): ActiveEditorSelection {
 	if (domain === 'camera') {
 		if (navigation.kind !== 'none') {
 			return { domain: 'camera', selection: navigation };
 		}
 		return { domain: 'none' };
+	}
+	if (planViewMode === 'staging') {
+		return isWorkspaceSelectionActionable(workspace)
+			? { domain: 'scene', selection: workspace }
+			: { domain: 'none' };
 	}
 	if (layoutSelection.kind !== 'none') {
 		return { domain: 'layout', selection: layoutSelection };
@@ -109,7 +121,8 @@ export class EditorActiveSelectionStore {
 			this.#viewState.domain,
 			this.#store.selection.workspace,
 			this.#store.selection.navigation,
-			this.#layoutInteraction.selection
+			this.#layoutInteraction.selection,
+			this.#viewState.activeView === 'plan' ? this.#layoutInteraction.planViewMode : 'layout'
 		)
 	);
 
@@ -128,6 +141,15 @@ export class EditorActiveSelectionStore {
 			return true;
 		}
 		return this.#store.selectionActions.deselect();
+	}
+
+	/** Clear Scene placement selection only; Layout and Camera memories survive. */
+	deselectSceneSelection(): boolean {
+		if (this.#viewState.domain !== 'scene' || !isWorkspaceSelectionActionable(this.#store.selection.workspace)) {
+			return false;
+		}
+		this.#store.selectionActions.clearPlacementSelection();
+		return true;
 	}
 
 	/**
@@ -167,6 +189,13 @@ export class EditorActiveSelectionStore {
 	 */
 	onLayoutSelectionChanged(): void {
 		if (this.#layoutInteraction.selection.kind === 'none') return;
+		// Both slots are durable memory in Scene Plan. A latent Layout change
+		// must not detach the authoritative Scene pick while Staging is active.
+		if (
+			this.#viewState.domain === 'scene' &&
+			this.#viewState.activeView === 'plan' &&
+			this.#layoutInteraction.planViewMode === 'staging'
+		) return;
 		const roomId = this.#store.selectedRoomId;
 		const roomOnlyWorkspace: WorkspaceSelection =
 			roomId === null

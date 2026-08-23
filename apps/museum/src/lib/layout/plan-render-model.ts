@@ -14,6 +14,9 @@ export type PlanStyleToken =
 	| 'room-outline'
 	| 'room-outline-selected'
 	| 'scene-footprint'
+	| 'scene-footprint-bridge-hover'
+	| 'scene-footprint-active'
+	| 'scene-footprint-selected'
 	| 'wall-line'
 	| 'wall-line-selected'
 	| 'wall-line-opening-selected'
@@ -168,6 +171,7 @@ export type PlanSceneProjection = {
 		kind: 'model' | 'primitive';
 		primitive?: 'box' | 'plane' | 'cylinder' | 'sphere';
 		points: LayoutVec2[];
+		presentation?: 'passive' | 'bridge-hover' | 'active' | 'selected';
 	}[];
 };
 
@@ -431,7 +435,14 @@ export function buildPlanRenderModel(
 		kind: 'polygon',
 		key: footprint.key,
 		points: footprint.points.map(([x, z]) => [x, z] as LayoutVec2),
-		style: 'scene-footprint'
+		style:
+			footprint.presentation === 'selected'
+				? 'scene-footprint-selected'
+				: footprint.presentation === 'bridge-hover'
+					? 'scene-footprint-bridge-hover'
+					: footprint.presentation === 'active'
+						? 'scene-footprint-active'
+						: 'scene-footprint'
 	}));
 
 	const cameraPaths: PlanRenderPrimitive[] = [];

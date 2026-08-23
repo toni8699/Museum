@@ -13,6 +13,8 @@
 	import EditorPlacementInspector from './EditorPlacementInspector.svelte';
 	import EditorPrimitiveInspector from './EditorPrimitiveInspector.svelte';
 	import EditorTransformInspector from './EditorTransformInspector.svelte';
+	import EditorNumberField from './fields/EditorNumberField.svelte';
+	import { degreesToRadians, radiansToDegrees, type PlacementTransform } from './editor-transform';
 	import {
 		deleteLayoutObject,
 		deleteLayoutOpening,
@@ -46,6 +48,8 @@
 	} from './editor-store.svelte';
 	import type { EditorActiveSelectionStore } from './app/active-editor-selection.svelte';
 	import type { EditorViewMode } from './app/editor-view-mode';
+	import { buildPlanSceneFootprintProjection } from './layout/plan-scene-footprint';
+	import { resolveEditorPlacementScale } from './scale-vector';
 
 	let {
 		store,
@@ -116,10 +120,17 @@
 	);
 	// panel domain: the active selection when one is provided and a
 	// domain is active (S3 view-switch preservation), else the legacy workspace.
+	const scenePlanStaging = $derived(
+		viewMode === 'plan' &&
+		viewState?.domain === 'scene' &&
+		layoutInteraction.planViewMode === 'staging'
+	);
 	const domain = $derived<EditorWorkspace>(
-		activeSelection && activeSelection.active.domain !== 'none'
-			? activeSelection.active.domain
-			: store.currentWorkspace
+		scenePlanStaging
+			? 'scene'
+			: activeSelection && activeSelection.active.domain !== 'none'
+				? activeSelection.active.domain
+				: store.currentWorkspace
 	);
 	// Plan authority is workspace-specific (P1.5): Camera → Plan mounts the
 	// live Camera Plan inspector (timing + X/Z authoring); Scene → Plan stays
@@ -143,6 +154,29 @@
 	);
 	const hasPlacementSelection = $derived(
 		Boolean(store.selectedCluster) || store.selectedPlacementIds.length > 0
+	);
+	const stagingEligibleIds = $derived.by(() => {
+		void store.placementScaleVectorVersion;
+		return new Set(
+			buildPlanSceneFootprintProjection(store.document, store.rooms, {
+				getEffectiveScale: (entity) =>
+					resolveEditorPlacementScale(entity.scale, store.getPlacementScaleVector(entity.id))
+			}).footprints.map((footprint) => footprint.entityId)
+		);
+	});
+	const stagingIneligibleCount = $derived(
+		store.selectedPlacementIds.filter((id) => !stagingEligibleIds.has(id)).length
+	);
+	const stagingTransformAvailable = $derived(
+		scenePlanStaging &&
+		store.selectedClusterId === null &&
+		store.selectedPlacementIds.length > 0 &&
+		stagingIneligibleCount === 0
+	);
+	const stagingSingleTransform = $derived(
+		stagingTransformAvailable && store.selectedPlacementIds.length === 1
+			? store.selectedTransform
+			: undefined
 	);
 	const canDuplicateSelection = $derived(store.selectedPlacementIds.length > 0);
 	const layoutRooms = $derived(layoutPreview.project.layout.floors.flatMap((floor) => floor.rooms));
@@ -407,6 +441,40 @@
 		store.setStatusMessage(outcome.result.success ? `Updated object ${field}` : `Object rejected: ${outcome.result.message}`);
 	}
 
+	function commitStagingTransform(next: PlacementTransform): void {
+		const id = store.selectedPlacementId;
+		if (!stagingSingleTransform || !id) return;
+		if (store.commitPlacementTransform(id, next)) store.setStatusMessage('Updated staged object');
+	}
+
+	function updateStagingPosition(index: 0 | 2, value: number): void {
+		const transform = stagingSingleTransform;
+		if (!transform) return;
+		const position = [...transform.position] as typeof transform.position;
+		position[index] = value;
+		commitStagingTransform({
+			...transform,
+			position,
+			rotation: [...transform.rotation]
+		});
+	}
+
+	function updateStagingYaw(degrees: number): void {
+		const transform = stagingSingleTransform;
+		if (!transform) return;
+		const rotation = [...transform.rotation] as typeof transform.rotation;
+		rotation[1] = degreesToRadians(degrees);
+		commitStagingTransform({
+			...transform,
+			position: [...transform.position],
+			rotation
+		});
+	}
+
+	function deleteStagingSelection(): void {
+		if (stagingTransformAvailable) store.deleteSelection();
+	}
+
 	function armLayoutPlaceTool(tool: 'door' | 'window' | LayoutPrimitiveTool) {
 		if ((tool === 'box' || tool === 'cylinder' || tool === 'sphere') && layoutInteraction.viewMode !== 'plan') {
 			store.setStatusMessage('Primitive placement is Plan-only');
@@ -546,7 +614,7 @@
 		{/if}
 	</header>
 
-	{#if readOnly}
+	{#if readOnly && !scenePlanStaging}
 		<section class="plan-readonly-card" aria-label="Read-only in Plan">
 			<div class="plan-readonly-head">
 				<Info size={15} aria-hidden="true" />
@@ -707,6 +775,65 @@
 				</div>
 			{/if}
 		</section>
+	{:else if scenePlanStaging}
+		<section class="staging-selection" aria-label="Staging selection">
+			<div class="section-heading">
+				<h2>Staging selection</h2>
+				<span class="staging-badge">{stagingTransformAvailable ? 'Plan transform' : 'Read-only'}</span>
+			</div>
+			{#if hasPlacementSelection}
+				{#if store.selectedCluster}
+					<p><strong>{store.selectedCluster.name}</strong></p>
+					<p>{store.selectedPlacementIds.length} objects · {store.selectedCluster.id}</p>
+				{:else if store.selectedPlacementIds.length > 1}
+					<p><strong>{store.selectedPlacementIds.length} objects selected</strong></p>
+					<p>{store.selectedPlacementIds.join(' · ')}</p>
+				{:else if selectedObject}
+					<p><strong>{selectedObject.name}</strong></p>
+					<p>{selectedObject.kind} · {selectedObject.id}</p>
+				{/if}
+				{#if stagingIneligibleCount > 0}
+					<p class="staging-warning" role="status">
+						{stagingIneligibleCount === store.selectedPlacementIds.length
+							? 'Not editable in Plan. Edit position in 3D.'
+							: 'Some selected items are not editable in Plan.'}
+					</p>
+				{:else}
+					{#if stagingSingleTransform}
+						<fieldset class="staging-transform-fields">
+							<legend>Room-local Plan transform</legend>
+							<div class="staging-field-grid">
+								<EditorNumberField
+									label="X"
+									value={stagingSingleTransform.position[0]}
+									step={layoutInteraction.planView.snapEnabled ? 0.25 : 0.01}
+									oncommit={(value) => updateStagingPosition(0, value)}
+								/>
+								<EditorNumberField
+									label="Z"
+									value={stagingSingleTransform.position[2]}
+									step={layoutInteraction.planView.snapEnabled ? 0.25 : 0.01}
+									oncommit={(value) => updateStagingPosition(2, value)}
+								/>
+								<EditorNumberField
+									label="Yaw (°)"
+									value={radiansToDegrees(stagingSingleTransform.rotation[1])}
+									step={15}
+									fractionDigits={2}
+									oncommit={updateStagingYaw}
+								/>
+							</div>
+						</fieldset>
+					{:else}
+						<p class="staging-status">Drag selected footprints together or use the primary rotation handle.</p>
+					{/if}
+					<button type="button" class="layout-danger" onclick={deleteStagingSelection}>Delete selected</button>
+				{/if}
+				<button type="button" class="deselect" onclick={() => store.selectionActions.deselect()}>Clear selection</button>
+			{:else}
+				<p>Select a Scene footprint in Plan or choose an item in the hierarchy.</p>
+			{/if}
+		</section>
 	{:else if showAssetInspector}
 		{#if selectedAsset}
 			<section class="asset-details" aria-label="Asset details">
@@ -862,6 +989,7 @@
 		</section>
 	{/if}
 
+	{#if !scenePlanStaging}
 	<section class="camera-controls" aria-label="Editor camera controls">
 		<h2>Camera</h2>
 		<p>Middle-drag pans. Camera-node rows frame their authored eye and target.</p>
@@ -875,6 +1003,7 @@
 			</div>
 		</label>
 	</section>
+	{/if}
 
 	<section class="lighting" aria-label="Viewport lighting">
 		<h2>Lighting</h2>
@@ -980,6 +1109,15 @@
 		cursor: pointer;
 	}
 	.plan-readonly-more:hover { border-color: #7fa9d6; color: #eaf3fd; }
+	.staging-selection { display: flex; flex-direction: column; gap: 0.65rem; }
+	.staging-selection p { margin: 0; color: #aaa39a; font-size: 0.72rem; line-height: 1.4; overflow-wrap: anywhere; }
+	.staging-selection p strong { color: #eee9e1; font-size: 0.82rem; }
+	.staging-badge { border: 1px solid #596675; border-radius: 999px; padding: 0.12rem 0.38rem; color: #b9c8d8; font-size: 0.6rem; }
+	.staging-selection .staging-warning { color: #efc7c7; }
+	.staging-selection .staging-status { color: #b9c8d8; }
+	.staging-transform-fields { margin: 0; border: 1px solid #343a43; border-radius: 0.35rem; padding: 0.55rem; }
+	.staging-transform-fields legend { padding: 0 0.3rem; color: #c8d3df; font-size: 0.68rem; }
+	.staging-field-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.4rem; }
 	.plan-footer-note {
 		display: flex;
 		align-items: flex-start;

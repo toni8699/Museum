@@ -49,9 +49,9 @@ Shipped as of 2026-08-22 (not assessed here): **P1.1–P1.9, P1.7 review-fixes c
 | **P1.6** | 56 | 95% | — | Sol high | 0 | shipped |
 | **P1.7** | 45 | 76% | Luna high | DeepSeek V4 Flash | +1 | shipped |
 | **P2.1** | 48 | 81% | Luna xhigh | DeepSeek V4 Flash | +1 | shipped |
-| **P2.2** | 53 | 90% | — | Sol medium | +1 | open |
-| **P2.3** | 55 | 93% | — | Sol high | +1 | open |
-| **P2.4** | 38 | 64% | Luna medium | DeepSeek V4 Flash | 0 | open |
+| **P2.2** | 53 | 90% | — | Sol medium | +1 | shipped |
+| **P2.3** | 55 | 93% | — | Sol high | +1 | shipped |
+| **P2.4** | 38 | 64% | Luna medium | DeepSeek V4 Flash | 0 | shipped |
 | **P3.1** | 52 | 88% | — | Sol medium | +2 | open |
 | **P3.2** | 51 | 86% | Luna max | DeepSeek V4 Flash (→ Sol medium if typography/icon judgment bites) | 0 | open |
 | **P3.3** | 45 | 76% | Luna high | DeepSeek V4 Flash | +1 | open |

@@ -98,6 +98,12 @@ describe('PlanSvg adapter boundary', () => {
 });
 
 describe('LayoutPlanViewport boundary', () => {
+	it('restores both generic and room-unit preview snapshots when local interaction is cancelled', () => {
+		const source = sourceOf(VIEWPORT_FILE);
+		expect(source).toContain('if (dragSnapshot) restoreLayoutPreviewSnapshot(preview, dragSnapshot);');
+		expect(source).toContain('if (roomUnitSnapshot) restoreLayoutPreviewSnapshot(preview, roomUnitSnapshot);');
+	});
+
 	it('invalidates passive Scene projection with live layout frame mutations', () => {
 		const source = sourceOf(VIEWPORT_FILE);
 		const projection = source.match(/const sceneProjection = \$derived\.by\(\(\) => \{[\s\S]*?\n\t\}\);/u)?.[0];

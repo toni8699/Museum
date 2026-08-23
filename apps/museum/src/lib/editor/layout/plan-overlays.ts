@@ -88,6 +88,45 @@ export function rotationHandleScreenPoint(
 	return [base[0] + (handle.offsetPx?.[0] ?? 0), base[1] + (handle.offsetPx?.[1] ?? 0)];
 }
 
+/** Convert a world-space pivot/handle pair for a component-owned SVG overlay. */
+export function planHandleScreenPoints(
+	planView: PlanViewportState,
+	pivot: LayoutVec2,
+	handle: LayoutVec2
+): { pivot: LayoutVec2; handle: LayoutVec2 } {
+	return {
+		pivot: worldToPlanScreen(planView, pivot),
+		handle: worldToPlanScreen(planView, handle)
+	};
+}
+
+/** Add the P2 Scene placement rotation arm without moving SVG rendering into the viewport. */
+export function withPlanSceneRotationHandle(
+	projection: PlanInteractionProjection,
+	overlay: { entityId: string; pivot: LayoutVec2; handle: LayoutVec2 } | null
+): PlanInteractionProjection {
+	if (!overlay) return projection;
+	return {
+		...projection,
+		selection: [
+			...projection.selection,
+			{
+				kind: 'polyline',
+				key: geometryId(['plan', 'scene-overlay', 'rotation-arm', overlay.entityId]),
+				points: [overlay.pivot, overlay.handle],
+				style: 'rotation-arm'
+			},
+			{
+				kind: 'circle',
+				key: geometryId(['plan', 'scene-overlay', 'rotation-handle', overlay.entityId]),
+				center: overlay.handle,
+				radiusPx: 7,
+				style: 'rotation-handle'
+			}
+		]
+	};
+}
+
 function draftPolyline(interaction: LayoutInteractionState): LayoutVec2[] | null {
 	if (interaction.tool === 'rectangle') return rectanglePoints(interaction);
 	return interaction.polygonPoints.length > 0 ? interaction.polygonPoints : null;

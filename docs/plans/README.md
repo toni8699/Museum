@@ -58,7 +58,7 @@ Policy rules:
 |---|------|--------|------------|-----|
 | — | Plan-system renewal + documentation rework (process row — created this tracker and the five-doc model) | shipped | H1 gate | archived → [2026-08-17-plan-system-renewal.md](archive/plans/2026-08-17-plan-system-renewal.md) |
 | P1 | Camera overhaul | shipped | renewal | archived → [2026-08-18-P1-camera-overhaul.md](../archive/plans/2026-08-18-P1-camera-overhaul.md) |
-| P2 | Plan staging mode — 2D furnishing | **in-progress — P2.1 shipped 2026-08-23; P2.2 next** | P1 + P9 | [2026-08-18-P2-plan-staging.md](2026-08-18-P2-plan-staging.md) |
+| P2 | Plan staging mode — 2D furnishing | **shipped 2026-08-23 — P2.1–P2.4 complete** | P1 + P9 | archived → [2026-08-18-P2-plan-staging.md](../archive/plans/2026-08-18-P2-plan-staging.md) |
 | P3 | UI overhaul — primarily visual reconciliation/refresh pass over settled surfaces; context-menu interaction slice folded in (P3.4/P3.5) | approved | P9 + P1 (per-increment; P3.5 also P8; staging-dependent items await P2) | [2026-08-18-P3-ui-overhaul.md](2026-08-18-P3-ui-overhaul.md) |
 | P4 | Client GLB import | proposed | renewal | [2026-08-18-P4-glb-import.md](2026-08-18-P4-glb-import.md) |
 | P5 | Measured optimization and scale | proposed | renewal | [2026-08-18-P5-measured-optimization.md](2026-08-18-P5-measured-optimization.md) |
@@ -97,7 +97,8 @@ three-surface playhead rewiring) before that increment starts. The prior camera-
 [2026-08-18 scope decision](archive/plans/2026-08-18-scope-decision-camera-first.md);
 the 2026-08-21 decision extends the camera phase rather than reversing it.
 P9 shipped 2026-08-23 as the docs/PNG-only canonical design reconciliation;
-P2 is now the next action. P4/P5 stay unscheduled until the owner re-prioritizes.
+P2 shipped 2026-08-23 and P3 is now the next approved plan. P4/P5 stay
+unscheduled until the owner re-prioritizes.
 
 P1 **closed 2026-08-22** — shipped 2026-08-21 with all increments through
 **P1.9** (camera sidebar simplification: neighbor dropdown · drag-only reorder
@@ -168,8 +169,9 @@ prefixed.
 - `archived → archive/plans/2026-08-21-P1.9-sidebar-simplification.md` (shipped 2026-08-21 — final P1 slice)
 - `archived → archive/plans/2026-08-21-P1.7-review-fixes-2d-viewport-persistence.md` (P1.7 review fixes + close-out — shipped 2026-08-21, archived 2026-08-22; closes P1)
 - `archived → ../archive/plans/2026-08-23-P9-design-reconciliation.md` (shipped 2026-08-23 — docs/PNG prerequisite before P2)
+- `archived → ../archive/plans/2026-08-18-P2-plan-staging.md` (shipped 2026-08-23 — Scene Plan staging complete)
 
 **Sources:** all source content is folded into the umbrella docs (P1 §A–§D ·
 P2 §A · P4 §A · P5 §A); the original source files were deleted 2026-08-18.
 
-**Not archived (active):** this tracker · the umbrella plans (P1–P5).
+**Not archived (active):** this tracker · the remaining umbrella plans (P3–P5).

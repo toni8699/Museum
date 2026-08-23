@@ -79,11 +79,8 @@
 	const clusteredPlacementIds = $derived(
 		new Set((store.document.clusters ?? []).flatMap((cluster) => cluster.memberIds))
 	);
-	// P1.1 (G1) — per-row-type interactivity. Scene/layout row actions are
-	// interactive only in Scene → 3D; camera rows (the embedded flow panel)
-	// are interactive in the Camera domain, both views. Layout-row *selection*
-	// follows the model predicate (`isUnifiedTreeRowInteractive`), which stays
-	// domain×view-aware.
+	// Destructive Scene row actions remain 3D-only in P2.2. Row selection uses
+	// the mode-aware predicate below: Layout owns Layout mode, Scene owns Staging.
 	const sceneInteractive = $derived(domain === 'scene' && view === '3d');
 	const cameraInteractive = $derived(domain === 'camera');
 	// S10.1 — hierarchy filter: narrows the Rooms tree by a case-insensitive
@@ -192,7 +189,7 @@
 	}
 
 	function roomRowInteractive(row: UnifiedTreeRow): boolean {
-		return isUnifiedTreeRowInteractive(row, domain, view);
+		return isUnifiedTreeRowInteractive(row, domain, view, layoutInteraction.planViewMode);
 	}
 
 	function selectRoom(room: UnifiedTreeRoom) {

@@ -82,6 +82,8 @@ function hasRealWorkspacePick(workspace: WorkspaceSelection): boolean {
 	);
 }
 
+export type EditorSelectionActivation = 'workspace' | 'navigation';
+
 export class EditorSelectionStore {
 	#session: EditorSessionState | null = null;
 
@@ -91,7 +93,7 @@ export class EditorSelectionStore {
 	 * clears the layout selection here; the no-op default keeps the frozen
 	 * relic untouched. Room-only placement and deselect never fire it.
 	 */
-	#onSelectionActivate: (() => void) | null = null;
+	#onSelectionActivate: ((source: EditorSelectionActivation) => void) | null = null;
 
 	/**
 	 * the only injection seam for the cross-domain hook: the store is
@@ -99,7 +101,7 @@ export class EditorSelectionStore {
 	 * passes the callback through `createEditorStore` options and this
 	 * setter, not a constructor arg.
 	 */
-	setOnSelectionActivate(callback: (() => void) | null): void {
+	setOnSelectionActivate(callback: ((source: EditorSelectionActivation) => void) | null): void {
 		this.#onSelectionActivate = callback;
 	}
 
@@ -144,7 +146,7 @@ export class EditorSelectionStore {
 		// a real pick activates the scene domain and detaches the
 		// previous domain (layout). Fires after the internal cross-clearing so
 		// layout is the last thing cleared (detach-then-attach ordering).
-		if (hasRealWorkspacePick(s)) this.#onSelectionActivate?.();
+		if (hasRealWorkspacePick(s)) this.#onSelectionActivate?.('workspace');
 	}
 
 	setNavigation(s: NavigationSelection) {
@@ -168,7 +170,7 @@ export class EditorSelectionStore {
 		}
 		// a non-none navigation activates the camera domain and
 		// detaches the previous domain (layout).
-		if (s.kind !== 'none') this.#onSelectionActivate?.();
+		if (s.kind !== 'none') this.#onSelectionActivate?.('navigation');
 	}
 
 	setDiscovery(

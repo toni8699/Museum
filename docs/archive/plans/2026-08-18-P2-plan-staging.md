@@ -1,10 +1,10 @@
 # P2 — Plan staging mode (umbrella)
 
 **Date:** 2026-08-18
-**Status:** In progress — P2.1 shipped 2026-08-23; umbrella scope unchanged from the approved C1 plan. Execution decomposition and review findings expanded 2026-08-21.
-**Tracker:** [`docs/plans/README.md`](README.md) — **P2**, depends on: P1 + P9
-**Canonical specs (2026-08-19):** [`Design-shell-specs.md`](../Design-specs/Design-shell-specs.md)
-(shell/workspace exposure) · [`Design-specs.md`](../Design-specs/Design-specs.md)
+**Status:** Shipped 2026-08-23 — P2.1–P2.4 complete, uncommitted.
+**Tracker:** [`docs/plans/README.md`](../../plans/README.md) — **P2**, depends on: P1 + P9
+**Canonical specs (2026-08-19):** [`Design-shell-specs.md`](../../Design-specs/Design-shell-specs.md)
+(shell/workspace exposure) · [`Design-specs.md`](../../Design-specs/Design-specs.md)
 (UI design system). P2 is a **workspace-local mode inside Scene → Plan**, not a
 new workspace; §B records the shell-conformance reconciliation.
 **Folded source (2026-08-18, content preserved; original deleted):** §A — the
@@ -58,7 +58,103 @@ P2.1a–c shipped uncommitted. `Asset.footprint` metadata now validates canonica
 dimensions and simple outlines; live Scene projection applies effective uniform
 or session scale, entity yaw, room-local translation, and the live room frame;
 eligible models and primitives render as passive dashed layer-6 Plan polygons.
-Camera Plan receives no Scene projection. P2.2 remains next.
+Camera Plan receives no Scene projection. P2.2 is now implemented; P2.3 remains next.
+
+### P2.2 interaction decisions (locked 2026-08-23)
+
+Browser-reviewer advice was checked against the live selection reducer,
+viewport picker, projection order, and canonical Scene Plan PNGs. No P2.2
+owner decision remains open.
+
+- **Mode control.** Add one always-mounted `Layout | Staging` segmented group
+  as the first group in the existing Scene Plan contextual toolbar. Its
+  position is identical in populated/empty and Layout/Staging states. Layout
+  shows architecture tools after it; Staging shows Select plus applicable
+  Snap/Grid/View controls only. It never mounts in Scene 3D or either Camera
+  workspace.
+- **Hit resolver.** Add a pure Scene-footprint resolver isolated from
+  `resolvePlanHit`. First resolve true polygon containment; only when none
+  contains the point, resolve edge distance within **6 CSS px** converted by
+  current pixels-per-metre. Within either class, reverse stable
+  render/document order wins (last rendered is topmost). No repeated-click
+  cycling or nearest-object ranking in P2 v1. Layout clicks never call the
+  Scene resolver; Staging clicks never call the Layout resolver.
+- **Canonical Scene multi-selection.** Staging reuses the existing ordered
+  placement selection. Plain click replaces via `selectPlacement`; Shift-click
+  adds only via `selectPlacements` (an already-selected entity remains);
+  Cmd/Ctrl-click toggles via `togglePlacement`. Last selected stays primary;
+  every eligible selected member may show selected footprint treatment.
+  P2.2 adds no cluster hit target and promises no group mutation behavior.
+- **Ineligible remembered selection.** Mode entry never clears or normalizes
+  Scene selection. Eligible selected placements may render footprints;
+  ineligible selected placements have no footprint or handles. If any selected
+  member is P2-ineligible, the whole Plan Transform surface is disabled — never
+  mutate only the visible eligible subset. All-ineligible selection shows
+  `Not editable in Plan. Edit position in 3D.`; mixed selection shows
+  `Some selected items are not editable in Plan.` Existing cluster selection
+  stays remembered but is not Plan-editable in P2 v1. Empty Staging click
+  clears only Scene selection; Layout selection memory survives.
+- **Layout → Staging bridge.** Only Layout + Select + idle may resolve Scene
+  hover. Hover strengthens the eligible footprint without selecting it and
+  shows a compact `Edit in Staging` chip. The chip alone switches mode and
+  selects that entity; clicking the passive footprint continues normal Layout
+  behavior. Escape, leaving footprint + chip, tool/gesture start, or
+  mode/view/domain change dismisses the bridge. Activation changes no document
+  and creates no history entry.
+- **Mode transitions.** Layout → Staging cancels any transient Layout
+  draft/drag, resets the Layout tool to Select, then changes authority.
+  Staging → Layout also returns to Select; stale Wall/Room/Door/etc. tools do
+  not resurrect. Both committed selection slots remain unchanged. The local
+  mode itself survives Scene Plan → Scene 3D → Scene Plan.
+
+Required P2.2 tests pin: control placement/absence; both selection slots across
+mode/domain/view changes; transition cancellation and zero history; containment
+before halo; zoom-invariant 6 px halo; reverse-order overlap winner; no cycling;
+literal plain/Shift/Cmd-Ctrl selection semantics; mixed/ineligible/cluster
+states; bridge hover/activation/dismissal; `Hierarchy | Assets`; no unplaced
+asset activation; no Camera/tour controls; Camera Plan still receives no Scene
+projection.
+
+### P2.2 close (2026-08-23)
+
+P2.2 is implemented uncommitted. Scene Plan now owns a local `layout | staging`
+mode; Staging routes pointer hits through the pure footprint resolver and the
+canonical Scene placement selection actions. Layout keeps architecture hit
+authority. The Layout → Staging bridge, ineligible-selection warnings,
+selection presentation states, Scene Plan `Hierarchy | Assets`, and
+Camera/tour gating are wired. No Scene document mutation or history entry is
+created by this slice; P2.3 owns staging drag/rotate/delete.
+
+The implementation review then closed five gaps: reducer/effect paths now
+preserve both selection slots across mode switches; hierarchy row authority
+follows the local mode; Scene mutation shortcuts are inert in Staging; room-unit
+preview cancellation restores its snapshot; and Inspector exposes read-only
+selection identity plus mixed/ineligible status.
+
+Verification: `npm test` — 2,008 passed / 1 skipped; `npm run check` — 0
+errors / 0 warnings; `npm run build` — clean apart from existing Vite
+unused-import/chunk-size warnings; `git diff --check` — clean.
+
+### P2.3 + P2.4 close (2026-08-23)
+
+P2.3a–d route eligible Staging selection through the existing Scene placement
+mutator and document transaction seam. Plan-world drag applies one rigid delta
+to the selected set and inverse-resolves every result through its room, while
+preserving local Y, pitch, roll, scale, and 3D-only state. The primary
+placement owns a render-model rotation arm at its canonical pivot; yaw follows
+Three.js positive-Y convention and Shift snaps the gesture delta to 15°.
+Single-selection Inspector X/Z/yaw fields and both viewport/hierarchy
+Delete/Backspace use one Scene command each. Duplicate, group, select-all,
+drop-to-floor, and scale remain unavailable in Staging.
+
+P2.4 closes the mandatory regression surface: translated/rotated-room inverse
+math, uniform drag delta, Shift snap semantics, Y/pitch/roll preservation,
+transaction commit/undo, cancel restoration, no-op history, narrow Delete
+authority, render-boundary delegation, and the already-shipped room-follow and
+Layout-history behavior. The placement contract records the locked B3 rule and
+P2 mutation semantics. Final verification: `npm test` — 2,015 passed / 1
+skipped; `npm run check` — 0 errors / 0 warnings; `npm run build` — clean apart
+from existing Vite unused-import/chunk-size warnings; `git diff --check` — clean.
 
 ## Gates
 
@@ -97,9 +193,9 @@ Camera Plan receives no Scene projection. P2.2 remains next.
 ## B — Shell & workspace contract
 
 Reconciles P2 with the canonical shell/workspace specification
-([`../Design-specs/Design-shell-specs.md`](../Design-specs/Design-shell-specs.md),
+([`../../Design-specs/Design-shell-specs.md`](../../Design-specs/Design-shell-specs.md),
 "exposure") and the UI design system
-([`../Design-specs/Design-specs.md`](../Design-specs/Design-specs.md),
+([`../../Design-specs/Design-specs.md`](../../Design-specs/Design-specs.md),
 "visual"). Conformance targets on P2 close: shell-spec §6 (Scene → Plan),
 §22 (capability matrix), §24 (review targets).
 
@@ -181,13 +277,13 @@ existing scene furniture and objects.
   outline falls back to the width/depth rectangle. `height` is not part of the
   Plan footprint schema. Asset `defaultScale`/`defaultRotation` are already
   represented by canonical metadata and are not applied again by projection.
-- **P2-N — deferred interaction gates.** Before P2.2b starts, lock whether
-  Staging reuses existing multi-selection or ships single-selection only, the
-  deterministic overlap winner, and behavior for a remembered but ineligible
-  Scene selection. Before P2.3a starts, lock the shared positional-snap pixel
-  tolerance. Translation Shift disables positional snapping; rotation Shift
-  enables 15° yaw snapping. Rotation pivot is always the canonical placement
-  pivot, not polygon centroid or AABB center.
+- **P2-N — interaction gates.** P2.2 gates are locked in the decision section
+  above: canonical ordered Scene multi-selection, containment-before-halo with
+  reverse render/document overlap order, and non-destructive all-or-nothing
+  handling for ineligible selections. Before P2.3a starts, lock the shared
+  positional-snap pixel tolerance. Translation Shift disables positional
+  snapping; rotation Shift enables 15° yaw snapping. Rotation pivot is always
+  the canonical placement pivot, not polygon centroid or AABB center.
 
 ### Review baseline and deviations carried into execution (2026-08-21)
 
@@ -311,8 +407,8 @@ Polish slice: place and edit scene furniture directly in Plan.
 
 **Date:** 2026-08-14
 **Status:** Approved (2026-08-17) — direction locked (C2 rejected); execution-spec revision below; not scheduled — H1 lands first, all C1 work (including Path A) starts after the H1 gate
-**Parent:** [`2026-08-14-graphics-h1-unified-3d-editing.md`](../archive/plans/pre-h1-letters/2026-08-14-graphics-h1-unified-3d-editing.md) (polish slices) · [`2026-08-13-graphics-architecture-roadmap.md`](../archive/plans/pre-h1-letters/2026-08-13-graphics-architecture-roadmap.md)
-**Handoff:** [`../hand-off/CURRENT.md`](../hand-off/CURRENT.md)
+**Parent:** [`2026-08-14-graphics-h1-unified-3d-editing.md`](pre-h1-letters/2026-08-14-graphics-h1-unified-3d-editing.md) (polish slices) · [`2026-08-13-graphics-architecture-roadmap.md`](pre-h1-letters/2026-08-13-graphics-architecture-roadmap.md)
+**Handoff:** [`../../hand-off/CURRENT.md`](../../hand-off/CURRENT.md)
 
 > **Why this plan exists.** The umbrella plan locks 2D furnishing as the
 > "Plan staging mode" (C1) and rejects C2 (catalogue assets as layout

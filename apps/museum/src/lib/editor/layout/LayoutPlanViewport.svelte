@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onDestroy, onMount } from 'svelte';
 	import type { SceneDocument, SceneEntity } from '$lib/content/scene';
 	import type { LayoutRoomRegistry } from '$lib/project/project-layout-semantics';
 	import type { Vec3 } from '$lib/types/scene';
@@ -70,7 +70,22 @@
 	import { layoutRoomUnitPivot } from './layout-room-transform';
 	import { buildPlanRenderModel } from '$lib/layout/plan-render-model';
 	import { buildPlanSceneFootprintProjection } from './plan-scene-footprint';
-	import { buildPlanInteractionProjection, rotationHandleScreenPoint } from './plan-overlays';
+	import { resolvePlanSceneHitAtZoom, PLAN_SCENE_HIT_HALO_PX } from './plan-scene-hit';
+	import {
+		capturePlanSceneTransformMembers,
+		planSceneWorldPivot,
+		rotatePlanSceneMembers,
+		translatePlanSceneMembers,
+		type PlanSceneTransformMember,
+		type PlanSceneTransformPatch
+	} from './plan-scene-transform';
+	import type { PlanViewMode } from './layout-interaction';
+	import {
+		buildPlanInteractionProjection,
+		planHandleScreenPoints,
+		rotationHandleScreenPoint,
+		withPlanSceneRotationHandle
+	} from './plan-overlays';
 	import { planCameraProjectionForProject } from './plan-camera-projection';
 	import PlanSvg from './PlanSvg.svelte';
 
@@ -81,6 +96,17 @@
 		scene,
 		rooms: sceneRooms,
 		getEffectiveSceneScale,
+		selectedPlacementIds = [],
+		selectedClusterId = null,
+		active = true,
+		onPlanModeChange,
+		onEnterStaging,
+		onSceneSelect,
+		onSceneGestureBegin,
+		onSceneGesturePreview,
+		onSceneGestureCommit,
+		onSceneGestureCancel,
+		onSceneDelete,
 		onCommit,
 		onOpeningCreate,
 		onOpeningDelete,
@@ -96,6 +122,20 @@
 		scene?: SceneDocument;
 		rooms?: LayoutRoomRegistry;
 		getEffectiveSceneScale?: (entity: SceneEntity) => number | Vec3 | undefined;
+		selectedPlacementIds?: readonly string[];
+		selectedClusterId?: string | null;
+		active?: boolean;
+		onPlanModeChange?: (mode: 'layout' | 'staging') => void;
+		onEnterStaging?: (entityId: string) => void;
+		onSceneSelect?: (
+			entityId: string,
+			modifiers: { additive: boolean; toggle: boolean }
+		) => boolean;
+		onSceneGestureBegin?: () => boolean;
+		onSceneGesturePreview?: (patches: readonly PlanSceneTransformPatch[]) => boolean;
+		onSceneGestureCommit?: () => boolean;
+		onSceneGestureCancel?: () => boolean;
+		onSceneDelete?: () => boolean;
 		onCommit: (points: LayoutVec2[]) => boolean;
 		onOpeningCreate: (roomId: string, segmentId: string, kind: LayoutOpeningKind, clickOffset: number) => void;
 		onOpeningDelete: (roomId: string, openingId: string) => void;
@@ -126,6 +166,19 @@
 	let framedReplacementVersion = $state<number | null>(null);
 	let roomUnitSnapshot = $state<LayoutPreviewSnapshot | null>(null);
 	let rotationHoverScreen = $state<LayoutVec2 | null>(null);
+	let sceneBridgeHover = $state<{ entityId: string; screen: LayoutVec2 } | null>(null);
+	let previousPlanViewMode = $state<PlanViewMode | null>(null);
+	let stagingGesture = $state<{
+		pointerId: number;
+		mode: 'translate' | 'rotate';
+		primaryId: string;
+		members: PlanSceneTransformMember[];
+		startWorld: LayoutVec2;
+		startScreen: LayoutVec2;
+		moved: boolean;
+		plainClickEntityId: string | null;
+	} | null>(null);
+	let stagingRotationHoverScreen = $state<LayoutVec2 | null>(null);
 
 	const viewBox = $derived(`0 0 ${interaction.planView.width} ${interaction.planView.height}`);
 	const gridLines = $derived<PlanGridLine[]>(buildPlanGrid(interaction.planView));
@@ -136,9 +189,9 @@
 	);
 	const scaleMeters = $derived(100 / interaction.planView.pixelsPerMeter);
 	const rooms = $derived(preview.project.layout.floors.flatMap((floor) => floor.rooms));
-	const interactionProjection = $derived(buildPlanInteractionProjection(interaction, rooms, model));
+	const baseInteractionProjection = $derived(buildPlanInteractionProjection(interaction, rooms, model));
 	const cameraProjection = $derived.by(() => {
-		if (!interaction.planView.showTourOverlay) return undefined;
+		if (interaction.planViewMode !== 'layout' || !interaction.planView.showTourOverlay) return undefined;
 		try {
 			return planCameraProjectionForProject(preview.project, preview.geometry, preview.issues);
 		} catch {
@@ -152,10 +205,81 @@
 		// version or a moved room leaves Scene footprints in its old frame.
 		void preview.previewVersion;
 		if (!scene || !sceneRooms) return undefined;
+		void interaction.planViewMode;
+		void selectedPlacementIds.length;
+		void sceneBridgeHover?.entityId;
 		return buildPlanSceneFootprintProjection(scene, sceneRooms, {
-			getEffectiveScale: getEffectiveSceneScale
+			getEffectiveScale: getEffectiveSceneScale,
+			presentationForEntity: (entityId) => {
+				if (interaction.planViewMode === 'staging' && selectedPlacementIds.includes(entityId)) return 'selected';
+				if (sceneBridgeHover?.entityId === entityId) return 'bridge-hover';
+				return interaction.planViewMode === 'staging' ? 'active' : 'passive';
+			}
 		});
 	});
+	const stagingSelectionMessage = $derived.by(() => {
+		if (interaction.planViewMode !== 'staging' || selectedPlacementIds.length === 0) return null;
+		if (selectedClusterId !== null) return 'Some selected items are not editable in Plan.';
+		const eligibleIds = new Set(sceneProjection?.footprints.map((footprint) => footprint.entityId) ?? []);
+		const ineligibleCount = selectedPlacementIds.filter((id) => !eligibleIds.has(id)).length;
+		if (ineligibleCount === 0) return null;
+		return ineligibleCount === selectedPlacementIds.length
+			? 'Not editable in Plan. Edit position in 3D.'
+			: 'Some selected items are not editable in Plan.';
+	});
+	const stagingEligibleIds = $derived(
+		new Set(sceneProjection?.footprints.map((footprint) => footprint.entityId) ?? [])
+	);
+	const stagingTransformEnabled = $derived(
+		interaction.planViewMode === 'staging' &&
+		selectedClusterId === null &&
+		selectedPlacementIds.length > 0 &&
+		selectedPlacementIds.every((id) => stagingEligibleIds.has(id))
+	);
+	const stagingRotationHandle = $derived.by(() => {
+		if (!stagingTransformEnabled || !scene || !sceneRooms) return null;
+		const primaryId = selectedPlacementIds.at(-1);
+		if (!primaryId) return null;
+		const entity = scene.entities.find((candidate) => candidate.id === primaryId);
+		const footprint = sceneProjection?.footprints.find((candidate) => candidate.entityId === primaryId);
+		const room = entity ? sceneRooms.get(entity.roomId) : undefined;
+		if (!entity || !footprint || !room) return null;
+		const pivot = planSceneWorldPivot(entity, sceneRooms);
+		const footprintRadius = Math.max(
+			...footprint.points.map((point) => distance(point, pivot)),
+			0.2
+		);
+		const radius = footprintRadius + 28 / interaction.planView.pixelsPerMeter;
+		const worldYaw = room.rotation[1] + entity.rotation[1];
+		const handle: LayoutVec2 = [
+			pivot[0] - Math.sin(worldYaw) * radius,
+			pivot[1] - Math.cos(worldYaw) * radius
+		];
+		const screen = planHandleScreenPoints(interaction.planView, pivot, handle);
+		return {
+			primaryId,
+			pivot,
+			handle,
+			pivotScreen: screen.pivot,
+			handleScreen: screen.handle
+		};
+	});
+	const stagingRotationHovered = $derived.by(() => {
+		if (!stagingRotationHoverScreen || !stagingRotationHandle) return false;
+		return distance(stagingRotationHoverScreen, stagingRotationHandle.handleScreen) <= LAYOUT_PLAN_HIT_RADIUS_PX;
+	});
+	const interactionProjection = $derived(
+		withPlanSceneRotationHandle(
+			baseInteractionProjection,
+			stagingRotationHandle
+				? {
+					entityId: stagingRotationHandle.primaryId,
+					pivot: stagingRotationHandle.pivot,
+					handle: stagingRotationHandle.handle
+				}
+				: null
+		)
+	);
 	const planModel = $derived(
 		buildPlanRenderModel(preview.geometry, cameraProjection, interactionProjection, sceneProjection)
 	);
@@ -186,6 +310,29 @@
 		observer.observe(svg);
 		resize();
 		return () => observer.disconnect();
+	});
+
+	onDestroy(() => cancelLocalPlanInteraction());
+
+	$effect(() => {
+		void active;
+		void interaction.planViewMode;
+		void interaction.tool;
+		if (!active && stagingGesture) cancelStagingGesture();
+		if (!active || interaction.planViewMode !== 'layout' || interaction.tool !== 'select') {
+			sceneBridgeHover = null;
+		}
+	});
+
+	$effect(() => {
+		const mode = interaction.planViewMode;
+		if (previousPlanViewMode === null) {
+			previousPlanViewMode = mode;
+			return;
+		}
+		if (mode === previousPlanViewMode) return;
+		previousPlanViewMode = mode;
+		cancelLocalPlanInteraction();
 	});
 
 	$effect(() => {
@@ -219,6 +366,170 @@
 	function worldPoint(event: { clientX: number; clientY: number }): LayoutVec2 | null {
 		const screen = screenPoint(event);
 		return screen ? planScreenToWorld(interaction.planView, screen) : null;
+	}
+
+	function dismissSceneBridge(): void {
+		sceneBridgeHover = null;
+	}
+
+	function cancelLocalPlanInteraction(): void {
+		const scenePointerId = stagingGesture?.pointerId ?? null;
+		if (stagingGesture) onSceneGestureCancel?.();
+		const hadLayoutInteraction = Boolean(
+			dragSnapshot ||
+			roomUnitSnapshot ||
+			openingDrag ||
+			pendingWallBend ||
+			draggedInteriorAnchor ||
+			pointerId !== null ||
+			panPointerId !== null ||
+			interiorAnchorPointerId !== null
+		);
+		if (dragSnapshot) restoreLayoutPreviewSnapshot(preview, dragSnapshot);
+		if (roomUnitSnapshot) restoreLayoutPreviewSnapshot(preview, roomUnitSnapshot);
+		if (hadLayoutInteraction) onLayoutTransactionCancel();
+		for (const captured of [
+			pointerId,
+			panPointerId,
+			interiorAnchorPointerId,
+			pendingWallBend?.pointerId,
+			scenePointerId
+		]) {
+			if (captured !== null && captured !== undefined && svgElement?.hasPointerCapture(captured)) {
+				svgElement.releasePointerCapture(captured);
+			}
+		}
+		pointerId = null;
+		panPointerId = null;
+		lastPanScreen = null;
+		interiorAnchorPointerId = null;
+		draggedInteriorAnchor = null;
+		pendingWallBend = null;
+		openingDrag = null;
+		dragSnapshot = null;
+		roomUnitSnapshot = null;
+		rotationHoverScreen = null;
+		stagingRotationHoverScreen = null;
+		stagingGesture = null;
+		suppressNextClick = hadLayoutInteraction;
+		dismissSceneBridge();
+	}
+
+	function beginStagingGesture(
+		event: PointerEvent,
+		mode: 'translate' | 'rotate',
+		ids: readonly string[],
+		primaryId: string,
+		startWorld: LayoutVec2,
+		startScreen: LayoutVec2,
+		plainClickEntityId: string | null = null
+	): boolean {
+		if (!scene || !svgElement || !onSceneGestureBegin?.()) return false;
+		const members = capturePlanSceneTransformMembers(scene, ids);
+		if (!members) {
+			onSceneGestureCancel?.();
+			return false;
+		}
+		stagingGesture = {
+			pointerId: event.pointerId,
+			mode,
+			primaryId,
+			members,
+			startWorld: [...startWorld],
+			startScreen: [...startScreen],
+			moved: false,
+			plainClickEntityId
+		};
+		svgElement.setPointerCapture(event.pointerId);
+		return true;
+	}
+
+	function cancelStagingGesture(): void {
+		const gesture = stagingGesture;
+		if (!gesture) return;
+		onSceneGestureCancel?.();
+		if (svgElement?.hasPointerCapture(gesture.pointerId)) {
+			svgElement.releasePointerCapture(gesture.pointerId);
+		}
+		stagingGesture = null;
+		stagingRotationHoverScreen = null;
+	}
+
+	function previewStagingGesture(event: PointerEvent): void {
+		const gesture = stagingGesture;
+		if (!gesture || gesture.pointerId !== event.pointerId || !sceneRooms) return;
+		const point = worldPoint(event);
+		const screen = screenPoint(event);
+		if (!point || !screen) return;
+		if (!gesture.moved && distance(screen, gesture.startScreen) < 2) return;
+		gesture.moved = true;
+		const patches = gesture.mode === 'translate'
+			? translatePlanSceneMembers(
+					gesture.members,
+					sceneRooms,
+					gesture.primaryId,
+					gesture.startWorld,
+					point,
+					{ snapEnabled: interaction.planView.snapEnabled, bypassSnap: event.shiftKey }
+				)
+			: rotatePlanSceneMembers(
+					gesture.members,
+					sceneRooms,
+					gesture.primaryId,
+					gesture.startWorld,
+					point,
+					event.shiftKey
+				);
+		if (!patches || !onSceneGesturePreview?.(patches)) cancelStagingGesture();
+	}
+
+	function canResolveSceneBridge(): boolean {
+		return (
+			active &&
+			interaction.planViewMode === 'layout' &&
+			interaction.tool === 'select' &&
+			pointerId === null &&
+			panPointerId === null &&
+			pendingWallBend === null &&
+			interiorAnchorPointerId === null &&
+			openingDrag === null &&
+			interaction.primitiveDraft === null &&
+			interaction.objectDrag === null &&
+			interaction.roomUnitDrag === null &&
+			interaction.editing === null
+		);
+	}
+
+	function updateSceneBridge(event: PointerEvent): void {
+		if (!canResolveSceneBridge() || !sceneProjection) {
+			dismissSceneBridge();
+			return;
+		}
+		const point = worldPoint(event);
+		const screen = screenPoint(event);
+		if (!point || !screen) {
+			dismissSceneBridge();
+			return;
+		}
+		const hit = resolvePlanSceneHitAtZoom(
+			sceneProjection.footprints,
+			point,
+			interaction.planView.pixelsPerMeter,
+			PLAN_SCENE_HIT_HALO_PX
+		);
+		if (!hit) {
+			dismissSceneBridge();
+			return;
+		}
+		sceneBridgeHover = { entityId: hit.entityId, screen };
+	}
+
+	function activateSceneBridge(): void {
+		const entityId = sceneBridgeHover?.entityId;
+		if (!entityId) return;
+		dismissSceneBridge();
+		if (onEnterStaging) onEnterStaging(entityId);
+		else onPlanModeChange?.('staging');
 	}
 
 	function draftPoint(event: PointerEvent, anchor: LayoutVec2 | null): LayoutVec2 | null {
@@ -320,6 +631,7 @@
 
 	function onPointerDown(event: PointerEvent) {
 		if (event.button === 1) {
+			dismissSceneBridge();
 			const screen = screenPoint(event);
 			if (!screen || !svgElement) return;
 			panPointerId = event.pointerId;
@@ -333,6 +645,71 @@
 		const point = worldPoint(event);
 		const screen = screenPoint(event);
 		if (!point || !screen) return;
+		dismissSceneBridge();
+
+		if (interaction.planViewMode === 'staging') {
+			if (interaction.tool !== 'select') return;
+			if (
+				stagingRotationHandle &&
+				distance(screen, stagingRotationHandle.handleScreen) <= LAYOUT_PLAN_HIT_RADIUS_PX
+			) {
+				beginStagingGesture(
+					event,
+					'rotate',
+					selectedPlacementIds,
+					stagingRotationHandle.primaryId,
+					point,
+					screen
+				);
+				return;
+			}
+			const sceneHit = resolvePlanSceneHitAtZoom(
+				sceneProjection?.footprints ?? [],
+				point,
+				interaction.planView.pixelsPerMeter,
+				PLAN_SCENE_HIT_HALO_PX
+			);
+			if (sceneHit) {
+				const toggle = event.metaKey || event.ctrlKey;
+				const additive = event.shiftKey && !toggle;
+				const alreadySelected = selectedPlacementIds.includes(sceneHit.entityId);
+				let gestureIds: string[];
+				let deferredPlainClick: string | null = null;
+				if (toggle) {
+					onSceneSelect?.(sceneHit.entityId, { additive: false, toggle: true });
+					return;
+				} else if (additive) {
+					gestureIds = alreadySelected
+						? [...selectedPlacementIds]
+						: [...selectedPlacementIds, sceneHit.entityId];
+					onSceneSelect?.(sceneHit.entityId, { additive: true, toggle: false });
+				} else if (alreadySelected) {
+					gestureIds = [...selectedPlacementIds];
+					deferredPlainClick = sceneHit.entityId;
+				} else {
+					gestureIds = [sceneHit.entityId];
+					onSceneSelect?.(sceneHit.entityId, { additive: false, toggle: false });
+				}
+				const eligible = gestureIds.every((id) => stagingEligibleIds.has(id));
+				const clusterBlocked = selectedClusterId !== null && alreadySelected;
+				if (eligible && !clusterBlocked) {
+					beginStagingGesture(
+						event,
+						'translate',
+						gestureIds,
+						sceneHit.entityId,
+						point,
+						screen,
+						deferredPlainClick
+					);
+				} else if (deferredPlainClick) {
+					onSceneSelect?.(deferredPlainClick, { additive: false, toggle: false });
+				}
+			} else {
+				onDeselect?.();
+			}
+			return;
+		}
 
 		if (interaction.tool === 'select') {
 			const rotationRoom = rotationHandleHit(screen);
@@ -454,9 +831,18 @@
 	}
 
 	function onPointerMove(event: PointerEvent) {
+		if (stagingGesture?.pointerId === event.pointerId) {
+			previewStagingGesture(event);
+			return;
+		}
+		if (interaction.planViewMode === 'staging') {
+			stagingRotationHoverScreen = screenPoint(event);
+		}
 		if (interaction.tool === 'select' && !interaction.roomUnitDrag) {
 			rotationHoverScreen = screenPoint(event);
 		}
+		if (canResolveSceneBridge()) updateSceneBridge(event);
+		else dismissSceneBridge();
 		if (interaction.primitiveDraft && pointerId === event.pointerId) {
 			const point = draftPoint(event, null);
 			if (point) updatePrimitiveAt(point);
@@ -543,6 +929,19 @@
 	}
 
 	function onPointerUp(event: PointerEvent) {
+		if (stagingGesture?.pointerId === event.pointerId) {
+			const gesture = stagingGesture;
+			previewStagingGesture(event);
+			if (!stagingGesture) return;
+			onSceneGestureCommit?.();
+			if (!gesture.moved && gesture.plainClickEntityId) {
+				onSceneSelect?.(gesture.plainClickEntityId, { additive: false, toggle: false });
+			}
+			stagingGesture = null;
+			stagingRotationHoverScreen = null;
+			svgElement?.releasePointerCapture(event.pointerId);
+			return;
+		}
 		if (panPointerId === event.pointerId) {
 			panPointerId = null;
 			lastPanScreen = null;
@@ -647,12 +1046,14 @@
 	}
 
 	function onPointerCancel(event: PointerEvent) {
+		if (stagingGesture?.pointerId === event.pointerId) cancelStagingGesture();
 		if (interaction.primitiveDraft && pointerId === event.pointerId) {
 			onLayoutTransactionCancel();
 			cancelLayoutPrimitiveDraft(interaction);
 			pointerId = null;
 		}
 		if (interaction.roomUnitDrag && pointerId === event.pointerId) {
+			if (roomUnitSnapshot) restoreLayoutPreviewSnapshot(preview, roomUnitSnapshot);
 			onLayoutTransactionCancel();
 			cancelLayoutRoomUnitDrag(interaction);
 			roomUnitSnapshot = null;
@@ -711,6 +1112,12 @@
 	function onKeyDown(event: KeyboardEvent) {
 		if (event.key === 'Escape') {
 			event.preventDefault();
+			event.stopPropagation();
+			dismissSceneBridge();
+			if (stagingGesture) {
+				cancelStagingGesture();
+				return;
+			}
 			if (pendingWallBend) {
 				const pendingPointerId = pendingWallBend.pointerId;
 				pendingWallBend = null;
@@ -749,6 +1156,17 @@
 			onLayoutTransactionCancel();
 			clearLayoutDraft(interaction);
 			cancelRoomEdit(interaction);
+			return;
+		}
+		if (
+			interaction.planViewMode === 'staging' &&
+			(event.key === 'Delete' || event.key === 'Backspace') &&
+			!event.metaKey && !event.ctrlKey && !event.altKey &&
+			stagingTransformEnabled
+		) {
+			event.preventDefault();
+			event.stopPropagation();
+			onSceneDelete?.();
 			return;
 		}
 		if (
@@ -825,9 +1243,11 @@
 
 </script>
 
-<div class="plan-viewport" aria-label="Layout Plan drafting viewport">
+<div class="plan-viewport" role="presentation" aria-label="Layout Plan drafting viewport" onpointerleave={dismissSceneBridge}>
 	<div class="plan-help" role="status">
-		{#if interaction.tool === 'rectangle'}
+		{#if interaction.planViewMode === 'staging'}
+			Click a footprint to select · Shift adds · Cmd/Ctrl toggles · wheel zooms
+		{:else if interaction.tool === 'rectangle'}
 			Drag to draw a rectangle · Shift angle snap · Escape cancels
 		{:else if interaction.tool === 'polygon'}
 			Click points · Backspace removes last · click first or Finish · Escape cancels
@@ -839,6 +1259,18 @@
 			Click wall to select · drag mid-span to bend · drag anchors · openings · middle-drag pans · wheel zooms
 		{/if}
 	</div>
+	{#if stagingSelectionMessage}
+		<div class="staging-selection-warning" role="status">{stagingSelectionMessage}</div>
+	{/if}
+	{#if sceneBridgeHover}
+		<button
+			type="button"
+			class="scene-bridge-chip"
+			style={`left: ${sceneBridgeHover.screen[0] + 10}px; top: ${sceneBridgeHover.screen[1] - 12}px`}
+			onpointerdown={(event) => event.stopPropagation()}
+			onclick={(event) => { event.stopPropagation(); activateSceneBridge(); }}
+		>Edit in Staging</button>
+	{/if}
 	<!-- svelte-ignore a11y_no_noninteractive_tabindex (plan surface owns keyboard focus) -->
 	<!-- svelte-ignore a11y_no_noninteractive_element_interactions (plan surface owns pointer and keyboard drafting events) -->
 	<svg
@@ -846,6 +1278,7 @@
 		class="plan-canvas"
 		class:rotation-handle-hover={rotationHandleHovered}
 		class:rotation-dragging={Boolean(interaction.roomUnitDrag)}
+		class:staging-rotation-handle-hover={stagingRotationHovered}
 		viewBox={viewBox}
 		preserveAspectRatio="none"
 		role="application"
@@ -883,11 +1316,11 @@
 			<button type="button" class="secondary" onclick={() => clearLayoutDraft(interaction)}>Cancel draft</button>
 		{/if}
 	</div>
-		<div class="plan-meta">
-			<span>{preview.model.rooms.length} rooms</span>
-			<span>{preview.model.objects.length} objects</span>
+	<div class="plan-meta">
+		<span>{preview.model.rooms.length} rooms</span>
+		<span>{preview.model.objects.length} objects</span>
 		<span>{preview.issues.length} geometry warnings</span>
-		{#if interaction.selection.kind !== 'none'}<span>Selected: {interaction.selection.kind}</span>{/if}
+		{#if interaction.planViewMode === 'staging' && selectedPlacementIds.length > 0}<span>Selected: {selectedPlacementIds.length} scene item{selectedPlacementIds.length === 1 ? '' : 's'}</span>{:else if interaction.selection.kind !== 'none'}<span>Selected: {interaction.selection.kind}</span>{/if}
 		{#if preview.lastMutationMessage}<span class="warning">{preview.lastMutationMessage}</span>{/if}
 	</div>
 </div>
@@ -896,6 +1329,7 @@
 	.plan-viewport { position: absolute; inset: 0; z-index: 3; background: #0d0d12; }
 	.plan-canvas { display: block; position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: crosshair; outline: none; }
 	.plan-canvas.rotation-handle-hover { cursor: grab; }
+	.plan-canvas.staging-rotation-handle-hover { cursor: grab; }
 	.plan-canvas.rotation-dragging { cursor: grabbing; }
 	.plan-canvas line { stroke: #302d38; stroke-width: 1; vector-effect: non-scaling-stroke; }
 	.plan-canvas line.major { stroke: #494352; }
@@ -904,6 +1338,9 @@
 	.scale-label { fill: #d6d0c4; font: 11px ui-monospace, monospace; }
 	.scale-bar { stroke: #fff2c7; stroke-width: 3; vector-effect: non-scaling-stroke; }
 	.plan-help { position: absolute; top: 4.25rem; left: 50%; z-index: 5; max-width: min(34rem, calc(100% - 2rem)); transform: translateX(-50%); padding: 0.45rem 0.7rem; border: 1px solid #49433a; border-radius: 999px; background: rgb(18 18 24 / 92%); color: #fff2c7; font: 600 0.7rem/1.2 ui-sans-serif, system-ui, sans-serif; pointer-events: none; text-align: center; }
+	.scene-bridge-chip { position: absolute; z-index: 8; padding: 0.32rem 0.48rem; border: 1px solid #2f8cff; border-radius: 999px; background: #102642; color: #dceeff; font: 700 0.66rem/1 ui-sans-serif, system-ui, sans-serif; cursor: pointer; box-shadow: 0 0.3rem 0.8rem rgb(0 0 0 / 30%); }
+	.scene-bridge-chip:hover { background: #1c4c80; }
+	.staging-selection-warning { position: absolute; top: 7rem; left: 50%; z-index: 5; max-width: min(34rem, calc(100% - 2rem)); transform: translateX(-50%); padding: 0.42rem 0.65rem; border: 1px solid #7b4a50; border-radius: 0.35rem; background: rgb(38 22 28 / 94%); color: #efc7c7; font: 600 0.7rem/1.25 ui-sans-serif, system-ui, sans-serif; pointer-events: none; text-align: center; }
 	.plan-actions { position: absolute; right: 0.8rem; bottom: 0.8rem; z-index: 10; display: flex; gap: 0.4rem; pointer-events: auto; }
 	.plan-actions button { padding: 0.44rem 0.6rem; border: 1px solid #8d753c; border-radius: 0.32rem; background: #2a2618; color: #fff2c7; font: 600 0.7rem/1 ui-sans-serif, system-ui, sans-serif; cursor: pointer; }
 	.plan-actions button.secondary { border-color: #4a4650; background: #1a1a22; color: #d6d0c4; }
@@ -911,5 +1348,6 @@
 	.plan-meta .warning { color: #efc7c7; }
 	@media (max-width: 44rem) {
 		.plan-help { top: 5.5rem; }
+		.staging-selection-warning { top: 8rem; }
 	}
 </style>

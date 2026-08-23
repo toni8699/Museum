@@ -1,8 +1,8 @@
 <script lang="ts">
 	// Sidebar shell. Replaces the workspace-switching
 	// `EditorLeftSidebar` in the editor shell (the relic keeps its own sidebar
-	// byte-for-byte). One unified hierarchy is always mounted; in 3D the sidebar
-	// gains a Hierarchy | Assets tab row (reusing `store.leftPanel`). The
+	// byte-for-byte). One unified hierarchy is always mounted; Scene Plan and
+	// Scene 3D expose a Hierarchy | Assets tab row (reusing `store.leftPanel`). The
 	// layout-preview summary's counts are replaced by the tree's own rows; the
 	// source/status badge + import error move to a compact header strip, hidden
 	// for the common boot-empty case. "Reset empty" is dropped (it duplicated
@@ -14,7 +14,7 @@
 		layoutPreviewSourceLabel,
 		type LayoutPreviewState
 	} from '$lib/editor/layout/layout-preview-state.svelte';
-	import { setLayoutDraftTool, type LayoutInteractionState } from '$lib/editor/layout/layout-interaction';
+	import { setLayoutDraftTool, setPlanViewMode, type LayoutInteractionState } from '$lib/editor/layout/layout-interaction';
 	import type { EditorStore } from '$lib/editor/editor-store.svelte';
 	import UnifiedProjectTree from '$lib/editor/UnifiedProjectTree.svelte';
 	import CameraSidebar from './CameraSidebar.svelte';
@@ -42,9 +42,7 @@
 	} = $props();
 
 	const domain = $derived(viewState.domain);
-	const activeView = $derived(viewState.activeView);
-	const in3d = $derived(activeView === '3d');
-	const showScenePanelTabs = $derived(domain === 'scene' && in3d);
+	const showScenePanelTabs = $derived(domain === 'scene');
 	// Boot-empty editor surfaces no badge (status 'blank' and no import error).
 	// importError is `string | null` — check `!== null`, not `!== undefined`
 	// (which is always true and would show the header on every blank boot).
@@ -61,6 +59,7 @@
 	function startRoomDraft() {
 		viewState.setDomain('scene');
 		viewState.setView('scene', 'plan');
+		setPlanViewMode(layoutInteraction, 'layout');
 		setLayoutDraftTool(layoutInteraction, 'rectangle');
 	}
 </script>

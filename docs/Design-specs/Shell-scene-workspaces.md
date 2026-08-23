@@ -37,8 +37,9 @@ user must be able to answer immediately:
 
 > Am I editing architecture or furniture?
 
-Presentation is open: segmented control, compact mode selector, tool-group
-switch, or equivalent editor-pattern control.
+P2.2 locks the presentation to one `Layout | Staging` segmented group as the
+first group in the existing Scene Plan contextual toolbar. It stays mounted in
+the same physical position in populated/empty and Layout/Staging states.
 
 ## Layout mode
 
@@ -220,8 +221,8 @@ Architecture remains spatial context.
 
 * selection of supported scene entities (furniture/models, primitives)
 * X/Z translation via direct drag
-* yaw rotation via the footprint rotate handle — pivot at footprint
-  center, continuous yaw, positive-Y semantics, Shift = 15° snap
+* yaw rotation via the footprint rotate handle — pivot at canonical placement
+  pivot `[0,0]`, continuous yaw, positive-Y semantics, Shift = 15° snap
 * delete (Delete/Backspace)
 * Inspector numeric yaw — semantically identical to handle rotation
 
@@ -271,6 +272,11 @@ Staging mode:
 staging footprint hit target wins
 ```
 
+Staging hit testing first resolves true polygon containment, then — only when
+no polygon contains the point — a 6 CSS-pixel edge halo converted through the
+current Plan zoom. Within either class, reverse stable render/document order
+wins; repeated clicks do not cycle. Layout and Scene resolvers remain isolated.
+
 This resolves interaction ambiguity when furniture overlaps walls, rooms,
 or other layout content. In Staging, architecture:
 
@@ -304,6 +310,11 @@ Do not invent permanent Move/Rotate tools unless later UX testing requires
 them — movement stays direct manipulation; rotation stays the footprint
 rotation-handle interaction. Architecture tools must not remain
 misleadingly active while Staging owns pointer authority.
+
+The mode segment is always first. Layout follows it with architecture tools;
+Staging follows it with Select plus applicable Snap/Grid/View controls. A local
+mode transition cancels transient Layout work and resets the Layout tool to
+Select; returning to Layout does not resurrect a stale architecture tool.
 
 ### Asset Library
 
@@ -660,6 +671,22 @@ layout editing authority.
 ```
 
 Switching modes must never create duplicate identity.
+
+### Plan viewport selection specifics
+
+Staging uses the same ordered Scene placement selection as Scene 3D viewport:
+
+* plain click replaces selection
+* Shift-click adds only; it does not remove an already-selected entity
+* Cmd/Ctrl-click toggles membership
+* the last selected entity remains primary
+
+All eligible selected placements may show selected footprints. P2.2 creates no
+cluster footprint or cluster hit target. Entering Staging never clears or
+normalizes an existing placement/cluster selection. If any selected member is
+P2-ineligible, Plan transform authoring is disabled for the whole selection;
+the editor must never mutate only its visible eligible subset. Empty Staging
+canvas click clears Scene selection only and preserves Layout selection memory.
 
 ### Staging → Layout
 

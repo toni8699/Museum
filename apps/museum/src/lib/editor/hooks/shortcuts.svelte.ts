@@ -39,7 +39,11 @@ function isEditableTarget(target: EventTarget | null) {
 		 * `null` (no interactive target) lets the keys set the remembered tool.
 		 * Absent on the relic, which refuses via the legacy camera restriction.
 		 */
-		getGizmoCapabilities?: () => EditorGizmoCapabilities | null
+		getGizmoCapabilities?: () => EditorGizmoCapabilities | null,
+		/** Full Scene command authority (duplicate/group/drop/etc.). */
+		canMutateSceneSelection?: () => boolean,
+		/** Delete authority can be narrower (P2 Staging permits delete only). */
+		canDeleteSceneSelection?: () => boolean
 	) {
 	function editorOwnsSceneShortcuts() {
 		if (typeof document === 'undefined') return false;
@@ -49,7 +53,7 @@ function isEditableTarget(target: EventTarget | null) {
 		if (viewportElement?.contains(active)) return true;
 		const outlinerElement = host.getOutlinerElement();
 		return Boolean(
-			store.currentWorkspace === 'scene' &&
+			(store.currentWorkspace === 'scene' || canDeleteSceneSelection?.()) &&
 				store.leftPanel === 'scene' &&
 				outlinerElement?.contains(active)
 		);
@@ -103,6 +107,8 @@ function isEditableTarget(target: EventTarget | null) {
 		const modifier = event.metaKey || event.ctrlKey;
 		const key = event.key.toLowerCase();
 		const sceneOwnsShortcuts = editorOwnsSceneShortcuts();
+		const sceneMayMutate = sceneOwnsShortcuts && (canMutateSceneSelection?.() ?? true);
+		const sceneMayDelete = sceneOwnsShortcuts && (canDeleteSceneSelection?.() ?? sceneMayMutate);
 		const cameraOwnsShortcuts = editorOwnsCameraShortcuts();
 
 		if (modifier && key === 'z') {			event.preventDefault();
@@ -116,19 +122,19 @@ function isEditableTarget(target: EventTarget | null) {
 			!event.shiftKey &&
 			!event.altKey &&
 			key === 'd' &&
-			sceneOwnsShortcuts &&
+			sceneMayMutate &&
 			store.selectedPlacementIds.length > 0
 		) {
 			if (store.duplicateSelection()) {
 				event.preventDefault();
 				event.stopPropagation();
 			}
-		} else if (modifier && key === 'g' && sceneOwnsShortcuts) {
+		} else if (modifier && key === 'g' && sceneMayMutate) {
 			event.preventDefault();
 			event.stopPropagation();
 			if (event.shiftKey) ungroupSelection();
 			else void groupSelection();
-		} else if (modifier && key === 'a' && sceneOwnsShortcuts) {
+		} else if (modifier && key === 'a' && sceneMayMutate) {
 			event.preventDefault();
 			event.stopPropagation();
 			store.selectionActions.selectAllInRoom();
@@ -155,17 +161,17 @@ function isEditableTarget(target: EventTarget | null) {
 			!modifier &&
 			!event.altKey &&
 			(event.key === 'Delete' || event.key === 'Backspace') &&
-			sceneOwnsShortcuts &&
+			sceneMayDelete &&
 			store.selectedPlacementIds.length > 0
 		) {
 			if (store.deleteSelection()) {
 				event.preventDefault();
 				event.stopPropagation();
 			}
-		} else if (!modifier && !event.altKey && event.key === 'End' && sceneOwnsShortcuts) {
+		} else if (!modifier && !event.altKey && event.key === 'End' && sceneMayMutate) {
 			event.preventDefault();
 			store.requestDropToFloor();
-		} else if (!modifier && !event.altKey && key === 'f' && sceneOwnsShortcuts) {
+		} else if (!modifier && !event.altKey && key === 'f' && sceneMayMutate) {
 			event.preventDefault();
 			store.focusSelection();
 		} else if (interactionStore && !modifier && !event.altKey && !event.shiftKey) {
@@ -279,7 +285,9 @@ export function registerEditorShortcuts(
 	interactionStore?: EditorInteractionStore,
 	deselectActive?: () => void,
 	isLayoutSelectionActive?: () => boolean,
-	getGizmoCapabilities?: () => EditorGizmoCapabilities | null
+	getGizmoCapabilities?: () => EditorGizmoCapabilities | null,
+	canMutateSceneSelection?: () => boolean,
+	canDeleteSceneSelection?: () => boolean
 ) {
 	const onKeyDown = createEditorShortcutHandler(
 		store,
@@ -287,7 +295,9 @@ export function registerEditorShortcuts(
 		interactionStore,
 		deselectActive,
 		isLayoutSelectionActive,
-		getGizmoCapabilities
+		getGizmoCapabilities,
+		canMutateSceneSelection,
+		canDeleteSceneSelection
 	);
 	window.addEventListener('keydown', onKeyDown);
 	return () => window.removeEventListener('keydown', onKeyDown);

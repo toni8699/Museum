@@ -407,15 +407,16 @@ describe('row selection matching', () => {
 	});
 });
 
-describe('domain×view-aware interactivity (P1.1, G1)', () => {
-	it('keeps layout rows interactive in both Scene views and read-only in the Camera domain', () => {
+describe('domain×view×mode-aware interactivity (P2.2)', () => {
+	it('gates layout rows to Scene 3D or Scene Plan Layout mode', () => {
 		const room: UnifiedTreeRow = { kind: 'room', roomId: 'room-a' };
 		const wall: UnifiedTreeRow = { kind: 'wall', roomId: 'room-a', segmentId: 'wall-a' };
 		const opening: UnifiedTreeRow = { kind: 'opening', roomId: 'room-a', segmentId: 'wall-a', openingId: 'opening-1' };
 		const anchor: UnifiedTreeRow = { kind: 'interiorAnchor', roomId: 'room-a', segmentId: 'wall-b', anchorId: 'anchor-1' };
 		const object: UnifiedTreeRow = { kind: 'object', objectId: 'object-1' };
 		for (const row of [room, wall, opening, anchor, object]) {
-			expect(isUnifiedTreeRowInteractive(row, 'scene', 'plan')).toBe(true);
+			expect(isUnifiedTreeRowInteractive(row, 'scene', 'plan', 'layout')).toBe(true);
+			expect(isUnifiedTreeRowInteractive(row, 'scene', 'plan', 'staging')).toBe(false);
 			expect(isUnifiedTreeRowInteractive(row, 'scene', '3d')).toBe(true);
 			// Camera domain: the scene plan is read-only spatial context (§C §4.6).
 			expect(isUnifiedTreeRowInteractive(row, 'camera', 'plan')).toBe(false);
@@ -423,12 +424,13 @@ describe('domain×view-aware interactivity (P1.1, G1)', () => {
 		}
 	});
 
-	it('gates scene rows to Scene → 3D only', () => {
+	it('gates scene rows to Scene 3D or Scene Plan Staging mode', () => {
 		const entity: UnifiedTreeRow = { kind: 'entity', entityId: 'entity-a1' };
 		const cluster: UnifiedTreeRow = { kind: 'cluster', clusterId: 'cluster-a' };
 		for (const row of [entity, cluster]) {
 			expect(isUnifiedTreeRowInteractive(row, 'scene', '3d')).toBe(true);
-			expect(isUnifiedTreeRowInteractive(row, 'scene', 'plan')).toBe(false);
+			expect(isUnifiedTreeRowInteractive(row, 'scene', 'plan', 'layout')).toBe(false);
+			expect(isUnifiedTreeRowInteractive(row, 'scene', 'plan', 'staging')).toBe(true);
 			expect(isUnifiedTreeRowInteractive(row, 'camera', '3d')).toBe(false);
 		}
 	});

@@ -1,7 +1,7 @@
 # Placement and transforms
 
 **Read when:** ghosts, gizmos, snap, scale modes, placeable surfaces, selection outlines.  
-**Last reviewed:** 2026-08-12
+**Last reviewed:** 2026-08-23 (P2 close)
 
 ---
 
@@ -44,6 +44,17 @@ local X/Z only. Local Y, pitch, and roll remain unchanged. Room drag changes
 the room frame, so contained Scene entities follow in derived world space;
 the room gesture mutates `LayoutDocument` only and creates one `layout` history
 entry.
+
+Every eligible selected placement moves by the same Plan-world delta, with
+each result inverse-resolved through its own room. Grid snap targets the
+primary placement pivot; Shift bypasses translation snap. The primary
+footprint owns the placement-pivot rotation arm; positive-Y yaw is continuous
+and Shift snaps the gesture delta to 15°. Inspector authoring is intentionally
+limited to room-local X/Z/yaw. Drag, rotate, Inspector edit, Delete/Backspace,
+and Inspector delete each use the existing Scene mutators and create one tagged
+`scene` history entry; cancel, Escape, pointer-cancel, unmount, and no-op create
+none. Any ineligible member or cluster keeps the whole Plan transform surface
+read-only.
 
 ## Layout objects
 

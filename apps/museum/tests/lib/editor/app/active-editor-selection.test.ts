@@ -12,6 +12,7 @@ import { EditorViewState } from '$lib/editor/app/editor-view-state.svelte';
 import {
 	clearLayoutSelection,
 	createLayoutInteractionState,
+	setPlanViewMode,
 	selectLayoutRoom,
 	type LayoutInteractionState,
 	type LayoutSelection
@@ -38,12 +39,19 @@ function wired(): {
 	activeSelection: EditorActiveSelectionStore;
 } {
 	const layoutInteraction = createLayoutInteractionState();
+	const viewState = new EditorViewState();
 	const store = createEditorStore({
 		document: cloneFixtureDocumentWithEntityCount(3),
 		rooms: chopinRuntime.rooms,
-		onSelectionActivate: () => clearLayoutSelection(layoutInteraction)
+		onSelectionActivate: (source) => {
+			const stagingScenePick =
+				source === 'workspace' &&
+				viewState.domain === 'scene' &&
+				viewState.activeView === 'plan' &&
+				layoutInteraction.planViewMode === 'staging';
+			if (!stagingScenePick) clearLayoutSelection(layoutInteraction);
+		}
 	});
-	const viewState = new EditorViewState();
 	const activeSelection = new EditorActiveSelectionStore(
 		store,
 		layoutInteraction,
@@ -109,6 +117,15 @@ describe('deriveActiveSelection (P1.1 domain gate)', () => {
 		});
 	});
 
+	it('Scene Plan staging routes active authority to Scene while preserving Layout memory', () => {
+		expect(
+			deriveActiveSelection('scene', placement, { kind: 'none' }, room, 'staging')
+		).toEqual({ domain: 'scene', selection: placement });
+		expect(
+			deriveActiveSelection('scene', { kind: 'none' }, { kind: 'none' }, room, 'staging')
+		).toEqual({ domain: 'none' });
+	});
+
 	it('camera domain reads the navigation slot only; scene/layout slots are memory', () => {
 		expect(deriveActiveSelection('camera', { kind: 'none' }, connection, { kind: 'none' })).toEqual({
 			domain: 'camera',
@@ -158,7 +175,7 @@ describe('onSelectionActivate seam', () => {
 		const store = createEditorStore({
 		document: cloneFixtureDocumentWithEntityCount(3),
 		rooms: chopinRuntime.rooms,
-		onSelectionActivate: () => fired.push('activate')
+		onSelectionActivate: (source) => fired.push(source)
 		});
 		const entityId = store.document.entities[0]!.id;
 		const nodeId = store.document.navigationNodes[0]!.id;
@@ -168,13 +185,13 @@ describe('onSelectionActivate seam', () => {
 		expect(fired).toEqual([]);
 
 		expect(store.selectionActions.selectPlacement(entityId)).toBe(true);
-		expect(fired).toEqual(['activate']);
+		expect(fired).toEqual(['workspace']);
 
 		expect(store.selectionActions.selectNavigationNode(nodeId)).toBe(true);
-		expect(fired).toEqual(['activate', 'activate']);
+		expect(fired).toEqual(['workspace', 'navigation']);
 
 		store.selectionActions.deselect();
-		expect(fired).toEqual(['activate', 'activate']);
+		expect(fired).toEqual(['workspace', 'navigation']);
 	});
 
 	it('defaults to a no-op so the frozen relic is untouched', () => {
@@ -189,8 +206,49 @@ describe('onSelectionActivate seam', () => {
 });
 
 describe('EditorActiveSelectionStore exclusivity', () => {
-	it('an actionable scene pick clears a surviving layout selection', () => {
+	it('mode switch changes authority without clearing either slot', () => {
 		const { store, layoutInteraction, activeSelection } = wired();
+		const entityId = store.document.entities[0]!.id;
+		// Populate both source slots directly so this test isolates mode gating.
+		store.selection.workspace = {
+			kind: 'placement',
+			ids: [entityId],
+			clusterId: null,
+			roomId: store.document.entities[0]!.roomId
+		};
+		selectLayoutRoom(layoutInteraction, 'room-a');
+		const workspace = JSON.stringify(store.selection.workspace);
+		const layout = JSON.stringify(layoutInteraction.selection);
+
+		setPlanViewMode(layoutInteraction, 'staging');
+		expect(activeSelection.active.domain).toBe('scene');
+		expect(JSON.stringify(store.selection.workspace)).toBe(workspace);
+		expect(JSON.stringify(layoutInteraction.selection)).toBe(layout);
+
+		setPlanViewMode(layoutInteraction, 'layout');
+		expect(activeSelection.active.domain).toBe('layout');
+		expect(JSON.stringify(store.selection.workspace)).toBe(workspace);
+		expect(JSON.stringify(layoutInteraction.selection)).toBe(layout);
+	});
+
+	it('an actionable Staging pick preserves the remembered Layout slot through the real reducer seam', () => {
+		const { store, layoutInteraction, viewState, activeSelection } = wired();
+		viewState.setView('scene', 'plan');
+		selectLayoutRoom(layoutInteraction, 'room-a');
+		setPlanViewMode(layoutInteraction, 'staging');
+
+		const entityId = store.document.entities[0]!.id;
+		expect(store.selectionActions.selectPlacement(entityId)).toBe(true);
+		expect(layoutInteraction.selection).toEqual({ kind: 'room', roomId: 'room-a' });
+		expect(activeSelection.active.domain).toBe('scene');
+
+		activeSelection.onLayoutSelectionChanged();
+		expect(store.selectedPlacementIds).toEqual([entityId]);
+	});
+
+	it('an actionable scene pick clears a surviving layout selection', () => {
+		const { store, layoutInteraction, activeSelection, viewState } = wired();
+		viewState.setView('scene', '3d');
 		// A layout selection survives the Plan → 3D view switch.
 		selectLayoutRoom(layoutInteraction, 'room-a');
 		expect(activeSelection.active).toEqual({

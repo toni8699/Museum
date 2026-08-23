@@ -3,6 +3,8 @@ import type { LayoutRoomUnitTransform } from './layout-room-transform';
 import { createPlanViewportState, snapToGrid, type PlanViewportState } from './layout-plan-transform';
 import type { Vec3 } from '$lib/types/scene';
 export type LayoutViewMode = 'plan' | '3d';
+/** Scene → Plan's local authoring authority. Camera Plan never reads this. */
+export type PlanViewMode = 'layout' | 'staging';
 export type LayoutPrimitiveTool = 'box' | 'cylinder' | 'sphere';
 export type LayoutDraftTool = 'select' | 'rectangle' | 'polygon' | 'door' | 'window' | LayoutPrimitiveTool;
 export type LayoutRoomDragMode = 'room' | 'vertex';
@@ -48,6 +50,7 @@ export type LayoutSelection =
 
 export type LayoutInteractionState = {
 	viewMode: LayoutViewMode;
+	planViewMode: PlanViewMode;
 	tool: LayoutDraftTool;
 	polygonPoints: LayoutVec2[];
 	rectangleStart: LayoutVec2 | null;
@@ -71,6 +74,7 @@ export type LayoutInteractionState = {
 export function createLayoutInteractionState(): LayoutInteractionState {
 	return {
 		viewMode: '3d',
+		planViewMode: 'layout',
 		tool: 'select',
 		polygonPoints: [],
 		rectangleStart: null,
@@ -83,6 +87,34 @@ export function createLayoutInteractionState(): LayoutInteractionState {
 		planView: createPlanViewportState(),
 		editing: null
 	};
+}
+
+/**
+ * Change Scene Plan authority without changing either committed selection
+ * slot. Transient Layout work is cleared; the caller owns any open history
+ * transaction and must cancel it before calling this function.
+ */
+export function setPlanViewMode(state: LayoutInteractionState, mode: PlanViewMode): boolean {
+	if (state.planViewMode === mode) return false;
+	state.planViewMode = mode;
+	setLayoutDraftTool(state, 'select');
+	return true;
+}
+
+export function hasLayoutTransientInteraction(
+	state: Pick<
+		LayoutInteractionState,
+		'polygonPoints' | 'rectangleStart' | 'primitiveDraft' | 'objectDrag' | 'roomUnitDrag' | 'editing'
+	>
+): boolean {
+	return Boolean(
+		state.polygonPoints.length > 0 ||
+		state.rectangleStart ||
+		state.primitiveDraft ||
+		state.objectDrag ||
+		state.roomUnitDrag ||
+		state.editing
+	);
 }
 
 export function setLayoutViewMode(state: LayoutInteractionState, viewMode: LayoutViewMode): void {

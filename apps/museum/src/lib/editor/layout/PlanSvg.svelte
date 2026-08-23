@@ -17,6 +17,9 @@
 		'wall-line-selected': 'wall-line selected',
 		'wall-line-opening-selected': 'wall-line opening-selected',
 		'opening-line-selected': 'opening-line opening-selected',
+		'scene-footprint-bridge-hover': 'scene-footprint bridge-hover',
+		'scene-footprint-active': 'scene-footprint active',
+		'scene-footprint-selected': 'scene-footprint selected',
 		'layout-object-readonly': 'layout-object readonly',
 		'layout-object-selected': 'layout-object selected',
 		'layout-object-readonly-selected': 'layout-object readonly selected',
@@ -91,6 +94,9 @@
 	.room-outline { fill: none; stroke: #88b7d6; stroke-width: 2; vector-effect: non-scaling-stroke; }
 	.room-outline.selected { stroke: #f1cd78; stroke-width: 3; }
 	.scene-footprint { fill: rgb(214 179 95 / 10%); stroke: #9a8a63; stroke-width: 1.5; stroke-dasharray: 5 4; vector-effect: non-scaling-stroke; pointer-events: none; }
+	.scene-footprint.active { fill: rgb(47 140 255 / 12%); stroke: #5da8ff; stroke-width: 2; }
+	.scene-footprint.bridge-hover { fill: rgb(47 140 255 / 18%); stroke: #8bc4ff; stroke-width: 2.5; }
+	.scene-footprint.selected { fill: rgb(47 140 255 / 24%); stroke: #2f8cff; stroke-width: 3; }
 	.selection-bounds { fill: none; stroke: #f1cd78; stroke-width: 1; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; pointer-events: none; }
 	.wall-line { fill: none; stroke: #b2a58f; stroke-width: 4; vector-effect: non-scaling-stroke; pointer-events: none; }
 	.wall-line.selected { stroke: #fff2c7; stroke-width: 6; }

@@ -80,7 +80,8 @@ import {
 import { EditorHistoryController, type LayoutHistoryHost } from './store/history-controller.svelte';
 import {
 	EditorSelectionStore,
-	navigationSelectionFromState
+	navigationSelectionFromState,
+	type EditorSelectionActivation
 } from './store/selection-store.svelte';
 import { EditorSelectionActions } from './store/selection-actions.svelte';
 import { EditorMutationGuards } from './store/mutation-guards.svelte';
@@ -2829,7 +2830,7 @@ export type EditorStoreOptions = {
 	 * shell clears the layout selection here; the no-op default keeps the
 	 * frozen relic untouched. Room-only placement and deselect never fire it.
 	 */
-	onSelectionActivate?: () => void;
+	onSelectionActivate?: (source: EditorSelectionActivation) => void;
 };
 
 export function createEditorStore(options: EditorStoreOptions) {

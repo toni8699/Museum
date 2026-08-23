@@ -4,7 +4,7 @@
 	// lifecycle) is shared via `useEditorShellBoot`, and only the shortcut wiring
 	// below is shell-owned.
 	import type { Asset } from '$lib/types/assets';
-	import { onMount, setContext } from 'svelte';
+	import { onMount, setContext, untrack } from 'svelte';
 	import EditorCameraTimelineFrame from '$lib/editor/camera/EditorCameraTimelineFrame.svelte';
 	import EditorInspector from '$lib/editor/EditorInspector.svelte';
 	import EditorMaterialChoiceDialog from '$lib/editor/EditorMaterialChoiceDialog.svelte';
@@ -44,6 +44,8 @@
 	import { CAMERA_GIZMO_POLICY } from '$lib/editor/gizmo/camera-gizmo-adapter.svelte';
 	import { projectDomainGizmoCapabilities } from '$lib/editor/gizmo/editor-gizmo-policy';
 	import { resolveLayoutGizmoTarget } from '$lib/editor/gizmo/layout-gizmo-target';
+	import { buildPlanSceneFootprintProjection } from '$lib/editor/layout/plan-scene-footprint';
+	import { resolveEditorPlacementScale } from '$lib/editor/scale-vector';
 
 	// the editor boots blank on every load: one canonical empty project
 	// seeds both the scene-only store and the layout-only preview surface.
@@ -53,12 +55,22 @@
 	});
 	const layoutPreview = $state(createEmptyLayoutPreviewState());
 	const layoutInteraction = $state(createLayoutInteractionState());
+	// Construct before the store: the selection activation hook gates its
+	// cross-domain clear through the current Scene Plan authority.
+	const viewState = new EditorViewState();
 	const store = createEditorStore({
 		document: bootProject.scene,
 		rooms: createLayoutRoomRegistry(bootProject.layout),
 		// an actionable scene/camera pick clears the layout selection
 		// (detach-then-attach: the new domain lands, the previous one drops).
-		onSelectionActivate: () => clearLayoutSelection(layoutInteraction)
+		onSelectionActivate: (source) => {
+			const stagingScenePick =
+				source === 'workspace' &&
+				viewState.domain === 'scene' &&
+				viewState.activeView === 'plan' &&
+				layoutInteraction.planViewMode === 'staging';
+			if (!stagingScenePick) clearLayoutSelection(layoutInteraction);
+		}
 	});
 	// P1.5 — Camera Plan session state owned here, high enough to survive the
 	// Camera Plan ↔ Camera 3D component swap and separate from Scene Plan state.
@@ -66,9 +78,6 @@
 	// zoom, hover, and tool mutations stay reactive (Scene Plan wraps the same
 	// way via `layoutInteraction`).
 	const cameraPlanState = $state(createCameraPlanState());
-	// P1.1 — construct the view state before the selection store: the store's
-	// domain gate reads `viewState.domain`.
-	const viewState = new EditorViewState();
 	// one active selection domain at the editor composition root.
 	const activeSelection = new EditorActiveSelectionStore(
 		store,
@@ -107,7 +116,11 @@
 	// scene/camera pick. The guard + writes live on the wrapper so the contract
 	// is unit-testable; the effect is a thin reactive trigger.
 	$effect(() => {
-		activeSelection.onLayoutSelectionChanged();
+		// Establish the sole reactive dependency before untracking the facade's
+		// workspace/mode reads. Mode switches re-gate authority; only a genuine
+		// Layout slot change may detach another slot.
+		JSON.stringify(layoutInteraction.selection);
+		untrack(() => activeSelection.onLayoutSelectionChanged());
 	});
 
 	// re-validate the layout selection against the live layout after
@@ -181,6 +194,21 @@
 		)
 	);
 
+	function canDeleteSceneSelection(): boolean {
+		if (viewState.domain !== 'scene') return false;
+		if (viewState.activeView === '3d') return true;
+		if (layoutInteraction.planViewMode !== 'staging' || store.selectedClusterId !== null) {
+			return false;
+		}
+		const eligible = new Set(
+			buildPlanSceneFootprintProjection(store.document, store.rooms, {
+				getEffectiveScale: (entity) =>
+					resolveEditorPlacementScale(entity.scale, store.getPlacementScaleVector(entity.id))
+			}).footprints.map((footprint) => footprint.entityId)
+		);
+		return store.selectedPlacementIds.every((id) => eligible.has(id));
+	}
+
 	let outlinerElement = $state<HTMLElement | null>(null);
 	let viewportElement = $state<HTMLElement | null>(null);
 	let clusterNameInput = $state<HTMLInputElement>();
@@ -208,7 +236,9 @@
 			// modes); only a stale layout identity refuses W/E/R/T/X outright.
 			() => activeSelection.active.domain === 'layout' && layoutDescriptor === null,
 			// step 6 — refuse modes the active target's policy does not allow.
-			() => activeGizmoCapabilities
+			() => activeGizmoCapabilities,
+			() => viewState.domain === 'scene' && viewState.activeView === '3d',
+			canDeleteSceneSelection
 		)
 	);
 
@@ -262,7 +292,12 @@
 				class:plan-cell--hidden={viewState.domain !== 'scene'}
 				inert={viewState.domain !== 'scene'}
 			>
-				<PlanWorkspace {store} {layoutPreview} {layoutInteraction} />
+				<PlanWorkspace
+					{store}
+					{layoutPreview}
+					{layoutInteraction}
+					active={viewState.domain === 'scene'}
+				/>
 			</div>
 			<div
 				class="plan-cell"

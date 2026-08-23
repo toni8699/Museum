@@ -63,7 +63,7 @@
 		zoomPlanViewport,
 		type PlanGridLine
 	} from './layout-plan-transform';
-	import type { LayoutRoom, LayoutVec2 } from './layout-types';
+	import type { LayoutRoom, LayoutVec2 } from '$lib/layout/layout-types';
 	import { layoutRoomUnitPivot } from './layout-room-transform';
 	import { buildPlanRenderModel } from '$lib/layout/plan-render-model';
 	import { buildPlanInteractionProjection, rotationHandleScreenPoint } from './plan-overlays';

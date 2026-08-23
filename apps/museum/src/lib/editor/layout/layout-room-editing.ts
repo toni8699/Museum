@@ -1,4 +1,4 @@
-import type { LayoutDocument } from './layout-types';
+import type { LayoutDocument } from '$lib/layout/layout-types';
 
 /**
  * Pure layout-domain room deletion ().

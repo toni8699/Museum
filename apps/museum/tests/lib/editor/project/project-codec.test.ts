@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { MuseumSceneDocument } from '$lib/content/scene';
 import { museumSceneDocument } from '$lib/content/chopin-project';
-import { roomsToLayout } from '$lib/editor/layout/rooms-to-layout';
+import { roomsToLayout } from '$lib/content/rooms-to-layout';
 import { createEmptyLayoutDocument } from '$lib/layout/layout-codec';
 
 import {
@@ -11,8 +11,8 @@ import {
 	parseMuseumProjectJson,
 	serializeMuseumProject,
 	validateMuseumProject
-} from '$lib/editor/project/project-codec';
-import type { MuseumProject } from '$lib/editor/project/project-types';
+} from '$lib/project/project-codec';
+import type { MuseumProject } from '$lib/project/project-types';
 
 function validScene(): MuseumSceneDocument {
 	return JSON.parse(JSON.stringify(museumSceneDocument)) as MuseumSceneDocument;

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { createA1CorridorDocument, createA1RectangleDocument } from './layout-a1-fixtures';
 import { buildLayoutPreviewModel } from '$lib/editor/layout/layout-mesh-factory';
-import { roomsToLayout } from '$lib/editor/layout/rooms-to-layout';
+import { roomsToLayout } from '$lib/content/rooms-to-layout';
 
 describe('A1 layout preview model', () => {
 	it('builds floor, ceiling, and four wall previews for a rectangle', () => {

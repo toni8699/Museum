@@ -1,4 +1,4 @@
-import type { LayoutVec2 } from './layout-types';
+import type { LayoutVec2 } from '$lib/layout/layout-types';
 
 export type PlanViewportState = {
 	width: number;

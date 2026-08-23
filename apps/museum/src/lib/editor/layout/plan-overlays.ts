@@ -1,4 +1,4 @@
-import type { LayoutRoom, LayoutVec2 } from './layout-types';
+import type { LayoutRoom, LayoutVec2 } from '$lib/layout/layout-types';
 import type { LayoutPreviewModel } from './layout-mesh-factory';
 import {
 	primitiveDraftFootprint,

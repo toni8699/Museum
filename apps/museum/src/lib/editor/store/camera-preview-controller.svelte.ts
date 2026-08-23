@@ -18,9 +18,8 @@
  * and `pruneIfStale()` (drops the FSM
  * to idle when the source node no longer exists).
  *
- * **Locally-redeclared `EditorCameraPreview` types** mirror the god-file's
- * exports at lines 76-89. Slice 6 collapses them into a single `$lib/types/museum.ts`
- * declaration — until then, structural typing keeps the two in sync.
+ * **Locally-redeclared `EditorCameraPreview` types** mirror the
+ * `museum-editor.types.ts` barrel; structural typing keeps the two in sync.
  */
 
 import {
@@ -128,14 +127,11 @@ function cloneResolvedCameraRoute(route: ResolvedCameraRoute): ResolvedCameraRou
 		}))
 	};
 }// =====================================================================
-// Locally-redeclared preview types (mirror god-file lines 76-89).
-// Slice 3 debt 3.11 collapses them into the `museum-editor.types.ts` barrel
-// (lands in this slice). The four `kind`-tagged variant interfaces are
-// imported here so the discriminated union is composable from one source.
+// Locally-redeclared preview types (mirror the `museum-editor.types.ts`
+// barrel). The four `kind`-tagged variant interfaces are imported here so
+// the discriminated union is composable from one source.
 // =====================================================================
 
-// Re-export from the barrel so any internal caller (tests, mocks) that still
-// imports `CameraPreviewCamera` from the controller keeps compiling.
 export type { CameraPreviewCamera, CameraPreviewEdge, CameraPreviewSequence };
 
 /**

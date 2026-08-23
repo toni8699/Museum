@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { cubicBezierPoint, pointAtDistance, sampleSegment, segmentLength } from '$lib/editor/layout/curve-geometry';
-import type { DraftSegment } from '$lib/editor/layout/layout-types';
+import { cubicBezierPoint, pointAtDistance, sampleSegment, segmentLength } from '$lib/layout/layout-geometry-curve';
+import type { DraftSegment } from '$lib/layout/layout-types';
 
 const bowed: DraftSegment = {
 	id: 'curve-a',

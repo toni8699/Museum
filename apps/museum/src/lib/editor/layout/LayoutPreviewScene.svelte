@@ -8,7 +8,7 @@
 	// was imported by the deferred anchor block; restore it with that block
 	// when the octahedra return (S6.1+).
 	// import { layoutAnchorHelperPlacements } from './layout-3d-picking';
-	import type { LayoutVec2 } from './layout-types';
+	import type { LayoutVec2 } from '$lib/layout/layout-types';
 	import { ceilingShapePoints, floorShapePoints } from './layout-preview-geometry';
 	import {
 		FLOOR_MATERIAL,

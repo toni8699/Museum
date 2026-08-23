@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { roomsToLayout } from '$lib/editor/layout/rooms-to-layout';
+import { roomsToLayout } from '$lib/content/rooms-to-layout';
 import { buildLayoutPreviewModel } from '$lib/editor/layout/layout-mesh-factory';
 import { createEmptyLayoutDocument } from '$lib/layout/layout-codec';
 import { createA1RectangleDocument } from './layout-a1-fixtures';

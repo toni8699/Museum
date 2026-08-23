@@ -15,7 +15,7 @@
  * `{ bundle: null, issue }` and the adapter keeps the last valid bundle.
  */
 
-import type { MuseumProject } from '$lib/editor/project/project-types';
+import type { MuseumProject } from '$lib/project/project-types';
 import type {
 	LayoutDocument,
 	LayoutOpening,
@@ -27,14 +27,14 @@ import type { LayoutGeometryIssue } from '$lib/layout/layout-geometry-types';
 import { validateLayoutDocument } from '$lib/layout/layout-codec';
 import type { IndexedWallMesh } from '$lib/layout/wall-mesh-builder';
 import type { LayoutPreviewModel } from '../layout/layout-mesh-factory';
-import type { LayoutPreviewBounds } from '../layout/layout-preview-bounds';
+import type { LayoutBounds3 as LayoutPreviewBounds } from '$lib/layout/layout-geometry-types';
 import type { Layout3dPickIndex } from '../layout/layout-3d-picking';
-import { hasBlockingLayoutIssues, validateLayoutDocumentGeometry } from '../layout/layout-validation';
+import { hasBlockingLayoutIssues, validateLayoutDocumentGeometry } from '$lib/layout/layout-geometry-validation';
 import { derivePreviewBundle } from '../layout/layout-preview-state.svelte';
 import { transformLayoutRoomUnit } from '../layout/layout-room-transform';
 import { updateInteriorAnchorOnSegment } from '../layout/layout-editing';
 import { patchLayoutObject } from '../layout/layout-object-editing';
-import { segmentLength } from '../layout/curve-geometry';
+import { segmentLength } from '$lib/layout/layout-geometry-curve';
 import type {
 	LayoutGizmoDelta,
 	LayoutGizmoTargetDescriptor

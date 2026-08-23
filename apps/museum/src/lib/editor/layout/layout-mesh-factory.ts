@@ -1,5 +1,5 @@
-import type { LayoutDocument, LayoutVec2 } from './layout-types';
-import type { LayoutGeometryIssue } from './layout-validation';
+import type { LayoutDocument, LayoutVec2 } from '$lib/layout/layout-types';
+import type { LayoutGeometryIssue } from '$lib/layout/layout-geometry-validation';
 import { compileLayoutGeometry } from '$lib/layout/layout-geometry';
 import type {
 	CompiledCurveSample,

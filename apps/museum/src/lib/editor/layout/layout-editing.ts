@@ -1,6 +1,6 @@
-import type { DraftSegment, LayoutInteriorAnchor, LayoutRoom, LayoutVec2 } from './layout-types';
-import { nextInteriorAnchorId } from './layout-auto-bezier';
-import { sampleSegment, segmentLength } from './curve-geometry';
+import type { DraftSegment, LayoutInteriorAnchor, LayoutRoom, LayoutVec2 } from '$lib/layout/layout-types';
+import { nextInteriorAnchorId } from '$lib/layout/layout-geometry-curve';
+import { sampleSegment, segmentLength } from '$lib/layout/layout-geometry-curve';
 
 export function roomPoints(room: LayoutRoom): LayoutVec2[] {
 	return room.boundary.segments.map((segment) => [...segment.start] as LayoutVec2);

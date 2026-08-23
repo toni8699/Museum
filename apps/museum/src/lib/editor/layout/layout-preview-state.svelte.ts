@@ -1,14 +1,14 @@
 import { chopinProject, museumSceneDocument } from '$lib/content/chopin-project';
 import { createEmptySceneDocument, type MuseumSceneDocument } from '$lib/content/scene';
-import type { MuseumProject } from '$lib/editor/project/project-types';
+import type { MuseumProject } from '$lib/project/project-types';
 import {
 	createEmptyLayoutDocument,
 	parseLayoutDocumentJson,
 	serializeLayoutDocument,
 	validateLayoutDocument	} from '$lib/layout/layout-codec';
 	import { buildLayoutPreviewModel, type LayoutPreviewModel, type LayoutPreviewModelResult } from './layout-mesh-factory';
-import type { LayoutPreviewBounds } from './layout-preview-bounds';
-import type { DraftSegment, LayoutObject, LayoutOpening, LayoutRoom, LayoutVec2 } from './layout-types';
+import type { LayoutBounds3 as LayoutPreviewBounds } from '$lib/layout/layout-geometry-types';
+import type { DraftSegment, LayoutObject, LayoutOpening, LayoutRoom, LayoutVec2 } from '$lib/layout/layout-types';
 import { deleteInteriorAnchorOnSegment, insertInteriorAnchorOnSegment, pointInRoom, replaceRoomPoints, updateInteriorAnchorOnSegment } from './layout-editing';
 import {
 	appendRoomOpening,
@@ -20,7 +20,7 @@ import {
 	type LayoutOpeningKind,
 	type LayoutOpeningPatch
 } from './layout-opening-editing';
-import { hasBlockingLayoutIssues, validateLayoutDocumentGeometry, validateLineRoom, type LayoutGeometryIssue } from './layout-validation';
+import { hasBlockingLayoutIssues, validateLayoutDocumentGeometry, validateLineRoom, type LayoutGeometryIssue } from '$lib/layout/layout-geometry-validation';
 import { deleteLayoutRoom as deleteRoomFromDocument } from './layout-room-editing';
 import {
 	createLayoutObject,

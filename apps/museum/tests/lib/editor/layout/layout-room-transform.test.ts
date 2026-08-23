@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { roomsToLayout } from '$lib/editor/layout/rooms-to-layout';
+import { roomsToLayout } from '$lib/content/rooms-to-layout';
 import { transformLayoutRoomUnit } from '$lib/editor/layout/layout-room-transform';
-import type { LayoutDocument } from '$lib/editor/layout/layout-types';
+import type { LayoutDocument } from '$lib/layout/layout-types';
 
 function squareDocument(): LayoutDocument {
 	return {

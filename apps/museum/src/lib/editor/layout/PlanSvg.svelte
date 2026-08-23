@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { worldToPlanScreen, type PlanViewportState } from './layout-plan-transform';
-	import type { LayoutVec2 } from './layout-types';
+	import type { LayoutVec2 } from '$lib/layout/layout-types';
 	import type { PlanRenderModel, PlanStyleToken } from '$lib/layout/plan-render-model';
 
 	let {

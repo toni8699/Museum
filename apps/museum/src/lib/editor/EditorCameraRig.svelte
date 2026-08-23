@@ -58,7 +58,7 @@
 		EditorCameraPreviewMode,
 		MuseumEditorStore
 	} from './museum-editor.svelte';
-	import type { LayoutPreviewBounds } from './layout/layout-preview-bounds';
+	import type { LayoutBounds3 as LayoutPreviewBounds } from '$lib/layout/layout-geometry-types';
 	import type { LayoutBounds3 } from '$lib/layout/layout-geometry-types';
 
 	let {

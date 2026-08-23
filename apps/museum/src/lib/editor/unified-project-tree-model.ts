@@ -43,9 +43,9 @@ export type UnifiedTreeRow =
  * Camera **discovery** slots (`store.activeCameraConnectionId` /
  * `activeCameraDirection` = the reducer's `discoveryConnectionId` /
  * `discoveryDirection`). The camera selection type's public surface omits
- * direction (`navigationSelectionFromState` drops it — "discovery owns it"),
- * so direction rows are discovery-driven. Discovery can be set with **no**
- * navigation selection at all (timeline scrubbing), hence the explicit slot.
+ * direction — "discovery owns it" — so direction rows are discovery-driven.
+ * Discovery can be set with **no** navigation selection at all (timeline
+ * scrubbing), hence the explicit slot.
  */
 export type UnifiedTreeDiscovery = {
 	connectionId: string | null;

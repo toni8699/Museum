@@ -4,7 +4,7 @@ import {
 	lineLength,
 	openingIntervals,
 	splitWallAroundOpenings
-} from '$lib/editor/layout/draft-geometry';
+} from '$lib/layout/layout-geometry-openings';
 
 describe('A1 draft geometry', () => {
 	const segment = { id: 'wall-a', kind: 'line' as const, start: [0, 0] as [number, number], end: [10, 0] as [number, number] };

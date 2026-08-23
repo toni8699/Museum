@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { roomsToLayout } from '$lib/editor/layout/rooms-to-layout';
+import { roomsToLayout } from '$lib/content/rooms-to-layout';
 import {
 	convertLineSegmentToAutoBezier,
 	insertInteriorAnchorOnSegment,
@@ -12,7 +12,7 @@ import {
 	roomPoints,
 	translateRoom
 } from '$lib/editor/layout/layout-editing';
-import type { DraftSegment, LayoutRoom } from '$lib/editor/layout/layout-types';
+import type { DraftSegment, LayoutRoom } from '$lib/layout/layout-types';
 
 describe('layout editing', () => {
 	const room = roomsToLayout().floors[0]!.rooms[0]!;

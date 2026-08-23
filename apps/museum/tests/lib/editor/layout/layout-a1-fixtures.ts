@@ -4,7 +4,7 @@ import type {
 	LayoutDocument,
 	LayoutRoom,
 	LayoutVec2
-} from '$lib/editor/layout/layout-types';
+} from '$lib/layout/layout-types';
 
 export function createA1RectangleDocument(): LayoutDocument {
 	return documentWithRooms([rectangleRoom('room-rectangle', 0, 0, 6, 4)]);

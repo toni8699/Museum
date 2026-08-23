@@ -11,14 +11,6 @@ const COMPILER_FILES = readdirSync(layoutDir)
 	.filter((name) => name.startsWith('layout-geometry') && name.endsWith('.ts') && !name.endsWith('.test.ts'))
 	.map((name) => resolve(layoutDir, name));
 
-const REEXPORT_FILES = [
-	'lib/editor/layout/curve-geometry.ts',
-	'lib/editor/layout/arch-profile.ts',
-	'lib/editor/layout/draft-geometry.ts',
-	'lib/editor/layout/layout-auto-bezier.ts',
-	'lib/editor/layout/layout-validation.ts'
-].map((relative) => resolve(srcRoot, relative));
-
 const CONSUMER_FILES = [
 	'lib/museum/layout/LayoutMuseumShell.svelte',
 	'lib/editor/layout/LayoutPreviewScene.svelte',
@@ -74,15 +66,6 @@ describe('G1 geometry boundary', () => {
 		expect(filesDefining('export function splitWallAroundOpenings')).toEqual(['layout/layout-geometry-openings.ts']);
 		expect(filesDefining('export function splitSampledWallAroundOpenings')).toEqual(['layout/layout-geometry-openings.ts']);
 		expect(filesDefining('export function buildArchProfile')).toEqual(['layout/layout-geometry-openings.ts']);
-	});
-
-	it('keeps the editor compatibility files as pure re-exports', () => {
-		for (const file of REEXPORT_FILES) {
-			const source = sourceOf(file);
-			expect(source).not.toContain('export function');
-			expect(source).not.toContain('function ');
-			expect(source).toContain("from '$lib/layout/");
-		}
 	});
 
 	it('removes all retired resampling helpers', () => {

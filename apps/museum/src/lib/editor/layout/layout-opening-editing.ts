@@ -1,5 +1,5 @@
-import type { DraftSegment, LayoutOpening, LayoutRoom } from './layout-types';
-import { segmentLength } from './curve-geometry';
+import type { DraftSegment, LayoutOpening, LayoutRoom } from '$lib/layout/layout-types';
+import { segmentLength } from '$lib/layout/layout-geometry-curve';
 
 export type LayoutOpeningKind = LayoutOpening['kind'];
 

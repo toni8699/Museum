@@ -12,7 +12,7 @@ import {
 	snapSegmentOffset
 } from '$lib/editor/layout/layout-opening-editing';
 import { wallPolylinesAroundOpenings } from '$lib/layout/layout-geometry-openings';
-import type { CurveSample } from '$lib/editor/layout/curve-geometry';
+import type { CurveSample } from '$lib/layout/layout-geometry-curve';
 
 const room = createA1RectangleDocument().floors[0]!.rooms[0]!;
 const segment = room.boundary.segments[0]!;

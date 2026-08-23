@@ -1,4 +1,4 @@
-import type { DraftSegment, LayoutDocument, LayoutRoom, LayoutVec2 } from './layout-types';
+import type { DraftSegment, LayoutDocument, LayoutRoom, LayoutVec2 } from '$lib/layout/layout-types';
 import type { LayoutRoomUnitTransform } from './layout-room-transform';
 import { createPlanViewportState, snapToGrid, type PlanViewportState } from './layout-plan-transform';
 import type { Vec3 } from '$lib/types/museum';

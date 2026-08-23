@@ -1,7 +1,7 @@
-import type { LayoutDocument, LayoutRoom, LayoutVec2 } from './layout-types';
+import type { LayoutDocument, LayoutRoom, LayoutVec2 } from '$lib/layout/layout-types';
 import { roomBoundarySamples } from './layout-editing';
 import { validateLayoutDocument } from '$lib/layout/layout-codec';
-import { hasBlockingLayoutIssues, validateLayoutDocumentGeometry } from './layout-validation';
+import { hasBlockingLayoutIssues, validateLayoutDocumentGeometry } from '$lib/layout/layout-geometry-validation';
 import { normalizeLayoutRoomYaw } from '$lib/layout/layout-room-frame';
 
 export type LayoutRoomUnitTransform = {

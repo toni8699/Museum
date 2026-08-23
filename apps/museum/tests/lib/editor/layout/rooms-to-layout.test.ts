@@ -8,7 +8,7 @@ import {
 	CHOPIN_LAYOUT_FLOOR_THICKNESS,
 	CHOPIN_LAYOUT_WALL_THICKNESS,
 	roomsToLayout
-} from '$lib/editor/layout/rooms-to-layout';
+} from '$lib/content/rooms-to-layout';
 import { serializeLayoutDocument, validateLayoutDocument } from '$lib/layout/layout-codec';
 
 function compiledRoom(roomId: string) {

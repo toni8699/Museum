@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { archProfileTopAt, buildArchProfile } from '$lib/editor/layout/arch-profile';
+import { archProfileTopAt, buildArchProfile } from '$lib/layout/layout-geometry-openings';
 
 describe('A3 arch profiles', () => {
 	it('derives rectangular profile without extra geometry', () => {

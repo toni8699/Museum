@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { roomsToLayout } from '$lib/editor/layout/rooms-to-layout';
+import { roomsToLayout } from '$lib/content/rooms-to-layout';
 import {
 	createA1BezierDocument,
 	createA1CorridorDocument,
 	createA1LDocument,
 	createA1RectangleDocument
 } from './layout-a1-fixtures';
-import { validateLayoutDocumentGeometry, validateLineRoom } from '$lib/editor/layout/layout-validation';
+import { validateLayoutDocumentGeometry, validateLineRoom } from '$lib/layout/layout-geometry-validation';
 
 describe('A1 layout validation', () => {
 	it('accepts rectangle, L-shaped, corridor, and compiled Chopin line rooms', () => {

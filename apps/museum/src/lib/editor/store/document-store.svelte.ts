@@ -17,12 +17,9 @@
  * comparison. `HistoryController` reads `documentsMatch()` for its `commit()`
  * no-op detection but never touches the private runtime directly.
  *
- * **Clone cycle.** The pre-slice god-file hosts `cloneMuseumSceneDocument`
- * (line 116) and ~30 internal call sites. Moving the function into a shared
- * barrel before deleting the god-file export is the cleanest path, but
- * bundling it into this file as an internal helper avoids the cross-file
- * dependency for Slice 3 v1. The god-file keeps its export while this
- * sub-store owns its own local definition. Slice 6 collapses them.
+ * **Clone cycle.** `cloneMuseumSceneDocument` is defined here as an internal
+ * helper; the facade keeps its export, and this sub-store owns the local
+ * definition.
  */
 
 import {

@@ -221,20 +221,8 @@ export const EDITOR_TIMELINE_MIN_HEIGHT = 220;
 export const EDITOR_TIMELINE_MAX_HEIGHT = 360;
 export const EDITOR_TIMELINE_DEFAULT_HEIGHT = 280;
 
-// Slice 3 — `cameraDirectionTreeKey` lives on `helpers/scene-keys.ts`
-// (alongside `CAMERA_DIRECTION_TREE_KEY_SEPARATOR`); imported above.
-// `cloneResolvedCameraRoute` + `cloneRoutePoint` + `isRoutePointTuple` live
-// on `helpers/route-clone.ts`; re-exported above for any consumer that
-// imported them from the god file before Slice 3.
-
 // Phase 9.5 — `vec3Matches` / `isFiniteVec3` live on path-anchor / view-key
 // controllers; no remaining facade callers.
-
-// Slice 3 v2 sub-task 3.4 deleted the pre-slice helper `documentsMatch` because
-// EditorDocumentStore now exposes a public static of the same name
-// (EditorDocumentStore.documentsMatch) and the god file's caller migrated to it
-// during sub-task 3.4 (line ~4142). The two helpers were JSON-stringify
-// equality — single source of truth on the sub-store now.
 
 export class MuseumEditorStore {
 	// Sub-store composition (Slice 3 v2 sub-task 3.4, Option 3 pragmatic facade).

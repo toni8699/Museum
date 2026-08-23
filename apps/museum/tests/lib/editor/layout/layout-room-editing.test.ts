@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createEmptyLayoutDocument } from '$lib/layout/layout-codec';
 import { deleteLayoutRoom } from '$lib/editor/layout/layout-room-editing';
-import type { LayoutDocument, LayoutOpening, LayoutRoom } from '$lib/editor/layout/layout-types';
+import type { LayoutDocument, LayoutOpening, LayoutRoom } from '$lib/layout/layout-types';
 
 function room(id: string): LayoutRoom {
 	return {

@@ -4,7 +4,7 @@ import {
 	compileAutoBezierAnchors,
 	legacyBezierToAutoBezier,
 	nextInteriorAnchorId
-} from '$lib/editor/layout/layout-auto-bezier';
+} from '$lib/layout/layout-geometry-curve';
 
 describe('layout auto-bezier', () => {
 	it('compiles two anchors to a straight cubic', () => {

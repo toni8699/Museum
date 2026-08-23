@@ -121,7 +121,7 @@ set. The itemized DoD above is the gate.
 | ID | Content | Finding | Depends | Behavior change |
 |---|---|---|---|---|
 | **P7.1** | Selection decoupling: read adapter folds into `selection-store`; write adapter dies with the bridging setters; write sites → `selectionActions` (the original plan's suggested slice) | 1 | — | none |
-| **P7.2** | Delete dual-namespace shims (`editor/project/*`, `editor/layout/*`; the `layout-preview-geometry.ts` de-hybrid is already done — only its `./layout-types` import rewrite remains) | 3 | — | none |
+| **P7.2** | Delete dual-namespace shims (`editor/project/*`, `editor/layout/*`; the `layout-preview-geometry.ts` de-hybrid is already done — only its `./layout-types` import rewrite remains) — **shipped 2026-08-23** | 3 | — | none |
 | **P7.3** | Chopin defaults → explicit inputs (`createMuseumEditorStore`, `editor-camera-path`, `editor-camera-view`) | 4 | — | none (relic passes Chopin explicitly) |
 | **P7.4** | Extract shared editor-shell boot composable (`MuseumEditorApp` + `EditorApp`) — dirty guards + texture lifecycle only; shortcuts stay shell-owned — **shipped 2026-08-19 (implemented during P1, non-blocking)** | 2 | — | none |
 | **P7.5** | Facade thinning: move remaining single-owner reads to owning sub-stores (the deferred "future slice"); close the `isDirty` divergence — **shipped 2026-08-23** | 1 | P7.1 | none |
@@ -376,6 +376,33 @@ action on `EditorSelectionActions`:
 
 ---
 ## P7.2 — Shim deletion (brief)
+
+> **Implementation (2026-08-23).** All 10 shim files deleted, every importer
+> rewired to canonical paths; suite 1,986 green (1,987 − the vacuous
+> boundary re-export test removed with its shims), `svelte-check` 0/0, P7.6
+> inventory still 517/523. The brief's survey undercounted the surface — the
+> actual rewrite covered **16 src files + 14 test files**, not 11 src + 1
+> test: relative `./layout-*` imports inside `editor/layout/` (14 files), the
+> `$lib/editor/project/*` importers, plus test files for the shims
+> themselves (`arch-profile.test`, `draft-geometry.test`, `curve-geometry`
+> `.test`, `layout-auto-bezier.test`, `layout-validation.test`,
+> `rooms-to-layout.test`) and `layout-a1-fixtures.ts` — all repointed at the
+> canonical kernels. Canonical targets are the geometry kernels, not
+> same-named files: `curve-geometry` → `$lib/layout/layout-geometry-curve`,
+> `arch-profile`/`draft-geometry` → `$lib/layout/layout-geometry-openings`,
+> `layout-validation` → `$lib/layout/layout-geometry-validation`,
+> `layout-auto-bezier` → `$lib/layout/layout-geometry-curve`,
+> `layout-preview-bounds` → `LayoutBounds3 as LayoutPreviewBounds` from
+> `$lib/layout/layout-geometry-types`, `layout-types` → `$lib/layout/layout-types`,
+> `rooms-to-layout` → `$lib/content/rooms-to-layout`. The geometry-boundary
+> test's `REEXPORT_FILES` const + its pure-re-exports test were removed with
+> the shims they audited. Tombstone sweep done (the brief's targets minus the
+> already-removed 9.3 gotcha): camera-preview-controller's two Slice-6/Slice-3
+> narratives trimmed, document-store's "Slice 6 collapses them" removed,
+> facade's Slice-3 re-export narrative deleted (Phase 9.5 note kept), and
+> `unified-project-tree-model.ts:46`'s `navigationSelectionFromState`
+> parenthetical dropped. Grep gate: zero non-canonical shim-name matches in
+> src/tests/vite.
 
 ### 1. Outcome / out of scope
 

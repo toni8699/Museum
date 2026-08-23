@@ -31,6 +31,41 @@ import type {
 } from '../museum-editor.types';
 import type { EditorSessionState } from './session-state.svelte';
 import type { CameraConnectionDirection, MuseumRoomId } from '$lib/types/museum';
+import type { EditorNavigationSelection } from '../editor-selection';
+
+/**
+ * Read adapter (moved from the facade, P7.1) — translate the parallel-tuple
+ * `NavigationSelection` into the legacy `EditorNavigationSelection` shape that
+ * the editor's 3D picker and tree use. Direction stays owned by the discovery
+ * slots (H1 s4): `connection` reads omit direction. Module scope to avoid
+ * re-creating the closure per call.
+ */
+export function navigationSelectionFromState(
+	state: NavigationSelection
+): EditorNavigationSelection {
+	switch (state.kind) {
+		case 'none':
+			return null;
+		case 'node':
+			return { kind: 'node', nodeId: state.nodeId, handle: state.handle };
+		case 'connection':
+			// Legacy public surface omits direction — discovery owns it.
+			return { kind: 'connection', connectionId: state.connectionId };
+		case 'anchor':
+			return {
+				kind: 'anchor',
+				connectionId: state.connectionId,
+				anchorId: state.anchorId
+			};
+		case 'view-keyframe':
+			return {
+				kind: 'view-keyframe',
+				connectionId: state.connectionId,
+				direction: state.direction,
+				keyframeId: state.keyframeId
+			};
+	}
+}
 
 function roomOnly(roomId: MuseumRoomId): WorkspaceSelection {
 	return { kind: 'placement', ids: [], clusterId: null, roomId };

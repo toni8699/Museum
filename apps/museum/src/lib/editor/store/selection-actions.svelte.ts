@@ -42,8 +42,56 @@ import type {
 	EditorClusterTreeSelectionOptions,
 	EditorPendingNavigationCommand,
 	EditorPlacementTreeSelectionOptions,
-	EditorWorkspace
+	EditorWorkspace,
+	NavigationSelection
 } from '../museum-editor.types';
+
+/**
+ * Captured legacy selection snapshot restored by `restoreSelectionSnapshot`
+ * after a cancelled drag. The three UI restore sites capture this legacy
+ * shape; the adapter translates it back into the parallel-tuple reducer.
+ */
+export interface EditorSelectionSnapshot {
+	navigation: EditorNavigationSelection;
+	placementIds: string[];
+	clusterId: string | null;
+}
+
+/**
+ * @internal — legacy-shape translator for the session-restore adapter.
+ * Moved from the facade (P7.1): the legacy bridging setters are deleted, but
+ * the three UI restore sites capture the legacy `EditorNavigationSelection`
+ * shape, so the translator survives here at module scope.
+ */
+function navigationStateFromLegacy(
+	value: EditorNavigationSelection,
+	direction: CameraConnectionDirection = 'forward'
+): NavigationSelection {
+	if (value === null) return { kind: 'none' };
+	switch (value.kind) {
+		case 'node':
+			return { kind: 'node', nodeId: value.nodeId, handle: value.handle };
+		case 'connection':
+			return {
+				kind: 'connection',
+				connectionId: value.connectionId,
+				direction
+			};
+		case 'anchor':
+			return {
+				kind: 'anchor',
+				connectionId: value.connectionId,
+				anchorId: value.anchorId
+			};
+		case 'view-keyframe':
+			return {
+				kind: 'view-keyframe',
+				connectionId: value.connectionId,
+				direction: value.direction,
+				keyframeId: value.keyframeId
+			};
+	}
+}
 
 /**
  * Composition-root surface the selection controller depends on. Everything
@@ -539,5 +587,39 @@ export class EditorSelectionActions {
 						roomId
 				  }
 		);
+	}
+
+	/**
+	 * Session-restore seam (P7.1) — restores a captured legacy selection
+	 * snapshot after a cancelled drag. **Not a user gesture:** deliberately
+	 * guard-free and side-effect-free (no focus/status/timeline), because the
+	 * guarded `select*` actions would no-op under `isEditorInteractionActive`
+	 * during drag teardown and would fire effects a restore must not trigger.
+	 * Translates the legacy shapes and writes the reducer directly — this is
+	 * the sole survivor of the deleted facade bridging setters.
+	 */
+	restoreSelectionSnapshot(snapshot: EditorSelectionSnapshot) {
+		this.selection.setNavigation(
+			navigationStateFromLegacy(
+				snapshot.navigation,
+				this.selection.discoveryDirection
+			)
+		);
+		const roomId = this.host.selectedRoomId;
+		if (roomId === null) return;
+		if (snapshot.clusterId !== null) {
+			this.selection.setWorkspace({
+				kind: 'cluster',
+				clusterId: snapshot.clusterId,
+				roomId
+			});
+		} else if (snapshot.placementIds.length > 0) {
+			this.selection.setWorkspace({
+				kind: 'placement',
+				ids: [...snapshot.placementIds],
+				clusterId: null,
+				roomId
+			});
+		}
 	}
 }

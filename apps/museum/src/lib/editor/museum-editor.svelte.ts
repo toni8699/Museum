@@ -79,7 +79,10 @@ import {
 	previewScopeOf
 } from './store/camera-preview-controller.svelte';
 import { EditorHistoryController, type LayoutHistoryHost } from './store/history-controller.svelte';
-import { EditorSelectionStore } from './store/selection-store.svelte';
+import {
+	EditorSelectionStore,
+	navigationSelectionFromState
+} from './store/selection-store.svelte';
 import { EditorSelectionActions } from './store/selection-actions.svelte';
 import { EditorMutationGuards } from './store/mutation-guards.svelte';
 import {
@@ -125,74 +128,6 @@ import {
 	type ProjectExportBlocker
 } from './store/project-export-store.svelte';
 
-/**
- * Slice 4 helper — translate the legacy `EditorNavigationSelection` shape
- * (null for "no selection") into the parallel-tuple `NavigationSelection`
- * shape consumed by the reducer. Used by the legacy setter that bridges
- * pre-slice writes (`this.navigationSelection = …`) into the new model.
- */
-function navigationStateFromLegacy(
-	value: EditorNavigationSelection,
-	direction: CameraConnectionDirection = 'forward'
-): NavigationSelection {
-	if (value === null) return { kind: 'none' };
-	switch (value.kind) {
-		case 'node':
-			return { kind: 'node', nodeId: value.nodeId, handle: value.handle };
-		case 'connection':
-			return {
-				kind: 'connection',
-				connectionId: value.connectionId,
-				direction
-			};
-		case 'anchor':
-			return {
-				kind: 'anchor',
-				connectionId: value.connectionId,
-				anchorId: value.anchorId
-			};
-		case 'view-keyframe':
-			return {
-				kind: 'view-keyframe',
-				connectionId: value.connectionId,
-				direction: value.direction,
-				keyframeId: value.keyframeId
-			};
-	}
-}
-
-/**
- * Slice 4 helper — translate the parallel-tuple NavigationSelection into the
- * legacy `EditorNavigationSelection` shape that the editor's 3D picker uses.
- * Kept at module scope to avoid re-creating the closure per call.
- */
-function navigationSelectionFromState(
-	state: NavigationSelection
-): EditorNavigationSelection {
-	switch (state.kind) {
-		case 'none':
-			return null;
-		case 'node':
-			return { kind: 'node', nodeId: state.nodeId, handle: state.handle };
-		case 'connection':
-			// Legacy public surface omits direction — discovery owns it.
-			return { kind: 'connection', connectionId: state.connectionId };
-		case 'anchor':
-			return {
-				kind: 'anchor',
-				connectionId: state.connectionId,
-				anchorId: state.anchorId
-			};
-		case 'view-keyframe':
-			return {
-				kind: 'view-keyframe',
-				connectionId: state.connectionId,
-				direction: state.direction,
-				keyframeId: state.keyframeId
-			};
-	}
-}
-
 import type {
 	EditorCameraPreviewMode,
 	EditorCameraPreviewTransport,
@@ -211,8 +146,7 @@ import type {
 	EditorPendingMaterialEdit,
 	EditorTextureLoadState,
 	MaterialEditDecision,
-	MaterialInstancePatch,
-	NavigationSelection
+	MaterialInstancePatch
 } from './museum-editor.types';
 // Re-exports below keep the pre-slice public surface compiling unchanged.
 import {
@@ -279,9 +213,6 @@ export type {
 	EditorPendingNavigationCommand,
 	EditorWorkspace,
 	EditorLeftPanel,
-	EditorPlacementTreeSelectionOptions,
-	EditorClusterTreeSelectionOptions,
-	EditorViewKeyframeProgressDragSelection,
 	EditorTransformSpace,
 	EditorCameraFocusKind,
 	EditorTransformInteractionKind
@@ -580,24 +511,12 @@ export class MuseumEditorStore {
 	}
 
 	// Slice 4 — selection parallel-tuple. Reads are derived from `selectionStore`;
-	// setters forward to the reducer (used by legacy call sites that haven't
-	// been migrated; once Slice 5 lands these setters return to read-only
-	// derived getters). Bind: will silently fail until Slice 5 migrates.
+	// P7.1 deleted the four bridging setters — selection writes now go through
+	// the reducer (`selectionStore`) or `selectionActions` (post-commit +
+	// session-restore seams). Read getters are unchanged for consumers.
 	get selectedRoomId(): MuseumRoomId | null {
 		const w = this.selectionStore.workspace;
 		return w.kind === 'none' ? null : w.roomId;
-	}
-	set selectedRoomId(value: MuseumRoomId | null) {
-		this.selectionStore.setWorkspace(
-			value === null
-				? { kind: 'none' }
-				: {
-						kind: 'placement',
-						ids: this.selectedPlacementIds,
-						clusterId: this.selectedClusterId,
-						roomId: value
-				  }
-		);
 	}
 	get selectedPlacementIds(): string[] {
 		const w = this.selectionStore.workspace;
@@ -608,37 +527,12 @@ export class MuseumEditorStore {
 		}
 		return [];
 	}
-	set selectedPlacementIds(value: string[]) {
-		const roomId = this.selectedRoomId;
-		if (roomId === null) return;
-		// Writing placement ids exits cluster mode (toggle / reconcile paths).
-		this.selectionStore.setWorkspace({
-			kind: 'placement',
-			ids: value,
-			clusterId: null,
-			roomId
-		});
-	}
 	get selectedClusterId(): string | null {
 		const w = this.selectionStore.workspace;
 		return w.kind === 'cluster' ? w.clusterId : null;
 	}
-	set selectedClusterId(value: string | null) {
-		const roomId = this.selectedRoomId;
-		if (roomId === null) return;
-		this.selectionStore.setWorkspace(
-			value === null
-				? { kind: 'none' }
-				: { kind: 'cluster', clusterId: value, roomId }
-		);
-	}
 	get navigationSelection(): EditorNavigationSelection {
 		return navigationSelectionFromState(this.selectionStore.navigation);
-	}
-	set navigationSelection(value: EditorNavigationSelection) {
-		this.selectionStore.setNavigation(
-			navigationStateFromLegacy(value, this.selectionStore.discoveryDirection)
-		);
 	}
 	get selectedPlacementId(): string | null {
 		return this.selectedPlacementIds.at(-1) ?? null;
@@ -868,8 +762,8 @@ export class MuseumEditorStore {
 	 * `$state` slots that used to live here (`selectedRoomId`,
 	 * `selectedPlacementIds`, `selectedClusterId`, `navigationSelection`,
 	 * `activeCameraConnectionId`, `activeCameraDirection`) are now derived
-	 * getters backed by this store; binds against them silently stop
-	 * writing (Phase A accept, per audit §3.G caveat — Slice 5 migrates).
+	 * getters backed by this store. P7.1 deleted the bridging setters — all
+	 * selection writes land in the reducer or `selectionActions`.
 	 */
 	private readonly selectionStore = new EditorSelectionStore();
 
@@ -2631,8 +2525,10 @@ export class MuseumEditorStore {
 		this.cancelPendingNavigation();
 		this.cancelPendingFrame();
 		this.selectionActions.clearPlacementSelection();
-		this.navigationSelection = null;
-		this.selectedRoomId = null;
+		// P7.1 — direct reducer writes (guard-free): import must land even if
+		// a transaction/preview state would block a guarded action.
+		this.selectionStore.setNavigation({ kind: 'none' });
+		this.selectionStore.setWorkspace({ kind: 'none' });
 		this.session.clearCameraFocusRequest();
 		this.session.clearAllPlacementScaleVectors();
 		this.documentStore.replace(validation.document);
@@ -2691,7 +2587,8 @@ export class MuseumEditorStore {
 					(node) => node.id === navigationSelection.nodeId
 				)
 			) {
-				this.navigationSelection = null;
+				// P7.1 — reducer write; {kind:'none'} clears discovery (legacy parity).
+				this.selectionStore.setNavigation({ kind: 'none' });
 			}
 		} else if (navigationSelection?.kind === 'connection') {
 			if (
@@ -2699,39 +2596,48 @@ export class MuseumEditorStore {
 					(connection) => connection.id === navigationSelection.connectionId
 				)
 			) {
-				this.navigationSelection = null;
+				// P7.1 — reducer write; {kind:'none'} clears discovery (legacy parity).
+				this.selectionStore.setNavigation({ kind: 'none' });
 			}
 		} else if (navigationSelection?.kind === 'anchor') {
 			const connection = this.document.connections.find(
 				(candidate) => candidate.id === navigationSelection.connectionId
 			);
 			if (!connection) {
-				this.navigationSelection = null;
+				// P7.1 — reducer write; {kind:'none'} clears discovery (legacy parity).
+				this.selectionStore.setNavigation({ kind: 'none' });
 			} else if (
 				!connection.positionPath.anchors.some(
 					(anchor) => anchor.id === navigationSelection.anchorId
 				)
 			) {
-				this.navigationSelection = {
+				// P7.1 — reducer write with explicit direction (direction trap:
+				// the deleted bridge defaulted to the discovery direction).
+				this.selectionStore.setNavigation({
 					kind: 'connection',
-					connectionId: connection.id
-				};
+					connectionId: connection.id,
+					direction: this.selectionStore.discoveryDirection
+				});
 			}
 		} else if (navigationSelection?.kind === 'view-keyframe') {
 			const connection = this.document.connections.find(
 				(candidate) => candidate.id === navigationSelection.connectionId
 			);
 			if (!connection) {
-				this.navigationSelection = null;
+				// P7.1 — reducer write; {kind:'none'} clears discovery (legacy parity).
+				this.selectionStore.setNavigation({ kind: 'none' });
 			} else if (
 				!connection.viewTracks?.[navigationSelection.direction].some(
 					(keyframe) => keyframe.id === navigationSelection.keyframeId
 				)
 			) {
-				this.navigationSelection = {
+				// P7.1 — reducer write with explicit direction (direction trap:
+				// the deleted bridge defaulted to the discovery direction).
+				this.selectionStore.setNavigation({
 					kind: 'connection',
-					connectionId: connection.id
-				};
+					connectionId: connection.id,
+					direction: this.selectionStore.discoveryDirection
+				});
 			}
 		}
 		if (this.selectedClusterId) {
@@ -2746,9 +2652,19 @@ export class MuseumEditorStore {
 			// no write needed (writing would exit cluster mode).
 			return;
 		}
-		this.selectedPlacementIds = this.selectedPlacementIds.filter((id) =>
-			this.isPlacementSelectable(id)
-		);
+		// P7.1 — direct reducer write preserving the legacy setter's roomId
+		// guard + cluster-exit semantics.
+		const roomId = this.selectedRoomId;
+		if (roomId !== null) {
+			this.selectionStore.setWorkspace({
+				kind: 'placement',
+				ids: this.selectedPlacementIds.filter((id) =>
+					this.isPlacementSelectable(id)
+				),
+				clusterId: null,
+				roomId
+			});
+		}
 		if (
 			this.pendingFramePlacementIds.some(
 				(id) =>

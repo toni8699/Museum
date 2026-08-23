@@ -80,14 +80,15 @@ export interface EditorControllerHostSource {
 	readonly session: EditorSessionState;
 	readonly cameraTimelineController: EditorCameraTimelineController;
 
-	// Selection-derived reads. `navigationSelection` and `selectedClusterId` are
-	// writable because the nav/placement host literals forward setter writes.
+	// Selection-derived reads only. P7.1 removed the host setter forwards —
+	// selection writes go through the reducer (`selectionStore`) or
+	// `selectionActions` (post-commit/restore seams).
 	readonly cameraSelection: EditorCameraSelection | null;
-	navigationSelection: EditorNavigationSelection;
+	readonly navigationSelection: EditorNavigationSelection;
 	readonly selectedRoomId: MuseumRoomId | null;
 	readonly selectedPlacementId: string | null;
 	readonly selectedPlacementIds: string[];
-	selectedClusterId: string | null;
+	readonly selectedClusterId: string | null;
 	readonly primaryPlacementId: string | null;
 	readonly selectedNavigationNode: SceneNavigationNode | undefined;
 	readonly selectedConnection: SceneConnection | undefined;
@@ -311,9 +312,6 @@ export function createControllerHosts(
 		get navigationSelection() {
 			return source.navigationSelection;
 		},
-		set navigationSelection(value) {
-			source.navigationSelection = value;
-		},
 		get treeExpandedCameraConnectionIds() {
 			return source.treeExpandedCameraConnectionIds;
 		},
@@ -409,9 +407,6 @@ export function createControllerHosts(
 		},
 		get navigationSelection() {
 			return source.navigationSelection;
-		},
-		set navigationSelection(value) {
-			source.navigationSelection = value;
 		},
 		get viewKeyframeProgressDrag() {
 			return source.viewKeyframeProgressDrag;
@@ -560,9 +555,6 @@ export function createControllerHosts(
 		get selectedClusterId() {
 			return source.selectedClusterId;
 		},
-		set selectedClusterId(value) {
-			source.selectedClusterId = value;
-		},
 		get pendingPlacementAssetId() {
 			return source.pendingPlacementAssetId;
 		},
@@ -637,8 +629,9 @@ export function createControllerHosts(
 		get navigationSelection() {
 			return source.navigationSelection;
 		},
-		set navigationSelection(value) {
-			source.navigationSelection = value;
+		/** P7.1 — reducer seam for in-transaction selection writes. */
+		get selection() {
+			return source.selectionStore;
 		},
 		isPendingNavigationNode: (nodeId: string) => source.isPendingNavigationNode(nodeId),
 		beginDocumentTransaction: () => source.beginDocumentTransaction(),

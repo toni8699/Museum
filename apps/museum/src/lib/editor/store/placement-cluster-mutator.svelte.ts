@@ -572,7 +572,9 @@ export class EditorPlacementClusterMutator {
 		) {
 			this.selectionActions.selectCluster(clusterId);
 		} else if (wasSelectedCluster) {
-			this.host.selectedClusterId = null;
+			// P7.1 — the raw `selectedClusterId = null` write is deleted: the
+			// selectPlacements below already exits cluster mode (setWorkspace
+			// writes clusterId: null).
 			this.selectionActions.selectPlacements(cluster.memberIds);
 		}
 		return true;

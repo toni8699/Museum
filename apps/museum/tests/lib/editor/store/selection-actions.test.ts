@@ -396,4 +396,60 @@ describe('EditorSelectionActions — Phase 6.4 keep-action invariant', () => {
 		actions.selectCluster('cluster-1');
 		expect(transformMode).toBe('rotate');
 	});
+
+	// P7.1 — the guard-free session-restore adapter (the sole survivor of the
+	// deleted facade bridging setters). Round-trips the legacy snapshot shape.
+	it('restoreSelectionSnapshot round-trips null navigation and restores placement ids', () => {
+		const { actions, selection } = createHarness([{ id: 'p1', roomId: 'paris' }]);
+		actions.selectRoom('paris');
+		actions.selectPlacement('p1');
+
+		actions.restoreSelectionSnapshot({
+			navigation: null,
+			placementIds: ['p1'],
+			clusterId: null
+		});
+		expect(selection.navigation).toEqual({ kind: 'none' });
+		expect(selection.workspace).toEqual({
+			kind: 'placement',
+			ids: ['p1'],
+			clusterId: null,
+			roomId: 'paris'
+		});
+	});
+
+	it('restoreSelectionSnapshot restores cluster id (reducer cross-clears navigation)', () => {
+		const { actions, selection } = createHarness([{ id: 'p1', roomId: 'paris' }]);
+		actions.selectRoom('paris');
+
+		actions.restoreSelectionSnapshot({
+			navigation: { kind: 'connection', connectionId: 'c1' },
+			placementIds: [],
+			clusterId: 'cl1'
+		});
+		// Legacy parity: a real workspace pick wins — the reducer's
+		// cross-clearing invariant turns navigation off.
+		expect(selection.navigation).toEqual({ kind: 'none' });
+		expect(selection.workspace).toEqual({
+			kind: 'cluster',
+			clusterId: 'cl1',
+			roomId: 'paris'
+		});
+	});
+
+	it('restoreSelectionSnapshot restores a navigation selection when no workspace ids are present', () => {
+		const { actions, selection } = createHarness([{ id: 'p1', roomId: 'paris' }]);
+		actions.selectRoom('paris');
+
+		actions.restoreSelectionSnapshot({
+			navigation: { kind: 'anchor', connectionId: 'c1', anchorId: 'a1' },
+			placementIds: [],
+			clusterId: null
+		});
+		expect(selection.navigation).toEqual({
+			kind: 'anchor',
+			connectionId: 'c1',
+			anchorId: 'a1'
+		});
+	});
 });

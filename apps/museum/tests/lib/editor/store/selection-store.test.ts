@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { EditorSelectionStore } from '$lib/editor/store/selection-store.svelte';
+import {
+	EditorSelectionStore,
+	navigationSelectionFromState
+} from '$lib/editor/store/selection-store.svelte';
 import { EditorSessionState } from '$lib/editor/store/session-state.svelte';
 
 describe('EditorSelectionStore', () => {
@@ -171,5 +174,54 @@ describe('EditorSelectionStore', () => {
 		});
 		expect(selection.discoveryConnectionId).toBe('c1');
 		expect(selection.discoveryDirection).toBe('reverse');
+	});
+
+	// P7.1 — the read adapter moved off the facade into this module; pin its
+	// contract: direction dropped on read (discovery owns it, H1 s4), all
+	// other kinds round-trip exactly.
+	it('navigationSelectionFromState drops direction on connection reads', () => {
+		const selection = new EditorSelectionStore();
+		selection.setNavigation({
+			kind: 'connection',
+			connectionId: 'c1',
+			direction: 'reverse'
+		});
+		expect(navigationSelectionFromState(selection.navigation)).toEqual({
+			kind: 'connection',
+			connectionId: 'c1'
+		});
+	});
+
+	it('navigationSelectionFromState round-trips none / node / anchor / view-keyframe', () => {
+		const selection = new EditorSelectionStore();
+		selection.setNavigation({ kind: 'none' });
+		expect(navigationSelectionFromState(selection.navigation)).toBeNull();
+
+		selection.setNavigation({ kind: 'node', nodeId: 'n1', handle: 'position' });
+		expect(navigationSelectionFromState(selection.navigation)).toEqual({
+			kind: 'node',
+			nodeId: 'n1',
+			handle: 'position'
+		});
+
+		selection.setNavigation({ kind: 'anchor', connectionId: 'c1', anchorId: 'a1' });
+		expect(navigationSelectionFromState(selection.navigation)).toEqual({
+			kind: 'anchor',
+			connectionId: 'c1',
+			anchorId: 'a1'
+		});
+
+		selection.setNavigation({
+			kind: 'view-keyframe',
+			connectionId: 'c1',
+			direction: 'forward',
+			keyframeId: 'k1'
+		});
+		expect(navigationSelectionFromState(selection.navigation)).toEqual({
+			kind: 'view-keyframe',
+			connectionId: 'c1',
+			direction: 'forward',
+			keyframeId: 'k1'
+		});
 	});
 });

@@ -32,6 +32,7 @@ import type {
 	EditorCameraSelection,
 	EditorNavigationSelection
 } from '../editor-selection';
+import type { EditorSelectionStore } from './selection-store.svelte';
 
 function vec3Matches(a: Vec3, b: Vec3) {
 	return a[0] === b[0] && a[1] === b[1] && a[2] === b[2];
@@ -65,7 +66,9 @@ export interface EditorPathAnchorMutatorHost {
 	readonly selectedRoomId: MuseumRoomId | null;
 	readonly pendingNavigationNode: SceneNavigationNode | undefined;
 
-	navigationSelection: EditorNavigationSelection;
+	readonly navigationSelection: EditorNavigationSelection;
+	/** P7.1 — reducer seam for in-transaction selection writes. */
+	readonly selection: EditorSelectionStore;
 
 	isPendingNavigationNode(nodeId: string): boolean;
 
@@ -276,7 +279,9 @@ export class EditorPathAnchorMutator {
 			Math.min(connection.positionPath.anchors.length, Math.trunc(interiorIndex))
 		);
 		connection.positionPath.anchors.splice(index, 0, anchor);
-		this.host.navigationSelection = { kind: 'anchor', connectionId, anchorId: id };
+		// P7.1 — reducer seam (in-transaction): the guarded actions would no-op
+		// under isDocumentMutationBlocked while the transaction is open.
+		this.host.selection.setNavigation({ kind: 'anchor', connectionId, anchorId: id });
 		return id;
 	}
 
@@ -332,10 +337,13 @@ export class EditorPathAnchorMutator {
 		);
 		if (index < 0 || !this.host.beginDocumentTransaction()) return false;
 		connection.positionPath.anchors.splice(index, 1);
-		this.host.navigationSelection = {
+		// P7.1 — in-transaction reducer write; direction is explicit (the legacy
+		// bridge defaulted to the discovery direction — the reducer requires it).
+		this.host.selection.setNavigation({
 			kind: 'connection',
-			connectionId: connection.id
-		};
+			connectionId: connection.id,
+			direction: this.host.selection.discoveryDirection
+		});
 		return this.host.commitDocumentTransaction();
 	}
 }

@@ -227,9 +227,13 @@
 	}
 
 	function restoreSelection(active: PathPointerSession) {
-		store.navigationSelection = active.originalNavigationSelection;
-		store.selectedPlacementIds = [...active.originalPlacementIds];
-		store.selectedClusterId = active.originalClusterId;
+		// P7.1 — the three legacy bridging writes collapsed into the
+		// guard-free session-restore adapter.
+		store.selectionActions.restoreSelectionSnapshot({
+			navigation: active.originalNavigationSelection,
+			placementIds: [...active.originalPlacementIds],
+			clusterId: active.originalClusterId
+		});
 	}
 
 	function clearPointerSession() {

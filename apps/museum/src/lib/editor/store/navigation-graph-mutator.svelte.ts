@@ -230,7 +230,9 @@ export class EditorNavigationGraphMutator {
 		this.#pendingNavigationPlacementIdsBefore = [...this.host.selectedPlacementIds];
 		this.#pendingNavigationClusterBefore = this.host.selectedClusterId;
 		this.selectionActions.clearPlacementSelection();
-		this.host.navigationSelection = null;
+		// P7.1 — reducer write ({kind:'none'} clears discovery, matching the
+		// legacy null write below via the deleted bridge).
+		this.host.selection.setNavigation({ kind: 'none' });
 		this.host.activeCameraConnectionId = null;
 		this.host.activeCameraDirection = 'forward';
 		this.host.pendingNavigationCommand = {
@@ -587,7 +589,9 @@ export class EditorNavigationGraphMutator {
 			this.host.pendingNavigationCommand = null;
 			this.#clearPendingNavigationSnapshot();
 		}
-		this.host.navigationSelection = { kind: 'connection', connectionId };
+		// P7.1 — post-commit selection action; resolves the default direction
+		// internally (the legacy bridge's discovery-direction default).
+		this.selectionActions.selectConnection(connectionId);
 		this.host.activeCameraConnectionId = connectionId;
 		this.host.activeCameraDirection = 'forward';
 		this.selectionActions.expandActiveCameraDirection('forward');

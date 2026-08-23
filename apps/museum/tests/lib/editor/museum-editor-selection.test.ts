@@ -283,7 +283,8 @@ describe('MuseumEditorStore clusters', () => {
 		expect(store.selectedClusterId).toBeNull();
 		expect(store.selectedPlacementIds).toEqual([]);
 		store.consumeCameraFocus(store.cameraFocusVersion);
-		store.selectedRoomId = null;
+		// P7.1 — legacy bridging setter deleted; equivalent reducer write.
+		store.selection.setWorkspace({ kind: 'none' });
 		store.toggleRoomTreeExpansion('paris');
 		const beforeFocus = store.cameraFocusVersion;
 
@@ -413,5 +414,46 @@ describe('MuseumEditorStore clusters', () => {
 		expect(store.undo()).toBe(true);
 		expect(store.clusters).toHaveLength(0);
 		expect(store.document.entities.find((object) => object.id === a.id)?.position[0]).toBe(originalX);
+	});
+
+	// P7.1 direction trap — the migrated in-transaction connection write must
+	// carry the discovery direction explicitly (the deleted legacy bridge used
+	// to default it). Discovery surviving as 'reverse' proves the reducer write
+	// carried it; a default 'forward' write would have flipped discovery.
+	it('P7.1: anchor delete lands a connection write carrying the discovery direction', () => {
+		const store = createFixtureEditorStore();
+		const connection = store.document.connections.find(
+			(candidate) => candidate.positionPath.anchors.length > 0
+		)!;
+		const anchor = connection.positionPath.anchors[0]!;
+		expect(store.selectionActions.selectAnchor(connection.id, anchor.id)).toBe(true);
+		store.selection.setDiscovery(connection.id, 'reverse');
+
+		expect(store.deleteSelectedAnchor()).toBe(true);
+		expect(store.navigationSelection).toEqual({
+			kind: 'connection',
+			connectionId: connection.id
+		});
+		expect(store.selection.discoveryDirection).toBe('reverse');
+	});
+
+	// P7.1 reducer seam — the migrated in-transaction write sites land their
+	// selection writes through the reducer mid-transaction. Selection is
+	// session state, not document state: the write lands and survives the
+	// transaction's cancel (guarded `select*` actions are not the seam — they
+	// fire focus/status/timeline side-effects against half-committed state).
+	it('P7.1: reducer selection write lands mid-transaction and survives cancel', () => {
+		const store = createFixtureEditorStore();
+		expect(store.beginDocumentTransaction()).toBe(true);
+
+		store.selection.setNavigation({
+			kind: 'connection',
+			connectionId: store.document.connections[0]!.id,
+			direction: store.selection.discoveryDirection
+		});
+		expect(store.selection.navigation.kind).toBe('connection');
+
+		expect(store.cancelDocumentTransaction()).toBe(true);
+		expect(store.selection.navigation.kind).toBe('connection');
 	});
 });

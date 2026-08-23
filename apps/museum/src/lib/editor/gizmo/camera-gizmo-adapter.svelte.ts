@@ -339,11 +339,17 @@ function cancelCameraSession(
 ) {
 	void reason;
 	if (session.target.kind === 'camera' && session.pending) {
-		store.navigationSelection = {
-			kind: 'node',
-			nodeId: session.target.nodeId,
-			handle: session.target.handle
-		};
+		// P7.1 — guard-free session-restore adapter (drag teardown: guarded
+		// actions would no-op under isEditorInteractionActive).
+		store.selectionActions.restoreSelectionSnapshot({
+			navigation: {
+				kind: 'node',
+				nodeId: session.target.nodeId,
+				handle: session.target.handle
+			},
+			placementIds: [],
+			clusterId: null
+		});
 		store.updateNavigationNodePoint(
 			session.target.nodeId,
 			session.target.handle,

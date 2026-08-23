@@ -677,12 +677,13 @@ export class EditorViewKeyframeController {
 			syncReverseViewTrackFromForward(connection);
 		}
 		this.#reconcileEditedDirection(connection, preview.direction);
-		this.host.navigationSelection = {
+		// P7.1 — in-transaction reducer write (guarded actions would no-op).
+		this.host.selection.setNavigation({
 			kind: 'view-keyframe',
 			connectionId: connection.id,
 			direction: preview.direction,
 			keyframeId: id
-		};
+		});
 		return this.host.commitDocumentTransaction();
 	}
 
@@ -1138,10 +1139,12 @@ export class EditorViewKeyframeController {
 		) {
 			delete connection.viewTracks;
 		}
-		this.host.navigationSelection = {
+		// P7.1 — in-transaction reducer write; direction explicit (direction trap).
+		this.host.selection.setNavigation({
 			kind: 'connection',
-			connectionId: connection.id
-		};
+			connectionId: connection.id,
+			direction: this.host.selection.discoveryDirection
+		});
 		return this.host.commitDocumentTransaction();
 	}
 

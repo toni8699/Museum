@@ -366,7 +366,12 @@
 	}
 
 	function restoreSelection(session: CameraPlanDragSession) {
-		store.navigationSelection = session.originalSelection;
+		// P7.1 — guard-free session-restore adapter (drag teardown).
+		store.selectionActions.restoreSelectionSnapshot({
+			navigation: session.originalSelection,
+			placementIds: [],
+			clusterId: null
+		});
 	}
 
 	function cancelDrag(): boolean {

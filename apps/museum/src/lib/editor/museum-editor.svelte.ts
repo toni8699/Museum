@@ -60,7 +60,6 @@ import type { LightFieldPatch } from './editor-lights';
 import {
 	cameraTimelineEdgePlayheadAtProgress,
 	cameraTimelineProgressAtEdgeProgress,
-	getEditorCameraTimelineLocation,
 	type EditorCameraTimeline
 } from './editor-camera-timeline';
 import {
@@ -301,18 +300,15 @@ export class MuseumEditorStore {
 		return v.success ? v.canonicalJson : null;
 	}
 	get isDirty(): boolean {
-		// Pre-slice semantics: an invalid document is "dirty" regardless of
-		// baseline comparison because the user-facing save flow blocks on a
-		// validation failure but the dirty indicator must still flip.
-		const v = this.validation;
-		return !v.success || v.canonicalJson !== this.baselineCanonicalJson;
+		// P7.5 — semantics folded into document-store (pre-check adopted);
+		// this is now a one-line delegate.
+		return this.documentStore.isDirty;
 	}
 	get canExport(): boolean {
 		return this.validation.success && !this.isDocumentTransactionActive;
 	}
 	get validationIssues() {
-		const v = this.validation;
-		return v.success ? [] : v.issues;
+		return this.documentStore.validationIssues;
 	}
 	/**
 	 * Phase 5.4 plain-JSON export gate. Reads the document texture list
@@ -652,9 +648,13 @@ export class MuseumEditorStore {
 		this.session.setTimelineHeight(value);
 	}
 	/** Phase 2.2 global guided-tour ruler. Session-only and normalized to [0, 1]. */
-	cameraTimelinePlayhead = $state(0);
+	get cameraTimelinePlayhead(): number {
+		return this.cameraTimelineController.cameraTimelinePlayhead;
+	}
 	/** S2 in-memory last Sequence playhead, preserved when leaving sequence scope. */
-	lastSequencePlayhead = $state<number | null>(null);
+	get lastSequencePlayhead(): number | null {
+		return this.previewController.lastSequencePlayhead;
+	}
 	get pendingFramePlacementIds(): string[] {
 		return this.session.pendingFramePlacementIds;
 	}
@@ -715,8 +715,13 @@ export class MuseumEditorStore {
 	set pendingNavigationCommand(value: EditorPendingNavigationCommand) {
 		this.session.setPendingNavigationCommand(value);
 	}
-	hoveredConnectionId = $state<string | null>(null);
-	hoveredAnchorId = $state<string | null>(null);
+	/** P7.5 — hover owned by session-state; facade keeps read getters. */
+	get hoveredConnectionId(): string | null {
+		return this.session.hoveredConnectionId;
+	}
+	get hoveredAnchorId(): string | null {
+		return this.session.hoveredAnchorId;
+	}
 	get transformInteractionActive(): boolean {
 		return this.session.transformInteractionActive;
 	}
@@ -1271,21 +1276,7 @@ export class MuseumEditorStore {
 	#pruneInvalidCameraPreview() {
 		this.previewController.pruneIfStale();
 		const preview = this.cameraPreview;
-		if (!preview) {
-			// S2 — validate lastSequencePlayhead even when no preview active
-			if (this.lastSequencePlayhead !== null) {
-				const timeline = this.previewController.getTimeline();
-				if (!timeline) this.lastSequencePlayhead = null;
-				else {
-					try {
-						getEditorCameraTimelineLocation(timeline, this.lastSequencePlayhead);
-					} catch {
-						this.lastSequencePlayhead = null;
-					}
-				}
-			}
-			return;
-		}
+		if (!preview) return;
 		if (isPreviewStale(preview, this.documentStore)) {
 			this.stopCameraPreview();
 			return;
@@ -1295,11 +1286,6 @@ export class MuseumEditorStore {
 			!this.document.navigationNodes.some((node) => node.id === preview.startNodeId)
 		) {
 			this.stopCameraPreview();
-		}
-		// S2 — validate lastSequencePlayhead when preview still active
-		if (this.lastSequencePlayhead !== null) {
-			const timeline = this.previewController.getTimeline();
-			if (!timeline) this.lastSequencePlayhead = null;
 		}
 	}
 
@@ -2101,8 +2087,7 @@ export class MuseumEditorStore {
 		) {
 			return false;
 		}
-		this.hoveredConnectionId = connectionId;
-		this.hoveredAnchorId = anchorId;
+		this.session.setNavigationHover(connectionId, anchorId);
 		return true;
 	}
 

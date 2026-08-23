@@ -322,6 +322,12 @@ export class EditorSessionState {
 	// Pending frame / nav / asset (audit §3.C).
 	// ============================================================
 
+	// P7.5 — navigation hover is session-only UI state with a single
+	// guarded writer (facade `setNavigationHover` delegates here) and
+	// three display-only readers.
+	hoveredConnectionId = $state<string | null>(null);
+	hoveredAnchorId = $state<string | null>(null);
+
 	pendingFramePlacementIds = $state<string[]>([]);
 	pendingFrameVersion = $state(0);
 	pendingNavigationCommand = $state<EditorPendingNavigationCommand>(null);
@@ -337,6 +343,12 @@ export class EditorSessionState {
 	clearPendingFramePlacementIds() {
 		this.pendingFramePlacementIds = [];
 		this.pendingFrameVersion += 1;
+	}
+
+	/** Hover writer — `null` connection also clears the anchor. */
+	setNavigationHover(connectionId: string | null, anchorId: string | null) {
+		this.hoveredConnectionId = connectionId;
+		this.hoveredAnchorId = anchorId;
 	}
 
 	setPendingNavigationCommand(command: EditorPendingNavigationCommand) {

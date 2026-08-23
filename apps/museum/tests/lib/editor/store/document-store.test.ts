@@ -64,6 +64,25 @@ describe('EditorDocumentStore', () => {
 		expect(store.isDirty).toBe(false);
 	});
 
+	it('P7.5 — isDirty is true for an invalid document even when canonical JSON matches baseline (pre-check)', () => {
+		const seed = cloneFixtureDocument();
+		const store = new EditorDocumentStore(seed, chopinRuntime.rooms);
+		expect(store.validation.success).toBe(true);
+		// Invalid: a node whose cameraTarget points at its own position is
+		// rejected by the validator (same recipe as the facade import tests).
+		const invalid = cloneMuseumSceneDocument(seed);
+		invalid.navigationNodes[0]!.cameraTarget = [...invalid.navigationNodes[0]!.position];
+		// Direct assignment through the public `$state` document seam —
+		// `replace()` validates and would throw, so this pins the getter
+		// semantics in isolation (the pre-check the sub-store used to drop).
+		store.document = invalid;
+		expect(store.validation.success).toBe(false);
+		expect(store.validationIssues.length).toBeGreaterThan(0);
+		// P7.5 pre-check adopted: invalid ⇒ dirty regardless of baseline,
+		// without calling serializeSceneDocument (which would throw).
+		expect(store.isDirty).toBe(true);
+	});
+
 	it('replace(next) fires every afterReplace listener in registration order', () => {
 		const store = new EditorDocumentStore(cloneFixtureDocument(), chopinRuntime.rooms);
 		const calls: string[] = [];

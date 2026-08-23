@@ -108,9 +108,11 @@ export interface EditorCameraPreviewCommandsHost {
 	readonly navigationSelection: EditorNavigationSelection | null;
 	readonly viewKeyframeProgressDrag: EditorViewKeyframeProgressDragSelection | null;
 
-	// Writable slots.
-	cameraTimelinePlayhead: number;
-	lastSequencePlayhead: number | null;
+	// Writable slots. P7.5 — the playheads moved off the facade: the timeline
+	// controller owns `cameraTimelinePlayhead` and the preview controller owns
+	// `lastSequencePlayhead`; both are reached through the sub-controllers
+	// already declared above (the whole-facade cast stays a compile wall only
+	// for the members still on the facade).
 	timelineExpanded: boolean;
 
 	// Facade methods the orchestration calls back into.
@@ -267,7 +269,7 @@ export class EditorCameraPreviewCommands {
 						timeline,
 						connectionId,
 						direction,
-						host.cameraTimelinePlayhead
+						host.cameraTimelineController.cameraTimelinePlayhead
 					) ?? 0)
 				: 0;
 		const runId = host.previewController.allocRunId();
@@ -446,7 +448,7 @@ export class EditorCameraPreviewCommands {
 		// Snapshot last Sequence playhead if currently in sequence scope
 		const current = host.cameraPreview;
 		if (current?.kind === 'sequence') {
-			host.lastSequencePlayhead = host.cameraTimelinePlayhead;
+			host.previewController.lastSequencePlayhead = host.cameraTimelineController.cameraTimelinePlayhead;
 		}
 		if (!this.prepareCameraPreview()) return false;
 		// Update selection/discovery to the edge direction
@@ -509,13 +511,13 @@ export class EditorCameraPreviewCommands {
 		// still builds; when saved-but-unbuildable, reset to 0. With no saved
 		// playhead, leave `cameraTimelinePlayhead` untouched (scrub carries over).
 		let restore: number | null = null;
-		if (host.lastSequencePlayhead !== null) {
+		if (host.previewController.lastSequencePlayhead !== null) {
 			const timeline = host.previewController.getTimeline();
 			if (!timeline) {
 				// saved-but-unbuildable → reset to 0 (S2 D6 amended 2026-08-22)
 				restore = 0;
 			} else {
-				const p = host.lastSequencePlayhead;
+				const p = host.previewController.lastSequencePlayhead;
 				if (Number.isFinite(p) && p >= 0 && p <= 1) {
 					try {
 						getEditorCameraTimelineLocation(timeline, p);
@@ -528,7 +530,7 @@ export class EditorCameraPreviewCommands {
 				}
 			}
 		}
-		if (restore !== null) host.cameraTimelinePlayhead = restore;
+		if (restore !== null) host.cameraTimelineController.cameraTimelinePlayhead = restore;
 		if (current?.kind === 'sequence') {
 			// Resume a paused/complete sequence (replay from 0 when complete).
 			if (current.transport === 'complete') {
@@ -548,7 +550,7 @@ export class EditorCameraPreviewCommands {
 			host.previewController.followEnabled = true;
 			host.previewController.recenterVersion += 1;
 		}
-		const playhead = Math.min(1, Math.max(0, host.cameraTimelinePlayhead));
+		const playhead = Math.min(1, Math.max(0, host.cameraTimelineController.cameraTimelinePlayhead));
 		host.previewController.preview = {
 			kind: 'sequence',
 			startNodeId: timeline.startNodeId,
@@ -593,7 +595,7 @@ export class EditorCameraPreviewCommands {
 		const ok = host.previewController.resetToScopeStart();
 		if (!ok) return false;
 		if (preview.kind === 'sequence') {
-			host.cameraTimelinePlayhead = 0;
+			host.cameraTimelineController.cameraTimelinePlayhead = 0;
 		}
 		// For `connection`, per matrix: facade `cameraTimelinePlayhead` untouched — do not sync.
 		return true;
@@ -691,7 +693,7 @@ export class EditorCameraPreviewCommands {
 				playhead
 			);
 		} else if (preview.kind === 'sequence') {
-			host.cameraTimelinePlayhead = playhead;
+			host.cameraTimelineController.cameraTimelinePlayhead = playhead;
 		}
 		return true;
 	}
@@ -724,7 +726,7 @@ export class EditorCameraPreviewCommands {
 				playhead
 			);
 		} else if (preview.kind === 'sequence') {
-			host.cameraTimelinePlayhead = playhead;
+			host.cameraTimelineController.cameraTimelinePlayhead = playhead;
 		}
 		return true;
 	}
@@ -870,7 +872,7 @@ export class EditorCameraPreviewCommands {
 				1
 			);
 		} else if (preview.kind === 'sequence') {
-			host.cameraTimelinePlayhead = 1;
+			host.cameraTimelineController.cameraTimelinePlayhead = 1;
 		}
 		return true;
 	}

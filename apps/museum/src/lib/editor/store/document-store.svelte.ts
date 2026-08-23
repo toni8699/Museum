@@ -168,9 +168,23 @@ export class EditorDocumentStore {
 		return serializeSceneDocument(this.document);
 	}
 
-	/** True when the live document differs from the baseline. */
+	/**
+	 * True when the live document differs from the baseline. P7.5 — adopted
+	 * the facade pre-check (closes the divergence): an invalid document is
+	 * "dirty" regardless of baseline comparison, because the user-facing
+	 * save flow blocks on a validation failure but the dirty indicator must
+	 * still flip. (`serializeSceneDocument` would throw on an invalid
+	 * document, which is why the pre-check must short-circuit first.)
+	 */
 	get isDirty(): boolean {
-		return serializeSceneDocument(this.document) !== this.baselineCanonicalJson;
+		const v = this.validation;
+		return !v.success || v.canonicalJson !== this.baselineCanonicalJson;
+	}
+
+	/** Validation issues for the live document (empty when valid). */
+	get validationIssues() {
+		const v = this.validation;
+		return v.success ? [] : v.issues;
 	}
 
 	/**

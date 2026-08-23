@@ -37,6 +37,26 @@ describe('EditorSessionState', () => {
 		vi.useRealTimers();
 	});
 
+	describe('P7.5 — navigation hover ownership', () => {
+		it('starts with no hovered connection or anchor', () => {
+			expect(session.hoveredConnectionId).toBe(null);
+			expect(session.hoveredAnchorId).toBe(null);
+		});
+
+		it('setNavigationHover writes both slots', () => {
+			session.setNavigationHover('conn-1', 'anchor-1');
+			expect(session.hoveredConnectionId).toBe('conn-1');
+			expect(session.hoveredAnchorId).toBe('anchor-1');
+		});
+
+		it('null connection clears the anchor (null-clears-anchor behavior)', () => {
+			session.setNavigationHover('conn-1', 'anchor-1');
+			session.setNavigationHover(null, null);
+			expect(session.hoveredConnectionId).toBe(null);
+			expect(session.hoveredAnchorId).toBe(null);
+		});
+	});
+
 	describe('viewport visibility flags', () => {
 		it('defaults all three flags to true', () => {
 			expect(session.viewportShowNodes).toBe(true);

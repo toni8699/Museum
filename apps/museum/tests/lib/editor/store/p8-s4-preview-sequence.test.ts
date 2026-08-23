@@ -265,4 +265,16 @@ describe('P8 S4 — previewSequence restore (S2 D6 regression)', () => {
 		expect(store.cameraPreview?.kind).toBe('sequence');
 		expect(store.cameraTimelinePlayhead).toBeCloseTo(saved, 6);
 	});
+
+	it('P7.5 — facade cameraTimelinePlayhead reads through the timeline controller owned field', () => {
+		const store = createFixtureEditorStore();
+		expect(store.cameraTimelinePlayhead).toBe(
+			store.cameraTimelineController.cameraTimelinePlayhead
+		);
+		expect(store.seekCameraTimeline(0.37)).toBe(true);
+		expect(store.cameraTimelineController.cameraTimelinePlayhead).toBeCloseTo(0.37, 6);
+		expect(store.cameraTimelinePlayhead).toBe(
+			store.cameraTimelineController.cameraTimelinePlayhead
+		);
+	});
 });

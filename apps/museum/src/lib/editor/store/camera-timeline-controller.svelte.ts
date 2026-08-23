@@ -18,9 +18,12 @@
  * effects). Facade preview glue calls `sync*` / `readCameraTimeline` /
  * `show*` on this controller after `previewController.start*`-style installs.
  *
- * `cameraTimelinePlayhead` remains facade `$state` (9.3 gotcha) — reached
- * through host accessors. The controller never imports the document store or
- * history controller; document transactions go through host wrappers.
+ * P7.5 — the controller owns `cameraTimelinePlayhead` as class-field
+ * `$state` (the 9.3 gotcha that kept it on the facade is obsolete: sibling
+ * controllers demonstrably own class-field `$state`). The facade keeps a
+ * read-only getter delegate; host accessors re-point at this field. The
+ * controller never imports the document store or history controller;
+ * document transactions go through host wrappers.
  */
 
 import type {
@@ -93,7 +96,6 @@ export interface EditorCameraTimelineControllerHost {
 	readonly selection: EditorSelectionStore;
 
 	cameraPreview: EditorCameraPreview;
-	cameraTimelinePlayhead: number;
 	readonly activeCameraConnectionId: string | null;
 	readonly activeCameraDirection: CameraConnectionDirection;
 	timelineExpanded: boolean;
@@ -121,6 +123,9 @@ export interface EditorCameraTimelineControllerHost {
 }
 
 export class EditorCameraTimelineController {
+	/** P7.5 — owned global ruler playhead (was facade `$state`). */
+	cameraTimelinePlayhead = $state(0);
+
 	constructor(
 		private readonly selectionActions: EditorSelectionActions,
 		private readonly host: EditorCameraTimelineControllerHost
@@ -158,7 +163,7 @@ export class EditorCameraTimelineController {
 			playhead
 		);
 		if (progress === null) return false;
-		this.host.cameraTimelinePlayhead = progress;
+		this.cameraTimelinePlayhead = progress;
 		return true;
 	}
 
@@ -170,12 +175,12 @@ export class EditorCameraTimelineController {
 		);
 		if (candidates.length === 0) return false;
 		const boundary = candidates.reduce((nearest, candidate) =>
-			Math.abs(candidate.progress - this.host.cameraTimelinePlayhead) <
-			Math.abs(nearest.progress - this.host.cameraTimelinePlayhead)
+			Math.abs(candidate.progress - this.cameraTimelinePlayhead) <
+			Math.abs(nearest.progress - this.cameraTimelinePlayhead)
 				? candidate
 				: nearest
 		);
-		this.host.cameraTimelinePlayhead = boundary.progress;
+		this.cameraTimelinePlayhead = boundary.progress;
 		return true;
 	}
 
@@ -300,7 +305,7 @@ export class EditorCameraTimelineController {
 				location.progress
 			) ?? location.playhead;
 		const movedTimeline =
-			Math.abs(this.host.cameraTimelinePlayhead - location.progress) > 1e-6;
+			Math.abs(this.cameraTimelinePlayhead - location.progress) > 1e-6;
 		const selected = this.selectionActions.selectCameraConnectionDirection(
 			location.edge.connectionId,
 			direction,
@@ -312,7 +317,7 @@ export class EditorCameraTimelineController {
 			edgePlayhead,
 			{ preservePreviewObserver: true }
 		);
-		this.host.cameraTimelinePlayhead = location.progress;
+		this.cameraTimelinePlayhead = location.progress;
 		return movedTimeline || selected || shown;
 	}
 
@@ -389,7 +394,7 @@ export class EditorCameraTimelineController {
 						timeline,
 						connectionId,
 						direction,
-						this.host.cameraTimelinePlayhead
+						this.cameraTimelinePlayhead
 					) ?? 0)
 				: 0;
 
@@ -431,7 +436,7 @@ export class EditorCameraTimelineController {
 		);
 		if (edgePlayhead === null) return false;
 		const movedTimeline =
-			Math.abs(this.host.cameraTimelinePlayhead - clampedProgress) > 1e-6;
+			Math.abs(this.cameraTimelinePlayhead - clampedProgress) > 1e-6;
 		const selected = this.selectionActions.selectCameraConnectionDirection(
 			connectionId,
 			direction
@@ -441,7 +446,7 @@ export class EditorCameraTimelineController {
 			direction,
 			edgePlayhead
 		);
-		this.host.cameraTimelinePlayhead = clampedProgress;
+		this.cameraTimelinePlayhead = clampedProgress;
 		return movedTimeline || selected || shown;
 	}
 
@@ -452,9 +457,9 @@ export class EditorCameraTimelineController {
 		const boundary = timeline?.nodeBoundaries[boundaryIndex];
 		if (!timeline || boundary?.nodeId !== nodeId) return false;
 		const movedTimeline =
-			Math.abs(this.host.cameraTimelinePlayhead - boundary.progress) > 1e-6;
+			Math.abs(this.cameraTimelinePlayhead - boundary.progress) > 1e-6;
 		const selected = this.selectionActions.selectNavigationNode(nodeId);
-		this.host.cameraTimelinePlayhead = boundary.progress;
+		this.cameraTimelinePlayhead = boundary.progress;
 		const shown = this.showCameraTimelineNodePose(nodeId);
 		return movedTimeline || selected || shown;
 	}
@@ -488,7 +493,7 @@ export class EditorCameraTimelineController {
 			keyframe.progress
 		);
 		const movedTimeline =
-			Math.abs(this.host.cameraTimelinePlayhead - timelineProgress) > 1e-6;
+			Math.abs(this.cameraTimelinePlayhead - timelineProgress) > 1e-6;
 		const selected = this.selectionActions.selectViewKeyframe(
 			connectionId,
 			direction,
@@ -499,7 +504,7 @@ export class EditorCameraTimelineController {
 			direction,
 			edgePlayhead
 		);
-		this.host.cameraTimelinePlayhead = timelineProgress;
+		this.cameraTimelinePlayhead = timelineProgress;
 		return movedTimeline || selected || shown;
 	}
 
@@ -552,11 +557,11 @@ export class EditorCameraTimelineController {
 						.reverse()
 						.find(
 							(candidate) =>
-								candidate.progress < this.host.cameraTimelinePlayhead - epsilon
+								candidate.progress < this.cameraTimelinePlayhead - epsilon
 						) ?? cues[0]
 				: cues.find(
 						(candidate) =>
-							candidate.progress > this.host.cameraTimelinePlayhead + epsilon
+							candidate.progress > this.cameraTimelinePlayhead + epsilon
 					) ?? cues.at(-1);
 		if (!cue) return false;
 		return cue.kind === 'node'

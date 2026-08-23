@@ -1,8 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
-import { EditorDocumentStore } from '$lib/editor/store/document-store.svelte';
+import {
+	cloneMuseumSceneDocument,
+	EditorDocumentStore
+} from '$lib/editor/store/document-store.svelte';
 import { EditorCameraPreviewController } from '$lib/editor/store/camera-preview-controller.svelte';
-import { chopinRuntime } from '$lib/content/chopin-project';
+import {
+	chopinRuntime,
+	museumSceneDocument
+} from '$lib/content/chopin-project';
 
 function makeControllers() {
 	const document = new EditorDocumentStore(undefined, chopinRuntime.rooms);
@@ -256,5 +262,52 @@ describe('EditorCameraPreviewController', () => {
 		expect(second?.edges[0]?.viewTrack?.framingEnvelope?.enterStart).toBe(0.1);
 		expect(document.document.connections.find((candidate) => candidate.id === connection.id)
 			?.viewTracks?.framingEnvelope?.forward?.enterStart).toBe(0.1);
+	});
+
+	describe('P7.5 — lastSequencePlayhead ownership + prune fold', () => {
+		it('starts null and is owned by the controller as class-field $state', () => {
+			const { preview } = makeControllers();
+			expect(preview.lastSequencePlayhead).toBe(null);
+		});
+
+		it('pruneIfStale keeps a valid lastSequencePlayhead when the timeline builds', () => {
+			const { preview } = makeControllers();
+			preview.lastSequencePlayhead = 0.2;
+			preview.pruneIfStale();
+			expect(preview.lastSequencePlayhead).toBe(0.2);
+		});
+
+		it('pruneIfStale nulls lastSequencePlayhead when the timeline is unbuildable', () => {
+			const { document, preview } = makeControllers();
+			// Unbuildable flow: clearing next/prev on every node makes the
+			// timeline throw (same recipe as p8-s2 D6).
+			const doc = cloneMuseumSceneDocument(museumSceneDocument);
+			doc.navigationNodes.forEach((node) => {
+				delete (node as any).nextNodeId;
+				delete (node as any).previousNodeId;
+			});
+			document.replace(doc);
+			preview.lastSequencePlayhead = 0.5;
+			preview.pruneIfStale();
+			expect(preview.lastSequencePlayhead).toBe(null);
+		});
+
+		it('pruneIfStale nulls an unresolvable lastSequencePlayhead when no preview is active (strict check)', () => {
+			const { preview } = makeControllers();
+			// Non-finite progress fails the strict location check even though
+			// the timeline builds (facade `#pruneInvalidCameraPreview` semantics).
+			preview.lastSequencePlayhead = NaN;
+			preview.pruneIfStale();
+			expect(preview.lastSequencePlayhead).toBe(null);
+		});
+
+		it('pruneIfStale leaves a valid playhead untouched when a preview survives (lenient check)', () => {
+			const { preview } = makeControllers();
+			expect(preview.startNode('paris-seat', 'visitor')).toBe(true);
+			preview.lastSequencePlayhead = 0.4;
+			preview.pruneIfStale();
+			expect(preview.preview).not.toBe(null);
+			expect(preview.lastSequencePlayhead).toBe(0.4);
+		});
 	});
 });

@@ -124,7 +124,7 @@ set. The itemized DoD above is the gate.
 | **P7.2** | Delete dual-namespace shims (`editor/project/*`, `editor/layout/*`; the `layout-preview-geometry.ts` de-hybrid is already done — only its `./layout-types` import rewrite remains) | 3 | — | none |
 | **P7.3** | Chopin defaults → explicit inputs (`createMuseumEditorStore`, `editor-camera-path`, `editor-camera-view`) | 4 | — | none (relic passes Chopin explicitly) |
 | **P7.4** | Extract shared editor-shell boot composable (`MuseumEditorApp` + `EditorApp`) — dirty guards + texture lifecycle only; shortcuts stay shell-owned — **shipped 2026-08-19 (implemented during P1, non-blocking)** | 2 | — | none |
-| **P7.5** | Facade thinning: move remaining single-owner reads to owning sub-stores (the deferred "future slice"); close the `isDirty` divergence | 1 | P7.1 | none |
+| **P7.5** | Facade thinning: move remaining single-owner reads to owning sub-stores (the deferred "future slice"); close the `isDirty` divergence — **shipped 2026-08-23** | 1 | P7.1 | none |
 | **P7.6** | Museum-vocabulary scrub: drop-prefix scene vocabulary across the live model, relic subtree keeps museum; file renames (facade, types, state, content, 9 test files); format hard break (`.museumpack.zip` → `.scenepack.zip`, `museum-scene.json` → `scene.json`) | — | P7.1–P7.5 (lands last) | **format rename + code-adjacent strings only** (owner-approved 2026-08-22; the one non-zero-behavior increment) |
 
 ## Implementation readiness (2026-08-19)
@@ -606,6 +606,43 @@ increments (P7.1 → P7.5 → P7.2 → P7.3) are the live scope.
 > facade `$state` (line 763) the survey does not know about** — its ownership
 > fold was explicitly deferred past S4. All anchors below are current; the
 > survey's cited lines have drifted and are not to be trusted.
+>
+> **Implementation (2026-08-23).** All four state groups moved; suite 1,987
+> green (baseline 1,977 + 10 new regression tests), `svelte-check` 0/0,
+> `contracts.test.ts` green unchanged, P7.6 inventory still 517/523 (no drift).
+> - **Playhead pair (one diff, per §7):** `cameraTimelinePlayhead` → owned
+>   `$state` on `camera-timeline-controller` (the 9.3 gotcha verified
+>   **obsolete** via git history — the 9.3/9.4 hand-offs record only
+>   "still facade `$state`" with no deeper constraint, and sibling
+>   controllers own class-field `$state`; tombstone removed); `viewKeyframe`
+>   host re-pointed at the controller field, the `cameraTimeline` host's
+>   playhead slot deleted, and the preview-commands cast routes through the
+>   controllers already in its interface (`host.cameraTimelineController.*`,
+>   `host.previewController.lastSequencePlayhead`) — the third write surface
+>   the refresh scoped. `lastSequencePlayhead` → owned `$state` on
+>   `camera-preview-controller`; the facade `#pruneInvalidCameraPreview`
+>   lastSequence validation folded into `pruneIfStale()` (strict location
+>   check when no preview survives the prune, lenient timeline-exists check
+>   when one does — pre-fold semantics preserved). Facade keeps read-only
+>   getter delegates for both; the only test write-site migrated is the
+>   p8-s2 D6 transplant (`as any` seeds now write the controllers).
+> - **Hover pair:** `hoveredConnectionId` / `hoveredAnchorId` + a
+>   `session.setNavigationHover` writer → `session-state` (null-clears-anchor
+>   preserved); facade keeps the guard logic and delegates; the two host
+>   `setNavigationHover` slots are unchanged (they call the facade method).
+> - **isDirty / validationIssues:** `document-store` adopted the pre-check
+>   (invalid ⇒ dirty regardless of baseline — `serializeSceneDocument` would
+>   throw, so the short-circuit is load-bearing); facade getters are now
+>   one-line delegates. `canExport`, `selectedPlacementIds` (cluster →
+>   member-id expansion), and the `getSelected*Root` selectors stay at the
+>   composition root as scoped. `pendingFrame*` / `projectExportBlocker`
+>   were already pure delegates (NO-OPs confirmed).
+> - New tests: document-store pre-check pin (via the public `$state`
+>   document seam — `replace()` validates), hover ×3 in the session-state
+>   suite, lastSequence prune fold ×5 in the preview-controller suite
+>   (unbuildable → null, unresolvable → null, valid stays, lenient-check
+>   with surviving preview, ownership), and a facade-reads-through test in
+>   p8-s4 asserting the getter and the controller field agree after a scrub.
 
 ### 1. User outcome and out-of-scope behavior
 

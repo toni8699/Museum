@@ -105,7 +105,6 @@ export interface EditorControllerHostSource {
 	treeExpandedCameraConnectionIds: string[];
 	treeExpandedCameraDirectionKeys: string[];
 	viewKeyframeProgressDrag: EditorViewKeyframeProgressDragSelection | null;
-	cameraTimelinePlayhead: number;
 	timelineExpanded: boolean;
 	transformMode: EditorTransformMode;
 	pendingNavigationCommand: EditorPendingNavigationCommand;
@@ -414,11 +413,13 @@ export function createControllerHosts(
 		set viewKeyframeProgressDrag(value) {
 			source.viewKeyframeProgressDrag = value;
 		},
+		// P7.5 — playhead ownership moved to the timeline controller; this host
+		// re-points at its owned field (was facade `$state`).
 		get cameraTimelinePlayhead() {
-			return source.cameraTimelinePlayhead;
+			return source.cameraTimelineController.cameraTimelinePlayhead;
 		},
 		set cameraTimelinePlayhead(value) {
-			source.cameraTimelinePlayhead = value;
+			source.cameraTimelineController.cameraTimelinePlayhead = value;
 		},
 		setStatusMessage: (message: string | null) => source.setStatusMessage(message),
 		beginDocumentTransaction: () => source.beginDocumentTransaction(),
@@ -480,12 +481,6 @@ export function createControllerHosts(
 		},
 		set cameraPreview(value) {
 			source.cameraPreview = value;
-		},
-		get cameraTimelinePlayhead() {
-			return source.cameraTimelinePlayhead;
-		},
-		set cameraTimelinePlayhead(value) {
-			source.cameraTimelinePlayhead = value;
 		},
 		get activeCameraConnectionId() {
 			return source.activeCameraConnectionId;

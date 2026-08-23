@@ -37,6 +37,7 @@ import {
 import {
 	cameraTimelineProgressAtEdgeProgress,
 	createEditorCameraTimeline,
+	getEditorCameraTimelineLocation,
 	type EditorCameraTimeline
 } from '../editor-camera-timeline';
 import { resolveDirectedEdgeMotionByDirection } from '../editor-directed-edge-motion';
@@ -174,9 +175,13 @@ export function isPreviewStale(
 		default:
 			return false;
 	}
-}
-
-export class EditorCameraPreviewController {
+}	export class EditorCameraPreviewController {
+	/**
+	 * P7.5 — owned in-memory last Sequence playhead (was facade `$state`).
+	 * Session-only by design: never codec/history; preserved when leaving
+	 * sequence scope and restored on return (S2/S4 transport contract).
+	 */
+	lastSequencePlayhead = $state<number | null>(null);
 	/** The active preview, or null when FSM is idle. */
 	preview = $state<EditorCameraPreview | null>(null);
 
@@ -681,33 +686,46 @@ export class EditorCameraPreviewController {
 
 	/**
 	 * `afterReplace` listener — drops the FSM to idle if the active
-	 * preview was pointing at a node or connection that no longer exists.
+	 * preview was pointing at a node or connection that no longer exists,
+	 * then validates `lastSequencePlayhead` against the rebuilt timeline
+	 * (P7.5 — the facade `#pruneInvalidCameraPreview` lastSequence blocks
+	 * folded here). The strict location check only applies when no preview
+	 * is active; an active preview gets the lenient timeline-exists check,
+	 * preserving the pre-fold semantics.
 	 */
 	pruneIfStale(): void {
 		this.invalidateGraph();
 		const preview = this.preview;
-		if (!preview) return;
-		if (preview.kind === 'camera' && !this.#nodeExists(preview.nodeId)) {
+		if (preview && preview.kind === 'camera' && !this.#nodeExists(preview.nodeId)) {
 			this.preview = null;
 			this.#capturedRoute = null;
 			this.edgeRepeat = false;
-			return;
-		}
-		if (preview.kind === 'edge') {
+		} else if (preview && preview.kind === 'edge') {
 			if (isPreviewStale(preview, this.document)) {
 				this.preview = null;
 				this.#capturedRoute = null;
 				this.edgeRepeat = false;
-				return;
 			}
-		}
-		if (preview.kind === 'sequence') {
+		} else if (preview && preview.kind === 'sequence') {
 			// Drop if the timeline can't be built from the new document.
 			this.#timelineCache = null;
 			this.#timelineGraph = null;
 			if (!this.#readCameraTimeline()) {
 				this.preview = null;
 				this.#capturedRoute = null;
+			}
+		}
+		// S2 — validate lastSequencePlayhead even when no preview is active.
+		if (this.lastSequencePlayhead !== null) {
+			const timeline = this.getTimeline();
+			if (!timeline) {
+				this.lastSequencePlayhead = null;
+			} else if (this.preview === null) {
+				try {
+					getEditorCameraTimelineLocation(timeline, this.lastSequencePlayhead);
+				} catch {
+					this.lastSequencePlayhead = null;
+				}
 			}
 		}
 	}

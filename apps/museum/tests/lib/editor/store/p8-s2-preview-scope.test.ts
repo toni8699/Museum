@@ -111,8 +111,10 @@ describe('P8 S2 explicit preview scopes', () => {
 		const badStore = createMuseumEditorStore({ document: doc });
 		// Transplant the saved playhead, and seed a non-zero prior playhead so the
 		// reset-to-0 branch is actually exercised (regression: S4 left it untouched).
-		(badStore as any).lastSequencePlayhead = store.lastSequencePlayhead;
-		(badStore as any).cameraTimelinePlayhead = 0.3;
+		// P7.5 — the playheads are owned by the sub-controllers; the facade keeps
+		// read-only getter delegates, so the seed writes through the controllers.
+		(badStore as any).previewController.lastSequencePlayhead = store.lastSequencePlayhead;
+		(badStore as any).cameraTimelineController.cameraTimelinePlayhead = 0.3;
 		expect(badStore.getCameraTimeline()).toBeNull();
 		expect(badStore.previewSequence('director')).toBe(false);
 		expect(badStore.cameraTimelinePlayhead).toBe(0);

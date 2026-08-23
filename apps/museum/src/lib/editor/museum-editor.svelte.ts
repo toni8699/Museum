@@ -12,7 +12,7 @@ import {
 	type ScenePrimitiveKind
 } from '$lib/content/scene';
 import type { LayoutRoomRegistry } from '$lib/project/project-layout-semantics';
-import { museumSceneDocument, chopinRuntime } from '$lib/content/chopin-project';
+
 import {
 	serializeSceneDocument,
 	validateSceneDocument,
@@ -396,13 +396,10 @@ export class MuseumEditorStore {
 		}
 	);
 
-	constructor(options: MuseumEditorStoreOptions = {}) {
+	constructor(options: MuseumEditorStoreOptions) {
 		this.relicMode = options.relic === true;
-		this.bootDocument = cloneMuseumSceneDocument(options.document ?? museumSceneDocument);
-		this.documentStore = new EditorDocumentStore(
-			options.document,
-			options.rooms ?? chopinRuntime.rooms
-		);
+		this.bootDocument = cloneMuseumSceneDocument(options.document);
+		this.documentStore = new EditorDocumentStore(options.document, options.rooms);
 		this.previewController = new EditorCameraPreviewController(this.documentStore);
 		this.historyController = new EditorHistoryController(
 			this.documentStore,
@@ -2813,15 +2810,15 @@ export class MuseumEditorStore {
 }
 
 export type MuseumEditorStoreOptions = {
-	/** Optional authoring document seed (defaults to checked-in museum-scene.json). */
-	document?: MuseumSceneDocument;
+	/** Authoring document seed (required — no Chopin default). */
+	document: MuseumSceneDocument;
 	/**
 	 * room registry used to resolve scene room-relative coordinates to
-	 * world space (scene resolution + room-frame rendering). Defaults to the
-	 * Chopin layout registry (the frozen relic); the boot-empty editor
-	 * passes `createLayoutRoomRegistry(project.layout)`.
+	 * world space (scene resolution + room-frame rendering). Required — the
+	 * boot-empty editor passes `createLayoutRoomRegistry(project.layout)`,
+	 * the frozen relic passes the Chopin registry explicitly.
 	 */
-	rooms?: LayoutRoomRegistry;
+	rooms: LayoutRoomRegistry;
 	/** true for the frozen `/museum/editor` relic (Scene + Camera only). */
 	relic?: boolean;
 	/** Phase 5.2 — injectable texture image verifier (browser default). */
@@ -2835,7 +2832,7 @@ export type MuseumEditorStoreOptions = {
 	onSelectionActivate?: () => void;
 };
 
-export function createMuseumEditorStore(options: MuseumEditorStoreOptions = {}) {
+export function createMuseumEditorStore(options: MuseumEditorStoreOptions) {
 	return new MuseumEditorStore(options);
 }
 

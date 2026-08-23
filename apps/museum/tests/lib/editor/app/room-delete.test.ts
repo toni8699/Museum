@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { museumSceneDocument } from '$lib/content/chopin-project';
+import { chopinRuntime, museumSceneDocument } from '$lib/content/chopin-project';
 import { createEmptySceneDocument, type MuseumSceneDocument } from '$lib/content/scene';
 import { serializeSceneDocument } from '$lib/content/scene-codec';
 import { createMuseumEditorStore } from '$lib/editor/museum-editor.svelte';
@@ -168,7 +168,10 @@ describe('deleteLayoutRoom (preview state)', () => {
 
 describe('guarded B3 transaction', () => {
 	function makeStore() {
-		const store = createMuseumEditorStore();
+		const store = createMuseumEditorStore({
+			document: museumSceneDocument,
+			rooms: chopinRuntime.rooms
+		});
 		const layoutPreview = createEmptyLayoutPreviewState();
 		store.registerLayoutHistory({
 			capture: () => captureLayoutPreviewSnapshot(layoutPreview),

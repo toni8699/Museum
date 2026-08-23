@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { chopinRuntime } from '$lib/content/chopin-project';
 import { createMuseumEditorStore } from '$lib/editor/museum-editor.svelte';
 import { EditorViewState } from '$lib/editor/app/editor-view-state.svelte';
 import { createFixtureEditorStore } from '../editor-test-utils';
@@ -148,7 +149,7 @@ describe('P8 S5 interaction matrix — §G rows', () => {
 
 	it('Deleting the selected edge stops the preview, clears the captured route + repeat, sets a status message (§G: deleting selected edge)', () => {
 		const { document, connId } = documentWithOffFlowConnection();
-		const store = createMuseumEditorStore({ document });
+		const store = createMuseumEditorStore({ document, rooms: chopinRuntime.rooms });
 		store.selectionActions.selectConnection(connId);
 		expect(store.previewEdge(connId, 'forward', 'director')).toBe(true);
 		expect(store.setEdgePreviewRepeat(true)).toBe(true);
@@ -166,7 +167,7 @@ describe('P8 S5 interaction matrix — §G rows', () => {
 
 	it('Undo restores the deleted edge with a clean preview state; redo re-deletes (D3 strict facade path)', () => {
 		const { document, connId } = documentWithOffFlowConnection();
-		const store = createMuseumEditorStore({ document });
+		const store = createMuseumEditorStore({ document, rooms: chopinRuntime.rooms });
 		expect(store.previewEdge(connId, 'forward', 'director')).toBe(true);
 		const runId = store.cameraPreview!.runId;
 		expect(store.deleteConnection(connId)).toBe(true);
@@ -189,7 +190,7 @@ describe('P8 S5 interaction matrix — §G rows', () => {
 
 	it('Sequence edited while previewing: paused tour hard-resets on ANY document edit (D4)', () => {
 		const { document, connId } = documentWithOffFlowConnection();
-		const store = createMuseumEditorStore({ document });
+		const store = createMuseumEditorStore({ document, rooms: chopinRuntime.rooms });
 		expect(store.seekCameraTimeline(0.5)).toBe(true);
 		expect(store.previewSequence('director')).toBe(true);
 		expect(store.pauseCameraPreview()).toBe(true);
@@ -209,7 +210,7 @@ describe('P8 S5 interaction matrix — §G rows', () => {
 
 	it('Sequence edited while previewing: undo while paused hard-resets with a status message (D4)', () => {
 		const { document, connId } = documentWithOffFlowConnection();
-		const store = createMuseumEditorStore({ document });
+		const store = createMuseumEditorStore({ document, rooms: chopinRuntime.rooms });
 		// A prior edit so undo() has a history entry.
 		expect(store.deleteConnection(connId)).toBe(true);
 		expect(store.document.connections.some((c) => c.id === connId)).toBe(false);
@@ -230,7 +231,7 @@ describe('P8 S5 interaction matrix — §G rows', () => {
 
 	it('Sequence edited while previewing: playing tour blocks topology mutation (D4)', () => {
 		const { document, connId } = documentWithOffFlowConnection();
-		const store = createMuseumEditorStore({ document });
+		const store = createMuseumEditorStore({ document, rooms: chopinRuntime.rooms });
 		expect(store.previewSequence('director')).toBe(true);
 		expect(store.cameraPreview!.transport).toBe('playing');
 

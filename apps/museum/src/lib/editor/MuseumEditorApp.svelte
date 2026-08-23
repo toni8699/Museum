@@ -21,10 +21,14 @@
 	} from './store/editor-interaction-store.svelte';
 	import { createMuseumEditorStore } from './museum-editor.svelte';
 	import {
-	captureLayoutPreviewSnapshot,
-	createLayoutPreviewState,
-	restoreLayoutPreviewSnapshot
-} from './layout/layout-preview-state.svelte';
+		captureLayoutPreviewSnapshot,
+		createLayoutPreviewState,
+		restoreLayoutPreviewSnapshot
+	} from './layout/layout-preview-state.svelte';
+	// P7.3 — the relic is the one editor-domain site that seeds Chopin
+	// explicitly (document + rooms + layout preview); everything else boots
+	// empty or from an imported project.
+	import { chopinProject, chopinRuntime, museumSceneDocument } from '$lib/content/chopin-project';
 	import { useEditorShellBoot } from './hooks/editor-shell-boot.svelte';
 	import { createLayoutInteractionState } from './layout/layout-interaction';
 
@@ -33,8 +37,14 @@
 	// `relic` is a mount-time prop: read it once, non-reactively, to configure the
 	// store and the layout history bridge. A relic mount never gains (or loses)
 	// Layout mid-session.
-	const store = createMuseumEditorStore({ relic: untrack(() => relic) });
-	const layoutPreview = $state(createLayoutPreviewState());
+	const store = createMuseumEditorStore({
+		document: museumSceneDocument,
+		rooms: chopinRuntime.rooms,
+		relic: untrack(() => relic)
+	});
+	const layoutPreview = $state(
+		createLayoutPreviewState(chopinProject.layout, museumSceneDocument)
+	);
 	const layoutInteraction = $state(createLayoutInteractionState());
 	// Relic isolation: the frozen Scene · Camera editor never registers a layout
 	// history domain — it cannot switch to the Layout workspace (store guard) nor

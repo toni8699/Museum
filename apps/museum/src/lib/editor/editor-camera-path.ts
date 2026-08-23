@@ -1,4 +1,4 @@
-import { chopinRuntime } from '$lib/content/chopin-project';
+
 import type { LayoutRoomRegistry } from '$lib/project/project-layout-semantics';
 import type {
 	MuseumSceneDocument,
@@ -109,7 +109,7 @@ function getDraftNode(document: MuseumSceneDocument, nodeId: string) {
 export function resolveDraftConnectionPathPart(
 	document: MuseumSceneDocument,
 	connectionId: string,
-	rooms: LayoutRoomRegistry = chopinRuntime.rooms
+	rooms: LayoutRoomRegistry
 ): CameraPositionPathPart {
 	const connection = getDraftConnection(document, connectionId);
 	const fromNode = getDraftNode(document, connection.fromNodeId);
@@ -133,8 +133,8 @@ export function resolveDraftConnectionPathPart(
 export function createDraftConnectionPositionPath(
 	document: MuseumSceneDocument,
 	connectionId: string,
-	direction: CameraConnectionDirection = 'forward',
-	rooms: LayoutRoomRegistry = chopinRuntime.rooms
+	direction: CameraConnectionDirection,
+	rooms: LayoutRoomRegistry
 ) {
 	const part = resolveDraftConnectionPathPart(document, connectionId, rooms);
 	if (direction === 'reverse') {
@@ -178,7 +178,7 @@ export function findScenePathAnchor(
 /** Read an authored anchor in world space without exposing its stored coordinate basis. */
 export function getScenePathAnchorWorldPosition(
 	anchor: ScenePathAnchor,
-	rooms: LayoutRoomRegistry = chopinRuntime.rooms
+	rooms: LayoutRoomRegistry
 ): Vec3 {
 	return resolveScenePoint(anchor, rooms);
 }
@@ -190,7 +190,7 @@ export function getScenePathAnchorWorldPosition(
 export function writeScenePathAnchorWorldPosition(
 	anchor: ScenePathAnchor,
 	worldPosition: Vector3Like,
-	rooms: LayoutRoomRegistry = chopinRuntime.rooms
+	rooms: LayoutRoomRegistry
 ) {
 	const point = cloneFiniteVec3(worldPosition, 'Camera path anchor position');
 	anchor.position = anchor.roomId ? rooms.localPoint(anchor.roomId, point) : point;
@@ -205,7 +205,7 @@ export function createScenePathAnchorAtWorldPoint(
 	id: string,
 	worldPosition: Vector3Like,
 	activeRoomId: MuseumRoomId | null | undefined,
-	rooms: LayoutRoomRegistry = chopinRuntime.rooms
+	rooms: LayoutRoomRegistry
 ): ScenePathAnchor {
 	const point = cloneFiniteVec3(worldPosition, 'Camera path anchor position');
 	if (activeRoomId && isWorldPointInsideRoomXZ(activeRoomId, point, rooms)) {
@@ -334,7 +334,7 @@ export function getCameraPathInsertionIndex(
 export function sampleDraftConnectionPath2D(
 	document: MuseumSceneDocument,
 	connectionId: string,
-	rooms: LayoutRoomRegistry = chopinRuntime.rooms
+	rooms: LayoutRoomRegistry
 ): LayoutVec2[] {
 	const path = createDraftConnectionPositionPath(document, connectionId, 'forward', rooms);
 	const count = getCameraPathVisualSampleCount(path);

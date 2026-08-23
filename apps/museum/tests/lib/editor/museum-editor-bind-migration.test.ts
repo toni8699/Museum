@@ -10,6 +10,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
+import { chopinRuntime, museumSceneDocument } from '$lib/content/chopin-project';
 import { createMuseumEditorStore } from '$lib/editor/museum-editor.svelte';
 
 const editorDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../src/lib/editor');
@@ -37,7 +38,10 @@ describe('Slice 5 bind-migration contract', () => {
 	});
 
 	it('lighting writes go through sessionView setters', () => {
-		const store = createMuseumEditorStore();
+		const store = createMuseumEditorStore({
+			document: museumSceneDocument,
+			rooms: chopinRuntime.rooms
+		});
 		store.sessionView.setAmbientIntensity(1.1);
 		store.sessionView.setDirectionalIntensity(2.2);
 		store.sessionView.setFogEnabled(true);
@@ -52,7 +56,10 @@ describe('Slice 5 bind-migration contract', () => {
 	});
 
 	it('placement snap / keep-on-floor writes go through sessionView setters', () => {
-		const store = createMuseumEditorStore();
+		const store = createMuseumEditorStore({
+			document: museumSceneDocument,
+			rooms: chopinRuntime.rooms
+		});
 		store.sessionView.setTranslationSnapEnabled(false);
 		store.sessionView.setTranslationSnap(0.25);
 		store.sessionView.setRotationSnapEnabled(false);
@@ -67,7 +74,10 @@ describe('Slice 5 bind-migration contract', () => {
 	});
 
 	it('facade assignment still forwards snap flags (test/JS compat)', () => {
-		const store = createMuseumEditorStore();
+		const store = createMuseumEditorStore({
+			document: museumSceneDocument,
+			rooms: chopinRuntime.rooms
+		});
 		store.translationSnapEnabled = false;
 		store.rotationSnapDegrees = 30;
 		store.keepOnFloor = true;

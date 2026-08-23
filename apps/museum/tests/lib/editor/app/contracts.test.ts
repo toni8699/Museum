@@ -1,6 +1,6 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
 
-import { museumSceneDocument } from '$lib/content/chopin-project';
+import { chopinRuntime, museumSceneDocument } from '$lib/content/chopin-project';
 import { createEmptySceneDocument, resolveSceneDocument } from '$lib/content/scene';
 import { createMuseumEditorStore } from '$lib/editor/museum-editor.svelte';
 import {
@@ -144,15 +144,16 @@ describe('zero-node policy + room-resolver seam', () => {
 		expect(store.scene.navigationNodes).toEqual([]);
 		expect(store.state.activeNodeId).toBe('');
 	});
-});
-
-describe('relic isolation', () => {
+});	describe('relic isolation', () => {
 	it('relic store rejects setWorkspace("layout"); the full editor allows it', () => {
-		const relic = createMuseumEditorStore({ relic: true });
+		// P7.3 — no-options boot is gone; both stores seed the Chopin
+		// document + registry explicitly, relic toggles isolation.
+		const chopin = { document: museumSceneDocument, rooms: chopinRuntime.rooms };
+		const relic = createMuseumEditorStore({ ...chopin, relic: true });
 		expect(relic.setWorkspace('layout')).toBe(false);
 		expect(relic.currentWorkspace).toBe('scene');
 
-		const full = createMuseumEditorStore();
+		const full = createMuseumEditorStore(chopin);
 		expect(full.setWorkspace('layout')).toBe(true);
 		expect(full.currentWorkspace).toBe('layout');
 	});
@@ -190,16 +191,16 @@ describe('boot into an empty project', () => {
 		node.nextNodeId = undefined;
 		node.previousNodeId = undefined;
 		node.connectedNodeIds = [];
-		expect(createMuseumEditorStore({ document: lone }).canStartTourPreview).toBe(false);
+		expect(createMuseumEditorStore({ document: lone, rooms: chopinRuntime.rooms }).canStartTourPreview).toBe(false);
 
 		// A guided chain exists.
 		expect(
-			createMuseumEditorStore({ document: cloneFixtureDocument() }).canStartTourPreview
+			createMuseumEditorStore({ document: cloneFixtureDocument(), rooms: chopinRuntime.rooms }).canStartTourPreview
 		).toBe(true);
 	});
 
 	it('reset restores the boot document (not Chopin) and clears history', () => {
-		const store = createMuseumEditorStore({ document: cloneFixtureDocument() });
+		const store = createMuseumEditorStore({ document: cloneFixtureDocument(), rooms: chopinRuntime.rooms });
 		const bootCanonical = store.canonicalJson;
 
 		expect(store.beginDocumentTransaction()).toBe(true);
@@ -223,7 +224,7 @@ describe('boot into an empty project', () => {
 		const fixture = cloneFixtureDocument();
 		fixture.navigationNodes = [];
 		fixture.connections = [];
-		const store = createMuseumEditorStore({ document: fixture });
+		const store = createMuseumEditorStore({ document: fixture, rooms: chopinRuntime.rooms });
 
 		const roomId = store.rooms.entries[0]!.id;
 		const floorWorld = store.rooms.point(roomId, [0, 0, 0]);
@@ -268,7 +269,7 @@ describe('boot into an empty project', () => {
 
 describe('Plan ↔ 3D switch preserves session state', () => {
 	it('switches workspace without touching document, history, dirty state, or selection', () => {
-		const store = createMuseumEditorStore({ document: cloneFixtureDocument() });
+		const store = createMuseumEditorStore({ document: cloneFixtureDocument(), rooms: chopinRuntime.rooms });
 
 		// Make one real mutation so the undo stack is non-empty and the doc is dirty.
 		expect(store.beginDocumentTransaction()).toBe(true);
@@ -1356,6 +1357,7 @@ describe('cross-domain selection contracts', () => {
 		let fired = 0;
 		const store = createMuseumEditorStore({
 			document: cloneFixtureDocument(),
+			rooms: chopinRuntime.rooms,
 			onSelectionActivate: () => {
 				fired += 1;
 			}
@@ -1372,7 +1374,7 @@ describe('cross-domain selection contracts', () => {
 	});
 
 	it('preserves the active domain across view switches (pure mapping over untouched slots)', () => {
-		const store = createMuseumEditorStore({ document: cloneFixtureDocument() });
+		const store = createMuseumEditorStore({ document: cloneFixtureDocument(), rooms: chopinRuntime.rooms });
 		const entityId = store.document.entities[0]!.id;
 		expect(store.selectionActions.selectPlacement(entityId)).toBe(true);
 
@@ -1401,7 +1403,7 @@ describe('cross-domain selection contracts', () => {
 	});
 
 	it('importDocument clears the scene selection slots; import begins with no active selection', () => {
-		const store = createMuseumEditorStore({ document: cloneFixtureDocument() });
+		const store = createMuseumEditorStore({ document: cloneFixtureDocument(), rooms: chopinRuntime.rooms });
 		const entityId = store.document.entities[0]!.id;
 		expect(store.selectionActions.selectPlacement(entityId)).toBe(true);
 		expect(

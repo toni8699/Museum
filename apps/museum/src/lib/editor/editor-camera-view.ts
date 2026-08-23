@@ -1,4 +1,4 @@
-import { chopinRuntime } from '$lib/content/chopin-project';
+
 import type { LayoutRoomRegistry } from '$lib/project/project-layout-semantics';
 import type {
 	MuseumSceneDocument,
@@ -123,7 +123,7 @@ export function findSceneCameraViewKeyframe(
 
 export function getSceneCameraViewKeyframeWorldTarget(
 	keyframe: SceneCameraViewKeyframe,
-	rooms: LayoutRoomRegistry = chopinRuntime.rooms
+	rooms: LayoutRoomRegistry
 ): Vec3 {
 	return keyframe.roomId
 		? rooms.point(keyframe.roomId, keyframe.cameraTarget)
@@ -162,7 +162,7 @@ export function orbitWorldLookTarget(
 export function writeSceneCameraViewKeyframeWorldTarget(
 	keyframe: SceneCameraViewKeyframe,
 	worldTarget: Vector3Like,
-	rooms: LayoutRoomRegistry = chopinRuntime.rooms
+	rooms: LayoutRoomRegistry
 ) {
 	const target = cloneFiniteVec3(worldTarget, 'Camera view target');
 	keyframe.cameraTarget = keyframe.roomId
@@ -178,7 +178,7 @@ export function createSceneCameraViewKeyframeAtWorldTarget(
 	worldTarget: Vector3Like,
 	fov: number,
 	activeRoomId: MuseumRoomId | null | undefined,
-	rooms: LayoutRoomRegistry = chopinRuntime.rooms
+	rooms: LayoutRoomRegistry
 ): SceneCameraViewKeyframe {
 	const target = cloneFiniteVec3(worldTarget, 'Camera view target');
 	if (activeRoomId && isWorldPointInsideRoomXZ(activeRoomId, target, rooms)) {
@@ -199,7 +199,7 @@ export function getSceneCameraViewKeyframeWorldPosition(
 	connectionId: string,
 	direction: CameraConnectionDirection,
 	progress: number,
-	rooms: LayoutRoomRegistry = chopinRuntime.rooms
+	rooms: LayoutRoomRegistry
 ): Vec3 {
 	if (!Number.isFinite(progress)) {
 		throw new Error('Camera view progress must be finite');

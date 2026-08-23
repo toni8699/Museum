@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { createEmptySceneDocument } from '$lib/content/scene';
 import { serializeLayoutDocument } from '$lib/layout/layout-codec';
+import { chopinRuntime, museumSceneDocument } from '$lib/content/chopin-project';
 import { createMuseumEditorStore } from '$lib/editor/museum-editor.svelte';
 import {
 	captureLayoutPreviewSnapshot,
@@ -24,7 +25,10 @@ import {
 } from '$lib/editor/layout/layout-mutation-runner';
 
 function makeStore() {
-	const store = createMuseumEditorStore();
+	const store = createMuseumEditorStore({
+		document: museumSceneDocument,
+		rooms: chopinRuntime.rooms
+	});
 	const layoutPreview = createEmptyLayoutPreviewState();
 	store.registerLayoutHistory({
 		capture: () => captureLayoutPreviewSnapshot(layoutPreview),

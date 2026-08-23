@@ -4,7 +4,7 @@ import {
 	assertNavigationGraphMatchesScene,
 	type MuseumSceneDocument
 } from '$lib/content/scene';
-import { museumSceneDocument } from '$lib/content/chopin-project';
+import { chopinRuntime, museumSceneDocument } from '$lib/content/chopin-project';
 import { pickInitialNavigationNodeId } from '$lib/editor/store/document-store.svelte';
 import { serializeSceneDocument } from '$lib/content/scene-codec';
 import { placementTransformFromDocument } from '$lib/editor/editor-transform';
@@ -16,6 +16,8 @@ import {
 	MuseumEditorStore
 } from '$lib/editor/museum-editor.svelte';
 import { createFixtureEditorStore } from './editor-test-utils';
+import { createEmptyMuseumProject } from '$lib/project/project-codec';
+import { createLayoutRoomRegistry } from '$lib/project/project-layout-semantics';
 
 describe('cloneMuseumSceneDocument', () => {
 	it('does not mutate the checked-in museumSceneDocument singleton', () => {
@@ -39,7 +41,7 @@ describe('cloneMuseumSceneDocument', () => {
 describe('createMuseumEditorStore', () => {
 	it('resolves default object and node counts from a fixture session clone', () => {
 		const fixture = cloneFixtureDocument();
-		const store = createMuseumEditorStore({ document: fixture });
+		const store = createMuseumEditorStore({ document: fixture, rooms: chopinRuntime.rooms });
 
 		expect(store.document).not.toBe(museumSceneDocument);
 		expect(store.document).not.toBe(fixture);
@@ -55,7 +57,10 @@ describe('createMuseumEditorStore', () => {
 	});
 
 	it('boots from the checked-in document without mutating the singleton', () => {
-		const store = createMuseumEditorStore();
+		const store = createMuseumEditorStore({
+			document: museumSceneDocument,
+			rooms: chopinRuntime.rooms
+		});
 
 		expect(store.document).not.toBe(museumSceneDocument);
 		expect(store.document.entities).toHaveLength(museumSceneDocument.entities.length);
@@ -69,13 +74,43 @@ describe('createMuseumEditorStore', () => {
 	});
 
 	it('keeps the checked-in document intact when the session document mutates', () => {
-		const store = createMuseumEditorStore();
+		const store = createMuseumEditorStore({
+			document: museumSceneDocument,
+			rooms: chopinRuntime.rooms
+		});
 		const originalFirstId = museumSceneDocument.entities[0]?.id;
 
 		store.document.entities[0]!.id = 'session-only-id';
 
 		expect(museumSceneDocument.entities[0]?.id).toBe(originalFirstId);
 		expect(store.document.entities[0]?.id).toBe('session-only-id');
+	});
+
+	it('P7.3 — boots empty with an empty project + registry: zero rooms, no Chopin ids', () => {
+		const project = createEmptyMuseumProject({ id: 'project:blank', name: 'Blank' });
+		const store = createMuseumEditorStore({
+			document: project.scene,
+			rooms: createLayoutRoomRegistry(project.layout)
+		});
+
+		expect(store.rooms.entries).toHaveLength(0);
+		expect(store.rooms.has('paris')).toBe(false);
+		expect(store.document.entities).toHaveLength(0);
+		expect(store.document.navigationNodes).toHaveLength(0);
+	});
+
+	it('P7.3 — explicit Chopin boot (relic) still resolves the frozen rooms', () => {
+		const store = createMuseumEditorStore({
+			document: museumSceneDocument,
+			rooms: chopinRuntime.rooms,
+			relic: true
+		});
+
+		expect(store.isRelic).toBe(true);
+		expect(store.currentWorkspace).toBe('scene');
+		expect(store.setWorkspace('layout')).toBe(false);
+		expect(store.rooms.has('paris')).toBe(true);
+		expect(store.rooms.entries.length).toBeGreaterThan(0);
 	});
 
 	it('defaults to bright editor lighting and can restore the visitor preset', () => {

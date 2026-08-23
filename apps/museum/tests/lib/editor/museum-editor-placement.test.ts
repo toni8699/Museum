@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { chopinRuntime } from '$lib/content/chopin-project';
 import { Object3D } from 'three';
 import { cloneFixtureDocument } from '../content/__fixtures__/load-fixture-scene';
 import { getRoom, roomLocalPoint, roomPoint } from '$lib/content/rooms';
@@ -84,7 +85,7 @@ describe('MuseumEditorStore Phase 5 placement commands', () => {
 			id: 'fixture-chair-b',
 			position: [chair.position[0] + 1, chair.position[1], chair.position[2]]
 		});
-		const store = createMuseumEditorStore({ document });
+		const store = createMuseumEditorStore({ document, rooms: chopinRuntime.rooms });
 		store.selectionActions.selectRoom('paris');
 		const first = document.entities.find((object) => object.id === 'fixture-chair')!;
 		const second = document.entities.find((object) => object.id === 'fixture-chair-b')!;

@@ -19,6 +19,7 @@
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { unzipSync } from 'fflate';
+import { chopinRuntime } from '$lib/content/chopin-project';
 import { cloneFixtureDocument } from '../content/__fixtures__/load-fixture-scene';
 import { serializeSceneDocument } from '$lib/content/scene-codec';
 import { createMuseumEditorStore, MuseumEditorStore } from '$lib/editor/museum-editor.svelte';
@@ -38,7 +39,7 @@ const PNG_BYTES = new Uint8Array([
 
 function freshStore(): MuseumEditorStore {
 	const document = cloneFixtureDocument();
-	return createMuseumEditorStore({ document });
+	return createMuseumEditorStore({ document, rooms: chopinRuntime.rooms });
 }
 
 describe('museum-editor Phase 5.4 package-archive facade', () => {

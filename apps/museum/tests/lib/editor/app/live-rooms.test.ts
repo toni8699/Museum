@@ -3,6 +3,7 @@ import type { Intersection, Object3D } from 'three';
 
 import { createEmptySceneDocument } from '$lib/content/scene';
 import { findPlaceableFloorIntersection } from '$lib/editor/editor-placement';
+import { chopinRuntime, museumSceneDocument } from '$lib/content/chopin-project';
 import { createMuseumEditorStore } from '$lib/editor/museum-editor.svelte';
 import {
 	commitLayoutDraftRoom,
@@ -132,7 +133,10 @@ describe('live room registry', () => {
 
 describe('updateRooms is a no-op for the frozen relic', () => {
 	it('keeps the Chopin registry until explicitly swapped', () => {
-		const store = createMuseumEditorStore();
+		const store = createMuseumEditorStore({
+			document: museumSceneDocument,
+			rooms: chopinRuntime.rooms
+		});
 		expect(store.rooms.has('paris')).toBe(true);
 		// The relic never calls updateRooms, but the call itself is harmless.
 		store.updateRooms(store.rooms);

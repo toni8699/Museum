@@ -347,7 +347,7 @@ describe('camera-gizmo-adapter — anchor and view-target epsilon no-ops', () =>
 		const anchor = connection.positionPath.anchors.find(
 			(candidate) => candidate.id === anchorId
 		)!;
-		const start = getScenePathAnchorWorldPosition(anchor);
+		const start = getScenePathAnchorWorldPosition(anchor, store.rooms);
 		const root = makeRoot(start);
 		expect(store.selectionActions.selectAnchor(connection.id, anchorId)).toBe(true);
 		store.registerAnchorHelperRoot(connection.id, anchorId, root);
@@ -367,7 +367,7 @@ describe('camera-gizmo-adapter — anchor and view-target epsilon no-ops', () =>
 		const committedAnchor = store.document.connections
 			.find((candidate) => candidate.id === connection.id)!
 			.positionPath.anchors.find((candidate) => candidate.id === anchorId)!;
-		expect(getScenePathAnchorWorldPosition(committedAnchor)[0]).toBeCloseTo(moved[0]!);
+		expect(getScenePathAnchorWorldPosition(committedAnchor, store.rooms)[0]).toBeCloseTo(moved[0]!);
 
 		// Inside ε: cancel the transaction, restore the root, no history.
 		const tiny = [moved[0]! + EDITOR_CAMERA_PATH_MOVE_EPSILON / 2, moved[1]!, moved[2]!] as Vec3;

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { chopinRuntime } from '$lib/content/chopin-project';
 import { createFixtureEditorStore } from '../editor-test-utils';
 import { cloneFixtureDocument } from '../../content/__fixtures__/load-fixture-scene';
 import { createMuseumEditorStore } from '$lib/editor/museum-editor.svelte';
@@ -91,7 +92,7 @@ describe('P8 S4 — holds', () => {
 		const doc = cloneFixtureDocument();
 		const tourParis = doc.navigationNodes.find((n) => n.id === 'tour-paris')!;
 		(tourParis as any).holdSeconds = 1.5;
-		const store = createMuseumEditorStore({ document: doc });
+		const store = createMuseumEditorStore({ document: doc, rooms: chopinRuntime.rooms });
 		store.setWorkspace('camera');
 		const timeline = createEditorCameraTimeline(store.state.graph);
 		const edge = timeline.edges.find((e) => e.connectionId === 'tour-b-paris')!;
@@ -154,7 +155,7 @@ describe('P8 S4 — one/two-node flows', () => {
 	}
 
 	it('one-node flow — static/no-motion: timeline unbuildable (no fake edge), seek no-ops, previewSequence fails gracefully', () => {
-		const store = createMuseumEditorStore({ document: oneNodeDocument() });
+		const store = createMuseumEditorStore({ document: oneNodeDocument(), rooms: chopinRuntime.rooms });
 		store.setWorkspace('camera');
 		expect(store.getCameraTimeline()).toBeNull();
 
@@ -166,7 +167,7 @@ describe('P8 S4 — one/two-node flows', () => {
 	});
 
 	it('two-node flow — exactly one edge, no loop, plays once and completes at 1', () => {
-		const store = createMuseumEditorStore({ document: twoNodeDocument() });
+		const store = createMuseumEditorStore({ document: twoNodeDocument(), rooms: chopinRuntime.rooms });
 		store.setWorkspace('camera');
 		expect(store.flowLoopConnectionId).toBeNull();
 		const timeline = createEditorCameraTimeline(store.state.graph);
@@ -219,7 +220,7 @@ describe('P8 S4 — loop-topology derivation', () => {
 		const tourD = doc.navigationNodes.find((n) => n.id === 'tour-d')!;
 		tourD.nextNodeId = undefined;
 		tourD.connectedNodeIds = tourD.connectedNodeIds.filter((id) => id !== 'tour-a');
-		const store = createMuseumEditorStore({ document: doc });
+		const store = createMuseumEditorStore({ document: doc, rooms: chopinRuntime.rooms });
 		store.setWorkspace('camera');
 		expect(store.flowLoopConnectionId).toBeNull();
 		const timeline = createEditorCameraTimeline(store.state.graph);

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { chopinRuntime } from '$lib/content/chopin-project';
 import { cloneFixtureDocument } from '../content/__fixtures__/load-fixture-scene';
 import { createEditorShortcutHandler } from '$lib/editor/hooks/shortcuts.svelte';
 import { createMuseumEditorStore } from '$lib/editor/museum-editor.svelte';
@@ -8,7 +9,7 @@ import { SCENE_GIZMO_POLICY } from '$lib/editor/gizmo/scene-gizmo-adapter.svelte
 import { CAMERA_GIZMO_POLICY } from '$lib/editor/gizmo/camera-gizmo-adapter.svelte';
 
 function createFixtureEditorStore() {
-	return createMuseumEditorStore({ document: cloneFixtureDocument() });
+	return createMuseumEditorStore({ document: cloneFixtureDocument(), rooms: chopinRuntime.rooms });
 }
 
 function makeKeyEvent(key: string): KeyboardEvent {

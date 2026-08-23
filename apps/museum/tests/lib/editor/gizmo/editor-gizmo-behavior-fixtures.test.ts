@@ -374,7 +374,7 @@ describe('S7 step 0 — camera session fixtures', () => {
 		const anchorId = connection.positionPath.anchors[0]?.id;
 		expect(anchorId).toBeTruthy();
 		const anchor = connection.positionPath.anchors.find((candidate) => candidate.id === anchorId)!;
-		const start = getScenePathAnchorWorldPosition(anchor);
+		const start = getScenePathAnchorWorldPosition(anchor, store.rooms);
 		const moved = [start[0]! + 1, start[1]!, start[2]!] as Vec3;
 
 		expect(store.beginDocumentTransaction()).toBe(true);
@@ -385,7 +385,7 @@ describe('S7 step 0 — camera session fixtures', () => {
 		const movedAnchor = store.document.connections
 			.find((candidate) => candidate.id === connection.id)!
 			.positionPath.anchors.find((candidate) => candidate.id === anchorId)!;
-		expect(getScenePathAnchorWorldPosition(movedAnchor)[0]).toBeCloseTo(moved[0]!);
+		expect(getScenePathAnchorWorldPosition(movedAnchor, store.rooms)[0]).toBeCloseTo(moved[0]!);
 
 		// Inside ε the monolith cancels the transaction and restores the start.
 		const tiny = [
@@ -407,7 +407,7 @@ describe('S7 step 0 — camera session fixtures', () => {
 		const restored = store.document.connections
 			.find((candidate) => candidate.id === connection.id)!
 			.positionPath.anchors.find((candidate) => candidate.id === anchorId)!;
-		expect(getScenePathAnchorWorldPosition(restored)[0]).toBeCloseTo(moved[0]!);
+		expect(getScenePathAnchorWorldPosition(restored, store.rooms)[0]).toBeCloseTo(moved[0]!);
 	});
 
 	it('view-target preview beyond ε commits once; inside ε is a no-op cancel', () => {

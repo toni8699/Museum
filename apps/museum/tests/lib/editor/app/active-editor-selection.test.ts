@@ -1,5 +1,6 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
 
+import { chopinRuntime } from '$lib/content/chopin-project';
 import { createMuseumEditorStore, type MuseumEditorStore } from '$lib/editor/museum-editor.svelte';
 import {
 	EditorActiveSelectionStore,
@@ -39,6 +40,7 @@ function wired(): {
 	const layoutInteraction = createLayoutInteractionState();
 	const store = createMuseumEditorStore({
 		document: cloneFixtureDocumentWithEntityCount(3),
+		rooms: chopinRuntime.rooms,
 		onSelectionActivate: () => clearLayoutSelection(layoutInteraction)
 	});
 	const viewState = new EditorViewState();
@@ -154,8 +156,9 @@ describe('onSelectionActivate seam', () => {
 	it('fires only for actionable picks; deselect and room-only never fire', () => {
 		const fired: string[] = [];
 		const store = createMuseumEditorStore({
-			document: cloneFixtureDocumentWithEntityCount(3),
-			onSelectionActivate: () => fired.push('activate')
+		document: cloneFixtureDocumentWithEntityCount(3),
+		rooms: chopinRuntime.rooms,
+		onSelectionActivate: () => fired.push('activate')
 		});
 		const entityId = store.document.entities[0]!.id;
 		const nodeId = store.document.navigationNodes[0]!.id;
@@ -175,7 +178,10 @@ describe('onSelectionActivate seam', () => {
 	});
 
 	it('defaults to a no-op so the frozen relic is untouched', () => {
-		const store = createMuseumEditorStore({ document: cloneFixtureDocumentWithEntityCount(1) });
+		const store = createMuseumEditorStore({
+			document: cloneFixtureDocumentWithEntityCount(1),
+			rooms: chopinRuntime.rooms
+		});
 		const entityId = store.document.entities[0]!.id;
 		expect(() => store.selectionActions.selectPlacement(entityId)).not.toThrow();
 		expect(store.selectedPlacementIds).toEqual([entityId]);
@@ -327,7 +333,8 @@ describe('construction-time behavior (P1.1 domain-gated memory, G2)', () => {
 	function storeWithAllSlots() {
 		const layoutInteraction = createLayoutInteractionState();
 		const store = createMuseumEditorStore({
-			document: cloneFixtureDocumentWithEntityCount(3)
+			document: cloneFixtureDocumentWithEntityCount(3),
+		rooms: chopinRuntime.rooms
 		});
 		const entityId = store.document.entities[0]!.id;
 		const nodeId = store.document.navigationNodes[0]!.id;
@@ -386,7 +393,8 @@ describe('construction-time behavior (P1.1 domain-gated memory, G2)', () => {
 	it('scene domain with scene + camera memory: active is scene; the navigation slot stays memory', () => {
 		const layoutInteraction = createLayoutInteractionState();
 		const store = createMuseumEditorStore({
-			document: cloneFixtureDocumentWithEntityCount(3)
+			document: cloneFixtureDocumentWithEntityCount(3),
+		rooms: chopinRuntime.rooms
 		});
 		const entityId = store.document.entities[0]!.id;
 		const nodeId = store.document.navigationNodes[0]!.id;

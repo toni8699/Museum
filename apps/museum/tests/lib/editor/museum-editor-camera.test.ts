@@ -7,7 +7,7 @@ import {
 	type MuseumSceneDocument,
 	type SceneNavigationNode
 } from '$lib/content/scene';
-import { museumSceneDocument } from '$lib/content/chopin-project';
+import { chopinRuntime, museumSceneDocument } from '$lib/content/chopin-project';
 import { getRoom, roomLocalPoint, roomPoint } from '$lib/content/rooms';
 import { serializeSceneDocument } from '$lib/content/scene-codec';
 import {
@@ -2286,7 +2286,8 @@ describe('MuseumEditorStore Phase 2.4 camera-key progress drag', () => {
 				store.document,
 				selection.connectionId,
 				selection.direction,
-				0.59
+				0.59,
+				store.rooms
 			);
 
 			expect(store.beginViewKeyframeProgressDrag(selection)).toBe(true);
@@ -3750,7 +3751,7 @@ describe('MuseumEditorStore P1.8 — camera sequence authoring (re-root + strict
 		node.connectedNodeIds = [];
 		document.navigationNodes = [node];
 		document.connections = [];
-		const store = createMuseumEditorStore({ document });
+		const store = createMuseumEditorStore({ document, rooms: chopinRuntime.rooms });
 
 		store.selectionActions.selectNavigationNode(node.id);
 		expect(store.getCameraTimeline()).toBeNull();
@@ -3788,7 +3789,7 @@ describe('MuseumEditorStore P1.9 — empty-chain promotion (manual Start Sequenc
 			delete node.previousNodeId;
 			delete node.detourOfNodeId;
 		}
-		return createMuseumEditorStore({ document });
+		return createMuseumEditorStore({ document, rooms: chopinRuntime.rooms });
 	}
 
 	it('Start Sequence seeds a two-node flow through the existing edge in one history entry', () => {

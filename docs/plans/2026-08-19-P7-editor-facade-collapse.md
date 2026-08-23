@@ -122,7 +122,7 @@ set. The itemized DoD above is the gate.
 |---|---|---|---|---|
 | **P7.1** | Selection decoupling: read adapter folds into `selection-store`; write adapter dies with the bridging setters; write sites → `selectionActions` (the original plan's suggested slice) | 1 | — | none |
 | **P7.2** | Delete dual-namespace shims (`editor/project/*`, `editor/layout/*`; the `layout-preview-geometry.ts` de-hybrid is already done — only its `./layout-types` import rewrite remains) — **shipped 2026-08-23** | 3 | — | none |
-| **P7.3** | Chopin defaults → explicit inputs (`createMuseumEditorStore`, `editor-camera-path`, `editor-camera-view`) | 4 | — | none (relic passes Chopin explicitly) |
+| **P7.3** | Chopin defaults → explicit inputs (`createMuseumEditorStore`, `editor-camera-path`, `editor-camera-view`) — **shipped 2026-08-23** | 4 | — | none (relic passes Chopin explicitly) |
 | **P7.4** | Extract shared editor-shell boot composable (`MuseumEditorApp` + `EditorApp`) — dirty guards + texture lifecycle only; shortcuts stay shell-owned — **shipped 2026-08-19 (implemented during P1, non-blocking)** | 2 | — | none |
 | **P7.5** | Facade thinning: move remaining single-owner reads to owning sub-stores (the deferred "future slice"); close the `isDirty` divergence — **shipped 2026-08-23** | 1 | P7.1 | none |
 | **P7.6** | Museum-vocabulary scrub: drop-prefix scene vocabulary across the live model, relic subtree keeps museum; file renames (facade, types, state, content, 9 test files); format hard break (`.museumpack.zip` → `.scenepack.zip`, `museum-scene.json` → `scene.json`) | — | P7.1–P7.5 (lands last) | **format rename + code-adjacent strings only** (owner-approved 2026-08-22; the one non-zero-behavior increment) |
@@ -481,6 +481,51 @@ Mechanical; one diff per namespace (project, layout). Revert independently.
 ---
 
 ## P7.3 — Chopin defaults → explicit inputs (brief)
+
+> **Implementation (2026-08-23).** All Chopin defaults removed from editor
+> code; suite 1,988 green (1,986 + the 2 new §5 regression tests),
+> `svelte-check` 0/0, and **both Chopin gates clean** (zero
+> `chopinRuntime`/`chopinProject`/`museumSceneDocument` symbols and zero
+> `$lib/content/chopin-` imports in `src/lib/editor/` outside
+> `MuseumEditorApp.svelte`).
+> - `document` + `rooms` are now **required** `MuseumEditorStoreOptions`;
+>   the factory/constructor defaults and the facade's `chopin` import are
+>   gone. `MuseumEditorApp.svelte` (the relic seed site) passes
+>   `{ document: museumSceneDocument, rooms: chopinRuntime.rooms, relic }`
+>   and seeds the layout preview with
+>   `createLayoutPreviewState(chopinProject.layout, museumSceneDocument)`.
+> - Camera-path/view: all 6 + 4 `rooms` defaults removed; the
+>   **signature trap resolved as scoped** —
+>   `createDraftConnectionPositionPath(document, connectionId, direction,
+>   rooms)` with both `direction` + `rooms` required (no reorder; every src
+>   caller already passed all four args positionally, verified at each of
+>   the 12 src call sites). The brief's 3 test calls were updated to
+>   explicit `'forward'`/`'reverse'` + registry.
+> - Layout preview: `createLayoutPreviewState(layout, scene)` and
+>   `loadChopinLayoutPreview(state, layout)` are parameterized (param is
+>   the `LayoutDocument`, not the project — `createState` takes the layout);
+>   the relic passes `chopinProject.layout` explicitly, the test file passes
+>   it at all 27 factory sites.
+> - Test migration: `editor-test-utils` fixture factories pass
+>   `rooms: chopinRuntime.rooms` (the fixture resolves against the Chopin
+>   registry); the 6 files / 9 zero-option callsites the survey named were
+>   updated to explicit Chopin args (behavior-identical — the old default
+>   boot WAS Chopin), plus **~20 more callsites the survey undercounted**
+>   (camera-path/view tests, gizmo adapters, p8-s2/s3/s4, textures, shell,
+>   placement, package-archive, p8-s5, active-editor-selection, contracts
+>   ×5, museum-editor-camera) and the two `EditorDocumentStore(undefined,
+>   …)` callers. `contracts.test.ts` relic-isolation re-expressed with
+>   explicit Chopin args (isolation coverage preserved); the vacuous
+>   no-options boot the contract used to test is what P7.3 removes by
+>   design.
+> - New tests: empty-boot (zero rooms, no Chopin ids) + explicit Chopin
+>   relic boot (§5).
+> - **P7.6 inventory drift — one line, accounted for:** removing the
+>   `MuseumEditorStoreOptions.document` seed comment dropped the bare-museum
+>   count 517/523 → **516/522**; the inventory's §1 guard, §4 entry, and §5
+>   tally updated with the removal annotated. The pre-flight guard's "diff
+>   against §4 before trusting the buckets" rule was exercised and the
+>   single removal was a clean §4 R-line delete (no re-bucketing needed).
 
 ### 1. Outcome / out of scope
 
@@ -1132,10 +1177,11 @@ mid-slice). The split keeps the slice mechanical.
   product/relic references are tolerated and documented** — not hundreds of
   individual adjudications. The full per-line classification lives in
   [`2026-08-23-P7.6-strings-pre-inventory.md`](./2026-08-23-P7.6-strings-pre-inventory.md)
-  — every live-scope bare `\bmuseum\b` hit pre-bucketed (517 lines / 523
-  occurrences: R 341 / P 147 / T 35, machine-verified 2026-08-23) so the
-  strings pass is a checklist, not a judgment call. **The "~315" figure
-  above predates the P8 S1–S6 delta; the inventory supersedes it.**
+  — every live-scope bare `\bmuseum\b` hit pre-bucketed (516 lines / 522
+  occurrences: R 340 / P 147 / T 35, machine-verified 2026-08-23; P7.3
+  removed one seed-comment hit) so the strings pass is a checklist, not a
+  judgment call. **The "~315" figure above predates the P8 S1–S6 delta;
+  the inventory supersedes it.**
 - **`svelte-check` 0/0** — the compiler is the enforcement backstop (every
   missed identifier fails; unlike P7.1, no regex-gate blind spot exists).
 - **Full suite green** — 1,970 baseline; all 81 test files touched. The

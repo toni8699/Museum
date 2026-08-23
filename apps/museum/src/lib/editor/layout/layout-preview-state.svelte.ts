@@ -1,4 +1,4 @@
-import { chopinProject, museumSceneDocument } from '$lib/content/chopin-project';
+
 import { createEmptySceneDocument, type MuseumSceneDocument } from '$lib/content/scene';
 import type { MuseumProject } from '$lib/project/project-types';
 import {
@@ -8,7 +8,14 @@ import {
 	validateLayoutDocument	} from '$lib/layout/layout-codec';
 	import { buildLayoutPreviewModel, type LayoutPreviewModel, type LayoutPreviewModelResult } from './layout-mesh-factory';
 import type { LayoutBounds3 as LayoutPreviewBounds } from '$lib/layout/layout-geometry-types';
-import type { DraftSegment, LayoutObject, LayoutOpening, LayoutRoom, LayoutVec2 } from '$lib/layout/layout-types';
+import type {
+	DraftSegment,
+	LayoutDocument,
+	LayoutObject,
+	LayoutOpening,
+	LayoutRoom,
+	LayoutVec2
+} from '$lib/layout/layout-types';
 import { deleteInteriorAnchorOnSegment, insertInteriorAnchorOnSegment, pointInRoom, replaceRoomPoints, updateInteriorAnchorOnSegment } from './layout-editing';
 import {
 	appendRoomOpening,
@@ -103,14 +110,19 @@ export type LayoutRoomFieldPatch = Partial<
 	Pick<LayoutRoom, 'name' | 'wallThickness' | 'floorThickness' | 'ceilingThickness'>
 > & { floorHeight?: number };
 
-export function createLayoutPreviewState(): LayoutPreviewState {
-	return createState('chopin-fixture', chopinProject.layout, museumSceneDocument, 0);
+export function createLayoutPreviewState(
+	layout: LayoutDocument,
+	scene: MuseumSceneDocument
+): LayoutPreviewState {
+	return createState('chopin-fixture', layout, scene, 0);
 }
 
 /**
  * boot a blank layout surface (`baselineKind: 'blank'`, empty layout +
- * empty scene) for the boot-into-empty editor. The Chopin-fixture default
- * (`createLayoutPreviewState`) remains the frozen relic's boot source.
+ * empty scene) for the boot-into-empty editor. The Chopin-fixture factory
+ * (`createLayoutPreviewState(project, scene)`) remains the frozen relic's
+ * boot source — the relic shell passes the Chopin project layout + scene
+ * document explicitly (P7.3).
  */
 export function createEmptyLayoutPreviewState(): LayoutPreviewState {
 	return createState('empty', createEmptyLayoutDocument(), createEmptySceneDocument(), 0);
@@ -263,10 +275,13 @@ export function setLayoutPreviewImportError(state: LayoutPreviewState, message: 
 	state.statusMessage = `Import failed: ${message}`;
 }
 
-export function loadChopinLayoutPreview(state: LayoutPreviewState): boolean {
+export function loadChopinLayoutPreview(
+	state: LayoutPreviewState,
+	layout: LayoutDocument
+): boolean {
 	replaceState(
 		state,
-		createState('chopin-fixture', chopinProject.layout, state.project.scene, state.previewVersion)
+		createState('chopin-fixture', layout, state.project.scene, state.previewVersion)
 	);
 	return true;
 }

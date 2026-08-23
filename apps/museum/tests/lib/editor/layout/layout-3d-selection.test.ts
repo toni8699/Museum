@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { chopinRuntime } from '$lib/content/chopin-project';
 import { compileLayoutGeometry } from '$lib/layout/layout-geometry';
 import { buildRoomWallMesh, type IndexedWallMesh } from '$lib/layout/wall-mesh-builder';
 import type { LayoutDocument } from '$lib/layout/layout-types';	import {
@@ -171,6 +172,7 @@ describe('commit route (pure shell mirror)', () => {
 		const interaction = createLayoutInteractionState();
 		const store = createMuseumEditorStore({
 			document: cloneFixtureDocument(),
+			rooms: chopinRuntime.rooms,
 			onSelectionActivate: () => clearLayoutSelection(interaction)
 		});
 
@@ -204,6 +206,7 @@ describe('commit route (pure shell mirror)', () => {
 		const interaction = createLayoutInteractionState();
 		const store = createMuseumEditorStore({
 			document: cloneFixtureDocument(),
+			rooms: chopinRuntime.rooms,
 			onSelectionActivate: () => clearLayoutSelection(interaction)
 		});
 

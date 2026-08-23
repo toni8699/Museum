@@ -11,7 +11,7 @@ import {
 } from '$lib/content/chopin-project';
 
 function makeControllers() {
-	const document = new EditorDocumentStore(undefined, chopinRuntime.rooms);
+	const document = new EditorDocumentStore(museumSceneDocument, chopinRuntime.rooms);
 	const preview = new EditorCameraPreviewController(document);
 	return { document, preview };
 }

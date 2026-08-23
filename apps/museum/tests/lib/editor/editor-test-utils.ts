@@ -15,6 +15,7 @@
  * describe body's needs.
  */
 import { cloneFixtureDocument } from '../content/__fixtures__/load-fixture-scene';
+import { chopinRuntime } from '$lib/content/chopin-project';
 import { createMuseumEditorStore, type MuseumEditorStore, type MuseumSceneDocument } from '$lib/editor/museum-editor.svelte';
 
 /** Stable tour ordering the integration suite asserts against after edit. */
@@ -50,7 +51,7 @@ export function createFixtureEditorStore(entityCount?: number): MuseumEditorStor
 	const document = entityCount
 		? cloneFixtureDocumentWithEntityCount(entityCount)
 		: cloneFixtureDocument();
-	return createMuseumEditorStore({ document });
+	return createMuseumEditorStore({ document, rooms: chopinRuntime.rooms });
 }
 
 /**
@@ -62,5 +63,5 @@ export function createRelicFixtureEditorStore(entityCount?: number): MuseumEdito
 	const document = entityCount
 		? cloneFixtureDocumentWithEntityCount(entityCount)
 		: cloneFixtureDocument();
-	return createMuseumEditorStore({ document, relic: true });
+	return createMuseumEditorStore({ document, rooms: chopinRuntime.rooms, relic: true });
 }

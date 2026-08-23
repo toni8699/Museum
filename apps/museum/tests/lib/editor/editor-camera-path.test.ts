@@ -1,4 +1,5 @@
 import { roomPoint } from '$lib/content/rooms';
+import { chopinRuntime } from '$lib/content/chopin-project';
 import type { MuseumSceneDocument } from '$lib/content/scene';
 import { createCameraPositionPath } from '$lib/museum/navigation/camera-motion';
 import type { Vec3 } from '$lib/types/museum';
@@ -85,7 +86,7 @@ function linePath(length: number) {
 describe('draft camera path resolution', () => {
 	it('resolves generated node endpoints and authored anchors into fresh world tuples', () => {
 		const document = createDocument();
-		const part = resolveDraftConnectionPathPart(document, 'from-to');
+		const part = resolveDraftConnectionPathPart(document, 'from-to', chopinRuntime.rooms);
 		expect(part.kind).toBe('rounded-polyline');
 		if (part.kind !== 'rounded-polyline') throw new Error('Expected rounded path');
 
@@ -99,16 +100,21 @@ describe('draft camera path resolution', () => {
 
 		(part.points[0] as Vec3)[0] = 999;
 		expect(document.navigationNodes[0]?.position).toEqual([1, 1.65, 2]);
-		expect(resolveDraftConnectionPathPart(document, 'from-to')).not.toBe(part);
+		expect(resolveDraftConnectionPathPart(document, 'from-to', chopinRuntime.rooms)).not.toBe(part);
 	});
 
 	it('emits an auto-bezier part and builds it with the shared curve compiler', () => {
 		const document = createDocument('auto-bezier');
-		const part = resolveDraftConnectionPathPart(document, 'from-to');
+		const part = resolveDraftConnectionPathPart(document, 'from-to', chopinRuntime.rooms);
 		expect(part.kind).toBe('auto-bezier');
 		if (part.kind !== 'auto-bezier') throw new Error('Expected auto path');
 
-		const draftPath = createDraftConnectionPositionPath(document, 'from-to');
+		const draftPath = createDraftConnectionPositionPath(
+			document,
+			'from-to',
+			'forward',
+			chopinRuntime.rooms
+		);
 		const sharedPath = createCameraPositionPath([part]);
 		for (const progress of [0, 0.2, 0.5, 0.8, 1]) {
 			expect(draftPath.getPointAt(progress).distanceTo(sharedPath.getPointAt(progress))).toBeLessThan(
@@ -119,11 +125,17 @@ describe('draft camera path resolution', () => {
 
 	it('builds reverse direction from the same shared geometry compiler', () => {
 		const document = createDocument('auto-bezier');
-		const forward = createDraftConnectionPositionPath(document, 'from-to');
+		const forward = createDraftConnectionPositionPath(
+			document,
+			'from-to',
+			'forward',
+			chopinRuntime.rooms
+		);
 		const reverse = createDraftConnectionPositionPath(
 			document,
 			'from-to',
-			'reverse'
+			'reverse',
+			chopinRuntime.rooms
 		);
 		for (const progress of [0, 0.2, 0.5, 0.8, 1]) {
 			expect(
@@ -136,11 +148,11 @@ describe('draft camera path resolution', () => {
 
 	it('rejects missing connections and missing endpoint nodes', () => {
 		const document = createDocument();
-		expect(() => resolveDraftConnectionPathPart(document, 'missing')).toThrow(
+		expect(() => resolveDraftConnectionPathPart(document, 'missing', chopinRuntime.rooms)).toThrow(
 			'Unknown scene connection: missing'
 		);
 		document.navigationNodes.splice(1, 1);
-		expect(() => resolveDraftConnectionPathPart(document, 'from-to')).toThrow(
+		expect(() => resolveDraftConnectionPathPart(document, 'from-to', chopinRuntime.rooms)).toThrow(
 			'Unknown navigation node in scene connection: to'
 		);
 	});
@@ -177,17 +189,17 @@ describe('camera path anchor helpers', () => {
 	it('stores a new hit room-local only inside the active yawed room', () => {
 		const local: Vec3 = [1.25, 1.8, -2.5];
 		const inside = roomPoint('paris', local);
-		const anchor = createScenePathAnchorAtWorldPoint('new-anchor', inside, 'paris');
+		const anchor = createScenePathAnchorAtWorldPoint('new-anchor', inside, 'paris', chopinRuntime.rooms);
 		expect(anchor.roomId).toBe('paris');
 		expectVec3Close(anchor.position, local);
-		expectVec3Close(getScenePathAnchorWorldPosition(anchor), inside);
+		expectVec3Close(getScenePathAnchorWorldPosition(anchor, chopinRuntime.rooms), inside);
 
 		const outside: Vec3 = [100, 1.8, 100];
-		expect(createScenePathAnchorAtWorldPoint('outside', outside, 'paris')).toEqual({
+		expect(createScenePathAnchorAtWorldPoint('outside', outside, 'paris', chopinRuntime.rooms)).toEqual({
 			id: 'outside',
 			position: outside
 		});
-		expect(createScenePathAnchorAtWorldPoint('no-room', inside, null)).toEqual({
+		expect(createScenePathAnchorAtWorldPoint('no-room', inside, null, chopinRuntime.rooms)).toEqual({
 			id: 'no-room',
 			position: inside
 		});
@@ -196,21 +208,21 @@ describe('camera path anchor helpers', () => {
 	it('writes world movement while preserving existing room ownership', () => {
 		const anchor = createDocument().connections[0]!.positionPath.anchors[0]!;
 		const outsideWorld: Vec3 = [40, 2.25, -35];
-		writeScenePathAnchorWorldPosition(anchor, outsideWorld);
+		writeScenePathAnchorWorldPosition(anchor, outsideWorld, chopinRuntime.rooms);
 
 		expect(anchor.roomId).toBe('paris');
-		expectVec3Close(getScenePathAnchorWorldPosition(anchor), outsideWorld);
+		expectVec3Close(getScenePathAnchorWorldPosition(anchor, chopinRuntime.rooms), outsideWorld);
 
 		const worldAnchor = createDocument().connections[0]!.positionPath.anchors[1]!;
 		const nextWorld: Vec3 = [3, 2, -8];
-		writeScenePathAnchorWorldPosition(worldAnchor, nextWorld);
+		writeScenePathAnchorWorldPosition(worldAnchor, nextWorld, chopinRuntime.rooms);
 		expect(worldAnchor).toEqual({ id: 'from-to-anchor-02', position: nextWorld });
 	});
 
 	it('rejects non-finite authored movement', () => {
 		const anchor = createDocument().connections[0]!.positionPath.anchors[0]!;
 		expect(() =>
-			writeScenePathAnchorWorldPosition(anchor, [Number.NaN, 1.65, 0])
+			writeScenePathAnchorWorldPosition(anchor, [Number.NaN, 1.65, 0], chopinRuntime.rooms)
 		).toThrow('Camera path anchor position must contain exactly three finite numbers');
 	});
 });

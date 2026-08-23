@@ -30,7 +30,7 @@ function fingerprint(doc: MuseumSceneDocument): MuseumSceneDocument {
 
 describe('EditorDocumentStore', () => {
 	it('starts with the bundled scene document as the source of truth', () => {
-		const store = new EditorDocumentStore(undefined, chopinRuntime.rooms);
+		const store = new EditorDocumentStore(museumSceneDocument, chopinRuntime.rooms);
 		expect(store.document).toEqual(museumSceneDocument);
 		expect(store.validation.success).toBe(true);
 		expect(
@@ -40,7 +40,7 @@ describe('EditorDocumentStore', () => {
 	});
 
 	it('reports not-dirty at boot (baseline matches live canonical JSON)', () => {
-		const store = new EditorDocumentStore(undefined, chopinRuntime.rooms);
+		const store = new EditorDocumentStore(museumSceneDocument, chopinRuntime.rooms);
 		expect(store.isDirty).toBe(false);
 		expect(store.canonicalJson).toBe(store.baselineCanonicalJson);
 	});

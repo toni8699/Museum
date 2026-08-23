@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { chopinRuntime } from '$lib/content/chopin-project';
 import { cloneFixtureDocument } from '../content/__fixtures__/load-fixture-scene';
 import { serializeSceneDocument } from '$lib/content/scene-codec';
 import {
@@ -18,7 +19,7 @@ describe('MuseumEditorStore Phase 5.2 texture facade', () => {
 
 	function createTextureStore(verifier: TextureVerifier = readyVerifier) {
 		const document = cloneFixtureDocument();
-		return createMuseumEditorStore({ document, textureVerifier: verifier });
+		return createMuseumEditorStore({ document, rooms: chopinRuntime.rooms, textureVerifier: verifier });
 	}
 
 	function registerTexture(store: MuseumEditorStore, uri: string) {

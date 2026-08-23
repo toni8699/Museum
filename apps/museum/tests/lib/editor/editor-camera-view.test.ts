@@ -1,4 +1,5 @@
 import { roomPoint } from '$lib/content/rooms';
+import { chopinRuntime } from '$lib/content/chopin-project';
 import type { MuseumSceneDocument } from '$lib/content/scene';
 import { describe, expect, it } from 'vitest';
 import {
@@ -89,13 +90,15 @@ describe('editor camera view helpers', () => {
 			document,
 			'a-b',
 			'forward',
-			0.4
+			0.4,
+			chopinRuntime.rooms
 		);
 		const reverse = getSceneCameraViewKeyframeWorldPosition(
 			document,
 			'a-b',
 			'reverse',
-			0.6
+			0.6,
+			chopinRuntime.rooms
 		);
 		expect(forward[0]).toBeCloseTo(reverse[0], 8);
 		expect(forward[1]).toBeCloseTo(reverse[1], 8);
@@ -109,15 +112,16 @@ describe('editor camera view helpers', () => {
 			0.5,
 			world,
 			52,
-			'paris'
+			'paris',
+			chopinRuntime.rooms
 		);
 		expect(keyframe.roomId).toBe('paris');
-		expect(getSceneCameraViewKeyframeWorldTarget(keyframe)).toEqual(world);
+		expect(getSceneCameraViewKeyframeWorldTarget(keyframe, chopinRuntime.rooms)).toEqual(world);
 
 		const moved = roomPoint('paris', [2, 1.6, -1]);
-		writeSceneCameraViewKeyframeWorldTarget(keyframe, moved);
+		writeSceneCameraViewKeyframeWorldTarget(keyframe, moved, chopinRuntime.rooms);
 		expect(keyframe.roomId).toBe('paris');
-		expect(getSceneCameraViewKeyframeWorldTarget(keyframe)).toEqual(moved);
+		expect(getSceneCameraViewKeyframeWorldTarget(keyframe, chopinRuntime.rooms)).toEqual(moved);
 	});
 
 	it('mirrors a view track with remapped progress and fresh destination IDs', () => {

@@ -36,13 +36,14 @@ function byLayer(model: G2ReferencePrimitive[]): Map<number, G2ReferencePrimitiv
 }
 
 describe('G2 render-order freeze', () => {
-	it('locks the twelve-layer back-to-front order', () => {
+	it('locks the thirteen-layer back-to-front order', () => {
 		expect(G2_LAYER_ORDER.map((layer) => layer.name)).toEqual([
 			'fills',
 			'strokes',
 			'walls',
 			'openings',
 			'objects',
+			'scene-footprints',
 			'camera-paths',
 			'view-cones-look-targets',
 			'portal-crossings-collision-warnings',
@@ -51,7 +52,7 @@ describe('G2 render-order freeze', () => {
 			'interaction-handles',
 			'labels'
 		]);
-		expect(G2_LAYER_ORDER.map((layer) => layer.order)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+		expect(G2_LAYER_ORDER.map((layer) => layer.order)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
 		expect([...G2_COMMITTED_LAYERS]).toEqual([1, 2, 3, 4, 5]);
 	});
 

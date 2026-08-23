@@ -3,6 +3,7 @@ import {
   getAssetById,
   listAssets,
   assets,
+  validateAssetFootprint,
   resolveAssetFallback,
   validateAssetManifest
 } from '$lib/content/assets';
@@ -56,6 +57,14 @@ describe('asset manifest', () => {
       defaultRotation: [0, Number.NaN, 0]
     } as Asset;
     expect(() => validateAssetManifest([invalidRotation])).toThrow(/default rotation/);
+  });
+
+  it('validates optional canonical footprints without repairing invalid outlines', () => {
+    expect(validateAssetFootprint({ width: 2, depth: 3 })).toBeNull();
+    expect(validateAssetFootprint({ width: 2, depth: 3, outline: [[0, 0], [2, 0], [1, 1], [2, 2], [0, 2]] })).toBeNull();
+    expect(validateAssetFootprint({ width: 2, depth: 3, outline: [[0, 0], [3, 3], [0, 2], [2, 0]] })).toMatch(/simple polygon/);
+    expect(validateAssetFootprint({ width: 2, depth: 3, outline: [[0, 0], [1, 0], [0, 0]] })).toMatch(/closing point/);
+    expect(() => validateAssetManifest([{ ...assets[0], footprint: { width: 0, depth: 1 } }])).toThrow(/footprint/);
   });
 
   it('normalizes fallbacks without mutating manifest assets', () => {

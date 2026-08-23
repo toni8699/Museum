@@ -226,14 +226,14 @@ describe('resolvePlanSceneGraphFromDocument (P1.5 document-level resolver)', () 
 		expect(projection.timingLabels).toEqual([]);
 	});
 
-	it('the Camera Plan render model asserts the profile: no cone/target/path tokens in layers 6–9', () => {
+	it('the Camera Plan render model asserts the profile: no cone/target/path tokens in layers 7–10', () => {
 		const { geometry } = compileLayoutGeometry(g2MultipleOpeningsDocument());
 		const model = buildPlanRenderModel(
 			geometry,
 			authoring({ mainFlowNodeIds: ['n-a', 'n-b'] })
 		);
-		const layers69 = model.layers.filter((layer) => layer.order >= 6 && layer.order <= 9);
-		const styles = layers69.flatMap((layer) => layer.primitives.map((primitive) => primitive.style));
+		const layers710 = model.layers.filter((layer) => layer.order >= 7 && layer.order <= 10);
+		const styles = layers710.flatMap((layer) => layer.primitives.map((primitive) => primitive.style));
 		expect(styles).not.toContain('view-cone');
 		expect(styles).not.toContain('look-target');
 		expect(styles).not.toContain('camera-path');

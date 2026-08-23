@@ -16,3 +16,14 @@
 
 `AssetModel.svelte` owns load/clone/fallback. Do not add room-local GLTF loaders.  
 GLB import pipeline = **deferred** (tracker P4).
+
+## Plan footprint metadata (P2.1)
+
+Floor catalogue models may declare optional canonical `Asset.footprint` metadata:
+`{ width, depth, outline? }`, in metres after asset normalization and relative
+to the placement pivot. `outline` uses finite `[x, z]` points without a repeated
+closing point; valid simple concave polygons are accepted and winding is
+normalized. Invalid metadata is rejected by manifest validation; missing or
+invalid model metadata is ineligible for Scene Plan projection. `defaultScale`
+and `defaultRotation` are already reflected in canonical footprint values and
+are not applied again.

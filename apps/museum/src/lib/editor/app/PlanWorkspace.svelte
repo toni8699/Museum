@@ -13,6 +13,8 @@
 	import { layoutMutationRunnerFor, runLayoutMutation } from '$lib/editor/layout/layout-mutation-runner';
 	import type { LayoutOpeningKind } from '$lib/editor/layout/layout-opening-editing';
 	import type { EditorStore } from '$lib/editor/editor-store.svelte';
+	import { resolveEditorPlacementScale } from '$lib/editor/scale-vector';
+	import type { SceneEntity } from '$lib/content/scene';
 	import { getContext } from 'svelte';
 	import {
 		ACTIVE_EDITOR_SELECTION_KEY,
@@ -31,6 +33,11 @@
 	const activeSelection = getContext<EditorActiveSelectionStore | undefined>(
 		ACTIVE_EDITOR_SELECTION_KEY
 	);
+
+	function effectiveSceneScale(entity: SceneEntity) {
+		void store.placementScaleVectorVersion;
+		return resolveEditorPlacementScale(entity.scale, store.getPlacementScaleVector(entity.id));
+	}
 
 	function commitDraftRoom(points: [number, number][]): boolean {
 		const outcome = runLayoutMutationGuarded(
@@ -130,6 +137,9 @@
 		model={layoutPreview.model}
 		preview={layoutPreview}
 		interaction={layoutInteraction}
+		scene={store.document}
+		rooms={store.rooms}
+		getEffectiveSceneScale={effectiveSceneScale}
 		onCommit={commitDraftRoom}
 		onOpeningCreate={createOpening}
 		onOpeningDelete={deleteOpening}

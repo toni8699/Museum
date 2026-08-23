@@ -86,10 +86,10 @@ function renderModel(selectedMainFlow: string[]) {
 	return buildPlanRenderModel(geometry, projection({ mainFlowNodeIds: selectedMainFlow }));
 }
 
-/** Camera authoring primitives live in layers 6–8; find the one with `key`. */
+/** Camera authoring primitives live in layers 7–9; find the one with `key`. */
 function styleByKey(model: ReturnType<typeof renderModel>, key: string): string | undefined {
 	return model.layers
-		.filter((layer) => layer.order >= 6 && layer.order <= 8)
+		.filter((layer) => layer.order >= 7 && layer.order <= 9)
 		.flatMap((layer) => layer.primitives)
 		.find((primitive) => primitive.key === key)?.style;
 }

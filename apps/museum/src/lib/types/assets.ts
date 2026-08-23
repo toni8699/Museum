@@ -40,6 +40,14 @@ export type FallbackKind =
 /** Normalized fallback value persisted by scene object placements. */
 export type SceneObjectFallback = FallbackKind;
 
+/** Canonical floor-plane bounds, relative to an asset placement pivot. */
+export type AssetFootprint = {
+  width: number;
+  depth: number;
+  /** Optional simple polygon in canonical metres; no repeated closing point. */
+  outline?: readonly [number, number][];
+};
+
 export type Asset = {
   id: AssetId;
   name: string;
@@ -52,6 +60,8 @@ export type Asset = {
   attribution?: string;
   fallback?: FallbackKind;
   placementSurface: PlacementSurface;
+  /** Optional canonical Plan footprint. Missing/invalid metadata is ineligible. */
+  footprint?: AssetFootprint;
   defaultScale: number;
   /** Renderer-owned model orientation correction, expressed as Euler radians. */
   defaultRotation?: Vec3;

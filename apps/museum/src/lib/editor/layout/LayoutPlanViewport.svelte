@@ -1,5 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import type { SceneDocument, SceneEntity } from '$lib/content/scene';
+	import type { LayoutRoomRegistry } from '$lib/project/project-layout-semantics';
+	import type { Vec3 } from '$lib/types/scene';
 	import type { LayoutPreviewModel } from './layout-mesh-factory';
 	import {
 		addPolygonPoint,
@@ -66,6 +69,7 @@
 	import type { LayoutRoom, LayoutVec2 } from '$lib/layout/layout-types';
 	import { layoutRoomUnitPivot } from './layout-room-transform';
 	import { buildPlanRenderModel } from '$lib/layout/plan-render-model';
+	import { buildPlanSceneFootprintProjection } from './plan-scene-footprint';
 	import { buildPlanInteractionProjection, rotationHandleScreenPoint } from './plan-overlays';
 	import { planCameraProjectionForProject } from './plan-camera-projection';
 	import PlanSvg from './PlanSvg.svelte';
@@ -74,6 +78,9 @@
 		model,
 		preview,
 		interaction,
+		scene,
+		rooms: sceneRooms,
+		getEffectiveSceneScale,
 		onCommit,
 		onOpeningCreate,
 		onOpeningDelete,
@@ -86,6 +93,9 @@
 		model: LayoutPreviewModel;
 		preview: LayoutPreviewState;
 		interaction: LayoutInteractionState;
+		scene?: SceneDocument;
+		rooms?: LayoutRoomRegistry;
+		getEffectiveSceneScale?: (entity: SceneEntity) => number | Vec3 | undefined;
 		onCommit: (points: LayoutVec2[]) => boolean;
 		onOpeningCreate: (roomId: string, segmentId: string, kind: LayoutOpeningKind, clickOffset: number) => void;
 		onOpeningDelete: (roomId: string, openingId: string) => void;
@@ -136,8 +146,18 @@
 			return undefined;
 		}
 	});
+	const sceneProjection = $derived.by(() => {
+		// The room registry is a plain store seam. Preview mutations replace the
+		// registry in EditorApp, so key this derived value to the live layout
+		// version or a moved room leaves Scene footprints in its old frame.
+		void preview.previewVersion;
+		if (!scene || !sceneRooms) return undefined;
+		return buildPlanSceneFootprintProjection(scene, sceneRooms, {
+			getEffectiveScale: getEffectiveSceneScale
+		});
+	});
 	const planModel = $derived(
-		buildPlanRenderModel(preview.geometry, cameraProjection, interactionProjection)
+		buildPlanRenderModel(preview.geometry, cameraProjection, interactionProjection, sceneProjection)
 	);
 	const selectedOpeningSelection = $derived(
 		interaction.selection.kind === 'opening' ? interaction.selection : null
@@ -182,7 +202,8 @@
 	function frameView() {
 		const points = [
 			...model.rooms.flatMap((room) => room.floorPolygon),
-			...model.objects.flatMap((object) => object.planFootprint)
+			...model.objects.flatMap((object) => object.planFootprint),
+			...(sceneProjection?.footprints.flatMap((footprint) => footprint.points) ?? [])
 		];
 		framePlanViewport(interaction.planView, points);
 	}

@@ -13,6 +13,7 @@ export type PlanStyleToken =
 	| 'room-fill-selected'
 	| 'room-outline'
 	| 'room-outline-selected'
+	| 'scene-footprint'
 	| 'wall-line'
 	| 'wall-line-selected'
 	| 'wall-line-opening-selected'
@@ -131,7 +132,7 @@ export type PlanRenderPrimitive =
 	| PlanCirclePrimitive
 	| PlanTextPrimitive;
 
-export type PlanRenderLayerOrder = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12;
+export type PlanRenderLayerOrder = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13;
 
 export type PlanRenderLayer = {
 	order: PlanRenderLayerOrder;
@@ -141,7 +142,7 @@ export type PlanRenderLayer = {
 /**
  * Renderer-neutral camera/tour projection produced editor-side by
  * `plan-camera-projection.ts` (step 4). The builder only slots these into
- * layers 6–9; it never imports or resolves scene/camera data itself.
+ * layers 7–10; it never imports or resolves scene/camera data itself.
  */
 export type PlanCameraProjection = {
 	paths?: readonly { key: string; polyline: LayoutVec2[]; connectionId?: string }[];
@@ -152,10 +153,22 @@ export type PlanCameraProjection = {
 	timingLabels?: readonly { key: string; anchor: LayoutVec2; text: string; connectionId: string }[];
 	/**
 	 * P1.5 — live Camera-authoring profile. When present it replaces the tour
-	 * layers 6–9 (no view cones, look targets, portals, or tour timing labels
-	 * are emitted) and owns the transient interaction layer 10.
+	 * layers 7–10 (no view cones, look targets, portals, or tour timing labels
+	 * are emitted) and owns the transient interaction layer 11.
 	 */
 	authoring?: PlanCameraAuthoringProjection;
+};
+
+/** Passive Scene footprints projected editor-side onto the Plan X/Z plane. */
+export type PlanSceneProjection = {
+	footprints: readonly {
+		key: string;
+		entityId: string;
+		roomId: string;
+		kind: 'model' | 'primitive';
+		primitive?: 'box' | 'plane' | 'cylinder' | 'sphere';
+		points: LayoutVec2[];
+	}[];
 };
 
 /** Per-direction effective timing readout for one undirected camera edge (P1.5). */
@@ -206,7 +219,7 @@ export type PlanCameraAuthoringAnchor = {
 
 /**
  * Live Camera-authoring overlay (P1.5). Emitted by the editor-side authoring
- * profile; `buildPlanRenderModel` maps it onto layers 6–10 in place of the
+ * profile; `buildPlanRenderModel` maps it onto layers 7–11 in place of the
  * tour projection. Never includes cones, targets, framing, or heading
  * primitives.
  */
@@ -328,15 +341,17 @@ function selectedStyle(
 }
 
 /**
- * Build the ordered Plan render model. Always returns all twelve layers (empty
+ * Build the ordered Plan render model. Always returns all thirteen layers (empty
  * layers included) so render order is explicit rather than implicit in the
  * consumer. Committed layers 1–5 come verbatim from `CompiledLayoutGeometry`;
- * 6–9 come from the camera projection; 10–12 from the interaction projection.
+ * 6 comes from passive Scene footprints; 7–10 come from the camera projection;
+ * 11–13 come from the interaction projection.
  */
 export function buildPlanRenderModel(
 	compiled: CompiledLayoutGeometry,
 	camera?: PlanCameraProjection,
-	interaction?: PlanInteractionProjection
+	interaction?: PlanInteractionProjection,
+	scene?: PlanSceneProjection
 ): PlanRenderModel {
 	const floorByRoom = floorIdByRoomId(compiled);
 	const roomOverrides = new Map((interaction?.roomOverrides ?? []).map((override) => [override.roomId, override.points] as const));
@@ -411,6 +426,13 @@ export function buildPlanRenderModel(
 	layers.push({ order: 3, primitives: walls });
 	layers.push({ order: 4, primitives: openings });
 	layers.push({ order: 5, primitives: objects });
+
+	const sceneFootprints: PlanRenderPrimitive[] = (scene?.footprints ?? []).map((footprint) => ({
+		kind: 'polygon',
+		key: footprint.key,
+		points: footprint.points.map(([x, z]) => [x, z] as LayoutVec2),
+		style: 'scene-footprint'
+	}));
 
 	const cameraPaths: PlanRenderPrimitive[] = [];
 	const viewConesAndLookTargets: PlanRenderPrimitive[] = [];
@@ -499,17 +521,18 @@ export function buildPlanRenderModel(
 	}
 
 	// P1.5 — the live Camera-authoring profile replaces the tour projection in
-	// layers 6–9 (and owns layer 10 for its transient interaction primitives),
+	// layers 7–10 (and owns layer 11 for its transient interaction primitives),
 	// so the Camera Plan surface can never fall back to view cones, look
 	// targets, portals, warnings, or tour timing labels.
-	layers.push({ order: 6, primitives: authoring ? cameraEdges : cameraPaths });
-	layers.push({ order: 7, primitives: authoring ? cameraAnchors : viewConesAndLookTargets });
-	layers.push({ order: 8, primitives: authoring ? cameraNodes : portalCrossingsAndWarnings });
-	layers.push({ order: 9, primitives: authoring ? [...(authoring?.labels ?? [])] : timingLabels });
+	layers.push({ order: 6, primitives: sceneFootprints });
+	layers.push({ order: 7, primitives: authoring ? cameraEdges : cameraPaths });
+	layers.push({ order: 8, primitives: authoring ? cameraAnchors : viewConesAndLookTargets });
+	layers.push({ order: 9, primitives: authoring ? cameraNodes : portalCrossingsAndWarnings });
+	layers.push({ order: 10, primitives: authoring ? [...(authoring?.labels ?? [])] : timingLabels });
 
-	layers.push({ order: 10, primitives: authoring ? [...(authoring?.interaction ?? [])] : [...(interaction?.selection ?? [])] });
-	layers.push({ order: 11, primitives: authoring ? [] : [...(interaction?.handles ?? []), ...(interaction?.drafts ?? [])] });
-	layers.push({ order: 12, primitives: authoring ? [] : [...(interaction?.labels ?? [])] });
+	layers.push({ order: 11, primitives: authoring ? [...(authoring?.interaction ?? [])] : [...(interaction?.selection ?? [])] });
+	layers.push({ order: 12, primitives: authoring ? [] : [...(interaction?.handles ?? []), ...(interaction?.drafts ?? [])] });
+	layers.push({ order: 13, primitives: authoring ? [] : [...(interaction?.labels ?? [])] });
 
 	return { layers, bounds: planBounds(compiled) };
 }

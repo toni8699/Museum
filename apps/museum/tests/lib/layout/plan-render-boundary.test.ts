@@ -98,6 +98,14 @@ describe('PlanSvg adapter boundary', () => {
 });
 
 describe('LayoutPlanViewport boundary', () => {
+	it('invalidates passive Scene projection with live layout frame mutations', () => {
+		const source = sourceOf(VIEWPORT_FILE);
+		const projection = source.match(/const sceneProjection = \$derived\.by\(\(\) => \{[\s\S]*?\n\t\}\);/u)?.[0];
+		expect(projection).toBeTruthy();
+		expect(projection).toContain('void preview.previewVersion;');
+		expect(projection).toContain('buildPlanSceneFootprintProjection');
+	});
+
 	it('assembles no render order inline — it builds the model and delegates rendering to PlanSvg', () => {
 		const source = sourceOf(VIEWPORT_FILE);
 		expect(source).toContain('buildPlanRenderModel');

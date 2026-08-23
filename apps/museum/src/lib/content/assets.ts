@@ -4,6 +4,7 @@ import type {
   AssetStatus,
   FallbackKind,
   Asset,
+  AssetFootprint,
   PlacementSurface,
   SceneObjectFallback
 } from '$lib/types/assets';
@@ -20,6 +21,7 @@ export const assets: Asset[] = [
     license: 'CC BY 4.0',
     attribution: 'Grand Piano by farhad.Guli, licensed under CC BY 4.0.',
     placementSurface: 'floor',
+    footprint: { width: 1.48, depth: 1.59 },
     defaultScale: 0.032,
     castShadow: true,
     receiveShadow: false,
@@ -39,6 +41,7 @@ export const assets: Asset[] = [
     attribution:
       'Chair by shuvalov.di, licensed under CC BY-SA 4.0. Modified for the museum: floor-centered pivot, geometry optimization, WebP textures, and Meshopt compression.',
     placementSurface: 'floor',
+    footprint: { width: 0.64, depth: 0.54 },
     defaultScale: 0.92,
     castShadow: true,
     receiveShadow: false,
@@ -57,6 +60,7 @@ export const assets: Asset[] = [
     license: 'CC0 1.0',
     attribution: 'Sofa 03 by Fran Calvente / Poly Haven, released under CC0 1.0.',
     placementSurface: 'floor',
+    footprint: { width: 2.46, depth: 0.83 },
     defaultScale: 0.9,
     castShadow: true,
     receiveShadow: false,
@@ -75,6 +79,7 @@ export const assets: Asset[] = [
     license: 'CC BY 4.0',
     attribution: 'Table by yryabchenko, licensed under CC BY 4.0.',
     placementSurface: 'floor',
+    footprint: { width: 0.95, depth: 0.95 },
     defaultScale: 0.21,
     castShadow: true,
     receiveShadow: false,
@@ -109,6 +114,7 @@ export const assets: Asset[] = [
     productionFile: '/museum/models/furniture/writing-desk.glb',
     license: 'pending',
     placementSurface: 'floor',
+    footprint: { width: 1.4, depth: 0.7 },
     defaultScale: 1,
     castShadow: true,
     receiveShadow: false,
@@ -172,6 +178,7 @@ export const assets: Asset[] = [
     license: 'CC BY 4.0',
     attribution: 'Grandfather Clock by Lyskilde, licensed under CC BY 4.0.',
     placementSurface: 'floor',
+    footprint: { width: 0.38, depth: 0.5 },
     defaultScale: 0.008,
     castShadow: false,
     receiveShadow: false,
@@ -206,9 +213,144 @@ const fallbackKinds: readonly FallbackKind[] = [
   'piano', 'chair', 'sofa', 'table', 'chandelier', 'desk', 'lamp', 'frame', 'books', 'clock', 'rug'
 ];
 const placementSurfaces: readonly PlacementSurface[] = ['floor', 'wall', 'ceiling', 'surface'];
+const FOOTPRINT_EPSILON = 1e-9;
 
 function isOneOf<T extends string>(value: string, values: readonly T[]): value is T {
   return values.includes(value as T);
+}
+
+/** Return signed doubled area; positive means counter-clockwise in X/Z. */
+export function assetFootprintSignedArea(outline: readonly [number, number][]): number {
+  let area = 0;
+  for (let index = 0; index < outline.length; index += 1) {
+    const current = outline[index]!;
+    const next = outline[(index + 1) % outline.length]!;
+    area += current[0] * next[1] - next[0] * current[1];
+  }
+  return area;
+}
+
+function orientation(
+  a: readonly [number, number],
+  b: readonly [number, number],
+  c: readonly [number, number]
+): number {
+  return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+}
+
+function onSegment(
+  a: readonly [number, number],
+  b: readonly [number, number],
+  point: readonly [number, number]
+): boolean {
+  return (
+    Math.abs(orientation(a, b, point)) <= FOOTPRINT_EPSILON &&
+    point[0] >= Math.min(a[0], b[0]) - FOOTPRINT_EPSILON &&
+    point[0] <= Math.max(a[0], b[0]) + FOOTPRINT_EPSILON &&
+    point[1] >= Math.min(a[1], b[1]) - FOOTPRINT_EPSILON &&
+    point[1] <= Math.max(a[1], b[1]) + FOOTPRINT_EPSILON
+  );
+}
+
+function segmentsIntersect(
+  a: readonly [number, number],
+  b: readonly [number, number],
+  c: readonly [number, number],
+  d: readonly [number, number]
+): boolean {
+  const abC = orientation(a, b, c);
+  const abD = orientation(a, b, d);
+  const cdA = orientation(c, d, a);
+  const cdB = orientation(c, d, b);
+  if (
+    ((abC > FOOTPRINT_EPSILON && abD < -FOOTPRINT_EPSILON) ||
+      (abC < -FOOTPRINT_EPSILON && abD > FOOTPRINT_EPSILON)) &&
+    ((cdA > FOOTPRINT_EPSILON && cdB < -FOOTPRINT_EPSILON) ||
+      (cdA < -FOOTPRINT_EPSILON && cdB > FOOTPRINT_EPSILON))
+  ) {
+    return true;
+  }
+  return (
+    onSegment(a, b, c) ||
+    onSegment(a, b, d) ||
+    onSegment(c, d, a) ||
+    onSegment(c, d, b)
+  );
+}
+
+/** Validate canonical footprint metadata without silently repairing it. */
+export function validateAssetFootprint(footprint: AssetFootprint | undefined): string | null {
+  if (!footprint) return 'Footprint metadata is required';
+  if (!Number.isFinite(footprint.width) || footprint.width <= 0) {
+    return 'Footprint width must be finite and greater than zero';
+  }
+  if (!Number.isFinite(footprint.depth) || footprint.depth <= 0) {
+    return 'Footprint depth must be finite and greater than zero';
+  }
+  if (footprint.outline === undefined) return null;
+  if (footprint.outline.length < 3) return 'Footprint outline must contain at least three points';
+  for (const point of footprint.outline) {
+    if (
+      !Array.isArray(point) ||
+      point.length !== 2 ||
+      !Number.isFinite(point[0]) ||
+      !Number.isFinite(point[1])
+    ) {
+      return 'Footprint outline points must be finite [x, z] pairs';
+    }
+  }
+  const first = footprint.outline[0]!;
+  const last = footprint.outline.at(-1)!;
+  if (
+    Math.abs(first[0] - last[0]) <= FOOTPRINT_EPSILON &&
+    Math.abs(first[1] - last[1]) <= FOOTPRINT_EPSILON
+  ) {
+    return 'Footprint outline must not repeat its first point as a closing point';
+  }
+  if (Math.abs(assetFootprintSignedArea(footprint.outline)) <= FOOTPRINT_EPSILON) {
+    return 'Footprint outline must enclose a non-zero area';
+  }
+  for (let firstIndex = 0; firstIndex < footprint.outline.length; firstIndex += 1) {
+    const firstEnd = (firstIndex + 1) % footprint.outline.length;
+    for (let secondIndex = firstIndex + 1; secondIndex < footprint.outline.length; secondIndex += 1) {
+      const secondEnd = (secondIndex + 1) % footprint.outline.length;
+      const adjacent = firstEnd === secondIndex || secondEnd === firstIndex;
+      if (adjacent) continue;
+      if (
+        segmentsIntersect(
+          footprint.outline[firstIndex]!,
+          footprint.outline[firstEnd]!,
+          footprint.outline[secondIndex]!,
+          footprint.outline[secondEnd]!
+        )
+      ) {
+        return 'Footprint outline must be a simple polygon';
+      }
+    }
+  }
+  return null;
+}
+
+/** Return normalized outline winding while preserving canonical points. */
+export function normalizeAssetFootprintOutline(
+  footprint: AssetFootprint
+): readonly [number, number][] {
+  if (footprint.outline === undefined) {
+    const halfWidth = footprint.width / 2;
+    const halfDepth = footprint.depth / 2;
+    return [
+      [-halfWidth, -halfDepth],
+      [halfWidth, -halfDepth],
+      [halfWidth, halfDepth],
+      [-halfWidth, halfDepth]
+    ];
+  }
+  return assetFootprintSignedArea(footprint.outline) < 0
+    ? [
+        footprint.outline[0]!,
+        ...[...footprint.outline].slice(1).reverse()
+      ].map(([x, z]) => [x, z] as [number, number])
+    : footprint.outline.map(([x, z]) => [x, z] as [number, number]);
 }
 
 export function isSceneObjectFallback(value: unknown): value is SceneObjectFallback {
@@ -253,6 +395,8 @@ export function validateAssetManifest(manifest: readonly Asset[] = assets): void
     ) {
       throw new Error(`Invalid default rotation for asset: ${asset.id}`);
     }
+    const footprintIssue = asset.footprint === undefined ? null : validateAssetFootprint(asset.footprint);
+    if (footprintIssue) throw new Error(`Invalid footprint for asset ${asset.id}: ${footprintIssue}`);
     if (asset.fallback && !isOneOf(asset.fallback, fallbackKinds)) {
       throw new Error(`Invalid fallback for asset: ${asset.id}`);
     }

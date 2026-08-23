@@ -21,9 +21,9 @@ import {
 
 /**
  * Frozen G2 back-to-front render order. Committed geometry fills layers 1–5;
- * layers 6–9 are camera/tour projections; 10–12 are transient interaction
- * overlays. The names and order are the contract `buildPlanRenderModel()` must
- * emit and the SVG adapter must honor.
+ * layer 6 is passive Scene context; layers 7–10 are camera/tour projections;
+ * 11–13 are transient interaction overlays. The names and order are the
+ * contract `buildPlanRenderModel()` must emit and the SVG adapter must honor.
  */
 export const G2_LAYER_ORDER = [
 	{ order: 1, name: 'fills' },
@@ -31,13 +31,14 @@ export const G2_LAYER_ORDER = [
 	{ order: 3, name: 'walls' },
 	{ order: 4, name: 'openings' },
 	{ order: 5, name: 'objects' },
-	{ order: 6, name: 'camera-paths' },
-	{ order: 7, name: 'view-cones-look-targets' },
-	{ order: 8, name: 'portal-crossings-collision-warnings' },
-	{ order: 9, name: 'timing-labels' },
-	{ order: 10, name: 'selection-overlays' },
-	{ order: 11, name: 'interaction-handles' },
-	{ order: 12, name: 'labels' }
+	{ order: 6, name: 'scene-footprints' },
+	{ order: 7, name: 'camera-paths' },
+	{ order: 8, name: 'view-cones-look-targets' },
+	{ order: 9, name: 'portal-crossings-collision-warnings' },
+	{ order: 10, name: 'timing-labels' },
+	{ order: 11, name: 'selection-overlays' },
+	{ order: 12, name: 'interaction-handles' },
+	{ order: 13, name: 'labels' }
 ] as const;
 
 /** Layers derivable from `CompiledLayoutGeometry` alone (G2 step 1 freeze). */

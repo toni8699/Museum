@@ -56,10 +56,10 @@ const FIXTURES = [
 ] as const;
 
 describe('buildPlanRenderModel', () => {
-	it('always returns all twelve layers in back-to-front order', () => {
+	it('always returns all thirteen layers in back-to-front order', () => {
 		const { geometry } = compileLayoutGeometry(g2LineRectangleDocument());
 		const model = buildPlanRenderModel(geometry);
-		expect(model.layers.map((layer) => layer.order)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+		expect(model.layers.map((layer) => layer.order)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
 	});
 
 	it('matches the frozen reference projection for every fixture', () => {
@@ -90,7 +90,23 @@ describe('buildPlanRenderModel', () => {
 		expect(buildPlanRenderModel(geometry).bounds).toBeNull();
 	});
 
-	it('slots camera projection records into layers 6–9', () => {
+	it('slots passive Scene footprints into layer 6 without hit authority', () => {
+		const { geometry } = compileLayoutGeometry(g2LineRectangleDocument());
+		const model = buildPlanRenderModel(geometry, undefined, undefined, {
+			footprints: [{
+				key: 'scene-footprint:entity-a',
+				entityId: 'entity-a',
+				roomId: 'room-rectangle',
+				kind: 'model',
+				points: [[1, 1], [3, 1], [3, 2], [1, 2]]
+			}]
+		});
+		const footprint = model.layers[5]!.primitives[0]!;
+		expect(footprint).toMatchObject({ kind: 'polygon', style: 'scene-footprint', key: 'scene-footprint:entity-a' });
+		expect('hit' in footprint ? footprint.hit : undefined).toBeUndefined();
+	});
+
+	it('slots camera projection records into layers 7–10', () => {
 		const { geometry } = compileLayoutGeometry(g2LineRectangleDocument());
 		const model = buildPlanRenderModel(geometry, {
 			paths: [{ key: 'p0', polyline: [[0, 0], [1, 1]] }],
@@ -102,12 +118,13 @@ describe('buildPlanRenderModel', () => {
 		});
 		const byOrder = new Map(model.layers.map((layer) => [layer.order, layer.primitives]));
 
-		expect(byOrder.get(6)!.map((primitive) => primitive.style)).toEqual(['camera-path']);
-		expect(byOrder.get(7)!.map((primitive) => primitive.style)).toEqual(['view-cone', 'look-target']);
-		expect(byOrder.get(8)!.map((primitive) => primitive.style)).toEqual(['portal-crossing', 'collision-warning']);
-		expect(byOrder.get(9)!.map((primitive) => primitive.style)).toEqual(['timing-label']);
+		expect(byOrder.get(6)!.map((primitive) => primitive.style)).toEqual([]);
+		expect(byOrder.get(7)!.map((primitive) => primitive.style)).toEqual(['camera-path']);
+		expect(byOrder.get(8)!.map((primitive) => primitive.style)).toEqual(['view-cone', 'look-target']);
+		expect(byOrder.get(9)!.map((primitive) => primitive.style)).toEqual(['portal-crossing', 'collision-warning']);
+		expect(byOrder.get(10)!.map((primitive) => primitive.style)).toEqual(['timing-label']);
 
-		const cone = byOrder.get(7)![0]!;
+		const cone = byOrder.get(8)![0]!;
 		expect(cone.kind).toBe('polygon');
 		if (cone.kind === 'polygon') {
 			expect(cone.points[0]).toEqual([0, 0]);
@@ -115,7 +132,7 @@ describe('buildPlanRenderModel', () => {
 		}
 	});
 
-	it('slots interaction projections into layers 10–12 without touching committed layers', () => {
+	it('slots interaction projections into layers 11–13 without touching committed layers', () => {
 		const { geometry } = compileLayoutGeometry(g2LineRectangleDocument());
 		const committedBefore = committedProjection(buildPlanRenderModel(geometry));
 		const model = buildPlanRenderModel(geometry, undefined, {
@@ -125,9 +142,9 @@ describe('buildPlanRenderModel', () => {
 			labels: [{ kind: 'text', key: 'l0', anchor: [0, 0], text: 'x', style: 'dimension-label' }]
 		});
 		const byOrder = new Map(model.layers.map((layer) => [layer.order, layer.primitives]));
-		expect(byOrder.get(10)!.map((primitive) => primitive.style)).toEqual(['selection-bounds']);
-		expect(byOrder.get(11)!.map((primitive) => primitive.style)).toEqual(['vertex-handle', 'draft-outline']);
-		expect(byOrder.get(12)!.map((primitive) => primitive.style)).toEqual(['dimension-label']);
+		expect(byOrder.get(11)!.map((primitive) => primitive.style)).toEqual(['selection-bounds']);
+		expect(byOrder.get(12)!.map((primitive) => primitive.style)).toEqual(['vertex-handle', 'draft-outline']);
+		expect(byOrder.get(13)!.map((primitive) => primitive.style)).toEqual(['dimension-label']);
 		expect(committedProjection(model)).toEqual(committedBefore);
 	});
 

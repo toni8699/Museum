@@ -58,7 +58,7 @@ Policy rules:
 |---|------|--------|------------|-----|
 | — | Plan-system renewal + documentation rework (process row — created this tracker and the five-doc model) | shipped | H1 gate | archived → [2026-08-17-plan-system-renewal.md](archive/plans/2026-08-17-plan-system-renewal.md) |
 | P1 | Camera overhaul | shipped | renewal | archived → [2026-08-18-P1-camera-overhaul.md](../archive/plans/2026-08-18-P1-camera-overhaul.md) |
-| P2 | Plan staging mode — 2D furnishing | approved | P1 + P9 | [2026-08-18-P2-plan-staging.md](2026-08-18-P2-plan-staging.md) |
+| P2 | Plan staging mode — 2D furnishing | **in-progress — P2.1 shipped 2026-08-23; P2.2 next** | P1 + P9 | [2026-08-18-P2-plan-staging.md](2026-08-18-P2-plan-staging.md) |
 | P3 | UI overhaul — primarily visual reconciliation/refresh pass over settled surfaces; context-menu interaction slice folded in (P3.4/P3.5) | approved | P9 + P1 (per-increment; P3.5 also P8; staging-dependent items await P2) | [2026-08-18-P3-ui-overhaul.md](2026-08-18-P3-ui-overhaul.md) |
 | P4 | Client GLB import | proposed | renewal | [2026-08-18-P4-glb-import.md](2026-08-18-P4-glb-import.md) |
 | P5 | Measured optimization and scale | proposed | renewal | [2026-08-18-P5-measured-optimization.md](2026-08-18-P5-measured-optimization.md) |

@@ -90,6 +90,7 @@
 	.room-fill.selected { fill: #9b7841; fill-opacity: 0.45; }
 	.room-outline { fill: none; stroke: #88b7d6; stroke-width: 2; vector-effect: non-scaling-stroke; }
 	.room-outline.selected { stroke: #f1cd78; stroke-width: 3; }
+	.scene-footprint { fill: rgb(214 179 95 / 10%); stroke: #9a8a63; stroke-width: 1.5; stroke-dasharray: 5 4; vector-effect: non-scaling-stroke; pointer-events: none; }
 	.selection-bounds { fill: none; stroke: #f1cd78; stroke-width: 1; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; pointer-events: none; }
 	.wall-line { fill: none; stroke: #b2a58f; stroke-width: 4; vector-effect: non-scaling-stroke; pointer-events: none; }
 	.wall-line.selected { stroke: #fff2c7; stroke-width: 6; }

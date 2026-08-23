@@ -53,7 +53,7 @@ function hoverTargetKeys(
 
 /**
  * Apply a Camera Plan hover identity to a built render model. Camera authoring
- * primitives live in layers 6–8 (edges, anchors, nodes); this remaps only the
+ * primitives live in layers 7–9 (edges, anchors, nodes); this remaps only the
  * primitives whose stable key matches the hovered identity. Returns the input
  * model untouched when nothing changes.
  */
@@ -65,7 +65,7 @@ export function applyCameraPlanHover(
 	const targets = hoverTargetKeys(authoring, hover);
 	if (targets.size === 0) return model;
 	const layers = model.layers.map((layer) => {
-		if (layer.order < 6 || layer.order > 8) return layer;
+		if (layer.order < 7 || layer.order > 9) return layer;
 		let changed = false;
 		const primitives = layer.primitives.map((primitive) => {
 			const token = targets.get(primitive.key);

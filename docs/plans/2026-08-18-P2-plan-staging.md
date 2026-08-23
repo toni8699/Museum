@@ -1,7 +1,7 @@
 # P2 — Plan staging mode (umbrella)
 
 **Date:** 2026-08-18
-**Status:** Approved — umbrella; scope unchanged from the approved C1 plan. Execution decomposition and review findings expanded 2026-08-21.
+**Status:** In progress — P2.1 shipped 2026-08-23; umbrella scope unchanged from the approved C1 plan. Execution decomposition and review findings expanded 2026-08-21.
 **Tracker:** [`docs/plans/README.md`](README.md) — **P2**, depends on: P1 + P9
 **Canonical specs (2026-08-19):** [`Design-shell-specs.md`](../Design-specs/Design-shell-specs.md)
 (shell/workspace exposure) · [`Design-specs.md`](../Design-specs/Design-specs.md)
@@ -51,6 +51,14 @@ sub-slices make the approved work implementation-ready without changing scope:
 | **P2.3d** | Add Staging Scene transaction coverage; regression-test already-shipped Layout history and close no-op/cancel behavior. | One completed staging gesture produces one tagged `scene` entry; layout remains green. |
 | **P2.4a** | Add pure hit, transform, selection-continuity, Y-preservation, overlap, bridge, and history regression tests. | P2 acceptance matrix passes. |
 | **P2.4b** | Record the B3 room-drag rule, update placement/component handoff docs, and hand P3 the visual deviation register. | P2 is behavior-complete and ready for visual QA. |
+
+### P2.1 close (2026-08-23)
+
+P2.1a–c shipped uncommitted. `Asset.footprint` metadata now validates canonical
+dimensions and simple outlines; live Scene projection applies effective uniform
+or session scale, entity yaw, room-local translation, and the live room frame;
+eligible models and primitives render as passive dashed layer-6 Plan polygons.
+Camera Plan receives no Scene projection. P2.2 remains next.
 
 ## Gates
 

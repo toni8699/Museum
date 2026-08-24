@@ -67,11 +67,6 @@
 	--editor-layout-box: #92908a;
 	--editor-layout-box-hover: #77766f;
 
-	--editor-orientation-surface: #0d1925;
-	--editor-orientation-hover: #142230;
-	--editor-orientation-border: #32485a;
-	--editor-orientation-label: #edf3f8;
-
 	/* ── DS §9 — plan surfaces (bright drafting paper on dark shell) ── */
 	--editor-plan-bg: #f5f3ee;
 	--editor-plan-grid-major: #d2cec5;

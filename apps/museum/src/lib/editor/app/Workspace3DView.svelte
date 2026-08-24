@@ -9,8 +9,6 @@
 	import EditorCameraViewHelpers from '$lib/editor/camera/EditorCameraViewHelpers.svelte';
 	import EditorCameraRig from '$lib/editor/camera/EditorCameraRig.svelte';
 	import EditorGrid from '$lib/editor/EditorGrid.svelte';
-	import EditorOrientationGizmo from '$lib/editor/EditorOrientationGizmo.svelte';
-	import EditorOrientationGizmoOverlay from '$lib/editor/EditorOrientationGizmoOverlay.svelte';
 	import EditorCameraLabelProjector from '$lib/editor/camera/EditorCameraLabelProjector.svelte';
 	import EditorCameraLabelsOverlay from '$lib/editor/camera/EditorCameraLabelsOverlay.svelte';
 	import { buildCameraNodeLabelKinds } from '$lib/editor/camera/editor-camera-labels';
@@ -425,7 +423,6 @@
 			floorColor={store.floorColor}
 		/>
 		<EditorGrid visible={store.gridVisible && !store.isVisitorCameraPreview} opacity={store.gridOpacity} />
-		<EditorOrientationGizmo />
 		{#if isCameraContext && !store.isVisitorCameraPreview}
 			<!-- P1.7 — projects the guided/unsequenced label positions each frame. -->
 			<EditorCameraLabelProjector {store} kinds={cameraLabelKinds} />
@@ -513,7 +510,6 @@
 			Choose a destination camera node · Escape cancels
 		</div>
 	{/if}
-	<EditorOrientationGizmoOverlay />
 	<!-- P1.7 — shell spec "Viewport MUST show": guided order digits +
 	     Unsequenced badges over the Camera 3D viewport. -->
 	{#if isCameraContext && !store.isVisitorCameraPreview}

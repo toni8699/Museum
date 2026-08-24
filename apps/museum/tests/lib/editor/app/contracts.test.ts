@@ -139,6 +139,17 @@ describe('P3 structural visual contracts', () => {
 		expect(timeline).not.toContain('<strong>Camera Framing</strong>');
 	});
 
+	it('keeps one five-lane timeline mounted through camera, edge, and sequence previews', () => {
+		const panel = readLibSource('editor/camera/EditorCameraTimelinePanel.svelte');
+
+		expect(panel.match(/<EditorCameraTimelineDots/g)).toHaveLength(1);
+		expect(panel).toContain('{#if preview}<EditorCameraPreviewControls {store} />{/if}');
+		expect(panel).not.toContain('EditorCameraEdgeRuler');
+		expect(panel).not.toContain("previewScope === 'edge'");
+		expect(panel).not.toContain("previewScope === 'camera'");
+		expect(existsLibSource('editor/camera/EditorCameraEdgeRuler.svelte')).toBe(false);
+	});
+
 	it('pins the timeline shell to the documented expanded and collapsed heights', () => {
 		const store = readLibSource('editor/editor-store.svelte.ts');
 
@@ -1312,8 +1323,10 @@ describe('camera context contracts', () => {
 		const controls = readLibSource('editor/camera/EditorCameraPreviewControls.svelte');
 		const sidebar = readLibSource('editor/app/EditorSidebar.svelte');
 		const relicSidebar = readLibSource('editor/EditorLeftSidebar.svelte');
-		expect(timeline).toContain('Camera preview active');
-		expect(timeline).toContain('<EditorCameraPreviewControls {store} />');	  expect(controls).toContain('preview.kind !== \'camera\'');
+		expect(timeline).toContain('Camera flow unavailable');
+		expect(timeline).toContain('<EditorCameraPreviewControls {store} />');
+		expect(timeline).toContain('<EditorCameraTimelineDots {store} {viewMode} {contextMenu} />');
+		expect(controls).toContain('preview.kind !== \'camera\'');
 		expect(controls).toContain('store.playCameraPreview()');
 		expect(controls).toContain('store.stopCameraPreview()');
 		expect(controls).toContain('grid-auto-flow: column;');
@@ -1337,22 +1350,20 @@ describe('camera context contracts', () => {
 		expect(panel).not.toContain('closeGuidedTourLoop');
 	});
 
-	// S10.1.7 — grid opacity/visibility control + XYZ orientation gizmo.
-	it('mounts the bottom-right grid controls and the corner orientation gizmo in the 3D shell', () => {
+	// P3.6 owner correction — grid controls remain; the blocking XYZ overlay is
+	// removed until its dedicated redesign slice.
+	it('mounts grid controls without the retired XYZ orientation overlay', () => {
 		const ws3d = readLibSource('editor/app/Workspace3DView.svelte');
 		const gridControls = readLibSource('editor/EditorViewportGridControls.svelte');
-		const overlay = readLibSource('editor/EditorOrientationGizmoOverlay.svelte');
 		expect(ws3d).toContain('<EditorViewportGridControls {store} />');
-		expect(ws3d).toContain('<EditorOrientationGizmo />');
-		expect(ws3d).toContain('<EditorOrientationGizmoOverlay />');
+		expect(ws3d).not.toContain('EditorOrientationGizmo');
 		// The grid control reuses session state (visibility + new opacity).
 		expect(gridControls).toContain('store.toggleGrid()');
 		expect(gridControls).toContain('store.gridOpacity = value');
 		expect(gridControls).toContain('type="range"');
-		// The orientation gizmo is a non-interactive indicator: it never
-		// intercepts pointer events and is excluded from raycasting.
-		expect(overlay).toContain('pointer-events: none');
-		expect(overlay).toContain('aria-hidden="true"');
+		expect(existsLibSource('editor/EditorOrientationGizmo.svelte')).toBe(false);
+		expect(existsLibSource('editor/EditorOrientationGizmoOverlay.svelte')).toBe(false);
+		expect(existsLibSource('editor/editor-orientation-gizmo.svelte.ts')).toBe(false);
 	});
 
 	// S10.1.6 — workspace transition polish: canvas never remounts; fades are

@@ -12,6 +12,9 @@ slice plus one next action only.
   door swings/leaves and window frames; makes room paper opaque; differentiates
   Camera Plan with a subdued canvas; and expands the Camera timeline into the
   five canonical display lanes inside the documented 288 px default shell.
+  Owner follow-up removes the blocking XYZ overlay entirely and keeps those
+  five lanes mounted through camera, edge, and sequence preview states; the old
+  edge-ruler/camera-only timeline bodies are deleted.
 - P3.4/P3.5 add one shared context-menu shell plus Scene 3D, Scene Plan
   Layout/Arrange, Outliner, Camera Plan/3D, and timeline adapters over existing
   commands. Final review fixed native-menu suppression, exact target identity
@@ -28,13 +31,14 @@ slice plus one next action only.
 
 ## Next action
 
-- **Owner review:** compare the refreshed Scene Plan, Camera Plan, and expanded
-  timeline captures with the canonical sketches. Approve P3.6 or return exact
-  remaining structural deviations; do not archive/close P3 before that review.
+- **Owner review:** compare the refreshed Scene Plan, Camera Plan, persistent
+  preview timeline, and XYZ-free Camera 3D with the canonical direction.
+  Approve P3.6 or return exact remaining structural deviations; do not
+  archive/close P3 before that review.
 
 ## Verification
 
-- `npm test`: **2,074 passed / 1 skipped** across 153 files.
+- `npm test`: **2,075 passed / 1 skipped** across 153 files.
 - `npm run check`: **0 errors / 0 warnings**.
 - `npm run build`: clean; existing third-party unused-import and chunk-size
   warnings only.
@@ -43,8 +47,9 @@ slice plus one next action only.
   uses tabular Inter, not monospace.
 - Browser QA: authored room with door/window symbols, opaque Scene Plan room,
   populated Camera Plan on its distinct paper, two-node sequence preview with
-  all five lanes and visible endpoint handles. Fresh browser session after a
-  clean dev-server restart reports zero page errors.
+  all five lanes and visible endpoint handles; active edge and single-camera
+  preview both retain the five-lane body; Camera 3D has no XYZ overlay. Fresh
+  browser session reports zero page errors.
 
 ## Known bugs / deferred
 

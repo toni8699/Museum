@@ -36,6 +36,12 @@ and editable native-menu preservation.
 - Expand the Camera timeline presentation into the five canonical display
   lanes: `Camera Path`, `Shots`, `FOV`, `Look At`, and `Roll`, inside the
   documented 240–300 px expanded shell with 288 px default and 48 px collapse.
+- Keep that five-lane body mounted during camera, edge, and sequence previews;
+  preview controls live in its toolbar instead of replacing it with the old
+  camera-only or edge-ruler bodies.
+- Temporarily remove the XYZ orientation renderer and overlay. It blocks the
+  current workspace and will be reconsidered as a dedicated next slice; P3.6
+  retains no dormant mount, state module, component, or orientation token.
 - This slice changes projection/presentation only. It does not add a second
   camera graph or motion model, persist generated opening endpoints, add Shot
   or Roll document state, change preview semantics, or modify `/museum`.
@@ -51,6 +57,8 @@ and editable native-menu preservation.
 - Existing route nodes/edges remain the Camera Path backing model. Existing
   framing keys are projected into both `FOV` and `Look At`; `Shots` is a
   derived display segmentation and `Roll` is an explicit quiet 0° lane.
+- `EditorCameraTimelinePanel` has one canonical timeline branch. Preview scope
+  still controls camera motion, but no longer selects a different timeline UI.
 
 ### Acceptance and rollback
 
@@ -60,8 +68,9 @@ and editable native-menu preservation.
 - Manual: compare Scene Plan against `scene-plan-layout.png`; compare Camera
   Plan background and opaque room separation against
   `camera-plan-overview.png`; compare the expanded timeline against
-  `camera-timeline-expanded.png`; verify Plan selection and Camera preview still
-  use their existing identities and commands.
+  `camera-timeline-expanded.png`; verify the five lanes remain visible in
+  camera and edge preview; verify Camera 3D has no XYZ overlay; verify Plan
+  selection and Camera preview still use their existing identities and commands.
 - Rollback is separable: (1) projection metadata + Plan symbols, (2) Camera
   Plan palette overrides, and (3) timeline lane projection/shell dimensions.
   Token/context-menu work from P3.2–P3.5 need not be retained to preserve this

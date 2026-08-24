@@ -1,11 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import type { LayoutDocument } from '$lib/layout/layout-types';
-
-import {
-	addPolygonPoint,
-	beginLayoutObjectDrag,
-	beginLayoutRoomUnitDrag,
-	cancelLayoutObjectDrag,
+import type { LayoutDocument } from '$lib/layout/layout-types';	import {
+		addPolygonPoint,
+		beginLayoutObjectDrag,
+		beginLayoutObjectRotateDrag,
+		beginLayoutRoomUnitDrag,
+		cancelLayoutObjectDrag,
 	cancelLayoutRoomUnitDrag,
 	cancelLayoutPrimitiveDraft,
 	beginRectangle,
@@ -31,6 +30,9 @@ import {
 	togglePlanViewportOption,
 	updateLayoutObjectDrag,
 	updateLayoutRoomUnitDrag,
+	deriveArrangeTarget,
+	resolveArrangeSceneModifiers,
+	resolveArrangeScenePick,
 	updateLayoutPrimitiveDraft,
 	updateRoomEdit,
 	updateRectangle
@@ -166,6 +168,115 @@ describe('layout interaction', () => {
 		expect(state.objectDrag?.candidatePosition).toEqual([1, 2, 3.25]);
 		cancelLayoutObjectDrag(state);
 		expect(state.objectDrag).toBeNull();
+	});
+
+	it('rotates a layout object around its world pivot via the Plan rotation-handle convention', () => {
+		const state = createLayoutInteractionState();
+		beginLayoutObjectRotateDrag(state, 'object-a', [2, 1, 2], [0, 0.3, 0], [2, 1], [2, 2]);
+		expect(state.objectDrag?.mode).toBe('rotate');
+		expect(state.objectDrag?.candidatePosition).toEqual([2, 1, 2]);
+		// startAngle = atan2(-(1-2), 0) = +PI/2; pointer at (1,2) gives
+		// atan2(-0, -1) = PI → yaw = PI/2.
+		updateLayoutObjectDrag(state, [1, 2], false);
+		expect(state.objectDrag?.candidateRotation).toEqual([0, 0.3 + Math.PI / 2, 0]);
+		expect(state.objectDrag?.candidatePosition).toEqual([2, 1, 2]);
+		cancelLayoutObjectDrag(state);
+		expect(state.objectDrag).toBeNull();
+	});
+
+	it('snaps the layout-object rotate delta to 15° on Shift when angle snap is enabled', () => {
+		const state = createLayoutInteractionState();
+		beginLayoutObjectRotateDrag(state, 'object-a', [2, 1, 2], [0, 0, 0], [2, 1], [2, 2]);
+		// Pointer at pointer-yaw 1 rad: raw yaw = 1 - PI/2 ≈ -0.5708 rad.
+		updateLayoutObjectDrag(state, [2 + Math.cos(1), 2 - Math.sin(1)], false, true, true);
+		expect(state.objectDrag?.candidateRotation[1]).toBeCloseTo(-Math.PI / 6, 6);
+		// No Shift → raw delta.
+		beginLayoutObjectRotateDrag(state, 'object-a', [2, 1, 2], [0, 0, 0], [2, 1], [2, 2]);
+		updateLayoutObjectDrag(state, [2 + Math.cos(1), 2 - Math.sin(1)], false, false, true);
+		expect(state.objectDrag?.candidateRotation[1]).toBeCloseTo(1 - Math.PI / 2, 6);
+	});
+});
+
+describe('deriveArrangeTarget (P10 last-owner rule)', () => {
+	const object = { kind: 'object', objectId: 'layout-object-1' } as const;
+	const structural = { kind: 'room', roomId: 'room-a' } as const;
+	const eligible = new Set(['layout-object-1']);
+
+	it('activates the remembered layout owner only when its slot holds an eligible object', () => {
+		expect(deriveArrangeTarget({ lastOwner: 'layout-object', layoutSelection: object, selectedPlacementIds: [], selectedClusterId: null, eligibleLayoutObjectIds: eligible }))
+			.toEqual({ owner: 'layout-object', objectId: 'layout-object-1' });
+		// Structural / stale layout selection → no target, never a Scene fallback.
+		expect(deriveArrangeTarget({ lastOwner: 'layout-object', layoutSelection: structural, selectedPlacementIds: ['scene-1'], selectedClusterId: null }))
+			.toBeNull();
+		// Ineligible object (e.g. profile) → no target.
+		expect(deriveArrangeTarget({ lastOwner: 'layout-object', layoutSelection: object, selectedPlacementIds: [], selectedClusterId: null, eligibleLayoutObjectIds: new Set() }))
+			.toBeNull();
+	});
+
+	it('activates the remembered scene owner only when its selection is eligible', () => {
+		expect(deriveArrangeTarget({ lastOwner: 'scene', layoutSelection: object, selectedPlacementIds: ['scene-1', 'scene-2'], selectedClusterId: null }))
+			.toEqual({ owner: 'scene', ids: ['scene-1', 'scene-2'], primaryId: 'scene-2' });
+		// Empty selection → no target even with a Layout object in memory.
+		expect(deriveArrangeTarget({ lastOwner: 'scene', layoutSelection: object, selectedPlacementIds: [], selectedClusterId: null }))
+			.toBeNull();
+		// Clusters stay non-transformable in Plan.
+		expect(deriveArrangeTarget({ lastOwner: 'scene', layoutSelection: structural, selectedPlacementIds: ['scene-1'], selectedClusterId: 'cluster-a' }))
+			.toBeNull();
+		// Ineligible scene members → no target.
+		expect(deriveArrangeTarget({ lastOwner: 'scene', layoutSelection: structural, selectedPlacementIds: ['scene-1'], selectedClusterId: null, eligibleSceneEntityIds: new Set(['scene-2']) }))
+			.toBeNull();
+	});
+
+	it('derives from the current slots when no owner is remembered (object first, then scene)', () => {
+		expect(deriveArrangeTarget({ lastOwner: null, layoutSelection: object, selectedPlacementIds: ['scene-1'], selectedClusterId: null }))
+			.toEqual({ owner: 'layout-object', objectId: 'layout-object-1' });
+		expect(deriveArrangeTarget({ lastOwner: null, layoutSelection: structural, selectedPlacementIds: ['scene-1'], selectedClusterId: null }))
+			.toEqual({ owner: 'scene', ids: ['scene-1'], primaryId: 'scene-1' });
+		expect(deriveArrangeTarget({ lastOwner: null, layoutSelection: structural, selectedPlacementIds: [], selectedClusterId: null }))
+			.toBeNull();
+	});
+});	describe('resolveArrangeSceneModifiers (P10 cross-owner modifier rule)', () => {
+	it('keeps same-owner P2 modifier semantics', () => {
+		// Same-owner shift-click → additive; cmd/ctrl → toggle.
+		expect(resolveArrangeSceneModifiers({ switchingFromLayout: false, metaKey: false, ctrlKey: false, shiftKey: true }))
+			.toEqual({ toggle: false, additive: true });
+		expect(resolveArrangeSceneModifiers({ switchingFromLayout: false, metaKey: true, ctrlKey: false, shiftKey: false }))
+			.toEqual({ toggle: true, additive: false });
+		expect(resolveArrangeSceneModifiers({ switchingFromLayout: false, metaKey: false, ctrlKey: true, shiftKey: true }))
+			.toEqual({ toggle: true, additive: false });
+		expect(resolveArrangeSceneModifiers({ switchingFromLayout: false, metaKey: false, ctrlKey: false, shiftKey: false }))
+			.toEqual({ toggle: false, additive: false });
+	});
+
+	it('suppresses additive/toggle when the pick switches owner from a layout target', () => {
+		// Cross-owner shift-click replaces the active selection with the clicked
+		// target — never adds across owners (plan §Selection).
+		expect(resolveArrangeSceneModifiers({ switchingFromLayout: true, metaKey: false, ctrlKey: false, shiftKey: true }))
+			.toEqual({ toggle: false, additive: false });
+		expect(resolveArrangeSceneModifiers({ switchingFromLayout: true, metaKey: true, ctrlKey: false, shiftKey: false }))
+			.toEqual({ toggle: false, additive: false });
+		expect(resolveArrangeSceneModifiers({ switchingFromLayout: true, metaKey: true, ctrlKey: false, shiftKey: true }))
+			.toEqual({ toggle: false, additive: false });
+	});
+});
+
+describe('resolveArrangeScenePick (P10 cross-owner replacement)', () => {
+	it('treats an already-selected member as unselected when switching owner from a layout target', () => {
+		// Cross-owner click on a member of the remembered Scene selection must
+		// replace with a single entity — never drag/extend the whole memory.
+		expect(resolveArrangeScenePick({ switchingFromLayout: true, metaKey: false, ctrlKey: false, shiftKey: false, clickedAlreadySelected: true }))
+			.toEqual({ toggle: false, additive: false, alreadySelected: false });
+		expect(resolveArrangeScenePick({ switchingFromLayout: true, metaKey: true, ctrlKey: false, shiftKey: true, clickedAlreadySelected: true }))
+			.toEqual({ toggle: false, additive: false, alreadySelected: false });
+	});
+
+	it('keeps the same-owner drag-the-selection semantics for an already-selected member', () => {
+		expect(resolveArrangeScenePick({ switchingFromLayout: false, metaKey: false, ctrlKey: false, shiftKey: false, clickedAlreadySelected: true }))
+			.toEqual({ toggle: false, additive: false, alreadySelected: true });
+		expect(resolveArrangeScenePick({ switchingFromLayout: false, metaKey: false, ctrlKey: false, shiftKey: true, clickedAlreadySelected: true }))
+			.toEqual({ toggle: false, additive: true, alreadySelected: true });
+		expect(resolveArrangeScenePick({ switchingFromLayout: false, metaKey: false, ctrlKey: false, shiftKey: false, clickedAlreadySelected: false }))
+			.toEqual({ toggle: false, additive: false, alreadySelected: false });
 	});
 });
 

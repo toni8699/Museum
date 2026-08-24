@@ -1353,9 +1353,9 @@ describe('camera context contracts', () => {
 });
 
 describe('cross-domain selection contracts', () => {
-	it('keeps the Scene Plan Staging inspector eligibility-aware and Plan-transform scoped', () => {
+	it('keeps the Scene Plan Arrange inspector eligibility-aware and Plan-transform scoped', () => {
 		const inspector = readLibSource('editor/EditorInspector.svelte');
-		expect(inspector).toContain('aria-label="Staging selection"');
+		expect(inspector).toContain('aria-label="Arrange selection"');
 		expect(inspector).toContain('buildPlanSceneFootprintProjection');
 		expect(inspector).toContain('Not editable in Plan. Edit position in 3D.');
 		expect(inspector).toContain('Room-local Plan transform');

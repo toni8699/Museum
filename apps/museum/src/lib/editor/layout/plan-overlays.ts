@@ -127,6 +127,36 @@ export function withPlanSceneRotationHandle(
 	};
 }
 
+/**
+ * Add the P10 Plan layout-object yaw rotation arm (same handle contract as the
+ * Scene staging handle; the layout-object handle orbits its own world pivot).
+ */
+export function withPlanObjectRotationHandle(
+	projection: PlanInteractionProjection,
+	overlay: { objectId: string; pivot: LayoutVec2; handle: LayoutVec2 } | null
+): PlanInteractionProjection {
+	if (!overlay) return projection;
+	return {
+		...projection,
+		selection: [
+			...projection.selection,
+			{
+				kind: 'polyline',
+				key: geometryId(['plan', 'object-overlay', 'rotation-arm', overlay.objectId]),
+				points: [overlay.pivot, overlay.handle],
+				style: 'rotation-arm'
+			},
+			{
+				kind: 'circle',
+				key: geometryId(['plan', 'object-overlay', 'rotation-handle', overlay.objectId]),
+				center: overlay.handle,
+				radiusPx: 7,
+				style: 'rotation-handle'
+			}
+		]
+	};
+}
+
 function draftPolyline(interaction: LayoutInteractionState): LayoutVec2[] | null {
 	if (interaction.tool === 'rectangle') return rectanglePoints(interaction);
 	return interaction.polygonPoints.length > 0 ? interaction.polygonPoints : null;
@@ -279,9 +309,25 @@ export function buildPlanInteractionProjection(
 					const drag = interaction.objectDrag!;
 					const dx = drag.candidatePosition[0] - drag.originalPosition[0];
 					const dz = drag.candidatePosition[2] - drag.originalPosition[2];
+					const yawDelta = drag.candidateRotation[1] - drag.originalRotation[1];
+					if (Math.abs(yawDelta) <= 1e-9) {
+						return {
+							objectId: object.objectId,
+							points: object.planFootprint.map(([x, z]) => [x + dx, z + dz] as LayoutVec2)
+						};
+					}
+					// Rotate around the object's world pivot using the shared positive-Y
+					// Plan convention, then apply the translate delta.
+					const cos = Math.cos(yawDelta);
+					const sin = Math.sin(yawDelta);
+					const pivot: LayoutVec2 = [object.position[0], object.position[2]];
 					return {
 						objectId: object.objectId,
-						points: object.planFootprint.map(([x, z]) => [x + dx, z + dz] as LayoutVec2)
+						points: object.planFootprint.map(([x, z]) => {
+							const lx = x - pivot[0];
+							const lz = z - pivot[1];
+							return [pivot[0] + cos * lx + sin * lz + dx, pivot[1] - sin * lx + cos * lz + dz] as LayoutVec2;
+						})
 					};
 				})
 		: [];

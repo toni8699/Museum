@@ -27,9 +27,82 @@ export type LayoutPrimitiveDraft = {
 
 export type LayoutObjectDrag = {
 	objectId: string;
+	mode: 'translate' | 'rotate';
 	originalPosition: Vec3;
 	candidatePosition: Vec3;
+	originalRotation: Vec3;
+	candidateRotation: Vec3;
+	/** Rotate-mode world X/Z pivot + starting pointer angle (P10 layout-object yaw). */
+	pivot: LayoutVec2;
+	startAngle: number;
 };
+
+/**
+ * Session routing state for the owner-aware Arrange surface (P10).
+ *
+ * Arrange remembers its **last active owner** — never an object identity. The
+ * actual selected ids live only in the canonical Layout / Scene slots; this
+ * value just decides which slot is the active Arrange target on entry and
+ * during a session.
+ */
+export type ArrangeOwner = 'layout-object' | 'scene' | null;
+
+/** The derived active Arrange target — selected ids stay in the source slots. */
+export type ArrangeTarget =
+	| { owner: 'layout-object'; objectId: string }
+	| { owner: 'scene'; ids: readonly string[]; primaryId: string };
+
+/**
+ * Derive the session's active Arrange target from the remembered owner + the
+ * two canonical selection slots (P10 last-owner rule).
+ *
+ * - last owner = layout-object and the Layout slot holds an eligible object →
+ *   that object activates; otherwise **no target** (never a Scene fallback).
+ * - last owner = scene and the Scene slot is an eligible selection → that
+ *   selection activates (multi-selection intact); otherwise **no target**.
+ * - no remembered owner (first entry) → derive from the current slots,
+ *   eligible Layout object first, then an eligible Scene selection.
+ *
+ * `eligibleLayoutObjectIds` / `eligibleSceneEntityIds` are the Arrange
+ * eligibility refinements (non-profile objects / P2 footprint projections);
+ * when omitted the shape checks alone decide.
+ */	export function deriveArrangeTarget(input: {
+	lastOwner: ArrangeOwner;
+	layoutSelection: LayoutSelection;
+	selectedPlacementIds: readonly string[];
+	selectedClusterId: string | null;
+	eligibleLayoutObjectIds?: ReadonlySet<string>;
+	eligibleSceneEntityIds?: ReadonlySet<string>;
+}): ArrangeTarget | null {
+	const layoutObject = input.layoutSelection.kind === 'object' ? input.layoutSelection : null;
+	const layoutObjectEligible =
+		layoutObject !== null &&
+		(!input.eligibleLayoutObjectIds ||
+			input.eligibleLayoutObjectIds.has(layoutObject.objectId));
+	const sceneEligible =
+		input.selectedPlacementIds.length > 0 &&
+		input.selectedClusterId === null &&
+		(!input.eligibleSceneEntityIds ||
+			input.selectedPlacementIds.every((id) => input.eligibleSceneEntityIds!.has(id)));
+
+	if (input.lastOwner === 'layout-object') {
+		return layoutObjectEligible && layoutObject
+			? { owner: 'layout-object', objectId: layoutObject.objectId }
+			: null;
+	}
+	if (input.lastOwner === 'scene') {
+		return sceneEligible
+			? { owner: 'scene', ids: input.selectedPlacementIds, primaryId: input.selectedPlacementIds.at(-1)! }
+			: null;
+	}
+	if (layoutObjectEligible && layoutObject) {
+		return { owner: 'layout-object', objectId: layoutObject.objectId };
+	}
+	if (sceneEligible) {
+		return { owner: 'scene', ids: input.selectedPlacementIds, primaryId: input.selectedPlacementIds.at(-1)! };
+	}
+	return null;
+}
 
 export type LayoutAccordionState = {
 	place: boolean;
@@ -59,6 +132,8 @@ export type LayoutInteractionState = {
 	selection: LayoutSelection;
 	objectDrag: LayoutObjectDrag | null;
 	roomUnitDrag: LayoutRoomUnitDrag | null;
+	/** P10 — the Arrange session's remembered last owner (routing, never identity). */
+	arrangeOwner: ArrangeOwner;
 	accordions: LayoutAccordionState;
 	planView: PlanViewportState;
 	editing: {
@@ -83,6 +158,7 @@ export function createLayoutInteractionState(): LayoutInteractionState {
 		selection: { kind: 'none' },
 		objectDrag: null,
 		roomUnitDrag: null,
+		arrangeOwner: null,
 		accordions: { place: true, objects: true, selection: true },
 		planView: createPlanViewportState(),
 		editing: null
@@ -99,6 +175,52 @@ export function setPlanViewMode(state: LayoutInteractionState, mode: PlanViewMod
 	state.planViewMode = mode;
 	setLayoutDraftTool(state, 'select');
 	return true;
+}
+
+/** P10 — remember the Arrange session's last active owner (routing only). */
+export function setArrangeOwner(state: LayoutInteractionState, owner: ArrangeOwner): void {
+	state.arrangeOwner = owner;
+}
+
+/**
+ * P10 — cross-owner modifier resolution for Scene picks in Arrange (plan
+ * §Selection): a modifier-click that switches the active owner replaces the
+ * active selection with the clicked target and never adds across owners.
+ * `switchingFromLayout` means the pre-click active Arrange target was a layout
+ * object, so the click is a cross-owner switch and additive/toggle are
+ * suppressed regardless of modifiers.
+ */
+export function resolveArrangeSceneModifiers(input: {
+	switchingFromLayout: boolean;
+	metaKey: boolean;
+	ctrlKey: boolean;
+	shiftKey: boolean;
+}): { toggle: boolean; additive: boolean } {
+	const toggle = !input.switchingFromLayout && (input.metaKey || input.ctrlKey);
+	const additive = !input.switchingFromLayout && input.shiftKey && !toggle;
+	return { toggle, additive };
+}
+
+/**
+ * P10 — full cross-owner Scene-pick resolution for a viewport click (plan
+ * §Selection). On top of modifier suppression, a click that switches owner
+ * from a layout target must also treat the clicked entity as unselected, so
+ * the remembered Scene slot is replaced with a single entity instead of
+ * being dragged or extended as a whole.
+ */
+export function resolveArrangeScenePick(input: {
+	switchingFromLayout: boolean;
+	metaKey: boolean;
+	ctrlKey: boolean;
+	shiftKey: boolean;
+	clickedAlreadySelected: boolean;
+}): { toggle: boolean; additive: boolean; alreadySelected: boolean } {
+	const { toggle, additive } = resolveArrangeSceneModifiers(input);
+	return {
+		toggle,
+		additive,
+		alreadySelected: !input.switchingFromLayout && input.clickedAlreadySelected
+	};
 }
 
 export function hasLayoutTransientInteraction(
@@ -283,24 +405,72 @@ export function selectedLayoutRoomId(state: Pick<LayoutInteractionState, 'select
 export function beginLayoutObjectDrag(
 	state: LayoutInteractionState,
 	objectId: string,
-	position: Vec3
+	position: Vec3,
+	rotation: Vec3 = [0, 0, 0]
 ): void {
 	state.objectDrag = {
 		objectId,
+		mode: 'translate',
 		originalPosition: [...position],
-		candidatePosition: [...position]
+		candidatePosition: [...position],
+		originalRotation: [...rotation],
+		candidateRotation: [...rotation],
+		pivot: [0, 0],
+		startAngle: 0
+	};
+}
+
+/**
+ * Start the P10 Plan layout-object yaw gesture around a world X/Z pivot.
+ * Rotation is previewed as a render override and committed through the existing
+ * Layout transaction on pointer-up; cancel restores the baseline.
+ */
+export function beginLayoutObjectRotateDrag(
+	state: LayoutInteractionState,
+	objectId: string,
+	position: Vec3,
+	rotation: Vec3,
+	startWorld: LayoutVec2,
+	pivot: LayoutVec2
+): void {
+	state.objectDrag = {
+		objectId,
+		mode: 'rotate',
+		originalPosition: [...position],
+		candidatePosition: [...position],
+		originalRotation: [...rotation],
+		candidateRotation: [...rotation],
+		pivot: [...pivot],
+		// Same pointer-yaw convention as the Plan rotation handle (`atan2(-dz, dx)`).
+		startAngle: Math.atan2(-(startWorld[1] - pivot[1]), startWorld[0] - pivot[0])
 	};
 }
 
 export function updateLayoutObjectDrag(
 	state: LayoutInteractionState,
 	point: LayoutVec2,
-	snapEnabled: boolean
+	snapEnabled: boolean,
+	shiftKey = false,
+	angleSnapEnabled = false
 ): void {
-	if (!state.objectDrag) return;
-	const x = snapEnabled ? Math.round(point[0] * 4) / 4 : point[0];
-	const z = snapEnabled ? Math.round(point[1] * 4) / 4 : point[1];
-	state.objectDrag.candidatePosition = [x, state.objectDrag.originalPosition[1], z];
+	const drag = state.objectDrag;
+	if (!drag) return;
+	if (drag.mode === 'translate') {
+		const x = snapEnabled ? Math.round(point[0] * 4) / 4 : point[0];
+		const z = snapEnabled ? Math.round(point[1] * 4) / 4 : point[1];
+		drag.candidatePosition = [x, drag.originalPosition[1], z];
+		return;
+	}
+	// Plan rotation-handle convention (matches the shipped Scene staging
+	// handle): positive Three.js Y yaw, Shift = 15° snap on the gesture delta.
+	let yaw = Math.atan2(-(point[1] - drag.pivot[1]), point[0] - drag.pivot[0]) - drag.startAngle;
+	while (yaw > Math.PI) yaw -= Math.PI * 2;
+	while (yaw <= -Math.PI) yaw += Math.PI * 2;
+	if (shiftKey && angleSnapEnabled) {
+		const increment = Math.PI / 12;
+		yaw = Math.round(yaw / increment) * increment;
+	}
+	drag.candidateRotation = [drag.originalRotation[0], drag.originalRotation[1] + yaw, drag.originalRotation[2]];
 }
 
 export function cancelLayoutObjectDrag(state: LayoutInteractionState): void {

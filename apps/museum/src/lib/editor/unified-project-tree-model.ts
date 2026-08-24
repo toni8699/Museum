@@ -410,8 +410,11 @@ export function isUnifiedTreeRowInteractive(
 		case 'wall':
 		case 'opening':
 		case 'interiorAnchor':
-		case 'object':
 			return scene3d || scenePlanLayout;
+		case 'object':
+			// P10 — Arrange (staging) makes Layout-object rows interactive too;
+			// structural rows stay inert (read-only Arrange context).
+			return scene3d || scenePlanLayout || scenePlanStaging;
 		default:
 			return scene3d || scenePlanStaging;
 	}

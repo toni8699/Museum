@@ -197,6 +197,10 @@
 	function canDeleteSceneSelection(): boolean {
 		if (viewState.domain !== 'scene') return false;
 		if (viewState.activeView === '3d') return true;
+		// P10 — in Arrange the scene Delete gate applies only while the Scene
+		// slot is the active owner (a Layout-object target routes Delete to the
+		// layout pipeline instead).
+		if (activeSelection.active.domain !== 'scene') return false;
 		if (layoutInteraction.planViewMode !== 'staging' || store.selectedClusterId !== null) {
 			return false;
 		}

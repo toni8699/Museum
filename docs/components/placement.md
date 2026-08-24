@@ -21,13 +21,12 @@ Scale: **uniform** (default, scalar in v6) vs **independent** (session `scaleVec
 
 Nav selection ⊥ placement selection. **No** viewport DnD for place. Plan rectangle click-drag = CAD exception only ([`../north-star.md`](../north-star.md)).
 
-## Scene Plan staging (P2)
+## Scene Plan Arrange (P10, replaces P2 Staging)
 
-P2 stages **already-placed** eligible Scene content; Asset Library selection
-does not begin Plan placement. Floor catalogue models require valid canonical
-footprints; box/plane/cylinder/sphere primitives derive footprints from their
-dimensions; lights, imported GLBs, and wall/ceiling/surface catalogue models
-are outside P2 staging projection.
+Arrange moves **already-placed** movable objects: eligible `SceneDocument`
+entities (the shipped P2 surface) **plus** non-profile `LayoutDocument.objects`.
+The internal `staging` plan-mode identifier remains as a compatibility detail;
+the user-facing label is Arrange.
 
 Scene entity transforms remain room-local. Scene Plan projects through the
 live `SceneDocument` plus `LayoutRoomRegistry`:
@@ -39,7 +38,7 @@ asset-local footprint
   → Plan world X/Z
 ```
 
-Staging drag performs the inverse world-to-room conversion and writes Scene
+Scene drag performs the inverse world-to-room conversion and writes Scene
 local X/Z only. Local Y, pitch, and roll remain unchanged. Room drag changes
 the room frame, so contained Scene entities follow in derived world space;
 the room gesture mutates `LayoutDocument` only and creates one `layout` history
@@ -55,6 +54,27 @@ and Inspector delete each use the existing Scene mutators and create one tagged
 `scene` history entry; cancel, Escape, pointer-cancel, unmount, and no-op create
 none. Any ineligible member or cluster keeps the whole Plan transform surface
 read-only.
+
+Layout objects are Arrange targets through the existing Layout pipeline:
+plain click selects the canonical Layout slot, drag reuses the Plan
+object-translate gesture, and the active object owns a Plan yaw rotation arm
+(the same handle contract as the Scene footprint handle) that commits one
+`layout` entry through `updateLayoutObjectFields`/`patchLayoutObject`. A drag
+preserves `roomId` verbatim — Arrange never infers or reassigns room ownership
+from coordinates; reassignment stays in the Layout Inspector. Dimensions,
+shape/type, and elevation stay read-only in Arrange.
+
+Arrange is owner-routed, never a third selection system: the active target is
+derived from the remembered last owner (`layout-object` | `scene` | none) plus
+the existing Layout/Scene selection slots; selected ids never live in an
+Arrange structure. On entry, a remembered owner whose slot is stale or
+ineligible yields **no active target** (no cross-owner fallback, no resurrected
+object). Hit priority is containment before edge halo, a selected member of the
+active owner's selection under the pointer, then visual topmost (Scene layer 6
+above Layout layer 5), then stable render order. Each gesture mutates exactly
+one document and creates one correctly tagged history entry (`layout` or
+`scene`); cross-owner modifier clicks switch owner without creating a
+mixed-document gesture.
 
 ## Layout objects
 

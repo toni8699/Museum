@@ -22,6 +22,7 @@
 		selectLayoutOpening,
 		selectLayoutRoom,
 		selectLayoutWall,
+		setArrangeOwner,
 		setLayoutDraftTool,
 		type LayoutInteractionState
 	} from './layout/layout-interaction';
@@ -210,16 +211,28 @@
 
 	function selectObject(objectId: string) {
 		selectLayoutObject(layoutInteraction, objectId);
+		// P10 — a hierarchy pick in Arrange switches the active owner too.
+		if (layoutInteraction.planViewMode === 'staging') setArrangeOwner(layoutInteraction, 'layout-object');
 	}
 
 	function selectEntity(entity: SceneEntity, event?: MouseEvent) {
+		// P10 — cross-owner hierarchy picks in Arrange replace the active
+		// selection (plan §Selection): when the pre-click active target is a
+		// layout object in Plan, a shift-click must not accumulate into the
+		// remembered Scene slot. Same-owner additive selection is untouched.
+		const switchingFromLayout =
+			layoutInteraction.planViewMode === 'staging' &&
+			view === 'plan' &&
+			active.domain === 'layout';
+		if (layoutInteraction.planViewMode === 'staging') setArrangeOwner(layoutInteraction, 'scene');
 		store.selectionActions.selectPlacementFromTree(entity.id, {
-			additive: event?.shiftKey ?? false,
-			focus: !(event?.shiftKey ?? false)
+			additive: !switchingFromLayout && (event?.shiftKey ?? false),
+			focus: switchingFromLayout ? true : !(event?.shiftKey ?? false)
 		});
 	}
 
 	function selectCluster(clusterId: string) {
+		if (layoutInteraction.planViewMode === 'staging') setArrangeOwner(layoutInteraction, 'scene');
 		store.selectionActions.selectClusterFromTree(clusterId);
 	}
 

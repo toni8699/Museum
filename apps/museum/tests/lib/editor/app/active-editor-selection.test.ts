@@ -13,6 +13,7 @@ import {
 	clearLayoutSelection,
 	createLayoutInteractionState,
 	setPlanViewMode,
+	selectLayoutObject,
 	selectLayoutRoom,
 	type LayoutInteractionState,
 	type LayoutSelection
@@ -167,9 +168,79 @@ describe('deriveActiveSelection (P1.1 domain gate)', () => {
 			| { domain: 'camera'; selection: NavigationSelection }
 		>();
 	});
-});
+});	describe('P10 Arrange owner routing', () => {
+		const placement: WorkspaceSelection = {
+			kind: 'placement',
+			ids: ['scene-entity-a'],
+			clusterId: null,
+			roomId: 'paris'
+		};
+		const room: LayoutSelection = { kind: 'room', roomId: 'room-a' };
 
-describe('onSelectionActivate seam', () => {
+		it('staging + layout-object owner activates an eligible object slot; structural selections never fall back to Scene', () => {
+			expect(
+				deriveActiveSelection(
+					'scene',
+					{ kind: 'none' },
+					{ kind: 'none' },
+					{ kind: 'object', objectId: 'layout-object-1' },
+					'staging',
+					'layout-object'
+				)
+			).toEqual({ domain: 'layout', selection: { kind: 'object', objectId: 'layout-object-1' } });
+			expect(
+				deriveActiveSelection(
+					'scene',
+					placement,
+					{ kind: 'none' },
+					room,
+					'staging',
+					'layout-object'
+				)
+			).toEqual({ domain: 'none' });
+		});
+
+		it('staging + scene owner activates the actionable Scene slot; the Layout slot stays memory', () => {
+			expect(
+				deriveActiveSelection(
+					'scene',
+					placement,
+					{ kind: 'none' },
+					{ kind: 'object', objectId: 'layout-object-1' },
+					'staging',
+					'scene'
+				)
+			).toEqual({ domain: 'scene', selection: placement });
+			expect(
+				deriveActiveSelection(
+					'scene',
+					{ kind: 'none' },
+					{ kind: 'none' },
+					{ kind: 'object', objectId: 'layout-object-1' },
+					'staging',
+					'scene'
+				)
+			).toEqual({ domain: 'none' });
+		});
+
+		it('staging without a remembered owner derives object-first, then Scene', () => {
+			expect(
+				deriveActiveSelection(
+					'scene',
+					{ kind: 'none' },
+					{ kind: 'none' },
+					{ kind: 'object', objectId: 'layout-object-1' },
+					'staging'
+				)
+			).toEqual({ domain: 'layout', selection: { kind: 'object', objectId: 'layout-object-1' } });
+			expect(deriveActiveSelection('scene', placement, { kind: 'none' }, { kind: 'none' }, 'staging')).toEqual({
+				domain: 'scene',
+				selection: placement
+			});
+		});
+	});
+
+	describe('onSelectionActivate seam', () => {
 	it('fires only for actionable picks; deselect and room-only never fire', () => {
 		const fired: string[] = [];
 		const store = createEditorStore({
@@ -243,6 +314,23 @@ describe('EditorActiveSelectionStore exclusivity', () => {
 		expect(activeSelection.active.domain).toBe('scene');
 
 		activeSelection.onLayoutSelectionChanged();
+		expect(store.selectedPlacementIds).toEqual([entityId]);
+	});
+
+	it('P10: an Arrange layout-object pick routes the active domain to layout while preserving the Scene slot', () => {
+		const { store, layoutInteraction, viewState, activeSelection } = wired();
+		viewState.setView('scene', 'plan');
+		const entityId = store.document.entities[0]!.id;
+		expect(store.selectionActions.selectPlacement(entityId)).toBe(true);
+		setPlanViewMode(layoutInteraction, 'staging');
+		layoutInteraction.arrangeOwner = 'layout-object';
+		selectLayoutObject(layoutInteraction, 'layout-object-1');
+
+		expect(activeSelection.active).toEqual({
+			domain: 'layout',
+			selection: { kind: 'object', objectId: 'layout-object-1' }
+		});
+		// The Scene slot survives as memory (Arrange never mirrors selection).
 		expect(store.selectedPlacementIds).toEqual([entityId]);
 	});
 

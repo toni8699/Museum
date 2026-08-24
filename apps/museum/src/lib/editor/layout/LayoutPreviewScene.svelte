@@ -329,7 +329,9 @@
 			position={interaction.objectDrag?.objectId === object.objectId
 				? interaction.objectDrag.candidatePosition
 				: object.position}
-			rotation={object.rotation}
+			rotation={interaction.objectDrag?.objectId === object.objectId
+				? interaction.objectDrag.candidateRotation
+				: object.rotation}
 			userData={{ editorEntity: 'layout-object', layoutObjectId: object.objectId }}
 		>
 			<T.Mesh

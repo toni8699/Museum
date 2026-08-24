@@ -54,11 +54,11 @@
 	}
 </script>
 
-<div class="layout-toolbar" role="toolbar" aria-label={interaction.planViewMode === 'staging' ? 'Scene Plan staging tools' : 'Layout drafting tools'}>
+<div class="layout-toolbar" role="toolbar" aria-label={interaction.planViewMode === 'staging' ? 'Scene Plan arrange tools' : 'Layout drafting tools'}>
 	{#if showPlanModeToggle}
 		<div class="tool-group mode-group" role="group" aria-label="Scene Plan mode">
 			<button type="button" class:active={interaction.planViewMode === 'layout'} aria-pressed={interaction.planViewMode === 'layout'} onclick={() => choosePlanMode('layout')}>Layout</button>
-			<button type="button" class:active={interaction.planViewMode === 'staging'} aria-pressed={interaction.planViewMode === 'staging'} onclick={() => choosePlanMode('staging')}>Staging</button>
+			<button type="button" class:active={interaction.planViewMode === 'staging'} aria-pressed={interaction.planViewMode === 'staging'} onclick={() => choosePlanMode('staging')}>Arrange</button>
 		</div>
 	{/if}
 	{#if showViewToggle}

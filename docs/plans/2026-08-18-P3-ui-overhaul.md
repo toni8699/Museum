@@ -55,6 +55,109 @@ the recommended post-P3 **P3B** slice.
   on P2; staging-dependent surfaces (P3.1's staging-sketch QA rows, the
   Staging menu) defer until P2 ships.
 
+## Pre-P3 brief — Scene Plan footprint and 3D outline coherence
+
+**Status:** Ready for P3 intake · **Source:** owner request 2026-08-23 +
+browser-reviewer consultation · **Scope:** P3.1–P3.3 visual/correctness pass
+
+### 1. User outcome and out of scope
+
+When a Scene entity is selected, switching between Scene → Plan/Staging and
+Scene → 3D preserves the same entity, pivot, transform, scale, and yaw. Plan
+shows a meaningful top-down occupied shape; 3D shows the settled runtime mesh
+OBB on the first frame after the selected placement root has renderable mesh
+bounds. If bounds become available after selection, the outline updates
+automatically without user interaction.
+
+This does **not** unify Plan and 3D into one geometry or hit-test authority.
+Plan remains authored semantic footprint geometry; 3D selection and transform
+bounds remain runtime mesh-driven. No new selection store, 3D footprint raycast,
+runtime OBB persistence, gizmo semantic change, or independent-scale schema
+work is included.
+
+### 2. Source components and APIs to reuse
+
+- `editor/layout/plan-scene-footprint.ts` remains the Plan projection boundary:
+  asset-local outline → effective scale → entity yaw/translation → room frame.
+- `content/assets.ts` remains the curated asset metadata authority. Add the
+  piano outline through the existing `AssetFootprint.outline` path; preserve
+  width/depth fallback for assets without an outline.
+- `EditorSelectionHelper.svelte` remains the 3D outline owner and continues to
+  use `computeRootLocalBox` / `computeClusterOBB` from `cluster-obb.ts`.
+- `EditorSceneEntities.svelte` and `EditorPlacementRoot.svelte` remain the
+  mount/registration path. Do not introduce a second placement registry or
+  bounds compiler.
+- Existing selection, placement, transform-control, Plan hit, and scene
+  history APIs remain unchanged.
+
+### 3. State, props, and dependencies
+
+Prefer no new document or persistent state. If the lifecycle fix needs a
+refresh signal, prefer the existing placement-root registration/change path. If
+it exposes no suitable readiness/change signal, add the smallest
+editor-session-only invalidation mechanism at that existing ownership boundary.
+Do not create another registry or persist bounds state. The selection helper
+may rebuild its local bounds when the selected root identity or mesh readiness
+changes, while its per-frame work continues to
+stream settled corners through the current world matrix.
+
+The piano outline is authored in placement-local X/Z coordinates around the
+existing `[0, 0]` placement pivot. It represents physical occupied shape, not
+clearance; any future clearance affordance must be a separate derived visual.
+
+### 4. Mount/unmount and selection semantics
+
+On selection, the helper must produce a valid runtime OBB as soon as the
+selected root has renderable mesh bounds. If child meshes appear or finish
+loading after selection, the helper must invalidate/recompute automatically
+without pointer movement, transform gestures, selection toggles, or history
+writes. Unmount, deselect, preview mode, and domain/view transitions must retain
+the existing disposal and visibility behavior.
+
+Given unchanged descendant geometry and child-local transforms, placement-local
+bounds must remain unchanged when only the `EditorPlacementRoot` world
+translation or yaw changes; only the streamed world-space corners should change.
+Cluster selection continues to use the existing cluster OBB contract.
+
+### 5. Acceptance tests and manual scenarios
+
+- Piano Plan projection uses a non-rectangular authored outline and preserves
+  scale, yaw, room-frame projection, hit containment, and rotation around the
+  placement pivot.
+- Assets without an outline retain the width/depth rectangle fallback.
+- A selected mesh hierarchy has the same placement-local bounds under two root
+  translations/rotations; world corners follow the transform.
+- A selected entity whose mesh children become ready after selection updates
+  its OBB without a transform or selection event.
+- Selecting a root with no ready mesh descendants must not retain the previous
+  selection's OBB. When eligible mesh children become ready, the correct OBB
+  appears automatically; unmount/deselect clears it without stale bounds.
+- Scene Plan → 3D → Plan preserves entity selection and authored transforms;
+  no duplicate selection state or history entry is created.
+- Moving, rotating, or scaling the piano changes only the expected projected
+  footprint/OBB result; no outline snap occurs as a side effect.
+- Manual QA: select the piano before and after 3D readiness, switch views,
+  move/rotate/scale it, move its containing room, and verify the silhouette,
+  OBB, pivot, and selection remain coherent.
+- Regression guard: no changes to 3D raycast authority, gizmo semantics, snap,
+  history transaction count, visitor `/museum` chunks, or frozen relic routes.
+
+### 6. Boundaries and verification
+
+This is editor-only work inside the P3 visual/correctness boundary. It reuses
+P2's shipped Scene staging contract and does not alter `SceneDocument`, layout
+ownership, camera navigation, or the visitor relics. Verify with focused Plan,
+footprint, OBB, and selection tests, then `npm test`, `npm run check`,
+`npm run build`, and `git diff --check`.
+
+### 7. Rollback / fallback
+
+If automatic mesh-readiness invalidation expands beyond a focused helper fix,
+ship the authored piano outline and P3 visual treatment independently, and
+defer the OBB lifecycle repair behind a focused regression fixture. If the
+piano silhouette proves inaccurate, revert only its metadata outline to the
+existing width/depth fallback; do not replace it with runtime mesh projection.
+
 ## Increments
 
 | ID | Content | Depends |

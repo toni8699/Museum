@@ -104,7 +104,9 @@
 		choosePlanMode('staging');
 		if (!store.selectionActions.selectPlacement(entityId)) {
 			store.setStatusMessage('Scene item is no longer available');
+			return;
 		}
+		layoutInteraction.arrangeOwner = 'scene';
 	}
 
 	function selectSceneEntity(
@@ -122,9 +124,14 @@
 	}
 
 	function deselectPlanActive(): boolean {
-		return layoutInteraction.planViewMode === 'staging'
-			? activeSelection?.deselectSceneSelection() ?? false
-			: activeSelection?.deselectActive() ?? false;
+		if (layoutInteraction.planViewMode !== 'staging') return activeSelection?.deselectActive() ?? false;
+		// P10 — an empty Arrange click clears whichever owner is the active
+		// target and preserves the inactive slot as memory. Routing by the
+		// derived active domain (not the raw remembered owner) also covers
+		// the first-entry fallback where arrangeOwner is still null.
+		return activeSelection?.active.domain === 'layout'
+			? activeSelection?.deselectActive() ?? false
+			: activeSelection?.deselectSceneSelection() ?? false;
 	}
 
 	function beginSceneGesture(): boolean {

@@ -125,13 +125,20 @@
 		viewState?.domain === 'scene' &&
 		layoutInteraction.planViewMode === 'staging'
 	);
+	// P10 — Arrange (staging) is owner-aware: an active Layout-object target
+	// shows the layout owner's panel; otherwise the Scene owner's Arrange panel.
 	const domain = $derived<EditorWorkspace>(
 		scenePlanStaging
-			? 'scene'
+			? activeSelection && activeSelection.active.domain === 'layout'
+				? 'layout'
+				: 'scene'
 			: activeSelection && activeSelection.active.domain !== 'none'
 				? activeSelection.active.domain
 				: store.currentWorkspace
 	);
+	// Arrange's read-only gates apply only in the active Scene Plan view;
+	// a persisted staging mode must not disable fields after switching to 3D.
+	const arrangeMode = $derived(scenePlanStaging);
 	// Plan authority is workspace-specific (P1.5): Camera → Plan mounts the
 	// live Camera Plan inspector (timing + X/Z authoring); Scene → Plan stays
 	// the layout-CAD read-only gate — a preserved scene/camera selection keeps
@@ -414,16 +421,14 @@
 		store.setStatusMessage(outcome.result.success ? `Updated ${field}` : `Room rejected: ${outcome.result.message}`);
 	}
 
-	function updateObjectVector(
-		field: 'position' | 'rotation' | 'dimensions',
-		index: 0 | 1 | 2,
-		event: Event
-	) {
+	// P10 — editable Plan X/Z/yaw for layout objects (plan §Inspector and
+	// hierarchy), routed through the existing Layout mutation pipeline in one
+	// `layout` transaction. Rejected values stay rejected: the field re-syncs
+	// from the model prop on the next render.
+	function updateObjectVector(field: 'position' | 'rotation', index: 0 | 1 | 2, value: number): void {
 		if (!selectedLayoutObject || selectedLayoutObject.kind === 'profile') return;
-		const input = event.currentTarget as HTMLInputElement;
-		const value = Number(input.value);
 		if (!Number.isFinite(value)) {
-			input.value = String(selectedLayoutObject[field][index]);
+			store.setStatusMessage('Layout value must be finite');
 			return;
 		}
 		const vector = [...selectedLayoutObject[field]] as [number, number, number];
@@ -434,11 +439,17 @@
 		);
 		if (outcome.kind === 'skipped') {
 			store.setStatusMessage('Finish the current layout interaction first');
-			input.value = String(selectedLayoutObject[field][index]);
 			return;
 		}
-		if (!outcome.result.success) input.value = String(selectedLayoutObject[field][index]);
 		store.setStatusMessage(outcome.result.success ? `Updated object ${field}` : `Object rejected: ${outcome.result.message}`);
+	}
+
+	function updateObjectPosition(index: 0 | 2, value: number): void {
+		updateObjectVector('position', index, value);
+	}
+
+	function updateObjectYaw(value: number): void {
+		updateObjectVector('rotation', 1, degreesToRadians(value));
 	}
 
 	function commitStagingTransform(next: PlacementTransform): void {
@@ -642,6 +653,7 @@
 			{#if layoutPreview.importError}<p class="layout-opening-warning" role="alert">Import failed: {layoutPreview.importError}</p>{/if}
 			<p class="layout-inspector-note">Openings are geometry-only in this phase. No room adjacency or portal semantics are inferred.</p>
 
+			{#if !arrangeMode}
 			<div class="layout-accordion">
 				<button type="button" class="accordion-trigger" aria-expanded={layoutInteraction.accordions.place} onclick={() => toggleLayoutAccordion(layoutInteraction, 'place')}><strong>Place</strong><span>{layoutInteraction.accordions.place ? '−' : '+'}</span></button>
 				{#if layoutInteraction.accordions.place}
@@ -654,6 +666,7 @@
 					</div>
 				{/if}
 			</div>
+			{/if}
 
 			<div class="layout-accordion">
 				<button type="button" class="accordion-trigger" aria-expanded={layoutInteraction.accordions.objects} onclick={() => toggleLayoutAccordion(layoutInteraction, 'objects')}><strong>Objects</strong><span>{layoutInteraction.accordions.objects ? '−' : '+'}</span></button>
@@ -678,19 +691,46 @@
 				<div class="layout-selected-room" aria-label="Selected layout object">
 					<strong>{selectedLayoutObject.kind} object</strong>
 					<span>{selectedLayoutObject.id}</span>
-					{#if selectedLayoutObject.kind === 'profile'}
-						<span>Imported profile placeholder · read-only</span>
-					{/if}
-					{#if selectedLayoutObject.kind === 'profile' || selectedLayoutObject.kind === 'plane'}
-						<span>Position: {selectedLayoutObject.position.join(', ')} · rotation: {selectedLayoutObject.rotation.join(', ')}</span>
-						<span>Dimensions: {selectedLayoutObject.dimensions.join(' × ')}</span>
-					{:else if selectedLayoutObject.kind === 'box'}
-						<label>Width (m)<input type="number" min="0.001" step="0.05" value={selectedLayoutObject.dimensions[0]} onchange={(event) => updateObjectMetric('width', event)} /></label>
-						<label>Depth (m)<input type="number" min="0.001" step="0.05" value={selectedLayoutObject.dimensions[2]} onchange={(event) => updateObjectMetric('depth', event)} /></label>
-						<label>Height (m)<input type="number" min="0.001" step="0.05" value={selectedLayoutObject.dimensions[1]} onchange={(event) => updateObjectMetric('height', event)} /></label>
+				{#if selectedLayoutObject.kind === 'profile'}
+					<span>Imported profile placeholder · read-only</span>
+				{/if}
+				{#if selectedLayoutObject.kind !== 'profile'}
+					<fieldset class="staging-transform-fields">
+						<legend>Plan transform</legend>
+						<div class="staging-field-grid">
+							<EditorNumberField
+								label="X"
+								value={selectedLayoutObject.position[0]}
+								step={layoutInteraction.planView.snapEnabled ? 0.25 : 0.01}
+								oncommit={(value) => updateObjectPosition(0, value)}
+							/>
+							<EditorNumberField
+								label="Z"
+								value={selectedLayoutObject.position[2]}
+								step={layoutInteraction.planView.snapEnabled ? 0.25 : 0.01}
+								oncommit={(value) => updateObjectPosition(2, value)}
+							/>
+							<EditorNumberField
+								label="Yaw (°)"
+								value={radiansToDegrees(selectedLayoutObject.rotation[1])}
+								step={15}
+								fractionDigits={2}
+								oncommit={updateObjectYaw}
+							/>
+						</div>
+					</fieldset>
+				{/if}				{#if selectedLayoutObject.kind === 'profile'}
+					<span>Position: {selectedLayoutObject.position.join(', ')} · rotation: {selectedLayoutObject.rotation.join(', ')}</span>
+					<span>Dimensions: {selectedLayoutObject.dimensions.join(' × ')}</span>
+				{:else if selectedLayoutObject.kind === 'plane'}
+					<span>Dimensions: {selectedLayoutObject.dimensions.join(' × ')}</span>
+				{:else if selectedLayoutObject.kind === 'box'}
+						<label>Width (m)<input type="number" min="0.001" step="0.05" value={selectedLayoutObject.dimensions[0]} disabled={arrangeMode} onchange={(event) => updateObjectMetric('width', event)} /></label>
+						<label>Depth (m)<input type="number" min="0.001" step="0.05" value={selectedLayoutObject.dimensions[2]} disabled={arrangeMode} onchange={(event) => updateObjectMetric('depth', event)} /></label>
+						<label>Height (m)<input type="number" min="0.001" step="0.05" value={selectedLayoutObject.dimensions[1]} disabled={arrangeMode} onchange={(event) => updateObjectMetric('height', event)} /></label>
 					{:else}
-						<label>Radius (m)<input type="number" min="0.001" step="0.05" value={selectedLayoutObject.dimensions[0] / 2} onchange={(event) => updateObjectMetric('radius', event)} /></label>
-						<label>Height (m)<input type="number" min="0.001" step="0.05" value={selectedLayoutObject.dimensions[1]} onchange={(event) => updateObjectMetric('height', event)} /></label>
+						<label>Radius (m)<input type="number" min="0.001" step="0.05" value={selectedLayoutObject.dimensions[0] / 2} disabled={arrangeMode} onchange={(event) => updateObjectMetric('radius', event)} /></label>
+						<label>Height (m)<input type="number" min="0.001" step="0.05" value={selectedLayoutObject.dimensions[1]} disabled={arrangeMode} onchange={(event) => updateObjectMetric('height', event)} /></label>
 					{/if}
 					<div class="object-room-meta"><span>Room ownership</span><strong>{layoutRooms.find((room) => room.id === selectedLayoutObject.roomId)?.name ?? 'Unassigned'} · {selectedLayoutObject.roomId ?? 'none'}</strong></div>
 					{#if layoutPreview.lastMutationMessage}<p class="layout-opening-warning" role="status">{layoutPreview.lastMutationMessage}</p>{/if}
@@ -776,9 +816,9 @@
 			{/if}
 		</section>
 	{:else if scenePlanStaging}
-		<section class="staging-selection" aria-label="Staging selection">
+		<section class="staging-selection" aria-label="Arrange selection">
 			<div class="section-heading">
-				<h2>Staging selection</h2>
+				<h2>Arrange selection</h2>
 				<span class="staging-badge">{stagingTransformAvailable ? 'Plan transform' : 'Read-only'}</span>
 			</div>
 			{#if hasPlacementSelection}

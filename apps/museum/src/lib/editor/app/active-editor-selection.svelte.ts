@@ -32,6 +32,7 @@
 
 import {
 	clearLayoutSelection,
+	type ArrangeOwner,
 	type LayoutInteractionState,
 	type LayoutSelection,
 	type PlanViewMode
@@ -75,7 +76,8 @@ export function deriveActiveSelection(
 	workspace: WorkspaceSelection,
 	navigation: NavigationSelection,
 	layoutSelection: LayoutSelection,
-	planViewMode: PlanViewMode = 'layout'
+	planViewMode: PlanViewMode = 'layout',
+	arrangeOwner: ArrangeOwner = null
 ): ActiveEditorSelection {
 	if (domain === 'camera') {
 		if (navigation.kind !== 'none') {
@@ -83,7 +85,24 @@ export function deriveActiveSelection(
 		}
 		return { domain: 'none' };
 	}
+	// P10 — Arrange (staging) is owner-aware: an eligible Layout-object slot
+	// activates the layout domain, an actionable Scene slot activates scene.
+	// Structural layout selections (room/wall/opening) stay memory here, and
+	// the remembered owner never falls back to the other slot.
 	if (planViewMode === 'staging') {
+		if (arrangeOwner === 'layout-object') {
+			return layoutSelection.kind === 'object'
+				? { domain: 'layout', selection: layoutSelection }
+				: { domain: 'none' };
+		}
+		if (arrangeOwner === 'scene') {
+			return isWorkspaceSelectionActionable(workspace)
+				? { domain: 'scene', selection: workspace }
+				: { domain: 'none' };
+		}
+		if (layoutSelection.kind === 'object') {
+			return { domain: 'layout', selection: layoutSelection };
+		}
 		return isWorkspaceSelectionActionable(workspace)
 			? { domain: 'scene', selection: workspace }
 			: { domain: 'none' };
@@ -122,7 +141,8 @@ export class EditorActiveSelectionStore {
 			this.#store.selection.workspace,
 			this.#store.selection.navigation,
 			this.#layoutInteraction.selection,
-			this.#viewState.activeView === 'plan' ? this.#layoutInteraction.planViewMode : 'layout'
+			this.#viewState.activeView === 'plan' ? this.#layoutInteraction.planViewMode : 'layout',
+			this.#layoutInteraction.arrangeOwner
 		)
 	);
 

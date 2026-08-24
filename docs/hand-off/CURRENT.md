@@ -5,54 +5,49 @@ slice plus one next action only.
 
 ## Working tree
 
-- Current delta: **P3 reopened; P10 remains shipped; all work is uncommitted.**
-  The owner rejected P3's 2026-08-24 close because the result read as a
-  token/color pass rather than the canonical structural overhaul. P3.6 now
-  replaces Plan line/bar approximations with architectural wall thickness,
-  door swings/leaves and window frames; makes room paper opaque; differentiates
-  Camera Plan with a subdued canvas; and expands the Camera timeline into the
-  five canonical display lanes inside the documented 288 px default shell.
-  Owner follow-up removes the blocking XYZ overlay entirely and keeps those
-  five lanes mounted through camera, edge, and sequence preview states; the old
-  edge-ruler/camera-only timeline bodies are deleted.
-- P3.4/P3.5 add one shared context-menu shell plus Scene 3D, Scene Plan
-  Layout/Arrange, Outliner, Camera Plan/3D, and timeline adapters over existing
-  commands. Final review fixed native-menu suppression, exact target identity
-  selection-before-menu, Outliner opening/object selection, and blocked
-  room-Rename handling. Context-menu models have 19 focused tests.
-- Pre-P3 correctness work remains in this delta: authored piano Plan outline,
-  mesh-readiness OBB invalidation, and stale child-`matrixWorld` repair.
-- The P3 umbrella is active again and records the corrective source/state/QA
-  boundaries. The earlier close note is explicitly rejected, not approval
-  evidence. No commit.
-- Previous slice: **P2 shipped uncommitted 2026-08-23** — Scene Plan staging,
-  transforms/history, and render-boundary close-out. Archived plan is the
-  back-pointer.
+- Current delta: **P3 closed 2026-08-24; P3B is the new clean-state proposed
+  follow-up; P10 remains shipped; all work is uncommitted.** P3.1–P3.3 and P3.6
+  are accepted: structural Plan walls/openings, opaque rooms, distinct Camera
+  Plan paper, the persistent five-lane timeline, and removal of the blocking
+  XYZ overlay.
+- Existing P3.4/P3.5 context-menu implementation remains in the tree, but those
+  increments are explicitly **undone and deferred as low priority for later
+  revisit**, after the rest of P3B is complete. Broader surface, interaction,
+  backing-identity, validator, and relic-boundary tests are required before
+  acceptance. The work is tracked in
+  [`../plans/2026-08-24-P3B-orientation-preview-affordances.md`](../plans/2026-08-24-P3B-orientation-preview-affordances.md).
+- P3B owns three core slices: Scene 3D orientation interaction, Scene/Camera
+  Plan chrome parity, and Camera preview-affordance reconciliation. This
+  includes white/light passive layout boxes, X/Z rulers, grid LOD, segmented
+  scale chrome, token cleanup, metadata clearance, explicit preview-target
+  labels, and canonical edge-direction derivation. It targets the current
+  Scene|Camera × Plan|3D shell; P3B creates no additional workspace or state
+  system. Deferred P3.4/P3.5 acceptance remains a non-blocking tail.
+- Previous slice: **P3.6 structural visual reconciliation**, now closed under
+  P3. The archived umbrella plan is the back-pointer.
 
 ## Next action
 
-- **Owner review:** compare the refreshed Scene Plan, Camera Plan, persistent
-  preview timeline, and XYZ-free Camera 3D with the canonical direction.
-  Approve P3.6 or return exact remaining structural deviations; do not
-  archive/close P3 before that review.
+- Start P3B slices A and C in parallel where useful: Plan chrome parity and
+  preview affordance reconciliation can proceed independently while the
+  orientation branch performs snap-authority discovery. If no snap authority
+  exists, pause only B.1–B.4; do not invent behavior. Revisit P3.4/P3.5 later
+  as the separate low-priority acceptance tail.
 
 ## Verification
 
-- `npm test`: **2,075 passed / 1 skipped** across 153 files.
-- `npm run check`: **0 errors / 0 warnings**.
-- `npm run build`: clean; existing third-party unused-import and chunk-size
-  warnings only.
-- `git diff --check`: clean.
-- Legacy P3 gold-accent literals: zero in live editor scope; numeric typography
-  uses tabular Inter, not monospace.
-- Browser QA: authored room with door/window symbols, opaque Scene Plan room,
-  populated Camera Plan on its distinct paper, two-node sequence preview with
-  all five lanes and visible endpoint handles; active edge and single-camera
-  preview both retain the five-lane body; Camera 3D has no XYZ overlay. Fresh
-  browser session reports zero page errors.
+- Last known verification: `npm test` 2,075 passed / 1 skipped across 153
+  files; `npm run check` 0 errors / 0 warnings; `npm run build` clean with
+  existing third-party unused-import and chunk-size warnings; `git diff --check`
+  clean.
+- Browser QA accepted P3.6: architectural room symbols, opaque Scene Plan,
+  distinct Camera Plan paper, five-lane camera/edge/sequence previews, and
+  XYZ-free Camera 3D.
 
 ## Known bugs / deferred
 
+- P3.4/P3.5 are implemented but undone/not accepted; they are low priority and
+  deferred for later revisit after the rest of P3B.
 - Direct 3D wall/interior-anchor picks remain deferred; rooms, openings, and
   objects are directly pickable.
 - Layout hover feed and anchor-helper octahedra remain disconnected.

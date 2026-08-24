@@ -59,7 +59,8 @@ Policy rules:
 | — | Plan-system renewal + documentation rework (process row — created this tracker and the five-doc model) | shipped | H1 gate | archived → [2026-08-17-plan-system-renewal.md](archive/plans/2026-08-17-plan-system-renewal.md) |
 | P1 | Camera overhaul | shipped | renewal | archived → [2026-08-18-P1-camera-overhaul.md](../archive/plans/2026-08-18-P1-camera-overhaul.md) |
 | P2 | Plan staging mode — 2D furnishing | **shipped 2026-08-23 — P2.1–P2.4 complete** | P1 + P9 | archived → [2026-08-18-P2-plan-staging.md](../archive/plans/2026-08-18-P2-plan-staging.md) |
-| P3 | UI overhaul — structural reconciliation against canonical sketches; context-menu interaction slice folded in (P3.4/P3.5) | **in progress — owner rejected 2026-08-24 close; P3.6 corrective pass awaiting review** | P9 + P1 (per-increment; P3.5 also P8) | [2026-08-18-P3-ui-overhaul.md](2026-08-18-P3-ui-overhaul.md) |
+| P3 | UI overhaul — accepted structural visual reconciliation (P3.1–P3.3, P3.6) | **shipped 2026-08-24** | P9 + P1 | archived → [2026-08-18-P3-ui-overhaul.md](../archive/plans/2026-08-18-P3-ui-overhaul.md) |
+| P3B | Scene|Camera × Plan|3D orientation interaction, Plan-surface parity, camera preview affordances, and deferred P3.4/P3.5 acceptance tail | proposed | P3 + P8 | [2026-08-24-P3B-orientation-preview-affordances.md](2026-08-24-P3B-orientation-preview-affordances.md) |
 | P4 | Client GLB import | proposed | renewal | [2026-08-18-P4-glb-import.md](2026-08-18-P4-glb-import.md) |
 | P5 | Measured optimization and scale | proposed | renewal | [2026-08-18-P5-measured-optimization.md](2026-08-18-P5-measured-optimization.md) |
 | P6 | Editor artifact rename (de-H1) | shipped | renewal | archived → [2026-08-18-P6-editor-rename.md](archive/plans/2026-08-18-P6-editor-rename.md) |
@@ -70,13 +71,12 @@ Policy rules:
 | — | Branch rejoin — **experiment, no schedule** (rejoin into a later Sequence stop; dead-end return already ships; multi-edge playback would compose P8's edge primitive) | proposed | P8 conceptually | [2026-08-21-branch-rejoin-experiment.md](2026-08-21-branch-rejoin-experiment.md) |
 | … | future work re-registers here | | | |
 
-Execution order: **P6 → P1 → P8 → P7 → P9 → P2 → P3** — P1 shipped 2026-08-21; the
-owner re-prioritized **P8 ahead of P2** on 2026-08-21
+Execution order: **P6 → P1 → P8 → P7 → P9 → P2 → P3** — P1 shipped
+2026-08-21; the owner re-prioritized **P8 ahead of P2** on 2026-08-21
 ([scope decision](archive/plans/2026-08-21-scope-decision-p8-before-p2.md));
 P8 shipped **S1–S6 on 2026-08-22**, completing the camera phase. On 2026-08-22
 the owner re-prioritized **P7 (facade refactor) ahead of P2**: **P7.1, P7.5,
-P7.2, P7.3, and P7.6 all shipped 2026-08-23 — P7 is closed** (P7.4 shipped
-earlier via P1); P2 resumes next, P3 stays last. **P7.6** (added 2026-08-22)
+P7.2, P7.3, and P7.6 all shipped 2026-08-23 — P7 is closed** (P7.4 shipped earlier via P1); P2 resumes next, P3 stays last. **P7.6** (added 2026-08-22)
 was the museum-vocabulary scrub — owner decisions recorded in its pre-brief:
 drop-prefix scene vocabulary (relic subtree keeps museum) and a hard-break
 format rename (`.scenepack.zip` / `scene.json`); it landed last as its own
@@ -85,10 +85,9 @@ zero-match gate (keep-list 41) and the bare-museum tolerated-set gate (179/184
 P/T; +2 legacy-format pin lines added post-close — the hard-break test now also
 rejects the pre-break `museum-scene.json` member, documented in the annex §4)
 both green.
-P3 is structural visual reconciliation **plus** the folded context-menu interaction slice:
-**P3.4** (shared shell + Scene 3D / Layout / Outliner adapters) is
-P8-independent, while **P3.5** (Camera / Timeline adapters binding Preview
-Camera / Edge / Sequence) landed its P8 S2–S4 dependency when P8 completed.
+P3 is the accepted structural visual reconciliation: **P3.1–P3.3 and P3.6
+shipped 2026-08-24**. The undone P3.4/P3.5 work remains a low-priority deferred
+acceptance tail in **P3B** and does not block core P3B shipment.
 P6 was the mechanical editor rename so P1.1's shell-inversion diff stays
 behavior-only. P7.5's `cameraTimelinePlayhead` ownership item was partially
 folded into P8 S2 acceptance (P8 S2/S4 added `lastSequencePlayhead` next to
@@ -98,10 +97,8 @@ three-surface playhead rewiring) before that increment starts. The prior camera-
 [2026-08-18 scope decision](archive/plans/2026-08-18-scope-decision-camera-first.md);
 the 2026-08-21 decision extends the camera phase rather than reversing it.
 P9 shipped 2026-08-23 as the docs/PNG-only canonical design reconciliation;
-P2 shipped 2026-08-23; P10 shipped 2026-08-24. The owner rejected P3's
-2026-08-24 close, so P3 is active again for P3.6 structural visual
-reconciliation and owner review. P3B remains a separate proposed interaction
-follow-up; P4/P5 stay unscheduled until the owner re-prioritizes.
+P2 shipped 2026-08-23; P10 shipped 2026-08-24. P4/P5 stay unscheduled until the
+owner re-prioritizes.
 
 P1 **closed 2026-08-22** — shipped 2026-08-21 with all increments through
 **P1.9** (camera sidebar simplification: neighbor dropdown · drag-only reorder
@@ -175,9 +172,10 @@ prefixed.
 - `archived → ../archive/plans/2026-08-18-P2-plan-staging.md` (shipped 2026-08-23 — Scene Plan staging complete)
 - `archived → ../archive/plans/2026-08-23-P3.1-visual-qa-deviations.md` (historical QA annex; its prior close was rejected 2026-08-24)
 - `archived → ../archive/plans/2026-08-23-P10-plan-arrange-objects.md` (shipped 2026-08-24 — P10.0–P10.5 complete)
+- `archived → ../archive/plans/2026-08-18-P3-ui-overhaul.md` (shipped 2026-08-24 — accepted P3.1–P3.3 + P3.6; P3.4/P3.5 and P3B extracted to P3B)
 
 **Sources:** all source content is folded into the umbrella docs (P1 §A–§D ·
 P2 §A · P4 §A · P5 §A); the original source files were deleted 2026-08-18.
 
 **Not archived (active):** this tracker · remaining umbrella plans P4–P5 ·
-the branch-rejoin experiment.
+P3B follow-up · the branch-rejoin experiment.

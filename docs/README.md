@@ -1,6 +1,6 @@
 # Museum docs — context router
 
-**Audience:** agents + humans. **Last reviewed:** 2026-08-23 (post-P2 close: routing table re-verified — `/editor` live, `/museum` + `/museum/editor` relics unchanged).
+**Audience:** agents + humans. **Last reviewed:** 2026-08-24 (post-P3 close: routing table re-verified — `/editor` live, `/museum` + `/museum/editor` relics unchanged).
 **Bootstrap (hard rules):** [`../AGENTS.md`](../AGENTS.md) ·
 **Plan status / what's next:** [`plans/README.md`](./plans/README.md) (tracker) ·
 **Live working-tree state:** [`hand-off/CURRENT.md`](./hand-off/CURRENT.md).

@@ -7,7 +7,7 @@ reconciled 2026-08-23 by P9. Blue `#2F8CFF` is the sole target accent system.
 [`Design-png/README.md`](../../Design-png/README.md); executed by
 [P3](../archive/plans/2026-08-18-P3-ui-overhaul.md).
 
-This specification translates the approved product model and generated UI concepts into concrete implementation rules. The canonical product remains a domain × view system:
+This specification translates the approved product model and generated UI concepts into concrete implementation rules. The canonical product remains the explicit `Scene | Camera` × `Plan | 3D` domain/view system:
 
 * Scene → Plan = author the museum spatially in 2D (Layout | Arrange)
 * Scene → 3D = full scene-object authoring and new placement
@@ -542,7 +542,7 @@ Scene Plan and Camera Plan use a deliberately bright drafting surface against th
 
 Context objects should render around **35–55% visual strength** relative to authored architecture.
 
-Camera Plan backdrop should be slightly more subdued than Scene Plan because camera topology is the foreground information.
+Camera Plan backdrop should be slightly more subdued than Scene Plan because camera topology is the foreground information. P3B centralizes this variation and removes hardcoded third-color selection values.
 
 ---
 
@@ -1190,14 +1190,15 @@ Camera Plan may:
 * drag nodes
 * drag path anchors
 
-Plan edits:
+Plan edits use world **X/Z** coordinates:
 
 ```text
-X
-Z
+screen X  ← world X
+screen Y  ← world Z
 ```
 
-Plan preserves:
+The SVG viewport's `x/y` are pixel-space axes, not world-axis labels. Plan
+preserves world **Y** (height):
 
 ```text
 Y
@@ -1301,14 +1302,17 @@ Selection feedback is layered and must not be confused with hover or context:
 The object outline is an OBB/rotation-aware visual boundary, not a second
 selection store. Hover must never look selected, and the orientation box must
 never select an object. Layout boxes and passive Scene Plan footprints remain
-read-only outside their owning mode. P3 owns color, stroke, dash, opacity,
-layering, and spacing reconciliation; existing selection priority and
-selection continuity remain frozen.
+read-only outside their owning mode. Layout boxes should follow the white/light
+aesthetic shown in `scene-3d-layout-selection.png`, with restrained neutral
+borders/fills rather than amber or dark-neutral emphasis. P3 owns color, stroke,
+dash, opacity, layering, and spacing reconciliation; existing selection priority
+and selection continuity remain frozen.
 
 ## Upper-right XYZ orientation box
 
 The orientation box is a custom SVG/DOM viewport utility, not a Lucide icon,
-not the selected-object gizmo, and not a local/world space switch:
+not the selected-object gizmo, and not a local/world space switch. Its shared
+orientation tokens must be defined in the editor token file before styling:
 
 * place it in the **upper-right corner of the Scene → 3D viewport**, with the
   §8 inset/size tokens and no bottom-left fallback;

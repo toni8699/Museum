@@ -1,6 +1,6 @@
 # Museum Editor — Shell & Workspace Exposure Specification
 
-**Status:** canonical shell/workspace specification — **ratified 2026-08-19**
+**Status:** canonical domain/view exposure specification — **ratified 2026-08-19**; reconciled with the current `Scene | Camera` × `Plan | 3D` product shell
 **Purpose:** codebase conformance review
 **Scope:** editor shell composition, workspace ownership, component visibility, interaction authority, persistence, and cross-workspace transitions.
 **Last reconciled:** 2026-08-23 — P9, plus the **P10 amendment (2026-08-23):**
@@ -20,7 +20,7 @@ numbers unchanged, so external `§N` references stay valid.
 | Scene workspaces (Plan/Layout/Arrange · 3D · assets) | [`Shell-scene-workspaces.md`](./Shell-scene-workspaces.md) | §6–§8 · §29–§30 |
 | Camera workspaces (Plan · 3D · timeline) | [`Shell-camera-workspaces.md`](./Shell-camera-workspaces.md) | §9–§13 |
 
-This specification complements the [visual UI specification](./Design-specs.md).
+This specification complements the [visual UI specification](./Design-specs.md). The domain/view terminology below is the current product shell contract and should be kept consistent with the North Star and architecture docs.
 
 The visual specification answers:
 
@@ -473,8 +473,10 @@ The shell owns exposure and isolation:
 
 * the selected-object Move/Rotate/Scale gizmo is an authoring overlay exposed
   only in Scene → 3D;
-* the compact XYZ orientation box is a view utility exposed only in Scene → 3D,
-  pinned to the viewport's upper-right corner rather than the bottom-left;
+* the compact XYZ orientation box is a view utility exposed only in the
+  unified 3D view while Scene/object authoring owns the active interaction
+  context, pinned to the viewport's upper-right corner rather than the
+  bottom-left;
 * the orientation box is not a selection target, transform-space switch, or
   replacement for TransformControls;
 * the RGB axis mapping is X `#F05252`, Y `#45C878`, Z `#3B82F6`, and the
@@ -484,10 +486,13 @@ P3 is cosmetic only: it reconciles the PNG-matching geometry, placement,
 colors, line weights, opacity, selection outlines, layout boxes, gizmo handles,
 and widget states without changing authority or input semantics. Post-P3
 **P3B** adds only the orientation-box interaction: camera-following state,
-axis/face click or keyboard activation, canonical camera snap, isolated hit
-testing, selection preservation, no document/history mutation, and no
-widget-drag orbit. P3B does not add Plan scaling or change Scene object
-selection/transform semantics.
+axis/face click or keyboard activation through the existing canonical view-snap
+API, isolated hit testing, selection preservation, no document/history mutation,
+and no widget-drag orbit. P3B does not add Plan scaling or create additional
+workspaces. The current shell remains the explicit `Scene | Camera` × `Plan | 3D`
+model. The Scene 3D layout/object selection sketch also sets the visual direction
+for passive layout boxes: use the quiet white/light layout-box treatment from the
+sketch rather than amber or dark-neutral emphasis.
 
 ---
 
@@ -645,6 +650,9 @@ Legend:
 | Scene 3D object outline |                   — |                    — |                      E |              — |         — |
 | XYZ orientation box (visual) |               — |                    — |                      V |              — |         — |
 | XYZ orientation box (input, P3B) |           — |                    — |                      E |              — |         — |
+
+*The matrix above is retained for current implementation review; it does not
+create a final greenfield workspace architecture.*
 | Add scene asset    | existing workflows only | no 2D placement in P2 v1 |     E |              — |         — |
 | Asset Library      |                 E/C |                 E/C  |                      E |              — |         — |
 | Scene Hierarchy    |                   E |                    E |                      E |              — |         — |
@@ -877,9 +885,10 @@ scale semantics, pointer priority, or history.
 
 ### T. Orientation-box interaction contract
 
-Verify the XYZ orientation box is upper-right and Scene 3D-only; after P3B,
-axis/face click or keyboard activation changes only the camera view, preserves
-selection, cannot be dragged to orbit, and creates no document/history entry.
+Verify the XYZ orientation box is upper-right and unified-3D-only under the
+Scene/object authoring context; after P3B, axis/face click or keyboard
+activation changes only the camera view, preserves selection, cannot be dragged
+to orbit, and creates no document/history entry.
 Verify its hit targets do not compete with object selection or TransformControls.
 
 ---

@@ -437,9 +437,11 @@ own Plan authority and P3B does not change object-selection semantics.
 ### Upper-right XYZ orientation box
 
 The orientation box is a custom SVG/DOM view utility, not a transform gizmo,
-local/world switch, or selection target:
+local/world switch, or selection target. Its `--editor-orientation-*` size,
+inset, surface, border, hover, and label tokens must be restored in the editor
+token file before styling:
 
-* place it in the **upper-right of the Scene → 3D viewport**, using the
+* place it in the **upper-right of the Scene 3D viewport**, using the
   `--editor-orientation-*` size, inset, surface, border, and label tokens;
 * render the compact cube/axis construction with visible X/Y/Z labels and the
   canonical axis colors; keep it crisp over the rich scene without becoming a

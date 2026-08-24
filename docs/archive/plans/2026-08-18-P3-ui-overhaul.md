@@ -1,8 +1,8 @@
 # P3 — UI overhaul (umbrella)
 
 **Date:** 2026-08-18
-**Status:** In progress — owner rejected the 2026-08-24 close; P3.6 corrective visual reconciliation is implemented and awaiting owner review. P10 remains shipped. P3B remains a separate proposed follow-up.
-**Tracker:** [`docs/plans/README.md`](README.md) — **P3**, depends on: P9 + P1 (per-increment; P3.5 also P8 S2–S4); P3.1–P3.3 no longer await P2 — Scene Plan staging/Arrange shipped with P2 + P10.1–P10.3
+**Status:** Shipped 2026-08-24 — P3.1–P3.3 and P3.6 accepted. P3.4/P3.5 context-menu work was marked undone and moved into P3B to be revisited, and the P3B interaction/affordance expansion was extracted into [`2026-08-24-P3B-orientation-preview-affordances.md`](../../plans/2026-08-24-P3B-orientation-preview-affordances.md). P10 remains shipped.
+**Tracker:** [`docs/plans/README.md`](../../plans/README.md) — **P3**, depends on: P9 + P1; P3.1–P3.3 and P3.6 are the accepted visual reconciliation slice. Deferred context-menu testing and P3B interaction work are tracked in [`2026-08-24-P3B-orientation-preview-affordances.md`](../../plans/2026-08-24-P3B-orientation-preview-affordances.md).
 
 **Rejected close note (2026-08-24):** The owner rejected this close because
 the result read primarily as token/color changes, Plan walls/openings did not
@@ -14,11 +14,13 @@ P3.2 created and applied all six canonical style files plus Inter Variable,
 blue-tinted chrome, icon, selection, gizmo, and orientation-box tokens; P3.3
 closed the visual defect rows, including owner-neutral Arrange selection,
 hover, rotation feedback, empty Plan treatment, and Camera Plan selection.
-P3.4/P3.5 added one shared context-menu shell with Scene, Layout/Arrange,
-Outliner, Camera Plan/3D, and timeline adapters over existing commands. Final
-review fixed native-menu suppression, exact target identity selection-before-
-menu, Outliner opening/object selection, and the blocked room-Rename gate.
-Verification: 2,069 tests passed / 1 skipped; `svelte-check` 0/0; build clean;
+P3.4/P3.5 implementation added one shared context-menu shell with Scene,
+Layout/Arrange, Outliner, Camera Plan/3D, and timeline adapters over existing
+commands. The implementation is retained, but those increments were marked
+undone and moved into P3B to be revisited pending broader acceptance testing. The earlier review fixed native-menu
+suppression, exact target identity selection-before-menu, Outliner
+opening/object selection, and blocked room-Rename handling. Verification:
+2,075 tests passed / 1 skipped; `svelte-check` 0/0; build clean;
 legacy gold-accent gate clean; `git diff --check` clean; sidebar Browser QA
 covered empty Plan, room creation, Plan↔3D persistence, custom menu opening,
 and editable native-menu preservation.
@@ -80,17 +82,17 @@ and editable native-menu preservation.
 
 The specs below are **canonical** and define the overhaul's target state:
 
-- **Visual:** [`Design-specs.md`](../Design-specs/Design-specs.md) — tokens,
+- **Visual:** [`Design-specs.md`](../../Design-specs/Design-specs.md) — tokens,
   typography, icons, spacing, radii, shell dimensions, per-surface rules.
   Its color system (blue accent `#2F8CFF` on blue-tinted chrome) is the
   overhaul's sole active/selection palette. The spec's §37 token architecture — six files under
   `src/lib/editor/styles/` (`tokens.css`, `editor-shell.css`, `controls.css`,
   `inspector.css`, `timeline.css`, `plan.css`) — does not exist yet; P3.2
   creates all six.
-- **Exposure:** [`Design-shell-specs.md`](../Design-specs/Design-shell-specs.md)
-  — workspace ownership, capability routing, non-leakage rules (split 2026-08-21 → [`Shell-camera-workspaces.md`](../Design-specs/Shell-camera-workspaces.md) §9–13 + [`Shell-scene-workspaces.md`](../Design-specs/Shell-scene-workspaces.md) §6–8; § numbers preserved). P1 §A.2
+- **Exposure:** [`Design-shell-specs.md`](../../Design-specs/Design-shell-specs.md)
+  — workspace ownership, capability routing, non-leakage rules (split 2026-08-21 → [`Shell-camera-workspaces.md`](../../Design-specs/Shell-camera-workspaces.md) §9–13 + [`Shell-scene-workspaces.md`](../../Design-specs/Shell-scene-workspaces.md) §6–8; § numbers preserved). P1 §A.2
   holds the current conformance mapping; P3 inherits it unchanged.
-- **QA ground truth:** [`Design-png/README.md`](../../Design-png/README.md)
+- **QA ground truth:** [`Design-png/README.md`](../../../Design-png/README.md)
   registers the one canonical lowercase PNG set. P3.1 QAs every shipped surface
   against that registry and this specification; no active alternate concepts or
   known-convention exceptions remain after P9.
@@ -106,12 +108,11 @@ visual state to the canonical `Design-specs.md` state.
 reshapes the Camera Sidebar before P3 — neighbor dropdown replaces the
 connection-tree accordion, drag-only reorder, empty-chain promotion — so the
 sidebar matches `Design-shell-specs.md` §4's row model when P3 starts.
-P3 is **primarily visual reconciliation**; P3.4/P3.5 are the sole approved
-interaction-infrastructure exception and expose existing commands without
-changing underlying product semantics. P3.1 QAs against the P1.9 state. Scene 3D gizmo,
-selection-color, object-outline/layout-box, and upper-right XYZ orientation-box
-visuals are included in P3; the new orientation-box interaction is tracked in
-the recommended post-P3 **P3B** slice.
+P3 is **primarily visual reconciliation**. P3.1 QAs against the P1.9 state;
+P3.1–P3.3 and P3.6 are accepted. Scene 3D gizmo, selection-color,
+object-outline/layout-box, upper-right XYZ orientation-box visuals, and the
+five-lane timeline presentation are part of the closed visual slice. Context-menu
+coverage and orientation-box/preview interaction work are deferred to P3B.
 
 ## Scope (pinned)
 
@@ -120,15 +121,15 @@ the recommended post-P3 **P3B** slice.
   reconciled to the canonical specs above (replacing the earlier
   "reconcile with the S10.1.7 tokens" baseline).
 - **Must not:** change behavior contracts, restructure the shell, or re-polish
-  during P1/P2 (the P1.7 light pass covers interim presentation). The sole
-  exception is the P3.4/P3.5 context-menu slice, which adds interaction
-  infrastructure without changing underlying product semantics.
+  during P1/P2 (the P1.7 light pass covers interim presentation). P3.4/P3.5
+  context-menu exposure and P3B input/affordance wiring are tracked separately
+  and do not gate this closed visual plan.
 - **Dependencies are per-increment, not umbrella-wide:** P3.1–P3.4 do not gate
   on P2. **2026-08-23 rebase:** P2 and P10.1–P10.3 shipped, so the previously
   deferred staging-dependent surfaces (P3.1's Scene Plan QA rows, the Scene
   Plan context menu) are now live scope. P3.1–P3.3 form the visual baseline
-  **P10.4** consumes; P3.4/P3.5 are interaction-infrastructure and do not gate
-  P10.4.
+  **P10.4** consumes; P3.4/P3.5 were interaction-infrastructure work, but their acceptance is
+  now deferred to the extracted P3B plan and they do not gate P3 close.
 
 ## Pre-P3 brief — Scene Plan footprint and 3D outline coherence
 
@@ -279,13 +280,13 @@ existing width/depth fallback; do not replace it with runtime mesh projection.
 | **P3.1** | Visual QA: `Design-png/` sketches + `Design-specs.md` vs the live shell (sketch → surface mapping below); recorded deviation list — **including the shipped owner-aware Arrange surface** (§P3.1 QA scope) | P9 + P1 + P2 + P10.1–P10.3 |
 | **P3.2** | Token / typography / icon reconciliation to `Design-specs.md` §5–§8 + §28A + §37 — incl. creating the full six-file `styles/` directory (`tokens.css`, `editor-shell.css`, `controls.css`, `inspector.css`, `timeline.css`, `plan.css`), migrating editor chrome to the blue-tinted system, and tokenizing Scene 3D gizmo, selection/hover, object/layout-box, and orientation-box visuals | P3.1 |
 | **P3.3** | Non-behavioral defect-fix pass (visual only — §P3.3 boundary) | P3.2 |
-| **P3.4** | Shared `ContextMenu` + non-camera adapters (Scene 3D · Scene Plan Layout + Arrange · Outliner) exposing existing commands only; selection-before-menu tests; editable/native interception; no camera dependency | layout-undo-wrap fix (shipped 2026-08-21), P3.3 |
-| **P3.5** | Camera Plan · Camera 3D · Timeline context-menu adapters binding P8's Preview Camera / Preview Edge / Preview Sequence; menus attach to actual backing identities (not the cosmetic five-lane labels); validators/disabled reasons | P3.4, P8 S2–S4 |
-| **P3B** | **Recommended after P3:** make the new upper-right XYZ orientation box interactive and camera-aware, with click-to-snap and no drag rotation | P3 |
+| **P3.4** | **Undone — moved to P3B to be revisited:** context-menu shell and non-camera adapters require broader testing before acceptance | P3.3 |
+| **P3.5** | **Undone — moved to P3B to be revisited:** camera/timeline context-menu adapters require broader testing before acceptance | P3.4 + P8 S2–S4 |
+| **P3B** | Extracted to [`2026-08-24-P3B-orientation-preview-affordances.md`](../../plans/2026-08-24-P3B-orientation-preview-affordances.md) | P3 + P8 S2–S4 |
 
 > **2026-08-23 sequencing:** P3.1 → P3.2 → P3.3 → **P10.4** (Arrange visual
 > reconciliation onto the P3.1–P3.3 baseline) → **P10.5** (P10 regression/docs
-> close-out) → then P3.4 → P3.5 → **P3 close**. P10.4 does not need P3.4/P3.5.
+> close-out) → then **P3 close**. P3.4/P3.5 and the P3B expansion continue under the extracted P3B plan to be revisited. P10.4 does not gate P3 close.
 
 ## P3.1 QA scope — Scene Plan (2026-08-23 rebase)
 
@@ -320,10 +321,10 @@ P3.3's visual defect pass is scoped against the shipped P10 surface:
   (`resolveArrangeHit`), selection memory / last-owner rule, mutators,
   history entries, and room ownership.
 
-## P3B — Interactive XYZ orientation box (recommended post-P3)
+## P3B — extracted historical scope
 
-**Status:** Proposed — schedule immediately after P3.3; deliberately outside the
-P3 visual-only DoD.
+**Status:** Extracted to [`2026-08-24-P3B-orientation-preview-affordances.md`](../../plans/2026-08-24-P3B-orientation-preview-affordances.md) on 2026-08-24. The active P3B plan owns its status and acceptance; this section remains here as the historical
+scope that was moved out of the P3 close.
 
 **Purpose:** make the new top-right XYZ orientation box respond to the Scene 3D
 camera without turning P3's primarily-visual pass into a behavior change. The box
@@ -388,12 +389,14 @@ camera. P3B does not reopen the P2/P3 workspace model.
 - widget hit testing is isolated from object selection and TransformControls;
 - the box is upper-right, custom, tokenized, and isolated to Scene 3D;
 - Plan Arrange remains scale-free;
-- suite green, `svelte-check` 0, build clean; tracker marks **P3B shipped**.
+- See the extracted P3B plan for the active definition of done; this historical
+  proposal was not shipped as part of P3.
 
 ## P3.4 / P3.5 — Context menus (progressive disclosure of existing commands)
 
-**Status:** Approved — folded into P3 2026-08-21. This is the one
-**interaction-infrastructure** slice P3 hosts: right-click menus that expose
+**Status:** Extracted to P3B on 2026-08-24; not accepted as closed and marked
+undone pending additional testing. This is the one
+**interaction-infrastructure** slice P3 hosted: right-click menus that expose
 *existing* commands through one shared shell + per-surface adapters. It is not
 visual polish and it is not new product capability — every menu action calls an
 existing store/facade command, so **one user gesture = one undo entry**.
@@ -442,7 +445,7 @@ set, minus Plan-only spatial actions. The five adapter rows in the diagram
 cover all shipped menu surfaces; a surface never gets its own adapter just
 because it is a different view.
 
-### v1 menu set (ship)
+### Historical v1 menu set (not yet accepted)
 
 | Surface | Target | Actions |
 |---|---|---|
@@ -574,11 +577,12 @@ exists; never substitute `applyFullMovePreset` / `applyFocusTimingPreset`.
 - disabled-with-reason and relic-boundary contracts hold;
 - right-click outside editable targets opens the custom menu; text inputs keep
   the native menu;
-- suite green, `svelte-check` 0, build clean; tracker marks **P3.4 / P3.5 shipped**.
+- This definition of done was not met for P3.4/P3.5. See the extracted P3B
+  plan for the additional testing and acceptance work.
 
 ### P3.1 canonical sketch registry
 
-[`Design-png/README.md`](../../Design-png/README.md) owns the complete 27-image
+[`Design-png/README.md`](../../../Design-png/README.md) owns the complete 27-image
 surface/state mapping. P3.1 consumes that registry instead of maintaining a
 second filename table. Asset-import imagery remains a P4 target rather than P3
 implementation scope; every other shipped surface is P3 visual QA input.
@@ -641,7 +645,7 @@ P2 or P3B behavior contract by changing the screenshot interpretation.
 
 ## Canonical visual corpus (P9)
 
-[`Design-png/README.md`](../../Design-png/README.md) is the only active visual
+[`Design-png/README.md`](../../../Design-png/README.md) is the only active visual
 ledger. Git history owns older concepts. `camera-sequence-insert-zones.png` is
 the existing four-panel Start/Between/End insertion canvas under its correct
 name; no insert-zones surface is missing.
@@ -654,30 +658,26 @@ name; no insert-zones surface is missing.
   §6 (typography), §7–§11 (tokens), §12–§20 (spacing, radii, chrome,
   controls), §22–§26 (toolbar/timeline/inspector/tree), §28A–§35 (Scene 3D
   overlays, selection, motion, status, shortcuts), §37 (token architecture).
-  This includes the
-  visual treatment of the Scene 3D scale gizmo, object outlines, and upper-right
-  XYZ orientation box, but not new interaction semantics.
+  This includes the accepted visual treatment of the Scene 3D scale gizmo,
+  object outlines, upper-right XYZ orientation box, and five-lane timeline;
+  interaction semantics are deferred to P3B.
 - **Shipped by P1/P2, conformance inherited** (not rebuilt): §1–§3 (stack),
   the shell/workspace model and capability matrix — owned by P1 §A.2 and P2 §B.
 - **Out of P3 scope (deferred surfaces):** the wider asset-management state
   (Shell spec §8 / Design-specs §21) and any §24/§26 timeline detail not
   built by P1.6/P1.7. §4 "command menu later" is **partially pulled in**:
-  P3.4/P3.5 ship the progressive-disclosure right-click menu for *existing*
-  commands (see below); the wider command-menu surface and the deferred asset
-  menu items stay out (the Scene Plan Arrange menu is in P3.4 scope — see the
-  P10 rebase above). Five-lane `Camera Path / Shots / FOV / Look At / Roll` (`Design-specs §24` / `Shell §12`) is **cosmetic in P3** — visual split of current two-lane backing infrastructure, ground truth `camera-timeline-expanded.png`. `Shots` and `Roll` have no store model yet. P3.5 menus attach to backing identities, never lane labels. Scene 3D gizmo, selection/hover colors, object/layout boxes, and orientation-box presentation are likewise cosmetic P3 work. P3 changes no interaction semantics except P3.4/P3.5 context menus; orientation-box input/camera snap remains P3B.
+  P3B owns the extracted progressive-disclosure right-click menu work and
+  orientation-box/preview affordances. Five-lane `Camera Path / Shots / FOV /
+  Look At / Roll` (`Design-specs §24` / `Shell §12`) is accepted as a cosmetic
+  P3 presentation split; `Shots` and `Roll` have no store model. P3B menus attach
+  to backing identities, never lane labels.
 
 ## Definition of done (P3 close)
 
 - One visual QA vs the `Design-png/README.md` registry + `Design-specs.md` with
   recorded deviations; token/typography/icon state matches `Design-specs.md`
   §5–§8 / §28A / §37 (no legacy accent literals left in editor chrome); the Scene 3D
-  gizmo/outline/XYZ-box visuals are reconciled without changing behavior;
-  **no behavioral drift** *except* the deliberate P3.4/P3.5 interaction slice
-  (context menus expose existing commands only); P3.4/P3.5 meet their own DoD
-  above; suite green, `svelte-check` 0, build clean; tracker
-  marks **P3 shipped**.
-
-P3B is scheduled next for the behavior and interaction acceptance described
-above; it is not a hidden P3.4 and must not be marked complete by the P3 visual
-DoD.
+  gizmo/outline/XYZ-box visuals and five-lane timeline are reconciled without
+  changing behavior; **no behavioral drift**. P3.4/P3.5 and P3B are explicitly
+  deferred to the extracted follow-up plan; suite green, `svelte-check` 0, build
+  clean; tracker marks **P3 shipped**.

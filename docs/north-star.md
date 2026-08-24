@@ -18,11 +18,12 @@ New Project
   → later import and continue
 ```
 
-Plan = layout CAD plus Scene Plan **Arrange** for movable objects already in
-the space — already-placed floor objects and Layout objects alike, each routed
-through its existing owner pipeline. 3D = integrated project editor and the
-home for full scene-object authoring and new placement. No separate Scene,
-Camera, or Layout-3D workspace.
+The editor is organized as two explicit axes: `Scene | Camera` and `Plan | 3D`.
+Scene Plan owns layout CAD plus Scene Plan **Arrange** for movable objects
+already in the space; Scene 3D owns full scene-object authoring and placement.
+Camera Plan authors camera routes/topology; Camera 3D authors movement/framing.
+These are four views inside one persistent shell, not unrelated applications.
+The domain/view model is intentional and current.
 
 `/museum` = frozen Chopin visitor relic; `/museum/editor` = frozen legacy
 Scene · Camera editor relic (no Layout tab). Both keep checked-in
@@ -53,11 +54,12 @@ format. The document model does not change when account save arrives.
 ## Sacred contracts
 
 1. Semantic drafting, not Blender. App owns generated mesh; no arbitrary CSG/sculpt.
-2. One editor shell: Plan | 3D. One 3D Canvas, active selection domain, hierarchy,
-   inspector, contextual gizmo host.
+2. One editor shell: Scene|Camera over Plan|3D. One 3D Canvas, active selection
+   domain, hierarchy, inspector, contextual gizmo host.
 3. One geometry compiler. Plan and 3D derive from `compileLayoutGeometry()`.
 4. One camera graph/motion path: `camera-route.ts` + `camera-motion.ts`.
-5. Greenfield: New Project starts empty. No Chopin/legacy editor migration.
+5. Greenfield: New Project starts empty. The editor uses the explicit Scene|Camera
+and Plan|3D shell; no Chopin/legacy editor migration.
 6. Versioned full-project import/export. Import atomic; clears history/selection;
    future migrations root at the editor format.
 7. `/museum` visitor and `/museum/editor` legacy editor relic stay frozen. The

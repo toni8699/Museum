@@ -27,6 +27,68 @@ export type PlanGridLine = {
 	major: boolean;
 };
 
+export type PlanRulerTick = {
+	value: number;
+	pixel: number;
+};
+
+export type PlanScaleSegment = {
+	startPixel: number;
+	widthPixel: number;
+	value: number;
+};
+
+function niceStep(raw: number): number {
+	if (!Number.isFinite(raw) || raw <= 0) return 1;
+	const exponent = Math.floor(Math.log10(raw));
+	const magnitude = 10 ** exponent;
+	const normalized = raw / magnitude;
+	const base = normalized < 1.5 ? 1 : normalized < 3.5 ? 2 : normalized < 7.5 ? 5 : 10;
+	return base * magnitude;
+}
+
+export function planRulerStep(pixelsPerMeter: number, targetPixels = 80): number {
+	return niceStep(targetPixels / Math.max(pixelsPerMeter, Number.EPSILON));
+}
+
+export function buildPlanRulerTicks(
+	state: PlanViewportState,
+	axis: 'x' | 'z',
+	targetPixels = 80
+): PlanRulerTick[] {
+	const bounds = visiblePlanBounds(state);
+	const step = planRulerStep(state.pixelsPerMeter, targetPixels);
+	const min = axis === 'x' ? bounds.minX : bounds.minZ;
+	const max = axis === 'x' ? bounds.maxX : bounds.maxZ;
+	const ticks: PlanRulerTick[] = [];
+	for (let value = Math.ceil(min / step) * step; value <= max + step / 2; value += step) {
+		ticks.push({
+			value: Number(value.toFixed(9)),
+			pixel: axis === 'x' ? worldToPlanScreen(state, [value, state.center[1]])[0] : worldToPlanScreen(state, [state.center[0], value])[1]
+		});
+	}
+	return ticks;
+}
+
+export function buildSegmentedScaleBar(
+	pixelsPerMeter: number,
+	targetPixels = 100
+): { meters: number; segments: PlanScaleSegment[] } {
+	const meters = niceStep(targetPixels / Math.max(pixelsPerMeter, Number.EPSILON));
+	const adjustedMeters = meters * pixelsPerMeter < 80 ? meters * 2 : meters;
+
+	const segmentCount = 2;
+	const segmentWidth = adjustedMeters * pixelsPerMeter / segmentCount;
+	return {
+		meters: adjustedMeters,
+		segments: Array.from({ length: segmentCount }, (_, index) => ({
+			startPixel: index * segmentWidth,
+			widthPixel: segmentWidth,
+			value: (index * adjustedMeters) / segmentCount
+		}))
+	};
+}
+
 export function createPlanViewportState(): PlanViewportState {
 	return {
 		width: 800,
@@ -155,12 +217,15 @@ export function buildPlanGrid(
 	if (!state.gridEnabled) return [];
 	const bounds = visiblePlanBounds(state);
 	const lines: PlanGridLine[] = [];
+	const minorPixelSpacing = minorSpacing * state.pixelsPerMeter;
+	const renderMinor = minorPixelSpacing >= 6;
 	const startX = Math.floor(bounds.minX / minorSpacing) * minorSpacing;
 	const endX = Math.ceil(bounds.maxX / minorSpacing) * minorSpacing;
 	const startZ = Math.floor(bounds.minZ / minorSpacing) * minorSpacing;
 	const endZ = Math.ceil(bounds.maxZ / minorSpacing) * minorSpacing;
 	for (let x = startX; x <= endX + minorSpacing / 2; x += minorSpacing) {
 		const major = Math.abs(x / majorSpacing - Math.round(x / majorSpacing)) < 1e-6;
+		if (!major && !renderMinor) continue;
 		lines.push({
 			id: `v:${x}`,
 			start: worldToPlanScreen(state, [x, bounds.minZ]),
@@ -171,6 +236,7 @@ export function buildPlanGrid(
 	}
 	for (let z = startZ; z <= endZ + minorSpacing / 2; z += minorSpacing) {
 		const major = Math.abs(z / majorSpacing - Math.round(z / majorSpacing)) < 1e-6;
+		if (!major && !renderMinor) continue;
 		lines.push({
 			id: `h:${z}`,
 			start: worldToPlanScreen(state, [bounds.minX, z]),

@@ -29,16 +29,20 @@ frozen relic routes.
 
 ## Outcome
 
-P3B should deliver three independent core slices plus a deferred acceptance tail:
+P3B is executed as sequential groups, not concurrent tracks. Complete the
+current group before starting the next; P3B.4b is the final Group A refinement,
+and the deferred tail is intentionally last and remains non-blocking.
 
-1. **Orientation interaction** — restore the specified Scene 3D orientation
-   utility only after its canonical snap authority is discovered or defined by
-   the shell/view contract.
-2. **Plan-surface parity** — reconcile Scene Plan and Camera Plan presentation
-   without changing their shared spatial math or authority.
-3. **Camera preview affordances** — make selection, explicit preview, transport,
-   scope labels, and sequence/edge meaning unambiguous across Camera Plan,
-   Camera 3D, Inspector, Sidebar, and the shared Camera timeline.
+P3B should deliver three core groups plus a deferred acceptance tail:
+
+1. **Group A — Plan-surface parity** — reconcile Scene Plan and Camera Plan
+   presentation without changing their shared spatial math or authority.
+2. **Group B — Scene 3D orientation interaction** — restore the specified
+   orientation utility only after its canonical snap authority is discovered or
+   defined by the shell/view contract.
+3. **Group C — Camera preview affordances** — make selection, explicit preview,
+   transport, scope labels, and sequence/edge meaning unambiguous across Camera
+   Plan, Camera 3D, Inspector, Sidebar, and the shared Camera timeline.
 4. **Deferred P3.4/P3.5 tail** — revisit the existing context-menu adapters and
    accept them only after broader testing; this tail does not block core P3B.
 
@@ -138,6 +142,36 @@ Scene Plan + Camera Plan
 → common Plan math and hit testing remain unchanged
 ```
 
+## P3B.4b — Plan ruler corner orientation key
+
+This follows P3B.4a within Group A and must be completed before Group B begins.
+Both Plan surfaces receive the same small, non-interactive L-shaped corner key
+at the lower-left ruler corner:
+
+```text
+Z ↑
+  │
+  └────────→ X
+```
+
+The vertical Z indicator points upward and meets the horizontal X indicator at
+its base. The key is presentation-only, uses muted Plan ruler styling, remains
+visible when the grid is disabled, does not collide with the segmented scale or
+metadata, and does not alter Plan transforms, hit resolution, selection, or
+document state. It is shared by Scene Plan and Camera Plan and is not a second
+coordinate system.
+
+## Acceptance
+
+- `Z ↑` is the vertical indicator and `X →` is at the base, pointing right.
+- The key is fixed to the lower-left ruler corner and does not follow model
+  geometry or selection.
+- It is identical across Scene Plan and Camera Plan, non-interactive, and
+  exposed as a concise presentation label or intentionally hidden when the
+  surrounding rulers provide equivalent semantics.
+- Existing screen-X/screen-Y implementation math remains unchanged; the key
+  communicates the Plan's world X/Z convention only.
+
 # Slice group B — Scene 3D orientation and layout presentation (P3B.1–P3B.4)
 
 ## Orientation discovery gate
@@ -164,7 +198,7 @@ If no canonical authority exists:
 - stop P3B.1–P3B.4;
 - report the exact searched files/APIs;
 - do not invent snap semantics;
-- allow P3B.4a and Slice group C to proceed independently;
+- do not begin Group B implementation until the authority is approved;
 - define the missing authority in the shell/view contract before resuming.
 
 The closest existing preservation contract is `captureEditorOrbitPose`, which
@@ -310,43 +344,73 @@ Coverage required before marking them shipped:
 - editable/native browser interception and empty-space behavior;
 - disabled reasons and one gesture → one undo entry;
 - relic-boundary and visitor-chunk isolation;
-- no accidental preview-scope or selection changes.
+- no accidental preview-scope or selection changes.# Recommended implementation order — sequential groups
+
+Complete these groups in order. Do not start a later group until the prior group
+is complete and accepted.
+
+### Group A — Plan-surface parity
+
+1. **P3B.4a** — Implement token cleanup, grid LOD, X/Z rulers, segmented scale
+   chrome, metadata clearance, and focused pure-helper tests.
+2. **P3B.4b** — Add the shared lower-left `Z ↑` / `X →` corner orientation key
+   to both Plan surfaces.
+
+### Group B — Scene 3D orientation and layout
+
+3. **P3B.1** — Discover and cite the canonical snap authority.
+4. **P3B.2** — Add isolated orientation hit targets using that authority.
+5. **P3B.3** — Add orientation interaction states and cancellation.
+6. **P3B.4** — Add orientation fixtures and non-mutation assertions.
+
+If P3B.1 finds no authority, stop Group B and report the searched files/APIs;
+do not invent poses. Group C does not begin until Group B is complete or the
+owner explicitly reorders/re-defers it.
+
+### Group C — Camera preview affordances
+
+7. **P3B.5** — Reconcile existing node/edge/sequence actions, target labels,
+   timeline scope labels, and selection-versus-preview behavior.
+8. **P3B.6** — Add sequence predecessor → successor derivation and the explicit
+   two-choice chooser for non-adjacent/unsequenced edges.
+
+### Completion and deferred tail
+
+9. **P3B.7a** — Run core regression and accessibility QA.
+10. **P3B.8** — Run browser QA across all four shell views.
+11. **P3B.7b** — Revisit deferred P3.4/P3.5 context-menu acceptance last.
+
+The numbered list is the authoritative order; difficulty scores in the model
+assessment do not reorder the groups.
+
 
 # Work increments and dependencies
 
 | ID | Slice | Content | Depends |
 |---|---|---|---|
 | P3B.4a | A | Plan-surface parity: centralized tokens, grid LOD, adaptive X/Z rulers/labels, shared segmented scale grammar, metadata-safe clearance. | P3 |
-| P3B.1 | B | Discover/cite canonical orientation snap authority and exact axis/face mapping; restore orientation tokens. | P3 |
+| P3B.4b | A | Shared lower-left `Z ↑` / `X →` Plan ruler corner key; presentation-only and identical across both Plan surfaces. | P3B.4a |
+| P3B.1 | B | Discover/cite canonical orientation snap authority and exact axis/face mapping; restore orientation tokens. | P3B.4b |
 | P3B.2 | B | Add isolated Scene 3D orientation hit targets and route activation through the discovered canonical API. | P3B.1 |
 | P3B.3 | B | Add hover, pressed, focus-visible, cancel, and authoring-context/view transition behavior. | P3B.2 |
 | P3B.4 | B | Add orientation fixtures: camera response, snap behavior, selection continuity, no drag-orbit, and zero document/history mutation. | P3B.2–P3B.3 |
 | P3B.5 | C | Reconcile Camera Plan/3D node, connection, Inspector, Sidebar, and timeline preview affordances and scope labels. | P3 + P8 S2–S4 |
 | P3B.6 | C | Derive sequence predecessor → immediate successor; execute it from one labeled Preview Edge action for adjacent edges, and open a compact two-choice traversal menu for non-adjacent/unsequenced edges. | P3B.5 |
-| P3B.7a | Core QA | Test orientation, preview, independent labels, edge direction, accessibility, and Plan parity. | P3B.4a + P3B.4 + P3B.6 |
+| P3B.7a | Core QA | Test orientation, preview, independent labels, edge direction, accessibility, and Plan parity. | P3B.4b + P3B.4 + P3B.6 |
 | P3B.7b | Deferred QA | Revisit undone P3.4/P3.5 acceptance; non-blocking tail. | P3B.7a or independently after touched code |
 | P3B.8 | Core browser QA | Browser QA across all four shell views, relevant sidebars/Inspectors, Plan chrome, orientation utility, and timeline. | P3B.7a |
 
-Recommended parallel start:
-
-```text
-P3B.4a ───────────────┐
-                     ├→ P3B.7a → P3B.8
-P3B.5 → P3B.6 ───────┤
-                     │
-P3B.1 → .2 → .3 → .4┘
-```
-
-If the orientation authority is absent, pause only the B branch and continue A
-and C.
+Execution is strictly sequential: complete Group A, then Group B, then Group C,
+then core QA, then the deferred tail.
 
 # Definition of done
 
 ## Core P3B
 
-- A and C may advance independently while B is gated. The P3B umbrella closes
-  only when B either ships against canonical snap authority or is explicitly
-  re-deferred by an owner decision.
+- Group A, including P3B.4a and P3B.4b, is completed first in the pinned
+  order. If B remains gated after P3B.1, the owner may explicitly re-defer B;
+  otherwise the umbrella closes only
+  when B ships against canonical snap authority.
 - Once B is resolved, P3B.4a, P3B.1–P3B.6, P3B.7a, and P3B.8 pass.
 - All preview controls have explicit target labels and preserve the
   click/select/preview/play grammar.
@@ -354,7 +418,8 @@ and C.
 - Camera Plan topology remains undirected; only explicit labeled preview uses
   direction.
 - Plan surfaces have parity in token ownership, grid density, X/Z rulers,
-  segmented scale chrome, and metadata clearance.
+  segmented scale chrome, metadata clearance, and the shared lower-left
+  `Z ↑` / `X →` corner key.
 - Scene 3D passive layout boxes match the sketch's white/light treatment.
 - Orientation interaction is Scene 3D-only, camera-derived, isolated, keyboard
   accessible, non-orbiting on drag, and non-mutating.
@@ -398,7 +463,7 @@ authority or adding parallel state systems?
    never invent axis/face poses or preserved-camera behavior.
 2. Reconcile duplicated Scene Plan/Camera Plan chrome and token drift while
    preserving shared Plan math. Use X/Z world ruler labels even though SVG uses
-   screen X/Y internally.
+   screen X/Y internally, and include the lower-left `Z ↑` / `X →` corner key.
 3. Apply white/light passive layout-box styling from
    `scene-3d-layout-selection.png`.
 4. Reconcile preview controls and timeline labels so every action identifies its
@@ -414,11 +479,12 @@ authority or adding parallel state systems?
 
 ## Review gates
 
-- **B gate:** if no canonical snap authority is found, B.1–B.4 stop and the
-  implementation reports searched files/APIs; A and C may continue.
+- **B gate:** after Groups A and C are completed, if no canonical snap authority
+  is found, B.1–B.4 stop and the implementation reports searched files/APIs;
+  no snap behavior is invented.
 - **A gate:** both Plan surfaces have equivalent visual chrome behavior at
-  equivalent zooms, readable X/Z rulers, segmented scale bars, no metadata
-  overlap, and no third selection color.
+  equivalent zooms, readable X/Z rulers, the lower-left `Z ↑` / `X →` corner
+  key, segmented scale bars, no metadata overlap, and no third selection color.
 - **C gate:** clicking selects only; explicit Preview changes scope; Play/Pause
   controls the active scope; scope labels do not follow unrelated selection;
   sequence-adjacent edge preview executes predecessor → successor, while

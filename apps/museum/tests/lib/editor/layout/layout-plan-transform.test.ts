@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
 	buildPlanGrid,
+	buildPlanRulerTicks,
+	buildSegmentedScaleBar,
 	constrainToAngle,
 	createPlanViewportState,
 	framePlanViewport,
@@ -44,6 +46,36 @@ describe('layout plan transform', () => {
 		expect(grid.length).toBeGreaterThan(0);
 		expect(grid.some((line) => line.major)).toBe(true);
 		expect(grid.some((line) => !line.major)).toBe(true);
+	});
+
+	it('lods minor grid lines when they would be visually dense', () => {
+		const state = createPlanViewportState();
+		state.pixelsPerMeter = 10;
+		const grid = buildPlanGrid(state);
+		expect(grid.some((line) => !line.major)).toBe(false);
+		expect(grid.some((line) => line.major)).toBe(true);
+	});
+
+	it('builds readable X/Z ruler ticks', () => {
+		const state = createPlanViewportState();
+		state.width = 800;
+		state.height = 600;
+		state.center = [0, 0];
+		state.pixelsPerMeter = 40;
+		const xTicks = buildPlanRulerTicks(state, 'x');
+		const zTicks = buildPlanRulerTicks(state, 'z');
+		expect(xTicks.length).toBeGreaterThan(0);
+		expect(zTicks.length).toBeGreaterThan(0);
+		expect(xTicks[1].pixel - xTicks[0].pixel).toBeGreaterThanOrEqual(40);
+	});
+
+	it('builds a segmented scale bar with a readable length across zooms', () => {
+		for (let pixelsPerMeter = 2; pixelsPerMeter <= 2000; pixelsPerMeter *= 2) {
+			const scale = buildSegmentedScaleBar(pixelsPerMeter);
+			const width = scale.segments.reduce((sum, segment) => sum + segment.widthPixel, 0);
+			expect(width).toBeGreaterThanOrEqual(80);
+			expect(width).toBeLessThanOrEqual(140);
+		}
 	});
 
 	it('gives every grid line a unique id even when start points coincide', () => {

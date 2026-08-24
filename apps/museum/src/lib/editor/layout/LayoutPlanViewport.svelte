@@ -61,15 +61,13 @@
 	} from './layout-opening-editing';
 	import { compiledWallLength, findPlanHitRoom, projectPointToWall, resolvePlanHit } from './plan-hit';
 	import {
-		buildPlanGrid,
 		constrainToAngle,
 		framePlanViewport,
 		panPlanViewport,
 		planScreenToWorld,
 		setPlanViewportSize,
 		snapToGrid,
-		zoomPlanViewport,
-		type PlanGridLine
+		zoomPlanViewport
 	} from './layout-plan-transform';
 	import type { LayoutRoom, LayoutVec2 } from '$lib/layout/layout-types';
 	import { layoutRoomUnitPivot } from './layout-room-transform';
@@ -104,6 +102,7 @@
 	} from './plan-overlays';
 	import { planCameraProjectionForProject } from './plan-camera-projection';
 	import PlanSvg from './PlanSvg.svelte';
+	import PlanCanvasChrome from './PlanCanvasChrome.svelte';
 
 	let {
 		model,
@@ -211,13 +210,11 @@
 	let stagingYawFeedback = $state<number | null>(null);
 
 	const viewBox = $derived(`0 0 ${interaction.planView.width} ${interaction.planView.height}`);
-	const gridLines = $derived<PlanGridLine[]>(buildPlanGrid(interaction.planView));
 	const draftPolygon = $derived(
 		interaction.tool === 'rectangle'
 			? rectanglePoints(interaction)
 			: interaction.polygonPoints
 	);
-	const scaleMeters = $derived(100 / interaction.planView.pixelsPerMeter);
 	const rooms = $derived(preview.project.layout.floors.flatMap((floor) => floor.rooms));
 	const baseInteractionProjection = $derived(buildPlanInteractionProjection(interaction, rooms, model));
 	const cameraProjection = $derived.by(() => {
@@ -1759,20 +1756,13 @@
 			arrangeHover = null;
 		}}
 	>
-		{#if interaction.planView.gridEnabled}
-			{#each gridLines as line (line.id)}
-				<line class:major={line.major} x1={line.start[0]} y1={line.start[1]} x2={line.end[0]} y2={line.end[1]} />
-			{/each}
-			{#each gridLines.filter((line) => line.major) as line (`label-${line.id}`)}
-				<text class="grid-label" x={line.start[0] + 4} y={line.start[1] + 12}>{line.value.toFixed(0)} m</text>
-			{/each}
-		{/if}
+		<PlanCanvasChrome layer="grid" planView={interaction.planView} />
 		<PlanSvg model={planModel} planView={interaction.planView} />
+		<PlanCanvasChrome layer="overlay" planView={interaction.planView} />
 		{#if selectedOpening}
 			<text class="selection-label" x="16" y="24">{selectedOpening.kind} · {selectedOpening.width.toFixed(2)} m × {selectedOpening.height.toFixed(2)} m</text>
 		{/if}
-		<text class="scale-label" x="16" y={interaction.planView.height - 34}>{scaleMeters.toFixed(2)} m / 100 px</text>
-		<line class="scale-bar" x1="16" y1={interaction.planView.height - 26} x2="116" y2={interaction.planView.height - 26} />
+
 	</svg>
 	<div class="plan-actions">
 		{#if interaction.tool === 'polygon' && interaction.polygonPoints.length >= 3}
@@ -1799,12 +1789,7 @@
 	.plan-canvas.staging-rotation-handle-hover { cursor: grab; }
 	.plan-canvas.object-rotation-handle-hover { cursor: grab; }
 	.plan-canvas.rotation-dragging { cursor: grabbing; }
-	.plan-canvas line { stroke: var(--editor-plan-grid-minor); stroke-width: 1; vector-effect: non-scaling-stroke; }
-	.plan-canvas line.major { stroke: var(--editor-plan-grid-major); }
-	.grid-label { fill: var(--editor-plan-muted); font: 10px var(--editor-font); pointer-events: none; }
 	.selection-label { fill: var(--editor-plan-label); font: 700 12px var(--editor-font); paint-order: stroke; stroke: var(--editor-plan-canvas-bg); stroke-width: 3px; stroke-linejoin: round; pointer-events: none; }
-	.scale-label { fill: var(--editor-plan-muted); font: 11px var(--editor-font); }
-	.scale-bar { stroke: var(--editor-plan-wall); stroke-width: 3; vector-effect: non-scaling-stroke; }
 	.plan-help { position: absolute; top: 4.25rem; left: 50%; z-index: 5; max-width: min(34rem, calc(100% - 2rem)); transform: translateX(-50%); padding: 0.45rem 0.7rem; border: 1px solid var(--editor-border-normal); border-radius: 999px; background: var(--editor-bg-panel-raised); color: var(--editor-text-primary); font: 600 0.7rem/1.2 var(--editor-font); pointer-events: none; text-align: center; }
 	.scene-bridge-chip { position: absolute; z-index: 8; padding: 0.32rem 0.48rem; border: 1px solid var(--editor-accent); border-radius: 999px; background: var(--editor-bg-selected); color: var(--editor-text-primary); font: 700 0.66rem/1 var(--editor-font); cursor: pointer; box-shadow: var(--editor-shadow-popover); }
 	.scene-bridge-chip:hover { background: var(--editor-accent-pressed); }
@@ -1817,7 +1802,7 @@
 	.plan-actions { position: absolute; right: 0.8rem; bottom: 0.8rem; z-index: 10; display: flex; gap: 0.4rem; pointer-events: auto; }
 	.plan-actions button { padding: 0.44rem 0.6rem; border: 1px solid var(--editor-accent-border); border-radius: 0.32rem; background: var(--editor-bg-selected); color: var(--editor-text-primary); font: 600 0.7rem/1 var(--editor-font); cursor: pointer; }
 	.plan-actions button.secondary { border-color: var(--editor-border-normal); background: var(--editor-bg-panel-raised); color: var(--editor-text-secondary); }
-	.plan-meta { position: absolute; left: 0.8rem; bottom: 0.8rem; z-index: 2; display: flex; gap: 0.7rem; color: var(--editor-text-secondary); font: 0.68rem/1 var(--editor-font); pointer-events: none; }
+	.plan-meta { position: absolute; left: 0.8rem; bottom: 0.8rem; z-index: 2; display: flex; gap: 0.7rem; color: var(--editor-plan-muted); font: 0.68rem/1 var(--editor-font); pointer-events: none; }
 	.plan-meta .warning { color: var(--editor-danger-fg); }
 	@media (max-width: 44rem) {
 		.plan-help { top: 5.5rem; }

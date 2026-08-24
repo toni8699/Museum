@@ -207,7 +207,7 @@
 	   blue `--editor-plan-selection` for every owner (rooms, walls, openings,
 	   layout objects, scene entities); context/read-only stays muted. */
 	.room-fill { fill: var(--editor-plan-room-bg); fill-opacity: 1; }
-	.room-fill.selected { fill: var(--editor-plan-room-selected-bg); }
+	.room-fill.selected { fill: var(--editor-plan-room-selected-bg); fill-opacity: 1; }
 	.room-outline { fill: none; stroke: var(--editor-plan-wall); stroke-width: 1; vector-effect: non-scaling-stroke; }
 	.room-outline.selected { stroke: var(--editor-plan-selection); stroke-width: 3; }
 	.scene-footprint { fill: rgb(146 144 138 / 12%); stroke: var(--editor-plan-muted); stroke-width: 1.5; stroke-dasharray: 5 4; vector-effect: non-scaling-stroke; pointer-events: none; }

@@ -19,8 +19,9 @@ slice plus one next action only.
 - P3B owns three core slices: Scene 3D orientation interaction, Scene/Camera
   Plan chrome parity, and Camera preview-affordance reconciliation. This
   includes white/light passive layout boxes, X/Z rulers, grid LOD, segmented
-  scale chrome, token cleanup, metadata clearance, explicit preview-target
-  labels, and canonical edge-direction derivation. It targets the current
+  scale chrome, token cleanup, metadata clearance, the shared lower-left
+  `Z ↑` / `X →` ruler key, explicit preview-target labels, and canonical
+  edge-direction derivation. It targets the current
   Scene|Camera × Plan|3D shell; P3B creates no additional workspace or state
   system. Deferred P3.4/P3.5 acceptance remains a non-blocking tail.
 - Previous slice: **P3.6 structural visual reconciliation**, now closed under
@@ -28,11 +29,11 @@ slice plus one next action only.
 
 ## Next action
 
-- Start P3B slices A and C in parallel where useful: Plan chrome parity and
-  preview affordance reconciliation can proceed independently while the
-  orientation branch performs snap-authority discovery. If no snap authority
-  exists, pause only B.1–B.4; do not invent behavior. Revisit P3.4/P3.5 later
-  as the separate low-priority acceptance tail.
+- Execute P3B strictly by completed groups: Group A (P3B.4a → P3B.4b) Plan
+  parity, then Group B (P3B.1–P3B.4) orientation, then Group C
+  (P3B.5–P3B.6) preview affordances, then P3B.7a core QA, P3B.8 browser QA,
+  and finally P3B.7b deferred P3.4/P3.5 acceptance. If P3B.1 finds no snap authority,
+  stop Group B and report the missing contract; do not invent behavior.
 
 ## Verification
 

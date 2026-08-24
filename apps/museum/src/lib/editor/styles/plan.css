@@ -10,9 +10,11 @@
 	--editor-plan-grid-major: #d2cec5;
 	--editor-plan-grid-minor: #e4e0d9;
 	--editor-plan-room-bg: #fffdfa;
-	--editor-plan-room-selected-bg: #eaf3ff;
-	--editor-camera-plan-canvas-bg: #e9e7e1;
-	--editor-camera-plan-room-bg: #f8f7f2;
+	--editor-plan-room-selected-bg: color-mix(in srgb, var(--editor-plan-room-bg) 88%, var(--editor-plan-selection) 12%);
+	/* One centralized subdued Camera Plan variant derived from the same palette
+	   (no third hex); keeps room paper readable against the canvas. */
+	--editor-camera-plan-canvas-bg: color-mix(in srgb, var(--editor-plan-canvas-bg) 85%, var(--editor-plan-grid-major) 15%);
+	--editor-camera-plan-room-bg: var(--editor-plan-room-bg);
 
 	/* Authored architecture vs context objects (~35–55% strength, DS §9). */
 	--editor-plan-wall-stroke: #625f59;

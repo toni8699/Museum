@@ -31,17 +31,16 @@
 	} from '../camera/editor-camera-path';
 	import { findPlanHitRoom } from '../layout/plan-hit';
 	import {
-		buildPlanGrid,
 		framePlanViewport,
 		panPlanViewport,
 		planScreenToWorld,
 		setPlanViewportSize,
 		snapToGrid,
-		zoomPlanViewport,
-		type PlanGridLine
+		zoomPlanViewport
 	} from '../layout/layout-plan-transform';
 	import { buildPlanRenderModel } from '$lib/layout/plan-render-model';
 	import PlanSvg from '../layout/PlanSvg.svelte';
+	import PlanCanvasChrome from '../layout/PlanCanvasChrome.svelte';
 	import {
 		buildCameraPlanTransientPrimitives,
 		buildPlanCameraAuthoringProjection,
@@ -103,8 +102,6 @@
 	const viewBox = $derived(
 		`0 0 ${cameraPlan.planView.width} ${cameraPlan.planView.height}`
 	);
-	const gridLines = $derived<PlanGridLine[]>(buildPlanGrid(cameraPlan.planView));
-	const scaleMeters = $derived(100 / cameraPlan.planView.pixelsPerMeter);
 
 	const authoringProjection = $derived.by(() => {
 		try {
@@ -799,19 +796,12 @@
 		onwheel={onWheel}
 		onpointerleave={onPointerLeave}
 	>
-		{#if cameraPlan.planView.gridEnabled}
-			{#each gridLines as line (line.id)}
-				<line class:major={line.major} x1={line.start[0]} y1={line.start[1]} x2={line.end[0]} y2={line.end[1]} />
-			{/each}
-			{#each gridLines.filter((line) => line.major) as line (`label-${line.id}`)}
-				<text class="grid-label" x={line.start[0] + 4} y={line.start[1] + 12}>{line.value.toFixed(0)} m</text>
-			{/each}
-		{/if}
+		<PlanCanvasChrome layer="grid" planView={cameraPlan.planView} />
 		{#if hoveredModel}
 			<PlanSvg model={hoveredModel} planView={cameraPlan.planView} />
 		{/if}
-		<text class="scale-label" x="16" y={cameraPlan.planView.height - 18}>{scaleMeters.toFixed(2)} m / 100 px</text>
-		<line class="scale-bar" x1="16" y1={cameraPlan.planView.height - 10} x2="116" y2={cameraPlan.planView.height - 10} />
+		<PlanCanvasChrome layer="overlay" planView={cameraPlan.planView} />
+
 	</svg>
 	<div class="plan-meta">
 		<span>{store.document.navigationNodes.length} cameras</span>
@@ -821,12 +811,7 @@
 
 <style>
 	.camera-plan-viewport { position: absolute; inset: 0; z-index: 3; background: var(--editor-camera-plan-canvas-bg); }
-	.plan-canvas { display: block; position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: crosshair; outline: none; background: var(--editor-camera-plan-canvas-bg); --editor-plan-room-bg: var(--editor-camera-plan-room-bg); --editor-plan-room-selected-bg: #e2efff; }
-	.plan-canvas line { stroke: var(--editor-plan-grid-minor); stroke-width: 1; vector-effect: non-scaling-stroke; }
-	.plan-canvas line.major { stroke: var(--editor-plan-grid-major); }
-	.grid-label { fill: var(--editor-plan-muted); font: 10px var(--editor-font); pointer-events: none; }
-	.scale-label { fill: var(--editor-plan-muted); font: 11px var(--editor-font); }
-	.scale-bar { stroke: var(--editor-plan-wall); stroke-width: 3; vector-effect: non-scaling-stroke; }
+	.plan-canvas { display: block; position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: crosshair; outline: none; background: var(--editor-camera-plan-canvas-bg); --editor-plan-room-bg: var(--editor-camera-plan-room-bg); }
 	.plan-help { position: absolute; top: 4.25rem; left: 50%; z-index: 5; max-width: min(34rem, calc(100% - 2rem)); transform: translateX(-50%); padding: 0.45rem 0.7rem; border: 1px solid var(--editor-border-normal); border-radius: 999px; background: var(--editor-bg-panel-raised); color: var(--editor-text-primary); font: 600 0.7rem/1.2 var(--editor-font); pointer-events: none; text-align: center; }
 	.plan-meta { position: absolute; left: 0.8rem; bottom: 0.8rem; z-index: 2; display: flex; gap: 0.7rem; color: var(--editor-plan-muted); font: 0.68rem/1 var(--editor-font); pointer-events: none; }
 	@media (max-width: 44rem) {

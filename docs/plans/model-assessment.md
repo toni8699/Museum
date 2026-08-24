@@ -64,7 +64,7 @@ success percentages.
 | **P3.4** | 70 | Sol medium | undone — P3B.7b deferred tail; broad context-menu acceptance |
 | **P3.5** | 72 | Sol medium | undone — P3B.7b deferred tail; camera-menu identity/FSM coverage |
 | **P3B.4a** | 68 | Sol medium | proposed — two Plan surfaces, pure helpers, visual/browser QA |
-| **P3B.1** | 92 | Sol xhigh | proposed — snap-authority discovery/contract gate; blocked by design; Max not required |
+| **P3B.1** | 92 | Sol xhigh | approved/unblocked — owner-approved six-face contract; instant snap, preview-disabled state, shared threshold, and fallback API required |
 | **P3B.2** | 61 | Sol medium | proposed — isolated DOM/SVG hit targets and camera integration |
 | **P3B.3** | 44 | Luna high | proposed — interaction states, cancellation, mount behavior |
 | **P3B.4** | 59 | Sol medium | proposed — orientation fixtures and non-mutation assertions |

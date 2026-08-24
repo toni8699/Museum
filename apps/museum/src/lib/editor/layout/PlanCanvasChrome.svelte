@@ -16,7 +16,7 @@
 	const rulerSize = 22;
 	const scaleOrigin = 26;
 	const scaleY = $derived(planView.height - 42);
-	const cornerX = 26;
+	const cornerX = $derived(planView.width - 116);
 	const cornerY = $derived(planView.height - 26);
 </script>
 
@@ -41,12 +41,13 @@
 </g>
 
 <g class="corner-axis-key" transform={`translate(${cornerX} ${cornerY})`} aria-hidden="true">
-	<line class="corner-axis-z" x1="0" y1="0" x2="0" y2="-16" />
-	<path class="corner-arrow-z" d="M -3 -12 L 0 -16 L 3 -12" />
-	<line class="corner-axis-x" x1="0" y1="0" x2="18" y2="0" />
-	<path class="corner-arrow-x" d="M 14 -3 L 18 0 L 14 3" />
-	<text class="corner-label-z" x="-4" y="-18" text-anchor="end">Z</text>
-	<text class="corner-label-x" x="22" y="4">X</text>
+	<line class="corner-axis-z" x1="0" y1="0" x2="0" y2="-28" />
+	<path class="corner-arrow-z" d="M -5 -21 L 0 -28 L 5 -21" />
+	<line class="corner-axis-x" x1="0" y1="0" x2="48" y2="0" />
+	<path class="corner-arrow-x" d="M 40 -5 L 48 0 L 40 5" />
+	<circle class="corner-origin" cx="0" cy="0" r="5" />
+	<text class="corner-label-z" x="0" y="-34" text-anchor="middle">Z</text>
+	<text class="corner-label-x" x="54" y="5">X</text>
 </g>
 
 <g class="segmented-scale" transform={`translate(${scaleOrigin} ${scaleY})`} aria-hidden="true">
@@ -67,9 +68,13 @@
 	.ruler-label { fill: var(--editor-plan-muted); font: 10px var(--editor-font); pointer-events: none; }
 	.ruler-label-z { dominant-baseline: middle; }
 	.scale-label, .scale-end-label { fill: var(--editor-plan-muted); font: 10px var(--editor-font); }
-	.corner-axis-z, .corner-axis-x { stroke: var(--editor-plan-muted); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
-	.corner-arrow-z, .corner-arrow-x { fill: none; stroke: var(--editor-plan-muted); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
-	.corner-label-z, .corner-label-x { fill: var(--editor-plan-muted); font: 10px var(--editor-font); }
+	.corner-origin { fill: var(--editor-axis-x); stroke: var(--editor-axis-z); stroke-width: 2; vector-effect: non-scaling-stroke; }
+	.corner-axis-z, .corner-axis-x { stroke: var(--editor-axis-z); stroke-width: 3; vector-effect: non-scaling-stroke; }
+	.corner-arrow-z, .corner-arrow-x { fill: none; stroke: var(--editor-axis-z); stroke-width: 3; vector-effect: non-scaling-stroke; }
+	.corner-axis-x, .corner-arrow-x { stroke: var(--editor-axis-x); }
+	.corner-label-z, .corner-label-x { font: 700 13px var(--editor-font); }
+	.corner-label-z { fill: var(--editor-axis-z); }
+	.corner-label-x { fill: var(--editor-axis-x); }
 	.scale-segment { fill: var(--editor-plan-wall); }
 	.scale-segment.alternate { fill: var(--editor-plan-grid-major); }
 </style>

@@ -146,12 +146,12 @@ Scene Plan + Camera Plan
 
 This follows P3B.4a within Group A and must be completed before Group B begins.
 Both Plan surfaces receive the same small, non-interactive L-shaped corner key
-at the lower-left ruler corner:
+at the bottom-right ruler corner:
 
 ```text
 Z ↑
   │
-  └────────→ X
+  ○────────→ X
 ```
 
 The vertical Z indicator points upward and meets the horizontal X indicator at
@@ -164,7 +164,10 @@ coordinate system.
 ## Acceptance
 
 - `Z ↑` is the vertical indicator and `X →` is at the base, pointing right.
-- The key is fixed to the lower-left ruler corner and does not follow model
+- A visible two-tone origin knob is painted over the shared axis base and
+  arrow joins, using the existing X/Z axis colors rather than the Plan
+  background; the axis arrows must terminate visually beneath the knob.
+- The key is fixed to the bottom-right ruler corner and does not follow model
   geometry or selection.
 - It is identical across Scene Plan and Camera Plan, non-interactive, and
   exposed as a concise presentation label or intentionally hidden when the
@@ -418,8 +421,7 @@ then core QA, then the deferred tail.
 - Camera Plan topology remains undirected; only explicit labeled preview uses
   direction.
 - Plan surfaces have parity in token ownership, grid density, X/Z rulers,
-  segmented scale chrome, metadata clearance, and the shared lower-left
-  `Z ↑` / `X →` corner key.
+  segmented scale chrome, metadata clearance, and theshared bottom-right `Z ↑` / `X →` corner key.
 - Scene 3D passive layout boxes match the sketch's white/light treatment.
 - Orientation interaction is Scene 3D-only, camera-derived, isolated, keyboard
   accessible, non-orbiting on drag, and non-mutating.

@@ -3,6 +3,8 @@ import { createPrimitiveEntity } from '$lib/editor/editor-primitives';
 import type { SceneDocument, SceneEntity, SceneModelEntity } from '$lib/content/scene';
 import { createLayoutRoomRegistry } from '$lib/project/project-layout-semantics';
 import type { Asset } from '$lib/types/assets';
+import { getAssetById, validateAssetFootprint } from '$lib/content/assets';
+import { pointInPlanPolygon } from '$lib/editor/layout/plan-scene-hit';
 import { buildPlanSceneFootprintProjection } from '$lib/editor/layout/plan-scene-footprint';
 import {
 	createLayoutPreviewState,
@@ -159,6 +161,94 @@ describe('buildPlanSceneFootprintProjection', () => {
 		);
 
 		expect(projection.footprints).toEqual([]);
+	});
+
+	describe('piano authored outline (P3 pre-brief)', () => {
+		const identityRooms = createLayoutRoomRegistry(
+			g1DocumentWithRooms([g1RectangleRoom('room-a', 0, 0, 8, 8)])
+		);
+
+		it('catalogue piano carries a valid non-rectangular footprint outline', () => {
+			const footprint = getAssetById('paris-grand-piano')?.footprint;
+			expect(footprint?.outline?.length).toBeGreaterThan(3);
+			expect(validateAssetFootprint(footprint)).toBeNull();
+			const outline = footprint!.outline!;
+			expect(Math.min(...outline.map(([, z]) => z))).toBeCloseTo(-0.84, 6);
+			expect(Math.max(...outline.map(([, z]) => z))).toBeCloseTo(0.75, 6);
+			expect(Math.max(...outline.map(([x]) => x))).toBeCloseTo(0.74, 6);
+		});
+
+		it('projects the piano outline instead of the width/depth rectangle', () => {
+			const entity = modelEntity('piano', 'paris-grand-piano', {
+				position: [0, 0, 0],
+				scale: 1
+			});
+			const projection = buildPlanSceneFootprintProjection(sceneWith([entity]), identityRooms, {
+				assetById: getAssetById
+			});
+			const points = projection.footprints[0]!.points;
+			// 9 outline points (a rectangle fallback would be 4).
+			expect(points.length).toBe(9);
+			expect(Math.max(...points.map((point) => point[1]))).toBeCloseTo(0.75, 6);
+			expect(Math.min(...points.map((point) => point[1]))).toBeCloseTo(-0.84, 6);
+			expect(Math.max(...points.map((point) => point[0]))).toBeCloseTo(0.74, 6);
+			expect(Math.min(...points.map((point) => point[0]))).toBeCloseTo(-0.74, 6);
+		});
+
+		it('retains the width/depth rectangle fallback for assets without an outline', () => {
+			const entity = modelEntity('chair', 'paris-salon-chair', { position: [0, 0, 0] });
+			const projection = buildPlanSceneFootprintProjection(sceneWith([entity]), identityRooms, {
+				assetById: getAssetById
+			});
+			expect(projection.footprints[0]!.points).toEqual([
+				[-0.32, -0.27],
+				[0.32, -0.27],
+				[0.32, 0.27],
+				[-0.32, 0.27]
+			]);
+		});
+
+		it('rotates the piano outline around the placement pivot under entity yaw', () => {
+			const entity = modelEntity('piano', 'paris-grand-piano', {
+				position: [0, 0, 0],
+				rotation: [0, Math.PI / 2, 0],
+				scale: 1
+			});
+			const projection = buildPlanSceneFootprintProjection(sceneWith([entity]), identityRooms, {
+				assetById: getAssetById
+			});
+			const points = projection.footprints[0]!.points;
+			// yaw 90° maps plan (x, z) → (z, -x) up to float noise. The
+			// winding-normalized order is not the authored order, so assert the
+			// rotated bounds plus two landmark corners.
+			const xs = points.map((point) => point[0]);
+			const zs = points.map((point) => point[1]);
+			expect(Math.min(...xs)).toBeCloseTo(-0.84, 6);
+			expect(Math.max(...xs)).toBeCloseTo(0.75, 6);
+			expect(Math.min(...zs)).toBeCloseTo(-0.74, 6);
+			expect(Math.max(...zs)).toBeCloseTo(0.74, 6);
+			// Authored tail center [0, -0.84] → ≈ [-0.84, 0].
+			const tail = points.find((point) => Math.abs(point[0] + 0.84) < 1e-9)!;
+			expect(tail[1]).toBeCloseTo(0, 6);
+			// Authored keyboard corner [-0.74, 0.75] → ≈ [0.75, 0.74].
+			const corner = points.find((point) => Math.abs(point[0] - 0.75) < 1e-9)!;
+			expect(corner[1]).toBeCloseTo(0.74, 6);
+		});
+
+		it('hit containment follows the non-rectangular shape (concave waist)', () => {
+			const entity = modelEntity('piano', 'paris-grand-piano', {
+				position: [0, 0, 0],
+				scale: 1
+			});
+			const projection = buildPlanSceneFootprintProjection(sceneWith([entity]), identityRooms, {
+				assetById: getAssetById
+			});
+			const points = projection.footprints[0]!.points;
+			expect(pointInPlanPolygon([0, 0], points)).toBe(true); // body center
+			expect(pointInPlanPolygon([0.7, 0.5], points)).toBe(true); // keyboard band
+			expect(pointInPlanPolygon([0.9, 0], points)).toBe(false); // outside
+			expect(pointInPlanPolygon([0.66, -0.4], points)).toBe(false); // concave waist gap
+		});
 	});
 
 	it('reprojects footprints after a live room translation and rotation', () => {

@@ -60,8 +60,45 @@ the recommended post-P3 **P3B** slice.
 
 ## Pre-P3 brief — Scene Plan footprint and 3D outline coherence
 
-**Status:** Ready for P3 intake · **Source:** owner request 2026-08-23 +
-browser-reviewer consultation · **Scope:** P3.1–P3.3 visual/correctness pass
+**Status:** Implemented 2026-08-23 (uncommitted) — authored piano outline +
+mesh-readiness OBB invalidation + acceptance tests · **Source:** owner request
+2026-08-23 + browser-reviewer consultation · **Scope:** P3.1–P3.3
+visual/correctness pass
+
+**Implementation note (2026-08-23):**
+
+- **Piano outline** — `content/assets.ts` authors a 9-point non-rectangular
+  `footprint.outline` for `paris-grand-piano` (keyboard band + tapered tail)
+  through the existing `AssetFootprint.outline` path; assets without an
+  outline keep the width/depth rectangle fallback. `plan-scene-footprint.ts`
+  needed no change — it already consumes
+  `normalizeAssetFootprintOutline`.
+- **Mesh-readiness OBB invalidation** — a new editor-only
+  `EditorModelEntity.svelte` wrapper binds each model's `AssetLoadStatus`
+  through an always-defined local slot (never `undefined`, so AssetModel's
+  `$bindable status` stays valid for freshly placed entities) and calls the
+  registry's `notifyPlacementRootChanged(entity.id)` (previously wired but
+  never called) when the GLB becomes ready, bumping
+  `EditorSceneRoots.version` so `EditorSelectionHelper` rebuilds the
+  selected root's placement-local OBB from the now-complete subtree — no
+  pointer movement, transform gesture, selection toggle, or history write.
+- **Stale-child-matrixWorld fix** — `computeRootLocalBox` now calls
+  `root.updateWorldMatrix(true, true)` instead of `(true, false)`. The
+  readiness notify races the render loop (the loaded GLB subtree is attached
+  in the same flush, before any frame has rendered it), so every new mesh's
+  `matrixWorld` is still identity; reading those stale matrices baked a wrong
+  offset into the placement-local box and the selection wireframe kept
+  showing the fallback/plan-footprint box until a later move triggered a
+  recompute. Updating children makes the recompute (and every other
+  `computeRootLocalBox` call) read current local transforms unconditionally.
+- **Tests** — `plan-scene-footprint.test.ts` (+5): outline validity,
+  non-rectangular projection, rectangle fallback, yaw rotation around the
+  placement pivot, concave-waist hit containment. `cluster-obb.test.ts`
+  (+4): recompute reflects a mesh added after the initial box, placement-
+  local bounds invariant under root translation/rotation, and freshly
+  attached GLB subtrees with stale matrixWorlds read from local transforms
+  (translated child + scaled/rotated wrapper group). Suite green;
+  `svelte-check` 0; build clean.
 
 ### 1. User outcome and out of scope
 

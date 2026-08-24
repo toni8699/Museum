@@ -21,13 +21,31 @@ export const assets: Asset[] = [
     license: 'CC BY 4.0',
     attribution: 'Grand Piano by farhad.Guli, licensed under CC BY 4.0.',
     placementSurface: 'floor',
-    footprint: { width: 1.48, depth: 1.59 },
+    footprint: {
+      width: 1.48,
+      depth: 1.59,
+      // P3 — authored non-rectangular occupied shape (plan top-down): keyboard
+      // band at the front (z 0.30 → 0.75), body from z 0.30 → -0.20, then a
+      // tapered tail to z -0.84. Placement-local X/Z around the [0, 0] pivot;
+      // physical occupied shape, not clearance. Spans the same 1.48 × 1.59 box.
+      outline: [
+        [-0.74, 0.75],
+        [0.74, 0.75],
+        [0.74, 0.3],
+        [0.74, -0.2],
+        [0.56, -0.6],
+        [0, -0.84],
+        [-0.56, -0.6],
+        [-0.74, -0.2],
+        [-0.74, 0.3]
+      ]
+    },
     defaultScale: 0.032,
     castShadow: true,
     receiveShadow: false,
     status: 'approved',
     notes:
-      'Source units are unusually large. The production GLB is centered at a floor pivot; scale 0.032 yields an approximately 1.48 m × 1.59 m × 2.52 m open-lid piano.'
+      'Source units are unusually large. The production GLB is centered at a floor pivot; scale 0.032 yields an approximately 1.48 m × 1.59 m × 2.52 m open-lid piano. Plan footprint uses the authored piano outline (P3).'
   },
   {
     id: 'paris-salon-chair',

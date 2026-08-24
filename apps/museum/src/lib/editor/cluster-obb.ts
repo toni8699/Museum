@@ -18,7 +18,15 @@ const TMP_ROOT_INVERSE = /* @__PURE__ */ new Matrix4();
 const TMP_CHILD_TO_ROOT = /* @__PURE__ */ new Matrix4();
 export function computeRootLocalBox(root: Object3D): Box3 {
 	const box = new Box3().makeEmpty();
-	root.updateWorldMatrix(true, false);
+	// `updateWorldMatrix(true, true)` recomputes the root AND every descendant
+	// from their current local transforms. Using `(true, false)` here reads
+	// each child's *last-rendered* matrixWorld, which is stale (identity) for a
+	// freshly attached GLB subtree — the P3 pre-brief readiness recompute runs
+	// in the same flush as the attach, before the render loop has ever updated
+	// the new meshes. The stale matrices bake a wrong offset into the
+	// placement-local box, so the selection wireframe shows the old (fallback
+	// / plan-footprint) box until a later move triggers a recompute.
+	root.updateWorldMatrix(true, true);
 	TMP_ROOT_INVERSE.copy(root.matrixWorld).invert();
 	root.traverse((child) => {
 		if (!(child instanceof Mesh)) return;

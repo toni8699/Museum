@@ -17,7 +17,7 @@
   import { resolveSceneMaterial } from '$lib/museum/materials/scene-instance-material';
   import EditorPlacementRoot from '$lib/museum/EditorPlacementRoot.svelte';
   import type { EditorPlacementRegistry } from '$lib/museum/placement-registry';
-  import AssetModel from '$lib/museum/assets/AssetModel.svelte';
+  import EditorModelEntity from './EditorModelEntity.svelte';
   import EntityLight from '$lib/museum/entities/EntityLight.svelte';
   import EntityPrimitive from '$lib/museum/entities/EntityPrimitive.svelte';
 
@@ -82,11 +82,13 @@
         scale={editorScale}
       >
         {#if isSceneModelEntity(entity)}
-          <AssetModel
-            assetId={entity.assetId}
-            fallback={entity.fallback}
-            enabled
-            localTransform
+          <!-- P3 pre-brief — the wrapper owns the AssetModel load-status bind
+               (always-defined local slot) and notifies the placement registry
+               on mesh readiness so selection OBBs rebuild from the full
+               subtree (see EditorModelEntity.svelte). -->
+          <EditorModelEntity
+            {entity}
+            {placementRegistry}
             effective={entity.materialInstanceId ? entityEffective(entity) : null}
           />
         {:else if isScenePrimitiveEntity(entity)}

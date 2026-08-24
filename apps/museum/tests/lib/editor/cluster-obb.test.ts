@@ -190,3 +190,81 @@ describe('computeRootLocalBox — exported for shared use', () => {
 		expect(box.max.z).toBeCloseTo(0.5, 6);
 	});
 });
+
+describe('computeRootLocalBox — mesh readiness after selection (P3 pre-brief)', () => {
+	it('recompute after a child mesh appears reflects the new subtree', () => {
+		// A selected root may hold only a fallback mesh when its OBB is first
+		// computed; the loaded GLB subtree appears later. The selection helper
+		// rebuilds via this same function when the registry notifies readiness,
+		// so recompute must reflect the newly added mesh.
+		const root = new Object3D();
+		expect(computeRootLocalBox(root).isEmpty()).toBe(true);
+		root.add(new Mesh(new BoxGeometry(2, 1, 3)));
+		const box = computeRootLocalBox(root);
+		expect(box.min.x).toBeCloseTo(-1, 6);
+		expect(box.min.y).toBeCloseTo(-0.5, 6);
+		expect(box.min.z).toBeCloseTo(-1.5, 6);
+		expect(box.max.x).toBeCloseTo(1, 6);
+		expect(box.max.y).toBeCloseTo(0.5, 6);
+		expect(box.max.z).toBeCloseTo(1.5, 6);
+	});
+
+	it('placement-local bounds are invariant under root translation and rotation', () => {
+		const mesh = new Mesh(new BoxGeometry(2, 1, 1));
+		const root = new Object3D();
+		root.add(mesh);
+		const baseline = computeRootLocalBox(root);
+		root.position.set(3, 2, -1);
+		root.rotation.y = Math.PI / 4;
+		root.updateMatrixWorld(true);
+		const moved = computeRootLocalBox(root);
+		expect(moved.min.x).toBeCloseTo(baseline.min.x, 6);
+		expect(moved.max.x).toBeCloseTo(baseline.max.x, 6);
+		expect(moved.min.y).toBeCloseTo(baseline.min.y, 6);
+		expect(moved.max.z).toBeCloseTo(baseline.max.z, 6);
+	});
+
+	it('freshly attached GLB subtree with stale matrixWorld is read from local transforms', () => {
+		// The readiness recompute races the render loop: the loaded GLB is
+		// attached to the placement root but no frame has rendered yet, so
+		// every mesh matrixWorld is still identity. The local box must come
+		// from the child's LOCAL transform (the +5 X offset), not the stale
+		// identity world matrix (which would put the box at the root origin).
+		const inner = new Object3D();
+		inner.position.set(5, 0, 0);
+		const mesh = new Mesh(new BoxGeometry(2, 1, 1));
+		inner.add(mesh);
+		const root = new Object3D();
+		root.add(inner);
+		// NOTE: no updateMatrixWorld/updateWorldMatrix call — matrixWorlds stay identity.
+		const box = computeRootLocalBox(root);
+		expect(box.min.x).toBeCloseTo(4, 6);
+		expect(box.max.x).toBeCloseTo(6, 6);
+		expect(box.min.y).toBeCloseTo(-0.5, 6);
+		expect(box.max.y).toBeCloseTo(0.5, 6);
+		expect(box.min.z).toBeCloseTo(-0.5, 6);
+		expect(box.max.z).toBeCloseTo(0.5, 6);
+	});
+
+	it('freshly attached GLB under a scaled+rotated wrapper group is not identity-mapped', () => {
+		// AssetModel wraps the GLB in a `<T.Group rotation={defaultRotation}
+		// scale={defaultScale}>`. With stale (identity) matrixWorlds the old
+		// code unioned raw geometry AABBs at the origin — ignoring the wrapper
+		// transform. The recompute must apply the wrapper's scale/rotation.
+		const wrapper = new Object3D();
+		wrapper.rotation.y = Math.PI / 2;
+		wrapper.scale.set(2, 2, 2);
+		const mesh = new Mesh(new BoxGeometry(1, 1, 1));
+		wrapper.add(mesh);
+		const root = new Object3D();
+		root.add(wrapper);
+		// RotY(π/2) × scale(2) maps (±0.5, y, ±0.5) → (±1, 2y, ∓1).
+		const box = computeRootLocalBox(root);
+		expect(box.min.x).toBeCloseTo(-1, 6);
+		expect(box.max.x).toBeCloseTo(1, 6);
+		expect(box.min.y).toBeCloseTo(-1, 6);
+		expect(box.max.y).toBeCloseTo(1, 6);
+		expect(box.min.z).toBeCloseTo(-1, 6);
+		expect(box.max.z).toBeCloseTo(1, 6);
+	});
+});

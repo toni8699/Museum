@@ -4,21 +4,24 @@
 	import CameraPlanToolbar from '$lib/editor/camera-plan/CameraPlanToolbar.svelte';
 	import CameraPlanViewport from '$lib/editor/camera-plan/CameraPlanViewport.svelte';
 	import type { CameraPlanState } from '$lib/editor/camera-plan/camera-plan-state.svelte';
+	import type { EditorContextMenuStore } from '$lib/editor/context-menu/context-menu-state.svelte';
 
 	let {
 		store,
 		layoutPreview,
-		cameraPlan
+		cameraPlan,
+		contextMenu = null
 	}: {
 		store: EditorStore;
 		layoutPreview: LayoutPreviewState;
 		cameraPlan: CameraPlanState;
+		contextMenu?: EditorContextMenuStore | null;
 	} = $props();
 </script>
 
 <div class="camera-plan-workspace" role="application" aria-label="Camera Plan surface">
 	<CameraPlanToolbar {store} {cameraPlan} />
-	<CameraPlanViewport {store} preview={layoutPreview} {cameraPlan} />
+	<CameraPlanViewport {store} preview={layoutPreview} {cameraPlan} {contextMenu} />
 </div>
 
 <style>
@@ -28,7 +31,7 @@
 		height: 100%;
 		min-height: 0;
 		overflow: hidden;
-		background: #0b0b10;
+		background: var(--editor-bg-app);
 		/* S10.1.6 amendment — Plan ↔ 3D swaps are instant (no fade). */
 	}
 </style>

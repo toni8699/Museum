@@ -1,0 +1,38 @@
+/*
+ * P3.2 — plan-surface presentation tokens (Design-specs.md §9).
+ * Scene Plan and Camera Plan render a bright drafting surface against the
+ * dark shell; selection on paper is the same canonical blue as everywhere
+ * else (one selection language for Layout objects and Scene entities alike).
+ */
+
+:root {
+	--editor-plan-canvas-bg: var(--editor-plan-bg);
+	--editor-plan-grid-major: #d2cec5;
+	--editor-plan-grid-minor: #e4e0d9;
+	--editor-plan-room-bg: #fffdfa;
+	--editor-plan-room-selected-bg: #eaf3ff;
+	--editor-camera-plan-canvas-bg: #e9e7e1;
+	--editor-camera-plan-room-bg: #f8f7f2;
+
+	/* Authored architecture vs context objects (~35–55% strength, DS §9). */
+	--editor-plan-wall-stroke: #625f59;
+	--editor-plan-wall-fill-strong: rgb(98 95 89 / 45%);
+	--editor-plan-object-fill: rgb(183 178 168 / 62%);
+	--editor-plan-object-stroke: #92908a;
+	--editor-plan-readonly-fill: rgb(146 144 138 / 40%);
+
+	/* Selection language (blue = selected, both owners; DS §28A table). */
+	--editor-plan-selected-fill: rgb(47 140 255 / 24%);
+	--editor-plan-selected-stroke: var(--editor-plan-selection);
+	--editor-plan-hover-stroke: #55a1ff;
+	--editor-plan-handle-fill: var(--editor-selection-handle);
+	--editor-plan-handle-stroke: var(--editor-accent-pressed);
+
+	/* Camera Plan is slightly more subdued than Scene Plan (DS §9): topology
+	   is the foreground information. */
+	--editor-camera-node-fill: #0c3766;
+	--editor-camera-node-stroke: var(--editor-accent-hover);
+	--editor-camera-edge-stroke: rgb(47 140 255 / 60%);
+	--editor-camera-path-preview: rgb(47 140 255 / 75%);
+	--editor-camera-unsequenced-ring: var(--editor-success);
+}

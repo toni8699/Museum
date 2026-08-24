@@ -122,26 +122,26 @@
 </fieldset>
 
 <style>
-	fieldset { margin: 0; padding: 0.65rem; border: 1px solid #2e2e37; border-radius: 0.4rem; }
+	fieldset { margin: 0; padding: 0.65rem; border: 1px solid var(--editor-border-subtle); border-radius: 0.4rem; }
 	fieldset:disabled { opacity: 0.52; }
-	legend { padding: 0 0.25rem; color: #bbb4a8; font-size: 0.72rem; }
+	legend { padding: 0 0.25rem; color: var(--editor-text-secondary); font-size: 0.72rem; }
 	.fov-fields, label { display: flex; flex-direction: column; gap: 0.35rem; }
-	label span { color: #aaa49a; font-size: 0.67rem; letter-spacing: 0.04em; text-transform: uppercase; }
-	input[type='number'] { width: 100%; box-sizing: border-box; padding: 0.42rem 0.45rem; border: 1px solid #3a3a46; border-radius: 0.3rem; background: #0d0d12; color: #f4efe4; font: 0.76rem ui-monospace, SFMono-Regular, Menlo, monospace; }
-	input:focus { outline: 1px solid #d6b35f; border-color: #d6b35f; }
+	label span { color: var(--editor-text-secondary); font-size: 0.67rem; letter-spacing: 0.04em; text-transform: uppercase; }
+	input[type='number'] { width: 100%; box-sizing: border-box; padding: 0.42rem 0.45rem; border: 1px solid var(--editor-border-normal); border-radius: 0.3rem; background: var(--editor-bg-app); color: var(--editor-text-primary); font: 0.76rem var(--editor-font); }
+	input:focus { outline: 1px solid var(--editor-accent); border-color: var(--editor-accent); }
 	.range { width: 100%; margin: 0.15rem 0 0; }
 	.lens-presets { display: flex; gap: 0.25rem; margin-top: 0.4rem; }
 	.lens-btn {
 		padding: 0.25rem 0.4rem;
-		border: 1px solid #3a3a46;
+		border: 1px solid var(--editor-border-normal);
 		border-radius: 0.28rem;
-		background: #1a1a22;
-		color: #b7b1a4;
+		background: var(--editor-bg-panel-raised);
+		color: var(--editor-outline-muted);
 		font: inherit;
 		font-size: 0.62rem;
 		cursor: pointer;
 	}
-	.lens-btn.active { border-color: #d6b35f; background: #2a2618; color: #fff2c7; }
+	.lens-btn.active { border-color: var(--editor-accent); background: var(--editor-bg-selected); color: var(--editor-text-primary); }
 	.lens-btn:disabled { opacity: 0.42; cursor: default; }
-	.fov-copy { display: flex; flex-direction: column; gap: 0.1rem; margin: 0.3rem 0 0; color: #8d887f; font-size: 0.6rem; line-height: 1.35; }
+	.fov-copy { display: flex; flex-direction: column; gap: 0.1rem; margin: 0.3rem 0 0; color: var(--editor-text-muted); font-size: 0.6rem; line-height: 1.35; }
 </style>

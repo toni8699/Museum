@@ -98,9 +98,9 @@
 		min-height: 1.7rem;
 		padding: 0.2rem 0.75rem;
 		box-sizing: border-box;
-		border-top: 1px solid #2a2a33;
-		background: #101016;
-		color: #77736d;
+		border-top: 1px solid var(--editor-border-subtle);
+		background: var(--editor-bg-panel);
+		color: var(--editor-text-muted);
 		font-size: 0.64rem;
 		line-height: 1;
 	}
@@ -112,16 +112,16 @@
 		min-width: 0;
 	}
 	.status-right { margin-left: auto; }
-	.workspace { font-weight: 650; color: #a8a29a; }
-	.selection { color: #918c84; }
-	.save-state { color: #cfe9c4; }
-	.save-state.dirty { color: #f4dc9b; }
+	.workspace { font-weight: 650; color: var(--editor-text-secondary); }
+	.selection { color: var(--editor-text-muted); }
+	.save-state { color: var(--editor-success); }
+	.save-state.dirty { color: var(--editor-text-primary); }
 	.status-center {
 		display: flex;
 		align-items: center;
 		gap: 0.9rem;
 		margin: 0 auto;
-		color: #6f6b66;
+		color: var(--editor-text-disabled);
 	}
 	.status-center span { white-space: nowrap; }
 

@@ -7,6 +7,16 @@
 <script lang="ts">
 	import type { Asset } from '$lib/types/assets';
 	import { onMount, untrack } from 'svelte';
+	// P3.2 — canonical token architecture + Inter Variable (Design-specs §37).
+	// The relic shares the editor chrome pool and repaints with it; behavior
+	// stays frozen.
+	import '@fontsource-variable/inter';
+	import '$lib/editor/styles/tokens.css';
+	import '$lib/editor/styles/editor-shell.css';
+	import '$lib/editor/styles/controls.css';
+	import '$lib/editor/styles/inspector.css';
+	import '$lib/editor/styles/timeline.css';
+	import '$lib/editor/styles/plan.css';
 	import EditorAppBar from './EditorAppBar.svelte';
 	import EditorCameraTimelineFrame from './camera/EditorCameraTimelineFrame.svelte';
 	import EditorInspector from './EditorInspector.svelte';
@@ -84,7 +94,7 @@
 
 </script>
 
-<main class="page" class:previewing={store.isDocumentMutationBlocked}>
+<main class="page editor-page" class:previewing={store.isDocumentMutationBlocked}>
 	<EditorAppBar {store} {layoutPreview} {confirmSceneReplacement} {confirmLayoutReplacement} {relic} />
 	<EditorLeftSidebar
 		{store}
@@ -121,7 +131,7 @@
 	:global(body) { margin: 0; }
 	.page {
 		display: grid;
-		grid-template-columns: minmax(17rem, 21rem) minmax(0, 1fr) minmax(17rem, 22rem);
+		grid-template-columns: minmax(15rem, var(--editor-left-width)) minmax(0, 1fr) minmax(17.5rem, var(--editor-right-width));
 		grid-template-rows: auto minmax(0, 1fr) auto;
 		grid-template-areas:
 			'top top top'
@@ -130,12 +140,12 @@
 		height: 100vh;
 		height: 100dvh;
 		overflow: hidden;
-		background: #0b0b10;
-		color: #f4efe4;
-		font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+		background: var(--editor-bg-app);
+		color: var(--editor-text-primary);
+		font-family: var(--editor-font);
 	}
 	.center { min-width: 0; min-height: 0; outline: none; }
-	.center:focus-visible { box-shadow: inset 0 0 0 1px #d6b35f; }
+	.center:focus-visible { box-shadow: inset 0 0 0 1px var(--editor-accent); }
 
 	@media (max-width: 78rem) {
 		.page { grid-template-columns: minmax(14rem, 22vw) minmax(0, 1fr) minmax(14rem, 24vw); }

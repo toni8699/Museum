@@ -285,7 +285,8 @@
 				<p class="envelope-legend">automatic → blend → authored → blend → automatic</p>
 				<div class="handle-fields">
 					{#each ENVELOPE_HANDLE_NAMES as handle (handle)}
-						{#key `${connection.id}:${direction}:${handle}`}								<EditorNumberField
+						{#key `${connection.id}:${direction}:${handle}`}
+							<EditorNumberField
 									label={ENVELOPE_HANDLE_LABELS[handle]}
 									value={handle === 'exitEnd' ? envelope.exitEnd : envelope[handle]}
 									step={0.01}
@@ -302,43 +303,43 @@
 </section>
 
 <style>
-	.framing-controls { display: flex; flex-direction: column; gap: 0.55rem; padding: 0.6rem; border: 1px solid #34313a; border-radius: 0.4rem; background: #17171f; }
-	.empty-state { margin: 0; color: #918c84; font-size: 0.7rem; text-align: center; }
-	.empty-state.legacy { color: #b7b1a4; }
+	.framing-controls { display: flex; flex-direction: column; gap: 0.55rem; padding: 0.6rem; border: 1px solid var(--editor-border-subtle); border-radius: 0.4rem; background: var(--editor-bg-panel-raised); }
+	.empty-state { margin: 0; color: var(--editor-text-muted); font-size: 0.7rem; text-align: center; }
+	.empty-state.legacy { color: var(--editor-outline-muted); }
 	.preset-row { display: flex; gap: 0.3rem; }
 	.preset-btn {
 		flex: 1;
 		padding: 0.35rem 0.3rem;
-		border: 1px solid #3a3a46;
+		border: 1px solid var(--editor-border-normal);
 		border-radius: 0.3rem;
-		background: #1a1a22;
-		color: #b7b1a4;
+		background: var(--editor-bg-panel-raised);
+		color: var(--editor-outline-muted);
 		font: inherit;
 		font-size: 0.68rem;
 		cursor: pointer;
 	}
-	.preset-btn.active { border-color: #d6b35f; background: #2a2618; color: #fff2c7; }
+	.preset-btn.active { border-color: var(--editor-accent); background: var(--editor-bg-selected); color: var(--editor-text-primary); }
 	.preset-btn:disabled { opacity: 0.42; cursor: default; }
-	.envelope-status { margin: 0; color: #8d887f; font-size: 0.65rem; text-align: center; }
-	.envelope-status.manual { color: #c7a44a; }
+	.envelope-status { margin: 0; color: var(--editor-text-muted); font-size: 0.65rem; text-align: center; }
+	.envelope-status.manual { color: var(--editor-warning); }
 	.diagnostics { display: flex; flex-direction: column; gap: 0.2rem; }
 	.diagnostic {
 		margin: 0;
 		padding: 0.3rem 0.4rem;
-		border: 1px solid #5a4a2a;
+		border: 1px solid var(--editor-warning-border);
 		border-radius: 0.28rem;
-		background: #211e15;
-		color: #e8d5a3;
+		background: var(--editor-bg-control);
+		color: var(--editor-text-primary);
 		font-size: 0.65rem;
 	}
-	.diagnostic.rapid { border-color: #6e3a3a; background: #261515; color: #f1b1aa; }
-	.advanced { border-top: 1px solid #2a2a33; padding-top: 0.4rem; }
+	.diagnostic.rapid { border-color: var(--editor-danger-border); background: var(--editor-danger-soft); color: var(--editor-danger-fg); }
+	.advanced { border-top: 1px solid var(--editor-border-subtle); padding-top: 0.4rem; }
 	.advanced summary {
-		color: #b7b1a4;
+		color: var(--editor-outline-muted);
 		font-size: 0.68rem;
 		cursor: pointer;
 	}
-	.advanced summary:hover { color: #f4efe4; }
-	.envelope-legend { margin: 0.3rem 0; color: #8d887f; font-size: 0.6rem; }
+	.advanced summary:hover { color: var(--editor-text-primary); }
+	.envelope-legend { margin: 0.3rem 0; color: var(--editor-text-muted); font-size: 0.6rem; }
 	.handle-fields { display: flex; flex-direction: column; gap: 0.35rem; }
 </style>

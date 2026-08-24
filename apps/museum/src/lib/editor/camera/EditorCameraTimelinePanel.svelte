@@ -7,7 +7,15 @@
 	import { useCameraTimeline } from '../hooks/use-camera-timeline.svelte';
 	import type { EditorStore } from '../editor-store.svelte';
 
-	let { store, viewMode = '3d' }: { store: EditorStore; viewMode?: 'plan' | '3d' } = $props();
+	let {
+		store,
+		viewMode = '3d',
+		contextMenu = null
+	}: {
+		store: EditorStore;
+		viewMode?: 'plan' | '3d';
+		contextMenu?: import('../context-menu/context-menu-state.svelte').EditorContextMenuStore | null;
+	} = $props();
 
 	// svelte-ignore state_referenced_locally
 	const timelineApi = useCameraTimeline(store);
@@ -96,9 +104,11 @@
 					{/if}
 				</div>
 			{/if}
-			<EditorCameraTimelineRuler {store} />
-			<EditorCameraPreviewControls {store} />
-			<EditorCameraTimelineDots {store} {viewMode} />
+			<div class="timeline-toolbar">
+				<EditorCameraTimelineRuler {store} />
+				<EditorCameraPreviewControls {store} />
+			</div>
+			<EditorCameraTimelineDots {store} {viewMode} {contextMenu} />
 		</div>
 	{:else}
 		<div class="timeline-error" role="status">
@@ -142,11 +152,11 @@
 				{/if}
 			</div>
 		{/if}
-		<EditorCameraTimelineRuler {store} />
-		{#if preview}
-			<EditorCameraPreviewControls {store} />
-		{/if}
-		<EditorCameraTimelineDots {store} {viewMode} />
+		<div class="timeline-toolbar">
+			<EditorCameraTimelineRuler {store} />
+			{#if preview}<EditorCameraPreviewControls {store} />{/if}
+		</div>
+		<EditorCameraTimelineDots {store} {viewMode} {contextMenu} />
 	</div>
 {:else}
 	<div class="timeline-error" role="status">
@@ -166,14 +176,18 @@
 {/if}
 
 <style>
-	.timeline-panel { display: flex; min-height: 0; flex-direction: column; gap: 0.55rem; }
+	.timeline-panel { display: flex; min-height: 0; flex-direction: column; gap: 0.25rem; }
+	.timeline-toolbar { display: flex; min-width: 0; min-height: 28px; align-items: center; gap: 0.65rem; }
+	.timeline-toolbar > :global(.transport) { min-width: 24rem; flex: 1; }
+	.timeline-toolbar > :global(.preview-transport) { width: auto; max-width: none; flex: 0 1 auto; margin: 0; }
+	.timeline-toolbar :global(.preview-transport p) { display: none; }
 	.timeline-panel :global(.transport button),
 	.timeline-panel :global(.preview-transport button) {
-		padding: 0.34rem 0.48rem; border: 1px solid #3a3a46; border-radius: 0.3rem;
-		background: #1a1a22; color: #ddd6ca; font: inherit; font-size: 0.68rem; cursor: pointer;
+		padding: 0.34rem 0.48rem; border: 1px solid var(--editor-border-normal); border-radius: 0.3rem;
+		background: var(--editor-bg-panel-raised); color: var(--editor-text-secondary); font: inherit; font-size: 0.68rem; cursor: pointer;
 	}
-	.timeline-error { display: flex; height: 100%; min-height: 7rem; flex-direction: column; align-items: center; justify-content: center; gap: 0.3rem; color: #a8a29a; text-align: center; }
-	.timeline-error strong { color: #d5cec2; font-size: 0.78rem; }
+	.timeline-error { display: flex; height: 100%; min-height: 7rem; flex-direction: column; align-items: center; justify-content: center; gap: 0.3rem; color: var(--editor-text-secondary); text-align: center; }
+	.timeline-error strong { color: var(--editor-text-primary); font-size: 0.78rem; }
 	.timeline-error span { font-size: 0.68rem; }
 	.timeline-error :global(.preview-transport) { width: min(100%, 54rem); justify-content: center; margin-top: 0.55rem; }
 
@@ -186,35 +200,35 @@
 		justify-content: space-between;
 		gap: 0.5rem;
 		padding: 0.42rem 0.55rem;
-		border: 1px solid #3a3a46;
+		border: 1px solid var(--editor-border-normal);
 		border-radius: 0.32rem;
-		background: #1a1a22;
+		background: var(--editor-bg-panel-raised);
 	}
 	.loop-readout__text {
 		display: flex;
 		min-width: 0;
 		align-items: baseline;
 		gap: 0.3rem;
-		color: #c9c3b8;
+		color: var(--editor-text-secondary);
 		font-size: 0.68rem;
 		white-space: nowrap;
 	}
-	.loop-readout__text strong { color: #fff2c7; font-weight: 650; }
-	.loop-duration { color: #918c84; font-variant-numeric: tabular-nums; }
+	.loop-readout__text strong { color: var(--editor-text-primary); font-weight: 650; }
+	.loop-duration { color: var(--editor-text-muted); font-variant-numeric: tabular-nums; }
 	.loop-action {
 		display: inline-flex;
 		align-items: center;
 		gap: 0.3rem;
 		flex: 0 0 auto;
 		padding: 0.3rem 0.45rem;
-		border: 1px solid #6f5c31;
+		border: 1px solid var(--editor-accent-pressed);
 		border-radius: 0.28rem;
-		background: #211e15;
-		color: #e8d5a3;
+		background: var(--editor-bg-control);
+		color: var(--editor-text-primary);
 		font: inherit;
 		font-size: 0.62rem;
 		cursor: pointer;
 	}
-	.loop-action:hover:not(:disabled) { border-color: #d6b35f; color: #fff2c7; }
+	.loop-action:hover:not(:disabled) { border-color: var(--editor-accent); color: var(--editor-text-primary); }
 	.loop-action:disabled { opacity: 0.4; cursor: default; }
 </style>

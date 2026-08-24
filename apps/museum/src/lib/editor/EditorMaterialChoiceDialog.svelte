@@ -119,30 +119,30 @@
 		flex-direction: column;
 		gap: 0.85rem;
 		padding: 1.1rem 1.2rem;
-		border: 1px solid #4a4438;
+		border: 1px solid var(--editor-border-normal);
 		border-radius: 0.55rem;
-		background: #17171f;
-		color: #f4efe4;
+		background: var(--editor-bg-panel-raised);
+		color: var(--editor-text-primary);
 		box-shadow: 0 1.2rem 3rem rgb(0 0 0 / 0.5);
 	}
 	.dialog h2 { margin: 0; font-size: 0.95rem; font-weight: 650; }
-	.copy { margin: 0; color: #a8a29a; font-size: 0.74rem; line-height: 1.5; }
-	.dialog label:not(.radio) { display: flex; flex-direction: column; gap: 0.28rem; color: #a8a29a; font-size: 0.7rem; }
+	.copy { margin: 0; color: var(--editor-text-secondary); font-size: 0.74rem; line-height: 1.5; }
+	.dialog label:not(.radio) { display: flex; flex-direction: column; gap: 0.28rem; color: var(--editor-text-secondary); font-size: 0.7rem; }
 	.dialog select {
 		min-width: 0;
 		padding: 0.42rem;
-		border: 1px solid #3a3a46;
+		border: 1px solid var(--editor-border-normal);
 		border-radius: 0.32rem;
-		background: #1a1a22;
-		color: #f4efe4;
+		background: var(--editor-bg-panel-raised);
+		color: var(--editor-text-primary);
 		font: inherit;
 	}
-	.dialog select:focus { outline: 1px solid #d6b35f; border-color: #d6b35f; }
-	fieldset { display: flex; flex-direction: column; gap: 0.5rem; margin: 0; padding: 0.55rem 0.7rem; border: 1px solid #34313a; border-radius: 0.4rem; }
-	legend { padding: 0 0.3rem; color: #918c84; font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.04em; }
-	.radio { display: flex; gap: 0.5rem; align-items: flex-start; color: #d6d0c4; font-size: 0.72rem; line-height: 1.4; cursor: pointer; }
-	.radio input { margin-top: 0.15rem; accent-color: #d6b35f; }
-	.radio strong { color: #fff2c7; }
+	.dialog select:focus { outline: 1px solid var(--editor-accent); border-color: var(--editor-accent); }
+	fieldset { display: flex; flex-direction: column; gap: 0.5rem; margin: 0; padding: 0.55rem 0.7rem; border: 1px solid var(--editor-border-subtle); border-radius: 0.4rem; }
+	legend { padding: 0 0.3rem; color: var(--editor-text-muted); font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.04em; }
+	.radio { display: flex; gap: 0.5rem; align-items: flex-start; color: var(--editor-text-secondary); font-size: 0.72rem; line-height: 1.4; cursor: pointer; }
+	.radio input { margin-top: 0.15rem; accent-color: var(--editor-accent); }
+	.radio strong { color: var(--editor-text-primary); }
 	.actions { display: flex; justify-content: flex-end; gap: 0.5rem; }
 	.actions button {
 		padding: 0.46rem 0.7rem;
@@ -151,9 +151,9 @@
 		font-size: 0.73rem;
 		cursor: pointer;
 	}
-	.secondary { border: 1px solid #3a3a46; background: #1a1a22; color: #f4efe4; }
-	.secondary:hover { border-color: #5b4d2a; }
-	.primary { border: 1px solid #8d753c; background: #242018; color: #fff2c7; }
-	.primary:hover:not(:disabled) { background: #35301f; }
+	.secondary { border: 1px solid var(--editor-border-normal); background: var(--editor-bg-panel-raised); color: var(--editor-text-primary); }
+	.secondary:hover { border-color: var(--editor-accent-pressed); }
+	.primary { border: 1px solid var(--editor-accent-border); background: var(--editor-bg-control); color: var(--editor-text-primary); }
+	.primary:hover:not(:disabled) { background: var(--editor-bg-hover); }
 	.primary:disabled { opacity: 0.45; cursor: default; }
 </style>

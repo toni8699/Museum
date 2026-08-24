@@ -139,21 +139,21 @@
 <style>
 	.transport { display: flex; min-width: 0; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
 	.transport button {
-		padding: 0.34rem 0.48rem; border: 1px solid #3a3a46; border-radius: 0.3rem;
-		background: #1a1a22; color: #ddd6ca; font: inherit; font-size: 0.68rem; cursor: pointer;
+		padding: 0.34rem 0.48rem; border: 1px solid var(--editor-border-normal); border-radius: 0.3rem;
+		background: var(--editor-bg-panel-raised); color: var(--editor-text-secondary); font: inherit; font-size: 0.68rem; cursor: pointer;
 	}
-	.transport button:hover:not(:disabled) { border-color: #d6b35f; }
-	.transport button.active { border-color: #d6b35f; background: #2a2618; color: #fff2c7; }
+	.transport button:hover:not(:disabled) { border-color: var(--editor-accent); }
+	.transport button.active { border-color: var(--editor-accent); background: var(--editor-bg-selected); color: var(--editor-text-primary); }
 	.transport button:disabled { opacity: 0.38; cursor: default; }
-	.transport .add-key { border-color: #6f5d32; color: #f4dc9b; white-space: nowrap; }
-	.transport .preview-edge-cta { border-color: #6f5d32; color: #f4dc9b; }
-	.endpoints { min-width: 0; max-width: 12rem; overflow: hidden; color: #c9c3b8; font-size: 0.68rem; text-overflow: ellipsis; white-space: nowrap; }
-	output { min-width: 8.8rem; color: #f4efe4; font: 650 0.72rem/1 ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-numeric: tabular-nums; }
+	.transport .add-key { border-color: var(--editor-accent-pressed); color: var(--editor-text-primary); white-space: nowrap; }
+	.transport .preview-edge-cta { border-color: var(--editor-accent-pressed); color: var(--editor-text-primary); }
+	.endpoints { min-width: 0; max-width: 12rem; overflow: hidden; color: var(--editor-text-secondary); font-size: 0.68rem; text-overflow: ellipsis; white-space: nowrap; }
+	output { min-width: 8.8rem; color: var(--editor-text-primary); font: 650 0.72rem/1 var(--editor-font); font-variant-numeric: tabular-nums; }
 	.scrubber { display: flex; min-width: 8rem; flex: 1; align-items: center; gap: 0.45rem; }
 	.scrubber span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-	.scrubber input { width: 100%; margin: 0; accent-color: #d6b35f; }
-	.repeat { display: inline-flex; align-items: center; gap: 0.3rem; color: #c9c3b8; font-size: 0.68rem; cursor: pointer; }
-	.repeat input { accent-color: #d6b35f; }
+	.scrubber input { width: 100%; margin: 0; accent-color: var(--editor-accent); }
+	.repeat { display: inline-flex; align-items: center; gap: 0.3rem; color: var(--editor-text-secondary); font-size: 0.68rem; cursor: pointer; }
+	.repeat input { accent-color: var(--editor-accent); }
 
 	@media (max-width: 44rem) {
 		.transport { flex-wrap: wrap; }

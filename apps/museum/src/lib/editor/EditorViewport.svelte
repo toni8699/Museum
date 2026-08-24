@@ -342,7 +342,7 @@
 		width: 100%;
 		height: 100%;
 		min-height: 0;
-		background: #050508;
+		background: var(--editor-bg-app);
 	}
 
 	.viewport.placing :global(canvas) {
@@ -363,11 +363,11 @@
 		bottom: 1rem;
 		transform: translateX(-50%);
 		padding: 0.48rem 0.7rem;
-		border: 1px solid #8d753c;
+		border: 1px solid var(--editor-accent-border);
 		border-radius: 999px;
-		background: rgb(18 18 24 / 92%);
-		color: #fff2c7;
-		font: 600 0.73rem/1.2 ui-sans-serif, system-ui, sans-serif;
+		background: var(--editor-bg-panel-raised);
+		color: var(--editor-text-primary);
+		font: 600 0.73rem/1.2 var(--editor-font);
 		pointer-events: none;
 	}
 
@@ -380,8 +380,8 @@
 		box-sizing: border-box;
 		padding: 1rem;
 		background: linear-gradient(to top, rgb(5 5 8 / 46%), transparent 22%);
-		color: #fff2c7;
-		font: 600 0.73rem/1.2 ui-sans-serif, system-ui, sans-serif;
+		color: var(--editor-text-primary);
+		font: 600 0.73rem/1.2 var(--editor-font);
 		pointer-events: auto;
 	}
 

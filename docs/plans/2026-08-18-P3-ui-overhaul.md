@@ -1,8 +1,71 @@
 # P3 — UI overhaul (umbrella)
 
 **Date:** 2026-08-18
-**Status:** Approved (2026-08-18 scope decision §6) — scope pinned; **retargeted to the canonical specs 2026-08-19**. P3B is the recommended post-P3 interaction follow-up. **2026-08-21:** the context-menu interaction slice is folded in as **P3.4 / P3.5** (see below). **2026-08-23 rebase:** P2 and P10.1–P10.3 are shipped; P3.1–P3.3 are the visual baseline **P10.4** depends on (P3.4/P3.5 are the deliberate interaction-infrastructure exception, not visual foundation). Scene Plan staging is now the owner-aware **Arrange** surface — see §P3.1 QA scope, §P3.3 boundary, §P3.4 routing, and the deviation register below.
+**Status:** In progress — owner rejected the 2026-08-24 close; P3.6 corrective visual reconciliation is implemented and awaiting owner review. P10 remains shipped. P3B remains a separate proposed follow-up.
 **Tracker:** [`docs/plans/README.md`](README.md) — **P3**, depends on: P9 + P1 (per-increment; P3.5 also P8 S2–S4); P3.1–P3.3 no longer await P2 — Scene Plan staging/Arrange shipped with P2 + P10.1–P10.3
+
+**Rejected close note (2026-08-24):** The owner rejected this close because
+the result read primarily as token/color changes, Plan walls/openings did not
+match the architectural sketches, Camera Plan lacked distinct visual QA and
+room/background separation, and the timeline was not expanded into five
+lanes. The historical claim follows for traceability, but is superseded by
+P3.6 and may not be used as approval evidence. P3.1 recorded the deviation register;
+P3.2 created and applied all six canonical style files plus Inter Variable,
+blue-tinted chrome, icon, selection, gizmo, and orientation-box tokens; P3.3
+closed the visual defect rows, including owner-neutral Arrange selection,
+hover, rotation feedback, empty Plan treatment, and Camera Plan selection.
+P3.4/P3.5 added one shared context-menu shell with Scene, Layout/Arrange,
+Outliner, Camera Plan/3D, and timeline adapters over existing commands. Final
+review fixed native-menu suppression, exact target identity selection-before-
+menu, Outliner opening/object selection, and the blocked room-Rename gate.
+Verification: 2,069 tests passed / 1 skipped; `svelte-check` 0/0; build clean;
+legacy gold-accent gate clean; `git diff --check` clean; sidebar Browser QA
+covered empty Plan, room creation, Plan↔3D persistence, custom menu opening,
+and editable native-menu preservation.
+
+## P3.6 — corrective structural visual reconciliation (2026-08-24)
+
+### Outcome and boundary
+
+- Replace line/bar approximations in the shared Plan SVG with architectural
+  wall thickness, wall casing/core, erased door/window openings, window frames,
+  door leaves, and swing arcs derived from the authored layout geometry.
+- Make room paper opaque over the grid. Keep Camera Plan on the same shared
+  projection while giving its canvas a deliberately subdued background so it
+  remains recognizably distinct from Scene Plan.
+- Expand the Camera timeline presentation into the five canonical display
+  lanes: `Camera Path`, `Shots`, `FOV`, `Look At`, and `Roll`, inside the
+  documented 240–300 px expanded shell with 288 px default and 48 px collapse.
+- This slice changes projection/presentation only. It does not add a second
+  camera graph or motion model, persist generated opening endpoints, add Shot
+  or Roll document state, change preview semantics, or modify `/museum`.
+
+### Sources, state, and mounting
+
+- `plan-render-model.ts` remains the renderer-neutral projection seam and now
+  exposes authored architectural metadata for walls and openings. `PlanSvg`
+  is still the sole SVG renderer consumed by Scene Plan and Camera Plan.
+- Existing selection identities and commands remain unchanged. Door/window
+  symbols select their authored opening; selected openings may emphasize the
+  owning wall without introducing a second selection model.
+- Existing route nodes/edges remain the Camera Path backing model. Existing
+  framing keys are projected into both `FOV` and `Look At`; `Shots` is a
+  derived display segmentation and `Roll` is an explicit quiet 0° lane.
+
+### Acceptance and rollback
+
+- Automated: projection metadata tests; source contracts for all five lane
+  labels, canonical timeline heights, and architectural SVG primitives;
+  museum test suite, `svelte-check`, build, and `git diff --check`.
+- Manual: compare Scene Plan against `scene-plan-layout.png`; compare Camera
+  Plan background and opaque room separation against
+  `camera-plan-overview.png`; compare the expanded timeline against
+  `camera-timeline-expanded.png`; verify Plan selection and Camera preview still
+  use their existing identities and commands.
+- Rollback is separable: (1) projection metadata + Plan symbols, (2) Camera
+  Plan palette overrides, and (3) timeline lane projection/shell dimensions.
+  Token/context-menu work from P3.2–P3.5 need not be retained to preserve this
+  corrective structure.
 
 ## Canonical targets (2026-08-19)
 

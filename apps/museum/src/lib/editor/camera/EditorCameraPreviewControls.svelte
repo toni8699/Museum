@@ -89,14 +89,14 @@
 		width: 10rem;
 		min-width: 0;
 		margin: 0;
-		color: #8d887f;
+		color: var(--editor-text-muted);
 		font-size: 0.68rem;
 		text-align: center;
 		text-transform: capitalize;
 		white-space: nowrap;
 	}
-	button { display: inline-flex; align-items: center; justify-content: center; gap: 0.3rem; padding: 0.42rem 0.4rem; border: 1px solid #3a3a46; border-radius: 0.3rem; background: #1a1a22; color: #ddd6ca; font: inherit; font-size: 0.72rem; cursor: pointer; white-space: nowrap; }
-	button.active, button.stop { border-color: #d6b35f; background: #2a2618; color: #fff2c7; }
+	button { display: inline-flex; align-items: center; justify-content: center; gap: 0.3rem; padding: 0.42rem 0.4rem; border: 1px solid var(--editor-border-normal); border-radius: 0.3rem; background: var(--editor-bg-panel-raised); color: var(--editor-text-secondary); font: inherit; font-size: 0.72rem; cursor: pointer; white-space: nowrap; }
+	button.active, button.stop { border-color: var(--editor-accent); background: var(--editor-bg-selected); color: var(--editor-text-primary); }
 	button:disabled { opacity: 0.42; cursor: default; }
 	.stop { margin-left: 0; }
 	.preview-transport :global(svg) { flex: 0 0 auto; }

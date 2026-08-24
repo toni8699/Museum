@@ -128,6 +128,44 @@ describe('pinned types', () => {
 	});
 });
 
+describe('P3 structural visual contracts', () => {
+	it('keeps the Camera timeline expanded into the five canonical display lanes', () => {
+		const timeline = readLibSource('editor/camera/EditorCameraTimelineDots.svelte');
+
+		for (const label of ['Camera Path', 'Shots', 'FOV', 'Look At', 'Roll']) {
+			expect(timeline).toContain(`<strong>${label}</strong>`);
+		}
+		expect(timeline).not.toContain('<strong>Guided Route</strong>');
+		expect(timeline).not.toContain('<strong>Camera Framing</strong>');
+	});
+
+	it('pins the timeline shell to the documented expanded and collapsed heights', () => {
+		const store = readLibSource('editor/editor-store.svelte.ts');
+
+		expect(store).toContain('EDITOR_TIMELINE_COLLAPSED_HEIGHT = 48');
+		expect(store).toContain('EDITOR_TIMELINE_MIN_HEIGHT = 240');
+		expect(store).toContain('EDITOR_TIMELINE_MAX_HEIGHT = 300');
+		expect(store).toContain('EDITOR_TIMELINE_DEFAULT_HEIGHT = 288');
+	});
+
+	it('renders architectural wall, window, and door primitives in the shared Plan SVG', () => {
+		const plan = readLibSource('editor/layout/PlanSvg.svelte');
+
+		for (const primitive of ['wall-casing', 'window-frame', 'door-leaf', 'door-swing']) {
+			expect(plan).toContain(primitive);
+		}
+	});
+
+	it('keeps Camera Plan on distinct paper while reusing the shared opaque room projection', () => {
+		const cameraPlan = readLibSource('editor/camera-plan/CameraPlanViewport.svelte');
+		const scenePlan = readLibSource('editor/layout/LayoutPlanViewport.svelte');
+
+		expect(scenePlan).toContain('background: var(--editor-plan-canvas-bg)');
+		expect(cameraPlan).toContain('background: var(--editor-camera-plan-canvas-bg)');
+		expect(cameraPlan).toContain('--editor-plan-room-bg: var(--editor-camera-plan-room-bg)');
+	});
+});
+
 describe('zero-node policy + room-resolver seam', () => {
 	it('pickInitialNavigationNodeId returns null for a scene with no navigation nodes', () => {
 		const rooms = createLayoutRoomRegistry(createEmptyLayoutDocument());
@@ -1201,9 +1239,10 @@ describe('camera context contracts', () => {
 	it('composes the Camera toolbar with Rotate + Add camera and unmounts Scale', () => {
 		const toolbar = readLibSource('editor/EditorViewportToolbar.svelte');
 		// Select | Move | Rotate | Scale are icon + label transform tools.
+		// P3.2 — §5 pins RotateCw for the Rotate tool.
 		expect(toolbar).toContain('<MousePointer2 size={14}');
 		expect(toolbar).toContain('<Move size={14}');
-		expect(toolbar).toContain('<Rotate3d size={14}');
+		expect(toolbar).toContain('<RotateCw size={14}');
 		expect(toolbar).toContain('<Scaling size={14}');
 		expect(toolbar).toContain('Select');
 		expect(toolbar).toContain('Rotate');

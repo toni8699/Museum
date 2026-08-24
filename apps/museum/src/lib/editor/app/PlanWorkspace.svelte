@@ -12,6 +12,7 @@
 	import { layoutMutationRunnerFor, runLayoutMutation } from '$lib/editor/layout/layout-mutation-runner';
 	import type { LayoutOpeningKind } from '$lib/editor/layout/layout-opening-editing';
 	import type { EditorStore } from '$lib/editor/editor-store.svelte';
+	import type { EditorContextMenuStore } from '$lib/editor/context-menu/context-menu-state.svelte';
 	import {
 		hasLayoutTransientInteraction,
 		setPlanViewMode,
@@ -32,13 +33,15 @@
 		store,
 		layoutPreview,
 		layoutInteraction,
-		active = true
+		active = true,
+		contextMenu = null
 	}: {
 		store: EditorStore;
 		layoutPreview: LayoutPreviewState;
 		layoutInteraction: LayoutInteractionState;
 		/** Scene Plan visibility; false while keep-mounted Camera Plan owns the viewport. */
 		active?: boolean;
+		contextMenu?: EditorContextMenuStore | null;
 	} = $props();
 	const activeSelection = getContext<EditorActiveSelectionStore | undefined>(
 		ACTIVE_EDITOR_SELECTION_KEY
@@ -248,6 +251,8 @@
 		onLayoutTransactionCommit={commitLayoutTransaction}
 		onLayoutTransactionCancel={cancelLayoutTransaction}
 		onDeselect={activeSelection ? deselectPlanActive : undefined}
+		{store}
+		{contextMenu}
 	/>
 </div>
 
@@ -258,7 +263,7 @@
 		height: 100%;
 		min-height: 0;
 		overflow: hidden;
-		background: #0b0b10;
+		background: var(--editor-bg-app);
 		/* S10.1.6 amendment — Plan ↔ 3D swaps are instant (no fade). */
 	}
 </style>

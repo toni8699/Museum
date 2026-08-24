@@ -14,7 +14,14 @@
 	import { isSceneModelEntity, type SceneEntity } from '$lib/content/scene';
 	import { formatPlacementLabel } from './editor-outliner';
 	import type { LayoutPreviewState } from './layout/layout-preview-state.svelte';
-	import { deleteLayoutObject, deleteLayoutOpening, deleteLayoutRoom } from './layout/layout-preview-state.svelte';
+	import { deleteLayoutObject, deleteLayoutOpening, deleteLayoutRoom, updateLayoutRoomFields } from './layout/layout-preview-state.svelte';
+	import type { EditorContextMenuStore } from './context-menu/context-menu-state.svelte';
+	import { isEditableTarget } from './context-menu/editable-target';
+	import { resolveSelectionBeforeMenu } from './context-menu/selection-before-menu';
+	import {
+		buildPlanLayoutContextMenuItems,
+		buildArrangeContextMenuItems
+	} from './context-menu/plan-menu-items';
 	import { layoutMutationRunnerFor, runLayoutMutation } from './layout/layout-mutation-runner';
 	import {
 		selectLayoutInteriorAnchor,
@@ -49,7 +56,8 @@
 		activeSelection,
 		domain,
 		view,
-		onAddRoom = undefined
+		onAddRoom = undefined,
+		contextMenu = null
 	}: {
 		store: EditorStore;
 		layoutPreview: LayoutPreviewState;
@@ -59,6 +67,8 @@
 		view: EditorViewMode;
 		/** S10.1 — start the room-drafting flow from the Rooms header (+). */
 		onAddRoom?: () => void;
+		/** P3.4 — shared context-menu slot; absent keeps the tree frozen. */
+		contextMenu?: EditorContextMenuStore | null;
 	} = $props();
 
 	const model = $derived(
@@ -311,6 +321,127 @@
 		store.toggleEntityVisibility(entityId);
 	}
 
+	// ── P3.4 — Outliner context-menu adapter ─────────────────────────────
+	// Right-click exposes the SAME actions the kebab already dispatches
+	// (existing commands only), with selection-before-menu mirroring a row
+	// click. Rows without an approved v1 action set keep native behavior.
+
+	function openTreeContextMenu(event: MouseEvent, items: ReturnType<typeof buildPlanLayoutContextMenuItems>): void {
+		if (!contextMenu || isEditableTarget(event.target)) return;
+		event.preventDefault();
+		contextMenu.open({
+			surfaceId: 'outliner',
+			x: event.clientX,
+			y: event.clientY,
+			items
+		});
+	}
+
+	const treeMutationBlocked = () =>
+		store.isDocumentMutationBlocked ? 'Preview is active' : null;
+
+	function renameRoomViaPrompt(roomId: string, currentName: string): void {
+		const next = window.prompt('Room name', currentName)?.trim();
+		if (!next || next === currentName) return;
+		const outcome = runLayoutMutationGuarded(
+			() => updateLayoutRoomFields(layoutPreview, roomId, { name: next }),
+			(result) => result.success
+		);
+		if (outcome.kind === 'skipped') {
+			store.setStatusMessage('Finish the current layout interaction first');
+			return;
+		}
+		store.setStatusMessage(outcome.result.success ? 'Renamed room' : outcome.result.message);
+	}
+
+	function roomContextMenuActions(currentName: string): Parameters<
+		typeof buildPlanLayoutContextMenuItems
+	>[0]['actions'] {
+		return {
+			renameRoom: (roomId) => renameRoomViaPrompt(roomId, currentName),
+			deleteRoom,
+			deleteOpening,
+			deleteObject
+		};
+	}
+
+	function onRoomRowContextMenu(event: MouseEvent, room: UnifiedTreeRoom): void {
+		if (!contextMenu) return;
+		if (roomRowInteractive({ kind: 'room', roomId: room.roomId })) selectRoom(room);
+		openTreeContextMenu(
+			event,
+			buildPlanLayoutContextMenuItems({
+				target: { kind: 'room', roomId: room.roomId },
+				mutationBlockedReason: treeMutationBlocked(),
+				actions: roomContextMenuActions(room.name)
+			})
+		);
+	}
+
+	function onOpeningRowContextMenu(
+		event: MouseEvent,
+		roomId: string,
+		segmentId: string,
+		openingId: string
+	): void {
+		if (!contextMenu) return;
+		const row = { kind: 'opening', roomId, segmentId, openingId } satisfies UnifiedTreeRow;
+		if (roomRowInteractive(row)) selectLayoutOpening(layoutInteraction, roomId, segmentId, openingId);
+		openTreeContextMenu(
+			event,
+			buildPlanLayoutContextMenuItems({
+				target: { kind: 'opening', roomId, openingId },
+				mutationBlockedReason: treeMutationBlocked(),
+				actions: roomContextMenuActions('')
+			})
+		);
+	}
+
+	function onObjectRowContextMenu(event: MouseEvent, objectId: string): void {
+		if (!contextMenu) return;
+		const row = { kind: 'object', objectId } satisfies UnifiedTreeRow;
+		if (roomRowInteractive(row)) selectObject(objectId);
+		openTreeContextMenu(
+			event,
+			buildPlanLayoutContextMenuItems({
+				target: { kind: 'object', objectId },
+				mutationBlockedReason: treeMutationBlocked(),
+				actions: roomContextMenuActions('')
+			})
+		);
+	}
+
+	function onEntityRowContextMenu(entity: SceneEntity, event: MouseEvent): void {
+		if (!contextMenu) return;
+		const selected = store.selectedPlacementIds.includes(entity.id);
+		if (
+			resolveSelectionBeforeMenu({
+				targetSelected: selected,
+				selectionSize: store.selectedPlacementIds.length
+			}) === 'select-target'
+		) {
+			selectEntity(entity);
+		}
+		openTreeContextMenu(
+			event,
+			buildArrangeContextMenuItems({
+				target: { owner: 'scene', entityId: entity.id },
+				sceneTargetHidden: store.isEntityHidden(entity.id),
+				mutationBlockedReason: treeMutationBlocked(),
+				duplicateBlockedReason:
+					store.selectedPlacementIds.length === 0 ? 'Nothing selected' : null,
+				actions: {
+					deleteLayoutObject: () => {},
+					duplicateScene: () => store.duplicateSelection(),
+					focusScene: (entityId) => frameEntity(entityId),
+					toggleSceneVisibility: (entityId) => toggleEntityHidden(entityId),
+					deleteScene: () =>
+						store.deletePlacements([...store.selectedPlacementIds])
+				}
+			})
+		);
+	}
+
 </script>
 
 <section bind:this={treeElement} class="unified-tree" aria-label="Project hierarchy">
@@ -384,6 +515,7 @@
 								class:tree-row--selected={rowSelected(roomRow)}
 								aria-disabled={!roomRowInteractive(roomRow)}
 								onclick={roomRowInteractive(roomRow) ? () => selectRoom(room) : undefined}
+								oncontextmenu={contextMenu ? (event) => onRoomRowContextMenu(event, room) : undefined}
 							>
 								<span class="tree-row__label" title={room.name}>{room.name}</span>
 								<span class="tree-row__meta" title={room.roomId}>{formatPlacementLabel(room.roomId)}</span>
@@ -477,6 +609,15 @@
 											onclick={roomRowInteractive(openingRow)
 												? () => selectOpening(room, opening.segmentId, opening.openingId)
 												: undefined}
+											oncontextmenu={contextMenu
+												? (event) =>
+													onOpeningRowContextMenu(
+														event,
+														opening.roomId,
+														opening.segmentId,
+														opening.openingId
+													)
+												: undefined}
 										>
 											<span class="tree-row__label">{opening.kind === 'door' ? 'Door' : 'Window'}</span>
 											<span class="tree-row__meta" title={opening.openingId}>{formatPlacementLabel(opening.openingId)}</span>
@@ -509,6 +650,9 @@
 											aria-disabled={!roomRowInteractive(objectRow)}
 											onclick={roomRowInteractive(objectRow)
 												? () => selectObject(object.objectId)
+												: undefined}
+											oncontextmenu={contextMenu
+												? (event) => onObjectRowContextMenu(event, object.objectId)
 												: undefined}
 										>
 											<span class="tree-row__label" title={object.objectId}>{formatPlacementLabel(object.kind)} · {formatPlacementLabel(object.objectId)}</span>
@@ -575,7 +719,8 @@
 													{#each cluster.memberIds as memberId (memberId)}
 														{@const entity = sceneEntitiesById.get(memberId)}
 														{@const memberRow = { kind: 'entity', entityId: memberId } satisfies UnifiedTreeRow}
-														{#if entity}																<li role="treeitem" aria-selected={rowSelected(memberRow)}>
+													{#if entity}
+														<li role="treeitem" aria-selected={rowSelected(memberRow)}>
 																	<div class="member-line">
 																		<button
 																			type="button"
@@ -643,6 +788,9 @@
 													aria-disabled={!roomRowInteractive(entityRow)}
 													onclick={roomRowInteractive(entityRow)
 														? (event) => selectEntity(entity, event)
+														: undefined}
+													oncontextmenu={contextMenu
+														? (event) => onEntityRowContextMenu(entity, event)
 														: undefined}
 												>
 													<span class="tree-row__label" title={entityLabel(entity)}>{entityLabel(entity)}</span>
@@ -725,23 +873,23 @@
 		align-items: center;
 		gap: 0.35rem;
 		padding: 0.22rem 0.3rem;
-		border: 1px solid #34313a;
+		border: 1px solid var(--editor-border-subtle);
 		border-radius: 0.34rem;
-		background: #17171f;
+		background: var(--editor-bg-panel-raised);
 	}
-	.tree-filter:focus-within { border-color: #8d753c; box-shadow: inset 0 0 0 1px #6f5c31; }
-	.tree-filter__icon { display: inline-flex; flex: 0 0 auto; align-items: center; color: #918c84; }
+	.tree-filter:focus-within { border-color: var(--editor-accent-border); box-shadow: inset 0 0 0 1px var(--editor-accent-pressed); }
+	.tree-filter__icon { display: inline-flex; flex: 0 0 auto; align-items: center; color: var(--editor-text-muted); }
 	.tree-filter__input {
 		flex: 1 1 auto;
 		min-width: 0;
 		padding: 0.3rem 0;
 		border: 0;
 		background: transparent;
-		color: #f4efe4;
+		color: var(--editor-text-primary);
 		font: inherit;
 		font-size: 0.73rem;
 	}
-	.tree-filter__input::placeholder { color: #6f6b66; }
+	.tree-filter__input::placeholder { color: var(--editor-text-disabled); }
 	.tree-filter__input:focus { outline: none; }
 	.tree-filter__action {
 		display: inline-flex;
@@ -754,11 +902,11 @@
 		border: 1px solid transparent;
 		border-radius: 0.24rem;
 		background: transparent;
-		color: #918c84;
+		color: var(--editor-text-muted);
 		cursor: pointer;
 	}
-	.tree-filter__action:hover { border-color: #3a3a46; background: #202029; color: #f4efe4; }
-	.tree-filter__action.active { border-color: #8d753c; background: #2a2618; color: #f4dc9b; }
+	.tree-filter__action:hover { border-color: var(--editor-border-normal); background: var(--editor-bg-control); color: var(--editor-text-primary); }
+	.tree-filter__action.active { border-color: var(--editor-accent-border); background: var(--editor-bg-selected); color: var(--editor-text-primary); }
 
 	.tree-root { display: flex; min-width: 0; flex-direction: column; gap: 0.25rem; }
 	.tree-root__header { display: flex; min-width: 0; align-items: center; gap: 0.2rem; }
@@ -773,10 +921,10 @@
 		border: 1px solid transparent;
 		border-radius: 0.28rem;
 		background: transparent;
-		color: #918c84;
+		color: var(--editor-text-muted);
 		cursor: pointer;
 	}
-	.tree-root__add:hover { border-color: #8d753c; background: #2a2618; color: #fff2c7; }
+	.tree-root__add:hover { border-color: var(--editor-accent-border); background: var(--editor-bg-selected); color: var(--editor-text-primary); }
 	.tree-root__row {
 		display: flex;
 		width: 100%;
@@ -794,7 +942,7 @@
 		text-align: left;
 		cursor: pointer;
 	}
-	.tree-root__row:hover { border-color: #3a3a46; background: #202029; }
+	.tree-root__row:hover { border-color: var(--editor-border-normal); background: var(--editor-bg-control); }
 	.tree-root__label { font-size: 0.8rem; font-weight: 650; letter-spacing: 0.02em; }
 	.chevron { display: block; font-size: 1rem; line-height: 1; transform: rotate(0); transition: transform 120ms ease; }
 	.chevron.open { transform: rotate(90deg); }
@@ -803,28 +951,28 @@
 	.room-line, .cluster-line { display: grid; min-width: 0; grid-template-columns: 1.7rem minmax(0, 1fr) auto; gap: 0.1rem; }
 	.tree-row { display: flex; width: 100%; min-width: 0; min-height: 2rem; box-sizing: border-box; align-items: center; gap: 0.45rem; padding: 0.28rem 0.45rem; border: 1px solid transparent; border-radius: 0.28rem; background: transparent; color: inherit; font: inherit; text-align: left; }
 	button.tree-row { cursor: pointer; }
-	button.tree-row:hover:not([aria-disabled='true']) { border-color: #3a3a46; background: #202029; }
+	button.tree-row:hover:not([aria-disabled='true']) { border-color: var(--editor-border-normal); background: var(--editor-bg-control); }
 	button.tree-row[aria-disabled='true'] { opacity: 0.6; }
-	.tree-row--selected { border-color: #8d753c; background: #2a2618; box-shadow: inset 0 0 0 1px #6f5c31; color: #fff2c7; }
+	.tree-row--selected { border-color: var(--editor-accent-border); background: var(--editor-bg-selected); box-shadow: inset 0 0 0 1px var(--editor-accent-pressed); color: var(--editor-text-primary); }
 	.tree-row--selected[aria-disabled='true'] { opacity: 1; }
-	.tree-row__chevron { display: grid; width: 1.7rem; min-height: 2rem; place-items: center; padding: 0; border: 1px solid transparent; border-radius: 0.28rem; background: transparent; color: #d6b35f; cursor: pointer; }
-	.tree-row__chevron:hover { border-color: #3a3a46; background: #202029; }
+	.tree-row__chevron { display: grid; width: 1.7rem; min-height: 2rem; place-items: center; padding: 0; border: 1px solid transparent; border-radius: 0.28rem; background: transparent; color: var(--editor-accent); cursor: pointer; }
+	.tree-row__chevron:hover { border-color: var(--editor-border-normal); background: var(--editor-bg-control); }
 	.tree-row__label { min-width: 0; overflow: hidden; font-size: 0.74rem; font-weight: 570; text-overflow: ellipsis; white-space: nowrap; }
-	.tree-row__meta { min-width: 0; margin-left: auto; overflow: hidden; color: #918c84; font-size: 0.62rem; text-overflow: ellipsis; white-space: nowrap; }
-	.tree-row--selected .tree-row__meta { color: #e8d5a3; }
+	.tree-row__meta { min-width: 0; margin-left: auto; overflow: hidden; color: var(--editor-text-muted); font-size: 0.62rem; text-overflow: ellipsis; white-space: nowrap; }
+	.tree-row--selected .tree-row__meta { color: var(--editor-text-primary); }
 	.room-row { min-height: 2.125rem; }
-	.room-children { margin: 0.12rem 0 0.2rem 0.85rem; padding-left: 0.65rem; border-left: 1px solid #36323a; }
-	.group-header { padding: 0.3rem 0.45rem 0.1rem; color: #8f8a82; font-size: 0.62rem; font-weight: 650; letter-spacing: 0.05em; text-transform: uppercase; }
-	.wall-children, .cluster-members { margin-left: 0.85rem; padding-left: 0.62rem; border-left: 1px solid #4a4438; }
+	.room-children { margin: 0.12rem 0 0.2rem 0.85rem; padding-left: 0.65rem; border-left: 1px solid var(--editor-border-subtle); }
+	.group-header { padding: 0.3rem 0.45rem 0.1rem; color: var(--editor-text-muted); font-size: 0.62rem; font-weight: 650; letter-spacing: 0.05em; text-transform: uppercase; }
+	.wall-children, .cluster-members { margin-left: 0.85rem; padding-left: 0.62rem; border-left: 1px solid var(--editor-border-normal); }
 	.cluster-row { justify-content: space-between; }
 	.cluster-title { display: flex; min-width: 0; align-items: center; gap: 0.4rem; }
-	.folder-icon { position: relative; display: inline-block; width: 0.78rem; height: 0.54rem; flex: 0 0 auto; margin-top: 0.08rem; border-radius: 0.1rem; background: #d6b35f; }
-	.folder-icon::before { content: ''; position: absolute; left: 0.07rem; top: -0.15rem; width: 0.32rem; height: 0.18rem; border-radius: 0.08rem 0.08rem 0 0; background: #d6b35f; }
+	.folder-icon { position: relative; display: inline-block; width: 0.78rem; height: 0.54rem; flex: 0 0 auto; margin-top: 0.08rem; border-radius: 0.1rem; background: var(--editor-accent); }
+	.folder-icon::before { content: ''; position: absolute; left: 0.07rem; top: -0.15rem; width: 0.32rem; height: 0.18rem; border-radius: 0.08rem 0.08rem 0 0; background: var(--editor-accent); }
 	.member-line { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr) auto auto; align-items: stretch; gap: 0.2rem; }
-	.mini-action { width: 1.8rem; min-height: 2rem; padding: 0; border: 1px solid #3a3a46; border-radius: 0.28rem; background: #1a1a22; color: #f4efe4; cursor: pointer; }
-	.mini-action:hover:not(:disabled) { border-color: #8d753c; background: #2a2618; }
+	.mini-action { width: 1.8rem; min-height: 2rem; padding: 0; border: 1px solid var(--editor-border-normal); border-radius: 0.28rem; background: var(--editor-bg-panel-raised); color: var(--editor-text-primary); cursor: pointer; }
+	.mini-action:hover:not(:disabled) { border-color: var(--editor-accent-border); background: var(--editor-bg-selected); }
 	.mini-action:disabled { opacity: 0.35; cursor: default; }
-	.empty { color: #918c84; font-size: 0.7rem; padding: 0.3rem 0.45rem 0.4rem; }
+	.empty { color: var(--editor-text-muted); font-size: 0.7rem; padding: 0.3rem 0.45rem 0.4rem; }
 
 	/* S10.1 — per-row visibility + kebab actions. */
 	.row-actions { position: relative; display: flex; align-items: center; gap: 0.12rem; }
@@ -839,13 +987,13 @@
 		border: 1px solid transparent;
 		border-radius: 0.24rem;
 		background: transparent;
-		color: #918c84;
+		color: var(--editor-text-muted);
 		cursor: pointer;
 	}
 	.eye:hover,
 	.kebab:hover,
-	.kebab[aria-expanded='true'] { border-color: #3a3a46; background: #202029; color: #f4efe4; }
-	.eye[aria-pressed='false'] { color: #6f6b66; }
+	.kebab[aria-expanded='true'] { border-color: var(--editor-border-normal); background: var(--editor-bg-control); color: var(--editor-text-primary); }
+	.eye[aria-pressed='false'] { color: var(--editor-text-disabled); }
 	.row-menu {
 		position: absolute;
 		top: calc(100% + 0.2rem);
@@ -858,7 +1006,7 @@
 		padding: 0.3rem;
 		border: 1px solid rgb(70 68 78 / 88%);
 		border-radius: 0.34rem;
-		background: #1a1a22;
+		background: var(--editor-bg-panel-raised);
 		box-shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 42%);
 	}
 	.row-menu button {
@@ -869,13 +1017,13 @@
 		border: 1px solid transparent;
 		border-radius: 0.26rem;
 		background: transparent;
-		color: #ddd6ca;
+		color: var(--editor-text-secondary);
 		font: inherit;
 		font-size: 0.68rem;
 		text-align: left;
 		cursor: pointer;
 	}
-	.row-menu button:hover { border-color: #3a3a46; background: #202029; color: #fff; }
-	.row-menu button.danger { color: #d99088; }
-	.row-menu button.danger:hover { border-color: #6f443f; background: #241716; color: #ffc1ba; }
+	.row-menu button:hover { border-color: var(--editor-border-normal); background: var(--editor-bg-control); color: var(--editor-text-primary); }
+	.row-menu button.danger { color: var(--editor-danger-fg); }
+	.row-menu button.danger:hover { border-color: var(--editor-danger-border); background: var(--editor-danger-soft); color: var(--editor-danger-fg); }
 </style>

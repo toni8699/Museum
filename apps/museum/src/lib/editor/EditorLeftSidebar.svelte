@@ -112,31 +112,31 @@
 		flex-direction: column;
 		gap: 1rem;
 		padding: 1rem 1.1rem;
-		border-right: 1px solid #2a2a33;
+		border-right: 1px solid var(--editor-border-subtle);
 		overflow: auto;
-		background: #121218;
+		background: var(--editor-bg-panel);
 	}
 	.sidebar-content { display: flex; min-width: 0; min-height: 0; flex: 1; flex-direction: column; gap: 1rem; }
 	.panel-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 0.3rem; }
-	.panel-tabs button { padding: 0.42rem; border: 1px solid #3a3a46; border-radius: 0.32rem; background: #1a1a22; color: #a8a29a; font: inherit; font-size: 0.73rem; cursor: pointer; }
-	.panel-tabs button.active { border-color: #d6b35f; background: #2a2618; color: #fff2c7; }
+	.panel-tabs button { padding: 0.42rem; border: 1px solid var(--editor-border-normal); border-radius: 0.32rem; background: var(--editor-bg-panel-raised); color: var(--editor-text-secondary); font: inherit; font-size: 0.73rem; cursor: pointer; }
+	.panel-tabs button.active { border-color: var(--editor-accent); background: var(--editor-bg-selected); color: var(--editor-text-primary); }
 	.panel-content { display: contents; }
-	.camera-workspace-header { min-width: 0; padding-bottom: 0.25rem; border-bottom: 1px solid #2a2a33; }
+	.camera-workspace-header { min-width: 0; padding-bottom: 0.25rem; border-bottom: 1px solid var(--editor-border-subtle); }
 	.camera-workspace-header h1 { margin: 0; font-size: 0.95rem; font-weight: 650; letter-spacing: 0.02em; }
-	.camera-workspace-header p { margin: 0.25rem 0 0; color: #a8a29a; font-size: 0.72rem; }
+	.camera-workspace-header p { margin: 0.25rem 0 0; color: var(--editor-text-secondary); font-size: 0.72rem; }
 	.layout-preview-summary { display: flex; flex-direction: column; gap: 0.8rem; }
-	.source-badge { align-self: flex-start; padding: 0.24rem 0.45rem; border: 1px solid #8d753c; border-radius: 999px; background: #2a2618; color: #fff2c7; font-size: 0.66rem; font-weight: 650; }
+	.source-badge { align-self: flex-start; padding: 0.24rem 0.45rem; border: 1px solid var(--editor-accent-border); border-radius: 999px; background: var(--editor-bg-selected); color: var(--editor-text-primary); font-size: 0.66rem; font-weight: 650; }
 	.layout-preview-summary dl { display: flex; flex-direction: column; gap: 0.42rem; margin: 0; }
 	.layout-preview-summary dl div { display: flex; justify-content: space-between; gap: 0.8rem; }
-	.layout-preview-summary dt { color: #8f8a82; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em; }
-	.layout-preview-summary dd { margin: 0; color: #f4efe4; font-size: 0.75rem; }
+	.layout-preview-summary dt { color: var(--editor-text-muted); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em; }
+	.layout-preview-summary dd { margin: 0; color: var(--editor-text-primary); font-size: 0.75rem; }
 	.layout-actions { display: flex; flex-direction: column; gap: 0.35rem; }
-	.layout-actions button { padding: 0.42rem 0.5rem; border: 1px solid #3a3a46; border-radius: 0.32rem; background: #1a1a22; color: #f4efe4; font: inherit; font-size: 0.7rem; cursor: pointer; }
-	.layout-actions button:hover { border-color: #d6b35f; }
-	.layout-note { margin: 0; color: #a8a29a; font-size: 0.7rem; line-height: 1.4; }
-	.layout-error { margin: 0; color: #efc7c7; font-size: 0.7rem; line-height: 1.4; }
+	.layout-actions button { padding: 0.42rem 0.5rem; border: 1px solid var(--editor-border-normal); border-radius: 0.32rem; background: var(--editor-bg-panel-raised); color: var(--editor-text-primary); font: inherit; font-size: 0.7rem; cursor: pointer; }
+	.layout-actions button:hover { border-color: var(--editor-accent); }
+	.layout-note { margin: 0; color: var(--editor-text-secondary); font-size: 0.7rem; line-height: 1.4; }
+	.layout-error { margin: 0; color: var(--editor-danger-fg); font-size: 0.7rem; line-height: 1.4; }
 	@media (max-width: 62rem) {
-		.panel { min-height: 0; max-height: 34rem; border-top: 1px solid #2a2a33; }
+		.panel { min-height: 0; max-height: 34rem; border-top: 1px solid var(--editor-border-subtle); }
 	}
 	@media (max-width: 44rem) {
 		.panel { max-height: 30rem; border-right: 0; }

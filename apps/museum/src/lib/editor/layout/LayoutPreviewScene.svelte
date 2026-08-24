@@ -10,6 +10,7 @@
 	// import { layoutAnchorHelperPlacements } from './layout-3d-picking';
 	import type { LayoutVec2 } from '$lib/layout/layout-types';
 	import { ceilingShapePoints, floorShapePoints } from './layout-preview-geometry';
+	import { SCENE_PALETTE_HEX } from '../styles/scene-palette';
 	import {
 		FLOOR_MATERIAL,
 		// Deferred with the hover/anchor shells (S6.1+): LAYOUT_HOVER_COLOR,
@@ -302,7 +303,7 @@
 					<T.Mesh>
 						<T.OctahedronGeometry args={[0.12]} />
 						<T.MeshBasicMaterial
-							color={anchorHovered && !anchorSelected ? LAYOUT_HOVER_COLOR : '#d6b35f'}
+							color={anchorHovered && !anchorSelected ? LAYOUT_HOVER_COLOR : SCENE_PALETTE_HEX.selected}
 						/>
 					</T.Mesh>
 				</T.Group>
@@ -354,7 +355,7 @@
 				{/if}
 				<T.MeshStandardMaterial
 					color={objectSelected
-						? '#d6b35f'
+						? SCENE_PALETTE_HEX.selected
 						: object.readonly
 							? '#756f82'
 							: '#84907b'}

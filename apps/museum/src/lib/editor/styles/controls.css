@@ -1,0 +1,31 @@
+/*
+ * P3.2 — control tokens (Design-specs.md §12/§13/§17).
+ * Buttons/inputs/segmented controls reference these from their scoped styles;
+ * the shared focus ring lives in editor-shell.css.
+ */
+
+:root {
+	/* Dense authoring-tool control metrics (DS §12). */
+	--editor-control-pad-x: 8px;
+	--editor-control-pad-y: 6px;
+	--editor-control-height: 28px;
+	--editor-control-font: 500 var(--editor-font-size-toolbar) var(--editor-font);
+	--editor-control-radius: var(--editor-radius-md);
+
+	/* Resting control surface + states. */
+	--editor-control-bg: var(--editor-bg-control);
+	--editor-control-border: var(--editor-border-normal);
+	--editor-control-fg: var(--editor-text-primary);
+	--editor-control-hover-bg: var(--editor-bg-hover);
+	--editor-control-active-bg: var(--editor-bg-selected);
+	--editor-control-active-border: var(--editor-accent-border);
+	--editor-control-active-fg: var(--editor-text-primary);
+
+	/* Segmented domain/view controls (DS §18). */
+	--editor-segmented-radius: var(--editor-radius-lg);
+
+	/* Destructive action treatment (DS §7 — red only for destructive/errors). */
+	--editor-danger-bg: var(--editor-danger-soft);
+	--editor-danger-border: rgb(239 98 108 / 55%);
+	--editor-danger-fg: #f4b8bd;
+}

@@ -95,22 +95,22 @@
 		gap: 0.3rem;
 		transform: translateX(-50%);
 		padding: 0.3rem;
-		border: 1px solid #2f2f38;
+		border: 1px solid var(--editor-border-subtle);
 		border-radius: 0.45rem;
-		background: rgb(18 18 24 / 92%);
+		background: var(--editor-bg-panel-raised);
 	}
 	button {
 		padding: 0.4rem 0.6rem;
 		border: 1px solid transparent;
 		border-radius: 0.3rem;
 		background: transparent;
-		color: #d6d0c4;
-		font: 600 0.7rem/1 ui-sans-serif, system-ui, sans-serif;
+		color: var(--editor-text-secondary);
+		font: 600 0.7rem/1 var(--editor-font);
 		cursor: pointer;
 		white-space: nowrap;
 	}
-	button:hover:not(:disabled) { background: #23232c; color: #f4efe4; }
-	button.active { border-color: #8d753c; background: #2a2618; color: #fff2c7; }
+	button:hover:not(:disabled) { background: var(--editor-bg-hover); color: var(--editor-text-primary); }
+	button.active { border-color: var(--editor-accent-border); background: var(--editor-bg-selected); color: var(--editor-text-primary); }
 	button:disabled { opacity: 0.38; cursor: default; }
-	.toolbar-separator { width: 1px; height: 1.1rem; background: #3a3a46; }
+	.toolbar-separator { width: 1px; height: 1.1rem; background: var(--editor-border-normal); }
 </style>

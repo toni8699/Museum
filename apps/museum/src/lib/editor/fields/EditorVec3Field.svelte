@@ -109,7 +109,7 @@
 	fieldset {
 		margin: 0;
 		padding: 0.65rem;
-		border: 1px solid #2e2e37;
+		border: 1px solid var(--editor-border-subtle);
 		border-radius: 0.4rem;
 	}
 
@@ -119,7 +119,7 @@
 
 	legend {
 		padding: 0 0.25rem;
-		color: #bbb4a8;
+		color: var(--editor-text-secondary);
 		font-size: 0.72rem;
 	}
 
@@ -134,7 +134,7 @@
 		flex-direction: column;
 		gap: 0.3rem;
 		min-width: 0;
-		color: #aaa49a;
+		color: var(--editor-text-secondary);
 		font-size: 0.7rem;
 		letter-spacing: 0.04em;
 		text-transform: uppercase;
@@ -145,15 +145,15 @@
 		width: 100%;
 		box-sizing: border-box;
 		padding: 0.42rem 0.45rem;
-		border: 1px solid #3a3a46;
+		border: 1px solid var(--editor-border-normal);
 		border-radius: 0.3rem;
-		background: #0d0d12;
-		color: #f4efe4;
-		font: 0.76rem ui-monospace, SFMono-Regular, Menlo, monospace;
+		background: var(--editor-bg-app);
+		color: var(--editor-text-primary);
+		font: 0.76rem var(--editor-font);
 	}
 
 	input:focus {
-		outline: 1px solid #d6b35f;
-		border-color: #d6b35f;
+		outline: 1px solid var(--editor-accent);
+		border-color: var(--editor-accent);
 	}
 </style>

@@ -10,6 +10,17 @@
 	import type { Vec3 } from '$lib/types/scene';
 	import { Vector3 } from 'three';
 	import type { EditorStore } from '../editor-store.svelte';
+	import type { EditorContextMenuStore } from '../context-menu/context-menu-state.svelte';
+	import { isEditableTarget } from '../context-menu/editable-target';
+	import {
+		buildCameraConnectionContextMenuItems,
+		buildCameraNodeContextMenuItems
+	} from '../context-menu/camera-menu-items';
+	import {
+		validateConnectionDeletion,
+		validateGuidedTourRemoval,
+		validateNavigationNodeDeletion
+	} from '../editor-navigation-graph';
 	import type { LayoutPreviewState } from '../layout/layout-preview-state.svelte';
 	import type { EditorNavigationSelection } from '../editor-selection';
 	import {
@@ -51,11 +62,13 @@
 	let {
 		store,
 		preview,
-		cameraPlan
+		cameraPlan,
+		contextMenu = null
 	}: {
 		store: EditorStore;
 		preview: LayoutPreviewState;
 		cameraPlan: CameraPlanState;
+		contextMenu?: EditorContextMenuStore | null;
 	} = $props();
 	const activeSelection = getContext<EditorActiveSelectionStore | undefined>(
 		ACTIVE_EDITOR_SELECTION_KEY
@@ -389,6 +402,92 @@
 		return true;
 	}
 
+	/**
+	 * P3.5 — Camera Plan context-menu adapter. Resolves through the existing
+	 * `resolveCameraPlanHit` (node / anchor / edge) and binds to backing
+	 * identities only. Selection-before-menu uses the same selection actions
+	 * as a left click; anchors get no v1 menu; empty space keeps native
+	 * behavior and never changes selection.
+	 */
+	function onPlanContextMenu(event: MouseEvent): void {
+		if (!contextMenu) return;
+		if (isEditableTarget(event.target)) return;
+		const world = worldPoint(event as unknown as PointerEvent);
+		if (!world || cameraPlan.tool !== 'select') return;
+		const hit = authoringProjection?.authoring
+			? resolveCameraPlanHit(authoringProjection.authoring, world, cameraPlan.planView.pixelsPerMeter)
+			: null;
+		if (!hit) return;
+
+		const blocked = store.isDocumentMutationBlocked ? 'Preview is active' : null;
+
+		if (hit.kind === 'node') {
+			event.preventDefault();
+			openCameraNodeMenu(hit.nodeId, event.clientX, event.clientY, blocked);
+			return;
+		}
+		if (hit.kind === 'edge') {
+			store.selectionActions.selectConnection(hit.connectionId);
+			const failure = validateConnectionDeletion(store.document, hit.connectionId);
+			event.preventDefault();
+			contextMenu.open({
+				surfaceId: 'camera-plan',
+				x: event.clientX,
+				y: event.clientY,
+				items: buildCameraConnectionContextMenuItems({
+					mutationBlockedReason: blocked,
+					deleteReason: failure.ok ? null : failure.message,
+					actions: {
+						openTiming: () => store.selectCameraTimelineEdge(hit.connectionId, 'forward', 0),
+						toggleReverse: () => store.toggleCameraEdgeReverse(),
+						deleteConnection: () => store.deleteConnection(hit.connectionId)
+					}
+				})
+			});
+		}
+		// anchors keep native behavior in v1 (bend-anchor menu stays out)
+	}
+
+	/** Shared node menu (Camera Plan = spatial variant). */
+	function openCameraNodeMenu(
+		nodeId: string,
+		clientX: number,
+		clientY: number,
+		blocked: string | null
+	): void {
+		if (!contextMenu) return;
+		const node = store.document.navigationNodes.find((candidate) => candidate.id === nodeId);
+		if (!node) return;
+		store.selectionActions.selectNavigationNode(nodeId);
+		const flow = store.mainFlowNodeIds;
+		const onSequence = flow.includes(nodeId);
+		const removalFailure = onSequence ? validateGuidedTourRemoval(store.document, nodeId) : null;
+		const deletionFailure = validateNavigationNodeDeletion(store.document, nodeId);
+		contextMenu.open({
+			surfaceId: 'camera-plan',
+			x: clientX,
+			y: clientY,
+			items: buildCameraNodeContextMenuItems({
+				spatial: true,
+				nodeOnSequence: onSequence,
+				mutationBlockedReason: blocked,
+				removeFromSequenceReason:
+					removalFailure && !removalFailure.ok ? removalFailure.message : null,
+				deleteNodeReason: deletionFailure.ok ? null : deletionFailure.message,
+				actions: {
+					previewCamera: () => void store.previewSelectedNode(),
+					addToSequence: () => store.insertNodeIntoGuidedTour(nodeId, Math.max(flow.length, 0)),
+					removeFromSequence: () => store.removeNodeFromGuidedTour(nodeId),
+					rename: () => {
+						const next = window.prompt('Camera name', node.label)?.trim();
+						if (next && next !== node.label) store.commitSelectedNodeLabel(next);
+					},
+					deleteNode: () => store.deleteNavigationNode(nodeId)
+				}
+			})
+		});
+	}
+
 	function onPointerDown(event: PointerEvent) {
 		if (event.button === 1) {
 			const screen = screenPoint(event);
@@ -692,6 +791,7 @@
 		tabindex="0"
 		aria-label="2D camera graph plan"
 		onpointerdown={onPointerDown}
+		oncontextmenu={onPlanContextMenu}
 		onpointermove={onPointerMove}
 		onpointerup={onPointerUp}
 		onpointercancel={onPointerCancel}
@@ -720,15 +820,15 @@
 </div>
 
 <style>
-	.camera-plan-viewport { position: absolute; inset: 0; z-index: 3; background: #0d0d12; }
-	.plan-canvas { display: block; position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: crosshair; outline: none; }
-	.plan-canvas line { stroke: #302d38; stroke-width: 1; vector-effect: non-scaling-stroke; }
-	.plan-canvas line.major { stroke: #494352; }
-	.grid-label { fill: #746d7d; font: 10px ui-monospace, monospace; pointer-events: none; }
-	.scale-label { fill: #d6d0c4; font: 11px ui-monospace, monospace; }
-	.scale-bar { stroke: #fff2c7; stroke-width: 3; vector-effect: non-scaling-stroke; }
-	.plan-help { position: absolute; top: 4.25rem; left: 50%; z-index: 5; max-width: min(34rem, calc(100% - 2rem)); transform: translateX(-50%); padding: 0.45rem 0.7rem; border: 1px solid #49433a; border-radius: 999px; background: rgb(18 18 24 / 92%); color: #fff2c7; font: 600 0.7rem/1.2 ui-sans-serif, system-ui, sans-serif; pointer-events: none; text-align: center; }
-	.plan-meta { position: absolute; left: 0.8rem; bottom: 0.8rem; z-index: 2; display: flex; gap: 0.7rem; color: #a8a29a; font: 0.68rem/1 ui-sans-serif, system-ui, sans-serif; pointer-events: none; }
+	.camera-plan-viewport { position: absolute; inset: 0; z-index: 3; background: var(--editor-camera-plan-canvas-bg); }
+	.plan-canvas { display: block; position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: crosshair; outline: none; background: var(--editor-camera-plan-canvas-bg); --editor-plan-room-bg: var(--editor-camera-plan-room-bg); --editor-plan-room-selected-bg: #e2efff; }
+	.plan-canvas line { stroke: var(--editor-plan-grid-minor); stroke-width: 1; vector-effect: non-scaling-stroke; }
+	.plan-canvas line.major { stroke: var(--editor-plan-grid-major); }
+	.grid-label { fill: var(--editor-plan-muted); font: 10px var(--editor-font); pointer-events: none; }
+	.scale-label { fill: var(--editor-plan-muted); font: 11px var(--editor-font); }
+	.scale-bar { stroke: var(--editor-plan-wall); stroke-width: 3; vector-effect: non-scaling-stroke; }
+	.plan-help { position: absolute; top: 4.25rem; left: 50%; z-index: 5; max-width: min(34rem, calc(100% - 2rem)); transform: translateX(-50%); padding: 0.45rem 0.7rem; border: 1px solid var(--editor-border-normal); border-radius: 999px; background: var(--editor-bg-panel-raised); color: var(--editor-text-primary); font: 600 0.7rem/1.2 var(--editor-font); pointer-events: none; text-align: center; }
+	.plan-meta { position: absolute; left: 0.8rem; bottom: 0.8rem; z-index: 2; display: flex; gap: 0.7rem; color: var(--editor-plan-muted); font: 0.68rem/1 var(--editor-font); pointer-events: none; }
 	@media (max-width: 44rem) {
 		.plan-help { top: 5.5rem; }
 	}

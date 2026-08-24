@@ -17,6 +17,21 @@
 	import EditorViewportGridControls from '$lib/editor/EditorViewportGridControls.svelte';
 	import EditorPlacementTools from '$lib/editor/EditorPlacementTools.svelte';
 	import EditorSelection from '$lib/editor/EditorSelection.svelte';
+	import {
+		buildSceneEntityContextMenuItems
+	} from '$lib/editor/context-menu/scene-menu-items';
+	import {
+		buildCameraConnectionContextMenuItems,
+		buildCameraNodeContextMenuItems
+	} from '$lib/editor/context-menu/camera-menu-items';
+	import { resolveSelectionBeforeMenu } from '$lib/editor/context-menu/selection-before-menu';
+	import type { EditorContextMenuStore } from '$lib/editor/context-menu/context-menu-state.svelte';
+	import {
+		validateConnectionDeletion,
+		validateGuidedTourRemoval,
+		validateNavigationNodeDeletion
+	} from '$lib/editor/editor-navigation-graph';
+	import type { NormalSelectionResult } from '$lib/editor/editor-selection';
 	import EditorSelectionHelper from '$lib/editor/EditorSelectionHelper.svelte';
 	import EditorTransformControls from '$lib/editor/EditorTransformControls.svelte';
 	import EditorViewportToolbar from '$lib/editor/EditorViewportToolbar.svelte';
@@ -63,12 +78,15 @@
 		// explicit 3D context from `EditorViewState.active3dContext`.
 		// Camera authoring overlays and node-handle groups mount only in the
 		// Camera context; the editor camera rig stays mounted in both.
-		context = 'scene'
+		context = 'scene',
+		// P3.4/P3.5 — shared context-menu slot; Scene 3D + Camera 3D adapters.
+		contextMenu = null
 	}: {
 		store: EditorStore;
 		layoutPreview: LayoutPreviewState;
 		layoutInteraction: LayoutInteractionState;
 		context: 'scene' | 'camera';
+		contextMenu?: EditorContextMenuStore | null;
 	} = $props();
 	const isCameraContext = $derived(context === 'camera');
 	// P1.7 — shell spec "Viewport MUST show": order/badge kinds for the 3D
@@ -156,6 +174,148 @@
 	 * is nearer (scene wins the exact-tie band); `true` commits a layout
 	 * selection and lets the coordinator skip the normal dispatch.
 	 */
+	/**
+	 * P3.4/P3.5 — the shared 3D right-click adapter. Scene 3D resolves
+	 * placement targets through the normal-selection raycast; Camera 3D
+	 * reuses the camera-graph command set (minus Plan-only spatial rows).
+	 * Selection-before-menu mirrors left-click semantics; empty space never
+	 * changes selection and keeps no custom menu. Returns whether the custom
+	 * menu opened (claims the native contextmenu event).
+	 */
+	function handle3DContextMenu(payload: {
+		clientX: number;
+		clientY: number;
+		result: NormalSelectionResult;
+	}): boolean {
+		if (!contextMenu) return false;
+		const { result } = payload;
+
+		if (result.action === 'select') {
+			if (isCameraContext) return false;
+			const entityId = result.id;
+			const selected = store.selectedPlacementIds.includes(entityId);
+			if (
+				resolveSelectionBeforeMenu({
+					targetSelected: selected,
+					selectionSize: store.selectedPlacementIds.length
+				}) === 'select-target'
+			) {
+				store.selectionActions.selectPlacement(entityId);
+			}
+			contextMenu.open({
+				surfaceId: 'scene-3d',
+				x: payload.clientX,
+				y: payload.clientY,
+				items: buildSceneEntityContextMenuItems({
+					targetHidden: store.isEntityHidden(entityId),
+					mutationBlockedReason: store.isDocumentMutationBlocked ? 'Preview is active' : null,
+					duplicateBlockedReason:
+						store.selectedPlacementIds.length === 0 ? 'Nothing selected' : null,
+					actions: {
+						duplicate: () => store.duplicateSelection(),
+						focus: () => void store.focusPlacement(entityId),
+						toggleVisibility: () => store.toggleEntityVisibility(entityId),
+						deleteSelection: () => store.deletePlacements([...store.selectedPlacementIds])
+					}
+				})
+			});
+			return true;
+		}
+
+		if (result.action === 'deselect') return false;
+
+		if (result.action === 'select-navigation' && isCameraContext) {
+			const selection = result.selection;
+			if (selection.kind === 'connection') {
+				store.selectionActions.selectConnection(selection.connectionId);
+				const failure = validateConnectionDeletion(store.document, selection.connectionId);
+				contextMenu.open({
+					surfaceId: 'camera-3d',
+					x: payload.clientX,
+					y: payload.clientY,
+					items: buildCameraConnectionContextMenuItems({
+						mutationBlockedReason: store.isDocumentMutationBlocked ? 'Preview is active' : null,
+						deleteReason: failure.ok ? null : failure.message,
+						actions: {
+							openTiming: () =>
+								store.selectCameraTimelineEdge(selection.connectionId, 'forward', 0),
+							toggleReverse: () => store.toggleCameraEdgeReverse(),
+							deleteConnection: () => store.deleteConnection(selection.connectionId)
+						}
+					})
+				});
+				return true;
+			}
+			if (selection.kind === 'node') {
+				return openCameraNodeMenu(
+					selection.nodeId,
+					payload.clientX,
+					payload.clientY,
+					'camera-3d',
+					false
+				);
+			}
+			return false; // anchor / view-keyframe handles keep native behavior in v1
+		}
+
+		if (result.action === 'select-camera' && isCameraContext) {
+			return openCameraNodeMenu(
+				result.selection.nodeId,
+				payload.clientX,
+				payload.clientY,
+				'camera-3d',
+				false
+			);
+		}
+
+		return false;
+	}
+
+	function openCameraNodeMenu(
+		nodeId: string,
+		clientX: number,
+		clientY: number,
+		surfaceId: 'camera-plan' | 'camera-3d',
+		spatial: boolean
+	): boolean {
+		if (!contextMenu) return false;
+		const node = store.document.navigationNodes.find((candidate) => candidate.id === nodeId);
+		if (!node) return false;
+		// selection-before-menu through the existing selection actions
+		store.selectionActions.selectNavigationNode(nodeId);
+		const flow = store.mainFlowNodeIds;
+		const onSequence = flow.includes(nodeId);
+		const blocked = store.isDocumentMutationBlocked ? 'Preview is active' : null;
+		const removalFailure = onSequence
+			? validateGuidedTourRemoval(store.document, nodeId)
+			: null;
+		const deletionFailure = validateNavigationNodeDeletion(store.document, nodeId);
+		contextMenu.open({
+			surfaceId,
+			x: clientX,
+			y: clientY,
+			items: buildCameraNodeContextMenuItems({
+				spatial,
+				nodeOnSequence: onSequence,
+				mutationBlockedReason: blocked,
+				removeFromSequenceReason: removalFailure && !removalFailure.ok ? removalFailure.message : null,
+				deleteNodeReason: deletionFailure.ok ? null : deletionFailure.message,
+				actions: {
+					previewCamera: () => void store.previewSelectedNode(),
+					addToSequence: () =>
+						store.insertNodeIntoGuidedTour(nodeId, Math.max(flow.length, 0)),
+					removeFromSequence: () => store.removeNodeFromGuidedTour(nodeId),
+					rename: () => {
+						const next = window.prompt('Camera name', node.label)?.trim();
+						if (next && next !== node.label) store.commitSelectedNodeLabel(next);
+					},
+					deleteNode: () => store.deleteNavigationNode(nodeId)
+				}
+			})
+		});
+		return true;
+	}
+
 	function handleLayoutPick(
 		candidates: readonly Layout3dHitCandidate[],
 		competingSceneDistance: number | null
@@ -296,6 +456,7 @@
 			{transformControls}
 			onDeselect={activeSelection ? () => activeSelection.deselectActive() : undefined}
 			onLayoutPick={store.isVisitorCameraPreview ? undefined : handleLayoutPick}
+			onContextMenu={contextMenu && !store.isVisitorCameraPreview ? handle3DContextMenu : undefined}
 		/>
 		<EditorPlacementTools {store} />
 		{#if !store.isVisitorCameraPreview}
@@ -367,7 +528,7 @@
 		width: 100%;
 		height: 100%;
 		min-height: 0;
-		background: #050508;
+		background: var(--editor-bg-app);
 		/* S10.1.6 amendment — view/domain switches are instant (no fade). */
 	}
 
@@ -389,11 +550,11 @@
 		bottom: 1rem;
 		transform: translateX(-50%);
 		padding: 0.48rem 0.7rem;
-		border: 1px solid #8d753c;
+		border: 1px solid var(--editor-accent-border);
 		border-radius: 999px;
-		background: rgb(18 18 24 / 92%);
-		color: #fff2c7;
-		font: 600 0.73rem/1.2 ui-sans-serif, system-ui, sans-serif;
+		background: var(--editor-bg-panel-raised);
+		color: var(--editor-text-primary);
+		font: 600 0.73rem/1.2 var(--editor-font);
 		pointer-events: none;
 	}
 
@@ -406,8 +567,8 @@
 		box-sizing: border-box;
 		padding: 1rem;
 		background: linear-gradient(to top, rgb(5 5 8 / 46%), transparent 22%);
-		color: #fff2c7;
-		font: 600 0.73rem/1.2 ui-sans-serif, system-ui, sans-serif;
+		color: var(--editor-text-primary);
+		font: 600 0.73rem/1.2 var(--editor-font);
 		pointer-events: auto;
 	}
 

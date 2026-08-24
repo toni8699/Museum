@@ -103,7 +103,9 @@ export function planHandleScreenPoints(
 /** Add the P2 Scene placement rotation arm without moving SVG rendering into the viewport. */
 export function withPlanSceneRotationHandle(
 	projection: PlanInteractionProjection,
-	overlay: { entityId: string; pivot: LayoutVec2; handle: LayoutVec2 } | null
+	overlay: { entityId: string; pivot: LayoutVec2; handle: LayoutVec2 } | null,
+	/** P3.3 — live degree readout while a rotate gesture is in progress. */
+	feedback: string | null = null
 ): PlanInteractionProjection {
 	if (!overlay) return projection;
 	return {
@@ -122,7 +124,19 @@ export function withPlanSceneRotationHandle(
 				center: overlay.handle,
 				radiusPx: 7,
 				style: 'rotation-handle'
-			}
+			},
+			// Same live degree label the room rotation already shows (P3.3:
+			// one rotation language for every owner).
+			...(feedback
+				? [{
+						kind: 'text',
+						key: geometryId(['plan', 'scene-overlay', 'rotation-feedback', overlay.entityId]),
+						anchor: overlay.handle,
+						text: feedback,
+						offsetPx: [0, -ROTATION_FEEDBACK_OFFSET_PX],
+						style: 'rotation-feedback'
+					} satisfies PlanRenderPrimitive]
+				: [])
 		]
 	};
 }
@@ -133,7 +147,9 @@ export function withPlanSceneRotationHandle(
  */
 export function withPlanObjectRotationHandle(
 	projection: PlanInteractionProjection,
-	overlay: { objectId: string; pivot: LayoutVec2; handle: LayoutVec2 } | null
+	overlay: { objectId: string; pivot: LayoutVec2; handle: LayoutVec2 } | null,
+	/** P3.3 — live degree readout while a rotate gesture is in progress. */
+	feedback: string | null = null
 ): PlanInteractionProjection {
 	if (!overlay) return projection;
 	return {
@@ -152,6 +168,46 @@ export function withPlanObjectRotationHandle(
 				center: overlay.handle,
 				radiusPx: 7,
 				style: 'rotation-handle'
+			},
+			...(feedback
+				? [{
+						kind: 'text',
+						key: geometryId(['plan', 'object-overlay', 'rotation-feedback', overlay.objectId]),
+						anchor: overlay.handle,
+						text: feedback,
+						offsetPx: [0, -ROTATION_FEEDBACK_OFFSET_PX],
+						style: 'rotation-feedback'
+					} satisfies PlanRenderPrimitive]
+				: [])
+		]
+	};
+}
+
+/** Shared `+NN°` gesture feedback formatting (matches the room label). */
+export function yawFeedbackText(yaw: number): string {
+	const degrees = Math.round((yaw * 180) / Math.PI);
+	return `${degrees >= 0 ? '+' : ''}${degrees}°`;
+}
+
+/**
+ * P3.3 — the hovered Arrange target's outline as a render primitive, so the
+ * presentation-only hover flows through the same projection → PlanSvg path
+ * as every other plan visual (the viewport owns no world→screen transform).
+ */
+export function withArrangeHoverOutline(
+	projection: PlanInteractionProjection,
+	outline: { id: string; points: readonly LayoutVec2[] } | null
+): PlanInteractionProjection {
+	if (!outline) return projection;
+	return {
+		...projection,
+		selection: [
+			...projection.selection,
+			{
+				kind: 'polygon',
+				key: geometryId(['plan', 'arrange-hover', outline.id]),
+				points: [...outline.points],
+				style: 'arrange-hover'
 			}
 		]
 	};

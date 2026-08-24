@@ -5,7 +5,7 @@ reconciled 2026-08-23 by P9. Blue `#2F8CFF` is the sole target accent system.
 **Scope:** technology, component stack, visual tokens, typography, iconography, panel sizing, interaction states, Scene/Camera × Plan/3D workspaces, Inspector, Asset Library, Outliner, Camera Timeline.
 **Provenance:** governs the canonical concepts registered in
 [`Design-png/README.md`](../../Design-png/README.md); executed by
-[P3](../plans/2026-08-18-P3-ui-overhaul.md).
+[P3](../archive/plans/2026-08-18-P3-ui-overhaul.md).
 
 This specification translates the approved product model and generated UI concepts into concrete implementation rules. The canonical product remains a domain × view system:
 

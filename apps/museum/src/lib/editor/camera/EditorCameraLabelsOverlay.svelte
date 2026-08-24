@@ -37,21 +37,21 @@
 		transform: translate(-50%, -50%);
 		padding: 0.1rem 0.42rem;
 		border-radius: 999px;
-		font: 650 0.62rem/1.35 ui-sans-serif, system-ui, sans-serif;
+		font: 650 0.62rem/1.35 var(--editor-font);
 		white-space: nowrap;
 	}
 	.chip.order {
 		min-width: 1.15rem;
 		box-sizing: border-box;
 		text-align: center;
-		border: 1px solid #d6b35f;
+		border: 1px solid var(--editor-accent);
 		background: rgb(24 20 12 / 88%);
-		color: #fff2c7;
+		color: var(--editor-text-primary);
 		font-variant-numeric: tabular-nums;
 	}
 	.chip.unsequenced {
-		border: 1px dashed #8d887f;
+		border: 1px dashed var(--editor-text-muted);
 		background: rgb(18 18 24 / 82%);
-		color: #b7b1a4;
+		color: var(--editor-outline-muted);
 	}
 </style>

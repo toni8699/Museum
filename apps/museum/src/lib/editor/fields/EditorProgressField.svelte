@@ -67,8 +67,8 @@
 
 <style>
 	label { display: flex; flex-direction: column; gap: 0.3rem; }
-	span { color: #8f8a82; font-size: 0.67rem; letter-spacing: 0.04em; text-transform: uppercase; }
-	input { width: 100%; box-sizing: border-box; padding: 0.42rem; border: 1px solid #3a3a46; border-radius: 0.3rem; background: #101016; color: #f4efe4; font: 0.76rem ui-monospace, SFMono-Regular, Menlo, monospace; }
-	input:focus { outline: 1px solid #d6b35f; border-color: #d6b35f; }
+	span { color: var(--editor-text-muted); font-size: 0.67rem; letter-spacing: 0.04em; text-transform: uppercase; }
+	input { width: 100%; box-sizing: border-box; padding: 0.42rem; border: 1px solid var(--editor-border-normal); border-radius: 0.3rem; background: var(--editor-bg-panel); color: var(--editor-text-primary); font: 0.76rem var(--editor-font); }
+	input:focus { outline: 1px solid var(--editor-accent); border-color: var(--editor-accent); }
 	input:disabled { opacity: 0.42; }
 </style>

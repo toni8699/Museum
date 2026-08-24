@@ -49,6 +49,7 @@
 		insertLayoutWallInteriorAnchor,
 		restoreLayoutPreviewSnapshot,
 		updateLayoutObjectFields,
+		updateLayoutRoomFields,
 		updateLayoutWallInteriorAnchor,
 		updateLayoutOpeningFields,
 		type LayoutPreviewSnapshot
@@ -76,6 +77,13 @@
 	import { buildPlanSceneFootprintProjection } from './plan-scene-footprint';
 	import { resolvePlanSceneHitAtZoom, PLAN_SCENE_HIT_HALO_PX } from './plan-scene-hit';
 	import { resolveArrangeHit } from './arrange-hit';
+	import type { EditorStore } from '../editor-store.svelte';
+	import type { EditorContextMenuStore } from '../context-menu/context-menu-state.svelte';
+	import { isEditableTarget } from '../context-menu/editable-target';
+	import {
+		buildArrangeContextMenuItems,
+		buildPlanLayoutContextMenuItems
+	} from '../context-menu/plan-menu-items';
 	import {
 		capturePlanSceneTransformMembers,
 		planSceneWorldPivot,
@@ -89,8 +97,10 @@
 		buildPlanInteractionProjection,
 		planHandleScreenPoints,
 		rotationHandleScreenPoint,
+		withArrangeHoverOutline,
 		withPlanObjectRotationHandle,
-		withPlanSceneRotationHandle
+		withPlanSceneRotationHandle,
+		yawFeedbackText
 	} from './plan-overlays';
 	import { planCameraProjectionForProject } from './plan-camera-projection';
 	import PlanSvg from './PlanSvg.svelte';
@@ -120,7 +130,9 @@
 		onLayoutTransactionBegin,
 		onLayoutTransactionCommit,
 		onLayoutTransactionCancel,
-		onDeselect
+		onDeselect,
+		store,
+		contextMenu = null
 	}: {
 		model: LayoutPreviewModel;
 		preview: LayoutPreviewState;
@@ -151,6 +163,10 @@
 		onLayoutTransactionCancel: () => boolean;
 		/** a Plan empty-click deselects the *active* domain (default: clear the layout selection). */
 		onDeselect?: () => void;
+		/** Editor facade; optional only for the frozen relic mount. */
+		store?: EditorStore;
+		/** P3.4 — shared context-menu slot; absent keeps the surface frozen. */
+		contextMenu?: EditorContextMenuStore | null;
 	} = $props();
 
 	let svgElement = $state<SVGSVGElement>();
@@ -186,6 +202,13 @@
 	} | null>(null);
 	let stagingRotationHoverScreen = $state<LayoutVec2 | null>(null);
 	let arrangeLayoutRotationHoverScreen = $state<LayoutVec2 | null>(null);
+	// P3.3 — presentation-only Arrange hover (which footprint/object the
+	// pointer is over). Derived from the same resolveArrangeHit call the click
+	// path uses; it never writes selection or document state.
+	let arrangeHover = $state<{ owner: 'layout-object' | 'scene'; id: string } | null>(null);
+	// P3.3 — live yaw readout while a Scene rotate gesture is in progress
+	// (same feedback language as room rotation).
+	let stagingYawFeedback = $state<number | null>(null);
 
 	const viewBox = $derived(`0 0 ${interaction.planView.width} ${interaction.planView.height}`);
 	const gridLines = $derived<PlanGridLine[]>(buildPlanGrid(interaction.planView));
@@ -273,6 +296,13 @@
 		arrangeEligibleLayoutObjectIds.size === 0 &&
 		stagingEligibleIds.size === 0
 	);
+	// P3.3 — the canonical empty-plan state: no rooms, no layout objects, and
+	// no scene entities anywhere in the document.
+	const planEmpty = $derived(
+		preview.model.rooms.length === 0 &&
+		preview.model.objects.length === 0 &&
+		(scene?.entities.length ?? 0) === 0
+	);
 	const arrangeLayoutRotationHandle = $derived.by(() => {
 		const objectId = arrangeActiveLayoutObject;
 		if (!objectId) return null;
@@ -334,25 +364,57 @@
 		if (!stagingRotationHoverScreen || !stagingRotationHandle) return false;
 		return distance(stagingRotationHoverScreen, stagingRotationHandle.handleScreen) <= LAYOUT_PLAN_HIT_RADIUS_PX;
 	});
+	// P3.3 — live degree labels during rotate gestures: same `+NN°` language
+	// as the room rotation readout, one per owner.
+	const objectRotateFeedback = $derived.by(() => {
+		const drag = interaction.objectDrag;
+		if (!drag || drag.mode !== 'rotate') return null;
+		return yawFeedbackText(drag.candidateRotation[1]);
+	});
+	const sceneRotateFeedback = $derived(
+		stagingGesture?.mode === 'rotate' && stagingYawFeedback !== null
+			? yawFeedbackText(stagingYawFeedback)
+			: null
+	);
+	// P3.3 — the hovered Arrange target's outline, fed through the projection
+	// as a render primitive (hover never looks selected).
+	const arrangeHoverOutline = $derived.by(() => {
+		if (!arrangeHover) return null;
+		if (arrangeHover.owner === 'layout-object') {
+			const object = model.objects.find((candidate) => candidate.objectId === arrangeHover!.id);
+			if (!object || object.readonly || arrangeActiveLayoutObject === object.objectId) return null;
+			return { id: object.objectId, points: object.planFootprint };
+		}
+		const footprint = sceneProjection?.footprints.find(
+			(candidate) => candidate.entityId === arrangeHover!.id
+		);
+		if (!footprint || selectedPlacementIds.includes(footprint.entityId)) return null;
+		return { id: footprint.entityId, points: footprint.points };
+	});
 	const interactionProjection = $derived(
-		withPlanObjectRotationHandle(
-			withPlanSceneRotationHandle(
-				baseInteractionProjection,
-				stagingRotationHandle
+		withArrangeHoverOutline(
+			withPlanObjectRotationHandle(
+				withPlanSceneRotationHandle(
+					baseInteractionProjection,
+					stagingRotationHandle
+						? {
+							entityId: stagingRotationHandle.primaryId,
+							pivot: stagingRotationHandle.pivot,
+							handle: stagingRotationHandle.handle
+						}
+						: null,
+					sceneRotateFeedback
+				),
+				arrangeLayoutRotationHandle
 					? {
-						entityId: stagingRotationHandle.primaryId,
-						pivot: stagingRotationHandle.pivot,
-						handle: stagingRotationHandle.handle
+						objectId: arrangeLayoutRotationHandle.objectId,
+						pivot: arrangeLayoutRotationHandle.pivot,
+						handle: arrangeLayoutRotationHandle.handle
 					}
-					: null
+					: null,
+				objectRotateFeedback
 			),
-			arrangeLayoutRotationHandle
-				? {
-					objectId: arrangeLayoutRotationHandle.objectId,
-					pivot: arrangeLayoutRotationHandle.pivot,
-					handle: arrangeLayoutRotationHandle.handle
-				}
-				: null
+			arrangeHoverOutline
 		)
 	);
 	const planModel = $derived(
@@ -491,6 +553,200 @@
 		dismissSceneBridge();
 	}
 
+	/**
+	 * P3.4 — Scene Plan context-menu adapter. Arrange mode resolves through
+	 * the P10 owner-aware hit target (`resolveArrangeHit` — no second
+	 * resolver) and routes by owner; Layout mode resolves through
+	 * `resolvePlanHit`. Selection-before-menu mirrors the left-click path
+	 * (same selection functions, same owner routing); empty space keeps the
+	 * native menu and never changes selection. One gesture mutates one
+	 * document through existing commands only.
+	 */
+	function onPlanContextMenu(event: MouseEvent): void {
+		if (!contextMenu || !store) return;
+		if (isEditableTarget(event.target)) return;
+		const point = worldPoint(event as unknown as PointerEvent);
+		if (!point) return;
+
+		if (interaction.planViewMode === 'staging') {
+			if (interaction.tool !== 'select') return;
+			const hit = resolveArrangeHit({ point, ...arrangeHitCandidates() });
+			if (!hit) return;
+
+			if (hit.owner === 'layout-object') {
+				// selection-before-menu through the canonical Layout slot + owner switch
+				if (arrangeActiveLayoutObject !== hit.objectId) {
+					selectLayoutObject(interaction, hit.objectId);
+					setArrangeOwner(interaction, 'layout-object');
+				}
+				event.preventDefault();
+				contextMenu.open({
+					surfaceId: 'scene-plan-arrange',
+					x: event.clientX,
+					y: event.clientY,
+					items: buildArrangeContextMenuItems({
+						target: { owner: 'layout-object', objectId: hit.objectId },
+						mutationBlockedReason:
+							store.isDocumentMutationBlocked ? 'Preview is active' : null,
+						actions: {
+							deleteLayoutObject: deleteLayoutObjectViaTransaction,
+							duplicateScene: () => store.duplicateSelection(),
+							focusScene: (entityId) => void store.focusPlacement(entityId),
+							toggleSceneVisibility: (entityId) => store.toggleEntityVisibility(entityId),
+							deleteScene: () => store.deletePlacements([...store.selectedPlacementIds])
+						}
+					})
+				});
+				return;
+			}
+
+			// Scene owner — same authority rules as the Delete-key / drag paths.
+			const targetSelected = selectedPlacementIds.includes(hit.entityId);
+			// A plain-click select replaces the whole selection with this entity,
+			// so authority is judged against the post-write selection.
+			const postWriteIds = targetSelected
+				? selectedPlacementIds
+				: [hit.entityId];
+			const clusterBlocked = targetSelected && selectedClusterId !== null;
+			const ineligible = postWriteIds.some((id) => !stagingEligibleIds.has(id));
+			const blocked =
+				store.isDocumentMutationBlocked ? 'Preview is active'
+				: clusterBlocked ? 'Cluster selections are read-only in Plan.'
+				: ineligible ? 'Not editable in Plan. Edit position in 3D.'
+				: null;
+			if (!blocked) {
+				setArrangeOwner(interaction, 'scene');
+				if (!targetSelected) onSceneSelect?.(hit.entityId, { additive: false, toggle: false });
+			}
+			event.preventDefault();
+			contextMenu.open({
+				surfaceId: 'scene-plan-arrange',
+				x: event.clientX,
+				y: event.clientY,
+				items: buildArrangeContextMenuItems({
+					target: { owner: 'scene', entityId: hit.entityId },
+					sceneTargetHidden: store.isEntityHidden(hit.entityId),
+					mutationBlockedReason: store.isDocumentMutationBlocked ? 'Preview is active' : null,
+					sceneAuthorityBlockedReason: blocked,
+					actions: {
+						deleteLayoutObject: deleteLayoutObjectViaTransaction,
+						duplicateScene: () => store.duplicateSelection(),
+						focusScene: (entityId) => void store.focusPlacement(entityId),
+						toggleSceneVisibility: (entityId) => store.toggleEntityVisibility(entityId),
+						deleteScene: () =>
+							store.deletePlacements([...store.selectedPlacementIds])
+					}
+				})
+			});
+			return;
+		}
+
+		// ── Layout mode ──
+		if (interaction.tool !== 'select') return;
+		const tolerance = LAYOUT_PLAN_HIT_RADIUS_PX / interaction.planView.pixelsPerMeter;
+		const target = resolvePlanHit(model.queries, point, tolerance);
+		if (!target) return;
+		if (
+			target.kind !== 'room' &&
+			target.kind !== 'opening' &&
+			target.kind !== 'object'
+		) {
+			return; // wall/vertex/anchor targets have no approved v1 items
+		}
+		// selection-before-menu mirrors the click path's slot writes
+		if (
+			target.kind === 'room' &&
+			(interaction.selection.kind !== 'room' || interaction.selection.roomId !== target.roomId)
+		) {
+			selectLayoutRoom(interaction, target.roomId);
+		} else if (
+			target.kind === 'opening' &&
+			(interaction.selection.kind !== 'opening' ||
+				interaction.selection.roomId !== target.roomId ||
+				interaction.selection.segmentId !== target.segmentId ||
+				interaction.selection.openingId !== target.openingId)
+		) {
+			selectLayoutOpening(interaction, target.roomId, target.segmentId, target.openingId);
+		} else if (
+			target.kind === 'object' &&
+			(interaction.selection.kind !== 'object' || interaction.selection.objectId !== target.objectId)
+		) {
+			selectLayoutObject(interaction, target.objectId);
+		}
+		event.preventDefault();
+		contextMenu.open({
+			surfaceId: 'scene-plan-layout',
+			x: event.clientX,
+			y: event.clientY,
+			items: buildPlanLayoutContextMenuItems({
+				target:
+					target.kind === 'room'
+						? { kind: 'room', roomId: target.roomId }
+						: target.kind === 'opening'
+							? { kind: 'opening', roomId: target.roomId, openingId: target.openingId }
+							: { kind: 'object', objectId: target.objectId },
+				mutationBlockedReason:
+					store.isDocumentMutationBlocked ? 'Preview is active' : null,
+				actions: {
+					renameRoom: renameRoomViaPrompt,
+					deleteRoom: (roomId) => void onRoomDelete(roomId),
+					deleteOpening: (roomId, openingId) => onOpeningDelete(roomId, openingId),
+					deleteObject: deleteLayoutObjectViaTransaction
+				}
+			})
+		});
+	}
+
+	/** Existing guarded transaction pattern (same as the Delete-key path). */
+	function deleteLayoutObjectViaTransaction(objectId: string): void {
+		if (!onLayoutTransactionBegin()) {
+			preview.statusMessage = 'Finish the current layout interaction first';
+			return;
+		}
+		const result = deleteLayoutObject(preview, objectId);
+		if (result.success) {
+			onLayoutTransactionCommit();
+			clearLayoutSelection(interaction);
+		} else {
+			onLayoutTransactionCancel();
+		}
+		preview.statusMessage = result.success ? 'Deleted layout object' : result.message;
+	}
+
+	/** Rename reuses the existing room-fields command via a prompt (v1). */
+	function renameRoomViaPrompt(roomId: string): void {
+		const room = rooms.find((candidate) => candidate.id === roomId);
+		const next = window.prompt('Room name', room?.name ?? '')?.trim();
+		if (!next || next === room?.name) return;
+		if (!onLayoutTransactionBegin()) {
+			preview.statusMessage = 'Finish the current layout interaction first';
+			return;
+		}
+		const result = updateLayoutRoomFields(preview, roomId, { name: next });
+		if (result.success) onLayoutTransactionCommit();
+		else onLayoutTransactionCancel();
+		preview.statusMessage = result.success ? 'Renamed room' : result.message;
+	}
+
+	/** P10/P3.3 — the shared Arrange candidate set for hit resolution. */
+	function arrangeHitCandidates() {
+		return {
+			layoutObjects: model.objects
+				.filter((object) => !object.readonly)
+				.map((object) => ({
+					objectId: object.objectId,
+					points: object.planFootprint,
+					selected: arrangeActiveLayoutObject === object.objectId
+				})),
+			sceneFootprints: (sceneProjection?.footprints ?? []).map((footprint) => ({
+				entityId: footprint.entityId,
+				points: footprint.points,
+				selected: arrangeActiveScene !== null && selectedPlacementIds.includes(footprint.entityId)
+			})),
+			edgeHaloMeters: PLAN_SCENE_HIT_HALO_PX / interaction.planView.pixelsPerMeter
+		};
+	}
+
 	function beginArrangeLayoutObjectRotate(
 		event: PointerEvent,
 		objectId: string,
@@ -550,6 +806,7 @@
 		}
 		stagingGesture = null;
 		stagingRotationHoverScreen = null;
+		stagingYawFeedback = null;
 	}
 
 	function previewStagingGesture(event: PointerEvent): void {
@@ -578,6 +835,16 @@
 					event.shiftKey
 				);
 		if (!patches || !onSceneGesturePreview?.(patches)) cancelStagingGesture();
+		// P3.3 — track the primary member's live yaw for the degree label.
+		else if (gesture.mode === 'rotate') {
+			const patch = patches.find((candidate) => candidate.id === gesture.primaryId);
+			stagingYawFeedback = patch ? patch.rotation[1] : null;
+		}
+	}
+
+	function clearArrangeHover(): void {
+		arrangeHover = null;
+		stagingYawFeedback = null;
 	}
 
 	function canResolveSceneBridge(): boolean {
@@ -773,19 +1040,7 @@
 			// visual topmost → stable order (see arrange-hit.ts).
 			const arrangeHit = resolveArrangeHit({
 				point,
-				layoutObjects: model.objects
-					.filter((object) => !object.readonly)
-					.map((object) => ({
-						objectId: object.objectId,
-						points: object.planFootprint,
-						selected: arrangeActiveLayoutObject === object.objectId
-					})),
-				sceneFootprints: (sceneProjection?.footprints ?? []).map((footprint) => ({
-					entityId: footprint.entityId,
-					points: footprint.points,
-					selected: arrangeActiveScene !== null && selectedPlacementIds.includes(footprint.entityId)
-				})),
-				edgeHaloMeters: PLAN_SCENE_HIT_HALO_PX / interaction.planView.pixelsPerMeter
+				...arrangeHitCandidates()
 			});
 			if (arrangeHit?.owner === 'layout-object') {
 				const object = model.objects.find((candidate) => candidate.objectId === arrangeHit.objectId);
@@ -983,6 +1238,26 @@
 		if (interaction.planViewMode === 'staging') {
 			stagingRotationHoverScreen = screenPoint(event);
 			arrangeLayoutRotationHoverScreen = screenPoint(event);
+			// P3.3 — presentation-only hover: resolve the same owner-aware hit
+			// the click path uses, but only to highlight the footprint. No
+			// selection or document writes; hover never looks selected.
+			const hoverPoint = worldPoint(event);
+			if (interaction.tool === 'select' && !stagingGesture && !interaction.objectDrag && hoverPoint) {
+				const hoverHit = resolveArrangeHit({ point: hoverPoint, ...arrangeHitCandidates() });
+				const next = hoverHit
+					? { owner: hoverHit.owner, id: hoverHit.owner === 'scene' ? hoverHit.entityId : hoverHit.objectId }
+					: null;
+				if (
+					(arrangeHover?.owner ?? null) !== (next?.owner ?? null) ||
+					(arrangeHover?.id ?? null) !== (next?.id ?? null)
+				) {
+					arrangeHover = next;
+				}
+			} else if (arrangeHover) {
+				arrangeHover = null;
+			}
+		} else if (arrangeHover) {
+			arrangeHover = null;
 		}
 		if (interaction.tool === 'select' && !interaction.roomUnitDrag) {
 			rotationHoverScreen = screenPoint(event);
@@ -1091,6 +1366,7 @@
 			}
 			stagingGesture = null;
 			stagingRotationHoverScreen = null;
+			stagingYawFeedback = null;
 			svgElement?.releasePointerCapture(event.pointerId);
 			return;
 		}
@@ -1448,6 +1724,13 @@
 	{#if arrangeEmpty && !stagingSelectionMessage}
 		<div class="arrange-empty" role="status">No movable objects here yet — create them in Layout or place them in Scene 3D.</div>
 	{/if}
+	{#if planEmpty}
+		<!-- P3.3 — canonical empty-plan onboarding treatment (scene-empty-plan.png). -->
+		<div class="plan-empty-state" role="status">
+			<strong>Empty floor plan</strong>
+			<span>Pick the Room tool to draft your first room, or place an asset from the sidebar.</span>
+		</div>
+	{/if}
 	<!-- svelte-ignore a11y_no_noninteractive_tabindex (plan surface owns keyboard focus) -->
 	<!-- svelte-ignore a11y_no_noninteractive_element_interactions (plan surface owns pointer and keyboard drafting events) -->
 	<svg
@@ -1469,9 +1752,11 @@
 		onclick={onClick}
 		onwheel={onWheel}
 		onkeydown={onKeyDown}
+		oncontextmenu={onPlanContextMenu}
 		onpointerleave={() => {
 			rotationHoverScreen = null;
 			arrangeLayoutRotationHoverScreen = null;
+			arrangeHover = null;
 		}}
 	>
 		{#if interaction.planView.gridEnabled}
@@ -1486,8 +1771,8 @@
 		{#if selectedOpening}
 			<text class="selection-label" x="16" y="24">{selectedOpening.kind} · {selectedOpening.width.toFixed(2)} m × {selectedOpening.height.toFixed(2)} m</text>
 		{/if}
-		<text class="scale-label" x="16" y={interaction.planView.height - 18}>{scaleMeters.toFixed(2)} m / 100 px</text>
-		<line class="scale-bar" x1="16" y1={interaction.planView.height - 10} x2="116" y2={interaction.planView.height - 10} />
+		<text class="scale-label" x="16" y={interaction.planView.height - 34}>{scaleMeters.toFixed(2)} m / 100 px</text>
+		<line class="scale-bar" x1="16" y1={interaction.planView.height - 26} x2="116" y2={interaction.planView.height - 26} />
 	</svg>
 	<div class="plan-actions">
 		{#if interaction.tool === 'polygon' && interaction.polygonPoints.length >= 3}
@@ -1507,28 +1792,33 @@
 </div>
 
 <style>
-	.plan-viewport { position: absolute; inset: 0; z-index: 3; background: #0d0d12; }
-	.plan-canvas { display: block; position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: crosshair; outline: none; }
+	.plan-viewport { position: absolute; inset: 0; z-index: 3; background: var(--editor-bg-app); }
+	/* P3.2 §9 — the plan is a bright drafting surface against the dark shell. */
+	.plan-canvas { display: block; position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: crosshair; outline: none; background: var(--editor-plan-canvas-bg); }
 	.plan-canvas.rotation-handle-hover { cursor: grab; }
 	.plan-canvas.staging-rotation-handle-hover { cursor: grab; }
 	.plan-canvas.object-rotation-handle-hover { cursor: grab; }
 	.plan-canvas.rotation-dragging { cursor: grabbing; }
-	.plan-canvas line { stroke: #302d38; stroke-width: 1; vector-effect: non-scaling-stroke; }
-	.plan-canvas line.major { stroke: #494352; }
-	.grid-label { fill: #746d7d; font: 10px ui-monospace, monospace; pointer-events: none; }
-	.selection-label { fill: #f1d99a; font: 700 12px ui-monospace, monospace; paint-order: stroke; stroke: #0d0d12; stroke-width: 3px; stroke-linejoin: round; pointer-events: none; }
-	.scale-label { fill: #d6d0c4; font: 11px ui-monospace, monospace; }
-	.scale-bar { stroke: #fff2c7; stroke-width: 3; vector-effect: non-scaling-stroke; }
-	.plan-help { position: absolute; top: 4.25rem; left: 50%; z-index: 5; max-width: min(34rem, calc(100% - 2rem)); transform: translateX(-50%); padding: 0.45rem 0.7rem; border: 1px solid #49433a; border-radius: 999px; background: rgb(18 18 24 / 92%); color: #fff2c7; font: 600 0.7rem/1.2 ui-sans-serif, system-ui, sans-serif; pointer-events: none; text-align: center; }
-	.scene-bridge-chip { position: absolute; z-index: 8; padding: 0.32rem 0.48rem; border: 1px solid #2f8cff; border-radius: 999px; background: #102642; color: #dceeff; font: 700 0.66rem/1 ui-sans-serif, system-ui, sans-serif; cursor: pointer; box-shadow: 0 0.3rem 0.8rem rgb(0 0 0 / 30%); }
-	.scene-bridge-chip:hover { background: #1c4c80; }
-	.staging-selection-warning { position: absolute; top: 7rem; left: 50%; z-index: 5; max-width: min(34rem, calc(100% - 2rem)); transform: translateX(-50%); padding: 0.42rem 0.65rem; border: 1px solid #7b4a50; border-radius: 0.35rem; background: rgb(38 22 28 / 94%); color: #efc7c7; font: 600 0.7rem/1.25 ui-sans-serif, system-ui, sans-serif; pointer-events: none; text-align: center; }
-	.arrange-empty { position: absolute; top: 7rem; left: 50%; z-index: 5; max-width: min(36rem, calc(100% - 2rem)); transform: translateX(-50%); padding: 0.42rem 0.65rem; border: 1px solid #4a4650; border-radius: 0.35rem; background: rgb(18 18 24 / 94%); color: #c9c3b8; font: 600 0.7rem/1.25 ui-sans-serif, system-ui, sans-serif; pointer-events: none; text-align: center; }
+	.plan-canvas line { stroke: var(--editor-plan-grid-minor); stroke-width: 1; vector-effect: non-scaling-stroke; }
+	.plan-canvas line.major { stroke: var(--editor-plan-grid-major); }
+	.grid-label { fill: var(--editor-plan-muted); font: 10px var(--editor-font); pointer-events: none; }
+	.selection-label { fill: var(--editor-plan-label); font: 700 12px var(--editor-font); paint-order: stroke; stroke: var(--editor-plan-canvas-bg); stroke-width: 3px; stroke-linejoin: round; pointer-events: none; }
+	.scale-label { fill: var(--editor-plan-muted); font: 11px var(--editor-font); }
+	.scale-bar { stroke: var(--editor-plan-wall); stroke-width: 3; vector-effect: non-scaling-stroke; }
+	.plan-help { position: absolute; top: 4.25rem; left: 50%; z-index: 5; max-width: min(34rem, calc(100% - 2rem)); transform: translateX(-50%); padding: 0.45rem 0.7rem; border: 1px solid var(--editor-border-normal); border-radius: 999px; background: var(--editor-bg-panel-raised); color: var(--editor-text-primary); font: 600 0.7rem/1.2 var(--editor-font); pointer-events: none; text-align: center; }
+	.scene-bridge-chip { position: absolute; z-index: 8; padding: 0.32rem 0.48rem; border: 1px solid var(--editor-accent); border-radius: 999px; background: var(--editor-bg-selected); color: var(--editor-text-primary); font: 700 0.66rem/1 var(--editor-font); cursor: pointer; box-shadow: var(--editor-shadow-popover); }
+	.scene-bridge-chip:hover { background: var(--editor-accent-pressed); }
+	.staging-selection-warning { position: absolute; top: 7rem; left: 50%; z-index: 5; max-width: min(34rem, calc(100% - 2rem)); transform: translateX(-50%); padding: 0.42rem 0.65rem; border: 1px solid var(--editor-danger-border); border-radius: 0.35rem; background: var(--editor-bg-panel-raised); color: var(--editor-danger-fg); font: 600 0.7rem/1.25 var(--editor-font); pointer-events: none; text-align: center; }
+	.arrange-empty { position: absolute; top: 7rem; left: 50%; z-index: 5; max-width: min(36rem, calc(100% - 2rem)); transform: translateX(-50%); padding: 0.42rem 0.65rem; border: 1px solid var(--editor-border-normal); border-radius: 0.35rem; background: var(--editor-bg-panel-raised); color: var(--editor-text-secondary); font: 600 0.7rem/1.25 var(--editor-font); pointer-events: none; text-align: center; }
+	/* P3.3 — canonical empty-plan onboarding card (scene-empty-plan.png). */
+	.plan-empty-state { position: absolute; top: 50%; left: 50%; z-index: 5; transform: translate(-50%, -50%); display: grid; gap: 0.45rem; max-width: min(24rem, calc(100% - 4rem)); padding: var(--editor-space-4) var(--editor-space-5); border: 1px solid var(--editor-plan-grid-major); border-radius: var(--editor-radius-lg); background: rgb(255 255 255 / 72%); color: var(--editor-plan-label); text-align: center; pointer-events: none; box-shadow: var(--editor-shadow-popover); }
+	.plan-empty-state strong { font-size: 0.86rem; font-weight: 650; }
+	.plan-empty-state span { font-size: 0.74rem; line-height: 1.45; color: var(--editor-plan-muted); }
 	.plan-actions { position: absolute; right: 0.8rem; bottom: 0.8rem; z-index: 10; display: flex; gap: 0.4rem; pointer-events: auto; }
-	.plan-actions button { padding: 0.44rem 0.6rem; border: 1px solid #8d753c; border-radius: 0.32rem; background: #2a2618; color: #fff2c7; font: 600 0.7rem/1 ui-sans-serif, system-ui, sans-serif; cursor: pointer; }
-	.plan-actions button.secondary { border-color: #4a4650; background: #1a1a22; color: #d6d0c4; }
-	.plan-meta { position: absolute; left: 0.8rem; bottom: 0.8rem; z-index: 2; display: flex; gap: 0.7rem; color: #a8a29a; font: 0.68rem/1 ui-sans-serif, system-ui, sans-serif; pointer-events: none; }
-	.plan-meta .warning { color: #efc7c7; }
+	.plan-actions button { padding: 0.44rem 0.6rem; border: 1px solid var(--editor-accent-border); border-radius: 0.32rem; background: var(--editor-bg-selected); color: var(--editor-text-primary); font: 600 0.7rem/1 var(--editor-font); cursor: pointer; }
+	.plan-actions button.secondary { border-color: var(--editor-border-normal); background: var(--editor-bg-panel-raised); color: var(--editor-text-secondary); }
+	.plan-meta { position: absolute; left: 0.8rem; bottom: 0.8rem; z-index: 2; display: flex; gap: 0.7rem; color: var(--editor-text-secondary); font: 0.68rem/1 var(--editor-font); pointer-events: none; }
+	.plan-meta .warning { color: var(--editor-danger-fg); }
 	@media (max-width: 44rem) {
 		.plan-help { top: 5.5rem; }
 		.staging-selection-warning { top: 8rem; }

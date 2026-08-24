@@ -26,6 +26,8 @@ export type PlanStyleToken =
 	| 'layout-object-selected'
 	| 'layout-object-readonly'
 	| 'layout-object-readonly-selected'
+	// P3.3 — Arrange hover bridge-affordance outline (presentation only).
+	| 'arrange-hover'
 	| 'camera-path'
 	| 'view-cone'
 	| 'look-target'
@@ -101,6 +103,19 @@ export type PlanPolylinePrimitive = {
 	kind: 'polyline';
 	key: string;
 	points: LayoutVec2[];
+	/**
+	 * Architectural drawing metadata. The pure model owns the real-world
+	 * dimensions and opening semantics; SVG remains a thin screen adapter.
+	 */
+	architecture?:
+		| { kind: 'wall'; thicknessMeters: number }
+		| {
+				kind: 'door' | 'window';
+				widthMeters: number;
+				wallThicknessMeters: number;
+				/** Unit vector pointing from the opening into its room. */
+				inwardNormal: LayoutVec2;
+		  };
 	/** Screen-constant offset (CSS px) applied to the final point after the transform (rotation arm). */
 	endOffsetPx?: readonly [number, number];
 	style: PlanStyleToken;
@@ -344,6 +359,17 @@ function selectedStyle(
 	}
 }
 
+function polygonAverage(points: readonly LayoutVec2[]): LayoutVec2 {
+	if (points.length === 0) return [0, 0];
+	let x = 0;
+	let z = 0;
+	for (const point of points) {
+		x += point[0];
+		z += point[1];
+	}
+	return [x / points.length, z / points.length];
+}
+
 /**
  * Build the ordered Plan render model. Always returns all thirteen layers (empty
  * layers included) so render order is explicit rather than implicit in the
@@ -391,16 +417,33 @@ export function buildPlanRenderModel(
 					kind: 'polyline',
 					key: geometryId(['plan', 'wall', floorId, room.roomId, wall.segmentId, String(index)]),
 					points: polyline.map(([x, z]) => [x, z] as LayoutVec2),
+					architecture: { kind: 'wall', thicknessMeters: wall.thickness },
 					style: selectedStyle('wall-line', { kind: 'wall', roomId: room.roomId, segmentId: wall.segmentId }, interaction?.selected),
 					hit: { kind: 'wall', roomId: room.roomId, segmentId: wall.segmentId }
 				});
 			});
 		}
 		for (const opening of room.openings) {
+			const wall = room.walls.find((candidate) => candidate.segmentId === opening.segmentId);
+			const roomCenter: LayoutVec2 = polygonAverage(polygon);
+			const towardRoom: LayoutVec2 = [
+				roomCenter[0] - opening.center.point[0],
+				roomCenter[1] - opening.center.point[1]
+			];
+			const normalSign = towardRoom[0] * opening.center.normal[0] + towardRoom[1] * opening.center.normal[1] < 0 ? -1 : 1;
 			openings.push({
 				kind: 'polyline',
 				key: geometryId(['plan', 'opening', floorId, room.roomId, opening.openingId]),
 				points: opening.centerPolyline.map(([x, z]) => [x, z] as LayoutVec2),
+				architecture: {
+					kind: opening.kind,
+					widthMeters: opening.width,
+					wallThicknessMeters: wall?.thickness ?? room.wallThickness,
+					inwardNormal: [
+						opening.center.normal[0] * normalSign,
+						opening.center.normal[1] * normalSign
+					]
+				},
 				style: selectedStyle(
 					'opening-line',
 					{ kind: 'opening', roomId: room.roomId, segmentId: opening.segmentId, openingId: opening.openingId },

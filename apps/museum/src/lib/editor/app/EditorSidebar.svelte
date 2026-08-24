@@ -16,6 +16,7 @@
 	} from '$lib/editor/layout/layout-preview-state.svelte';
 	import { setLayoutDraftTool, setPlanViewMode, type LayoutInteractionState } from '$lib/editor/layout/layout-interaction';
 	import type { EditorStore } from '$lib/editor/editor-store.svelte';
+	import type { EditorContextMenuStore } from '$lib/editor/context-menu/context-menu-state.svelte';
 	import UnifiedProjectTree from '$lib/editor/UnifiedProjectTree.svelte';
 	import CameraSidebar from './CameraSidebar.svelte';
 	import type { EditorActiveSelectionStore } from './active-editor-selection.svelte';
@@ -29,7 +30,8 @@
 		viewState,
 		outlinerElement = $bindable(),
 		onAssetSelection,
-		onSelectAsset
+		onSelectAsset,
+		contextMenu = null
 	}: {
 		store: EditorStore;
 		layoutPreview: LayoutPreviewState;
@@ -39,6 +41,7 @@
 		outlinerElement?: HTMLElement | null;
 		onAssetSelection?: (asset: Asset | undefined) => void;
 		onSelectAsset?: (asset: Asset) => void;
+		contextMenu?: EditorContextMenuStore | null;
 	} = $props();
 
 	const domain = $derived(viewState.domain);
@@ -120,6 +123,7 @@
 				domain={viewState.domain}
 				view={viewState.activeView}
 				onAddRoom={domain === 'scene' ? startRoomDraft : undefined}
+				{contextMenu}
 			/>
 		</div>
 		{#if showScenePanelTabs}
@@ -138,31 +142,31 @@
 		flex-direction: column;
 		gap: 1rem;
 		padding: 1rem 1.1rem;
-		border-right: 1px solid #2a2a33;
+		border-right: 1px solid var(--editor-border-subtle);
 		overflow: auto;
-		background: #121218;
+		background: var(--editor-bg-panel);
 	}
 	.sidebar-content { display: flex; min-width: 0; min-height: 0; flex: 1; flex-direction: column; gap: 1rem; }
 	.header-strip { display: flex; flex-direction: column; gap: 0.45rem; }
 	.source-badge {
 		align-self: flex-start;
 		padding: 0.24rem 0.45rem;
-		border: 1px solid #8d753c;
+		border: 1px solid var(--editor-accent-border);
 		border-radius: 999px;
-		background: #2a2618;
-		color: #fff2c7;
+		background: var(--editor-bg-selected);
+		color: var(--editor-text-primary);
 		font-size: 0.66rem;
 		font-weight: 650;
 	}
 	.panel-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 0.3rem; }
-	.panel-tabs button { padding: 0.42rem; border: 1px solid #3a3a46; border-radius: 0.32rem; background: #1a1a22; color: #a8a29a; font: inherit; font-size: 0.73rem; cursor: pointer; }
-	.panel-tabs button.active { border-color: #d6b35f; background: #2a2618; color: #fff2c7; }
+	.panel-tabs button { padding: 0.42rem; border: 1px solid var(--editor-border-normal); border-radius: 0.32rem; background: var(--editor-bg-panel-raised); color: var(--editor-text-secondary); font: inherit; font-size: 0.73rem; cursor: pointer; }
+	.panel-tabs button.active { border-color: var(--editor-accent); background: var(--editor-bg-selected); color: var(--editor-text-primary); }
 	.panel-content { display: contents; }
 	.panel-content--hidden { display: none; }
-	.layout-error { margin: 0; color: #efc7c7; font-size: 0.7rem; line-height: 1.4; }
+	.layout-error { margin: 0; color: var(--editor-danger-fg); font-size: 0.7rem; line-height: 1.4; }
 
 	@media (max-width: 62rem) {
-		.panel { min-height: 0; max-height: 34rem; border-top: 1px solid #2a2a33; }
+		.panel { min-height: 0; max-height: 34rem; border-top: 1px solid var(--editor-border-subtle); }
 	}
 	@media (max-width: 44rem) {
 		.panel { max-height: 30rem; border-right: 0; }

@@ -52,11 +52,11 @@ Shipped as of 2026-08-22 (not assessed here): **P1.1–P1.9, P1.7 review-fixes c
 | **P2.2** | 53 | 90% | — | Sol medium | +1 | shipped |
 | **P2.3** | 55 | 93% | — | Sol high | +1 | shipped |
 | **P2.4** | 38 | 64% | Luna medium | DeepSeek V4 Flash | 0 | shipped |
-| **P3.1** | 52 | 88% | — | Sol medium | +2 | open |
-| **P3.2** | 51 | 86% | Luna max | DeepSeek V4 Flash (→ Sol medium if typography/icon judgment bites) | 0 | open |
-| **P3.3** | 45 | 76% | Luna high | DeepSeek V4 Flash | +1 | open |
-| **P3.4** | 54 | 92% | — | Sol medium (selection-before-menu + kebab command reuse) | 0 | open |
-| **P3.5** | 52 | 88% | — | Sol medium (depends P8 S2–S4; preview-FSM boundary + guards) | +2 | open |
+| **P3.1** | 52 | 88% | — | Sol medium | +2 | shipped |
+| **P3.2** | 51 | 86% | Luna max | DeepSeek V4 Flash (→ Sol medium if typography/icon judgment bites) | 0 | shipped |
+| **P3.3** | 45 | 76% | Luna high | DeepSeek V4 Flash | +1 | shipped |
+| **P3.4** | 54 | 92% | — | Sol medium (selection-before-menu + kebab command reuse) | 0 | shipped |
+| **P3.5** | 52 | 88% | — | Sol medium (depends P8 S2–S4; preview-FSM boundary + guards) | +2 | shipped |
 | **P4.1** | 54 | 92% | — | Sol medium | 0 | open |
 | **P4.2** | 49 | 83% | Luna xhigh | DeepSeek V4 Flash | 0 | open |
 | **P4.3** | 56 | 95% | — | Sol high | 0 | open |

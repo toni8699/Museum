@@ -75,6 +75,28 @@ describe('buildPlanRenderModel', () => {
 		expect(committedProjection(buildPlanRenderModel(geometry))).toEqual(buildG2ReferencePlanModel(geometry));
 	});
 
+	it('carries architectural wall thickness and distinct door/window symbols into the SVG adapter', () => {
+		const { geometry } = compileLayoutGeometry(g2MultipleOpeningsDocument());
+		const model = buildPlanRenderModel(geometry);
+		const wall = model.layers[2]!.primitives.find((primitive) => primitive.kind === 'polyline');
+		expect(wall).toMatchObject({
+			kind: 'polyline',
+			architecture: { kind: 'wall', thicknessMeters: geometry.rooms[0]!.wallThickness }
+		});
+
+		const openingSymbols = model.layers[3]!.primitives.map((primitive) =>
+			primitive.kind === 'polyline' ? primitive.architecture : undefined
+		);
+		expect(openingSymbols.map((symbol) => symbol?.kind)).toEqual(['door', 'window', 'door']);
+		for (const symbol of openingSymbols) {
+			expect(symbol).toMatchObject({
+				widthMeters: expect.any(Number),
+				wallThicknessMeters: geometry.rooms[0]!.wallThickness,
+				inwardNormal: [expect.any(Number), expect.any(Number)]
+			});
+		}
+	});
+
 	it('derives plan bounds from compiled document bounds (XZ)', () => {
 		const { geometry } = compileLayoutGeometry(g2LineRectangleDocument());
 		const model = buildPlanRenderModel(geometry);

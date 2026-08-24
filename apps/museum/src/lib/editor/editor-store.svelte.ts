@@ -217,10 +217,10 @@ export type {
 	EditorCameraFocusKind,
 	EditorTransformInteractionKind
 } from './editor-types';/** Bottom-panel frame measurements. Session-only, never serialized. */
-export const EDITOR_TIMELINE_COLLAPSED_HEIGHT = 36;
-export const EDITOR_TIMELINE_MIN_HEIGHT = 220;
-export const EDITOR_TIMELINE_MAX_HEIGHT = 360;
-export const EDITOR_TIMELINE_DEFAULT_HEIGHT = 280;
+export const EDITOR_TIMELINE_COLLAPSED_HEIGHT = 48;
+export const EDITOR_TIMELINE_MIN_HEIGHT = 240;
+export const EDITOR_TIMELINE_MAX_HEIGHT = 300;
+export const EDITOR_TIMELINE_DEFAULT_HEIGHT = 288;
 
 // Phase 9.5 — `vec3Matches` / `isFiniteVec3` live on path-anchor / view-key
 // controllers; no remaining facade callers.

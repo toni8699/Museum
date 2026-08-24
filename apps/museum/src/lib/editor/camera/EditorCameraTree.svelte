@@ -20,12 +20,12 @@
 		gap: 0.55rem;
 	}
 	.empty {
-		color: #918c84;
+		color: var(--editor-text-muted);
 		font-size: 0.7rem;
 		padding: 0.4rem 0.45rem;
 	}
 	.empty strong {
-		color: #d6d0c4;
+		color: var(--editor-text-secondary);
 		font-size: 0.76rem;
 	}
 </style>

@@ -41,7 +41,7 @@ const RECENT_TEXTURE_ID_LIMIT = 8;
 
 const STATUS_MESSAGE_MS = 2500;
 
-const DEFAULT_TIMELINE_HEIGHT = 280;
+const DEFAULT_TIMELINE_HEIGHT = 288;
 
 type TransformInteractionKind = EditorTransformInteractionKind;
 

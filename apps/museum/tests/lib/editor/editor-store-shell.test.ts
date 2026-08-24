@@ -43,7 +43,7 @@ describe('EditorStore Phase 1 shell session state', () => {
 		expect(store.currentWorkspace).toBe('scene');
 		expect(store.leftPanel).toBe('scene');
 		expect(store.timelineExpanded).toBe(false);
-		expect(store.timelineHeight).toBe(280);
+		expect(store.timelineHeight).toBe(288);
 		expect(store.cameraTimelinePlayhead).toBe(0);
 		expect(store.transformGizmoVisible).toBe(true);
 		expect(store.transformSpace).toBe('world');
@@ -164,7 +164,7 @@ describe('EditorStore Phase 1 shell session state', () => {
 			expect(store.ensureClusterTreeExpanded('cluster-b')).toBe(false);
 			expect(store.leftPanel).toBe('scene');
 			expect(store.timelineExpanded).toBe(timelineExpanded);
-			expect(store.timelineHeight).toBe(280);
+			expect(store.timelineHeight).toBe(288);
 			expect(store.transformGizmoVisible).toBe(true);
 			expect(store.transformSpace).toBe('world');
 			expect(store.treeExpandedRoomIds).toEqual(['paris']);
@@ -244,9 +244,9 @@ describe('EditorStore Phase 1 shell session state', () => {
 	it('clamps timeline height into the documented range and rejects non-finite values', () => {
 		const store = createFixtureEditorStore();
 		expect(store.setTimelineHeight(150)).toBe(true);
-		expect(store.timelineHeight).toBe(220);
+		expect(store.timelineHeight).toBe(240);
 		expect(store.setTimelineHeight(500)).toBe(true);
-		expect(store.timelineHeight).toBe(360);
+		expect(store.timelineHeight).toBe(300);
 		expect(store.setTimelineHeight(290.6)).toBe(true);
 		expect(store.timelineHeight).toBe(291);
 		expect(store.setTimelineHeight(Number.NaN)).toBe(false);

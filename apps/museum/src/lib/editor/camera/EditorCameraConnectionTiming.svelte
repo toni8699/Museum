@@ -72,7 +72,8 @@
 			</div>
 			<div><dt>Speed</dt><dd>{timingReadout.speedMetersPerSecond.toFixed(2)} m/s</dd></div>
 		</dl>
-		{#key `${connection.id}:${direction}`}				<EditorNumberField
+		{#key `${connection.id}:${direction}`}
+			<EditorNumberField
 					label="Authored duration (s)"
 					value={timingReadout.durationSeconds}
 					step={0.1}
@@ -95,19 +96,19 @@
 </section>
 
 <style>
-	.timing { display: flex; flex-direction: column; gap: 0.55rem; padding: 0.6rem; border: 1px solid #34313a; border-radius: 0.4rem; background: #17171f; }
+	.timing { display: flex; flex-direction: column; gap: 0.55rem; padding: 0.6rem; border: 1px solid var(--editor-border-subtle); border-radius: 0.4rem; background: var(--editor-bg-panel-raised); }
 	.section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; }
-	h3 { margin: 0; font-size: 0.78rem; letter-spacing: 0.02em; color: #d6c7a8; }
+	h3 { margin: 0; font-size: 0.78rem; letter-spacing: 0.02em; color: var(--editor-text-secondary); }
 	.direction-switch { display: flex; gap: 0.25rem; }
-	.direction-switch button { padding: 0.28rem 0.45rem; border: 1px solid #3a3a46; border-radius: 0.3rem; background: #1a1a22; color: #ddd6ca; font: inherit; font-size: 0.66rem; cursor: pointer; }
-	.direction-switch button.active { border-color: #d6b35f; background: #2a2618; color: #fff2c7; }
+	.direction-switch button { padding: 0.28rem 0.45rem; border: 1px solid var(--editor-border-normal); border-radius: 0.3rem; background: var(--editor-bg-panel-raised); color: var(--editor-text-secondary); font: inherit; font-size: 0.66rem; cursor: pointer; }
+	.direction-switch button.active { border-color: var(--editor-accent); background: var(--editor-bg-selected); color: var(--editor-text-primary); }
 	.direction-switch button:disabled { opacity: 0.42; cursor: default; }
 	dl { display: flex; flex-direction: column; gap: 0.4rem; margin: 0; }
 	dl div { display: grid; grid-template-columns: 4.4rem 1fr; gap: 0.45rem; }
-	dt { color: #8f8a82; font-size: 0.67rem; letter-spacing: 0.04em; text-transform: uppercase; }
+	dt { color: var(--editor-text-muted); font-size: 0.67rem; letter-spacing: 0.04em; text-transform: uppercase; }
 	dd { display: flex; flex-direction: column; gap: 0.1rem; margin: 0; font-size: 0.76rem; }
-	.auto-tag { align-self: flex-start; padding: 0.08rem 0.35rem; border: 1px dashed #6d687e; border-radius: 999px; color: #b7b1a4; font-size: 0.6rem; }
-	button.secondary { padding: 0.42rem 0.4rem; border: 1px solid #4a4650; border-radius: 0.3rem; background: #1a1a22; color: #d6d0c4; font: inherit; font-size: 0.72rem; cursor: pointer; }
+	.auto-tag { align-self: flex-start; padding: 0.08rem 0.35rem; border: 1px dashed var(--editor-border-strong); border-radius: 999px; color: var(--editor-outline-muted); font-size: 0.6rem; }
+	button.secondary { padding: 0.42rem 0.4rem; border: 1px solid var(--editor-border-normal); border-radius: 0.3rem; background: var(--editor-bg-panel-raised); color: var(--editor-text-secondary); font: inherit; font-size: 0.72rem; cursor: pointer; }
 	button.secondary:disabled { opacity: 0.42; cursor: default; }
-	.timing-unavailable { margin: 0; color: #918c84; font-size: 0.68rem; }
+	.timing-unavailable { margin: 0; color: var(--editor-text-muted); font-size: 0.68rem; }
 </style>

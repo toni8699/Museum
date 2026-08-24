@@ -9,7 +9,15 @@
 		type EditorStore
 	} from '../editor-store.svelte';
 
-	let { store, viewMode = '3d' }: { store: EditorStore; viewMode?: 'plan' | '3d' } = $props();
+	let {
+		store,
+		viewMode = '3d',
+		contextMenu = null
+	}: {
+		store: EditorStore;
+		viewMode?: 'plan' | '3d';
+		contextMenu?: import('../context-menu/context-menu-state.svelte').EditorContextMenuStore | null;
+	} = $props();
 	const expanded = $derived(store.timelineExpanded);
 	const height = $derived(
 		expanded ? store.timelineHeight : EDITOR_TIMELINE_COLLAPSED_HEIGHT
@@ -120,7 +128,7 @@
 
 	{#if expanded}
 		<div class="content">
-			<EditorCameraTimelinePanel {store} {viewMode} />
+			<EditorCameraTimelinePanel {store} {viewMode} {contextMenu} />
 		</div>
 	{/if}
 </section>
@@ -131,8 +139,8 @@
 		display: flex;
 		flex-direction: column;
 		box-sizing: border-box;
-		border-top: 1px solid #2a2a33;
-		background: #13131a;
+		border-top: 1px solid var(--editor-border-subtle);
+		background: var(--editor-bg-panel);
 	}
 	.timeline-frame.resizing { user-select: none; }
 
@@ -154,14 +162,16 @@
 		height: 2px;
 		transform: translateX(-50%);
 		border-radius: 999px;
-		background: #4a4852;
+		background: var(--editor-border-strong);
 	}
 	.resize-handle:hover::after,
-	.resize-handle:focus-visible::after { background: #d6b35f; }
-	.resize-handle:focus-visible { outline: 1px solid #d6b35f; outline-offset: -1px; }
+	.resize-handle:focus-visible::after { background: var(--editor-accent); }
+	.resize-handle:focus-visible { outline: 1px solid var(--editor-accent); outline-offset: -1px; }
 
 	header {
 		display: flex;
+		height: 36px;
+		flex: 0 0 36px;
 		align-items: center;
 		gap: 0.85rem;
 		min-height: 36px;
@@ -169,20 +179,20 @@
 		box-sizing: border-box;
 		border-bottom: 1px solid transparent;
 	}
-	.timeline-frame:has(.content) header { border-bottom-color: #2a2a33; }
+	.timeline-frame:has(.content) header { border-bottom-color: var(--editor-border-subtle); }
 	.heading { display: flex; align-items: baseline; gap: 0.6rem; min-width: 0; }
-	.legend { font-weight: 650; font-size: 0.78rem; letter-spacing: 0.02em; color: #f4efe4; }
+	.legend { font-weight: 650; font-size: 0.78rem; letter-spacing: 0.02em; color: var(--editor-text-primary); }
 	.phase-label,
-	.workspace-label { color: #77736d; font-size: 0.65rem; }
+	.workspace-label { color: var(--editor-text-muted); font-size: 0.65rem; }
 	.tour-selector {
 		display: inline-flex;
 		align-items: center;
 		gap: 0.35rem;
 		padding: 0.26rem 0.5rem;
-		border: 1px solid #3a3a46;
+		border: 1px solid var(--editor-border-normal);
 		border-radius: 0.3rem;
-		background: #1a1a22;
-		color: #ddd6ca;
+		background: var(--editor-bg-panel-raised);
+		color: var(--editor-text-secondary);
 		font: inherit;
 		font-size: 0.68rem;
 		cursor: default;
@@ -191,9 +201,9 @@
 	.preview-badge {
 		margin-left: auto;
 		padding: 0.14rem 0.38rem;
-		border: 1px solid #6f5d32;
+		border: 1px solid var(--editor-accent-pressed);
 		border-radius: 999px;
-		color: #f4dc9b;
+		color: var(--editor-text-primary);
 		font-size: 0.6rem;
 		font-weight: 650;
 		letter-spacing: 0.04em;
@@ -204,22 +214,22 @@
 		align-items: center;
 		gap: 0.3rem;
 		padding: 0.3rem 0.52rem;
-		border: 1px solid #3a3a46;
+		border: 1px solid var(--editor-border-normal);
 		border-radius: 0.3rem;
-		background: #1a1a22;
-		color: #f4efe4;
+		background: var(--editor-bg-panel-raised);
+		color: var(--editor-text-primary);
 		font: inherit;
 		font-size: 0.7rem;
 		cursor: pointer;
 	}
-	.toggle:hover:not(:disabled) { border-color: #d6b35f; }
+	.toggle:hover:not(:disabled) { border-color: var(--editor-accent); }
 	.toggle:disabled { opacity: 0.42; cursor: default; }
 
 	.content {
 		min-height: 0;
 		flex: 1;
 		overflow: auto;
-		padding: 0.75rem 0.9rem 0.9rem;
+		padding: 0 0.75rem;
 	}
 	@media (max-width: 44rem) {
 		header { gap: 0.45rem; padding-inline: 0.6rem; }

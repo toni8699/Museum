@@ -134,22 +134,22 @@
 
 <style>
 	.primitive { display: flex; flex-direction: column; gap: 0.55rem; }
-	.primitive h2 { margin: 0; font-size: 0.78rem; font-weight: 650; color: #d6c7a8; }
-	.name, .primitive label:not(.checkbox) { display: flex; flex-direction: column; gap: 0.25rem; color: #a8a29a; font-size: 0.68rem; }
+	.primitive h2 { margin: 0; font-size: 0.78rem; font-weight: 650; color: var(--editor-text-secondary); }
+	.name, .primitive label:not(.checkbox) { display: flex; flex-direction: column; gap: 0.25rem; color: var(--editor-text-secondary); font-size: 0.68rem; }
 	.name input, .primitive select {
 		min-width: 0;
 		padding: 0.42rem;
-		border: 1px solid #3a3a46;
+		border: 1px solid var(--editor-border-normal);
 		border-radius: 0.32rem;
-		background: #1a1a22;
-		color: #f4efe4;
+		background: var(--editor-bg-panel-raised);
+		color: var(--editor-text-primary);
 		font: inherit;
 	}
-	.name input:focus, .primitive select:focus { outline: 1px solid #d6b35f; border-color: #d6b35f; }
+	.name input:focus, .primitive select:focus { outline: 1px solid var(--editor-accent); border-color: var(--editor-accent); }
 	dl { display: grid; gap: 0.35rem; margin: 0; }
 	dl div { display: grid; grid-template-columns: 5.5rem 1fr; gap: 0.4rem; align-items: baseline; }
-	dt { margin: 0; color: #918c84; font-size: 0.68rem; }
-	dd { margin: 0; color: #f4efe4; font-size: 0.74rem; word-break: break-word; }
-	.checkbox { display: flex; align-items: center; gap: 0.45rem; color: #d6c7a8; font-size: 0.74rem; }
-	.checkbox input { accent-color: #d6b35f; }
+	dt { margin: 0; color: var(--editor-text-muted); font-size: 0.68rem; }
+	dd { margin: 0; color: var(--editor-text-primary); font-size: 0.74rem; word-break: break-word; }
+	.checkbox { display: flex; align-items: center; gap: 0.45rem; color: var(--editor-text-secondary); font-size: 0.74rem; }
+	.checkbox input { accent-color: var(--editor-accent); }
 </style>

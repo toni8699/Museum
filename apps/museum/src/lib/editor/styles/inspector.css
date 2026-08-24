@@ -1,0 +1,19 @@
+/*
+ * P3.2 — inspector tokens (Design-specs.md §19).
+ * The right-hand properties panel reads these from scoped component styles.
+ */
+
+:root {
+	--editor-inspector-width: var(--editor-right-width);
+	--editor-inspector-section-title: 600 var(--editor-font-size-section)
+		var(--editor-font);
+	--editor-inspector-label: 400 var(--editor-font-size-label) var(--editor-font);
+	--editor-inspector-value: 400 var(--editor-font-size-input) var(--editor-font);
+	--editor-inspector-metadata: 400 var(--editor-font-size-metadata)
+		var(--editor-font);
+
+	--editor-inspector-gap: var(--editor-space-3);
+	--editor-inspector-row-height: 26px;
+	--editor-inspector-input-bg: var(--editor-bg-control);
+	--editor-inspector-input-border: var(--editor-border-normal);
+}

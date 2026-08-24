@@ -1,0 +1,23 @@
+/*
+ * P3.2 — shell-level chrome base (Design-specs.md §15/§37).
+ * Imported once by every shell that mounts editor chrome (EditorApp,
+ * MuseumEditorApp). Tokens live in tokens.css; this file carries only the
+ * genuinely shared base layer so component-scoped styles keep owning layout.
+ */
+
+/* Editor chrome mounts full-bleed; the shells previously carried this reset. */
+body:has(.editor-page) {
+	margin: 0;
+}
+
+/* Shared focus treatment (DS §14): 1px accent border + soft outer ring. */
+.editor-page :is(button, input, select, textarea, [tabindex]):focus-visible {
+	outline: none;
+	border-color: var(--editor-accent);
+	box-shadow: 0 0 0 2px rgb(47 140 255 / 18%);
+}
+
+/* Numeric readouts keep tabular figures (DS §6); never monospace. */
+.editor-page .editor-numeric {
+	font-variant-numeric: tabular-nums;
+}

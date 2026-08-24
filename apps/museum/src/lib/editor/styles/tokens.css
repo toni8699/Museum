@@ -1,0 +1,136 @@
+/*
+ * P3.2 — canonical design tokens (Design-specs.md §37).
+ *
+ * Single source of truth for every shared visual decision in the editor
+ * chrome. All tokens use the `--editor-` prefix so they never collide with
+ * the host app or the `/museum` visitor. The Scene 3D overlay aliases mirror
+ * `src/lib/editor/styles/scene-palette.ts` (Three.js materials cannot read
+ * CSS variables); a contract test pins the two in sync.
+ *
+ * Section references: DS = docs/Design-specs/Design-specs.md.
+ */
+
+:root {
+	/* ── DS §7 — dark shell (slightly blue, never neutral charcoal) ── */
+	--editor-bg-app: #071019;
+	--editor-bg-panel: #0a141f;
+	--editor-bg-panel-raised: #0d1925;
+	--editor-bg-control: #0e1a26;
+	--editor-bg-hover: #142230;
+	--editor-bg-selected: #0c3766;
+
+	--editor-border-subtle: #1a2936;
+	--editor-border-normal: #243544;
+	--editor-border-strong: #32485a;
+
+	/* ── DS §7 — text ── */
+	--editor-text-primary: #edf3f8;
+	--editor-text-secondary: #a7b3bf;
+	--editor-text-muted: #71808e;
+	--editor-text-disabled: #52606c;
+
+	/* ── DS §7 — primary blue: the sole active/selection accent ── */
+	--editor-accent: #2f8cff;
+	--editor-accent-hover: #55a1ff;
+	--editor-accent-pressed: #1976df;
+	--editor-accent-soft: rgb(47 140 255 / 16%);
+	--editor-accent-border: rgb(47 140 255 / 62%);
+
+	/* ── DS §7 — semantic colors ── */
+	--editor-success: #31c985;
+	--editor-success-soft: rgb(49 201 133 / 14%);
+	--editor-success-border: rgb(49 201 133 / 55%);
+	--editor-warning: #d9a441;
+	--editor-warning-soft: rgb(217 164 65 / 14%);
+	--editor-warning-border: rgb(217 164 65 / 55%);
+	--editor-danger: #ef626c;
+	--editor-danger-soft: rgb(239 98 108 / 14%);
+	--editor-danger-border: rgb(239 98 108 / 55%);
+
+	/* ── DS §8 — transform axes (spatial meaning only, never decoration) ── */
+	--editor-axis-x: #f05252;
+	--editor-axis-y: #45c878;
+	--editor-axis-z: #3b82f6;
+
+	/* ── DS §8 — Scene 3D overlay aliases ── */
+	--editor-gizmo-x: #f05252;
+	--editor-gizmo-y: #45c878;
+	--editor-gizmo-z: #3b82f6;
+	--editor-gizmo-active: #2f8cff;
+	--editor-gizmo-hover: #55a1ff;
+
+	--editor-selection-outline: #2f8cff;
+	--editor-selection-outline-hover: #55a1ff;
+	--editor-selection-fill: rgb(47 140 255 / 10%);
+	--editor-selection-handle: #edf3f8;
+	--editor-outline-muted: #92908a;
+	--editor-layout-box: #92908a;
+	--editor-layout-box-hover: #77766f;
+
+	--editor-orientation-surface: #0d1925;
+	--editor-orientation-hover: #142230;
+	--editor-orientation-border: #32485a;
+	--editor-orientation-label: #edf3f8;
+
+	/* ── DS §9 — plan surfaces (bright drafting paper on dark shell) ── */
+	--editor-plan-bg: #f5f3ee;
+	--editor-plan-grid-major: #d2cec5;
+	--editor-plan-grid-minor: #e4e0d9;
+	--editor-plan-wall: #625f59;
+	--editor-plan-wall-fill: #d5d1c8;
+	--editor-plan-object: #b7b2a8;
+	--editor-plan-label: #292d31;
+	--editor-plan-muted: #77766f;
+	--editor-plan-measure: #2f8cff;
+	--editor-plan-selection: #2f8cff;
+	--editor-plan-readonly: #92908a;
+
+	/* ── DS §11 — timeline lane colors (inside data viz only) ── */
+	--editor-timeline-path: #2f8cff;
+	--editor-timeline-fov: #4f9eff;
+	--editor-timeline-look: #8c7cf3;
+	--editor-timeline-roll: #c9944b;
+	--editor-timeline-envelope: #d9a441;
+	--editor-timeline-free: #31c985;
+	--editor-timeline-playhead: #2f8cff;
+
+	/* ── DS §12/§13 — spacing + radius ── */
+	--editor-space-1: 4px;
+	--editor-space-2: 8px;
+	--editor-space-3: 12px;
+	--editor-space-4: 16px;
+	--editor-space-5: 20px;
+	--editor-space-6: 24px;
+	--editor-radius-sm: 4px;
+	--editor-radius-md: 5px;
+	--editor-radius-lg: 7px;
+
+	/* ── DS §15 — shell dimensions ── */
+	--editor-appbar-height: 56px;
+	--editor-status-height: 32px;
+	--editor-left-width: 300px;
+	--editor-left-min: 240px;
+	--editor-left-max: 420px;
+	--editor-right-width: 320px;
+	--editor-right-min: 280px;
+	--editor-right-max: 420px;
+
+	/* ── DS §6 — typography ── */
+	--editor-font:
+		'Inter Variable', Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI',
+		sans-serif;
+	--editor-font-size-title: 16px;
+	--editor-font-size-panel-title: 14px;
+	--editor-font-size-toolbar: 13px;
+	--editor-font-size-tree-row: 13px;
+	--editor-font-size-section: 13px;
+	--editor-font-size-label: 12px;
+	--editor-font-size-input: 13px;
+	--editor-font-size-metadata: 11.5px;
+	--editor-font-size-status: 11.5px;
+	--editor-font-size-ruler: 11px;
+
+	/* ── DS §14 — elevation ── */
+	--editor-shadow-toolbar: 0 8px 24px rgb(0 0 0 / 38%);
+	--editor-shadow-popover: 0 4px 12px rgb(0 0 0 / 32%);
+}

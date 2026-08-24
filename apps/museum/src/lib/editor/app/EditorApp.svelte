@@ -5,6 +5,14 @@
 	// below is shell-owned.
 	import type { Asset } from '$lib/types/assets';
 	import { onMount, setContext, untrack } from 'svelte';
+	// P3.2 — canonical token architecture + Inter Variable (Design-specs §37).
+	import '@fontsource-variable/inter';
+	import '$lib/editor/styles/tokens.css';
+	import '$lib/editor/styles/editor-shell.css';
+	import '$lib/editor/styles/controls.css';
+	import '$lib/editor/styles/inspector.css';
+	import '$lib/editor/styles/timeline.css';
+	import '$lib/editor/styles/plan.css';
 	import EditorCameraTimelineFrame from '$lib/editor/camera/EditorCameraTimelineFrame.svelte';
 	import EditorInspector from '$lib/editor/EditorInspector.svelte';
 	import EditorMaterialChoiceDialog from '$lib/editor/EditorMaterialChoiceDialog.svelte';
@@ -35,6 +43,8 @@
 	import CameraPlanWorkspace from './CameraPlanWorkspace.svelte';
 	import StatusBar from './StatusBar.svelte';
 	import { createCameraPlanState } from '$lib/editor/camera-plan/camera-plan-state.svelte';
+	import { createEditorContextMenuStore } from '$lib/editor/context-menu/context-menu-state.svelte';
+	import ContextMenu from '$lib/editor/context-menu/ContextMenu.svelte';
 	import { EditorViewState } from './editor-view-state.svelte';
 	import {
 		ACTIVE_EDITOR_SELECTION_KEY,
@@ -78,6 +88,8 @@
 	// zoom, hover, and tool mutations stay reactive (Scene Plan wraps the same
 	// way via `layoutInteraction`).
 	const cameraPlanState = $state(createCameraPlanState());
+	// P3.4 — one shared context-menu slot; surface adapters open through it.
+	const contextMenu = createEditorContextMenuStore();
 	// one active selection domain at the editor composition root.
 	const activeSelection = new EditorActiveSelectionStore(
 		store,
@@ -248,7 +260,7 @@
 
 </script>
 
-<main class="page" class:previewing={store.isDocumentMutationBlocked}>
+<main class="page editor-page" class:previewing={store.isDocumentMutationBlocked}>
 	<EditorAppBar
 		{store}
 		{layoutPreview}
@@ -264,6 +276,7 @@
 		{layoutInteraction}
 		{activeSelection}
 		{viewState}
+		{contextMenu}
 		bind:outlinerElement
 		onAssetSelection={(asset) => (selectedAsset = asset)}
 		// Explicit Models-tab click: detach the active scene selection so the
@@ -301,6 +314,7 @@
 					{layoutPreview}
 					{layoutInteraction}
 					active={viewState.domain === 'scene'}
+					{contextMenu}
 				/>
 			</div>
 			<div
@@ -309,12 +323,12 @@
 				inert={viewState.domain !== 'camera'}
 			>
 				<!-- P1.5 — Camera → Plan is the live camera-graph authoring surface. -->
-				<CameraPlanWorkspace {store} {layoutPreview} cameraPlan={cameraPlanState} />
+				<CameraPlanWorkspace {store} {layoutPreview} cameraPlan={cameraPlanState} {contextMenu} />
 			</div>
 		{:else}
 			<!-- explicit 3D context seam: camera authoring overlays and
 			     the bottom timeline are Camera-only; Scene stays scene chrome. -->
-			<Workspace3DView {store} {layoutPreview} {layoutInteraction} context={viewState.domain} />
+			<Workspace3DView {store} {layoutPreview} {layoutInteraction} context={viewState.domain} {contextMenu} />
 		{/if}
 	</div>
 	<EditorInspector
@@ -328,18 +342,20 @@
 		bind:clusterNameInput
 	/>
 	{#if viewState.domain === 'camera'}
-		<EditorCameraTimelineFrame {store} viewMode={viewState.activeView} />
+		<EditorCameraTimelineFrame {store} viewMode={viewState.activeView} {contextMenu} />
 	{/if}
 	<!-- P1.1 (design-spec §2/§18) — persistent status bar in every workspace. -->
 	<StatusBar {store} {layoutPreview} {layoutInteraction} {viewState} {activeSelection} />
 	<EditorMaterialChoiceDialog {store} />
+	<!-- P3.4 — the one shared context-menu shell. -->
+	<ContextMenu store={contextMenu} />
 </main>
 
 <style>
 	:global(body) { margin: 0; }
 	.page {
 		display: grid;
-		grid-template-columns: minmax(17rem, 21rem) minmax(0, 1fr) minmax(17rem, 22rem);
+		grid-template-columns: minmax(15rem, var(--editor-left-width)) minmax(0, 1fr) minmax(17.5rem, var(--editor-right-width));
 		grid-template-rows: auto minmax(0, 1fr) auto auto;
 		grid-template-areas:
 			'top top top'
@@ -349,12 +365,12 @@
 		height: 100vh;
 		height: 100dvh;
 		overflow: hidden;
-		background: #0b0b10;
-		color: #f4efe4;
-		font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+		background: var(--editor-bg-app);
+		color: var(--editor-text-primary);
+		font-family: var(--editor-font);
 	}
 	.center { position: relative; min-width: 0; min-height: 0; outline: none; }
-	.center:focus-visible { box-shadow: inset 0 0 0 1px #d6b35f; }
+	.center:focus-visible { box-shadow: inset 0 0 0 1px var(--editor-accent); }
 
 	/* P1.7 review fix — both plan surfaces stay mounted (G3 pattern). The
 	   hidden cell flips instantly (owner: no fade on view/domain switches)

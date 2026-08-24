@@ -1,16 +1,19 @@
 # P10 — Plan Arrange Objects (post-P2 redesign)
 
 **Date:** 2026-08-23
-**Status:** In progress — direction and architecture approved by browser review
-2026-08-23; the four review pins (hit/selection split, last-owner rule,
-amendment surface, yaw/ownership source verification) are incorporated below;
-**P10.1–P10.3 implemented + review-fixed 2026-08-23 (uncommitted)**; the
-**P10.0 canonical-doc amendment batch applied 2026-08-23** (shell/specs/
-north-star terminology beyond `components/placement.md`). Remaining:
-**P10.4** visual reconciliation — sequenced after **P3.1–P3.3** (the P3 visual
-baseline; the P3 rebase records the Arrange QA scope) — and **P10.5**
-regression/docs close-out.
-**Tracker:** [`docs/plans/README.md`](README.md) — **P10**, depends on: P2 + P9; coordinate with P3 visual reconciliation.
+**Status:** Shipped 2026-08-24 — P10.0–P10.5 complete; direction and
+architecture approved by browser review 2026-08-23. P10.1–P10.3 landed and
+were review-fixed 2026-08-23; P10.4/P10.5 closed on the P3 visual baseline.
+**Tracker:** [`docs/plans/README.md`](../../plans/README.md) — **P10**, depends on: P2 + P9; coordinate with P3 visual reconciliation.
+
+**Close note (2026-08-24):** P10.4 reconciled Layout-object and Scene-entity
+passive/hover/selected states onto one blue selection language, added the
+owner-aware hover outline and rotation feedback, and preserved muted read-only
+architecture. P10.5 passed the full owner-routing, transform/history, cancel,
+selection-memory, render-boundary, and visitor-isolation suite through the P3
+full gate: 2,069 passed / 1 skipped, `svelte-check` 0/0, build clean, and
+sidebar Browser smoke QA clean. No cross-document gesture or second selection,
+history, transform, navigation, or geometry system was introduced.
 
 ## Decision requested
 

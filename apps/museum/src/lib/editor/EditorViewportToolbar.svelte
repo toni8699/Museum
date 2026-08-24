@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { ChevronDown, Eye, MousePointer2, Move, Rotate3d, Scaling, Video } from 'lucide-svelte';
+	import { ChevronDown, Eye, MousePointer2, Move, RotateCw, Scaling, Video } from 'lucide-svelte';
 	import type { EditorTransformMode } from './editor-transform';
 	import type { EditorStore } from './editor-store.svelte';
 	import { onMount, getContext } from 'svelte';
@@ -194,7 +194,7 @@
 			disabled={toolDisabled('rotate')}
 			onclick={() => chooseTool('rotate')}
 		>
-			<Rotate3d size={14} aria-hidden="true" />
+			<RotateCw size={14} aria-hidden="true" />
 			Rotate
 		</button>
 		{#if showScaleTool}
@@ -371,8 +371,8 @@
 		padding: 0.3rem;
 		border: 1px solid rgb(70 68 78 / 88%);
 		border-radius: 0.42rem;
-		background: rgb(19 19 26 / 94%);
-		box-shadow: 0 0.4rem 1.25rem rgb(0 0 0 / 28%);
+		background: var(--editor-bg-panel-raised);
+		box-shadow: var(--editor-shadow-toolbar);
 		backdrop-filter: blur(8px);
 	}
 
@@ -381,7 +381,7 @@
 		display: flex;
 		gap: 0.22rem;
 		padding-right: 0.32rem;
-		border-right: 1px solid #34343e;
+		border-right: 1px solid var(--editor-border-subtle);
 	}
 
 	/* View-menu dropdown: absolutely positioned below the trigger so opening
@@ -403,7 +403,7 @@
 		backdrop-filter: blur(8px);
 	}
 	.add-menu .toggle-row { padding: 0.34rem 0.45rem; border-radius: 0.3rem; }
-	.add-menu .toggle-row:hover { border-color: #5a5663; color: #fff; }
+	.add-menu .toggle-row:hover { border-color: var(--editor-border-strong); color: var(--editor-text-primary); }
 
 	.scale-toggle,
 	.add-camera {
@@ -416,18 +416,18 @@
 	}
 
 	.add-camera {
-		border-color: #6f5c31;
-		color: #e8d5a3;
+		border-color: var(--editor-accent-pressed);
+		color: var(--editor-text-primary);
 	}
 	.add-camera:hover:not(:disabled) {
-		border-color: #d6b35f;
-		color: #fff2c7;
+		border-color: var(--editor-accent);
+		color: var(--editor-text-primary);
 	}
 
 	.scale-toggle[aria-pressed='true'] {
-		background: rgba(136, 221, 255, 0.18);
-		border-color: rgba(136, 221, 255, 0.5);
-		color: #88ddff;
+		background: var(--editor-accent-soft);
+		border-color: var(--editor-accent-border);
+		color: var(--editor-accent-hover);
 	}
 
 	button {
@@ -439,17 +439,17 @@
 		border: 1px solid transparent;
 		border-radius: 0.3rem;
 		background: transparent;
-		color: #c9c3b8;
-		font: 600 0.68rem/1 ui-sans-serif, system-ui, sans-serif;
+		color: var(--editor-text-secondary);
+		font: 600 0.68rem/1 var(--editor-font);
 		cursor: pointer;
 	}
 
-	button:hover:not(:disabled) { border-color: #5a5663; color: #fff; }
-	button.active { border-color: #8d753c; background: #2a2618; color: #fff2c7; }
+	button:hover:not(:disabled) { border-color: var(--editor-border-strong); color: var(--editor-text-primary); }
+	button.active { border-color: var(--editor-accent-border); background: var(--editor-bg-selected); color: var(--editor-text-primary); }
 	button:disabled { opacity: 0.42; cursor: default; }
 
 	.toggle-row { display: flex; align-items: center; gap: 0.55rem; }
-	.toggle-row .check { width: 0.85rem; color: #d6b35f; font: inherit; font-size: 0.78rem; }
+	.toggle-row .check { width: 0.85rem; color: var(--editor-accent); font: inherit; font-size: 0.78rem; }
 
 	@media (max-width: 44rem) {
 		.toolbar {

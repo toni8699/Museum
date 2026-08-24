@@ -17,6 +17,7 @@
 	} from './store/editor-interaction-store.svelte';
 	import { box3CornersToLineGeometry, localCornersInto } from './obb-util';
 	import { computeClusterOBB, computeRootLocalBox } from './cluster-obb';
+	import { SCENE_PALETTE } from './styles/scene-palette';
 
 	let { store }: { store: EditorStore } = $props();
 	const { scene } = useThrelte();
@@ -65,7 +66,7 @@
 	/**
 	 * Build a new hover `LineSegments` from `root`'s placement-local OBB. The
 	 * per-frame task streams corners through `root.matrixWorld` so the wire
-	 * cube rotates with the object — same visual language as the gold selection
+	 * cube rotates with the object — same visual language as the selection
 	 * OBB, just dimmer.
 	 */
 	function buildHoverRecord(root: Object3D): HoverRecord {
@@ -76,7 +77,7 @@
 		geometry.setAttribute('position', positionAttribute);
 		geometry.setIndex(new BufferAttribute(indices, 1));
 		const material = new LineBasicMaterial({
-			color: 0xffffff,
+			color: SCENE_PALETTE.selectionOutlineHover,
 			depthTest: false,
 			transparent: true,
 			fog: false,
@@ -162,7 +163,7 @@
 	function buildLooseRecord(root: Object3D): LooseRecord {
 		const rootLocalBox = computeRootLocalBox(root);
 		const { geometry, corners } = makeLineGeometry(rootLocalBox);
-		const material = makeLineMaterial(0xd6b35f);
+		const material = makeLineMaterial(SCENE_PALETTE.selectionOutline);
 		const lineSegments = makeLineSegments(geometry, material);
 		return {
 			kind: 'loose',
@@ -192,13 +193,16 @@
 		return { geometry, corners: initialFloats };
 	}
 
-	function makeLineMaterial(color: number): LineBasicMaterial {
+	function makeLineMaterial(
+		color: number,
+		options: { transparent?: boolean; opacity?: number } = {}
+	): LineBasicMaterial {
 		return new LineBasicMaterial({
 			color,
 			depthTest: false,
-			transparent: color === 0xffffff,
+			transparent: options.transparent ?? false,
 			fog: false,
-			opacity: color === 0xffffff ? 0.35 : 1,
+			opacity: options.opacity ?? 1,
 			linewidth: 1
 		});
 	}
@@ -221,7 +225,7 @@
 		obb: NonNullable<ReturnType<typeof computeClusterOBB>>
 	): ClusterRecord {
 		const { geometry, corners } = makeLineGeometry(obb.localBox);
-		const material = makeLineMaterial(0xd6b35f);
+		const material = makeLineMaterial(SCENE_PALETTE.selectionOutline);
 		const lineSegments = new LineSegments(geometry, material);
 		lineSegments.renderOrder = 1001; // cluster draws above loose outlines.
 		lineSegments.frustumCulled = false;

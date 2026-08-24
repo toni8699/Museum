@@ -38,6 +38,7 @@
 		layoutCandidatesFromIntersections,
 		type Layout3dHitCandidate
 	} from './layout/layout-3d-picking';
+	import { isEditableTarget } from './context-menu/editable-target';
 	import {
 		firstRenderablePlacementId,
 		TEXTURE_DRAG_MIME
@@ -58,7 +59,8 @@
 		transformControls,
 		onDeselect,
 		onLayoutPick,
-		onLayoutHover
+		onLayoutHover,
+		onContextMenu
 	}: {
 		store: EditorStore;
 		transformControls?: TransformControls;
@@ -85,6 +87,17 @@
 			candidates: readonly Layout3dHitCandidate[],
 			competingSceneDistance: number | null
 		) => void;
+		/**
+		 * P3.4 — right-click hook. Resolves the SAME normal-selection raycast
+		 * the click path uses (no writes), then hands the result to the shell;
+		 * returning `true` claims the event (custom menu opens, native menu is
+		 * suppressed). Absent on the relic mount (frozen behavior).
+		 */
+		onContextMenu?: (payload: {
+			clientX: number;
+			clientY: number;
+			result: ReturnType<typeof resolveNormalSelectionWithHit>['result'];
+		}) => boolean;
 	} = $props();
 
 	const { camera, scene, canvas } = useThrelte();
@@ -211,7 +224,6 @@
 		raycaster.setFromCamera(pointerNdc, currentCamera);
 		return raycaster.intersectObjects(scene.children, true);
 	}
-
 	function isFloorPlacementActive() {
 		return Boolean(
 			store.pendingPlacementAssetId ||
@@ -994,6 +1006,25 @@
 		}
 	}
 
+	// P3.4 — right-click resolves the same normal-selection raycast as a click
+	// (no selection writes here; the shell applies selection-before-menu), then
+	// claims the event only when it opens the custom menu.
+	function onContextMenuEvent(event: MouseEvent) {
+		if (!onContextMenu) return;
+		if (transformControls?.axis || transformControls?.dragging) return;
+		if (pointerSession) return;
+		if (isEditableTarget(event.target)) return;
+		const intersections = raycast(event);
+		const hits = intersections.map(selectionHitFromIntersection);
+		const normal = resolveNormalSelectionWithHit(hits);
+		const handled = onContextMenu({
+			clientX: event.clientX,
+			clientY: event.clientY,
+			result: normal.result
+		});
+		if (handled) event.preventDefault();
+	}
+
 	function onPointerDown(event: PointerEvent) {
 		if (event.button !== 0) return;
 		if (transformControls?.axis || transformControls?.dragging) return;
@@ -1231,6 +1262,7 @@
 		canvas.addEventListener('pointercancel', onPointerCancel, true);
 		canvas.addEventListener('lostpointercapture', onLostPointerCapture);
 		canvas.addEventListener('pointerleave', onPointerLeave);
+		canvas.addEventListener('contextmenu', onContextMenuEvent);
 		canvas.addEventListener('dragover', onDragOver, true);
 		canvas.addEventListener('drop', onTextureDrop, true);
 		window.addEventListener('keydown', onKeyDown, true);
@@ -1258,6 +1290,7 @@
 			canvas.removeEventListener('pointercancel', onPointerCancel, true);
 			canvas.removeEventListener('lostpointercapture', onLostPointerCapture);
 			canvas.removeEventListener('pointerleave', onPointerLeave);
+			canvas.removeEventListener('contextmenu', onContextMenuEvent);
 			canvas.removeEventListener('dragover', onDragOver, true);
 			canvas.removeEventListener('drop', onTextureDrop, true);
 			window.removeEventListener('keydown', onKeyDown, true);

@@ -1,0 +1,19 @@
+/*
+ * P3.2 — camera timeline tokens (Design-specs.md §11/§16/§23–§26).
+ * Lane colors apply inside data visualization only; chrome stays neutral.
+ */
+
+:root {
+	--editor-timeline-height: 288px;
+	--editor-timeline-collapsed: 48px;
+
+	--editor-timeline-chrome-bg: var(--editor-bg-panel);
+	--editor-timeline-chrome-border: var(--editor-border-subtle);
+	--editor-timeline-ruler-fg: var(--editor-text-muted);
+	--editor-timeline-ruler-font: 400 var(--editor-font-size-ruler) var(--editor-font);
+
+	/* Backing two-lane model renders the five display lanes' semantics:
+	   path = connection motion, look = aim keys, envelope = framing amber,
+	   free/unsequenced = green. Roll stays quiet when empty (DS §11). */
+	--editor-timeline-keyframe: var(--editor-selection-handle);
+}

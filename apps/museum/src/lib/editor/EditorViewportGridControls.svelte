@@ -82,15 +82,15 @@
 		padding: 0.38rem 0.55rem;
 		border: 1px solid rgb(70 68 78 / 88%);
 		border-radius: 0.42rem;
-		background: rgb(19 19 26 / 94%);
-		box-shadow: 0 0.4rem 1.25rem rgb(0 0 0 / 28%);
+		background: var(--editor-bg-panel-raised);
+		box-shadow: var(--editor-shadow-toolbar);
 		backdrop-filter: blur(8px);
-		color: #c9c3b8;
-		font: 600 0.68rem/1 ui-sans-serif, system-ui, sans-serif;
+		color: var(--editor-text-secondary);
+		font: 600 0.68rem/1 var(--editor-font);
 		cursor: pointer;
 	}
 	.grid-toggle:hover:not(:disabled),
-	.grid-toggle.open { border-color: #8d753c; color: #fff2c7; }
+	.grid-toggle.open { border-color: var(--editor-accent-border); color: var(--editor-text-primary); }
 	.grid-popover {
 		position: absolute;
 		right: 0;
@@ -115,30 +115,30 @@
 		border: 1px solid transparent;
 		border-radius: 0.3rem;
 		background: transparent;
-		color: #c9c3b8;
+		color: var(--editor-text-secondary);
 		font: inherit;
 		font-size: 0.68rem;
 		text-align: left;
 		cursor: pointer;
 	}
-	.toggle-row:hover { border-color: #5a5663; color: #fff; }
-	.toggle-row .check { width: 0.85rem; color: #d6b35f; font-size: 0.78rem; }
+	.toggle-row:hover { border-color: var(--editor-border-strong); color: var(--editor-text-primary); }
+	.toggle-row .check { width: 0.85rem; color: var(--editor-accent); font-size: 0.78rem; }
 	.opacity-row {
 		display: grid;
 		grid-template-columns: auto minmax(0, 1fr) auto;
 		align-items: center;
 		gap: 0.5rem;
 		padding: 0.3rem 0.45rem;
-		color: #a8a29a;
+		color: var(--editor-text-secondary);
 		font-size: 0.66rem;
 	}
 	.opacity-row input[type='range'] {
 		width: 100%;
-		accent-color: #d6b35f;
+		accent-color: var(--editor-accent);
 	}
 	.opacity-row .value {
 		min-width: 2.4rem;
-		color: #c9c3b8;
+		color: var(--editor-text-secondary);
 		font-variant-numeric: tabular-nums;
 		text-align: right;
 	}

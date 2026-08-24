@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { Aperture, Clapperboard, Crosshair, Route, RotateCw } from 'lucide-svelte';
 	import type { CameraConnectionDirection } from '$lib/types/scene';
 	import {
 		cameraTimelineEdgeProgressAtProgress,
@@ -9,6 +10,18 @@
 	} from './editor-camera-timeline';
 	import { useCameraTimeline } from '../hooks/use-camera-timeline.svelte';
 	import type { EditorStore } from '../editor-store.svelte';
+	import type { EditorContextMenuStore } from '../context-menu/context-menu-state.svelte';
+	import {
+		buildCameraNodeContextMenuItems,
+		buildCameraConnectionContextMenuItems,
+		buildViewKeyframeContextMenuItems
+	} from '../context-menu/camera-menu-items';
+	import { isEditableTarget } from '../context-menu/editable-target';
+	import {
+		validateConnectionDeletion,
+		validateGuidedTourRemoval,
+		validateNavigationNodeDeletion
+	} from '../editor-navigation-graph';
 	import {
 		CAMERA_FRAMING_AUTHORING_COMFORT,
 		clampRampEdgeProgress,
@@ -23,13 +36,32 @@
 	} from '$lib/museum/navigation/camera-motion';
 	import type { CameraFramingEnvelope } from '$lib/content/scene';
 
-	let { store, viewMode = '3d' }: { store: EditorStore; viewMode?: 'plan' | '3d' } = $props();
+	let {
+		store,
+		viewMode = '3d',
+		contextMenu = null
+	}: {
+		store: EditorStore;
+		viewMode?: 'plan' | '3d';
+		contextMenu?: EditorContextMenuStore | null;
+	} = $props();
 
 	type TimelineViewKeyMarker = {
 		connectionId: string;
 		direction: CameraConnectionDirection;
 		keyframeId: string;
 		progress: number;
+		fov: number;
+		cameraTarget: readonly [number, number, number];
+	};
+
+	type TimelineShotSegment = {
+		nodeId: string;
+		boundaryIndex: number;
+		label: string;
+		start: number;
+		end: number;
+		holdSeconds: number;
 	};
 
 	// svelte-ignore state_referenced_locally
@@ -81,7 +113,9 @@
 					connectionId: edge.connectionId,
 					direction,
 					keyframeId: keyframe.id,
-					progress
+					progress,
+					fov: keyframe.fov,
+					cameraTarget: keyframe.cameraTarget
 				});
 			}
 		}
@@ -89,6 +123,32 @@
 	}
 
 	const viewKeyMarkers = $derived(readViewKeyMarkers(timeline));
+	const timeTicks = $derived.by(() => {
+		if (!timeline) return [];
+		return Array.from({ length: 11 }, (_, index) => ({
+			progress: index / 10,
+			seconds: timeline.durationSeconds * (index / 10)
+		}));
+	});
+	const shotSegments = $derived.by((): TimelineShotSegment[] => {
+		if (!timeline) return [];
+		const boundaries = timeline.nodeBoundaries.filter((boundary, index, all) =>
+			!(index === all.length - 1 && index > 0 && boundary.nodeId === all[0]?.nodeId)
+		);
+		return boundaries.map((boundary, index) => {
+			const previous = boundaries[index - 1];
+			const next = boundaries[index + 1];
+			const node = store.document.navigationNodes.find((candidate) => candidate.id === boundary.nodeId);
+			return {
+				nodeId: boundary.nodeId,
+				boundaryIndex: boundary.boundaryIndex,
+				label: node?.label ?? boundary.nodeId,
+				start: previous ? (previous.progress + boundary.progress) / 2 : 0,
+				end: next ? (boundary.progress + next.progress) / 2 : 1,
+				holdSeconds: node?.holdSeconds ?? 0
+			};
+		});
+	});
 
 	// ===================================================================
 	// P1.6 — Envelope band rendering (viewMode-gated)
@@ -389,6 +449,97 @@
 		return `${Math.min(100, Math.max(0, progress * 100))}%`;
 	}
 
+	function markerPosition(progress: number) {
+		if (progress <= 0) return '12px';
+		if (progress >= 1) return 'calc(100% - 12px)';
+		return percent(progress);
+	}
+
+	// ── P3.5 — Timeline context-menu adapter ─────────────────────────────
+	// Markers resolve to their BACKING identities (connection edge / view-key
+	// entry / navigation node) and expose only the existing node/key/edge
+	// commands. The cosmetic five-lane labels are not menu surfaces.
+
+	function blockedReason(): string | null {
+		return store.isDocumentMutationBlocked ? 'Preview is active' : null;
+	}
+
+	function onEdgeContextMenu(event: MouseEvent, edge: EditorCameraTimelineEdge): void {
+		if (!contextMenu || isEditableTarget(event.target)) return;
+		store.selectCameraTimelineEdge(edge.connectionId, edge.direction, 0);
+		const failure = validateConnectionDeletion(store.document, edge.connectionId);
+		event.preventDefault();
+		contextMenu.open({
+			surfaceId: 'camera-timeline',
+			x: event.clientX,
+			y: event.clientY,
+			items: buildCameraConnectionContextMenuItems({
+				mutationBlockedReason: blockedReason(),
+				deleteReason: failure.ok ? null : failure.message,
+				actions: {
+					openTiming: () =>
+						store.selectCameraTimelineEdge(edge.connectionId, 'forward', 0),
+					toggleReverse: () => store.toggleCameraEdgeReverse(),
+					deleteConnection: () => store.deleteConnection(edge.connectionId)
+				}
+			})
+		});
+	}
+
+	function onKeyContextMenu(event: MouseEvent, marker: TimelineViewKeyMarker): void {
+		if (!contextMenu || isEditableTarget(event.target)) return;
+		store.selectCameraTimelineViewKeyframe(
+			marker.connectionId,
+			marker.direction,
+			marker.keyframeId
+		);
+		event.preventDefault();
+		contextMenu.open({
+			surfaceId: 'camera-timeline',
+			x: event.clientX,
+			y: event.clientY,
+			items: buildViewKeyframeContextMenuItems({
+				mutationBlockedReason: blockedReason(),
+				actions: { deleteKeyframe: () => store.deleteSelectedViewKeyframe() }
+			})
+		});
+	}
+
+	function onNodeMarkerContextMenu(event: MouseEvent, nodeId: string): void {
+		if (!contextMenu || isEditableTarget(event.target)) return;
+		const node = store.document.navigationNodes.find((candidate) => candidate.id === nodeId);
+		if (!node) return;
+		store.selectionActions.selectNavigationNode(nodeId);
+		const flow = store.mainFlowNodeIds;
+		const onSequence = flow.includes(nodeId);
+		const removalFailure = onSequence ? validateGuidedTourRemoval(store.document, nodeId) : null;
+		const deletionFailure = validateNavigationNodeDeletion(store.document, nodeId);
+		event.preventDefault();
+		contextMenu.open({
+			surfaceId: 'camera-timeline',
+			x: event.clientX,
+			y: event.clientY,
+			items: buildCameraNodeContextMenuItems({
+				spatial: false,
+				nodeOnSequence: onSequence,
+				mutationBlockedReason: blockedReason(),
+				removeFromSequenceReason:
+					removalFailure && !removalFailure.ok ? removalFailure.message : null,
+				deleteNodeReason: deletionFailure.ok ? null : deletionFailure.message,
+				actions: {
+					previewCamera: () => void store.previewSelectedNode(),
+					addToSequence: () => store.insertNodeIntoGuidedTour(nodeId, Math.max(flow.length, 0)),
+					removeFromSequence: () => store.removeNodeFromGuidedTour(nodeId),
+					rename: () => {
+						const next = window.prompt('Camera name', node.label)?.trim();
+						if (next && next !== node.label) store.commitSelectedNodeLabel(next);
+					},
+					deleteNode: () => store.deleteNavigationNode(nodeId)
+				}
+			})
+		});
+	}
+
 	function selectEdge(event: MouseEvent, edge: EditorCameraTimelineEdge) {
 		if (!timeline) return;
 		event.stopPropagation();
@@ -555,11 +706,21 @@
 
 {#if timeline}
 	<div class="lanes">
-		<div class="lane-label">
-			<strong>Guided Route</strong>
-			<span>{timeline.edges.length} edges</span>
+		<div class="ruler-label">Time</div>
+		<div class="time-ruler" aria-hidden="true">
+			{#each timeTicks as tick (tick.progress)}
+				<span class="time-tick" style={`left: ${percent(tick.progress)};`}>
+					<i></i>{formatTime(tick.seconds).replace(/\.00$/, '')}
+				</span>
+			{/each}
 		</div>
-		<div class="track route-track" aria-label="Guided Route">
+
+		<div class="lane-label">
+			<Route size={14} aria-hidden="true" />
+			<strong>Camera Path</strong>
+			<span>{timeline.edges.length} transition{timeline.edges.length === 1 ? '' : 's'}</span>
+		</div>
+		<div class="track route-track" aria-label="Camera Path">
 			<div class="rail"></div>
 			{#each timeline.edges as edge (`${edge.connectionId}:${edge.direction}`)}
 				{@const start = edge.motionStartSeconds / timeline.durationSeconds}
@@ -572,8 +733,9 @@
 					title={`${edge.connectionId} · ${edge.direction}`}
 					disabled={disabled}
 					onclick={(event) => selectEdge(event, edge)}
+					oncontextmenu={(event) => onEdgeContextMenu(event, edge)}
 				>
-					<span>{edge.connectionId}</span>
+					<span></span>
 				</button>
 			{/each}
 			{#each timeline.nodeBoundaries as boundary (`${boundary.boundaryIndex}:${boundary.nodeId}`)}
@@ -582,7 +744,7 @@
 					type="button"
 					class="diamond node"
 					class:selected={isNodeSelected(boundary.nodeId)}
-					style={`left: ${percent(boundary.progress)};`}
+					style={`left: ${markerPosition(boundary.progress)};`}
 					title={`${node?.label ?? boundary.nodeId} · ${formatTime(boundary.timeSeconds)}`}
 					aria-label={`Select camera node ${node?.label ?? boundary.nodeId}`}
 					disabled={disabled}
@@ -590,16 +752,39 @@
 						event.stopPropagation();
 						store.selectCameraTimelineNode(boundary.nodeId, boundary.boundaryIndex);
 					}}
-				>◆</button>
+					oncontextmenu={(event) => onNodeMarkerContextMenu(event, boundary.nodeId)}
+				>{boundary.boundaryIndex + 1}</button>
 			{/each}
 			<div class="playhead" style={`left: ${percent(playhead)};`}></div>
 		</div>
 
 		<div class="lane-label">
-			<strong>Camera Framing</strong>
-			<span title={activeTrackLabel}>{activeTrackLabel}</span>
+			<Clapperboard size={14} aria-hidden="true" />
+			<strong>Shots</strong>
+			<span>{shotSegments.length} camera{shotSegments.length === 1 ? '' : 's'}</span>
 		</div>
-		<div bind:this={framingTrackElement} class="track framing-track" aria-label="Camera Framing">
+		<div class="track shots-track" aria-label="Shots">
+			{#each shotSegments as shot (shot.nodeId)}
+				<button
+					type="button"
+					class="shot-block"
+					class:selected={isNodeSelected(shot.nodeId)}
+					style={`left: ${percent(shot.start)}; width: ${percent(shot.end - shot.start)};`}
+					title={`${shot.label}${shot.holdSeconds > 0 ? ` · ${shot.holdSeconds.toFixed(1)}s hold` : ''}`}
+					disabled={disabled}
+					onclick={() => store.selectCameraTimelineNode(shot.nodeId, shot.boundaryIndex)}
+					oncontextmenu={(event) => onNodeMarkerContextMenu(event, shot.nodeId)}
+				><span>{shot.boundaryIndex + 1}</span>{shot.label}</button>
+			{/each}
+			<div class="playhead" style={`left: ${percent(playhead)};`}></div>
+		</div>
+
+		<div class="lane-label">
+			<Aperture size={14} aria-hidden="true" />
+			<strong>FOV</strong>
+			<span>{viewKeyMarkers.length} key{viewKeyMarkers.length === 1 ? '' : 's'}</span>
+		</div>
+		<div bind:this={framingTrackElement} class="track fov-track" aria-label="FOV">
 			<div class="rail"></div>
 
 			<!-- P1.6 — Envelope influence bands (viewMode === '3d' only) -->
@@ -682,19 +867,17 @@
 				{/each}
 			{/if}
 
-			{#if viewKeyMarkers.length === 0}
-				<span class="no-keys">No camera keys on visible tracks</span>
-			{/if}
+			{#if viewKeyMarkers.length === 0}<span class="no-keys">No FOV keys</span>{/if}
 			{#each viewKeyMarkers as marker (`${marker.connectionId}:${marker.direction}:${marker.keyframeId}`)}
 				<button
 					type="button"
-					class="diamond key"
+					class="key-marker fov-key"
 					class:selected={isKeySelected(marker)}
 					class:reverse={marker.direction === 'reverse'}
 					class:dragging={isKeyDragging(marker)}
-					style={`left: ${percent(marker.progress)};`}
-					title={`${marker.keyframeId} · ${marker.direction}`}
-					aria-label={`Select camera key ${marker.keyframeId}`}
+					style={`left: ${markerPosition(marker.progress)};`}
+					title={`${marker.fov.toFixed(1)}° FOV · ${marker.direction}`}
+					aria-label={`Select FOV key ${marker.keyframeId}`}
 					disabled={disabled && !isKeyDragging(marker)}
 					aria-grabbed={isKeyDragging(marker)}
 					onpointerdown={(event) => beginKeyDrag(event, marker)}
@@ -702,6 +885,7 @@
 					onpointerup={commitKeyDrag}
 					onpointercancel={cancelKeyDragPointer}
 					onlostpointercapture={cancelKeyDragPointer}
+					oncontextmenu={(event) => onKeyContextMenu(event, marker)}
 					onclick={(event) => {
 						event.stopPropagation();
 						store.selectCameraTimelineViewKeyframe(
@@ -710,44 +894,130 @@
 							marker.keyframeId
 						);
 					}}
-				>◇</button>
+				><i></i><span>{marker.fov.toFixed(0)}°</span></button>
 			{/each}
+			<div class="playhead" style={`left: ${percent(playhead)};`}></div>
+		</div>
+
+		<div class="lane-label">
+			<Crosshair size={14} aria-hidden="true" />
+			<strong>Look At</strong>
+			<span title={activeTrackLabel}>{activeTrackLabel}</span>
+		</div>
+		<div class="track look-track" aria-label="Look At">
+			<div class="rail"></div>
+			{#if viewKeyMarkers.length === 0}<span class="no-keys">No target keys</span>{/if}
+			{#each viewKeyMarkers as marker (`look:${marker.connectionId}:${marker.direction}:${marker.keyframeId}`)}
+				<button
+					type="button"
+					class="key-marker look-key"
+					class:selected={isKeySelected(marker)}
+					class:dragging={isKeyDragging(marker)}
+					style={`left: ${markerPosition(marker.progress)};`}
+					title={`Look at ${marker.cameraTarget.map((value) => value.toFixed(1)).join(', ')} · ${marker.direction}`}
+					aria-label={`Select Look At key ${marker.keyframeId}`}
+					disabled={disabled && !isKeyDragging(marker)}
+					aria-grabbed={isKeyDragging(marker)}
+					onpointerdown={(event) => beginKeyDrag(event, marker)}
+					onpointermove={updateKeyDrag}
+					onpointerup={commitKeyDrag}
+					onpointercancel={cancelKeyDragPointer}
+					onlostpointercapture={cancelKeyDragPointer}
+					oncontextmenu={(event) => onKeyContextMenu(event, marker)}
+					onclick={(event) => {
+						event.stopPropagation();
+						store.selectCameraTimelineViewKeyframe(marker.connectionId, marker.direction, marker.keyframeId);
+					}}
+				><i></i></button>
+			{/each}
+			<div class="playhead" style={`left: ${percent(playhead)};`}></div>
+		</div>
+
+		<div class="lane-label quiet">
+			<RotateCw size={14} aria-hidden="true" />
+			<strong>Roll</strong>
+			<span>0°</span>
+		</div>
+		<div class="track roll-track" aria-label="Roll — fixed at zero degrees">
+			<div class="rail"></div>
+			<span class="roll-value start">0°</span>
+			<span class="roll-value end">0°</span>
 			<div class="playhead" style={`left: ${percent(playhead)};`}></div>
 		</div>
 	</div>
 {/if}
 
 <style>
-	.lanes { display: grid; min-height: 6.9rem; grid-template-columns: 9.5rem minmax(30rem, 1fr); grid-template-rows: repeat(2, minmax(3.25rem, 1fr)); overflow-x: auto; }
-	.lane-label { display: flex; min-width: 0; flex-direction: column; justify-content: center; gap: 0.2rem; padding: 0.35rem 0.7rem 0.35rem 0; border-top: 1px solid #262630; }
-	.lane-label strong { color: #d5cec2; font-size: 0.68rem; }
-	.lane-label span { overflow: hidden; color: #77736d; font-size: 0.58rem; text-overflow: ellipsis; white-space: nowrap; }
-	.track { position: relative; min-width: 30rem; border-top: 1px solid #262630; }
-	.rail { position: absolute; top: 50%; left: 0; right: 0; height: 1px; background: #4a4852; }
-	.edge { position: absolute; top: 50%; z-index: 1; height: 1.55rem; min-width: 1px; transform: translateY(-50%); overflow: hidden; padding: 0 0.25rem; border: 0; border-left: 1px solid #6a6772; background: rgb(78 76 88 / 42%); color: #aaa5af; font: 0.54rem/1 ui-monospace, SFMono-Regular, Menlo, monospace; text-align: left; cursor: crosshair; }
-	.edge:hover:not(:disabled), .edge.selected { background: rgb(159 125 55 / 42%); color: #fff2c7; }
-	.edge span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-	.diamond { position: absolute; top: 50%; z-index: 3; width: 1.25rem; height: 1.75rem; transform: translate(-50%, -50%); padding: 0; border: 0; background: transparent; color: #c7c1b8; font: 0.78rem/1 sans-serif; cursor: pointer; }
-	.diamond:hover:not(:disabled), .diamond.selected { color: #ffe08a; text-shadow: 0 0 8px rgb(255 213 104 / 72%); }
-	.diamond.key { color: #79d8ff; }
-	.diamond.key.reverse { color: #d6a2ff; }
-	.diamond.key.selected { color: #fff; }
-	.diamond.key.dragging { color: #fff; cursor: grabbing; text-shadow: 0 0 10px rgb(121 216 255 / 90%); }
-	.playhead { position: absolute; top: 0; bottom: 0; z-index: 2; width: 1px; transform: translateX(-0.5px); background: #e7c87a; pointer-events: none; box-shadow: 0 0 5px rgb(231 200 122 / 45%); }
-	.no-keys { position: absolute; top: 50%; left: 0.6rem; transform: translateY(-50%); color: #5f5b56; font-size: 0.6rem; }
+	.lanes {
+		display: grid;
+		min-width: 42rem;
+		grid-template-columns: 7.5rem minmax(30rem, 1fr);
+		grid-template-rows: 24px 38px 40px 30px 30px 28px;
+		overflow-x: auto;
+		border: 1px solid var(--editor-border-subtle);
+		border-radius: 0.28rem;
+		background: var(--editor-timeline-chrome-bg);
+	}
+	.ruler-label,
+	.lane-label {
+		box-sizing: border-box;
+		border-right: 1px solid var(--editor-border-normal);
+		border-top: 1px solid var(--editor-border-subtle);
+		background: color-mix(in srgb, var(--editor-bg-panel-raised) 68%, transparent);
+	}
+	.ruler-label { display: flex; align-items: center; padding-left: 0.65rem; border-top: 0; color: var(--editor-text-muted); font-size: 0.58rem; text-transform: uppercase; letter-spacing: 0.08em; }
+	.lane-label { display: grid; min-width: 0; grid-template-columns: 1.1rem auto minmax(0, 1fr); align-items: center; gap: 0.35rem; padding: 0 0.55rem; }
+	.lane-label :global(svg) { color: var(--editor-text-muted); }
+	.lane-label strong { color: var(--editor-text-primary); font-size: 0.66rem; font-weight: 620; white-space: nowrap; }
+	.lane-label span { overflow: hidden; color: var(--editor-text-muted); font-size: 0.54rem; text-align: right; text-overflow: ellipsis; white-space: nowrap; }
+	.lane-label.quiet { opacity: 0.72; }
+	.time-ruler { position: relative; min-width: 30rem; border-bottom: 1px solid var(--editor-border-subtle); color: var(--editor-timeline-ruler-fg); }
+	.time-tick { position: absolute; top: 5px; transform: translateX(-50%); font: var(--editor-timeline-ruler-font); font-variant-numeric: tabular-nums; white-space: nowrap; }
+	.time-tick:first-child { transform: none; }
+	.time-tick:last-child { transform: translateX(-100%); }
+	.time-tick i { position: absolute; top: 14px; left: 50%; width: 1px; height: 6px; background: var(--editor-border-strong); }
+	.track {
+		position: relative;
+		min-width: 30rem;
+		border-top: 1px solid var(--editor-border-subtle);
+		background-image: repeating-linear-gradient(90deg, transparent 0, transparent calc(10% - 1px), rgb(255 255 255 / 4%) calc(10% - 1px), rgb(255 255 255 / 4%) 10%);
+	}
+	.rail { position: absolute; top: 50%; left: 0.9rem; right: 0.9rem; height: 1px; background: var(--editor-border-strong); }
+	.route-track .rail { height: 2px; background: var(--editor-timeline-path); }
+	.edge { position: absolute; top: 50%; z-index: 1; height: 6px; min-width: 1px; transform: translateY(-50%); overflow: hidden; padding: 0; border: 0; border-radius: 999px; background: var(--editor-timeline-path); cursor: crosshair; opacity: 0.72; }
+	.edge:hover:not(:disabled), .edge.selected { opacity: 1; box-shadow: 0 0 0 3px rgb(47 140 255 / 18%); }
+	.diamond.node { position: absolute; top: 50%; z-index: 4; width: 20px; height: 20px; transform: translate(-50%, -50%); padding: 0; border: 2px solid var(--editor-timeline-path); border-radius: 50%; background: var(--editor-bg-panel); color: var(--editor-text-primary); font: 650 0.58rem/1 var(--editor-font); cursor: pointer; }
+	.diamond.node:hover:not(:disabled), .diamond.node.selected { border-color: var(--editor-accent-hover); background: var(--editor-bg-selected); box-shadow: 0 0 0 3px rgb(47 140 255 / 16%); }
+	.shot-block { position: absolute; top: 5px; bottom: 5px; display: flex; min-width: 1px; align-items: center; gap: 0.35rem; overflow: hidden; padding: 0 0.45rem; border: 1px solid rgb(140 124 243 / 38%); border-radius: 2px; background: linear-gradient(90deg, rgb(47 140 255 / 26%), rgb(140 124 243 / 18%)); color: var(--editor-text-secondary); font: 0.58rem/1 var(--editor-font); text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+	.shot-block span { display: inline-grid; width: 16px; height: 16px; flex: 0 0 auto; place-items: center; border-radius: 50%; background: rgb(255 255 255 / 10%); color: var(--editor-text-primary); }
+	.shot-block:hover:not(:disabled), .shot-block.selected { border-color: var(--editor-accent-hover); color: var(--editor-text-primary); }
+	.key-marker { position: absolute; top: 50%; z-index: 4; display: inline-flex; align-items: center; gap: 0.25rem; transform: translate(-50%, -50%); padding: 0; border: 0; background: transparent; color: var(--editor-text-secondary); font: 0.54rem/1 var(--editor-font); cursor: ew-resize; }
+	.key-marker i { display: block; width: 8px; height: 8px; transform: rotate(45deg); border: 1px solid currentColor; background: var(--editor-bg-panel); }
+	.fov-key { color: var(--editor-timeline-fov); }
+	.look-key { color: var(--editor-timeline-look); }
+	.look-key i { border-radius: 50%; transform: none; }
+	.key-marker.reverse { filter: saturate(0.72); }
+	.key-marker:hover:not(:disabled), .key-marker.selected { color: var(--editor-text-primary); text-shadow: 0 0 8px rgb(47 140 255 / 70%); }
+	.key-marker.dragging { color: var(--editor-text-primary); cursor: grabbing; }
+	.playhead { position: absolute; top: 0; bottom: 0; z-index: 3; width: 1px; transform: translateX(-0.5px); background: var(--editor-timeline-playhead); pointer-events: none; box-shadow: 0 0 5px rgb(47 140 255 / 55%); }
+	.no-keys { position: absolute; top: 50%; left: 0.65rem; transform: translateY(-50%); color: var(--editor-text-disabled); font-size: 0.56rem; }
+	.roll-track .rail { background: var(--editor-timeline-roll); opacity: 0.5; }
+	.roll-value { position: absolute; top: 50%; transform: translateY(-50%); color: var(--editor-text-muted); font-size: 0.54rem; }
+	.roll-value.start { left: 0.3rem; }
+	.roll-value.end { right: 0.3rem; }
 
 	/* P1.6 — envelope influence bands */
 	.envelope-band { position: absolute; top: 0; bottom: 0; pointer-events: none; }
 	.envelope-band.auto { background: rgb(74 72 82 / 18%); }
-	.envelope-band.blend { background: rgb(180 150 60 / 22%); }
-	.envelope-band.authored { background: rgb(200 170 70 / 35%); }
+	.envelope-band.blend { background: rgb(217 164 65 / 22%); }
+	.envelope-band.authored { background: rgb(217 164 65 / 35%); }
 	.envelope-band.active-edge.auto { background: rgb(74 72 82 / 28%); }
-	.envelope-band.active-edge.blend { background: rgb(200 170 70 / 30%); }
-	.envelope-band.active-edge.authored { background: rgb(214 179 95 / 45%); }
+	.envelope-band.active-edge.blend { background: rgb(217 164 65 / 30%); }
+	.envelope-band.active-edge.authored { background: rgb(217 164 65 / 45%); }
 
 	/* P1.6 — envelope handles */
-	.envelope-handle { position: absolute; top: 50%; z-index: 4; width: 0.6rem; height: 1.5rem; transform: translate(-50%, -50%); padding: 0; border: 1px solid #d6b35f; border-radius: 2px; background: #2a2618; cursor: ew-resize; }
-	.envelope-handle:hover:not(:disabled), .envelope-handle.dragging { border-color: #ffe08a; background: #fff2c7; }
+	.envelope-handle { position: absolute; top: 50%; z-index: 4; width: 0.6rem; height: 1.5rem; transform: translate(-50%, -50%); padding: 0; border: 1px solid var(--editor-accent); border-radius: 2px; background: var(--editor-bg-selected); cursor: ew-resize; }
+	.envelope-handle:hover:not(:disabled), .envelope-handle.dragging { border-color: var(--editor-warning); background: var(--editor-text-primary); }
 	.envelope-handle:disabled { opacity: 0.35; cursor: default; }
 
 	@media (max-width: 44rem) {

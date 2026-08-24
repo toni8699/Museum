@@ -11,6 +11,7 @@
 		EditorGizmoHostController,
 		type EditorGizmoHostControls
 	} from './editor-gizmo-host-controller';
+	import { applyEditorGizmoPalette } from '../styles/scene-palette';
 
 	let {
 		store,
@@ -35,6 +36,9 @@
 	// helper, and disposer live only here.
 	const transformControls = new ThreeTransformControls(threlteCamera.current, dom);
 	const transformHelper = transformControls.getHelper();
+	// P3.2 — cosmetic only: map TransformControls' default primary axis
+	// materials onto the canonical §8 tokens (geometry/pickers untouched).
+	applyEditorGizmoPalette(transformHelper);
 	scene.add(transformHelper);
 	controls = transformControls;
 

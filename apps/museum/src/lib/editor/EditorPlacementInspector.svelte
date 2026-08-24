@@ -117,7 +117,7 @@
 		gap: 0.55rem;
 		margin-top: 0.35rem;
 		padding-top: 0.85rem;
-		border-top: 1px solid #2a2a33;
+		border-top: 1px solid var(--editor-border-subtle);
 	}
 
 	.section-heading {
@@ -133,7 +133,7 @@
 	}
 
 	.section-heading span {
-		color: #8d887f;
+		color: var(--editor-text-muted);
 		font-size: 0.68rem;
 	}
 
@@ -142,7 +142,7 @@
 		display: flex;
 		align-items: center;
 		gap: 0.45rem;
-		color: #d6d0c4;
+		color: var(--editor-text-secondary);
 		font-size: 0.75rem;
 	}
 
@@ -154,10 +154,10 @@
 
 	select {
 		padding: 0.35rem 0.4rem;
-		border: 1px solid #3a3a46;
+		border: 1px solid var(--editor-border-normal);
 		border-radius: 0.3rem;
-		background: #1a1a22;
-		color: #f4efe4;
+		background: var(--editor-bg-panel-raised);
+		color: var(--editor-text-primary);
 		font: inherit;
 		font-size: 0.75rem;
 	}
@@ -169,10 +169,10 @@
 	.drop {
 		align-self: flex-start;
 		padding: 0.42rem 0.55rem;
-		border: 1px solid #3a3a46;
+		border: 1px solid var(--editor-border-normal);
 		border-radius: 0.32rem;
-		background: #1a1a22;
-		color: #f4efe4;
+		background: var(--editor-bg-panel-raised);
+		color: var(--editor-text-primary);
 		font: inherit;
 		font-size: 0.72rem;
 		cursor: pointer;
@@ -184,19 +184,19 @@
 	}
 
 	.drop:not(:disabled):hover {
-		border-color: #d6b35f;
-		background: #2a2618;
+		border-color: var(--editor-accent);
+		background: var(--editor-bg-selected);
 	}
 
 	.hint,
 	.status {
 		margin: 0;
-		color: #a8a29a;
+		color: var(--editor-text-secondary);
 		font-size: 0.7rem;
 		line-height: 1.4;
 	}
 
 	.status {
-		color: #e7c87a;
+		color: var(--editor-warning);
 	}
 </style>

@@ -9,10 +9,16 @@ reconciled 2026-08-23 by P9. Blue `#2F8CFF` is the sole target accent system.
 
 This specification translates the approved product model and generated UI concepts into concrete implementation rules. The canonical product remains a domain × view system:
 
-* Scene → Plan = author the museum spatially in 2D (Layout | Staging)
+* Scene → Plan = author the museum spatially in 2D (Layout | Arrange)
 * Scene → 3D = full scene-object authoring and new placement
 * Camera → Plan = route things
 * Camera → 3D = frame things
+
+> **P10 amendment (2026-08-23):** Scene → Plan's local mode is the owner-aware
+> **Arrange** surface — arrange movable objects already in the space (eligible
+> Scene entities **and** Layout objects), each routed through its existing
+> owner pipeline. `Staging` terminology elsewhere in this spec refers to the
+> shipped pre-P10 state.
 
 Camera Plan and Camera 3D share camera selection and the persistent Camera timeline. Scene does not mount the Camera timeline.
 
@@ -122,7 +128,9 @@ PlanViewport
 
 Both Scene Plan and Camera Plan consume the **same underlying Plan render model**.
 
-Scene Plan may add eligible Scene footprint projection at render layer 6;
+Scene Plan may add eligible Scene footprint projection at render layer 6 (P2),
+and its **Arrange** mode composes those footprints with existing Layout-object
+Plan render identities into one owner-aware hit set at layers 5–6 (P10).
 Camera Plan passes no Scene footprint projection and shows only its permitted
 architectural/camera layers.
 
@@ -995,7 +1003,7 @@ Toolbar floats near top center/left of viewport.
 Scene → Plan:
 
 ```text
-Layout | Staging
+Layout | Arrange
 Select
 Wall
 Room
@@ -1287,7 +1295,7 @@ Selection feedback is layered and must not be confused with hover or context:
 |---|---|---|
 | Passive/context | no transform gizmo; no selection color | muted or dashed `--editor-layout-box` / `--editor-plan-readonly` |
 | Hover | thin `--editor-selection-outline-hover`; no gizmo and no selection fill | stronger context stroke; bridge affordance only where the active mode allows it |
-| Selected | rotation-aware `--editor-selection-outline`, optional light inner/bounds line, and transform gizmo | `--editor-plan-selection` stroke and only the handles allowed by Layout or Staging |
+| Selected | rotation-aware `--editor-selection-outline`, optional light inner/bounds line, and transform gizmo | `--editor-plan-selection` stroke and only the handles allowed by Layout or Arrange |
 | Multi-selected | same blue outline language with a clear group/bounds treatment | shared selection treatment without activating Scene 3D controls |
 
 The object outline is an OBB/rotation-aware visual boundary, not a second
@@ -1346,6 +1354,12 @@ selected:        --editor-plan-selection stroke
                  small blue/white handles allowed by the active mode
 ```
 
+In **Arrange**, the same selection language applies to **both owners** (P10):
+selected Scene footprints and selected Layout objects both use
+`--editor-plan-selection`, with only the handles the active owner's mode
+allows. The interim amber Layout-object selected treatment is a recorded
+deviation reconciled in P3 — no orange-vs-blue ownership coloring.
+
 Tree:
 
 ```text
@@ -1367,9 +1381,10 @@ matching blue selection
 Hover must remain visually distinct from selection. A selected Scene 3D
 object may show its gizmo and outline together; a hovered object never gains
 transform handles. Scene Plan Layout may show passive scene footprints but
-cannot activate Scene selection, while Staging may show the selected footprint
-and its Plan rotation handle. P3 owns these colors, strokes, dashes, opacity,
-and spacing; P2/P3B own the interaction and authority contracts.
+cannot activate Scene selection, while Arrange may show the selected
+footprint/object and its owner-aware Plan rotation handle. P3 owns these
+colors, strokes, dashes, opacity, and spacing; P2/P10/P3B own the interaction
+and authority contracts.
 
 Same Camera selection must appear consistently in:
 

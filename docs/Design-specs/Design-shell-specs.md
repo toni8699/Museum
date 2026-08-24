@@ -3,10 +3,11 @@
 **Status:** canonical shell/workspace specification — **ratified 2026-08-19**
 **Purpose:** codebase conformance review
 **Scope:** editor shell composition, workspace ownership, component visibility, interaction authority, persistence, and cross-workspace transitions.
-**Last reconciled:** 2026-08-23 — P9. Scene → Plan exposes the local
-`Layout | Staging` mode; Camera uses `Unsequenced` for cameras outside the
-ordered subset. Current rules are written directly below rather than layered
-as amendments.
+**Last reconciled:** 2026-08-23 — P9, plus the **P10 amendment (2026-08-23):**
+Scene → Plan's local mode is the owner-aware `Layout | Arrange` surface
+(staging terminology below refers to the shipped pre-P10 state). Camera uses
+`Unsequenced` for cameras outside the ordered subset. Current rules are
+written directly below rather than layered as amendments.
 
 **Split 2026-08-21:** scene/camera workspace sections moved verbatim to
 [`Shell-scene-workspaces.md`](./Shell-scene-workspaces.md) ·
@@ -16,7 +17,7 @@ numbers unchanged, so external `§N` references stay valid.
 | Working on… | Read | Sections |
 |---|---|---|
 | Global shell · switching · capability matrix · acceptance criteria | this file | §1–§5 · §14–§28 · §31 |
-| Scene workspaces (Plan/Layout/Staging · 3D · assets) | [`Shell-scene-workspaces.md`](./Shell-scene-workspaces.md) | §6–§8 · §29–§30 |
+| Scene workspaces (Plan/Layout/Arrange · 3D · assets) | [`Shell-scene-workspaces.md`](./Shell-scene-workspaces.md) | §6–§8 · §29–§30 |
 | Camera workspaces (Plan · 3D · timeline) | [`Shell-camera-workspaces.md`](./Shell-camera-workspaces.md) | §9–§13 |
 
 This specification complements the [visual UI specification](./Design-specs.md).
@@ -51,7 +52,7 @@ This produces four canonical workspaces:
 
 | Workspace     | Primary job                                          |
 | ------------- | ---------------------------------------------------- |
-| Scene → Plan  | Author the museum spatially in 2D (Layout \| Staging) |
+| Scene → Plan  | Author the museum spatially in 2D (Layout \| Arrange) |
 | Scene → 3D    | Full scene-object authoring and new placement         |
 | Camera → Plan | Route cameras                                        |
 | Camera → 3D   | Frame camera movement                                |
@@ -96,7 +97,7 @@ Today only **Scene → Plan** requires such a local mode:
 Scene
 ├─ Plan
 │  ├─ Layout   → edit architecture
-│  └─ Staging  → arrange existing scene objects in 2D
+│  └─ Arrange  → arrange movable objects in 2D (Layout objects + Scene entities)
 └─ 3D          → fully author scene objects in 3D
 
 Camera
@@ -106,12 +107,14 @@ Camera
 
 Rules:
 
-* `layout | staging` controls what kind of Scene content Plan is currently
+* `layout | arrange` controls what kind of Scene content Plan is currently
   authoring.
-* It sits **below** `Scene → Plan`. Staging is not a fifth workspace.
-* Staging MUST NOT appear beside `Scene | Camera` or `Plan | 3D`.
+* It sits **below** `Scene → Plan`. Arrange is not a fifth workspace.
+* Arrange MUST NOT appear beside `Scene | Camera` or `Plan | 3D`.
 * The mode is Scene Plan-local: switching to Camera Plan never carries
-  Staging into Camera.
+  Arrange into Camera.
+* Arrange unifies object manipulation, not ownership: each target routes to
+  its existing owner pipeline (P10).
 
 ---
 
@@ -414,13 +417,13 @@ Toolbar should be selected from current workspace.
 
 Canonical routing:
 
-| Capability          | Scene Plan — Layout | Scene Plan — Staging | Scene 3D | Camera Plan | Camera 3D |
+| Capability          | Scene Plan — Layout | Scene Plan — Arrange | Scene 3D | Camera Plan | Camera 3D |
 | ------------------- | ------------------: | -------------------: | -------: | ----------: | --------: |
 | Select              |                   ✓ |                    ✓ |        ✓ |           ✓ |         ✓ |
 | Wall/Room/etc.      |                   ✓ |                    — |        — |           — |         — |
 | Measure             |                   ✓ |                    — |        — |           — |         — |
-| Move                |          contextual |                 drag |        ✓ |        drag |         ✓ |
-| Rotate              | contextual architecture |       rotate handle |        ✓ |           — |         ✓ |
+| Move                |          contextual |   drag (owner-routed) |        ✓ |        drag |         ✓ |
+| Rotate              | contextual architecture |  rotate handle (owner-routed) |        ✓ |           — |         ✓ |
 | Scale               | contextual architecture |                    — |        ✓ |           — |         — |
 | Add Asset           |                   — |   no 2D placement |        ✓ |           — |         — |
 | Add Camera          |                   — |                    — |        — |           ✓ |         ✓ |
@@ -431,10 +434,11 @@ Canonical routing:
 
 Toolbar should expose workspace intent rather than every operation the underlying data model technically supports.
 
-In Scene Plan, the toolbar routes by **local mode**. In Staging, movement is
+In Scene Plan, the toolbar routes by **local mode**. In Arrange, movement is
 direct manipulation (no permanent Move tool) and rotation is the footprint
-rotation-handle interaction; architecture tools must not remain misleadingly
-active while Staging owns pointer authority.
+rotation-handle interaction, both routed to the active owner; architecture
+tools must not remain misleadingly active while Arrange owns pointer
+authority.
 
 ---
 
@@ -552,7 +556,7 @@ switch Scene
 ```
 
 Never restore a separate previous view per domain. Preserve the active Scene
-Plan local mode (`layout | staging`) for the session, but never carry it into
+Plan local mode (`layout | arrange`) for the session, but never carry it into
 Camera Plan. Relevant panel expansion, logical selection, viewport preferences,
 and semantically shared grid/snap settings should survive switching where valid.
 
@@ -599,7 +603,7 @@ Persistent:
 
 * domain
 * left-domain model
-* active local authoring mode (Scene Plan `layout | staging`)
+* active local authoring mode (Scene Plan `layout | arrange`)
 * logical selection
 * project state
 * history
@@ -627,12 +631,15 @@ Legend:
 * **C** = contextual
 * **—** = absent
 
-| Feature            | Scene Plan — Layout | Scene Plan — Staging | Scene 3D | Camera Plan | Camera 3D |
+| Feature            | Scene Plan — Layout | Scene Plan — Arrange | Scene 3D | Camera Plan | Camera 3D |
 | ------------------ | ------------------: | -------------------: | -------: | ----------: | --------: |
 | Architecture       |                   E |                    V | V/E where applicable |              V |         V |
 | Scene objects      |        V (eligible footprints) | E (eligible placements) |                      E |              — |         V |
+| Layout objects     |                   E | E (non-profile; layout pipeline) |                      E |              — |         — |
 | Scene object Y     |                   — |         preserved only |                      E |              — |         — |
 | Scene object scale |                   — |   V — projection only |                      E |              — |         — |
+| Layout object dimensions |              E |   read-only in Arrange |                      E |              — |         — |
+| Layout object room ownership |          E |  read-only; never inferred from coordinates |  E |              — |         — |
 | Scene full rotation |                  — |                    — |                      E |              — |         — |
 | Scene 3D transform gizmo |                — |                    — |                      E |              — |         — |
 | Scene 3D object outline |                   — |                    — |                      E |              — |         — |
@@ -655,7 +662,7 @@ Legend:
 | Framing envelope   |                   — |                    — |                      — |              — |       E/C |
 | Connection timing  |                   — |                    — |                      — |              E |         E |
 | Camera Timeline    |                   — |                    — |                      — |              E |         E |
-| Scene Inspector    |                   E |     E — staging surface |                      E |              — |         — |
+| Scene Inspector    |                   E |     E — owner-aware Arrange surface |                      E |              — |         — |
 | Camera Inspector   |                   — |                    — |                      — |              E |         E |
 
 ---
@@ -672,21 +679,24 @@ Camera timeline appears.
 
 A passive scene footprint activates Scene editing.
 
-**Scene Plan — Layout / Staging**
+**Scene Plan — Layout / Arrange**
 
 A Scene 3D TransformControls gizmo or XYZ orientation-box input target
 appears in either Plan mode, or Plan exposes a 3D scaling gesture.
 
-**Scene Plan — Staging**
+**Scene Plan — Arrange**
 
-Architecture becomes selected or mutated through ordinary staging interaction.
+Architecture becomes selected or mutated through ordinary Arrange interaction.
 
-**Scene Plan — Staging**
+**Scene Plan — Arrange**
 
-A staging gesture commits a layout history entry, a hidden architecture
-mutation, or more than one tagged `scene` entry.
+A gesture commits a **wrongly tagged or multi-document** history entry — e.g. a
+Scene-owner gesture writing a `layout` entry, a Layout-owner gesture writing a
+`scene` entry, or more than one tagged entry per completed gesture. (A
+Layout-owner Arrange gesture moving a Layout object is the sanctioned P10
+path, not a violation.)
 
-**Scene Plan — Staging**
+**Scene Plan — Arrange**
 
 Camera nodes, camera graph, guided sequence, or Camera Plan's selection
 domain become editable.
@@ -821,32 +831,36 @@ Verify each continuous user gesture results in one logical undo action.
 
 ### M. Scene Plan local mode
 
-Verify `layout | staging` is Scene Plan-local, routes toolbar/Inspector/
+Verify `layout | arrange` is Scene Plan-local, routes toolbar/Inspector/
 hit-testing by mode, and does not alter global domain/view semantics or
 carry into Camera Plan.
 
-### N. Staging hit-test authority
+### N. Arrange hit-test authority
 
-Verify Layout and Staging do not compete for normal click selection, and
-that passive footprint projection never activates Scene editing in Layout
-mode.
+Verify Layout and Arrange do not compete for normal click selection, that
+passive footprint projection never activates Scene editing in Layout mode,
+and that cross-owner modifier-clicks switch owner and replace the active
+selection (never add across owners).
 
-### O. Staging footprint states
+### O. Arrange footprint states
 
-Verify the four staging footprint states render distinctly (passive,
-bridge-hover, active staging, selected + rotate handle) and that the
-rotate handle follows the pivot/Shift-snap contract.
+Verify the Arrange footprint states render distinctly for **both owners**
+(passive, bridge-hover, active, selected + owner-aware rotate handle) and
+that the rotate handle follows the pivot/Shift-snap contract.
 
 ### P. Scene selection continuity
 
 Verify Scene Plan ↔ Scene 3D creates no duplicate Scene selection state,
-and that returning from Staging to Layout makes the Scene selection
-inactive/passive without destroying identity.
+and that returning from Arrange to Layout makes the Scene selection
+inactive/passive without destroying identity. Verify the P10 last-owner
+memory: Arrange restores the remembered owner's eligible slot and never
+resurrects an object that left its canonical slot.
 
 ### Q. Mutation and history tagging
 
-Verify staging operations change only X/Z/yaw, preserve Y exactly, and
-commit exactly one tagged `scene` history entry per completed gesture.
+Verify Arrange operations change only X/Z/yaw, preserve Y exactly (Scene
+owner) and room ownership (Layout owner), and commit exactly one correctly
+tagged history entry (`scene` or `layout`) per completed gesture.
 
 ### R. Room-local Scene follow
 
@@ -882,7 +896,7 @@ EditorShell
 │   └── Camera
 ├── View State
 │   ├── Scene: Plan | 3D
-│   │   └── Scene Plan mode: layout | staging
+│   │   └── Scene Plan mode: layout | arrange
 │   └── Camera: Plan | 3D
 ├── Selection
 ├── History
@@ -899,9 +913,10 @@ The important design point is ownership.
 
 Workspace-specific state should live high enough that changing representation does not accidentally destroy it.
 
-Scene Plan's `layout | staging` mode is workspace-local state: scoped to
+Scene Plan's `layout | arrange` mode is workspace-local state: scoped to
 Scene → Plan, remembered for the editor session, and never carried into
-Camera Plan.
+Camera Plan. P10 adds the Arrange session's remembered last owner (routing
+only — never an object identity).
 
 ---
 
@@ -941,23 +956,23 @@ camera view snaps/follows as specified
 ```
 
 The orientation box is not present in Scene Plan or Camera workspaces, and
-Plan staging never exposes a 3D scale gizmo.
+Plan Arrange never exposes a 3D scale gizmo.
 
 ### Scene Plan mode continuity
 
 ```text
 Scene Plan
-Staging active
+Arrange active
 
 → Scene 3D
 → back to Scene Plan
 
-Staging active again
+Arrange active again
 
 → Camera Plan
 
-no staging mode control appears
-no staging selection carries over
+no Arrange mode control appears
+no Arrange selection carries over
 ```
 
 ### Camera spatial/framing continuity
@@ -1100,42 +1115,47 @@ Layout mode
 Workspace:          Scene → Plan
 Selection authority: LayoutDocument
 
-Staging mode
+Arrange mode — owner-aware (P10)
 Workspace:          Scene → Plan
-Selection authority: SceneDocument
+Selection authority: target owner — Layout-object target → LayoutDocument;
+                      Scene-entity target → SceneDocument
 ```
 
 This is intentional, not domain leakage. The user remains in the Scene
 domain throughout; the mode selects which Scene-owned document layer
-currently accepts selection and mutation.
+currently accepts selection and mutation. Arrange routes per target owner
+(P10): the derived active target decides the mutator, transaction, and
+history tag.
 
 Hierarchy selection follows the same mode authority:
 
 * **Layout mode** — selecting a wall/room in Hierarchy activates normal
   layout selection.
-* **Staging mode** — selecting a supported placed scene entity activates
-  Scene selection and shows its footprint.
+* **Arrange mode** — selecting an eligible Layout object or supported
+  placed scene entity activates that owner's selection and shows its
+  footprint; the remembered last owner (never an object identity) routes
+  Arrange entry.
 
 ---
 
 # 31. Mode Persistence
 
-`layout | staging` is remembered while the user remains in the editor
+`layout | arrange` is remembered while the user remains in the editor
 session:
 
 ```text
 Scene Plan
-Staging active
+Arrange active
 
 → Scene 3D
 → back to Scene Plan
 
-Staging active again
+Arrange active again
 ```
 
 Rules:
 
 * the mode is associated with **Scene Plan**, not global
-* switching to Camera Plan must not carry Staging into Camera
-* entering or leaving Staging creates no document mutation and does not
+* switching to Camera Plan must not carry Arrange into Camera
+* entering or leaving Arrange creates no document mutation and does not
   change the selected entity

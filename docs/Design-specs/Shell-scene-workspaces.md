@@ -1,7 +1,12 @@
 # Museum Editor — Shell Spec · Scene Workspaces
 
 **Status:** part of the shell/workspace exposure specification — **ratified 2026-08-19**; split from [`Design-shell-specs.md`](./Design-shell-specs.md) 2026-08-21 (**section numbers preserved**).
-**Scope:** §6 Scene → Plan (Layout | Staging) · §7 Scene → 3D · §8 Asset-management state · §29 Staging footprints · §30 Scene selection continuity.
+**Scope:** §6 Scene → Plan (Layout | Arrange) · §7 Scene → 3D · §8 Asset-management state · §29 Arrange footprints · §30 Scene selection continuity.
+
+> **P10 amendment (2026-08-23):** Scene Plan's staging surface is now the
+> owner-aware **Arrange** surface. `Layout | Staging` terminology in this spec
+> refers to the shipped pre-P10 state; the ratified authority is §6 + §29 +
+> §30 as amended below.
 Global shell / cross-domain rules live in [`Design-shell-specs.md`](./Design-shell-specs.md); camera workspaces in [`Shell-camera-workspaces.md`](./Shell-camera-workspaces.md).
 
 ---
@@ -19,27 +24,30 @@ Primary question:
 It contains two authoring intents, selected by a workspace-local mode:
 
 * **Layout mode** — build and edit architectural space.
-* **Staging mode** — arrange existing scene furniture and scene objects
-  spatially in Plan.
+* **Arrange mode** — arrange movable objects already in the space: eligible
+  Scene entities **and** Layout objects, through each owner's existing
+  pipeline.
 
-Scene Plan therefore no longer means architecture exclusively.
+Scene Plan therefore no longer means architecture exclusively, and Arrange
+unifies object manipulation without unifying object ownership.
 
 ## Local authoring mode
 
-`layout | staging` is a Scene → Plan-local authoring mode beneath the
+`layout | arrange` is a Scene → Plan-local authoring mode beneath the
 domain × view axes (§1 Workspace-local authoring mode).
 
-The mode control lives in the **Scene Plan contextual toolbar region**,
-in one consistent position for populated, empty, Layout, and Staging states;
-never in the global domain/view switchers. Active mode must be visually
-obvious — not hidden in hover behavior or inferred from selection. The
-user must be able to answer immediately:
+The mode control lives in the **Scene Plan contextual toolbar region**, in one
+consistent position for populated, empty, Layout, and Arrange states; never in
+the global domain/view switchers. Active mode must be visually obvious — not
+hidden in hover behavior or inferred from selection. The user must be able to
+answer immediately:
 
-> Am I editing architecture or furniture?
+> Am I editing architecture, or arranging what is already in the space?
 
-P2.2 locks the presentation to one `Layout | Staging` segmented group as the
-first group in the existing Scene Plan contextual toolbar. It stays mounted in
-the same physical position in populated/empty and Layout/Staging states.
+P2.2 locked the presentation to one `Layout | Staging` segmented group; **P10
+renames the user-facing label to `Layout | Arrange`** as the first group in the
+Scene Plan contextual toolbar. It stays mounted in the same physical position
+in populated/empty and Layout/Arrange states.
 
 ## Layout mode
 
@@ -94,14 +102,14 @@ frame. `SceneDocument` is not mutated and no Scene history entry is created;
 the room gesture remains one `layout` entry. The editor must not imply
 compound room + furniture compensation exists.
 
-### Bridge to Staging
+### Bridge to Arrange
 
-Hovering a scene footprint in Layout mode exposes an **Edit in Staging**
+Hovering a scene footprint in Layout mode exposes an **Edit in Arrange**
 affordance:
 
 ```text
-Edit in Staging
-→ activate staging
+Edit in Arrange
+→ activate Arrange
 → select hovered entity
 ```
 
@@ -171,90 +179,86 @@ Constraints
 Material
 ```
 
-### Staging mode — Plan-staging surface
+### Arrange mode — owner-aware Plan surface
 
-Scene object Inspector adapted for Plan authority:
+One Inspector shell with owner-specific fields (P10):
 
 ```text
-Identity
-  Name
-  Asset / Type
+Layout-object target:
+  Plan Transform      X / Z / Yaw (editable — Layout pipeline)
+  Dimensions          read-only in Arrange (Layout semantics)
+  Room ownership      read-only; never inferred from coordinates
+  Shape / type        read-only
+  Elevation           read-only
 
-Plan Transform
-  X
-  Z
-  Yaw
-
-Elevation Y — preserved 3D state
-  1.20 m
-  Edited in 3D
-
-Scale — affects footprint projection
-  No Plan scaling gesture in P2 v1
-
-Contextual Commands
-  Delete
-  Focus / Reveal
+Scene-entity target:
+  Identity            Name · Asset / Type
+  Plan Transform      X / Z / Yaw (editable — Scene pipeline)
+  Elevation Y         preserved 3D state · Edited in 3D
+  Scale               affects footprint projection; no Plan scaling gesture
+  Contextual Commands Delete · Focus / Reveal
 ```
 
 Y/elevation must not be mutated by 2D drag; show it as preserved 3D state
 rather than silently hiding the value. Current scale stays visible and the
-projection respects it, but Plan staging must not imply scale manipulation
-that does not exist in P2 v1.
+projection respects it, but Arrange must not imply scale manipulation that
+does not exist. Layout-object dimensions/ownership edits remain available only
+under existing Layout semantics.
 
-## Staging mode
+## Arrange mode
 
 ### Purpose
 
-Arrange existing scene furniture and scene objects spatially in Plan.
-Architecture remains spatial context.
+Arrange movable objects already in the space — eligible Scene entities **and**
+Layout objects — spatially in Plan. Architecture remains spatial context.
 
 ### Viewport MUST show
 
 * the architectural Plan surface (rooms, walls, openings, grid, snap
   guides) as read-only spatial context
-* scale-aware scene footprints (active vs selected states, §29)
-* current staging selection with rotation handle
+* scale-aware scene footprints and Layout-object footprints (active vs
+  selected states, §29)
+* current Arrange selection with the owner-aware rotation handle
 * view controls
 
 ### Viewport MUST allow
 
-* selection of supported scene entities (furniture/models, primitives)
-* X/Z translation via direct drag
-* yaw rotation via the footprint rotate handle — pivot at canonical placement
-  pivot `[0,0]`, continuous yaw, positive-Y semantics, Shift = 15° snap
-* delete (Delete/Backspace)
+* selection of eligible Scene entities (furniture/models, primitives) **and
+  eligible Layout objects** (non-profile), through the P10 owner-aware hit
+  target
+* X/Z translation via direct drag, routed to the target's owner
+* yaw rotation via the footprint rotate handle — Scene pivot at canonical
+  placement pivot `[0,0]`; Layout-object pivot at the object's world pivot;
+  continuous yaw, positive-Y semantics, Shift = 15° snap
+* delete (Delete/Backspace), routed to the active owner only
 * Inspector numeric yaw — semantically identical to handle rotation
 
 ### Plan transform authority
 
-Staging edits only:
+Arrange routes edits through the **active owner's** pipeline; one gesture
+mutates exactly one document:
 
 ```text
-position X
-position Z
-rotation yaw
+Scene owner edits only:     position X · position Z · rotation yaw
+Scene owner preserves:      position Y (elevation) · pitch · roll ·
+                            other 3D-only transform state
+
+Layout owner edits:         position X · position Z · rotation yaw
+Layout owner preserves:     roomId (ownership is never inferred from
+                            coordinates — architecture hard don't) ·
+                            dimensions · shape/type · elevation
 ```
 
-Staging preserves exactly:
-
-```text
-position Y (elevation)
-pitch
-roll
-other 3D-only transform state
-```
-
-Plan edits horizontal placement; vertical authored state survives (the
-same principle as Camera Plan §9). Staging must not normalize, floor-snap,
-or otherwise change Y simply because a furniture object is moved in Plan.
+Plan edits horizontal placement; vertical authored state survives (the same
+principle as Camera Plan §9). Arrange must not normalize, floor-snap, or
+otherwise change Y simply because an object is moved in Plan.
 
 Example:
 
 ```text
 lamp elevation = 1.1 m
 
-drag lamp footprint in Staging
+drag lamp footprint in Arrange
 → X changes
 → Z changes
 → Y stays 1.1 m
@@ -268,35 +272,40 @@ Mode decides pointer authority:
 Layout mode:
 layout hit target wins
 
-Staging mode:
-staging footprint hit target wins
+Arrange mode:
+P10 Arrange hit target wins (resolveArrangeHit)
 ```
 
-Staging hit testing first resolves true polygon containment, then — only when
-no polygon contains the point — a 6 CSS-pixel edge halo converted through the
-current Plan zoom. Within either class, reverse stable render/document order
-wins; repeated clicks do not cycle. Layout and Scene resolvers remain isolated.
+Arrange hit testing resolves both owners in one pass: true polygon containment
+first; then — only when no polygon contains the point — the 6 CSS-pixel edge
+halo (Scene footprints only) converted through the current Plan zoom.
+Priority: containment → selected-under-pointer (any member of the active
+owner's selection) → visual topmost (Scene layer 6 above Layout layer 5) →
+stable render/document order. Cross-owner modifier-clicks switch owner and
+**replace** the active selection; they never add across owners or create one
+gesture spanning both documents.
 
 This resolves interaction ambiguity when furniture overlaps walls, rooms,
-or other layout content. In Staging, architecture:
+or other layout content. In Arrange, architecture:
 
 * remains visible
 * remains useful for snapping and geometric placement calculations
-* does not become selected through ordinary staging interaction
+* does not become selected through ordinary Arrange interaction
 * does not accept mutations
 
 ### Snapping contract
 
-Staging may **read** `LayoutDocument` spatial information (room boundaries,
-walls, corners, other valid snap references) but **writes only**
-`SceneDocument`. Snapping must never convert a staging gesture into a
-layout mutation.
+Arrange may **read** `LayoutDocument` spatial information (room boundaries,
+walls, corners, other valid snap references). A Scene-owner gesture **writes
+only** `SceneDocument`; a Layout-owner gesture writes only `LayoutDocument`.
+A gesture must never convert into the other document's mutation, and never
+spans both documents.
 
 ### Context toolbar
 
-The toolbar routes by local mode. Staging does not require a large
-permanent toolset in P2 v1; at minimum the shell exposes an unmistakable
-Staging state plus the existing interaction model:
+The toolbar routes by local mode. Arrange does not require a large permanent
+toolset; at minimum the shell exposes an unmistakable Arrange state plus the
+existing interaction model:
 
 ```text
 Select / drag
@@ -308,11 +317,11 @@ View controls
 
 Do not invent permanent Move/Rotate tools unless later UX testing requires
 them — movement stays direct manipulation; rotation stays the footprint
-rotation-handle interaction. Architecture tools must not remain
-misleadingly active while Staging owns pointer authority.
+rotation-handle interaction. Architecture tools must not remain misleadingly
+active while Arrange owns pointer authority.
 
 The mode segment is always first. Layout follows it with architecture tools;
-Staging follows it with Select plus applicable Snap/Grid/View controls. A local
+Arrange follows it with Select plus applicable Snap/Grid/View controls. A local
 mode transition cancels transient Layout work and resets the Layout tool to
 Select; returning to Layout does not resurrect a stale architecture tool.
 
@@ -417,13 +426,13 @@ the canonical Scene selection:
 | State | Scene 3D | Scene Plan |
 |---|---|---|
 | Passive/context | no gizmo; muted context geometry | dashed/muted layout or scene footprint box |
-| Hover | thin blue hover outline; no gizmo or selection fill | stronger passive stroke or Layout → Staging bridge affordance |
+| Hover | thin blue hover outline; no gizmo or selection fill | stronger passive stroke or Layout → Arrange bridge affordance |
 | Selected | blue rotation-aware object outline, optional light bounds line, and gizmo | blue selected footprint/architecture stroke with only mode-allowed handles |
 
 Hover must not look selected. Layout boxes and passive Scene Plan footprints
-are not Scene selection, and Staging handles cannot leak into Layout. P3 owns
-colors, strokes, dashes, opacity, spacing, and visual state treatment; P2
-owns Plan authority and P3B does not change object-selection semantics.
+are not Scene selection, and Arrange handles cannot leak into Layout. P3 owns
+colors, strokes, dashes, opacity, spacing, and visual state treatment; P2/P10
+own Plan authority and P3B does not change object-selection semantics.
 
 ### Upper-right XYZ orientation box
 
@@ -445,7 +454,7 @@ and state styling. Post-P3 **P3B** owns the camera-following orientation
 state, isolated pointer/keyboard hit targets, click-to-snap axis/face
 activation, selection preservation, no document/history mutation, and the
 explicit no-drag-orbit rule. The widget is present and interactive only in
-Scene → 3D; it is absent from Scene Plan Layout/Staging, Camera Plan, and
+Scene → 3D; it is absent from Scene Plan Layout/Arrange, Camera Plan, and
 Camera 3D.
 
 ## Context toolbar
@@ -586,9 +595,9 @@ The current product specification does not mandate the exact trigger or docking 
 
 ---
 
-# 29. Scene Plan Staging — Footprint Rendering States
+# 29. Scene Plan Arrange — Footprint Rendering States
 
-The shell/visual spec defines four staging footprint states.
+The shell/visual spec defines the Arrange footprint states for both owners.
 
 ### Passive footprint (Layout mode)
 
@@ -600,41 +609,57 @@ The shell/visual spec defines four staging footprint states.
 ### Bridge-hover footprint (Layout mode only)
 
 * slightly stronger emphasis
-* one-click **Edit in Staging** affordance
+* one-click **Edit in Arrange** affordance
 * must not look already selected
 
-### Active staging footprint (Staging mode, not selected)
+### Active Arrange footprint (Arrange mode, not selected)
 
 * clearly available for interaction
 * still subordinate to architectural Plan readability
+* applies to eligible Scene entities **and** eligible Layout objects
 
-### Selected staging footprint (Staging mode)
+### Selected Arrange footprint (Arrange mode)
 
 * clear selection outline using the editor's standard primary interaction
-  accent
+  accent — **one selection language for both owners** (P10; the interim amber
+  Layout-object treatment is a recorded deviation reconciled in P3)
 * handles appropriate to supported operations
-* rotation handle (pivot at canonical placement pivot, `[0,0]`)
+* rotation handle (Scene pivot at canonical placement pivot `[0,0]`;
+  Layout-object pivot at the object's world pivot)
 * drag affordance
 * Inspector synchronized
 
+### Owner-aware presentation (P10)
+
+* selected members of the **active owner's** selection render selected; the
+  inactive slot's memory never renders as active
+* read-only architecture (walls/rooms/openings) stays passive context in
+  Arrange
+* readonly Layout objects (profiles) render dashed and are not hit targets
+* `ArrangeOwner` is session routing only — it never holds object identity
+
 ### Rotation interaction
 
-* rotation arm/handle on the selected footprint
-* pivot at canonical placement pivot (`[0,0]`), not polygon centroid/AABB center
+* rotation arm/handle on the selected footprint, shared token contract across
+  room, Scene, and Layout-object rotation
+* Scene pivot at canonical placement pivot (`[0,0]`); Layout-object pivot at
+  its world pivot; not polygon centroid/AABB center
 * continuous yaw, positive-Y rotation semantics
 * Shift = 15° angular snap for rotation; Shift disables positional snap during
   translation
 * direct-manipulation control, not necessarily a permanent toolbar mode
 * Inspector numeric yaw is semantically identical to handle rotation
 
-### Footprint content rules (P2 v1)
+### Footprint content rules (P2 v1 + P10)
 
 * floor catalogue models — authored canonical asset footprint metadata
 * box/plane/cylinder/sphere primitives — footprint derived from dimensions
+* Layout objects — footprint from the existing Plan render identities; only
+  non-profile objects are Arrange hit targets
 * wall/ceiling/surface catalogue models — omitted from P2 projection
 * imported project models — unsupported until P4 imported-bounds registry
 * lights — no interactive footprint
-* camera/tour content — not part of Plan staging
+* camera/tour content — not part of Plan Arrange
 
 Footprint representation applies canonical asset-local point → placement scale
 → placement yaw → placement local translation → room frame → Plan world X/Z.
@@ -650,7 +675,7 @@ The Scene domain has one shared selection model — the same entity identity
 across Plan and 3D. This is a hard invariant, mirroring §13 (Camera).
 
 ```text
-Scene Plan → Staging
+Scene Plan → Arrange
 select Chair 01
 
 → Scene 3D
@@ -664,42 +689,69 @@ select Chair 01
 
 → Scene Plan
 
-Scene Plan returns in Staging → Chair 01 remains selected.
+Scene Plan returns in Arrange → Chair 01 remains selected.
 Scene Plan returns in Layout → the chair may remain the logical Scene
-selection internally, but must not expose staging handles or override
+selection internally, but must not expose Arrange handles or override
 layout editing authority.
 ```
 
-Switching modes must never create duplicate identity.
+Switching modes must never create duplicate identity. P10 keeps the
+Layout-object slot and the Scene slot separate: selected ids live only in
+their canonical slots, and `ArrangeOwner` remembers the **last active owner
+for the session — never an object identity**.
 
 ### Plan viewport selection specifics
 
-Staging uses the same ordered Scene placement selection as Scene 3D viewport:
+Arrange uses the same ordered Scene placement selection as Scene 3D viewport:
 
 * plain click replaces selection
-* Shift-click adds only; it does not remove an already-selected entity
+* Shift-click adds only within the same owner; it does not remove an
+  already-selected entity
 * Cmd/Ctrl-click toggles membership
 * the last selected entity remains primary
+* **cross-owner modifier-clicks switch owner and replace** the active
+  selection with the clicked target — they never add across owners
 
 All eligible selected placements may show selected footprints. P2.2 creates no
-cluster footprint or cluster hit target. Entering Staging never clears or
+cluster footprint or cluster hit target. Entering Arrange never clears or
 normalizes an existing placement/cluster selection. If any selected member is
-P2-ineligible, Plan transform authoring is disabled for the whole selection;
-the editor must never mutate only its visible eligible subset. Empty Staging
-canvas click clears Scene selection only and preserves Layout selection memory.
+ineligible, Plan transform authoring is disabled for the whole selection; the
+editor must never mutate only its visible eligible subset. Empty Arrange
+canvas click clears whichever owner is the **active** target (derived from the
+canonical slots) and preserves the inactive slot as memory.
 
-### Staging → Layout
+### Last-owner memory (P10)
 
 ```text
-Staging
+Arrange: select Scene A
+→ Layout: select Layout Box B
+→ Scene 3D: select Scene C
+→ Layout mode: B is active
+→ Arrange: Scene C is active (last owner = scene)
+```
+
+On entry, Arrange activates only the remembered owner's eligible slot:
+
+* last owner = `layout-object` + eligible Layout object → that object activates
+* last owner = `layout-object` + wall/room/stale selection → **no active
+  target** (no Scene fallback, no resurrected older object)
+* last owner = `scene` + eligible Scene selection → that selection activates
+* last owner = `scene` + empty/ineligible (e.g. light) selection → **no active
+  target**
+
+### Arrange → Layout
+
+```text
+Arrange
 Chair selected
 
 → Layout
 
 Scene selection remains remembered but becomes inactive/passive in Plan
 layout selection authority becomes active
-footprint loses staging handles
-returning to Staging restores the selected Scene entity where practical
+footprint loses Arrange handles
+returning to Arrange restores the last active owner's eligible selection
+where practical
 ```
 
 This avoids destructive selection resets while preserving mode authority.
@@ -707,4 +759,4 @@ This avoids destructive selection resets while preserving mode authority.
 The Scene 3D outline and gizmo are view-scoped presentation. Returning to
 Scene Plan may preserve the logical Scene identity, but it must never carry a
 3D gizmo, 3D orientation-box input target, or 3D scale gesture into Layout or
-Staging.
+Arrange.

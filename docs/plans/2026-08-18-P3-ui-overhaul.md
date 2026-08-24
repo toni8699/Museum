@@ -1,8 +1,8 @@
 # P3 — UI overhaul (umbrella)
 
 **Date:** 2026-08-18
-**Status:** Approved (2026-08-18 scope decision §6) — scope pinned; **retargeted to the canonical specs 2026-08-19**. P3B is the recommended post-P3 interaction follow-up. **2026-08-21:** the context-menu interaction slice is folded in as **P3.4 / P3.5** (see below).
-**Tracker:** [`docs/plans/README.md`](README.md) — **P3**, depends on: P9 + P1 (per-increment; P3.5 also P8 S2–S4; staging-dependent items await P2)
+**Status:** Approved (2026-08-18 scope decision §6) — scope pinned; **retargeted to the canonical specs 2026-08-19**. P3B is the recommended post-P3 interaction follow-up. **2026-08-21:** the context-menu interaction slice is folded in as **P3.4 / P3.5** (see below). **2026-08-23 rebase:** P2 and P10.1–P10.3 are shipped; P3.1–P3.3 are the visual baseline **P10.4** depends on (P3.4/P3.5 are the deliberate interaction-infrastructure exception, not visual foundation). Scene Plan staging is now the owner-aware **Arrange** surface — see §P3.1 QA scope, §P3.3 boundary, §P3.4 routing, and the deviation register below.
+**Tracker:** [`docs/plans/README.md`](README.md) — **P3**, depends on: P9 + P1 (per-increment; P3.5 also P8 S2–S4); P3.1–P3.3 no longer await P2 — Scene Plan staging/Arrange shipped with P2 + P10.1–P10.3
 
 ## Canonical targets (2026-08-19)
 
@@ -52,8 +52,11 @@ the recommended post-P3 **P3B** slice.
   exception is the P3.4/P3.5 context-menu slice, which adds interaction
   infrastructure without changing underlying product semantics.
 - **Dependencies are per-increment, not umbrella-wide:** P3.1–P3.4 do not gate
-  on P2; staging-dependent surfaces (P3.1's staging-sketch QA rows, the
-  Staging menu) defer until P2 ships.
+  on P2. **2026-08-23 rebase:** P2 and P10.1–P10.3 shipped, so the previously
+  deferred staging-dependent surfaces (P3.1's Scene Plan QA rows, the Scene
+  Plan context menu) are now live scope. P3.1–P3.3 form the visual baseline
+  **P10.4** consumes; P3.4/P3.5 are interaction-infrastructure and do not gate
+  P10.4.
 
 ## Pre-P3 brief — Scene Plan footprint and 3D outline coherence
 
@@ -62,8 +65,9 @@ browser-reviewer consultation · **Scope:** P3.1–P3.3 visual/correctness pass
 
 ### 1. User outcome and out of scope
 
-When a Scene entity is selected, switching between Scene → Plan/Staging and
-Scene → 3D preserves the same entity, pivot, transform, scale, and yaw. Plan
+When a Scene entity is selected, switching between Scene → Plan (Layout |
+Arrange) and Scene → 3D preserves the same entity, pivot, transform, scale,
+and yaw. Plan
 shows a meaningful top-down occupied shape; 3D shows the settled runtime mesh
 OBB on the first frame after the selected placement root has renderable mesh
 bounds. If bounds become available after selection, the outline updates
@@ -145,8 +149,9 @@ Cluster selection continues to use the existing cluster OBB contract.
 ### 6. Boundaries and verification
 
 This is editor-only work inside the P3 visual/correctness boundary. It reuses
-P2's shipped Scene staging contract and does not alter `SceneDocument`, layout
-ownership, camera navigation, or the visitor relics. Verify with focused Plan,
+the shipped P2 + P10 Arrange contract (owner-aware Plan staging) and does not
+alter `SceneDocument`, layout ownership, camera navigation, or the visitor
+relics. Verify with focused Plan,
 footprint, OBB, and selection tests, then `npm test`, `npm run check`,
 `npm run build`, and `git diff --check`.
 
@@ -162,12 +167,49 @@ existing width/depth fallback; do not replace it with runtime mesh projection.
 
 | ID | Content | Depends |
 |---|---|---|
-| **P3.1** | Visual QA: `Design-png/` sketches + `Design-specs.md` vs the live shell (sketch → surface mapping below); recorded deviation list | P9 + P1 (staging-sketch QA rows await P2) |
+| **P3.1** | Visual QA: `Design-png/` sketches + `Design-specs.md` vs the live shell (sketch → surface mapping below); recorded deviation list — **including the shipped owner-aware Arrange surface** (§P3.1 QA scope) | P9 + P1 + P2 + P10.1–P10.3 |
 | **P3.2** | Token / typography / icon reconciliation to `Design-specs.md` §5–§8 + §28A + §37 — incl. creating the full six-file `styles/` directory (`tokens.css`, `editor-shell.css`, `controls.css`, `inspector.css`, `timeline.css`, `plan.css`), migrating editor chrome to the blue-tinted system, and tokenizing Scene 3D gizmo, selection/hover, object/layout-box, and orientation-box visuals | P3.1 |
-| **P3.3** | Non-behavioral defect-fix pass (visual only) | P3.2 |
-| **P3.4** | Shared `ContextMenu` + non-camera adapters (Scene 3D · Scene Plan Layout · Outliner) exposing existing commands only; selection-before-menu tests; editable/native interception; no camera dependency | layout-undo-wrap fix (shipped 2026-08-21), P3.3 |
+| **P3.3** | Non-behavioral defect-fix pass (visual only — §P3.3 boundary) | P3.2 |
+| **P3.4** | Shared `ContextMenu` + non-camera adapters (Scene 3D · Scene Plan Layout + Arrange · Outliner) exposing existing commands only; selection-before-menu tests; editable/native interception; no camera dependency | layout-undo-wrap fix (shipped 2026-08-21), P3.3 |
 | **P3.5** | Camera Plan · Camera 3D · Timeline context-menu adapters binding P8's Preview Camera / Preview Edge / Preview Sequence; menus attach to actual backing identities (not the cosmetic five-lane labels); validators/disabled reasons | P3.4, P8 S2–S4 |
 | **P3B** | **Recommended after P3:** make the new upper-right XYZ orientation box interactive and camera-aware, with click-to-snap and no drag rotation | P3 |
+
+> **2026-08-23 sequencing:** P3.1 → P3.2 → P3.3 → **P10.4** (Arrange visual
+> reconciliation onto the P3.1–P3.3 baseline) → **P10.5** (P10 regression/docs
+> close-out) → then P3.4 → P3.5 → **P3 close**. P10.4 does not need P3.4/P3.5.
+
+## P3.1 QA scope — Scene Plan (2026-08-23 rebase)
+
+P3.1 QAs the shipped Scene Plan surface in **both** local modes. The old
+Scene-only `Staging` assumption is replaced by the owner-aware Arrange surface:
+
+```text
+Scene Plan
+├─ Layout
+└─ Arrange
+    ├─ Layout object passive/hover/selected
+    ├─ Scene entity passive/hover/selected
+    ├─ owner-aware rotation handle
+    ├─ read-only architecture
+    ├─ owner-aware Inspector
+    └─ hierarchy selection presentation
+```
+
+Pinned principle: **same visual selection language for both owners, different
+authority underneath.** P3's palette makes blue the sole active/selection
+accent and muted colors the context/read-only language — **no orange-vs-blue
+ownership coloring**. The amber Layout-object selected treatment is a recorded
+deviation (below) resolved by P3.2/P3.3.
+
+### P3.3 boundary (2026-08-23 rebase)
+
+P3.3's visual defect pass is scoped against the shipped P10 surface:
+
+- **P3.3 may fix:** stroke, fill, dash, opacity, spacing, handle shape,
+  layering, labels, and empty-state presentation — visual only, both owners.
+- **P3.3 may NOT fix (P10.1–P10.3 own these):** `ArrangeOwner`, hit priority
+  (`resolveArrangeHit`), selection memory / last-owner rule, mutators,
+  history entries, and room ownership.
 
 ## P3B — Interactive XYZ orientation box (recommended post-P3)
 
@@ -183,7 +225,7 @@ camera. P3B does not reopen the P2/P3 workspace model.
 ### P3B contracts
 
 - **P3B-A — Scene 3D scope.** The interactive orientation box is available in
-  Scene → 3D only. Scene Plan Layout/Staging keeps its P2 boundary: no Plan
+  Scene → 3D only. Scene Plan Layout/Arrange keeps its P2/P10 boundary: no Plan
   scale gesture, no Three.js transform gizmo, and no 3D orientation controls.
 - **P3B-B — camera-following display.** The box continuously reflects the
   orbit camera's viewed world orientation. It is not attached to, transformed
@@ -236,7 +278,7 @@ camera. P3B does not reopen the P2/P3 workspace model.
   is created by widget interaction;
 - widget hit testing is isolated from object selection and TransformControls;
 - the box is upper-right, custom, tokenized, and isolated to Scene 3D;
-- Plan staging remains scale-free;
+- Plan Arrange remains scale-free;
 - suite green, `svelte-check` 0, build clean; tracker marks **P3B shipped**.
 
 ## P3.4 / P3.5 — Context menus (progressive disclosure of existing commands)
@@ -266,15 +308,25 @@ the pointer, applies selection-before-menu, then invokes the existing command:
 
 ```text
 ContextMenu
-    ├── Scene 3D adapter ── EditorSelection raycast (resolveNormalSelectionWithHit)
-    ├── Layout adapter ──── resolvePlanHit
-    ├── Camera Plan ─────── resolveCameraPlanHit
-    ├── Outliner ────────── UnifiedTreeRow identity
-    └── Timeline ────────── marker identity (EditorCameraTimelineDots)
+    ├── Scene 3D adapter ────────── EditorSelection raycast (resolveNormalSelectionWithHit)
+    ├── Scene Plan (Layout) adapter ── resolvePlanHit
+    ├── Scene Plan (Arrange) adapter ─ P10 Arrange hit target → owner-routed commands
+    ├── Camera Plan ─────────────── resolveCameraPlanHit
+    ├── Outliner ────────────────── UnifiedTreeRow identity
+    └── Timeline ────────────────── marker identity (EditorCameraTimelineDots)
 
                         ↓
                 EXISTING COMMANDS (EditorStore facade + sub-stores)
 ```
+
+**Scene Plan (Arrange) adapter (2026-08-23 rebase).** The Scene Plan context
+menu is owner-aware, mirroring left-click selection: **Layout mode** resolves
+through `resolvePlanHit`; **Arrange mode** resolves through the P10 Arrange hit
+target (`resolveArrangeHit`) and routes by owner — a `layout-object` target
+uses the existing Layout commands, a `scene` target uses the existing Scene
+commands. **Do not build a second context-menu hit resolver.** The exact
+existing function that owns this routing must be verified against the landed
+P10.3 code when P3.4 starts — the docs cannot prove it alone.
 
 Camera 3D **reuses the Camera Plan adapter** — the same graph/sequence command
 set, minus Plan-only spatial actions. The five adapter rows in the diagram
@@ -287,6 +339,7 @@ because it is a different view.
 |---|---|---|
 | Scene → 3D | object | Duplicate · Focus · Hide/Show · Delete |
 | Scene → Plan Layout | room / opening / object | Room: Rename/Delete · Opening: Delete · Object: Delete |
+| Scene → Plan Arrange | layout-object / scene entity (P10 hit target) | Layout object: Delete · Scene entity: existing Scene commands where the P2/P10 authority permits (Duplicate/Focus/Hide/Delete) |
 | Hierarchy / Outliner | any row | same actions already behind the kebab (`EllipsisVertical`) |
 | Camera Plan | node | Add/Insert/Remove Sequence · Rename · Connect · Delete |
 | Camera Plan | connection | Timing · Delete |
@@ -306,10 +359,11 @@ set. The P3 lane split must never be treated as new entities, and `Shots` /
 
 ### Deferred (first pass)
 
-- **Scene → Plan Staging menu** — P2 staging is an approved plan, not shipped
-  (`plan-scene-hit` / `plan-scene-footprint` / `PlanViewMode` do not exist).
-  Becomes a **P3.4 extension only if P2 actually ships before P3.4 starts**;
-  otherwise it is deferred to a tiny later P3.x / P2-polish slice.
+- ~~**Scene → Plan Staging menu**~~ — **2026-08-23 rebase: now in P3.4 v1 scope.**
+  P2 staging and P10 Arrange shipped (`plan-scene-hit`, `plan-scene-footprint`,
+  `PlanViewMode`, and `resolveArrangeHit` all exist). The Scene Plan context
+  menu routes through the P10 Arrange hit target per the adapter contract above;
+  the deferred item is replaced by the owner-aware Arrange adapter row.
 - **Asset Library menu** — Favorite / Replace Selected / Reveal are absent;
   `Details` is selection itself. The one non-redundant future item is `Place`
   on a *model* card (models have no dblclick-to-place).
@@ -328,7 +382,8 @@ set. The P3 lane split must never be treated as new entities, and `Shots` /
 `navigation-graph-mutator`, `path-anchor-mutator`, `view-keyframe-controller`,
 `camera-timeline-controller`; `resolveNormalSelectionWithHit`
 (`EditorSelection` / `editor-selection.ts`); `resolvePlanHit`
-(`layout/plan-hit.ts`); `resolveCameraPlanHit` (`camera-plan/camera-plan-hit.ts`);
+(`layout/plan-hit.ts`); `resolveArrangeHit` (`layout/arrange-hit.ts`, P10 —
+Arrange-mode owner routing); `resolveCameraPlanHit` (`camera-plan/camera-plan-hit.ts`);
 `UnifiedTreeRow` identity; timeline marker identity in
 `EditorCameraTimelineDots`; guards in `mutation-guards.svelte.ts`; shortcut
 hints in `hooks/shortcuts.svelte.ts`.
@@ -389,7 +444,8 @@ exists; never substitute `applyFullMovePreset` / `applyFocusTimingPreset`.
   rejection); a rejected action writes no entry.
 - **Domain boundaries.** Layout menus mutate `layoutPreview.project.layout`;
   scene menus mutate `store.document`. Camera Plan must never touch framing;
-  Scene Plan must never mutate the scene document until Staging exists.
+  **Scene Plan mutates the scene document only through the shipped P10 Arrange
+  owner routing (Scene owner in Arrange mode); Layout mode stays layout-only.**
 - **Topology vs sequence.** Connection deletion respects the guided-tour
   validator (chain edges protected; only the final-pair edge dissolves the
   flow). Loop disconnect is an ordinary `deleteConnection`.
@@ -421,16 +477,24 @@ implementation scope; every other shipped surface is P3 visual QA input.
 ### P3.1 deviation register carried forward from the P2/P3 review
 
 This is the review baseline, captured so visual QA does not silently erase
-behavioral or shell deviations. Ownership indicates the scheduled resolution:
+behavioral or shell deviations. Ownership indicates the scheduled resolution.
+**2026-08-23 rebase:** the pre-P2 rows below are resolved by shipped P2 +
+P10.1–P10.3 and are no longer deviations; they are replaced by the
+post-P10.3 Arrange QA rows.
 
 | Finding | Baseline deviation | Resolution |
 |---|---|---|
-| Plan mode model | Live `PlanWorkspace` is Layout-only; no Scene Plan-local `Layout | Staging` control or `PlanViewMode`. | P2.2a |
-| Plan scene projection | No scene footprint projection, scene-footprint hit resolver, or Scene Plan scene mutation path. | P2.1b–P2.3 |
-| Plan selection | `LayoutSelection` owns Plan interaction; the generic active-selection facade is prepared but not wired to Staging. | P2.2b |
-| Plan inspector | Inspector still says Plan is layout-only and lacks the staging X/Z/Yaw plus preserved-Y surface. | P2.3c |
-| Plan sidebar | `Hierarchy | Assets` is only exposed in Scene 3D in the baseline; Scene Plan must expose both without a duplicate staging tree. | P2.2c |
-| Camera leakage | Existing Plan tour-overlay preference must be gated out of Staging and Camera-authoring controls must not leak into Scene Plan. | P2.2c |
+| Scene Plan local mode | Live Plan has the shipped `Layout \| Arrange` control (`PlanViewMode`) and owner-aware Arrange routing. | shipped P2.2 + P10.1–P10.3 |
+| Scene Plan projection | Footprint projection, scene-footprint hit resolver, and `resolveArrangeHit` owner routing are live. | shipped P2.1–P2.3 + P10.1 |
+| Scene Plan selection | `LayoutSelection` + Scene slot route through the derived active Arrange target; no mirrored Arrange selection. | shipped P2.2 + P10.2 |
+| Scene Plan inspector | Owner-aware Arrange Inspector shell: Layout-object and Scene X/Z/yaw, dimension-edit boundary. | shipped P2.3 + P10.2–P10.3 |
+| Scene Plan sidebar | `Hierarchy \| Assets` exposed in Scene Plan; Arrange makes object rows interactive without a duplicate tree. | shipped P2.2 + P10.2 |
+| Scene Plan history | Layout target → one `layout` entry; Scene target → one `scene` entry; cancel restores baseline. | shipped P2.3 + P10.3 |
+| **Arrange selection language** | **NEW:** Layout-object selected uses amber (`#9b7841`/`#fff2c7`) while Scene selected uses blue (`#2F8CFF`) — owner-distinct coloring. P3 palette: blue = selection/active, muted = context/read-only. Reconcile to one selection language for both owners (different authority, not different color). | P3.1 QA row; P3.2–P3.3 fix |
+| **Arrange passive/hover** | **NEW:** Scene footprints ship passive/active/selected; Layout objects ship passive/selected/readonly — no Arrange hover state for either owner, and no Arrange-specific presentation for eligible Layout objects. | P3.1 QA row; P3.2–P3.3 fix |
+| **Arrange rotation handle** | **NEW:** room, Scene, and Layout-object rotation share `rotation-arm`/`rotation-handle` tokens, but only room rotation shows a live degree label — Scene and Layout-object rotation lack it. | P3.1 QA row; P3.2–P3.3 fix |
+| **Arrange read-only architecture** | **NEW:** walls/rooms/openings stay passive in Arrange; readonly profile objects render dashed. QA the muted context language. | P3.1 QA row |
+| **Arrange Inspector + hierarchy** | **NEW:** owner-aware Inspector and interactive object rows in the unified tree; QA row presentation vs the canonical sketch. | P3.1 QA row |
 | Plan history | Some opening/layout-object viewport paths call preview mutations directly while room-unit movement is transaction-wrapped. | **Shipped 2026-08-21** (pulled ahead of P2.3d) — every layout mutation is transaction-wrapped via `layout-mutation-runner.ts`; prerequisite for P3.4 |
 | Scale source | Persisted Scene transforms currently carry scalar `scale`; independent vectors are editor-session state until schema work lands. | P2.1a; P3B non-goal for schema |
 | Empty Plan | Blank document/tree hint exists, but the full `scene-empty-plan.png` onboarding treatment is not implemented as a visual surface. | P3.1–P3.3 |
@@ -490,8 +554,9 @@ name; no insert-zones surface is missing.
   (Shell spec §8 / Design-specs §21) and any §24/§26 timeline detail not
   built by P1.6/P1.7. §4 "command menu later" is **partially pulled in**:
   P3.4/P3.5 ship the progressive-disclosure right-click menu for *existing*
-  commands (see below); the wider command-menu surface and the deferred asset/
-  staging menu items stay out. Five-lane `Camera Path / Shots / FOV / Look At / Roll` (`Design-specs §24` / `Shell §12`) is **cosmetic in P3** — visual split of current two-lane backing infrastructure, ground truth `camera-timeline-expanded.png`. `Shots` and `Roll` have no store model yet. P3.5 menus attach to backing identities, never lane labels. Scene 3D gizmo, selection/hover colors, object/layout boxes, and orientation-box presentation are likewise cosmetic P3 work. P3 changes no interaction semantics except P3.4/P3.5 context menus; orientation-box input/camera snap remains P3B.
+  commands (see below); the wider command-menu surface and the deferred asset
+  menu items stay out (the Scene Plan Arrange menu is in P3.4 scope — see the
+  P10 rebase above). Five-lane `Camera Path / Shots / FOV / Look At / Roll` (`Design-specs §24` / `Shell §12`) is **cosmetic in P3** — visual split of current two-lane backing infrastructure, ground truth `camera-timeline-expanded.png`. `Shots` and `Roll` have no store model yet. P3.5 menus attach to backing identities, never lane labels. Scene 3D gizmo, selection/hover colors, object/layout boxes, and orientation-box presentation are likewise cosmetic P3 work. P3 changes no interaction semantics except P3.4/P3.5 context menus; orientation-box input/camera snap remains P3B.
 
 ## Definition of done (P3 close)
 

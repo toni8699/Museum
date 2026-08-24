@@ -4,10 +4,12 @@
 **Status:** In progress — direction and architecture approved by browser review
 2026-08-23; the four review pins (hit/selection split, last-owner rule,
 amendment surface, yaw/ownership source verification) are incorporated below;
-**P10.1–P10.3 implemented 2026-08-23 (uncommitted)**. Remaining: the P10.0
-canonical-doc amendment surface beyond `components/placement.md`
-(shell/specs/north-star terminology), P10.4 visual reconciliation (depends on
-the P3 visual baseline), and P10.5 regression/docs close-out.
+**P10.1–P10.3 implemented + review-fixed 2026-08-23 (uncommitted)**; the
+**P10.0 canonical-doc amendment batch applied 2026-08-23** (shell/specs/
+north-star terminology beyond `components/placement.md`). Remaining:
+**P10.4** visual reconciliation — sequenced after **P3.1–P3.3** (the P3 visual
+baseline; the P3 rebase records the Arrange QA scope) — and **P10.5**
+regression/docs close-out.
 **Tracker:** [`docs/plans/README.md`](README.md) — **P10**, depends on: P2 + P9; coordinate with P3 visual reconciliation.
 
 ## Decision requested

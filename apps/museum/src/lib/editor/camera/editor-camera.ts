@@ -247,6 +247,131 @@ export function restoreEditorOrbitPose(
 	controls.enabled = pose.enabled;
 }
 
+export type CardinalView = '+X' | '-X' | '+Y' | '-Y' | '+Z' | '-Z';
+
+/** A fallback eye/target pair used when the active orbit pose is invalid. */
+export type EditorCardinalFallback = {
+	position: Vector3;
+	target: Vector3;
+};
+
+/** Resolves a canonical fallback eye/target pair, or null when none is valid. */
+export type EditorCardinalFallbackResolver = () => EditorCardinalFallback | null;
+
+/**
+ * Owner-approved P3B.1 mapping. A face label is the side of the target where
+ * the eye sits: `eye = target + faceDirection × distance`.
+ */
+export const CARDINAL_FACE_TO_EYE: Record<CardinalView, Vec3> = {
+	'+X': [1, 0, 0],
+	'-X': [-1, 0, 0],
+	'+Y': [0, 1, 0],
+	'-Y': [0, -1, 0],
+	'+Z': [0, 0, 1],
+	'-Z': [0, 0, -1]
+};
+
+/** Deterministic roll reference used inside the snap `lookAt` (DS §8). */
+export const CARDINAL_FACE_UP: Record<CardinalView, Vec3> = {
+	'+X': [0, 1, 0],
+	'-X': [0, 1, 0],
+	'+Y': [0, 0, -1],
+	'-Y': [0, 0, 1],
+	'+Z': [0, 1, 0],
+	'-Z': [0, 1, 0]
+};
+
+/** Minimum acceptable eye-target distance; anything at or below this is degenerate. */
+export const EDITOR_CARDINAL_MIN_DISTANCE = 1e-4;
+
+function isFiniteVector3(vector: Vector3): boolean {
+	return Number.isFinite(vector.x) && Number.isFinite(vector.y) && Number.isFinite(vector.z);
+}
+
+function clampCardinalDistance(
+	distance: number,
+	controls: EditorOrbitControlsLike
+): number | null {
+	const min = Number.isFinite(controls.minDistance) ? controls.minDistance : -Infinity;
+	const max = Number.isFinite(controls.maxDistance) ? controls.maxDistance : Infinity;
+	const clamped = clamp(distance, min, max);
+	if (!Number.isFinite(clamped) || clamped <= EDITOR_CARDINAL_MIN_DISTANCE) return null;
+	return clamped;
+}
+
+function resolveCardinalEyeTarget(
+	camera: PerspectiveCamera,
+	controls: EditorOrbitControlsLike,
+	fallback: EditorCardinalFallbackResolver
+): { target: Vector3; distance: number } | null {
+	const currentDistance = camera.position.distanceTo(controls.target);
+	if (
+		isFiniteVector3(controls.target) &&
+		Number.isFinite(currentDistance) &&
+		currentDistance > EDITOR_CARDINAL_MIN_DISTANCE
+	) {
+		const distance = clampCardinalDistance(currentDistance, controls);
+		if (distance !== null) return { target: controls.target.clone(), distance };
+	}
+	const candidate = fallback();
+	if (candidate && isFiniteVector3(candidate.target) && isFiniteVector3(candidate.position)) {
+		const fallbackDistance = candidate.position.distanceTo(candidate.target);
+		if (
+			Number.isFinite(fallbackDistance) &&
+			fallbackDistance > EDITOR_CARDINAL_MIN_DISTANCE
+		) {
+			const distance = clampCardinalDistance(fallbackDistance, controls);
+			if (distance !== null) return { target: candidate.target.clone(), distance };
+		}
+	}
+	return null;
+}
+
+/**
+ * Owner-approved P3B.1 cardinal snap. Instantly repositions the editor camera
+ * to look at the target from the requested cardinal side, preserving projection,
+ * FOV, zoom, near/far, OrbitControls limits/config, selection, tool, document,
+ * and history. Session-local viewport presentation only.
+ *
+ * Target/distance are resolved and validated before commit, so a failed snap
+ * returns `false` without mutating the camera. The table `camera.up` is used
+ * only inside the commit `lookAt`; after commit it is restored to `(0, 1, 0)` so
+ * subsequent orbit drags keep the standard `+Y` pole.
+ *
+ * Fallback authority (cited): callers build the injected resolver from the
+ * existing framing APIs in this module — `createEditorBoundsCameraFrame` (or a
+ * node/placement/room variant) for step 2, and the neutral editor pose
+ * `EDITOR_NEUTRAL_CAMERA_POSITION` / `EDITOR_NEUTRAL_CAMERA_TARGET` for step 3.
+ * The helper never computes its own bounds or magic distance.
+ */
+export function snapEditorViewToCardinal(
+	face: CardinalView,
+	camera: PerspectiveCamera,
+	controls: EditorOrbitControlsLike,
+	fallback: EditorCardinalFallbackResolver = () => null
+): boolean {
+	const direction = CARDINAL_FACE_TO_EYE[face];
+	const up = CARDINAL_FACE_UP[face];
+	const pose = resolveCardinalEyeTarget(camera, controls, fallback);
+	if (!pose) return false;
+
+	camera.up.set(up[0], up[1], up[2]);
+	camera.position
+		.copy(pose.target)
+		.addScaledVector(new Vector3(direction[0], direction[1], direction[2]), pose.distance);
+	camera.lookAt(pose.target);
+	controls.target.copy(pose.target);
+	// The pose is already clamped into controls min/max, so this update cannot
+	// re-clamp; the min/max swap dance of the director-observer helper is not
+	// needed here.
+	controls.update();
+	// Post-snap orbit pole: restore +Y after the update (not before) so the
+	// update's internal lookAt keeps the table roll instead of re-deriving it
+	// through the epsilon guard while the view is polar.
+	camera.up.set(0, 1, 0);
+	return true;
+}
+
 function rotateLocalOffset(room: Room, offset: Vec3): Vec3 {
 	const yaw = room.rotation[1];
 	const cos = Math.cos(yaw);

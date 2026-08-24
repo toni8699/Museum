@@ -35,9 +35,13 @@ slice plus one next action only.
   preservation rules, fallback order, post-snap `+Y` orbit pole, and narrow
   helper boundary in the P3B plan. Group A (P3B.4a → P3B.4b) Plan parity is
   implemented; the bottom-right colored `Z ↑` / `X →` corner key is included.
-  Group B is unblocked: implement P3B.1 using the approved contract (instant
-  snap, preview-disabled behavior, shared threshold, existing fallback API),
-  then P3B.2–P3B.4. Next execute Group B, followed by Group C
+  Group B is unblocked. P3B.1 is implemented in-tree: the six-face
+  `snapEditorViewToCardinal` helper (fallback resolver cited against
+  `createEditorBoundsCameraFrame` and `EDITOR_NEUTRAL_CAMERA_POSITION` /
+  `EDITOR_NEUTRAL_CAMERA_TARGET`), the shared `EDITOR_DRAG_THRESHOLD_PX`,
+  and the inert orientation token family, with focused tests green. Next
+  execute P3B.2 (isolated Scene 3D orientation hit targets and layout-box
+  white/light treatment), then P3B.3–P3B.4, followed by Group C
   (P3B.5–P3B.6) preview affordances, then P3B.7a core QA, P3B.8 browser QA,
   and finally P3B.7b deferred P3.4/P3.5 acceptance.
 

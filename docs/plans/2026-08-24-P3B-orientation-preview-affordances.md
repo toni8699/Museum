@@ -248,10 +248,12 @@ restored from a stale value.
 
 ### Post-snap `camera.up` decision
 
-After the pose is committed, restore `camera.up` to `(0, 1, 0)` and call
-`controls.update()`. The table `camera.up` applies only within the `lookAt`
-during the snap; subsequent orbit drags must keep the standard `+Y` orbit pole
-for every face. Polar-roll caveat: at the exact pole, `controls.update()`
+After the pose is committed, call `controls.update()` first, then restore
+`camera.up` to `(0, 1, 0)` — restoring before the update would make the
+update's internal `lookAt` re-derive the roll through the epsilon guard while
+the view is polar. The table `camera.up` applies only within the commit
+`lookAt`; subsequent orbit drags must keep the standard `+Y` orbit pole for
+every face. Polar-roll caveat: at the exact pole, `controls.update()`
 re-runs its `lookAt` with the restored `up = (0, 1, 0)` parallel to the view
 direction, so three.js's epsilon guard re-derives the roll and it may differ
 from the table's committed roll after the first update/interaction. P3B.4

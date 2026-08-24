@@ -14,6 +14,13 @@ import {
 	prepareEditorCameraPreview,
 	recenterEditorDirectorObserver,
 	restoreEditorOrbitPose,
+	snapEditorViewToCardinal,
+	CARDINAL_FACE_TO_EYE,
+	CARDINAL_FACE_UP,
+	EDITOR_CARDINAL_MIN_DISTANCE,
+	EDITOR_NEUTRAL_CAMERA_POSITION,
+	EDITOR_NEUTRAL_CAMERA_TARGET,
+	type CardinalView,
 	type EditorOrbitControlsLike
 } from '$lib/editor/camera/editor-camera';
 
@@ -282,4 +289,185 @@ describe('editor camera helpers', () => {
 			expect(controls.enableDamping).toBe(enableDamping);
 		}
 	);
+
+	describe('snapEditorViewToCardinal (P3B.1 approved contract)', () => {
+		const FACES: CardinalView[] = ['+X', '-X', '+Y', '-Y', '+Z', '-Z'];
+
+		function cameraAt(
+			target: Vector3,
+			distance: number,
+			direction: [number, number, number] = [1, 0, 0]
+		) {
+			const camera = new PerspectiveCamera(50, 16 / 9, 0.025, 400);
+			camera.position
+				.copy(target)
+				.add(new Vector3(direction[0], direction[1], direction[2]).multiplyScalar(distance));
+			return camera;
+		}
+
+		it.each(FACES.map((face) => [face]))(
+			'places the eye on the %s side at the current distance and restores +Y up',
+			(face) => {
+				const target = new Vector3(4, 2, -3);
+				const camera = cameraAt(target, 12, [1, 0, 0]);
+				const controls = createControls({ target: target.clone() });
+
+				expect(snapEditorViewToCardinal(face, camera, controls)).toBe(true);
+
+				const [dx, dy, dz] = CARDINAL_FACE_TO_EYE[face as CardinalView];
+				expect(camera.position.toArray()).toEqual([
+					target.x + dx * 12,
+					target.y + dy * 12,
+					target.z + dz * 12
+				]);
+				expect(controls.target.toArray()).toEqual(target.toArray());
+				// Post-snap orbit pole restored to world +Y.
+				expect(camera.up.toArray()).toEqual([0, 1, 0]);
+				// Camera looks at the target (float-tolerant).
+				const view = camera.getWorldDirection(new Vector3());
+				expect(view.x).toBeCloseTo(-dx);
+				expect(view.y).toBeCloseTo(-dy);
+				expect(view.z).toBeCloseTo(-dz);
+			}
+		);
+
+		it.each([
+			['+Y', [0, 0, -1]],
+			['-Y', [0, 0, 1]]
+		] as Array<[CardinalView, number[]]>)('uses table roll for polar %s face', (face, worldUp) => {
+			const target = new Vector3();
+			const camera = cameraAt(target, 10, [0, 1, 0]);
+			const controls = createControls({ target });
+
+			snapEditorViewToCardinal(face, camera, controls);
+
+			// Local +Y axis in world after the commit `lookAt` (matrixWorld is
+			// not auto-updated by `lookAt`, so derive it from the quaternion).
+			const committedUp = new Vector3(0, 1, 0).applyQuaternion(camera.quaternion);
+			expect(committedUp.x).toBeCloseTo(worldUp[0]);
+			expect(committedUp.y).toBeCloseTo(worldUp[1]);
+			expect(committedUp.z).toBeCloseTo(worldUp[2]);
+			expect(CARDINAL_FACE_UP[face]).toEqual(worldUp);
+		});
+
+		it('clamps the snapped distance into controls min/max before commit', () => {
+			const target = new Vector3();
+			const camera = cameraAt(target, 8, [1, 0, 0]);
+			const controls = createControls({ target, minDistance: 2, maxDistance: 3 });
+
+			expect(snapEditorViewToCardinal('+X', camera, controls)).toBe(true);
+			expect(camera.position.distanceTo(target)).toBeCloseTo(3);
+		});
+
+		it('preserves projection and controls configuration', () => {
+			const target = new Vector3(1, 1, 1);
+			const camera = cameraAt(target, 9, [0, 1, 0]);
+			camera.zoom = 2.5;
+			camera.fov = 41;
+			camera.near = 0.1;
+			camera.far = 500;
+			const controls = createControls({ target, minDistance: 0.4, maxDistance: 99 });
+
+			snapEditorViewToCardinal('+Z', camera, controls);
+
+			expect(camera.zoom).toBe(2.5);
+			expect(camera.fov).toBe(41);
+			expect(camera.near).toBe(0.1);
+			expect(camera.far).toBe(500);
+			expect(controls.minDistance).toBe(0.4);
+			expect(controls.maxDistance).toBe(99);
+			expect(controls.enabled).toBe(true);
+			expect(controls.enableDamping).toBe(true);
+		});
+
+		it('uses the existing fallback when the active target is invalid', () => {
+			const camera = cameraAt(new Vector3(0, 2, 5), 6, [1, 0, 0]);
+			const controls = createControls({ target: new Vector3(NaN, NaN, NaN) });
+			const fallback = { target: new Vector3(-2, 1, 3), position: new Vector3(4, 1, 3) };
+
+			expect(
+				snapEditorViewToCardinal('-Z', camera, controls, () => fallback)
+			).toBe(true);
+
+			expect(controls.target.toArray()).toEqual([-2, 1, 3]);
+			expect(camera.position.toArray()).toEqual([-2, 1, -3]);
+		});
+
+		it('uses the fallback when eye and target are degenerate', () => {
+			const target = new Vector3(1, 1, 1);
+			const camera = cameraAt(target, 0, [1, 0, 0]);
+			const controls = createControls({ target: target.clone() });
+			const fallback = { target: new Vector3(), position: new Vector3(0, 5, 0) };
+
+			expect(snapEditorViewToCardinal('+Y', camera, controls, () => fallback)).toBe(true);
+			expect(camera.position.toArray()).toEqual([0, 5, 0]);
+		});
+
+		it('builds the step-3 fallback from the neutral editor pose authority', () => {
+			// The fallback resolver is injected, but callers build it from the
+			// cited existing authority: the neutral editor pose constants.
+			const camera = cameraAt(new Vector3(1, 1, 1), 5, [1, 0, 0]);
+			const controls = createControls({ target: new Vector3(NaN, NaN, NaN) });
+			const fallback = {
+				target: new Vector3(...EDITOR_NEUTRAL_CAMERA_TARGET),
+				position: new Vector3(...EDITOR_NEUTRAL_CAMERA_POSITION)
+			};
+
+			const neutralTarget = new Vector3(...EDITOR_NEUTRAL_CAMERA_TARGET);
+			const neutralDistance = new Vector3(...EDITOR_NEUTRAL_CAMERA_POSITION).distanceTo(
+				neutralTarget
+			);
+			expect(snapEditorViewToCardinal('+X', camera, controls, () => fallback)).toBe(true);
+			expect(controls.target.toArray()).toEqual(EDITOR_NEUTRAL_CAMERA_TARGET);
+			// +X eye sits at the neutral target offset by the resolved distance.
+			expect(camera.position.toArray()).toEqual([
+				EDITOR_NEUTRAL_CAMERA_TARGET[0] + neutralDistance,
+				EDITOR_NEUTRAL_CAMERA_TARGET[1],
+				EDITOR_NEUTRAL_CAMERA_TARGET[2]
+			]);
+		});
+
+		it('builds the step-2 fallback from a bounds-frame result', () => {
+			const bounds = new Box3(new Vector3(-1, 0, -2), new Vector3(3, 4, 2));
+			const frame = createEditorBoundsCameraFrame(
+				bounds,
+				new Vector3(0, 2, 5),
+				new Vector3()
+			);
+			expect(frame).not.toBeNull();
+			const camera = cameraAt(new Vector3(1, 1, 1), 5, [1, 0, 0]);
+			const controls = createControls({ target: new Vector3(NaN, NaN, NaN) });
+			const fallback = {
+				target: new Vector3(...frame!.target),
+				position: new Vector3(...frame!.position)
+			};
+
+			const frameTarget = new Vector3(...frame!.target);
+			const frameDistance = new Vector3(...frame!.position).distanceTo(frameTarget);
+			expect(snapEditorViewToCardinal('-Y', camera, controls, () => fallback)).toBe(true);
+			expect(controls.target.toArray()).toEqual(frame!.target);
+			// -Y eye sits below the target at the frame's resolved distance.
+			expect(camera.position.toArray()[1]).toBeCloseTo(frame!.target[1] - frameDistance);
+		});
+
+		it('no-ops safely when no valid target or fallback exists', () => {
+			const camera = cameraAt(new Vector3(1, 1, 1), 5, [1, 0, 0]);
+			const controls = createControls({ target: new Vector3(NaN, NaN, NaN) });
+			const before = camera.position.clone();
+			const beforeUp = camera.up.clone();
+
+			expect(snapEditorViewToCardinal('+X', camera, controls)).toBe(false);
+			expect(camera.position).toEqual(before);
+			expect(camera.up).toEqual(beforeUp);
+			expect(controls.target.x).toBeNaN();
+		});
+
+		it('rejects distances at or below the minimum epsilon', () => {
+			const target = new Vector3();
+			const camera = cameraAt(target, EDITOR_CARDINAL_MIN_DISTANCE, [1, 0, 0]);
+			const controls = createControls({ target: target.clone() });
+
+			expect(snapEditorViewToCardinal('+X', camera, controls)).toBe(false);
+		});
+	});
 });

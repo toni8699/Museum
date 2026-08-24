@@ -1,6 +1,7 @@
 import type { DraftSegment, LayoutDocument, LayoutRoom, LayoutVec2 } from '$lib/layout/layout-types';
 import type { LayoutRoomUnitTransform } from './layout-room-transform';
 import { createPlanViewportState, snapToGrid, type PlanViewportState } from './layout-plan-transform';
+import { EDITOR_DRAG_THRESHOLD_PX } from '../interaction-constants';
 import type { Vec3 } from '$lib/types/scene';
 export type LayoutViewMode = 'plan' | '3d';
 /** Scene → Plan's local authoring authority. Camera Plan never reads this. */
@@ -111,7 +112,7 @@ export type LayoutAccordionState = {
 };
 
 /** Screen-pixel distance before a wall mid-span drag inserts a bend anchor. */
-export const LAYOUT_WALL_BEND_DRAG_THRESHOLD_PX = 4;
+export const LAYOUT_WALL_BEND_DRAG_THRESHOLD_PX = EDITOR_DRAG_THRESHOLD_PX;
 
 export type LayoutSelection =
 	| { kind: 'none' }

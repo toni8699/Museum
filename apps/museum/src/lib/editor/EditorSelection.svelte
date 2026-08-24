@@ -6,6 +6,7 @@
 	import type { Vec3 } from '$lib/types/scene';
 	import { Plane, Raycaster, Vector2, Vector3, type Intersection } from 'three';
 	import type { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
+	import { EDITOR_DRAG_THRESHOLD_PX } from './interaction-constants';
 	import type { EditorStore } from './editor-store.svelte';
 	import {
 		createDraftConnectionPositionPath,
@@ -115,7 +116,7 @@
 	const cameraForward = new Vector3();
 	const sampledPathPoint = new Vector3();
 
-	const DRAG_THRESHOLD_PX = 4;
+	const DRAG_THRESHOLD_PX = EDITOR_DRAG_THRESHOLD_PX;
 
 	type NormalPointerSession = {
 		kind: 'normal';

@@ -29,6 +29,7 @@
 		getCameraPathInsertionIndex,
 		getScenePathAnchorWorldPosition
 	} from '../camera/editor-camera-path';
+	import { EDITOR_DRAG_THRESHOLD_PX } from '../interaction-constants';
 	import { findPlanHitRoom } from '../layout/plan-hit';
 	import {
 		framePlanViewport,
@@ -73,7 +74,7 @@
 		ACTIVE_EDITOR_SELECTION_KEY
 	);
 
-	const DRAG_THRESHOLD_PX = 4;
+	const DRAG_THRESHOLD_PX = EDITOR_DRAG_THRESHOLD_PX;
 
 	type CameraPlanDragSession = {
 		kind: 'node' | 'anchor';

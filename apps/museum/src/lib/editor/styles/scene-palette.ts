@@ -13,9 +13,10 @@ export const SCENE_PALETTE = {
 	selectionOutline: 0x2f8cff,
 	/** Hover-tier outline: clearly not-selected. */
 	selectionOutlineHover: 0x55a1ff,
-	/** Passive/context geometry boxes (muted warm gray per DS §8). */
-	layoutBox: 0x92908a,
-	layoutBoxHover: 0x77766f,
+	/** Passive/context geometry boxes — P3B.2 white/light treatment
+	    (scene-3d-layout-selection.png authoritative; blue is selection only). */
+	layoutBox: 0xe7e4dd,
+	layoutBoxHover: 0xd8d5cc,
 	/** Handle/vertex fill on active gestures. */
 	selectionHandle: 0xedf3f8,
 	/** Transform-axis mapping shared with the orientation box (DS §8). */
@@ -51,7 +52,9 @@ export function scenePaletteHex(value: number): string {
 /** Preformatted string forms for the shared selection/hover language. */
 export const SCENE_PALETTE_HEX = {
 	selected: scenePaletteHex(SCENE_PALETTE.selectionOutline),
-	hover: scenePaletteHex(SCENE_PALETTE.selectionOutlineHover)
+	hover: scenePaletteHex(SCENE_PALETTE.selectionOutlineHover),
+	layoutBox: scenePaletteHex(SCENE_PALETTE.layoutBox),
+	layoutBoxHover: scenePaletteHex(SCENE_PALETTE.layoutBoxHover)
 } as const;
 
 export function applyEditorGizmoPalette(gizmoRoot: unknown): void {	const root = gizmoRoot as { children?: unknown[] } | null | undefined;

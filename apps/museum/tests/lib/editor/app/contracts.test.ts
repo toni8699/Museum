@@ -1350,20 +1350,27 @@ describe('camera context contracts', () => {
 		expect(panel).not.toContain('closeGuidedTourLoop');
 	});
 
-	// P3.6 owner correction — grid controls remain; the blocking XYZ overlay is
-	// removed until its dedicated redesign slice.
-	it('mounts grid controls without the retired XYZ orientation overlay', () => {
+	// P3.6 → P3B.2: the retired blocking XYZ overlay is replaced by the
+	// Scene-3D-only orientation box — a shared DOM/SVG widget wired to the
+	// approved cardinal snap helper, mounted only in the Scene 3D context
+	// (absent from Camera 3D and both Plan surfaces). Grid controls remain.
+	it('mounts the Scene-3D-only orientation box with grid controls intact', () => {
 		const ws3d = readLibSource('editor/app/Workspace3DView.svelte');
 		const gridControls = readLibSource('editor/EditorViewportGridControls.svelte');
 		expect(ws3d).toContain('<EditorViewportGridControls {store} />');
-		expect(ws3d).not.toContain('EditorOrientationGizmo');
+		// Overlay widget + canvas-side projector, both Scene-context gated.
+		// The gizmo receives the compiled layout bounds so its cardinal-snap
+		// fallback composes bounds framing before the neutral pose (P3B.1
+		// fallback-authority contract, steps 2 → 3).
+		expect(ws3d).toContain('<EditorOrientationGizmo {store} layoutBounds={layoutPreview.bounds} />');
+		expect(ws3d).toContain('<EditorOrientationGizmoProjector />');
+		expect(ws3d).toContain('{#if !isCameraContext}');
 		// The grid control reuses session state (visibility + new opacity).
 		expect(gridControls).toContain('store.toggleGrid()');
 		expect(gridControls).toContain('store.gridOpacity = value');
 		expect(gridControls).toContain('type="range"');
-		expect(existsLibSource('editor/EditorOrientationGizmo.svelte')).toBe(false);
-		expect(existsLibSource('editor/EditorOrientationGizmoOverlay.svelte')).toBe(false);
-		expect(existsLibSource('editor/editor-orientation-gizmo.svelte.ts')).toBe(false);
+		expect(existsLibSource('editor/EditorOrientationGizmo.svelte')).toBe(true);
+		expect(existsLibSource('editor/editor-orientation-gizmo.svelte.ts')).toBe(true);
 	});
 
 	// S10.1.6 — workspace transition polish: canvas never remounts; fades are

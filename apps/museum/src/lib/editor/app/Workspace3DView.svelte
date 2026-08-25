@@ -8,6 +8,8 @@
 	import EditorCameraPathHelpers from '$lib/editor/camera/EditorCameraPathHelpers.svelte';
 	import EditorCameraViewHelpers from '$lib/editor/camera/EditorCameraViewHelpers.svelte';
 	import EditorCameraRig from '$lib/editor/camera/EditorCameraRig.svelte';
+	import EditorOrientationGizmo from '$lib/editor/EditorOrientationGizmo.svelte';
+	import EditorOrientationGizmoProjector from '$lib/editor/EditorOrientationGizmoProjector.svelte';
 	import EditorGrid from '$lib/editor/EditorGrid.svelte';
 	import EditorCameraLabelProjector from '$lib/editor/camera/EditorCameraLabelProjector.svelte';
 	import EditorCameraLabelsOverlay from '$lib/editor/camera/EditorCameraLabelsOverlay.svelte';
@@ -423,6 +425,11 @@
 			floorColor={store.floorColor}
 		/>
 		<EditorGrid visible={store.gridVisible && !store.isVisitorCameraPreview} opacity={store.gridOpacity} />
+		{#if !isCameraContext}
+			<!-- P3B.2 — Scene-3D-only orientation box writer: publishes the
+			     active camera/controls refs + derived cardinal face per frame. -->
+			<EditorOrientationGizmoProjector />
+		{/if}
 		{#if isCameraContext && !store.isVisitorCameraPreview}
 			<!-- P1.7 — projects the guided/unsequenced label positions each frame. -->
 			<EditorCameraLabelProjector {store} kinds={cameraLabelKinds} />
@@ -514,6 +521,12 @@
 	     Unsequenced badges over the Camera 3D viewport. -->
 	{#if isCameraContext && !store.isVisitorCameraPreview}
 		<EditorCameraLabelsOverlay />
+	{/if}
+	{#if !isCameraContext}
+		<!-- P3B.2 — Scene-3D-only orientation box (custom SVG hit targets wired
+		     to the approved cardinal snap helper). Absent from Camera 3D and
+		     both Plan surfaces; P3B.3 adds the full interaction states. -->
+		<EditorOrientationGizmo {store} layoutBounds={layoutPreview.bounds} />
 	{/if}
 	<EditorViewportGridControls {store} />
 </div>

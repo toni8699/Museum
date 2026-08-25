@@ -6,6 +6,7 @@ import {
 	createEditorBoundsCameraFrame,
 	createEditorNodeCameraFrame,
 	createEditorPanSpeed,
+	createEditorBoundsNeutralFallback,
 	createEditorPlacementCameraFrame,
 	EDITOR_DIRECTOR_OBSERVER_OFFSET,
 	EDITOR_NODE_FRAME_EXPANSION,
@@ -23,6 +24,7 @@ import {
 	type CardinalView,
 	type EditorOrbitControlsLike
 } from '$lib/editor/camera/editor-camera';
+import type { LayoutBounds3 } from '$lib/layout/layout-geometry-types';
 
 function createControls(
 	overrides: Partial<EditorOrbitControlsLike> = {}
@@ -359,6 +361,69 @@ describe('editor camera helpers', () => {
 			expect(camera.position.distanceTo(target)).toBeCloseTo(3);
 		});
 
+		it('drains pending controls inertia before resolving the snap', () => {
+			// The first update() simulates OrbitControls consuming damped
+			// residue against the pre-snap pose; the commit must resolve its
+			// distance from that settled state (12), not from the stale pose
+			// (10), and no inertia may survive into the commit.
+			const target = new Vector3();
+			const camera = cameraAt(target, 10, [1, 0, 0]);
+			let updates = 0;
+			const controls = createControls({
+				target: target.clone(),
+				update: () => {
+					updates += 1;
+					if (updates === 1) camera.position.setX(12);
+				}
+			});
+
+			expect(snapEditorViewToCardinal('+Z', camera, controls)).toBe(true);
+
+			expect(updates).toBe(2);
+			expect(camera.position.toArray()).toEqual([0, 0, 12]);
+		});
+
+		it('invokes the fallback resolver at most once per snap', () => {
+			// Stateful resolvers must not observe multiple calls across the
+			// pre/post-flush resolutions.
+			const target = new Vector3();
+			const camera = cameraAt(target, 6, [1, 0, 0]);
+			let calls = 0;
+			const controls = createControls({ target: new Vector3(NaN, NaN, NaN) });
+			const fallback = vi.fn(() => {
+				calls += 1;
+				return { target: new Vector3(1, 1, 1), position: new Vector3(7, 1, 1) };
+			});
+
+			expect(snapEditorViewToCardinal('+X', camera, controls, fallback)).toBe(true);
+
+			expect(calls).toBe(1);
+			expect(controls.target.toArray()).toEqual([1, 1, 1]);
+			expect(camera.position.toArray()).toEqual([7, 1, 1]);
+		});
+
+		it('commits the cached basis when the flush invalidates the current pose', () => {
+			const target = new Vector3();
+			const camera = cameraAt(target, 8, [1, 0, 0]);
+			let updates = 0;
+			const controls = createControls({
+				target: target.clone(),
+				update: () => {
+					updates += 1;
+					if (updates === 1) controls.target.set(NaN, NaN, NaN);
+					return true;
+				}
+			});
+
+			// No post-flush failure exit exists: the validated pre-flush basis
+			// commits even though the settled current pose turned non-finite.
+			expect(snapEditorViewToCardinal('+Z', camera, controls)).toBe(true);
+
+			expect(updates).toBe(2);
+			expect(controls.target.toArray()).toEqual([0, 0, 0]);
+			expect(camera.position.toArray()).toEqual([0, 0, 8]);
+		});
+
 		it('preserves projection and controls configuration', () => {
 			const target = new Vector3(1, 1, 1);
 			const camera = cameraAt(target, 9, [0, 1, 0]);
@@ -455,8 +520,17 @@ describe('editor camera helpers', () => {
 			const controls = createControls({ target: new Vector3(NaN, NaN, NaN) });
 			const before = camera.position.clone();
 			const beforeUp = camera.up.clone();
+			// Simulate real OrbitControls: update() applies residue and can
+			// poison the camera through a lookAt on a non-finite target.
+			let updates = 0;
+			controls.update = () => {
+				updates += 1;
+				camera.position.setScalar(NaN);
+				return true;
+			};
 
 			expect(snapEditorViewToCardinal('+X', camera, controls)).toBe(false);
+			expect(updates).toBe(0);
 			expect(camera.position).toEqual(before);
 			expect(camera.up).toEqual(beforeUp);
 			expect(controls.target.x).toBeNaN();
@@ -468,6 +542,105 @@ describe('editor camera helpers', () => {
 			const controls = createControls({ target: target.clone() });
 
 			expect(snapEditorViewToCardinal('+X', camera, controls)).toBe(false);
+		});
+
+		it('flushes inertia only after a viable basis is confirmed', () => {
+			// Degenerate distance with no fallback: the snap fails atomically —
+			// no flush may run even though a fallback-less resolve also fails.
+			const target = new Vector3();
+			const camera = cameraAt(target, 0, [1, 0, 0]);
+			let updates = 0;
+			const controls = createControls({
+				target: target.clone(),
+				update: () => {
+					updates += 1;
+					return true;
+				}
+			});
+
+			expect(snapEditorViewToCardinal('+X', camera, controls)).toBe(false);
+			expect(updates).toBe(0);
+		});
+	});
+
+	describe('createEditorBoundsNeutralFallback (P3B.1 composed fallback)', () => {
+		const BOUNDS: LayoutBounds3 = {
+			min: [-1, 0, -2],
+			max: [3, 4, 2]
+		};
+		const CENTER = new Vector3(1, 2, 0);
+
+		function resolverFor(
+			currentPosition: Vector3,
+			currentTarget: Vector3,
+			layoutBounds: LayoutBounds3 | null = BOUNDS
+		) {
+			return createEditorBoundsNeutralFallback(
+				layoutBounds,
+				currentPosition,
+				currentTarget
+			);
+		}
+
+		it('frames bounds along the live viewing direction when it is valid', () => {
+			const position = new Vector3(10, 2, 5);
+			const target = new Vector3(1, 2, 0);
+			const candidate = resolverFor(position, target)();
+
+			expect(candidate).not.toBeNull();
+			const frameTarget = new Vector3(...candidate!.target);
+			expect(frameTarget.distanceTo(CENTER)).toBeLessThan(1e-8);
+			const direction = position.clone().sub(target).normalize();
+			const frameDirection = new Vector3(...candidate!.position).sub(frameTarget).normalize();
+			expect(frameDirection.angleTo(direction)).toBeLessThan(1e-6);
+		});
+
+		it('frames bounds along the neutral gaze when the active target is non-finite', () => {
+			const candidate = resolverFor(new Vector3(4, 1, 3), new Vector3(NaN, NaN, NaN))();
+
+			expect(candidate).not.toBeNull();
+			// Every vector must be finite — the poisoned-frame regression.
+			expect(candidate!.position.toArray().every(Number.isFinite)).toBe(true);
+			expect(candidate!.target.toArray().every(Number.isFinite)).toBe(true);
+			const frameTarget = new Vector3(...candidate!.target);
+			expect(frameTarget.distanceTo(CENTER)).toBeLessThan(1e-8);
+			const neutralDirection = new Vector3(...EDITOR_NEUTRAL_CAMERA_POSITION)
+				.sub(new Vector3(...EDITOR_NEUTRAL_CAMERA_TARGET))
+				.normalize();
+			const frameDirection = new Vector3(...candidate!.position).sub(frameTarget).normalize();
+			expect(frameDirection.angleTo(neutralDirection)).toBeLessThan(1e-6);
+		});
+
+		it('frames bounds along the neutral gaze for a coincident pose', () => {
+			const point = new Vector3(1, 2, 0);
+			const candidate = resolverFor(point, point.clone())();
+
+			expect(candidate).not.toBeNull();
+			const frameTarget = new Vector3(...candidate!.target);
+			const frameDirection = new Vector3(...candidate!.position).sub(frameTarget).normalize();
+			const neutralDirection = new Vector3(...EDITOR_NEUTRAL_CAMERA_POSITION)
+				.sub(new Vector3(...EDITOR_NEUTRAL_CAMERA_TARGET))
+				.normalize();
+			expect(frameDirection.angleTo(neutralDirection)).toBeLessThan(1e-6);
+		});
+
+		it('returns the neutral editor pose when no layout bounds exist', () => {
+			const candidate = resolverFor(new Vector3(4, 1, 3), new Vector3(), null)();
+
+			expect(candidate!.position.toArray()).toEqual(EDITOR_NEUTRAL_CAMERA_POSITION);
+			expect(candidate!.target.toArray()).toEqual(EDITOR_NEUTRAL_CAMERA_TARGET);
+		});
+
+		it('falls back to the neutral editor pose when framing fails', () => {
+			// Non-finite bounds yield a null frame inside the factory; the
+			// neutral pose must survive it.
+			const candidate = resolverFor(new Vector3(4, 1, 3), new Vector3(), {
+				min: [Number.POSITIVE_INFINITY, 0, 0],
+				max: [1, 1, 1]
+			})();
+
+			expect(candidate!.position.toArray()).toEqual(EDITOR_NEUTRAL_CAMERA_POSITION);
+			expect(candidate!.target.toArray()).toEqual(EDITOR_NEUTRAL_CAMERA_TARGET);
 		});
 	});
 });

@@ -1,152 +1,158 @@
-# P3B — Orientation box, Plan parity, and camera preview affordances
+# P3B — Orientation Box, Plan Parity, and Camera Preview Affordances
 
-**Date:** 2026-08-24  
-**Status:** Active — owner-approved snap contract; Group A (P3B.4a → P3B.4b) in tree.
-**Tracker:** [`docs/plans/README.md`](README.md) — **P3B**, depends on P3 + P8 S2–S4
-**Historical source:** [`P3 umbrella`](../archive/plans/2026-08-18-P3-ui-overhaul.md) — extracted P3.4/P3.5 and P3B scope
+**Date:** 2026-08-24
+**Status:** Proposed — standalone follow-up after P3 close
+**Tracker:** `docs/plans/README.md` — **P3B**, depends on P3 + P8 S2–S4
+**Historical source:** `P3 umbrella` — extracted P3.4/P3.5 and P3B scope
+
+---
 
 ## Purpose and current shell contract
 
-P3B completes the remaining interaction and visual-parity work around the
-accepted P3 baseline for the current product shell:
+P3B completes the remaining interaction and visual-parity work around the accepted P3 baseline for the current product shell:
 
 ```text
 Scene | Camera
 Plan  | 3D
 ```
 
-These are two explicit shell axes producing four intentional views inside one
-persistent editor shell. `Scene Plan`, `Scene 3D`, `Camera Plan`, and `Camera
-3D` are current product surfaces, not obsolete architecture or additional
-applications. Scene Plan's local mode is `Layout | Arrange`.
-
-Current implementation names such as `CameraPlanViewport` and
-`CameraPlanInspector` are valid locations for this work. P3B does not create
-additional workspaces, duplicate shell state, or alter the domain/view model.
-
-P3B is editor-only (`/` and `/editor`). `/museum` and `/museum/editor` remain
-frozen relic routes.
-
-## Outcome
-
-P3B is executed as sequential groups, not concurrent tracks. Complete the
-current group before starting the next; P3B.4b is the final Group A refinement,
-and the deferred tail is intentionally last and remains non-blocking. The
-owner-approved order is **Group A → Group B → Group C → core QA → deferred
-tail**; Group C does not start while Group B is unresolved.
-
-P3B should deliver three core groups plus a deferred acceptance tail:
-
-1. **Group A — Plan-surface parity** — reconcile Scene Plan and Camera Plan
-   presentation without changing their shared spatial math or authority.
-2. **Group B — Scene 3D orientation interaction** — restore the specified
-   orientation utility against the owner-approved canonical snap contract.
-3. **Group C — Camera preview affordances** — make selection, explicit preview,
-   transport, scope labels, and sequence/edge meaning unambiguous across Camera
-   Plan, Camera 3D, Inspector, Sidebar, and the shared Camera timeline.
-4. **Deferred P3.4/P3.5 tail** — revisit the existing context-menu adapters and
-   accept them only after broader testing; this tail does not block core P3B.
-
-P3B adds no preview engine, route, graph, timeline, selection store, document
-state, history model, or new camera semantics. It reuses the existing
-`EditorStore`, preview FSM, `camera-route.ts`, `camera-motion.ts`, selection
-actions, timeline identities, Plan transforms, and hit resolvers.
-
-## Cross-cutting invariants
-
-- One editor shell with `Scene | Camera` over `Plan | 3D`; no additional
-  workspace generation.
-- One 3D canvas and one canonical selection model per domain.
-- One Camera timeline owned by the Camera domain and preserved across Camera
-  Plan ↔ Camera 3D.
-- One camera navigation path (`camera-route.ts`) and one motion path
-  (`camera-motion.ts`).
-- Plan is an SVG top-down floor projection. User-facing Plan axes are world X/Z:
-  `screen X ← world X`, `screen Y ← world Z`; world Y is vertical height and
-  remains preserved by Plan editing. Internal SVG `x/y` variable names do not
-  change that semantic contract.
-- Camera Plan connections remain visually undirected. Direction appears only in
-  an explicitly labeled preview/playback action, never as topology arrows.
-- Normal selection never starts playback, changes preview scope, resets a
-  playhead, or replaces an active preview.
-- Selection and preview scope are independent. Example:
-
-  ```text
-  Selected: Connection C—E
-  Preview: Sequence · Main Visitor Tour
-  ```
-
-- Preview actions use Play/CirclePlay semantics. Eye remains for visibility/view
-  semantics.
-- All changes remain editor-only and must preserve relic isolation.
-
-# Slice group A — Plan-surface visual parity (P3B.4a → P3B.4b)
-
-## Code finding
-
-Scene Plan and Camera Plan already share the same spatial primitives:
-
-- `PlanViewportState`
-- `buildPlanGrid`
-- `visiblePlanBounds`
-- world/screen coordinate transforms
-- `PlanSvg`
-
-Their duplicated presentation chrome has drifted in the current code:
-
-- separate canvas and room-fill tokens;
-- hardcoded Camera Plan selected-room `#e2efff`;
-- duplicated grid labels, scale readouts, and fixed scale bars;
-- inconsistent scale offsets and bottom metadata clearance;
-- no grid level-of-detail;
-- no adaptive rulers;
-- no segmented scale bar.
-
-## Required outcome
-
-Reconcile both Plan surfaces into one consistent drafting language while
-preserving existing coordinate transforms, `preserveAspectRatio="none"`, hit
-resolution, selection authority, and document ownership.
-
-- Centralize canvas, room-fill, and selected-room token ownership. If Camera
-  Plan remains slightly subdued, express that as one centralized variant rather
-  than a third palette or inline color.
-- Remove the hardcoded `#e2efff` value.
-- Ensure the scale label/bar clears the bottom `.plan-meta` region on both
-  surfaces, with consistent metadata color and wrapper treatment.
-- Share the chrome implementation where practical (for example, a
-  `PlanCanvasChrome` component beside `PlanSvg`), but do not force an
-  abstraction if it makes ownership less clear. The acceptance target is
-  behavior and visual parity, not a specific component name.
-- Add pure, tested adaptive grid LOD so minor lines do not form a near-solid mesh
-  at Camera Plan zoom and labels do not spam every minor/major tick.
-- Add viewport-pinned **X/Z world-coordinate rulers** from
-  `visiblePlanBounds()`, choosing readable `1/2/5 × 10^k` metre ticks at roughly
-  80 px spacing. Rulers replace floating grid-label presentation; they do not
-  create a second coordinate system.
-- Replace the fixed 100 px line with a pure-helper-driven segmented scale bar
-  using readable `1/2/5 × 10^k` lengths, roughly 80–140 px, with alternating
-  segments and labels (the sketch's 0/5/10/15 grammar).
-- Keep Plan geometry and camera semantics unchanged. Rulers are presentation;
-  SVG screen Y maps to world Z, and world Y remains height.
-
-## Acceptance
+These are two explicit shell axes producing four intentional views inside one persistent editor shell.
 
 ```text
-Scene Plan + Camera Plan
-→ same token ownership and selection language
-→ same readable grid density at equivalent zoom
-→ adaptive X/Z rulers without label spam
-→ identical segmented-scale grammar
-→ scale chrome clears bottom metadata
-→ no hardcoded third blue or divergent fixed offsets
-→ common Plan math and hit testing remain unchanged
+Scene → Plan
+Scene → 3D
+Camera → Plan
+Camera → 3D
 ```
 
-## P3B.4b — Plan ruler corner orientation key
+Scene Plan additionally owns the local:
 
-This follows P3B.4a within Group A. Both Plan surfaces receive the same
-non-interactive L-shaped corner key at the bottom-right ruler corner:
+```text
+Layout | Arrange
+```
+
+mode.
+
+Current implementation names such as `CameraPlanViewport`, `CameraPlanInspector`, and Scene 3D viewport components are valid locations for this work.
+
+P3B does not:
+
+* create additional workspaces;
+* duplicate shell state;
+* alter the domain/view model;
+* add a second navigation system;
+* add a second camera-motion system;
+* add another selection store;
+* add another Plan coordinate model.
+
+P3B is editor-only.
+
+```text
+/ and /editor             active editor lane
+/museum                   frozen visitor relic
+/museum/editor            frozen legacy editor relic
+```
+
+---
+
+# Outcome
+
+P3B executes as sequential groups.
+
+Complete the current group before starting the next.
+
+```text
+Group A → Group B → Group C → Core QA → Deferred tail
+```
+
+P3B delivers:
+
+1. **Group A — Plan-surface parity**
+
+   * reconcile Scene Plan and Camera Plan presentation;
+   * preserve their existing Plan math and authority.
+
+2. **Group B — Scene 3D orientation utility**
+
+   * ship the custom Scene 3D XYZ orientation widget;
+   * derive its visual orientation from the active Scene 3D camera;
+   * provide cardinal view snapping without introducing another camera authority.
+
+3. **Group C — Camera preview affordances**
+
+   * make selection, preview scope, transport, sequence preview, and edge direction explicit across Camera Plan, Camera 3D, Inspector, Sidebar, and Timeline.
+
+4. **Deferred P3.4/P3.5 tail**
+
+   * revisit existing context-menu adapters after broader testing;
+   * do not block core P3B shipment.
+
+P3B reuses the existing:
+
+```text
+EditorStore
+preview FSM
+camera-route.ts
+camera-motion.ts
+selection actions
+timeline identities
+Plan transforms
+Plan hit resolvers
+OrbitControls / editor camera infrastructure
+```
+
+---
+
+# Cross-cutting invariants
+
+* One editor shell with `Scene | Camera` over `Plan | 3D`.
+* One 3D canvas.
+* One canonical selection model per domain.
+* One Camera timeline owned by Camera domain.
+* Camera timeline state survives Camera Plan ↔ Camera 3D.
+* One camera route authority: `camera-route.ts`.
+* One camera motion authority: `camera-motion.ts`.
+* Scene 3D orientation snapping is viewport presentation, not Camera-domain authoring.
+* Plan remains SVG top-down world X/Z projection:
+
+```text
+screen X ← world X
+screen Y ← world Z
+world Y  ← vertical height
+```
+
+* Camera Plan connections remain undirected.
+* Direction appears only in explicit preview/playback actions.
+* Selection never starts playback.
+* Selection never changes preview scope.
+* Selection never resets the playhead.
+* Selection never replaces an active preview.
+* Selection and preview scope remain independent.
+* Preview actions use Play/CirclePlay semantics.
+* Eye remains visibility/view semantics.
+* No document/history mutation from the orientation widget.
+* All work stays editor-only and preserves relic isolation.
+
+---
+
+# Group A — Plan-Surface Parity
+
+## P3B.4a → P3B.4b
+
+Scene Plan and Camera Plan already share Plan geometry and transforms.
+
+Group A owns presentation parity only.
+
+### Deliver
+
+* shared Plan color/token parity;
+* grid level-of-detail behavior;
+* adaptive X/Z rulers;
+* segmented scale chrome;
+* viewport metadata clearance;
+* shared bottom-right Plan orientation key.
+
+Canonical Plan corner key:
 
 ```text
 Z ↑
@@ -154,441 +160,1056 @@ Z ↑
   ○────────→ X
 ```
 
-The vertical Z indicator points upward and meets the horizontal X indicator at
-its base; a two-tone colored origin knob is painted over the axis joins. The
-key is presentation-only, uses colored X/Z axis styling, remains visible when
-the grid is disabled, and does not collide with the segmented scale, the
-bottom metadata, or Scene Plan's bottom-right `.plan-actions` drafting buttons
-(Camera Plan keeps its own bottom-right action surfaces clear as well). It
-does not alter Plan transforms, hit resolution, selection, or document state. It is shared by Scene Plan and Camera Plan and is not a second
-coordinate system.
+### Corner-key contract
 
-### Acceptance
+The Plan corner key is:
 
-- `Z ↑` is the vertical indicator and `X →` is at the base, pointing right.
-- The key is fixed to the bottom-right ruler corner and does not follow model
-  geometry or selection.
-- It is identical across Scene Plan and Camera Plan, non-interactive, and
-  exposed as a concise presentation label or intentionally hidden when the
-  surrounding rulers provide equivalent semantics.
-- Existing screen-X/screen-Y implementation math remains unchanged; the key
-  communicates the Plan's world X/Z convention only.
+* SVG/DOM;
+* non-interactive;
+* shared by Scene Plan and Camera Plan;
+* visually larger than tiny incidental axis labels;
+* colored with canonical world-axis colors;
+* independent from Scene 3D orientation-box interaction.
 
-# Slice group B — Scene 3D orientation and layout presentation (P3B.1–P3B.4)
+The origin knob paints over the X/Z line join.
 
-## P3B.1 finding — discovery complete, authority missing
-
-The current implementation was searched across:
-
-- `apps/museum/src/lib/editor/camera/editor-camera.ts`;
-- `Workspace3DView.svelte` and `EditorCameraRig.svelte`;
-- editor camera view/framing helpers;
-- TransformControls and editor gizmo contracts/adapters;
-- editor view state and orientation/view-snap references.
-
-The result is negative. There is no orientation widget and no canonical
-axis/face snap API. Existing camera code provides neutral/bounds/node/room
-framing, orbit-pose capture/restore, director observer helpers, and preview
-preparation. It does not define `+X/-X/+Y/-Y/+Z/-Z` mapping or snap behavior.
-
-The closest related API is `captureEditorOrbitPose`, which preserves camera
-position, target, zoom, FOV, near/far, OrbitControls distance limits, enabled
-state, and damping; aspect is intentionally not restored. This is a preview
-preservation contract, not an orientation mapping.
-
-## Owner-approved canonical snap contract
-
-Unblocked by owner decision 2026-08-24. A face label means the side of the
-target where the eye sits:
+It changes no:
 
 ```text
-eye = target + faceDirection × distance
-look = target − eye
+Plan transform
+hit test
+selection
+document
+history
+camera state
 ```
 
-| Face | target → eye | eye → target / look | `camera.up` |
-|---|---|---|---|
-| `+X` | `(1, 0, 0)` | `(-1, 0, 0)` | `(0, 1, 0)` |
-| `-X` | `(-1, 0, 0)` | `(1, 0, 0)` | `(0, 1, 0)` |
-| `+Y` | `(0, 1, 0)` | `(0, -1, 0)` | `(0, 0, -1)` |
-| `-Y` | `(0, -1, 0)` | `(0, 1, 0)` | `(0, 0, 1)` |
-| `+Z` | `(0, 0, 1)` | `(0, 0, -1)` | `(0, 1, 0)` |
-| `-Z` | `(0, 0, -1)` | `(0, 0, 1)` | `(0, 1, 0)` |
+### Group A gate
 
-Only six cardinal faces are in scope. No edge, corner, or isometric snap is
-added. Global world-up remains `+Y`; the table `camera.up` only determines a
-deterministic roll at the snapped pose. For `+Y`, screen-up equals world `-Z`,
-which agrees with the Plan convention (`screen Y ← world Z`); the top view and
-Plan north stay consistent.
+Group A completes before Scene 3D orientation interaction begins.
 
-### Preserved vs replaced
+---
 
-Normal snap resolves `target` as the valid active OrbitControls target and
-`distance` as the valid current eye-target distance. It does not reframe
-against Scene/layout bounds.
+# Group B — Scene 3D Orientation Utility
 
-**Preserved:** Perspective projection, FOV, zoom, near/far, OrbitControls
-min/max distance and enabled/damping configuration, selection, active tool,
-shell state, document state, and history.
+## Readiness
 
-**Replaced:** camera position, camera quaternion/orientation, camera roll, and
-previous viewing direction. Aspect remains viewport-derived and is never
-restored from a stale value.
+```text
+P3B.1  Cardinal snap authority / basis resolution     SHIPPED (refactor target below)
+P3B.2  SVG projection / geometry / rendering          IN PROGRESS (render rework)
+P3B.3  interaction states / hit isolation             READY
+P3B.4  animated motion + polar OrbitControls handoff  READY (handoff fixture-pinned)
+```
 
-### Validity predicates
+P3B.1–P3B.4 may proceed.
 
-- `target` is valid iff all components are finite.
-- `distance` is valid iff `length(camera.position − target)` is finite and
-  `> 1e-4`.
-- If controls `minDistance`/`maxDistance` are finite, the snapped distance is
-  clamped into `[minDistance, maxDistance]` before commit; if the clamped
-  distance is `≤ 1e-4`, the input is treated as invalid.
-- Any invalid value routes to the fallback order below. No NaN or partial
-  camera mutation may be committed.
+P3B.4's polar handoff was proven by the focused fixture
+`tests/lib/editor/camera/polar-orbit-handoff.test.ts` (real OrbitControls,
+headless): commit → per-frame `update()` → quaternion stable within 1e-4 rad;
+drags orbit the global +Y pole with the Plan-North roll preserved. See the
+resolved blocker note in P3B.4.
 
-### Post-snap `camera.up` decision
+---
 
-After the pose is committed, call `controls.update()` first, then restore
-`camera.up` to `(0, 1, 0)` — restoring before the update would make the
-update's internal `lookAt` re-derive the roll through the epsilon guard while
-the view is polar. The table `camera.up` applies only within the commit
-`lookAt`; subsequent orbit drags must keep the standard `+Y` orbit pole for
-every face. Polar-roll caveat: at the exact pole, `controls.update()`
-re-runs its `lookAt` with the restored `up = (0, 1, 0)` parallel to the view
-direction, so three.js's epsilon guard re-derives the roll and it may differ
-from the table's committed roll after the first update/interaction. P3B.4
-fixtures must pin the post-update quaternion (or the helper nudges polar views
-by ε before commit) so the committed roll and the post-orbit roll agree.
-P3B.4 fixtures must pin: (a) the snapped quaternion is correct at commit, and
-(b) the next orbit drag after any face uses pole `+Y`.
+## P3B.1 — Cardinal snap authority
 
-### Fallback order (atomic)
+### Cardinal face mapping
 
-1. valid active target/distance → snap normally;
-2. otherwise existing neutral/bounds framing result;
-3. otherwise existing editor boot/default orbit pose;
-4. no valid fallback → safe no-op; widget stays usable; no mutation/history.
+Face identity means:
 
-No new bounds calculation or magic framing distance is introduced. P3B must
-reuse and cite the existing neutral/bounds/default framing authority; if that
-API cannot be cited during implementation, stop before committing the helper
-and report the exact gap.
+> the side of the orbit target where the camera eye resides.
 
-### State ownership
+```text
+eye = target + normal × distance
+```
 
-Snap is session-local viewport presentation. It does not persist an
-`orientationFace` and does not invoke `camera-route.ts`, `camera-motion.ts`,
-the preview FSM, TransformControls, or selection actions. The widget derives
-any highlight from the actual camera pose and owns no second orientation state.
+| World normal | Face   | Cardinal `camera.up` |
+| ------------ | ------ | -------------------- |
+| `+X`         | RIGHT  | `(0, 1, 0)`          |
+| `-X`         | LEFT   | `(0, 1, 0)`          |
+| `+Y`         | TOP    | `(0, 0, -1)`         |
+| `-Y`         | BOTTOM | `(0, 0, 1)`          |
+| `+Z`         | FRONT  | `(0, 1, 0)`          |
+| `-Z`         | BACK   | `(0, 1, 0)`          |
 
-### Helper boundary
+For the polar faces:
 
-The implementation introduces one narrow helper near editor camera/view
-helpers, semantically equivalent to:
+```text
+TOP:
+screen up = world -Z
+
+BOTTOM:
+screen up = world +Z
+```
+
+This makes TOP orientation coherent with Plan North.
+
+### Two-phase execution
+
+Cardinal snapping uses two explicit phases.
+
+```text
+1. resolve basis
+2. commit / animate pose
+```
+
+Current behavior is shipped. The P3B refactor may reorganize helper
+boundaries only; cardinal mapping, fallback order, preservation semantics,
+and observable behavior are frozen.
+
+Shipped narrow editor-view authority (the shipped type name is
+`CardinalView`; the `CardinalSnapBasis` interface and the split signatures
+below are the proposed refactor target):
 
 ```ts
-snapEditorViewToCardinal(face, camera, controls, fallback)
+type CardinalFace =
+  | '+X'
+  | '-X'
+  | '+Y'
+  | '-Y'
+  | '+Z'
+  | '-Z';
+
+interface CardinalSnapBasis {
+  target: Vector3;
+  distance: number;
+}
 ```
 
-The helper resolves and validates target/distance before committing the
-complete pose, so failed snaps cannot leave the camera half-mutated. Snapping
-is instant, matching the existing `recenterEditorDirectorObserver` teleport
-precedent; it has no duration or interruption path and does not call
-`camera-motion.ts`. The motion-path row must remain explicit in implementation
-tables/tests under the one-nav/one-motion rule.
+Resolution (proposed refactor — the shipped helper resolves privately via
+`resolveCardinalEyeTarget`):
 
-## Orientation visual/interaction contract
+```ts
+resolveEditorCardinalSnapBasis(
+  camera,
+  controls,
+  fallbackResolver
+)
+```
 
-- Restore the documented `--editor-orientation-*` token family in the editor
-  token file before styling. Tokens are inert spec-pinned values: they may
-  land with P3B.1, but they do not authorize pose behavior. Do not inline
-  widget colors, dimensions, or insets.
-- Mount only in **Scene 3D**; absent from Scene Plan Layout/Arrange, Camera
-  Plan, Camera 3D, and relic routes.
-- The widget follows the active viewport camera. Its orientation is derived
-  presentation only; it owns no independent orientation, camera pose, document
-  state, or history state.
-- Use the custom SVG/DOM orientation graphic specified by the design docs, not
-  a Lucide icon, and keep it separate from TransformControls, object outlines,
-  Inspector chrome, and viewport edge controls.
-- Axis colors remain X red, Y green, Z blue, taken explicitly from
-  `--editor-gizmo-x`, `--editor-gizmo-y`, and `--editor-gizmo-z`; no
-  orientation hex literals are allowed.
-- Pointer gestures beginning inside the widget remain widget-owned through
-  completion/cancel. Movement beyond the consolidated shared click-vs-drag
-  threshold cancels snap activation and must not fall through to OrbitControls.
-  Escape cancels transient interaction.
-- The widget uses the canonical shared click-vs-drag threshold. Consolidate
-  the existing private 4 px threshold copies (EditorSelection, layout
-  interaction, Camera Plan) before wiring pointer behavior; do not add another
-  independent threshold.
-- Click/Enter/Space activation changes only the camera view; it must not select
-  objects, alter TransformControls, mutate `SceneDocument`, or create history.
-- The widget is disabled while an active preview owns the camera; preview
-  controls remain the sole authority until preview ends.
-- P3B.1–P3B.4 must preserve existing Scene selection and one-gesture history
-  behavior.
+Commit (shipped — today's signature takes the fallback resolver and resolves
+internally; the resolved-basis parameters below are the refactor target):
 
-## Layout-box visual contract
+```ts
+snapEditorViewToCardinal(
+  face,
+  camera,
+  controls,
+  resolvedTarget,
+  resolvedDistance
+)
+```
 
-The `scene-3d-layout-selection.png` sketch is authoritative for passive layout
-context and is owned by Group B's presentation work (P3B.2/P3B.4):
-
-- Passive layout boxes use a quiet white/light neutral treatment.
-- Blue is reserved for selected/active state.
-- Do not use amber or dark-neutral emphasis for passive layout geometry.
-- Hover must remain distinct from selected state and must not activate a
-  transform gizmo.
-
-# Slice group C — Camera preview affordance reconciliation (P3B.5–P3B.6)
-
-## Current code findings
-
-The current code already has the underlying preview paths:
-
-- AppBar: `Preview Sequence` while Camera is active;
-- node Inspector/context actions: `Preview Camera`;
-- connection Inspector/context actions: `Preview Edge`;
-- timeline transport controls for the active preview;
-- existing preview FSM and route/motion implementation;
-- shared Camera timeline persistence across Plan ↔ 3D.
-
-The remaining work is affordance and labeling reconciliation, not a second
-preview system.
-
-## Required interaction grammar
+Do not put cardinal-view semantics in:
 
 ```text
-Click = select
-Preview action = change preview scope
-Play/Pause = control current preview
+SceneDocument
+LayoutDocument
+preview FSM
+TransformControls
+camera graph
+camera-route.ts
 ```
 
-- Sequenced and unsequenced nodes both use `Preview Camera` for a static hold.
-  Sequence membership never turns node selection into sequence playback.
-- `Preview Sequence` belongs to the Sequence section/header/timeline, not node
-  selection.
-- A normal connection row/body/curve click selects an undirected connection.
-  It does not imply direction.
-- Sequence-adjacent connections expose one directly executable, clearly
-  labeled Preview Edge action using sequence predecessor → immediate successor.
-  Connections without sequence adjacency expose one Preview Edge affordance
-  that opens a compact explicit choice between the two named traversal
-  directions before entering edge preview. Existing Reverse remains transport
-  behavior after edge preview starts.
-- The canonical edge derivation reads `mainFlowNodeIds` adjacency, never
-  endpoint storage order, timing-key order, selected endpoint, pointer
-  location, or name sorting.
-- Selection never cancels or replaces active preview. Explicit Preview
-  commands do that and retain existing playhead/run-id behavior.
+### Basis resolution
 
-## Preview labels, controls, and accessibility
-
-Every preview action must name its target and, where applicable, direction:
+Resolve in this order:
 
 ```text
-Preview Camera C
-Preview Edge Camera C → Camera E
-Preview Sequence Main Visitor Tour
+1. Valid current OrbitControls target + eye-target distance
+2. Existing editor bounds-framing authority
+3. Existing editor neutral/boot camera basis
+4. Safe atomic no-op
 ```
 
-The shared timeline/header must expose one of:
+Normal orientation snapping must not reframe the entire museum.
+
+Bounds/neutral framing is fallback only.
+
+P3B must reuse existing framing authorities rather than introduce another bounds calculation.
+
+### Preserve
+
+Cardinal snapping preserves:
 
 ```text
-Preview: Camera · <node>
-Preview: Edge · <from> → <to>
-Preview: Sequence · <tour>
+Orbit target, when valid
+eye-target distance, within existing controls limits
+
+Perspective FOV
+zoom
+near
+far
+
+OrbitControls enabled state
+damping
+distance limits
+other control configuration
+
+Scene selection
+Camera selection memory
+Scene Plan Layout | Arrange session memory
+Scene 3D active tool / TransformControls mode
+
+preview FSM
+Camera timeline scope
+Camera timeline playhead
+
+SceneDocument
+LayoutDocument
+history
 ```
 
-These labels remain independent from selection labels. `Selected: Connection
-C—E` must not rewrite a still-playing `Preview: Sequence · Main Visitor Tour`
-label.
+### Replace
 
-Use Play/CirclePlay for preview actions. Eye remains reserved for
-visibility/view semantics. Controls must be keyboard accessible, have full
-spoken labels, and must not let a global Space binding steal activation from
-focused controls.
+Cardinal snapping replaces only:
 
-## Surface-specific reconciliation
+```text
+camera position
+camera orientation/quaternion
+camera view direction
+camera up/roll
+```
 
-- Camera Plan node preview works identically for sequenced and unsequenced
-  nodes.
-- Camera Plan connection preview exposes one labeled action: it executes the
-  canonical sequence direction for adjacent Sequence edges, or opens a compact
-  two-choice direction menu for non-adjacent/unsequenced edges. Topology
-  remains undirected.
-- Camera 3D reuses camera graph commands but does not gain Plan-only spatial
-  actions or an unapproved second edge-preview entry control. The same
-  one-action/canonical-or-chooser rule applies wherever edge preview is
-  exposed.
-- Timeline node, connection, and keyframe actions use backing identities, not
-  cosmetic lane labels.
-- Camera anchors, empty space, and cosmetic Shots/Roll lanes do not receive
-  their own menus.
-- Existing Preview Camera, Preview Edge, and Preview Sequence commands remain
-  the only preview entry points; the non-adjacent edge chooser is an internal
-  choice within Preview Edge, not a second preview system.
+### Failure
 
-# Slice group D — Deferred P3.4/P3.5 acceptance tail (P3B.7b)
+If no valid basis can be resolved:
 
-P3.4 and P3.5 remain implemented but undone and low priority. They are
-revisited after core P3B and do not block core shipment unless touched code
-regresses them.
+```text
+return null / committed: false
+```
 
-Coverage required before marking them shipped:
+No partial camera mutation.
 
-- Scene 3D Duplicate, Focus, Hide/Show, Delete;
-- Scene Plan Layout and Arrange owner-aware actions;
-- Outliner identity/kebab equivalents;
-- Camera Plan/3D node and connection adapters;
-- timeline node, connection, and keyframe backing identities;
-- selection-before-menu and multi-selection preservation;
-- editable/native browser interception and empty-space behavior;
-- disabled reasons and one gesture → one undo entry;
-- relic-boundary and visitor-chunk isolation;
-- no accidental preview-scope or selection changes.
+No selection mutation.
 
-# Work increments and dependencies
+No history entry.
 
-| ID | Group | Content | Depends |
-|---|---|---|---|
-| P3B.4a | A | Plan-surface parity: tokens, grid LOD, X/Z rulers, segmented scale, metadata clearance. | P3 |
-| P3B.4b | A | Bottom-right colored `Z ↑` / `X →` corner key with origin knob. | P3B.4a |
-| P3B.1 | B | Implement approved six-face cardinal snap helper; cite fallback framing API; consolidate shared drag threshold; restore inert orientation tokens. | P3B.4b |
-| P3B.2 | B | Add isolated Scene 3D orientation hit targets using the helper; apply layout-box white/light treatment. | P3B.1 |
-| P3B.3 | B | Add orientation interaction states using the consolidated shared drag threshold; preview-disabled behavior; cancellation. | P3B.2 |
-| P3B.4 | B | Add fixtures: snapped pose, post-snap `+Y` orbit pole, selection continuity, no drag-orbit, no document/history mutation. | P3B.2–P3B.3 |
-| P3B.5 | C | Reconcile Camera Plan/3D preview actions, labels, timeline scope, accessibility, and selection separation. | P3B.4 |
-| P3B.6 | C | Derive sequence predecessor → successor and add the explicit chooser for unsequenced edges. | P3B.5 |
-| P3B.7a | Core QA | Regression, accessibility, and parity QA. | P3B.6 |
-| P3B.8 | Core browser QA | Browser QA across all four shell views. | P3B.7a |
-| P3B.7b | Deferred QA | P3.4/P3.5 acceptance matrix. | P3B.8 |
+---
 
-# Recommended implementation order — sequential groups
+# P3B.2 — Orientation Widget Projection and Rendering
 
-Complete these groups in order. Do not start a later group until the prior
-group is complete and accepted.
+## Rework baseline (in-tree state)
 
-### Group A — Plan-surface parity
+The first P3B.2 implementation is **rejected by browser QA**, not a clean
+slate. The rework keeps its architecture and replaces its render layer.
 
-1. **P3B.4a** — tokens, grid LOD, X/Z rulers, segmented scale chrome,
-   metadata clearance, focused pure-helper tests.
-2. **P3B.4b** — shared bottom-right `Z ↑` / `X →` corner key with origin knob.
+**Kept (do not rebuild):**
 
-### Group B — Scene 3D orientation and layout
+```text
+projector/overlay writer split
+  (EditorOrientationGizmoProjector inside the Canvas publishes per-frame;
+   editor-orientation-gizmo.svelte.ts shared state; DOM overlay renders)
+Scene-3D-only mount gating (!isCameraContext)
+snap wiring through snapEditorViewToCardinal with the neutral fallback
+preview gate (cameraPreview !== null)
+Enter/Space keyboard activation + spoken labels
+consolidated EDITOR_DRAG_THRESHOLD_PX usage
+```
 
-3. **P3B.1** — implement the approved six-face snap helper; cite the existing
-   fallback framing API; consolidate the shared drag threshold; restore inert
-   orientation tokens.
-4. **P3B.2** — isolated orientation hit targets; layout-box white/light
-   treatment.
-5. **P3B.3** — interaction states, cancellation, preview-disabled behavior.
-6. **P3B.4** — orientation fixtures and non-mutation assertions.
+**Discarded (rejected by QA / superseded by this plan):**
 
-If the fallback framing authority cannot be cited, stop Group B and report the
-exact API gap; do not invent fallback behavior. Group C does not begin until
-Group B is complete or the owner explicitly reorders/re-defers it.
+```text
+static isometric point tables (FRONT_FACES / GHOST_FACES)
+dashed ghost faces (plan culls back faces; §2.4 invisible hit layer replaces them)
+through-body double-ended axis lines
+dark navy face fills (light three-tone palette now canonical)
+instant-only snap (animated contract, see P3B.4)
+```
 
-### Group C — Camera preview affordances
+**Rework acceptance:** the four QA findings reversed — cube rotates with the
+camera, face names render with edge-on fade, axes hug edges per the canonical
+oblique rules, cube fills the tile budget — plus full conformance with
+`Designer-brieft-box.md` rev 6, projection unit tests, and the existing gizmo
+tests updated green.
 
-7. **P3B.5** — reconcile node/edge/sequence actions, target labels, timeline
-   scope labels, accessibility, and selection-versus-preview behavior.
-8. **P3B.6** — sequence predecessor → successor derivation and the explicit
-   two-choice chooser for non-adjacent/unsequenced edges.
+## Mount contract
 
-### Completion and deferred tail
+```text
+Scene → 3D       MOUNTED + INTERACTIVE
+Scene → Plan     ABSENT
+Camera → Plan    ABSENT
+Camera → 3D      ABSENT
+```
 
-9. **P3B.7a** — core regression and accessibility QA.
-10. **P3B.8** — browser QA across all four shell views.
-11. **P3B.7b** — deferred P3.4/P3.5 context-menu acceptance last.
+The widget is a Scene 3D viewport utility.
 
-The numbered list is the authoritative order; difficulty scores in the model
-assessment do not reorder the groups.
+It is not:
 
-# Definition of done
+```text
+TransformControls
+Local / World switch
+object-selection target
+Camera-domain node
+preview control
+free-orbit trackball
+```
 
-## Core P3B
+It owns no independent orientation state.
 
-- Group A, including P3B.4a and P3B.4b, passes visual and focused tests.
-- Group B ships only against the literal approved snap contract, including
-  instant snap, post-snap `+Y` orbit pole, preview-disabled behavior, and the
-  cited fallback framing authority.
-- All preview controls have explicit target labels and preserve the
-  click/select/preview/play grammar.
-- Selection and preview labels remain independent and truthful.
-- Camera Plan topology remains undirected; only explicit labeled preview uses
-  direction.
-- Plan surfaces have parity in token ownership, grid density, X/Z rulers,
-  segmented scale chrome, metadata clearance, and the shared bottom-right
-  `Z ↑` / `X →` corner key.
-- Scene 3D passive layout boxes match the sketch's white/light treatment.
-- Orientation interaction is Scene 3D-only, camera-derived, isolated, keyboard
-  accessible, non-orbiting on drag, and non-mutating.
-- No second graph, motion, timeline, selection, coordinate, or persistence
-  system; no relic leakage.
-- `npm test`, `npm run check`, `npm run build`, and `git diff --check` pass.
+Its visual orientation derives from the actual Scene 3D camera.
 
-## Deferred P3.4/P3.5 tail
+---
 
-P3.4/P3.5 remain undone until their broader acceptance matrix passes. Their
-completion is reported separately and does not gate core P3B unless touched
-code causes a regression.
+## Renderer
 
-# Independent review brief
+Use custom:
 
-This document is self-contained for a reviewer who has read the written design
-specifications, `Design-png/README.md`, North Star, and architecture docs.
+```text
+Svelte 5 + SVG
+```
 
-## Review question
+Do not use:
 
-Does P3B implement the current `Scene | Camera` × `Plan | 3D` product shell and
-bring the four current views into PNG/spec consistency without changing product
-authority or adding parallel state systems?
+```text
+Blender asset
+second Three.js scene
+second camera
+raycastable scene object
+```
 
-## What is already confirmed in code
+The cube geometry is mathematical UI geometry.
 
-- `EditorApp` owns one persistent shell with separate domain and view controls.
-- Scene Plan owns `Layout | Arrange`; Camera Plan does not expose that local mode.
-- Camera Plan and Camera 3D share Camera selection and timeline state.
-- Plan uses SVG and shared spatial transforms.
-- Camera Plan topology is undirected; graph order and Sequence traversal are
-  separate concepts.
-- P8 preview FSM, camera route/motion, and playhead preservation already exist.
-- P3.4/P3.5 adapters exist but remain intentionally undone pending broader tests.
-- No orientation widget or canonical axis/face snap API currently exists.
+World-to-widget rotation:
 
-## Findings the implementation must address
+```ts
+const viewRotation = camera.quaternion.clone().invert();
 
-1. Implement the approved six-face cardinal snap helper; never invent poses or
-   fallback framing.
-2. Reconcile duplicated Scene Plan/Camera Plan chrome and token drift while
-   preserving shared Plan math, including the bottom-right corner key.
-3. Apply white/light passive layout-box styling from
-   `scene-3d-layout-selection.png`.
-4. Reconcile preview controls and timeline labels so every action identifies
-   its target and direction where applicable; keep selection labels independent.
-5. Use one Preview Edge affordance: canonical sequence direction for adjacent
-   edges, explicit two-choice traversal menu for non-adjacent/unsequenced
-   edges; existing Reverse remains transport behavior.
-6. Derive sequence-adjacent direction from sequence predecessor → immediate
-   successor, never endpoint storage order.
-7. Keep the deferred P3.4/P3.5 context-menu acceptance tail separate and
-   non-blocking.
+const widgetVector = worldVector
+  .clone()
+  .applyQuaternion(viewRotation);
+```
 
-## Review gates
+Cube vertices and world-axis endpoints use the same orientation transform.
 
-- **B gate:** the snap helper matches the approved face table, preserves the
-  listed properties, restores `+Y` orbit pole after snap, uses the cited
-  fallback authority, and never mutates selection/document/history.
-- **A gate:** both Plan surfaces have equivalent visual chrome behavior at
-  equivalent zooms, readable X/Z rulers, the bottom-right `Z ↑` / `X →` corner
-  key, segmented scale bars, no metadata overlap, and no third selection color.
-- **C gate:** clicking selects only; explicit Preview changes scope; Play/Pause
-  controls the active scope; scope labels do not follow unrelated selection;
-  sequence-adjacent edge preview executes predecessor → successor, while
-  non-adjacent/unsequenced edge preview requires an explicit two-choice
-  traversal menu and then labels the chosen direction.
-- **Shell gate:** all four views retain specified toolbar/sidebar/Inspector/
-  timeline visibility and relic isolation.
-- **Deferred gate:** P3.4/P3.5 are marked shipped only after their separate
-  acceptance matrix passes.
+---
+
+## Tile
+
+```text
+88 × 88 px
+top: 16px
+right: 16px
+```
+
+Reference geometry:
+
+```text
+cube edge                  30px
+axis shaft width           1.5px
+axis extension             10px
+arrow base                 3.5px
+arrow length               4.5px
+axis label                 11px
+face label                 8.5px
+```
+
+SVG:
+
+```html
+<svg viewBox="0 0 88 88" style="overflow: visible;">
+```
+
+Back-facing polygons are culled.
+
+No dashed hidden-face wireframe.
+
+---
+
+## Canonical default oblique presentation
+
+At the canonical default Scene 3D oblique pose:
+
+```text
+Z hugs FRONT bottom edge
+X hugs RIGHT bottom edge
+Y hugs RIGHT outer vertical edge
+```
+
+Conceptual composition:
+
+```text
+                  Y
+                  ↑
+             _____│
+            / TOP/│
+           /_____/│
+          |FRONT|RIGHT
+      Z ◄─└─────┘─┴─► X
+```
+
+Exact rules:
+
+```text
++Z:
+blue
+collinear with projected FRONT bottom edge
+extends only slightly beyond cube
+
++X:
+red
+collinear with projected RIGHT bottom edge
+extends only slightly beyond cube
+
++Y:
+green
+collinear with projected RIGHT outer vertical edge
+extends upward only slightly beyond cube
+```
+
+Axes hug the cube.
+
+They must not become a detached radial starburst.
+
+### Dynamic orientation
+
+The edge-hugging arrangement above defines the canonical oblique appearance.
+
+During arbitrary camera orientation:
+
+* cube vertices rotate/project from actual camera orientation;
+* world-axis endpoints use the same transform;
+* axes remain truthful world-axis projections;
+* renderer must not artificially force them back to the default bottom/right silhouette.
+
+---
+
+## Face identity
+
+```text
++X RIGHT
+-X LEFT
++Y TOP
+-Y BOTTOM
++Z FRONT
+-Z BACK
+```
+
+Only front-facing faces render.
+
+---
+
+## Visual language
+
+Cube:
+
+* light neutral drafting gray;
+* dark crisp edges;
+* dark compact face labels;
+* restrained flat shading;
+* no ghost faces;
+* no neon;
+* no glass;
+* no realistic lighting.
+
+Axis colors:
+
+```css
+X: #F05252
+Y: #45C878
+Z: #3B82F6
+```
+
+Light-face references:
+
+```css
+--editor-orientation-face-lit:    #EAEEF2;
+--editor-orientation-face-mid:    #D8DCE0;
+--editor-orientation-face-shadow: #C2C7CC;
+```
+
+Edge:
+
+```css
+--editor-orientation-edge-solid: #1E2C3A;
+```
+
+Dynamic face luminance interpolates only between registered light-face tokens.
+
+---
+
+## Face-label edge-on behavior
+
+Render face only when:
+
+```text
+N · V > 0
+```
+
+Label fades near edge-on:
+
+```text
+N·V < sin(18°)
+→ label opacity 0
+
+sin(18°) ≤ N·V ≤ sin(28°)
+→ linear fade 0 → 1
+
+N·V > sin(28°)
+→ opacity 1
+```
+
+---
+
+## Axis foreshortening
+
+Compression is bidirectional.
+
+```ts
+Math.abs(axis.dot(viewDirection)) > Math.cos(12°)
+```
+
+When nearly parallel to camera view:
+
+```text
+shaft → zero projected length
+arrow → 6px circular reticle
+axis glyph → centered over reticle
+hit target → minimum 14 × 14px
+```
+
+---
+
+# P3B.3 — Orientation Interaction States
+
+Supported targets:
+
+```text
+six cube faces
+visible X/Y/Z axis targets
+```
+
+No widget drag-orbit behavior.
+
+Pointer interaction remains isolated from:
+
+```text
+Scene object hit testing
+TransformControls
+OrbitControls canvas drag
+selection
+```
+
+## States
+
+### Default
+
+* light neutral faces;
+* dark edge;
+* axis colors preserved.
+
+### Hover
+
+```text
+face overlay:
+rgba(255,255,255,0.14)
+```
+
+Pointer cursor on valid target.
+
+### Pressed
+
+```text
+face overlay:
+rgba(0,0,0,0.20)
+```
+
+Optional label nudge:
+
+```text
++0.5px projected Y
+```
+
+### Active cardinal view
+
+When current camera aligns to a cardinal face:
+
+```text
+inner stroke:
+#2F8CFF
+1.5px
+```
+
+This is derived from current camera pose.
+
+It is not persisted widget state.
+
+### Focus visible
+
+Keyboard target:
+
+```text
+2px #55A1FF outer stroke
+```
+
+### Disabled
+
+When another camera-preview authority owns the camera:
+
+```css
+opacity: 0.38;
+filter: grayscale(80%);
+pointer-events: none;
+```
+
+The whole widget recedes.
+
+---
+
+## Pointer threshold
+
+Tile click/drag distinction:
+
+```text
+≤ 4px movement
+→ eligible click
+
+> 4px movement
+→ cancel snap activation
+```
+
+A cancelled tile gesture must not fall through into viewport orbit.
+
+---
+
+# P3B.4 — Cardinal Snap Motion
+
+## Status
+
+**UNBLOCKED 2026-08-24 — polar handoff fixture-pinned.**
+
+The former blocker (exact polar-to-manual-orbit handoff) is resolved:
+
+* Inspected integration: Threlte `<OrbitControls>` in `EditorCameraRig.svelte`
+  owns per-frame `controls.update()` while `enableDamping` is on (defaults
+  `true`); the orbit frame derives from the live `camera.up` on every update;
+  the editor's only `camera.up` writes are the snap helper's.
+* Canonical handoff: commit with the table `camera.up` inside the `lookAt`,
+  `controls.update()`, then restore `camera.up` to `(0, 1, 0)` — the per-frame
+  re-derivation passes through the `lookAt` epsilon guard, which reproduces the
+  committed Plan-North roll at both polar faces (screen-up ≈ world ∓Z).
+* Proof: `tests/lib/editor/camera/polar-orbit-handoff.test.ts` — quaternion
+  stable within 1e-4 rad across the per-frame re-derivation; drags hold a
+  y-invariant XZ-plane orbit (global +Y pole) with north-up preserved.
+
+The following motion behavior is otherwise approved.
+
+---
+
+## Motion sampler
+
+Proposed pure helper in the existing camera-motion authority:
+
+```ts
+createEditorCardinalSnapMotion(...)
+```
+
+Reference signature:
+
+```ts
+export function createEditorCardinalSnapMotion(
+  startEye: Vector3,
+  startTarget: Vector3,
+  startUp: Vector3,
+  targetNormal: Vector3,
+  targetDistance: number,
+  targetUp: Vector3,
+  durationMs = 320,
+  easing: CameraEasing = 'ease-out'
+): CardinalSnapMotion;
+```
+
+Duration:
+
+```text
+320ms
+```
+
+Reduced motion:
+
+```text
+prefers-reduced-motion: reduce
+→ 0ms direct cardinal commit
+```
+
+Easing:
+
+```text
+ease-out
+```
+
+Trajectory:
+
+```text
+eye direction:
+great-circle slerp
+
+distance:
+lerp(start distance, resolved distance)
+
+up:
+slerp(start up, target cardinal up)
+```
+
+Terminal frame must exactly equal the instant cardinal commit primitive.
+
+---
+
+## Retarget
+
+During active snap:
+
+```text
+click another cardinal target
+→ capture current sampled eye/target/up
+→ use as new start
+→ restart 320ms ease-out
+```
+
+No discontinuous jump.
+
+---
+
+## Manual orbit interruption
+
+Starting a legitimate viewport orbit gesture:
+
+```text
+→ abort cardinal motion sampler immediately
+→ no terminal snap
+→ OrbitControls receives manual authority
+→ no residual cardinal-motion velocity
+```
+
+---
+
+## Former P3B.4 blocker — resolved record
+
+The handoff question below was resolved by the fixture above; the inspection
+record is kept for history.
+
+Former blocker investigation inspected:
+
+```text
+OrbitControls creation        → Threlte <OrbitControls> in EditorCameraRig.svelte
+camera supplied to controls   → the Scene 3D editor PerspectiveCamera
+controls.target ownership     → controls.target is the live orbit target
+controls.update() ownership   → Threlte per-frame task while damping/autoRotate
+                                is on, plus manual updates in the rig's framing task
+enableDamping                 → state-bound in the rig, defaults true
+start handler                 → none registered editor-side (available for cancel wiring)
+change handler                → none registered editor-side
+end handler                   → none registered editor-side
+all camera.up writes          → only the snap helper (commit + restore in editor-camera.ts)
+any pose-normalization logic  → none outside the snap helper
+```
+
+Resolution:
+
+```text
+TOP/BOTTOM cardinal poses commit with:
+
++Y TOP     up = (0,0,-1)
+-Y BOTTOM  up = (0,0,1)
+
+while manual orbit retains the editor's canonical global +Y orbit behavior.
+```
+
+The fixture established that manual orbit begins from the cardinal pose
+**without visible roll pop or camera jump**: the commit restores
+`camera.up` to `(0, 1, 0)` after `controls.update()`, and the per-frame
+re-derivation through the `lookAt` epsilon guard reproduces the committed
+Plan-North roll at both polar faces. No epsilon offsets and no silent
+`camera.up` resets were needed — the restore is the specified,
+fixture-pinned handoff.
+
+---
+
+# Group C — Camera Preview Affordance Reconciliation
+
+## P3B.5 → P3B.6
+
+Canonical interaction grammar:
+
+```text
+Click
+→ select
+
+Preview action
+→ change preview scope
+
+Play / Pause
+→ control current preview
+```
+
+Normal selection never:
+
+```text
+starts playback
+changes preview scope
+resets playhead
+replaces active preview
+```
+
+Selection and preview remain independent.
+
+---
+
+## Node preview
+
+Sequenced and unsequenced nodes use identical action:
+
+```text
+Preview Camera
+```
+
+Example scope label:
+
+```text
+Preview: Camera · Central Hall
+```
+
+A camera pose does not require Sequence membership to preview.
+
+---
+
+## Sequence preview
+
+Sequence preview belongs to:
+
+```text
+Sequence Inspector
+and/or
+Camera Timeline
+```
+
+not individual topology edges.
+
+Example:
+
+```text
+Preview: Sequence · Main Visitor Tour
+```
+
+Full-sequence playback follows explicit Sequence order and existing graph adjacency.
+
+---
+
+## Edge preview
+
+Topology remains undirected.
+
+### Sequence-adjacent connection
+
+Expose one direct labeled preview action.
+
+Direction derives only from:
+
+```text
+sequence predecessor
+→ immediate sequence successor
+```
+
+Never derive direction from:
+
+```text
+endpoint storage order
+timing key order
+selection
+pointer side
+name sorting
+```
+
+### Non-sequence-adjacent / unsequenced connection
+
+Expose:
+
+```text
+Preview Edge
+```
+
+Then compact explicit direction choice:
+
+```text
+Camera A → Camera B
+Camera B → Camera A
+```
+
+This is direction selection for one undirected topology edge.
+
+It is not a second topology model.
+
+Existing `Reverse` may remain transport behavior after edge preview begins.
+
+Example active label:
+
+```text
+Preview: Edge · Camera A → Camera B
+```
+
+---
+
+## Camera Plan / Camera 3D parity
+
+Camera Plan and Camera 3D reuse same Camera preview commands.
+
+Camera 3D does not receive a second preview engine.
+
+Camera Plan does not receive framing controls merely because preview can enter 3D.
+
+Previewing from Camera Plan may switch representation to Camera 3D while preserving canonical Camera selection.
+
+---
+
+# Core QA
+
+## P3B.7a — Focused regression
+
+Verify:
+
+### Plan
+
+* Scene Plan and Camera Plan parity;
+* X/Z ruler semantics;
+* no Plan transform regression;
+* corner key remains presentation-only.
+
+### Orientation widget
+
+* Scene 3D only;
+* correct six cardinal face identities;
+* canonical oblique X/Z/Y geometry;
+* dynamic camera-derived projection;
+* back-face culling;
+* edge-on label fade;
+* bidirectional axis reticles;
+* hover/press/focus states;
+* no selection mutation;
+* no history;
+* no document write;
+* reduced-motion direct snap;
+* invalid basis atomic no-op.
+
+### Camera preview
+
+* click selects only;
+* Preview Camera changes node-preview scope;
+* Preview Sequence changes sequence-preview scope;
+* sequence edge direction derives from Sequence adjacency;
+* unsequenced edge requires explicit direction choice;
+* topology remains visually undirected;
+* Reverse remains transport behavior only.
+
+---
+
+## P3B.7b — Deferred P3.4/P3.5 acceptance tail
+
+Existing context-menu adapters remain low-priority/deferred.
+
+After core P3B:
+
+* retest;
+* accept if stable;
+* fix only if touched code regressed them;
+* report independently from core P3B.
+
+They do not block core shipment.
+
+---
+
+## P3B.8 — Browser QA
+
+Verify all four canonical views:
+
+```text
+Scene Plan
+Scene 3D
+Camera Plan
+Camera 3D
+```
+
+Check:
+
+* shell continuity;
+* Scene/Camera isolation;
+* timeline continuity;
+* selection preservation;
+* hover/focus behavior;
+* high-DPI SVG rendering;
+* orientation widget clipping;
+* reduced motion;
+* keyboard activation;
+* pointer isolation;
+* Camera preview transport;
+* no relic-route regression.
+
+---
+
+# Sequential Execution Order
+
+```text
+1. Group A
+   P3B.4a
+   P3B.4b
+
+2. Group B
+   P3B.1
+   P3B.2
+   P3B.3
+   P3B.4
+
+3. Group C
+   P3B.5
+   P3B.6
+
+4. Core QA
+   P3B.7a
+   P3B.8
+
+5. Deferred tail
+   P3B.7b
+```
+
+The OrbitControls polar handoff was resolved by fixture on 2026-08-24 (see
+P3B.4 Status); Group B proceeds without a stop gate.
+
+---
+
+# Definition of Done
+
+## Group A
+
+* Scene Plan and Camera Plan visual parity complete.
+* Shared Plan corner key accepted.
+* No spatial math or authority change.
+
+## Group B
+
+* SVG orientation widget mounted only in Scene 3D.
+* Light neutral cube matches approved visual direction.
+* X/Z/Y axes hug cube in canonical oblique pose.
+* Widget follows actual camera orientation.
+* Six cardinal targets map exactly to approved face table.
+* Basis resolution reuses existing framing authority.
+* Selection/document/history remain untouched.
+* Reduced-motion path commits instantly.
+* Polar OrbitControls behavior proven and pinned before P3B.4 closes.
+
+## Group C
+
+* Selection and preview scope remain independent.
+* Node preview semantics identical for sequenced and unsequenced cameras.
+* Sequence preview belongs to Sequence/timeline surface.
+* Edge-preview direction explicit and deterministic.
+* Camera topology remains undirected.
+
+## Core
+
+* Focused tests pass.
+* Browser QA passes.
+* No second graph, motion, timeline, selection, coordinate, framing, or persistence system introduced.
+
+## Deferred tail
+
+* P3.4/P3.5 context-menu acceptance reported separately.
+* Deferred status does not block core P3B shipment.

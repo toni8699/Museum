@@ -33,21 +33,49 @@ slice plus one next action only.
   authority exists in the searched camera, viewport, view-state, and gizmo
   sources. The owner has approved the literal six-face snap contract,
   preservation rules, fallback order, post-snap `+Y` orbit pole, and narrow
-  helper boundary in the P3B plan. Group A (P3B.4a → P3B.4b) Plan parity is
+  helper boundary in the P3B plan — **amended 2026-08-24: the snap animates
+  through `camera-motion.ts` and lands on the exact approved commit.** Group A
+  (P3B.4a → P3B.4b) Plan parity is
   implemented; the bottom-right colored `Z ↑` / `X →` corner key is included.
   Group B is unblocked. P3B.1 is implemented in-tree: the six-face
   `snapEditorViewToCardinal` helper (fallback resolver cited against
   `createEditorBoundsCameraFrame` and `EDITOR_NEUTRAL_CAMERA_POSITION` /
   `EDITOR_NEUTRAL_CAMERA_TARGET`), the shared `EDITOR_DRAG_THRESHOLD_PX`,
-  and the inert orientation token family, with focused tests green. Next
-  execute P3B.2 (isolated Scene 3D orientation hit targets and layout-box
-  white/light treatment), then P3B.3–P3B.4, followed by Group C
+  and the inert orientation token family, with focused tests green. P3B.2 is
+  implemented in-tree: the Scene-3D-only orientation box (custom isometric
+  SVG cube with six face + six axis-arrowhead hit targets wired to
+  `snapEditorViewToCardinal`, projector/overlay writer split, derived
+  camera-pose highlight, Enter/Space activation, preview gate) mounted only
+  in the Scene 3D context, plus the layout-box white/light treatment
+  (light-neutral `--editor-layout-box` tokens, palette mirror, layout-object
+  albedo). Browser QA against `scene-3d-assets.png` / `x-y-z-box.png` found
+  open P3B.2 render gaps: the cube is static (contract requires
+  camera-projected rotation), face names (TOP/FRONT/RIGHT…) are missing, axis
+  arrows run through the body instead of outward from corners, and the cube
+  under-fills the tile. Snap itself works; it is instant pending the amended
+  animated motion. Designer brief for the projected render + motion:
+  `../Design-specs/Orientation-box-render-brief.md`. The designer's spec
+  (`../Design-specs/Designer-brieft-box.md`, rev 6) is reconciled with the
+  codebase and owner dispositions: mount contract + preserved-state split
+  restated locally, back-face invisible hit targets specified (all six faces
+  snappable), face-hover retuned to a dark-navy overlay for light faces, and
+  §5.2 marked a P3B.4 gate — polar `camera.up` cannot rest at the snapped pose
+  (Threlte runs `controls.update()` every frame while damping is on); the
+  restore-`+Y` handoff is now **fixture-proven**
+  (`tests/lib/editor/camera/polar-orbit-handoff.test.ts`: no roll pop at ±Y,
+  global `+Y` orbit pole, Plan-North roll preserved) — **P3B.4 is unblocked.**
+  Widget tokens
+  (radius, light-face trio, face overlays, edge stroke, face-label size)
+  registered in `tokens.css` and `Design-specs.md` §8; `edge-ghost` retired
+  with the ghost faces. Next execute the P3B.2
+  render rework per that brief, then P3B.3 (interaction states, cancellation,
+  preview-disabled behavior), then P3B.4, followed by Group C
   (P3B.5–P3B.6) preview affordances, then P3B.7a core QA, P3B.8 browser QA,
   and finally P3B.7b deferred P3.4/P3.5 acceptance.
 
 ## Verification
 
-- Last known verification: `npm test` 2,075 passed / 1 skipped across 153
+- Last known verification: `npm test` 2,097 passed / 1 skipped across 154
   files; `npm run check` 0 errors / 0 warnings; `npm run build` clean with
   existing third-party unused-import and chunk-size warnings; `git diff --check`
   clean.

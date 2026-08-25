@@ -64,8 +64,10 @@
 	--editor-selection-fill: rgb(47 140 255 / 10%);
 	--editor-selection-handle: #edf3f8;
 	--editor-outline-muted: #92908a;
-	--editor-layout-box: #92908a;
-	--editor-layout-box-hover: #77766f;
+	/* P3B.2 — passive layout geometry follows the scene-3d-layout-selection.png
+	   white/light treatment: quiet light neutral, blue reserved for selection. */
+	--editor-layout-box: #e7e4dd;
+	--editor-layout-box-hover: #d8d5cc;
 
 	/* ── DS §8 — Scene 3D orientation box (P3B.1 restored; inert until the widget lands) ── */
 	--editor-orientation-surface: #0d1925;
@@ -77,6 +79,15 @@
 	--editor-orientation-inset-right: 16px;
 	--editor-orientation-padding: 8px;
 	--editor-orientation-label-size: 11px;
+	/* P3B.2 render rework (Designer-brieft-box.md rev 6). */
+	--editor-orientation-radius: 6px;
+	--editor-orientation-face-lit: #eaeef2;
+	--editor-orientation-face-mid: #d8dce0;
+	--editor-orientation-face-shadow: #c2c7cc;
+	--editor-orientation-face-hover: rgba(13, 25, 37, 0.1);
+	--editor-orientation-face-pressed: rgba(0, 0, 0, 0.2);
+	--editor-orientation-edge-solid: #1e2c3a;
+	--editor-orientation-face-label-size: 8.5px;
 
 	/* ── DS §9 — plan surfaces (bright drafting paper on dark shell) ── */
 	--editor-plan-bg: #f5f3ee;

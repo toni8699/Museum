@@ -357,8 +357,8 @@
 					color={objectSelected
 						? SCENE_PALETTE_HEX.selected
 						: object.readonly
-							? '#756f82'
-							: '#84907b'}
+							? SCENE_PALETTE_HEX.layoutBoxHover
+							: SCENE_PALETTE_HEX.layoutBox}
 					roughness={0.78}
 					metalness={0}
 				/>

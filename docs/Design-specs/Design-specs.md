@@ -496,6 +496,12 @@ colors in SVG, DOM, or Three.js materials:
 --editor-orientation-hover:       #142230;
 --editor-orientation-border:      #32485A;
 --editor-orientation-label:       #EDF3F8;
+--editor-orientation-face-lit:    #EAEEF2;
+--editor-orientation-face-mid:    #D8DCE0;
+--editor-orientation-face-shadow: #C2C7CC;
+--editor-orientation-face-hover:  rgba(13, 25, 37, 0.10);
+--editor-orientation-face-pressed: rgba(0, 0, 0, 0.20);
+--editor-orientation-edge-solid:  #1E2C3A;
 ```
 
 `--editor-selection-outline` is the primary Scene 3D object outline and
@@ -514,6 +520,8 @@ The custom orientation graphic is a compact viewport utility, not a panel:
 --editor-orientation-inset-right: 16px;
 --editor-orientation-padding:      8px;
 --editor-orientation-label-size:  11px;
+--editor-orientation-radius:       6px;
+--editor-orientation-face-label-size: 8.5px;
 ```
 
 These are reference values for matching the canonical Scene 3D sketches in
@@ -1680,9 +1688,17 @@ Example:
   --editor-orientation-hover:       #142230;
   --editor-orientation-border:      #32485A;
   --editor-orientation-label:       #EDF3F8;
+  --editor-orientation-face-lit:    #EAEEF2;
+  --editor-orientation-face-mid:    #D8DCE0;
+  --editor-orientation-face-shadow: #C2C7CC;
+  --editor-orientation-face-hover:  rgba(13, 25, 37, 0.10);
+  --editor-orientation-face-pressed: rgba(0, 0, 0, 0.20);
+  --editor-orientation-edge-solid:  #1E2C3A;
   --editor-orientation-size:        88px;
   --editor-orientation-inset-top:   16px;
   --editor-orientation-inset-right: 16px;
+  --editor-orientation-radius:       6px;
+  --editor-orientation-face-label-size: 8.5px;
 
   --editor-success:         #31C985;
   --editor-warning:         #D9A441;

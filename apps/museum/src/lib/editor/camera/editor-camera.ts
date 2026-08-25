@@ -259,6 +259,57 @@ export type EditorCardinalFallback = {
 export type EditorCardinalFallbackResolver = () => EditorCardinalFallback | null;
 
 /**
+ * Builds the P3B.1 composed fallback resolver: step 2 frames the given layout
+ * bounds, step 3 falls back to the neutral editor pose.
+ *
+ * The live orbit vectors are used only as the framing *direction*, and only
+ * when they form a valid basis — this resolver runs precisely when that pose
+ * is invalid (non-finite/degenerate), so otherwise the neutral gaze direction
+ * stands in (`createEditorBoundsCameraFrame`'s degenerate guard cannot recover
+ * a non-finite input: `NaN < eps` is false). Frame outputs are validated before
+ * return so a poisoned frame can never block the neutral fallback.
+ */
+export function createEditorBoundsNeutralFallback(
+	layoutBounds: LayoutBounds3 | null,
+	currentPosition: Vector3,
+	currentTarget: Vector3,
+	options: EditorBoundsCameraFrameOptions = {}
+): EditorCardinalFallbackResolver {
+	return () => {
+		const neutralPose: EditorCardinalFallback = {
+			position: new Vector3(...EDITOR_NEUTRAL_CAMERA_POSITION),
+			target: new Vector3(...EDITOR_NEUTRAL_CAMERA_TARGET)
+		};
+		if (!layoutBounds) return neutralPose;
+
+		const validLiveBasis =
+			isFiniteVector3(currentPosition) &&
+			isFiniteVector3(currentTarget) &&
+			currentPosition.distanceToSquared(currentTarget) > 1e-8;
+		const frame = createEditorBoundsCameraFrame(
+			new Box3(
+				new Vector3(...layoutBounds.min),
+				new Vector3(...layoutBounds.max)
+			),
+			validLiveBasis ? currentPosition : neutralPose.position,
+			validLiveBasis ? currentTarget : neutralPose.target,
+			options
+		);
+		if (
+			frame &&
+			frame.position.every(Number.isFinite) &&
+			frame.target.every(Number.isFinite)
+		) {
+			return {
+				position: new Vector3(...frame.position),
+				target: new Vector3(...frame.target)
+			};
+		}
+		return neutralPose;
+	};
+}
+
+/**
  * Owner-approved P3B.1 mapping. A face label is the side of the target where
  * the eye sits: `eye = target + faceDirection × distance`.
  */
@@ -299,10 +350,29 @@ function clampCardinalDistance(
 	return clamped;
 }
 
-function resolveCardinalEyeTarget(
+/**
+ * Consume pending damped rotate/pan residue against the current pose. A
+ * released orbit fling leaves inertia inside OrbitControls that the next
+ * `controls.update()` applies, so an exact pose commit must drain it first —
+ * before the commit resolves its eye/target — or the snap drifts off the
+ * cardinal alignment (and the per-frame damping task keeps drifting it).
+ * Disabling damping makes a single update consume the full remaining delta
+ * at once; the prior flag is restored even if `update` throws.
+ */
+function consumeEditorOrbitInertia(controls: EditorOrbitControlsLike): void {
+	const enableDamping = controls.enableDamping;
+	try {
+		controls.enableDamping = false;
+		controls.update();
+	} finally {
+		controls.enableDamping = enableDamping;
+	}
+}
+
+/** Validated current orbit basis (settled target + clamped distance), or null. */
+function resolveCurrentCardinalBasis(
 	camera: PerspectiveCamera,
-	controls: EditorOrbitControlsLike,
-	fallback: EditorCardinalFallbackResolver
+	controls: EditorOrbitControlsLike
 ): { target: Vector3; distance: number } | null {
 	const currentDistance = camera.position.distanceTo(controls.target);
 	if (
@@ -313,6 +383,14 @@ function resolveCardinalEyeTarget(
 		const distance = clampCardinalDistance(currentDistance, controls);
 		if (distance !== null) return { target: controls.target.clone(), distance };
 	}
+	return null;
+}
+
+/** Validated injected-fallback basis, or null. The resolver runs once per call. */
+function resolveFallbackBasis(
+	controls: EditorOrbitControlsLike,
+	fallback: EditorCardinalFallbackResolver
+): { target: Vector3; distance: number } | null {
 	const candidate = fallback();
 	if (candidate && isFiniteVector3(candidate.target) && isFiniteVector3(candidate.position)) {
 		const fallbackDistance = candidate.position.distanceTo(candidate.target);
@@ -334,7 +412,12 @@ function resolveCardinalEyeTarget(
  * and history. Session-local viewport presentation only.
  *
  * Target/distance are resolved and validated before commit, so a failed snap
- * returns `false` without mutating the camera. The table `camera.up` is used
+ * returns `false` without mutating the camera — basis resolution is the only
+ * failure exit, and the injected resolver runs at most once per snap. Only a
+ * viable snap consumes pending damped orbit/pan inertia against the pre-snap
+ * pose before that resolution (a released fling must not displace the
+ * committed eye/target), so the resolved distance reflects the settled
+ * controls state. The table `camera.up` is used
  * only inside the commit `lookAt`; after commit it is restored to `(0, 1, 0)` so
  * subsequent orbit drags keep the standard `+Y` pole.
  *
@@ -352,8 +435,20 @@ export function snapEditorViewToCardinal(
 ): boolean {
 	const direction = CARDINAL_FACE_TO_EYE[face];
 	const up = CARDINAL_FACE_UP[face];
-	const pose = resolveCardinalEyeTarget(camera, controls, fallback);
-	if (!pose) return false;
+	// Atomic no-op: resolve the viable basis before mutating anything. This is
+	// the only failure exit — once the flush below runs, a commit is guaranteed.
+	const basis =
+		resolveCurrentCardinalBasis(camera, controls) ??
+		resolveFallbackBasis(controls, fallback);
+	if (!basis) return false;
+	// Drain residual drag inertia onto the pre-snap pose: the flush must land
+	// before resolution so the committed eye/target (and the commit update
+	// below) are exact.
+	consumeEditorOrbitInertia(controls);
+	// Prefer the settled current pose after the flush; otherwise keep the
+	// validated pre-flush basis (current snapshot or fallback — resolved at
+	// most once, so stateful resolvers stay consistent).
+	const pose = resolveCurrentCardinalBasis(camera, controls) ?? basis;
 
 	camera.up.set(up[0], up[1], up[2]);
 	camera.position

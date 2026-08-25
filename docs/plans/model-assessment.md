@@ -63,11 +63,12 @@ success percentages.
 | **P3.3** | 52 | Luna high | shipped — bounded interaction-state polish |
 | **P3.4** | 70 | Sol medium | undone — P3B.7b deferred tail; broad context-menu acceptance |
 | **P3.5** | 72 | Sol medium | undone — P3B.7b deferred tail; camera-menu identity/FSM coverage |
-| **P3B.4a** | 68 | Sol medium | proposed — two Plan surfaces, pure helpers, visual/browser QA |
-| **P3B.1** | 92 | Sol xhigh | shipped — six-face snap helper, shared threshold, inert orientation tokens, and 15 focused assertions in tree |
-| **P3B.2** | 61 | Sol medium | proposed — isolated DOM/SVG hit targets and camera integration |
-| **P3B.3** | 44 | Luna high | proposed — interaction states, cancellation, mount behavior |
-| **P3B.4** | 59 | Sol medium | proposed — orientation fixtures and non-mutation assertions |
+| **P3B.4a** | 68 | Sol medium | shipped — two Plan surfaces, pure helpers, visual/browser QA; two review rounds caught a token-cycle contrast regression and hover retune |
+| **P3B.4b** | 36 | Luna medium | shipped — shared bottom-right corner key, presentational SVG |
+| **P3B.1** | 92 | Sol xhigh | shipped — six-face snap helper, shared threshold, inert orientation tokens; discovery risk retired (no authority existed → owner-approved contract), polar handoff fixture-proven; residual two-phase boundary refactor is frozen-behavior ≈ 42 Luna high |
+| **P3B.2** | 74 | Sol high | in progress — first attempt inadequate (static cube, no labels, off-sketch axes); render rework: camera-projected geometry, per-frame SVG sync, invisible back-face hit layer, edge-on label fades, foreshortening reticles, edge-hugging arrows, animated-snap wiring; spec pinned (Designer-brieft-box rev 6) |
+| **P3B.3** | 48 | Luna high | proposed — interaction states fully token-pinned (rev 6 registry); gesture ownership, Escape cancel, preview-disabled presentation |
+| **P3B.4** | 56 | Sol medium | proposed — polar handoff risk retired by fixture (`polar-orbit-handoff.test.ts`); sampler contract pinned (signature, 320ms ease-out, reduced-motion); remaining: sampler + widget wiring + retarget/cancel fixtures |
 | **P3B.5** | 76 | Sol high | proposed — cross-surface preview controls, labels, timeline scope |
 | **P3B.6** | 67 | Sol medium | proposed — canonical adjacency plus chooser behavior |
 | **P3B.7a** | 79 | Sol high | proposed — cross-slice regression and accessibility coverage |
@@ -96,17 +97,24 @@ success percentages.
 
 ## P3B routing summary
 
-- **P3B.1 (92)** is the hardest item because it may require a shell/view
-  contract if no canonical snap authority exists. Route it to Sol xhigh, not
-  Sol Max; the task must stop rather than improvise if the authority is absent.
-- **P3B.5 (76)** and **P3B.7a (79)** need Sol high because they cross multiple
-  surfaces and require behavioral/accessibility verification.
-- **P3B.4a (68)**, **P3B.6 (67)**, **P3B.7b (73)**, and **P3B.8 (63)** fit Sol
-  medium because their boundaries and existing primitives are known.
-- **P3B.2 (61)** and **P3B.4 (59)** are Sol-medium integration/fixture tasks;
-  **P3B.3 (44)** is bounded Luna-high work.
-- If P3B.1 finds no authority, pause only B.1–B.4. Slices A and C continue
-  independently. No P3B item requires Sol Max by default.
+- **P3B.1 (92)** is retired as the hardest item: the discovery risk it priced
+  in is resolved — no snap authority existed, the owner approved the contract,
+  and the polar handoff is fixture-proven. Its residual (two-phase helper
+  boundary refactor, frozen behavior) is ≈42 Luna-high work.
+- **P3B.2 is now the P3B critical path (61 → 74, Sol high).** The first
+  attempt scored 61 and failed QA; the rework adds camera-projection math
+  rendered as per-frame SVG, invisible hit-layer ordering, label fades, and
+  animated-snap wiring. The pinned rev-6 spec removes the ambiguity that made
+  the first attempt drift, but the intensity is real cross-system work.
+- **P3B.4 drops 59 → 56, stays Sol medium:** the blocker that carried its
+  uncertainty (polar handoff) is retired by fixture; the sampler signature,
+  easing, duration, and reduced-motion path are pinned.
+- **P3B.3 edges 44 → 48, still Luna high:** states are token-pinned; the
+  remainder is gesture ownership and disabled presentation.
+- **P3B.5 (76)** and **P3B.7a (79)** keep Sol high (cross-surface +
+  behavioral/accessibility verification). **P3B.4a (68)**, **P3B.4b (36)**,
+  **P3B.6 (67)**, **P3B.7b (73)**, **P3B.8 (63)** are unchanged.
+- No P3B item requires Sol Max by default.
 
 The supplied analysis supports this conservative policy: Luna max reaches 86%
 of Sol Max capability at much lower cost, Sol xhigh reaches 98%, and the final

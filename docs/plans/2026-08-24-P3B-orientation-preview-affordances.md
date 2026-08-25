@@ -223,14 +223,20 @@ Face identity means:
 eye = target + normal × distance
 ```
 
-| World normal | Face   | Cardinal `camera.up` |
-| ------------ | ------ | -------------------- |
-| `+X`         | RIGHT  | `(0, 1, 0)`          |
-| `-X`         | LEFT   | `(0, 1, 0)`          |
-| `+Y`         | TOP    | `(0, 0, -1)`         |
-| `-Y`         | BOTTOM | `(0, 0, 1)`          |
-| `+Z`         | FRONT  | `(0, 1, 0)`          |
-| `-Z`         | BACK   | `(0, 1, 0)`          |
+| World normal | Face   | Cardinal lookAt up |
+| ------------ | ------ | ------------------ |
+| `+X`         | RIGHT  | `(0, 1, 0)`        |
+| `-X`         | LEFT   | `(0, 1, 0)`        |
+| `+Y`         | TOP    | `(0, 0, -1)`       |
+| `-Y`         | BOTTOM | `(0, 0, 1)`        |
+| `+Z`         | FRONT  | `(0, 1, 0)`        |
+| `-Z`         | BACK   | `(0, 1, 0)`        |
+
+The cardinal table defines the temporary up-vector used to construct the
+snapped quaternion. After controls synchronization, `camera.up` returns to
+global `(0, 1, 0)`. The snapped visual roll/orientation remains encoded in
+`camera.quaternion`. Tests assert final quaternion/screen orientation, not
+persistent cardinal `camera.up`.
 
 For the polar faces:
 
@@ -366,10 +372,12 @@ Cardinal snapping replaces only:
 
 ```text
 camera position
-camera orientation/quaternion
+camera visual roll/orientation quaternion
 camera view direction
-camera up/roll
 ```
+
+`camera.up` participates in snap construction, then returns to the canonical
+global +Y OrbitControls pole under the P3B.4 handoff contract.
 
 ### Failure
 
@@ -389,39 +397,70 @@ No history entry.
 
 # P3B.2 — Orientation Widget Projection and Rendering
 
-## Rework baseline (in-tree state)
+## Rework baseline
 
-The first P3B.2 implementation is **rejected by browser QA**, not a clean
-slate. The rework keeps its architecture and replaces its render layer.
+The first P3B.2 implementation is **rejected by browser QA**, not a clean slate.
 
-**Kept (do not rebuild):**
-
-```text
-projector/overlay writer split
-  (EditorOrientationGizmoProjector inside the Canvas publishes per-frame;
-   editor-orientation-gizmo.svelte.ts shared state; DOM overlay renders)
-Scene-3D-only mount gating (!isCameraContext)
-snap wiring through snapEditorViewToCardinal with the neutral fallback
-preview gate (cameraPreview !== null)
-Enter/Space keyboard activation + spoken labels
-consolidated EDITOR_DRAG_THRESHOLD_PX usage
-```
-
-**Discarded (rejected by QA / superseded by this plan):**
+### Keep
 
 ```text
-static isometric point tables (FRONT_FACES / GHOST_FACES)
-dashed ghost faces (plan culls back faces; §2.4 invisible hit layer replaces them)
-through-body double-ended axis lines
-dark navy face fills (light three-tone palette now canonical)
-instant-only snap (animated contract, see P3B.4)
+projector-writer / DOM-overlay-reader architecture
+Scene-3D-only mount gating
+snap wiring through canonical cardinal snap authority
+preview-disabled gate
+Enter / Space keyboard activation
+spoken accessible labels
+existing EDITOR_DRAG_THRESHOLD_PX constant
 ```
 
-**Rework acceptance:** the four QA findings reversed — cube rotates with the
-camera, face names render with edge-on fade, axes hug edges per the canonical
-oblique rules, cube fills the tile budget — plus full conformance with
-`Designer-brieft-box.md` rev 6, projection unit tests, and the existing gizmo
-tests updated green.
+The existing `EDITOR_DRAG_THRESHOLD_PX` is reusable infrastructure only. The
+current orientation widget does **not** yet satisfy the required
+pointer-threshold behavior merely because the constant exists; P3B.3 must
+explicitly wire pointer-down/move/up/cancel tracking against it.
+
+### Replace
+
+```text
+static isometric point tables
+dashed / ghost back-face rendering
+through-body double-ended axis graphics
+dark navy cube faces
+stable camera-ref publication as the orientation render signal
+```
+
+Later slices replace behavior outside P3B.2:
+
+```text
+P3B.3  dominant-axis-is-always-active behavior + incomplete pointer isolation
+P3B.4  instant-only orientation snap
+```
+
+### Self-contained render acceptance
+
+This plan is the implementation authority for P3B.2. No local `§2.4` or
+external designer brief is required for conformance.
+
+P3B.2 passes when all of the following render/projection requirements are true:
+
+* orientation geometry updates during ordinary Scene 3D orbit, not only after cardinal snaps;
+* projected cube geometry derives from immutable per-frame camera-orientation snapshots;
+* only front-facing cube faces are painted;
+* the cube uses the light neutral face palette and dark edge/label treatment defined in this plan;
+* the design-reference oblique pose renders `TOP`, `FRONT`, and `RIGHT`;
+* `Z` hugs the projected FRONT bottom edge, `X` hugs the projected RIGHT bottom edge, and `Y` hugs the projected RIGHT outer vertical edge at that reference pose;
+* arbitrary camera rotations remain truthful projections and do not force axes back into the reference layout;
+* face labels use the local edge-on fade contract;
+* axis foreshortening uses the local reticle contract;
+* the 88 px tile uses the single coordinate model defined below;
+* the snapshot publishes the face centers/directions P3B.3 needs for six-face interaction geometry;
+* focused projection tests assert these rules.
+
+P3B.3 owns pointer/keyboard reachability, gesture isolation, and all
+hover/pressed/active/focus/disabled behavior. P3B.4 owns animated and
+reduced-motion snap execution. Those later-slice requirements remain part of
+the Group B definition of done, but they do not block closing P3B.2.
+
+No external visual brief may add behavior that is absent from this plan.
 
 ## Mount contract
 
@@ -470,6 +509,39 @@ raycastable scene object
 
 The cube geometry is mathematical UI geometry.
 
+Keep projection math pure and independently testable. Do not bury it in the
+Svelte component:
+
+```ts
+projectOrientationGeometry(input: OrientationProjectionInput):
+  OrientationProjectionSnapshot
+```
+
+Canonical geometry constants:
+
+```ts
+const ORIENTATION_VIEWBOX_SIZE = 88;
+const ORIENTATION_WIDGET_CENTER = [44, 44] as const;
+const ORIENTATION_CUBE_HALF_EXTENT = 15;
+const ORIENTATION_AXIS_EXTENSION = 10;
+const ORIENTATION_AXIS_ARROW_LENGTH = 4.5;
+const ORIENTATION_AXIS_ARROW_BASE = 3.5;
+```
+
+The cube's eight object-space vertices are every signed combination of:
+
+```text
+(±15, ±15, ±15)
+```
+
+Face membership follows its fixed coordinate and outward normal:
+
+```text
++X / -X  → x = +15 / -15
++Y / -Y  → y = +15 / -15
++Z / -Z  → z = +15 / -15
+```
+
 World-to-widget rotation:
 
 ```ts
@@ -480,17 +552,215 @@ const widgetVector = worldVector
   .applyQuaternion(viewRotation);
 ```
 
-Cube vertices and world-axis endpoints use the same orientation transform.
+Orthographic SVG projection is exact:
+
+```ts
+screenX = 44 + widgetVector.x;
+screenY = 44 - widgetVector.y;
+depth = widgetVector.z;
+```
+
+For each face:
+
+```text
+project its four vertices
+order them clockwise around their projected centroid
+sort painted faces far → near by view-space centroid depth
+draw unique visible cube edges once, after face fills
+place face label at projected centroid
+```
+
+Positive-axis graphics use fixed cube-corner anchors:
+
+```text
++X anchor  (+15, -15, +15)  → extend along +X
++Y anchor  (+15, +15, -15)  → extend along +Y
++Z anchor  (-15, -15, +15)  → extend along +Z
+```
+
+Shaft endpoint is `anchor + axis × 10`; project anchor and endpoint through the
+same view transform as the cube. Outside reticle mode, normalize that projected
+2D shaft direction, place the arrow apex `4.5px` beyond the projected endpoint,
+and place its `3.5px` base perpendicular to that screen ray. Axis glyph center
+sits `4px` beyond the arrow apex. Cube vertices, anchors, and shaft endpoints
+all use the same view rotation and orthographic projection; arrowhead and glyph
+sizing stay screen-space legible.
+
+Face shading uses one fixed view-space key light:
+
+```ts
+const ORIENTATION_VIEW_LIGHT = normalize([-0.35, 0.85, 1]);
+const lightAmount = clamp(viewNormal.dot(ORIENTATION_VIEW_LIGHT), 0, 1);
+```
+
+Interpolate piecewise so all three registered tokens have deterministic
+meaning:
+
+```text
+0…0.5  shadow → mid
+0.5…1  mid → lit
+```
+
+Projection fixtures call this pure helper directly. Svelte projector only
+samples live camera input and publishes helper output.
 
 ---
 
-## Tile
+## Reactive projection snapshot contract
+
+A stable mutable Three camera reference is **not** sufficient Svelte reactivity
+for the orientation widget.
+
+`EditorOrientationGizmoProjector` must sample the active Scene 3D camera during
+the existing Canvas frame/update path and publish an immutable projection
+snapshot.
+
+Conceptually:
+
+```ts
+type OrientationPoint2 = readonly [x: number, y: number];
+
+type OrientationProjectionInput = {
+  cameraQuaternion: readonly [x: number, y: number, z: number, w: number];
+  /** Normalized target-to-eye direction sampled from camera/controls. */
+  eyeDirection: readonly [x: number, y: number, z: number];
+};
+
+type ProjectedOrientationFace = {
+  face: CardinalView;
+  polygon: readonly OrientationPoint2[];
+  center: OrientationPoint2;
+  directionFromCubeCenter: OrientationPoint2;
+  viewDot: number;
+  painted: boolean;
+  lightAmount: number;
+  labelOpacity: number;
+};
+
+type ProjectedOrientationAxis = {
+  face: '+X' | '+Y' | '+Z';
+  projectedAnchor: OrientationPoint2;
+  projectedShaftEnd: OrientationPoint2;
+  arrowPolygon: readonly OrientationPoint2[] | null;
+  reticleCenter: OrientationPoint2 | null;
+  glyphCenter: OrientationPoint2;
+  foreshortened: boolean;
+};
+
+type OrientationProjectionSnapshot = {
+  cameraQuaternion: readonly [number, number, number, number];
+  eyeDirection: readonly [number, number, number];
+
+  /** All six faces; `painted` controls visual DOM output. */
+  faces: readonly ProjectedOrientationFace[];
+  axes: readonly ProjectedOrientationAxis[];
+};
+```
+
+The pure projection module owns conversion from sampled Three camera values to
+renderer-neutral numeric geometry. The projector owns only live sampling,
+material-change comparison, and snapshot publication.
+
+Each relevant frame:
 
 ```text
-88 × 88 px
-top: 16px
-right: 16px
+read current camera quaternion / eye-target direction
+→ clone numeric orientation values
+→ project cube vertices and world axes
+→ derive visible face polygons
+→ derive projected face centers/directions for P3B.3 interaction proxies
+→ publish immutable snapshot when materially changed
 ```
+
+**Materially changed** is defined deterministically against the **last
+published snapshot**, never merely against the immediately previous sampled
+frame. Sub-threshold samples therefore accumulate until publication rather
+than suppressing a slow continuous orbit forever. Publish when any of:
+
+* quaternion angular delta > 1e-5 rad
+* any projected point moves > 0.1 CSS px
+* eye direction moves enough to change face visibility or reticle state
+* face visibility changes
+* face interaction-anchor or reticle state changes
+
+Without a threshold, the projector would allocate and publish every frame even
+when the camera is idle.
+
+The DOM/SVG overlay consumes that snapshot.
+
+It must **not** depend on mutation of a stable `PerspectiveCamera`, `Vector3`,
+or `Quaternion` reference to trigger Svelte updates.
+
+Acceptance:
+
+```text
+ordinary OrbitControls drag
+→ camera quaternion changes
+→ projection snapshot changes
+→ SVG cube rotates on next render
+
+no cardinal snap required
+no document/session mutation required
+```
+
+---
+
+## Tile coordinate model
+
+Use exactly one coordinate system.
+
+```text
+Outer widget box:       88 × 88 CSS px
+SVG rendered size:      88 × 88 CSS px
+SVG viewBox:            0 0 88 88
+CSS padding:            0
+box-sizing:             border-box
+geometry safe inset:    encoded inside SVG coordinates
+```
+
+Reference:
+
+```html
+<div class="orientation-box">
+  <svg viewBox="0 0 88 88">
+    ...
+  </svg>
+</div>
+```
+
+```css
+.orientation-box {
+  width: 88px;
+  height: 88px;
+  padding: 0;
+  border: 0;
+  box-shadow: inset 0 0 0 1px var(--editor-orientation-border);
+  box-sizing: border-box;
+}
+```
+
+The shell border must not consume content-box pixels. Use the inset shadow
+above (or an equivalent SVG/pseudo-element overlay that does not participate
+in layout). Do not keep the current `1px` CSS border: under `border-box` it
+would reduce the SVG content area to `86 × 86` and silently rescale geometry.
+
+Do **not** combine an `88 × 88` viewBox with `8px` CSS padding around the SVG.
+That would rescale the intended geometry and repeatedly under-fill the tile.
+
+The former "8px inner padding" is only a **geometry safe area**:
+
+```text
+core cube geometry:            prefer x/y 8…80
+axis arrowheads / glyphs:      may extend to x/y 4…84
+focus-visible outline:         may bleed outside through SVG overflow
+```
+
+It is not CSS layout padding.
+
+Retire `--editor-orientation-padding` from `tokens.css` and the matching design
+token registry when the render rework lands; no other current consumer exists.
+Do not preserve an unused token whose former value would reintroduce the
+rejected scaling model.
 
 Reference geometry:
 
@@ -504,23 +774,38 @@ axis label                 11px
 face label                 8.5px
 ```
 
-SVG:
-
-```html
-<svg viewBox="0 0 88 88" style="overflow: visible;">
-```
-
-Back-facing polygons are culled.
-
-No dashed hidden-face wireframe.
-
 ---
 
-## Canonical default oblique presentation
+## Design-reference oblique pose
 
-At the canonical default Scene 3D oblique pose:
+`TOP + FRONT + RIGHT` is a **visual QA reference pose**, not the editor
+boot/default camera.
+
+P3B does **not** change `EDITOR_NEUTRAL_CAMERA_POSITION` or any existing
+Scene 3D boot camera merely to make the widget resemble the design sketch.
+
+Define the synthetic design-reference direction as:
+
+```ts
+const ORIENTATION_DESIGN_REFERENCE_EYE_DIRECTION =
+  normalize([1, 0.75, 1]);
+```
+
+with:
+
+```ts
+up = [0, 1, 0];
+```
+
+At this reference pose:
 
 ```text
+visible faces:
+TOP
+FRONT
+RIGHT
+
+axis presentation:
 Z hugs FRONT bottom edge
 X hugs RIGHT bottom edge
 Y hugs RIGHT outer vertical edge
@@ -538,32 +823,21 @@ Conceptual composition:
       Z ◄─└─────┘─┴─► X
 ```
 
-Exact rules:
+This pose exists only for:
 
 ```text
-+Z:
-blue
-collinear with projected FRONT bottom edge
-extends only slightly beyond cube
-
-+X:
-red
-collinear with projected RIGHT bottom edge
-extends only slightly beyond cube
-
-+Y:
-green
-collinear with projected RIGHT outer vertical edge
-extends upward only slightly beyond cube
+projection fixtures
+visual regression
+geometry QA
+design comparison
 ```
 
-Axes hug the cube.
+At the real editor neutral/boot pose, the widget must truthfully reflect that
+camera even if one reference face becomes edge-on or is culled.
 
-They must not become a detached radial starburst.
+No default-camera change is authorized by P3B.
 
 ### Dynamic orientation
-
-The edge-hugging arrangement above defines the canonical oblique appearance.
 
 During arbitrary camera orientation:
 
@@ -577,73 +851,252 @@ During arbitrary camera orientation:
 ## Face identity
 
 ```text
-+X RIGHT
--X LEFT
-+Y TOP
--Y BOTTOM
-+Z FRONT
--Z BACK
++X  RIGHT
+-X  LEFT
++Y  TOP
+-Y  BOTTOM
++Z  FRONT
+-Z  BACK
 ```
-
-Only front-facing faces render.
 
 ---
 
-## Visual language
+## Painted face geometry
 
-Cube:
-
-* light neutral drafting gray;
-* dark crisp edges;
-* dark compact face labels;
-* restrained flat shading;
-* no ghost faces;
-* no neon;
-* no glass;
-* no realistic lighting.
-
-Axis colors:
-
-```css
-X: #F05252
-Y: #45C878
-Z: #3B82F6
-```
-
-Light-face references:
-
-```css
---editor-orientation-face-lit:    #EAEEF2;
---editor-orientation-face-mid:    #D8DCE0;
---editor-orientation-face-shadow: #C2C7CC;
-```
-
-Edge:
-
-```css
---editor-orientation-edge-solid: #1E2C3A;
-```
-
-Dynamic face luminance interpolates only between registered light-face tokens.
-
----
-
-## Face-label edge-on behavior
-
-Render face only when:
+Paint a face only when:
 
 ```text
 N · V > 0
 ```
 
-Label fades near edge-on:
+Back-facing faces have:
+
+```text
+no fill
+no wireframe
+no label
+```
+
+This removes ghost-face clutter.
+
+Culling painted geometry does **not** remove the cardinal interaction target.
+
+---
+
+## P3B.3 six-face pointer geometry
+
+This section consumes P3B.2's immutable projected face centers/directions.
+It is implemented and accepted in P3B.3, not P3B.2.
+
+All six cardinal faces remain explicit interaction targets.
+
+Use two interaction forms.
+
+### Front-facing face
+
+For a painted/front-facing face whose projected bounding box has both width
+and height at least `14px`:
+
+```text
+pointer target = projected face polygon
+```
+
+The visual polygon and pointer geometry correspond directly.
+
+### Edge-on visible face
+
+Painting and interaction eligibility use separate thresholds. A face with
+`N · V > 0` may remain visually present while its projected polygon becomes
+too thin to hit.
+
+```text
+projected width < 14px OR projected height < 14px
+→ keep painted face under the normal culling rule
+→ use the perimeter proxy for interaction
+```
+
+Use hit-mode hysteresis:
+
+```text
+enter proxy mode below 14px
+leave proxy mode above 16px
+```
+
+This prevents a nearly edge-on front face from becoming a subpixel pointer
+target and prevents hit geometry from flickering during slow orbit.
+
+### Culled/opposite face
+
+For a back-facing face, create a transparent **opposite-face proxy** in a
+separate interaction layer.
+
+The proxy is not painted at rest.
+
+Derivation:
+
+```ts
+const projectedFaceDirection =
+  projectedFaceCenter.sub(projectedCubeCenter);
+
+if (projectedFaceDirection.length() >= MIN_PROXY_DIRECTION) {
+  proxyCenter =
+    projectedCubeCenter +
+    normalize(projectedFaceDirection) * OPPOSITE_FACE_PROXY_RADIUS;
+}
+```
+
+Reference constants:
+
+```text
+OPPOSITE_FACE_PROXY_RADIUS = 36px
+proxy hit box              = minimum 14 × 14px
+MIN_PROXY_DIRECTION        = 2px  (enter fallback < 2px, leave fallback > 3px)
+```
+
+Hysteresis prevents the proxy from teleporting as the projected face
+direction crosses the 2px boundary during camera orbit.
+
+This places the target near the tile perimeter in the projected direction of
+the hidden face rather than layering an unreachable back-face polygon beneath
+a visible face.
+
+### Degenerate proxy fallback
+
+When the projected face direction is too small because the face normal is
+nearly parallel to the view direction, use deterministic signed fallback slots:
+
+```text
++X  → right
+-X  → left
+
++Y  → top
+-Y  → bottom
+
++Z  → lower-left
+-Z  → upper-right
+```
+
+The fallback affects **interaction geometry only**. It does not alter cube
+projection.
+
+### Proxy presentation
+
+At rest:
+
+```text
+transparent
+no label
+no ghost wireframe
+```
+
+Every proxy uses `cursor: pointer`. On hover or keyboard focus it **must**
+expose a visible compact target cue/tooltip such as:
+
+```text
+LEFT · -X
+BOTTOM · -Y
+BACK · -Z
+```
+
+This is an interaction affordance, not another rendered cube face.
+
+### Hit priority
+
+When targets overlap:
+
+```text
+1. painted face polygon
+2. visible axis / reticle target
+3. opposite-face proxy
+```
+
+A hidden proxy must never steal a click from visible cube geometry.
+
+Keyboard navigation includes all six faces regardless of current visibility.
+
+### Accessibility semantics
+
+The current SVG root's `role="img"` must be removed because image semantics can
+flatten interactive descendants in the accessibility tree.
+
+Required structure:
+
+```text
+orientation shell  → role="group" + spoken widget label
+SVG root           → no role="img"
+face/proxy/axis     → exposed button semantics + exact spoken cardinal label
+Tab order          → six faces, then visible axis/reticle targets
+Enter / Space      → same guarded activation path as pointerup
+```
+
+While camera preview owns the camera:
+
+```text
+shell and targets expose aria-disabled="true"
+targets leave Tab order (tabindex = -1)
+pointer and keyboard handlers remain guarded no-ops
+```
+
+Focus-visible styling applies to painted faces, perimeter proxies, axis
+arrowheads, and reticles.
+
+---
+
+## Canonical visual requirements
+
+Cube:
+
+```text
+light neutral drafting-gray faces
+dark crisp 1px outlines
+dark uppercase face labels
+flat restrained shading
+no dashed hidden faces
+no glow
+no glass
+no realistic lighting
+```
+
+Registered face palette:
+
+```css
+--editor-orientation-face-lit:    #EAEEF2;
+--editor-orientation-face-mid:    #D8DCE0;
+--editor-orientation-face-shadow: #C2C7CC;
+--editor-orientation-edge-solid:  #1E2C3A;
+```
+
+Axes:
+
+```css
+--editor-gizmo-x: #F05252;
+--editor-gizmo-y: #45C878;
+--editor-gizmo-z: #3B82F6;
+```
+
+At the design-reference pose:
+
+```text
+Z = blue, along FRONT lower edge toward left
+X = red, along RIGHT lower edge toward right
+Y = green, along RIGHT outer edge upward
+```
+
+Axis extensions remain short. They hug the cube rather than form a detached
+triad.
+
+---
+
+## Face-label edge-on fade
+
+For visible faces:
 
 ```text
 N·V < sin(18°)
-→ label opacity 0
+→ opacity 0
 
 sin(18°) ≤ N·V ≤ sin(28°)
-→ linear fade 0 → 1
+→ linear opacity 0 → 1
 
 N·V > sin(28°)
 → opacity 1
@@ -653,42 +1106,169 @@ N·V > sin(28°)
 
 ## Axis foreshortening
 
-Compression is bidirectional.
+Compression remains bidirectional:
 
 ```ts
-Math.abs(axis.dot(viewDirection)) > Math.cos(12°)
+Math.abs(axis.dot(viewDirection)) > Math.cos(12 * DEG2RAD)
 ```
 
-When nearly parallel to camera view:
+When true:
 
 ```text
-shaft → zero projected length
-arrow → 6px circular reticle
-axis glyph → centered over reticle
-hit target → minimum 14 × 14px
+shaft → collapsed
+arrowhead → 6px circular reticle
+axis glyph → centered
+pointer target → minimum 14 × 14px
 ```
 
 ---
 
 # P3B.3 — Orientation Interaction States
 
-Supported targets:
+## Pointer threshold wiring
+
+`EDITOR_DRAG_THRESHOLD_PX` already exists.
+
+P3B.3 must actually wire it into orientation-tile pointer state.
+
+Required behavior:
 
 ```text
-six cube faces
-visible X/Y/Z axis targets
+pointerdown
+→ record pointer id + start clientX/clientY + target
+→ capture pointer
+
+pointermove
+→ if distance from start > EDITOR_DRAG_THRESHOLD_PX
+   mark activation cancelled
+
+pointerup
+→ activate only if:
+   same pointer
+   threshold not exceeded
+   target still valid
+
+pointercancel / lostpointercapture
+→ clear gesture
 ```
 
-No widget drag-orbit behavior.
-
-Pointer interaction remains isolated from:
+A cancelled orientation-box gesture:
 
 ```text
-Scene object hit testing
-TransformControls
-OrbitControls canvas drag
-selection
+does not snap
+does not select
+does not start OrbitControls
 ```
+
+Tile pointer handling must stop the gesture from bleeding through to Scene 3D
+object hit testing or orbit input.
+
+---
+
+## Active cardinal alignment
+
+Do not use "dominant axis" as equivalent to "camera is aligned."
+
+Introduce one explicit tolerance:
+
+```ts
+const ORIENTATION_CARDINAL_ACTIVE_DOT_MIN = 0.999;
+```
+
+Equivalent angular tolerance:
+
+```text
+≈ 2.56°
+```
+
+Consume the normalized eye direction from P3B.2's immutable projection
+snapshot. Do not reread mutable camera/controls refs in the DOM overlay:
+
+```ts
+const eyeDirection = snapshot.eyeDirection;
+```
+
+A cardinal face is active only when:
+
+```ts
+dot(eyeDirection, faceNormal) >=
+  ORIENTATION_CARDINAL_ACTIVE_DOT_MIN
+```
+
+If no face satisfies the threshold:
+
+```text
+activeFace = null
+```
+
+Therefore:
+
+```text
+exact / near cardinal pose
+→ one active face
+
+ordinary oblique pose
+→ no active face
+```
+
+Replace any current helper/test behavior that returns the largest-magnitude
+axis at every camera orientation.
+
+Required fixtures:
+
+```text
+exact +X                 → RIGHT
+exact -X                 → LEFT
+exact +Y                 → TOP
+exact -Y                 → BOTTOM
+exact +Z                 → FRONT
+exact -Z                 → BACK
+
+2° away from cardinal    → still active
+3° away from cardinal    → inactive
+generic oblique pose     → null
+```
+
+---
+
+## Hover token authority
+
+Do not repurpose the existing container-hover token.
+
+Keep:
+
+```css
+--editor-orientation-hover: #142230;
+```
+
+for the orientation shell/container hover treatment.
+
+Register separate face-state tokens before the render rework:
+
+```css
+--editor-orientation-face-hover:
+  rgba(255, 255, 255, 0.14);
+
+--editor-orientation-face-pressed:
+  rgba(0, 0, 0, 0.20);
+```
+
+Face hover uses:
+
+```css
+var(--editor-orientation-face-hover)
+```
+
+Face pressed uses:
+
+```css
+var(--editor-orientation-face-pressed)
+```
+
+The existing navy `--editor-orientation-hover` must not be used as the
+light-face hover overlay.
+
+---
 
 ## States
 
@@ -697,28 +1277,6 @@ selection
 * light neutral faces;
 * dark edge;
 * axis colors preserved.
-
-### Hover
-
-```text
-face overlay:
-rgba(255,255,255,0.14)
-```
-
-Pointer cursor on valid target.
-
-### Pressed
-
-```text
-face overlay:
-rgba(0,0,0,0.20)
-```
-
-Optional label nudge:
-
-```text
-+0.5px projected Y
-```
 
 ### Active cardinal view
 
@@ -753,22 +1311,6 @@ pointer-events: none;
 ```
 
 The whole widget recedes.
-
----
-
-## Pointer threshold
-
-Tile click/drag distinction:
-
-```text
-≤ 4px movement
-→ eligible click
-
-> 4px movement
-→ cancel snap activation
-```
-
-A cancelled tile gesture must not fall through into viewport orbit.
 
 ---
 
@@ -851,7 +1393,17 @@ up:
 slerp(start up, target cardinal up)
 ```
 
-Terminal frame must exactly equal the instant cardinal commit primitive.
+At t = 1, animated and reduced-motion/instant paths must converge to the
+same observable snapped pose:
+
+* identical eye position
+* identical controls target
+* identical camera quaternion within fixture tolerance
+* identical projection properties
+* identical post-handoff OrbitControls state
+
+Raw sampler `up` is the cardinal lookAt construction vector; final `camera.up`
+follows the P3B.4 global +Y handoff contract.
 
 ---
 
@@ -1078,12 +1630,38 @@ Verify:
 
 * Scene 3D only;
 * correct six cardinal face identities;
-* canonical oblique X/Z/Y geometry;
-* dynamic camera-derived projection;
+* design-reference oblique pose renders TOP + FRONT + RIGHT;
+* editor neutral camera constants remain unchanged;
+* dynamic camera-derived projection without cardinal snap;
+* ordinary OrbitControls drag publishes new quaternion/projection snapshot;
+* DOM overlay changes without cardinal snap;
+* projected cube geometry derives from immutable per-frame snapshots;
+* pure projection fixtures pin cube vertices, face ordering, axis anchors, shading, and SVG coordinates;
+* material-change thresholds compare against the last published snapshot;
+* slow sub-threshold orbit eventually publishes accumulated movement;
+* only front-facing cube faces are painted;
+* all six cardinal faces pointer/keyboard reachable (visible polygon + opposite-face proxy);
+* near-edge visible face switches to proxy hit geometry below 14px and returns above 16px;
+* hidden proxy never wins over overlapping painted geometry;
+* hidden proxy exposes mandatory hover/focus cue and pointer cursor;
+* light neutral face palette and dark edge/label treatment;
+* Z/X/Y axes truthful projections at arbitrary camera orientations;
+* 88 × 88 CSS px outer box; SVG 88 × 88 with viewBox 0 0 88 88; neither CSS padding nor border rescales SVG;
+* retired `--editor-orientation-padding` has no source or registry references;
+* cube/axes occupy intended geometry budget;
+* face-label edge-on fade contract;
+* bidirectional axis foreshortening reticle contract;
+* hover/pressed/active/focus/disabled tokens locally registered;
+* generic oblique orientation has no active face;
+* active state appears only within 0.999 dot threshold;
+* pointer threshold: ≤ threshold activates, > threshold cancels;
+* cancelled gesture does not leak to OrbitControls;
+* SVG root has no `role="img"`; interactive descendants remain exposed to assistive technology;
+* preview-disabled targets expose `aria-disabled`, leave Tab order, and remain guarded no-ops;
+* shell hover remains navy token;
+* face hover uses white 14% overlay token;
 * back-face culling;
 * edge-on label fade;
-* bidirectional axis reticles;
-* hover/press/focus states;
 * no selection mutation;
 * no history;
 * no document write;
@@ -1187,9 +1765,12 @@ P3B.4 Status); Group B proceeds without a stop gate.
 
 * SVG orientation widget mounted only in Scene 3D.
 * Light neutral cube matches approved visual direction.
-* X/Z/Y axes hug cube in canonical oblique pose.
+* Pure projection helper pins canonical vertices, projection, face order, axis anchors, and shading.
+* X/Z/Y axes hug cube in the design-reference oblique pose.
 * Widget follows actual camera orientation.
-* Six cardinal targets map exactly to approved face table.
+* Six cardinal targets map exactly to approved face table through painted-face or proxy hit geometry.
+* Near-edge faces retain a minimum pointer target without changing painted projection.
+* Interactive SVG descendants remain accessible; preview-disabled state removes them from Tab order.
 * Basis resolution reuses existing framing authority.
 * Selection/document/history remain untouched.
 * Reduced-motion path commits instantly.

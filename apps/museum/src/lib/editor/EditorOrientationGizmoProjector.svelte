@@ -3,7 +3,7 @@
 	import { useOrbitControls } from '@threlte/extras';
 	import { Vector3, type PerspectiveCamera } from 'three';
 	import type { OrbitControls as ThreeOrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-	import { deriveCardinalFace, editorOrientationGizmo } from './editor-orientation-gizmo.svelte';
+	import { editorOrientationGizmo } from './editor-orientation-gizmo.svelte';
 	import {
 		orientationProjectionMateriallyChanged,
 		projectOrientationGeometry,
@@ -38,7 +38,6 @@
 			if (editorOrientationGizmo.camera !== null) editorOrientationGizmo.camera = null;
 			if (editorOrientationGizmo.controls !== null) editorOrientationGizmo.controls = null;
 			if (editorOrientationGizmo.snapshot !== null) editorOrientationGizmo.snapshot = null;
-			if (editorOrientationGizmo.face !== null) editorOrientationGizmo.face = null;
 			lastSample = null;
 			lastPublished = null;
 			return;
@@ -65,11 +64,6 @@
 			if (orientationProjectionMateriallyChanged(lastPublished, snapshot)) {
 				lastPublished = snapshot;
 				editorOrientationGizmo.snapshot = snapshot;
-				editorOrientationGizmo.face = deriveCardinalFace({
-					x: snapshot.eyeDirection[0],
-					y: snapshot.eyeDirection[1],
-					z: snapshot.eyeDirection[2]
-				});
 			}
 		}
 		editorOrientationGizmo.ready = editorOrientationGizmo.snapshot !== null;

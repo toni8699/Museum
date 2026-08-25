@@ -67,7 +67,7 @@ success percentages.
 | **P3B.4b** | 36 | Luna medium | shipped — shared bottom-right corner key, presentational SVG |
 | **P3B.1** | 92 | Sol xhigh | shipped — six-face snap helper, shared threshold, inert orientation tokens; discovery risk retired (no authority existed → owner-approved contract), polar handoff fixture-proven; residual two-phase boundary refactor is frozen-behavior ≈ 42 Luna high |
 | **P3B.2** | 74 | Sol high | shipped — pure camera projection, immutable per-frame snapshots, front-face SVG, labels/fades, corner axes/reticles, focused fixtures + browser QA; interaction proxies remain P3B.3, motion remains P3B.4 |
-| **P3B.3** | 48 | Luna high | proposed — interaction states fully token-pinned (rev 6 registry); gesture ownership, Escape cancel, preview-disabled presentation |
+| **P3B.3** | 48 | Luna high | shipped — six-face direct/proxy targets with hysteresis and hit priority; shared-threshold pointer capture; cardinal-active tolerance; keyboard/a11y/disabled states; focused + browser QA |
 | **P3B.4** | 56 | Sol medium | proposed — polar handoff risk retired by fixture (`polar-orbit-handoff.test.ts`); sampler contract pinned (signature, 320ms ease-out, reduced-motion); remaining: sampler + widget wiring + retarget/cancel fixtures |
 | **P3B.5** | 76 | Sol high | proposed — cross-surface preview controls, labels, timeline scope |
 | **P3B.6** | 67 | Sol medium | proposed — canonical adjacency plus chooser behavior |
@@ -108,8 +108,9 @@ success percentages.
 - **P3B.4 drops 59 → 56, stays Sol medium:** the blocker that carried its
   uncertainty (polar handoff) is retired by fixture; the sampler signature,
   easing, duration, and reduced-motion path are pinned.
-- **P3B.3 edges 44 → 48, still Luna high:** states are token-pinned; the
-  remainder is gesture ownership and disabled presentation.
+- **P3B.3 shipped at 48, Luna high.** Six-face direct/proxy targets, both
+  hysteresis boundaries, gesture ownership, cardinal-active tolerance, and
+  disabled/keyboard semantics are fixture- and browser-verified.
 - **P3B.5 (76)** and **P3B.7a (79)** keep Sol high (cross-surface +
   behavioral/accessibility verification). **P3B.4a (68)**, **P3B.4b (36)**,
   **P3B.6 (67)**, **P3B.7b (73)**, **P3B.8 (63)** are unchanged.

@@ -5,42 +5,45 @@ slice plus one next action only.
 
 ## Working tree
 
-- Current delta: **P3B is in progress; Group A, P3B.1, and P3B.2 are shipped;
-  all work is uncommitted.** P3B.2 replaced the rejected static orientation
-  cube with pure camera-projected geometry, immutable per-frame snapshots,
-  front-face SVG rendering, uppercase face labels with edge-on fades, unique
-  dark edges, corner-anchored positive axes, and bidirectional foreshortening
-  reticles. Scene-3D-only mounting, preview gate, keyboard activation, and the
-  canonical six-face snap authority remain intact.
+- Current delta: **P3B is in progress; Group A and P3B.1–P3B.3 are shipped;
+  all work is uncommitted.** P3B.3 adds six ordered cardinal face targets,
+  direct-polygon/perimeter-proxy and direction-fallback hysteresis, explicit
+  cardinal-active tolerance, pointer capture with the shared 4px drag gate,
+  hit priority, keyboard/a11y order, preview-disabled guards, and complete
+  hover/pressed/focus/active presentation over P3B.2's immutable projection
+  snapshots.
+- Post-ship P3B.2/P3B.3 review fixes (2026-08-25, owner-dispositioned):
+  removed the vestigial `targetStillValid` gate from pointer activation,
+  aligned proxy/axis focus-visible to the specified 2px `--editor-gizmo-hover`
+  ring, fixed an axis press tinting the matching face overlay, and documented
+  the intentional ≤4px release slop under pointer capture (test + comment).
 - Existing P3.4/P3.5 context-menu implementation remains in the tree, but those
   increments are explicitly **undone and deferred as low priority for later
   revisit**, after the rest of P3B is complete. Broader surface, interaction,
   backing-identity, validator, and relic-boundary tests are required before
   acceptance. The work is tracked in
   [`../plans/2026-08-24-P3B-orientation-preview-affordances.md`](../plans/2026-08-24-P3B-orientation-preview-affordances.md).
-- Previous slice: **P3B.2 orientation projection/render rework**, closed
-  2026-08-24. The active P3B umbrella is the back-pointer.
+- Previous slice: **P3B.3 orientation interaction states**, closed 2026-08-25.
+  The active P3B umbrella is the back-pointer.
 
 ## Next action
 
-- Execute **P3B.3 orientation interaction states** from the active umbrella:
-  six-face perimeter/proxy hit geometry with hysteresis and hit priority;
-  explicit active-cardinal tolerance; pointer capture plus the shared 4px
-  click-vs-drag threshold; hover/pressed/focus/disabled presentation; guarded
-  preview behavior; and pointer/keyboard isolation tests. Consume P3B.2's
-  immutable face centers/directions and eye direction; do not reread mutable
-  camera refs in the DOM overlay. No unresolved gate.
+- Execute **P3B.4 cardinal snap motion** from the active umbrella: add the pure
+  320ms ease-out sampler in the existing camera-motion authority, wire widget
+  snaps without a second motion system, preserve the fixture-proven polar
+  OrbitControls handoff, support mid-animation retarget/cancel, and honor
+  reduced motion. No unresolved gate.
 
 ## Verification
 
-- Last known verification: `npm test` 2,119 passed / 1 skipped across 156
+- Last known verification: `npm test` 2,122 passed / 1 skipped across 156
   files; `npm run check` 0 errors / 0 warnings; `npm run build` clean with
   existing third-party unused-import and chunk-size warnings; `git diff --check`
   clean.
-- Browser QA accepted P3B.2: free-orbit snapshots rotate the SVG immediately;
-  Top/Right snaps, keyboard activation, culling/labels/axes/reticles, and the
-  Scene-only mount gate pass. Widget-scoped axe: 0 violations; one manual
-  contrast review on token-driven SVG text.
+- Browser QA accepted P3B.3: exact six-face-then-axis Tab order, proxy cues,
+  hover/focus/pressed/active states, keyboard activation, pointer capture,
+  >4px cancellation, and ≤4px snapping pass. Widget-scoped axe: 0 violations;
+  one manual contrast review on token-driven SVG text.
 
 ## Known bugs / deferred
 
@@ -67,6 +70,8 @@ slice plus one next action only.
   `preview.runId`, never cloned route identity.
 - Stable mutable Three camera refs are not orientation-render signals. P3B.2's
   immutable projection snapshot is the DOM overlay authority.
+- P3B.3 target hysteresis state must persist across projection snapshots; do
+  not derive hit mode or proxy fallback from one frame in isolation.
 - Camera means guided PerspectiveCamera navigation, never webcam.
 
 ## Non-negotiables

@@ -1371,6 +1371,14 @@ describe('camera context contracts', () => {
 		expect(gridControls).toContain('type="range"');
 		expect(existsLibSource('editor/EditorOrientationGizmo.svelte')).toBe(true);
 		expect(existsLibSource('editor/editor-orientation-gizmo.svelte.ts')).toBe(true);
+		expect(existsLibSource('editor/editor-orientation-interaction.ts')).toBe(true);
+		const orientation = readLibSource('editor/EditorOrientationGizmo.svelte');
+		expect(orientation).toContain('deriveActiveCardinalFace(snapshot.eyeDirection)');
+		expect(orientation).toContain('setPointerCapture(event.pointerId)');
+		expect(orientation).toContain('tabindex={disabled ? -1 : 0}');
+		expect(orientation).toContain('aria-disabled={disabled}');
+		expect(orientation).toContain('onclick={isolateEvent}');
+		expect(orientation).not.toContain('onclick={() => snap');
 	});
 
 	// S10.1.6 — workspace transition polish: canvas never remounts; fades are

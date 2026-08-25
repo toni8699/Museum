@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { PerspectiveCamera, Quaternion, Vector3 } from 'three';
-import { deriveCardinalFace } from '$lib/editor/editor-orientation-gizmo.svelte';
+import {
+	createOrientationPointerGesture,
+	deriveActiveCardinalFace,
+	deriveOrientationFaceTargets,
+	moveOrientationPointerGesture,
+	shouldActivateOrientationPointerGesture
+} from '$lib/editor/editor-orientation-interaction';
 import {
 	ORIENTATION_WIDGET_CENTER,
 	orientationProjectionMateriallyChanged,
@@ -36,26 +42,18 @@ function visibleFaces(snapshot: OrientationProjectionSnapshot): string[] {
 		.sort();
 }
 
-describe('deriveCardinalFace (P3B.2)', () => {
-	it('picks the dominant axis with its sign', () => {
-		expect(deriveCardinalFace({ x: 10, y: 2, z: 3 })).toBe('+X');
-		expect(deriveCardinalFace({ x: -8, y: 1, z: 4 })).toBe('-X');
-		expect(deriveCardinalFace({ x: 2, y: 9, z: 3 })).toBe('+Y');
-		expect(deriveCardinalFace({ x: 1, y: -6, z: 2 })).toBe('-Y');
-		expect(deriveCardinalFace({ x: 2, y: 3, z: 7 })).toBe('+Z');
-		expect(deriveCardinalFace({ x: 1, y: 4, z: -9 })).toBe('-Z');
-	});
-
-	it('breaks ties deterministically toward X, then Y', () => {
-		expect(deriveCardinalFace({ x: 5, y: 5, z: 2 })).toBe('+X');
-		expect(deriveCardinalFace({ x: 3, y: 5, z: 5 })).toBe('+Y');
-	});
-
-	it('handles exact axis alignment and a zero vector', () => {
-		expect(deriveCardinalFace({ x: 0, y: -12, z: 0 })).toBe('-Y');
-		expect(deriveCardinalFace({ x: 0, y: 0, z: 0 })).toBe('+X');
-	});
-});
+function withFace(
+	snapshot: OrientationProjectionSnapshot,
+	faceName: string,
+	changes: Partial<OrientationProjectionSnapshot['faces'][number]>
+): OrientationProjectionSnapshot {
+	return {
+		...snapshot,
+		faces: snapshot.faces.map((face) =>
+			face.face === faceName ? { ...face, ...changes } : face
+		)
+	};
+}
 
 describe('projectOrientationGeometry (P3B.2 render rework)', () => {
 	it('projects the design-reference oblique pose as TOP / FRONT / RIGHT', () => {
@@ -178,5 +176,177 @@ describe('projectOrientationGeometry (P3B.2 render rework)', () => {
 		expect(orientationProjectionMateriallyChanged(base, base)).toBe(false);
 		expect(orientationProjectionMateriallyChanged(base, small)).toBe(false);
 		expect(orientationProjectionMateriallyChanged(base, accumulated)).toBe(true);
+	});
+});
+
+describe('orientation interaction (P3B.3)', () => {
+	it('activates only exact or near-cardinal eye directions', () => {
+		const cardinalCases = [
+			[[1, 0, 0], '+X'],
+			[[-1, 0, 0], '-X'],
+			[[0, 1, 0], '+Y'],
+			[[0, -1, 0], '-Y'],
+			[[0, 0, 1], '+Z'],
+			[[0, 0, -1], '-Z']
+		] as const;
+		for (const [direction, face] of cardinalCases) {
+			expect(deriveActiveCardinalFace(direction)).toBe(face);
+		}
+
+		const directionAt = (degrees: number): [number, number, number] => {
+			const radians = (degrees * Math.PI) / 180;
+			return [Math.cos(radians), Math.sin(radians), 0];
+		};
+		expect(deriveActiveCardinalFace(directionAt(2))).toBe('+X');
+		expect(deriveActiveCardinalFace(directionAt(3))).toBeNull();
+		expect(deriveActiveCardinalFace([1, 1, 1])).toBeNull();
+		expect(deriveActiveCardinalFace([0, 0, 0])).toBeNull();
+	});
+
+	it('returns six stable face targets with direct polygons before perimeter proxies', () => {
+		const snapshot = snapshotForEye(new Vector3(1, 0.75, 1));
+		const result = deriveOrientationFaceTargets(snapshot);
+
+		expect(result.targets.map((target) => target.face)).toEqual([
+			'+X',
+			'-X',
+			'+Y',
+			'-Y',
+			'+Z',
+			'-Z'
+		]);
+		for (const target of result.targets) {
+			if (target.painted) {
+				expect(target.mode).toBe('polygon');
+				expect(target.polygon).not.toBeNull();
+			} else {
+				expect(target.mode).toBe('proxy');
+				expect(target.proxyCenter).not.toBeNull();
+				expect(
+					Math.hypot(target.proxyCenter![0] - 44, target.proxyCenter![1] - 44)
+				).toBeCloseTo(36, 8);
+			}
+		}
+	});
+
+	it('uses 14px/16px hysteresis when a painted face becomes edge-on', () => {
+		const base = snapshotForEye(new Vector3(1, 0.75, 1));
+		const polygon = (width: number) => [
+			[44 - width / 2, 29],
+			[44 + width / 2, 29],
+			[44 + width / 2, 59],
+			[44 - width / 2, 59]
+		] as const;
+		const initial = deriveOrientationFaceTargets(
+			withFace(base, '+X', { painted: true, polygon: polygon(17) })
+		);
+		expect(initial.targets.find((target) => target.face === '+X')!.mode).toBe('polygon');
+
+		const enteredProxy = deriveOrientationFaceTargets(
+			withFace(base, '+X', { painted: true, polygon: polygon(13.5) }),
+			initial.state
+		);
+		expect(enteredProxy.targets.find((target) => target.face === '+X')!.mode).toBe('proxy');
+
+		const heldProxy = deriveOrientationFaceTargets(
+			withFace(base, '+X', { painted: true, polygon: polygon(15) }),
+			enteredProxy.state
+		);
+		expect(heldProxy.targets.find((target) => target.face === '+X')!.mode).toBe('proxy');
+
+		const leftProxy = deriveOrientationFaceTargets(
+			withFace(base, '+X', { painted: true, polygon: polygon(16.5) }),
+			heldProxy.state
+		);
+		expect(leftProxy.targets.find((target) => target.face === '+X')!.mode).toBe('polygon');
+	});
+
+	it('uses 2px/3px hysteresis before leaving a signed fallback proxy slot', () => {
+		const base = snapshotForEye(new Vector3(1, 0, 0));
+		const withDirection = (length: number) =>
+			withFace(base, '-X', {
+				painted: false,
+				directionFromCubeCenter: [length, 0]
+			});
+		const fallback = deriveOrientationFaceTargets(withDirection(1.5));
+		expect(fallback.targets.find((target) => target.face === '-X')!.proxyCenter).toEqual([
+			8,
+			44
+		]);
+
+		const heldFallback = deriveOrientationFaceTargets(withDirection(2.5), fallback.state);
+		expect(heldFallback.targets.find((target) => target.face === '-X')!.proxyCenter).toEqual([
+			8,
+			44
+		]);
+
+		const projected = deriveOrientationFaceTargets(withDirection(3.5), heldFallback.state);
+		expect(projected.targets.find((target) => target.face === '-X')!.proxyCenter).toEqual([
+			80,
+			44
+		]);
+	});
+
+	it('activates pointerup only for the captured pointer below the shared 4px threshold', () => {
+		const start = createOrientationPointerGesture({
+			pointerId: 7,
+			clientX: 100,
+			clientY: 200,
+			targetId: 'face:+X',
+			face: '+X'
+		});
+		const atThreshold = moveOrientationPointerGesture(start, 7, 104, 200);
+		expect(atThreshold.cancelled).toBe(false);
+		expect(
+			shouldActivateOrientationPointerGesture(atThreshold, {
+				pointerId: 7,
+				targetId: 'face:+X',
+				disabled: false
+			})
+		).toBe(true);
+
+		const overThreshold = moveOrientationPointerGesture(start, 7, 104.01, 200);
+		expect(overThreshold.cancelled).toBe(true);
+		for (const rejection of [
+			{ gesture: overThreshold, pointerId: 7, targetId: 'face:+X', disabled: false },
+			{ gesture: start, pointerId: 8, targetId: 'face:+X', disabled: false },
+			{ gesture: start, pointerId: 7, targetId: 'face:-X', disabled: false },
+			{ gesture: start, pointerId: 7, targetId: 'face:+X', disabled: true }
+		]) {
+			expect(
+				shouldActivateOrientationPointerGesture(rejection.gesture, {
+					pointerId: rejection.pointerId,
+					targetId: rejection.targetId,
+					disabled: rejection.disabled
+				})
+			).toBe(false);
+		}
+	});
+
+	// P3B.3 review disposition 2026-08-25 — intentional click slop: pointer
+	// capture keeps pointerup on the pressed target, so a sub-threshold drift
+	// that has left the original hit area still activates on identity +
+	// threshold alone. Release-inside hit-testing is deliberately NOT required;
+	// only >4px cancels.
+	it('treats sub-threshold release off the initial hit area as click slop, not drag', () => {
+		const start = createOrientationPointerGesture({
+			pointerId: 3,
+			clientX: 40,
+			clientY: 60,
+			targetId: 'axis:+Y',
+			face: '+Y'
+		});
+		const drifted = moveOrientationPointerGesture(start, 3, 42.5, 62); // ~3.5px, off-target
+		expect(drifted.cancelled).toBe(false);
+		expect(
+			shouldActivateOrientationPointerGesture(drifted, {
+				pointerId: 3,
+				targetId: 'axis:+Y',
+				disabled: false
+			})
+		).toBe(true);
+
+		const crossedThreshold = moveOrientationPointerGesture(start, 3, 45, 64); // >4px
+		expect(crossedThreshold.cancelled).toBe(true);
 	});
 });

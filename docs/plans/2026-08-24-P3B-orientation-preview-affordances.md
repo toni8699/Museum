@@ -197,7 +197,7 @@ Group A completes before Scene 3D orientation interaction begins.
 ```text
 P3B.1  Cardinal snap authority / basis resolution     SHIPPED (refactor target below)
 P3B.2  SVG projection / geometry / rendering          SHIPPED (2026-08-24)
-P3B.3  interaction states / hit isolation             READY
+P3B.3  interaction states / hit isolation             SHIPPED (2026-08-25)
 P3B.4  animated motion + polar OrbitControls handoff  READY (handoff fixture-pinned)
 ```
 
@@ -1129,6 +1129,12 @@ pointer target → minimum 14 × 14px
 
 # P3B.3 — Orientation Interaction States
 
+**Status:** Shipped 2026-08-25. Six cardinal face targets, direct/proxy and
+direction-fallback hysteresis, explicit cardinal-active tolerance, pointer
+capture with the shared drag threshold, hit priority, keyboard order,
+preview-disabled guards, and hover/pressed/focus/active presentation are
+fixture- and browser-verified. P3B.4 owns motion.
+
 ## Pointer threshold wiring
 
 `EDITOR_DRAG_THRESHOLD_PX` already exists.
@@ -1251,7 +1257,7 @@ Register separate face-state tokens before the render rework:
 
 ```css
 --editor-orientation-face-hover:
-  rgba(255, 255, 255, 0.14);
+  rgba(13, 25, 37, 0.10);
 
 --editor-orientation-face-pressed:
   rgba(0, 0, 0, 0.20);
@@ -1269,8 +1275,9 @@ Face pressed uses:
 var(--editor-orientation-face-pressed)
 ```
 
-The existing navy `--editor-orientation-hover` must not be used as the
-light-face hover overlay.
+The face token is a translucent dark-navy overlay approved for light faces.
+The opaque `--editor-orientation-hover` remains the separate shell/container
+hover token and must not be repurposed as the face overlay.
 
 ---
 

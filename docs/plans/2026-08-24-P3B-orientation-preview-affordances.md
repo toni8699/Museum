@@ -198,7 +198,7 @@ Group A completes before Scene 3D orientation interaction begins.
 P3B.1  Cardinal snap authority / basis resolution     SHIPPED (refactor target below)
 P3B.2  SVG projection / geometry / rendering          SHIPPED (2026-08-24)
 P3B.3  interaction states / hit isolation             SHIPPED (2026-08-25)
-P3B.4  animated motion + polar OrbitControls handoff  READY (handoff fixture-pinned)
+P3B.4  animated motion + polar OrbitControls handoff  SHIPPED (2026-08-25)
 ```
 
 P3B.1–P3B.4 may proceed.
@@ -1329,23 +1329,30 @@ The whole widget recedes.
 
 ## Status
 
-**UNBLOCKED 2026-08-24 — polar handoff fixture-pinned.**
+**Shipped 2026-08-25.** The pure sampler
+(`createEditorCardinalSnapMotion` in `camera-motion.ts`, 320ms ease-out,
+great-circle direction/distance/up channels, target-blend channel for
+fallback-replaced targets), the exported two-phase split
+(`resolveEditorCardinalSnapBasis` consumed by both the frozen instant commit
+and the animated path), projector flight driving with the fixture-pinned
+landing handoff (controls update → global +Y restore), mid-flight retarget
+continuity from the last applied sample, cancel on manual orbit via the
+controls `start` event, preview-disabled clearing, and reduced-motion instant
+commit are implemented and fixture-verified
+(`tests/lib/editor/camera/cardinal-snap-motion.test.ts`: endpoints, eased arc,
+antipodal sweep, immutability, retarget continuity, animated/instant
+convergence within 1e-4 rad on +X/−Z/+Y/−Y against real OrbitControls).
 
-The former blocker (exact polar-to-manual-orbit handoff) is resolved:
+Review fix (same day): every cancellation path — manual orbit, preview
+takeover, projector teardown, missing-ref teardown, reduced-motion
+replacement — routes through the non-terminal `cancelEditorOrientationSnap`
+handoff (global +Y restore + inertia drain beside the runtime holder);
+mid-flight cancel fixtures pin both polar faces (runtime clears, exact sampled
+eye/target continuity, no terminal snap, `camera.up === [0,1,0]`, subsequent
+update stable). Retarget never calls
+the handoff.
 
-* Inspected integration: Threlte `<OrbitControls>` in `EditorCameraRig.svelte`
-  owns per-frame `controls.update()` while `enableDamping` is on (defaults
-  `true`); the orbit frame derives from the live `camera.up` on every update;
-  the editor's only `camera.up` writes are the snap helper's.
-* Canonical handoff: commit with the table `camera.up` inside the `lookAt`,
-  `controls.update()`, then restore `camera.up` to `(0, 1, 0)` — the per-frame
-  re-derivation passes through the `lookAt` epsilon guard, which reproduces the
-  committed Plan-North roll at both polar faces (screen-up ≈ world ∓Z).
-* Proof: `tests/lib/editor/camera/polar-orbit-handoff.test.ts` — quaternion
-  stable within 1e-4 rad across the per-frame re-derivation; drags hold a
-  y-invariant XZ-plane orbit (global +Y pole) with north-up preserved.
-
-The following motion behavior is otherwise approved.
+The following motion behavior is approved and shipped.
 
 ---
 

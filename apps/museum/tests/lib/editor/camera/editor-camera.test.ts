@@ -8,6 +8,7 @@ import {
 	createEditorPanSpeed,
 	createEditorBoundsNeutralFallback,
 	createEditorPlacementCameraFrame,
+	resolveEditorCardinalSnapBasis,
 	EDITOR_DIRECTOR_OBSERVER_OFFSET,
 	EDITOR_NODE_FRAME_EXPANSION,
 	EDITOR_PAN_BASE_SPEED,
@@ -560,6 +561,99 @@ describe('editor camera helpers', () => {
 
 			expect(snapEditorViewToCardinal('+X', camera, controls)).toBe(false);
 			expect(updates).toBe(0);
+		});
+	});
+
+	describe('resolveEditorCardinalSnapBasis (P3B.4 two-phase split)', () => {
+		function cameraAt(
+			target: Vector3,
+			distance: number,
+			direction: [number, number, number] = [1, 0, 0]
+		) {
+			const camera = new PerspectiveCamera(50, 16 / 9, 0.025, 400);
+			camera.position
+				.copy(target)
+				.add(new Vector3(direction[0], direction[1], direction[2]).multiplyScalar(distance));
+			return camera;
+		}
+
+		it('resolves the valid active orbit basis without mutating the camera', () => {
+			const target = new Vector3(4, 2, -3);
+			const camera = cameraAt(target, 12);
+			const positionBefore = camera.position.clone();
+			const controls = createControls({ target: target.clone() });
+
+			const basis = resolveEditorCardinalSnapBasis(camera, controls);
+
+			expect(basis).not.toBeNull();
+			expect(basis!.target.toArray()).toEqual(target.toArray());
+			expect(basis!.distance).toBeCloseTo(12, 12);
+			expect(camera.position.distanceTo(positionBefore)).toBeLessThan(1e-15);
+		});
+
+		it('drains inertia between the first and settled resolution', () => {
+			const target = new Vector3();
+			const camera = cameraAt(target, 10);
+			let updates = 0;
+			const controls = createControls({
+				target: target.clone(),
+				update: () => {
+					updates += 1;
+					return true;
+				}
+			});
+
+			resolveEditorCardinalSnapBasis(camera, controls);
+			// Exactly the one flush update; the commit's own update belongs to
+			// phase 2 and must not run during resolution.
+			expect(updates).toBe(1);
+		});
+
+		it('uses the fallback when the active pose is degenerate', () => {
+			const target = new Vector3();
+			const camera = cameraAt(target, 0); // coincident → invalid current basis
+			const fallbackTarget = new Vector3(...EDITOR_NEUTRAL_CAMERA_TARGET);
+			const controls = createControls({ target: target.clone() });
+
+			const basis = resolveEditorCardinalSnapBasis(
+				camera,
+				controls,
+				() => ({
+					position: new Vector3(...EDITOR_NEUTRAL_CAMERA_POSITION),
+					target: fallbackTarget.clone()
+				})
+			);
+
+			expect(basis).not.toBeNull();
+			expect(basis!.target.toArray()).toEqual(fallbackTarget.toArray());
+			expect(basis!.distance).toBeCloseTo(new Vector3(...EDITOR_NEUTRAL_CAMERA_POSITION).distanceTo(fallbackTarget), 9);
+		});
+
+		it('returns null atomically — no flush, fallback consumed once', () => {
+			const target = new Vector3();
+			const camera = cameraAt(target, 0);
+			let updates = 0;
+			const controls = createControls({
+				target: target.clone(),
+				update: () => {
+					updates += 1;
+					return true;
+				}
+			});
+			const fallback = vi.fn(() => null);
+
+			expect(resolveEditorCardinalSnapBasis(camera, controls, fallback)).toBeNull();
+			expect(updates).toBe(0);
+			expect(fallback).toHaveBeenCalledTimes(1);
+		});
+
+		it('clamps the resolved distance into controls limits', () => {
+			const target = new Vector3();
+			const camera = cameraAt(target, 8);
+			const controls = createControls({ target: target.clone(), minDistance: 2, maxDistance: 3 });
+
+			const basis = resolveEditorCardinalSnapBasis(camera, controls);
+			expect(basis!.distance).toBeCloseTo(3, 12);
 		});
 	});
 

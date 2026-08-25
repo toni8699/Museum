@@ -4,8 +4,10 @@ import {
 	createOrientationPointerGesture,
 	deriveActiveCardinalFace,
 	deriveOrientationFaceTargets,
+	deriveOrientationSnapStartPose,
 	moveOrientationPointerGesture,
-	shouldActivateOrientationPointerGesture
+	shouldActivateOrientationPointerGesture,
+	toOrientationSnapStartPose
 } from '$lib/editor/editor-orientation-interaction';
 import {
 	ORIENTATION_WIDGET_CENTER,
@@ -348,5 +350,26 @@ describe('orientation interaction (P3B.3)', () => {
 
 		const crossedThreshold = moveOrientationPointerGesture(start, 3, 45, 64); // >4px
 		expect(crossedThreshold.cancelled).toBe(true);
+	});
+
+	it('captures snap start poses: retarget prefers the last applied sample', () => {
+		const live = toOrientationSnapStartPose(
+			{ x: 6, y: 5, z: 7 },
+			{ x: 0, y: 1, z: 0 },
+			{ x: 0, y: 1, z: 0 }
+		);
+
+		// No active flight → the live pose is captured as a fresh clone.
+		const fromLive = deriveOrientationSnapStartPose(null, live);
+		expect(fromLive).toEqual(live);
+		expect(fromLive).not.toBe(live);
+
+		// Active flight → the applied sample wins verbatim (retarget continuity).
+		const applied = toOrientationSnapStartPose(
+			{ x: 1.5, y: 2.5, z: 3.5 },
+			{ x: 0, y: 1, z: 0.25 },
+			{ x: 0, y: 0.99, z: -0.1 }
+		);
+		expect(deriveOrientationSnapStartPose(applied, live)).toBe(applied);
 	});
 });

@@ -1379,6 +1379,27 @@ describe('camera context contracts', () => {
 		expect(orientation).toContain('aria-disabled={disabled}');
 		expect(orientation).toContain('onclick={isolateEvent}');
 		expect(orientation).not.toContain('onclick={() => snap');
+		// P3B.4 — animated snap wiring: the widget resolves via the shared
+		// two-phase helper and flies through the single camera-motion sampler;
+		// reduced motion commits instantly. The projector advances/lands the
+		// flight with the fixture-pinned handoff and cancels on manual orbit.
+		const projector = readLibSource('editor/EditorOrientationGizmoProjector.svelte');
+		expect(orientation).toContain('resolveEditorCardinalSnapBasis');
+		expect(orientation).toContain('createEditorCardinalSnapMotion');
+		expect(orientation).toContain("prefers-reduced-motion: reduce");
+		// Interruptions hand off (never raw-clear): manual orbit via the
+		// controls start event, preview takeover, teardown, reduced-motion
+		// replacement, and missing-ref teardown all route through the
+		// non-terminal +Y restore in `cancelEditorOrientationSnap`.
+		expect(orientation).toContain('cancelEditorOrientationSnap');
+		expect(projector).toContain("addEventListener('start'");
+		expect(projector).toContain('applyActiveSnap');
+		expect(projector).toContain('currentControls.update()');
+		expect(projector).toContain('currentCamera.up.set(0, 1, 0)');
+		expect(projector).toContain('cancelEditorOrientationSnap');
+		expect(readLibSource('editor/editor-orientation-gizmo.svelte.ts')).toContain(
+			'consumeEditorOrbitInertia'
+		);
 	});
 
 	// S10.1.6 — workspace transition polish: canvas never remounts; fades are

@@ -77,6 +77,45 @@ export type OrientationPointerGesture = {
 	cancelled: boolean;
 };
 
+/** Numeric pose triple used to seed/retarget cardinal snap flights. */
+export type OrientationSnapStartPose = Readonly<{
+	position: readonly [number, number, number];
+	target: readonly [number, number, number];
+	up: readonly [number, number, number];
+}>;
+
+export function toOrientationSnapStartPose(
+	position: { x: number; y: number; z: number },
+	target: { x: number; y: number; z: number },
+	up: { x: number; y: number; z: number }
+): OrientationSnapStartPose {
+	const tuple = (vector: { x: number; y: number; z: number }) =>
+		Object.freeze([vector.x, vector.y, vector.z]) as readonly [number, number, number];
+	return Object.freeze({
+		position: tuple(position),
+		target: tuple(target),
+		up: tuple(up)
+	});
+}
+
+/**
+ * P3B.4 retarget continuity: a click during an active flight starts from the
+ * last applied sampler sample so the new flight continues from the on-screen
+ * pose without a jump. With no active flight the live viewport pose is
+ * captured (cloned).
+ */
+export function deriveOrientationSnapStartPose(
+	previousLastSample: OrientationSnapStartPose | null,
+	live: OrientationSnapStartPose
+): OrientationSnapStartPose {
+	if (previousLastSample) return previousLastSample;
+	return toOrientationSnapStartPose(
+		{ x: live.position[0], y: live.position[1], z: live.position[2] },
+		{ x: live.target[0], y: live.target[1], z: live.target[2] },
+		{ x: live.up[0], y: live.up[1], z: live.up[2] }
+	);
+}
+
 function point(x: number, y: number): OrientationPoint2 {
 	return Object.freeze([x, y] as [number, number]);
 }

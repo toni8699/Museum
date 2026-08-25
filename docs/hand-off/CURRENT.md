@@ -5,13 +5,20 @@ slice plus one next action only.
 
 ## Working tree
 
-- Current delta: **P3B is in progress; Group A and P3B.1–P3B.3 are shipped;
-  all work is uncommitted.** P3B.3 adds six ordered cardinal face targets,
-  direct-polygon/perimeter-proxy and direction-fallback hysteresis, explicit
-  cardinal-active tolerance, pointer capture with the shared 4px drag gate,
-  hit priority, keyboard/a11y order, preview-disabled guards, and complete
-  hover/pressed/focus/active presentation over P3B.2's immutable projection
-  snapshots.
+- Current delta: **P3B is in progress; Group A and P3B.1–P3B.4 are shipped;
+  all work is uncommitted.** P3B.4 adds the pure cardinal snap sampler in the
+  camera-motion authority (320ms ease-out great-circle direction/distance/up
+  plus a target-blend channel for fallback-replaced targets), the exported
+  two-phase resolution split consumed by both commit paths, projector-driven
+  flight with the fixture-pinned landing handoff, mid-flight retarget from the
+  last applied sample, cancel on manual orbit (`start` event), and the
+  reduced-motion instant path. Review fix: every cancellation path (manual
+  orbit, preview takeover, teardown, missing-ref teardown, reduced-motion
+  replacement) routes through the non-terminal
+  `cancelEditorOrientationSnap` handoff — global +Y restore + inertia drain —
+  so an interrupted ±Y flight cannot leak its interpolated lookAt/up reference;
+  fixtures pin mid-flight cancel on both polar faces and exact eye/target
+  continuity.
 - Post-ship P3B.2/P3B.3 review fixes (2026-08-25, owner-dispositioned):
   removed the vestigial `targetStillValid` gate from pointer activation,
   aligned proxy/axis focus-visible to the specified 2px `--editor-gizmo-hover`
@@ -23,20 +30,21 @@ slice plus one next action only.
   backing-identity, validator, and relic-boundary tests are required before
   acceptance. The work is tracked in
   [`../plans/2026-08-24-P3B-orientation-preview-affordances.md`](../plans/2026-08-24-P3B-orientation-preview-affordances.md).
-- Previous slice: **P3B.3 orientation interaction states**, closed 2026-08-25.
+- Previous slice: **P3B.4 cardinal snap motion**, closed 2026-08-25.
   The active P3B umbrella is the back-pointer.
 
 ## Next action
 
-- Execute **P3B.4 cardinal snap motion** from the active umbrella: add the pure
-  320ms ease-out sampler in the existing camera-motion authority, wire widget
-  snaps without a second motion system, preserve the fixture-proven polar
-  OrbitControls handoff, support mid-animation retarget/cancel, and honor
-  reduced motion. No unresolved gate.
+- Execute **Group C (P3B.5 → P3B.6) camera preview affordances** from the
+  active umbrella: canonical Click→select / Preview-action→scope grammar across
+  Camera Plan, Camera 3D, Inspector, Sidebar, and Timeline; node preview
+  identical for sequenced and unsequenced cameras; sequence preview owned by
+  Sequence Inspector/Timeline; explicit direction choice for unsequenced edge
+  previews; topology stays undirected. No unresolved gate.
 
 ## Verification
 
-- Last known verification: `npm test` 2,122 passed / 1 skipped across 156
+- Last known verification: `npm test` 2,144 passed / 1 skipped across 157
   files; `npm run check` 0 errors / 0 warnings; `npm run build` clean with
   existing third-party unused-import and chunk-size warnings; `git diff --check`
   clean.
@@ -70,6 +78,15 @@ slice plus one next action only.
   `preview.runId`, never cloned route identity.
 - Stable mutable Three camera refs are not orientation-render signals. P3B.2's
   immutable projection snapshot is the DOM overlay authority.
+- Snap flights (P3B.4) write sampled poses per frame and land via
+  `controls.update()` + global `+Y` restore; every *interruption* (manual
+  orbit, preview takeover, teardown) must route through the non-terminal
+  `cancelEditorOrientationSnap` handoff — a raw runtime clear leaks the
+  interpolated `camera.up` into OrbitControls' live lookAt/update orientation.
+  Cancellation
+  listens on the controls `start` event, so programmatic updates never cancel
+  a flight. Retarget replaces the flight from the last applied sample and
+  must not call the handoff.
 - P3B.3 target hysteresis state must persist across projection snapshots; do
   not derive hit mode or proxy fallback from one frame in isolation.
 - Camera means guided PerspectiveCamera navigation, never webcam.

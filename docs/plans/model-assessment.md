@@ -68,7 +68,7 @@ success percentages.
 | **P3B.1** | 92 | Sol xhigh | shipped — six-face snap helper, shared threshold, inert orientation tokens; discovery risk retired (no authority existed → owner-approved contract), polar handoff fixture-proven; residual two-phase boundary refactor is frozen-behavior ≈ 42 Luna high |
 | **P3B.2** | 74 | Sol high | shipped — pure camera projection, immutable per-frame snapshots, front-face SVG, labels/fades, corner axes/reticles, focused fixtures + browser QA; interaction proxies remain P3B.3, motion remains P3B.4 |
 | **P3B.3** | 48 | Luna high | shipped — six-face direct/proxy targets with hysteresis and hit priority; shared-threshold pointer capture; cardinal-active tolerance; keyboard/a11y/disabled states; focused + browser QA |
-| **P3B.4** | 56 | Sol medium | proposed — polar handoff risk retired by fixture (`polar-orbit-handoff.test.ts`); sampler contract pinned (signature, 320ms ease-out, reduced-motion); remaining: sampler + widget wiring + retarget/cancel fixtures |
+| **P3B.4** | 56 | Sol medium | shipped — pure sampler + two-phase resolution split in existing authorities; projector-driven flight with fixture-pinned polar handoff; retarget/cancel/reduced-motion verified (animated ≡ instant convergence fixture); interruption paths route through the non-terminal +Y handoff, mid-flight cancel fixture-pinned on both poles |
 | **P3B.5** | 76 | Sol high | proposed — cross-surface preview controls, labels, timeline scope |
 | **P3B.6** | 67 | Sol medium | proposed — canonical adjacency plus chooser behavior |
 | **P3B.7a** | 79 | Sol high | proposed — cross-slice regression and accessibility coverage |

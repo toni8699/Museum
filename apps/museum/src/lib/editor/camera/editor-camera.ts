@@ -358,8 +358,12 @@ function clampCardinalDistance(
  * cardinal alignment (and the per-frame damping task keeps drifting it).
  * Disabling damping makes a single update consume the full remaining delta
  * at once; the prior flag is restored even if `update` throws.
+ *
+ * Also shared by the P3B.4 orientation-widget cancellation handoff, which
+ * drains residue after restoring the global +Y pole so an interrupted flight
+ * stays put under the per-frame damping task.
  */
-function consumeEditorOrbitInertia(controls: EditorOrbitControlsLike): void {
+export function consumeEditorOrbitInertia(controls: EditorOrbitControlsLike): void {
 	const enableDamping = controls.enableDamping;
 	try {
 		controls.enableDamping = false;
@@ -406,20 +410,45 @@ function resolveFallbackBasis(
 }
 
 /**
+ * P3B.4 two-phase split — phase 1 (basis resolution). Resolves and validates
+ * the committed `{target, distance}` across the active settled orbit pose and
+ * the injected fallback, draining pending damped inertia between them exactly
+ * like the instant commit. Returns null — with zero camera/controls mutation —
+ * when no viable basis exists; a viable resolution guarantees the commit.
+ *
+ * Phase 2 is either the atomic instant commit (`snapEditorViewToCardinal`) or
+ * the animated path (`createEditorCardinalSnapMotion` in the camera-motion
+ * authority, driven by the orientation widget's per-frame task).
+ */
+export function resolveEditorCardinalSnapBasis(
+	camera: PerspectiveCamera,
+	controls: EditorOrbitControlsLike,
+	fallback: EditorCardinalFallbackResolver = () => null
+): { target: Vector3; distance: number } | null {
+	const initial =
+		resolveCurrentCardinalBasis(camera, controls) ??
+		resolveFallbackBasis(controls, fallback);
+	if (!initial) return null;
+	consumeEditorOrbitInertia(controls);
+	return resolveCurrentCardinalBasis(camera, controls) ?? initial;
+}
+
+/**
  * Owner-approved P3B.1 cardinal snap. Instantly repositions the editor camera
  * to look at the target from the requested cardinal side, preserving projection,
  * FOV, zoom, near/far, OrbitControls limits/config, selection, tool, document,
  * and history. Session-local viewport presentation only.
  *
- * Target/distance are resolved and validated before commit, so a failed snap
- * returns `false` without mutating the camera — basis resolution is the only
- * failure exit, and the injected resolver runs at most once per snap. Only a
- * viable snap consumes pending damped orbit/pan inertia against the pre-snap
- * pose before that resolution (a released fling must not displace the
- * committed eye/target), so the resolved distance reflects the settled
- * controls state. The table `camera.up` is used
- * only inside the commit `lookAt`; after commit it is restored to `(0, 1, 0)` so
- * subsequent orbit drags keep the standard `+Y` pole.
+ * Target/distance are resolved via the shared phase-1 helper
+ * (`resolveEditorCardinalSnapBasis`) before commit, so a failed snap returns
+ * `false` without mutating the camera — basis resolution is the only failure
+ * exit, and the injected resolver runs at most once per snap. Only a viable
+ * snap consumes pending damped orbit/pan inertia against the pre-snap pose
+ * before that resolution (a released fling must not displace the committed
+ * eye/target), so the resolved distance reflects the settled controls state.
+ * The table `camera.up` is used only inside the commit `lookAt`; after commit
+ * it is restored to `(0, 1, 0)` so subsequent orbit drags keep the standard
+ * `+Y` pole.
  *
  * Fallback authority (cited): callers build the injected resolver from the
  * existing framing APIs in this module — `createEditorBoundsCameraFrame` (or a
@@ -436,19 +465,10 @@ export function snapEditorViewToCardinal(
 	const direction = CARDINAL_FACE_TO_EYE[face];
 	const up = CARDINAL_FACE_UP[face];
 	// Atomic no-op: resolve the viable basis before mutating anything. This is
-	// the only failure exit — once the flush below runs, a commit is guaranteed.
-	const basis =
-		resolveCurrentCardinalBasis(camera, controls) ??
-		resolveFallbackBasis(controls, fallback);
-	if (!basis) return false;
-	// Drain residual drag inertia onto the pre-snap pose: the flush must land
-	// before resolution so the committed eye/target (and the commit update
-	// below) are exact.
-	consumeEditorOrbitInertia(controls);
-	// Prefer the settled current pose after the flush; otherwise keep the
-	// validated pre-flush basis (current snapshot or fallback — resolved at
-	// most once, so stateful resolvers stay consistent).
-	const pose = resolveCurrentCardinalBasis(camera, controls) ?? basis;
+	// the only failure exit — once the flush inside phase 1 has run, a commit
+	// is guaranteed.
+	const pose = resolveEditorCardinalSnapBasis(camera, controls, fallback);
+	if (!pose) return false;
 
 	camera.up.set(up[0], up[1], up[2]);
 	camera.position

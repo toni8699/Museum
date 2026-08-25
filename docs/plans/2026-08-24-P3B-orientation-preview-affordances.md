@@ -198,7 +198,7 @@ Group A completes before Scene 3D orientation interaction begins.
 P3B.1  Cardinal snap authority / basis resolution     SHIPPED (refactor target below)
 P3B.2  SVG projection / geometry / rendering          SHIPPED (2026-08-24)
 P3B.3  interaction states / hit isolation             SHIPPED (2026-08-25)
-P3B.4  animated motion + polar OrbitControls handoff  READY (handoff fixture-pinned)
+P3B.4  animated motion + polar OrbitControls handoff  SHIPPED (2026-08-25)
 ```
 
 P3B.1–P3B.4 may proceed.
@@ -1329,23 +1329,30 @@ The whole widget recedes.
 
 ## Status
 
-**UNBLOCKED 2026-08-24 — polar handoff fixture-pinned.**
+**Shipped 2026-08-25.** The pure sampler
+(`createEditorCardinalSnapMotion` in `camera-motion.ts`, 320ms ease-out,
+great-circle direction/distance/up channels, target-blend channel for
+fallback-replaced targets), the exported two-phase split
+(`resolveEditorCardinalSnapBasis` consumed by both the frozen instant commit
+and the animated path), projector flight driving with the fixture-pinned
+landing handoff (controls update → global +Y restore), mid-flight retarget
+continuity from the last applied sample, cancel on manual orbit via the
+controls `start` event, preview-disabled clearing, and reduced-motion instant
+commit are implemented and fixture-verified
+(`tests/lib/editor/camera/cardinal-snap-motion.test.ts`: endpoints, eased arc,
+antipodal sweep, immutability, retarget continuity, animated/instant
+convergence within 1e-4 rad on +X/−Z/+Y/−Y against real OrbitControls).
 
-The former blocker (exact polar-to-manual-orbit handoff) is resolved:
+Review fix (same day): every cancellation path — manual orbit, preview
+takeover, projector teardown, missing-ref teardown, reduced-motion
+replacement — routes through the non-terminal `cancelEditorOrientationSnap`
+handoff (global +Y restore + inertia drain beside the runtime holder);
+mid-flight cancel fixtures pin both polar faces (runtime clears, exact sampled
+eye/target continuity, no terminal snap, `camera.up === [0,1,0]`, subsequent
+update stable). Retarget never calls
+the handoff.
 
-* Inspected integration: Threlte `<OrbitControls>` in `EditorCameraRig.svelte`
-  owns per-frame `controls.update()` while `enableDamping` is on (defaults
-  `true`); the orbit frame derives from the live `camera.up` on every update;
-  the editor's only `camera.up` writes are the snap helper's.
-* Canonical handoff: commit with the table `camera.up` inside the `lookAt`,
-  `controls.update()`, then restore `camera.up` to `(0, 1, 0)` — the per-frame
-  re-derivation passes through the `lookAt` epsilon guard, which reproduces the
-  committed Plan-North roll at both polar faces (screen-up ≈ world ∓Z).
-* Proof: `tests/lib/editor/camera/polar-orbit-handoff.test.ts` — quaternion
-  stable within 1e-4 rad across the per-frame re-derivation; drags hold a
-  y-invariant XZ-plane orbit (global +Y pole) with north-up preserved.
-
-The following motion behavior is otherwise approved.
+The following motion behavior is approved and shipped.
 
 ---
 
@@ -1610,6 +1617,39 @@ Example active label:
 Preview: Edge · Camera A → Camera B
 ```
 
+### Unsequenced-edge selection parity (P3B.6)
+
+**Requested 2026-08-25.** Edge preview for unsequenced connections requires
+that the unsequenced edge is actually selectable and visibly responds in
+Camera Plan.
+
+Current state: an edge between two unsequenced nodes is a **retained
+(inactive) connection** (S10.1.3). It renders desaturated/dashed, and although
+the hit-test and click handler do select it in the store, the retained
+presentation wins over selection in three places, so the edge gives zero
+visual feedback and reads as "not clickable":
+
+```text
+plan-render-model.ts   retained style beats selected style
+camera-plan-hover.ts   retained edges never get the hover token
+PlanSvg.svelte         .camera-edge.retained declared after .selected
+```
+
+P3B.6 must make unsequenced-edge selection visually truthful:
+
+* clicking a retained edge shows selection (backdrop click still deselects);
+* hover on a retained edge shows the hover cue;
+* selection/hover overlay the retained base without collapsing it into the
+  active-edge look — the desaturated/dashed base remains distinguishable
+  until selected (e.g. a `camera-edge-retained-selected` token or equivalent
+  token precedence fix);
+* the retained context menu (timing / reverse / delete) stays available;
+* retained-connection semantics (S10.1.3) are unchanged — a retained
+  connection stays inactive unless the user sequences its nodes.
+
+This is interaction/parity work inside Group C, not a change to retained-connection
+semantics (S10.1.3).
+
 ---
 
 ## Camera Plan / Camera 3D parity
@@ -1687,7 +1727,9 @@ Verify:
 * sequence edge direction derives from Sequence adjacency;
 * unsequenced edge requires explicit direction choice;
 * topology remains visually undirected;
-* Reverse remains transport behavior only.
+* Reverse remains transport behavior only;
+* unsequenced (retained) edge click selects, hover cues, and backdrop click
+  deselects, with the retained base presentation preserved.
 
 ---
 
@@ -1794,6 +1836,8 @@ P3B.4 Status); Group B proceeds without a stop gate.
 * Sequence preview belongs to Sequence/timeline surface.
 * Edge-preview direction explicit and deterministic.
 * Camera topology remains undirected.
+* Unsequenced (retained) edges are selectable in Camera Plan and show
+  selection/hover feedback without losing their retained base presentation.
 
 ## Core
 

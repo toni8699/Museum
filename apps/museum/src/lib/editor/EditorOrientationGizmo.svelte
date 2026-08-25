@@ -1,19 +1,32 @@
 <script lang="ts">
+	import { Vector3 } from 'three';
 	import type { EditorStore } from './editor-store.svelte';
 	import {
+		CARDINAL_FACE_TO_EYE,
+		CARDINAL_FACE_UP,
 		createEditorBoundsNeutralFallback,
+		resolveEditorCardinalSnapBasis,
 		snapEditorViewToCardinal,
 		type CardinalView
 	} from './camera/editor-camera';
+	import {
+		createEditorCardinalSnapMotion
+	} from '$lib/museum/navigation/camera-motion';
 	import type { LayoutBounds3 } from '$lib/layout/layout-geometry-types';
-	import { editorOrientationGizmo } from './editor-orientation-gizmo.svelte';
+	import {
+		cancelEditorOrientationSnap,
+		editorOrientationGizmo,
+		editorOrientationSnapRuntime
+	} from './editor-orientation-gizmo.svelte';
 	import {
 		deriveActiveCardinalFace,
 		deriveOrientationFaceTargets,
+		deriveOrientationSnapStartPose,
 		createOrientationPointerGesture,
 		moveOrientationPointerGesture,
 		ORIENTATION_PROXY_HIT_SIZE,
 		shouldActivateOrientationPointerGesture,
+		toOrientationSnapStartPose,
 		type OrientationFaceTarget,
 		type OrientationInteractionHysteresisState,
 		type OrientationPointerGesture
@@ -23,9 +36,12 @@
 		ProjectedOrientationAxis
 	} from './editor-orientation-projection';
 
-	// P3B.2/P3B.3 — camera-projected SVG presentation plus DOM-owned interaction
-	// layer. Six face buttons use projected polygons or perimeter proxies;
-	// positive-axis buttons sit between proxy and painted-face hit priority.
+	// P3B.2–P3B.4 — camera-projected SVG presentation, DOM-owned interaction
+	// layer, and animated cardinal snap wiring. Six face buttons use projected
+	// polygons or perimeter proxies; positive-axis buttons sit between proxy
+	// and painted-face hit priority. Snaps fly through the pure
+	// `createEditorCardinalSnapMotion` sampler (320ms ease-out; reduced motion
+	// commits instantly); the projector advances and lands the flight.
 	let { store, layoutBounds = null }: { store: EditorStore; layoutBounds?: LayoutBounds3 | null } =
 		$props();
 
@@ -65,6 +81,12 @@
 
 	$effect(() => {
 		if (!disabled) return;
+		// A preview owning the camera also owns the flight: hand off (never a
+		// raw clear) so the preview captures a canonical-pole pose.
+		cancelEditorOrientationSnap(
+			editorOrientationGizmo.camera,
+			editorOrientationGizmo.controls
+		);
 		pointerGesture = null;
 		hoveredTargetId = null;
 		hoveredFace = null;
@@ -138,27 +160,64 @@
 		return `left: ${center[0] - 7}px; top: ${center[1] - 7}px`;
 	}
 
+	function prefersReducedMotion(): boolean {
+		return (
+			typeof window !== 'undefined' &&
+			window.matchMedia('(prefers-reduced-motion: reduce)').matches
+		);
+	}
+
 	function snap(face: CardinalView) {
 		if (disabled) return;
 		const camera = editorOrientationGizmo.camera;
 		const controls = editorOrientationGizmo.controls;
 		if (!camera || !controls) return;
-		snapEditorViewToCardinal(
-			face,
-			camera,
-			controls,
-			// Fallback authority per the P3B.1 contract: step 2 frames the
-			// compiled layout bounds (from a valid direction — the live orbit
-			// pose is exactly what may be invalid here), step 3 falls back to
-			// the neutral editor pose. Bounds stay injected from the shell —
-			// this widget remains presentation-only.
-			createEditorBoundsNeutralFallback(
-				layoutBounds,
-				camera.position,
-				controls.target,
-				{ fovDegrees: camera.fov, aspect: camera.aspect }
-			)
+		// Fallback authority per the P3B.1 contract: step 2 frames the
+		// compiled layout bounds (from a valid direction — the live orbit
+		// pose is exactly what may be invalid here), step 3 falls back to
+		// the neutral editor pose. Bounds stay injected from the shell —
+		// this widget remains presentation-only.
+		const fallback = createEditorBoundsNeutralFallback(
+			layoutBounds,
+			camera.position,
+			controls.target,
+			{ fovDegrees: camera.fov, aspect: camera.aspect }
 		);
+		if (prefersReducedMotion()) {
+			// Reduced motion: 0ms direct cardinal commit through the frozen
+			// instant primitive. An in-flight snap is cancelled with the full
+			// handoff first — the commit overwrites the pose anyway, but the
+			// pre-commit basis resolution must not read an interpolated pole.
+			cancelEditorOrientationSnap(camera, controls);
+			snapEditorViewToCardinal(face, camera, controls, fallback);
+			return;
+		}
+		// Animated path — same resolution phase the instant commit uses
+		// (settled basis + inertia drain + atomic no-op). The trajectory comes
+		// from the pure sampler in the single camera-motion authority; this
+		// widget stores no motion of its own.
+		const basis = resolveEditorCardinalSnapBasis(camera, controls, fallback);
+		if (!basis) return;
+		// Retarget continuity (P3B.4): a click during flight starts from the
+		// last applied sample so the new flight continues without a jump.
+		const start = deriveOrientationSnapStartPose(
+			editorOrientationSnapRuntime.active?.lastSample ?? null,
+			toOrientationSnapStartPose(camera.position, controls.target, camera.up)
+		);
+		editorOrientationSnapRuntime.active = {
+			face,
+			motion: createEditorCardinalSnapMotion(
+				new Vector3(...start.position),
+				new Vector3(...start.target),
+				new Vector3(...start.up),
+				basis.target.clone(),
+				new Vector3(...CARDINAL_FACE_TO_EYE[face]),
+				basis.distance,
+				new Vector3(...CARDINAL_FACE_UP[face])
+			),
+			elapsedMs: 0,
+			lastSample: null
+		};
 	}
 
 	function activate(event: KeyboardEvent, face: CardinalView, targetId: string) {

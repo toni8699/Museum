@@ -788,15 +788,24 @@ and:
 
 A connection is required only for movement preview, not for viewing a camera pose.
 
-From Camera Plan, previewing a camera may switch to Camera 3D while preserving selection.
-
-This follows the existing shared-selection rule between Camera Plan and Camera 3D.
+From Camera Plan, selecting a camera enters paused static Camera scope and may
+switch to Camera 3D while preserving canonical selection. Selecting a
+connection enters paused local Edge scope, including when an endpoint is
+Unsequenced; it does not autoplay. While Sequence is playing, selecting a
+Camera/Edge pauses Sequence and enters the selected scope without full preview
+teardown. `Preview Sequence` remains an explicit whole-route command. This
+P11 rule supersedes the earlier P3B selection-only preview wording.
 
 ---
 
 # 19. Timeline behavior
 
-The timeline represents Sequence, not the complete camera graph.
+The timeline represents Sequence, not the complete camera graph, except for an
+explicit selected Edge scope used for local authoring. Camera scope is a static
+pose and has no fabricated temporal content. Selecting Camera/Edge drives the
+corresponding paused scope; `Preview Sequence` explicitly returns to the global
+Sequence scope. Edge Repeat is temporary editor transport only; Sequence loop
+remains derived from authored tail↔head topology.
 
 The primary Camera Path lane shows:
 

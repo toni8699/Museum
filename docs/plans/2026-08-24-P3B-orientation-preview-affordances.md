@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-24
 **Status:** In progress — standalone follow-up after P3 close
-**Tracker:** `docs/plans/README.md` — **P3B**, depends on P3 + P8 S2–S4
+**Tracker:** `docs/plans/README.md` — **P3B**, depends on P3 + P8 S2–S4; preview UX semantics are superseded by proposed P11 before remaining P3B.6/QA work
 **Historical source:** `P3 umbrella` — extracted P3.4/P3.5 and P3B scope
 
 ---
@@ -123,11 +123,11 @@ world Y  ← vertical height
 
 * Camera Plan connections remain undirected.
 * Direction appears only in explicit preview/playback actions.
+* **Superseded by P11 (2026-08-25):** Camera/Edge selection now drives paused local preview scope; the original selection-independent rule below is retained only as the shipped P3B.5 baseline and must not govern new implementation.
 * Selection never starts playback.
-* Selection never changes preview scope.
-* Selection never resets the playhead.
-* Selection never replaces an active preview.
-* Selection and preview scope remain independent.
+* Selection never resets the playhead unless entering the newly selected local scope requires a safe fallback from an unavailable progress mapping.
+* Sequence remains an explicit whole-route preview scope.
+* Camera/Edge selection and preview scope share canonical selection; no second active-edge identity.
 * Preview actions use Play/CirclePlay semantics.
 * Eye remains visibility/view semantics.
 * No document/history mutation from the orientation widget.
@@ -173,16 +173,7 @@ Play / Pause
 → control current preview
 ```
 
-Normal selection never:
-
-```text
-starts playback
-changes preview scope
-resets playhead
-replaces active preview
-```
-
-Selection and preview remain independent.
+**Historical P3B.5 baseline — superseded by P11:** normal selection was selection-only and preview scope was independent. P11 changes this contract: Camera/Edge selection changes scope to a paused local preview without autoplay; Sequence remains explicit. See [`2026-08-25-P11-camera-timeline-preview-ux-redesign.md`](2026-08-25-P11-camera-timeline-preview-ux-redesign.md).
 
 ---
 
@@ -270,7 +261,7 @@ This is direction selection for one undirected topology edge.
 
 It is not a second topology model.
 
-Existing `Reverse` may remain transport behavior after edge preview begins.
+Existing `Reverse` remains Edge-scope transport behavior; P11 further compacts it and keeps Repeat Edge-only.
 
 Example active label:
 
@@ -382,13 +373,12 @@ Verify:
 
 ### Camera preview
 
-* click selects only;
-* Preview Camera changes node-preview scope;
-* Preview Sequence changes sequence-preview scope;
+* **P11 supersedes the first two selection rules:** clicking a Camera/Edge selects and enters the corresponding paused scope without autoplay;
+* Preview Sequence remains an explicit sequence-preview scope command;
 * sequence edge direction derives from Sequence adjacency;
 * unsequenced edge requires explicit direction choice;
 * topology remains visually undirected;
-* Reverse remains transport behavior only;
+* Reverse remains Edge-scope transport behavior only;
 * unsequenced (retained) edge click selects, hover cues, and backdrop click
   deselects, with the retained base presentation preserved.
 
@@ -471,9 +461,9 @@ P3B.4 Status); Group B proceeds without a stop gate.
 
 ## Group C
 
-* Selection and preview scope remain independent.
-* Node preview semantics identical for sequenced and unsequenced cameras.
-* Sequence preview belongs to Sequence/timeline surface.
+* **Historical P3B.5 baseline only:** selection and preview scope were independent. P11 supersedes this rule.
+* Node preview semantics remain identical for sequenced and unsequenced cameras; selecting a node enters paused static Camera scope.
+* Selecting an edge enters paused Edge scope; Sequence preview remains an explicit Sequence/timeline action.
 * Edge-preview direction explicit and deterministic.
 * Camera topology remains undirected.
 * Unsequenced (retained) edges are selectable in Camera Plan and show

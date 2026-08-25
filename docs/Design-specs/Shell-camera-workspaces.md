@@ -461,25 +461,20 @@ Default expanded height: `288px`. User-resized range: `240–300px`.
 
 Collapsed height: `48px`.
 
-Timeline includes:
+Timeline includes a compact scope/transport header. P11 supersedes the earlier
+separate preview-control presentation:
 
 ```text
-Tour selector
-
-Play
-Pause
-Follow
-Recenter
-Stop
-
-Snap
-
-Current / total time
-
-Zoom
-
-Collapse
+[Camera · C | Edge · B → C | Sequence]  |◀  [Play / Pause / Replay]
+[00:01.20 / 00:04.20]  [Observer ↔ Through Camera] [Follow] [Recenter]
 ```
+
+Camera scope is static and keeps transport quiet/disabled. Edge scope exposes
+local time, scrub, Reverse, and temporary Repeat. Sequence scope exposes global
+time and derived topology-loop state, but no generic loop toggle. Stop is not
+normal timeline chrome; internal teardown remains required for Escape,
+stale/invalid cleanup, document replacement, Camera-domain exit, and explicit
+lifecycle boundaries.
 
 Canonical lanes:
 
@@ -501,7 +496,12 @@ yet); `FOV`/`Look At` ← one `RuntimeCameraViewKeyframe`
 (`editor-camera-view.ts:136`, not representable). Timeline remains
 `Graph + Sequence → Timeline` (`editor-camera-timeline.ts:128`).
 
-Timeline is Camera-tour semantic UI.
+Timeline is Camera-tour semantic UI. Camera/Edge selection normally drives the
+active local scope; `Preview Sequence` is the explicit whole-route exception.
+Selection never autoplays. Playing owns the evaluated camera pose; a safe
+authoring gesture auto-pauses first, while paused/complete preview remains
+inspectable and authorable through the canonical pipeline. This P11 contract
+supersedes the former selection-independent preview rule.
 
 It should not regress into generic raw tracks such as:
 

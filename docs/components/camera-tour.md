@@ -95,13 +95,18 @@ Plan ↔ 3D; a persisted view-keyframe selection gets only a passive
   changes and failed/cancelled gestures produce none. Escape cancels an active
   drag first (capture-phase, cannot fall through to pending-command
   cancellation), then the pending navigation command, then returns to Select.
-- **Preview grammar:** node/edge/sequence preview actions change preview scope
-  without changing canonical selection. Sequenced and unsequenced nodes share
-  `Preview Camera`. A sequence-adjacent connection has one direct action whose
-  direction is predecessor → immediate successor; other connections expose
-  both labeled endpoint directions. Sequence preview belongs to the Sequence
-  Inspector/timeline, and active UI labels name the Camera, Edge, or Sequence
-  scope. Connections remain one undirected topology model.
+- **Preview grammar (P11 supersedes the P3B.5 baseline):** selecting a Camera
+  enters paused `Camera` scope and selecting a connection enters paused local
+  `Edge` scope; neither action autoplays. A selected edge follows the canonical
+  Camera selection and may initialize from the Sequence playhead's matching
+  local physical progress when valid. `Preview Sequence` remains an explicit
+  whole-route command because Sequence is not an entity selection. Active scope
+  labels stay compact (`Camera · C`, `Edge · B → C`, `Sequence`). Connections
+  remain one undirected topology model; direction is traversal/preview state.
+  While playing, selection authoring pauses the preview before changing scope;
+  paused/complete preview remains available for safe authoring and inspection.
+  Edge Repeat is temporary Edge transport; Sequence looping is derived only
+  from authored tail↔head topology.
 
 Visitor: plays the open-chain order (loop derived); free nodes via BFS; transitioning = no nav; Paris = fixed eye + free-look. No ribbons on `/museum`.
 

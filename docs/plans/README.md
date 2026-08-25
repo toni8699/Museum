@@ -60,7 +60,7 @@ Policy rules:
 | P1 | Camera overhaul | shipped | renewal | archived → [2026-08-18-P1-camera-overhaul.md](../archive/plans/2026-08-18-P1-camera-overhaul.md) |
 | P2 | Plan staging mode — 2D furnishing | **shipped 2026-08-23 — P2.1–P2.4 complete** | P1 + P9 | archived → [2026-08-18-P2-plan-staging.md](../archive/plans/2026-08-18-P2-plan-staging.md) |
 | P3 | UI overhaul — accepted structural visual reconciliation (P3.1–P3.3, P3.6) | **shipped 2026-08-24** | P9 + P1 | archived → [2026-08-18-P3-ui-overhaul.md](../archive/plans/2026-08-18-P3-ui-overhaul.md) |
-| P3B | Scene|Camera × Plan|3D orientation interaction, Plan-surface parity, camera preview affordances, and deferred P3.4/P3.5 acceptance tail | in-progress — Group A + Group B (P3B.1–P3B.4) and P3B.5 shipped 2026-08-24/25; next P3B.6 → QA → deferred | P3 + P8 | [2026-08-24-P3B-orientation-preview-affordances.md](2026-08-24-P3B-orientation-preview-affordances.md) |
+| P3B | Scene|Camera × Plan|3D orientation interaction, Plan-surface parity, camera preview affordances, and deferred P3.4/P3.5 acceptance tail | in-progress — Group A + Group B (P3B.1–P3B.4) and P3B.5 shipped 2026-08-24/25; P11 supersedes preview-affordance semantics before P3B.6/QA | P3 + P8 | [2026-08-24-P3B-orientation-preview-affordances.md](2026-08-24-P3B-orientation-preview-affordances.md) |
 | P4 | Client GLB import | proposed | renewal | [2026-08-18-P4-glb-import.md](2026-08-18-P4-glb-import.md) |
 | P5 | Measured optimization and scale | proposed | renewal | [2026-08-18-P5-measured-optimization.md](2026-08-18-P5-measured-optimization.md) |
 | P6 | Editor artifact rename (de-H1) | shipped | renewal | archived → [2026-08-18-P6-editor-rename.md](archive/plans/2026-08-18-P6-editor-rename.md) |
@@ -68,10 +68,11 @@ Policy rules:
 | P8 | Camera preview scopes — Preview Camera / Preview Edge / Preview Sequence; directed-edge motion resolver + timing parity; edge-local timeline | **shipped — S1–S6 (2026-08-22)** | P1 | [2026-08-21-P8-camera-preview-scopes.md](2026-08-21-P8-camera-preview-scopes.md) |
 | P9 | Design reconciliation — current shell/spec truth + one canonical PNG set before P2 | **shipped 2026-08-23** | P7 + P8 | archived → [2026-08-23-P9-design-reconciliation.md](../archive/plans/2026-08-23-P9-design-reconciliation.md) |
 | P10 | Plan Arrange Objects redesign — owner-aware Arrange surface for Layout objects + eligible Scene entities; no cross-document gestures | **shipped 2026-08-24 — P10.0–P10.5 complete** | P2 + P9 | archived → [2026-08-23-P10-plan-arrange-objects.md](../archive/plans/2026-08-23-P10-plan-arrange-objects.md) |
+| P11 | Camera Timeline / Preview UX redesign — selection-driven Camera/Edge scope, compact non-modal transport, paused authoring, and scope-aware timeline shell | proposed — schedule before remaining P3B.6/preview QA; behavior before P3 cosmetics | P8 + P3B.5 | [2026-08-25-P11-camera-timeline-preview-ux-redesign.md](2026-08-25-P11-camera-timeline-preview-ux-redesign.md) |
 | — | Branch rejoin — **experiment, no schedule** (rejoin into a later Sequence stop; dead-end return already ships; multi-edge playback would compose P8's edge primitive) | proposed | P8 conceptually | [2026-08-21-branch-rejoin-experiment.md](2026-08-21-branch-rejoin-experiment.md) |
 | … | future work re-registers here | | | |
 
-Execution order: **P6 → P1 → P8 → P7 → P9 → P2 → P3** — P1 shipped
+Execution order: **P6 → P1 → P8 → P7 → P9 → P2 → P3 → P11** — P1 shipped
 2026-08-21; the owner re-prioritized **P8 ahead of P2** on 2026-08-21
 ([scope decision](archive/plans/2026-08-21-scope-decision-p8-before-p2.md));
 P8 shipped **S1–S6 on 2026-08-22**, completing the camera phase. On 2026-08-22
@@ -86,10 +87,13 @@ P/T; +2 legacy-format pin lines added post-close — the hard-break test now als
 rejects the pre-break `museum-scene.json` member, documented in the annex §4)
 both green.
 P3 is the accepted structural visual reconciliation: **P3.1–P3.3 and P3.6
-shipped 2026-08-24**. P3B has one pinned sequential group order: Group A Plan parity
+shipped 2026-08-24**. P3B has one pinned sequential group order, now coordinated with P11: Group A Plan parity
 (P3B.4a → P3B.4b), Group B orientation, Group C preview affordances, core QA,
 then the non-blocking deferred P3.4/P3.5 tail. The undone P3.4/P3.5 work remains a low-priority deferred
-acceptance tail in **P3B** and does not block core P3B shipment.
+acceptance tail in **P3B** and does not block core P3B shipment. P11 is a new
+behavior plan, not a P3 cosmetic slice: it intentionally supersedes P8/P3B's
+selection-independent preview contract before remaining P3B preview QA and
+visual polish.
 P6 was the mechanical editor rename so P1.1's shell-inversion diff stays
 behavior-only. P7.5's `cameraTimelinePlayhead` ownership item was partially
 folded into P8 S2 acceptance (P8 S2/S4 added `lastSequencePlayhead` next to
@@ -180,4 +184,4 @@ prefixed.
 P2 §A · P4 §A · P5 §A); the original source files were deleted 2026-08-18.
 
 **Not archived (active):** this tracker · remaining umbrella plans P4–P5 ·
-P3B follow-up · the branch-rejoin experiment.
+P3B follow-up · P11 Camera preview redesign · the branch-rejoin experiment.

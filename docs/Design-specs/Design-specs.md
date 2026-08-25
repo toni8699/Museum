@@ -1067,26 +1067,20 @@ Do not expose Move/Path/Frame permanently in Camera Plan.
 
 # 23. Camera Timeline header
 
-Use:
+Use a compact scope-driven header (P11):
 
 ```text
-Timeline
-
-[ Main Visitor Tour ▾ ]
-
-[Play] [Pause]
-[Follow]
-[Recenter]
-[Stop]
-
-Snap [0.25s ▾]
-
-00:07.8 / 00:12.5
-
-[-] [+] [Fit]
-
-Loops via: 4 → 1
+[Edge · Camera B → Camera C] [↔] [Repeat] |◀ [▶/Ⅱ] 1.2 / 4.2s [Observer ↔ Through Camera] [Follow] [Recenter]
+[Sequence]                         |◀ [▶/Ⅱ] 7.8 / 80.0s [Observer ↔ Through Camera] [Follow] [Recenter]
+[Camera · Camera C · Static]       [Observer ↔ Through Camera]
 ```
+
+The single transport control means Play → Pause → Resume → Replay. Follow and
+Recenter are Observer-only icon controls; Stop is internal lifecycle behavior,
+not normal timeline chrome. Scope is derived from canonical Camera selection
+for Camera/Edge, while Sequence remains an explicit whole-route mode. Exact
+pixel treatment remains a visual implementation concern after P11 semantics
+are accepted.
 
 Transport icons can be icon-only with tooltips except:
 

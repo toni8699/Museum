@@ -426,8 +426,8 @@
 		/>
 		<EditorGrid visible={store.gridVisible && !store.isVisitorCameraPreview} opacity={store.gridOpacity} />
 		{#if !isCameraContext}
-			<!-- P3B.2 — Scene-3D-only orientation box writer: publishes the
-			     active camera/controls refs + derived cardinal face per frame. -->
+			<!-- P3B.2 — Scene-3D-only orientation box writer: publishes active
+			     refs + immutable camera-projected geometry snapshots per frame. -->
 			<EditorOrientationGizmoProjector />
 		{/if}
 		{#if isCameraContext && !store.isVisitorCameraPreview}
@@ -523,9 +523,8 @@
 		<EditorCameraLabelsOverlay />
 	{/if}
 	{#if !isCameraContext}
-		<!-- P3B.2 — Scene-3D-only orientation box (custom SVG hit targets wired
-		     to the approved cardinal snap helper). Absent from Camera 3D and
-		     both Plan surfaces; P3B.3 adds the full interaction states. -->
+		<!-- P3B.2 — Scene-3D-only projected orientation box. Absent from Camera
+		     3D and both Plan surfaces; P3B.3 adds full interaction states. -->
 		<EditorOrientationGizmo {store} layoutBounds={layoutPreview.bounds} />
 	{/if}
 	<EditorViewportGridControls {store} />

@@ -7,74 +7,52 @@
 	} from './camera/editor-camera';
 	import type { LayoutBounds3 } from '$lib/layout/layout-geometry-types';
 	import { editorOrientationGizmo } from './editor-orientation-gizmo.svelte';
+	import type {
+		OrientationPoint2,
+		ProjectedOrientationAxis
+	} from './editor-orientation-projection';
 
-	// P3B.2 — Scene 3D orientation box. Custom SVG/DOM viewport utility (not a
-	// Lucide icon, not a scene object): a compact isometric cube/axis
-	// construction with the canonical red/green/blue mapping and X/Y/Z labels.
-	// Each visible face and each axis arrowhead is an isolated hit target that
-	// snaps the viewport camera to that cardinal side through the approved
-	// `snapEditorViewToCardinal` contract. The widget is presentation-only: it
-	// owns no document/selection/history state, derives its highlight from the
-	// actual camera pose, and never enters TransformControls or the preview FSM.
+	// P3B.2 — Scene 3D orientation box. Custom camera-projected SVG/DOM viewport
+	// utility (not a scene object or second camera). Faces, labels, edges, and
+	// corner axes consume the immutable canvas-side projection snapshot. Each
+	// face and positive-axis target snaps through the approved cardinal helper.
 	// P3B.3 adds the full interaction states (hover/pressed/focus-visible,
 	// pointer capture, click-vs-drag threshold, Escape cancel, disabled
-	// presentation); this slice wires the hit targets and the snap.
+	// presentation); this slice preserves current hit wiring around new render.
 	let { store, layoutBounds = null }: { store: EditorStore; layoutBounds?: LayoutBounds3 | null } =
 		$props();
 
 	const activeFace = $derived(editorOrientationGizmo.face);
+	const snapshot = $derived(editorOrientationGizmo.snapshot);
+	const FACE_NAMES: Record<CardinalView, string> = {
+		'+X': 'RIGHT',
+		'-X': 'LEFT',
+		'+Y': 'TOP',
+		'-Y': 'BOTTOM',
+		'+Z': 'FRONT',
+		'-Z': 'BACK'
+	};
 
-	// Isometric cube geometry (half-size 20, center 44,44 in an 88-unit viewBox;
-	// +X right-down, +Y up, +Z left-down — screen y grows downward). The three
-	// front faces are solid; the three back faces render as dashed ghosts so all
-	// six cardinal faces stay reachable.
-	const FRONT_FACES: Array<{ face: CardinalView; points: string; label: string }> = [
-		{ face: '+Y', points: '44,4 78.64,24 44,44 9.36,24', label: 'Snap view to top (+Y)' },
-		{ face: '+X', points: '78.64,24 78.64,84 44,84 44,44', label: 'Snap view to right (+X)' },
-		{ face: '+Z', points: '9.36,84 9.36,24 44,44 44,84', label: 'Snap view to front (+Z)' }
-	];
-	const GHOST_FACES: Array<{ face: CardinalView; points: string; label: string }> = [
-		{ face: '-X', points: '44,44 44,4 9.36,24 9.36,84', label: 'Snap view to left (-X)' },
-		{ face: '-Y', points: '78.64,84 44,84 9.36,84 44,44', label: 'Snap view to bottom (-Y)' },
-		{ face: '-Z', points: '44,4 78.64,24 78.64,84 44,44', label: 'Snap view to back (-Z)' }
-	];
-	const AXES: Array<{
-		face: CardinalView;
-		negative: CardinalView;
-		line: { x1: number; y1: number; x2: number; y2: number };
-		plusTip: string;
-		minusTip: string;
-		color: string;
-		label: { x: number; y: number; text: string };
-	}> = [
-		{
-			face: '+X',
-			negative: '-X',
-			line: { x1: 26.68, y1: 39, x2: 61.32, y2: 59 },
-			plusTip: '67.38,62.5 59.57,62.03 63.07,55.97',
-			minusTip: '20.62,35.5 28.43,35.97 24.93,42.03',
-			color: 'var(--editor-gizmo-x)',
-			label: { x: 71, y: 67, text: 'X' }
-		},
-		{
-			face: '+Y',
-			negative: '-Y',
-			line: { x1: 44, y1: 74, x2: 44, y2: 24 },
-			plusTip: '44,17 40.5,24 47.5,24',
-			minusTip: '44,81 40.5,74 47.5,74',
-			color: 'var(--editor-gizmo-y)',
-			label: { x: 44, y: 11, text: 'Y' }
-		},
-		{
-			face: '+Z',
-			negative: '-Z',
-			line: { x1: 61.32, y1: 39, x2: 26.68, y2: 59 },
-			plusTip: '20.62,62.5 24.93,55.97 28.43,62.03',
-			minusTip: '67.38,35.5 63.07,42.03 59.57,35.97',
-			color: 'var(--editor-gizmo-z)',
-			label: { x: 18, y: 67, text: 'Z' }
+	function points(pointsToFormat: readonly OrientationPoint2[]): string {
+		return pointsToFormat.map(([x, y]) => `${x},${y}`).join(' ');
+	}
+
+	function faceFill(lightAmount: number): string {
+		if (lightAmount <= 0.5) {
+			return `color-mix(in srgb, var(--editor-orientation-face-mid) ${lightAmount * 200}%, var(--editor-orientation-face-shadow))`;
 		}
-	];
+		return `color-mix(in srgb, var(--editor-orientation-face-lit) ${(lightAmount - 0.5) * 200}%, var(--editor-orientation-face-mid))`;
+	}
+
+	function axisColor(axis: ProjectedOrientationAxis): string {
+		if (axis.face === '+X') return 'var(--editor-gizmo-x)';
+		if (axis.face === '+Y') return 'var(--editor-gizmo-y)';
+		return 'var(--editor-gizmo-z)';
+	}
+
+	function spokenFaceLabel(face: CardinalView): string {
+		return `Snap view to ${FACE_NAMES[face].toLowerCase()} (${face})`;
+	}
 
 	function snap(face: CardinalView) {
 		// P3B.2 minimal gate: while a preview owns the camera, preview controls
@@ -109,73 +87,107 @@
 	}
 </script>
 
-{#if editorOrientationGizmo.ready}
+{#if editorOrientationGizmo.ready && snapshot}
 	<div
 		class="orientation-box"
 		role="group"
 		aria-label="Scene orientation — snap the view to a cardinal side"
 	>
-		<svg
-			class="orientation-svg"
-			viewBox="0 0 88 88"
-			role="img"
-			aria-label="Cardinal view cube: X red, Y green, Z blue"
-		>
-			{#each GHOST_FACES as target (target.face)}
+		<svg class="orientation-svg" viewBox="0 0 88 88">
+			<!-- Preserve six-face reachability until P3B.3 replaces these exact
+			     polygons with perimeter proxies and pointer-threshold gestures. -->
+			{#each snapshot.faces.filter((face) => !face.painted) as target (target.face)}
 				<polygon
-					points={target.points}
-					class="face ghost"
-					class:active={activeFace === target.face}
+					points={points(target.polygon)}
+					class="face-hit"
 					role="button"
 					tabindex="0"
-					aria-label={target.label}
+					aria-label={spokenFaceLabel(target.face)}
 					onclick={() => snap(target.face)}
 					onkeydown={(event) => activate(event, target.face)}
 				/>
 			{/each}
-			{#each FRONT_FACES as target (target.face)}
+			{#each snapshot.faces.filter((face) => face.painted) as target (target.face)}
 				<polygon
-					points={target.points}
-					class="face front"
-					class:active={activeFace === target.face}
+					points={points(target.polygon)}
+					class="face-hit"
 					role="button"
 					tabindex="0"
-					aria-label={target.label}
+					aria-label={spokenFaceLabel(target.face)}
 					onclick={() => snap(target.face)}
 					onkeydown={(event) => activate(event, target.face)}
 				/>
 			{/each}
-			{#each AXES as axis (axis.face)}
+
+			{#each snapshot.faces.filter((face) => face.painted) as face (face.face)}
+				<polygon
+					points={points(face.polygon)}
+					class="face-visual"
+					class:active={activeFace === face.face}
+					style={`fill: ${faceFill(face.lightAmount)}`}
+				/>
+			{/each}
+			{#each snapshot.edges as edge}
 				<line
-					x1={axis.line.x1}
-					y1={axis.line.y1}
-					x2={axis.line.x2}
-					y2={axis.line.y2}
-					class="axis-line"
-					stroke={axis.color}
+					x1={edge.start[0]}
+					y1={edge.start[1]}
+					x2={edge.end[0]}
+					y2={edge.end[1]}
+					class="cube-edge"
 				/>
-				<polygon
-					points={axis.plusTip}
-					class="axis-tip"
-					fill={axis.color}
-					role="button"
-					tabindex="0"
-					aria-label={`Snap view to ${axis.face}`}
-					onclick={() => snap(axis.face)}
-					onkeydown={(event) => activate(event, axis.face)}
-				/>
-				<polygon
-					points={axis.minusTip}
-					class="axis-tip"
-					fill={axis.color}
-					role="button"
-					tabindex="0"
-					aria-label={`Snap view to ${axis.negative}`}
-					onclick={() => snap(axis.negative)}
-					onkeydown={(event) => activate(event, axis.negative)}
-				/>
-				<text class="axis-label" x={axis.label.x} y={axis.label.y} fill={axis.color}>
-					{axis.label.text}
+			{/each}
+			{#each snapshot.faces.filter((face) => face.painted) as face (face.face)}
+				<text
+					class="face-label"
+					x={face.center[0]}
+					y={face.center[1]}
+					opacity={face.labelOpacity}
+				>
+					{FACE_NAMES[face.face]}
+				</text>
+			{/each}
+
+			{#each snapshot.axes as axis (axis.face)}
+				{#if axis.foreshortened && axis.reticleCenter}
+					<circle
+						class="axis-reticle"
+						cx={axis.reticleCenter[0]}
+						cy={axis.reticleCenter[1]}
+						r="3"
+						stroke={axisColor(axis)}
+						role="button"
+						tabindex="0"
+						aria-label={spokenFaceLabel(axis.face)}
+						onclick={() => snap(axis.face)}
+						onkeydown={(event) => activate(event, axis.face)}
+					/>
+				{:else if axis.arrowPolygon}
+					<line
+						x1={axis.projectedAnchor[0]}
+						y1={axis.projectedAnchor[1]}
+						x2={axis.projectedShaftEnd[0]}
+						y2={axis.projectedShaftEnd[1]}
+						class="axis-line"
+						stroke={axisColor(axis)}
+					/>
+					<polygon
+						points={points(axis.arrowPolygon)}
+						class="axis-tip"
+						fill={axisColor(axis)}
+						role="button"
+						tabindex="0"
+						aria-label={spokenFaceLabel(axis.face)}
+						onclick={() => snap(axis.face)}
+						onkeydown={(event) => activate(event, axis.face)}
+					/>
+				{/if}
+				<text
+					class="axis-label"
+					x={axis.glyphCenter[0]}
+					y={axis.glyphCenter[1]}
+					fill={axisColor(axis)}
+				>
+					{axis.face.slice(1)}
 				</text>
 			{/each}
 		</svg>
@@ -190,9 +202,10 @@
 		width: var(--editor-orientation-size);
 		height: var(--editor-orientation-size);
 		box-sizing: border-box;
-		padding: var(--editor-orientation-padding);
-		border: 1px solid var(--editor-orientation-border);
-		border-radius: 6px;
+		padding: 0;
+		border: 0;
+		box-shadow: inset 0 0 0 1px var(--editor-orientation-border);
+		border-radius: var(--editor-orientation-radius);
 		background: var(--editor-orientation-surface);
 		z-index: 4;
 		user-select: none;
@@ -203,39 +216,47 @@
 		height: 100%;
 		overflow: visible;
 	}
-	.face {
+	.face-hit {
+		fill: transparent;
+		stroke: none;
+		pointer-events: all;
 		cursor: pointer;
 	}
-	.face.front {
-		/* Lighter than the box surface so the cube body reads as a solid
-		   construction (quiet dark, per DS §28A). */
-		fill: var(--editor-orientation-hover);
-		stroke: var(--editor-orientation-border);
-		stroke-width: 1.2;
+	.face-visual {
+		stroke: none;
+		pointer-events: none;
 	}
-	.face.front.active {
-		fill: color-mix(in srgb, var(--editor-orientation-hover) 65%, var(--editor-orientation-label) 35%);
-		stroke: var(--editor-orientation-label);
-		stroke-width: 1.4;
+	.face-visual.active {
+		filter: brightness(1.04);
 	}
-	.face.ghost {
-		fill: none;
-		stroke: var(--editor-orientation-border);
-		stroke-dasharray: 3 2;
+	.cube-edge {
+		stroke: var(--editor-orientation-edge-solid);
 		stroke-width: 1;
-		opacity: 0.65;
-	}
-	.face.ghost.active {
-		stroke: var(--editor-orientation-label);
-		opacity: 0.95;
+		pointer-events: none;
+		vector-effect: non-scaling-stroke;
 	}
 	.axis-line {
-		stroke-width: 1.3;
-		opacity: 0.9;
+		stroke-width: 1.5;
+		pointer-events: none;
+		vector-effect: non-scaling-stroke;
 	}
 	.axis-tip {
 		stroke: none;
 		cursor: pointer;
+	}
+	.axis-reticle {
+		fill: var(--editor-orientation-surface);
+		stroke-width: 1.5;
+		cursor: pointer;
+		vector-effect: non-scaling-stroke;
+	}
+	.face-label {
+		fill: var(--editor-orientation-edge-solid);
+		font: 700 var(--editor-orientation-face-label-size) / 1 var(--editor-font);
+		letter-spacing: -0.15px;
+		text-anchor: middle;
+		dominant-baseline: central;
+		pointer-events: none;
 	}
 	.axis-label {
 		font: 650 var(--editor-orientation-label-size) / 1 var(--editor-font);

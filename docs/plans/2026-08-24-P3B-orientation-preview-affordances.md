@@ -1,7 +1,7 @@
 # P3B — Orientation Box, Plan Parity, and Camera Preview Affordances
 
 **Date:** 2026-08-24
-**Status:** Proposed — standalone follow-up after P3 close
+**Status:** In progress — standalone follow-up after P3 close
 **Tracker:** `docs/plans/README.md` — **P3B**, depends on P3 + P8 S2–S4
 **Historical source:** `P3 umbrella` — extracted P3.4/P3.5 and P3B scope
 
@@ -196,7 +196,7 @@ Group A completes before Scene 3D orientation interaction begins.
 
 ```text
 P3B.1  Cardinal snap authority / basis resolution     SHIPPED (refactor target below)
-P3B.2  SVG projection / geometry / rendering          IN PROGRESS (render rework)
+P3B.2  SVG projection / geometry / rendering          SHIPPED (2026-08-24)
 P3B.3  interaction states / hit isolation             READY
 P3B.4  animated motion + polar OrbitControls handoff  READY (handoff fixture-pinned)
 ```
@@ -396,6 +396,10 @@ No history entry.
 ---
 
 # P3B.2 — Orientation Widget Projection and Rendering
+
+**Status:** Shipped 2026-08-24. Pure projection fixtures, full suite,
+`svelte-check`, production build, and browser QA pass. P3B.3 owns remaining
+interaction-state/proxy work; P3B.4 owns motion.
 
 ## Rework baseline
 

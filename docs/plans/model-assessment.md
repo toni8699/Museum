@@ -66,7 +66,7 @@ success percentages.
 | **P3B.4a** | 68 | Sol medium | shipped — two Plan surfaces, pure helpers, visual/browser QA; two review rounds caught a token-cycle contrast regression and hover retune |
 | **P3B.4b** | 36 | Luna medium | shipped — shared bottom-right corner key, presentational SVG |
 | **P3B.1** | 92 | Sol xhigh | shipped — six-face snap helper, shared threshold, inert orientation tokens; discovery risk retired (no authority existed → owner-approved contract), polar handoff fixture-proven; residual two-phase boundary refactor is frozen-behavior ≈ 42 Luna high |
-| **P3B.2** | 74 | Sol high | in progress — first attempt inadequate (static cube, no labels, off-sketch axes); render rework: camera-projected geometry, per-frame SVG sync, invisible back-face hit layer, edge-on label fades, foreshortening reticles, edge-hugging arrows, animated-snap wiring; spec pinned (Designer-brieft-box rev 6) |
+| **P3B.2** | 74 | Sol high | shipped — pure camera projection, immutable per-frame snapshots, front-face SVG, labels/fades, corner axes/reticles, focused fixtures + browser QA; interaction proxies remain P3B.3, motion remains P3B.4 |
 | **P3B.3** | 48 | Luna high | proposed — interaction states fully token-pinned (rev 6 registry); gesture ownership, Escape cancel, preview-disabled presentation |
 | **P3B.4** | 56 | Sol medium | proposed — polar handoff risk retired by fixture (`polar-orbit-handoff.test.ts`); sampler contract pinned (signature, 320ms ease-out, reduced-motion); remaining: sampler + widget wiring + retarget/cancel fixtures |
 | **P3B.5** | 76 | Sol high | proposed — cross-surface preview controls, labels, timeline scope |
@@ -101,11 +101,10 @@ success percentages.
   in is resolved — no snap authority existed, the owner approved the contract,
   and the polar handoff is fixture-proven. Its residual (two-phase helper
   boundary refactor, frozen behavior) is ≈42 Luna-high work.
-- **P3B.2 is now the P3B critical path (61 → 74, Sol high).** The first
-  attempt scored 61 and failed QA; the rework adds camera-projection math
-  rendered as per-frame SVG, invisible hit-layer ordering, label fades, and
-  animated-snap wiring. The pinned rev-6 spec removes the ambiguity that made
-  the first attempt drift, but the intensity is real cross-system work.
+- **P3B.2 shipped at 74, Sol high.** Rework replaced the failed static cube
+  with pure camera projection, immutable per-frame SVG snapshots, front-face
+  culling, label fades, corner axes, and foreshortening reticles. Focused
+  fixtures plus browser QA cover reference/cardinal/free-orbit poses.
 - **P3B.4 drops 59 → 56, stays Sol medium:** the blocker that carried its
   uncertainty (polar handoff) is retired by fixture; the sampler signature,
   easing, duration, and reduced-motion path are pinned.

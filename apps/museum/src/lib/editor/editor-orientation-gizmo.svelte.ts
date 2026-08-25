@@ -1,15 +1,16 @@
 import type { PerspectiveCamera } from 'three';
 import type { OrbitControls as ThreeOrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { CardinalView } from './camera/editor-camera';
+import type { OrientationProjectionSnapshot } from './editor-orientation-projection';
 
 /**
  * P3B.2 — Scene 3D orientation box shared state (writer/overlay split, same
  * pattern as `editor-camera-labels.svelte.ts`).
  *
  * The canvas-side `EditorOrientationGizmoProjector` publishes the active
- * viewport camera + OrbitControls refs and derives the nearest cardinal face
- * the camera currently looks from; the DOM overlay (`EditorOrientationGizmo`)
- * reads this state reactively and snaps through `snapEditorViewToCardinal`.
+ * viewport camera + OrbitControls refs plus an immutable camera-projected
+ * geometry snapshot; the DOM overlay (`EditorOrientationGizmo`) reads that
+ * state reactively and snaps through `snapEditorViewToCardinal`.
  *
  * This module owns no camera pose, no orientation state of its own, and no
  * document/history state. The highlight is derived presentation only: the
@@ -20,6 +21,7 @@ export type EditorOrientationGizmoState = {
 	ready: boolean;
 	camera: PerspectiveCamera | null;
 	controls: ThreeOrbitControls | null;
+	snapshot: OrientationProjectionSnapshot | null;
 	/** Nearest cardinal face the camera looks from, or null before the first frame. */
 	face: CardinalView | null;
 };
@@ -28,6 +30,7 @@ export const editorOrientationGizmo = $state<EditorOrientationGizmoState>({
 	ready: false,
 	camera: null,
 	controls: null,
+	snapshot: null,
 	face: null
 });
 

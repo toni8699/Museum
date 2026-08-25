@@ -69,7 +69,7 @@
 	--editor-layout-box: #e7e4dd;
 	--editor-layout-box-hover: #d8d5cc;
 
-	/* ── DS §8 — Scene 3D orientation box (P3B.1 restored; inert until the widget lands) ── */
+	/* ── DS §8 — Scene 3D orientation box ── */
 	--editor-orientation-surface: #0d1925;
 	--editor-orientation-hover: #142230;
 	--editor-orientation-border: #32485a;
@@ -77,7 +77,6 @@
 	--editor-orientation-size: 88px;
 	--editor-orientation-inset-top: 16px;
 	--editor-orientation-inset-right: 16px;
-	--editor-orientation-padding: 8px;
 	--editor-orientation-label-size: 11px;
 	/* P3B.2 render rework (Designer-brieft-box.md rev 6). */
 	--editor-orientation-radius: 6px;

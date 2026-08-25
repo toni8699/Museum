@@ -518,7 +518,6 @@ The custom orientation graphic is a compact viewport utility, not a panel:
 --editor-orientation-size:        88px;
 --editor-orientation-inset-top:   16px;
 --editor-orientation-inset-right: 16px;
---editor-orientation-padding:      8px;
 --editor-orientation-label-size:  11px;
 --editor-orientation-radius:       6px;
 --editor-orientation-face-label-size: 8.5px;
@@ -527,6 +526,8 @@ The custom orientation graphic is a compact viewport utility, not a panel:
 These are reference values for matching the canonical Scene 3D sketches in
 [`Design-png/README.md`](../../Design-png/README.md); visual QA may tune
 sub-pixel geometry without changing the top-right placement or token mapping.
+The SVG uses one 88 × 88 coordinate model; its safe inset is encoded in
+geometry, never CSS padding.
 
 ---
 

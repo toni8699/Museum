@@ -7,6 +7,7 @@
 	import { getScenePathAnchorWorldPosition } from '../camera/editor-camera-path';
 	import { resolvePlanSceneGraphFromDocument } from '../layout/plan-camera-projection';
 	import EditorCameraConnectionTiming from '../camera/EditorCameraConnectionTiming.svelte';
+	import EditorCameraEdgePreviewActions from '../camera/EditorCameraEdgePreviewActions.svelte';
 	import type { EditorViewState } from './editor-view-state.svelte';
 
 	let {
@@ -77,11 +78,6 @@
 			timingDirection = store.activeCameraDirection;
 		}
 	});
-
-	// S3 — edge preview actions in connection panel
-	const edgePreview = $derived(store.cameraPreview?.kind === 'edge' ? store.cameraPreview : null);
-	const isEdgePreviewForThis = $derived(edgePreview?.connectionId === connection?.id);
-	const edgeRepeatChecked = $derived(store.edgeRepeat);
 
 	let labelDraft = $state('');
 	$effect(() => {
@@ -253,8 +249,8 @@
 		<div class="topology" aria-label="Camera topology commands">
 			<button
 				type="button"
-				disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
-				onclick={() => { viewState?.setView('camera', '3d'); store.previewSelectedNode('visitor'); }}
+				disabled={store.isDocumentTransactionActive || store.isEditorInteractionActive || store.pendingNavigationCommand !== null}
+				onclick={() => { viewState?.setView('camera', '3d'); store.previewCamera(node.id, 'visitor'); }}
 			>Preview Camera</button>
 			<button
 				type="button"
@@ -295,38 +291,7 @@
 			/>
 		{/if}
 
-		<!-- S3 — Preview Edge entry points (visible even for Unsequenced endpoints) -->
-		<div class="edge-preview" aria-label="Preview Edge">
-			<div class="edge-preview__row">
-				<button
-					type="button"
-					class:active={isEdgePreviewForThis && edgePreview?.direction === 'forward'}
-					disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
-					onclick={() => store.previewEdge(connection.id, 'forward', 'director')}
-				>Preview Edge ▶</button>
-				<button
-					type="button"
-					class:active={isEdgePreviewForThis && edgePreview?.direction === 'reverse'}
-					disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
-					onclick={() => store.previewEdge(connection.id, 'reverse', 'director')}
-				>◀ Preview Edge</button>
-			</div>
-			<div class="edge-preview__row">
-				<button
-					type="button"
-					disabled={!isEdgePreviewForThis || edgePreview?.transport !== 'paused'}
-					onclick={() => store.swapEdgePreviewDirection()}
-				>Reverse</button>
-				<label class="edge-repeat">
-					<input
-						type="checkbox"
-						checked={edgeRepeatChecked}
-						disabled={!isEdgePreviewForThis}
-						onchange={(e) => store.setEdgePreviewRepeat((e.currentTarget as HTMLInputElement).checked)}
-					/> Repeat
-				</label>
-			</div>
-		</div>
+		<EditorCameraEdgePreviewActions {store} {connection} />
 
 		<button
 			type="button"
@@ -426,9 +391,4 @@
 	.room { color: var(--editor-text-muted); font: 0.6rem/1 var(--editor-font); }
 	.meta { color: var(--editor-text-muted); font-size: 0.6rem; }
 	.passive-note { margin: 0; padding: 0.55rem; border: 1px solid var(--editor-accent-border); border-radius: 0.35rem; background: var(--editor-bg-panel-raised); color: var(--editor-text-secondary); font-size: 0.7rem; line-height: 1.45; }
-	.edge-preview { display: flex; flex-direction: column; gap: 0.35rem; padding: 0.5rem; border: 1px solid var(--editor-border-subtle); border-radius: 0.35rem; background: var(--editor-bg-panel-raised); }
-	.edge-preview__row { display: flex; gap: 0.35rem; align-items: center; flex-wrap: wrap; }
-	.edge-preview__row button.active { border-color: var(--editor-accent); background: var(--editor-bg-selected); color: var(--editor-text-primary); }
-	.edge-repeat { display: inline-flex; align-items: center; gap: 0.3rem; color: var(--editor-text-secondary); font-size: 0.68rem; cursor: pointer; }
-	.edge-repeat input { accent-color: var(--editor-accent); }
 </style>

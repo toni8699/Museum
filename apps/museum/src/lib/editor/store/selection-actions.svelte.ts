@@ -122,6 +122,7 @@ export interface EditorSelectionActionsHost {
 	connectPendingNavigationNode(destinationNodeId: string): boolean;
 	cancelAssetPlacement(message?: string): boolean;
 	cancelPendingFrame(): void;
+	clearCameraFocusRequest(): void;
 	setStatusMessage(message: string | null): void;
 	focusNavigationNode(id: string): boolean;
 	focusPlacement(id: string): boolean;
@@ -131,18 +132,6 @@ export interface EditorSelectionActionsHost {
 	isPlacementSelectable(id: string): boolean;
 	getCapturedCameraPreviewRoute(runId: number): ResolvedCameraRoute | null;
 	setCameraPreviewPlayhead(progress: number): boolean;
-	syncCameraTimelineForNode(id: string): void;
-	showCameraTimelineNodePose(id: string): void;
-	syncCameraTimelineForConnection(
-		connectionId: string,
-		direction: CameraConnectionDirection,
-		playhead: number
-	): void;
-	showCameraTimelineConnectionPose(
-		connectionId: string,
-		direction: CameraConnectionDirection,
-		playhead: number
-	): void;
 }
 
 export class EditorSelectionActions {
@@ -187,15 +176,13 @@ export class EditorSelectionActions {
 
 		this.host.cancelAssetPlacement();
 		this.host.cancelPendingFrame();
+		this.host.clearCameraFocusRequest();
 		// setNavigation clears workspace + nav-driven discovery. For 'node' kind,
 		// discovery auto-nulls inside the reducer.
 		this.selection.setNavigation({ kind: 'node', nodeId: id, handle: 'position' });
 
 		if (this.host.isPendingNavigationNode(id)) {
 			this.host.setStatusMessage('Adjust camera pose, then choose its first connection');
-		} else if (this.host.currentWorkspace === 'camera') {
-			this.host.syncCameraTimelineForNode(id);
-			this.host.showCameraTimelineNodePose(id);
 		} else if (current?.nodeId !== id) {
 			this.host.focusNavigationNode(id);
 		}
@@ -258,12 +245,12 @@ export class EditorSelectionActions {
 		}
 		this.host.cancelAssetPlacement();
 		this.host.cancelPendingFrame();
+		this.host.clearCameraFocusRequest();
 		this.selection.setNavigation({ kind: 'connection', connectionId, direction });
 		this.expandActiveCameraDirection(direction);
-		if (this.host.currentWorkspace === 'camera' && !options.preservePreviewObserver) {
-			this.host.syncCameraTimelineForConnection(connectionId, direction, 0);
-			this.host.showCameraTimelineConnectionPose(connectionId, direction, 0);
-		}
+		// P3B.5: normal selection is selection-only. Timeline marker/ruler
+		// commands own explicit seek and pose sampling; selecting topology never
+		// resets the playhead or changes preview scope.
 		return true;
 	}
 

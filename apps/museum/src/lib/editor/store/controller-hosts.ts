@@ -117,6 +117,7 @@ export interface EditorControllerHostSource {
 	connectPendingNavigationNode(destinationNodeId: string): boolean;
 	cancelAssetPlacement(message?: string): boolean;
 	cancelPendingFrame(): void;
+	clearCameraFocusRequest(): void;
 	setStatusMessage(message: string | null): void;
 	focusNavigationNode(id: string): boolean;
 	focusPlacement(id: string): boolean;
@@ -215,6 +216,7 @@ export function createControllerHosts(
 			source.connectPendingNavigationNode(destinationNodeId),
 		cancelAssetPlacement: (message?: string) => source.cancelAssetPlacement(message),
 		cancelPendingFrame: () => source.cancelPendingFrame(),
+		clearCameraFocusRequest: () => source.clearCameraFocusRequest(),
 		setStatusMessage: (message: string | null) => source.setStatusMessage(message),
 		focusNavigationNode: (id: string) => source.focusNavigationNode(id),
 		focusPlacement: (id: string) => source.focusPlacement(id),
@@ -226,31 +228,7 @@ export function createControllerHosts(
 		getCapturedCameraPreviewRoute: (runId: number) =>
 			source.getCapturedCameraPreviewRoute(runId),
 		setCameraPreviewPlayhead: (progress: number) =>
-			source.setCameraPreviewPlayhead(progress),
-		syncCameraTimelineForNode: (id: string) =>
-			source.cameraTimelineController.syncCameraTimelineForNode(id),
-		showCameraTimelineNodePose: (id: string) =>
-			source.cameraTimelineController.showCameraTimelineNodePose(id),
-		syncCameraTimelineForConnection: (
-			connectionId: string,
-			direction: CameraConnectionDirection,
-			playhead: number
-		) =>
-			source.cameraTimelineController.syncCameraTimelineForConnection(
-				connectionId,
-				direction,
-				playhead
-			),
-		showCameraTimelineConnectionPose: (
-			connectionId: string,
-			direction: CameraConnectionDirection,
-			playhead: number
-		) =>
-			source.cameraTimelineController.showCameraTimelineConnectionPose(
-				connectionId,
-				direction,
-				playhead
-			)
+			source.setCameraPreviewPlayhead(progress)
 	} satisfies EditorSelectionActionsHost;
 
 	const navigationGraph = {

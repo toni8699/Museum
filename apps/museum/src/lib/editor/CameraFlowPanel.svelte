@@ -1,9 +1,10 @@
 <script lang="ts">
-	import { ChevronRight, Diamond, Eye, Link, Unlink, X } from 'lucide-svelte';
+	import { ChevronRight, CirclePlay, Diamond, Link, Unlink, X } from 'lucide-svelte';
 	import { formatCameraNodeLabel } from './editor-outliner';
 	import { getNodeConnections } from './camera/editor-camera-connections';
 	import { isFlowNode } from '$lib/content/scene';
 	import type { EditorStore } from './editor-store.svelte';
+	import EditorCameraEdgePreviewActions from './camera/EditorCameraEdgePreviewActions.svelte';
 
 	// optional interactivity gate. The unified tree embeds this panel
 	// read-only in Plan (Plan exposes no camera mutation path), so `false` must
@@ -35,6 +36,12 @@
 		!interactive ||
 			store.isDocumentMutationBlocked ||
 			store.isEditorInteractionActive ||
+			store.pendingNavigationCommand !== null
+	);
+	const previewActionBlocked = $derived(
+		!interactive ||
+			store.isEditorInteractionActive ||
+			store.isDocumentTransactionActive ||
 			store.pendingNavigationCommand !== null
 	);
 
@@ -322,21 +329,11 @@
 		store.beginConnectExistingNodes();
 	}
 
-	// P1.8 §4 — per-camera preview: works for any node (sequenced or
-	// unsequenced). Selects the node first so the facade's
-	// previewSelectedNode resolves it, then previews in visitor mode.
+	// P3B.5 — preview actions never mutate canonical selection. Sequenced and
+	// unsequenced cameras use the same named-node command.
 	function previewNode(nodeId: string) {
-		if (guidedEditingBlocked) return;
-		store.selectionActions.selectNavigationNode(nodeId);
-		store.previewSelectedNode('visitor');
-	}
-
-	// P1.8 §4 — Preview Connection: selects the connection (forward dir)
-	// then previews it. Works for any connection in the list.
-	function previewConnection(connectionId: string) {
-		if (guidedEditingBlocked) return;
-		store.selectionActions.selectConnection(connectionId);
-		store.previewSelectedConnection('forward', 'visitor');
+		if (previewActionBlocked) return;
+		store.previewCamera(nodeId, 'visitor');
 	}
 
 	function appendDetourNode(originNodeId: string) {
@@ -350,6 +347,12 @@
 <div class="sidebar-section-header">
 	<h2>Sequence Inspector</h2>
 	<span aria-label={`${guidedTourChain.length} sequence stops`}>{guidedTourChain.length}</span>
+	<button
+		type="button"
+		class="sequence-preview"
+		disabled={!store.canStartTourPreview || previewActionBlocked}
+		onclick={() => store.previewSequence('director')}
+	>Preview Sequence</button>
 </div>
 {#if guidedTourChain.length > 0}
 	<ul role="tree" aria-label="Sequence stops">
@@ -422,9 +425,9 @@
 							class="guided-preview"
 							aria-label={`Preview ${node.label}`}
 							title="Preview Camera"
-							disabled={guidedEditingBlocked}
+							disabled={previewActionBlocked}
 							onclick={() => previewNode(node.id)}
-						><Eye size={13} aria-hidden="true" /></button>
+						><CirclePlay size={13} aria-hidden="true" /></button>
 						{#if index > 0 && index < guidedTourChain.length - 1 && guidedTourChain.length > 2}
 						<button
 							type="button"
@@ -478,9 +481,9 @@
 											class="guided-preview"
 											aria-label={`Preview ${partner.label}`}
 											title="Preview Camera"
-											disabled={guidedEditingBlocked}
+											disabled={previewActionBlocked}
 											onclick={() => previewNode(partner.id)}
-										><Eye size={13} aria-hidden="true" /></button>
+										><CirclePlay size={13} aria-hidden="true" /></button>
 									</li>
 								{/if}
 							{/each}
@@ -714,9 +717,9 @@
 								class="guided-preview"
 								aria-label={`Preview ${node.label}`}
 								title="Preview Camera"
-								disabled={guidedEditingBlocked}
+								disabled={previewActionBlocked}
 								onclick={() => previewNode(node.id)}
-							><Eye size={13} aria-hidden="true" /></button>
+							><CirclePlay size={13} aria-hidden="true" /></button>
 							{#if startSequenceEligible(node.id)}
 								<button
 									type="button"
@@ -760,11 +763,11 @@
 											<button
 												type="button"
 												class="guided-preview"
-												aria-label={`Preview ${partner.label}`}
-												title="Preview Camera"
-												disabled={guidedEditingBlocked}
-												onclick={() => previewNode(partner.id)}
-											><Eye size={13} aria-hidden="true" /></button>
+											aria-label={`Preview ${partner.label}`}
+											title="Preview Camera"
+											disabled={previewActionBlocked}
+											onclick={() => previewNode(partner.id)}
+										><CirclePlay size={13} aria-hidden="true" /></button>
 										</li>
 									{/if}
 								{/each}
@@ -784,18 +787,12 @@
 	</div>
 	<ul role="tree" aria-label="Camera connections">
 		{#each connectionRows as row (row.id)}
+			{@const connection = store.document.connections.find((candidate) => candidate.id === row.id)}
 			<li class="unused-row">
 				<span class="unused-pair" title={row.id}>
 					{nodeLabel(row.fromNodeId)} — {nodeLabel(row.toNodeId)}
 				</span>
-				<button
-					type="button"
-					class="guided-preview"
-					aria-label={`Preview connection between ${nodeLabel(row.fromNodeId)} and ${nodeLabel(row.toNodeId)}`}
-					title="Preview Connection"
-					disabled={guidedEditingBlocked}
-					onclick={() => previewConnection(row.id)}
-				><Eye size={13} aria-hidden="true" /></button>
+				{#if connection}<EditorCameraEdgePreviewActions {store} {connection} />{/if}
 				{#if unusedRowIds.has(row.id) || finalPairConnectionIds.has(row.id)}
 					<button
 						type="button"
@@ -1302,8 +1299,7 @@
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}
-	.unused-row .guided-remove,
-	.unused-row .guided-preview {
+	.unused-row .guided-remove {
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
@@ -1316,20 +1312,12 @@
 		color: var(--editor-danger-fg);
 		cursor: pointer;
 	}
-	.unused-row .guided-preview {
-		color: var(--editor-success);
-	}
-	.unused-row .guided-remove:hover:not(:disabled),
-	.unused-row .guided-preview:hover:not(:disabled) {
+	.unused-row .guided-remove:hover:not(:disabled) {
 		border-color: var(--editor-border-normal);
 		background: var(--editor-bg-control);
 		color: var(--editor-danger-fg);
 	}
-	.unused-row .guided-preview:hover:not(:disabled) {
-		color: var(--editor-text-primary);
-	}
-	.unused-row .guided-remove:disabled,
-	.unused-row .guided-preview:disabled {
+	.unused-row .guided-remove:disabled {
 		opacity: 0.25;
 		cursor: default;
 	}

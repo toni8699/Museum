@@ -6,6 +6,7 @@
 	import EditorProgressField from '../fields/EditorProgressField.svelte';
 	import EditorNumberField from '../fields/EditorNumberField.svelte';
 	import EditorCameraConnectionTiming from './EditorCameraConnectionTiming.svelte';
+	import EditorCameraEdgePreviewActions from './EditorCameraEdgePreviewActions.svelte';
 	import EditorCameraFramingControls from './EditorCameraFramingControls.svelte';
 	import type { EditorCameraHandle } from '../editor-selection';
 	import type { EditorStore } from '../editor-store.svelte';
@@ -248,8 +249,8 @@
 			<div class="topology" aria-label="Camera topology commands">
 				<button
 					type="button"
-					disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
-					onclick={() => store.previewSelectedNode('visitor')}
+					disabled={store.isDocumentTransactionActive || store.isEditorInteractionActive || store.pendingNavigationCommand !== null}
+					onclick={() => store.previewCamera(node.id, 'visitor')}
 				>Preview Camera</button>
 				<button
 					type="button"
@@ -335,6 +336,8 @@
 				onUseAutomatic={commitTimingAutomatic}
 			/>
 		{/if}
+
+		<EditorCameraEdgePreviewActions {store} {connection} />
 
 		<!-- P1.6 — Framing controls (presets, envelope, diagnostics, Advanced) -->
 		<EditorCameraFramingControls

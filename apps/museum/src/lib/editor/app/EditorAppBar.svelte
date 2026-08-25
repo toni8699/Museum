@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Box, Play, Redo2, Route, Undo2 } from 'lucide-svelte';
+	import { Box, Redo2, Route, Undo2 } from 'lucide-svelte';
 	import EditorProjectMenu from '$lib/editor/EditorProjectMenu.svelte';
 	import type { LayoutPreviewState } from '$lib/editor/layout/layout-preview-state.svelte';
 	import type { EditorStore } from '$lib/editor/editor-store.svelte';
@@ -29,12 +29,6 @@
 	const activeView = $derived(viewState.activeView);
 	const canSwitch = $derived(!store.isDocumentMutationBlocked && !store.isEditorInteractionActive);
 	const dirty = $derived(store.isDirty);
-	const canPreviewTour = $derived(
-		!store.isEditorInteractionActive &&
-			!store.isDocumentTransactionActive &&
-			store.canStartTourPreview &&
-			(!store.cameraPreview || store.cameraPreview.transport !== 'playing')
-	);
 	let projectMenuOpen = $state(false);
 
 	// P1.1 — two always-visible segmented controls: the domain switcher is
@@ -108,15 +102,6 @@
 		<button type="button" disabled={!store.canRedo} onclick={() => store.redo()}><Redo2 size={14} aria-hidden="true" /> Redo</button>
 		{#if domain === 'scene' && activeView === '3d'}
 			<a class="preview-action" href="/museum" target="_blank" rel="noreferrer">Preview Museum</a>
-		{:else if domain === 'camera'}
-			<!-- P1.1 — Preview Sequence lives in the Camera domain (both views),
-			     matching timeline persistence. S4: explicit Preview Sequence entry. -->
-			<button
-				type="button"
-				disabled={!canPreviewTour}
-				title="Preview the camera sequence"
-				onclick={() => store.previewSequence()}
-				><Play size={14} aria-hidden="true" /> Preview Sequence</button>
 		{/if}
 		<EditorProjectMenu
 			{store}

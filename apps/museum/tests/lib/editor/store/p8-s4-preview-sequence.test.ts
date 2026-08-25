@@ -229,26 +229,85 @@ describe('P8 S4 — loop-topology derivation', () => {
 	});
 });
 
-describe('P8 S4 — context-sensitive play demoted', () => {
-	it('sequence play is sequence-transport only — reverse + selected connection no longer hijacks to edge transport', () => {
+describe('P8 S4 — context-sensitive play demoted (superseded by P3B.5 grammar)', () => {
+	it('travel-toggle leaves a paused edge preview and ▶ resumes it instead of hijacking to sequence', () => {
 		const store = createFixtureEditorStore();
 		store.setWorkspace('camera');
 		const conn = store.document.connections[0]!;
 		store.selectionActions.selectCameraConnectionDirection(conn.id, 'forward');
 		expect(store.toggleCameraEdgeReverse()).toBe(true);
 		expect(store.activeCameraDirection).toBe('reverse');
+		// Travel toggle installs a paused edge preview
+		// (setCameraEdgeTravel → showCameraTimelineConnectionPose).
+		expect(store.cameraPreview).toMatchObject({
+			kind: 'edge',
+			direction: 'reverse',
+			transport: 'paused'
+		});
 
 		useCameraTimeline(store).toggleTourPlayback();
-		expect(store.cameraPreview?.kind).toBe('sequence');
-		expect(store.cameraPreview?.transport).toBe('playing');
+		expect(store.cameraPreview).toMatchObject({
+			kind: 'edge',
+			connectionId: conn.id,
+			direction: 'reverse',
+			transport: 'playing'
+		});
+	});
+});
 
-		// Explicit edge transport stays available via the EdgeRuler command path.
+describe('P3B.5 — timeline play controls the current preview scope', () => {
+	it('resumes a paused edge preview instead of hijacking to sequence', () => {
+		const store = createFixtureEditorStore();
+		store.setWorkspace('camera');
+		const connId = store.document.connections[0]!.id;
+		expect(store.previewEdge(connId, 'forward', 'director')).toBe(true);
+
+		const api = useCameraTimeline(store);
+		api.toggleTourPlayback();
+		expect(store.cameraPreview).toMatchObject({
+			kind: 'edge',
+			connectionId: connId,
+			direction: 'forward',
+			transport: 'playing'
+		});
+		expect(api.playLabel).toBe('Pause');
+
 		expect(store.pauseCameraPreview()).toBe(true);
-		expect(store.stopCameraPreview()).toBe(true);
-		expect(store.previewEdge(conn.id, 'reverse')).toBe(true);
-		expect(store.cameraPreview?.kind).toBe('edge');
-		const preview = store.cameraPreview as Extract<typeof store.cameraPreview, { kind: 'edge' }>;
-		expect(preview.direction).toBe('reverse');
+		expect(store.cameraPreview?.transport).toBe('paused');
+		expect(api.playLabel).toBe('Resume preview');
+	});
+
+	it('replays a completed edge from 0', () => {
+		const store = createFixtureEditorStore();
+		store.setWorkspace('camera');
+		const connId = store.document.connections[0]!.id;
+		expect(store.previewEdge(connId, 'forward', 'director')).toBe(true);
+		expect(store.playCameraPreview()).toBe(true);
+		const runId = store.cameraPreview!.runId;
+		store.markCameraPreviewStarted(runId, 1);
+		expect(store.completeCameraPreview(runId)).toBe(true);
+		expect(store.cameraPreview?.transport).toBe('complete');
+
+		useCameraTimeline(store).toggleTourPlayback();
+		expect(store.cameraPreview).toMatchObject({ kind: 'edge', transport: 'playing', playhead: 0 });
+	});
+
+	it('resumes a paused sequence scope', () => {
+		const store = createFixtureEditorStore();
+		store.setWorkspace('camera');
+		expect(store.previewSequence('director')).toBe(true);
+		expect(store.pauseCameraPreview()).toBe(true);
+
+		useCameraTimeline(store).toggleTourPlayback();
+		expect(store.cameraPreview).toMatchObject({ kind: 'sequence', transport: 'playing' });
+	});
+
+	it('idle (no preview) still starts the default sequence transport', () => {
+		const store = createFixtureEditorStore();
+		store.setWorkspace('camera');
+
+		useCameraTimeline(store).toggleTourPlayback();
+		expect(store.cameraPreview).toMatchObject({ kind: 'sequence', transport: 'playing' });
 	});
 });
 

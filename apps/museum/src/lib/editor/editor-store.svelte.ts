@@ -1767,6 +1767,11 @@ export class EditorStore {
 		return this.cameraPreviewCommands.previewSelectedNode(mode);
 	}
 
+	/** P3B.5 — named node preview; selection remains unchanged. */
+	previewCamera(nodeId: string, mode: EditorCameraPreviewMode = 'visitor') {
+		return this.cameraPreviewCommands.previewCamera(nodeId, mode);
+	}
+
 	previewSelectedConnection(
 		direction: 'forward' | 'reverse',
 		mode: EditorCameraPreviewMode = 'visitor'

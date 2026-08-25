@@ -320,12 +320,11 @@ export class EditorCameraPreviewCommands {
 
 
 
-	previewSelectedNode(mode: EditorCameraPreviewMode = 'visitor') {
+	/** Preview one named camera without reading or changing canonical selection. */
+	previewCamera(nodeId: string, mode: EditorCameraPreviewMode = 'visitor') {
 		const host = this.host;
-		if (host.cameraPreview) return false;
-		const nodeId = host.cameraSelection?.nodeId;
 		if (!nodeId || !host.scene.navigationNodes.some((node) => node.id === nodeId)) {
-			host.setStatusMessage('Select a camera node to preview');
+			host.setStatusMessage('Camera node is unavailable');
 			return false;
 		}
 		if (!this.prepareCameraPreview()) return false;
@@ -344,6 +343,15 @@ export class EditorCameraPreviewCommands {
 		host.cameraTimelineController.syncCameraTimelineForNode(nodeId);
 		host.timelineExpanded = true;
 		return true;
+	}
+
+	previewSelectedNode(mode: EditorCameraPreviewMode = 'visitor') {
+		const nodeId = this.host.cameraSelection?.nodeId;
+		if (!nodeId) {
+			this.host.setStatusMessage('Select a camera node to preview');
+			return false;
+		}
+		return this.previewCamera(nodeId, mode);
 	}
 
 	previewSelectedConnection(
@@ -451,24 +459,7 @@ export class EditorCameraPreviewCommands {
 			host.previewController.lastSequencePlayhead = host.cameraTimelineController.cameraTimelinePlayhead;
 		}
 		if (!this.prepareCameraPreview()) return false;
-		// Update selection/discovery to the edge direction
-		const prior = host.selection.navigation;
-		if (
-			prior.kind === 'view-keyframe' &&
-			prior.connectionId === connectionId &&
-			prior.direction !== direction
-		) {
-			host.selection.setNavigation({
-				kind: 'connection',
-				connectionId,
-				direction
-			});
-		} else if (prior.kind === 'connection') {
-			host.selection.setNavigation({ kind: 'connection', connectionId, direction });
-		} else {
-			host.selection.setDiscovery(connectionId, direction);
-		}
-		host.selectionActions.expandActiveCameraDirection(direction);
+		// Preview scope is independent from canonical selection and discovery.
 		const fromNodeId = direction === 'forward' ? connection.fromNodeId : connection.toNodeId;
 		const toNodeId = direction === 'forward' ? connection.toNodeId : connection.fromNodeId;
 		const runId = host.previewController.allocRunId();
@@ -538,11 +529,9 @@ export class EditorCameraPreviewCommands {
 			}
 			return this.playCameraPreview();
 		}
-		if (current?.transport === 'playing') return false;
-
 		const timeline = host.cameraTimelineController.readCameraTimeline();
 		if (!timeline) return false;
-		if (!current && !this.prepareCameraPreview()) return false;
+		if (!this.prepareCameraPreview()) return false;
 
 		const runId = host.previewController.allocRunId();
 		host.previewController.clearCapturedRoute();

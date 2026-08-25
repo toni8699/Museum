@@ -1,9 +1,11 @@
 <script lang="ts">
 	import { Crosshair, Pause, Play, Scan, Square } from 'lucide-svelte';
 	import type { EditorStore } from '../editor-store.svelte';
+	import { getCameraPreviewScopeLabel } from './editor-camera-preview-affordances';
 
 	let { store }: { store: EditorStore } = $props();
 	const preview = $derived(store.cameraPreview);
+	const scopeLabel = $derived(preview ? getCameraPreviewScopeLabel(store.document, preview) : '');
 </script>
 
 {#if preview}
@@ -22,15 +24,7 @@
 				onclick={() => store.setCameraPreviewMode('visitor')}
 			>Through Camera</button>
 		</div>
-		<p role="status">
-			{preview.kind === 'camera'
-				? 'Holding authored node pose'
-				: preview.kind === 'sequence'
-					? `Camera flow · ${preview.transport} · ${(preview.playhead * 100).toFixed(1)}%`
-					: preview.kind === 'edge' && preview.direction === 'reverse'
-						? `Reverse edge · ${preview.transport} · ${(preview.playhead * 100).toFixed(1)}%`
-						: `Forward edge · ${preview.transport} · ${(preview.playhead * 100).toFixed(1)}%`}
-		</p>
+		<p role="status" title={scopeLabel}>{scopeLabel}</p>
 		{#if preview.kind !== 'camera'}
 			<div class="transport">
 				{#if preview.transport === 'playing'}

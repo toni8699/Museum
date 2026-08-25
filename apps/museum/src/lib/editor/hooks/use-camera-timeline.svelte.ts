@@ -136,9 +136,13 @@ export function useCameraTimeline(store: EditorStore) {
 			return `Reverse · ${from} → ${to}`;
 		},
 		get playLabel() {
-			if (store.cameraPreview?.transport === 'playing') return 'Pause';
-			// S4 D2 — sequence play is sequence-transport only; reverse-edge
-			// transport lives in the S3 EdgeRuler (toggleEdgePlayback).
+			const preview = store.cameraPreview;
+			if (preview?.transport === 'playing') return 'Pause';
+			// P3B.5 grammar — Play/Pause controls the current preview scope;
+			// wording mirrors the preview transport button.
+			if (preview?.kind === 'edge' || preview?.kind === 'sequence') {
+				return preview.transport === 'complete' ? 'Replay preview' : 'Resume preview';
+			}
 			return 'Play camera flow';
 		},
 		seek(progress: number) {
@@ -148,12 +152,18 @@ export function useCameraTimeline(store: EditorStore) {
 			store.stepCameraTimeline(direction);
 		},
 		toggleTourPlayback() {
-			if (store.cameraPreview?.transport === 'playing') {
-				store.pauseCameraPreview();
+			const preview = store.cameraPreview;
+			// P3B.5 grammar — Play/Pause controls the current preview scope.
+			// `playCameraPreview` resumes paused and replays complete scopes.
+			if (preview?.kind === 'edge' || preview?.kind === 'sequence') {
+				if (preview.transport === 'playing') {
+					store.pauseCameraPreview();
+					return;
+				}
+				store.playCameraPreview();
 				return;
 			}
-			// S4 D2 — no context hijack to reverse-edge transport; the S3
-			// EdgeRuler owns edge playback. Explicit Preview Sequence entry.
+			// Idle or camera-hold: explicit default sequence transport.
 			store.previewSequence('director');
 		},
 		toggleReverse() {
@@ -161,37 +171,6 @@ export function useCameraTimeline(store: EditorStore) {
 		},
 		addViewKeyframeAtPlayhead() {
 			store.addViewKeyframeAtPlayhead();
-		},
-		// S3 — edge ruler actions
-		seekEdge(progress: number) {
-			store.setCameraPreviewPlayhead(progress);
-		},
-		toggleEdgeReverse() {
-			store.swapEdgePreviewDirection();
-		},
-		setEdgeRepeat(value: boolean) {
-			store.setEdgePreviewRepeat(value);
-		},
-		previewActiveEdge() {
-			const id = store.activeCameraConnectionId;
-			if (!id) return false;
-			return store.previewEdge(id, store.activeCameraDirection, 'director');
-		},
-		stepEdge(direction: -1 | 1) {
-			store.stepCameraPreview(direction);
-		},
-		toggleEdgePlayback() {
-			const preview = store.cameraPreview;
-			if (preview?.kind === 'edge' && preview.transport === 'playing') {
-				store.pauseCameraPreview();
-				return;
-			}
-			if (preview?.kind === 'edge' && preview.transport === 'paused') {
-				store.playCameraPreview();
-				return;
-			}
-			// idle candidate — install paused edge first, then playing on next click
-			this.previewActiveEdge();
 		}
 	};
 }

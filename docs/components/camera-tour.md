@@ -95,6 +95,13 @@ Plan ↔ 3D; a persisted view-keyframe selection gets only a passive
   changes and failed/cancelled gestures produce none. Escape cancels an active
   drag first (capture-phase, cannot fall through to pending-command
   cancellation), then the pending navigation command, then returns to Select.
+- **Preview grammar:** node/edge/sequence preview actions change preview scope
+  without changing canonical selection. Sequenced and unsequenced nodes share
+  `Preview Camera`. A sequence-adjacent connection has one direct action whose
+  direction is predecessor → immediate successor; other connections expose
+  both labeled endpoint directions. Sequence preview belongs to the Sequence
+  Inspector/timeline, and active UI labels name the Camera, Edge, or Sequence
+  scope. Connections remain one undirected topology model.
 
 Visitor: plays the open-chain order (loop derived); free nodes via BFS; transitioning = no nav; Paris = fixed eye + free-look. No ribbons on `/museum`.
 

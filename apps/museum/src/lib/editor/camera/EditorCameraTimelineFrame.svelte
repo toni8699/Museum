@@ -2,6 +2,7 @@
 	import { ChevronDown, ChevronUp } from 'lucide-svelte';
 	import { onDestroy } from 'svelte';
 	import EditorCameraTimelinePanel from './EditorCameraTimelinePanel.svelte';
+	import { getCameraPreviewScopeLabel } from './editor-camera-preview-affordances';
 	import {
 		EDITOR_TIMELINE_COLLAPSED_HEIGHT,
 		EDITOR_TIMELINE_MAX_HEIGHT,
@@ -21,6 +22,9 @@
 	const expanded = $derived(store.timelineExpanded);
 	const height = $derived(
 		expanded ? store.timelineHeight : EDITOR_TIMELINE_COLLAPSED_HEIGHT
+	);
+	const previewLabel = $derived(
+		store.cameraPreview ? getCameraPreviewScopeLabel(store.document, store.cameraPreview) : null
 	);
 	let resizing = $state(false);
 	let resizeStartY = 0;
@@ -106,8 +110,8 @@
 			<span>Main Visitor Tour</span>
 			<ChevronDown size={13} aria-hidden="true" />
 		</button>
-		{#if store.cameraPreview}
-			<span class="preview-badge">Preview active</span>
+		{#if previewLabel}
+			<span class="preview-badge">{previewLabel}</span>
 		{:else if expanded}
 			<span class="workspace-label">{store.currentWorkspace} workspace</span>
 		{/if}

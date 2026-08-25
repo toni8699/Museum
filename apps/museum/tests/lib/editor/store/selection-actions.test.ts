@@ -109,6 +109,7 @@ function createHarness(
 		connectPendingNavigationNode: () => false,
 		cancelAssetPlacement: () => false,
 		cancelPendingFrame: () => {},
+		clearCameraFocusRequest: () => {},
 		setStatusMessage: () => {},
 		focusNavigationNode: () => true,
 		focusPlacement: () => true,
@@ -123,10 +124,6 @@ function createHarness(
 		},
 		getCapturedCameraPreviewRoute: () => null,
 		setCameraPreviewPlayhead: () => false,
-		syncCameraTimelineForNode: () => {},
-		showCameraTimelineNodePose: () => {},
-		syncCameraTimelineForConnection: () => {},
-		showCameraTimelineConnectionPose: () => {}
 	};
 
 	const actions = new EditorSelectionActions(selection, host);
@@ -370,6 +367,7 @@ describe('EditorSelectionActions — Phase 6.4 keep-action invariant', () => {
 			connectPendingNavigationNode: () => false,
 			cancelAssetPlacement: () => false,
 			cancelPendingFrame: () => {},
+			clearCameraFocusRequest: () => {},
 			setStatusMessage: () => {},
 			focusNavigationNode: () => true,
 			focusPlacement: () => true,
@@ -386,10 +384,6 @@ describe('EditorSelectionActions — Phase 6.4 keep-action invariant', () => {
 			},
 			getCapturedCameraPreviewRoute: () => null,
 			setCameraPreviewPlayhead: () => false,
-			syncCameraTimelineForNode: () => {},
-			showCameraTimelineNodePose: () => {},
-			syncCameraTimelineForConnection: () => {},
-			showCameraTimelineConnectionPose: () => {}
 		};
 		const actions = new EditorSelectionActions(selection, host);
 		actions.selectRoom('paris');

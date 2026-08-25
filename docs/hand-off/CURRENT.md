@@ -5,7 +5,7 @@ slice plus one next action only.
 
 ## Working tree
 
-- Current delta: **P3B is in progress; Group A and P3B.1–P3B.4 are shipped;
+- Current delta: **P3B is in progress; Group A and P3B.1–P3B.5 are shipped;
   all work is uncommitted.** P3B.4 adds the pure cardinal snap sampler in the
   camera-motion authority (320ms ease-out great-circle direction/distance/up
   plus a target-blend channel for fallback-replaced targets), the exported
@@ -19,6 +19,22 @@ slice plus one next action only.
   so an interrupted ±Y flight cannot leak its interpolated lookAt/up reference;
   fixtures pin mid-flight cancel on both polar faces and exact eye/target
   continuity.
+- P3B.5 adds selection-free named camera preview, one shared Plan/3D edge
+  affordance, sequence-adjacent predecessor→successor direction derivation,
+  explicit two-direction choices for all other edges, Sequence Inspector /
+  Timeline sequence ownership, and named Camera/Edge/Sequence scope labels.
+- Post-P3B.5 review fix (2026-08-25): timeline ▶ now controls the *current*
+  preview scope per the P3B.5 grammar — resumes/replays an active edge or
+  sequence instead of hijacking to Sequence; idle/camera-hold still starts the
+  default sequence transport. Orphaned S3 EdgeRuler hook methods removed
+  (`toggleEdgePlayback`, `previewActiveEdge`, `stepEdge`, `seekEdge`,
+  `toggleEdgeReverse`, hook-level `setEdgeRepeat`). Known follow-up:
+  `swapEdgePreviewDirection` / store-level `setEdgePreviewRepeat` have no UI
+  caller since the shared edge-affordance rewrite — owner decision pending.
+  Post-review fixes preserve pending navigation across every preview entry,
+  restore the mutation gate on Insert/Disconnect Loop, use CirclePlay rather
+  than Eye for node preview, unify sequenced/unsequenced preview availability,
+  and expose the edge actions as an accessible labeled group.
 - Post-ship P3B.2/P3B.3 review fixes (2026-08-25, owner-dispositioned):
   removed the vestigial `targetStillValid` gate from pointer activation,
   aligned proxy/axis focus-visible to the specified 2px `--editor-gizmo-hover`
@@ -35,16 +51,13 @@ slice plus one next action only.
 
 ## Next action
 
-- Execute **Group C (P3B.5 → P3B.6) camera preview affordances** from the
-  active umbrella: canonical Click→select / Preview-action→scope grammar across
-  Camera Plan, Camera 3D, Inspector, Sidebar, and Timeline; node preview
-  identical for sequenced and unsequenced cameras; sequence preview owned by
-  Sequence Inspector/Timeline; explicit direction choice for unsequenced edge
-  previews; topology stays undirected. No unresolved gate.
+- Execute **P3B.6 retained-edge selection parity** from the active umbrella:
+  unsequenced connections must show hover/selection feedback over (without
+  losing) their retained dashed/desaturated base. No unresolved gate.
 
 ## Verification
 
-- Last known verification: `npm test` 2,144 passed / 1 skipped across 157
+- Last known verification: `npm test` 2,156 passed / 1 skipped across 158
   files; `npm run check` 0 errors / 0 warnings; `npm run build` clean with
   existing third-party unused-import and chunk-size warnings; `git diff --check`
   clean.

@@ -149,6 +149,17 @@ acceptance lists, and Group A/B definition-of-done sections are archived →
 
 ## P3B.5 → P3B.6
 
+**P3B.5 status:** shipped 2026-08-25. Named node preview is selection-free for
+sequenced and unsequenced cameras; sequence preview lives in the Sequence
+Inspector/timeline; Plan and 3D inspectors share one edge-preview affordance;
+sequence-adjacent direction derives from predecessor → immediate successor,
+while every other connection exposes both labeled directions. Active scope
+labels identify Camera, Edge, or Sequence. P3B.6 remains next for retained-edge
+selection/hover presentation parity. Post-review: preview entries stay disabled
+during pending navigation, node actions use CirclePlay semantics, topology
+mutation gates are restored, and the edge action group carries an accessible
+name.
+
 Canonical interaction grammar:
 
 ```text

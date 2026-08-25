@@ -69,7 +69,7 @@ success percentages.
 | **P3B.2** | 74 | Sol high | shipped — pure camera projection, immutable per-frame snapshots, front-face SVG, labels/fades, corner axes/reticles, focused fixtures + browser QA; interaction proxies remain P3B.3, motion remains P3B.4 |
 | **P3B.3** | 48 | Luna high | shipped — six-face direct/proxy targets with hysteresis and hit priority; shared-threshold pointer capture; cardinal-active tolerance; keyboard/a11y/disabled states; focused + browser QA |
 | **P3B.4** | 56 | Sol medium | shipped — pure sampler + two-phase resolution split in existing authorities; projector-driven flight with fixture-pinned polar handoff; retarget/cancel/reduced-motion verified (animated ≡ instant convergence fixture); interruption paths route through the non-terminal +Y handoff, mid-flight cancel fixture-pinned on both poles |
-| **P3B.5** | 76 | Sol high | proposed — cross-surface preview controls, labels, timeline scope |
+| **P3B.5** | 76 | Sol high | shipped — selection-free cross-surface preview commands, deterministic edge direction affordances, explicit scope labels, focused + full regression coverage |
 | **P3B.6** | 67 | Sol medium | proposed — canonical adjacency plus chooser behavior |
 | **P3B.7a** | 79 | Sol high | proposed — cross-slice regression and accessibility coverage |
 | **P3B.7b** | 73 | Sol medium | deferred — combined P3.4/P3.5 acceptance matrix |
@@ -111,8 +111,10 @@ success percentages.
 - **P3B.3 shipped at 48, Luna high.** Six-face direct/proxy targets, both
   hysteresis boundaries, gesture ownership, cardinal-active tolerance, and
   disabled/keyboard semantics are fixture- and browser-verified.
-- **P3B.5 (76)** and **P3B.7a (79)** keep Sol high (cross-surface +
-  behavioral/accessibility verification). **P3B.4a (68)**, **P3B.4b (36)**,
+- **P3B.5 shipped at 76, Sol high.** Selection-free named preview commands,
+  deterministic edge-direction affordances, and explicit scope labels now span
+  Sidebar, Plan/3D Inspectors, and Timeline. **P3B.7a (79)** keeps Sol high.
+  **P3B.4a (68)**, **P3B.4b (36)**,
   **P3B.6 (67)**, **P3B.7b (73)**, **P3B.8 (63)** are unchanged.
 - No P3B item requires Sol Max by default.
 

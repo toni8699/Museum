@@ -1601,3 +1601,34 @@ describe('P1.5 Camera Plan source contracts', () => {
 		expect(inspector).toContain("const readOnly = $derived(viewMode !== '3d' && !isCameraPlan)");
 	});
 });
+
+describe('P3B.5 preview affordance source contracts', () => {
+	it('keeps pending navigation intact and preview icons distinct from visibility', () => {
+		const flow = readLibSource('editor/CameraFlowPanel.svelte');
+		const planInspector = readLibSource('editor/app/CameraPlanInspector.svelte');
+		const inspector3d = readLibSource('editor/camera/EditorCameraInspector.svelte');
+		const edgeActions = readLibSource('editor/camera/EditorCameraEdgePreviewActions.svelte');
+
+		expect(flow).toContain("import { ChevronRight, CirclePlay, Diamond, Link, Unlink, X }");
+		expect(flow).not.toContain('<Eye ');
+		expect(flow.match(/<CirclePlay /g)).toHaveLength(4);
+		expect(flow).toMatch(
+			/const previewActionBlocked = \$derived\([\s\S]*?pendingNavigationCommand !== null[\s\S]*?\);/
+		);
+		expect(planInspector).toMatch(
+			/Preview Camera[\s\S]*?pendingNavigationCommand !== null|pendingNavigationCommand !== null[\s\S]*?Preview Camera/
+		);
+		expect(inspector3d).toMatch(
+			/Preview Camera[\s\S]*?pendingNavigationCommand !== null|pendingNavigationCommand !== null[\s\S]*?Preview Camera/
+		);
+		expect(edgeActions).toContain('store.pendingNavigationCommand !== null');
+	});
+
+	it('keeps topology mutations on the mutation gate and exposes an AT group', () => {
+		const flow = readLibSource('editor/CameraFlowPanel.svelte');
+		const edgeActions = readLibSource('editor/camera/EditorCameraEdgePreviewActions.svelte');
+		expect(flow).toMatch(/disabled=\{guidedEditingBlocked\}[\s\S]{0,180}\+ Insert/);
+		expect(flow).toMatch(/disabled=\{guidedEditingBlocked\}[\s\S]{0,220}Disconnect Loop/);
+		expect(edgeActions).toContain('role="group" aria-label="Preview Edge"');
+	});
+});

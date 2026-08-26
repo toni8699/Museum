@@ -5,8 +5,8 @@ slice plus one next action only.
 
 ## Working tree
 
-- Current delta: **P3B is in progress; Group A and P3B.1–P3B.5 are shipped;
-  all work is uncommitted.** P3B.4 adds the pure cardinal snap sampler in the
+- Current delta: **P3B is in progress; P3B.1–P3B.6 are shipped, and P11 is
+  the next implementation slice.** P3B.4 adds the pure cardinal snap sampler in the
   camera-motion authority (320ms ease-out great-circle direction/distance/up
   plus a target-blend channel for fallback-replaced targets), the exported
   two-phase resolution split consumed by both commit paths, projector-driven
@@ -28,9 +28,11 @@ slice plus one next action only.
   sequence instead of hijacking to Sequence; idle/camera-hold still starts the
   default sequence transport. Orphaned S3 EdgeRuler hook methods removed
   (`toggleEdgePlayback`, `previewActiveEdge`, `stepEdge`, `seekEdge`,
-  `toggleEdgeReverse`, hook-level `setEdgeRepeat`). Known follow-up:
-  `swapEdgePreviewDirection` / store-level `setEdgePreviewRepeat` have no UI
-  caller since the shared edge-affordance rewrite — owner decision pending.
+  `toggleEdgeReverse`, hook-level `setEdgeRepeat`). Resolved follow-up
+  (2026-08-25): the orphaned `swapEdgePreviewDirection` / store-level
+  `setEdgePreviewRepeat` APIs are dispositioned into P11 — its Edge Reverse /
+  Repeat controls become their UI callers (P11 plan §10, P11.4); no interim
+  wiring before that slice.
   Post-review fixes preserve pending navigation across every preview entry,
   restore the mutation gate on Insert/Disconnect Loop, use CirclePlay rather
   than Eye for node preview, unify sequenced/unsequenced preview availability,
@@ -46,14 +48,19 @@ slice plus one next action only.
   backing-identity, validator, and relic-boundary tests are required before
   acceptance. The work is tracked in
   [`../plans/2026-08-24-P3B-orientation-preview-affordances.md`](../plans/2026-08-24-P3B-orientation-preview-affordances.md).
-- Previous slice: **P3B.4 cardinal snap motion**, closed 2026-08-25.
+- P3B.6 retained-edge selection parity is closed 2026-08-25: retained
+  dashed/desaturated edges preserve their base presentation while exposing
+  visible hover and selection feedback; focused tests, type checking, and
+  build validation passed.
+- Previous slice: **P3B.6 retained-edge selection parity**, closed 2026-08-25.
   The active P3B umbrella is the back-pointer.
 
 ## Next action
 
-- Execute **P3B.6 retained-edge selection parity** from the active umbrella:
-  unsequenced connections must show hover/selection feedback over (without
-  losing) their retained dashed/desaturated base. No unresolved gate.
+- Start **P11.1 — Contract and state-transition seam** from
+  [`../plans/2026-08-25-P11-camera-timeline-preview-ux-redesign.md`](../plans/2026-08-25-P11-camera-timeline-preview-ux-redesign.md).
+  Keep P3B.7a/P3B.8 preview QA blocked until the P11 selection-driven scope
+  semantics are implemented and verified.
 
 ## Verification
 

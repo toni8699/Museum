@@ -70,8 +70,8 @@ success percentages.
 | **P3B.3** | 48 | Luna high | shipped — six-face direct/proxy targets with hysteresis and hit priority; shared-threshold pointer capture; cardinal-active tolerance; keyboard/a11y/disabled states; focused + browser QA |
 | **P3B.4** | 56 | Sol medium | shipped — pure sampler + two-phase resolution split in existing authorities; projector-driven flight with fixture-pinned polar handoff; retarget/cancel/reduced-motion verified (animated ≡ instant convergence fixture); interruption paths route through the non-terminal +Y handoff, mid-flight cancel fixture-pinned on both poles |
 | **P3B.5** | 76 | Sol high | shipped — selection-free cross-surface preview commands, deterministic edge direction affordances, explicit scope labels, focused + full regression coverage |
-| **P3B.6** | 67 | Sol medium | proposed — canonical adjacency plus chooser behavior |
-| **P3B.7a** | 79 | Sol high | proposed — cross-slice regression and accessibility coverage |
+| **P3B.6** | 67 | Sol medium | shipped — retained-edge selection parity and hover/selection presentation |
+| **P3B.7a** | 79 | Sol high | proposed — P11-dependent cross-slice regression and accessibility coverage |
 | **P3B.7b** | 73 | Sol medium | deferred — combined P3.4/P3.5 acceptance matrix |
 | **P3B.8** | 63 | Sol medium | proposed — browser QA across all four shell views |
 | **P4.1** | 70 | Sol medium | open |
@@ -93,6 +93,11 @@ success percentages.
 | **P8.S4** | 57 | Sol medium | shipped — timeline and transport integration |
 | **P8.S5** | 54 | Luna xhigh | shipped — interaction matrix and preservation |
 | **P8.S6** | 38 | Luna medium | shipped — bounded terminology/contract cleanup |
+| **P11.1** | 79 | Sol high | open — selection→scope transition seam; supersedes shipped P8 D1/S5 contracts; no selection↔preview cycle; Sequence-playing pause without teardown |
+| **P11.2** | 84 | Sol high | open — mutation-gate pre-inventory (~100 `isDocumentMutationBlocked` sites, 9 files) then auto-pause seam; one-gesture-one-transaction + auto-pause-before-pointer-capture invariants; failure corrupts history |
+| **P11.3** | 65 | Sol medium | open — scope-aware timeline shell; panel/ruler/controller exposure collapse, shared Plan/3D mount preserved |
+| **P11.4** | 67 | Sol medium | open — compact controls parity across Timeline/Inspector/Plan/3D; wires orphaned edge APIs |
+| **P11.5** | 48 | Luna high | open — focused regression + six-doc contract reconciliation (mechanical but wide) |
 | **D1** | 96 | Sol xhigh | out of tracker — P4 companion, own plan; Max only by exception |
 
 ## P3B routing summary
@@ -115,8 +120,24 @@ success percentages.
   deterministic edge-direction affordances, and explicit scope labels now span
   Sidebar, Plan/3D Inspectors, and Timeline. **P3B.7a (79)** keeps Sol high.
   **P3B.4a (68)**, **P3B.4b (36)**,
-  **P3B.6 (67)**, **P3B.7b (73)**, **P3B.8 (63)** are unchanged.
+  **P3B.6 (67)** is shipped; **P3B.7b (73)** and **P3B.8 (63)** remain unchanged,
+  with P3B.7a/P3B.8 deferred until P11 semantics are verified.
 - No P3B item requires Sol Max by default.
+
+## P11 routing summary (assessed 2026-08-25, pre-implementation)
+
+- **P11.2 (84)** is the peak: breadth is priced in the pre-inventory (~100 gate
+  sites), risk in transaction/auto-pause ordering. Stays Sol high — below the
+  87+ xhigh band because it is a policy split, not a structural refactor like
+  P7.5; escalate on first demonstrated failure per policy.
+- **P11.1 (79) Sol high** — closest anchor P8.S2 (75) plus contract-
+  supersession migration cost (tests must name the P8 D1/S5 replacement).
+- **P11.3 (65) / P11.4 (67) Sol medium** — single-subsystem UI/controller
+  reconciliation on established P8.S3/S4 patterns.
+- **P11.5 (48) Luna high** — bounded mechanical pass; no DeepSeek Flash
+  substitution trigger (that applies to Luna-rated items only if routed there;
+  Luna high retains effort as capability reference).
+- No P11 item requires Sol Max by default.
 
 The supplied analysis supports this conservative policy: Luna max reaches 86%
 of Sol Max capability at much lower cost, Sol xhigh reaches 98%, and the final

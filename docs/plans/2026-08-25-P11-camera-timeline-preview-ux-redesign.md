@@ -1,17 +1,17 @@
 # P11 — Camera Timeline / Preview UX redesign
 
 **Date:** 2026-08-25
-**Status:** proposed — roadmap placement decision recorded below
-**Tracker:** [`docs/plans/README.md`](README.md) — **P11**, depends on: P8 + P3B.5; coordinates with P3B.6 and deferred P3B QA
-**Placement decision:** a new P11 follow-up, reprioritized ahead of the remaining P3B preview-affordance work and ahead of further Camera visual polish. This is a planning decision; no implementation is included.
+**Status:** proposed — next implementation slice after P3B.6
+**Tracker:** [`docs/plans/README.md`](README.md) — **P11**, depends on: P8 + P3B.5; P3B.6 is closed and remaining P3B QA follows P11
+**Placement decision:** a new P11 follow-up, scheduled immediately after closed P3B.6 and ahead of the remaining P3B preview-affordance QA and further Camera visual polish. This is a planning decision; no implementation is included.
 
 ## Recommendation
 
-**Best slot:** register this as a new P11 behavior/interaction plan, and schedule its semantic/controller slices immediately after the current P3B.5 baseline (before P3B.6 and P3B.7/P3B.8 preview QA where possible). Do not fold it into the shipped P8 umbrella, and do not fold the behavior into P3 cosmetics.
+**Best slot:** keep this as a new P11 behavior/interaction plan and execute its semantic/controller slices immediately after closed P3B.6, before P3B.7/P3B.8 preview QA. Do not fold it into the shipped P8 umbrella, and do not fold the behavior into P3 cosmetics.
 
 **Why:** P8 S1–S6 are shipped and provide the route resolver, three runtime preview kinds, captured-route/run-id invalidation, edge-local timeline support, sequence composition, and Plan↔3D continuity. The requested redesign changes the public contract of that shipped behavior—especially selection-driven scope and paused authoring—not merely its appearance. P3 core is shipped and P3B.5 has already established the current affordance baseline; the redesign should replace the conflicting P3B preview rules intentionally rather than silently letting them drift.
 
-**Depends on:** P8 S1–S6; the canonical Camera selection/reducer and controller split from P7; the current P3B.5 shared Plan/3D preview entry points; existing `camera-route.ts` / `camera-motion.ts` and `editor-camera-timeline.ts` contracts. P3B.6 may land first only as a narrowly isolated retained-edge hit/visual parity fix; its acceptance must then be rerun against P11. P3B.7/P3B.8 preview QA waits for P11 semantics.
+**Depends on:** P8 S1–S6; the canonical Camera selection/reducer and controller split from P7; the current P3B.5 shared Plan/3D preview entry points; closed P3B.6 retained-edge parity; and existing `camera-route.ts` / `camera-motion.ts` / `editor-camera-timeline.ts` contracts. P3B.7/P3B.8 preview QA waits for P11 semantics.
 
 **Blocks:** the final Camera preview-affordance QA and polished timeline chrome in P3B; any visual treatment that assumes separate selection and preview identities or modal Stop-based preview. It does not block unrelated P3B orientation work or the deferred P3.4/P3.5 tail.
 
@@ -217,7 +217,7 @@ No duplicate store or preview engine is permitted. The likely ownership changes 
 
 - `selection-actions.svelte.ts`: make Camera node/connection selection the scope-transition seam. Keep the pure selection reducer canonical; add orchestration that pauses an active Sequence/Edge when selection is authoring intent, then asks the existing preview command/controller to install the selected paused scope. Exact call direction must follow current controller-host ownership and avoid a selection↔preview cycle.
 - `camera-preview-controller.svelte.ts`: retain FSM/run IDs/captured routes/stale invalidation; add only the smallest explicit transition helpers needed for selection-driven paused scope, current-edge local-progress mapping, and auto-pause. Keep `stop()` teardown semantics unchanged.
-- `camera-preview-commands.svelte.ts`: distinguish explicit whole-route `previewSequence()` from selection-driven `previewCamera`/`previewEdge`; ensure selection-driven entry does not autoplay, preserves `lastSequencePlayhead`, and can pause Sequence without project teardown. Reuse `swapEdgePreviewDirection`, edge repeat, and existing exact-edge resolver.
+- `camera-preview-commands.svelte.ts`: distinguish explicit whole-route `previewSequence()` from selection-driven `previewCamera`/`previewEdge`; ensure selection-driven entry does not autoplay, preserves `lastSequencePlayhead`, and can pause Sequence without project teardown. Reuse `swapEdgePreviewDirection`, edge repeat, and existing exact-edge resolver. This also resolves the post-P3B.5 orphaned-API follow-up: `swapEdgePreviewDirection` / store-level `setEdgePreviewRepeat` currently have no UI caller; P11.4's Edge Reverse / Repeat controls become their callers, so no interim wiring lands before that slice.
 - `camera-timeline-controller.svelte.ts` / `use-camera-timeline.svelte.ts`: make selected Camera/Edge scope the canonical derived branch; expose local/global playhead and duration without introducing a second timeline model. Current Sequence playhead restoration and boundary mapping remain authoritative.
 - `mutation-guards.svelte.ts` and mutator hosts: replace the single UX interpretation of `isDocumentMutationBlocked` with operation-specific checks or an auto-pause wrapper. Do not remove playback safety or make every mutator legal during active playback.
 - `EditorCameraTimelinePanel.svelte`, `EditorCameraPreviewControls.svelte`, `EditorCameraTimelineRuler.svelte`, and related edge/timeline components: collapse header/transport, mount the correct scope presentation before the current `timeline` null gate, remove visible Stop and large error panels, and preserve shared Camera Plan/3D mounting.
@@ -233,7 +233,9 @@ Before visual restyling, implement and test selection-driven scope transitions, 
 
 ### P11.2 — Mutation policy / paused authoring
 
-Classify current mutators and add the smallest safe auto-pause seam. Verify playing pose ownership, paused re-resolution, history/transaction correctness, and prohibited active-gesture cases. Do not broaden every guard.
+First, write a mutation-gate pre-inventory annex (same pattern as the P7.6 strings pre-inventory): enumerate every `isDocumentMutationBlocked` consumer — placement-cluster (~30 sites), selection-actions (~15), navigation-graph (~14), view-keyframe (~12), path-anchor (~8), material-resource, texture-library, camera-preview-commands, and the `controller-hosts.ts` getter plumbing — recording for each: current guard (`isDocumentMutationBlocked` alone vs combined with `isEditorInteractionActive`), target §8 bucket (always-allowed / auto-pause-first / stays-blocked), owner call for ambiguous rows, and the named acceptance test covering it. Implement only against that table.
+
+Then classify current mutators per the table and add the smallest safe auto-pause seam. Verify playing pose ownership, paused re-resolution, history/transaction correctness, and prohibited active-gesture cases. Do not broaden every guard.
 
 ### P11.3 — Scope-aware timeline shell
 
@@ -241,7 +243,7 @@ Refactor panel/ruler/controller exposure around one scope capsule and one dense 
 
 ### P11.4 — Compact controls and parity
 
-Implement segmented Observer/Through Camera, icon-only Observer tools with tooltips, contextual Play/Pause/Replay, hidden Follow/Recenter in Through Camera, Edge Reverse/Repeat, and removal of visible Stop. Reconcile Plan/3D and Sidebar/Inspector duplicate affordances.
+Implement segmented Observer/Through Camera, icon-only Observer tools with tooltips, contextual Play/Pause/Replay, hidden Follow/Recenter in Through Camera, Edge Reverse/Repeat (wiring the orphaned `swapEdgePreviewDirection` / `setEdgePreviewRepeat` store APIs per §10), and removal of visible Stop. Reconcile Plan/3D and Sidebar/Inspector duplicate affordances.
 
 ### P11.5 — Regression and contract reconciliation
 
@@ -293,7 +295,7 @@ Run focused store/controller/component/browser tests, update canonical contracts
 ## 13. Dependency and roadmap placement
 
 - **Required baseline:** P8 S1–S6 shipped behavior, P7 controller/facade ownership, P3B.5 shared preview affordance baseline, and the current shell/Camera contracts.
-- **Immediate coordination:** P3B.6 retained-edge selection parity may land first only as a narrow prerequisite for reliable Edge selection, or after P11.1 with its scope implications tested. P3B.7a/P3B.8 preview QA must be updated to the superseding selection-driven contract.
+- **Immediate coordination:** P3B.6 retained-edge selection parity is closed and provides the reliable Edge selection baseline. P3B.7a/P3B.8 preview QA must be updated to the superseding selection-driven contract after P11.
 - **P3 relationship:** P3 core remains shipped. P3 owns final pixels/tokens/layout polish only after P11.1–P11.4 establish grouping and state ownership. Do not use P3 to decide behavior.
 - **P7 relationship:** reuse the existing controller host boundaries and selection reducer; do not reopen the shipped facade collapse except for narrowly justified ownership seams.
 - **Branch-rejoin experiment:** unaffected; future multi-edge playback composes the existing edge primitive and is not part of P11.

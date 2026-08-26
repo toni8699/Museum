@@ -1,8 +1,8 @@
 # P3B — Orientation Box, Plan Parity, and Camera Preview Affordances
 
 **Date:** 2026-08-24
-**Status:** In progress — standalone follow-up after P3 close
-**Tracker:** `docs/plans/README.md` — **P3B**, depends on P3 + P8 S2–S4; preview UX semantics are superseded by proposed P11 before remaining P3B.6/QA work
+**Status:** In progress — P3B.6 closed 2026-08-25; P11 is the next implementation slice
+**Tracker:** `docs/plans/README.md` — **P3B**, depends on P3 + P8 S2–S4; P3B.6 retained-edge parity is shipped, and P11 precedes the remaining P3B preview QA
 **Historical source:** `P3 umbrella` — extracted P3.4/P3.5 and P3B scope
 
 ---
@@ -154,13 +154,18 @@ sequenced and unsequenced cameras; sequence preview lives in the Sequence
 Inspector/timeline; Plan and 3D inspectors share one edge-preview affordance;
 sequence-adjacent direction derives from predecessor → immediate successor,
 while every other connection exposes both labeled directions. Active scope
-labels identify Camera, Edge, or Sequence. **P3B.6 is implemented:** retained
-edges now preserve their dashed/desaturated base while exposing visible
-selection and hover states; P11 still supersedes the broader preview-scope
-semantics before final QA. Post-review: preview entries stay disabled
-during pending navigation, node actions use CirclePlay semantics, topology
-mutation gates are restored, and the edge action group carries an accessible
-name.
+labels identify Camera, Edge, or Sequence.
+
+**P3B.6 status: closed/shipped 2026-08-25.** Retained edges preserve their
+dashed/desaturated base while exposing visible selection and hover states.
+Focused Camera Plan hover/selection regression coverage, type checking, and
+build validation passed. Post-review: preview entries stay disabled during
+pending navigation, node actions use CirclePlay semantics, topology mutation
+gates are restored, and the edge action group carries an accessible name.
+
+**Next slice:** P11.1 — Contract and state-transition seam. P3B.7a/P3B.8
+preview QA remains blocked on the P11 selection-driven scope contract; the
+P3B.7b context-menu tail remains deferred and non-blocking.
 
 Canonical interaction grammar:
 
@@ -320,7 +325,7 @@ Previewing from Camera Plan may switch representation to Camera 3D while preserv
 
 # Core QA
 
-## P3B.7a — Focused regression
+## P3B.7a — Focused regression (P11-dependent)
 
 Verify:
 
@@ -444,13 +449,16 @@ Check:
 
 3. Group C
    P3B.5
-   P3B.6
+   P3B.6 (closed 2026-08-25)
 
-4. Core QA
-   P3B.7a
-   P3B.8
+4. Next behavior slice
+   P11.1 → P11.2 → P11.3 → P11.4 → P11.5
 
-5. Deferred tail
+5. Core QA
+   P3B.7a (after P11)
+   P3B.8 (after P11)
+
+6. Deferred tail
    P3B.7b
 ```
 

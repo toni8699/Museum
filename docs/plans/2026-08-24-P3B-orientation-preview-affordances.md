@@ -180,7 +180,7 @@ Play / Pause
 → control current preview
 ```
 
-**Historical P3B.5 baseline — superseded by P11:** normal selection was selection-only and preview scope was independent. P11 changes this contract: Camera/Edge selection changes scope to a paused local preview without autoplay; Sequence remains explicit. See [`2026-08-25-P11-camera-timeline-preview-ux-redesign.md`](2026-08-25-P11-camera-timeline-preview-ux-redesign.md).
+**Historical P3B.5 baseline — superseded by P11:** normal selection was selection-only and preview scope was independent. P11 changes this contract: Camera/Edge selection changes scope to a paused local preview without autoplay; Sequence remains explicit. See [`2026-08-25-P11-camera-timeline-preview-ux-redesign.md`](../archive/plans/2026-08-25-P11-camera-timeline-preview-ux-redesign.md).
 
 ---
 

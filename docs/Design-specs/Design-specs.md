@@ -284,9 +284,11 @@ That follows the semantic-color rules of the product spec.
 | Roll           | `RotateCw`     |
 | Play           | `Play`         |
 | Pause          | `Pause`        |
-| Stop           | `Square`       |
+| Replay         | `RotateCcw`    |
 | Follow         | `Crosshair`    |
-| Recenter       | `LocateFixed`  |
+| Recenter       | `Scan`         |
+| Edge Reverse   | `ArrowLeftRight` |
+| Edge Repeat    | `Repeat`       |
 | Zoom in        | `ZoomIn`       |
 | Zoom out       | `ZoomOut`      |
 | Fit timeline   | `Maximize2`    |
@@ -1075,21 +1077,18 @@ Use a compact scope-driven header (P11):
 [Camera · Camera C · Static]       [Observer ↔ Through Camera]
 ```
 
-The single transport control means Play → Pause → Resume → Replay. Follow and
+The single transport control means Play / Pause / Replay (resume from a
+pause is Play; Replay at a completed end). Follow and
 Recenter are Observer-only icon controls; Stop is internal lifecycle behavior,
 not normal timeline chrome. Scope is derived from canonical Camera selection
 for Camera/Edge, while Sequence remains an explicit whole-route mode. Exact
 pixel treatment remains a visual implementation concern after P11 semantics
 are accepted.
 
-Transport icons can be icon-only with tooltips except:
-
-```text
-Follow
-Recenter
-```
-
-These benefit from labels because their meanings are less universally obvious.
+Transport and Observer tools are icon-only with `aria-label` + `title`
+coverage (P11.4): Follow (`Crosshair`, `aria-pressed` toggle), Recenter
+(`Scan`), Play/Pause/Replay, Edge Reverse (`ArrowLeftRight`) and Repeat
+(`Repeat`).
 
 Use tabular numerals for time.
 

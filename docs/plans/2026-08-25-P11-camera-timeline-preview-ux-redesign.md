@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-25
 **Status:** in-progress — P11.1 implemented 2026-08-25 (committed `849ae37`); **P11.2 implemented + committed 2026-08-26 (`728c7e6`)** with review fixes on top (see `hand-off/CURRENT.md`)
-**Amended 2026-08-26:** P11.3 slice brief expanded per five review rounds (incl. a complexity pass) — scope→data projection table (§4/§10), scope-first branching with pinned resolution order (§9), P11.3 capsule/branching only with P11.4-owned dense-row layout and P11.4-tagged Stop/Reverse/Repeat ownership (§5/§11.3), pinned Play/Pause/Replay grammar (§5/§12), Sequence-only loop strip (§4), Edge-scope lanes hidden (no mixed time domains, §4/§10), structured diagnostics via typed `CameraRouteError` caught at one `{ timeline, diagnostic }` boundary (§9/§10), a **derived** invalid-target marker with no stored episode/suppression/reset paths (§9/§12), identity-null edge builder (`createEdgeLocalTimeline` returns null only for missing identity; defects throw, §9/§10), Frame-header capsule replacing the duplicate `preview-badge` (§1/§4/§10), and a P11.3-owned test map (§12).
+**Amended 2026-08-26:** P11.3 slice brief expanded per five review rounds (incl. a complexity pass) — scope→data projection table (§4/§10), scope-first branching with pinned resolution order (§9), P11.3 capsule/branching only with P11.4-owned dense-row layout and P11.4-tagged Stop/Reverse/Repeat ownership (§5/§11.3), pinned Play/Pause/Replay grammar (§5/§12), Sequence-only loop strip (§4), Edge-scope lanes hidden (no mixed time domains, §4/§10), structured diagnostics via typed `CameraRouteError` caught at one `{ timeline, diagnostic }` boundary (§9/§10), a **derived** invalid-target marker with no stored episode/suppression/reset paths (§9/§12), identity-null edge builder (`createEdgeLocalTimeline` returns null only for missing identity; defects throw, §9/§10), Frame-header capsule replacing the duplicate `preview-badge` (§1/§4/§10), and a P11.3-owned test map (§12). **Plus a P11.4 slice-brief annex (§11.3) from the slice-readiness review** — enumerated file list, dense-row layout spec (structure, not tokens), enable/disable matrix with the `swapEdgePreviewDirection`-vs-`toggleCameraEdgeReverse` migration, Stop absence rule, duplicate-affordance disposition, a11y label table, and the named `p11-s4-compact-controls` test suite.
 **Tracker:** [`docs/plans/README.md`](README.md) — **P11**, depends on: P8 + P3B.5; P3B.6 is closed and remaining P3B QA follows P11
 **Placement decision:** a new P11 follow-up, scheduled immediately after closed P3B.6 and ahead of the remaining P3B preview-affordance QA and further Camera visual polish. This is a planning decision; no implementation is included.
 
@@ -280,6 +280,61 @@ Refactor panel/ruler/controller exposure around one scope capsule and one dense 
 ### P11.4 — Compact controls and parity
 
 Implement segmented Observer/Through Camera, icon-only Observer tools with tooltips, contextual Play/Pause/Replay, hidden Follow/Recenter in Through Camera, Edge Reverse/Repeat (wiring the orphaned `swapEdgePreviewDirection` / `setEdgePreviewRepeat` store APIs per §10), and removal of visible Stop. Reconcile Plan/3D and Sidebar/Inspector duplicate affordances.
+
+**P11.4 slice-brief annex (2026-08-26, adopted from the slice-readiness review).** Makes §11.4 implementable. **Scope guard:** P11.4 touches presentation + wiring only — it must not re-edit the shipped P11.3 capsule/scope-first projection (`useCameraTimeline.timelineResult` / `scopeCapsule`, the `EditorCameraTimelinePanel` scope branches, the `{ timeline, diagnostic }` / `CameraRouteError` boundary); the §15 doc reconciliation is P11.5-owned. Behavior diff stays small; exact pixels/tokens stay P3-owned (§14).
+
+**Enumerated file list:**
+
+- `camera/EditorCameraPreviewControls.svelte` — segmented mode control; icon-only transport + Follow/Recenter; Stop removed; the single dense row reflows its grid (`~:56`).
+- `camera/EditorCameraTimelineRuler.svelte` — Edge-scope Reverse migrates to `swapEdgePreviewDirection` and becomes icon-only; Repeat added (icon-only toggle); the global transport restyles icon-only.
+- `camera/EditorCameraTimelinePanel.svelte` — no projection-logic change; remains the single shared toolbar host (`~:139`).
+- `camera/EditorCameraTimelineFrame.svelte` — header chrome only (`~:99`); the P11.3 capsule is untouched; the collapsed `48px` height invariant is preserved (Shell-camera-workspaces.md:462).
+- `CameraFlowPanel.svelte` / `app/CameraPlanInspector.svelte` / `camera/EditorCameraInspector.svelte` — duplicate Preview Edge disposition below.
+- `camera/EditorCameraEdgePreviewActions.svelte` — direction chooser retained; entry aligned to selection-driven scope.
+- New: `tests/lib/editor/store/p11-s4-compact-controls.test.ts` only — no new components or store files.
+
+**Dense-row layout spec (structure, not tokens):** one row per scope, no stacking at normal width, in this order — scope capsule (Frame header, already), mode segmented control, transport (icon-only Play/Pause/Replay), Follow/Recenter (Observer mode only), Reverse/Repeat + edge time output + scrubber (Edge scope only). Single row height equals the existing toolbar; the collapsed `48px` frame invariant is unchanged; no second rows and no floating Stop. At narrow width (`max-width: 44rem`, the existing PreviewControls breakpoint) groups may wrap, but must never produce stacked *duplicate* controls — the Follow/Recenter-in-Through removal is the dedup, not wrapping. The current `modes` / `director` / `transport` two-column grids collapse into one segmented control + one icon group.
+
+**Enable/disable matrix** (controller + hook guards; `camera-preview-controller.svelte.ts`):
+
+- **Reverse** — icon-only; enabled only when `preview.kind === 'edge' && transport === 'paused' && !isEditorInteractionActive && !isDocumentTransactionActive`; idle candidates disabled. Mirrors `swapEdgeDirection` (`:556` — returns `null` outside that state) and the hook's `edgeReverseDisabled`.
+- **Migration (pinned):** the Edge-scope Reverse currently calls `toggleCameraEdgeReverse` (flip travel direction on the active connection). P11.4 rewires it to `swapEdgePreviewDirection` — fresh opposite-direction route, physical pose preserved via the edge-domain `1 − e` flip (`swapEdgeDirection`, `camera-preview-controller.svelte.ts:556`), never reusing the captured snapshot. The two are **not interchangeable**: the swap is the paused-edge authoring operation; the toggle is the sequence-side travel-direction control and stays for that path only.
+- **Repeat** — icon-only toggle; visible only in Edge scope; enabled when `preview.kind === 'edge'` (`setEdgeRepeat` `:542` requires edge; hook `edgeRepeatDisabled`); restarts only Edge scope, never changes Sequence topology or duration. **Not** a generic Sequence loop toggle — authored tail↔head topology remains the only loop source (§12). The `edgeRepeat` getter keeps its `kind === 'edge'` scope guard.
+- **Follow/Recenter** — Observer (director) mode only; hidden entirely in Through Camera (replaces the current labeled Follow on/off + Recenter pair).
+- **Play/Pause/Replay** — existing P11.3 grammar; `tourTransportDisabled` (now camera-scoped) unchanged; Camera-scope transport stays inert.
+
+**Stop absence rule:** visible Stop is removed from the timeline UI entirely — no Stop in `EditorCameraPreviewControls`, `EditorCameraTimelineRuler`, or `EditorCameraTimelinePanel` normal render, and no overflow-menu Stop either ("absent from normal timeline chrome" is pinned as absent, not relocated). `stopCameraPreview()` stays reachable through internal lifecycle only: Escape, stale/invalid target cleanup, document replacement, Camera-domain exit, and explicit lifecycle boundaries — the p8-s5 teardown matrix stays green and is not re-pinned.
+
+**Duplicate-affordance disposition:**
+
+- `camera/EditorCameraEdgePreviewActions.svelte` — **KEEP** as the deterministic direction chooser for undirected edges (§10), but its three mounts reduce to one: `camera/EditorCameraInspector.svelte:340` keeps the group; `CameraFlowPanel.svelte:823` and `app/CameraPlanInspector.svelte:294` remove it (edge selection has owned scope since P11.1 — a leftover explicit Preview Edge button there duplicates selection-driven scope).
+- `store.previewEdge` remains (explicit edge entry is still a valid command); explicit `previewSequence` entries stay everywhere they exist.
+
+**A11y label table** (every icon-only control: `title` + `aria-label`; toggles also `aria-pressed`; native buttons, no custom tabindex):
+
+| Control | Icon (lucide-svelte, existing) | aria-label / title | Toggle state |
+|---|---|---|---|
+| Play / Pause | `Play` / `Pause` | `Play` / `Pause` | — |
+| Replay | `Play` | `Replay` | — |
+| Reverse | existing swap affordance (verify a lucide two-arrow icon) | `Reverse · A → B` (reuse `reverseEdgeLabel`) | `aria-pressed` on reverse-active |
+| Repeat | `Repeat` | `Repeat edge` | `aria-pressed` on `edgeRepeat` |
+| Follow | `Crosshair` | `Follow camera` | `aria-pressed` on `cameraPreviewFollowEnabled` |
+| Recenter | `Scan` | `Recenter camera` | — |
+
+Segmented Observer/Through: one `role="group"` `aria-label="Camera mode"` with `aria-pressed` on the active segment; no duplicate prose.
+
+**Test gate — named suite:** `tests/lib/editor/store/p11-s4-compact-controls.test.ts`:
+
+- segmented control a11y (group label + active-segment `aria-pressed`);
+- icon-only names/tooltips present (source contract via `readLibSource`, mirroring `contracts.test.ts`);
+- Follow/Recenter hidden in Through mode;
+- `swapEdgeDirection` pose preservation (fresh opposite route, `1 − e` flip, same playhead) — controller-level;
+- Repeat edge-only; restarts only Edge scope, never Sequence topology/duration;
+- Stop absent from PreviewControls/Ruler/Panel normal render (source assertion) with the p8-s5 teardown rows still green;
+- dense responsive no-stacking (source assertion on the `44rem` wrap point);
+- Edge-scope Reverse disabled for idle/playing/interaction (enable matrix).
+
+Existing tests to migrate by name: any asserting the labeled strings `Follow on/off`, `Stop preview`, or the two-button `Observer` / `Through Camera` text in these components.
 
 ### P11.5 — Regression and contract reconciliation
 

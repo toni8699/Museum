@@ -95,9 +95,14 @@ success percentages.
 | **P8.S6** | 38 | Luna medium | shipped — bounded terminology/contract cleanup |
 | **P11.1** | 79 | Sol high | shipped (uncommitted 2026-08-25) — selection→scope seam; superseded-contract tests migrated by name; 2 pre-existing baseline failures remain (not P11.1) |
 | **P11.2** | 84 | Sol high | shipped (committed 2026-08-26) — mutation-gate buckets AA/AP/SB/CH/DEL + auto-pause seam; pinned validate→seam→transaction order; both pre-existing baseline failures resolved; review fixes (validate-before-seam, complete-visitor framing gate, no seam under open txn) applied |
-| **P11.3** | 65 | Sol medium | open — scope-aware timeline shell; panel/ruler/controller exposure collapse, shared Plan/3D mount preserved; 2026-08-26 review-amendment annex (5 rounds, incl. complexity pass): scope→data projection table, scope-first branching, P11.3 capsule/branching only with P11.4-owned dense-row layout, pinned Play/Pause/Replay grammar, Edge lanes hidden (no mixed time domains), typed route errors at one `{ timeline, diagnostic }` boundary, derived invalid-target marker, identity-null edge builder, test map (stays Sol medium — mechanical pins) |
-| **P11.4** | 67 | Sol medium | open — compact controls parity across Timeline/Inspector/Plan/3D; wires orphaned edge APIs |
+| **P11.3** | 65 | Sol medium | shipped (committed `ab1210a` 2026-08-26; bad-merge revert `45bcd6d`) — scope-aware timeline shell; panel/ruler/controller exposure collapse, shared Plan/3D mount preserved; 2026-08-26 review-amendment annex (5 rounds, incl. complexity pass): scope→data projection table, scope-first branching, P11.3 capsule/branching only with P11.4-owned dense-row layout, pinned Play/Pause/Replay grammar, Edge lanes hidden (no mixed time domains), typed route errors at one `{ timeline, diagnostic }` boundary, derived invalid-target marker, identity-null edge builder, test map (stays Sol medium — mechanical pins) |
+| **P11.4** | 67 | Sol medium | implemented, uncommitted (verified 2026-08-26 — 2,228 tests green; +3 complete-scrub/mode-row fix pins) — compact controls parity across Timeline/Inspector/Plan/3D; wires orphaned edge APIs; review fixes applied (branch diagnostics, orphaned scope-label removal); the P12 baseline |
 | **P11.5** | 48 | Luna high | open — focused regression + six-doc contract reconciliation (mechanical but wide) |
+| **P12** | 78 | Sol high | approved 2026-08-26 — ratified contract freeze; four implementation slices on the P11.4 baseline; low ambiguity (fully specified), high breadth (supersedes three pinned contracts per §9 migration table) |
+| **P12.S1** | 70 | Sol medium | open — binary transport (`complete` removed, derived `atEnd`), seconds playhead, `edgeRepeat` field; mechanical migration on the pinned model; the shipped complete-scrub fix is the stepping stone |
+| **P12.S2** | 80 | Sol high | open — selection-only matrix (Laws 2–4), Sequence-node seek+pause, explicit scope entries, `requestTransportPause()` split; the only genuine contract supersession (P11.2 playing-POV seek refusal) + largest test churn (p11-s3 16 pins, contracts) |
+| **P12.S3** | 72 | Sol high | open — one-shell edge-local lane projection (new truthful presentation data, design judgment) + Flip playhead-reset migration (p11-s4 swap pin) |
+| **P12.S4** | 56 | Sol medium | open — 36px header anatomy, collapsed 48px mini-scrubber, reserved Observer slots, `+ View Key` rename + Plan/3D viewMode guard, Escape behavior + banner copy |
 | **D1** | 96 | Sol xhigh | out of tracker — P4 companion, own plan; Max only by exception |
 
 ## P3B routing summary
@@ -138,6 +143,27 @@ success percentages.
   substitution trigger (that applies to Luna-rated items only if routed there;
   Luna high retains effort as capability reference).
 - No P11 item requires Sol Max by default.
+
+## P12 routing summary (assessed 2026-08-26, post-freeze)
+
+- **P12 (78) is the umbrella**: the four slices sum to a cross-slice behavioral
+  migration, but the freeze removes the ambiguity premium — the canonical spec,
+  six closures, and §9 migration table fully specify the work, so the rating
+  prices breadth, not discovery. Sol high.
+- **P12.S2 (80, Sol high)** is the slice peak: it carries the only genuine
+  contract supersession (P11.2's playing-POV seek refusal →
+  `requestTransportPause()`), reverses the P11.3 selection-install pins, and
+  adds the scope-pill UI. Anchored on P11.2's 84 rationale (policy split with
+  broad gate/test churn) minus its pre-inventory discovery cost.
+- **P12.S1 (70) / P12.S4 (56) stay Sol medium** — mechanical state-model and
+  chrome migrations on a fully pinned contract; the shipped complete-scrub fix
+  de-risked S1's transport change.
+- **P12.S3 (72, Sol high)** — the truthful edge-local lane projection is the
+  only slice with real design judgment (what may truthfully project into the
+  edge-local domain), mirroring P3B.2's 74/Sol-high logic despite the moderate
+  score.
+- No P12 item requires Sol Max by default; no Luna-rated item (so no DeepSeek
+  Flash substitution trigger) among the slices.
 
 The supplied analysis supports this conservative policy: Luna max reaches 86%
 of Sol Max capability at much lower cost, Sol xhigh reaches 98%, and the final

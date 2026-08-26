@@ -202,7 +202,10 @@ export class EditorCameraTimelineController {
 		}
 		if (!this.host.requestFramingPause()) return false;
 		const preview = this.host.cameraPreview;
-		return !(preview && preview.transport !== 'paused');
+		// A completed preview is paused-equivalent for inspection: only a
+		// *playing* transport blocks seek/step (complete is a stable, non-moving
+		// state and the playhead write transitions complete → paused).
+		return !(preview && preview.transport === 'playing');
 	}
 
 	showCameraTimelineNodePose(nodeId: string) {

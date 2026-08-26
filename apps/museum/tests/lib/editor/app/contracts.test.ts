@@ -1318,13 +1318,13 @@ describe('camera context contracts', () => {
 
 	// Preview escape controls must remain available when there is no valid
 	// guided timeline (for example, a single-camera node preview).
-	it('keeps single-camera preview stop outside the locked editor surface', () => {
+	it('keeps single-camera preview escape surface outside the locked editor surface', () => {
 		const timeline = readLibSource('editor/camera/EditorCameraTimelinePanel.svelte');
 		const controls = readLibSource('editor/camera/EditorCameraPreviewControls.svelte');
 		const sidebar = readLibSource('editor/app/EditorSidebar.svelte');
 		const relicSidebar = readLibSource('editor/EditorLeftSidebar.svelte');
 		// P11.3 §4/§9 — the old modal-like error panel is gone; the Camera
-		// scope branch keeps the preview escape controls on a stable shell.
+		// scope branch keeps the preview controls on a stable shell.
 		expect(timeline).not.toContain('Camera flow unavailable');
 		expect(timeline).toContain("scope === 'camera'");
 		expect(timeline).toContain('<EditorCameraPreviewControls {store} />');
@@ -1335,8 +1335,14 @@ describe('camera context contracts', () => {
 		expect(timeline).toContain('<EditorCameraTimelineDots {store} {viewMode} {contextMenu} />');
 		expect(controls).toContain('preview.kind !== \'camera\'');
 		expect(controls).toContain('store.playCameraPreview()');
-		expect(controls).toContain('store.stopCameraPreview()');
+		// P11.4 §11.3 — visible Stop is removed from the timeline UI entirely;
+		// `stopCameraPreview()` teardown stays reachable via Escape/lifecycle
+		// only (p8-s5 matrix stays green).
+		expect(controls).not.toContain('store.stopCameraPreview()');
+		expect(controls).not.toContain('Stop preview');
 		expect(controls).toContain('grid-auto-flow: column;');
+		// P11.4 §11.3 — one accessible segmented Camera-mode control.
+		expect(controls).toContain('role="group" aria-label="Camera mode"');
 		// P11.2 §3 — the editor surface is locked only for a *visitor* preview;
 		// a Director preview keeps the sidebar interactive (AA inspection + AP
 		// authoring auto-pause). Migrated deliberately from isDocumentMutationBlocked.

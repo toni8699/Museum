@@ -87,6 +87,60 @@ describe('P8 S4 — end-of-sequence Replay', () => {
 	});
 });
 
+describe('P8 S4 — completed preview stays inspectable (complete is paused-equivalent)', () => {
+	it('the knob works after the whole sequence completes: seek is no longer refused', () => {
+		const store = createFixtureEditorStore();
+		store.setWorkspace('camera');
+		expect(store.previewSequence('director')).toBe(true);
+		const runId = store.cameraPreview!.runId;
+		expect(store.markCameraPreviewStarted(runId, 100)).toBe(true);
+		expect(store.completeCameraPreview(runId)).toBe(true);
+		expect(store.cameraPreview).toMatchObject({ transport: 'complete', playhead: 1 });
+
+		// The finished tour is not a dead end: the seek seam lets the write
+		// through and the playhead write transitions complete → paused (the
+		// knob then lands on the edge-local preview, as with any scrub).
+		expect(store.seekCameraTimeline(0.5)).toBe(true);
+		expect(store.cameraTimelinePlayhead).toBeCloseTo(0.5, 6);
+		expect(store.cameraPreview?.transport).toBe('paused');
+		expect(store.cameraPreview?.kind).toBe('edge');
+	});
+
+	it('hook scrub/step gates stay open at complete — only a playing transport blocks', () => {
+		const store = createFixtureEditorStore();
+		const api = useCameraTimeline(store);
+		store.setWorkspace('camera');
+		expect(store.previewSequence('director')).toBe(true);
+		const runId = store.cameraPreview!.runId;
+		expect(store.markCameraPreviewStarted(runId, 100)).toBe(true);
+		expect(store.completeCameraPreview(runId)).toBe(true);
+
+		expect(api.scrubDisabled).toBe(false);
+		expect(api.disabled).toBe(false);
+
+		// Regression guard: playing still blocks inspection.
+		expect(store.playCameraPreview()).toBe(true);
+		expect(api.scrubDisabled).toBe(true);
+		expect(api.disabled).toBe(true);
+	});
+
+	it('the edge-scope knob is open at a completed edge and resumes from the scrubbed pose', () => {
+		const store = createFixtureEditorStore();
+		const api = useCameraTimeline(store);
+		store.setWorkspace('camera');
+		expect(store.selectionActions.selectConnection('tour-a-b')).toBe(true);
+		expect(store.playCameraPreview()).toBe(true);
+		const runId = store.cameraPreview!.runId;
+		expect(store.markCameraPreviewStarted(runId, 100)).toBe(true);
+		expect(store.completeCameraPreview(runId)).toBe(true);
+		expect(store.cameraPreview).toMatchObject({ kind: 'edge', transport: 'complete' });
+
+		expect(api.edgeScrubDisabled).toBe(false);
+		expect(store.setCameraPreviewPlayhead(0.4)).toBe(true);
+		expect(store.cameraPreview).toMatchObject({ transport: 'paused', playhead: 0.4 });
+	});
+});
+
 describe('P8 S4 — holds', () => {
 	it('schedule keeps the destination pose through the hold span; completes at 1', () => {
 		const doc = cloneFixtureDocument();

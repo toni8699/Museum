@@ -68,7 +68,8 @@ Policy rules:
 | P8 | Camera preview scopes — Preview Camera / Preview Edge / Preview Sequence; directed-edge motion resolver + timing parity; edge-local timeline | **shipped — S1–S6 (2026-08-22)** | P1 | [2026-08-21-P8-camera-preview-scopes.md](2026-08-21-P8-camera-preview-scopes.md) |
 | P9 | Design reconciliation — current shell/spec truth + one canonical PNG set before P2 | **shipped 2026-08-23** | P7 + P8 | archived → [2026-08-23-P9-design-reconciliation.md](../archive/plans/2026-08-23-P9-design-reconciliation.md) |
 | P10 | Plan Arrange Objects redesign — owner-aware Arrange surface for Layout objects + eligible Scene entities; no cross-document gestures | **shipped 2026-08-24 — P10.0–P10.5 complete** | P2 + P9 | archived → [2026-08-23-P10-plan-arrange-objects.md](../archive/plans/2026-08-23-P10-plan-arrange-objects.md) |
-| P11 | Camera Timeline / Preview UX redesign — selection-driven Camera/Edge scope, compact non-modal transport, paused authoring, and scope-aware timeline shell | in-progress — **P11.1 selection→scope seam (committed `849ae37`) and P11.2 mutation policy (committed `728c7e6`)** shipped 2026-08-25/26; P11.3 scope-aware timeline shell next; behavior before remaining P3B preview QA and P3 cosmetics | P8 + P3B.5 | [2026-08-25-P11-camera-timeline-preview-ux-redesign.md](2026-08-25-P11-camera-timeline-preview-ux-redesign.md) |
+| P11 | Camera Timeline / Preview UX redesign — selection-driven Camera/Edge scope, compact non-modal transport, paused authoring, and scope-aware timeline shell | in-progress — **P11.1 selection→scope seam (committed `849ae37`) and P11.2 mutation policy (committed `728c7e6`)** shipped 2026-08-25/26; P11.3 scope-aware timeline shell shipped (`ab1210a`; bad-merge revert `45bcd6d`); P11.4 compact controls + complete-scrub/mode-row fixes implemented, uncommitted, verified 2,228 tests; behavior before remaining P3B preview QA and P3 cosmetics | P8 + P3B.5 | [2026-08-25-P11-camera-timeline-preview-ux-redesign.md](2026-08-25-P11-camera-timeline-preview-ux-redesign.md) |
+| P12 | Camera Timeline / Preview contract freeze — ratified canonical spec (five laws, binary transport, explicit scope menu, one-shell lanes, 36px header) + six owner closures; supersedes conflicting P11.2/P11.3/P11.4 rows; implementation slices follow the P11.4 baseline | approved 2026-08-26 (ratified freeze) | P11 | [2026-08-26-P12-camera-timeline-contract-freeze.md](2026-08-26-P12-camera-timeline-contract-freeze.md) |
 | — | Branch rejoin — **experiment, no schedule** (rejoin into a later Sequence stop; dead-end return already ships; multi-edge playback would compose P8's edge primitive) | proposed | P8 conceptually | [2026-08-21-branch-rejoin-experiment.md](2026-08-21-branch-rejoin-experiment.md) |
 | … | future work re-registers here | | | |
 
@@ -106,6 +107,14 @@ the 2026-08-21 decision extends the camera phase rather than reversing it.
 P9 shipped 2026-08-23 as the docs/PNG-only canonical design reconciliation;
 P2 shipped 2026-08-23; P10 shipped 2026-08-24. P4/P5 stay unscheduled until the
 owner re-prioritizes.
+
+P12 (2026-08-26) ratifies the Camera timeline/preview contract after the designer
+review of the P11 UX findings; it supersedes the conflicting P11.2–P11.4 rows
+(visitor seek refusal, selection-driven scope install, edge mini-shell,
+capsule/dense-row annex, swap pose preservation, Escape teardown) per its §9
+migration table and schedules four implementation slices (§10) on top of the
+P11.4 + bug-fix baseline. P11.5 regression/contract reconciliation closes the
+reconciliation, not P12 slices.
 
 P1 **closed 2026-08-22** — shipped 2026-08-21 with all increments through
 **P1.9** (camera sidebar simplification: neighbor dropdown · drag-only reorder

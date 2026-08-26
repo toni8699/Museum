@@ -4,7 +4,6 @@
 	import { getNodeConnections } from './camera/editor-camera-connections';
 	import { isFlowNode } from '$lib/content/scene';
 	import type { EditorStore } from './editor-store.svelte';
-	import EditorCameraEdgePreviewActions from './camera/EditorCameraEdgePreviewActions.svelte';
 
 	// optional interactivity gate. The unified tree embeds this panel
 	// read-only in Plan (Plan exposes no camera mutation path), so `false` must
@@ -820,7 +819,6 @@
 				<span class="unused-pair" title={row.id}>
 					{nodeLabel(row.fromNodeId)} — {nodeLabel(row.toNodeId)}
 				</span>
-				{#if connection}<EditorCameraEdgePreviewActions {store} {connection} />{/if}
 				{#if unusedRowIds.has(row.id) || finalPairConnectionIds.has(row.id)}
 					<button
 						type="button"

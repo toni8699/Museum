@@ -238,7 +238,8 @@ export function useCameraTimeline(store: EditorStore) {
 			if (store.isEditorInteractionActive || store.isDocumentTransactionActive) return true;
 			const preview = store.cameraPreview;
 			if (!preview || preview.kind !== 'edge') return true;
-			return preview.transport !== 'paused';
+			// Complete is paused-equivalent for inspection (stable, non-moving).
+			return preview.transport === 'playing';
 		},
 		get edgeReverseDisabled() {
 			const tl = this.edgeTimeline;
@@ -263,15 +264,17 @@ export function useCameraTimeline(store: EditorStore) {
 				Boolean(
 					store.cameraPreview &&
 						(store.cameraPreview.mode !== 'director' ||
-							store.cameraPreview.transport !== 'paused')
+							store.cameraPreview.transport === 'playing')
 				)
 			);
 		},
 		get scrubDisabled() {
+			// Complete is paused-equivalent for inspection: the finished tour
+			// stays scrubbable (and a playhead write transitions it to paused).
 			return (
 				store.isEditorInteractionActive ||
 				store.isDocumentTransactionActive ||
-				Boolean(store.cameraPreview && store.cameraPreview.transport !== 'paused')
+				Boolean(store.cameraPreview && store.cameraPreview.transport === 'playing')
 			);
 		},
 		get previewPlaying() {
@@ -349,8 +352,17 @@ export function useCameraTimeline(store: EditorStore) {
 			// Idle: explicit default sequence transport.
 			store.previewSequence('director');
 		},
+		/** P11.4 §11.3 — sequence-side travel-direction toggle (stays). */
 		toggleReverse() {
 			store.toggleCameraEdgeReverse();
+		},
+		/**
+		 * P11.4 §11.3 — Edge-scope Reverse is the paused-edge direction SWAP
+		 * (fresh opposite route, physical pose preserved via the edge-domain
+		 * 1 − e flip); not interchangeable with `toggleReverse`.
+		 */
+		swapEdgeReverse() {
+			store.swapEdgePreviewDirection();
 		},
 		addViewKeyframeAtPlayhead() {
 			store.addViewKeyframeAtPlayhead();

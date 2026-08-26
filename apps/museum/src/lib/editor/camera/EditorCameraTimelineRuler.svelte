@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { ArrowLeftRight, Pause, Play, Repeat } from 'lucide-svelte';
 	import { useCameraTimeline } from '../hooks/use-camera-timeline.svelte';
 	import type { EditorStore } from '../editor-store.svelte';
 
@@ -25,6 +26,9 @@
 	const edgeDurationSeconds = $derived(timelineApi.edgeDurationSeconds);
 	const edgeScrubDisabled = $derived(timelineApi.edgeScrubDisabled);
 	const edgeReverseDisabled = $derived(timelineApi.edgeReverseDisabled);
+	// P11.4 §11.3 — icon-only edge Reverse (swap) + Repeat toggle.
+	const edgeRepeat = $derived(timelineApi.edgeRepeat);
+	const edgeRepeatDisabled = $derived(timelineApi.edgeRepeatDisabled);
 
 	function formatTime(seconds: number) {
 		const safe = Math.max(0, seconds);
@@ -48,17 +52,29 @@
 				title={playLabel}
 				disabled={tourTransportDisabled}
 				onclick={() => timelineApi.toggleTourPlayback()}
-			>{previewPlaying ? '❚❚' : '▶'}</button>
+			>{#if previewPlaying}<Pause size={14} aria-hidden="true" />{:else}<Play size={14} aria-hidden="true" />{/if}</button>
+			<!-- P11.4 §11.3 — Edge Reverse is the paused-edge direction SWAP
+			     (fresh opposite route, physical pose preserved via the 1 − e
+			     flip), not the sequence-side travel toggle. -->
 			<button
 				type="button"
 				class="reverse"
 				class:active={reverseActive}
 				aria-pressed={reverseActive}
 				aria-label={reverseLabel}
-				title={`${reverseLabel}. When on, scrub and play travel this edge in reverse.`}
+				title={`${reverseLabel}. Swap travel direction, keeping the physical camera location.`}
 				disabled={edgeReverseDisabled}
-				onclick={() => timelineApi.toggleReverse()}
-			>Reverse</button>
+				onclick={() => timelineApi.swapEdgeReverse()}
+			><ArrowLeftRight size={14} aria-hidden="true" /></button>
+			<button
+				type="button"
+				class:active={edgeRepeat}
+				aria-pressed={edgeRepeat}
+				aria-label="Repeat edge"
+				title="Repeat edge"
+				disabled={edgeRepeatDisabled}
+				onclick={() => (store.edgeRepeat = !store.edgeRepeat)}
+			><Repeat size={14} aria-hidden="true" /></button>
 			<output aria-label="Edge camera time">
 				{formatTime(edgeDurationSeconds * edgePlayhead)}
 			</output>
@@ -92,7 +108,7 @@
 			title={playLabel}
 			disabled={tourTransportDisabled}
 			onclick={() => timelineApi.toggleTourPlayback()}
-		>{previewPlaying ? '❚❚' : '▶'}</button>
+		>{#if previewPlaying}<Pause size={14} aria-hidden="true" />{:else}<Play size={14} aria-hidden="true" />{/if}</button>
 		<button
 			type="button"
 			aria-label="Next camera boundary"

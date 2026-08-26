@@ -7,7 +7,6 @@
 	import { getScenePathAnchorWorldPosition } from '../camera/editor-camera-path';
 	import { resolvePlanSceneGraphFromDocument } from '../layout/plan-camera-projection';
 	import EditorCameraConnectionTiming from '../camera/EditorCameraConnectionTiming.svelte';
-	import EditorCameraEdgePreviewActions from '../camera/EditorCameraEdgePreviewActions.svelte';
 	import type { EditorViewState } from './editor-view-state.svelte';
 
 	let {
@@ -290,8 +289,6 @@
 				onUseAutomatic={useAutomatic}
 			/>
 		{/if}
-
-		<EditorCameraEdgePreviewActions {store} {connection} />
 
 		<button
 			type="button"

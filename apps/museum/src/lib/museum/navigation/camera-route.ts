@@ -25,6 +25,34 @@ type OrientedConnection = {
   reversed: boolean;
 };
 
+export type CameraRouteErrorKind = 'no-flow' | 'gap';
+
+/**
+ * P11.3 §9 — typed route failure. Kinds are data-shaped, never message
+ * parsing: `gap` carries the missing connection's flow endpoints, `no-flow`
+ * means no ordered flow exists. Genuine defects (malformed path data,
+ * non-contiguous joins, broken reciprocal links) stay plain `Error` so the
+ * single `{ timeline, diagnostic }` boundary can tell user-state
+ * diagnostics from data errors.
+ */
+export class CameraRouteError extends Error {
+	readonly kind: CameraRouteErrorKind;
+	readonly fromNodeId?: string;
+	readonly toNodeId?: string;
+
+	constructor(
+		kind: CameraRouteErrorKind,
+		message: string,
+		options: { fromNodeId?: string; toNodeId?: string } = {}
+	) {
+		super(message);
+		this.name = 'CameraRouteError';
+		this.kind = kind;
+		this.fromNodeId = options.fromNodeId;
+		this.toNodeId = options.toNodeId;
+	}
+}
+
 export type ResolvedCameraRoute = CameraRoute & {
   nodeIds: string[];
   edges: CameraRouteEdge[];
@@ -102,8 +130,10 @@ function findDirectConnection(
 ): OrientedConnection {
   const direct = findDirectConnectionSafe(fromNodeId, toNodeId, graph);
   if (!direct) {
-    throw new Error(
-      `The guided camera route is missing a connection from ${fromNodeId} to ${toNodeId}`
+    throw new CameraRouteError(
+      'gap',
+      `The guided camera route is missing a connection from ${fromNodeId} to ${toNodeId}`,
+      { fromNodeId, toNodeId }
     );
   }
   return direct;

@@ -2,7 +2,7 @@
 	import { ChevronDown, ChevronUp } from 'lucide-svelte';
 	import { onDestroy } from 'svelte';
 	import EditorCameraTimelinePanel from './EditorCameraTimelinePanel.svelte';
-	import { getCameraPreviewScopeLabel } from './editor-camera-preview-affordances';
+	import { useCameraTimeline } from '../hooks/use-camera-timeline.svelte';
 	import {
 		EDITOR_TIMELINE_COLLAPSED_HEIGHT,
 		EDITOR_TIMELINE_MAX_HEIGHT,
@@ -23,9 +23,11 @@
 	const height = $derived(
 		expanded ? store.timelineHeight : EDITOR_TIMELINE_COLLAPSED_HEIGHT
 	);
-	const previewLabel = $derived(
-		store.cameraPreview ? getCameraPreviewScopeLabel(store.document, store.cameraPreview) : null
-	);
+	// svelte-ignore state_referenced_locally
+	const timelineApi = useCameraTimeline(store);
+	// P11.3 §4 — the scope capsule replaces the old `preview-badge`; it owns
+	// all scope text (no duplicate prose in the panel or preview controls).
+	const capsule = $derived(timelineApi.scopeCapsule);
 	let resizing = $state(false);
 	let resizeStartY = 0;
 	let resizeStartHeight = 0;
@@ -112,8 +114,8 @@
 			<span>Main Visitor Tour</span>
 			<ChevronDown size={13} aria-hidden="true" />
 		</button>
-		{#if previewLabel}
-			<span class="preview-badge">{previewLabel}</span>
+		{#if capsule}
+			<span class="scope-capsule">{capsule}</span>
 		{:else if expanded}
 			<span class="workspace-label">{store.currentWorkspace} workspace</span>
 		{/if}
@@ -206,7 +208,7 @@
 		cursor: default;
 	}
 	.workspace-label { margin-left: auto; text-transform: capitalize; }
-	.preview-badge {
+	.scope-capsule {
 		margin-left: auto;
 		padding: 0.14rem 0.38rem;
 		border: 1px solid var(--editor-accent-pressed);
@@ -216,6 +218,7 @@
 		font-weight: 650;
 		letter-spacing: 0.04em;
 		text-transform: uppercase;
+		white-space: nowrap;
 	}
 	.toggle {
 		display: inline-flex;
@@ -242,7 +245,7 @@
 	@media (max-width: 44rem) {
 		header { gap: 0.45rem; padding-inline: 0.6rem; }
 		.phase-label, .workspace-label { display: none; }
-		.preview-badge { margin-left: auto; }
+		.scope-capsule { margin-left: auto; }
 		.content { padding-inline: 0.6rem; }
 	}
 </style>

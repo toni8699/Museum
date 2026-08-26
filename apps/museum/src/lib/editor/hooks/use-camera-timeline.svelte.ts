@@ -1,13 +1,110 @@
 /**
  * Slice 8 — timeline transport / playhead hook for camera timeline UI.
  * S3 — exposes edge-local timeline (one connection) for Preview Edge.
+ * P11.3 — scope-first projection: presentation resolves from canonical
+ * selection + preview scope before timeline existence, and the hook exposes
+ * one `{ timeline, diagnostic }` boundary (§9/§10).
  */
 
-import { createEdgeLocalTimeline } from '../camera/editor-camera-timeline';
+import {
+	createEdgeLocalTimeline,
+	createEditorCameraTimeline,
+	type EdgeLocalTimeline,
+	type EditorCameraTimeline
+} from '../camera/editor-camera-timeline';
+import { CameraRouteError } from '$lib/museum/navigation/camera-route';
 import { previewScopeOf } from '../store/camera-preview-controller.svelte';
+import { formatCameraNodeLabel } from '../editor-outliner';
 import type { EditorStore } from '../editor-store.svelte';
+import type { PreviewScope } from '../editor-types';
+
+export type CameraTimelineScope = PreviewScope | 'idle';
+
+/**
+ * P11.3 §9 — one component-facing diagnostic. Derived, never stored: no
+ * controller state, suppression semantics, or lifecycle resets. `gap` /
+ * `no-flow` come from the typed `CameraRouteError` at the global-timeline
+ * build; `invalid-target` derives from canonical selection (selected
+ * Edge/Camera with no installed scope and a failed identity resolution).
+ * Unexpected defects never land here — the boundary reports them through the
+ * existing status channel instead (no double-reporting the same failure).
+ */
+export type CameraTimelineDiagnostic =
+	| { kind: 'ok' }
+	| { kind: 'gap'; fromNodeId: string; toNodeId: string }
+	| { kind: 'no-flow' }
+	| { kind: 'invalid-target' };
+
+export type CameraTimelineResult = {
+	timeline: EditorCameraTimeline | EdgeLocalTimeline | null;
+	diagnostic: CameraTimelineDiagnostic;
+};
 
 export function useCameraTimeline(store: EditorStore) {
+	/**
+	 * P11.3 §9 — strict edge resolution for the diagnostic path. Consumes the
+	 * identity-null contract directly (null only for missing identity); a
+	 * defect rethrows to the `timelineResult` catch → status channel.
+	 */
+	function edgeTimelineStrict(): EdgeLocalTimeline | null {
+		const preview = store.cameraPreview;
+		if (preview?.kind !== 'edge') return null;
+		const route = store.getCapturedCameraPreviewRoute(preview.runId);
+		return createEdgeLocalTimeline(
+			store.state.graph,
+			preview.connectionId,
+			preview.direction,
+			route ? { route } : undefined
+		);
+	}
+
+	/**
+	 * P11.3 §9 — global timeline for the boundary. The cached builder swallows
+	 * failures, so the null path rebuilds here to surface the typed
+	 * `CameraRouteError` (gap / no-flow).
+	 */
+	function globalTimeline(): EditorCameraTimeline {
+		const cached = store.getCameraTimeline();
+		if (cached) return cached;
+		return createEditorCameraTimeline(store.state.graph);
+	}
+
+	/**
+	 * P11.3 §9 — derived invalid-target marker. Canonical selection points at
+	 * an Edge/Camera with no installed scope for it and a failed identity
+	 * resolution (connection record or endpoint node missing from the live
+	 * document — the same source `installSelectionScope` validates against).
+	 * Clears naturally on selection change or a successful scope install.
+	 */
+	function invalidTarget(): CameraTimelineDiagnostic | null {
+		const selection = store.navigationSelection;
+		const preview = store.cameraPreview;
+		if (selection?.kind === 'connection') {
+			if (preview?.kind === 'edge' && preview.connectionId === selection.connectionId) {
+				return null;
+			}
+			const connection = store.document.connections.find(
+				(candidate) => candidate.id === selection.connectionId
+			);
+			if (
+				!connection ||
+				!store.document.navigationNodes.some((node) => node.id === connection.fromNodeId) ||
+				!store.document.navigationNodes.some((node) => node.id === connection.toNodeId)
+			) {
+				return { kind: 'invalid-target' };
+			}
+			return null;
+		}
+		if (selection?.kind === 'node') {
+			if (preview?.kind === 'camera' && preview.nodeId === selection.nodeId) return null;
+			if (!store.document.navigationNodes.some((node) => node.id === selection.nodeId)) {
+				return { kind: 'invalid-target' };
+			}
+			return null;
+		}
+		return null;
+	}
+
 	return {
 		get timeline() {
 			return store.getCameraTimeline();
@@ -21,21 +118,96 @@ export function useCameraTimeline(store: EditorStore) {
 		get previewScope() {
 			return previewScopeOf(store.cameraPreview);
 		},
+		/** P11.3 — the scope-first presentation key (camera/edge/sequence/idle). */
+		get scope(): CameraTimelineScope {
+			return previewScopeOf(store.cameraPreview) ?? 'idle';
+		},
+		/**
+		 * P11.3 — one `{ timeline, diagnostic }` boundary (§9). Scope-first
+		 * pinned resolution order: Camera static → Edge local (even when the
+		 * global Sequence cannot build) → Sequence/idle global. CameraRouteError
+		 * maps to gap/no-flow; unexpected defects go to the status channel.
+		 */
+		get timelineResult(): CameraTimelineResult {
+			const preview = store.cameraPreview;
+			try {
+				if (preview?.kind === 'camera') {
+					return { timeline: null, diagnostic: invalidTarget() ?? { kind: 'ok' } };
+				}
+				if (preview?.kind === 'edge') {
+					const edge = edgeTimelineStrict();
+					if (edge === null) {
+						return { timeline: null, diagnostic: { kind: 'invalid-target' } };
+					}
+					return { timeline: edge, diagnostic: invalidTarget() ?? { kind: 'ok' } };
+				}
+				// Sequence scope / idle — the retained-scope failed-install case
+				// still shows the Sequence presentation plus the marker.
+				const timeline = globalTimeline();
+				return { timeline, diagnostic: invalidTarget() ?? { kind: 'ok' } };
+			} catch (error) {
+				if (error instanceof CameraRouteError) {
+					return {
+						timeline: null,
+						diagnostic:
+							error.kind === 'no-flow'
+								? { kind: 'no-flow' }
+								: { kind: 'gap', fromNodeId: error.fromNodeId!, toNodeId: error.toNodeId! }
+					};
+				}
+				// Genuine defect → the existing status channel, never a panel
+				// marker (single-report boundary, §9).
+				store.setStatusMessage(
+					error instanceof Error ? error.message : 'The camera timeline is unavailable'
+				);
+				return { timeline: null, diagnostic: { kind: 'ok' } };
+			}
+		},
+		/**
+		 * P11.3 §4 — one compact active-scope capsule. Replaces the Frame
+		 * header `preview-badge` and the duplicate preview-controls `<p>`; on a
+		 * failed invalid-target install it truthfully names the retained scope
+		 * while the inline diagnostic names the invalid selection.
+		 */
+		get scopeCapsule(): string | null {
+			const preview = store.cameraPreview;
+			if (!preview) return null;
+			if (preview.kind === 'sequence') return 'Sequence';
+			if (preview.kind === 'camera') {
+				const node = store.document.navigationNodes.find(
+					(candidate) => candidate.id === preview.nodeId
+				);
+				return `Camera · ${formatCameraNodeLabel(node?.label, preview.nodeId)} · Static`;
+			}
+			const fromNode = store.document.navigationNodes.find(
+				(candidate) => candidate.id === preview.fromNodeId
+			);
+			const toNode = store.document.navigationNodes.find(
+				(candidate) => candidate.id === preview.toNodeId
+			);
+			return `Edge · ${formatCameraNodeLabel(fromNode?.label, preview.fromNodeId)} → ${formatCameraNodeLabel(toNode?.label, preview.toNodeId)}`;
+		},
 		// S3 — edge-local timeline (memo key: graph + id+dir + preview.runId)
 		get edgeTimeline() {
-			const graph = store.state.graph;
-			const preview = store.cameraPreview;
-			// Active Preview Edge takes precedence over selection (previewScope === 'edge').
-			// Use captured route keyed by runId — not route identity which thrashes.
-			if (preview?.kind === 'edge') {
-				const route = store.getCapturedCameraPreviewRoute(preview.runId);
-				if (route) return createEdgeLocalTimeline(graph, preview.connectionId, preview.direction, { route });
-				return createEdgeLocalTimeline(graph, preview.connectionId, preview.direction);
+			try {
+				const graph = store.state.graph;
+				const preview = store.cameraPreview;
+				// Active Preview Edge takes precedence over selection (previewScope === 'edge').
+				// Use captured route keyed by runId — not route identity which thrashes.
+				if (preview?.kind === 'edge') {
+					const route = store.getCapturedCameraPreviewRoute(preview.runId);
+					if (route) return createEdgeLocalTimeline(graph, preview.connectionId, preview.direction, { route });
+					return createEdgeLocalTimeline(graph, preview.connectionId, preview.direction);
+				}
+				const connectionId = store.activeCameraConnectionId;
+				if (!connectionId) return null;
+				const direction = store.activeCameraDirection;
+				return createEdgeLocalTimeline(graph, connectionId, direction);
+			} catch {
+				// P11.3 §9 — render path guard: a defect must not throw during
+				// render; the diagnostic path reports it via the status channel.
+				return null;
 			}
-			const connectionId = store.activeCameraConnectionId;
-			if (!connectionId) return null;
-			const direction = store.activeCameraDirection;
-			return createEdgeLocalTimeline(graph, connectionId, direction);
 		},
 		get edgePlayhead() {
 			const preview = store.cameraPreview;
@@ -106,7 +278,14 @@ export function useCameraTimeline(store: EditorStore) {
 			return store.cameraPreview?.transport === 'playing';
 		},
 		get tourTransportDisabled() {
-			return store.isEditorInteractionActive || store.isDocumentTransactionActive;
+			// P11.3 §2 — Camera scope is static: the transport is explicitly
+			// disabled there (the Ruler is never mounted in that branch today,
+			// but the inert guard belongs on the hook, not the caller).
+			return (
+				store.isEditorInteractionActive ||
+				store.isDocumentTransactionActive ||
+				store.cameraPreview?.kind === 'camera'
+			);
 		},
 		get canAddViewKeyframeAtPlayhead() {
 			return store.canAddViewKeyframeAtPlayhead;
@@ -138,10 +317,10 @@ export function useCameraTimeline(store: EditorStore) {
 		get playLabel() {
 			const preview = store.cameraPreview;
 			if (preview?.transport === 'playing') return 'Pause';
-			// P3B.5 grammar — Play/Pause controls the current preview scope;
-			// wording mirrors the preview transport button.
+			// P11.3 §5 — the capsule owns scope text, so the compact grammar is
+			// Play / Pause / Replay (`Resume preview` / `Replay preview` are gone).
 			if (preview?.kind === 'edge' || preview?.kind === 'sequence') {
-				return preview.transport === 'complete' ? 'Replay preview' : 'Resume preview';
+				return preview.transport === 'complete' ? 'Replay' : 'Play';
 			}
 			return 'Play camera flow';
 		},
@@ -153,6 +332,10 @@ export function useCameraTimeline(store: EditorStore) {
 		},
 		toggleTourPlayback() {
 			const preview = store.cameraPreview;
+			// P11.3 §2 — Camera scope is static: its transport is inert and ▶
+			// never starts the Sequence (supersedes the P3B.5 camera-hold
+			// fallback).
+			if (preview?.kind === 'camera') return;
 			// P3B.5 grammar — Play/Pause controls the current preview scope.
 			// `playCameraPreview` resumes paused and replays complete scopes.
 			if (preview?.kind === 'edge' || preview?.kind === 'sequence') {
@@ -163,7 +346,7 @@ export function useCameraTimeline(store: EditorStore) {
 				store.playCameraPreview();
 				return;
 			}
-			// Idle or camera-hold: explicit default sequence transport.
+			// Idle: explicit default sequence transport.
 			store.previewSequence('director');
 		},
 		toggleReverse() {

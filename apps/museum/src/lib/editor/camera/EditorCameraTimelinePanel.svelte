@@ -20,6 +20,13 @@
 	const timelineApi = useCameraTimeline(store);
 	const timeline = $derived(timelineApi.timeline);
 	const preview = $derived(timelineApi.preview);
+	// P11.3 §9 — scope-first branching: presentation resolves from canonical
+	// selection + preview scope before timeline existence.
+	const scope = $derived(timelineApi.scope);
+	const result = $derived(timelineApi.timelineResult);
+	const targetKindLabel = $derived(
+		store.navigationSelection?.kind === 'connection' ? 'Edge' : 'Camera'
+	);
 
 	// S10.1.4 — derived loop readout. The loop is never a mutation: it exists
 	// iff a distinct tail→head connection record exists (two-node pairs never
@@ -58,9 +65,36 @@
 	}
 </script>
 
-{#if timeline}
+{#if scope === 'camera'}
+	<!-- P11.3 §4 — Camera is static: no ruler, lanes, or fabricated time; the
+	     panel height stays stable (no jump to/from the old error panel). -->
 	<div class="timeline-panel">
-		{#if chain.length > 0}
+		<div class="timeline-toolbar">
+			{#if preview}<EditorCameraPreviewControls {store} />{/if}
+		</div>
+		{#if result.diagnostic.kind === 'invalid-target'}
+			<p class="inline-diagnostic">{targetKindLabel} unavailable</p>
+		{/if}
+	</div>
+{:else if scope === 'edge'}
+	<!-- P11.3 §4 — Edge scope renders the edge-local ruler; the five-lane Dots
+	     are hidden (they are Sequence-global content on the global time
+	     domain — no mixed time domains). -->
+	<div class="timeline-panel">
+		<div class="timeline-toolbar">
+			<EditorCameraTimelineRuler {store} />
+			{#if preview}<EditorCameraPreviewControls {store} />{/if}
+		</div>
+		{#if result.diagnostic.kind === 'invalid-target'}
+			<p class="inline-diagnostic">{targetKindLabel} unavailable</p>
+		{/if}
+	</div>
+{:else}
+	<!-- P11.3 §4 — Sequence scope / idle keeps the ruler + Dots; the derived
+	     loop readout renders only in Sequence scope. Compact inline
+	     diagnostics replace the old modal-like error panel. -->
+	<div class="timeline-panel">
+		{#if scope === 'sequence' && chain.length > 0}
 			<div class="loop-readout" aria-label="Derived loop state">
 				{#if showLoopRow && flowHasLoop}
 					<span class="loop-readout__text">
@@ -92,21 +126,13 @@
 			<EditorCameraTimelineRuler {store} />
 			{#if preview}<EditorCameraPreviewControls {store} />{/if}
 		</div>
-		<EditorCameraTimelineDots {store} {viewMode} {contextMenu} />
-	</div>
-{:else}
-	<div class="timeline-error" role="status">
-		{#if preview}
-			<strong>Camera flow unavailable</strong>
-			<span>Connect the camera nodes to populate the five timeline lanes.</span>
-			<EditorCameraPreviewControls {store} />
-		{:else}
-			<strong>{chain.length > 0 ? 'Camera timeline unavailable' : 'No camera flow yet'}</strong>
-			<span>
-				{chain.length > 0
-					? 'The flow has a missing transition — connect the two stops to continue.'
-					: 'Place and connect camera nodes to build the path.'}
-			</span>
+		{#if timeline}<EditorCameraTimelineDots {store} {viewMode} {contextMenu} />{/if}
+		{#if result.diagnostic.kind === 'gap'}
+			<p class="inline-diagnostic">Gap at {nodeLabel(result.diagnostic.fromNodeId)}</p>
+		{:else if result.diagnostic.kind === 'no-flow'}
+			<p class="inline-diagnostic">No sequence yet</p>
+		{:else if result.diagnostic.kind === 'invalid-target'}
+			<p class="inline-diagnostic">{targetKindLabel} unavailable</p>
 		{/if}
 	</div>
 {/if}
@@ -116,16 +142,23 @@
 	.timeline-toolbar { display: flex; min-width: 0; min-height: 28px; align-items: center; gap: 0.65rem; }
 	.timeline-toolbar > :global(.transport) { min-width: 24rem; flex: 1; }
 	.timeline-toolbar > :global(.preview-transport) { width: auto; max-width: none; flex: 0 1 auto; margin: 0; }
-	.timeline-toolbar :global(.preview-transport p) { display: none; }
 	.timeline-panel :global(.transport button),
 	.timeline-panel :global(.preview-transport button) {
 		padding: 0.34rem 0.48rem; border: 1px solid var(--editor-border-normal); border-radius: 0.3rem;
 		background: var(--editor-bg-panel-raised); color: var(--editor-text-secondary); font: inherit; font-size: 0.68rem; cursor: pointer;
 	}
-	.timeline-error { display: flex; height: 100%; min-height: 7rem; flex-direction: column; align-items: center; justify-content: center; gap: 0.3rem; color: var(--editor-text-secondary); text-align: center; }
-	.timeline-error strong { color: var(--editor-text-primary); font-size: 0.78rem; }
-	.timeline-error span { font-size: 0.68rem; }
-	.timeline-error :global(.preview-transport) { width: min(100%, 54rem); justify-content: center; margin-top: 0.55rem; }
+	/* P11.3 §9 — compact inline diagnostic (replaces the old modal-like error
+	   panel); the timeline shell stays stable and the valid selected Edge
+	   keeps working even when Sequence cannot build. */
+	.inline-diagnostic {
+		margin: 0;
+		padding: 0.3rem 0.55rem;
+		border: 1px solid var(--editor-border-normal);
+		border-radius: 0.28rem;
+		background: var(--editor-bg-panel-raised);
+		color: var(--editor-text-secondary);
+		font-size: 0.68rem;
+	}
 
 	/* S10.1.4 — derived loop readout strip (matches the Sequence Inspector's
 	   loop row; the timeline reads the same distinct-connection test). */

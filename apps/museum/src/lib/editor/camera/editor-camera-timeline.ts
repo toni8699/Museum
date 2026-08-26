@@ -7,7 +7,7 @@ import {
 	type CameraMotionSample,
 	type CameraMotion
 } from '$lib/museum/navigation/camera-motion';
-import { getFlowRoute } from '$lib/museum/navigation/camera-route';
+import { CameraRouteError, getFlowRoute } from '$lib/museum/navigation/camera-route';
 import { isFlowNode } from '$lib/content/scene';
 import { EDITOR_GUIDED_TOUR_START_NODE_ID } from '../editor-navigation-graph';
 import {
@@ -99,7 +99,9 @@ function timelineProgressAtSeconds(timeline: EditorCameraTimeline, seconds: numb
 function findGuidedStart(graph: NavigationGraph, preferredStartNodeId: string) {
 	const flowNodes = graph.navigationNodes.filter(isFlowNode);
 	if (flowNodes.length === 0) {
-		throw new Error('The camera timeline requires a flow');
+		// P11.3 §9 — typed kind so the `{ timeline, diagnostic }` boundary maps
+		// it to the compact `No sequence yet` presentation without parsing.
+		throw new CameraRouteError('no-flow', 'The camera timeline requires a flow');
 	}
 	const seed =
 		flowNodes.find((node) => node.id === preferredStartNodeId) ?? flowNodes[0];
@@ -468,19 +470,29 @@ export function createEdgeLocalTimeline(
 	direction: CameraConnectionDirection,
 	opts?: { route?: ResolvedCameraRoute }
 ): EdgeLocalTimeline | null {
-	try {
-		const result = resolveDirectedEdgeMotionByDirection(graph, connectionId, direction, opts ?? {});
-		return {
-			connectionId: result.connectionId,
-			direction: result.direction,
-			fromNodeId: result.fromNodeId,
-			toNodeId: result.toNodeId,
-			durationSeconds: result.motion.durationSeconds,
-			motion: result.motion,
-			durationFallback: result.durationFallback,
-			route: result.route
-		};
-	} catch {
+	// P11.3 §9 — identity-null contract: returns null ONLY for missing
+	// identity (unknown direction, unknown connection, missing endpoint
+	// node). Genuine defects (malformed path data, non-contiguous joins)
+	// rethrow so the single `{ timeline, diagnostic }` boundary can tell an
+	// invalid target from a data error — no caller-side identity preflight.
+	if (direction !== 'forward' && direction !== 'reverse') return null;
+	const connection = graph.connections.find((candidate) => candidate.id === connectionId);
+	if (!connection) return null;
+	if (
+		!graph.nodeById.has(connection.fromNodeId) ||
+		!graph.nodeById.has(connection.toNodeId)
+	) {
 		return null;
 	}
+	const result = resolveDirectedEdgeMotionByDirection(graph, connectionId, direction, opts ?? {});
+	return {
+		connectionId: result.connectionId,
+		direction: result.direction,
+		fromNodeId: result.fromNodeId,
+		toNodeId: result.toNodeId,
+		durationSeconds: result.motion.durationSeconds,
+		motion: result.motion,
+		durationFallback: result.durationFallback,
+		route: result.route
+	};
 }

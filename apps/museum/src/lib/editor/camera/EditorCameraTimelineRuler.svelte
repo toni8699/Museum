@@ -16,6 +16,15 @@
 	const reverseDisabled = $derived(timelineApi.reverseEdgeDisabled);
 	const reverseActive = $derived(timelineApi.reverseEdgeActive);
 	const playLabel = $derived(timelineApi.playLabel);
+	// P11.3 §4/§10 — Edge scope renders the edge-local ruler (Edge duration /
+	// time, local scrub, existing labeled Reverse); the global ruler stays in
+	// Sequence scope / idle. Camera scope never mounts this component.
+	const scope = $derived(timelineApi.scope);
+	const edgeTimeline = $derived(timelineApi.edgeTimeline);
+	const edgePlayhead = $derived(timelineApi.edgePlayhead);
+	const edgeDurationSeconds = $derived(timelineApi.edgeDurationSeconds);
+	const edgeScrubDisabled = $derived(timelineApi.edgeScrubDisabled);
+	const edgeReverseDisabled = $derived(timelineApi.edgeReverseDisabled);
 
 	function formatTime(seconds: number) {
 		const safe = Math.max(0, seconds);
@@ -29,7 +38,46 @@
 	}
 </script>
 
-{#if timeline}
+{#if scope === 'edge'}
+	{#if edgeTimeline}
+		<div class="transport" aria-label="Edge camera transport">
+			<button
+				type="button"
+				class:active={previewPlaying}
+				aria-label={playLabel}
+				title={playLabel}
+				disabled={tourTransportDisabled}
+				onclick={() => timelineApi.toggleTourPlayback()}
+			>{previewPlaying ? '❚❚' : '▶'}</button>
+			<button
+				type="button"
+				class="reverse"
+				class:active={reverseActive}
+				aria-pressed={reverseActive}
+				aria-label={reverseLabel}
+				title={`${reverseLabel}. When on, scrub and play travel this edge in reverse.`}
+				disabled={edgeReverseDisabled}
+				onclick={() => timelineApi.toggleReverse()}
+			>Reverse</button>
+			<output aria-label="Edge camera time">
+				{formatTime(edgeDurationSeconds * edgePlayhead)}
+			</output>
+			<label class="scrubber">
+				<span>Edge playhead</span>
+				<input
+					type="range"
+					min="0"
+					max="1"
+					step="0.0005"
+					value={edgePlayhead}
+					disabled={edgeScrubDisabled}
+					oninput={(event) =>
+						store.setCameraPreviewPlayhead(Number((event.currentTarget as HTMLInputElement).value))}
+				/>
+			</label>
+		</div>
+	{/if}
+{:else if timeline}
 	<div class="transport" aria-label="Camera flow timeline transport">
 		<button
 			type="button"

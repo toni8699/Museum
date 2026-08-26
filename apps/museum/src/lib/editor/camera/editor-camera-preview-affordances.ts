@@ -1,6 +1,5 @@
 import type { SceneConnection, SceneDocument } from '$lib/content/scene';
 import type { CameraConnectionDirection } from '$lib/types/scene';
-import type { EditorCameraPreview } from '../editor-types';
 import { formatCameraNodeLabel } from '../editor-outliner';
 
 export type CameraEdgePreviewChoice = {
@@ -63,16 +62,4 @@ export function getCameraEdgePreviewChoices(
 		sequenceAdjacent: false,
 		choices: [choice(document, connection, 'forward'), choice(document, connection, 'reverse')]
 	};
-}
-
-export function getCameraPreviewScopeLabel(
-	document: SceneDocument,
-	preview: Exclude<EditorCameraPreview, null>,
-	sequenceLabel = 'Main Visitor Tour'
-): string {
-	if (preview.kind === 'camera') {
-		return `Preview: Camera · ${nodeLabel(document, preview.nodeId)}`;
-	}
-	if (preview.kind === 'sequence') return `Preview: Sequence · ${sequenceLabel}`;
-	return `Preview: Edge · ${nodeLabel(document, preview.fromNodeId)} → ${nodeLabel(document, preview.toNodeId)}`;
 }

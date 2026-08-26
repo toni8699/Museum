@@ -1323,8 +1323,15 @@ describe('camera context contracts', () => {
 		const controls = readLibSource('editor/camera/EditorCameraPreviewControls.svelte');
 		const sidebar = readLibSource('editor/app/EditorSidebar.svelte');
 		const relicSidebar = readLibSource('editor/EditorLeftSidebar.svelte');
-		expect(timeline).toContain('Camera flow unavailable');
+		// P11.3 §4/§9 — the old modal-like error panel is gone; the Camera
+		// scope branch keeps the preview escape controls on a stable shell.
+		expect(timeline).not.toContain('Camera flow unavailable');
+		expect(timeline).toContain("scope === 'camera'");
 		expect(timeline).toContain('<EditorCameraPreviewControls {store} />');
+		// P11.3 §9 — the retained-scope failed-install shell renders the inline
+		// marker in EVERY scope branch (camera included), naming the invalid
+		// canonical selection via the shared target-kind label.
+		expect(timeline).toContain('{targetKindLabel} unavailable');
 		expect(timeline).toContain('<EditorCameraTimelineDots {store} {viewMode} {contextMenu} />');
 		expect(controls).toContain('preview.kind !== \'camera\'');
 		expect(controls).toContain('store.playCameraPreview()');
@@ -1420,7 +1427,11 @@ describe('camera context contracts', () => {
 		// the actual gap (no flow, or a missing transition).
 		expect(panel).not.toContain('Guided timeline unavailable');
 		expect(panel).not.toContain('Repair the guided camera cycle');
-		expect(panel).toContain('No camera flow yet');
+		// P11.3 §4 — the loop readout is Sequence-scope-only and the empty
+		// state is a compact inline diagnostic, not a modal-like panel.
+		expect(panel).toContain("scope === 'sequence' && chain.length > 0");
+		expect(panel).toContain('No sequence yet');
+		expect(panel).toContain('Gap at {nodeLabel(result.diagnostic.fromNodeId)}');
 		expect(panel).not.toContain('closeGuidedTourLoop');
 	});
 

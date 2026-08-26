@@ -274,7 +274,9 @@ describe('P3B.5 — timeline play controls the current preview scope', () => {
 
 		expect(store.pauseCameraPreview()).toBe(true);
 		expect(store.cameraPreview?.transport).toBe('paused');
-		expect(api.playLabel).toBe('Resume preview');
+		// P11.3 §5 — the capsule owns scope text, so the paused grammar is
+		// `Play` (supersedes P3B.5's `Resume preview` by name).
+		expect(api.playLabel).toBe('Play');
 	});
 
 	it('replays a completed edge from 0', () => {

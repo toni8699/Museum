@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-	getCameraEdgePreviewChoices,
-	getCameraPreviewScopeLabel
-} from '$lib/editor/camera/editor-camera-preview-affordances';
+import { getCameraEdgePreviewChoices } from '$lib/editor/camera/editor-camera-preview-affordances';
 import { cameraTimelineProgressAtEdgePlayhead } from '$lib/editor/camera/editor-camera-timeline';
 import { createFixtureEditorStore } from '../editor-test-utils';
 
@@ -33,31 +30,6 @@ describe('P3B.5 camera preview affordances', () => {
 		expect(result.sequenceAdjacent).toBe(false);
 		expect(result.choices.map((item) => item.direction)).toEqual(['forward', 'reverse']);
 		expect(result.choices.every((item) => item.label.includes('→'))).toBe(true);
-	});
-
-	it('reports explicit camera, edge, and sequence scope labels', () => {
-		const store = createFixtureEditorStore();
-		const node = store.document.navigationNodes[0]!;
-		const connection = store.document.connections[0]!;
-		expect(
-			getCameraPreviewScopeLabel(store.document, {
-				kind: 'camera', nodeId: node.id, mode: 'visitor', transport: 'paused',
-				runId: 1, playhead: 0, startedAtMs: null
-			})
-		).toMatch(/^Preview: Camera · /);
-		expect(
-			getCameraPreviewScopeLabel(store.document, {
-				kind: 'edge', connectionId: connection.id, direction: 'forward',
-				fromNodeId: connection.fromNodeId, toNodeId: connection.toNodeId,
-				mode: 'director', transport: 'paused', runId: 2, playhead: 0, startedAtMs: null
-			})
-		).toMatch(/^Preview: Edge · .+ → .+$/);
-		expect(
-			getCameraPreviewScopeLabel(store.document, {
-				kind: 'sequence', startNodeId: node.id, mode: 'director', transport: 'playing',
-				runId: 3, playhead: 0, startedAtMs: null
-			})
-		).toBe('Preview: Sequence · Main Visitor Tour');
 	});
 
 	it('changes named camera and edge preview scope without changing selection', () => {

@@ -5,8 +5,36 @@ slice plus one next action only.
 
 ## Working tree
 
-- Current delta: **P11.2 review fixes (2026-08-26, uncommitted, on top of
-  committed `728c7e6`).** Three conformance fixes to the pinned P11.2 order:
+- Current delta: **P11.3 — scope-aware timeline shell (2026-08-26,
+  uncommitted, on top of committed `7508093`).** Scope-first branching per the
+  §10 projection table: presentation resolves from canonical selection +
+  preview scope before timeline existence. Camera scope is static (no ruler /
+  lanes / time, stable panel height); Edge scope renders the edge-local ruler
+  (local duration/time/scrub, existing labeled Reverse) with the five-lane
+  Dots hidden, even when the global Sequence cannot build; Sequence scope /
+  idle keep the global ruler + Dots, with the derived loop-readout strip
+  restricted to Sequence scope. One scope capsule in the Frame header
+  replaces the `preview-badge` and the duplicate `EditorCameraPreviewControls`
+  `<p>`; the capsule agrees with canonical selection after every successful
+  install and names the retained scope on a failed install, with the inline
+  marker naming the invalid selection in every scope branch (camera/edge /
+  sequence/idle). Transport grammar
+  is Play/Pause/Replay (paused `Play` supersedes P3B.5's `Resume preview`;
+  complete `Replay`); Camera-scope transport is inert (▶ never starts the
+  Sequence). Modal-like error panels are replaced by compact inline
+  diagnostics from one `{ timeline, diagnostic }` boundary: typed
+  `CameraRouteError` in `camera-route.ts` (`gap` with endpoints from
+  `getFlowRoute`'s missing connection, `no-flow` from the timeline build), an
+  identity-null `createEdgeLocalTimeline` (null only for missing identity;
+  defects rethrow), and a derived `invalid-target` marker (canonical
+  Edge/Camera selection with no installed scope and failed identity
+  resolution — never stored, no suppression/reset matrix). Unexpected defects
+  route to the status channel only (no double-reporting). P11.4 owns the
+  dense-row layout, segmented Observer/Through, icon-only tools, Edge
+  Reverse/Repeat wiring, and visible-Stop removal; labeled controls stay in
+  their current rows.
+- Previous delta: **P11.2 review fixes (2026-08-26, committed `7508093`,
+  on top of `728c7e6`).** Three conformance fixes to the pinned P11.2 order:
   (1) the navigation-graph entry points now validate/resolve BEFORE the
   auto-pause seam — `beginConnectExistingNodes` resolves the source node
   first, `connectNavigationNodes` validates the connection plan first, and
@@ -124,21 +152,30 @@ slice plus one next action only.
 
 ## Next action
 
-- **P11.3 — scope-aware timeline shell**: one compact scope/transport header
-  over the shared Plan/3D mount (Camera static / Edge local / Sequence global),
-  replacing modal incomplete/empty panels with compact diagnostics. P11.2's
-  mutation policy is the semantic baseline it builds on. P11 close still owes
-  the §15 contract reconciliation (`camera-tour.md` + shell/design specs);
+- **P11.4 — compact controls and parity**: segmented Observer/Through Camera,
+  icon-only Observer tools with tooltips, contextual Play/Pause/Replay restyle,
+  hidden Follow/Recenter in Through Camera, Edge Reverse/Repeat wiring
+  (`swapEdgePreviewDirection` / `setEdgePreviewRepeat`), and removal of
+  visible Stop from normal timeline chrome. P11 close still owes the §15
+  contract reconciliation (`camera-tour.md` + shell/design specs);
   P3B.7a/P3B.8 QA stays blocked until P11 semantics settle.
 
 ## Verification
 
-- Working tree (P11.2 + review fixes): `npm run check` 0 errors / 0 warnings;
-  the full `tests/lib/editor` suite is green (1,706 tests). The two
+- Working tree (P11.3): `npm run check` 0 errors / 0 warnings; the full
+  `apps/museum` suite is green (2,211 tests). The two
   pre-existing baseline failures from the P11.1 handoff are resolved: the
   guided/leaf-edge deletion row migrated in P11.2 (leaf-edge deletion is now
   one undoable transaction), and the pending-navigation contract row passes.
-- New coverage: `tests/lib/editor/store/p11-s2-mutation-policy.test.ts`
+- New coverage: `tests/lib/editor/store/p11-s3-scope-shell.test.ts`
+  (16 cases: scope-first projection per the §10 table, Camera transport
+  inert, exact Play/Pause/Replay grammar, Edge-with-unbuildable-Sequence,
+  capsule/selection agreement + failed-install retained-scope exception
+  (Sequence- and Camera-retained variants),
+  no-flow / typed gap / unexpected-defect propagation / invalid-Edge and
+  invalid-Camera derivation with selection-change clearing, and the
+  identity-null `createEdgeLocalTimeline` contract);
+  `tests/lib/editor/store/p11-s2-mutation-policy.test.ts`
   (18 cases: AP one-transaction writes, CTC scrub auto-pause, DEL
   keep/force-stop, visitor floor incl. paused-visitor framing, placement
   SB/cancel AA, pinned ordering for prohibited/stale/no-op/endpoint/zero-delta

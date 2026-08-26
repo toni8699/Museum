@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-25
 **Status:** in-progress — P11.1 implemented 2026-08-25 (committed `849ae37`); **P11.2 implemented + committed 2026-08-26 (`728c7e6`)** with review fixes on top (see `hand-off/CURRENT.md`)
-**Amended 2026-08-26:** P11.3 slice brief expanded per two review rounds — scope→data projection table (§4/§10), scope-first branching with pinned resolution order (§9), P11.3→P11.4 interim control disposition (§5/§11.3), Sequence-only loop strip (§4), structured diagnostic shape (§9), Frame-header capsule replacing the duplicate `preview-badge` (§1/§4/§10), and a P11.3-owned test map (§12).
+**Amended 2026-08-26:** P11.3 slice brief expanded per five review rounds (incl. a complexity pass) — scope→data projection table (§4/§10), scope-first branching with pinned resolution order (§9), P11.3 capsule/branching only with P11.4-owned dense-row layout and P11.4-tagged Stop/Reverse/Repeat ownership (§5/§11.3), pinned Play/Pause/Replay grammar (§5/§12), Sequence-only loop strip (§4), Edge-scope lanes hidden (no mixed time domains, §4/§10), structured diagnostics via typed `CameraRouteError` caught at one `{ timeline, diagnostic }` boundary (§9/§10), a **derived** invalid-target marker with no stored episode/suppression/reset paths (§9/§12), identity-null edge builder (`createEdgeLocalTimeline` returns null only for missing identity; defects throw, §9/§10), Frame-header capsule replacing the duplicate `preview-badge` (§1/§4/§10), and a P11.3-owned test map (§12).
 **Tracker:** [`docs/plans/README.md`](README.md) — **P11**, depends on: P8 + P3B.5; P3B.6 is closed and remaining P3B QA follows P11
 **Placement decision:** a new P11 follow-up, scheduled immediately after closed P3B.6 and ahead of the remaining P3B preview-affordance QA and further Camera visual polish. This is a planning decision; no implementation is included.
 
@@ -105,7 +105,7 @@ Camera · Camera C
 
 Rules:
 
-- Derive Camera/Edge labels from canonical selection and the preview controller's current scope; never add a generic selector that can silently diverge from selection.
+- Derive Camera/Edge labels from canonical selection and the preview controller's current scope; never add a generic selector that can silently diverge from selection. On a failed invalid-target install, the capsule remains truthful to the retained preview scope while the inline diagnostic names the still-canonical invalid selection (§9); this is the sole temporary selection/capsule mismatch.
 - Sequence has a clear compact enter/return affordance in the Sequence Inspector/timeline. It must not be represented as a selected graph entity.
 - The dense timeline/header owns scope, transport, time, and mode controls. Do not retain duplicate scope prose in a separate preview panel.
 - Camera scope presents `Camera C · Static` (or equivalent), disables or quiets transport, and exposes existing framing/inspection values through current Inspector/3D surfaces. Do not fabricate duration, Roll, Shots, or new durable lanes.
@@ -114,7 +114,7 @@ Rules:
 - Use Lucide icons from the existing `lucide-svelte` dependency. Icon-only Follow, Recenter, Reverse, Repeat, and transport controls require accessible names/tooltips; do not replace product-specific timeline graphics with generic icons.
 - The scope capsule lives in the `EditorCameraTimelineFrame` header (the "dense timeline/header" of this section) and **replaces the existing `preview-badge`**. No duplicate scope prose survives in the header, the panel, or the preview controls (the `getCameraPreviewScopeLabel` `<p>` in `EditorCameraPreviewControls` is removed once the capsule owns scope text).
 - The derived loop-readout strip ("Loops via…" / "Stops at…" with Connect/Disconnect actions) renders **only in Sequence scope**. Camera/Edge scopes hide it; Connect/Disconnect mutation ownership stays in the Sequence Inspector and is not duplicated into other scopes.
-- Ruler/lane exposure is scope-derived per the §10 projection table. **Camera scope hides the ruler transport and the five-lane Dots entirely** (no fake time, lanes, step │◀ ▶│, scrubber, or `+ Camera Key` — hidden, not merely disabled). **Edge scope** renders the local ruler (Edge duration/time; Reverse stays the existing labeled toggle until P11.4) and shows lanes only when the global Sequence timeline also builds. **Sequence scope / idle** keeps the current ruler + Dots.
+- Ruler/lane exposure is scope-derived per the §10 projection table. **Camera scope hides the ruler transport and the five-lane Dots entirely** (no fake time, lanes, step │◀ ▶│, scrubber, or `+ Camera Key` — hidden, not merely disabled). **Edge scope** renders the local ruler (Edge duration/time; Reverse stays the existing labeled toggle until P11.4) and **hides the five-lane Dots**: the lanes are Sequence-global content on the global time domain, so pairing them with the edge-local ruler would mix two time domains (ruler at `1.2 / 4.2s` vs lane ticks at global `0s…80s`; scrubber progress ≠ lane playhead). An edge-local lane projection is deferred, not part of P11.3. **Sequence scope / idle** keeps the current ruler + Dots.
 
 Preferred dense shapes:
 
@@ -133,19 +133,19 @@ One contextual transport action follows:
 ```text
 Play
 → Pause while playing
-→ Resume while paused
+→ Play while paused
 → Replay when complete
 ```
 
 Implementation requirements:
 
 - Use the existing `playCameraPreview`/`pauseCameraPreview`/complete semantics and run-id capture. No second playback engine and no new generic loop state.
-- Remove visible Stop Preview from normal timeline chrome. Preserve internal `stopCameraPreview()` teardown/reset for Escape/cancellation, stale/invalid target cleanup, document replacement, leaving Camera domain where required, and other explicit lifecycle boundaries.
+- Remove visible Stop Preview from normal timeline chrome (**P11.4 — P11.3 leaves the visible Stop untouched, §11.3**). Preserve internal `stopCameraPreview()` teardown/reset for Escape/cancellation, stale/invalid target cleanup, document replacement, leaving Camera domain where required, and other explicit lifecycle boundaries.
 - Keep transport quiet/disabled for static Camera scope; do not imply fake temporal content.
-- Normal timeline transport must not show redundant `Preview active`, `Resume preview`, `Stop preview`, or long scope prose when the capsule communicates state.
+- Normal timeline transport must not show redundant `Preview active`, `Resume preview`, or long scope prose when the capsule communicates state (P11.3 replaces paused `Resume preview` with `Play` and complete `Replay preview` with `Replay`; visible `Stop preview` removal is P11.4).
 - A playing Sequence or Edge owns the evaluated camera pose. Pausing exposes the current playhead for ordinary inspection and safe authoring.
 - **Label grammar lands in P11.3 with the capsule:** Play/Pause/Replay replaces `Resume preview` / `Replay preview` (`use-camera-timeline.playLabel` + Ruler title) — the capsule makes the verbose wording redundant (§5), so it cannot wait for P11.4. P11.4 restyles the same action to icon-only.
-- **P11.3→P11.4 interim disposition:** after P11.3 the dense row contains the capsule plus the *existing labeled* controls (labeled Play/Pause/Replay, Reverse, Observer/Through, Follow/Recenter, Stop) reflowed around it. Segmented Observer/Through, icon-only tools, Edge Reverse/Repeat wiring (`swapEdgePreviewDirection` / `setEdgePreviewRepeat`), and Stop removal are P11.4 — P11.3 must not implement them early.
+- **P11.3→P11.4 handoff:** P11.3 adds the capsule and scope branching only — it does not reflow the transport row, and it does not implement P11.4's segmented Observer/Through, icon-only tools, Edge Reverse/Repeat wiring (`swapEdgePreviewDirection` / `setEdgePreviewRepeat`), or Stop removal. The dense-row layout is P11.4-owned; P11.3's existing labeled controls stay in their current rows.
 
 ## 6. Observer / Through Camera contract
 
@@ -217,36 +217,38 @@ Empty Sequence:
 
 Invalid/stale Edge or Camera:
 
-- Do not install a partial preview. Use existing status/lifecycle reporting, clear only the stale scope/capture as required, and preserve canonical selection reconciliation rules.
+- Do not install a partial preview. Use existing status/lifecycle reporting, clear only the stale scope/capture as required, and preserve canonical selection reconciliation rules. **Failed-install shell state (pinned):** an invalid/stale Edge or Camera selection stays canonical; a prior preview scope is retained (P11.1 no-partial-install — a failed install never tears down the current scope), otherwise the shell shows the idle Sequence presentation. The capsule names that retained preview scope, while an inline `Edge unavailable` / `Camera unavailable` diagnostic names the invalid canonical selection — the explicit exception to normal capsule/selection agreement. **The `invalid-target` marker is derived, never stored:** it renders from canonical state (selected Edge/Camera with no installed scope and a failed identity resolution), so it needs no controller state, no suppression semantics, and no lifecycle resets — it appears whenever the invalid selection is present and clears naturally on selection change or a successful scope action. It is not the transient action-result status message. Pinned tests cover the retained-scope capsule, Edge/Camera labels, and selection-change clearing.
 
 **Pinned resolution order (scope first, timeline existence second).** The panel branches on canonical selection + preview scope before it ever consults the global timeline:
 
 1. **Camera scope** → Static capsule; no ruler, lanes, or time; panel height stays stable (no jump to/from the old 7rem error panel).
-2. **Edge scope** → resolve the edge-local timeline (`edgeTimeline` / `createEdgeLocalTimeline`, which does not require a buildable global Sequence); render the local ruler even when the global build fails. If the edge itself is invalid/stale, report through status/lifecycle and install no partial chrome.
+2. **Edge scope** → resolve the edge-local motion and render the local ruler (lanes hidden, §4) even when the global build fails. `createEdgeLocalTimeline` returns `null` **only** for missing identity (unknown connection, endpoint node, or direction) and rethrows genuine defects: `null` → the invalid-target state below; a throw is a defect/data error reported through the existing status path. The render path (`use-camera-timeline.edgeTimeline`) guards its own call so a defect cannot throw during render; the diagnostic path consumes the strict contract directly — no duplicate caller-side identity preflight.
 3. **Sequence scope / idle** → global timeline, or the compact diagnostic when it fails.
 
-**Structured diagnostic shape (no string parsing).** Timeline resolution returns one discriminated result — `ok | gap(fromNodeId, toNodeId) | no-flow | invalid-target` — wrapping the existing `getFlowRoute` throw text (`The guided camera route is missing a connection from X to Y`). The panel renders `Gap at Camera <label>` from the structured kind; it never parses status strings. A pinned test covers the gap/empty/invalid-Edge distinctions.
+**Structured diagnostic shape (no string parsing).** `camera-route.ts` throws a **typed `CameraRouteError`** (`kind`, plus `fromNodeId`/`toNodeId` for the missing-connection case) from `getFlowRoute` — the current plain `Error` message cannot be turned into `gap(from,to)` without parsing it — and the timeline build throws the typed `no-flow` kind. The existing controller/hook boundary catches `CameraRouteError`, maps it together with scope-first Camera/Edge resolution, and exposes **one** component-facing result — `{ timeline, diagnostic }` with `diagnostic = ok | gap(fromNodeId, toNodeId) | no-flow | invalid-target` — rethrowing unexpected defects to the existing `readCameraTimeline` status path. No separate resolver module, no second resolution union, and no controller diagnostic state. The panel renders `Gap at Camera <label>` / `<target kind> unavailable` from that one result; it never catches route errors or parses status strings. Pinned tests cover no-flow, typed gap mapping, unexpected-error propagation, and invalid-target derivation; the boundary must not double-report the same failure as both panel marker and status message.
 
 ## 10. Controller/store implications
 
 No duplicate store or preview engine is permitted. The likely ownership changes are:
 
 - `selection-actions.svelte.ts`: make Camera node/connection selection the scope-transition seam. Keep the pure selection reducer canonical; add orchestration that pauses an active Sequence/Edge when selection is authoring intent, then asks the existing preview command/controller to install the selected paused scope. Exact call direction must follow current controller-host ownership and avoid a selection↔preview cycle.
-- `camera-preview-controller.svelte.ts`: retain FSM/run IDs/captured routes/stale invalidation; add only the smallest explicit transition helpers needed for selection-driven paused scope, current-edge local-progress mapping, and auto-pause. Keep `stop()` teardown semantics unchanged.
+- `camera-preview-controller.svelte.ts`: retain FSM/run IDs/captured routes/stale invalidation; add only the smallest explicit transition helpers needed for selection-driven paused scope, current-edge local-progress mapping, and auto-pause. No diagnostic state is added — the invalid-target marker is derived (§9). Keep `stop()` teardown semantics unchanged.
 - `camera-preview-commands.svelte.ts`: distinguish explicit whole-route `previewSequence()` from selection-driven `previewCamera`/`previewEdge`; ensure selection-driven entry does not autoplay, preserves `lastSequencePlayhead`, and can pause Sequence without project teardown. Reuse `swapEdgePreviewDirection`, edge repeat, and existing exact-edge resolver. This also resolves the post-P3B.5 orphaned-API follow-up: `swapEdgePreviewDirection` / store-level `setEdgePreviewRepeat` currently have no UI caller; P11.4's Edge Reverse / Repeat controls become their callers, so no interim wiring lands before that slice.
-- `camera-timeline-controller.svelte.ts` / `use-camera-timeline.svelte.ts`: make selected Camera/Edge scope the canonical derived branch; expose local/global playhead and duration without introducing a second timeline model. Current Sequence playhead restoration and boundary mapping remain authoritative.
+- `camera-route.ts`: add the typed `CameraRouteError` (§9) so gap diagnostics derive from structured data, never from message parsing.
+- `editor-camera-timeline.ts`: keep `createEditorCameraTimeline` as the canonical builder; type its two known failures — `no-flow` (zero flow nodes) and missing-connection `gap` from `getFlowRoute` — as `CameraRouteError` so the single boundary can map them without string parsing (§9). No second resolver function.
+- `camera-timeline-controller.svelte.ts` / `use-camera-timeline.svelte.ts`: make selected Camera/Edge scope the canonical derived branch; the existing hook boundary exposes `{ timeline, diagnostic }` (§9), catching the typed `CameraRouteError` and deriving scope-local `invalid-target`. Expose local/global playhead and duration without introducing a second timeline model. Current Sequence playhead restoration and boundary mapping remain authoritative.
 
   **Scope → data projection (pinned):**
 
   | Scope | Data source | Playhead | Transport commands | Ruler / Dots |
   |---|---|---|---|---|
   | Camera (static, paused) | none — static pose via existing Inspector/3D surfaces | none | inert/quiet (▶ never starts Sequence) | hidden (no fake time/lanes) |
-  | Edge | `edgeTimeline` (`createEdgeLocalTimeline`, builds without a global Sequence) | `edgePlayhead` (`preview.playhead`) | edge-preview commands: `setCameraPreviewPlayhead`, `swapEdgePreviewDirection`, `setEdgePreviewRepeat`, `playCameraPreview`; existing labeled Reverse until P11.4 | local ruler; lanes only when the global timeline also builds |
+  | Edge | `edgeTimeline` (`createEdgeLocalTimeline`, builds without a global Sequence) | `edgePlayhead` (`preview.playhead`) | P11.3: `setCameraPreviewPlayhead`, `playCameraPreview`, existing labeled Reverse (`toggleCameraEdgeReverse` / `setCameraEdgeTravel`); `swapEdgePreviewDirection` / `setEdgePreviewRepeat` are **P11.4** | local ruler only; five-lane Dots hidden (edge-local lane projection deferred, §4) |
   | Sequence | global `timeline` | `cameraTimelinePlayhead` | existing global commands (`seekCameraTimeline`, `stepCameraTimeline`, `previewSequence`) | ruler + Dots |
   | Idle (no scope) | global `timeline` | `cameraTimelinePlayhead` | existing idle grammar (▶ = explicit default Sequence entry) | ruler + Dots |
 - `mutation-guards.svelte.ts` and mutator hosts: replace the single UX interpretation of `isDocumentMutationBlocked` with operation-specific checks or an auto-pause wrapper. Do not remove playback safety or make every mutator legal during active playback.
-- `EditorCameraTimelinePanel.svelte`, `EditorCameraTimelineRuler.svelte`, `EditorCameraTimelineDots.svelte`, and `EditorCameraTimelineFrame.svelte`: branch on scope **first** (not timeline existence); the Frame header hosts the scope capsule, replacing its `preview-badge`; the Panel mounts the scope presentation ahead of the current `timeline` null gate; the Ruler/Dots follow the §4 projection table (Camera hides both, Edge shows local ruler, Sequence/idle keep current chrome); remove large error panels and keep the single shared Frame mount across Plan/3D.
-- `EditorCameraPreviewControls.svelte`: interim state after P11.3 keeps its labeled controls reflowed into the dense row (no segmented mode, icon-only tools, or Stop removal — P11.4); the duplicate scope `<p>` is removed once the capsule owns scope text.
+- `EditorCameraTimelinePanel.svelte`, `EditorCameraTimelineRuler.svelte`, `EditorCameraTimelineDots.svelte`, and `EditorCameraTimelineFrame.svelte`: branch on scope **first** (not timeline existence); the Frame header hosts the scope capsule, replacing its `preview-badge`; the Panel mounts the scope presentation ahead of the current `timeline` null gate; the Ruler/Dots follow the §4 projection table (Camera hides both, Edge shows the local ruler with lanes hidden, Sequence/idle keep current chrome); remove large error panels and keep the single shared Frame mount across Plan/3D.
+- `EditorCameraPreviewControls.svelte`: P11.3 keeps its current labeled controls in their current rows (no segmented mode, icon-only tools, Stop removal, or row reflow — all P11.4); the duplicate scope `<p>` is removed once the capsule owns scope text.
 - `CameraFlowPanel.svelte`, `EditorCameraEdgePreviewActions.svelte`, `CameraPlanInspector.svelte`, and Plan/3D selection surfaces: remove or demote duplicate Preview Edge entry points once selection itself owns scope. Keep explicit Preview Sequence and any direction chooser needed to resolve an undirected edge deterministically.
 - `editor-types.ts`: do not add durable scope fields or a second active-edge identity. If a type change is required, keep it session-only and aligned with the existing discriminated preview union.
 - `EditorCameraRig.svelte` and `use-camera-preview.svelte.ts`: preserve the sole evaluated pose application path; changes should be limited to paused re-evaluation/auto-pause integration if exact source inspection requires them.
@@ -267,11 +269,13 @@ Then classify current mutators per the table and add the smallest safe auto-paus
 
 Refactor panel/ruler/controller exposure around one scope capsule and one dense transport row. Camera is static, Edge is local, Sequence is global. Replace modal-like incomplete/empty panels with compact diagnostics and stable shell geometry.
 
-**Scope-first branching (pinned):** presentation resolves from canonical selection + preview scope before timeline existence (§9 order). The capsule replaces the Frame header `preview-badge` (§4); the loop-readout strip is Sequence-only; Camera scope hides ruler transport and lanes; Edge scope renders the local ruler even when the global Sequence cannot build (§4 projection table, §10).
+**Scope-first branching (pinned):** presentation resolves from canonical selection + preview scope before timeline existence (§9 order). The capsule replaces the Frame header `preview-badge` (§4); the loop-readout strip is Sequence-only; Camera scope hides ruler transport and lanes; Edge scope renders the local ruler with lanes hidden even when the global Sequence cannot build (§4 projection table, §10).
 
-**P11.3→P11.4 handoff (interim disposition, §5):** P11.3 keeps the existing labeled controls reflowed into the dense row around the capsule — labeled Play/Pause/Replay, Reverse, Observer/Through, Follow/Recenter, Stop. It does NOT implement P11.4's segmented Observer/Through, icon-only tools, Edge Reverse/Repeat wiring, or Stop removal. Label grammar (`Play`/`Pause`/`Replay`) changes in P11.3 because the capsule makes `Resume preview` / `Replay preview` redundant.
+**P11.3→P11.4 handoff (§5):** P11.3 adds the capsule and scope branching only — existing labeled controls stay in their current rows. P11.4 owns the dense-row layout, segmented Observer/Through, icon-only tools, Edge Reverse/Repeat wiring, and Stop removal. Label grammar (`Play`/`Pause`/`Replay`) changes in P11.3 because the capsule makes `Resume preview` / `Replay preview` redundant.
 
 **Verification gate (§12):** the P11.3-owned acceptance rows below plus a new `p11-s3-scope-shell` suite; browser QA remains P11.5.
+
+**Implementation/fallback split:** land the typed route error, the single `{ timeline, diagnostic }` boundary, and focused tests first without changing rendered chrome; then switch the shared hook/panel/ruler/frame projection to the new result. If shell integration fails its gate, restore the old presentation consumers while retaining the independently tested error boundary; do not roll back P11.1/P11.2 scope or mutation semantics and do not add a parallel timeline path.
 
 ### P11.4 — Compact controls and parity
 
@@ -295,7 +299,7 @@ Run focused store/controller/component/browser tests, update canonical contracts
 
 ### Transport and controls
 
-- One transport control labels Play, Pause, Resume, and Replay contextually.
+- One transport control labels Play, Pause, and Replay contextually: paused uses `Play`, playing uses `Pause`, and complete uses `Replay`; `Resume` is not visible grammar.
 - Camera scope has no fake duration/content and transport is disabled/quiet.
 - Stop is absent from normal timeline chrome but internal teardown tests remain green for Escape, stale cleanup, document replacement, Camera-domain exit, and explicit lifecycle boundaries.
 - Observer/Through Camera is one accessible segmented control; Follow/Recenter are present only in Observer and have icon-only tooltip/name coverage.
@@ -327,12 +331,12 @@ Run focused store/controller/component/browser tests, update canonical contracts
 **P11.3-owned rows (slice verification gate):**
 
 - Camera scope shows the Static capsule with no ruler/lanes/time and stable panel height; selecting a Camera while a buildable global timeline exists must **not** render the Sequence ruler.
-- `Sequence unavailable + valid selected Edge` renders the Edge-local ruler with local duration and working scrub; lanes appear only when the global timeline builds.
+- `Sequence unavailable + valid selected Edge` renders the Edge-local ruler with local duration and working scrub; the five-lane Dots are hidden (no mixed time domains).
 - The loop-readout strip renders only in Sequence scope.
-- The scope capsule agrees with canonical selection, and no other scope prose remains (Frame `preview-badge` and the `EditorCameraPreviewControls` `<p>` are gone).
-- Diagnostics come from the structured result (`ok | gap | no-flow | invalid-target`), never from parsing status strings.
+- The scope capsule agrees with canonical selection after every successful scope install, and no other scope prose remains (Frame `preview-badge` and the `EditorCameraPreviewControls` `<p>` are gone). On failed invalid-target install only, the capsule truthfully names the retained prior scope while the inline diagnostic names the invalid canonical selection.
+- Diagnostics come from the single `{ timeline, diagnostic }` boundary — typed `CameraRouteError` mapping and derived invalid-target — never from parsing status strings. The invalid Edge/Camera failed-install shell (prior scope retained or idle Sequence shell + inline target-kind marker) is pinned; the marker clears on selection change or a successful scope action, with no suppression or lifecycle-reset matrix.
 - The single shared `EditorCameraTimelineFrame` preserves scope, playhead, direction, runId/capture, expansion, and height across Plan↔3D.
-- New suite: `p11-s3-scope-shell.test.ts` — scope-derived ruler data per the projection table; Camera transport inert; Edge-with-unbuildable-Sequence; capsule/selection agreement; diagnostic kinds (gap/empty/invalid-Edge).
+- New suite: `p11-s3-scope-shell.test.ts` — scope-derived ruler data per the projection table; Camera transport inert; exact Play/Pause/Replay grammar; Edge-with-unbuildable-Sequence; successful capsule/selection agreement plus the failed-install retained-scope exception; diagnostic kinds (no-flow, typed gap, unexpected-error propagation) and invalid-Edge/invalid-Camera smoke tests with selection-change clearing.
 
   Remaining §12 rows (segmented mode control, icon-only tools with tooltips, Edge Reverse/Repeat wiring, visible-Stop removal) are **P11.4-owned**.
 

@@ -95,7 +95,6 @@ export class EditorPathAnchorMutator {
 		handle: EditorCameraHandle,
 		point: Vec3
 	) {
-<<<<<<< HEAD
 		// P11.2 §8 — in-transaction/pending live write: the drag-begin seam
 		// (beginPathPointer / commit entry) already paused any playing preview
 		// before the transaction opened, and a document/framing transaction
@@ -103,12 +102,6 @@ export class EditorPathAnchorMutator {
 		// under an open transaction and is not repeated here. Paused-visitor
 		// target writes pass (P1.6); visitor position writes are unreachable
 		// (the drag-begin seam refuses visitors).
-=======
-		// P11.2 §8 — node pose writes validate first (finite point, bound handle,
-		// pending-or-in-transaction, real node, non-equal value), then pause a
-		// playing preview before the write (target arm keeps the P1.6 framing
-		// contract — paused visitor passes). Pinned order: validate → seam → write.
->>>>>>> 728c7e6f66e48e5c1ea36b14544c3d226d0dde98
 		if (!isFiniteVec3(point)) return false;
 		const selection = this.host.cameraSelection;
 		if (selection?.nodeId !== nodeId || selection.handle !== handle) return false;
@@ -120,11 +113,6 @@ export class EditorPathAnchorMutator {
 		if (!node) return false;
 		const current = handle === 'position' ? node.position : node.cameraTarget;
 		if (vec3Matches(current, point)) return false;
-		const mutationBlocked =
-			handle === 'target'
-				? !this.host.requestFramingPause()
-				: !this.host.requestAuthoringPause();
-		if (mutationBlocked) return false;
 		if (handle === 'position') node.position = [...point];
 		else node.cameraTarget = [...point];
 		return true;
@@ -140,16 +128,11 @@ export class EditorPathAnchorMutator {
 	 * value.
 	 */
 	updateNavigationNodeTargetPoint(nodeId: string, point: Vec3) {
-<<<<<<< HEAD
 		// P11.2 §8 — in-transaction live write: the drag-begin seam already
 		// paused any playing preview before the transaction opened (the plan's
 		// seam never runs under an open transaction), so no seam here. A paused
 		// visitor passes (P1.6); pending-node orbits only occur under an
 		// authoring placement whose entry paused the preview.
-=======
-		// P11.2 §8 — target-orbit live writes validate first, then pause a playing
-		// preview (framing: paused visitor passes). Pinned order: validate → seam → write.
->>>>>>> 728c7e6f66e48e5c1ea36b14544c3d226d0dde98
 		if (!isFiniteVec3(point)) return false;
 		const pending = this.host.isPendingNavigationNode(nodeId);
 		if (!pending && !this.host.historyDocumentUndoBlocked) return false;
@@ -158,7 +141,6 @@ export class EditorPathAnchorMutator {
 			: this.host.document.navigationNodes.find((candidate) => candidate.id === nodeId);
 		if (!node) return false;
 		if (vec3Matches(node.cameraTarget, point)) return false;
-		if (!this.host.requestFramingPause()) return false;
 		node.cameraTarget = [...point];
 		return true;
 	}
@@ -244,14 +226,9 @@ export class EditorPathAnchorMutator {
 	}
 
 	updateSelectedNodeFov(fov: number) {
-<<<<<<< HEAD
 		// P11.2 §8 — in-transaction FOV live write: the drag-begin seam already
 		// paused any playing preview before the framing transaction opened (the
 		// plan's seam never runs under an open transaction), so no seam here.
-=======
-		// P11.2 §8 — in-transaction FOV live write: validate/range first, then the
-		// framing seam (already paused under the open transaction). Pinned order.
->>>>>>> 728c7e6f66e48e5c1ea36b14544c3d226d0dde98
 		if (!Number.isFinite(fov) || fov < CAMERA_FOV.min || fov > CAMERA_FOV.max) {
 			return false;
 		}
@@ -264,7 +241,6 @@ export class EditorPathAnchorMutator {
 			return false;
 		}
 		if (Math.abs(node.fov - fov) <= 1e-6) return false;
-		if (!this.host.requestFramingPause()) return false;
 		node.fov = fov;
 		return true;
 	}

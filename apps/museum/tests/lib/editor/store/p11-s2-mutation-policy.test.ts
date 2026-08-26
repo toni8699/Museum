@@ -356,7 +356,6 @@ describe('P11.2 mutation-gate policy', () => {
 		expect(store.cameraPreview?.transport).toBe('playing');
 	});
 
-<<<<<<< HEAD
 	it('ordering: an already-applied guided-tour order is a no-op that never pauses', () => {
 		const store = createFixtureEditorStore();
 		store.setWorkspace('camera');
@@ -375,8 +374,6 @@ describe('P11.2 mutation-gate policy', () => {
 		expect(store.isDocumentTransactionActive).toBe(false);
 	});
 
-=======
->>>>>>> 728c7e6f66e48e5c1ea36b14544c3d226d0dde98
 	it('ordering: clearing an absent timing direction never pauses', () => {
 		const store = createFixtureEditorStore();
 		expect(

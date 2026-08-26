@@ -219,10 +219,6 @@ export class EditorNavigationGraphMutator {
 			this.host.isEditorInteractionActive ||
 			this.host.pendingNavigationCommand
 		) return false;
-<<<<<<< HEAD
-=======
-		// P11.2 §8 — authoring intent auto-pauses a playing preview.
->>>>>>> 728c7e6f66e48e5c1ea36b14544c3d226d0dde98
 		if (!this.host.requestAuthoringPause()) return false;
 		this.host.cancelAssetPlacement();
 		this.host.cancelPendingFrame();
@@ -254,8 +250,6 @@ export class EditorNavigationGraphMutator {
 			this.host.isEditorInteractionActive ||
 			this.host.pendingNavigationCommand
 		) return false;
-		// P11.2 §8 — authoring intent auto-pauses a playing preview.
-		if (!this.host.requestAuthoringPause()) return false;
 		const source = this.host.selectedNavigationNode;
 		if (!source) {
 			this.host.setStatusMessage('Select a source camera node');
@@ -448,11 +442,6 @@ export class EditorNavigationGraphMutator {
 			this.host.setStatusMessage('Destination camera node is unavailable');
 			return false;
 		}
-<<<<<<< HEAD
-=======
-		// P11.2 §8 — a missing destination never pauses; the seam fires only once
-		// the connect can actually proceed.
->>>>>>> 728c7e6f66e48e5c1ea36b14544c3d226d0dde98
 		if (!this.host.requestAuthoringPause()) return false;
 		if (pending.kind === 'connect-pending-node') {
 			// Destination was resolved and validated above (before the seam).
@@ -557,12 +546,6 @@ export class EditorNavigationGraphMutator {
 				this.host.pendingNavigationCommand.sourceNodeId !== sourceNodeId)
 		) {
 			this.host.setStatusMessage('Finish or cancel the current camera command first');
-			return false;
-		}
-		// P11.2 §8 — connecting while a preview plays pauses it in place; a
-		// mismatched pending command (a rejected gesture) never pauses.
-		if (!this.host.requestAuthoringPause()) {
-			this.host.setStatusMessage('Camera graph changes are blocked during visitor previews');
 			return false;
 		}
 		const connectionPlan = runOrFail(this.host, () =>
@@ -1090,12 +1073,6 @@ export class EditorNavigationGraphMutator {
 			this.host.setStatusMessage('Finish or cancel the current camera command first');
 			return false;
 		}
-		// P11.2 §8 — tour-order authoring pauses a playing preview first; a
-		// pending command (a rejected gesture) never pauses.
-		if (!this.host.requestAuthoringPause()) {
-			this.host.setStatusMessage('Cannot edit the camera flow during visitor previews');
-			return false;
-		}
 		return true;
 	}
 
@@ -1369,12 +1346,6 @@ export class EditorNavigationGraphMutator {
 		direction: CameraConnectionDirection,
 		timing: SceneConnectionTiming | null
 	): boolean {
-<<<<<<< HEAD
-=======
-		// P11.2 §8 — timing write: resolve + validate + no-op first, then the pause
-		// seam, then the transaction. Invalid/unknown/unchanged never pauses and
-		// never opens a transaction.
->>>>>>> 728c7e6f66e48e5c1ea36b14544c3d226d0dde98
 		const connection = this.host.document.connections.find(
 			(candidate) => candidate.id === connectionId
 		);
@@ -1424,12 +1395,6 @@ export class EditorNavigationGraphMutator {
 
 	/** Phase 3.7: write a destination hold in seconds; pass `null` to clear. */
 	setNodeHoldSeconds(nodeId: string, holdSeconds: number | null): boolean {
-<<<<<<< HEAD
-=======
-		// P11.2 §8 — hold write: resolve + validate + no-op first, then the pause
-		// seam, then the transaction. Invalid/unknown/unchanged never pauses and
-		// never opens a transaction.
->>>>>>> 728c7e6f66e48e5c1ea36b14544c3d226d0dde98
 		const node = this.host.document.navigationNodes.find(
 			(candidate) => candidate.id === nodeId
 		);

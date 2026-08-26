@@ -815,10 +815,15 @@ export class EditorViewKeyframeController {
 	}
 
 	updateSelectedViewKeyframeFov(fov: number) {
+<<<<<<< HEAD
 		// P11.2 §8 — in-transaction framing live write: the drag-begin seam
 		// already paused any playing preview before the framing transaction
 		// opened (the plan's seam never runs under an open transaction), so no
 		// seam here.
+=======
+		// P11.2 §8 — in-transaction framing live write: range + transaction guard
+		// first, then the framing seam (already paused under the open transaction).
+>>>>>>> 728c7e6f66e48e5c1ea36b14544c3d226d0dde98
 		if (
 			!Number.isFinite(fov) ||
 			fov < CAMERA_FOV.min ||
@@ -827,6 +832,10 @@ export class EditorViewKeyframeController {
 			return false;
 		}
 		if (!this.host.historyFramingTransactionActive) return false;
+<<<<<<< HEAD
+=======
+		if (!this.host.requestFramingPause()) return false;
+>>>>>>> 728c7e6f66e48e5c1ea36b14544c3d226d0dde98
 		const keyframe = this.host.selectedViewKeyframe;
 		if (!keyframe || Math.abs(keyframe.fov - fov) <= 1e-6) return false;
 		keyframe.fov = fov;

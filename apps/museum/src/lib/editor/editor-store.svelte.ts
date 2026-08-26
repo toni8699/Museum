@@ -1227,10 +1227,23 @@ export class EditorStore {
 	}
 
 	/**
+<<<<<<< HEAD
 	 * P11.2 §8 auto-pause seam: visitor refuses; a playing Director preview
 	 * pauses in place (session-only, no history entry). Call AFTER prohibited
 	 * checks + validate/resolve and BEFORE pointer capture / beginDocumentTransaction;
 	 * rejected and no-op gestures never reach the seam.
+=======
+	 * P11.2 §8 auto-pause seam for Camera-authoring entry points: visitor
+	 * previews refuse; a playing Director preview pauses in place (session-only,
+	 * physical progress preserved, no history entry, no stop teardown); paused
+	 * previews pass through. Callers keep their own interaction/pending-nav bars
+	 * and must invoke this after those prohibited-state checks and after
+	 * validate/resolve of the target, and always before pointer capture or
+	 * `beginDocumentTransaction()` (so pausing itself never runs under an open
+	 * transaction nor writes history). Unchanged/invalid commits must never
+	 * reach the seam. See plan §2 — pinned order: prohibited checks →
+	 * validate/resolve → seam → begin transaction → write/capture.
+>>>>>>> 728c7e6f66e48e5c1ea36b14544c3d226d0dde98
 	 */
 	requestAuthoringPause(): boolean {
 		if (this.isVisitorCameraPreview) return false;
@@ -1274,15 +1287,24 @@ export class EditorStore {
 
 	/**
 	 * P11.2 §3 framing predicate — viewport framing paths only. Mirrors
+<<<<<<< HEAD
 	 * `requestFramingPause` exactly: a paused preview of either camera passes;
 	 * any *non-paused* visitor blocks (playing and complete — a complete
 	 * visitor would otherwise render dead handles), while a playing Director
 	 * stays interactive (its drag auto-pauses).
+=======
+	 * `requestFramingPause`: a paused visitor passes, a playing Director stays
+	 * interactive (its drag auto-pauses), a playing visitor blocks.
+>>>>>>> 728c7e6f66e48e5c1ea36b14544c3d226d0dde98
 	 */
 	get isFramingBlocked() {
 		return (
 			this.isEditorInteractionActive ||
+<<<<<<< HEAD
 			(this.isVisitorCameraPreview && !this.isCameraPreviewPaused)
+=======
+			(this.isVisitorCameraPreview && this.isCameraPreviewPlaying)
+>>>>>>> 728c7e6f66e48e5c1ea36b14544c3d226d0dde98
 		);
 	}
 

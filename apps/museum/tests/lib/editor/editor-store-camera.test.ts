@@ -2548,10 +2548,16 @@ describe('EditorStore Phase 3.4 guided-order editing', () => {
 
 		store.selectionActions.selectNavigationNode('tour-paris');
 		expect(store.previewSelectedNode('visitor')).toBe(true);
+<<<<<<< HEAD
 		// P11.2 (AP) — the order validates first, then the seam refuses a
 		// *visitor* preview; a playing Director preview auto-pauses into the
 		// guided-order edit.
 		expect(store.setGuidedTourOrder(checkedInOrder)).toBe(false);
+=======
+		// P11.2 (AP) — a *visitor* preview still refuses; a playing Director
+		// preview auto-pauses into the guided-order edit.
+		expect(store.removeNodeFromGuidedTour('tour-paris')).toBe(false);
+>>>>>>> 728c7e6f66e48e5c1ea36b14544c3d226d0dde98
 		expect(store.statusMessage).toContain('during visitor previews');
 		expect(store.stopCameraPreview()).toBe(true);
 

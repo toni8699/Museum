@@ -140,6 +140,8 @@ export interface EditorNavigationGraphMutatorHost {
 	readonly isDocumentMutationBlocked: boolean;
 	readonly isEditorInteractionActive: boolean;
 	readonly isDocumentTransactionActive: boolean;
+	/** P11.2 §8 — auto-pause seam: visitor→refuse, director playing→pause, then authoring proceeds. */
+	requestAuthoringPause(): boolean;
 
 	// Document + selection state.
 	readonly document: SceneDocument;
@@ -214,10 +216,11 @@ export class EditorNavigationGraphMutator {
 
 	beginCameraPlacement() {
 		if (
-			this.host.isDocumentMutationBlocked ||
 			this.host.isEditorInteractionActive ||
 			this.host.pendingNavigationCommand
 		) return false;
+		// P11.2 §8 — authoring intent auto-pauses a playing preview.
+		if (!this.host.requestAuthoringPause()) return false;
 		this.host.cancelAssetPlacement();
 		this.host.cancelPendingFrame();
 		this.host.setWorkspace('camera');
@@ -245,7 +248,6 @@ export class EditorNavigationGraphMutator {
 
 	beginConnectExistingNodes() {
 		if (
-			this.host.isDocumentMutationBlocked ||
 			this.host.isEditorInteractionActive ||
 			this.host.pendingNavigationCommand
 		) return false;
@@ -254,6 +256,9 @@ export class EditorNavigationGraphMutator {
 			this.host.setStatusMessage('Select a source camera node');
 			return false;
 		}
+		// P11.2 §8 — the source resolved above; the seam fires only once the
+		// connect can actually proceed (a missing source never pauses).
+		if (!this.host.requestAuthoringPause()) return false;
 		this.host.cancelAssetPlacement();
 		this.host.cancelPendingFrame();
 		this.#pendingNavigationSelectionBefore = cloneNavigation(
@@ -294,7 +299,6 @@ export class EditorNavigationGraphMutator {
 	) {
 		const pending = this.host.pendingNavigationCommand;
 		if (
-			this.host.isDocumentMutationBlocked ||
 			this.host.isEditorInteractionActive ||
 			pending?.kind !== 'place-camera' ||
 			!isFiniteVec3(floorWorld) ||
@@ -302,6 +306,7 @@ export class EditorNavigationGraphMutator {
 		) {
 			return null;
 		}
+		if (!this.host.requestAuthoringPause()) return null;
 
 		let forwardX = cameraForwardWorld[0];
 		let forwardZ = cameraForwardWorld[2];
@@ -424,21 +429,28 @@ export class EditorNavigationGraphMutator {
 	connectPendingNavigationNode(destinationNodeId: string) {
 		const pending = this.host.pendingNavigationCommand;
 		if (
-			this.host.isDocumentMutationBlocked ||
 			this.host.isEditorInteractionActive ||
 			(pending?.kind !== 'connect-existing' &&
 				pending?.kind !== 'connect-pending-node')
 		) {
 			return false;
 		}
+		const destination =
+			pending.kind === 'connect-pending-node'
+				? this.host.document.navigationNodes.find(
+						(node) => node.id === destinationNodeId
+				  )
+				: null;
+		if (pending.kind === 'connect-pending-node' && !destination) {
+			this.host.setStatusMessage('Destination camera node is unavailable');
+			return false;
+		}
+		// P11.2 §8 — a missing destination never pauses; the seam fires only once
+		// the connect can actually proceed.
+		if (!this.host.requestAuthoringPause()) return false;
 		if (pending.kind === 'connect-pending-node') {
-			const destination = this.host.document.navigationNodes.find(
-				(node) => node.id === destinationNodeId
-			);
-			if (!destination) {
-				this.host.setStatusMessage('Destination camera node is unavailable');
-				return false;
-			}
+			// Destination was resolved and validated above (before the seam).
+			const destinationNode = destination!;
 			const node = pending.node;
 			// S10.2 — a newly placed node seeds or appends the open flow. The
 			// second node (no flow yet) seeds an open pair `1 → 2` with one
@@ -449,13 +461,13 @@ export class EditorNavigationGraphMutator {
 			const seedTwoNodeFlow =
 				!this.host.isRelic &&
 				this.host.document.navigationNodes.length === 1 &&
-				destination.nextNodeId === undefined &&
-				destination.previousNodeId === undefined;
+				destinationNode.nextNodeId === undefined &&
+				destinationNode.previousNodeId === undefined;
 			const mainFlowNodeIds = currentMainFlowNodeIds(this.host.document);
 			const appendsToTail =
 				!seedTwoNodeFlow &&
 				mainFlowNodeIds !== null &&
-				mainFlowNodeIds.at(-1) === destination.id;
+				mainFlowNodeIds.at(-1) === destinationNode.id;
 			// Microcopy contract — when appending turns a live loop off, announce
 			// the transition (the old tail→head record stays as an ordinary
 			// connection; the loop simply stops qualifying). Compute BEFORE the
@@ -465,7 +477,7 @@ export class EditorNavigationGraphMutator {
 				? this.#flowHasDistinctClosingRecord(mainFlowNodeIds!)
 				: false;
 			const connectionId = reserveEntityId(
-				`${destination.id}-${node.id}`,
+				`${destinationNode.id}-${node.id}`,
 				new Set(this.host.document.connections.map((connection) => connection.id))
 			);
 			if (!this.host.beginDocumentTransaction()) return false;
@@ -473,27 +485,27 @@ export class EditorNavigationGraphMutator {
 				...node,
 				position: [...node.position],
 				cameraTarget: [...node.cameraTarget],
-				connectedNodeIds: [destination.id]
+				connectedNodeIds: [destinationNode.id]
 			};
 			this.host.document.navigationNodes.push(committedNode);
-			this.#appendStraightConnection(destination, committedNode, connectionId);
+			this.#appendStraightConnection(destinationNode, committedNode, connectionId);
 			if (seedTwoNodeFlow) {
-				destination.nextNodeId = committedNode.id;
-				committedNode.previousNodeId = destination.id;
+				destinationNode.nextNodeId = committedNode.id;
+				committedNode.previousNodeId = destinationNode.id;
 			} else if (appendsToTail) {
 				// A legacy closed cycle's derived tail still carries its wraparound
 				// next link; appending dissolves the closure (the head's reciprocal
 				// previous link clears with it) before writing the open append.
-				if (destination.nextNodeId !== undefined) {
-					delete destination.nextNodeId;
+				if (destinationNode.nextNodeId !== undefined) {
+					delete destinationNode.nextNodeId;
 					const headId = mainFlowNodeIds[0];
 					const head = this.host.document.navigationNodes.find(
 						(node) => node.id === headId
 					);
 					if (head) delete head.previousNodeId;
 				}
-				destination.nextNodeId = committedNode.id;
-				committedNode.previousNodeId = destination.id;
+				destinationNode.nextNodeId = committedNode.id;
+				committedNode.previousNodeId = destinationNode.id;
 			}
 			if (!this.host.commitDocumentTransaction()) return false;
 
@@ -518,8 +530,8 @@ export class EditorNavigationGraphMutator {
 					? `Added ${node.label} and started a two-node camera flow`
 					: appendsToTail
 						? loopWasOn
-							? `${node.label} is now the end of the tour. The loop from ${destination.label} → ${headLabel} is inactive. Draw ${node.label} → ${headLabel} to loop`
-							: `Added ${node.label} after ${destination.label} — the path now ends at ${node.label}`
+							? `${node.label} is now the end of the tour. The loop from ${destinationNode.label} → ${headLabel} is inactive. Draw ${node.label} → ${headLabel} to loop`
+							: `Added ${node.label} after ${destinationNode.label} — the path now ends at ${node.label}`
 						: `Added ${node.label} and its first connection`
 			);
 			return true;
@@ -529,10 +541,6 @@ export class EditorNavigationGraphMutator {
 
 	/** Commit one standalone undirected edge and symmetric adjacency transaction. */
 	connectNavigationNodes(sourceNodeId: string, destinationNodeId: string) {
-		if (this.host.isDocumentMutationBlocked) {
-			this.host.setStatusMessage('Camera graph changes are blocked during active playback');
-			return false;
-		}
 		if (this.host.isEditorInteractionActive || this.host.isDocumentTransactionActive) {
 			this.host.setStatusMessage('Finish the active editor interaction before connecting camera nodes');
 			return false;
@@ -545,10 +553,18 @@ export class EditorNavigationGraphMutator {
 			this.host.setStatusMessage('Finish or cancel the current camera command first');
 			return false;
 		}
+		// P11.2 §8 — validate the connect BEFORE the seam: an invalid/duplicate/
+		// self connect (a rejected gesture) never pauses a playing preview.
 		const connectionPlan = runOrFail(this.host, () =>
 			validateConnectionCreation(this.host.document, sourceNodeId, destinationNodeId)
 		);
 		if (!connectionPlan) return false;
+		// P11.2 §8 — the connect is valid; connecting while a preview plays
+		// pauses it in place (a mismatched pending command refused above).
+		if (!this.host.requestAuthoringPause()) {
+			this.host.setStatusMessage('Camera graph changes are blocked during visitor previews');
+			return false;
+		}
 		const { sourceNode: source, destinationNode: destination } = connectionPlan;
 		// S10.1 closeout (B0) — a two-node open-pair seed. Connecting the only
 		// two free nodes in an editor project writes the open order source →
@@ -665,6 +681,15 @@ export class EditorNavigationGraphMutator {
 			validateGuidedTourOrder(this.host.document, nodeIds)
 		);
 		if (!orderPlan) return false;
+		// P11.2 — an already-applied order is a no-op: never pauses, never opens
+		// a transaction. Compare the stored next/prev links against the rewrite
+		// output (NOT the derived main flow — a closed cycle's walk equals its
+		// open-chain order, yet clearing the wraparound is a real change).
+		if (this.#guidedTourOrderAlreadyApplied(orderPlan.nodeIds)) {
+			return false;
+		}
+		// P11.2 §8 — validated above; the seam fires only once the rewrite can proceed.
+		if (!this.#pauseForGuidedTourAuthoring()) return false;
 		const committed = this.#applyGuidedTourOrder(orderPlan.nodeIds);
 		if (committed) this.host.setStatusMessage('Updated camera flow order');
 		return committed;
@@ -680,6 +705,8 @@ export class EditorNavigationGraphMutator {
 			validateGuidedTourInsertion(this.host.document, nodeId, index)
 		);
 		if (!insertionPlan) return false;
+		// P11.2 §8 — validated above; the seam fires only once the insert can proceed.
+		if (!this.#pauseForGuidedTourAuthoring()) return false;
 		const node = this.host.document.navigationNodes.find(
 			(candidate) => candidate.id === nodeId
 		)!;
@@ -746,6 +773,8 @@ export class EditorNavigationGraphMutator {
 			validateGuidedTourRemoval(this.host.document, nodeId)
 		);
 		if (!removalPlan) return false;
+		// P11.2 §8 — validated above; the seam fires only once the removal can proceed.
+		if (!this.#pauseForGuidedTourAuthoring()) return false;
 		const node = this.host.document.navigationNodes.find(
 			(candidate) => candidate.id === nodeId
 		)!;
@@ -806,6 +835,9 @@ export class EditorNavigationGraphMutator {
 			);
 			return false;
 		}
+		// P11.2 §8 — node/partner resolved above; the seam fires only once the
+		// pair can actually seed.
+		if (!this.#pauseForGuidedTourAuthoring()) return false;
 		if (!this.host.beginDocumentTransaction()) return false;
 		node.nextNodeId = partner.id;
 		partner.previousNodeId = node.id;
@@ -836,6 +868,8 @@ export class EditorNavigationGraphMutator {
 			validateDetourCreation(this.host.document, originNodeId, headNodeId)
 		);
 		if (!detourPlan) return false;
+		// P11.2 §8 — validated above; the seam fires only once the write can proceed.
+		if (!this.#pauseForGuidedTourAuthoring()) return false;
 		if (!this.host.beginDocumentTransaction()) return false;
 		const head = this.host.document.navigationNodes.find(
 			(node) => node.id === headNodeId
@@ -860,6 +894,8 @@ export class EditorNavigationGraphMutator {
 			validateDetourAppend(this.host.document, originNodeId, newNodeId)
 		);
 		if (!detourPlan) return false;
+		// P11.2 §8 — validated above; the seam fires only once the write can proceed.
+		if (!this.#pauseForGuidedTourAuthoring()) return false;
 		if (!this.host.beginDocumentTransaction()) return false;
 		const tail = this.host.document.navigationNodes.find(
 			(node) => node.id === detourPlan.tailId
@@ -890,6 +926,8 @@ export class EditorNavigationGraphMutator {
 			validateDetourNodeRemoval(this.host.document, originNodeId, nodeId)
 		);
 		if (!detourPlan) return false;
+		// P11.2 §8 — validated above; the seam fires only once the write can proceed.
+		if (!this.#pauseForGuidedTourAuthoring()) return false;
 		if (!this.host.beginDocumentTransaction()) return false;
 		const node = this.host.document.navigationNodes.find(
 			(candidate) => candidate.id === nodeId
@@ -934,6 +972,8 @@ export class EditorNavigationGraphMutator {
 			validateDetourRemoval(this.host.document, originNodeId)
 		);
 		if (!detourPlan) return false;
+		// P11.2 §8 — validated above; the seam fires only once the write can proceed.
+		if (!this.#pauseForGuidedTourAuthoring()) return false;
 		if (!this.host.beginDocumentTransaction()) return false;
 		for (const nodeId of detourPlan.chainNodeIds) {
 			const node = this.host.document.navigationNodes.find(
@@ -1041,10 +1081,6 @@ export class EditorNavigationGraphMutator {
 	}
 
 	#canEditGuidedTour() {
-		if (this.host.isDocumentMutationBlocked) {
-			this.host.setStatusMessage('Cannot edit the camera flow during active camera playback');
-			return false;
-		}
 		if (this.host.isEditorInteractionActive || this.host.isDocumentTransactionActive) {
 			this.host.setStatusMessage(
 				'Finish the active editor interaction before editing the camera flow'
@@ -1053,6 +1089,41 @@ export class EditorNavigationGraphMutator {
 		}
 		if (this.host.pendingNavigationCommand) {
 			this.host.setStatusMessage('Finish or cancel the current camera command first');
+			return false;
+		}
+		return true;
+	}
+
+	/**
+	 * True when the document's stored order links already equal what
+	 * `#rewriteGuidedTourOrder` would write for `order` — the write is a
+	 * no-op. Nodes outside the order must carry no main-flow links; detour
+	 * chain links survive every rewrite and are skipped.
+	 */
+	#guidedTourOrderAlreadyApplied(order: readonly string[]): boolean {
+		const indexById = new Map(order.map((nodeId, index) => [nodeId, index]));
+		for (const node of this.host.document.navigationNodes) {
+			const index = indexById.get(node.id);
+			if (index === undefined) {
+				if (node.detourOfNodeId !== undefined) continue;
+				if (node.nextNodeId !== undefined || node.previousNodeId !== undefined) {
+					return false;
+				}
+				continue;
+			}
+			const expectedPrev = index === 0 ? undefined : order[index - 1];
+			const expectedNext = index === order.length - 1 ? undefined : order[index + 1];
+			if (node.previousNodeId !== expectedPrev || node.nextNodeId !== expectedNext) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/** P11.2 §8 — tour-order seam; call AFTER validation (a rejected order never pauses). */
+	#pauseForGuidedTourAuthoring(): boolean {
+		if (!this.host.requestAuthoringPause()) {
+			this.host.setStatusMessage('Cannot edit the camera flow during visitor previews');
 			return false;
 		}
 		return true;
@@ -1205,12 +1276,11 @@ export class EditorNavigationGraphMutator {
 	}
 
 	#canRunTopologyDeletion(entity: 'node' | 'connection') {
-		if (this.host.isDocumentMutationBlocked) {
-			this.host.setStatusMessage(
-				`Cannot delete a camera ${entity} during active camera playback`
-			);
-			return false;
-		}
+		// P11.2 §8 (DEL) — deletion: interaction/transaction + pending-command
+		// bars first (a rejected deletion never pauses), then the seam pauses a
+		// playing preview in place (visitor still refuses). The existing
+		// `#releasePausedPreviewForTopology` force-stop chain then applies when
+		// the paused preview touches deleted topology (P8 S5 teardown preserved).
 		if (this.host.isEditorInteractionActive || this.host.isDocumentTransactionActive) {
 			this.host.setStatusMessage(
 				`Cannot delete a camera ${entity} while an editor interaction is active`
@@ -1219,6 +1289,12 @@ export class EditorNavigationGraphMutator {
 		}
 		if (this.host.pendingNavigationCommand) {
 			this.host.setStatusMessage('Finish or cancel the current camera command first');
+			return false;
+		}
+		if (!this.host.requestAuthoringPause()) {
+			this.host.setStatusMessage(
+				`Cannot delete a camera ${entity} during visitor previews`
+			);
 			return false;
 		}
 		return true;
@@ -1288,7 +1364,9 @@ export class EditorNavigationGraphMutator {
 		direction: CameraConnectionDirection,
 		timing: SceneConnectionTiming | null
 	): boolean {
-		if (this.host.isDocumentMutationBlocked) return false;
+		// P11.2 §8 — timing write: resolve + validate + no-op first, then the pause
+		// seam, then the transaction. Invalid/unknown/unchanged never pauses and
+		// never opens a transaction.
 		const connection = this.host.document.connections.find(
 			(candidate) => candidate.id === connectionId
 		);
@@ -1296,7 +1374,26 @@ export class EditorNavigationGraphMutator {
 			this.host.setStatusMessage(`Unknown connection: ${connectionId}`);
 			return false;
 		}
-		if (timing === null && !connection.timing) return false;
+		if (timing === null && connection.timing?.[direction] === undefined) return false;
+		const validated =
+			timing === null ? null : validateSceneConnectionTiming(timing);
+		if (timing !== null && validated === null) {
+			const reason = cameraSceneConnectionTimingFailureReason(timing) ?? 'unknown';
+			this.host.setStatusMessage(`Invalid connection timing: ${reason}`);
+			return false;
+		}
+		// P11.2 — directional equality is a no-op: rewriting the same value for
+		// this direction never pauses and never opens a transaction.
+		const currentDirectionTiming = connection.timing?.[direction];
+		if (
+			validated !== null &&
+			currentDirectionTiming !== undefined &&
+			currentDirectionTiming.durationSeconds === validated.durationSeconds &&
+			currentDirectionTiming.easing === validated.easing
+		) {
+			return false;
+		}
+		if (!this.host.requestAuthoringPause()) return false;
 		if (!this.host.beginDocumentTransaction()) return false;
 		if (timing === null) {
 			const current = connection.timing;
@@ -1311,22 +1408,17 @@ export class EditorNavigationGraphMutator {
 				delete connection.timing;
 			}
 		} else {
-			const validated = validateSceneConnectionTiming(timing);
-			if (validated === null) {
-				this.host.cancelDocumentTransaction();
-				const reason = cameraSceneConnectionTimingFailureReason(timing) ?? 'unknown';
-				this.host.setStatusMessage(`Invalid connection timing: ${reason}`);
-				return false;
-			}
 			connection.timing = connection.timing ?? {};
-			connection.timing[direction] = validated;
+			connection.timing[direction] = validated!;
 		}
 		return this.host.commitDocumentTransaction();
 	}
 
 	/** Phase 3.7: write a destination hold in seconds; pass `null` to clear. */
 	setNodeHoldSeconds(nodeId: string, holdSeconds: number | null): boolean {
-		if (this.host.isDocumentMutationBlocked) return false;
+		// P11.2 §8 — hold write: resolve + validate + no-op first, then the pause
+		// seam, then the transaction. Invalid/unknown/unchanged never pauses and
+		// never opens a transaction.
 		const node = this.host.document.navigationNodes.find(
 			(candidate) => candidate.id === nodeId
 		);
@@ -1335,15 +1427,17 @@ export class EditorNavigationGraphMutator {
 			return false;
 		}
 		if (holdSeconds === null && node.holdSeconds === undefined) return false;
+		if (holdSeconds !== null && (!Number.isFinite(holdSeconds) || holdSeconds < 0)) {
+			this.host.setStatusMessage('Hold seconds must be a finite non-negative number');
+			return false;
+		}
+		// P11.2 — equal non-null value is a no-op: never pauses, never opens a transaction.
+		if (holdSeconds !== null && node.holdSeconds === holdSeconds) return false;
+		if (!this.host.requestAuthoringPause()) return false;
 		if (!this.host.beginDocumentTransaction()) return false;
 		if (holdSeconds === null) {
 			delete node.holdSeconds;
 		} else {
-			if (!Number.isFinite(holdSeconds) || holdSeconds < 0) {
-				this.host.cancelDocumentTransaction();
-				this.host.setStatusMessage('Hold seconds must be a finite non-negative number');
-				return false;
-			}
 			node.holdSeconds = holdSeconds;
 		}
 		return this.host.commitDocumentTransaction();

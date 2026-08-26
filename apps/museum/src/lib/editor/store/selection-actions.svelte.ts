@@ -103,6 +103,10 @@ export interface EditorSelectionActionsHost {
 	readonly isDocumentMutationBlocked: boolean;
 	readonly isEditorInteractionActive: boolean;
 	readonly isCameraFramingMutationBlocked: boolean;
+	/** P11.2 §8 — auto-pause seam for Camera authoring entry points. */
+	requestAuthoringPause(): boolean;
+	/** P11.2 §8 — framing seam: paused previews (either camera) pass; playing pauses (visitor playing refuses). */
+	requestFramingPause(): boolean;
 	readonly pendingNavigationCommand: EditorPendingNavigationCommand;
 	readonly pendingNavigationNode: SceneNavigationNode | undefined;
 	readonly document: SceneDocument;
@@ -234,15 +238,20 @@ export class EditorSelectionActions {
 	}
 
 	selectCameraHandle(handle: EditorCameraHandle) {
+		// P11.2 §8 — camera-handle selection: interaction/pending bars + no-op
+		// check first, then the auto-pause seam, then select. The target arm keeps
+		// the P1.6 framing contract (paused visitor passes).
 		if (
-			(handle === 'target'
-				? this.host.isCameraFramingMutationBlocked
-				: this.host.isDocumentMutationBlocked) ||
 			this.host.isEditorInteractionActive ||
 			(this.host.pendingNavigationCommand && !this.host.pendingNavigationNode)
 		) return false;
 		const selection = this.host.cameraSelection;
 		if (!selection || selection.handle === handle) return false;
+		const mutationBlocked =
+			handle === 'target'
+				? !this.host.requestFramingPause()
+				: !this.host.requestAuthoringPause();
+		if (mutationBlocked) return false;
 		// setNavigation(..., 'node') auto-clears discovery.
 		this.selection.setNavigation({
 			kind: 'node',
@@ -337,8 +346,8 @@ export class EditorSelectionActions {
 	}
 
 	selectAnchor(connectionId: string, anchorId: string) {
+		// P11.2 §8 — anchor selection is inspection (AA); interaction/pending bars stay.
 		if (
-			this.host.isDocumentMutationBlocked ||
 			this.host.isEditorInteractionActive ||
 			this.host.pendingNavigationCommand
 		) {
@@ -373,8 +382,8 @@ export class EditorSelectionActions {
 		direction: CameraConnectionDirection,
 		keyframeId: string
 	) {
+		// P11.2 §8 — keyframe selection is inspection (AA); interaction/pending bars stay.
 		if (
-			this.host.isDocumentMutationBlocked ||
 			this.host.isEditorInteractionActive ||
 			this.host.pendingNavigationCommand
 		) {
@@ -442,7 +451,7 @@ export class EditorSelectionActions {
 	// ===================================================================
 
 	selectRoom(id: RoomId) {
-		if (this.host.isDocumentMutationBlocked || this.host.isEditorInteractionActive) return false;
+		if (this.host.isEditorInteractionActive) return false;
 		const changed = this.host.selectedRoomId !== id;
 		if (!changed) return false;
 		this.clearPlacementSelection();
@@ -462,7 +471,7 @@ export class EditorSelectionActions {
 		placementId: string,
 		options: EditorPlacementTreeSelectionOptions = {}
 	) {
-		if (this.host.isDocumentMutationBlocked || this.host.isEditorInteractionActive) return false;
+		if (this.host.isEditorInteractionActive) return false;
 		const placement = this.host.document.entities.find((object) => object.id === placementId);
 		if (!placement) return false;
 
@@ -482,7 +491,7 @@ export class EditorSelectionActions {
 	}
 
 	selectPlacement(id: string) {
-		if (this.host.isDocumentMutationBlocked || this.host.isEditorInteractionActive) {
+		if (this.host.isEditorInteractionActive) {
 			return false;
 		}
 		this.host.cancelPendingFrame();
@@ -504,7 +513,7 @@ export class EditorSelectionActions {
 	}
 
 	selectPlacements(ids: string[]) {
-		if (this.host.isDocumentMutationBlocked || this.host.isEditorInteractionActive) return false;
+		if (this.host.isEditorInteractionActive) return false;
 		const next = [...new Set(ids)].filter((id) => this.host.isPlacementSelectable(id));
 		if (next.length === 0) {
 			this.deselect();
@@ -526,7 +535,7 @@ export class EditorSelectionActions {
 	}
 
 	togglePlacement(id: string) {
-		if (this.host.isDocumentMutationBlocked || this.host.isEditorInteractionActive || !this.host.isPlacementSelectable(id)) {
+		if (this.host.isEditorInteractionActive || !this.host.isPlacementSelectable(id)) {
 			return false;
 		}
 		this.host.cancelPendingFrame();
@@ -548,7 +557,7 @@ export class EditorSelectionActions {
 	}
 
 	selectCluster(id: string) {
-		if (this.host.isDocumentMutationBlocked || this.host.isEditorInteractionActive) return false;
+		if (this.host.isEditorInteractionActive) return false;
 		const cluster = this.host.clusters.find((candidate) => candidate.id === id);
 		if (!cluster || cluster.roomId !== this.host.selectedRoomId) return false;
 		this.host.cancelPendingFrame();
@@ -565,7 +574,7 @@ export class EditorSelectionActions {
 		clusterId: string,
 		options: EditorClusterTreeSelectionOptions = {}
 	) {
-		if (this.host.isDocumentMutationBlocked || this.host.isEditorInteractionActive) return false;
+		if (this.host.isEditorInteractionActive) return false;
 		const cluster = this.host.clusters.find((candidate) => candidate.id === clusterId);
 		if (!cluster || cluster.memberIds.length === 0) return false;
 		const ownsEveryMember = cluster.memberIds.every((memberId) =>
@@ -585,7 +594,7 @@ export class EditorSelectionActions {
 	}
 
 	selectAllInRoom() {
-		if (this.host.isDocumentMutationBlocked || this.host.isEditorInteractionActive) return false;
+		if (this.host.isEditorInteractionActive) return false;
 		const roomId = this.host.selectedRoomId;
 		if (!roomId) return false;
 		return this.selectPlacements(
@@ -596,7 +605,7 @@ export class EditorSelectionActions {
 	}
 
 	deselect() {
-		if (this.host.isDocumentMutationBlocked || this.host.isEditorInteractionActive) return false;
+		if (this.host.isEditorInteractionActive) return false;
 		const changed =
 			this.host.selectedPlacementIds.length > 0 ||
 			this.host.selectedClusterId !== null ||

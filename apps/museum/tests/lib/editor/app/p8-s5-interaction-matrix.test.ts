@@ -229,15 +229,19 @@ describe('P8 S5 interaction matrix — §G rows', () => {
 		expect(store.document.connections.some((c) => c.id === connId)).toBe(true);
 	});
 
-	it('Sequence edited while previewing: playing tour blocks topology mutation (D4)', () => {
+	it('Sequence edited while previewing: playing tour auto-pauses into topology mutation (D4)', () => {
 		const { document, connId } = documentWithOffFlowConnection();
 		const store = createEditorStore({ document, rooms: chopinRuntime.rooms });
 		expect(store.previewSequence('director')).toBe(true);
 		expect(store.cameraPreview!.transport).toBe('playing');
 
-		expect(store.deleteConnection(connId)).toBe(false);
+		// P11.2 (DEL) — a playing Director tour auto-pauses in place, then the
+		// deletion proceeds through the release chain: the paused tour touches
+		// the deleted topology, so it force-stops (P8 S5 teardown preserved).
+		expect(store.deleteConnection(connId)).toBe(true);
+		expect(store.document.connections.some((c) => c.id === connId)).toBe(false);
+		expect(store.cameraPreview).toBeNull();
+		expect(store.undo()).toBe(true);
 		expect(store.document.connections.some((c) => c.id === connId)).toBe(true);
-		expect(store.cameraPreview).not.toBeNull();
-		expect(store.statusMessage).toContain('Cannot delete a camera connection');
 	});
 });

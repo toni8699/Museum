@@ -275,7 +275,7 @@
 					{#if store.pendingNavigationCommand?.kind === 'connect-pending-node'}
 						<EditorCameraHelpers {store} nodeId={store.pendingNavigationCommand.node.id} />
 					{/if}
-				{:else if store.cameraSelection && !store.pendingPlacementAssetId && !store.pendingPlacementPrimitiveKind && !store.pendingPlacementLightKind && !store.isCameraFramingMutationBlocked}
+				{:else if store.cameraSelection && !store.pendingPlacementAssetId && !store.pendingPlacementPrimitiveKind && !store.pendingPlacementLightKind && !store.isFramingBlocked}
 					{#key store.cameraSelection.nodeId}
 						<EditorCameraHelpers {store} nodeId={store.cameraSelection.nodeId} />
 					{/key}
@@ -298,7 +298,14 @@
 		</Canvas>
 	{/if}
 	{#if store.isCameraPreviewPlaying}
-		<div class="preview-shield" role="status">
+		<!-- P11.2 §3 — only a visitor preview shields the canvas; the Director
+		     label stays visible but non-blocking so selection/framing can
+		     auto-pause through the seam (pointer-events: none). -->
+		<div
+			class="preview-shield"
+			class:non-blocking={!store.isVisitorCameraPreview}
+			role="status"
+		>
 			{#if store.isVisitorCameraPreview}
 				Visitor preview · Stop or press Escape to return
 			{:else}
@@ -383,6 +390,12 @@
 		color: var(--editor-text-primary);
 		font: 600 0.73rem/1.2 var(--editor-font);
 		pointer-events: auto;
+	}
+
+	/* P11.2 §3 — the Director playback label must not block the canvas; only a
+	   visitor preview shields it (pointer-events: auto above). */
+	.preview-shield.non-blocking {
+		pointer-events: none;
 	}
 
 	.viewport :global(canvas) {

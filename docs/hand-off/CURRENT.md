@@ -5,7 +5,35 @@ slice plus one next action only.
 
 ## Working tree
 
-- Current delta: **Layout bugfixes on top of P11.1 (2026-08-25,
+- Current delta: **P11.2 review fixes (2026-08-26, uncommitted, on top of
+  committed `728c7e6`).** Three conformance fixes to the pinned P11.2 order:
+  (1) the navigation-graph entry points now validate/resolve BEFORE the
+  auto-pause seam — `beginConnectExistingNodes` resolves the source node
+  first, `connectNavigationNodes` validates the connection plan first, and
+  the guided-tour family moves the seam after each validator via a new
+  `#pauseForGuidedTourAuthoring()` helper — so a rejected gesture never
+  pauses a playing preview; (2) `isFramingBlocked` mirrors
+  `requestFramingPause` exactly (any non-paused visitor blocks), so a
+  *complete* visitor preview no longer renders dead framing handles;
+  (3) the in-transaction live writes (`updateNavigationNodePoint` /
+  `updateNavigationNodeTargetPoint` / `updateSelectedNodeFov` /
+  `updateSelectedViewKeyframeFov`) drop the seam call under an open
+  transaction (the drag-begin seam already paused; the plan forbids the
+  seam under an open transaction) and document the invariant.
+- **P11.2 — mutation policy / paused authoring — implemented and committed
+  2026-08-26 (`728c7e6`).** The mutation-gate pre-inventory annex
+  (`docs/plans/2026-08-25-P11.2-mutation-gate-pre-inventory.md`) classifies
+  every `isDocumentMutationBlocked` site into AA/AP/SB/CH/DEL buckets;
+  `requestAuthoringPause` / `requestFramingPause` seams replace blocked
+  refusal for Camera-authoring writes (visitor refuses; playing Director
+  pauses in place — session-only, no history entry, no stop teardown) with
+  the canonical pinned order: prohibited checks → validate/resolve → seam →
+  begin transaction → write/capture. UI layer fronted with AP/AA/CH
+  predicates, visitor-only `inert` sidebars, and a non-blocking Director
+  shield. The two pre-existing baseline failures are resolved by the P11.2
+  test migrations. New suite
+  `tests/lib/editor/store/p11-s2-mutation-policy.test.ts` (18 cases).
+- Previous delta: **Layout bugfixes on top of P11.1 (2026-08-25,
   uncommitted).** (1) Sequential-transform loss: the gizmo host's
   same-target fast path retains the pre-commit adapter, so scale→move/rotate
   derived dimensions from the stale baseline and reverted them;
@@ -96,22 +124,25 @@ slice plus one next action only.
 
 ## Next action
 
-- **P11.2 — Mutation policy / paused authoring**, starting with the mutation-
-  gate pre-inventory annex (~100 `isDocumentMutationBlocked` sites) per P11 §11.
-  Outstanding before P11 close: §15 contract reconciliation in
-  `camera-tour.md` + shell/design specs. P3B.7a/P3B.8 QA stays blocked until
-  P11 semantics settle.
+- **P11.3 — scope-aware timeline shell**: one compact scope/transport header
+  over the shared Plan/3D mount (Camera static / Edge local / Sequence global),
+  replacing modal incomplete/empty panels with compact diagnostics. P11.2's
+  mutation policy is the semantic baseline it builds on. P11 close still owes
+  the §15 contract reconciliation (`camera-tour.md` + shell/design specs);
+  P3B.7a/P3B.8 QA stays blocked until P11 semantics settle.
 
 ## Verification
 
-- Working tree (P11.1 + review fixes + layout bugfixes): `npm run check`
-  0 errors / 0 warnings. `npm test`: **2 failures remain and both are
-  pre-existing on the pre-P11.1 tree** (`editor-store-camera > rejects guided
-  and disconnecting connection deletion…`, `app/contracts > keeps pending
-  navigation intact…`). The earlier concurrent layout/sphere golden +
-  preview-state failures are resolved by the layout bugfixes above.
-  Owner triage pending on the two pre-existing rows.
-- New coverage: `tests/lib/editor/store/p11-s1-selection-scope.test.ts`
+- Working tree (P11.2 + review fixes): `npm run check` 0 errors / 0 warnings;
+  the full `tests/lib/editor` suite is green (1,706 tests). The two
+  pre-existing baseline failures from the P11.1 handoff are resolved: the
+  guided/leaf-edge deletion row migrated in P11.2 (leaf-edge deletion is now
+  one undoable transaction), and the pending-navigation contract row passes.
+- New coverage: `tests/lib/editor/store/p11-s2-mutation-policy.test.ts`
+  (18 cases: AP one-transaction writes, CTC scrub auto-pause, DEL
+  keep/force-stop, visitor floor incl. paused-visitor framing, placement
+  SB/cancel AA, pinned ordering for prohibited/stale/no-op/endpoint/zero-delta
+  gestures, CH·AA chrome); `tests/lib/editor/store/p11-s1-selection-scope.test.ts`
   (15 cases incl. edge canUndo, stop→select re-entrancy bars, and the
   failed-install-does-not-snapshot ordering pin);
   `layout-gizmo-adapter` sequential-transform pins now green;

@@ -265,7 +265,11 @@ describe('EditorStore Phase 6 camera nodes', () => {
 		expect(store.pendingFramePlacementIds).toEqual([]);
 		expect(store.cameraFocusKind).toBeNull();
 		expect(store.canUndo).toBe(false);
-		expect(store.selectionActions.selectPlacement(placementId)).toBe(false);
+		// P11.2 — placement *selection* is AA (never needs Stop); placement
+		// writes keep their SB gates during the modal preview. AA selection
+		// cross-clears the camera pick, so restore it for the tail below.
+		expect(store.selectionActions.selectPlacement(placementId)).toBe(true);
+		expect(store.selectionActions.selectNavigationNode('tour-paris')).toBe(true);
 		expect(store.beginAssetPlacement('paris-salon-chair')).toBe(false);
 		expect(store.requestPlacementFrame([placementId])).toBe(false);
 		expect(store.commitNavigationNodePoint('tour-paris', 'position', [0, 1, 0])).toBe(false);
@@ -391,20 +395,23 @@ describe('EditorStore Phase 6 camera nodes', () => {
 		).toBe(true);
 		expect(store.playCameraPreview()).toBe(true);
 		expect(store.cameraPreview?.transport).toBe('playing');
-		// Phase 3.6 unlocks framing handle edits while Through Camera is paused.
-		// While the preview plays, even the 'target' handle is locked down.
+		// P11.2 §8 — selection/inspection is AA (selection never needs Stop), so
+		// every selection/focus row below returns true while the preview plays.
+		// The playing edge was entered as visitor: the 'target' framing handle,
+		// camera pan, and lighting stay visitor-gated; SB placement-write rows and
+		// the undo/transaction floors stay blocked.
 		expect(store.selectionActions.selectCameraHandle('target')).toBe(false);
-		expect(store.selectionActions.selectRoom('paris')).toBe(false);
-		expect(store.selectionActions.selectPlacement(placementId)).toBe(false);
-		expect(store.selectionActions.selectPlacements([placementId])).toBe(false);
-		expect(store.selectionActions.togglePlacement(placementId)).toBe(false);
-		expect(store.cyclePlacement([placementId])).toBe(false);
-		expect(store.selectionActions.selectAllInRoom()).toBe(false);
-		expect(store.selectionActions.deselect()).toBe(false);
-		expect(store.focusNavigationNode('tour-paris')).toBe(false);
-		expect(store.focusRoom('paris')).toBe(false);
-		expect(store.focusPlacement(placementId)).toBe(false);
-		expect(store.focusSelection()).toBe(false);
+		expect(store.selectionActions.selectRoom('paris')).toBe(true);
+		expect(store.selectionActions.selectPlacement(placementId)).toBe(true);
+		expect(store.selectionActions.selectPlacements([placementId])).toBe(true);
+		expect(store.selectionActions.togglePlacement(placementId)).toBe(true);
+		expect(store.cyclePlacement([placementId])).toBe(true);
+		expect(store.selectionActions.selectAllInRoom()).toBe(true);
+		expect(store.focusSelection()).toBe(true);
+		expect(store.focusPlacement(placementId)).toBe(true);
+		expect(store.focusRoom('paris')).toBe(true);
+		expect(store.focusNavigationNode('tour-paris')).toBe(true);
+		expect(store.selectionActions.deselect()).toBe(true);
 		expect(store.requestPlacementFrame([placementId])).toBe(false);
 		expect(store.beginAssetPlacement('paris-salon-chair')).toBe(false);
 		expect(store.createPendingPlacementAt([0, 0, 0], 'paris')).toBeNull();
@@ -774,7 +781,7 @@ describe('EditorStore Phase 6.5 camera paths', () => {
 		).toContain('tour-paris');
 	});
 
-	it('rejects guided and disconnecting connection deletion without mutation or history', () => {
+	it('rejects guided connection deletion; leaf-edge deletion is one undoable transaction', () => {
 		const store = createFixtureEditorStore();
 		const before = store.canonicalJson;
 		const historyBefore = store.historyVersion;
@@ -793,13 +800,19 @@ describe('EditorStore Phase 6.5 camera paths', () => {
 		expect(store.beginConnectExistingNodes()).toBe(true);
 		expect(store.selectionActions.selectNavigationNode('tour-paris')).toBe(true);
 		const leafConnectionId = store.document.connections.at(-1)!.id;
-		const leafBefore = store.canonicalJson;
 		const leafHistoryBefore = store.historyVersion;
-		expect(store.deleteConnection(leafConnectionId)).toBe(false);
-		expect(store.statusMessage).toContain('would become disconnected');
+		// P11.2 — B0 free-node semantics: deleting a leaf edge leaves a lone
+		// free node, which is legal (placement commits standalone). The P7
+		// disconnected_graph guard was removed in P3B.6, so the leaf deletion
+		// succeeds as one undoable transaction without orphaning document state.
+		expect(store.deleteConnection(leafConnectionId)).toBe(true);
+		expect(store.statusMessage).toContain('Deleted camera connection');
 		expect(store.document.navigationNodes.some((node) => node.id === nodeId)).toBe(true);
-		expect(store.canonicalJson).toBe(leafBefore);
-		expect(store.historyVersion).toBe(leafHistoryBefore);
+		expect(store.historyVersion).toBe(leafHistoryBefore + 1);
+		expect(store.undo()).toBe(true);
+		expect(
+			store.document.connections.some((candidate) => candidate.id === leafConnectionId)
+		).toBe(true);
 	});
 
 	it('deletes free nodes with incident paths and keys, then restores them with one undo', () => {
@@ -885,7 +898,7 @@ describe('EditorStore Phase 6.5 camera paths', () => {
 		).toBe('tour-paris');
 	});
 
-	it('blocks topology deletion while an interaction or playback owns the document', () => {
+	it('blocks topology deletion while an interaction or visitor playback owns the document', () => {
 		const store = createFixtureEditorStore();
 		const before = store.canonicalJson;
 		expect(store.beginDocumentTransaction()).toBe(true);
@@ -897,8 +910,10 @@ describe('EditorStore Phase 6.5 camera paths', () => {
 
 		store.selectionActions.selectConnection('tour-a-b');
 		expect(store.previewSelectedConnection('forward', 'visitor')).toBe(true);
+		// P11.2 (DEL) — a *visitor* preview still refuses; only a playing Director
+		// preview auto-pauses into the release/force-stop chain.
 		expect(store.deleteConnection('tour-a-b')).toBe(false);
-		expect(store.statusMessage).toContain('active camera playback');
+		expect(store.statusMessage).toContain('during visitor previews');
 		expect(store.canonicalJson).toBe(before);
 		expect(store.canUndo).toBe(false);
 	});
@@ -2533,8 +2548,11 @@ describe('EditorStore Phase 3.4 guided-order editing', () => {
 
 		store.selectionActions.selectNavigationNode('tour-paris');
 		expect(store.previewSelectedNode('visitor')).toBe(true);
-		expect(store.removeNodeFromGuidedTour('tour-paris')).toBe(false);
-		expect(store.statusMessage).toContain('active camera playback');
+		// P11.2 (AP) — the order validates first, then the seam refuses a
+		// *visitor* preview; a playing Director preview auto-pauses into the
+		// guided-order edit.
+		expect(store.setGuidedTourOrder(checkedInOrder)).toBe(false);
+		expect(store.statusMessage).toContain('during visitor previews');
 		expect(store.stopCameraPreview()).toBe(true);
 
 		expect(store.beginCameraPlacement()).toBe(true);

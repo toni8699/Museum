@@ -47,7 +47,7 @@
 	aria-label="Editor sidebar"
 	style="grid-area: left;"
 >
-	<div class="sidebar-content" inert={store.isDocumentMutationBlocked}>
+	<div class="sidebar-content" inert={store.isVisitorCameraPreview}>
 	{#if store.currentWorkspace === 'scene'}
 		<div class="panel-tabs" role="tablist" aria-label="Editor panels">
 			<button

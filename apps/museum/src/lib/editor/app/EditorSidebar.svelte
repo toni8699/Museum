@@ -73,7 +73,7 @@
 	aria-label="Editor sidebar"
 	style="grid-area: left;"
 >
-	<div class="sidebar-content" inert={store.isDocumentMutationBlocked}>
+	<div class="sidebar-content" inert={store.isVisitorCameraPreview}>
 	{#if showHeaderStrip}
 		<div class="header-strip" aria-label="Layout preview source">
 			<span class="source-badge">

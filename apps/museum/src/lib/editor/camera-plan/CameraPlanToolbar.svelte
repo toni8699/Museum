@@ -15,9 +15,9 @@
 	} = $props();
 
 	const pendingKind = $derived(store.pendingNavigationCommand?.kind ?? null);
-	const blocked = $derived(
-		store.isDocumentMutationBlocked || store.isEditorInteractionActive
-	);
+	// P11.2 §3 — AP predicate: a playing Director preview stays clickable so the
+	// Add Camera / Connect commit can auto-pause; a visitor or active gesture blocks.
+	const blocked = $derived(store.isAuthoringPauseBlocked);
 	const canConnect = $derived(store.navigationSelection?.kind === 'node');
 	const addCameraActive = $derived(pendingKind === 'place-camera');
 	const connectActive = $derived(pendingKind === 'connect-existing');

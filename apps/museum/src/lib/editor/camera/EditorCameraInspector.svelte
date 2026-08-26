@@ -189,7 +189,7 @@
 			<span>Label</span>
 			<input
 				bind:value={labelDraft}
-				disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
+				disabled={store.isAuthoringPauseBlocked}
 				onblur={saveLabel}
 				onkeydown={onLabelKeyDown}
 			/>
@@ -206,9 +206,9 @@
 					type="button"
 					class:active={selection.handle === handle}
 					aria-pressed={selection.handle === handle}
-					disabled={(handle === 'target'
-						? store.isCameraFramingMutationBlocked
-						: store.isDocumentMutationBlocked) || store.isEditorInteractionActive}
+					disabled={handle === 'target'
+						? store.isInspectorFramingBlocked
+						: store.isAuthoringPauseBlocked}
 					onclick={() => selectHandle(handle as EditorCameraHandle)}
 				>
 					{handle === 'position' ? 'Position' : 'Target'}
@@ -221,9 +221,9 @@
 				legend={`${selection.handle === 'position' ? 'Position' : 'Target'} (m)`}
 				value={point}
 				step={0.01}
-				disabled={(selection.handle === 'target'
-					? store.isCameraFramingMutationBlocked
-					: store.isDocumentMutationBlocked) || store.isEditorInteractionActive}
+				disabled={selection.handle === 'target'
+					? store.isInspectorFramingBlocked
+					: store.isAuthoringPauseBlocked}
 				oncommit={commitNodePoint}
 			/>
 		{/key}
@@ -231,7 +231,7 @@
 		<EditorCameraFovField
 			value={node.fov}
 			showLensPresets={true}
-			disabled={store.isCameraFramingMutationBlocked || store.isEditorInteractionActive}
+			disabled={store.isInspectorFramingBlocked}
 			oncommit={(fov) => store.commitSelectedNodeFov(fov)}
 		/>
 
@@ -254,13 +254,13 @@
 				>Preview Camera</button>
 				<button
 					type="button"
-					disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
+					disabled={store.isAuthoringPauseBlocked}
 					onclick={() => store.beginConnectExistingNodes()}
 				>Connect to another node</button>
 				<button
 					type="button"
 					class="danger"
-					disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
+					disabled={store.isAuthoringPauseBlocked}
 					onclick={() => store.deleteNavigationNode(node.id)}
 				>Delete camera node</button>
 			</div>
@@ -330,7 +330,7 @@
 				{connection}
 				direction={framingDirection}
 				graph={cameraGraph}
-				disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
+				disabled={store.isAuthoringPauseBlocked}
 				oncommit={commitTimingDuration}
 				onDirectionChange={(d) => store.selectionActions.selectCameraConnectionDirection(connection.id, d)}
 				onUseAutomatic={commitTimingAutomatic}
@@ -345,20 +345,20 @@
 			direction={framingDirection}
 			policyState={envelopePolicy}
 			graph={cameraGraph}
-			disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
+			disabled={store.isInspectorFramingBlocked}
 			onPresetClick={applyPreset}
 			onHandleCommit={commitHandle}
 		/>
 
 		<button
 			type="button"
-			disabled={connection.positionPath.kind === 'auto-bezier' || store.isEditorInteractionActive || store.isDocumentMutationBlocked}
+			disabled={connection.positionPath.kind === 'auto-bezier' || store.isAuthoringPauseBlocked}
 			onclick={() => store.convertSelectedConnectionToSmooth()}
 		>Convert to Smooth Curve</button>
 		<button
 			type="button"
 			class="danger"
-			disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
+			disabled={store.isAuthoringPauseBlocked}
 			onclick={() => store.deleteConnection(connection.id)}
 		>Delete camera connection</button>
 	</section>
@@ -376,7 +376,7 @@
 		</dl>
 		<EditorProgressField
 			value={viewKeyframe.progress}
-			disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
+			disabled={store.isAuthoringPauseBlocked}
 			oncommit={(progress) => store.commitSelectedViewKeyframeProgress(progress)}
 		/>
 		{#key `${connection.id}:${selection.direction}:${viewKeyframe.id}:target`}
@@ -384,14 +384,14 @@
 				legend="Look target (m)"
 				value={viewKeyframe.cameraTarget}
 				step={0.01}
-				disabled={store.isCameraFramingMutationBlocked || store.isEditorInteractionActive}
+				disabled={store.isInspectorFramingBlocked}
 				oncommit={commitViewTarget}
 			/>
 		{/key}
 		<EditorCameraFovField
 			value={viewKeyframe.fov}
 			showLensPresets={true}
-			disabled={store.isCameraFramingMutationBlocked || store.isEditorInteractionActive}
+			disabled={store.isInspectorFramingBlocked}
 			oncommit={(fov) => store.commitSelectedViewKeyframeFov(fov)}
 		/>
 
@@ -401,7 +401,7 @@
 			direction={selection.direction}
 			policyState={envelopePolicy}
 			graph={cameraGraph}
-			disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
+			disabled={store.isInspectorFramingBlocked}
 			onPresetClick={applyPreset}
 			onHandleCommit={commitHandle}
 		/>
@@ -432,20 +432,20 @@
 			</div>
 			<button
 				type="button"
-				disabled={store.isCameraFramingMutationBlocked || store.isEditorInteractionActive}
+				disabled={store.isInspectorFramingBlocked}
 				onclick={applyAim}
 			>Apply Aim</button>
 		</div>
 		<button
 			type="button"
 			class="danger"
-			disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
+			disabled={store.isAuthoringPauseBlocked}
 			onclick={() => store.deleteSelectedViewKeyframe()}
 		>Delete view breakpoint</button>
 		<button
 			type="button"
 			class="done"
-			disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
+			disabled={store.isAuthoringPauseBlocked}
 			onclick={finishViewKeyframeEditing}
 		>Done editing view</button>
 	</section>
@@ -464,20 +464,20 @@
 				legend="Anchor position (m)"
 				value={anchor.position}
 				step={0.01}
-				disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
+				disabled={store.isAuthoringPauseBlocked}
 				oncommit={commitAnchorPoint}
 			/>
 		{/key}
 		<button
 			type="button"
 			class="danger"
-			disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
+			disabled={store.isAuthoringPauseBlocked}
 			onclick={() => store.deleteSelectedAnchor()}
 		>Delete Anchor</button>
 		<button
 			type="button"
 			class="done"
-			disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
+			disabled={store.isAuthoringPauseBlocked}
 			onclick={finishAnchorEditing}
 		>Done editing anchor</button>
 	</section>

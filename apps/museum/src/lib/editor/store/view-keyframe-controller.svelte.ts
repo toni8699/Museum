@@ -125,6 +125,10 @@ export interface EditorViewKeyframeControllerHost {
 	readonly isCameraFramingMutationBlocked: boolean;
 	readonly isEditorInteractionActive: boolean;
 	readonly isDocumentTransactionActive: boolean;
+	/** P11.2 §8 — auto-pause seam: camera-authoring writes pause a playing preview first. */
+	requestAuthoringPause(): boolean;
+	/** P11.2 §8 — framing seam: paused previews (either camera) pass; playing pauses (visitor playing refuses). */
+	requestFramingPause(): boolean;
 	/** True while a document/framing transaction is open on the history controller. */
 	readonly historyDocumentUndoBlocked: boolean;
 	/** True while a framing (as opposed to plain document) transaction is open. */
@@ -371,17 +375,16 @@ export class EditorViewKeyframeController {
 		direction: CameraConnectionDirection,
 		envelope: CameraFramingEnvelope
 	): boolean {
-		if (
-			this.host.isDocumentMutationBlocked ||
-			this.host.isEditorInteractionActive ||
-			!isOrderedCameraFramingEnvelope(envelope)
-		) {
-			return false;
-		}
+		// P11.2 §8 — framing-authoring write: interaction + validation first, then
+		// the pause seam before the transaction. Invalid/unknown never pauses.
+		if (this.host.isEditorInteractionActive) return false;
+		if (!isOrderedCameraFramingEnvelope(envelope)) return false;
 		const connection = this.host.document.connections.find(
 			(candidate) => candidate.id === connectionId
 		);
-		if (!connection || !this.host.beginDocumentTransaction()) return false;
+		if (!connection) return false;
+		if (!this.host.requestAuthoringPause()) return false;
+		if (!this.host.beginDocumentTransaction()) return false;
 		connection.viewTracks ??= { forward: [], reverse: [] };
 		connection.viewTracks.framingEnvelope ??= {};
 		connection.viewTracks.framingEnvelope[direction] = { ...envelope };
@@ -418,17 +421,16 @@ export class EditorViewKeyframeController {
 		direction: CameraConnectionDirection,
 		envelope: CameraFramingEnvelope
 	): boolean {
-		if (
-			this.host.isDocumentMutationBlocked ||
-			this.host.isEditorInteractionActive ||
-			!isOrderedCameraFramingEnvelope(envelope)
-		) {
-			return false;
-		}
+		// P11.2 §8 — framing-authoring write: interaction + validation first, then
+		// the pause seam before the transaction. Invalid/unknown never pauses.
+		if (this.host.isEditorInteractionActive) return false;
+		if (!isOrderedCameraFramingEnvelope(envelope)) return false;
 		const connection = this.host.document.connections.find(
 			(candidate) => candidate.id === connectionId
 		);
-		if (!connection || !this.host.beginDocumentTransaction()) return false;
+		if (!connection) return false;
+		if (!this.host.requestAuthoringPause()) return false;
+		if (!this.host.beginDocumentTransaction()) return false;
 		connection.viewTracks ??= { forward: [], reverse: [] };
 		connection.viewTracks.framingEnvelope ??= {};
 		connection.viewTracks.framingEnvelope[direction] = { ...envelope };
@@ -450,8 +452,10 @@ export class EditorViewKeyframeController {
 		connectionId: string,
 		direction: CameraConnectionDirection
 	): boolean {
+		// P11.2 §8 — drag setup: prohibited-state first, then resolve the target,
+		// then pause a playing preview, then begin the transaction. A stale/
+		// missing target never pauses.
 		if (
-			this.host.isDocumentMutationBlocked ||
 			this.host.isEditorInteractionActive ||
 			this.host.isDocumentTransactionActive ||
 			this.host.pendingNavigationCommand
@@ -462,7 +466,9 @@ export class EditorViewKeyframeController {
 			(candidate) => candidate.id === connectionId
 		);
 		const envelope = connection?.viewTracks?.framingEnvelope?.[direction];
-		if (!connection || !envelope || !this.host.beginDocumentTransaction()) return false;
+		if (!connection || !envelope) return false;
+		if (!this.host.requestAuthoringPause()) return false;
+		if (!this.host.beginDocumentTransaction()) return false;
 
 		const initialPolicy = this.getEnvelopePolicy(connectionId, direction);
 		this.#framingEnvelopeHandleDrag = {
@@ -545,11 +551,13 @@ export class EditorViewKeyframeController {
 	get canAddViewKeyframeAtPlayhead() {
 		const preview = this.host.cameraPreview;
 		const connection = this.host.selectedConnection;
+		// P11.2 §8 — a *playing* Director edge preview stays eligible so the UI
+		// keeps the Add-keyframe affordance clickable; the action itself pauses.
 		if (
 			!preview ||
 			preview.kind !== 'edge' ||
 			preview.mode !== 'director' ||
-			preview.transport !== 'paused' ||
+			(preview.transport !== 'paused' && preview.transport !== 'playing') ||
 			preview.connectionId !== connection?.id ||
 			this.host.isEditorInteractionActive ||
 			this.host.isDocumentTransactionActive
@@ -611,19 +619,27 @@ export class EditorViewKeyframeController {
 	}
 
 	addViewKeyframeAtPlayhead() {
+		// P11.2 §8 — key authoring: interaction/transaction bars and the preview
+		// scope validation first, then pause a playing preview before writing.
+		if (
+			this.host.isEditorInteractionActive ||
+			this.host.isDocumentTransactionActive
+		) {
+			return false;
+		}
 		const preview = this.host.cameraPreview;
 		const connection = this.host.selectedConnection;
 		if (
 			!preview ||
 			preview.kind !== 'edge' ||
 			preview.mode !== 'director' ||
-			preview.transport !== 'paused' ||
-			preview.connectionId !== connection?.id ||
-			this.host.isEditorInteractionActive ||
-			this.host.isDocumentTransactionActive
+			(preview.transport !== 'paused' && preview.transport !== 'playing') ||
+			preview.connectionId !== connection?.id
 		) {
 			return false;
 		}
+		// P11.2 — sample + validate range/duplicate BEFORE the seam: an endpoint
+		// or duplicate-progress click never pauses a playing preview.
 		const authoring = this.#getViewKeyframeAuthoringSample(preview);
 		if (!authoring) return false;
 		const { edgeProgress, motion, playhead } = authoring;
@@ -645,6 +661,7 @@ export class EditorViewKeyframeController {
 			this.host.setStatusMessage('A view breakpoint already exists at this progress');
 			return false;
 		}
+		if (!this.host.requestAuthoringPause()) return false;
 
 		this.host.setCameraPreviewPlayhead(playhead, preview.runId);
 		const sample = createCameraMotionSample();
@@ -702,13 +719,9 @@ export class EditorViewKeyframeController {
 	}
 
 	commitSelectedViewKeyframeTarget(target: Vec3) {
-		if (
-			this.host.isCameraFramingMutationBlocked ||
-			this.host.isEditorInteractionActive ||
-			!isFiniteVec3(target)
-		) {
-			return false;
-		}
+		// P11.2 §8 — framing-AP commit: interaction + validation/no-op first, then
+		// the framing seam before the transaction. Missing/unchanged never pauses.
+		if (this.host.isEditorInteractionActive || !isFiniteVec3(target)) return false;
 		const keyframe = this.host.selectedViewKeyframe;
 		if (
 			!keyframe ||
@@ -717,6 +730,7 @@ export class EditorViewKeyframeController {
 		) {
 			return false;
 		}
+		if (!this.host.requestFramingPause()) return false;
 		if (!this.host.beginCameraFramingTransaction()) return false;
 		keyframe.cameraTarget = [...target];
 		this.host.seedEmptyReverseForSelectedForwardTrack();
@@ -731,18 +745,16 @@ export class EditorViewKeyframeController {
 	 * gesture; room-local targets stay room-local through the world write-back.
 	 */
 	commitSelectedViewKeyframeAim(yawRadians: number, pitchRadians: number) {
-		if (
-			this.host.isCameraFramingMutationBlocked ||
-			this.host.isEditorInteractionActive ||
-			!Number.isFinite(yawRadians) ||
-			!Number.isFinite(pitchRadians)
-		) {
-			return false;
-		}
+		// P11.2 §8 — framing-AP commit: interaction + range first, then the framing
+		// seam before the write. Invalid/unknown never pauses.
+		if (this.host.isEditorInteractionActive) return false;
+		if (!Number.isFinite(yawRadians) || !Number.isFinite(pitchRadians)) return false;
 		const selection = this.host.navigationSelection;
 		const keyframe = this.host.selectedViewKeyframe;
 		if (selection?.kind !== 'view-keyframe' || !keyframe) return false;
 
+		// P11.2 — compute + validate the target orbit BEFORE the seam: a
+		// too-close or zero-delta aim never pauses a playing preview.
 		const eyeWorld = getSceneCameraViewKeyframeWorldPosition(
 			this.host.document,
 			selection.connectionId,
@@ -775,6 +787,7 @@ export class EditorViewKeyframeController {
 		) {
 			return false;
 		}
+		if (!this.host.requestFramingPause()) return false;
 		if (!this.host.beginCameraFramingTransaction()) return false;
 		writeSceneCameraViewKeyframeWorldTarget(
 			keyframe,
@@ -786,17 +799,15 @@ export class EditorViewKeyframeController {
 	}
 
 	commitSelectedViewKeyframeFov(fov: number) {
-		if (
-			this.host.isCameraFramingMutationBlocked ||
-			this.host.isEditorInteractionActive ||
-			!Number.isFinite(fov) ||
-			fov < CAMERA_FOV.min ||
-			fov > CAMERA_FOV.max
-		) {
+		// P11.2 §8 — framing-AP commit: interaction + range/no-op first, then the
+		// framing seam before the transaction. Invalid/unchanged never pauses.
+		if (this.host.isEditorInteractionActive) return false;
+		if (!Number.isFinite(fov) || fov < CAMERA_FOV.min || fov > CAMERA_FOV.max) {
 			return false;
 		}
 		const keyframe = this.host.selectedViewKeyframe;
 		if (!keyframe || Math.abs(keyframe.fov - fov) <= 1e-6) return false;
+		if (!this.host.requestFramingPause()) return false;
 		if (!this.host.beginCameraFramingTransaction()) return false;
 		keyframe.fov = fov;
 		this.host.seedEmptyReverseForSelectedForwardTrack();
@@ -804,15 +815,18 @@ export class EditorViewKeyframeController {
 	}
 
 	updateSelectedViewKeyframeFov(fov: number) {
+		// P11.2 §8 — in-transaction framing live write: the drag-begin seam
+		// already paused any playing preview before the framing transaction
+		// opened (the plan's seam never runs under an open transaction), so no
+		// seam here.
 		if (
-			this.host.isCameraFramingMutationBlocked ||
-			!this.host.historyFramingTransactionActive ||
 			!Number.isFinite(fov) ||
 			fov < CAMERA_FOV.min ||
 			fov > CAMERA_FOV.max
 		) {
 			return false;
 		}
+		if (!this.host.historyFramingTransactionActive) return false;
 		const keyframe = this.host.selectedViewKeyframe;
 		if (!keyframe || Math.abs(keyframe.fov - fov) <= 1e-6) return false;
 		keyframe.fov = fov;
@@ -824,15 +838,10 @@ export class EditorViewKeyframeController {
 	// ===================================================================
 
 	commitSelectedViewKeyframeProgress(progress: number) {
-		if (
-			this.host.isDocumentMutationBlocked ||
-			this.host.isEditorInteractionActive ||
-			!Number.isFinite(progress) ||
-			progress <= 0 ||
-			progress >= 1
-		) {
-			return false;
-		}
+		// P11.2 §8 — progress commit: interaction + range + validation/no-op first,
+		// then the pause seam before the transaction. Invalid/unchanged never pauses.
+		if (this.host.isEditorInteractionActive) return false;
+		if (!Number.isFinite(progress) || progress <= 0 || progress >= 1) return false;
 		const selection = this.host.navigationSelection;
 		const connection = this.host.selectedConnection;
 		const keyframe = this.host.selectedViewKeyframe;
@@ -857,6 +866,7 @@ export class EditorViewKeyframeController {
 			this.host.setStatusMessage('View breakpoint progress must be unique');
 			return false;
 		}
+		if (!this.host.requestAuthoringPause()) return false;
 		if (!this.host.beginDocumentTransaction()) return false;
 		keyframe.progress = progress;
 		track.sort((left, right) => left.progress - right.progress);
@@ -933,8 +943,10 @@ export class EditorViewKeyframeController {
 	beginViewKeyframeProgressDrag(
 		selection: EditorViewKeyframeProgressDragSelection
 	) {
+		// P11.2 §8 — drag setup: prohibited-state first, then resolve the target,
+		// then pause a playing preview before the transaction. A stale/missing
+		// keyframe never pauses.
 		if (
-			this.host.isDocumentMutationBlocked ||
 			this.host.isEditorInteractionActive ||
 			this.host.isDocumentTransactionActive ||
 			this.host.pendingNavigationCommand
@@ -948,6 +960,7 @@ export class EditorViewKeyframeController {
 			selection.keyframeId
 		);
 		if (!keyframe) return false;
+		if (!this.host.requestAuthoringPause()) return false;
 
 		this.host.selectCameraTimelineViewKeyframe(
 			selection.connectionId,
@@ -1107,9 +1120,9 @@ export class EditorViewKeyframeController {
 	// ===================================================================
 
 	deleteSelectedViewKeyframe() {
-		if (this.host.isDocumentMutationBlocked || this.host.isEditorInteractionActive) {
-			return false;
-		}
+		// P11.2 §8 — key-track write: interaction + eligibility first, then the
+		// pause seam before the transaction. No selection never pauses.
+		if (this.host.isEditorInteractionActive) return false;
 		const selection = this.host.navigationSelection;
 		const connection = this.host.selectedConnection;
 		if (
@@ -1122,7 +1135,9 @@ export class EditorViewKeyframeController {
 		const index = track.findIndex(
 			(keyframe) => keyframe.id === selection.keyframeId
 		);
-		if (index < 0 || !this.host.beginDocumentTransaction()) return false;
+		if (index < 0) return false;
+		if (!this.host.requestAuthoringPause()) return false;
+		if (!this.host.beginDocumentTransaction()) return false;
 		track.splice(index, 1);
 		// Seeded reverse is derived from forward; drop it when forward is emptied.
 		if (
@@ -1149,9 +1164,9 @@ export class EditorViewKeyframeController {
 	}
 
 	copySelectedConnectionViewTrack(source: CameraConnectionDirection) {
-		if (this.host.isDocumentMutationBlocked || this.host.isEditorInteractionActive) {
-			return false;
-		}
+		// P11.2 §8 — key-track write: interaction + eligibility/no-op first, then the
+		// pause seam before the transaction. Missing/no-op never pauses.
+		if (this.host.isEditorInteractionActive) return false;
 		const connection = this.host.selectedConnection;
 		if (!connection) return false;
 		const destination: CameraConnectionDirection =
@@ -1172,6 +1187,7 @@ export class EditorViewKeyframeController {
 			destination,
 			occupied
 		);
+		if (!this.host.requestAuthoringPause()) return false;
 		if (!this.host.beginDocumentTransaction()) return false;
 		connection.viewTracks ??= { forward: [], reverse: [] };
 		connection.viewTracks[destination] = copied;
@@ -1205,8 +1221,9 @@ export class EditorViewKeyframeController {
 
 	/** Leave a view key without changing the document or history. */
 	finishViewKeyframeEditing() {
+		// P11.2 §8 — flow-exit: interaction/pending bars + selection eligibility
+		// first, then the pause seam before the write. No selection never pauses.
 		if (
-			this.host.isDocumentMutationBlocked ||
 			this.host.isEditorInteractionActive ||
 			this.host.pendingNavigationCommand
 		) {
@@ -1228,6 +1245,7 @@ export class EditorViewKeyframeController {
 		) {
 			return false;
 		}
+		if (!this.host.requestAuthoringPause()) return false;
 		this.host.selection.setNavigation({
 			kind: 'connection',
 			connectionId: connection.id,
@@ -1249,7 +1267,9 @@ export class EditorViewKeyframeController {
 		holdSeconds: number | null,
 		easing: CameraEasing | null
 	): boolean {
-		if (this.host.isDocumentMutationBlocked) return false;
+		// P11.2 §8 — keyframe timing write: resolve + validate the ranges and the
+		// no-op case first, then the pause seam, then the transaction. Invalid /
+		// unknown / unchanged values never pause and never open a transaction.
 		const connection = this.host.document.connections.find(
 			(candidate) => candidate.id === connectionId
 		);
@@ -1263,6 +1283,16 @@ export class EditorViewKeyframeController {
 			this.host.setStatusMessage(`Unknown view keyframe: ${connectionId}:${keyframeId}`);
 			return false;
 		}
+		if (holdSeconds !== null && (!Number.isFinite(holdSeconds) || holdSeconds < 0)) {
+			this.host.setStatusMessage(
+				'View keyframe holdSeconds must be a finite non-negative number'
+			);
+			return false;
+		}
+		if (easing !== null && !CAMERA_EASING.includes(easing)) {
+			this.host.setStatusMessage(`Easing must be one of ${CAMERA_EASING.join(', ')}`);
+			return false;
+		}
 		const noHoldToWrite = holdSeconds !== null && keyframe.holdSeconds === holdSeconds;
 		const noEasingToWrite = easing !== null && keyframe.easing === easing;
 		if (noHoldToWrite && noEasingToWrite) return false;
@@ -1274,27 +1304,14 @@ export class EditorViewKeyframeController {
 		) {
 			return false;
 		}
+		if (!this.host.requestAuthoringPause()) return false;
 		if (!this.host.beginDocumentTransaction()) return false;
 		if (holdSeconds !== null) {
-			if (!Number.isFinite(holdSeconds) || holdSeconds < 0) {
-				this.host.cancelDocumentTransaction();
-				this.host.setStatusMessage(
-					'View keyframe holdSeconds must be a finite non-negative number'
-				);
-				return false;
-			}
 			keyframe.holdSeconds = holdSeconds;
 		} else {
 			delete keyframe.holdSeconds;
 		}
 		if (easing !== null) {
-			if (!CAMERA_EASING.includes(easing)) {
-				this.host.cancelDocumentTransaction();
-				this.host.setStatusMessage(
-					`Easing must be one of ${CAMERA_EASING.join(', ')}`
-				);
-				return false;
-			}
 			keyframe.easing = easing;
 		} else {
 			delete keyframe.easing;

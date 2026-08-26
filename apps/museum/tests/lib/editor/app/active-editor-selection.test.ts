@@ -445,18 +445,17 @@ describe('deselectActive', () => {
 		expect(layoutInteraction.selection).toEqual({ kind: 'none' });
 	});
 
-	it('inherits per-domain guards: scene blocked during preview, layout clears anyway', () => {
+	it('clears selection during preview in both domains (P11.2 AA)', () => {
 		const { store, layoutInteraction, activeSelection } = wired();
 		const entityId = store.document.entities[0]!.id;
 
-		// Scene branch inherits deselect()'s isDocumentMutationBlocked guard.
-		// previewSequence starts a *playing* sequence preview without touching
-		// the selection slots, so the scene pick stays active while blocked.
+		// P11.2 — deselect is AA: the scene branch no longer inherits the
+		// mutation guard (selection never needs Stop); layout stays unguarded.
 		expect(store.selectionActions.selectPlacement(entityId)).toBe(true);
 		expect(store.previewSequence()).toBe(true);
 		expect(store.isDocumentMutationBlocked).toBe(true);
-		expect(activeSelection.deselectActive()).toBe(false);
-		expect(store.selectedPlacementIds).toEqual([entityId]);
+		expect(activeSelection.deselectActive()).toBe(true);
+		expect(store.selectedPlacementIds).toEqual([]);
 		store.stopCameraPreview();
 
 		// Layout branch is unguarded — pinned as intentional asymmetry.

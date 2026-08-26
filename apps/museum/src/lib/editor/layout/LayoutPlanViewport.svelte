@@ -606,15 +606,22 @@
 				: [hit.entityId];
 			const clusterBlocked = targetSelected && selectedClusterId !== null;
 			const ineligible = postWriteIds.some((id) => !stagingEligibleIds.has(id));
-			const blocked =
-				store.isDocumentMutationBlocked ? 'Preview is active'
-				: clusterBlocked ? 'Cluster selections are read-only in Plan.'
-				: ineligible ? 'Not editable in Plan. Edit position in 3D.'
-				: null;
-			if (!blocked) {
+			// P11.2 §3 — split: Scene *selection* is AA (a playing Director preview
+			// may select), while the context-menu *mutation* reasons stay SB on
+			// isDocumentMutationBlocked. Cluster/ineligible authority still blocks
+			// selection (those are layout-authority, not preview-state).
+			const selectionBlocked = clusterBlocked || ineligible;
+			if (!selectionBlocked) {
 				setArrangeOwner(interaction, 'scene');
 				if (!targetSelected) onSceneSelect?.(hit.entityId, { additive: false, toggle: false });
 			}
+			const sceneAuthorityBlocked = store.isDocumentMutationBlocked
+				? 'Preview is active'
+				: clusterBlocked
+					? 'Cluster selections are read-only in Plan.'
+					: ineligible
+						? 'Not editable in Plan. Edit position in 3D.'
+						: null;
 			event.preventDefault();
 			contextMenu.open({
 				surfaceId: 'scene-plan-arrange',
@@ -624,7 +631,7 @@
 					target: { owner: 'scene', entityId: hit.entityId },
 					sceneTargetHidden: store.isEntityHidden(hit.entityId),
 					mutationBlockedReason: store.isDocumentMutationBlocked ? 'Preview is active' : null,
-					sceneAuthorityBlockedReason: blocked,
+					sceneAuthorityBlockedReason: sceneAuthorityBlocked,
 					actions: {
 						deleteLayoutObject: deleteLayoutObjectViaTransaction,
 						duplicateScene: () => store.duplicateSelection(),

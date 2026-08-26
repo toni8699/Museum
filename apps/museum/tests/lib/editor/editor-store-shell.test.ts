@@ -129,7 +129,7 @@ describe('EditorStore Phase 1 shell session state', () => {
 		expect(store.cameraPreview).toBeNull();
 	});
 
-	it('rejects workspace switches during interaction or modal preview', () => {
+	it('rejects workspace switches during interaction; chrome switches stay allowed during modal preview', () => {
 		const store = createFixtureEditorStore();
 		store.selectionActions.selectNavigationNode('tour-paris');
 		expect(store.beginDocumentTransaction()).toBe(true);
@@ -139,17 +139,17 @@ describe('EditorStore Phase 1 shell session state', () => {
 		expect(store.cancelDocumentTransaction()).toBe(true);
 		expect(store.setWorkspace('camera')).toBe(true);
 
+		// P11.2 (CH·AA) — workspace switching is chrome: always allowed; leaving
+		// Camera keeps its existing preview-teardown contract.
 		expect(store.previewSelectedNode('visitor')).toBe(true);
-		expect(store.setWorkspace('scene')).toBe(false);
-		expect(store.cameraPreview).not.toBeNull();
-		expect(store.stopCameraPreview()).toBe(true);
 		expect(store.setWorkspace('scene')).toBe(true);
+		expect(store.cameraPreview).toBeNull();
 	});
 
-	it('rejects every other shell-state change during interaction or modal preview', () => {
+	it('blocks shell-state changes during interaction; chrome stays allowed during modal preview', () => {
 		const store = createFixtureEditorStore();
 		store.toggleClusterTreeExpansion('cluster-a');
-		const expectShellStateToRemainUnchanged = (timelineExpanded: boolean) => {
+		const expectInteractionBlocked = () => {
 			expect(store.setTransformTool('select')).toBe(false);
 			expect(store.setTransformSpace('local')).toBe(false);
 			expect(store.toggleActiveTransformSnap()).toBe(false);
@@ -163,7 +163,7 @@ describe('EditorStore Phase 1 shell session state', () => {
 			expect(store.ensureRoomTreeExpanded('entrance')).toBe(false);
 			expect(store.ensureClusterTreeExpanded('cluster-b')).toBe(false);
 			expect(store.leftPanel).toBe('scene');
-			expect(store.timelineExpanded).toBe(timelineExpanded);
+			expect(store.timelineExpanded).toBe(false);
 			expect(store.timelineHeight).toBe(288);
 			expect(store.transformGizmoVisible).toBe(true);
 			expect(store.transformSpace).toBe('world');
@@ -173,13 +173,34 @@ describe('EditorStore Phase 1 shell session state', () => {
 
 		expect(store.beginDocumentTransaction()).toBe(true);
 		store.setTransformInteractionActive(true, 'placement');
-		expectShellStateToRemainUnchanged(false);
+		expectInteractionBlocked();
 		store.setTransformInteractionActive(false);
 		expect(store.cancelDocumentTransaction()).toBe(true);
 
+		// P11.2 (CH·AA) — chrome/session writes (sidebar, timeline shell, tree
+		// expansion) stay allowed during a modal preview; only the transform-tool
+		// trio keeps its SB gate (P11.4 candidate).
 		store.selectionActions.selectNavigationNode('tour-paris');
 		expect(store.previewSelectedNode('visitor')).toBe(true);
-		expectShellStateToRemainUnchanged(true);
+		expect(store.setLeftPanel('assets')).toBe(true);
+		expect(store.setTimelineExpanded(true)).toBe(true);
+		expect(store.setTimelineHeight(320)).toBe(true);
+		expect(store.toggleTimeline()).toBe(true);
+		expect(store.toggleRoomTreeExpansion('paris')).toBe(true);
+		expect(store.toggleClusterTreeExpansion('cluster-b')).toBe(true);
+		expect(store.removeClusterTreeExpansion('cluster-a')).toBe(true);
+		expect(store.ensureRoomTreeExpanded('entrance')).toBe(true);
+		expect(store.ensureClusterTreeExpanded('cluster-b')).toBe(true);
+		expect(store.setTransformTool('select')).toBe(false);
+		expect(store.setTransformSpace('local')).toBe(false);
+		expect(store.toggleActiveTransformSnap()).toBe(false);
+		expect(store.leftPanel).toBe('assets');
+		expect(store.timelineExpanded).toBe(false); // set(true) then toggleTimeline
+		expect(store.timelineHeight).toBe(300); // clamped to EDITOR_TIMELINE_MAX_HEIGHT
+		expect(store.transformGizmoVisible).toBe(true);
+		expect(store.transformSpace).toBe('world');
+		expect(store.treeExpandedRoomIds).toEqual(['entrance']); // paris toggled off, entrance added
+		expect(store.treeExpandedClusterIds).toEqual(['cluster-b']); // cluster-a removed, cluster-b added
 	});
 
 	it('keeps viewport transform tools session-only and toggles snap for the active mode', () => {

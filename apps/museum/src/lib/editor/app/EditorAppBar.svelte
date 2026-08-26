@@ -27,7 +27,10 @@
 
 	const domain = $derived(viewState.domain);
 	const activeView = $derived(viewState.activeView);
-	const canSwitch = $derived(!store.isDocumentMutationBlocked && !store.isEditorInteractionActive);
+	// P11.2 §3 — CH·AA: domain/view switching is chrome and stays enabled under a
+	// playing Director preview (leaving the camera workspace stops it via the
+	// existing setWorkspace teardown); only an active gesture blocks.
+	const canSwitch = $derived(!store.isEditorInteractionActive);
 	const dirty = $derived(store.isDirty);
 	let projectMenuOpen = $state(false);
 

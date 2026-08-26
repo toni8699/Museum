@@ -1227,16 +1227,10 @@ export class EditorStore {
 	}
 
 	/**
-	 * P11.2 §8 auto-pause seam for Camera-authoring entry points: visitor
-	 * previews refuse; a playing Director preview pauses in place (session-only,
-	 * physical progress preserved, no history entry, no stop teardown); paused
-	 * previews pass through. Callers keep their own interaction/pending-nav bars
-	 * and must invoke this after those prohibited-state checks and after
-	 * validate/resolve of the target, and always before pointer capture or
-	 * `beginDocumentTransaction()` (so pausing itself never runs under an open
-	 * transaction nor writes history). Unchanged/invalid commits must never
-	 * reach the seam. See plan §2 — pinned order: prohibited checks →
-	 * validate/resolve → seam → begin transaction → write/capture.
+	 * P11.2 §8 auto-pause seam: visitor refuses; a playing Director preview
+	 * pauses in place (session-only, no history entry). Call AFTER prohibited
+	 * checks + validate/resolve and BEFORE pointer capture / beginDocumentTransaction;
+	 * rejected and no-op gestures never reach the seam.
 	 */
 	requestAuthoringPause(): boolean {
 		if (this.isVisitorCameraPreview) return false;

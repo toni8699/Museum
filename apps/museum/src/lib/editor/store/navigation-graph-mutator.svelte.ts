@@ -219,7 +219,6 @@ export class EditorNavigationGraphMutator {
 			this.host.isEditorInteractionActive ||
 			this.host.pendingNavigationCommand
 		) return false;
-		// P11.2 §8 — authoring intent auto-pauses a playing preview.
 		if (!this.host.requestAuthoringPause()) return false;
 		this.host.cancelAssetPlacement();
 		this.host.cancelPendingFrame();
@@ -256,8 +255,6 @@ export class EditorNavigationGraphMutator {
 			this.host.setStatusMessage('Select a source camera node');
 			return false;
 		}
-		// P11.2 §8 — the source resolved above; the seam fires only once the
-		// connect can actually proceed (a missing source never pauses).
 		if (!this.host.requestAuthoringPause()) return false;
 		this.host.cancelAssetPlacement();
 		this.host.cancelPendingFrame();
@@ -445,8 +442,6 @@ export class EditorNavigationGraphMutator {
 			this.host.setStatusMessage('Destination camera node is unavailable');
 			return false;
 		}
-		// P11.2 §8 — a missing destination never pauses; the seam fires only once
-		// the connect can actually proceed.
 		if (!this.host.requestAuthoringPause()) return false;
 		if (pending.kind === 'connect-pending-node') {
 			// Destination was resolved and validated above (before the seam).
@@ -553,14 +548,10 @@ export class EditorNavigationGraphMutator {
 			this.host.setStatusMessage('Finish or cancel the current camera command first');
 			return false;
 		}
-		// P11.2 §8 — validate the connect BEFORE the seam: an invalid/duplicate/
-		// self connect (a rejected gesture) never pauses a playing preview.
 		const connectionPlan = runOrFail(this.host, () =>
 			validateConnectionCreation(this.host.document, sourceNodeId, destinationNodeId)
 		);
 		if (!connectionPlan) return false;
-		// P11.2 §8 — the connect is valid; connecting while a preview plays
-		// pauses it in place (a mismatched pending command refused above).
 		if (!this.host.requestAuthoringPause()) {
 			this.host.setStatusMessage('Camera graph changes are blocked during visitor previews');
 			return false;
@@ -688,7 +679,6 @@ export class EditorNavigationGraphMutator {
 		if (this.#guidedTourOrderAlreadyApplied(orderPlan.nodeIds)) {
 			return false;
 		}
-		// P11.2 §8 — validated above; the seam fires only once the rewrite can proceed.
 		if (!this.#pauseForGuidedTourAuthoring()) return false;
 		const committed = this.#applyGuidedTourOrder(orderPlan.nodeIds);
 		if (committed) this.host.setStatusMessage('Updated camera flow order');
@@ -705,7 +695,6 @@ export class EditorNavigationGraphMutator {
 			validateGuidedTourInsertion(this.host.document, nodeId, index)
 		);
 		if (!insertionPlan) return false;
-		// P11.2 §8 — validated above; the seam fires only once the insert can proceed.
 		if (!this.#pauseForGuidedTourAuthoring()) return false;
 		const node = this.host.document.navigationNodes.find(
 			(candidate) => candidate.id === nodeId
@@ -773,7 +762,6 @@ export class EditorNavigationGraphMutator {
 			validateGuidedTourRemoval(this.host.document, nodeId)
 		);
 		if (!removalPlan) return false;
-		// P11.2 §8 — validated above; the seam fires only once the removal can proceed.
 		if (!this.#pauseForGuidedTourAuthoring()) return false;
 		const node = this.host.document.navigationNodes.find(
 			(candidate) => candidate.id === nodeId
@@ -835,8 +823,6 @@ export class EditorNavigationGraphMutator {
 			);
 			return false;
 		}
-		// P11.2 §8 — node/partner resolved above; the seam fires only once the
-		// pair can actually seed.
 		if (!this.#pauseForGuidedTourAuthoring()) return false;
 		if (!this.host.beginDocumentTransaction()) return false;
 		node.nextNodeId = partner.id;
@@ -868,7 +854,6 @@ export class EditorNavigationGraphMutator {
 			validateDetourCreation(this.host.document, originNodeId, headNodeId)
 		);
 		if (!detourPlan) return false;
-		// P11.2 §8 — validated above; the seam fires only once the write can proceed.
 		if (!this.#pauseForGuidedTourAuthoring()) return false;
 		if (!this.host.beginDocumentTransaction()) return false;
 		const head = this.host.document.navigationNodes.find(
@@ -894,7 +879,6 @@ export class EditorNavigationGraphMutator {
 			validateDetourAppend(this.host.document, originNodeId, newNodeId)
 		);
 		if (!detourPlan) return false;
-		// P11.2 §8 — validated above; the seam fires only once the write can proceed.
 		if (!this.#pauseForGuidedTourAuthoring()) return false;
 		if (!this.host.beginDocumentTransaction()) return false;
 		const tail = this.host.document.navigationNodes.find(
@@ -926,7 +910,6 @@ export class EditorNavigationGraphMutator {
 			validateDetourNodeRemoval(this.host.document, originNodeId, nodeId)
 		);
 		if (!detourPlan) return false;
-		// P11.2 §8 — validated above; the seam fires only once the write can proceed.
 		if (!this.#pauseForGuidedTourAuthoring()) return false;
 		if (!this.host.beginDocumentTransaction()) return false;
 		const node = this.host.document.navigationNodes.find(
@@ -972,7 +955,6 @@ export class EditorNavigationGraphMutator {
 			validateDetourRemoval(this.host.document, originNodeId)
 		);
 		if (!detourPlan) return false;
-		// P11.2 §8 — validated above; the seam fires only once the write can proceed.
 		if (!this.#pauseForGuidedTourAuthoring()) return false;
 		if (!this.host.beginDocumentTransaction()) return false;
 		for (const nodeId of detourPlan.chainNodeIds) {
@@ -1364,9 +1346,6 @@ export class EditorNavigationGraphMutator {
 		direction: CameraConnectionDirection,
 		timing: SceneConnectionTiming | null
 	): boolean {
-		// P11.2 §8 — timing write: resolve + validate + no-op first, then the pause
-		// seam, then the transaction. Invalid/unknown/unchanged never pauses and
-		// never opens a transaction.
 		const connection = this.host.document.connections.find(
 			(candidate) => candidate.id === connectionId
 		);
@@ -1416,9 +1395,6 @@ export class EditorNavigationGraphMutator {
 
 	/** Phase 3.7: write a destination hold in seconds; pass `null` to clear. */
 	setNodeHoldSeconds(nodeId: string, holdSeconds: number | null): boolean {
-		// P11.2 §8 — hold write: resolve + validate + no-op first, then the pause
-		// seam, then the transaction. Invalid/unknown/unchanged never pauses and
-		// never opens a transaction.
 		const node = this.host.document.navigationNodes.find(
 			(candidate) => candidate.id === nodeId
 		);

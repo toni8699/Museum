@@ -11,8 +11,8 @@ states the destination, not a claim that every capability already exists.
 Build a web-native authoring platform for **interactive spatial experiences**.
 The product should let a designer create the space, stage it, direct how a
 visitor experiences it, add interactions, and publish the result to the web
-without requiring Blender, game-engine scripting, or deployment knowledge for
-normal work.
+without requiring external DCC tools, game-engine scripting, or deployment
+knowledge for normal work.
 
 The long-term product loop is:
 
@@ -73,9 +73,9 @@ helpers, and similarly semantic operations. These extend `LayoutDocument` and
 the single geometry compiler; they do not create a second mesh-authoring
 system.
 
-The product is **not** a Blender replacement. Deep mesh topology editing,
-sculpting, UV authoring, rigging, character animation, and bespoke organic
-modeling remain better served by external DCC tools and imported assets.
+The product is **not** a general-purpose DCC replacement. Deep mesh topology
+editing, sculpting, UV authoring, rigging, character animation, and bespoke
+organic modeling remain better served by external tools and imported assets.
 
 ## Stage — scene composition and assets
 
@@ -87,67 +87,64 @@ ownership.
 
 The finished product supports:
 
-- user-uploaded assets and project-local assets
-- curated free/open assets and licensed designer assets
+- one unified asset library for ready-to-place content
+- built-in curated assets shipped with the product
+- user uploads, including assets authored or downloaded elsewhere
+- online search/import from supported asset providers
 - reusable asset libraries and, later, marketplace/store workflows
 - asset metadata such as dimensions, placement rules, provenance/license,
-  thumbnails, LOD/optimization data, animation clips, and semantic
-  capabilities where useful
-- advanced round-trip/import workflows with tools such as Blender for
-  bespoke assets without making Blender a prerequisite for normal users
+  thumbnails, optimization data, animation clips, and semantic capabilities
+  where useful
+- import/export or round-trip workflows with external 3D tools where useful,
+  without making any external tool a prerequisite for normal users
 
-The user-facing asset system should present one coherent library while keeping
-asset origin explicit:
+Asset source is metadata and may become a filter; it is not a separate
+scene-object system or a required top-level navigation structure. The three
+source classes are intentionally broad:
 
 ```text
-Assets
-├─ Museum      ← curated, normalized, ready-to-place platform assets
-├─ My Assets   ← user uploads, imports, and generated assets
-└─ External    ← federated search/import from providers such as Sketchfab
+Built-in
+Upload
+Online
 ```
 
-These are sourcing/catalogue surfaces, not separate scene-object systems. Once
-an asset is accepted into the editor, placement resolves through the same
+Once an asset is accepted into the editor, placement resolves through the same
 Scene authoring commands, selection, transforms, history, packaging, and
 publishing rules regardless of origin.
 
-Assets may have two primary implementation forms:
-
-- **baked models** — GLB or equivalent runtime-ready model bytes, with
-  normalized scale/pivot, metadata, thumbnails, and optional optimized/LOD
-  derivatives
-- **procedural assets** — semantic generator identity plus authored parameters;
-  generated Three.js geometry or a baked/cache representation is derived
-  runtime data, not the authored source of truth
+Assets may have different implementation forms while sharing the same library
+and placement experience. Runtime-ready model representations may carry
+normalized scale/pivot, metadata, thumbnails, and optional optimized/LOD
+derivatives. Procedural assets keep semantic generator identity plus authored
+parameters; generated geometry or cached/baked representations remain derived
+runtime data, not authored project truth.
 
 Procedural assets should be used where editable parameters are materially more
-valuable than a frozen mesh: walls, stairs, shelves, frames, pedestals,
-repetition/arrays, roads, vegetation systems, and similar structured content.
-A procedural asset and a baked model may share the same click/drag placement
-UX. Layout-owned procedural construction must extend `LayoutDocument` and the
-single canonical geometry compiler; Scene-owned procedural assets remain
-Scene-domain entities/assets. Neither creates a parallel geometry authority.
+valuable than a frozen mesh. Layout-owned procedural construction must extend
+`LayoutDocument` and the single canonical geometry compiler; Scene-owned
+procedural assets remain Scene-domain entities/assets. Neither creates a
+parallel geometry authority.
 
-All byte-backed asset sources should converge on one canonical ingest boundary:
+All byte-backed asset acquisition should converge on one canonical ingest
+boundary:
 
 ```text
-user upload
-external provider import
-AI-generated model
-curated platform model
-        ↓
-validate → normalize → optimize → derive metadata/thumbnail/LOD
-        ↓
-canonical Asset record + stored runtime bytes
-        ↓
+Built-in
+Upload
+Online
+   ↓
+validate → normalize → optimize → derive metadata/previews
+   ↓
+canonical Asset record + runtime representation
+   ↓
 normal editor placement
 ```
 
-Provider-specific concepts must stop at adapter/import boundaries. External
-catalogues such as Sketchfab should normally be searched remotely and imported
-on demand rather than mirrored wholesale. Imported records preserve provenance
-needed for safe reuse and publishing, including provider/source identity,
-creator, license, attribution text, source URL, and external asset id where
+External tools, providers, generators, and file formats are replaceable
+boundaries around this pipeline rather than durable project concepts.
+Provider/tool-specific state must stop at adapter/import boundaries. Imported
+records preserve provenance needed for safe reuse and publishing, including
+source identity, creator, license, attribution, and source reference where
 applicable. Credits/attribution should be derivable from project asset metadata
 rather than maintained as unrelated manual text.
 
@@ -280,26 +277,26 @@ supports authenticated accounts and persistent cloud projects.
 Cloud persistence wraps the same semantic project format; it does not replace
 `LayoutDocument` / `SceneDocument` with a database-owned scene model.
 Backend/platform concerns include users, projects, project membership,
-versioned saves/published versions, asset metadata, object-storage references,
+versioned saves/published versions, asset metadata and storage references,
 permissions, domains, and later collaboration/billing/marketplace concerns.
-Large GLBs, textures, audio, video, and generated derivatives belong in object
-storage rather than relational rows.
+Large asset/media bytes and generated derivatives belong in blob/object storage
+or equivalent asset infrastructure rather than project-document truth.
 
-The asset platform should keep catalogue data and heavy bytes separate. A
-relational store may own searchable asset records, ownership, provenance,
+The asset platform should separate searchable catalogue/metadata from heavy
+asset bytes and delivery. Asset metadata may include ownership, provenance,
 license/attribution, dimensions, placement metadata, processing state, hashes,
-and object-storage references. Object storage owns GLBs, textures, thumbnails,
-LODs, uploaded source files, and other large derivatives; a CDN may serve
-runtime/public bytes directly without routing large downloads through the main
-application server. `SceneDocument` and project files reference stable asset
-identity rather than embedding backend records or provider-specific state.
+and storage references. Heavy source/runtime files, textures, thumbnails,
+optimization derivatives, and similar media belong in asset storage and may be
+served through an appropriate delivery layer. `SceneDocument` and project files
+reference stable asset identity rather than embedding backend records,
+provider-specific state, or storage-vendor details.
 
-Server-side asset ingestion may use asynchronous workers for validation,
-normalization, compression, texture processing, thumbnail generation, LODs,
-and hash deduplication. Uploads, external-provider downloads, AI generation,
-and curated platform ingestion should implement the same canonical asset-record
-contract even when their acquisition mechanisms differ. Provider integrations
-remain replaceable adapters rather than new project-document dependencies.
+Asset ingestion may use background processing for validation, normalization,
+compression, texture processing, preview generation, optimization, and
+deduplication. Built-in, uploaded, and online-imported assets should implement
+the same canonical asset-record contract even when their acquisition mechanisms
+differ. External provider, generator, DCC, and storage integrations remain
+replaceable adapters rather than new project-document dependencies.
 
 Long-term collaboration may add presence, shared editing, comments, and
 version/history workflows. It must preserve deterministic project ownership,
@@ -331,11 +328,10 @@ intent.
 
 AI-generated work must remain normal project state: inspectable, undoable or
 versionable, permission-aware, manually editable, and subject to the same
-architectural constraints. AI-generated assets enter the same canonical asset
-ingest, provenance, optimization, and placement pipeline as uploads and
-provider imports; AI must not introduce a parallel asset or scene format. AI
-must not bypass the canonical geometry, selection, camera-motion, or
-persistence pipelines.
+architectural constraints. Generated assets must enter the same canonical
+asset ingest, provenance, optimization, and placement pipeline rather than
+introducing a parallel asset or scene format. AI must not bypass the canonical
+geometry, selection, camera-motion, or persistence pipelines.
 
 ## Project truth
 
@@ -359,8 +355,8 @@ gizmo proxies, selection, hover/transient gesture state, and undo history are
 not serialized as authored project truth.
 
 Asset records and packages may reference source/provenance metadata and stable
-asset identities. Optimized GLBs, generated procedural meshes, thumbnails,
-LODs, compressed textures, and similar runtime derivatives remain replaceable
+asset identities. Optimized runtime models, generated procedural meshes,
+previews, LODs, compressed textures, and similar derivatives remain replaceable
 asset infrastructure; they do not become a third scene/layout authoring truth.
 
 New durable domains such as interaction behavior, published-version metadata,
@@ -372,7 +368,7 @@ merely for convenience.
 
 1. **Semantic spatial authoring, not a general mesh editor.** Richer CAD-like
    and parametric construction extends the authored layout model and the single
-   geometry pipeline; no parallel Blender-style modeling subsystem.
+   geometry pipeline; no parallel general-purpose mesh-modeling subsystem.
 2. **One editor shell.** `Scene | Camera` over `Plan | 3D`, with Scene Plan
    local `Layout | Arrange`; one active authority for each interaction and no
    duplicate workspace-specific project truth.
@@ -409,12 +405,12 @@ Current production choices remain deliberate rather than ideological:
 - SvelteKit + Svelte 5 + TypeScript remain the product/UI foundation while
   they fit measured requirements.
 - SVG remains the Plan renderer and Three/Threlte the production 3D renderer.
-- Backend, object storage, auth, realtime, hosting, CDN, and external asset
-  providers are platform boundaries; vendor choice may change without changing
-  project truth.
-- Asset-provider integrations remain adapters into one canonical ingest/asset
-  record boundary; provider API schemas and temporary download URLs do not
-  become durable Scene/Project state.
+- Backend, persistence, asset storage/delivery, auth, realtime, hosting, and
+  external integrations are platform boundaries; vendor choice may change
+  without changing project truth.
+- External asset/tool integrations remain adapters into one canonical
+  ingest/asset-record boundary; provider schemas, temporary URLs, file formats,
+  and storage details do not become durable Scene/Project state.
 - WebGPU/WGSL stays bounded until a real product or performance requirement
   justifies promotion.
 - Rust/WASM requires an isolated CPU bottleneck and boundary-inclusive proof;
@@ -428,7 +424,7 @@ Current production choices remain deliberate rather than ideological:
 
 ## Permanent non-goals
 
-- Blender-style general mesh editing, sculpting, UV authoring, rigging, or
+- general-purpose DCC-style mesh editing, sculpting, UV authoring, rigging, or
   character-animation authoring as the normal editor workflow
 - a second layout geometry compiler or consumer-owned architectural truth
 - a second camera/navigation/motion graph competing with the canonical system
@@ -449,7 +445,7 @@ current implementation slices:
 - richer parametric architectural operations and terrain/roads/vegetation
 - procedural asset libraries with editable parameters and cache/bake runtime
   derivatives
-- canonical asset ingest/normalization, external-provider search/import, and
+- canonical asset ingest/normalization, online-provider search/import, and
   provenance-aware project credits
 - assisted or AI-generated layouts, staging, tours, framing, interactions, and
   complete first drafts
@@ -458,7 +454,8 @@ current implementation slices:
 - account persistence, project dashboard, backend APIs, asset storage, and
   dedicated hosted editor
 - collaboration, teams, permissions, comments, and version history
-- asset marketplace/licensing and advanced Blender round-trip
+- asset marketplace/licensing and advanced external 3D-tool interoperability
+  or round-trip workflows
 - hosted publishing, custom domains, embeds, and downloadable web builds
 - agent/MCP/API authoring and automated preview/validation loops
 

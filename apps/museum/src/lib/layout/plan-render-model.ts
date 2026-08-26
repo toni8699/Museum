@@ -39,6 +39,8 @@ export type PlanStyleToken =
 	| 'camera-edge-selected'
 	| 'camera-edge-hovered'
 	| 'camera-edge-retained'
+	| 'camera-edge-retained-selected'
+	| 'camera-edge-retained-hovered'
 	| 'camera-node'
 	| 'camera-node-selected'
 	| 'camera-node-hovered'
@@ -503,7 +505,9 @@ export function buildPlanRenderModel(
 			key: connection.key,
 			points: connection.polyline,
 			style: connection.retained
-				? 'camera-edge-retained'
+				? connection.selected
+					? 'camera-edge-retained-selected'
+					: 'camera-edge-retained'
 				: connection.selected
 					? 'camera-edge-selected'
 					: 'camera-edge'

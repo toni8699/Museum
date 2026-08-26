@@ -855,19 +855,6 @@ export function validateConnectionDeletion(
 			`Cannot delete ${connection.id}: the edge returns a branch to its origin`
 		);
 	}
-	if (
-		!dissolvesGuidedFlow &&
-		!graphRemainsConnected(
-			document,
-			new Set(),
-			new Set([connection.id])
-		)
-	) {
-		return fail(
-			'disconnected_graph',
-			`Cannot delete ${connection.id}: the navigation graph would become disconnected`
-		);
-	}
 	return {
 		ok: true,
 		connection,

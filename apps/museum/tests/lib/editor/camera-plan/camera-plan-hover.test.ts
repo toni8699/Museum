@@ -178,7 +178,7 @@ describe('applyCameraPlanHover', () => {
 		expect(styleByKey(hoveredSelectedAnchor, ANCHOR_BC)).toBe('camera-anchor-selected');
 	});
 
-	it('precedence: retained edges never show the hover token', () => {
+	it('keeps retained edges visibly distinct while showing hover state', () => {
 		const retained = projection({ retainedConnectionIds: ['c-bc'], mainFlowNodeIds: ['n-a', 'n-b'] });
 		const model = buildPlanRenderModel(compileLayoutGeometry(layoutDocument()).geometry, retained);
 		expect(styleByKey(model, EDGE_BC)).toBe('camera-edge-retained');
@@ -186,7 +186,22 @@ describe('applyCameraPlanHover', () => {
 			kind: 'edge',
 			connectionId: 'c-bc'
 		});
-		expect(styleByKey(retainedModel, EDGE_BC)).toBe('camera-edge-retained');
+		expect(styleByKey(retainedModel, EDGE_BC)).toBe('camera-edge-retained-hovered');
+	});
+
+	it('keeps retained edges visibly distinct while showing selection state', () => {
+		const retained = projection({
+			retainedConnectionIds: ['c-bc'],
+			mainFlowNodeIds: ['n-a', 'n-b'],
+			selection: { kind: 'connection', connectionId: 'c-bc' }
+		});
+		const model = buildPlanRenderModel(compileLayoutGeometry(layoutDocument()).geometry, retained);
+		expect(styleByKey(model, EDGE_BC)).toBe('camera-edge-retained-selected');
+		const selectedModel = applyCameraPlanHover(model, retained.authoring, {
+			kind: 'edge',
+			connectionId: 'c-bc'
+		});
+		expect(styleByKey(selectedModel, EDGE_BC)).toBe('camera-edge-retained-selected');
 	});
 
 	it('returns the input model unchanged for null, missing, or stale hover identities', () => {

@@ -77,6 +77,14 @@ function addFreeNode(
 }
 
 describe('editor camera graph command validation', () => {
+	it('allows deleting a non-sequence edge even when it disconnects a graph component', () => {
+		const document = documentClone();
+		addFreeNode(document, 'free-leaf', 'tour-paris');
+		const connection = document.connections.at(-1)!;
+		const result = validateConnectionDeletion(document, connection.id);
+		expect(result.ok).toBe(true);
+	});
+
 	it('accepts one distinct missing edge and rejects unavailable, self, and duplicate endpoints', () => {
 		const document = documentClone();
 		expect(validateConnectionCreation(document, 'tour-a', 'tour-paris')).toEqual(
@@ -116,7 +124,7 @@ describe('editor camera graph command validation', () => {
 		const bridge = documentClone();
 		addFreeNode(bridge, 'free-leaf', 'tour-paris');
 		expect(validateConnectionDeletion(bridge, 'tour-paris-free-leaf')).toEqual(
-			expect.objectContaining({ ok: false, code: 'disconnected_graph' })
+			expect.objectContaining({ ok: true })
 		);
 	});
 
@@ -133,7 +141,7 @@ describe('editor camera graph command validation', () => {
 		pair.connections = pair.connections.filter((connection) => connection.id === 'tour-a-b');
 
 		expect(validateConnectionDeletion(pair, 'tour-a-b')).toEqual(
-			expect.objectContaining({ ok: false, code: 'disconnected_graph' })
+			expect.objectContaining({ ok: true })
 		);
 
 		pair.navigationNodes.find((node) => node.id === 'tour-a')!.nextNodeId = 'tour-b';

@@ -13,16 +13,16 @@ import type { CameraPlanHit } from './camera-plan-hit';
  * projection is hover-free and this remaps the already-built render model's
  * camera tokens by stable primitive key — one O(primitives) mapping with no
  * geometry or motion work. Token precedence mirrors the model builder:
- * selected wins over hovered, and retained edges never show the hover token.
+ * selected wins over hovered, and retained edges keep their dashed/desaturated
+ * identity while receiving selected/hovered state tokens.
  * A stale/missing hover identity or a `null` hover is a no-op that returns the
  * input model unchanged (no allocation, no re-render).
  */
 
 /**
- * Resolve the hovered primitive keys to their target hover tokens. Only the
- * plain base tokens are eligible: a selected primitive keeps its `-selected`
- * token and a retained edge keeps its retained token, matching the builder's
- * precedence exactly.
+ * Resolve the hovered primitive keys to their target hover tokens. Selected
+ * primitives keep their selected token; retained edges use a retained-hovered
+ * token so their dashed/desaturated base remains distinguishable.
  */
 function hoverTargetKeys(
 	authoring: PlanCameraAuthoringProjection | undefined,
@@ -37,8 +37,11 @@ function hoverTargetKeys(
 		const connection = authoring.connections.find(
 			(candidate) => candidate.connectionId === hover.connectionId
 		);
-		if (connection && !connection.selected && !connection.retained) {
-			targets.set(connection.key, 'camera-edge-hovered');
+		if (connection && !connection.selected) {
+			targets.set(
+				connection.key,
+				connection.retained ? 'camera-edge-retained-hovered' : 'camera-edge-hovered'
+			);
 		}
 	} else if (hover.kind === 'anchor') {
 		const anchor = authoring.anchors.find(

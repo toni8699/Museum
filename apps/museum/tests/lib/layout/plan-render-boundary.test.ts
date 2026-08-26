@@ -95,6 +95,18 @@ describe('PlanSvg adapter boundary', () => {
 	it('is Svelte/DOM-adjacent only through the component itself, never browser-coupled imports', () => {
 		expectRendererFree(ADAPTER_FILE);
 	});
+
+	it('preserves the retained edge base under selected and hovered feedback', () => {
+		const source = sourceOf(ADAPTER_FILE);
+		expect(source).toContain("'camera-edge-retained-selected': 'camera-edge retained selected'");
+		expect(source).toContain("'camera-edge-retained-hovered': 'camera-edge retained hovered'");
+		expect(source).toContain(
+			'.camera-edge.retained.selected { stroke: color-mix(in srgb, var(--editor-plan-selection) 48%, var(--editor-plan-muted)); stroke-width: 3.5; stroke-dasharray: 5 4; }'
+		);
+		expect(source).toContain(
+			'.camera-edge.retained.hovered { stroke: color-mix(in srgb, var(--editor-plan-hover-stroke) 42%, var(--editor-plan-muted)); stroke-width: 3; stroke-dasharray: 5 4; }'
+		);
+	});
 });
 
 describe('LayoutPlanViewport boundary', () => {

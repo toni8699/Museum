@@ -154,8 +154,10 @@ sequenced and unsequenced cameras; sequence preview lives in the Sequence
 Inspector/timeline; Plan and 3D inspectors share one edge-preview affordance;
 sequence-adjacent direction derives from predecessor → immediate successor,
 while every other connection exposes both labeled directions. Active scope
-labels identify Camera, Edge, or Sequence. P3B.6 remains next for retained-edge
-selection/hover presentation parity. Post-review: preview entries stay disabled
+labels identify Camera, Edge, or Sequence. **P3B.6 is implemented:** retained
+edges now preserve their dashed/desaturated base while exposing visible
+selection and hover states; P11 still supersedes the broader preview-scope
+semantics before final QA. Post-review: preview entries stay disabled
 during pending navigation, node actions use CirclePlay semantics, topology
 mutation gates are restored, and the edge action group carries an accessible
 name.
@@ -271,9 +273,8 @@ Preview: Edge · Camera A → Camera B
 
 ### Unsequenced-edge selection parity (P3B.6)
 
-**Requested 2026-08-25.** Edge preview for unsequenced connections requires
-that the unsequenced edge is actually selectable and visibly responds in
-Camera Plan.
+**Implemented 2026-08-25.** Edge preview for unsequenced connections is
+selectable and visibly responds in Camera Plan.
 
 Current state: an edge between two unsequenced nodes is a **retained
 (inactive) connection** (S10.1.3). It renders desaturated/dashed, and although
@@ -287,17 +288,18 @@ camera-plan-hover.ts   retained edges never get the hover token
 PlanSvg.svelte         .camera-edge.retained declared after .selected
 ```
 
-P3B.6 must make unsequenced-edge selection visually truthful:
+P3B.6 implementation:
 
 * clicking a retained edge shows selection (backdrop click still deselects);
 * hover on a retained edge shows the hover cue;
 * selection/hover overlay the retained base without collapsing it into the
-  active-edge look — the desaturated/dashed base remains distinguishable
-  until selected (e.g. a `camera-edge-retained-selected` token or equivalent
-  token precedence fix);
+  active-edge look — the desaturated/dashed base remains distinguishable;
 * the retained context menu (timing / reverse / delete) stays available;
 * retained-connection semantics (S10.1.3) are unchanged — a retained
-  connection stays inactive unless the user sequences its nodes.
+  connection stays inactive unless the user sequences its nodes;
+* renderer-neutral tokens `camera-edge-retained-selected` and
+  `camera-edge-retained-hovered` preserve this distinction through the SVG
+  adapter.
 
 This is interaction/parity work inside Group C, not a change to retained-connection
 semantics (S10.1.3).

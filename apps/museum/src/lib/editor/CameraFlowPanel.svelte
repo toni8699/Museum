@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { ChevronRight, CirclePlay, Diamond, Link, Unlink, X } from 'lucide-svelte';
+	import { ChevronDown, ChevronRight, ChevronUp, CirclePlay, Diamond, Link, Unlink, X } from 'lucide-svelte';
 	import { formatCameraNodeLabel } from './editor-outliner';
 	import { getNodeConnections } from './camera/editor-camera-connections';
 	import { isFlowNode } from '$lib/content/scene';
@@ -194,6 +194,17 @@
 
 	function finishNodeDrag() {
 		draggedNodeId = null;
+	}
+
+	function moveNode(nodeId: string, delta: -1 | 1) {
+		if (guidedEditingBlocked) return;
+		const index = guidedTourChain.indexOf(nodeId);
+		if (index < 0) return;
+		const destination = index + delta;
+		if (destination < 0 || destination >= guidedTourChain.length) return;
+		const next = [...guidedTourChain];
+		[next[index], next[destination]] = [next[destination]!, next[index]!];
+		store.setGuidedTourOrder(next);
 	}
 
 	function dropNodeAfter(event: DragEvent, anchorNodeId: string, gapIndex: number) {
@@ -428,6 +439,22 @@
 							disabled={previewActionBlocked}
 							onclick={() => previewNode(node.id)}
 						><CirclePlay size={13} aria-hidden="true" /></button>
+						<button
+							type="button"
+							class="guided-reorder"
+							aria-label={`Move ${node.label} up`}
+							title="Move up"
+							disabled={guidedEditingBlocked || index === 0}
+							onclick={() => moveNode(node.id, -1)}
+						><ChevronUp size={13} aria-hidden="true" /></button>
+						<button
+							type="button"
+							class="guided-reorder"
+							aria-label={`Move ${node.label} down`}
+							title="Move down"
+							disabled={guidedEditingBlocked || index === guidedTourChain.length - 1}
+							onclick={() => moveNode(node.id, 1)}
+						><ChevronDown size={13} aria-hidden="true" /></button>
 						{#if index > 0 && index < guidedTourChain.length - 1 && guidedTourChain.length > 2}
 						<button
 							type="button"
@@ -890,6 +917,9 @@
 		color: var(--editor-success);
 		font-size: 0.6rem;
 		font-weight: 700;
+	}
+	.guided-actions button.guided-reorder {
+		color: var(--editor-accent);
 	}
 	.guided-actions button.guided-preview,
 	.free-actions button.guided-preview {

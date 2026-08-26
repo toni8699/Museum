@@ -38,6 +38,8 @@
 		'camera-edge-selected': 'camera-edge selected',
 		'camera-edge-hovered': 'camera-edge hovered',
 		'camera-edge-retained': 'camera-edge retained',
+		'camera-edge-retained-selected': 'camera-edge retained selected',
+		'camera-edge-retained-hovered': 'camera-edge retained hovered',
 		'camera-node': 'camera-node',
 		'camera-node-selected': 'camera-node selected',
 		'camera-node-hovered': 'camera-node hovered',
@@ -259,6 +261,10 @@
 	.camera-edge.selected { stroke: var(--editor-plan-selection); stroke-width: 3.5; }
 	.camera-edge.hovered { stroke: var(--editor-plan-hover-stroke); stroke-width: 3; }
 	.camera-edge.retained { stroke: var(--editor-plan-muted); stroke-width: 2; stroke-dasharray: 5 4; }
+	/* P3B.6 — retained identity stays dashed/desaturated while state feedback
+	   remains visible. */
+	.camera-edge.retained.selected { stroke: color-mix(in srgb, var(--editor-plan-selection) 48%, var(--editor-plan-muted)); stroke-width: 3.5; stroke-dasharray: 5 4; }
+	.camera-edge.retained.hovered { stroke: color-mix(in srgb, var(--editor-plan-hover-stroke) 42%, var(--editor-plan-muted)); stroke-width: 3; stroke-dasharray: 5 4; }
 	.camera-node { fill: var(--editor-camera-node-fill); stroke: var(--editor-camera-node-stroke); stroke-width: 2; vector-effect: non-scaling-stroke; }
 	.camera-node.selected { fill: var(--editor-accent); stroke: var(--editor-text-primary); stroke-width: 3; }
 	.camera-node.hovered { fill: var(--editor-accent-hover); stroke: var(--editor-text-primary); stroke-width: 3; }

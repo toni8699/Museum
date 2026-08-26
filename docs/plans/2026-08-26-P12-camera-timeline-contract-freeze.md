@@ -4,13 +4,14 @@
 follow; the plan is the contract, not the work breakdown.
 **Tracker:** [`README.md`](README.md) — **P12**, depends on: P11.
 **Placement:** the independent designer review of the P11 UX findings produced
-the canonical specification below; the owner closed six review items and one
-extra freeze blocker. This doc piles the specification, the closures, and the
-review record into one ratifiable contract. It **intentionally supersedes** the
-conflicting P11.2/P11.3/P11.4 rows in §9; P11.5 (regression/contract
-reconciliation) reconciles the shipped P11 surface to this contract.
-**Baseline:** the uncommitted P11.4 slice + the complete-state scrub fix and
-mode-toggle row fix land first, then P12 slices migrate onto that baseline.
+the canonical specification below. The owner closed the six product questions,
+one sequence-loop blocker, and a later implementation-hardening review. This
+doc is the authority for the resulting contract. It **intentionally
+supersedes** the conflicting P11.2/P11.3/P11.4 rows in §9. P11.5 is already
+shipped; **P12 owns its own contract reconciliation and browser-QA closeout**.
+**Baseline:** P12 starts from the shipped P11.4 + fixes baseline and migrates
+that surface onto this frozen contract without creating a second camera-motion
+or preview-state system.
 
 ---
 
@@ -36,13 +37,16 @@ Preview scope changes evaluation domain, not selection authority.
 
 ## §2 — Canonical session state & derived transport model
 
-Transport is strictly binary; temporal capabilities derive from the active
-scope. **Ratified amendment 6:** the generic `loop` flag is replaced by
-Edge-only `edgeRepeat` — Sequence looping is derived from authored tail↔head
-topology and must never be duplicated as session truth.
+Transport is strictly binary. The canonical motion/evaluation playhead remains
+**normalized active-scope progress `[0, 1]`**; seconds are presentation derived
+from the active scope duration. P12 must not migrate the camera-motion pipeline
+to seconds merely to render timecode.
+
+Sequence looping remains derived from authored tail↔head topology and is never
+duplicated as session truth. Edge Repeat is local to Edge scope only.
 
 ```ts
-// Canonical session state (pure session truth, never serialized to project)
+// Conceptual canonical session shape. Pure session truth; never serialized.
 type PreviewScope =
   | { type: 'sequence' }
   | {
@@ -50,62 +54,95 @@ type PreviewScope =
       edgeId: string;
       fromNodeId: string;
       toNodeId: string;
+      repeat: boolean;
     }
   | { type: 'camera'; nodeId: string };
 
-type TransportState = 'playing' | 'paused'; // no 'complete' state
+type TransportState = 'playing' | 'paused'; // no stored 'complete' state
 
 interface TimelinePreviewSession {
   scope: PreviewScope;
   transport: TransportState;
-  playhead: number;       // active-scope evaluation time in SECONDS
-  duration: number;       // active-scope duration (0 for Camera scope)
-  edgeRepeat: boolean;    // meaningful only for Edge scope
+  playhead: number; // normalized active-scope evaluation progress [0, 1]
   viewMode: 'pov' | 'observer';
   observerFollow: boolean;
 }
 ```
 
+### Existing-state ownership pin
+
+`TimelinePreviewSession` is a **contract shape for the existing Camera preview
+session**, not permission to add another store. Implementation evolves the
+existing `EditorCameraPreview` / `EditorCameraPreviewController` ownership,
+including its `runId`, captured-route invalidation, follow/recenter state, and
+canonical playhead. It **must not** introduce a parallel timeline-preview store
+that mirrors or synchronizes the existing preview FSM.
+
+The Edge-local `repeat` field above is conceptual ownership. Implementation may
+retain the existing dedicated controller slot only if it is reset on every Edge
+scope exit and reads false outside Edge; no second Repeat truth is allowed.
+
+The active `durationSeconds` is a derived read from the canonical Sequence or
+Edge timeline/motion. Camera scope has no temporal duration.
+
 ### Derived transport capabilities
 
 ```ts
 const isTemporal = scope.type !== 'camera';
-const atEnd = isTemporal && playhead >= duration;
-const canPlay = isTemporal && duration > 0;
-const showReplayGlyph = isTemporal && transport === 'paused' && atEnd;
+const durationSeconds = deriveActiveScopeDurationSeconds(scope); // 0 if unavailable/static
+const canPlay = isTemporal && durationSeconds > 0;
+const atEnd = canPlay && playhead >= 1;
+const showReplayGlyph = canPlay && transport === 'paused' && atEnd;
+const currentSeconds = isTemporal ? playhead * durationSeconds : 0;
 ```
 
 ### Transport & inspection rules
 
 1. **Camera scope (static):** `isTemporal === false`; `playhead = 0`,
-   `duration = 0`, `transport = 'paused'`. Play, Replay, Loop, and Scrub are
-   inactive. The bar presents authored static pose framing.
+   `transport = 'paused'`. Play, Replay, Repeat, and Scrub are inactive. The bar
+   presents authored static pose framing.
 2. **Temporal scopes (Sequence | Edge):**
    - `transport === 'playing'` → render **Pause**
-   - `transport === 'paused' && !atEnd` → render **Play**
+   - `transport === 'paused' && canPlay && !atEnd` → render **Play**
    - `showReplayGlyph === true` → render **Replay** (`RotateCcw`)
-3. **Inspection freedom (Law 5):** reaching `t = duration` sets
-   `transport = 'paused'` (derived `atEnd`; no stored `complete` state).
-   Scrubber drag, step backward/forward (`[` / `]`), and jump to start (`|◀`)
-   stay fully interactive. Dragging the scrubber sets `playhead = t_drag` and
-   triggers immediate camera pose evaluation.
+3. **Zero-duration temporal scope:** `canPlay === false`, `atEnd === false`, and
+   Replay is never shown. Transport stays quiet/disabled while the valid static
+   boundary remains inspectable. This is acceptance-pinned.
+4. **Inspection freedom (Law 5):** reaching normalized `playhead = 1` on a
+   playable temporal scope sets `transport = 'paused'`; `atEnd` is derived, not
+   stored. Scrubber drag, step backward/forward (`[` / `]`), and jump to start
+   (`|◀`) remain interactive. Dragging the scrubber pauses and evaluates the
+   camera at the new normalized progress.
+5. **Replay:** activating Play while `atEnd` first resets normalized playhead to
+   `0`, then enters `playing`.
+
+### Live retiming invariant
+
+Timing/duration edits never convert stored playhead into seconds and therefore
+cannot create `playhead > duration` state. The accepted authoring seam pauses a
+playing preview before a timing write. After the document/timeline re-resolves,
+the normalized playhead remains clamped to `[0, 1]`; display seconds are
+re-derived from the new duration and the camera is re-evaluated through the
+existing canonical route/timeline pipeline. Tests pin live retiming and the
+zero-duration case.
 
 ---
 
 ## §3 — Scope model & traversal direction semantics
 
-The scope selector is an explicit contextual switcher. Graph topology stays
-**strictly undirected**. **Ratified amendment 1:** `Preview Camera` is
-available only for a selected **Unsequenced** camera.
+The Scope selector is an explicit contextual switcher. Graph topology stays
+**strictly undirected**. `Preview Camera` is available only for a selected
+**Unsequenced** camera.
 
 ```text
 Scope menu contents:
-┌────────────────────────────────────────────────────────┐
-│ 🎞 Sequence (Full Tour)                                │
-│ ────────────────────────────────────────────────────── │
-│ ⇄ Preview Edge [Node A → Node B]  (if Edge is selected)│
-│ 📷 Preview Camera [Camera U]       (if Unsequenced node)│
-└────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────┐
+│ 🎞 Sequence (Full Tour)                                    │
+│ ────────────────────────────────────────────────────────── │
+│ ⇄ Preview Edge [A → B]   (selected Sequence-adjacent Edge) │
+│ ⇄ Preview Edge…          (selected non-adjacent/free Edge) │
+│ 📷 Preview Camera [U]    (selected Unsequenced Camera)      │
+└────────────────────────────────────────────────────────────┘
 ```
 
 ### Invariants
@@ -113,19 +150,31 @@ Scope menu contents:
 1. **Explicit endpoints:** Edge traversal is `fromNodeId` + `toNodeId`, both
    verified as valid endpoints of `edgeId`. No stored canonical "forward" in
    graph topology.
-2. **Direction defaulting:** a Sequence-adjacent edge defaults to
-   `Sequence predecessor → Sequence successor`; an unsequenced connection
-   requires an explicit direction choice (`Node A → Node B` vs `B → A`).
-3. **Flip traversal:** `[⇄ Flip]` swaps `fromNodeId`/`toNodeId` in session
-   state and **resets edge playhead to `0.00s`**, without altering the
-   underlying undirected connection. **Migration note:** this supersedes the
-   P11.4 pinned pose-preserving swap (`1 − e` playhead flip, p11-s4 test
-   `0.3 → 0.7`) — the frozen Flip deliberately drops the physical pose.
-4. **Contextual menu:** the scope dropdown contains `Sequence` at all times
-   plus contextual entries for the selected edge / unsequenced camera node. It
-   is not a persistent project catalog.
+2. **Sequence-adjacent default:** a Sequence-adjacent edge may expose one direct
+   Preview Edge action using `Sequence predecessor → Sequence successor`.
+3. **Non-adjacent/unsequenced direction chooser:** `Preview Edge…` must open an
+   explicit compact choice between the two named traversals:
 
-### Sequenced vs Unsequenced inspection (amendment 1 pin)
+   ```text
+   Preview Edge…
+   ├─ A → B
+   └─ B → A
+   ```
+
+   Endpoint storage order, selected endpoint, pointer position, timing-key
+   order, and lexical/name sorting must never silently choose traversal.
+4. **Flip traversal:** `[⇄ Flip]` swaps `fromNodeId` / `toNodeId` in session
+   state and **resets normalized Edge playhead to `0`** (display `0.00s`),
+   without altering the undirected connection. This deliberately supersedes
+   P11.4 pose-preserving `1 − e` swap behavior.
+5. **Contextual menu:** `Sequence` is always available. Edge and Camera entries
+   appear only for the currently eligible selection. The menu is not a project
+   catalog or second graph navigator.
+6. **Edge Repeat ownership:** Repeat exists only while `scope.type === 'edge'`.
+   Leaving Edge scope clears/discards it; reads outside Edge are false. Sequence
+   never gains a session repeat flag.
+
+### Sequenced vs Unsequenced inspection
 
 ```text
 Sequenced camera
@@ -137,29 +186,29 @@ Unsequenced camera
 → Preview Camera enters static Camera scope
 ```
 
-Canonical motion guarantees node poses exactly at transition endpoints, so a
-sequenced node's authored framing is exactly inspectable via
-`Sequence → seek(t_node) → paused`. This intentionally supersedes the older
-"Preview Camera works for every camera" UI grammar — no second way to inspect
-the same sequenced pose.
+Canonical motion guarantees exact node poses at transition boundaries, so a
+sequenced node's authored framing is inspectable via
+`Sequence → seek(nodeBoundary) → paused`. This intentionally supersedes the
+older "Preview Camera works for every camera" grammar and avoids two static
+inspection paths for the same sequenced pose.
 
 ---
 
 ## §4 — Selection, scope, and seeking matrix
 
-Viewport selection across Camera Plan / Camera 3D is a shared session
+Viewport selection across Camera Plan / Camera 3D is one shared session
 identity. Playhead seeking obeys the active scope's coordinate space.
 
 | User interaction | Selection result | Active scope `Sequence` | Active scope `Edge` or `Camera` |
 | :--- | :--- | :--- | :--- |
-| **Click Sequenced Node C** *(evaluable `t_C`)* | Selects Node C | Seeks to `t_C`; sets `paused` | **Selection only**; scope/playhead/transport unchanged |
+| **Click Sequenced Node C** *(evaluable boundary)* | Selects Node C | Seeks to C boundary; sets `paused` | **Selection only**; scope/playhead/transport unchanged |
 | **Click Sequenced Node C** *(post-gap / malformed)* | Selects Node C | Seeks to last evaluable boundary; exposes `[⚠️ Stops @ Node X]` | **Selection only**; unchanged |
 | **Click Edge E** | Selects Edge E | **Selection only**; unchanged | **Selection only**; unchanged |
 | **Click Unsequenced Node U** | Selects Node U | **Selection only**; unchanged | **Selection only**; unchanged |
-| **Explicit Preview Edge** | Selects Edge E | **Switches to Edge scope**; playhead `0.00s`; `paused` | **Switches to Edge scope**; playhead `0.00s`; `paused` |
-| **Explicit Preview Camera** *(unsequenced only)* | Selects Node U | **Switches to Camera scope**; `paused` | **Switches to Camera scope**; `paused` |
+| **Explicit Preview Edge** | Selects Edge E | **Switches to Edge scope** after deterministic direction resolution; playhead `0`; `paused` | Same |
+| **Explicit Preview Camera** *(unsequenced only)* | Selects Node U | **Switches to Camera scope**; playhead `0`; `paused` | Same |
 
-### Mode-independent transport navigation (amendment 4 pin)
+### Mode-independent transport navigation
 
 ```text
 Transport navigation is mode-independent.
@@ -170,20 +219,18 @@ seek / scrub / step / node-boundary seek
 → then seek
 ```
 
-This **specifically supersedes P11.2's playing-POV seek refusal**. The visitor
-refusal is kept for **document/framing mutation**, never for transport
-navigation. Implementation splits the seam: `requestTransportPause()` (session
-transport — may pause either camera) for the seek/scrub/step path; the
-existing `requestAuthoringPause()` / framing predicates stay on
-document/framing writes while playing.
+This **specifically supersedes P11.2's playing-POV seek refusal**. Visitor/POV
+refusal remains for **document/framing mutation**, not transport navigation.
+Implementation splits the seam: `requestTransportPause()` is session transport
+and may pause either mode; `requestAuthoringPause()` and framing mutation gates
+remain responsible for document/framing writes.
 
 ---
 
 ## §5 — Truthful lane projections (one shell)
 
 The five canonical lanes provide one consistent presentation shell. The
-timeline never fabricates keyframes or mock curves where the backing runtime
-engine has none.
+timeline never fabricates keys or curves where the runtime engine has none.
 
 ```text
 ┌──────────────┬──────────────────────────────┬─────────────────────────────┐
@@ -197,35 +244,41 @@ engine has none.
 └──────────────┴──────────────────────────────┴─────────────────────────────┘
 ```
 
-- **Node scope (static):** static presentation of authored FOV / Look-At at
-  `t = 0.00s`; temporal tracks and ruler intervals omitted; shell stable.
-- **Edge time domain (amendment 5 pin, hard):**
+- **Camera scope (static):** static presentation of authored FOV / Look-At;
+  temporal tracks and ruler intervals are omitted. No fake temporal keys.
+- **Presentation time domains:** stored playhead remains normalized `[0, 1]`,
+  while the ruler/timecode maps that progress into the active scope's seconds:
 
 ```text
-Sequence scope: time domain = 0 → sequenceDuration
-Edge scope:     time domain = 0 → selectedTraversalDuration
-Camera scope:   no temporal domain
+Sequence scope presentation: 0s → sequenceDurationSeconds
+Edge scope presentation:     0s → selectedTraversalDurationSeconds
+Camera scope:                no temporal domain
 ```
 
-  Edge scope is **not a zoomed window into Sequence time**. `01.20 / 04.20`
-  means 1.2s into that edge traversal. Every rendered Edge-scope lane element
-  uses the same local domain; anything that cannot truthfully project into
-  edge-local coordinates stays quiet. **Never render global Sequence lane
-  positions under an edge-local ruler.** (Ratifies the shipped mixed-domain
-  invariant — P11.3 §4 — and promotes its deferred edge-local lane projection
-  into the one shell.)
+Edge scope is **not a zoomed window into Sequence time**. `01.20 / 04.20`
+means 1.2 seconds into that selected edge traversal. Every rendered Edge-scope
+lane element uses the same Edge-local mapping. Anything that cannot truthfully
+project into Edge-local coordinates stays quiet. **Never render global Sequence
+lane positions under an Edge-local ruler.** This retains the shipped
+mixed-time-domain safety invariant while allowing truthful Edge-local lane
+projection in the one shell.
 
 ---
 
 ## §6 — Shell & dock geometry
 
-Prevents dock jumping and layout thrashing across view-mode changes.
+The shell must remain visually stable across scopes and POV/Observer changes,
+without making controls unreachable at narrow widths.
 
 - **Header height:** hard-fixed `36px`.
-- **Header layout:** `display: flex; align-items: center; white-space: nowrap;
-  overflow: hidden;`
+- **Header layout:** `display: flex; align-items: center; white-space: nowrap;`
+  with no vertical wrapping.
 - **Dock heights:** collapsed `48px` total (header + integrated mini-scrubber);
-  expanded `288px` default (header + ruler + 5 lane tracks).
+  expanded `288px` default (header + ruler + five lane tracks).
+- **Full-inline / compact threshold:** the existing `44rem` shell breakpoint is
+  the initial compact-layout boundary. `>= 44rem` targets the full inline
+  anatomy; `< 44rem` uses compression/overflow rules below. This is a layout
+  breakpoint, not permission to make smaller widths inoperable.
 
 ### Header anatomy (36px fixed, no-wrap)
 
@@ -233,41 +286,58 @@ Prevents dock jumping and layout thrashing across view-mode changes.
 │ [🎞 Sequence ▾] │ [🎥 POV | 👁 Observer ⌖ ⛶] │ |◀ ▶/⏸/RotateCcw [🔁] 00:04.20 / 00:18.00 │ [⚠️ Stops @ Node 3] │ [zoom ⤢ ▾] │
 ```
 
-1. **Left zone — scope & view mode:** scope pill `[🎞 Sequence ▾]` (contextual
-   switcher); view-mode segment `[🎥 POV | 👁 Observer]`; Observer tools
-   `Follow ⌖` / `Recenter ⛶` occupy **dedicated inline slots** next to Observer
-   mode — reserved, never wrapping, never changing dock height (this resolves
-   the P11.4 mode-toggle bar-resize finding by contract).
-2. **Center zone — deterministic transport:** jump-to-start `|◀`,
-   Play/Pause/Replay, and timecode. `🔁` is the **Edge-only Repeat control**
-   (amendment 6): Sequence shows its **derived loop status/readout** only,
-   Camera shows neither.
-3. **Right zone — diagnostics & layout:** `[⚠️ Stops @ Node 3]` inline
-   (no dedicated banner row); compact zoom + deck expand/collapse `⤢`.
+1. **Left zone — scope & view mode:** contextual Scope pill; POV/Observer
+   segmented control. Observer `Follow` / `Recenter` use reserved inline slots
+   at full width so mode switching never changes header height.
+2. **Center zone — deterministic transport:** jump-to-start,
+   Play/Pause/Replay, and timecode. `🔁` is **Edge-only Repeat**. Sequence shows
+   derived loop status/readout only; Camera shows neither.
+3. **Right zone — diagnostics & layout:** inline Sequence diagnostic, compact
+   zoom, and deck expand/collapse.
 
-### Action row (amendment 2 pin)
+### Narrow-width compression and accessibility
+
+At `< 44rem`, compression happens in this order before anything is clipped:
+
+1. hide secondary descriptive/phase text and shorten/truncate Scope text while
+   preserving its accessible name;
+2. collapse diagnostics to an icon + tooltip/popover;
+3. move zoom and other secondary layout controls into a reachable `More` menu;
+4. move Observer-only `Follow` / `Recenter` into that reachable menu if needed,
+   while keeping the POV/Observer mode switch visible;
+5. Edge Repeat may move into the same menu before primary transport does.
+
+The **always-reachable primary set** is: Scope switcher, POV/Observer mode,
+Play/Pause/Replay when temporal, timecode when temporal, and deck
+collapse/expand. `overflow: hidden` may be used only after responsive
+composition; it must never leave a focusable control visually clipped or
+keyboard-focusable offscreen. Collapsed controls are unmounted/hidden from the
+tab order or moved into the accessible overflow menu.
+
+### Action row — `+ View Key`
 
 ```text
-36px header    = scope · mode · transport · time · diagnostic
-Ruler/action   = ticks · scrubber · [+ View Key]
+36px header  = scope · mode · transport · time · diagnostic
+Ruler/action = ticks · scrubber · [+ View Key]
 ```
 
 ```text
 + View Key
 → Camera 3D only (hidden in Camera Plan)
-→ Sequence scope initially; hidden in Camera scope
+→ Sequence scope initially
+→ hidden in Camera scope
 → Edge support deferred
 ```
 
-`+ View Key` authors directional FOV/Look-At framing (the controller already
-owns directional view-keyframe authoring); it does not author a camera node.
-The internal command name stays `addViewKeyframeAtPlayhead()`. The current
-Plan/3D view must be threaded into timeline presentation to enforce the
-Camera-Plan hiding rule.
+`+ View Key` authors directional FOV/Look-At framing; it does not create a
+Camera node. The internal command remains `addViewKeyframeAtPlayhead()`. The
+existing Plan/3D `viewMode` already reaches the Timeline Frame/Panel; P12 must
+thread/use it through the Ruler/action presentation so Camera Plan never
+exposes framing/FOV key authoring.
 
 ---
 
-## §7 — Escape semantics (amendment 3 pin)
+## §7 — Escape semantics
 
 ```text
 Escape priority:
@@ -284,12 +354,12 @@ Escape NEVER resets playhead merely because preview exists.
 playing temporal preview + Escape → pause · preserve scope · preserve playhead
 ```
 
-`stopCameraPreview()` remains **internal lifecycle teardown only** (stale
-target prune, document replacement where required, leaving the Camera domain,
-project reset/import), never normal Escape behavior. Stale copy such as
-`Stop or press Escape to return` (Workspace3DView / EditorViewport banners) is
-updated. Edge scope stays Edge after Escape — returning to Sequence is an
-explicit scope choice.
+`stopCameraPreview()` remains **internal lifecycle teardown only**: stale target
+prune, document replacement where required, leaving Camera domain, project
+reset/import, rig restore, and equivalent lifecycle boundaries. Normal Escape
+does not call teardown. Copy such as `Stop or press Escape to return` must be
+updated because Escape now pauses rather than returns/exits. Edge scope remains
+Edge after Escape; returning to Sequence is an explicit scope action.
 
 ---
 
@@ -298,28 +368,45 @@ explicit scope choice.
 ### Designer-brief assessment (2026-08-26)
 
 The canonical spec was assessed against the shipped tree before ratification.
-Verified anchors: `requestFramingPause()` visitor refusal
-(`editor-store.svelte.ts:1251`), the seek seam
-(`camera-timeline-controller.svelte.ts:203`), selection-driven scope install
-(`selection-actions.svelte.ts:273`), `edgeRepeat` edge-only refusal (p11-s4
-pin), edge-local ruler + hidden lanes (P11.3 §4), `stopCameraPreview()`
-callers all lifecycle (stale prune / leave-domain / document replace / rig
-restore), and the `+ Camera Key` absence of a Plan/3D guard. Findings adopted:
-POV seek supersession (the one genuine P11.2 contract break), `+ View Key`
-viewMode guard gap, Escape copy updates, and the sequence-loop blocker.
+Verified anchors included the P11.2 framing/seek seam, selection-driven P11.3
+scope installation, Edge-local ruler, Edge-only Repeat, lifecycle-only direct
+`stopCameraPreview()` callers, and the `+ Camera Key` Plan/3D exposure gap.
+Adopted product closures were: sequenced-node static inspection through
+Sequence, `+ View Key` placement/guard, Escape-as-pause, mode-independent
+transport navigation, strict Edge-local time, and Edge-only Repeat.
 
-### Owner closures (all six ratified)
+### Owner closures (product contract)
 
 1. Sequenced nodes never enter Camera scope — static inspection via
    `Sequence → node boundary → paused` (§3).
-2. `+ View Key` on the ruler/action row, Camera 3D only (§6).
+2. `+ View Key` lives on the ruler/action row and is Camera 3D-only (§6).
 3. Escape pauses, never destroys scope; `stopCameraPreview()` is lifecycle
    teardown (§7).
-4. Transport navigation is mode-independent; `requestTransportPause()` split
-   (§4).
-5. Edge scope time is strictly edge-local (§5).
-6. `edgeRepeat` is Edge-only; Sequence loop status is derived, never session
-   truth (§2).
+4. Transport navigation is mode-independent; `requestTransportPause()` splits
+   transport from mutation gating (§4).
+5. Edge scope time is strictly Edge-local (§5).
+6. Edge Repeat is Edge-only; Sequence loop status is derived topology (§2/§6).
+
+### Implementation-hardening review (accepted before implementation)
+
+7. **Normalized playhead retained:** canonical progress stays `[0, 1]`; seconds
+   are presentation only. This avoids a needless motion-pipeline migration and
+   removes `playhead > duration` state (§2/§5).
+8. **No duplicate session store:** P12 evolves existing `EditorCameraPreview`
+   ownership rather than adding `TimelinePreviewSession` in parallel (§2).
+9. **Zero-duration guard:** Replay requires `canPlay`; zero-duration temporal
+   scope never renders Replay (§2).
+10. **Live retiming:** timing edits pause first, re-resolve through the canonical
+    pipeline, retain normalized/clamped progress, and re-derive seconds (§2).
+11. **Repeat locality:** Repeat is represented as Edge-local conceptual truth or
+    equivalently reset/read-false outside Edge; stale Repeat cannot leak into
+    Sequence/Camera (§2/§3).
+12. **Direction chooser:** non-adjacent/unsequenced Edge Preview always requires
+    explicit `A → B` vs `B → A`; no endpoint-storage-order default (§3).
+13. **Responsive accessibility:** fixed 36px/no-wrap never justifies clipped
+    focusable controls; compact/overflow priority is explicit (§6).
+14. **P12 owns closeout:** P11.5 is already shipped, so P12 itself owns canonical
+    doc reconciliation and browser QA (§10).
 
 No open product decision blocks freeze.
 
@@ -327,45 +414,70 @@ No open product decision blocks freeze.
 
 ## §9 — Supersession & migration table
 
-| Shipped pin | Frozen contract | Action |
+| Prior/shipped pin | Frozen P12 contract | Action |
 | :--- | :--- | :--- |
-| P11.2 playing-POV seek refusal (`requestFramingPause` in `#canSeekCameraTimeline`; "pinned Through Camera behavior") | §4 amendment 4 — transport navigation mode-independent | **Supersede**; introduce `requestTransportPause()`; migrate p8-s4 / p11-s3 seek tests |
-| P11.3 selection-driven scope install (node click → Camera scope; edge click → Edge scope; §10 projection table) | Laws 2–4 + §4 matrix — selection only; explicit scope entries | **Supersede**; migrate p11-s3 (16) selection-install pins + contracts |
-| P11.3 Edge mini-shell (edge-local ruler, five-lane Dots hidden) | Law 1 + §5 — one shell, edge-local lane projection | **Supersede projection**; keep the local-time-domain invariant (amendment 5 ratifies it) |
-| P11.4 capsule + dense-row annex (scopeCapsule, PreviewControls grid, annex §11.3 rows) | §6 header anatomy + scope pill | **Supersede** annex layout rows; capsule becomes the interactive scope pill |
-| P11.4 swap pose preservation (`1 − e` flip; p11-s4 `0.3 → 0.7` pin) | §3 Flip — swaps endpoints, playhead resets to `0.00s` | **Supersede**; migrate the p11-s4 swap test |
-| P11.4 `+ Camera Key` label; no Plan/3D guard | §6 amendment 2 — `+ View Key`, Camera 3D only | **Rename + guard**; thread viewMode into the Ruler |
-| P11.4 Stop removal: "Escape/lifecycle teardown" | §7 — Escape pauses, never stops; copy updates | **Amend**; Escape handler + banner copy |
-| P11.4 `edgeRepeat` edge-only (setter refuses in Sequence scope) | §2 amendment 6 | **Ratifies** — no change |
-| Complete-state scrub fix (complete = paused-equivalent in seek/scrub gates, shipped 2026-08-26) | Law 5 — and deepens: `complete` state removed, derived `atEnd` | **Ratifies**; deepens to binary transport |
-| P11.3 §4 edge-lane deferral ("edge-local lane projection deferred") | §5 edge-lane projection promoted | **Adopts the deferred item** |
-| P11.2 visitor refusal for document/framing writes while playing | §4 — kept for mutation only, not transport | **Ratifies** (unchanged scope) |
+| P11.2 playing-POV seek refusal (`requestFramingPause` in timeline seek seam) | §4 — transport navigation mode-independent | **Supersede**; introduce/use `requestTransportPause()`; migrate seek tests |
+| P11.3 selection-driven scope install (node → Camera, edge → Edge) | Laws 2–4 + §4 matrix — selection alone never changes scope | **Supersede**; migrate P11.3 selection-install pins/contracts |
+| P11.3 Edge mini-shell: Edge-local ruler with global lanes hidden | Law 1 + §5 one shell with truthful Edge-local projection | **Supersede projection only**; retain Edge-local time-domain invariant |
+| P11.4 capsule/dense-row layout | §6 interactive Scope pill + fixed header anatomy | **Supersede** conflicting annex layout rows |
+| P11.4 pose-preserving Edge swap (`1 − e`) | §3 Flip resets Edge playhead to `0` | **Supersede**; migrate swap test |
+| P11.4 `+ Camera Key`, no Plan/3D guard | §6 `+ View Key`, Camera 3D only | **Rename + guard**; thread/use `viewMode` in Ruler/action row |
+| P11.4 Stop removal / lifecycle teardown | §7 Escape pauses; teardown remains lifecycle-only | **Amend** Escape copy/shortcut behavior; retain lifecycle teardown |
+| P11.4 Edge-only `edgeRepeat` setter | §2/§3 Repeat remains Edge-only | **Ratify + harden** stale-state invariant |
+| Complete-state scrub fix | Law 5; binary transport with derived `atEnd` | **Ratify + deepen**; remove stored `complete` transport state |
+| P11.3 Edge-lane deferral | §5 truthful Edge-local lane projection | **Adopt deferred item** |
+| P11.2 visitor refusal for document/framing writes | §4 mutation refusal remains, transport navigation excluded | **Ratify** |
+| Pre-hardening P12 draft: seconds playhead + stored duration | §2 normalized `[0,1]` playhead; seconds/duration derived | **Supersede draft**; preserve existing camera-motion progress semantics |
+| Pre-hardening P12 draft: top-level `edgeRepeat` | §2/§3 Edge-local Repeat truth | **Supersede draft**; no stale Sequence/Camera Repeat |
+| Pre-hardening P12 draft: one generic Edge scope-menu action | §3 direct Sequence-adjacent action or explicit two-direction chooser | **Clarify + acceptance-pin** |
+| Pre-hardening P12 draft: raw `overflow:hidden` | §6 compact/overflow priority; no clipped focusables | **Harden** |
+| Pre-hardening P12 closeout assigned to P11.5 | §10 P12 owns reconciliation + browser QA | **Correct ownership**; P11.5 is already shipped |
 
 ---
 
 ## §10 — Implementation slice split + test map
 
-Slices land after the P11.4 + fixes baseline commits; each slice carries its
-own named suite:
+Slices land on the shipped P11.4 + fixes baseline. Each slice carries named
+acceptance coverage; P12 does not introduce a second motion/evaluation engine.
 
 | Slice | Content | Suite |
 | :--- | :--- | :--- |
-| S1 | Session-state model: binary transport (`complete` removed, derived `atEnd`), seconds playhead, `edgeRepeat` field, scope `type` union | `p12-s1-session-model.test.ts` |
-| S2 | Selection matrix: selection-only outside Sequence (Laws 2–4), Sequence-node seek+pause, explicit scope entries, `requestTransportPause()` split | `p12-s2-selection-matrix.test.ts` |
-| S3 | One-shell edge lane projection (edge-local domain), Flip semantics (playhead reset), scope pill + contextual menu | `p12-s3-one-shell-lanes.test.ts` |
-| S4 | Header anatomy (36px), collapsed mini-scrubber (48px), reserved Observer slots, `+ View Key` rename + Plan/3D guard, Escape behavior + copy | `p12-s4-header-chrome.test.ts` |
+| S1 | Session/FSM model: evolve existing preview state (no parallel store); binary transport (`complete` removed); retain normalized playhead; derive seconds/duration; zero-duration Play/Replay guard; Edge-local Repeat invariant; live-retiming behavior | `p12-s1-session-model.test.ts` |
+| S2 | Selection matrix (Laws 2–4); Sequence-node seek+pause; explicit Preview Camera only for Unsequenced; explicit Edge entry + non-adjacent direction chooser; `requestTransportPause()` mode-independent seek/scrub/step | `p12-s2-selection-matrix.test.ts` |
+| S3 | One-shell truthful Edge-local lane projection; Flip resets Edge playhead to `0`; interactive Scope pill/contextual menu; no global-lane/Edge-ruler mixed domain | `p12-s3-one-shell-lanes.test.ts` |
+| S4 | 36px header + 48px collapsed dock; 44rem compact behavior and accessible overflow priority; reserved Observer slots; `+ View Key` rename + Camera Plan guard; Escape pause + stale-copy migration | `p12-s4-header-chrome.test.ts` |
+| S5 / closeout | Reconcile canonical docs (`camera-tour.md`, shell specs, Design specs, `CURRENT.md`, tracker wording where needed), migrate superseded P11 contract assertions, and run browser QA across Camera Plan ↔ Camera 3D, Sequence/Edge/Camera scopes, narrow width, POV/Observer, complete/end inspection | contract tests + browser QA checklist |
 
-Contract reconciliation (docs: camera-tour, shell specs, Design specs,
-CURRENT.md) and browser QA close under **P11.5**, not per-slice.
+### Required acceptance pins
+
+At minimum, the slice suites explicitly cover:
+
+- zero-duration temporal scope: `canPlay=false`, `atEnd=false`, no Replay;
+- live retiming: normalized playhead remains within `[0,1]`, seconds re-derive,
+  preview re-resolves/re-evaluates through existing pipeline;
+- Repeat cannot persist/read true in Sequence or Camera scope;
+- Sequence-adjacent Preview Edge uses predecessor → successor;
+- non-adjacent/unsequenced Preview Edge requires an explicit two-direction
+  choice and never falls back to endpoint storage order;
+- sequenced node click seeks + pauses only while Sequence scope is active;
+- the same seek/scrub/step behavior works in POV and Observer;
+- Edge ruler and Edge lanes share one Edge-local time mapping;
+- no focusable header control is clipped/offscreen at compact widths;
+- Camera Plan never exposes `+ View Key`; Camera 3D Sequence scope does;
+- Escape pauses a playing temporal preview without changing scope/playhead;
+- P12 closeout leaves no canonical doc describing superseded selection-driven
+  scope installation.
 
 ---
 
-## §11 — Freeze baseline (working tree at ratification)
+## §11 — Freeze baseline
 
-At ratification the working tree holds the uncommitted P11.4 slice (segmented
-mode, icon-only transport, swap/repeat wiring, Stop removal, mount
-disposition) plus the two shipped bug fixes (complete-state scrub; mode-toggle
-row normalization). The diff was assessed against this contract: three items
-align with it (Stop removal → §7 lifecycle; Repeat edge-only → §2; edge-local
-ruler → §5) and five are superseded by it (§9 rows 2–6). Freeze is therefore
-unblocked: P11.4 + fixes land as the baseline, then §10 slices migrate.
+P12 is implemented on top of the shipped P11.4 + complete-state scrub and
+mode-toggle normalization baseline. Existing useful machinery remains the
+starting point: one Camera preview FSM, run-id/captured-route invalidation,
+normalized motion progress, Edge-local ruler support, Edge-only Repeat, the
+single Camera timeline shared across Plan/3D, and the one canonical
+`camera-route.ts` / `camera-motion.ts` pipeline.
+
+P12 intentionally replaces the conflicting P11 interaction contracts named in
+§9, then closes itself through §10 S5. No P11 follow-up owns P12 reconciliation.

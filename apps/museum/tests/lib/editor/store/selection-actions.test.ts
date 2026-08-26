@@ -135,7 +135,9 @@ function createHarness(
 		installSelectionPreviewScope: (target) => {
 			installedScopes.push(target);
 			return true;
-		}
+		},
+		requestAuthoringPause: () => true,
+		requestFramingPause: () => true
 	};
 
 	const actions = new EditorSelectionActions(selection, host);
@@ -168,15 +170,15 @@ describe('EditorSelectionActions', () => {
 		expect(getTransformMode()).toBe('translate'); // not reset to 'rotate'
 	});
 
-	it('mutation guard blocks selection and leaves the reducer untouched', () => {
+	it('selection ignores the mutation guard (P11.2 AA — selection never needs Stop)', () => {
 		const { actions, selection, guards } = createHarness([{ id: 'p1', roomId: 'paris' }]);
 		actions.selectRoom('paris');
 		guards.isDocumentMutationBlocked = true;
 
-		expect(actions.selectPlacement('p1')).toBe(false);
+		expect(actions.selectPlacement('p1')).toBe(true);
 		expect(selection.workspace).toEqual({
 			kind: 'placement',
-			ids: [],
+			ids: ['p1'],
 			clusterId: null,
 			roomId: 'paris'
 		});
@@ -409,7 +411,9 @@ describe('EditorSelectionActions — Phase 6.4 keep-action invariant', () => {
 			},
 			getCapturedCameraPreviewRoute: () => null,
 			setCameraPreviewPlayhead: () => false,
-			installSelectionPreviewScope: () => true
+			installSelectionPreviewScope: () => true,
+			requestAuthoringPause: () => true,
+			requestFramingPause: () => true
 		};
 		const actions = new EditorSelectionActions(selection, host);
 		actions.selectRoom('paris');

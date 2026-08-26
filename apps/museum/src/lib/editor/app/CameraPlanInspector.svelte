@@ -167,7 +167,7 @@
 			<span>Label</span>
 			<input
 				bind:value={labelDraft}
-				disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
+				disabled={store.isAuthoringPauseBlocked}
 				onblur={saveLabel}
 				onkeydown={onLabelKeyDown}
 			/>
@@ -254,13 +254,13 @@
 			>Preview Camera</button>
 			<button
 				type="button"
-				disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
+				disabled={store.isAuthoringPauseBlocked}
 				onclick={() => store.beginConnectExistingNodes()}
 			>Connect to another node</button>
 			<button
 				type="button"
 				class="danger"
-				disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
+				disabled={store.isAuthoringPauseBlocked}
 				onclick={() => store.deleteNavigationNode(node.id)}
 			>Delete camera node</button>
 		</div>
@@ -284,7 +284,7 @@
 				{connection}
 				direction={timingDirection}
 				graph={graph}
-				disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
+				disabled={store.isAuthoringPauseBlocked}
 				oncommit={commitDuration}
 				onDirectionChange={selectDirection}
 				onUseAutomatic={useAutomatic}
@@ -296,7 +296,7 @@
 		<button
 			type="button"
 			class="danger"
-			disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
+			disabled={store.isAuthoringPauseBlocked}
 			onclick={() => store.deleteConnection(connection.id)}
 		>Delete camera connection</button>
 	</section>
@@ -331,7 +331,7 @@
 		<button
 			type="button"
 			class="danger"
-			disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
+			disabled={store.isAuthoringPauseBlocked}
 			onclick={() => store.deleteSelectedAnchor()}
 		>Delete Anchor</button>
 	</section>

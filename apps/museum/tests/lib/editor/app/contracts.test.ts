@@ -1330,9 +1330,83 @@ describe('camera context contracts', () => {
 		expect(controls).toContain('store.playCameraPreview()');
 		expect(controls).toContain('store.stopCameraPreview()');
 		expect(controls).toContain('grid-auto-flow: column;');
-		expect(sidebar).toContain('<div class="sidebar-content" inert={store.isDocumentMutationBlocked}>');
+		// P11.2 §3 — the editor surface is locked only for a *visitor* preview;
+		// a Director preview keeps the sidebar interactive (AA inspection + AP
+		// authoring auto-pause). Migrated deliberately from isDocumentMutationBlocked.
+		expect(sidebar).toContain('<div class="sidebar-content" inert={store.isVisitorCameraPreview}>');
 		expect(sidebar).not.toContain('Back to museum');
 		expect(relicSidebar).not.toContain('Back to museum');
+	});
+
+	// P11.2 §3 — the UI layer now fronts the AP seam: controls stay clickable
+	// under a playing Director preview (the commit auto-pauses) and are blocked
+	// only by an active gesture or a visitor preview. Source contracts pin the
+	// predicate swaps so the seam stays reachable from the editor.
+	it('fronts AP/AA/CH controls with the interaction/visitor predicates (P11.2 §3)', () => {
+		// Sidebar inertness is visitor-only (Director playing/paused interactive).
+		expect(readLibSource('editor/EditorLeftSidebar.svelte')).toContain(
+			'<div class="sidebar-content" inert={store.isVisitorCameraPreview}>'
+		);
+		expect(readLibSource('editor/app/EditorSidebar.svelte')).toContain(
+			'<div class="sidebar-content" inert={store.isVisitorCameraPreview}>'
+		);
+		// App bars keep only the interaction bar for domain/workspace switching (CH·AA).
+		const appBar = readLibSource('editor/EditorAppBar.svelte');
+		expect(appBar).toContain('canSwitchWorkspace = $derived(!store.isEditorInteractionActive)');
+		expect(appBar).not.toContain('canSwitchWorkspace = $derived(!store.isDocumentMutationBlocked');
+		const appAppBar = readLibSource('editor/app/EditorAppBar.svelte');
+		expect(appAppBar).toContain('const canSwitch = $derived(!store.isEditorInteractionActive)');
+		expect(appAppBar).not.toContain('const canSwitch = $derived(!store.isDocumentMutationBlocked');
+		// Timeline frame resize + toggle are CH·AA (no mutation-blocked term).
+		const frame = readLibSource('editor/camera/EditorCameraTimelineFrame.svelte');
+		expect(frame).not.toContain('isDocumentMutationBlocked');
+		expect(frame).toContain('if (!expanded || store.isEditorInteractionActive) return;');
+		// Director shield is non-blocking (visitor-only pointer-events: auto).
+		for (const source of [
+			readLibSource('editor/EditorViewport.svelte'),
+			readLibSource('editor/app/Workspace3DView.svelte')
+		]) {
+			expect(source).toContain('class:non-blocking={!store.isVisitorCameraPreview}');
+			expect(source).toContain('.preview-shield.non-blocking {');
+			expect(source).toContain('pointer-events: none;');
+		}
+		// Framing handle pose re-gate is playing-visitor-only.
+		const framingHelpers = readLibSource('editor/camera/EditorCameraFramingHelpers.svelte');
+		expect(framingHelpers).toContain(
+			'(store.isVisitorCameraPreview && store.isCameraPreviewPlaying)'
+		);
+		expect(framingHelpers).not.toContain('store.isCameraPreviewPlaying ||');
+		// Room selection is AA (drop the broad mutation gate).
+		const sceneTree = readLibSource('editor/EditorSceneTree.svelte');
+		expect(sceneTree).not.toContain('if (store.isDocumentMutationBlocked) return;');
+		expect(sceneTree).toContain('store.selectionActions.selectRoom(roomId);');
+		// Inspector framing rows use the Inspector framing predicate; document rows
+		// use the AP predicate — neither references the old broad gate.
+		const inspector = readLibSource('editor/camera/EditorCameraInspector.svelte');
+		expect(inspector).not.toContain('store.isDocumentMutationBlocked');
+		expect(inspector).not.toContain('store.isCameraFramingMutationBlocked');
+		expect(inspector).toContain('store.isInspectorFramingBlocked');
+		expect(inspector).toContain('store.isAuthoringPauseBlocked');
+		// Drag entry resolves, pauses, then captures; the transaction opens only
+		// after the threshold. Pin the ordering inside each relevant function.
+		const selectionSource = readLibSource('editor/EditorSelection.svelte');
+		const beginPathPointer = selectionSource.slice(
+			selectionSource.indexOf('function beginPathPointer'),
+			selectionSource.indexOf('function beginDirectPathDrag')
+		);
+		expect(beginPathPointer.indexOf('requestAuthoringPause()')).toBeGreaterThan(-1);
+		expect(beginPathPointer.indexOf('requestAuthoringPause()')).toBeLessThan(
+			beginPathPointer.indexOf('setPointerCapture(event.pointerId)')
+		);
+		const planSource = readLibSource('editor/camera-plan/CameraPlanViewport.svelte');
+		const beginPlanDrag = planSource.slice(
+			planSource.indexOf('function beginDragSession'),
+			planSource.indexOf('function startDragging')
+		);
+		expect(beginPlanDrag.indexOf('requestAuthoringPause()')).toBeGreaterThan(-1);
+		expect(beginPlanDrag.indexOf('requestAuthoringPause()')).toBeLessThan(
+			beginPlanDrag.indexOf('setPointerCapture(event.pointerId)')
+		);
 	});
 
 	// S10.1.4 — timeline derived-loop readout (replaces the dead-end message).
@@ -1609,7 +1683,9 @@ describe('P3B.5 preview affordance source contracts', () => {
 		const inspector3d = readLibSource('editor/camera/EditorCameraInspector.svelte');
 		const edgeActions = readLibSource('editor/camera/EditorCameraEdgePreviewActions.svelte');
 
-		expect(flow).toContain("import { ChevronRight, CirclePlay, Diamond, Link, Unlink, X }");
+		expect(flow).toContain(
+			"import { ChevronDown, ChevronRight, ChevronUp, CirclePlay, Diamond, Link, Unlink, X }"
+		);
 		expect(flow).not.toContain('<Eye ');
 		expect(flow.match(/<CirclePlay /g)).toHaveLength(4);
 		expect(flow).toMatch(

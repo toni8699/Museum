@@ -33,8 +33,9 @@
 			: null
 	);
 	const guidedEditingBlocked = $derived(
+		// P11.2 §3 — AP: tour-order edits stay reachable under a playing Director
+		// preview (the mutator seam auto-pauses); interaction/pending bars remain.
 		!interactive ||
-			store.isDocumentMutationBlocked ||
 			store.isEditorInteractionActive ||
 			store.pendingNavigationCommand !== null
 	);

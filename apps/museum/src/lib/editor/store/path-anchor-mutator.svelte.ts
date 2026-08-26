@@ -51,6 +51,10 @@ export interface EditorPathAnchorMutatorHost {
 	readonly isDocumentMutationBlocked: boolean;
 	readonly isCameraFramingMutationBlocked: boolean;
 	readonly isEditorInteractionActive: boolean;
+	/** P11.2 §8 — auto-pause seam: anchor/path authoring pauses a playing preview first. */
+	requestAuthoringPause(): boolean;
+	/** P11.2 §8 — framing seam: paused previews (either camera) pass; playing pauses (visitor playing refuses). */
+	requestFramingPause(): boolean;
 	/** True while a document/framing transaction is open on the history controller. */
 	readonly historyDocumentUndoBlocked: boolean;
 	/** True while a framing (as opposed to plain document) transaction is open. */
@@ -91,13 +95,11 @@ export class EditorPathAnchorMutator {
 		handle: EditorCameraHandle,
 		point: Vec3
 	) {
-		const mutationBlocked =
-			handle === 'target'
-				? this.host.isCameraFramingMutationBlocked
-				: this.host.isDocumentMutationBlocked;
-		if (mutationBlocked || !isFiniteVec3(point)) {
-			return false;
-		}
+		// P11.2 §8 — node pose writes validate first (finite point, bound handle,
+		// pending-or-in-transaction, real node, non-equal value), then pause a
+		// playing preview before the write (target arm keeps the P1.6 framing
+		// contract — paused visitor passes). Pinned order: validate → seam → write.
+		if (!isFiniteVec3(point)) return false;
 		const selection = this.host.cameraSelection;
 		if (selection?.nodeId !== nodeId || selection.handle !== handle) return false;
 		const pending = this.host.isPendingNavigationNode(nodeId);
@@ -108,6 +110,11 @@ export class EditorPathAnchorMutator {
 		if (!node) return false;
 		const current = handle === 'position' ? node.position : node.cameraTarget;
 		if (vec3Matches(current, point)) return false;
+		const mutationBlocked =
+			handle === 'target'
+				? !this.host.requestFramingPause()
+				: !this.host.requestAuthoringPause();
+		if (mutationBlocked) return false;
 		if (handle === 'position') node.position = [...point];
 		else node.cameraTarget = [...point];
 		return true;
@@ -123,9 +130,9 @@ export class EditorPathAnchorMutator {
 	 * no-op on an equal value.
 	 */
 	updateNavigationNodeTargetPoint(nodeId: string, point: Vec3) {
-		if (this.host.isCameraFramingMutationBlocked || !isFiniteVec3(point)) {
-			return false;
-		}
+		// P11.2 §8 — target-orbit live writes validate first, then pause a playing
+		// preview (framing: paused visitor passes). Pinned order: validate → seam → write.
+		if (!isFiniteVec3(point)) return false;
 		const pending = this.host.isPendingNavigationNode(nodeId);
 		if (!pending && !this.host.historyDocumentUndoBlocked) return false;
 		const node = pending
@@ -133,6 +140,7 @@ export class EditorPathAnchorMutator {
 			: this.host.document.navigationNodes.find((candidate) => candidate.id === nodeId);
 		if (!node) return false;
 		if (vec3Matches(node.cameraTarget, point)) return false;
+		if (!this.host.requestFramingPause()) return false;
 		node.cameraTarget = [...point];
 		return true;
 	}
@@ -142,11 +150,28 @@ export class EditorPathAnchorMutator {
 		handle: EditorCameraHandle,
 		point: Vec3
 	) {
+		// P11.2 §8 — node pose commits: interaction/prohibited first, then the pause
+		// seam (target arm is framing — paused visitor passes; position arm is a
+		// document write — refuses), then begin transaction, then the write.
+		if (this.host.isEditorInteractionActive) return false;
+		if (!isFiniteVec3(point)) return false;
+		const existing = this.host.document.navigationNodes.find(
+			(candidate) => candidate.id === nodeId
+		);
+		if (
+			existing &&
+			vec3Matches(
+				handle === 'position' ? existing.position : existing.cameraTarget,
+				point
+			)
+		) {
+			return false;
+		}
 		const mutationBlocked =
 			handle === 'target'
-				? this.host.isCameraFramingMutationBlocked
-				: this.host.isDocumentMutationBlocked;
-		if (mutationBlocked || this.host.isEditorInteractionActive) return false;
+				? !this.host.requestFramingPause()
+				: !this.host.requestAuthoringPause();
+		if (mutationBlocked) return false;
 		if (this.host.isPendingNavigationNode(nodeId)) {
 			return this.updateNavigationNodePoint(nodeId, handle, point);
 		}
@@ -165,12 +190,13 @@ export class EditorPathAnchorMutator {
 	}
 
 	commitSelectedNodeLabel(label: string) {
-		if (this.host.isDocumentMutationBlocked || this.host.isEditorInteractionActive) {
-			return false;
-		}
+		// P11.2 §8 — commit: interaction + eligibility/no-op first, then the pause
+		// seam before the write. An unchanged/empty/missing-node blur never pauses.
+		if (this.host.isEditorInteractionActive) return false;
 		const node = this.host.selectedNavigationNode;
 		const next = label.trim();
 		if (!node || !next || next === node.label) return false;
+		if (!this.host.requestAuthoringPause()) return false;
 		if (this.host.isPendingNavigationNode(node.id)) {
 			node.label = next;
 			return true;
@@ -181,17 +207,15 @@ export class EditorPathAnchorMutator {
 	}
 
 	commitSelectedNodeFov(fov: number) {
-		if (
-			this.host.isCameraFramingMutationBlocked ||
-			this.host.isEditorInteractionActive ||
-			!Number.isFinite(fov) ||
-			fov < CAMERA_FOV.min ||
-			fov > CAMERA_FOV.max
-		) {
+		// P11.2 §8 — FOV commit: interaction + range/no-op first, then the framing
+		// seam before the write. Invalid/unchanged never pauses.
+		if (this.host.isEditorInteractionActive) return false;
+		if (!Number.isFinite(fov) || fov < CAMERA_FOV.min || fov > CAMERA_FOV.max) {
 			return false;
 		}
 		const node = this.host.selectedNavigationNode;
 		if (!node || Math.abs(node.fov - fov) <= 1e-6) return false;
+		if (!this.host.requestFramingPause()) return false;
 		if (this.host.isPendingNavigationNode(node.id)) {
 			node.fov = fov;
 			return true;
@@ -202,12 +226,9 @@ export class EditorPathAnchorMutator {
 	}
 
 	updateSelectedNodeFov(fov: number) {
-		if (
-			this.host.isCameraFramingMutationBlocked ||
-			!Number.isFinite(fov) ||
-			fov < CAMERA_FOV.min ||
-			fov > CAMERA_FOV.max
-		) {
+		// P11.2 §8 — in-transaction FOV live write: validate/range first, then the
+		// framing seam (already paused under the open transaction). Pinned order.
+		if (!Number.isFinite(fov) || fov < CAMERA_FOV.min || fov > CAMERA_FOV.max) {
 			return false;
 		}
 		const node = this.host.selectedNavigationNode;
@@ -219,6 +240,7 @@ export class EditorPathAnchorMutator {
 			return false;
 		}
 		if (Math.abs(node.fov - fov) <= 1e-6) return false;
+		if (!this.host.requestFramingPause()) return false;
 		node.fov = fov;
 		return true;
 	}
@@ -241,11 +263,12 @@ export class EditorPathAnchorMutator {
 	}
 
 	convertSelectedConnectionToSmooth() {
-		if (this.host.isDocumentMutationBlocked || this.host.isEditorInteractionActive) {
-			return false;
-		}
+		// P11.2 §8 — authoring write: interaction + eligibility first, then the
+		// pause seam before the transaction. No-op/invalid never pauses.
+		if (this.host.isEditorInteractionActive) return false;
 		const connection = this.host.selectedConnection;
 		if (!connection || connection.positionPath.kind === 'auto-bezier') return false;
+		if (!this.host.requestAuthoringPause()) return false;
 		if (!this.host.beginDocumentTransaction()) return false;
 		this.convertConnectionDraft(connection.id);
 		return this.host.commitDocumentTransaction();
@@ -303,13 +326,10 @@ export class EditorPathAnchorMutator {
 	}
 
 	commitSelectedAnchorPoint(point: Vec3) {
-		if (
-			this.host.isDocumentMutationBlocked ||
-			this.host.isEditorInteractionActive ||
-			!isFiniteVec3(point)
-		) {
-			return false;
-		}
+		// P11.2 §8 — anchor commit: interaction + eligibility/no-op first, then the
+		// pause seam before the transaction. Missing/no-op never pauses.
+		if (this.host.isEditorInteractionActive) return false;
+		if (!isFiniteVec3(point)) return false;
 		const selection = this.host.navigationSelection;
 		const anchor = this.host.selectedAnchor;
 		if (
@@ -319,6 +339,7 @@ export class EditorPathAnchorMutator {
 		) {
 			return false;
 		}
+		if (!this.host.requestAuthoringPause()) return false;
 		if (!this.host.beginDocumentTransaction()) return false;
 		this.convertConnectionDraft(selection.connectionId);
 		anchor.position = [...point];
@@ -326,16 +347,18 @@ export class EditorPathAnchorMutator {
 	}
 
 	deleteSelectedAnchor() {
-		if (this.host.isDocumentMutationBlocked || this.host.isEditorInteractionActive) {
-			return false;
-		}
+		// P11.2 §8 — delete: interaction + eligibility first, then the pause seam
+		// before the transaction. Missing selection never pauses.
+		if (this.host.isEditorInteractionActive) return false;
 		const selection = this.host.navigationSelection;
 		const connection = this.host.selectedConnection;
 		if (selection?.kind !== 'anchor' || !connection) return false;
 		const index = connection.positionPath.anchors.findIndex(
 			(anchor) => anchor.id === selection.anchorId
 		);
-		if (index < 0 || !this.host.beginDocumentTransaction()) return false;
+		if (index < 0) return false;
+		if (!this.host.requestAuthoringPause()) return false;
+		if (!this.host.beginDocumentTransaction()) return false;
 		connection.positionPath.anchors.splice(index, 1);
 		// P7.1 — in-transaction reducer write; direction is explicit (the legacy
 		// bridge defaulted to the discovery direction — the reducer requires it).

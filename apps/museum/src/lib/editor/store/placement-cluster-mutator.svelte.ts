@@ -162,7 +162,7 @@ export class EditorPlacementClusterMutator {
 	}
 
 	cancelAssetPlacement(message?: string) {
-		if (this.host.isDocumentMutationBlocked) return false;
+		// P11.2 §8 — session cleanup, no document write (AA); runs during any preview.
 		const changed =
 			this.host.pendingPlacementAssetId !== null ||
 			this.host.pendingPlacementPrimitiveKind !== null ||

@@ -296,6 +296,9 @@
 		session: CameraPlanDragSession
 	): boolean {
 		if (!svgElement) return false;
+		// P11.2 pinned drag order: the hit was resolved by the caller; pause before
+		// pointer capture so visitor refusal never captures and Director auto-pauses.
+		if (!store.requestAuthoringPause()) return false;
 		dragSession = session;
 		svgElement.setPointerCapture(event.pointerId);
 		event.preventDefault();
@@ -304,6 +307,8 @@
 	}
 
 	function startDragging(session: CameraPlanDragSession): boolean {
+		// Pointer entry already paused before capture; crossing the threshold owns
+		// the single document transaction for this drag.
 		if (!store.beginDocumentTransaction()) return false;
 		if (session.kind === 'anchor' && !session.anchorId) {
 			// Direct-path shaping: resolve nearest progress on the exact shared
@@ -417,7 +422,9 @@
 			: null;
 		if (!hit) return;
 
-		const blocked = store.isDocumentMutationBlocked ? 'Preview is active' : null;
+		// P11.2 §3 — camera menus are AP: reachable under a playing Director preview
+		// so their actions auto-pause; visitor/gesture still blocked.
+		const blocked = store.isAuthoringPauseBlocked ? 'Preview is active' : null;
 
 		if (hit.kind === 'node') {
 			event.preventDefault();
@@ -544,8 +551,9 @@
 					cameraPlan.planView.pixelsPerMeter
 			  )
 			: null;
-		const blocked =
-			store.isDocumentMutationBlocked || store.isEditorInteractionActive;
+		// P11.2 §3 — node/anchor drag entry is AP: interaction-only bar; the
+		// mutator seam auto-pauses a playing Director preview.
+		const blocked = store.isEditorInteractionActive;
 
 		if (hit?.kind === 'node') {
 			store.selectionActions.selectNavigationNode(hit.nodeId);

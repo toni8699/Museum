@@ -44,7 +44,9 @@
 	}
 
 	function startResize(event: PointerEvent) {
-		if (!expanded || store.isDocumentMutationBlocked || store.isEditorInteractionActive) return;
+		// P11.2 §3 — CH·AA: timeline resize stays enabled under a playing Director
+		// preview; only an active gesture blocks.
+		if (!expanded || store.isEditorInteractionActive) return;
 		event.preventDefault();
 		resizeStartY = event.clientY;
 		resizeStartHeight = store.timelineHeight;
@@ -115,11 +117,13 @@
 		{:else if expanded}
 			<span class="workspace-label">{store.currentWorkspace} workspace</span>
 		{/if}
+		<!-- P11.2 §3 — CH·AA: the timeline toggle stays enabled under a playing
+		     Director preview; only an active gesture blocks. -->
 		<button
 			type="button"
 			class="toggle"
 			aria-expanded={expanded}
-			disabled={store.isDocumentMutationBlocked || store.isEditorInteractionActive}
+			disabled={store.isEditorInteractionActive}
 			onclick={() => store.toggleTimeline()}
 		>			{#if expanded}
 				<ChevronDown size={14} aria-hidden="true" /> Collapse

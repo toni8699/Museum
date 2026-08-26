@@ -461,7 +461,10 @@
 	// commands. The cosmetic five-lane labels are not menu surfaces.
 
 	function blockedReason(): string | null {
-		return store.isDocumentMutationBlocked ? 'Preview is active' : null;
+		// P11.2 §3 — AP/DEL predicate: the timeline context menu stays reachable
+		// under a playing Director preview (timing/delete auto-pause through the
+		// seam); only a visitor or active gesture shows the reason.
+		return store.isAuthoringPauseBlocked ? 'Preview is active' : null;
 	}
 
 	function onEdgeContextMenu(event: MouseEvent, edge: EditorCameraTimelineEdge): void {

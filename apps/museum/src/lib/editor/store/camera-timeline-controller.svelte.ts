@@ -86,6 +86,10 @@ export interface EditorCameraTimelineControllerHost {
 	readonly isDocumentTransactionActive: boolean;
 	readonly isDocumentMutationBlocked: boolean;
 	readonly pendingNavigationCommand: EditorPendingNavigationCommand;
+	/** P11.2 §8 — auto-pause seam: scrubbing/timing writes pause a playing preview first. */
+	requestAuthoringPause(): boolean;
+	/** P11.2 §8 — framing seam: paused previews (either camera) pass; playing pauses (visitor playing refuses). */
+	requestFramingPause(): boolean;
 
 	// Document + resolved scene / graph.
 	readonly document: SceneDocument;
@@ -185,13 +189,20 @@ export class EditorCameraTimelineController {
 	}
 
 	#canSeekCameraTimeline() {
-		const preview = this.host.cameraPreview;
-		return !(
+		// P11.2 §8 — scrubbing is authoring intent: prohibited-state bars first,
+		// then the framing seam (a playing Director auto-pauses in place; a
+		// playing visitor refuses; a paused visitor stays scrubbable — pinned
+		// Through Camera behavior). Pinned order: prohibited → seam.
+		if (
 			this.host.isEditorInteractionActive ||
 			this.host.pendingNavigationCommand ||
-			this.host.isDocumentTransactionActive ||
-			(preview && preview.transport !== 'paused')
-		);
+			this.host.isDocumentTransactionActive
+		) {
+			return false;
+		}
+		if (!this.host.requestFramingPause()) return false;
+		const preview = this.host.cameraPreview;
+		return !(preview && preview.transport !== 'paused');
 	}
 
 	showCameraTimelineNodePose(nodeId: string) {
@@ -376,8 +387,9 @@ export class EditorCameraTimelineController {
 				(connection.viewTracks?.forward.length ?? 0) > 0 &&
 				(connection.viewTracks?.reverse.length ?? 0) === 0;
 			if (needsSeed) {
+				// P11.2 §8 — edge-travel writes pause a playing preview first.
 				if (
-					this.host.isDocumentMutationBlocked ||
+					!this.host.requestAuthoringPause() ||
 					!this.host.beginDocumentTransaction()
 				) {
 					return false;

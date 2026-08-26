@@ -1226,9 +1226,77 @@ export class EditorStore {
 		return this.mutationGuards.isDocumentMutationBlocked;
 	}
 
+	/**
+	 * P11.2 §8 auto-pause seam for Camera-authoring entry points: visitor
+	 * previews refuse; a playing Director preview pauses in place (session-only,
+	 * physical progress preserved, no history entry, no stop teardown); paused
+	 * previews pass through. Callers keep their own interaction/pending-nav bars
+	 * and must invoke this after those prohibited-state checks and after
+	 * validate/resolve of the target, and always before pointer capture or
+	 * `beginDocumentTransaction()` (so pausing itself never runs under an open
+	 * transaction nor writes history). Unchanged/invalid commits must never
+	 * reach the seam. See plan §2 — pinned order: prohibited checks →
+	 * validate/resolve → seam → begin transaction → write/capture.
+	 */
+	requestAuthoringPause(): boolean {
+		if (this.isVisitorCameraPreview) return false;
+		if (this.cameraPreview && this.cameraPreview.transport !== 'paused') {
+			this.cameraPreviewCommands.pauseCameraPreview();
+		}
+		return true;
+	}
+
+	/**
+	 * P11.2 §8 framing-variant of the auto-pause seam. Framing is editable
+	 * through EITHER camera while paused (P1.6 contract — pinned by the paused
+	 * Through Camera tests), so a paused visitor preview passes through; only a
+	 * *playing* preview goes through the document seam (visitor playing still
+	 * refuses — the director cannot yank a visitor's camera; director playing
+	 * pauses in place).
+	 */
+	requestFramingPause(): boolean {
+		if (this.cameraPreview && this.cameraPreview.transport !== 'paused') {
+			return this.requestAuthoringPause();
+		}
+		return true;
+	}
+
 	/** Framing is editable through either camera while paused, but never during playback. */
 	get isCameraFramingMutationBlocked() {
 		return this.mutationGuards.isCameraFramingMutationBlocked;
+	}
+
+	/**
+	 * P11.2 §3 AP predicate — front for authoring writes that may auto-pause a
+	 * playing Director preview. Lets a playing Director stay clickable so its
+	 * commit can auto-pause; a visitor (paused or playing) and any active
+	 * interaction/transaction disable. AP document fronts only — AA
+	 * selection/inspection must not adopt this; they use the selection-actions
+	 * interaction guard instead.
+	 */
+	get isAuthoringPauseBlocked() {
+		return this.isEditorInteractionActive || this.isVisitorCameraPreview;
+	}
+
+	/**
+	 * P11.2 §3 framing predicate — viewport framing paths only. Mirrors
+	 * `requestFramingPause`: a paused visitor passes, a playing Director stays
+	 * interactive (its drag auto-pauses), a playing visitor blocks.
+	 */
+	get isFramingBlocked() {
+		return (
+			this.isEditorInteractionActive ||
+			(this.isVisitorCameraPreview && this.isCameraPreviewPlaying)
+		);
+	}
+
+	/**
+	 * P11.2 §3 Inspector framing predicate — Inspector camera-framing rows
+	 * only. A playing Director stays editable (commit auto-pauses); a visitor
+	 * (paused or playing) disables to match the visitor-`inert` sidebar.
+	 */
+	get isInspectorFramingBlocked() {
+		return this.isEditorInteractionActive || this.isVisitorCameraPreview;
 	}
 
 	get isEditorInteractionActive() {
@@ -1404,9 +1472,11 @@ export class EditorStore {
 
 	/** Leave an anchor without changing the document or its history. */
 	finishAnchorEditing() {
-		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive || this.pendingNavigationCommand) {
+		if (this.isEditorInteractionActive || this.pendingNavigationCommand) {
 			return false;
 		}
+		// P11.2 — resolve/validate the anchor selection first: a stale or missing
+		// anchor never pauses a playing preview.
 		const selection = this.selectionStore.navigation;
 		if (selection.kind !== 'anchor') return false;
 		const connection = this.document.connections.find(
@@ -1415,6 +1485,7 @@ export class EditorStore {
 		if (!connection?.positionPath.anchors.some((anchor) => anchor.id === selection.anchorId)) {
 			return false;
 		}
+		if (!this.requestAuthoringPause()) return false;
 		// Slice 4: finishing anchor editing rolls back to a connection selection.
 		this.selection.setNavigation({
 			kind: 'connection',
@@ -1485,7 +1556,7 @@ export class EditorStore {
 	}
 
 	focusNavigationNode(id: string) {
-		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
+		if (this.isEditorInteractionActive) return false;
 		if (!this.document.navigationNodes.some((node) => node.id === id)) return false;
 		this.cancelPendingFrame();
 		this.session.setCameraFocus('navigation-node', null, id);
@@ -1494,7 +1565,6 @@ export class EditorStore {
 
 	consumeCameraFocus(version: number) {
 		if (
-			this.isDocumentMutationBlocked ||
 			version !== this.cameraFocusVersion ||
 			!this.cameraFocusKind
 		) {
@@ -1878,7 +1948,6 @@ export class EditorStore {
 
 	focusRoom(id: RoomId) {
 		if (
-			this.isDocumentMutationBlocked ||
 			this.isEditorInteractionActive ||
 			(this.isRelic && id !== 'paris') ||
 			!this.rooms.has(id)
@@ -1891,7 +1960,7 @@ export class EditorStore {
 	}
 
 	focusPlacement(id: string) {
-		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive || !this.isPlacementSelectable(id)) {
+		if (this.isEditorInteractionActive || !this.isPlacementSelectable(id)) {
 			return false;
 		}
 		this.cancelPendingFrame();
@@ -1901,7 +1970,6 @@ export class EditorStore {
 
 	focusSelection() {
 		if (
-			this.isDocumentMutationBlocked ||
 			this.isEditorInteractionActive ||
 			this.selectedPlacementIds.length === 0
 		) {
@@ -1964,7 +2032,6 @@ export class EditorStore {
 	/** Phase 1.1 — switch editor workspace. Stops any active camera preview when leaving Camera. */
 	setWorkspace(workspace: EditorWorkspace) {
 		if (this.relicMode && workspace === 'layout') return false;
-		if (this.isDocumentMutationBlocked) return false;
 		if (this.viewKeyframeProgressDrag) {
 			this.cancelViewKeyframeProgressDrag();
 		}
@@ -1985,7 +2052,7 @@ export class EditorStore {
 
 	/** Phase 1.1 — switch the persistent left sidebar tab. */
 	setLeftPanel(panel: EditorLeftPanel) {
-		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
+		if (this.isEditorInteractionActive) return false;
 		if (panel === this.leftPanel) return false;
 		if (this.leftPanel === 'assets' && panel === 'scene') {
 			this.cancelAssetPlacement();
@@ -1996,14 +2063,14 @@ export class EditorStore {
 
 	/** Phase 1.1 — bottom timeline panel collapse/expand state. */
 	setTimelineExpanded(value: boolean) {
-		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
+		if (this.isEditorInteractionActive) return false;
 		this.timelineExpanded = Boolean(value);
 		return true;
 	}
 
 	/** Phase 1.1 — clamped timeline height in CSS pixels. */
 	setTimelineHeight(value: number) {
-		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
+		if (this.isEditorInteractionActive) return false;
 		if (typeof value !== 'number' || !Number.isFinite(value)) return false;
 		const nextHeight = Math.min(
 			EDITOR_TIMELINE_MAX_HEIGHT,
@@ -2014,28 +2081,28 @@ export class EditorStore {
 	}
 
 	toggleTimeline() {
-		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
+		if (this.isEditorInteractionActive) return false;
 		this.timelineExpanded = !this.timelineExpanded;
 		return true;
 	}
 
 	/** Phase 1.1 — toggle a room card's expansion in the sidebar tree. */
 	toggleRoomTreeExpansion(roomId: RoomId) {
-		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
+		if (this.isEditorInteractionActive) return false;
 		this.session.toggleRoomExpanded(roomId);
 		return true;
 	}
 
 	/** Phase 1.1 — toggle a cluster row's expansion in the sidebar tree. */
 	toggleClusterTreeExpansion(clusterId: string) {
-		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
+		if (this.isEditorInteractionActive) return false;
 		this.session.toggleClusterExpanded(clusterId);
 		return true;
 	}
 
 	/** Phase 1.1 — collapse a cluster row without affecting other rows. */
 	removeClusterTreeExpansion(clusterId: string) {
-		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
+		if (this.isEditorInteractionActive) return false;
 		if (this.session.treeExpandedClusterIds.includes(clusterId)) {
 			this.session.treeExpandedClusterIds = this.session.treeExpandedClusterIds.filter(
 				(candidate) => candidate !== clusterId
@@ -2049,16 +2116,16 @@ export class EditorStore {
 		return new Set(this.clusters.flatMap((cluster) => cluster.memberIds));
 	}
 
-	/** Phase 1.1 — additive helper for inspector grouping actions that need to reveal a cluster. */
+	/** Phase 1.1 — additive helper for inspector grouping actions that need to reveal a room. */
 	ensureRoomTreeExpanded(roomId: RoomId) {
-		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
+		if (this.isEditorInteractionActive) return false;
 		this.selection.expandRoom(roomId);
 		return true;
 	}
 
 	/** Phase 1.1 — additive helper for inspector grouping actions that need to reveal a cluster. */
 	ensureClusterTreeExpanded(clusterId: string) {
-		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
+		if (this.isEditorInteractionActive) return false;
 		this.selection.expandCluster(clusterId);
 		return true;
 	}
@@ -2083,7 +2150,6 @@ export class EditorStore {
 
 	setNavigationHover(connectionId: string | null, anchorId: string | null = null) {
 		if (
-			this.isDocumentMutationBlocked ||
 			this.pendingPlacementAssetId ||
 			this.pendingPlacementPrimitiveKind ||
 			this.pendingPlacementLightKind ||
@@ -2293,7 +2359,7 @@ export class EditorStore {
 	}
 
 	cyclePlacement(ids: string[]) {
-		if (this.isDocumentMutationBlocked || this.isEditorInteractionActive) return false;
+		if (this.isEditorInteractionActive) return false;
 		const selectableIds = ids.filter((id) => this.isPlacementSelectable(id));
 		const next = nextPlacementCycleId(this.selectedPlacementId, selectableIds);
 		if (next === undefined) return false;

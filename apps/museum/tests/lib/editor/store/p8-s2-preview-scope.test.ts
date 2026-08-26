@@ -57,14 +57,21 @@ describe('P8 S2 explicit preview scopes', () => {
 		expect(store.statusMessage).toMatch(/Unknown|unavailable/i);
 	});
 
-	it('select-edge while sequence playing → seek blocked + previewSelectedConnection no-ops', () => {
+	it('select-edge while sequence playing → seek auto-pauses then proceeds (P11.2 CTC AP)', () => {
 		const store = createFixtureEditorStore();
 		store.setWorkspace('camera');
 		expect(store.previewSequence('director')).toBe(true);
 		expect(store.cameraPreview?.transport).toBe('playing');
-		expect(store.seekCameraTimeline(0.2)).toBe(false);
-		expect(store.previewSelectedConnection('forward')).toBe(false);
-		expect(store.cameraPreview?.kind).toBe('sequence');
+		// P11.2 — scrubbing is authoring intent: the playing Director sequence
+		// auto-pauses in place, then the seek proceeds at the requested progress.
+		expect(store.seekCameraTimeline(0.2)).toBe(true);
+		expect(store.cameraPreview?.transport).toBe('paused');
+		expect(store.cameraTimelinePlayhead).toBeCloseTo(0.2, 6);
+		// P11.1 — with playback no longer exclusive, the explicit edge command
+		// switches the paused sequence into the selected edge scope. The default
+		// visitor mode installs the edge as *playing* (P1.1 mode rule).
+		expect(store.previewSelectedConnection('forward')).toBe(true);
+		expect(store.cameraPreview?.kind).toBe('edge');
 		expect(store.cameraPreview?.transport).toBe('playing');
 	});
 

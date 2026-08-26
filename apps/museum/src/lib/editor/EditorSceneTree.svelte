@@ -37,7 +37,8 @@
 	}
 
 	function selectRoom(roomId: RoomId) {
-		if (store.isDocumentMutationBlocked) return;
+		// P11.2 §3 — room selection is AA inspection: a playing Director preview
+		// does not block it (the store's selection action owns its own guards).
 		store.selectionActions.selectRoom(roomId);
 		if (roomId === 'paris') store.focusRoom('paris');
 	}

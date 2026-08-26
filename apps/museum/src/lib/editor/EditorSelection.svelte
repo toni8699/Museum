@@ -320,8 +320,10 @@
 		if (
 			event.altKey ||
 			store.currentWorkspace !== 'camera' ||
-			store.isCameraFramingMutationBlocked ||
-			store.isEditorInteractionActive ||
+			// P11.2 §3 — framing handles stay hittable under a playing Director
+			// preview (the drag auto-pauses through the framing seam); only a
+			// playing visitor and active interactions block the hit.
+			store.isFramingBlocked ||
 			store.pendingPlacementAssetId ||
 			store.pendingPlacementPrimitiveKind ||
 			store.pendingPlacementLightKind ||
@@ -527,7 +529,9 @@
 		if (
 			event.altKey ||
 			store.currentWorkspace !== 'camera' ||
-			store.isDocumentMutationBlocked ||
+			// P11.2 §3 — keyframe selection is AA: a playing Director preview must
+			// stay hittable so the drag can auto-pause; the store seam still
+			// refuses visitors.
 			store.isEditorInteractionActive ||
 			store.pendingPlacementAssetId ||
 			store.pendingPlacementPrimitiveKind ||
@@ -602,7 +606,8 @@
 	function activePathHit(event: PointerEvent): PathHit | null {
 		if (
 			event.altKey ||
-			store.isDocumentMutationBlocked ||
+			// P11.2 §3 — path selection is AA: a playing Director preview stays
+			// selectable so authoring can auto-pause through the seam.
 			store.pendingPlacementAssetId ||
 			store.pendingPlacementPrimitiveKind ||
 			store.pendingPlacementLightKind ||
@@ -670,7 +675,8 @@
 	function updateLayoutHover(event: PointerEvent) {
 		if (!onLayoutHover) return;
 		if (
-			store.isDocumentMutationBlocked ||
+			// P11.2 §3 — hover is inspection (AA); a playing Director preview does
+			// not clear it. Placement/gesture/Alt bars stay.
 			isFloorPlacementActive() ||
 			transformControls?.dragging ||
 			transformControls?.axis ||
@@ -759,6 +765,9 @@
 			dragPlaneNormal,
 			new Vector3(...initialWorld)
 		);
+		// P11.2 pinned drag order: resolve target, pause, then capture. A visitor
+		// refusal never captures the pointer; a playing Director pauses in place.
+		if (!store.requestAuthoringPause()) return false;
 		canvas.setPointerCapture(event.pointerId);
 		event.preventDefault();
 		event.stopImmediatePropagation();
@@ -766,6 +775,8 @@
 	}
 
 	function beginDirectPathDrag(active: PathPointerSession) {
+		// The pointer-entry path already paused before capture; open the transaction
+		// only after the drag threshold is crossed.
 		if (!store.beginDocumentTransaction()) return false;
 		if (!active.anchorId) {
 			store.selectionActions.selectConnection(active.connectionId);
@@ -837,7 +848,6 @@
 	}
 
 	function applySelectionFromPointer(event: PointerEvent) {
-		if (store.isDocumentMutationBlocked) return;
 		const currentCamera = camera.current;
 		if (!currentCamera) return;
 
@@ -1043,7 +1053,8 @@
 
 		const framingHit = activeFramingHandleHit(event);
 		if (framingHit && beginFramingPointer(event, framingHit)) return;
-		if (store.isDocumentMutationBlocked) return;
+		// P11.2 §3 — selection stays reachable under a playing Director preview
+		// (AA); the guarded hit/begin paths handle the rest.
 
 		const viewKeyframeHit = activeViewKeyframeHit(event);
 		if (

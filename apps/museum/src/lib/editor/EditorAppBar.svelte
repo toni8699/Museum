@@ -18,9 +18,10 @@
 	} = $props();
 
 	const workspace = $derived(store.currentWorkspace);
-	const canSwitchWorkspace = $derived(
-		!store.isDocumentMutationBlocked && !store.isEditorInteractionActive
-	);
+	// P11.2 §3 — CH·AA: workspace switching is chrome and stays enabled under a
+	// playing Director preview (leaving the camera workspace stops it via the
+	// existing setWorkspace teardown); only an active gesture blocks.
+	const canSwitchWorkspace = $derived(!store.isEditorInteractionActive);
 	const dirty = $derived(store.isDirty);
 	const sceneHistoryEnabled = $derived(true);
 	const canPreviewTour = $derived(

@@ -85,7 +85,10 @@
 	function framingPose() {
 		if (
 			store.currentWorkspace !== 'camera' ||
-			store.isCameraPreviewPlaying ||
+			// P11.2 §3 — handles render under a playing Director preview so the
+			// drag can auto-pause through the framing seam; only a playing
+			// visitor keeps them hidden (framing is locked there).
+			(store.isVisitorCameraPreview && store.isCameraPreviewPlaying) ||
 			store.pendingPlacementAssetId ||
 			store.pendingPlacementPrimitiveKind ||
 			store.pendingPlacementLightKind

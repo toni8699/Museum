@@ -115,6 +115,11 @@ export interface EditorControllerHostSource {
 	pendingPlacementPrimitiveKind: ScenePrimitiveKind | null;
 	pendingPlacementLightKind: SceneLightKind | null;
 
+	// P11.2 §8 — auto-pause seam for Camera authoring (visitor→refuse, director playing→pause).
+	requestAuthoringPause(): boolean;
+	// P11.2 §8 — framing seam: paused previews (either camera) pass; playing pauses (visitor playing refuses).
+	requestFramingPause(): boolean;
+
 	// Facade methods the host literals call back into.
 	isPendingNavigationNode(nodeId: string): boolean;
 	connectPendingNavigationNode(destinationNodeId: string): boolean;
@@ -244,7 +249,9 @@ export function createControllerHosts(
 		setCameraPreviewPlayhead: (progress: number) =>
 			source.setCameraPreviewPlayhead(progress),
 		installSelectionPreviewScope: (target, options) =>
-			source.installSelectionPreviewScope(target, options)
+			source.installSelectionPreviewScope(target, options),
+		requestAuthoringPause: () => source.requestAuthoringPause(),
+		requestFramingPause: () => source.requestFramingPause()
 	} satisfies EditorSelectionActionsHost;
 
 	const navigationGraph = {
@@ -349,7 +356,8 @@ export function createControllerHosts(
 				connectionId,
 				direction,
 				playhead
-			)
+			),
+		requestAuthoringPause: () => source.requestAuthoringPause()
 	} satisfies EditorNavigationGraphMutatorHost;
 
 	const viewKeyframe = {
@@ -442,7 +450,9 @@ export function createControllerHosts(
 				connectionId,
 				direction,
 				keyframeId
-			)
+			),
+		requestAuthoringPause: () => source.requestAuthoringPause(),
+		requestFramingPause: () => source.requestFramingPause()
 	} satisfies EditorViewKeyframeControllerHost;
 
 	const cameraTimeline = {
@@ -513,7 +523,9 @@ export function createControllerHosts(
 		getTimeline: () => source.previewController.getTimeline(),
 		cancelAssetPlacement: (message?: string) => source.cancelAssetPlacement(message),
 		cancelPendingFrame: () => source.cancelPendingFrame(),
-		clearCameraFocusRequest: () => source.session.clearCameraFocusRequest()
+		clearCameraFocusRequest: () => source.session.clearCameraFocusRequest(),
+		requestAuthoringPause: () => source.requestAuthoringPause(),
+		requestFramingPause: () => source.requestFramingPause()
 	} satisfies EditorCameraTimelineControllerHost;
 
 	const placementCluster = {
@@ -626,7 +638,9 @@ export function createControllerHosts(
 		beginDocumentTransaction: () => source.beginDocumentTransaction(),
 		beginCameraFramingTransaction: () => source.beginCameraFramingTransaction(),
 		commitDocumentTransaction: () => source.commitDocumentTransaction(),
-		cancelDocumentTransaction: () => source.cancelDocumentTransaction()
+		cancelDocumentTransaction: () => source.cancelDocumentTransaction(),
+		requestAuthoringPause: () => source.requestAuthoringPause(),
+		requestFramingPause: () => source.requestFramingPause()
 	} satisfies EditorPathAnchorMutatorHost;
 
 	const materialResource = {

@@ -113,8 +113,8 @@ review of the P11 UX findings; it supersedes the conflicting P11.2–P11.4 rows
 (visitor seek refusal, selection-driven scope install, edge mini-shell,
 capsule/dense-row annex, swap pose preservation, Escape teardown) per its §9
 migration table and schedules four implementation slices (§10) on top of the
-P11.4 + bug-fix baseline. P11.5 regression/contract reconciliation closes the
-reconciliation, not P12 slices.
+P11.4 + bug-fix baseline. P11.5 shipped before the freeze, so **P12 itself
+owns canonical-doc reconciliation and browser-QA closeout** (§10 S5).
 
 P1 **closed 2026-08-22** — shipped 2026-08-21 with all increments through
 **P1.9** (camera sidebar simplification: neighbor dropdown · drag-only reorder

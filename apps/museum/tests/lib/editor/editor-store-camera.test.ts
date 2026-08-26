@@ -373,7 +373,24 @@ describe('EditorStore Phase 6 camera nodes', () => {
 		expect(store.undo()).toBe(false);
 		expect(store.redo()).toBe(false);
 		expect(store.beginDocumentTransaction()).toBe(false);
-		expect(store.selectionActions.selectNavigationNode('tour-d')).toBe(false);
+		// P11.1 migration — Camera selection during playback auto-pauses into
+		// the selected scope instead of being blocked (supersedes P8 D1/S5; the
+		// full transition matrix lives in p11-s1-selection-scope). Resume edge
+		// playback afterwards so this matrix keeps exercising playing guards.
+		expect(store.selectionActions.selectNavigationNode('tour-d')).toBe(true);
+		expect(store.cameraPreview).toMatchObject({
+			kind: 'camera',
+			nodeId: 'tour-d',
+			// §6 — scope transitions preserve the active Observer/Through Camera
+			// mode; the playing edge here was entered as visitor.
+			mode: 'visitor',
+			transport: 'paused'
+		});
+		expect(
+			store.selectionActions.selectCameraConnectionDirection('tour-paris-d', 'forward')
+		).toBe(true);
+		expect(store.playCameraPreview()).toBe(true);
+		expect(store.cameraPreview?.transport).toBe('playing');
 		// Phase 3.6 unlocks framing handle edits while Through Camera is paused.
 		// While the preview plays, even the 'target' handle is locked down.
 		expect(store.selectionActions.selectCameraHandle('target')).toBe(false);
@@ -984,8 +1001,9 @@ describe('EditorStore Director preview', () => {
 		expect(store.cameraPreview?.transport).toBe('playing');
 		expect(store.isDocumentMutationBlocked).toBe(true);
 		expect(store.beginDocumentTransaction()).toBe(false);
-		expect(store.selectionActions.selectNavigationNode(connection.fromNodeId)).toBe(false);
-
+		// P11.1 migration — playing previews no longer block Camera selection
+		// (supersedes P8 D1/S5); pause explicitly and continue the matrix on a
+		// paused Director, which remains fully mutation-capable.
 		expect(store.pauseCameraPreview()).toBe(true);
 		expect(store.isDocumentMutationBlocked).toBe(false);
 		expect(store.selectionActions.selectNavigationNode(connection.fromNodeId)).toBe(true);
@@ -1675,7 +1693,14 @@ describe('EditorStore Phase 2.1 persistent camera discovery', () => {
 		expect(store.isCameraKeyHelpersActive).toBe(true);
 
 		expect(store.selectionActions.selectNavigationNode('tour-paris')).toBe(true);
-		expect(store.cameraPreview).toBeNull();
+		// P11.1 migration — selection installs its matching paused scope rather
+		// than leaving the preview store untouched (supersedes P8 D1/P3B Group C).
+		expect(store.cameraPreview).toMatchObject({
+			kind: 'camera',
+			nodeId: 'tour-paris',
+			mode: 'director',
+			transport: 'paused'
+		});
 		expect(store.previewCamera('tour-paris', 'visitor')).toBe(true);
 		expect(store.cameraPreview).toMatchObject({
 			kind: 'camera',
@@ -2014,26 +2039,22 @@ describe('EditorStore Phase 2.3 whole guided-tour playback', () => {
 });
 
 describe('EditorStore Phase 3.1 selection and primary Play parity', () => {
-	it('keeps node selection independent from playhead and named camera preview scope', () => {
+	it('P11.1 migration — node selection drives the named scope; re-selection stays idempotent', () => {
 		const store = createFixtureEditorStore();
 		store.setWorkspace('camera');
 		expect(store.seekCameraTimeline(0.37)).toBe(true);
 		expect(store.stopCameraPreview()).toBe(true);
 
 		expect(store.selectionActions.selectNavigationNode('tour-paris')).toBe(true);
-		expect(store.cameraTimelinePlayhead).toBe(0.37);
-		expect(store.cameraPreview).toBeNull();
-		expect(store.previewCamera('tour-paris', 'director')).toBe(true);
 		expect(store.cameraPreview).toMatchObject({
 			kind: 'camera',
 			nodeId: 'tour-paris',
 			mode: 'director',
 			transport: 'paused'
 		});
-		expect(store.cameraFocusKind).toBeNull();
-		const runId = store.cameraPreview!.runId;
+		expect(store.cameraFocusKind).toBe('navigation-node');
+	const runId = store.cameraPreview!.runId;
 		const recenterVersion = store.cameraPreviewRecenterVersion;
-		const previewPlayhead = store.cameraTimelinePlayhead;
 
 		expect(store.selectionActions.selectNavigationNode('tour-paris')).toBe(false);
 		expect(store.cameraPreview!.runId).toBe(runId);
@@ -2042,15 +2063,15 @@ describe('EditorStore Phase 3.1 selection and primary Play parity', () => {
 		expect(store.selectionActions.selectNavigationNode('tour-d')).toBe(true);
 		expect(store.cameraPreview).toMatchObject({
 			kind: 'camera',
-			nodeId: 'tour-paris',
+			nodeId: 'tour-d',
 			mode: 'director',
 			transport: 'paused'
 		});
-		expect(store.cameraTimelinePlayhead).toBe(previewPlayhead);
-		expect(store.cameraPreviewRecenterVersion).toBe(recenterVersion);
+		expect(store.cameraPreview!.runId).not.toBe(runId);
+		expect(store.cameraPreviewRecenterVersion).toBe(recenterVersion + 1);
 	});
 
-	it('keeps connection selection independent; explicit edge actions own direction and scope', () => {
+	it('P11.1 migration — connection selection owns scope; explicit actions still own direction', () => {
 		const store = createFixtureEditorStore();
 		store.setWorkspace('camera');
 		const connection = store.document.connections[0]!;
@@ -2060,16 +2081,12 @@ describe('EditorStore Phase 3.1 selection and primary Play parity', () => {
 		expect(
 			store.selectionActions.selectCameraConnectionDirection(connection.id, 'forward')
 		).toBe(true);
-		expect(store.cameraPreview).toBeNull();
-		expect(store.cameraTimelinePlayhead).toBe(0.29);
-		expect(store.previewEdge(connection.id, 'forward', 'director')).toBe(true);
 		expect(store.cameraPreview).toMatchObject({
 			kind: 'edge',
 			connectionId: connection.id,
 			direction: 'forward',
 			mode: 'director',
-			transport: 'paused',
-			playhead: 0
+			transport: 'paused'
 		});
 		const runId = store.cameraPreview!.runId;
 		const recenterVersion = store.cameraPreviewRecenterVersion;
@@ -2083,13 +2100,20 @@ describe('EditorStore Phase 3.1 selection and primary Play parity', () => {
 		expect(
 			store.selectionActions.selectCameraConnectionDirection(connection.id, 'reverse')
 		).toBe(true);
+		// P11.1 migration — direction is now part of the selection-driven scope:
+		// selecting the same edge in the other direction follows canonical
+		// selection instead of being ignored (explicit actions remain available
+		// and still own direction for preview-only flows).
 		expect(store.cameraPreview).toMatchObject({
 			kind: 'edge',
 			connectionId: connection.id,
-			direction: 'forward',
-			playhead: 0
+			direction: 'reverse',
+			fromNodeId: connection.toNodeId,
+			toNodeId: connection.fromNodeId,
+			mode: 'director',
+			transport: 'paused'
 		});
-		expect(store.cameraPreviewRecenterVersion).toBe(recenterVersion);
+		expect(store.cameraPreview!.runId).not.toBe(runId);
 
 		const timeline = store.getCameraTimeline()!;
 		const edge = timeline.edges.find(
@@ -2101,7 +2125,9 @@ describe('EditorStore Phase 3.1 selection and primary Play parity', () => {
 		expect(
 			store.selectCameraTimelineEdge(connection.id, 'reverse', edgeMiddle)
 		).toBe(true);
-		expect(store.cameraPreviewRecenterVersion).toBe(directionRecenterVersion + 1);
+		// P11.1 — a pose seek on the already-selected scope reuses the installed
+		// preview: no recenter, only the playhead moves.
+		expect(store.cameraPreviewRecenterVersion).toBe(directionRecenterVersion);
 
 		const otherEdge = timeline.edges.find(
 			(candidate) => candidate.connectionId !== connection.id
@@ -2112,7 +2138,8 @@ describe('EditorStore Phase 3.1 selection and primary Play parity', () => {
 				otherEdge.direction,    otherEdge.motionStartSeconds / timeline.durationSeconds
 			)
 		).toBe(true);
-		expect(store.cameraPreviewRecenterVersion).toBe(directionRecenterVersion + 2);
+		// A cross-edge transition installs a new scope and recenters once.
+		expect(store.cameraPreviewRecenterVersion).toBe(directionRecenterVersion + 1);
 
 		store.stopCameraPreview();
 		expect(store.focusNavigationNode('tour-paris')).toBe(true);

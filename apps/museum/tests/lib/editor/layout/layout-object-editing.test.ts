@@ -30,6 +30,11 @@ describe('layout object editing', () => {
 			position: [1, 3.5, 2],
 			dimensions: [10, 1, 10]
 		});
+		// Sphere center rests one footprint-radius above the floor (round render).
+		expect(primitiveObjectGeometry('sphere', [1, 2], [4, 6], 3)).toEqual({
+			position: [1, 8, 2],
+			dimensions: [10, 1, 10]
+		});
 		expect(primitiveObjectGeometry('sphere', [1, 2], [1, 2], 0)).toBeNull();
 	});
 
@@ -64,17 +69,21 @@ describe('layout object editing', () => {
 	});
 
 	it('derives sampled bounds and footprints from exact primitive transforms', () => {
+		// Sphere geometry correction — spheres render/pick at their X/Z footprint
+		// diameter on every axis (`sphereRenderScale`); the stored Y extent is a
+		// legacy placement height, not an ellipsoid axis. The former pin asserted
+		// the squashed raw-dims ellipsoid (the "pancake" bug).
 		const sphere = describeLayoutObject({
 			id: 'sphere',
 			kind: 'sphere',
-			position: [0, 0.5, 0],
+			position: [0, 2, 0],
 			rotation: [0, Math.PI / 2, 0],
 			dimensions: [4, 1, 2]
 		});
-		expect(sphere.worldAabb.min[0]).toBeCloseTo(-1, 5);
-		expect(sphere.worldAabb.max[0]).toBeCloseTo(1, 5);
+		expect(sphere.worldAabb.min[0]).toBeCloseTo(-2, 5);
+		expect(sphere.worldAabb.max[0]).toBeCloseTo(2, 5);
 		expect(sphere.worldAabb.min[1]).toBeCloseTo(0, 5);
-		expect(sphere.worldAabb.max[1]).toBeCloseTo(1, 5);
+		expect(sphere.worldAabb.max[1]).toBeCloseTo(4, 5);
 		expect(sphere.worldAabb.min[2]).toBeCloseTo(-2, 5);
 		expect(sphere.worldAabb.max[2]).toBeCloseTo(2, 5);
 

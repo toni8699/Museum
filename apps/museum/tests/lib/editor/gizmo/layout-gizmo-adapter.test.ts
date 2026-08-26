@@ -15,12 +15,18 @@
 
 import { describe, expect, it } from 'vitest';
 import { Object3D } from 'three';
+import { EditorInteractionStore } from '$lib/editor/store/editor-interaction-store.svelte';
+import {
+	EditorGizmoHostController,
+	type EditorGizmoHostControls
+} from '$lib/editor/gizmo/editor-gizmo-host-controller';
 import { createEditorStore } from '$lib/editor/editor-store.svelte';
 import { createEmptyProject } from '$lib/project/project-codec';
 import { createLayoutRoomRegistry } from '$lib/project/project-layout-semantics';
 import {
 	captureLayoutPreviewSnapshot,
 	commitLayoutDraftRoom,
+	commitLayoutObject,
 	commitLayoutOpening,
 	createEmptyLayoutPreviewState,
 	layoutPreviewCanonicalJson,
@@ -28,6 +34,7 @@ import {
 } from '$lib/editor/layout/layout-preview-state.svelte';
 import {
 	createLayoutInteractionState,
+	selectLayoutObject,
 	selectLayoutOpening,
 	selectLayoutRoom
 } from '$lib/editor/layout/layout-interaction';
@@ -117,6 +124,158 @@ function moveProxyX(input: ReturnType<typeof setup>, dx: number): void {
 		input.proxy.position.x + dx;
 	input.proxy.updateMatrixWorld(true);
 }
+
+function setupLayoutObject() {
+	const input = setup();
+	const created = commitLayoutObject(
+		input.layoutPreview,
+		'box',
+		[2, 0.5, 1.5],
+		input.roomId
+	);
+	if (!created.success) throw new Error(`object failed: ${created.message}`);
+	selectLayoutObject(input.layoutInteraction, created.objectId);
+	return { ...input, objectId: created.objectId };
+}
+
+function makeHostControls(): EditorGizmoHostControls & {
+	attachedObject: Object3D | null;
+	attachCount: number;
+} {
+	const controls = {
+		camera: new Object3D(),
+		attachedObject: null as Object3D | null,
+		attachCount: 0,
+		axis: null as string | null,
+		dragging: false,
+		enabled: true,
+		mode: 'translate',
+		space: 'world' as 'local' | 'world',
+		showX: true,
+		showY: true,
+		showZ: true,
+		translationSnap: 0,
+		rotationSnap: 0,
+		scaleSnap: 0,
+		attach(object: Object3D) {
+			this.attachedObject = object;
+			this.attachCount += 1;
+		},
+		detach() {
+			this.attachedObject = null;
+		},
+		reset() {},
+		dispose() {},
+		pointerUp(_state: unknown) {},
+		addEventListener(_type: string, _listener: (event?: unknown) => void) {},
+		removeEventListener(_type: string, _listener: (event?: unknown) => void) {}
+	};
+	return controls;
+}
+
+function makeLayoutHost(mode: { value: 'translate' | 'rotate' | 'scale' }) {
+	const interaction = new EditorInteractionStore();
+	const controls = makeHostControls();
+	const orbit = { enabled: true };
+	const host = new EditorGizmoHostController({
+		controls,
+		getOrbit: () => orbit,
+		getMode: () => mode.value,
+		getSnapPreferences: () => ({
+			translationSnap: 0.1,
+			rotationSnapDegrees: 15,
+			scaleSnap: 0.1,
+			translationSnapEnabled: false,
+			rotationSnapEnabled: false
+		}),
+		dispatch: (event) => interaction.dispatch(event),
+		recomputeCursor: () => {},
+		invalidate: () => {}
+	});
+	return { host, controls };
+}
+
+function dragWithHost(
+	host: EditorGizmoHostController,
+	controls: ReturnType<typeof makeHostControls>,
+	axis: string,
+	mutate: () => void
+): void {
+	controls.axis = axis;
+	controls.dragging = true;
+	host.onControlsMouseDown();
+	host.onDraggingChanged(true);
+	mutate();
+	host.onControlsObjectChange(axis);
+	host.onControlsMouseUp();
+	controls.dragging = false;
+	host.onDraggingChanged(false);
+}
+
+describe('layout-gizmo-adapter — sequential object transforms', () => {
+	it('keeps authored dimensions when scale is followed by a move-tool drag', () => {
+		const input = setupLayoutObject();
+		const mode: { value: 'translate' | 'rotate' | 'scale' } = { value: 'scale' };
+		const { host, controls } = makeLayoutHost(mode);
+		const first = makeAdapter(input);
+		first.adapter.prepare?.();
+		host.setAdapter(first.adapter);
+
+		dragWithHost(host, controls, 'XYZ', () => {
+			input.proxy.scale.set(2, 3, 4);
+			input.proxy.updateMatrixWorld(true);
+		});
+		expect(input.layoutPreview.project.layout.objects[0]!.dimensions).toEqual([2, 3, 4]);
+
+		// The shell resolves a new descriptor after the scale commit. The
+		// shared proxy and compiled identity remain the same, so the host's
+		// same-target fast path keeps its old adapter unless this is fixed.
+		const refreshed = makeAdapter(input);
+		refreshed.adapter.prepare?.();
+		host.setAdapter(refreshed.adapter);
+		mode.value = 'translate';
+		host.refreshConfiguration();
+
+		dragWithHost(host, controls, 'X', () => {
+			input.proxy.position.x += 0.5;
+			input.proxy.updateMatrixWorld(true);
+		});
+
+		const object = input.layoutPreview.project.layout.objects[0]!;
+		expect(object.position[0]).toBeCloseTo(2.5);
+		expect(object.dimensions).toEqual([2, 3, 4]);
+	});
+
+	it('keeps authored dimensions when scale is followed by a rotate-tool drag', () => {
+		const input = setupLayoutObject();
+		const mode: { value: 'translate' | 'rotate' | 'scale' } = { value: 'scale' };
+		const { host, controls } = makeLayoutHost(mode);
+		const first = makeAdapter(input);
+		first.adapter.prepare?.();
+		host.setAdapter(first.adapter);
+
+		dragWithHost(host, controls, 'XYZ', () => {
+			input.proxy.scale.set(2, 3, 4);
+			input.proxy.updateMatrixWorld(true);
+		});
+		expect(input.layoutPreview.project.layout.objects[0]!.dimensions).toEqual([2, 3, 4]);
+
+		const refreshed = makeAdapter(input);
+		refreshed.adapter.prepare?.();
+		host.setAdapter(refreshed.adapter);
+		mode.value = 'rotate';
+		host.refreshConfiguration();
+
+		dragWithHost(host, controls, 'Y', () => {
+			input.proxy.rotation.y = Math.PI / 2;
+			input.proxy.updateMatrixWorld(true);
+		});
+
+		const object = input.layoutPreview.project.layout.objects[0]!;
+		expect(object.rotation[1]).toBeCloseTo(Math.PI / 2);
+		expect(object.dimensions).toEqual([2, 3, 4]);
+	});
+});
 
 describe('layout-gizmo-adapter — session lifecycle', () => {
 	it('refuses begin while a scene document transaction is open (no session, no history)', () => {

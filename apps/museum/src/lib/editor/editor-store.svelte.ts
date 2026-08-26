@@ -145,6 +145,7 @@ import type {
 	EditorTransformInteractionKind,
 	EditorPendingMaterialEdit,
 	EditorTextureLoadState,
+	EditorSelectionPreviewScopeRequest,
 	MaterialEditDecision,
 	MaterialInstancePatch
 } from './editor-types';
@@ -1821,6 +1822,25 @@ export class EditorStore {
 
 	getCapturedCameraPreviewRoute(runId: number) {
 		return this.cameraPreviewCommands.getCapturedCameraPreviewRoute(runId);
+	}
+
+	/**
+	 * P11.1 — true only inside the `stopCameraPreview` restore ritual.
+	 * Bars selection-driven scope entries from re-entering mid-teardown;
+	 * read by `selectionActions` through the controller host.
+	 */
+	isCameraPreviewStopping = false;
+
+	/**
+	 * P11.1 — selection-driven preview scope seam. Called by
+	 * `selectionActions` after a Camera node/connection selection commits;
+	 * installs the matching paused scope without Stop teardown.
+	 */
+	installSelectionPreviewScope(
+		target: EditorSelectionPreviewScopeRequest,
+		options?: { preservePreviewObserver?: boolean }
+	) {
+		return this.cameraPreviewCommands.installSelectionScope(target, options);
 	}
 
 	/** S2 — explicit Preview Edge entry, snapshots Sequence playhead first. */

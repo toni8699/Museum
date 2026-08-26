@@ -80,6 +80,16 @@ export type EditorCameraPreview =
 
 export type PreviewScope = 'camera' | 'edge' | 'sequence';
 
+/**
+ * P11.1 — selection-driven preview scope request. Session-only orchestration
+ * input (never serialized): the canonical Camera selection asks the preview
+ * commands layer to install the matching paused scope. Sequence is
+ * deliberately absent — it stays an explicit whole-route entry.
+ */
+export type EditorSelectionPreviewScopeRequest =
+	| { kind: 'camera'; nodeId: string }
+	| { kind: 'edge'; connectionId: string; direction: CameraConnectionDirection };
+
 // =====================================================================
 // Pending navigation command + workspace + panel chrome (god file lines
 // 182-203). Single discriminated union; "kind === 'place-camera'" lives at

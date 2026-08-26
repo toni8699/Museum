@@ -36,6 +36,7 @@ import type {
 } from './editor-gizmo-contract';
 import {
 	deriveLayoutGizmoDelta,
+	resolveLayoutGizmoTarget,
 	type LayoutGizmoDelta,
 	type LayoutGizmoProxyPose,
 	type LayoutGizmoTargetDescriptor
@@ -106,9 +107,22 @@ export function createLayoutGizmoAdapter(
 		prepare: () => applyProxyPose(proxy, descriptor.proxyPose),
 		begin() {
 			if (!input.store.beginLayoutTransaction()) return null;
-			applyProxyPose(proxy, descriptor.proxyPose);
+			// The host's same-target fast path retains this adapter across
+			// commits (a refreshed descriptor never replaces it: same compiled
+			// key + shared proxy), so the captured baseline can be stale after a
+			// prior transform — a scale-then-move drag would derive dimensions
+			// from the pre-scale baseline and revert them. Re-resolve against
+			// the canonical layout at drag start; fall back to the captured
+			// descriptor only when the identity no longer resolves.
+			const fresh = resolveLayoutGizmoTarget(
+				input.layoutPreview.project.layout,
+				input.layoutPreview.geometry,
+				input.layoutInteraction.selection
+			);
+			const active = fresh && fresh.key === descriptor.key ? fresh : descriptor;
+			applyProxyPose(proxy, active.proxyPose);
 			input.store.setTransformInteractionActive(true, 'layout');
-			return makeLayoutSession(input);
+			return makeLayoutSession({ ...input, descriptor: active });
 		}
 	};
 }

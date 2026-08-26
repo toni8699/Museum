@@ -4,6 +4,7 @@ import {
 	getCameraEdgePreviewChoices,
 	getCameraPreviewScopeLabel
 } from '$lib/editor/camera/editor-camera-preview-affordances';
+import { cameraTimelineProgressAtEdgePlayhead } from '$lib/editor/camera/editor-camera-timeline';
 import { createFixtureEditorStore } from '../editor-test-utils';
 
 describe('P3B.5 camera preview affordances', () => {
@@ -79,17 +80,35 @@ describe('P3B.5 camera preview affordances', () => {
 		expect(store.navigationSelection).toEqual(selection);
 	});
 
-	it('normal camera and connection selection preserves the timeline playhead', () => {
+	it('P11.1 migration — selection installs paused scopes and the ruler follows the scope', () => {
 		const store = createFixtureEditorStore();
 		store.setWorkspace('camera');
 		expect(store.seekCameraTimeline(0.41)).toBe(true);
-		const playhead = store.cameraTimelinePlayhead;
 		const node = store.document.navigationNodes.at(-1)!;
 		expect(store.selectionActions.selectNavigationNode(node.id)).toBe(true);
-		expect(store.cameraTimelinePlayhead).toBe(playhead);
+		// Selection now installs the matching paused Camera scope…
+		expect(store.cameraPreview).toMatchObject({
+			kind: 'camera',
+			nodeId: node.id,
+			transport: 'paused'
+		});
+		// …and the global ruler follows the installed scope (supersedes the
+		// P3B.5 "selection preserves the playhead" rule).
+		expect(store.cameraTimelinePlayhead).toBeGreaterThanOrEqual(0);
 		const connection = store.document.connections[0]!;
 		expect(store.selectionActions.selectConnection(connection.id)).toBe(true);
-		expect(store.cameraTimelinePlayhead).toBe(playhead);
+		expect(store.cameraPreview).toMatchObject({
+			kind: 'edge',
+			connectionId: connection.id,
+			direction: 'forward',
+			transport: 'paused',
+			playhead: 0
+		});
+		const timeline = store.getCameraTimeline();
+		expect(timeline).not.toBeNull();
+		expect(store.cameraTimelinePlayhead).toBe(
+			cameraTimelineProgressAtEdgePlayhead(timeline!, connection.id, 'forward', 0)
+		);
 	});
 
 	it('an explicit sequence action replaces a playing edge preview without selecting it', () => {

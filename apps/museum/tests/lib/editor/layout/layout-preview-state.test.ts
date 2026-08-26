@@ -439,7 +439,7 @@ describe('layout preview state', () => {
 		expect(commitLayoutPrimitive(state, 'sphere', center, center, room.id, true).success).toBe(false);
 	});
 
-	it('keeps sphere height, stored center, model bounds, and JSON geometry unified', () => {
+	it('keeps sphere diameter render, resting stored center, model bounds, and JSON geometry unified', () => {
 		const state = createLayoutPreviewState(chopinProject.layout, sceneDocument);
 		const room = state.project.layout.floors[0]!.rooms[0]!;
 		const center = room.boundary.segments.reduce(
@@ -452,16 +452,20 @@ describe('layout preview state', () => {
 		if (!created.success) return;
 		const stored = state.project.layout.objects.find((object) => object.id === created.objectId)!;
 		const descriptor = state.model.objects.find((object) => object.objectId === created.objectId)!;
-		expect(stored).toMatchObject({ position: [center[0], 0.5, center[1]], dimensions: [4, 1, 4] });
+		// Sphere geometry correction — placement stores the round-sphere center
+		// (floor + radius) and pick/AABB samples use the X/Z footprint diameter
+		// on every axis (`sphereRenderScale`); the stored Y extent stays legacy.
+		expect(stored).toMatchObject({ position: [center[0], 2, center[1]], dimensions: [4, 1, 4] });
 		expect(descriptor.worldAabb.min[1]).toBeCloseTo(0);
-		expect(descriptor.worldAabb.max[1]).toBeCloseTo(1);
+		expect(descriptor.worldAabb.max[1]).toBeCloseTo(4);
 		expect(serializeLayoutDocument(state.project.layout)).toContain('"dimensions": [');
 		expect(state.reframeVersion).toBe(reframeVersion);
 
+		// Y-dimension edits do not distort the sphere (legacy stored extent).
 		expect(updateLayoutObjectFields(state, created.objectId, { dimensions: [4, 2, 4] }).success).toBe(true);
 		const resized = state.model.objects.find((object) => object.objectId === created.objectId)!;
-		expect(resized.worldAabb.min[1]).toBeCloseTo(-0.5);
-		expect(resized.worldAabb.max[1]).toBeCloseTo(1.5);
+		expect(resized.worldAabb.min[1]).toBeCloseTo(0);
+		expect(resized.worldAabb.max[1]).toBeCloseTo(4);
 		expect(state.reframeVersion).toBe(reframeVersion);
 	});
 

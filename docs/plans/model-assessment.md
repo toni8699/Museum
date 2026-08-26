@@ -93,7 +93,7 @@ success percentages.
 | **P8.S4** | 57 | Sol medium | shipped — timeline and transport integration |
 | **P8.S5** | 54 | Luna xhigh | shipped — interaction matrix and preservation |
 | **P8.S6** | 38 | Luna medium | shipped — bounded terminology/contract cleanup |
-| **P11.1** | 79 | Sol high | open — selection→scope transition seam; supersedes shipped P8 D1/S5 contracts; no selection↔preview cycle; Sequence-playing pause without teardown |
+| **P11.1** | 79 | Sol high | shipped (uncommitted 2026-08-25) — selection→scope seam; superseded-contract tests migrated by name; 2 pre-existing baseline failures remain (not P11.1) |
 | **P11.2** | 84 | Sol high | open — mutation-gate pre-inventory (~100 `isDocumentMutationBlocked` sites, 9 files) then auto-pause seam; one-gesture-one-transaction + auto-pause-before-pointer-capture invariants; failure corrupts history |
 | **P11.3** | 65 | Sol medium | open — scope-aware timeline shell; panel/ruler/controller exposure collapse, shared Plan/3D mount preserved |
 | **P11.4** | 67 | Sol medium | open — compact controls parity across Timeline/Inspector/Plan/3D; wires orphaned edge APIs |

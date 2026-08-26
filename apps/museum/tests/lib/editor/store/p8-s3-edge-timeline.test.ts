@@ -59,6 +59,10 @@ describe('P8 S3 edge-local timeline — C—E unsequenced scenario', () => {
 		const connId = addFreeNodeWithConnection(document);
 		const store = createEditorStore({ document, rooms: chopinRuntime.rooms });
 		store.selectionActions.selectConnection(connId);
+		// P11.1 migration — selection itself now installs a paused scope, so the
+		// idle candidate state is reached by stopping that selection-driven
+		// preview (discovery/selection is retained).
+		expect(store.stopCameraPreview()).toBe(true);
 		const api = useCameraTimeline(store);
 		// No preview yet — candidate mode
 		expect(store.cameraPreview).toBeNull();
@@ -122,7 +126,7 @@ describe('P8 S3 scrub-vs-play parity — distinct instances same captured route'
 });
 
 describe('P8 S3 active-preview precedence', () => {
-	it('with connection preview active, edgeTimeline resolves preview id+dir not selection', () => {
+	it('P11.1 migration — selecting another connection switches the edge scope; hook follows canonical selection', () => {
 		const document = cloneFixtureDocument();
 		const connFree = addFreeNodeWithConnection(document);
 		const store = createEditorStore({ document, rooms: chopinRuntime.rooms });
@@ -130,14 +134,16 @@ describe('P8 S3 active-preview precedence', () => {
 		// Start preview for first connection (tour-a-b)
 		expect(store.previewEdge(firstConn, 'forward', 'director')).toBe(true);
 		expect(store.cameraPreview?.kind).toBe('edge');
-		// Select different connection (free)
+		// Select different connection (free) — P11.1: selection IS the scope
+		// transition now, superseding P8 S3's preview-over-selection precedence.
 		store.selectionActions.selectConnection(connFree);
 		expect(store.activeCameraConnectionId).toBe(connFree);
 		const api = useCameraTimeline(store);
-		// Edge timeline should still be for preview's connection, not selection
-		expect(api.edgeTimeline?.connectionId).toBe(firstConn);
-		expect(api.edgeEndpoints?.fromNodeId).toBe(store.cameraPreview?.kind === 'edge' ? (store.cameraPreview as any).fromNodeId : null);
-		// After installing preview for free, it switches
+		expect(api.edgeTimeline?.connectionId).toBe(connFree);
+		expect(api.edgeEndpoints?.fromNodeId).toBe(
+			store.cameraPreview?.kind === 'edge' ? (store.cameraPreview as any).fromNodeId : null
+		);
+		// Explicit direction choice still owns direction on the selected scope
 		expect(store.previewEdge(connFree, 'reverse', 'director')).toBe(true);
 		const api2 = useCameraTimeline(store);
 		expect(api2.edgeTimeline?.connectionId).toBe(connFree);
@@ -152,8 +158,10 @@ describe('P8 S3 disabled-state contract at hook level', () => {
 		const apiIdle = useCameraTimeline(store);
 		// No preview and no selection → no timeline
 		expect(apiIdle.edgeTimeline).toBeNull();
-		// Select connection idle
+		// Select connection idle — P11.1 migration: this installs a paused
+		// scope, so stop it to reach the no-preview candidate state under test.
 		store.selectionActions.selectConnection(connId);
+		expect(store.stopCameraPreview()).toBe(true);
 		const apiCandidate = useCameraTimeline(store);
 		expect(apiCandidate.edgeScrubDisabled).toBe(true);
 		expect(apiCandidate.edgeReverseDisabled).toBe(true);

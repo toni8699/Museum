@@ -42,6 +42,7 @@ import type {
 	EditorClusterTreeSelectionOptions,
 	EditorPendingNavigationCommand,
 	EditorPlacementTreeSelectionOptions,
+	EditorSelectionPreviewScopeRequest,
 	EditorWorkspace,
 	NavigationSelection
 } from '../editor-types';
@@ -108,6 +109,15 @@ export interface EditorSelectionActionsHost {
 	readonly cameraSelection: EditorCameraSelection | null;
 	readonly currentWorkspace: EditorWorkspace;
 	readonly cameraPreview: EditorCameraPreview;
+	/** P11.1 — true inside the stop/restore ritual; bars selection re-entrancy. */
+	readonly isCameraPreviewStopping: boolean;
+	/**
+	 * P11.1 review fix — hoisted from the scope seam so both Camera selectors
+	 * reject at entry instead of committing the reducer write and then failing
+	 * the install mid-way. Unreachable via sync transactions today, but the
+	 * asymmetry contradicted "failed install leaves selection intact".
+	 */
+	readonly isDocumentTransactionActive: boolean;
 	readonly activeCameraConnectionId: string | null;
 	readonly activeCameraDirection: CameraConnectionDirection;
 	readonly navigationSelection: EditorNavigationSelection;
@@ -132,6 +142,17 @@ export interface EditorSelectionActionsHost {
 	isPlacementSelectable(id: string): boolean;
 	getCapturedCameraPreviewRoute(runId: number): ResolvedCameraRoute | null;
 	setCameraPreviewPlayhead(progress: number): boolean;
+	/**
+	 * P11.1 — selection-driven scope seam. Implemented by the composition
+	 * root over `cameraPreviewCommands.installSelectionScope` (host callback,
+	 * not a controller import, so no selection↔preview module cycle).
+	 * Supersedes P8 D1 / P3B Group C "selection never changes preview scope":
+	 * Camera node/connection selection now installs the matching paused scope.
+	 */
+	installSelectionPreviewScope(
+		target: EditorSelectionPreviewScopeRequest,
+		options?: { preservePreviewObserver?: boolean }
+	): boolean;
 }
 
 export class EditorSelectionActions {
@@ -157,7 +178,19 @@ export class EditorSelectionActions {
 	// ===================================================================
 
 	selectNavigationNode(id: string) {
-		if (this.host.isDocumentMutationBlocked || this.host.isEditorInteractionActive) return false;
+		// P11.1 — selection is always available while a preview is active
+		// (playing previews are replaced below, not blocked). Supersedes the
+		// broad `isDocumentMutationBlocked` gate for Camera selection only;
+		// mutators keep their guards (P11.2 owns the operation split). The
+		// stop/restore ritual stays selection-barred (re-entrancy), and an open
+		// transaction bars entry here rather than failing the seam mid-install.
+		if (
+			this.host.isEditorInteractionActive ||
+			this.host.isDocumentTransactionActive ||
+			this.host.isCameraPreviewStopping
+		) {
+			return false;
+		}
 		if (
 			this.host.pendingNavigationCommand?.kind === 'connect-existing' ||
 			(this.host.pendingNavigationCommand?.kind === 'connect-pending-node' &&
@@ -172,7 +205,13 @@ export class EditorSelectionActions {
 		if (!node) return false;
 
 		const current = this.host.cameraSelection;
-		if (current?.nodeId === id && current.handle === 'position') return false;
+		if (current?.nodeId === id && current.handle === 'position') {
+			// P11.1 — unchanged node selection is a no-op only while the matching
+			// Camera scope is installed; a diverged preview falls through to the
+			// selection-driven seam below.
+			const preview = this.host.cameraPreview;
+			if (preview?.kind === 'camera' && preview.nodeId === id) return false;
+		}
 
 		this.host.cancelAssetPlacement();
 		this.host.cancelPendingFrame();
@@ -185,6 +224,11 @@ export class EditorSelectionActions {
 			this.host.setStatusMessage('Adjust camera pose, then choose its first connection');
 		} else if (current?.nodeId !== id) {
 			this.host.focusNavigationNode(id);
+		}
+		// P11.1 — selecting a Camera enters paused static Camera scope. Pending
+		// (uncommitted) nodes have no document identity to preview.
+		if (!this.host.isPendingNavigationNode(id)) {
+			this.host.installSelectionPreviewScope({ kind: 'camera', nodeId: id });
 		}
 		return true;
 	}
@@ -222,11 +266,16 @@ export class EditorSelectionActions {
 		direction: CameraConnectionDirection,
 		options: { preservePreviewObserver?: boolean } = {}
 	) {
-		const allowPausedPreviewScrub =
-			options.preservePreviewObserver && this.host.cameraPreview?.transport === 'paused';
+		// P11.1 — `isDocumentMutationBlocked` no longer gates Camera selection:
+		// selection during any preview state is authoring intent and the scope
+		// seam below auto-replaces (never Stop-tears-down) the active scope.
+		// `preservePreviewObserver` forwards to the seam so scrub-driven
+		// transitions keep Follow/recenter framing (P8 S3 parity). An open
+		// transaction bars entry here rather than failing the seam mid-install.
 		if (
-			(this.host.isDocumentMutationBlocked && !allowPausedPreviewScrub) ||
 			this.host.isEditorInteractionActive ||
+			this.host.isDocumentTransactionActive ||
+			this.host.isCameraPreviewStopping ||
 			this.host.pendingNavigationCommand
 		) {
 			return false;
@@ -241,16 +290,28 @@ export class EditorSelectionActions {
 			this.selection.discoveryDirection === direction &&
 			this.selection.navigation.kind === 'connection'
 		) {
-			return false;
+			// P11.1 — an unchanged selection is a no-op ONLY when the installed
+			// scope already matches. A playing/mismatched preview still needs the
+			// seam (e.g. selecting the edge under the Sequence playhead while it
+			// plays must transition scope even though selection is unchanged).
+			const preview = this.host.cameraPreview;
+			const scopeCurrent =
+				preview?.kind === 'edge' &&
+				preview.connectionId === connectionId &&
+				preview.direction === direction &&
+				preview.transport !== 'playing';
+			if (scopeCurrent) return false;
 		}
 		this.host.cancelAssetPlacement();
 		this.host.cancelPendingFrame();
 		this.host.clearCameraFocusRequest();
 		this.selection.setNavigation({ kind: 'connection', connectionId, direction });
 		this.expandActiveCameraDirection(direction);
-		// P3B.5: normal selection is selection-only. Timeline marker/ruler
-		// commands own explicit seek and pose sampling; selecting topology never
-		// resets the playhead or changes preview scope.
+		// P11.1 — selecting an Edge enters paused local Edge scope; scope
+		// follows canonical selection (no independent active-edge identity).
+		// Timeline marker/ruler commands still own explicit seek and pose
+		// sampling; the seam's idempotent path keeps their installs intact.
+		this.host.installSelectionPreviewScope({ kind: 'edge', connectionId, direction }, options);
 		return true;
 	}
 

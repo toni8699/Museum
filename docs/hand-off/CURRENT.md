@@ -5,8 +5,47 @@ slice plus one next action only.
 
 ## Working tree
 
-- Current delta: **P3B is in progress; P3B.1–P3B.6 are shipped, and P11 is
-  the next implementation slice.** P3B.4 adds the pure cardinal snap sampler in the
+- Current delta: **Layout bugfixes on top of P11.1 (2026-08-25,
+  uncommitted).** (1) Sequential-transform loss: the gizmo host's
+  same-target fast path retains the pre-commit adapter, so scale→move/rotate
+  derived dimensions from the stale baseline and reverted them;
+  `layout-gizmo-adapter` `begin()` now re-resolves the descriptor against the
+  canonical layout at drag start (fallback to captured descriptor when the
+  identity no longer resolves); the two `layout-gizmo-adapter`
+  sequential-transform pins that were failing red now pass. (2) Sphere
+  pancake: spheres render/pick/AABB at their X/Z footprint diameter on every
+  axis (`sphereRenderScale` moved to `$lib/layout/layout-geometry-objects`,
+  re-exported by `layout-object-editing`; wired into `transformedSphereSamples`
+  + `LayoutPreviewScene`), and Plan placement stores the resting center
+  (floor + radius). Legacy documents with old centers may sit slightly off;
+  Y-dimension edits no longer distort spheres. Golden object-matrix digest and
+  three pinned sphere tests migrated as intentional geometry corrections.
+- Previous delta: **P11.1 — selection-driven scope seam — implemented
+  2026-08-25 (uncommitted).** Camera node/connection selection now installs
+  the matching paused preview scope through a new host seam
+  (`selectionActions → installSelectionPreviewScope → cameraPreviewCommands.
+  installSelectionScope`), superseding P8 D1 / P3B Group C and the P8 S5
+  leave-Sequence-playing rule. Seam contract: resolve route before mutating
+  (failed installs leave the current scope untouched); never autoplay; pause
+  Sequence by scope replacement with `lastSequencePlayhead` snapshot, no
+  `stopCameraPreview()` teardown; current-edge handoff maps local progress
+  only when the global ruler sits inside the selected edge's span
+  (`cameraTimelineEdgePlayheadAtProgress` clamps, so the span check is the
+  staleness gate); idempotent for matching paused scopes; re-selecting the
+  playing edge pauses it in place; Observer/Through mode preserved on scope
+  switches, director on idle entry; scrub-driven selects forward
+  `preservePreviewObserver` to keep Follow framing and skip recenter.
+  Explicit entries: `previewSelectedConnection` now blocks only on *playing*
+  previews (paused selection-scopes are ordinary authoring state);
+  `previewSelectedNode`/`previewEdge`/`previewSequence` unchanged. Selection
+  guards dropped `isDocumentMutationBlocked` but bar the new
+  `isCameraPreviewStopping` window (stop/restore re-entrancy).
+- Migrated superseded pins (renamed/commented as P11.1 migrations):
+  Phase 3.1 parity pair, guards matrix, Director-blocks-mutations, Phase 2.1
+  helpers visibility, both Phase 2.2 scrub tests, P3B.5 playhead-preservation,
+  three P8 S3 hook-level tests. New suite:
+  `tests/lib/editor/store/p11-s1-selection-scope.test.ts` (12 cases).
+- P3B.1–P3B.6 remain shipped in tree (see previous slices below); P3B.4 adds the pure cardinal snap sampler in the
   camera-motion authority (320ms ease-out great-circle direction/distance/up
   plus a target-blend channel for fallback-replaced targets), the exported
   two-phase resolution split consumed by both commit paths, projector-driven
@@ -57,21 +96,32 @@ slice plus one next action only.
 
 ## Next action
 
-- Start **P11.1 — Contract and state-transition seam** from
-  [`../plans/2026-08-25-P11-camera-timeline-preview-ux-redesign.md`](../plans/2026-08-25-P11-camera-timeline-preview-ux-redesign.md).
-  Keep P3B.7a/P3B.8 preview QA blocked until the P11 selection-driven scope
-  semantics are implemented and verified.
+- **P11.2 — Mutation policy / paused authoring**, starting with the mutation-
+  gate pre-inventory annex (~100 `isDocumentMutationBlocked` sites) per P11 §11.
+  Outstanding before P11 close: §15 contract reconciliation in
+  `camera-tour.md` + shell/design specs. P3B.7a/P3B.8 QA stays blocked until
+  P11 semantics settle.
 
 ## Verification
 
-- Last known verification: `npm test` 2,156 passed / 1 skipped across 158
-  files; `npm run check` 0 errors / 0 warnings; `npm run build` clean with
-  existing third-party unused-import and chunk-size warnings; `git diff --check`
-  clean.
-- Browser QA accepted P3B.3: exact six-face-then-axis Tab order, proxy cues,
-  hover/focus/pressed/active states, keyboard activation, pointer capture,
-  >4px cancellation, and ≤4px snapping pass. Widget-scoped axe: 0 violations;
-  one manual contrast review on token-driven SVG text.
+- Working tree (P11.1 + review fixes + layout bugfixes): `npm run check`
+  0 errors / 0 warnings. `npm test`: **2 failures remain and both are
+  pre-existing on the pre-P11.1 tree** (`editor-store-camera > rejects guided
+  and disconnecting connection deletion…`, `app/contracts > keeps pending
+  navigation intact…`). The earlier concurrent layout/sphere golden +
+  preview-state failures are resolved by the layout bugfixes above.
+  Owner triage pending on the two pre-existing rows.
+- New coverage: `tests/lib/editor/store/p11-s1-selection-scope.test.ts`
+  (15 cases incl. edge canUndo, stop→select re-entrancy bars, and the
+  failed-install-does-not-snapshot ordering pin);
+  `layout-gizmo-adapter` sequential-transform pins now green;
+  sphere diameter contract pinned in `layout-object-editing`,
+  `layout-preview-state`, and the regenerated `layout-geometry-golden`
+  object-matrix digest (sphere-only diff).
+- Browser QA accepted P3B.3 earlier: exact six-face-then-axis Tab order,
+  proxy cues, hover/focus/pressed/active states, keyboard activation, pointer
+  capture, >4px cancellation, ≤4px snapping pass. Widget-scoped axe:
+  0 violations.
 
 ## Known bugs / deferred
 
@@ -109,6 +159,21 @@ slice plus one next action only.
   must not call the handoff.
 - P3B.3 target hysteresis state must persist across projection snapshots; do
   not derive hit mode or proxy fallback from one frame in isolation.
+- P11.1 seam ordering: resolve the route BEFORE any preview mutation — a
+  failed install must leave the current scope intact. The edge local-progress
+  handoff needs an explicit span check (`getEditorCameraTimelineLocation`);
+  `cameraTimelineEdgePlayheadAtProgress` clamps out-of-span positions to 0/1
+  and never rejects. Selection during `stopCameraPreview` is barred via
+  `isCameraPreviewStopping`, not the broad mutation gate.
+- P11.1 review-fix policy: transaction/stopping bars live at SELECTOR entry
+  (no reducer-commit-then-fail). If edge route resolution fails after the
+  reducer write, selection stays canonical with NO scope; status explains and
+  the next successful action repairs — never roll navigation back.
+  Second review round: `lastSequencePlayhead` snapshot happens only AFTER
+  seam validation (a failed install no longer clobbers the saved playhead),
+  and `isCameraPreviewStopping` spans the whole `stopCameraPreview` body
+  (keyframe-drag cancel → framing-cancel → restore → clear), single
+  try/finally.
 - Camera means guided PerspectiveCamera navigation, never webcam.
 
 ## Non-negotiables

@@ -1,7 +1,7 @@
 # P11 — Camera Timeline / Preview UX redesign
 
 **Date:** 2026-08-25
-**Status:** proposed — next implementation slice after P3B.6
+**Status:** in-progress — P11.1 implemented 2026-08-25 (uncommitted; see `hand-off/CURRENT.md`)
 **Tracker:** [`docs/plans/README.md`](README.md) — **P11**, depends on: P8 + P3B.5; P3B.6 is closed and remaining P3B QA follows P11
 **Placement decision:** a new P11 follow-up, scheduled immediately after closed P3B.6 and ahead of the remaining P3B preview-affordance QA and further Camera visual polish. This is a planning decision; no implementation is included.
 

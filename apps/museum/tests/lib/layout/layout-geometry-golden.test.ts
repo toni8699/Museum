@@ -12957,12 +12957,12 @@ describe('G1 fixture goldens', () => {
 			      "worldAabb": {
 			        "max": [
 			          7.6,
-			          0.9,
+			          1.1,
 			          3.6,
 			        ],
 			        "min": [
 			          6.4,
-			          0.1,
+			          -0.1,
 			          2.4,
 			        ],
 			      },

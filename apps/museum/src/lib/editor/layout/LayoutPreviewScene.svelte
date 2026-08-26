@@ -20,8 +20,9 @@
 		WALL_MATERIAL_DEFAULT
 	} from './layout-wall-material';
 	import type { CompiledLayoutGeometry } from '$lib/layout/layout-geometry-types';
-	import type { IndexedWallMesh } from '$lib/layout/wall-mesh-builder';
-	import type { LayoutGizmoCandidateBundle } from '../gizmo/layout-gizmo-candidate';
+import type { IndexedWallMesh } from '$lib/layout/wall-mesh-builder';
+import { sphereRenderScale } from './layout-object-editing';
+import type { LayoutGizmoCandidateBundle } from '../gizmo/layout-gizmo-candidate';
 	import {
 		buildWallHighlightMesh,
 		matchOpeningRanges,
@@ -339,7 +340,7 @@
 				castShadow
 				receiveShadow
 				scale={object.kind === 'sphere'
-					? object.dimensions
+					? sphereRenderScale(object.dimensions)
 					: object.kind === 'cylinder'
 						? [1, 1, object.dimensions[2] / object.dimensions[0]]
 						: [1, 1, 1]}

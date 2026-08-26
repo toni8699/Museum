@@ -55,6 +55,7 @@ import type { EditorCameraSelection, EditorNavigationSelection } from '../editor
 import type {
 	EditorCameraPreview,
 	EditorCameraPreviewMode,
+	EditorSelectionPreviewScopeRequest,
 	EditorViewKeyframeProgressDragSelection
 } from '../editor-types';
 import type { CameraConnectionDirection } from '$lib/types/scene';
@@ -114,6 +115,14 @@ export interface EditorCameraPreviewCommandsHost {
 	// already declared above (the whole-facade cast stays a compile wall only
 	// for the members still on the facade).
 	timelineExpanded: boolean;
+
+	/**
+	 * P11.1 — true only inside the `stopCameraPreview` restore ritual. The
+	 * old broad mutation gate incidentally blocked selection during that
+	 * re-entrant window; selection-driven scope entries must stay blocked
+	 * there too, without re-barring ordinary paused-preview selection.
+	 */
+	isCameraPreviewStopping: boolean;
 
 	// Facade methods the orchestration calls back into.
 	setStatusMessage(message: string | null): void;
@@ -359,7 +368,17 @@ export class EditorCameraPreviewCommands {
 		mode: EditorCameraPreviewMode = 'visitor'
 	) {
 		const host = this.host;
-		if (host.cameraPreview || host.isEditorInteractionActive) return false;
+		// P11.1 — selection-driven entries install paused scopes as ordinary
+		// authoring state, so an existing PAUSED/complete preview no longer
+		// blocks this explicit command (it switches, mirroring `previewEdge`).
+		// Only active playback keeps exclusive pose ownership (§5).
+		if (
+			host.cameraPreview?.transport === 'playing' ||
+			host.isEditorInteractionActive ||
+			host.isCameraPreviewStopping
+		) {
+			return false;
+		}
 		const connection = host.selectedConnection;
 		if (!connection) {
 			host.setStatusMessage('Select a camera connection to preview');
@@ -549,6 +568,199 @@ export class EditorCameraPreviewCommands {
 			playhead,
 			startedAtMs: null
 		};
+		host.timelineExpanded = true;
+		return true;
+	}
+
+	/**
+	 * P11.1 — selection-driven paused scope install (supersedes P8 D1 / P3B
+	 * Group C "selection never changes preview scope"). Canonical Camera
+	 * node/connection selection is authoring intent: a playing Sequence or
+	 * Edge is replaced — not Stop-torn-down — by the selected paused scope,
+	 * snapshotting `lastSequencePlayhead` when leaving Sequence so an explicit
+	 * Preview Sequence can restore it later.
+	 *
+	 * Contract:
+	 * - never autoplays; installs `director` + `paused` (the authorable surface)
+	 * - resolves the route before mutating anything — failure leaves the
+	 *   current preview untouched (no partial installs, §9)
+	 * - idempotent for the matching paused scope (no new runId/playhead reset);
+	 *   selecting the currently-playing edge pauses it in place
+	 * - edge entry maps local progress from the global Sequence playhead when
+	 *   that ruler position falls inside the selected edge, else starts at 0
+	 * - no document/history writes and no full `stopCameraPreview()` teardown
+	 *
+	 * Failure-after-commit policy (§9): if route resolution fails after the
+	 * caller has already committed canonical selection, selection STAYS
+	 * committed and simply has no installed scope — the status message reports
+	 * why and the next successful scope-changing action repairs it. Selection
+	 * is never rolled back here; that would create a second reconciliation
+	 * rule competing with the reducer's canonical truth.
+	 */
+	installSelectionScope(
+		target: EditorSelectionPreviewScopeRequest,
+		options: { preservePreviewObserver?: boolean } = {}
+	): boolean {
+		const host = this.host;
+		if (
+			host.isEditorInteractionActive ||
+			host.isDocumentTransactionActive ||
+			host.isCameraPreviewStopping
+		) {
+			return false;
+		}
+		const current = host.cameraPreview;
+		let endpoints: { fromNodeId: string; toNodeId: string } | null = null;
+
+		// Idempotent paths — scope already reflects canonical selection.
+		if (current && target.kind === 'camera' && current.kind === 'camera') {
+			if (current.nodeId === target.nodeId) return true;
+		}
+		if (current && target.kind === 'edge' && current.kind === 'edge') {
+			if (
+				current.connectionId === target.connectionId &&
+				current.direction === target.direction
+			) {
+				if (current.transport === 'playing') {
+					// Selecting the playing edge pauses it where it is.
+					return host.previewController.pause();
+				}
+				return true;
+			}
+		}
+
+		// Resolve first — never tear down on a failed install. The Sequence
+		// playhead snapshot below happens only AFTER validation: snapshotting
+		// on a failed install would clobber the saved value (a later Stop +
+		// manual ruler scrub + explicit Preview Sequence would then jump back
+		// to the aborted attempt's position instead of carrying the scrub).
+		let route: ResolvedCameraRoute | null = null;
+		if (target.kind === 'edge') {
+			const connection = host.document.connections.find((c) => c.id === target.connectionId);
+			if (!connection) {
+				host.setStatusMessage('Camera connection is unavailable');
+				return false;
+			}
+			try {
+				route = getCameraConnectionRoute(target.connectionId, target.direction, host.state.graph);
+			} catch (error) {
+				host.setStatusMessage(
+					error instanceof Error ? error.message : 'Camera connection is unavailable'
+				);
+				return false;
+			}
+			endpoints = {
+				fromNodeId:
+					target.direction === 'forward' ? connection.fromNodeId : connection.toNodeId,
+				toNodeId:
+					target.direction === 'forward' ? connection.toNodeId : connection.fromNodeId
+			};
+		} else if (!host.scene.navigationNodes.some((node) => node.id === target.nodeId)) {
+			// Registry note: `scene` is the resolved runtime truth the preview
+			// pipeline itself uses (parity with the controller's `#nodeExists`);
+			// the selector's `document` check upstream is the source-doc mirror.
+			return false;
+		}
+
+		// Validation passed — leaving Sequence now commits its playhead for an
+		// explicit return before the scope object is replaced.
+		if (current?.kind === 'sequence') {
+			host.previewController.lastSequencePlayhead =
+				host.cameraTimelineController.cameraTimelinePlayhead;
+		}
+		// P11.1 — selection-driven entry deliberately skips the explicit-entry
+		// `prepareCameraPreview()` ritual: the selection actions already cleared
+		// placement/pending-frame/pending-nav upstream, and clearing the camera
+		// focus request here would erase the focus `selectNavigationNode` just
+		// established. Only the navigation hover is selection-owned cleanup.
+		host.setNavigationHover(null);
+
+		// Selection-driven scope lands paused. Mode: preserve the active
+		// preview's Observer/Through Camera choice (§6 — mode changes must not
+		// ride along with scope changes); idle entry defaults to director, the
+		// authoring surface.
+		const mode: EditorCameraPreviewMode = current?.mode ?? 'director';
+		const runId = host.previewController.allocRunId();
+		if (route) host.previewController.setCapturedRoute(runId, route);
+		else host.previewController.clearCapturedRoute();
+		// Scrub/timeline-driven transitions pass `preservePreviewObserver` so
+		// crossing connection sections keeps the observer's Follow framing and
+		// does not re-trigger a recenter (P8 S3 parity, §6 mode preservation).
+		const preserveObserver = Boolean(options.preservePreviewObserver && current);
+		if (!preserveObserver) {
+			host.previewController.followEnabled = true;
+			host.previewController.recenterVersion += 1;
+		}
+
+		if (target.kind === 'camera') {
+			host.previewController.edgeRepeat = false;
+			host.previewController.preview = {
+				kind: 'camera',
+				nodeId: target.nodeId,
+				mode,
+				transport: 'paused',
+				runId,
+				playhead: 0,
+				startedAtMs: null
+			};
+			host.cameraTimelineController.syncCameraTimelineForNode(target.nodeId);
+			host.timelineExpanded = true;
+			return true;
+		}
+
+		host.previewController.edgeRepeat = false;
+		// Endpoints come from the connection record flipped by traversal
+		// direction (selector parity) — `route.nodeIds` stays in graph order
+		// regardless of preview direction. A missing camera node above is
+		// silently ignored: the selector already validated existence; edge
+		// failures DO report because route resolution can fail on malformed
+		// path data.
+		if (!route || !endpoints) return false;
+		const fromNodeId = endpoints.fromNodeId;
+		const toNodeId = endpoints.toNodeId;
+		// Current-edge handoff: start at the Sequence playhead's mapped local
+		// physical progress only when the global ruler currently sits inside
+		// THIS edge's span (`cameraTimelineEdgePlayheadAtProgress` clamps rather
+		// than rejecting out-of-span positions, so the span check is the
+		// staleness gate). Otherwise local zero. Unbuildable timeline → 0.
+		const timeline = host.cameraTimelineController.getCameraTimeline();
+		let playhead = 0;
+		if (timeline) {
+			try {
+				const location = getEditorCameraTimelineLocation(
+					timeline,
+					host.cameraTimelineController.cameraTimelinePlayhead
+				);
+				if (location.edge.connectionId === target.connectionId) {
+					playhead =
+						cameraTimelineEdgePlayheadAtProgress(
+							timeline,
+							target.connectionId,
+							target.direction,
+							host.cameraTimelineController.cameraTimelinePlayhead
+						) ?? 0;
+				}
+			} catch {
+				playhead = 0;
+			}
+		}
+		host.previewController.preview = {
+			kind: 'edge',
+			connectionId: target.connectionId,
+			direction: target.direction,
+			fromNodeId,
+			toNodeId,
+			mode,
+			transport: 'paused',
+			runId,
+			playhead,
+			startedAtMs: null
+		};
+		host.cameraTimelineController.syncCameraTimelineForConnection(
+			target.connectionId,
+			target.direction,
+			playhead
+		);
 		host.timelineExpanded = true;
 		return true;
 	}
@@ -868,19 +1080,27 @@ export class EditorCameraPreviewCommands {
 
 	stopCameraPreview() {
 		const host = this.host;
-		if (host.viewKeyframeProgressDrag) {
-			host.cancelViewKeyframeProgressDrag();
+		// P11.1 review fix — the flag spans the ENTIRE ritual (keyframe-drag
+		// cancel + framing-cancel + restore + clear), not just the restore call:
+		// any cancel callback that re-enters selection must see the bar too.
+		host.isCameraPreviewStopping = true;
+		try {
+			if (host.viewKeyframeProgressDrag) {
+				host.cancelViewKeyframeProgressDrag();
+			}
+			if (!host.cameraPreview) return false;
+			if (!host.cancelDirectFramingDragOrFail()) return false;
+			if (host.restoreCameraPreview?.() === false) return false;
+			host.previewController.preview = null;
+			host.previewController.clearCapturedRoute();
+			host.previewController.followEnabled = true;
+			host.previewController.edgeRepeat = false;
+			// Phase 2.1: Preview Stop preserves the active connection + direction so any
+			// previously-selected keyframe remains reachable through tree/timeline/3D.
+			return true;
+		} finally {
+			host.isCameraPreviewStopping = false;
 		}
-		if (!host.cameraPreview) return false;
-		if (!host.cancelDirectFramingDragOrFail()) return false;
-		if (host.restoreCameraPreview?.() === false) return false;
-		host.previewController.preview = null;
-		host.previewController.clearCapturedRoute();
-		host.previewController.followEnabled = true;
-		host.previewController.edgeRepeat = false;
-		// Phase 2.1: Preview Stop preserves the active connection + direction so any
-		// previously-selected keyframe remains reachable through tree/timeline/3D.
-		return true;
 	}
 
 	getCapturedCameraPreviewRoute(runId: number) {

@@ -10,6 +10,17 @@ export type LayoutObjectAabb = {
 
 export type LayoutObjectDescriptor = CompiledLayoutObject;
 
+/**
+ * Layout spheres are authored by their X/Z footprint diameter. The stored Y
+ * extent is a legacy/default placement height, not an ellipsoid axis; use the
+ * largest horizontal extent on every axis so the render, pick samples, AABB,
+ * and footprint all describe the same round sphere.
+ */
+export function sphereRenderScale(dimensions: Vec3): Vec3 {
+	const diameter = Math.max(dimensions[0], dimensions[2]);
+	return [diameter, diameter, diameter];
+}
+
 /** Derive a render-neutral compiled descriptor for an authored layout object. */
 export function describeLayoutObject(object: LayoutObject): LayoutObjectDescriptor {
 	const samples = transformedObjectSamples(object);
@@ -124,7 +135,10 @@ function transformedObjectCorners(object: LayoutObject): Vec3[] {
 }
 
 function transformedSphereSamples(object: LayoutObject, radialSteps = 64, latitudeSteps = 32): Vec3[] {
-	const [halfX, halfY, halfZ] = object.dimensions.map((value) => value / 2) as Vec3;
+	const [sx, sy, sz] = sphereRenderScale(object.dimensions);
+	const halfX = sx / 2;
+	const halfY = sy / 2;
+	const halfZ = sz / 2;
 	const samples: Vec3[] = [];
 	for (let latitudeIndex = 0; latitudeIndex <= latitudeSteps; latitudeIndex += 1) {
 		const latitude = -Math.PI / 2 + (latitudeIndex / latitudeSteps) * Math.PI;

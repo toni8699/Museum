@@ -3,10 +3,11 @@ import type { LayoutDocument, LayoutObject, LayoutRoom, LayoutVec2 } from '$lib/
 import {
 	describeLayoutObject,
 	findHitLayoutObject,
+	sphereRenderScale,
 	type LayoutObjectDescriptor
 } from '$lib/layout/layout-geometry-objects';
 
-export { describeLayoutObject, findHitLayoutObject };
+export { describeLayoutObject, findHitLayoutObject, sphereRenderScale };
 export type { LayoutObjectDescriptor };
 export type { LayoutObjectAabb } from '$lib/layout/layout-geometry-objects';
 
@@ -54,6 +55,14 @@ export function primitiveObjectGeometry(
 	}
 	const radius = Math.hypot(last[0] - first[0], last[1] - first[1]);
 	if (radius <= 1e-6) return null;
+	if (kind === 'sphere') {
+		// Spheres render at their X/Z footprint diameter on every axis
+		// (`sphereRenderScale`), so the center sits one radius above the floor.
+		return {
+			position: [first[0], floorElevation + radius, first[1]],
+			dimensions: [radius * 2, 1, radius * 2]
+		};
+	}
 	return {
 		position: [first[0], floorElevation + 0.5, first[1]],
 		dimensions: [radius * 2, 1, radius * 2]

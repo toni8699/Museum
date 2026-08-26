@@ -19,6 +19,7 @@ import type { EditorTransformMode } from '../editor-transform';
 import type {
 	EditorCameraPreview,
 	EditorPendingNavigationCommand,
+	EditorSelectionPreviewScopeRequest,
 	EditorViewKeyframeProgressDragSelection,
 	EditorWorkspace
 } from '../editor-types';
@@ -100,6 +101,8 @@ export interface EditorControllerHostSource {
 	// Session-backed read/write facade slots.
 	readonly currentWorkspace: EditorWorkspace;
 	cameraPreview: EditorCameraPreview;
+	/** P11.1 — true inside the stop/restore ritual; bars selection re-entrancy. */
+	readonly isCameraPreviewStopping: boolean;
 	activeCameraConnectionId: string | null;
 	activeCameraDirection: CameraConnectionDirection;
 	treeExpandedCameraConnectionIds: string[];
@@ -127,6 +130,11 @@ export interface EditorControllerHostSource {
 	isPlacementSelectable(id: string): boolean;
 	getCapturedCameraPreviewRoute(runId: number): ResolvedCameraRoute | null;
 	setCameraPreviewPlayhead(progress: number, runId?: number): boolean;
+	/** P11.1 — selection-driven preview scope seam (delegates to commands). */
+	installSelectionPreviewScope(
+		target: EditorSelectionPreviewScopeRequest,
+		options?: { preservePreviewObserver?: boolean }
+	): boolean;
 	setWorkspace(workspace: EditorWorkspace): boolean;
 	setNavigationHover(connectionId: string | null, anchorId?: string | null): boolean;
 	stopCameraPreview(): boolean;
@@ -159,6 +167,12 @@ export function createControllerHosts(
 		},
 		get isEditorInteractionActive() {
 			return source.isEditorInteractionActive;
+		},
+		get isCameraPreviewStopping() {
+			return source.isCameraPreviewStopping;
+		},
+		get isDocumentTransactionActive() {
+			return source.isDocumentTransactionActive;
 		},
 		get isCameraFramingMutationBlocked() {
 			return source.isCameraFramingMutationBlocked;
@@ -228,7 +242,9 @@ export function createControllerHosts(
 		getCapturedCameraPreviewRoute: (runId: number) =>
 			source.getCapturedCameraPreviewRoute(runId),
 		setCameraPreviewPlayhead: (progress: number) =>
-			source.setCameraPreviewPlayhead(progress)
+			source.setCameraPreviewPlayhead(progress),
+		installSelectionPreviewScope: (target, options) =>
+			source.installSelectionPreviewScope(target, options)
 	} satisfies EditorSelectionActionsHost;
 
 	const navigationGraph = {

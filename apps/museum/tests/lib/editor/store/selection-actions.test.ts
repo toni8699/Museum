@@ -7,6 +7,7 @@ import {
 	type EditorSelectionActionsHost
 } from '$lib/editor/store/selection-actions.svelte';
 import type { SceneDocument, SceneObjectCluster } from '$lib/content/scene';
+import type { EditorSelectionPreviewScopeRequest } from '$lib/editor/editor-types';
 import type { EditorTransformMode } from '$lib/editor/editor-transform';
 
 /**
@@ -40,6 +41,7 @@ function createHarness(
 		isEditorInteractionActive: false,
 		isCameraFramingMutationBlocked: false
 	};
+	const installedScopes: EditorSelectionPreviewScopeRequest[] = [];
 
 	const host: EditorSelectionActionsHost = {
 		get isDocumentMutationBlocked() {
@@ -69,6 +71,12 @@ function createHarness(
 		},
 		get cameraPreview() {
 			return null;
+		},
+		get isCameraPreviewStopping() {
+			return false;
+		},
+		get isDocumentTransactionActive() {
+			return false;
 		},
 		get activeCameraConnectionId() {
 			return selection.discoveryConnectionId;
@@ -124,10 +132,21 @@ function createHarness(
 		},
 		getCapturedCameraPreviewRoute: () => null,
 		setCameraPreviewPlayhead: () => false,
+		installSelectionPreviewScope: (target) => {
+			installedScopes.push(target);
+			return true;
+		}
 	};
 
 	const actions = new EditorSelectionActions(selection, host);
-	return { actions, selection, host, guards, getTransformMode: () => transformMode };
+	return {
+		actions,
+		selection,
+		host,
+		guards,
+		installedScopes,
+		getTransformMode: () => transformMode
+	};
 }
 
 describe('EditorSelectionActions', () => {
@@ -328,6 +347,12 @@ describe('EditorSelectionActions — Phase 6.4 keep-action invariant', () => {
 			get cameraPreview() {
 				return null;
 			},
+			get isCameraPreviewStopping() {
+				return false;
+			},
+			get isDocumentTransactionActive() {
+				return false;
+			},
 			get activeCameraConnectionId() {
 				return selection.discoveryConnectionId;
 			},
@@ -384,6 +409,7 @@ describe('EditorSelectionActions — Phase 6.4 keep-action invariant', () => {
 			},
 			getCapturedCameraPreviewRoute: () => null,
 			setCameraPreviewPlayhead: () => false,
+			installSelectionPreviewScope: () => true
 		};
 		const actions = new EditorSelectionActions(selection, host);
 		actions.selectRoom('paris');

@@ -477,6 +477,9 @@ export function createControllerHosts(
 		get graph() {
 			return source.state.graph;
 		},
+		get previewController() {
+			return source.previewController;
+		},
 		get selection() {
 			return source.selectionStore;
 		},

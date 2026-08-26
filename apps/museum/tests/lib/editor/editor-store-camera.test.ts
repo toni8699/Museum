@@ -2001,7 +2001,7 @@ describe('EditorStore Phase 2.3 whole guided-tour playback', () => {
 		expect(store.completeCameraPreview(runId)).toBe(true);
 		expect(store.cameraPreview).toMatchObject({
 			kind: 'sequence',
-			transport: 'complete',
+			transport: 'paused',
 			playhead: 1
 		});
 		expect(store.cameraTimelinePlayhead).toBe(1);

@@ -83,8 +83,8 @@ describe('P11.3 scope-first projection (per §10 table)', () => {
 	});
 });
 
-describe('P11.3 exact Play/Pause/Replay grammar (§5)', () => {
-	it('paused uses Play, playing uses Pause, complete uses Replay — Resume is gone', () => {
+describe('P11.3 exact Play/Pause grammar (§5)', () => {
+	it('paused uses Play, playing uses Pause, at end still uses Play — Resume is gone', () => {
 		const store = createFixtureEditorStore();
 		store.selectionActions.selectConnection('tour-a-b');
 		const api = useCameraTimeline(store);
@@ -96,8 +96,8 @@ describe('P11.3 exact Play/Pause/Replay grammar (§5)', () => {
 		const runId = store.cameraPreview!.runId;
 		expect(store.markCameraPreviewStarted(runId, 1000)).toBe(true);
 		expect(store.completeCameraPreview(runId)).toBe(true);
-		expect(store.cameraPreview).toMatchObject({ kind: 'edge', transport: 'complete' });
-		expect(api.playLabel).toBe('Replay');
+		expect(store.cameraPreview).toMatchObject({ kind: 'edge', transport: 'paused' });
+		expect(api.playLabel).toBe('Play');
 	});
 
 	it('sequence scope follows the same grammar; idle keeps the default Sequence label', () => {

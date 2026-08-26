@@ -340,6 +340,7 @@ export class EditorCameraPreviewCommands {
 		host.previewController.clearCapturedRoute();
 		host.previewController.followEnabled = true;
 		host.previewController.recenterVersion += 1;
+		host.previewController.edgeRepeat = false;
 		host.previewController.preview = {
 			kind: 'camera',
 			nodeId,
@@ -542,10 +543,7 @@ export class EditorCameraPreviewCommands {
 		}
 		if (restore !== null) host.cameraTimelineController.cameraTimelinePlayhead = restore;
 		if (current?.kind === 'sequence') {
-			// Resume a paused/complete sequence (replay from 0 when complete).
-			if (current.transport === 'complete') {
-				this.setCameraPreviewPlayhead(0, current.runId);
-			}
+			// Resume a paused sequence (at-end Play restarts from 0 — §2 rule 5).
 			return this.playCameraPreview();
 		}
 		const timeline = host.cameraTimelineController.readCameraTimeline();
@@ -554,6 +552,7 @@ export class EditorCameraPreviewCommands {
 
 		const runId = host.previewController.allocRunId();
 		host.previewController.clearCapturedRoute();
+		host.previewController.edgeRepeat = false;
 		if (!current) {
 			host.previewController.followEnabled = true;
 			host.previewController.recenterVersion += 1;
@@ -879,7 +878,7 @@ export class EditorCameraPreviewCommands {
 		const runId = host.previewController.allocRunId();
 		if (route) host.previewController.setCapturedRoute(runId, route);
 		else host.previewController.clearCapturedRoute();
-		const playhead = preview.transport === 'complete' ? 0 : preview.playhead;
+		const playhead = preview.playhead >= 1 ? 0 : preview.playhead;
 		host.previewController.preview = {
 			...preview,
 			transport: 'playing',
@@ -910,15 +909,13 @@ export class EditorCameraPreviewCommands {
 			return false;
 		}
 		const playhead = Math.min(1, Math.max(0, progress));
-		if (Math.abs(preview.playhead - playhead) <= 1e-6 && preview.transport !== 'complete') {
+		if (Math.abs(preview.playhead - playhead) <= 1e-6) {
 			return false;
 		}
 		host.previewController.preview = {
 			...preview,
 			playhead,
-			...(preview.transport === 'complete'
-				? { transport: 'paused' as const, startedAtMs: null }
-				: {})
+			...(preview.transport === 'playing' ? {} : { transport: 'paused' as const, startedAtMs: null })
 		};
 		if (preview.kind === 'edge') {
 			host.cameraTimelineController.syncCameraTimelineForConnection(
@@ -1062,7 +1059,7 @@ export class EditorCameraPreviewCommands {
 		}
 		host.previewController.preview = {
 			...preview,
-			transport: 'complete',
+			transport: 'paused',
 			playhead: 1,
 			startedAtMs: null
 		};

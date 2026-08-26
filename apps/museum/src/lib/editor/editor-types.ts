@@ -44,12 +44,14 @@ export type EditorLightingSettings = {
 
 export type EditorCameraPreviewMode = 'director' | 'visitor';
 
-export type EditorCameraPreviewTransport = 'paused' | 'playing' | 'complete';
+/** P12 S1 — transport is binary; completion is derived from playhead. */
+export type EditorCameraPreviewTransport = 'paused' | 'playing';
 
 export interface EditorCameraPreviewState {
 	mode: EditorCameraPreviewMode;
 	transport: EditorCameraPreviewTransport;
 	runId: number;
+	/** Canonical active-scope evaluation progress, normalized to [0, 1]. */
 	playhead: number;
 	startedAtMs: number | null;
 }

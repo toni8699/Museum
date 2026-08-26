@@ -157,7 +157,7 @@ describe('P8 S2 explicit preview scopes', () => {
 		const runId = store.cameraPreview!.runId;
 		expect(store.markCameraPreviewStarted(runId, 100)).toBe(true);
 		expect(store.completeCameraPreview(runId)).toBe(true);
-		expect(store.cameraPreview?.transport).toBe('complete');
+		expect(store.cameraPreview?.transport).toBe('paused');
 		expect(store.cameraPreview?.playhead).toBe(1);
 		// cleanup
 		(store.state as any).reducedMotion = false;
@@ -175,7 +175,7 @@ describe('P8 S2 explicit preview scopes', () => {
 		const runId = store.cameraPreview!.runId;
 		expect(store.markCameraPreviewStarted(runId, 100)).toBe(true);
 		expect(store.completeCameraPreview(runId)).toBe(true);
-		expect(store.cameraPreview?.transport).toBe('complete');
+		expect(store.cameraPreview?.transport).toBe('paused');
 	});
 
 	it('edgeRepeat cleared on new startConnection and on stop; kept across swap', () => {

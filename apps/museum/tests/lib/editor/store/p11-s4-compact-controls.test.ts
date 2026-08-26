@@ -36,7 +36,7 @@ describe('P11.4 segmented mode + icon-only a11y (source contracts)', () => {
 		expect(controls).toContain('aria-label="Recenter camera"');
 		expect(controls).toContain('title="Recenter camera"');
 		expect(controls).toContain('aria-label="Pause"');
-		expect(controls).toContain("aria-label={preview.transport === 'complete' ? 'Replay' : 'Play'}");
+		expect(controls).toContain('aria-label="Play"');
 	});
 
 	it('Follow/Recenter render only in Observer (director) mode — hidden in Through', () => {

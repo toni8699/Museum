@@ -29,6 +29,7 @@
 	// P11.4 §11.3 — icon-only edge Reverse (swap) + Repeat toggle.
 	const edgeRepeat = $derived(timelineApi.edgeRepeat);
 	const edgeRepeatDisabled = $derived(timelineApi.edgeRepeatDisabled);
+	const canPlay = $derived(timelineApi.canPlay);
 
 	function formatTime(seconds: number) {
 		const safe = Math.max(0, seconds);
@@ -50,7 +51,7 @@
 				class:active={previewPlaying}
 				aria-label={playLabel}
 				title={playLabel}
-				disabled={tourTransportDisabled}
+				disabled={tourTransportDisabled || !canPlay}
 				onclick={() => timelineApi.toggleTourPlayback()}
 			>{#if previewPlaying}<Pause size={14} aria-hidden="true" />{:else}<Play size={14} aria-hidden="true" />{/if}</button>
 			<!-- P11.4 §11.3 — Edge Reverse is the paused-edge direction SWAP
@@ -106,7 +107,7 @@
 			class:active={previewPlaying}
 			aria-label={playLabel}
 			title={playLabel}
-			disabled={tourTransportDisabled}
+			disabled={tourTransportDisabled || !canPlay}
 			onclick={() => timelineApi.toggleTourPlayback()}
 		>{#if previewPlaying}<Pause size={14} aria-hidden="true" />{:else}<Play size={14} aria-hidden="true" />{/if}</button>
 		<button
@@ -145,7 +146,7 @@
 			class="add-key"
 			disabled={!timelineApi.canAddViewKeyframeAtPlayhead}
 			onclick={() => timelineApi.addViewKeyframeAtPlayhead()}
-		>+ Camera Key</button>
+		>+ View Key</button>
 	</div>
 {/if}
 

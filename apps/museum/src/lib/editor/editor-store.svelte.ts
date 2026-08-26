@@ -338,7 +338,7 @@ export class EditorStore {
 	}
 	/** S2 — edge repeat flag, scoped to `kind === 'edge'`. UI reads via getter; writes delegate through commands layer to enforce guard. */
 	get edgeRepeat(): boolean {
-		return this.previewController.edgeRepeat;
+		return previewScopeOf(this.cameraPreview) === 'edge' && this.previewController.edgeRepeat;
 	}
 	set edgeRepeat(value: boolean) {
 		// Delegate through commands guard (kind === 'edge' check) to avoid bypassing D2 scoping.
@@ -1275,7 +1275,7 @@ export class EditorStore {
 	/**
 	 * P11.2 §3 framing predicate — viewport framing paths only. Mirrors
 	 * `requestFramingPause` exactly: a paused preview of either camera passes;
-	 * any *non-paused* visitor blocks (playing and complete — a complete
+	 * any *non-paused* visitor blocks (playing — a playing
 	 * visitor would otherwise render dead handles), while a playing Director
 	 * stays interactive (its drag auto-pauses).
 	 */

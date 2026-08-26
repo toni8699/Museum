@@ -95,6 +95,7 @@ export interface EditorCameraTimelineControllerHost {
 	readonly document: SceneDocument;
 	readonly scene: RuntimeScene;
 	readonly graph: NavigationGraph;
+	readonly previewController: { edgeRepeat: boolean };
 
 	// Selection reducer (discovery accessors used by setCameraEdgeTravel).
 	readonly selection: EditorSelectionStore;
@@ -226,6 +227,7 @@ export class EditorCameraTimelineController {
 		this.host.clearCameraFocusRequest();
 		this.host.followEnabled = true;
 		this.host.recenterVersion += 1;
+		this.host.previewController.edgeRepeat = false;
 		this.host.cameraPreview = {
 			kind: 'camera',
 			nodeId,
@@ -278,6 +280,7 @@ export class EditorCameraTimelineController {
 			this.host.followEnabled = true;
 			this.host.recenterVersion += 1;
 		}
+		this.host.previewController.edgeRepeat = false;
 		const fromNodeId =
 			direction === 'forward' ? connection.fromNodeId : connection.toNodeId;
 		const toNodeId =

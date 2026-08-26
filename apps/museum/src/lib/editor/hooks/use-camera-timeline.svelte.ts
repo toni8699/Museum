@@ -216,6 +216,24 @@ export function useCameraTimeline(store: EditorStore) {
 		get edgeDurationSeconds() {
 			return this.edgeTimeline?.durationSeconds ?? 0;
 		},
+		/** P12 S1 — presentation seconds are derived from normalized progress. */
+		get durationSeconds() {
+			if (store.cameraPreview?.kind === 'edge') return this.edgeDurationSeconds;
+			if (store.cameraPreview?.kind === 'camera') return 0;
+			return this.timeline?.durationSeconds ?? 0;
+		},
+		get currentSeconds() {
+			const preview = store.cameraPreview;
+			return preview && preview.kind !== 'camera' ? preview.playhead * this.durationSeconds : 0;
+		},
+		get atEnd() {
+			const duration = this.durationSeconds;
+			const preview = store.cameraPreview;
+			return Boolean(preview && preview.kind !== 'camera' && duration > 1e-9 && preview.playhead >= 1);
+		},
+		get canPlay() {
+			return store.cameraPreview?.kind !== 'camera' && this.durationSeconds > 1e-9;
+		},
 		get edgeEndpoints() {
 			const tl = this.edgeTimeline;
 			if (!tl) return null;
@@ -319,11 +337,8 @@ export function useCameraTimeline(store: EditorStore) {
 		},
 		get playLabel() {
 			const preview = store.cameraPreview;
-			if (preview?.transport === 'playing') return 'Pause';
-			// P11.3 §5 — the capsule owns scope text, so the compact grammar is
-			// Play / Pause / Replay (`Resume preview` / `Replay preview` are gone).
 			if (preview?.kind === 'edge' || preview?.kind === 'sequence') {
-				return preview.transport === 'complete' ? 'Replay' : 'Play';
+				return preview.transport === 'playing' ? 'Pause' : 'Play';
 			}
 			return 'Play camera flow';
 		},
@@ -342,6 +357,7 @@ export function useCameraTimeline(store: EditorStore) {
 			// P3B.5 grammar — Play/Pause controls the current preview scope.
 			// `playCameraPreview` resumes paused and replays complete scopes.
 			if (preview?.kind === 'edge' || preview?.kind === 'sequence') {
+				if (!this.canPlay) return;
 				if (preview.transport === 'playing') {
 					store.pauseCameraPreview();
 					return;

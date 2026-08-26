@@ -1,9 +1,12 @@
 <script lang="ts">
 	import { Crosshair, Pause, Play, Scan } from 'lucide-svelte';
 	import type { EditorStore } from '../editor-store.svelte';
+	import { useCameraTimeline } from '../hooks/use-camera-timeline.svelte';
 
 	let { store }: { store: EditorStore } = $props();
 	const preview = $derived(store.cameraPreview);
+	// svelte-ignore state_referenced_locally
+	const timelineApi = useCameraTimeline(store);
 </script>
 
 {#if preview}
@@ -37,8 +40,9 @@
 					<button
 						type="button"
 						class="active"
-						aria-label={preview.transport === 'complete' ? 'Replay' : 'Play'}
-						title={preview.transport === 'complete' ? 'Replay' : 'Play'}
+						aria-label="Play"
+						title="Play"
+						disabled={!timelineApi.canPlay}
 						onclick={() => store.playCameraPreview()}
 					><Play size={14} aria-hidden="true" /></button>
 				{/if}

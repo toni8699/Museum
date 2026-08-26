@@ -78,7 +78,7 @@ describe('P8 S4 — end-of-sequence Replay', () => {
 		const runId = store.cameraPreview!.runId;
 		expect(store.markCameraPreviewStarted(runId, 100)).toBe(true);
 		expect(store.completeCameraPreview(runId)).toBe(true);
-		expect(store.cameraPreview).toMatchObject({ transport: 'complete', playhead: 1 });
+		expect(store.cameraPreview).toMatchObject({ transport: 'paused', playhead: 1 });
 		expect(store.cameraTimelinePlayhead).toBe(1);
 
 		expect(store.playCameraPreview()).toBe(true);
@@ -95,7 +95,7 @@ describe('P8 S4 — completed preview stays inspectable (complete is paused-equi
 		const runId = store.cameraPreview!.runId;
 		expect(store.markCameraPreviewStarted(runId, 100)).toBe(true);
 		expect(store.completeCameraPreview(runId)).toBe(true);
-		expect(store.cameraPreview).toMatchObject({ transport: 'complete', playhead: 1 });
+		expect(store.cameraPreview).toMatchObject({ transport: 'paused', playhead: 1 });
 
 		// The finished tour is not a dead end: the seek seam lets the write
 		// through and the playhead write transitions complete → paused (the
@@ -133,7 +133,7 @@ describe('P8 S4 — completed preview stays inspectable (complete is paused-equi
 		const runId = store.cameraPreview!.runId;
 		expect(store.markCameraPreviewStarted(runId, 100)).toBe(true);
 		expect(store.completeCameraPreview(runId)).toBe(true);
-		expect(store.cameraPreview).toMatchObject({ kind: 'edge', transport: 'complete' });
+		expect(store.cameraPreview).toMatchObject({ kind: 'edge', transport: 'paused' });
 
 		expect(api.edgeScrubDisabled).toBe(false);
 		expect(store.setCameraPreviewPlayhead(0.4)).toBe(true);
@@ -233,7 +233,7 @@ describe('P8 S4 — one/two-node flows', () => {
 		const runId = store.cameraPreview!.runId;
 		expect(store.markCameraPreviewStarted(runId, 100)).toBe(true);
 		expect(store.completeCameraPreview(runId)).toBe(true);
-		expect(store.cameraPreview).toMatchObject({ transport: 'complete', playhead: 1 });
+		expect(store.cameraPreview).toMatchObject({ transport: 'paused', playhead: 1 });
 	});
 });
 
@@ -342,7 +342,7 @@ describe('P3B.5 — timeline play controls the current preview scope', () => {
 		const runId = store.cameraPreview!.runId;
 		store.markCameraPreviewStarted(runId, 1);
 		expect(store.completeCameraPreview(runId)).toBe(true);
-		expect(store.cameraPreview?.transport).toBe('complete');
+		expect(store.cameraPreview?.transport).toBe('paused');
 
 		useCameraTimeline(store).toggleTourPlayback();
 		expect(store.cameraPreview).toMatchObject({ kind: 'edge', transport: 'playing', playhead: 0 });

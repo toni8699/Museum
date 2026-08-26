@@ -329,7 +329,7 @@ export function isPreviewStale(
 		}
 		const runId = this.#nextRunId++;
 		this.#capturedRoute = route ? { runId, route: cloneResolvedCameraRoute(route) } : null;
-		const playhead = preview.transport === 'complete' ? 0 : preview.playhead;
+		const playhead = preview.playhead >= 1 ? 0 : preview.playhead;
 		this.preview = {
 			...preview,
 			transport: 'playing',
@@ -362,15 +362,13 @@ export function isPreviewStale(
 			return false;
 		}
 		const playhead = Math.min(1, Math.max(0, progress));
-		if (Math.abs(preview.playhead - playhead) <= 1e-6 && preview.transport !== 'complete') {
+		if (Math.abs(preview.playhead - playhead) <= 1e-6) {
 			return false;
 		}
 		this.preview = {
 			...preview,
 			playhead,
-			...(preview.transport === 'complete'
-				? { transport: 'paused' as const, startedAtMs: null }
-				: {})
+			...(preview.transport === 'playing' ? {} : { transport: 'paused' as const, startedAtMs: null })
 		};
 		return true;
 	}
@@ -464,6 +462,7 @@ export function isPreviewStale(
 		return true;
 	}
 
+	/** P12 S1 — completion is represented by paused + playhead 1; atEnd is derived. */
 	complete(runId: number): boolean {
 		const preview = this.preview;
 		if (
@@ -477,7 +476,7 @@ export function isPreviewStale(
 		}
 		this.preview = {
 			...preview,
-			transport: 'complete',
+			transport: 'paused',
 			playhead: 1,
 			startedAtMs: null
 		};

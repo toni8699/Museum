@@ -35,7 +35,7 @@ import {
 } from '$lib/museum/navigation/camera-route';
 import {
 	cameraTimelineProgressAtEdgeProgress,
-	createEditorCameraTimeline,
+	createEditorCameraTimelineResolution,
 	getEditorCameraTimelineLocation,
 	type EditorCameraTimeline
 } from '../camera/editor-camera-timeline';
@@ -792,7 +792,7 @@ export function isPreviewStale(
 		if (this.#timelineGraph === graph) return this.#timelineCache;
 		this.#timelineGraph = graph;
 		try {
-			this.#timelineCache = createEditorCameraTimeline(graph);
+			this.#timelineCache = createEditorCameraTimelineResolution(graph).timeline;
 		} catch {
 			this.#timelineCache = null;
 		}

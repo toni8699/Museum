@@ -119,6 +119,8 @@ export interface EditorControllerHostSource {
 	requestAuthoringPause(): boolean;
 	// P11.2 §8 — framing seam: paused previews (either camera) pass; playing pauses (visitor playing refuses).
 	requestFramingPause(): boolean;
+	// P12.2 — transport seek pauses either preview mode.
+	requestTransportPause(): boolean;
 
 	// Facade methods the host literals call back into.
 	isPendingNavigationNode(nodeId: string): boolean;
@@ -135,11 +137,6 @@ export interface EditorControllerHostSource {
 	isPlacementSelectable(id: string): boolean;
 	getCapturedCameraPreviewRoute(runId: number): ResolvedCameraRoute | null;
 	setCameraPreviewPlayhead(progress: number, runId?: number): boolean;
-	/** P11.1 — selection-driven preview scope seam (delegates to commands). */
-	installSelectionPreviewScope(
-		target: EditorSelectionPreviewScopeRequest,
-		options?: { preservePreviewObserver?: boolean }
-	): boolean;
 	setWorkspace(workspace: EditorWorkspace): boolean;
 	setNavigationHover(connectionId: string | null, anchorId?: string | null): boolean;
 	stopCameraPreview(): boolean;
@@ -159,6 +156,10 @@ export interface EditorControllerHostSource {
  */
 export interface EditorControllerHostBridges {
 	prepareCameraPreview(): boolean;
+	installRelicSelectionScope(
+		target: EditorSelectionPreviewScopeRequest,
+		options?: { preservePreviewObserver?: boolean }
+	): boolean;
 	seedEmptyReverseForSelectedForwardTrack(): boolean;
 }
 
@@ -172,6 +173,9 @@ export function createControllerHosts(
 		},
 		get isEditorInteractionActive() {
 			return source.isEditorInteractionActive;
+		},
+		get isRelic() {
+			return source.isRelic;
 		},
 		get isCameraPreviewStopping() {
 			return source.isCameraPreviewStopping;
@@ -244,12 +248,12 @@ export function createControllerHosts(
 		ensureClusterTreeExpanded: (clusterId: string) =>
 			source.ensureClusterTreeExpanded(clusterId),
 		isPlacementSelectable: (id: string) => source.isPlacementSelectable(id),
-		getCapturedCameraPreviewRoute: (runId: number) =>
-			source.getCapturedCameraPreviewRoute(runId),
-		setCameraPreviewPlayhead: (progress: number) =>
-			source.setCameraPreviewPlayhead(progress),
-		installSelectionPreviewScope: (target, options) =>
-			source.installSelectionPreviewScope(target, options),
+		seekSequencePreviewForNode: (nodeId: string) =>
+			source.cameraTimelineController.seekSequencePreviewForNode(nodeId),
+		installRelicSelectionScope: (
+			target: EditorSelectionPreviewScopeRequest,
+			options?: { preservePreviewObserver?: boolean }
+		) => bridges.installRelicSelectionScope(target, options),
 		requestAuthoringPause: () => source.requestAuthoringPause(),
 		requestFramingPause: () => source.requestFramingPause()
 	} satisfies EditorSelectionActionsHost;
@@ -459,6 +463,9 @@ export function createControllerHosts(
 		get isEditorInteractionActive() {
 			return source.isEditorInteractionActive;
 		},
+		get isRelic() {
+			return source.isRelic;
+		},
 		get isDocumentTransactionActive() {
 			return source.isDocumentTransactionActive;
 		},
@@ -523,12 +530,15 @@ export function createControllerHosts(
 		},
 		setCameraPreviewPlayhead: (progress: number, runId?: number) =>
 			source.setCameraPreviewPlayhead(progress, runId),
+		getCapturedCameraPreviewRoute: (runId: number) =>
+			source.getCapturedCameraPreviewRoute(runId),
 		getTimeline: () => source.previewController.getTimeline(),
 		cancelAssetPlacement: (message?: string) => source.cancelAssetPlacement(message),
 		cancelPendingFrame: () => source.cancelPendingFrame(),
 		clearCameraFocusRequest: () => source.session.clearCameraFocusRequest(),
 		requestAuthoringPause: () => source.requestAuthoringPause(),
-		requestFramingPause: () => source.requestFramingPause()
+		requestFramingPause: () => source.requestFramingPause(),
+		requestTransportPause: () => source.requestTransportPause()
 	} satisfies EditorCameraTimelineControllerHost;
 
 	const placementCluster = {

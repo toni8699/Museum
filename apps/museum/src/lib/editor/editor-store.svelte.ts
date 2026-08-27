@@ -137,6 +137,7 @@ import type {
 	CameraPreviewEdge,
 	CameraPreviewSequence,
 	EditorPendingNavigationCommand,
+	EditorSelectionPreviewScopeRequest,
 	EditorWorkspace,
 	EditorLeftPanel,
 	EditorViewKeyframeProgressDragSelection,
@@ -145,7 +146,6 @@ import type {
 	EditorTransformInteractionKind,
 	EditorPendingMaterialEdit,
 	EditorTextureLoadState,
-	EditorSelectionPreviewScopeRequest,
 	MaterialEditDecision,
 	MaterialInstancePatch
 } from './editor-types';
@@ -393,6 +393,10 @@ export class EditorStore {
 			// Slice 2 — these used to be ECMAScript-private on this class; they
 			// live on `cameraPreviewCommands` now and the bridges forward.
 			prepareCameraPreview: () => this.cameraPreviewCommands.prepareCameraPreview(),
+			installRelicSelectionScope: (
+				target: EditorSelectionPreviewScopeRequest,
+				options?: { preservePreviewObserver?: boolean }
+			) => this.cameraPreviewCommands.installRelicSelectionScope(target, options),
 			seedEmptyReverseForSelectedForwardTrack: () =>
 				this.cameraPreviewCommands.seedEmptyReverseForSelectedForwardTrack()
 		}
@@ -1255,6 +1259,14 @@ export class EditorStore {
 		return true;
 	}
 
+	/** P12.2 — session transport pause; valid for POV and Observer previews. */
+	requestTransportPause(): boolean {
+		if (this.cameraPreview && this.cameraPreview.transport !== 'paused') {
+			this.cameraPreviewCommands.pauseCameraPreview();
+		}
+		return true;
+	}
+
 	/** Framing is editable through either camera while paused, but never during playback. */
 	get isCameraFramingMutationBlocked() {
 		return this.mutationGuards.isCameraFramingMutationBlocked;
@@ -1500,6 +1512,18 @@ export class EditorStore {
 	/** Phase 2.2 — scrub the global ruler through the exact guided edge motion. */
 	seekCameraTimeline(progress: number) {
 		return this.cameraTimelineController.seekCameraTimeline(progress);
+	}
+
+	seekSequencePreview(progress: number) {
+		return this.cameraTimelineController.seekSequencePreview(progress);
+	}
+
+	seekSequencePreviewForNode(nodeId: string) {
+		return this.cameraTimelineController.seekSequencePreviewForNode(nodeId);
+	}
+
+	seekEdgePreview(progress: number) {
+		return this.cameraTimelineController.seekEdgePreview(progress);
 	}
 
 	/** Toggle reverse travel on the active connection (scrub/play/keys follow). */
@@ -1834,7 +1858,7 @@ export class EditorStore {
 		return this.cameraPreviewCommands.previewSelectedNode(mode);
 	}
 
-	/** P3B.5 — named node preview; selection remains unchanged. */
+	/** P12.2 — named preview is available only for unsequenced nodes. */
 	previewCamera(nodeId: string, mode: EditorCameraPreviewMode = 'visitor') {
 		return this.cameraPreviewCommands.previewCamera(nodeId, mode);
 	}
@@ -1896,18 +1920,6 @@ export class EditorStore {
 	 * read by `selectionActions` through the controller host.
 	 */
 	isCameraPreviewStopping = false;
-
-	/**
-	 * P11.1 — selection-driven preview scope seam. Called by
-	 * `selectionActions` after a Camera node/connection selection commits;
-	 * installs the matching paused scope without Stop teardown.
-	 */
-	installSelectionPreviewScope(
-		target: EditorSelectionPreviewScopeRequest,
-		options?: { preservePreviewObserver?: boolean }
-	) {
-		return this.cameraPreviewCommands.installSelectionScope(target, options);
-	}
 
 	/** S2 — explicit Preview Edge entry, snapshots Sequence playhead first. */
 	previewEdge(

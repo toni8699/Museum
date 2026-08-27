@@ -10,7 +10,6 @@
 	const timeline = $derived(timelineApi.timeline);
 	const playhead = $derived(timelineApi.playhead);
 	const previewPlaying = $derived(timelineApi.previewPlaying);
-	const disabled = $derived(timelineApi.disabled);
 	const scrubDisabled = $derived(timelineApi.scrubDisabled);
 	const tourTransportDisabled = $derived(timelineApi.tourTransportDisabled);
 	const reverseLabel = $derived(timelineApi.reverseEdgeLabel);
@@ -89,7 +88,7 @@
 					value={edgePlayhead}
 					disabled={edgeScrubDisabled}
 					oninput={(event) =>
-						store.setCameraPreviewPlayhead(Number((event.currentTarget as HTMLInputElement).value))}
+						timelineApi.seekEdge(Number((event.currentTarget as HTMLInputElement).value))}
 				/>
 			</label>
 		</div>
@@ -99,7 +98,7 @@
 		<button
 			type="button"
 			aria-label="Previous camera boundary"
-			disabled={disabled || playhead <= 0}
+			disabled={scrubDisabled || playhead <= 0}
 			onclick={() => timelineApi.step(-1)}
 		>│◀</button>
 		<button
@@ -113,7 +112,7 @@
 		<button
 			type="button"
 			aria-label="Next camera boundary"
-			disabled={disabled || playhead >= 1}
+			disabled={scrubDisabled || playhead >= 1}
 			onclick={() => timelineApi.step(1)}
 		>▶│</button>
 		<button
@@ -126,21 +125,23 @@
 			disabled={reverseDisabled}
 			onclick={() => timelineApi.toggleReverse()}
 		>Reverse</button>
-		<output aria-label="Camera timeline time">
-			{formatTime(timeline.durationSeconds * playhead)}
-		</output>
-		<label class="scrubber">
-			<span>{reverseActive ? 'Reverse playhead' : 'Tour playhead'}</span>
-			<input
-				type="range"
-				min="0"
-				max="1"
-				step="0.0005"
-				value={playhead}
-				disabled={scrubDisabled}
-				oninput={scrub}
-			/>
-		</label>
+		{#if scope === 'sequence'}
+			<output aria-label="Camera timeline time">
+				{formatTime(timeline.durationSeconds * playhead)}
+			</output>
+			<label class="scrubber">
+				<span>{reverseActive ? 'Reverse playhead' : 'Tour playhead'}</span>
+				<input
+					type="range"
+					min="0"
+					max="1"
+					step="0.0005"
+					value={playhead}
+					disabled={scrubDisabled}
+					oninput={scrub}
+				/>
+			</label>
+		{/if}
 		<button
 			type="button"
 			class="add-key"

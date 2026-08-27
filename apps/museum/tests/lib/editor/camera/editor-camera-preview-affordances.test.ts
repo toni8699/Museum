@@ -1,8 +1,24 @@
 import { describe, expect, it } from 'vitest';
 
 import { getCameraEdgePreviewChoices } from '$lib/editor/camera/editor-camera-preview-affordances';
-import { cameraTimelineProgressAtEdgePlayhead } from '$lib/editor/camera/editor-camera-timeline';
+import { chopinRuntime } from '$lib/content/chopin-project';
+import { createEditorStore } from '$lib/editor/editor-store.svelte';
 import { createFixtureEditorStore } from '../editor-test-utils';
+import { cloneFixtureDocument } from '../../content/__fixtures__/load-fixture-scene';
+
+function createStoreWithFreeCamera() {
+	const document = cloneFixtureDocument();
+	const template = document.navigationNodes[0]!;
+	document.navigationNodes.push({
+		...template,
+		id: 'free-camera',
+		label: 'Free Camera',
+		connectedNodeIds: [],
+		nextNodeId: undefined,
+		previousNodeId: undefined
+	});
+	return createEditorStore({ document, rooms: chopinRuntime.rooms });
+}
 
 describe('P3B.5 camera preview affordances', () => {
 	it('derives one sequence-edge direction from predecessor to immediate successor', () => {
@@ -32,58 +48,44 @@ describe('P3B.5 camera preview affordances', () => {
 		expect(result.choices.every((item) => item.label.includes('→'))).toBe(true);
 	});
 
-	it('changes named camera and edge preview scope without changing selection', () => {
-		const store = createFixtureEditorStore();
+	it('explicit Camera and Edge preview commands change scope and canonical selection', () => {
+		const store = createStoreWithFreeCamera();
 		store.setWorkspace('camera');
 		const selectedNode = store.document.navigationNodes[0]!;
 		const previewNode = store.document.navigationNodes.at(-1)!;
 		store.selectionActions.selectNavigationNode(selectedNode.id);
-		const selection = store.navigationSelection;
 
 		expect(store.previewCamera(previewNode.id, 'visitor')).toBe(true);
 		expect(store.cameraPreview).toMatchObject({ kind: 'camera', nodeId: previewNode.id });
-		expect(store.navigationSelection).toEqual(selection);
+		expect(store.navigationSelection).toMatchObject({ kind: 'node', nodeId: previewNode.id });
 
 		const connection = store.document.connections[0]!;
 		expect(store.previewEdge(connection.id, 'reverse', 'director')).toBe(true);
 		expect(store.cameraPreview).toMatchObject({
 			kind: 'edge', connectionId: connection.id, direction: 'reverse'
 		});
-		expect(store.navigationSelection).toEqual(selection);
+		expect(store.navigationSelection).toMatchObject({ kind: 'connection', connectionId: connection.id });
 	});
 
-	it('P11.1 migration — selection installs paused scopes and the ruler follows the scope', () => {
+	it('P12.2 migration — selection preserves the active Sequence scope', () => {
 		const store = createFixtureEditorStore();
 		store.setWorkspace('camera');
-		expect(store.seekCameraTimeline(0.41)).toBe(true);
+		expect(store.previewSequence('director')).toBe(true);
 		const node = store.document.navigationNodes.at(-1)!;
 		expect(store.selectionActions.selectNavigationNode(node.id)).toBe(true);
-		// Selection now installs the matching paused Camera scope…
 		expect(store.cameraPreview).toMatchObject({
-			kind: 'camera',
-			nodeId: node.id,
+			kind: 'sequence',
 			transport: 'paused'
 		});
-		// …and the global ruler follows the installed scope (supersedes the
-		// P3B.5 "selection preserves the playhead" rule).
-		expect(store.cameraTimelinePlayhead).toBeGreaterThanOrEqual(0);
 		const connection = store.document.connections[0]!;
 		expect(store.selectionActions.selectConnection(connection.id)).toBe(true);
 		expect(store.cameraPreview).toMatchObject({
-			kind: 'edge',
-			connectionId: connection.id,
-			direction: 'forward',
-			transport: 'paused',
-			playhead: 0
+			kind: 'sequence',
+			transport: 'paused'
 		});
-		const timeline = store.getCameraTimeline();
-		expect(timeline).not.toBeNull();
-		expect(store.cameraTimelinePlayhead).toBe(
-			cameraTimelineProgressAtEdgePlayhead(timeline!, connection.id, 'forward', 0)
-		);
 	});
 
-	it('an explicit sequence action replaces a playing edge preview without selecting it', () => {
+	it('an explicit sequence action replaces a playing edge preview and keeps canonical selection', () => {
 		const store = createFixtureEditorStore();
 		store.setWorkspace('camera');
 		const selectedNode = store.document.navigationNodes[0]!;
@@ -93,6 +95,6 @@ describe('P3B.5 camera preview affordances', () => {
 		expect(store.playCameraPreview()).toBe(true);
 		expect(store.previewSequence('director')).toBe(true);
 		expect(store.cameraPreview?.kind).toBe('sequence');
-		expect(store.navigationSelection).toMatchObject({ kind: 'node', nodeId: selectedNode.id });
+		expect(store.navigationSelection).toMatchObject({ kind: 'connection', connectionId: connection.id });
 	});
 });

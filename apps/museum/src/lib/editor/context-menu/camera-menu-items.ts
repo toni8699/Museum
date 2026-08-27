@@ -22,6 +22,7 @@ export function buildCameraNodeContextMenuItems(input: {
 	spatial: boolean;
 	nodeOnSequence: boolean;
 	mutationBlockedReason: string | null;
+	previewCameraReason?: string | null;
 	/** Existing validator reasons (guided-tour / topology), or null when allowed. */
 	addToSequenceReason?: string | null;
 	removeFromSequenceReason?: string | null;
@@ -33,7 +34,7 @@ export function buildCameraNodeContextMenuItems(input: {
 		{
 			id: 'preview-camera',
 			label: 'Preview Camera',
-			disabledReason: blocked,
+			disabledReason: blocked ?? input.previewCameraReason ?? null,
 			run: input.actions.previewCamera
 		}
 	];

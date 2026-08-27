@@ -8,9 +8,10 @@
 
 import {
 	createEdgeLocalTimeline,
-	createEditorCameraTimeline,
+	createEditorCameraTimelineResolution,
 	type EdgeLocalTimeline,
-	type EditorCameraTimeline
+	type EditorCameraTimeline,
+	type EditorCameraTimelineNodeBoundary
 } from '../camera/editor-camera-timeline';
 import { CameraRouteError } from '$lib/museum/navigation/camera-route';
 import { previewScopeOf } from '../store/camera-preview-controller.svelte';
@@ -38,6 +39,7 @@ export type CameraTimelineDiagnostic =
 export type CameraTimelineResult = {
 	timeline: EditorCameraTimeline | EdgeLocalTimeline | null;
 	diagnostic: CameraTimelineDiagnostic;
+	lastEvaluableBoundary: EditorCameraTimelineNodeBoundary | null;
 };
 
 export function useCameraTimeline(store: EditorStore) {
@@ -63,17 +65,15 @@ export function useCameraTimeline(store: EditorStore) {
 	 * failures, so the null path rebuilds here to surface the typed
 	 * `CameraRouteError` (gap / no-flow).
 	 */
-	function globalTimeline(): EditorCameraTimeline {
-		const cached = store.getCameraTimeline();
-		if (cached) return cached;
-		return createEditorCameraTimeline(store.state.graph);
+	function globalTimelineResolution() {
+		return createEditorCameraTimelineResolution(store.state.graph);
 	}
 
 	/**
 	 * P11.3 §9 — derived invalid-target marker. Canonical selection points at
 	 * an Edge/Camera with no installed scope for it and a failed identity
 	 * resolution (connection record or endpoint node missing from the live
-	 * document — the same source `installSelectionScope` validates against).
+	 * document — the same canonical identity source used by selection actions.
 	 * Clears naturally on selection change or a successful scope install.
 	 */
 	function invalidTarget(): CameraTimelineDiagnostic | null {
@@ -122,6 +122,9 @@ export function useCameraTimeline(store: EditorStore) {
 		get scope(): CameraTimelineScope {
 			return previewScopeOf(store.cameraPreview) ?? 'idle';
 		},
+		get sequenceActive() {
+			return store.cameraPreview?.kind === 'sequence';
+		},
 		/**
 		 * P11.3 — one `{ timeline, diagnostic }` boundary (§9). Scope-first
 		 * pinned resolution order: Camera static → Edge local (even when the
@@ -132,19 +135,35 @@ export function useCameraTimeline(store: EditorStore) {
 			const preview = store.cameraPreview;
 			try {
 				if (preview?.kind === 'camera') {
-					return { timeline: null, diagnostic: invalidTarget() ?? { kind: 'ok' } };
+					return {
+						timeline: null,
+						diagnostic: invalidTarget() ?? { kind: 'ok' },
+						lastEvaluableBoundary: null
+					};
 				}
 				if (preview?.kind === 'edge') {
 					const edge = edgeTimelineStrict();
 					if (edge === null) {
-						return { timeline: null, diagnostic: { kind: 'invalid-target' } };
+						return {
+							timeline: null,
+							diagnostic: { kind: 'invalid-target' },
+							lastEvaluableBoundary: null
+						};
 					}
-					return { timeline: edge, diagnostic: invalidTarget() ?? { kind: 'ok' } };
+					return {
+						timeline: edge,
+						diagnostic: invalidTarget() ?? { kind: 'ok' },
+						lastEvaluableBoundary: null
+					};
 				}
 				// Sequence scope / idle — the retained-scope failed-install case
 				// still shows the Sequence presentation plus the marker.
-				const timeline = globalTimeline();
-				return { timeline, diagnostic: invalidTarget() ?? { kind: 'ok' } };
+				const resolution = globalTimelineResolution();
+				return {
+					timeline: resolution.timeline,
+					diagnostic: invalidTarget() ?? resolution.diagnostic,
+					lastEvaluableBoundary: resolution.lastEvaluableBoundary
+				};
 			} catch (error) {
 				if (error instanceof CameraRouteError) {
 					return {
@@ -152,7 +171,8 @@ export function useCameraTimeline(store: EditorStore) {
 						diagnostic:
 							error.kind === 'no-flow'
 								? { kind: 'no-flow' }
-								: { kind: 'gap', fromNodeId: error.fromNodeId!, toNodeId: error.toNodeId! }
+								: { kind: 'gap', fromNodeId: error.fromNodeId!, toNodeId: error.toNodeId! },
+						lastEvaluableBoundary: null
 					};
 				}
 				// Genuine defect → the existing status channel, never a panel
@@ -160,7 +180,7 @@ export function useCameraTimeline(store: EditorStore) {
 				store.setStatusMessage(
 					error instanceof Error ? error.message : 'The camera timeline is unavailable'
 				);
-				return { timeline: null, diagnostic: { kind: 'ok' } };
+				return { timeline: null, diagnostic: { kind: 'ok' }, lastEvaluableBoundary: null };
 			}
 		},
 		/**
@@ -256,8 +276,8 @@ export function useCameraTimeline(store: EditorStore) {
 			if (store.isEditorInteractionActive || store.isDocumentTransactionActive) return true;
 			const preview = store.cameraPreview;
 			if (!preview || preview.kind !== 'edge') return true;
-			// Complete is paused-equivalent for inspection (stable, non-moving).
-			return preview.transport === 'playing';
+			if (store.isRelic && preview.transport === 'playing') return true;
+			return false;
 		},
 		get edgeReverseDisabled() {
 			const tl = this.edgeTimeline;
@@ -275,24 +295,25 @@ export function useCameraTimeline(store: EditorStore) {
 			if (!preview || preview.kind !== 'edge') return true;
 			return false;
 		},
-		get disabled() {
+		get selectionDisabled() {
 			return (
+				!this.timeline ||
 				store.isEditorInteractionActive ||
-				store.isDocumentTransactionActive ||
-				Boolean(
-					store.cameraPreview &&
-						(store.cameraPreview.mode !== 'director' ||
-							store.cameraPreview.transport === 'playing')
-				)
+				store.isDocumentTransactionActive
 			);
 		},
+		get framingDisabled() {
+			return this.selectionDisabled || store.isCameraFramingMutationBlocked;
+		},
 		get scrubDisabled() {
-			// Complete is paused-equivalent for inspection: the finished tour
-			// stays scrubbable (and a playhead write transitions it to paused).
+			const preview = store.cameraPreview;
 			return (
+				!this.sequenceActive ||
+				!this.timeline ||
+				this.timeline.durationSeconds <= 1e-9 ||
 				store.isEditorInteractionActive ||
 				store.isDocumentTransactionActive ||
-				Boolean(store.cameraPreview && store.cameraPreview.transport === 'playing')
+				(store.isRelic && preview?.transport === 'playing')
 			);
 		},
 		get previewPlaying() {
@@ -344,6 +365,9 @@ export function useCameraTimeline(store: EditorStore) {
 		},
 		seek(progress: number) {
 			store.seekCameraTimeline(progress);
+		},
+		seekEdge(progress: number) {
+			store.seekEdgePreview(progress);
 		},
 		step(direction: -1 | 1) {
 			store.stepCameraTimeline(direction);

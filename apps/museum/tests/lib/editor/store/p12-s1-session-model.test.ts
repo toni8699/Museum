@@ -117,9 +117,19 @@ describe('P12 S1 — binary transport and derived session presentation', () => {
 	});
 
 	it('static Camera scope has no temporal playhead or duration', () => {
-		const store = createFixtureEditorStore();
+		const document = cloneFixtureDocument();
+		const template = document.navigationNodes[0]!;
+		document.navigationNodes.push({
+			...template,
+			id: 'free-camera',
+			label: 'Free Camera',
+			connectedNodeIds: [],
+			nextNodeId: undefined,
+			previousNodeId: undefined
+		});
+		const store = createEditorStore({ document, rooms: chopinRuntime.rooms });
 		store.setWorkspace('camera');
-		expect(store.previewCamera('tour-a', 'director')).toBe(true);
+		expect(store.previewCamera('free-camera', 'director')).toBe(true);
 		const api = useCameraTimeline(store);
 		expect(api.durationSeconds).toBe(0);
 		expect(api.currentSeconds).toBe(0);

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Canvas } from '@threlte/core';
+	import { isFlowNode } from '$lib/content/scene';
 	import MuseumScene from '$lib/museum/MuseumScene.svelte';
 	import type { EditorPlacementRegistry } from '$lib/museum/placement-registry';
 	import EditorSceneEntities from '$lib/editor/EditorSceneEntities.svelte';
@@ -284,7 +285,7 @@
 		// selection-before-menu through the existing selection actions
 		store.selectionActions.selectNavigationNode(nodeId);
 		const flow = store.mainFlowNodeIds;
-		const onSequence = flow.includes(nodeId);
+		const onSequence = flow.includes(nodeId) || (!store.isRelic && isFlowNode(node));
 		// P11.2 §3 — camera-node menu is AP: reachable under a playing Director
 		// preview so its actions auto-pause; visitor/gesture still blocked.
 		const blocked = store.isAuthoringPauseBlocked ? 'Preview is active' : null;
@@ -300,6 +301,9 @@
 				spatial,
 				nodeOnSequence: onSequence,
 				mutationBlockedReason: blocked,
+				previewCameraReason: !store.isRelic && onSequence
+					? 'Sequenced cameras are inspected from Sequence scope'
+					: null,
 				removeFromSequenceReason: removalFailure && !removalFailure.ok ? removalFailure.message : null,
 				deleteNodeReason: deletionFailure.ok ? null : deletionFailure.message,
 				actions: {

@@ -12,6 +12,15 @@ function createFixtureEditorStore() {
 	return createEditorStore({ document: cloneFixtureDocument(), rooms: chopinRuntime.rooms });
 }
 
+function createUnsequencedStore() {
+	const document = cloneFixtureDocument();
+	for (const node of document.navigationNodes) {
+		delete (node as { nextNodeId?: string }).nextNodeId;
+		delete (node as { previousNodeId?: string }).previousNodeId;
+	}
+	return createEditorStore({ document, rooms: chopinRuntime.rooms });
+}
+
 function makeKeyEvent(key: string): KeyboardEvent {
 	let defaultPrevented = false;
 	return {
@@ -114,9 +123,8 @@ describe('EditorStore Phase 1 shell session state', () => {
 	});
 
 	it('stops an active camera preview only when leaving Camera', () => {
-		const store = createFixtureEditorStore();
-		store.selectionActions.selectNavigationNode('tour-paris');
-		expect(store.previewSelectedNode('director')).toBe(true);
+		const store = createUnsequencedStore();
+		expect(store.previewCamera('tour-paris', 'director')).toBe(true);
 		expect(store.cameraPreview).not.toBeNull();
 		expect(store.timelineExpanded).toBe(true);
 
@@ -130,8 +138,7 @@ describe('EditorStore Phase 1 shell session state', () => {
 	});
 
 	it('rejects workspace switches during interaction; chrome switches stay allowed during modal preview', () => {
-		const store = createFixtureEditorStore();
-		store.selectionActions.selectNavigationNode('tour-paris');
+		const store = createUnsequencedStore();
 		expect(store.beginDocumentTransaction()).toBe(true);
 		store.setTransformInteractionActive(true, 'camera');
 		expect(store.setWorkspace('camera')).toBe(false);
@@ -141,13 +148,13 @@ describe('EditorStore Phase 1 shell session state', () => {
 
 		// P11.2 (CH·AA) — workspace switching is chrome: always allowed; leaving
 		// Camera keeps its existing preview-teardown contract.
-		expect(store.previewSelectedNode('visitor')).toBe(true);
+		expect(store.previewCamera('tour-paris', 'visitor')).toBe(true);
 		expect(store.setWorkspace('scene')).toBe(true);
 		expect(store.cameraPreview).toBeNull();
 	});
 
 	it('blocks shell-state changes during interaction; chrome stays allowed during modal preview', () => {
-		const store = createFixtureEditorStore();
+		const store = createUnsequencedStore();
 		store.toggleClusterTreeExpansion('cluster-a');
 		const expectInteractionBlocked = () => {
 			expect(store.setTransformTool('select')).toBe(false);
@@ -180,8 +187,7 @@ describe('EditorStore Phase 1 shell session state', () => {
 		// P11.2 (CH·AA) — chrome/session writes (sidebar, timeline shell, tree
 		// expansion) stay allowed during a modal preview; only the transform-tool
 		// trio keeps its SB gate (P11.4 candidate).
-		store.selectionActions.selectNavigationNode('tour-paris');
-		expect(store.previewSelectedNode('visitor')).toBe(true);
+		expect(store.previewCamera('tour-paris', 'visitor')).toBe(true);
 		expect(store.setLeftPanel('assets')).toBe(true);
 		expect(store.setTimelineExpanded(true)).toBe(true);
 		expect(store.setTimelineHeight(320)).toBe(true);
@@ -348,9 +354,8 @@ describe('EditorStore Phase 1 shell session state', () => {
 
 describe('registerEditorShortcuts Escape cascade', () => {
 	it('stops an active camera preview on Escape before later cancel paths', () => {
-		const store = createFixtureEditorStore();
-		store.selectionActions.selectNavigationNode('tour-paris');
-		expect(store.previewSelectedNode('director')).toBe(true);
+		const store = createUnsequencedStore();
+		expect(store.previewCamera('tour-paris', 'director')).toBe(true);
 		expect(store.cameraPreview).not.toBeNull();
 
 		const handler = createEditorShortcutHandler(store, nullShortcutHost);

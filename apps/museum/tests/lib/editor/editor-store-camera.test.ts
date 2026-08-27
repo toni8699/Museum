@@ -43,6 +43,15 @@ import {
 	mirrorFramingEnvelope
 } from '$lib/editor/camera/editor-camera-framing-authoring';
 
+function createUnsequencedEditorStore() {
+	const document = cloneFixtureDocument();
+	for (const node of document.navigationNodes) {
+		delete (node as { nextNodeId?: string }).nextNodeId;
+		delete (node as { previousNodeId?: string }).previousNodeId;
+	}
+	return createEditorStore({ document, rooms: chopinRuntime.rooms });
+}
+
 describe('EditorStore Phase 6 camera nodes', () => {
 	it('uses one camera selection, defaults rows to position, and avoids redundant focus', () => {
 		const store = createFixtureEditorStore();
@@ -253,7 +262,7 @@ describe('EditorStore Phase 6 camera nodes', () => {
 	});
 
 	it('creates modal node and transition previews without document history', () => {
-		const store = createFixtureEditorStore();
+		const store = createUnsequencedEditorStore();
 		const placementId = store.document.entities[0]!.id;
 		store.selectionActions.selectNavigationNode('tour-paris');
 		store.beginAssetPlacement('paris-salon-chair');
@@ -301,7 +310,7 @@ describe('EditorStore Phase 6 camera nodes', () => {
 	});
 
 	it('restores camera ownership before releasing preview modal guards', () => {
-		const store = createFixtureEditorStore();
+		const store = createUnsequencedEditorStore();
 		store.selectionActions.selectNavigationNode('tour-paris');
 		expect(store.previewSelectedNode()).toBe(true);
 
@@ -326,7 +335,7 @@ describe('EditorStore Phase 6 camera nodes', () => {
 	});
 
 	it('blocks selection changes during a camera drag and cancels it before preview', () => {
-		const store = createFixtureEditorStore();
+		const store = createUnsequencedEditorStore();
 		store.selectionActions.selectNavigationNode('tour-paris');
 		expect(store.beginDocumentTransaction()).toBe(true);
 		store.setTransformInteractionActive(true, 'camera');
@@ -377,23 +386,20 @@ describe('EditorStore Phase 6 camera nodes', () => {
 		expect(store.undo()).toBe(false);
 		expect(store.redo()).toBe(false);
 		expect(store.beginDocumentTransaction()).toBe(false);
-		// P11.1 migration — Camera selection during playback auto-pauses into
-		// the selected scope instead of being blocked (supersedes P8 D1/S5; the
-		// full transition matrix lives in p11-s1-selection-scope). Resume edge
-		// playback afterwards so this matrix keeps exercising playing guards.
+		// P12.2 — Camera selection during playback is selection-only; the
+		// existing Edge scope keeps owning transport and pose.
 		expect(store.selectionActions.selectNavigationNode('tour-d')).toBe(true);
 		expect(store.cameraPreview).toMatchObject({
-			kind: 'camera',
-			nodeId: 'tour-d',
+			kind: 'edge',
+			connectionId: 'tour-paris-d',
 			// §6 — scope transitions preserve the active Observer/Through Camera
 			// mode; the playing edge here was entered as visitor.
 			mode: 'visitor',
-			transport: 'paused'
+			transport: 'playing'
 		});
 		expect(
 			store.selectionActions.selectCameraConnectionDirection('tour-paris-d', 'forward')
 		).toBe(true);
-		expect(store.playCameraPreview()).toBe(true);
 		expect(store.cameraPreview?.transport).toBe('playing');
 		// P11.2 §8 — selection/inspection is AA (selection never needs Stop), so
 		// every selection/focus row below returns true while the preview plays.
@@ -444,7 +450,7 @@ describe('EditorStore Phase 6 camera nodes', () => {
 		expect(store.statusMessage).toContain('Select a camera connection to preview');
 
 		// A live preview already active → command no-ops (never stacks).
-		const activeStore = createFixtureEditorStore();
+		const activeStore = createUnsequencedEditorStore();
 		expect(activeStore.selectionActions.selectNavigationNode('tour-paris')).toBe(true);
 		expect(activeStore.previewSelectedNode()).toBe(true);
 		expect(activeStore.previewSelectedConnection('forward')).toBe(false);
@@ -1407,13 +1413,9 @@ describe('EditorStore camera view authoring', () => {
 		const connection = store.document.connections[0]!;
 		store.selectionActions.selectCameraConnectionDirection(connection.id, 'forward');
 		const timeline = store.getCameraTimeline()!;
-		const edge = timeline.edges.find((candidate) => candidate.connectionId === connection.id)!;
-		const mid =
-			(edge.motionStartSeconds + edge.motionEndSeconds) / (2 * timeline.durationSeconds);
-
 		expect(store.toggleCameraEdgeReverse()).toBe(true);
 		expect(store.activeCameraDirection).toBe('reverse');
-		expect(store.seekCameraTimeline(mid)).toBe(true);
+		expect(store.seekEdgePreview(0.5)).toBe(true);
 		expect(store.activeCameraDirection).toBe('reverse');
 		expect(store.cameraPreview).toMatchObject({
 			kind: 'edge',
@@ -1433,10 +1435,7 @@ describe('EditorStore camera view authoring', () => {
 		const otherEdge = timeline.edges.find(
 			(candidate) => candidate.connectionId !== connection.id
 		)!;
-		const otherMid =
-			(otherEdge.motionStartSeconds + otherEdge.motionEndSeconds) /
-			(2 * timeline.durationSeconds);
-		expect(store.seekCameraTimeline(otherMid)).toBe(true);
+		expect(store.previewEdge(otherEdge.connectionId, otherEdge.direction, 'director')).toBe(true);
 		expect(store.activeCameraConnectionId).toBe(otherEdge.connectionId);
 		expect(store.activeCameraDirection).toBe(otherEdge.direction);
 	});
@@ -1695,7 +1694,7 @@ describe('EditorStore Phase 2.1 persistent camera discovery', () => {
 	});
 
 	it('clear camera-key helpers visibility across Camera, Scene, and visitor preview', () => {
-		const store = createFixtureEditorStore();
+		const store = createUnsequencedEditorStore();
 		const connectionId = store.document.connections[0]!.id;
 		expect(store.setWorkspace('camera')).toBe(true);
 		expect(store.selectionActions.selectCameraConnectionDirection(connectionId, 'forward')).toBe(true);
@@ -1708,14 +1707,8 @@ describe('EditorStore Phase 2.1 persistent camera discovery', () => {
 		expect(store.isCameraKeyHelpersActive).toBe(true);
 
 		expect(store.selectionActions.selectNavigationNode('tour-paris')).toBe(true);
-		// P11.1 migration — selection installs its matching paused scope rather
-		// than leaving the preview store untouched (supersedes P8 D1/P3B Group C).
-		expect(store.cameraPreview).toMatchObject({
-			kind: 'camera',
-			nodeId: 'tour-paris',
-			mode: 'director',
-			transport: 'paused'
-		});
+		// P12.2 — ordinary selection is selection-only.
+		expect(store.cameraPreview).toBeNull();
 		expect(store.previewCamera('tour-paris', 'visitor')).toBe(true);
 		expect(store.cameraPreview).toMatchObject({
 			kind: 'camera',
@@ -1787,28 +1780,20 @@ describe('EditorStore Phase 2.2 timeline selection and scrub', () => {
 		const timeline = store.getCameraTimeline()!;
 		const progress = 0.27;
 
-		expect(store.seekCameraTimeline(progress)).toBe(true);
+		expect(store.previewSequence('director')).toBe(true);
+		expect(store.seekSequencePreview(progress)).toBe(true);
 		const seconds = progress * timeline.durationSeconds;
 		const edge = timeline.edges.find(
 			(candidate) => seconds < candidate.motionEndSeconds
 		)!;
 		expect(store.cameraTimelinePlayhead).toBe(progress);
-		expect(store.navigationSelection).toEqual({
-			kind: 'connection',
-			connectionId: edge.connectionId
-		});
-		expect(store.activeCameraDirection).toBe(edge.direction);
 		expect(store.cameraPreview).toMatchObject({
-			kind: 'edge',
+			kind: 'sequence',
 			mode: 'director',
 			transport: 'paused',
-			connectionId: edge.connectionId,
-			direction: edge.direction
+			playhead: progress
 		});
-		expect(store.getCapturedCameraPreviewRoute(store.cameraPreview!.runId)?.edges[0]).toMatchObject({
-			connectionId: edge.connectionId,
-			direction: edge.direction
-		});
+		expect(store.navigationSelection).toBeNull();
 		expect(store.canonicalJson).toBe(before);
 		expect(store.canUndo).toBe(false);
 	});
@@ -1820,7 +1805,8 @@ describe('EditorStore Phase 2.2 timeline selection and scrub', () => {
 		const firstEdge = timeline.edges[0]!;
 		const secondEdge = timeline.edges[1]!;
 
-		expect(store.seekCameraTimeline(firstEdge.motionStartSeconds / timeline.durationSeconds + 0.01)).toBe(true);
+		expect(store.previewSequence('director')).toBe(true);
+		expect(store.seekSequencePreview(firstEdge.motionStartSeconds / timeline.durationSeconds + 0.01)).toBe(true);
 		expect(store.toggleCameraPreviewFollow()).toBe(true);
 		expect(store.cameraPreviewFollowEnabled).toBe(false);
 		const recenterVersion = store.cameraPreviewRecenterVersion;
@@ -1831,11 +1817,7 @@ describe('EditorStore Phase 2.2 timeline selection and scrub', () => {
 		expect(store.seekCameraTimeline(nextProgress)).toBe(true);
 		expect(store.cameraPreviewFollowEnabled).toBe(false);
 		expect(store.cameraPreviewRecenterVersion).toBe(recenterVersion);
-		expect(store.cameraPreview).toMatchObject({
-			kind: 'edge',
-			connectionId: secondEdge.connectionId,
-			direction: secondEdge.direction
-		});
+		expect(store.cameraPreview).toMatchObject({ kind: 'sequence', transport: 'paused' });
 	});
 
 	it('allows timeline knob scrubbing while paused in Through Camera mode', () => {
@@ -1849,17 +1831,17 @@ describe('EditorStore Phase 2.2 timeline selection and scrub', () => {
 			(timeline.edges[1]!.motionStartSeconds + timeline.edges[1]!.motionDurationSeconds * 0.4) /
 			timeline.durationSeconds;
 
-		expect(store.seekCameraTimeline(firstProgress)).toBe(true);
+		expect(store.previewSequence('director')).toBe(true);
+		expect(store.seekSequencePreview(firstProgress)).toBe(true);
 		expect(store.setCameraPreviewMode('visitor')).toBe(true);
 		expect(store.cameraPreview).toMatchObject({ mode: 'visitor', transport: 'paused' });
 
-		expect(store.seekCameraTimeline(secondProgress)).toBe(true);
+		expect(store.seekSequencePreview(secondProgress)).toBe(true);
 		expect(store.cameraTimelinePlayhead).toBe(secondProgress);
 		expect(store.cameraPreview).toMatchObject({
-			kind: 'edge',
+			kind: 'sequence',
 			mode: 'visitor',
-			transport: 'paused',
-			connectionId: timeline.edges[1]!.connectionId
+			transport: 'paused'
 		});
 	});
 
@@ -1868,6 +1850,7 @@ describe('EditorStore Phase 2.2 timeline selection and scrub', () => {
 		store.setWorkspace('camera');
 		const timeline = store.getCameraTimeline()!;
 		const finalBoundary = timeline.nodeBoundaries.at(-1)!;
+		expect(store.previewSequence('director')).toBe(true);
 
 		expect(
 			store.selectCameraTimelineNode(
@@ -1882,9 +1865,10 @@ describe('EditorStore Phase 2.2 timeline selection and scrub', () => {
 			handle: 'position'
 		});
 		expect(store.cameraPreview).toMatchObject({
-			kind: 'camera',
-			nodeId: 'tour-a',
-			mode: 'director'
+			kind: 'sequence',
+			mode: 'director',
+			transport: 'paused',
+			playhead: 1
 		});
 	});
 
@@ -1894,15 +1878,7 @@ describe('EditorStore Phase 2.2 timeline selection and scrub', () => {
 		store.setWorkspace('camera');
 		const connection = store.document.connections[0]!;
 		const keyframe = connection.viewTracks!.reverse[0]!;
-		const timeline = store.getCameraTimeline()!;
-		const edge = timeline.edges.find(
-			(candidate) => candidate.connectionId === connection.id
-		)!;
-		const expectedPlayhead = cameraMotionProgressAtEdgeProgress(
-			edge.motions.reverse,
-			0,
-			keyframe.progress
-		);
+		expect(store.previewEdge(connection.id, 'reverse', 'director')).toBe(true);
 
 		expect(
 			store.selectCameraTimelineViewKeyframe(
@@ -1921,12 +1897,10 @@ describe('EditorStore Phase 2.2 timeline selection and scrub', () => {
 			kind: 'edge',
 			connectionId: connection.id,
 			direction: 'reverse',
-			playhead: expectedPlayhead
+			playhead: 0
 		});
-		expect(store.cameraTimelinePlayhead).toBeGreaterThan(0);
-		expect(store.cameraTimelinePlayhead).toBeLessThan(
-			edge.motionEndSeconds / timeline.durationSeconds
-		);
+		expect(store.cameraTimelinePlayhead).toBeGreaterThanOrEqual(0);
+		expect(store.cameraTimelinePlayhead).toBeLessThanOrEqual(1);
 	});
 
 	it('steps through visible camera keys and guided node boundaries', () => {
@@ -1935,32 +1909,24 @@ describe('EditorStore Phase 2.2 timeline selection and scrub', () => {
 		store.setWorkspace('camera');
 		const connection = store.document.connections[0]!;
 		const forwardKey = connection.viewTracks!.forward[0]!;
+		expect(store.previewSequence('director')).toBe(true);
+		const selection = store.navigationSelection;
 
 		expect(store.stepCameraTimeline(1)).toBe(true);
-		expect(store.navigationSelection).toEqual({
-			kind: 'view-keyframe',
-			connectionId: connection.id,
-			direction: 'forward',
-			keyframeId: forwardKey.id
-		});
+		expect(store.navigationSelection).toEqual(selection);
+		const firstStep = store.cameraPreview!.playhead;
 		expect(store.stepCameraTimeline(1)).toBe(true);
-		expect(store.navigationSelection).toMatchObject({
-			kind: 'node',
-			nodeId: 'tour-b'
-		});
+		expect(store.navigationSelection).toEqual(selection);
+		expect(store.cameraPreview!.playhead).toBeGreaterThan(firstStep);
 		expect(store.stepCameraTimeline(-1)).toBe(true);
-		expect(store.navigationSelection).toEqual({
-			kind: 'view-keyframe',
-			connectionId: connection.id,
-			direction: 'forward',
-			keyframeId: forwardKey.id
-		});
+		expect(store.navigationSelection).toEqual(selection);
 	});
 
 	it('preserves the global playhead across observer mode switches and Stop', () => {
 		const store = createFixtureEditorStore();
 		store.setWorkspace('camera');
-		expect(store.seekCameraTimeline(0.38)).toBe(true);
+		expect(store.previewSequence('director')).toBe(true);
+		expect(store.seekSequencePreview(0.38)).toBe(true);
 		const playhead = store.cameraTimelinePlayhead;
 
 		expect(store.setCameraPreviewMode('visitor')).toBe(true);
@@ -2012,9 +1978,10 @@ describe('EditorStore Phase 2.3 whole guided-tour playback', () => {
 	it('replaces a paused scrub pose and preserves tour playhead across modes and Stop', () => {
 		const store = createFixtureEditorStore();
 		store.setWorkspace('camera');
-		expect(store.seekCameraTimeline(0.38)).toBe(true);
+		expect(store.previewSequence('director')).toBe(true);
+		expect(store.seekSequencePreview(0.38)).toBe(true);
 		expect(store.cameraPreview).toMatchObject({
-			kind: 'edge',
+			kind: 'sequence',
 			mode: 'director',
 			transport: 'paused'
 		});
@@ -2054,109 +2021,95 @@ describe('EditorStore Phase 2.3 whole guided-tour playback', () => {
 });
 
 describe('EditorStore Phase 3.1 selection and primary Play parity', () => {
-	it('P11.1 migration — node selection drives the named scope; re-selection stays idempotent', () => {
+	it('P12.2 — sequenced node selection seeks Sequence without replacing scope', () => {
 		const store = createFixtureEditorStore();
 		store.setWorkspace('camera');
-		expect(store.seekCameraTimeline(0.37)).toBe(true);
-		expect(store.stopCameraPreview()).toBe(true);
+		expect(store.previewSequence('director')).toBe(true);
+		expect(store.seekSequencePreview(0.37)).toBe(true);
+		const runId = store.cameraPreview!.runId;
+		const timeline = store.getCameraTimeline()!;
+		const boundary = timeline.nodeBoundaries.find((candidate) => candidate.nodeId === 'tour-b')!;
+		const otherBoundary = timeline.nodeBoundaries.find((candidate) => candidate.nodeId === 'tour-d')!;
 
-		expect(store.selectionActions.selectNavigationNode('tour-paris')).toBe(true);
+		expect(store.selectionActions.selectNavigationNode('tour-b')).toBe(true);
 		expect(store.cameraPreview).toMatchObject({
-			kind: 'camera',
-			nodeId: 'tour-paris',
-			mode: 'director',
-			transport: 'paused'
+			kind: 'sequence',
+			transport: 'paused',
+			playhead: boundary.progress
 		});
-		expect(store.cameraFocusKind).toBe('navigation-node');
-	const runId = store.cameraPreview!.runId;
-		const recenterVersion = store.cameraPreviewRecenterVersion;
-
-		expect(store.selectionActions.selectNavigationNode('tour-paris')).toBe(false);
 		expect(store.cameraPreview!.runId).toBe(runId);
-		expect(store.cameraPreviewRecenterVersion).toBe(recenterVersion);
+		expect(store.cameraFocusKind).toBeNull();
+
+		expect(store.selectionActions.selectNavigationNode('tour-b')).toBe(false);
+		expect(store.cameraPreview!.runId).toBe(runId);
+		expect(store.cameraPreview!.playhead).toBe(boundary.progress);
 
 		expect(store.selectionActions.selectNavigationNode('tour-d')).toBe(true);
 		expect(store.cameraPreview).toMatchObject({
-			kind: 'camera',
-			nodeId: 'tour-d',
-			mode: 'director',
-			transport: 'paused'
+			kind: 'sequence',
+			transport: 'paused',
+			playhead: otherBoundary.progress
 		});
-		expect(store.cameraPreview!.runId).not.toBe(runId);
-		expect(store.cameraPreviewRecenterVersion).toBe(recenterVersion + 1);
+		expect(store.cameraPreview!.runId).toBe(runId);
 	});
 
-	it('P11.1 migration — connection selection owns scope; explicit actions still own direction', () => {
+	it('P12.2 — connection and timeline-edge selection preserve preview scope', () => {
 		const store = createFixtureEditorStore();
 		store.setWorkspace('camera');
 		const connection = store.document.connections[0]!;
-		expect(store.seekCameraTimeline(0.29)).toBe(true);
-		expect(store.stopCameraPreview()).toBe(true);
+		expect(store.previewSequence('director')).toBe(true);
+		expect(store.seekSequencePreview(0.29)).toBe(true);
+		const runId = store.cameraPreview!.runId;
+		const playhead = store.cameraPreview!.playhead;
+		const recenterVersion = store.cameraPreviewRecenterVersion;
 
 		expect(
 			store.selectionActions.selectCameraConnectionDirection(connection.id, 'forward')
 		).toBe(true);
 		expect(store.cameraPreview).toMatchObject({
-			kind: 'edge',
-			connectionId: connection.id,
-			direction: 'forward',
-			mode: 'director',
-			transport: 'paused'
+			kind: 'sequence',
+			transport: 'paused',
+			playhead
 		});
-		const runId = store.cameraPreview!.runId;
-		const recenterVersion = store.cameraPreviewRecenterVersion;
+		expect(store.cameraPreview!.runId).toBe(runId);
+		expect(store.cameraPreviewRecenterVersion).toBe(recenterVersion);
 
 		expect(
 			store.selectionActions.selectCameraConnectionDirection(connection.id, 'forward')
 		).toBe(false);
 		expect(store.cameraPreview!.runId).toBe(runId);
-		expect(store.cameraPreviewRecenterVersion).toBe(recenterVersion);
 
 		expect(
 			store.selectionActions.selectCameraConnectionDirection(connection.id, 'reverse')
 		).toBe(true);
-		// P11.1 migration — direction is now part of the selection-driven scope:
-		// selecting the same edge in the other direction follows canonical
-		// selection instead of being ignored (explicit actions remain available
-		// and still own direction for preview-only flows).
-		expect(store.cameraPreview).toMatchObject({
-			kind: 'edge',
-			connectionId: connection.id,
-			direction: 'reverse',
-			fromNodeId: connection.toNodeId,
-			toNodeId: connection.fromNodeId,
-			mode: 'director',
-			transport: 'paused'
-		});
-		expect(store.cameraPreview!.runId).not.toBe(runId);
+		expect(store.cameraPreview!.runId).toBe(runId);
+		expect(store.cameraPreview!.playhead).toBe(playhead);
+		expect(store.cameraPreviewRecenterVersion).toBe(recenterVersion);
 
 		const timeline = store.getCameraTimeline()!;
-		const edge = timeline.edges.find(
-			(candidate) => candidate.connectionId === connection.id
-		)!;
-		const edgeMiddle = (edge.motionStartSeconds + edge.motionEndSeconds) /
-			(2 * timeline.durationSeconds);
-		const directionRecenterVersion = store.cameraPreviewRecenterVersion;
-		expect(
-			store.selectCameraTimelineEdge(connection.id, 'reverse', edgeMiddle)
-		).toBe(true);
-		// P11.1 — a pose seek on the already-selected scope reuses the installed
-		// preview: no recenter, only the playhead moves.
-		expect(store.cameraPreviewRecenterVersion).toBe(directionRecenterVersion);
-
 		const otherEdge = timeline.edges.find(
 			(candidate) => candidate.connectionId !== connection.id
 		)!;
 		expect(
 			store.selectCameraTimelineEdge(
 				otherEdge.connectionId,
-				otherEdge.direction,    otherEdge.motionStartSeconds / timeline.durationSeconds
+				otherEdge.direction,
+				otherEdge.motionStartSeconds / timeline.durationSeconds
 			)
 		).toBe(true);
-		// A cross-edge transition installs a new scope and recenters once.
-		expect(store.cameraPreviewRecenterVersion).toBe(directionRecenterVersion + 1);
+		expect(store.cameraPreview!.runId).toBe(runId);
+		expect(store.cameraPreview!.playhead).toBe(playhead);
+		expect(store.cameraPreviewRecenterVersion).toBe(recenterVersion);
 
-		store.stopCameraPreview();
+		expect(store.previewEdge(connection.id, 'reverse', 'director')).toBe(true);
+		expect(store.cameraPreview).toMatchObject({
+			kind: 'edge',
+			connectionId: connection.id,
+			direction: 'reverse',
+			transport: 'paused',
+			playhead: 0
+		});
+		expect(store.stopCameraPreview()).toBe(true);
 		expect(store.focusNavigationNode('tour-paris')).toBe(true);
 		expect(store.cameraFocusKind).toBe('navigation-node');
 		expect(
@@ -2169,7 +2122,8 @@ describe('EditorStore Phase 3.1 selection and primary Play parity', () => {
 		const store = createFixtureEditorStore();
 		store.setWorkspace('camera');
 
-		expect(store.seekCameraTimeline(0.38)).toBe(true);
+		expect(store.previewSequence('director')).toBe(true);
+		expect(store.seekSequencePreview(0.38)).toBe(true);
 		expect(store.previewSequence()).toBe(true);
 		expect(store.cameraPreview).toMatchObject({
 			kind: 'sequence',
@@ -2200,7 +2154,8 @@ describe('EditorStore Phase 3.1 selection and primary Play parity', () => {
 		});
 
 		expect(store.stopCameraPreview()).toBe(true);
-		expect(store.seekCameraTimeline(0.62)).toBe(true);
+		expect(store.previewSequence('visitor')).toBe(true);
+		expect(store.seekSequencePreview(0.62)).toBe(true);
 		expect(store.stopCameraPreview()).toBe(true);
 		expect(store.previewSequence()).toBe(true);
 		expect(store.cameraPreview).toMatchObject({
@@ -2546,11 +2501,8 @@ describe('EditorStore Phase 3.4 guided-order editing', () => {
 		store.setTransformInteractionActive(false);
 		expect(store.cancelDocumentTransaction()).toBe(true);
 
-		store.selectionActions.selectNavigationNode('tour-paris');
-		expect(store.previewSelectedNode('visitor')).toBe(true);
-		// P11.2 (AP) — the order validates first, then the seam refuses a
-		// *visitor* preview; a playing Director preview auto-pauses into the
-		// guided-order edit.
+		expect(store.previewSequence('visitor')).toBe(true);
+		// P12.2 — guided-order writes remain blocked during Visitor transport.
 		expect(store.setGuidedTourOrder(checkedInOrder)).toBe(false);
 		expect(store.statusMessage).toContain('during visitor previews');
 		expect(store.stopCameraPreview()).toBe(true);
@@ -3040,9 +2992,9 @@ describe('EditorStore S10.2 camera-flow mutations', () => {
 	});
 });
 
-describe('EditorStore Phase 3.6 framing controls', () => {
+	describe('EditorStore Phase 3.6 framing controls', () => {
 	it('commits node framing while Through Camera is paused and blocks it while playing', () => {
-		const store = createFixtureEditorStore();
+		const store = createUnsequencedEditorStore();
 		store.setWorkspace('camera');
 		expect(store.selectionActions.selectNavigationNode('tour-paris')).toBe(true);
 		expect(store.previewCamera('tour-paris', 'visitor')).toBe(true);
@@ -3089,6 +3041,7 @@ describe('EditorStore Phase 3.6 framing controls', () => {
 		expect(store.importDocument(document)).toBe(true);
 		store.setWorkspace('camera');
 		const keyframeId = connection.viewTracks.forward[0]!.id;
+		expect(store.previewEdge(connection.id, 'forward', 'director')).toBe(true);
 		expect(
 			store.selectCameraTimelineViewKeyframe(
 				connection.id,

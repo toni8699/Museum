@@ -43,8 +43,9 @@ import {
 	cameraTimelineEdgePlayheadAtProgress,
 	cameraTimelineProgressAtEdgePlayhead,
 	cameraTimelineProgressAtEdgeProgress,
+	createEdgeLocalTimeline,
 	createEditorCameraTimeline,
-	findEditorCameraTimelineEdge,
+	createEditorCameraTimelineResolution,
 	getEditorCameraTimelineLocation,
 	type EditorCameraTimeline,
 	type EditorCameraTimelineNodeBoundary
@@ -83,6 +84,7 @@ type EditorCameraTimelineCue =
 export interface EditorCameraTimelineControllerHost {
 	// Mutation guards.
 	readonly isEditorInteractionActive: boolean;
+	readonly isRelic: boolean;
 	readonly isDocumentTransactionActive: boolean;
 	readonly isDocumentMutationBlocked: boolean;
 	readonly pendingNavigationCommand: EditorPendingNavigationCommand;
@@ -90,6 +92,8 @@ export interface EditorCameraTimelineControllerHost {
 	requestAuthoringPause(): boolean;
 	/** P11.2 §8 — framing seam: paused previews (either camera) pass; playing pauses (visitor playing refuses). */
 	requestFramingPause(): boolean;
+	/** P12.2 — transport seek pauses either POV or Observer preview. */
+	requestTransportPause(): boolean;
 
 	// Document + resolved scene / graph.
 	readonly document: SceneDocument;
@@ -119,6 +123,7 @@ export interface EditorCameraTimelineControllerHost {
 	followEnabled: boolean;
 	recenterVersion: number;
 	setCameraPreviewPlayhead(progress: number, runId?: number): boolean;
+	getCapturedCameraPreviewRoute(runId: number): ResolvedCameraRoute | null;
 	getTimeline(): EditorCameraTimeline | null;
 
 	cancelAssetPlacement(message?: string): boolean;
@@ -190,10 +195,8 @@ export class EditorCameraTimelineController {
 	}
 
 	#canSeekCameraTimeline() {
-		// P11.2 §8 — scrubbing is authoring intent: prohibited-state bars first,
-		// then the framing seam (a playing Director auto-pauses in place; a
-		// playing visitor refuses; a paused visitor stays scrubbable — pinned
-		// Through Camera behavior). Pinned order: prohibited → seam.
+		// P12.2 D4 — only prohibited state is checked before target resolution.
+		// Transport pause belongs after validation and true no-op detection.
 		if (
 			this.host.isEditorInteractionActive ||
 			this.host.pendingNavigationCommand ||
@@ -201,12 +204,27 @@ export class EditorCameraTimelineController {
 		) {
 			return false;
 		}
-		if (!this.host.requestFramingPause()) return false;
+		return true;
+	}
+
+	#requestTimelinePause() {
+		return this.host.isRelic
+			? this.host.requestFramingPause()
+			: this.host.requestTransportPause();
+	}
+
+	#writeSequencePlayhead(progress: number) {
+		if (!this.#canSeekCameraTimeline() || !Number.isFinite(progress)) return false;
 		const preview = this.host.cameraPreview;
-		// A completed preview is paused-equivalent for inspection: only a
-		// *playing* transport blocks seek/step (complete is a stable, non-moving
-		// state and the playhead write transitions complete → paused).
-		return !(preview && preview.transport === 'playing');
+		if (!preview || preview.kind !== 'sequence') return false;
+		const target = Math.min(1, Math.max(0, progress));
+		const moved =
+			preview.playhead !== target || this.cameraTimelinePlayhead !== target;
+		if (!moved) return false;
+		if (!this.#requestTimelinePause()) return false;
+		const written = this.host.setCameraPreviewPlayhead(target, preview.runId);
+		this.cameraTimelinePlayhead = target;
+		return written || moved;
 	}
 
 	showCameraTimelineNodePose(nodeId: string) {
@@ -221,6 +239,7 @@ export class EditorCameraTimelineController {
 			this.host.clearCameraFocusRequest();
 			return false;
 		}
+		if (!this.host.requestFramingPause()) return false;
 		const hadPreview = this.host.cameraPreview !== null;
 		if (!hadPreview && !this.host.prepareCameraPreview()) return false;
 		this.host.clearCapturedRoute();
@@ -271,6 +290,7 @@ export class EditorCameraTimelineController {
 			);
 			return false;
 		}
+		if (!this.host.requestFramingPause()) return false;
 		const hadPreview = this.host.cameraPreview !== null;
 		if (!hadPreview && !this.host.prepareCameraPreview()) return false;
 		const runId = this.host.allocPreviewRunId();
@@ -301,41 +321,70 @@ export class EditorCameraTimelineController {
 		return true;
 	}
 
-	/** Phase 2.2 — scrub the global ruler through the exact guided edge motion. */
-	seekCameraTimeline(progress: number) {
+	/** P12.2 D5 — Sequence-only seek; selection and scope stay untouched. */
+	seekSequencePreview(progress: number) {
 		if (!this.#canSeekCameraTimeline() || !Number.isFinite(progress)) return false;
+		const preview = this.host.cameraPreview;
+		if (!preview || preview.kind !== 'sequence') return false;
 		const timeline = this.readCameraTimeline();
-		// S4 D5 — a one-node/no-flow graph is unbuildable (`walkFlowChain`
-		// requires ≥1 edge), so `readCameraTimeline()` returns null and scrub
-		// no-ops here: static/no-motion state, no fake edge.
-		if (!timeline) return false;
+		if (!timeline || timeline.edges.length === 0 || timeline.durationSeconds <= 1e-9) {
+			return false;
+		}
 		const location = getEditorCameraTimelineLocation(timeline, progress);
-		const direction = this.#timelineTravelDirection(
-			location.edge.connectionId,
-			location.edge.direction
+		return this.#writeSequencePlayhead(location.progress);
+	}
+
+	/** Resolve generic node clicks to their nearest Sequence occurrence. */
+	seekSequencePreviewForNode(nodeId: string) {
+		const preview = this.host.cameraPreview;
+		if (!preview || preview.kind !== 'sequence') return false;
+		const timeline = this.readCameraTimeline();
+		if (!timeline) return false;
+		const candidates = timeline.nodeBoundaries.filter((boundary) => boundary.nodeId === nodeId);
+		if (candidates.length === 0) {
+			// A sequenced node beyond a missing flow edge has no local boundary.
+			// Keep the active partial Sequence and seek its final evaluable pose.
+			try {
+				const resolution = createEditorCameraTimelineResolution(this.host.graph);
+				if (resolution.diagnostic.kind !== 'gap' || !resolution.lastEvaluableBoundary) {
+					return false;
+				}
+					return this.#writeSequencePlayhead(resolution.lastEvaluableBoundary.progress);
+			} catch {
+				return false;
+			}
+		}
+		const current = preview.playhead;
+		const boundary = candidates.reduce((nearest, candidate) =>
+			Math.abs(candidate.progress - current) < Math.abs(nearest.progress - current)
+				? candidate
+				: nearest
 		);
-		const edgePlayhead =
-			cameraTimelineEdgePlayheadAtProgress(
-				timeline,
-				location.edge.connectionId,
-				direction,
-				location.progress
-			) ?? location.playhead;
-		const movedTimeline =
-			Math.abs(this.cameraTimelinePlayhead - location.progress) > 1e-6;
-		const selected = this.selectionActions.selectCameraConnectionDirection(
-			location.edge.connectionId,
-			direction,
-			{ preservePreviewObserver: true }
+		return this.#writeSequencePlayhead(boundary.progress);
+	}
+
+	/** P12.2 D8 — Edge-local seek; selection and scope stay untouched. */
+	seekEdgePreview(progress: number) {
+		if (!this.#canSeekCameraTimeline() || !Number.isFinite(progress)) return false;
+		const preview = this.host.cameraPreview;
+		if (!preview || preview.kind !== 'edge') return false;
+		const capturedRoute = this.host.getCapturedCameraPreviewRoute(preview.runId);
+		const edgeTimeline = createEdgeLocalTimeline(
+			this.host.graph,
+			preview.connectionId,
+			preview.direction,
+			capturedRoute ? { route: capturedRoute } : undefined
 		);
-		const shown = this.showCameraTimelineConnectionPose(
-			location.edge.connectionId,
-			direction,
-			edgePlayhead,
-			{ preservePreviewObserver: true }
-		);
-		this.cameraTimelinePlayhead = location.progress;
-		return movedTimeline || selected || shown;
+		if (!edgeTimeline || edgeTimeline.durationSeconds <= 1e-9) return false;
+		const target = Math.min(1, Math.max(0, progress));
+		if (preview.playhead === target) return false;
+		if (!this.#requestTimelinePause()) return false;
+		return this.host.setCameraPreviewPlayhead(target, preview.runId);
+	}
+
+	/** Phase 2.2 compatibility facade for the active Sequence scope. */
+	seekCameraTimeline(progress: number) {
+		return this.seekSequencePreview(progress);
 	}
 
 	/**
@@ -431,58 +480,33 @@ export class EditorCameraTimelineController {
 		return this.showCameraTimelineConnectionPose(connectionId, direction, edgePlayhead);
 	}
 
-	/** Select a guided edge and seek to the pointer's nearest global ruler point. */
+	/** Select a guided edge; selection never changes active preview scope. */
 	selectCameraTimelineEdge(
 		connectionId: string,
 		direction: CameraConnectionDirection,
 		progress: number
 	) {
 		if (!this.#canSeekCameraTimeline() || !Number.isFinite(progress)) return false;
-		const timeline = this.readCameraTimeline();
-		if (!timeline) return false;
-		const edge = findEditorCameraTimelineEdge(timeline, connectionId);
-		if (!edge) return false;
-		const clampedProgress = Math.min(
-			edge.motionEndSeconds / timeline.durationSeconds,
-			Math.max(edge.motionStartSeconds / timeline.durationSeconds, progress)
-		);
-		const edgePlayhead = cameraTimelineEdgePlayheadAtProgress(
-			timeline,
-			connectionId,
-			direction,
-			clampedProgress
-		);
-		if (edgePlayhead === null) return false;
-		const movedTimeline =
-			Math.abs(this.cameraTimelinePlayhead - clampedProgress) > 1e-6;
-		const selected = this.selectionActions.selectCameraConnectionDirection(
-			connectionId,
-			direction
-		);
-		const shown = this.showCameraTimelineConnectionPose(
-			connectionId,
-			direction,
-			edgePlayhead
-		);
-		this.cameraTimelinePlayhead = clampedProgress;
-		return movedTimeline || selected || shown;
+		return this.selectionActions.selectCameraConnectionDirection(connectionId, direction);
 	}
 
-	/** Select one occurrence of a guided node and sample its exact authored pose. */
+	/** Select one occurrence of a guided node and seek exactly once in Sequence scope. */
 	selectCameraTimelineNode(nodeId: string, boundaryIndex: number) {
 		if (!this.#canSeekCameraTimeline() || !Number.isInteger(boundaryIndex)) return false;
 		const timeline = this.readCameraTimeline();
 		const boundary = timeline?.nodeBoundaries[boundaryIndex];
 		if (!timeline || boundary?.nodeId !== nodeId) return false;
-		const movedTimeline =
-			Math.abs(this.cameraTimelinePlayhead - boundary.progress) > 1e-6;
-		const selected = this.selectionActions.selectNavigationNode(nodeId);
-		this.cameraTimelinePlayhead = boundary.progress;
-		const shown = this.showCameraTimelineNodePose(nodeId);
-		return movedTimeline || selected || shown;
+		const selected = this.selectionActions.selectNavigationNode(nodeId, {
+			suppressSequenceSeek: true
+		});
+		const sought =
+			this.host.cameraPreview?.kind === 'sequence'
+				? this.#writeSequencePlayhead(boundary.progress)
+				: false;
+		return selected || sought;
 	}
 
-	/** Select a directional key and seek its exact shared-motion sample. */
+	/** Select a directional key without changing preview scope or playhead. */
 	selectCameraTimelineViewKeyframe(
 		connectionId: string,
 		direction: CameraConnectionDirection,
@@ -495,35 +519,12 @@ export class EditorCameraTimelineController {
 			direction,
 			keyframeId
 		);
-		const timeline = this.readCameraTimeline();
-		if (!keyframe || !timeline) return false;
-		const timelineProgress = cameraTimelineProgressAtEdgeProgress(
-			timeline,
-			connectionId,
-			direction,
-			keyframe.progress
-		);
-		const edge = findEditorCameraTimelineEdge(timeline, connectionId);
-		if (timelineProgress === null || !edge) return false;
-		const edgePlayhead = cameraMotionProgressAtEdgeProgress(
-			edge.motions[direction],
-			0,
-			keyframe.progress
-		);
-		const movedTimeline =
-			Math.abs(this.cameraTimelinePlayhead - timelineProgress) > 1e-6;
-		const selected = this.selectionActions.selectViewKeyframe(
+		if (!keyframe) return false;
+		return this.selectionActions.selectViewKeyframe(
 			connectionId,
 			direction,
 			keyframeId
 		);
-		const shown = this.showCameraTimelineConnectionPose(
-			connectionId,
-			direction,
-			edgePlayhead
-		);
-		this.cameraTimelinePlayhead = timelineProgress;
-		return movedTimeline || selected || shown;
 	}
 
 	#getCameraTimelineKeyBoundaries(
@@ -562,32 +563,64 @@ export class EditorCameraTimelineController {
 		return cues.sort((left, right) => left.progress - right.progress);
 	}
 
-	/** Seek the previous/next guided node or visible directional framing key. */
+	/** Seek the previous/next cue without changing selection or scope. */
 	stepCameraTimeline(direction: -1 | 1) {
 		if (!this.#canSeekCameraTimeline()) return false;
+		const preview = this.host.cameraPreview;
+		if (!preview || preview.kind === 'camera') return false;
+		if (preview.kind === 'edge') {
+			const capturedRoute = this.host.getCapturedCameraPreviewRoute(preview.runId);
+			const edgeTimeline = createEdgeLocalTimeline(
+				this.host.graph,
+				preview.connectionId,
+				preview.direction,
+				capturedRoute ? { route: capturedRoute } : undefined
+			);
+			if (!edgeTimeline || edgeTimeline.durationSeconds <= 1e-9) return false;
+			const breakpoints = [0, 1];
+			for (const [edgeIndex, edge] of edgeTimeline.motion.positionEdgeSpans.entries()) {
+				breakpoints.push(
+					cameraMotionProgressAtEdgeProgress(edgeTimeline.motion, edgeIndex, 0),
+					cameraMotionProgressAtEdgeProgress(edgeTimeline.motion, edgeIndex, 1)
+				);
+				for (const keyframe of edge.viewTrack?.keyframes ?? []) {
+					breakpoints.push(
+						cameraMotionProgressAtEdgeProgress(
+							edgeTimeline.motion,
+							edgeIndex,
+							keyframe.progress
+						)
+					);
+				}
+			}
+			const ordered = [...new Set(breakpoints.map((value) => value.toFixed(9)))]
+				.map(Number)
+				.sort((left, right) => left - right);
+			const epsilon = 1e-6;
+			const target =
+				direction < 0
+					? [...ordered].reverse().find((value) => value < preview.playhead - epsilon) ?? 0
+					: ordered.find((value) => value > preview.playhead + epsilon) ?? 1;
+			return this.seekEdgePreview(target);
+		}
+
 		const timeline = this.readCameraTimeline();
-		if (!timeline) return false;
+		if (!timeline || timeline.edges.length === 0) return false;
 		const cues = this.#getCameraTimelineKeyBoundaries(timeline);
 		const epsilon = 1e-6;
 		const cue =
 			direction < 0
 				? [...cues]
 						.reverse()
-						.find(
-							(candidate) =>
-								candidate.progress < this.cameraTimelinePlayhead - epsilon
+					.find(
+						(candidate) =>
+							candidate.progress < preview.playhead - epsilon
 						) ?? cues[0]
 				: cues.find(
 						(candidate) =>
-							candidate.progress > this.cameraTimelinePlayhead + epsilon
+							candidate.progress > preview.playhead + epsilon
 					) ?? cues.at(-1);
 		if (!cue) return false;
-		return cue.kind === 'node'
-			? this.selectCameraTimelineNode(cue.boundary.nodeId, cue.boundary.boundaryIndex)
-			: this.selectCameraTimelineViewKeyframe(
-					cue.connectionId,
-					cue.direction,
-					cue.keyframeId
-				);
+		return this.seekSequencePreview(cue.progress);
 	}
 }

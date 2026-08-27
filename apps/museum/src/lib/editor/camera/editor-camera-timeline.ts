@@ -7,7 +7,11 @@ import {
 	type CameraMotionSample,
 	type CameraMotion
 } from '$lib/museum/navigation/camera-motion';
-import { CameraRouteError, getFlowRoute } from '$lib/museum/navigation/camera-route';
+import {
+	CameraRouteError,
+	resolveFlowRoute,
+	type FlowRouteGap
+} from '$lib/museum/navigation/camera-route';
 import { isFlowNode } from '$lib/content/scene';
 import { EDITOR_GUIDED_TOUR_START_NODE_ID } from '../editor-navigation-graph';
 import {
@@ -64,6 +68,17 @@ export type EditorCameraTimeline = {
 	totalHoldSeconds: number;
 	edges: EditorCameraTimelineEdge[];
 	nodeBoundaries: EditorCameraTimelineNodeBoundary[];
+};
+
+export type EditorCameraTimelineDiagnostic =
+	| { kind: 'ok' }
+	| ({ kind: 'gap' } & FlowRouteGap)
+	| { kind: 'no-flow' };
+
+export type EditorCameraTimelineResolution = {
+	timeline: EditorCameraTimeline | null;
+	diagnostic: EditorCameraTimelineDiagnostic;
+	lastEvaluableBoundary: EditorCameraTimelineNodeBoundary | null;
 };
 
 export type EditorCameraTimelineLocation = {
@@ -128,15 +143,14 @@ function findGuidedStart(graph: NavigationGraph, preferredStartNodeId: string) {
  * deterministic global ruler; reduced-motion playback collapses each motion
  * span to its end pose.
  */
-export function createEditorCameraTimeline(
+function buildEditorCameraTimeline(
 	graph: NavigationGraph,
-	preferredStartNodeId = EDITOR_GUIDED_TOUR_START_NODE_ID
+	start: ReturnType<typeof findGuidedStart>,
+	guidedRoute: ResolvedCameraRoute
 ): EditorCameraTimeline {
-	const start = findGuidedStart(graph, preferredStartNodeId);
 	// Loop playback is derived (distinct-connection test): when the closing
 	// record exists and is not a chain transition, the timeline includes the
 	// authored return edge; otherwise the flow plays Once and ends at the tail.
-	const guidedRoute = getFlowRoute(start.id, graph, { loop: true });
 	const nodeById = graph.nodeById;
 	const edges: EditorCameraTimelineEdge[] = [];
 	let motionElapsedSeconds = 0;
@@ -212,6 +226,66 @@ export function createEditorCameraTimeline(
 		edges,
 		nodeBoundaries
 	};
+}
+
+/** Build global Sequence timing while preserving an evaluable prefix on a gap. */
+export function createEditorCameraTimelineResolution(
+	graph: NavigationGraph,
+	preferredStartNodeId = EDITOR_GUIDED_TOUR_START_NODE_ID
+): EditorCameraTimelineResolution {
+	try {
+		const start = findGuidedStart(graph, preferredStartNodeId);
+		const routeResolution = resolveFlowRoute(start.id, graph, { loop: true });
+		if (!routeResolution.route) {
+			return {
+				timeline: null,
+				diagnostic: {
+					kind: 'gap',
+					...routeResolution.gap!
+				},
+				lastEvaluableBoundary: null
+			};
+		}
+		const timeline = buildEditorCameraTimeline(graph, start, routeResolution.route);
+		return {
+			timeline,
+			diagnostic: routeResolution.gap
+				? { kind: 'gap', ...routeResolution.gap }
+				: { kind: 'ok' },
+			lastEvaluableBoundary: routeResolution.gap
+				? timeline.nodeBoundaries.at(-1) ?? null
+				: null
+		};
+	} catch (error) {
+		if (error instanceof CameraRouteError && error.kind === 'no-flow') {
+			return {
+				timeline: null,
+				diagnostic: { kind: 'no-flow' },
+				lastEvaluableBoundary: null
+			};
+		}
+		throw error;
+	}
+}
+
+/** Strict compatibility API: callers needing a complete route still throw. */
+export function createEditorCameraTimeline(
+	graph: NavigationGraph,
+	preferredStartNodeId = EDITOR_GUIDED_TOUR_START_NODE_ID
+): EditorCameraTimeline {
+	const resolution = createEditorCameraTimelineResolution(graph, preferredStartNodeId);
+	if (resolution.diagnostic.kind === 'no-flow') {
+		throw new CameraRouteError('no-flow', 'The camera timeline requires a flow');
+	}
+	if (resolution.diagnostic.kind === 'gap') {
+		throw new CameraRouteError(
+			'gap',
+			`The guided camera route is missing a connection from ${resolution.diagnostic.fromNodeId} to ${resolution.diagnostic.toNodeId}`,
+			resolution.diagnostic
+		);
+	}
+	if (!resolution.timeline) throw new Error('The camera timeline is unavailable');
+	return resolution.timeline;
 }
 
 export function findEditorCameraTimelineEdge(

@@ -7,7 +7,6 @@ import {
 	type EditorSelectionActionsHost
 } from '$lib/editor/store/selection-actions.svelte';
 import type { SceneDocument, SceneObjectCluster } from '$lib/content/scene';
-import type { EditorSelectionPreviewScopeRequest } from '$lib/editor/editor-types';
 import type { EditorTransformMode } from '$lib/editor/editor-transform';
 
 /**
@@ -41,14 +40,15 @@ function createHarness(
 		isEditorInteractionActive: false,
 		isCameraFramingMutationBlocked: false
 	};
-	const installedScopes: EditorSelectionPreviewScopeRequest[] = [];
-
 	const host: EditorSelectionActionsHost = {
 		get isDocumentMutationBlocked() {
 			return guards.isDocumentMutationBlocked;
 		},
 		get isEditorInteractionActive() {
 			return guards.isEditorInteractionActive;
+		},
+		get isRelic() {
+			return false;
 		},
 		get isCameraFramingMutationBlocked() {
 			return guards.isCameraFramingMutationBlocked;
@@ -130,13 +130,9 @@ function createHarness(
 				(object) => object.id === id && (object as { roomId: string }).roomId === roomId
 			);
 		},
-		getCapturedCameraPreviewRoute: () => null,
-		setCameraPreviewPlayhead: () => false,
-		installSelectionPreviewScope: (target) => {
-			installedScopes.push(target);
-			return true;
-		},
-		requestAuthoringPause: () => true,
+			seekSequencePreviewForNode: () => false,
+			installRelicSelectionScope: () => false,
+			requestAuthoringPause: () => true,
 		requestFramingPause: () => true
 	};
 
@@ -146,8 +142,7 @@ function createHarness(
 		selection,
 		host,
 		guards,
-		installedScopes,
-		getTransformMode: () => transformMode
+			getTransformMode: () => transformMode
 	};
 }
 
@@ -328,6 +323,9 @@ describe('EditorSelectionActions — Phase 6.4 keep-action invariant', () => {
 			get isEditorInteractionActive() {
 				return guards.isEditorInteractionActive;
 			},
+			get isRelic() {
+				return false;
+			},
 			get isCameraFramingMutationBlocked() {
 				return guards.isCameraFramingMutationBlocked;
 			},
@@ -409,9 +407,8 @@ describe('EditorSelectionActions — Phase 6.4 keep-action invariant', () => {
 						object.id === id && (object as { roomId: string }).roomId === roomId
 				);
 			},
-			getCapturedCameraPreviewRoute: () => null,
-			setCameraPreviewPlayhead: () => false,
-			installSelectionPreviewScope: () => true,
+				seekSequencePreviewForNode: () => false,
+				installRelicSelectionScope: () => false,
 			requestAuthoringPause: () => true,
 			requestFramingPause: () => true
 		};

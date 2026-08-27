@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { CameraConnectionDirection } from '$lib/types/scene';
+	import { isFlowNode } from '$lib/content/scene';
 	import type { EditorStore } from '../editor-store.svelte';
 	import EditorNumberField from '../fields/EditorNumberField.svelte';
 	import { getNodeConnections } from '../camera/editor-camera-connections';
@@ -25,6 +26,7 @@
 			? mainFlowNodeIds.indexOf(node.id) + 1
 			: null
 	);
+	const nodeOnSequence = $derived(node ? !store.isRelic && isFlowNode(node) : false);
 	const graph = $derived.by(() => {
 		try {
 			return resolvePlanSceneGraphFromDocument(store.document, store.rooms);
@@ -248,7 +250,8 @@
 		<div class="topology" aria-label="Camera topology commands">
 			<button
 				type="button"
-				disabled={store.isDocumentTransactionActive || store.isEditorInteractionActive || store.pendingNavigationCommand !== null}
+				disabled={nodeOnSequence || store.isDocumentTransactionActive || store.isEditorInteractionActive || store.pendingNavigationCommand !== null}
+				title={nodeOnSequence ? 'Inspect at Sequence boundary' : 'Preview Camera'}
 				onclick={() => { viewState?.setView('camera', '3d'); store.previewCamera(node.id, 'visitor'); }}
 			>Preview Camera</button>
 			<button

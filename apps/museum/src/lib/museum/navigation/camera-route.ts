@@ -460,6 +460,17 @@ type FlowChain = {
   nodeIds: string[];
   path: OrientedConnection[];
   connectionIds: ReadonlySet<string>;
+  gap: FlowRouteGap | null;
+};
+
+export type FlowRouteGap = {
+  fromNodeId: string;
+  toNodeId: string;
+};
+
+export type FlowRouteResolution = {
+  route: ResolvedCameraRoute | null;
+  gap: FlowRouteGap | null;
 };
 
 /**
@@ -494,7 +505,20 @@ function walkFlowChain(startNodeId: string, graph: NavigationGraph): FlowChain {
     }
     if (next.id === start.id) break; // legacy closed cycle — stop at the derived tail
 
-    const edge = findDirectConnection(cursor.id, next.id, graph);
+    let edge: OrientedConnection;
+    try {
+      edge = findDirectConnection(cursor.id, next.id, graph);
+    } catch (error) {
+      if (!(error instanceof CameraRouteError) || error.kind !== 'gap') throw error;
+      return {
+        head: start,
+        tail: cursor,
+        nodeIds: [...visited],
+        path,
+        connectionIds,
+        gap: { fromNodeId: cursor.id, toNodeId: next.id }
+      };
+    }
     path.push(edge);
     connectionIds.add(edge.connection.id);
     cursor = next;
@@ -505,7 +529,55 @@ function walkFlowChain(startNodeId: string, graph: NavigationGraph): FlowChain {
     tail: cursor,
     nodeIds: [...visited],
     path,
-    connectionIds
+    connectionIds,
+    gap: null
+  };
+}
+
+function flowGapError(gap: FlowRouteGap) {
+  return new CameraRouteError(
+    'gap',
+    `The guided camera route is missing a connection from ${gap.fromNodeId} to ${gap.toNodeId}`,
+    gap
+  );
+}
+
+function appendFlowLoop(
+  chain: FlowChain,
+  path: OrientedConnection[],
+  graph: NavigationGraph
+) {
+  const closing = findDirectConnectionSafe(chain.tail.id, chain.head.id, graph);
+  if (!closing || chain.connectionIds.has(closing.connection.id)) {
+    return chain.tail.id;
+  }
+  path.push(closing);
+  return chain.head.id;
+}
+
+/** Resolve ordered flow while retaining any evaluable prefix before a gap. */
+export function resolveFlowRoute(
+  startNodeId: string,
+  graph: NavigationGraph = navigationGraph,
+  options: { loop?: boolean } = {}
+): FlowRouteResolution {
+  const chain = walkFlowChain(startNodeId, graph);
+  const path = [...chain.path];
+  if (chain.gap) {
+    return {
+      route:
+        path.length > 0
+          ? buildResolvedRoute(chain.head.id, chain.tail.id, path, graph)
+          : null,
+      gap: chain.gap
+    };
+  }
+  const endNodeId = options.loop === true
+    ? appendFlowLoop(chain, path, graph)
+    : chain.tail.id;
+  return {
+    route: buildResolvedRoute(chain.head.id, endNodeId, path, graph),
+    gap: null
   };
 }
 
@@ -521,6 +593,7 @@ export function getFlowLoopConnectionId(
   graph: NavigationGraph = navigationGraph
 ): string | null {
   const chain = walkFlowChain(startNodeId, graph);
+  if (chain.gap) throw flowGapError(chain.gap);
   const closing = findDirectConnectionSafe(chain.tail.id, chain.head.id, graph);
   if (!closing) return null;
   if (chain.connectionIds.has(closing.connection.id)) return null;
@@ -538,28 +611,12 @@ export function getFlowRoute(
   graph: NavigationGraph = navigationGraph,
   options: { loop?: boolean } = {}
 ): ResolvedCameraRoute {
-  const chain = walkFlowChain(startNodeId, graph);
-  const path = [...chain.path];
-  let endNodeId = chain.tail.id;
-
-  if (options.loop === true) {
-    const closingConnectionId = getFlowLoopConnectionId(startNodeId, graph);
-    if (closingConnectionId !== null) {
-      const connection = graph.connections.find(
-        (candidate) => candidate.id === closingConnectionId
-      )!;
-      const reversed = connection.toNodeId === chain.tail.id;
-      path.push({
-        connection,
-        fromNodeId: reversed ? connection.toNodeId : connection.fromNodeId,
-        toNodeId: reversed ? connection.fromNodeId : connection.toNodeId,
-        reversed
-      });
-      endNodeId = chain.head.id;
-    }
+  const resolution = resolveFlowRoute(startNodeId, graph, options);
+  if (resolution.gap) throw flowGapError(resolution.gap);
+  if (!resolution.route) {
+    throw new Error(`Camera route from ${startNodeId} is empty`);
   }
-
-  return buildResolvedRoute(chain.head.id, endNodeId, path, graph);
+  return resolution.route;
 }
 
 /** Phase 3.7: project a connection's authored timing pair onto per-direction motion options consumed by `createCameraMotion`. Accepts persisted (`SceneConnection`) and runtime (`RuntimeConnection`) records — only `timing` is read. */

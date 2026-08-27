@@ -347,6 +347,11 @@
 		store.previewCamera(nodeId, 'visitor');
 	}
 
+	function previewCameraUnavailable(nodeId: string) {
+		const node = store.document.navigationNodes.find((candidate) => candidate.id === nodeId);
+		return !store.isRelic && (node ? isFlowNode(node) : false);
+	}
+
 	function appendDetourNode(originNodeId: string) {
 		const newNodeId = detourAddSelection[originNodeId];
 		if (!newNodeId || guidedEditingBlocked) return;
@@ -435,8 +440,8 @@
 							type="button"
 							class="guided-preview"
 							aria-label={`Preview ${node.label}`}
-							title="Preview Camera"
-							disabled={previewActionBlocked}
+							title={previewCameraUnavailable(node.id) ? 'Inspect at Sequence boundary' : 'Preview Camera'}
+							disabled={previewActionBlocked || previewCameraUnavailable(node.id)}
 							onclick={() => previewNode(node.id)}
 						><CirclePlay size={13} aria-hidden="true" /></button>
 						<button
@@ -503,14 +508,14 @@
 												{nodeLabel(partner.id)}
 											</span>
 										</button>
-										<button
-											type="button"
-											class="guided-preview"
-											aria-label={`Preview ${partner.label}`}
-											title="Preview Camera"
-											disabled={previewActionBlocked}
-											onclick={() => previewNode(partner.id)}
-										><CirclePlay size={13} aria-hidden="true" /></button>
+							<button
+								type="button"
+								class="guided-preview"
+								aria-label={`Preview ${partner.label}`}
+								title={previewCameraUnavailable(partner.id) ? 'Inspect at Sequence boundary' : 'Preview Camera'}
+								disabled={previewActionBlocked || previewCameraUnavailable(partner.id)}
+								onclick={() => previewNode(partner.id)}
+							><CirclePlay size={13} aria-hidden="true" /></button>
 									</li>
 								{/if}
 							{/each}
@@ -743,8 +748,8 @@
 								type="button"
 								class="guided-preview"
 								aria-label={`Preview ${node.label}`}
-								title="Preview Camera"
-								disabled={previewActionBlocked}
+								title={previewCameraUnavailable(node.id) ? 'Inspect at Sequence boundary' : 'Preview Camera'}
+								disabled={previewActionBlocked || previewCameraUnavailable(node.id)}
 								onclick={() => previewNode(node.id)}
 							><CirclePlay size={13} aria-hidden="true" /></button>
 							{#if startSequenceEligible(node.id)}
@@ -787,12 +792,12 @@
 													{nodeLabel(partner.id)}
 												</span>
 											</button>
-											<button
-												type="button"
-												class="guided-preview"
+										<button
+											type="button"
+											class="guided-preview"
 											aria-label={`Preview ${partner.label}`}
-											title="Preview Camera"
-											disabled={previewActionBlocked}
+											title={previewCameraUnavailable(partner.id) ? 'Inspect at Sequence boundary' : 'Preview Camera'}
+											disabled={previewActionBlocked || previewCameraUnavailable(partner.id)}
 											onclick={() => previewNode(partner.id)}
 										><CirclePlay size={13} aria-hidden="true" /></button>
 										</li>

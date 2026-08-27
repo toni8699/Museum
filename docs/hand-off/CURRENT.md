@@ -5,29 +5,15 @@ slice plus one next action only.
 
 ## Working tree
 
-- Current delta: **P11.4 — compact controls and parity + P11 close bug fixes
-  (2026-08-26, uncommitted on top of committed `45bcd6d`; the P11 close
-  commit).** One segmented Observer/Through Camera mode group (`role="group"`
-  + `aria-pressed` per segment); icon-only transport (Play/Pause/Replay) and
-  Observer tools (Follow `Crosshair` / Recenter `Scan`) with aria-label +
-  title; Follow/Recenter render only in Observer mode and share the mode row
-  at the 44rem wrap, so the mode toggle never changes the toolbar height;
-  visible Stop removed from all timeline chrome (`stopCameraPreview()` stays
-  internal lifecycle teardown); Edge-scope Reverse is now the paused-edge
-  direction SWAP (`timelineApi.swapEdgeReverse()` →
-  `store.swapEdgePreviewDirection()`, physical pose preserved via the `1 − e`
-  flip; sequence-side travel Reverse stays on `toggleCameraEdgeReverse`);
-  Edge Repeat added as an icon-only `aria-pressed` toggle wired to the
-  edge-only `edgeRepeat` flag; duplicate `EditorCameraEdgePreviewActions`
-  mounts removed from CameraFlowPanel + CameraPlanInspector (the Editor
-  Inspector keeps the undirected-edge direction chooser). Two shipped bug
-  fixes: (1) **completed previews are paused-equivalent for inspection** —
-  the seek/step seams (`#canSeekCameraTimeline`) and the hook scrub gates
-  (`scrubDisabled` / `disabled` / `edgeScrubDisabled`) now block only a
-  *playing* transport, so the finished sequence/edge knob stays interactive
-  (the playhead write transitions complete → paused); (2) **mode-toggle bar
-  resize** — Follow/Recenter share the mode row at the narrow wrap instead of
-  stacking into a second row.
+- Current delta: **P12.2 (S2) — selection matrix** (2026-08-26, uncommitted).
+  Selection is selection-only by default; sequenced-node clicks in Sequence
+  seek and pause without focus framing; explicit Preview Edge/Camera own scope
+  entry; transport seeks pause either POV or Observer after validation; broken
+  flows retain an evaluable prefix and last boundary; Preview Camera is gated
+  to Unsequenced nodes. Added `p12-s2` coverage and migrated P11/P8 pins.
+- Previous delta: **P11.4 — compact controls and parity + P11 close bug fixes
+  (2026-08-26).** Segmented mode controls, compact transport, Edge
+  Reverse/Repeat, visible-Stop removal, and completed-preview inspection fixes.
 - Previous delta: **P11.3 — scope-aware timeline shell (2026-08-26,
   committed `ab1210a`; bad-merge revert `45bcd6d`).** Scope-first branching per the
   §10 projection table: presentation resolves from canonical selection +
@@ -175,20 +161,16 @@ slice plus one next action only.
 
 ## Next action
 
-- **P12 S1 — session-state model** (per
-  [`../plans/2026-08-26-P12-camera-timeline-contract-freeze.md`](../plans/2026-08-26-P12-camera-timeline-contract-freeze.md),
-  ratified 2026-08-26): binary transport (`complete` state removed, derived
-  `atEnd`), playhead in seconds, `edgeRepeat` edge-only field, and the
-  `p12-s1-session-model.test.ts` suite. P11 is closed; P12 slices migrate the
-  superseded P11 rows (P11.2 playing-POV seek refusal, P11.3
-  selection-driven scope install, P11.4 capsule/swap/Escape rows) per the
-  freeze's §9 migration table. P3B.7a/P3B.8 QA stays blocked until P12
-  semantics settle.
+- **P12.3 (S3) — one-shell edge-local lane + Flip semantics** (per the
+  ratified P12 freeze): project truthful Edge timing in the shared shell,
+  reset Edge playhead on Flip, then continue with P12.4 chrome. P12.2 is
+  shipped; P3B.7a/P3B.8 QA remains downstream of P12.
 
 ## Verification
 
-- Working tree (P11.4 + fixes): `npm run check` 0 errors / 0 warnings; the
-  full `apps/museum` suite is green (2,228 tests). The two
+- Working tree (P12.2): `npm run check` 0 errors / 0 warnings; `npm run build`
+  passes; the full `apps/museum` suite is green (2,247 tests, 1 skipped). The
+  two
   pre-existing baseline failures from the P11.1 handoff are resolved: the
   guided/leaf-edge deletion row migrated in P11.2 (leaf-edge deletion is now
   one undoable transaction), and the pending-navigation contract row passes.
@@ -213,8 +195,12 @@ slice plus one next action only.
   keep/force-stop, visitor floor incl. paused-visitor framing, placement
   SB/cancel AA, pinned ordering for prohibited/stale/no-op/endpoint/zero-delta
   gestures, CH·AA chrome); `tests/lib/editor/store/p11-s1-selection-scope.test.ts`
-  (15 cases incl. edge canUndo, stop→select re-entrancy bars, and the
+  (17 cases incl. selection-only scope rules, post-gap seeking, and the
   failed-install-does-not-snapshot ordering pin);
+- P12.2 coverage: `tests/lib/editor/store/p12-s2-selection-matrix.test.ts`
+  (8 cases for mode-independent seek/step, late pause, partial routes, and
+  relic behavior); the migrated P11.1 matrix now has 17 cases including
+  post-gap last-boundary seeking and explicit Unsequenced Camera/Edge entry.
   `layout-gizmo-adapter` sequential-transform pins now green;
   sphere diameter contract pinned in `layout-object-editing`,
   `layout-preview-state`, and the regenerated `layout-geometry-golden`

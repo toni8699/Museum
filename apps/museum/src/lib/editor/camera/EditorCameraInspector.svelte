@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Vec3 } from '$lib/types/scene';
 	import type { CameraConnectionDirection } from '$lib/types/scene';
+	import { isFlowNode } from '$lib/content/scene';
 	import EditorVec3Field from '../fields/EditorVec3Field.svelte';
 	import EditorCameraFovField from './EditorCameraFovField.svelte';
 	import EditorProgressField from '../fields/EditorProgressField.svelte';
@@ -45,6 +46,7 @@
 	const nodeConnections = $derived(
 		node && !pendingNode ? getNodeConnections(store.document, node.id) : null
 	);
+	const nodeOnSequence = $derived(node ? !store.isRelic && isFlowNode(node) : false);
 	const partnerLabels = $derived(
 		new Map(
 			store.document.navigationNodes.map((candidate) => [
@@ -249,7 +251,8 @@
 			<div class="topology" aria-label="Camera topology commands">
 				<button
 					type="button"
-					disabled={store.isDocumentTransactionActive || store.isEditorInteractionActive || store.pendingNavigationCommand !== null}
+					disabled={nodeOnSequence || store.isDocumentTransactionActive || store.isEditorInteractionActive || store.pendingNavigationCommand !== null}
+					title={nodeOnSequence ? 'Inspect at Sequence boundary' : 'Preview Camera'}
 					onclick={() => store.previewCamera(node.id, 'visitor')}
 				>Preview Camera</button>
 				<button

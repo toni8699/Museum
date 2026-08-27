@@ -125,8 +125,9 @@ describe('P8 S5 interaction matrix — §G rows', () => {
 		syncWorkspace();
 		expect(store.currentWorkspace).toBe('camera');
 
-		expect(store.seekCameraTimeline(0.4)).toBe(true);
 		expect(store.previewSequence('director')).toBe(true);
+		expect(store.seekSequencePreview(0.4)).toBe(true);
+		expect(store.playCameraPreview()).toBe(true);
 		expect(store.cameraPreview?.kind).toBe('sequence');
 		expect(store.cameraPreview!.transport).toBe('playing');
 		const runId = store.cameraPreview!.runId;
@@ -191,9 +192,8 @@ describe('P8 S5 interaction matrix — §G rows', () => {
 	it('Sequence edited while previewing: paused tour hard-resets on ANY document edit (D4)', () => {
 		const { document, connId } = documentWithOffFlowConnection();
 		const store = createEditorStore({ document, rooms: chopinRuntime.rooms });
-		expect(store.seekCameraTimeline(0.5)).toBe(true);
 		expect(store.previewSequence('director')).toBe(true);
-		expect(store.pauseCameraPreview()).toBe(true);
+		expect(store.seekSequencePreview(0.5)).toBe(true);
 		expect(store.cameraPreview!.transport).toBe('paused');
 		const runId = store.cameraPreview!.runId;
 		expect(store.cameraTimelinePlayhead).toBeCloseTo(0.5, 6);
@@ -215,9 +215,8 @@ describe('P8 S5 interaction matrix — §G rows', () => {
 		expect(store.deleteConnection(connId)).toBe(true);
 		expect(store.document.connections.some((c) => c.id === connId)).toBe(false);
 		// Pause a tour, then undo the earlier edit.
-		expect(store.seekCameraTimeline(0.4)).toBe(true);
 		expect(store.previewSequence('director')).toBe(true);
-		expect(store.pauseCameraPreview()).toBe(true);
+		expect(store.seekSequencePreview(0.4)).toBe(true);
 		expect(store.cameraPreview!.transport).toBe('paused');
 		const runId = store.cameraPreview!.runId;
 

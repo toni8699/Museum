@@ -25,11 +25,7 @@ import type {
 	SceneNavigationNode,
 	SceneObjectCluster
 } from '$lib/content/scene';
-import type { ResolvedCameraRoute } from '$lib/museum/navigation/camera-route';
-import {
-	cameraMotionProgressAtEdgeProgress
-} from '$lib/museum/navigation/camera-motion';
-import { resolveDirectedEdgeMotionForConnection } from '../camera/editor-directed-edge-motion';
+import { isFlowNode } from '$lib/content/scene';
 import { findSceneCameraViewKeyframe } from '../camera/editor-camera-view';
 import type {
 	EditorCameraHandle,
@@ -102,6 +98,7 @@ function navigationStateFromLegacy(
 export interface EditorSelectionActionsHost {
 	readonly isDocumentMutationBlocked: boolean;
 	readonly isEditorInteractionActive: boolean;
+	readonly isRelic: boolean;
 	readonly isCameraFramingMutationBlocked: boolean;
 	/** P11.2 §8 — auto-pause seam for Camera authoring entry points. */
 	requestAuthoringPause(): boolean;
@@ -144,16 +141,8 @@ export interface EditorSelectionActionsHost {
 	ensureRoomTreeExpanded(roomId: RoomId): void;
 	ensureClusterTreeExpanded(clusterId: string): void;
 	isPlacementSelectable(id: string): boolean;
-	getCapturedCameraPreviewRoute(runId: number): ResolvedCameraRoute | null;
-	setCameraPreviewPlayhead(progress: number): boolean;
-	/**
-	 * P11.1 — selection-driven scope seam. Implemented by the composition
-	 * root over `cameraPreviewCommands.installSelectionScope` (host callback,
-	 * not a controller import, so no selection↔preview module cycle).
-	 * Supersedes P8 D1 / P3B Group C "selection never changes preview scope":
-	 * Camera node/connection selection now installs the matching paused scope.
-	 */
-	installSelectionPreviewScope(
+	seekSequencePreviewForNode(nodeId: string): boolean;
+	installRelicSelectionScope(
 		target: EditorSelectionPreviewScopeRequest,
 		options?: { preservePreviewObserver?: boolean }
 	): boolean;
@@ -181,13 +170,9 @@ export class EditorSelectionActions {
 	// Navigation / camera selection
 	// ===================================================================
 
-	selectNavigationNode(id: string) {
-		// P11.1 — selection is always available while a preview is active
-		// (playing previews are replaced below, not blocked). Supersedes the
-		// broad `isDocumentMutationBlocked` gate for Camera selection only;
-		// mutators keep their guards (P11.2 owns the operation split). The
-		// stop/restore ritual stays selection-barred (re-entrancy), and an open
-		// transaction bars entry here rather than failing the seam mid-install.
+	selectNavigationNode(id: string, options: { suppressSequenceSeek?: boolean } = {}) {
+		// Selection remains available during previews. Relic keeps P11's
+		// selection-driven paused scope installation; main editor uses P12.2.
 		if (
 			this.host.isEditorInteractionActive ||
 			this.host.isDocumentTransactionActive ||
@@ -210,11 +195,18 @@ export class EditorSelectionActions {
 
 		const current = this.host.cameraSelection;
 		if (current?.nodeId === id && current.handle === 'position') {
-			// P11.1 — unchanged node selection is a no-op only while the matching
-			// Camera scope is installed; a diverged preview falls through to the
-			// selection-driven seam below.
-			const preview = this.host.cameraPreview;
-			if (preview?.kind === 'camera' && preview.nodeId === id) return false;
+			if (this.host.isRelic) {
+				return this.host.cameraPreview?.kind === 'camera' &&
+					this.host.cameraPreview.nodeId === id &&
+					this.host.cameraPreview.transport === 'paused'
+					? false
+					: this.host.installRelicSelectionScope({ kind: 'camera', nodeId: id });
+			}
+			const sequenceSelection =
+				!options.suppressSequenceSeek &&
+				this.host.cameraPreview?.kind === 'sequence' &&
+				isFlowNode(node);
+			return sequenceSelection ? this.host.seekSequencePreviewForNode(id) : false;
 		}
 
 		this.host.cancelAssetPlacement();
@@ -226,13 +218,22 @@ export class EditorSelectionActions {
 
 		if (this.host.isPendingNavigationNode(id)) {
 			this.host.setStatusMessage('Adjust camera pose, then choose its first connection');
-		} else if (current?.nodeId !== id) {
+		} else if (this.host.isRelic) {
+			this.host.installRelicSelectionScope({ kind: 'camera', nodeId: id });
+		} else if (
+			current?.nodeId !== id &&
+			!(this.host.cameraPreview?.kind === 'sequence' && isFlowNode(node))
+		) {
 			this.host.focusNavigationNode(id);
 		}
-		// P11.1 — selecting a Camera enters paused static Camera scope. Pending
-		// (uncommitted) nodes have no document identity to preview.
-		if (!this.host.isPendingNavigationNode(id)) {
-			this.host.installSelectionPreviewScope({ kind: 'camera', nodeId: id });
+		if (
+			!this.host.isRelic &&
+			!options.suppressSequenceSeek &&
+			!this.host.isPendingNavigationNode(id) &&
+			this.host.cameraPreview?.kind === 'sequence' &&
+			isFlowNode(node)
+		) {
+			this.host.seekSequencePreviewForNode(id);
 		}
 		return true;
 	}
@@ -272,15 +273,8 @@ export class EditorSelectionActions {
 	 */
 	selectCameraConnectionDirection(
 		connectionId: string,
-		direction: CameraConnectionDirection,
-		options: { preservePreviewObserver?: boolean } = {}
+		direction: CameraConnectionDirection
 	) {
-		// P11.1 — `isDocumentMutationBlocked` no longer gates Camera selection:
-		// selection during any preview state is authoring intent and the scope
-		// seam below auto-replaces (never Stop-tears-down) the active scope.
-		// `preservePreviewObserver` forwards to the seam so scrub-driven
-		// transitions keep Follow/recenter framing (P8 S3 parity). An open
-		// transaction bars entry here rather than failing the seam mid-install.
 		if (
 			this.host.isEditorInteractionActive ||
 			this.host.isDocumentTransactionActive ||
@@ -299,28 +293,25 @@ export class EditorSelectionActions {
 			this.selection.discoveryDirection === direction &&
 			this.selection.navigation.kind === 'connection'
 		) {
-			// P11.1 — an unchanged selection is a no-op ONLY when the installed
-			// scope already matches. A playing/mismatched preview still needs the
-			// seam (e.g. selecting the edge under the Sequence playhead while it
-			// plays must transition scope even though selection is unchanged).
+			if (!this.host.isRelic) return false;
 			const preview = this.host.cameraPreview;
-			const scopeCurrent =
+			if (
 				preview?.kind === 'edge' &&
 				preview.connectionId === connectionId &&
 				preview.direction === direction &&
-				preview.transport !== 'playing';
-			if (scopeCurrent) return false;
+				preview.transport === 'paused'
+			) {
+				return false;
+			}
 		}
 		this.host.cancelAssetPlacement();
 		this.host.cancelPendingFrame();
 		this.host.clearCameraFocusRequest();
 		this.selection.setNavigation({ kind: 'connection', connectionId, direction });
 		this.expandActiveCameraDirection(direction);
-		// P11.1 — selecting an Edge enters paused local Edge scope; scope
-		// follows canonical selection (no independent active-edge identity).
-		// Timeline marker/ruler commands still own explicit seek and pose
-		// sampling; the seam's idempotent path keeps their installs intact.
-		this.host.installSelectionPreviewScope({ kind: 'edge', connectionId, direction }, options);
+		if (this.host.isRelic) {
+			this.host.installRelicSelectionScope({ kind: 'edge', connectionId, direction });
+		}
 		return true;
 	}
 
@@ -416,34 +407,9 @@ export class EditorSelectionActions {
 			this.expandActiveCameraDirection(direction);
 		}
 
-		const preview = this.host.cameraPreview;
-		let movedPlayhead = false;
-		if (
-			preview?.kind === 'edge' &&
-			preview.mode === 'director' &&
-			preview.transport === 'paused' &&
-			preview.connectionId === connectionId &&
-			preview.direction === direction
-		) {
-			const route = this.host.getCapturedCameraPreviewRoute(preview.runId);
-			if (route) {
-				// P8 S1 parity — keyframe selection maps through the same authored
-				// timing/easing the paused preview plays with.
-				const connection = this.host.document.connections.find(
-					(candidate) => candidate.id === preview.connectionId
-				);
-				if (connection) {
-					const progress = cameraMotionProgressAtEdgeProgress(
-						resolveDirectedEdgeMotionForConnection(connection, preview.direction, route)
-							.motion,
-						0,
-						keyframe.progress
-					);
-					movedPlayhead = this.host.setCameraPreviewPlayhead(progress);
-				}
-			}
-		}
-		return changed || movedPlayhead;
+		// P12.2 Law 2 — keyframe selection is selection-only. Transport seeks
+		// belong to the explicit timeline seek API.
+		return changed;
 	}
 
 	// ===================================================================

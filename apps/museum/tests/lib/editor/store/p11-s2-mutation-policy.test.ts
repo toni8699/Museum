@@ -1,6 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { roomPoint } from '$lib/content/rooms';
+import { chopinRuntime } from '$lib/content/chopin-project';
+import { createEditorStore } from '$lib/editor/editor-store.svelte';
 import { createFixtureEditorStore } from '../editor-test-utils';
+import { cloneFixtureDocument } from '../../content/__fixtures__/load-fixture-scene';
+
+function createUnsequencedStore() {
+	const document = cloneFixtureDocument();
+	for (const node of document.navigationNodes) {
+		delete (node as { nextNodeId?: string }).nextNodeId;
+		delete (node as { previousNodeId?: string }).previousNodeId;
+	}
+	return createEditorStore({ document, rooms: chopinRuntime.rooms });
+}
 
 /**
  * P11.2 — mutation-gate policy (plan §8 buckets + owner decisions 2026-08-26).
@@ -157,9 +169,8 @@ describe('P11.2 mutation-gate policy', () => {
 	});
 
 	it('visitor floor: paused visitor previews refuse document authoring but allow framing', () => {
-		const store = createFixtureEditorStore();
-		store.selectionActions.selectNavigationNode('tour-paris');
-		expect(store.previewSelectedNode('visitor')).toBe(true);
+		const store = createUnsequencedStore();
+		expect(store.previewCamera('tour-paris', 'visitor')).toBe(true);
 		expect(store.cameraPreview).toMatchObject({ mode: 'visitor', transport: 'paused' });
 
 		// Document authoring refuses (seam returns false for visitor).
@@ -309,9 +320,8 @@ describe('P11.2 mutation-gate policy', () => {
 	it('ordering: a zero-delta Aim commit never pauses a playing preview', () => {
 		const store = createFixtureEditorStore();
 		store.setWorkspace('camera');
-		store.selectionActions.selectConnection('tour-a-b');
-		expect(store.previewSelectedConnection('forward', 'director')).toBe(true);
-		expect(store.seekCameraTimeline(0.4)).toBe(true);
+		expect(store.previewEdge('tour-a-b', 'forward', 'director')).toBe(true);
+		expect(store.seekEdgePreview(0.4)).toBe(true);
 		// Add a breakpoint at an interior progress (selects the new keyframe).
 		expect(store.addViewKeyframeAtPlayhead()).toBe(true);
 		expect(store.playCameraPreview()).toBe(true);

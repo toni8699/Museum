@@ -17,6 +17,7 @@ describe('P8 S4 — boundary epsilon (scrub + playback)', () => {
 	it('scrub onto a node boundary from below/above resolves the correct edge + direction and writes the playhead', () => {
 		const store = createFixtureEditorStore();
 		store.setWorkspace('camera');
+		expect(store.previewSequence('director')).toBe(true);
 		const timeline = createEditorCameraTimeline(store.state.graph);
 		const boundary = timeline.nodeBoundaries.find((b) => b.nodeId === 'tour-paris')!;
 		const incoming = timeline.edges.find((e) => e.toNodeId === 'tour-paris')!;
@@ -44,6 +45,7 @@ describe('P8 S4 — global seconds domain / local-progress continuation', () => 
 	it('scrub into any transition resolves exact local progress; Play continues there (not at 0)', () => {
 		const store = createFixtureEditorStore();
 		store.setWorkspace('camera');
+		expect(store.previewSequence('director')).toBe(true);
 		const timeline = createEditorCameraTimeline(store.state.graph);
 		const progress = cameraTimelineProgressAtEdgePlayhead(timeline, 'tour-b-paris', 'forward', 0.5);
 		expect(progress).not.toBeNull();
@@ -97,13 +99,11 @@ describe('P8 S4 — completed preview stays inspectable (complete is paused-equi
 		expect(store.completeCameraPreview(runId)).toBe(true);
 		expect(store.cameraPreview).toMatchObject({ transport: 'paused', playhead: 1 });
 
-		// The finished tour is not a dead end: the seek seam lets the write
-		// through and the playhead write transitions complete → paused (the
-		// knob then lands on the edge-local preview, as with any scrub).
-		expect(store.seekCameraTimeline(0.5)).toBe(true);
+		// The finished tour remains inspectable in the same Sequence scope.
+		expect(store.seekSequencePreview(0.5)).toBe(true);
 		expect(store.cameraTimelinePlayhead).toBeCloseTo(0.5, 6);
 		expect(store.cameraPreview?.transport).toBe('paused');
-		expect(store.cameraPreview?.kind).toBe('edge');
+		expect(store.cameraPreview?.kind).toBe('sequence');
 	});
 
 	it('hook scrub/step gates stay open at complete — only a playing transport blocks', () => {
@@ -116,19 +116,20 @@ describe('P8 S4 — completed preview stays inspectable (complete is paused-equi
 		expect(store.completeCameraPreview(runId)).toBe(true);
 
 		expect(api.scrubDisabled).toBe(false);
-		expect(api.disabled).toBe(false);
+			expect(api.selectionDisabled).toBe(false);
 
-		// Regression guard: playing still blocks inspection.
+		// P12.2: playing still permits transport navigation; the seek path
+		// pauses before writing.
 		expect(store.playCameraPreview()).toBe(true);
-		expect(api.scrubDisabled).toBe(true);
-		expect(api.disabled).toBe(true);
+		expect(api.scrubDisabled).toBe(false);
+			expect(api.selectionDisabled).toBe(false);
 	});
 
 	it('the edge-scope knob is open at a completed edge and resumes from the scrubbed pose', () => {
 		const store = createFixtureEditorStore();
 		const api = useCameraTimeline(store);
 		store.setWorkspace('camera');
-		expect(store.selectionActions.selectConnection('tour-a-b')).toBe(true);
+		expect(store.previewEdge('tour-a-b', 'forward', 'director')).toBe(true);
 		expect(store.playCameraPreview()).toBe(true);
 		const runId = store.cameraPreview!.runId;
 		expect(store.markCameraPreviewStarted(runId, 100)).toBe(true);
@@ -371,9 +372,9 @@ describe('P8 S4 — previewSequence restore (S2 D6 regression)', () => {
 	it('valid lastSequencePlayhead → tour installs at the restored playhead', () => {
 		const store = createFixtureEditorStore();
 		store.setWorkspace('camera');
-		expect(store.seekCameraTimeline(0.42)).toBe(true);
 		expect(store.previewSequence('director')).toBe(true);
-		expect(store.pauseCameraPreview()).toBe(true);
+		expect(store.seekSequencePreview(0.42)).toBe(true);
+		expect(store.pauseCameraPreview()).toBe(false);
 		const saved = store.cameraTimelinePlayhead;
 		const connId = store.document.connections[0]!.id;
 		expect(store.previewEdge(connId, 'forward')).toBe(true);
@@ -387,7 +388,8 @@ describe('P8 S4 — previewSequence restore (S2 D6 regression)', () => {
 		expect(store.cameraTimelinePlayhead).toBe(
 			store.cameraTimelineController.cameraTimelinePlayhead
 		);
-		expect(store.seekCameraTimeline(0.37)).toBe(true);
+		expect(store.previewSequence('director')).toBe(true);
+		expect(store.seekSequencePreview(0.37)).toBe(true);
 		expect(store.cameraTimelineController.cameraTimelinePlayhead).toBeCloseTo(0.37, 6);
 		expect(store.cameraTimelinePlayhead).toBe(
 			store.cameraTimelineController.cameraTimelinePlayhead

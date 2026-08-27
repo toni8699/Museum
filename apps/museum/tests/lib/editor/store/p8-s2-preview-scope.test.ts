@@ -57,30 +57,25 @@ describe('P8 S2 explicit preview scopes', () => {
 		expect(store.statusMessage).toMatch(/Unknown|unavailable/i);
 	});
 
-	it('select-edge while sequence playing → seek auto-pauses then proceeds (P11.2 CTC AP)', () => {
+	it('explicit Preview Edge follows a Sequence transport seek', () => {
 		const store = createFixtureEditorStore();
 		store.setWorkspace('camera');
 		expect(store.previewSequence('director')).toBe(true);
 		expect(store.cameraPreview?.transport).toBe('playing');
-		// P11.2 — scrubbing is authoring intent: the playing Director sequence
-		// auto-pauses in place, then the seek proceeds at the requested progress.
-		expect(store.seekCameraTimeline(0.2)).toBe(true);
+		// P12.2 — transport navigation pauses the playing Sequence, then the
+		// explicit Preview Edge command changes scope.
+		expect(store.seekSequencePreview(0.2)).toBe(true);
 		expect(store.cameraPreview?.transport).toBe('paused');
 		expect(store.cameraTimelinePlayhead).toBeCloseTo(0.2, 6);
-		// P11.1 — with playback no longer exclusive, the explicit edge command
-		// switches the paused sequence into the selected edge scope. The default
-		// visitor mode installs the edge as *playing* (P1.1 mode rule).
-		expect(store.previewSelectedConnection('forward')).toBe(true);
-		expect(store.cameraPreview?.kind).toBe('edge');
-		expect(store.cameraPreview?.transport).toBe('playing');
+		expect(store.previewEdge('tour-a-b', 'forward', 'director')).toBe(true);
+		expect(store.cameraPreview).toMatchObject({ kind: 'edge', transport: 'paused', playhead: 0 });
 	});
 
 	it('Preview Edge explicit switch saves lastSequencePlayhead (= prior cameraTimelinePlayhead), installs paused', () => {
 		const store = createFixtureEditorStore();
 		store.setWorkspace('camera');
-		expect(store.seekCameraTimeline(0.37)).toBe(true);
 		expect(store.previewSequence('director')).toBe(true);
-		expect(store.pauseCameraPreview()).toBe(true);
+		expect(store.seekSequencePreview(0.37)).toBe(true);
 		const prior = store.cameraTimelinePlayhead;
 		const connId = store.document.connections[0]!.id;
 		expect(store.previewEdge(connId, 'forward', 'director')).toBe(true);
@@ -91,9 +86,8 @@ describe('P8 S2 explicit preview scopes', () => {
 	it('Preview Sequence return (valid) restores lastSequencePlayhead when timeline still builds', () => {
 		const store = createFixtureEditorStore();
 		store.setWorkspace('camera');
-		expect(store.seekCameraTimeline(0.42)).toBe(true);
 		expect(store.previewSequence('director')).toBe(true);
-		expect(store.pauseCameraPreview()).toBe(true);
+		expect(store.seekSequencePreview(0.42)).toBe(true);
 		const saved = store.cameraTimelinePlayhead;
 		const connId = store.document.connections[0]!.id;
 		expect(store.previewEdge(connId, 'forward')).toBe(true);
@@ -105,9 +99,8 @@ describe('P8 S2 explicit preview scopes', () => {
 	it('Preview Sequence return (invalid) resets to 0 when timeline unbuildable, even from a non-zero playhead', () => {
 		const store = createFixtureEditorStore();
 		store.setWorkspace('camera');
-		expect(store.seekCameraTimeline(0.3)).toBe(true);
 		expect(store.previewSequence('director')).toBe(true);
-		expect(store.pauseCameraPreview()).toBe(true);
+		expect(store.seekSequencePreview(0.3)).toBe(true);
 		const connId = store.document.connections[0]!.id;
 		expect(store.previewEdge(connId, 'forward')).toBe(true);
 		// Unbuildable flow: clearing next/prev on every node makes the timeline throw
@@ -203,9 +196,8 @@ describe('P8 S2 explicit preview scopes', () => {
 	it('resetToScopeStart → tour: global 0, connection: preview 0 and global untouched', () => {
 		const store = createFixtureEditorStore();
 		store.setWorkspace('camera');
-		expect(store.seekCameraTimeline(0.4)).toBe(true);
 		expect(store.previewSequence('director')).toBe(true);
-		expect(store.pauseCameraPreview()).toBe(true);
+		expect(store.seekSequencePreview(0.4)).toBe(true);
 		expect(store.setCameraPreviewPlayhead(0.6)).toBe(true);
 		expect(store.resetPreviewToScopeStart()).toBe(true);
 		expect(store.cameraPreview?.playhead).toBe(0);

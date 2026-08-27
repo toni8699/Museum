@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { Aperture, Clapperboard, Crosshair, Route, RotateCw } from 'lucide-svelte';
 	import type { CameraConnectionDirection } from '$lib/types/scene';
+	import { isFlowNode } from '$lib/content/scene';
 	import {
 		cameraTimelineEdgeProgressAtProgress,
 		cameraTimelineProgressAtEdgeProgress,
@@ -68,7 +69,8 @@
 	const timelineApi = useCameraTimeline(store);
 	const timeline = $derived(timelineApi.timeline);
 	const playhead = $derived(timelineApi.playhead);
-	const disabled = $derived(timelineApi.disabled);
+	const selectionDisabled = $derived(timelineApi.selectionDisabled);
+	const framingDisabled = $derived(timelineApi.framingDisabled);
 	const selected = $derived(store.navigationSelection);
 	const activeTrackLabel = $derived(
 		store.activeCameraConnectionId
@@ -337,7 +339,7 @@
 		direction: CameraConnectionDirection,
 		handle: EnvelopeHandleName
 	) {
-		if (event.button !== 0 || disabled || envelopeHandleDrag) return;
+		if (event.button !== 0 || framingDisabled || envelopeHandleDrag) return;
 		if (!store.beginFramingEnvelopeHandleDrag(connectionId, direction)) return;
 		const target = event.currentTarget as HTMLElement;
 		envelopeHandleDrag = { pointerId: event.pointerId, target, connectionId, direction, handle };
@@ -411,7 +413,7 @@
 		direction: CameraConnectionDirection,
 		handle: EnvelopeHandleName
 	) {
-		if (disabled) return;
+		if (framingDisabled) return;
 		const connection = store.document.connections.find(
 			(candidate) => candidate.id === connectionId
 		);
@@ -514,7 +516,7 @@
 		if (!node) return;
 		store.selectionActions.selectNavigationNode(nodeId);
 		const flow = store.mainFlowNodeIds;
-		const onSequence = flow.includes(nodeId);
+		const onSequence = flow.includes(nodeId) || (!store.isRelic && isFlowNode(node));
 		const removalFailure = onSequence ? validateGuidedTourRemoval(store.document, nodeId) : null;
 		const deletionFailure = validateNavigationNodeDeletion(store.document, nodeId);
 		event.preventDefault();
@@ -526,6 +528,9 @@
 				spatial: false,
 				nodeOnSequence: onSequence,
 				mutationBlockedReason: blockedReason(),
+				previewCameraReason: !store.isRelic && onSequence
+					? 'Sequenced cameras are inspected from Sequence scope'
+					: null,
 				removeFromSequenceReason:
 					removalFailure && !removalFailure.ok ? removalFailure.message : null,
 				deleteNodeReason: deletionFailure.ok ? null : deletionFailure.message,
@@ -607,7 +612,7 @@
 	}
 
 	function beginKeyDrag(event: PointerEvent, marker: TimelineViewKeyMarker) {
-		if (event.button !== 0 || disabled || keyDrag) return;
+		if (event.button !== 0 || framingDisabled || keyDrag) return;
 		if (!store.beginViewKeyframeProgressDrag(marker)) return;
 		const target = event.currentTarget as HTMLElement;
 		keyDrag = { pointerId: event.pointerId, target, marker };
@@ -734,7 +739,7 @@
 					class:selected={isEdgeSelected(edge)}
 					style={`left: ${percent(start)}; width: ${percent(end - start)};`}
 					title={`${edge.connectionId} · ${edge.direction}`}
-					disabled={disabled}
+					disabled={selectionDisabled}
 					onclick={(event) => selectEdge(event, edge)}
 					oncontextmenu={(event) => onEdgeContextMenu(event, edge)}
 				>
@@ -750,7 +755,7 @@
 					style={`left: ${markerPosition(boundary.progress)};`}
 					title={`${node?.label ?? boundary.nodeId} · ${formatTime(boundary.timeSeconds)}`}
 					aria-label={`Select camera node ${node?.label ?? boundary.nodeId}`}
-					disabled={disabled}
+					disabled={selectionDisabled}
 					onclick={(event) => {
 						event.stopPropagation();
 						store.selectCameraTimelineNode(boundary.nodeId, boundary.boundaryIndex);
@@ -774,7 +779,7 @@
 					class:selected={isNodeSelected(shot.nodeId)}
 					style={`left: ${percent(shot.start)}; width: ${percent(shot.end - shot.start)};`}
 					title={`${shot.label}${shot.holdSeconds > 0 ? ` · ${shot.holdSeconds.toFixed(1)}s hold` : ''}`}
-					disabled={disabled}
+					disabled={selectionDisabled}
 					onclick={() => store.selectCameraTimelineNode(shot.nodeId, shot.boundaryIndex)}
 					oncontextmenu={(event) => onNodeMarkerContextMenu(event, shot.nodeId)}
 				><span>{shot.boundaryIndex + 1}</span>{shot.label}</button>
@@ -846,7 +851,7 @@
 						style={`left: ${percent(activeEnvelopeHandles.positions[handle])};`}
 						aria-label={ENVELOPE_HANDLE_LABELS[handle]}
 						title={ENVELOPE_HANDLE_LABELS[handle]}
-						disabled={disabled && !isEnvelopeHandleDragging(handle)}
+						disabled={framingDisabled && !isEnvelopeHandleDragging(handle)}
 						onpointerdown={(event) =>
 							beginEnvelopeHandleDrag(
 								event,
@@ -881,7 +886,7 @@
 					style={`left: ${markerPosition(marker.progress)};`}
 					title={`${marker.fov.toFixed(1)}° FOV · ${marker.direction}`}
 					aria-label={`Select FOV key ${marker.keyframeId}`}
-					disabled={disabled && !isKeyDragging(marker)}
+					disabled={selectionDisabled && !isKeyDragging(marker)}
 					aria-grabbed={isKeyDragging(marker)}
 					onpointerdown={(event) => beginKeyDrag(event, marker)}
 					onpointermove={updateKeyDrag}
@@ -919,7 +924,7 @@
 					style={`left: ${markerPosition(marker.progress)};`}
 					title={`Look at ${marker.cameraTarget.map((value) => value.toFixed(1)).join(', ')} · ${marker.direction}`}
 					aria-label={`Select Look At key ${marker.keyframeId}`}
-					disabled={disabled && !isKeyDragging(marker)}
+					disabled={selectionDisabled && !isKeyDragging(marker)}
 					aria-grabbed={isKeyDragging(marker)}
 					onpointerdown={(event) => beginKeyDrag(event, marker)}
 					onpointermove={updateKeyDrag}

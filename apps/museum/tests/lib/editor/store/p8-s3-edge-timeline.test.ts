@@ -59,12 +59,9 @@ describe('P8 S3 edge-local timeline — C—E unsequenced scenario', () => {
 		const connId = addFreeNodeWithConnection(document);
 		const store = createEditorStore({ document, rooms: chopinRuntime.rooms });
 		store.selectionActions.selectConnection(connId);
-		// P11.1 migration — selection itself now installs a paused scope, so the
-		// idle candidate state is reached by stopping that selection-driven
-		// preview (discovery/selection is retained).
-		expect(store.stopCameraPreview()).toBe(true);
+		// P12.2 — selection stays a candidate state until explicit Preview Edge.
 		const api = useCameraTimeline(store);
-		// No preview yet — candidate mode
+		// No preview yet — candidate mode.
 		expect(store.cameraPreview).toBeNull();
 		expect(api.edgeTimeline).not.toBeNull();
 		expect(api.edgeScrubDisabled).toBe(true);
@@ -134,12 +131,12 @@ describe('P8 S3 active-preview precedence', () => {
 		// Start preview for first connection (tour-a-b)
 		expect(store.previewEdge(firstConn, 'forward', 'director')).toBe(true);
 		expect(store.cameraPreview?.kind).toBe('edge');
-		// Select different connection (free) — P11.1: selection IS the scope
-		// transition now, superseding P8 S3's preview-over-selection precedence.
+		// Select different connection (free) — P12.2 selection is independent
+		// from the already-installed Preview Edge scope.
 		store.selectionActions.selectConnection(connFree);
 		expect(store.activeCameraConnectionId).toBe(connFree);
 		const api = useCameraTimeline(store);
-		expect(api.edgeTimeline?.connectionId).toBe(connFree);
+		expect(api.edgeTimeline?.connectionId).toBe(firstConn);
 		expect(api.edgeEndpoints?.fromNodeId).toBe(
 			store.cameraPreview?.kind === 'edge' ? (store.cameraPreview as any).fromNodeId : null
 		);
@@ -158,10 +155,8 @@ describe('P8 S3 disabled-state contract at hook level', () => {
 		const apiIdle = useCameraTimeline(store);
 		// No preview and no selection → no timeline
 		expect(apiIdle.edgeTimeline).toBeNull();
-		// Select connection idle — P11.1 migration: this installs a paused
-		// scope, so stop it to reach the no-preview candidate state under test.
+		// Select connection idle — selection does not install a preview.
 		store.selectionActions.selectConnection(connId);
-		expect(store.stopCameraPreview()).toBe(true);
 		const apiCandidate = useCameraTimeline(store);
 		expect(apiCandidate.edgeScrubDisabled).toBe(true);
 		expect(apiCandidate.edgeReverseDisabled).toBe(true);
@@ -174,10 +169,10 @@ describe('P8 S3 disabled-state contract at hook level', () => {
 		expect(apiPaused.edgeReverseDisabled).toBe(false);
 		expect(apiPaused.edgeRepeatDisabled).toBe(false);
 
-		// Play
+		// Play — P12.2 transport scrubbing remains enabled while playing.
 		expect(store.playCameraPreview()).toBe(true);
 		const apiPlaying = useCameraTimeline(store);
-		expect(apiPlaying.edgeScrubDisabled).toBe(true);
+		expect(apiPlaying.edgeScrubDisabled).toBe(false);
 		expect(apiPlaying.edgeReverseDisabled).toBe(true);
 		expect(apiPlaying.edgeRepeatDisabled).toBe(false); // repeat stays enabled even while playing
 	});

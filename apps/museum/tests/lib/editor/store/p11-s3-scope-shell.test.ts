@@ -34,11 +34,16 @@ function unsequencedDocument() {
 describe('P11.3 scope-first projection (per §10 table)', () => {
 	it('Camera scope → static: no ruler/lanes/time even while a buildable Sequence exists', () => {
 		const store = createFixtureEditorStore();
-		expect(store.selectionActions.selectNavigationNode('tour-a')).toBe(true);
+		expect(store.previewCamera('tour-paris', 'director')).toBe(false);
+		const unsequenced = createEditorStore({
+			document: unsequencedDocument(),
+			rooms: chopinRuntime.rooms
+		});
+		expect(unsequenced.previewCamera('tour-a', 'director')).toBe(true);
 		// The global Sequence builds — the projection must still be static.
-		expect(store.getCameraTimeline()).not.toBeNull();
+		expect(unsequenced.getCameraTimeline()).toBeNull();
 
-		const api = useCameraTimeline(store);
+		const api = useCameraTimeline(unsequenced);
 		expect(api.scope).toBe('camera');
 		expect(api.timelineResult.timeline).toBeNull();
 		expect(api.timelineResult.diagnostic).toEqual({ kind: 'ok' });
@@ -46,7 +51,7 @@ describe('P11.3 scope-first projection (per §10 table)', () => {
 
 	it('Edge scope → edge-local timeline data for the local ruler', () => {
 		const store = createFixtureEditorStore();
-		expect(store.selectionActions.selectConnection('tour-a-b')).toBe(true);
+		expect(store.previewEdge('tour-a-b', 'forward', 'director')).toBe(true);
 
 		const api = useCameraTimeline(store);
 		expect(api.scope).toBe('edge');
@@ -72,8 +77,11 @@ describe('P11.3 scope-first projection (per §10 table)', () => {
 	});
 
 	it('Camera scope transport is inert — ▶ never starts the Sequence', () => {
-		const store = createFixtureEditorStore();
-		store.selectionActions.selectNavigationNode('tour-a');
+		const store = createEditorStore({
+			document: unsequencedDocument(),
+			rooms: chopinRuntime.rooms
+		});
+		expect(store.previewCamera('tour-a', 'director')).toBe(true);
 		expect(store.cameraPreview).toMatchObject({ kind: 'camera', transport: 'paused' });
 
 		useCameraTimeline(store).toggleTourPlayback();
@@ -86,7 +94,7 @@ describe('P11.3 scope-first projection (per §10 table)', () => {
 describe('P11.3 exact Play/Pause grammar (§5)', () => {
 	it('paused uses Play, playing uses Pause, at end still uses Play — Resume is gone', () => {
 		const store = createFixtureEditorStore();
-		store.selectionActions.selectConnection('tour-a-b');
+		expect(store.previewEdge('tour-a-b', 'forward', 'director')).toBe(true);
 		const api = useCameraTimeline(store);
 		expect(api.playLabel).toBe('Play');
 
@@ -119,7 +127,7 @@ describe('P11.3 Edge scope with an unbuildable Sequence (§9)', () => {
 			rooms: chopinRuntime.rooms
 		});
 		expect(store.getCameraTimeline()).toBeNull();
-		expect(store.selectionActions.selectConnection('tour-a-b')).toBe(true);
+		expect(store.previewEdge('tour-a-b', 'forward', 'director')).toBe(true);
 
 		const api = useCameraTimeline(store);
 		expect(api.scope).toBe('edge');
@@ -137,10 +145,15 @@ describe('P11.3 scope capsule (§4)', () => {
 		const api = useCameraTimeline(store);
 		expect(api.scopeCapsule).toBeNull(); // idle — workspace label owns the header
 
-		store.selectionActions.selectNavigationNode('tour-a');
-		expect(api.scopeCapsule).toBe('Camera · Tour A: Entrance · Static');
+		const cameraStore = createEditorStore({
+			document: unsequencedDocument(),
+			rooms: chopinRuntime.rooms
+		});
+		const cameraApi = useCameraTimeline(cameraStore);
+		expect(cameraStore.previewCamera('tour-a', 'director')).toBe(true);
+		expect(cameraApi.scopeCapsule).toBe('Camera · Tour A: Entrance · Static');
 
-		store.selectionActions.selectConnection('tour-a-b');
+		expect(store.previewEdge('tour-a-b', 'forward', 'director')).toBe(true);
 		expect(api.scopeCapsule).toBe('Edge · Tour A: Entrance → Tour B: Departure');
 
 		store.previewSequence('director');
@@ -149,18 +162,16 @@ describe('P11.3 scope capsule (§4)', () => {
 
 	it('failed invalid-target install: capsule names the retained scope, diagnostic names the invalid selection', () => {
 		const store = createFixtureEditorStore();
-		expect(store.selectionActions.selectConnection('tour-a-b')).toBe(true);
+		expect(store.previewEdge('tour-a-b', 'forward', 'director')).toBe(true);
 		expect(store.previewSequence('director')).toBe(true);
 		expect(store.pauseCameraPreview()).toBe(true);
 		// Retained Sequence scope + canonical selection pointing at a deleted edge.
 		store.document.connections = store.document.connections.filter((c) => c.id !== 'tour-a-b');
-		expect(
-			(store as any).installSelectionPreviewScope({
-				kind: 'edge',
-				connectionId: 'tour-a-b',
-				direction: 'forward'
-			})
-		).toBe(false);
+		store.selection.setNavigation({
+			kind: 'connection',
+			connectionId: 'tour-a-b',
+			direction: 'forward'
+		});
 		expect(store.cameraPreview).toMatchObject({ kind: 'sequence', transport: 'paused' });
 
 		const api = useCameraTimeline(store);
@@ -169,8 +180,11 @@ describe('P11.3 scope capsule (§4)', () => {
 	});
 
 	it('retained Camera scope over a stale node selection: capsule names the camera, diagnostic names the invalid selection', () => {
-		const store = createFixtureEditorStore();
-		expect(store.selectionActions.selectNavigationNode('tour-a')).toBe(true);
+		const store = createEditorStore({
+			document: unsequencedDocument(),
+			rooms: chopinRuntime.rooms
+		});
+		expect(store.previewCamera('tour-a', 'director')).toBe(true);
 		expect(store.cameraPreview).toMatchObject({ kind: 'camera', nodeId: 'tour-a' });
 		// Canonical selection moves to a node deleted from the live document —
 		// the retained-scope failed-install shell §9 pins (the seam refuses and
@@ -194,7 +208,11 @@ describe('P11.3 diagnostics from the single { timeline, diagnostic } boundary (�
 		const store = createEditorStore({ document: doc, rooms: chopinRuntime.rooms });
 		const api = useCameraTimeline(store);
 
-		expect(api.timelineResult).toEqual({ timeline: null, diagnostic: { kind: 'no-flow' } });
+		expect(api.timelineResult).toEqual({
+			timeline: null,
+			diagnostic: { kind: 'no-flow' },
+			lastEvaluableBoundary: null
+		});
 
 		try {
 			createEditorCameraTimeline(store.state.graph);
@@ -217,7 +235,8 @@ describe('P11.3 diagnostics from the single { timeline, diagnostic } boundary (�
 
 		expect(api.timelineResult).toEqual({
 			timeline: null,
-			diagnostic: { kind: 'gap', fromNodeId: 'tour-a', toNodeId: 'tour-b' }
+			diagnostic: { kind: 'gap', fromNodeId: 'tour-a', toNodeId: 'tour-b' },
+			lastEvaluableBoundary: null
 		});
 
 		try {
@@ -261,26 +280,28 @@ describe('P11.3 diagnostics from the single { timeline, diagnostic } boundary (�
 		expect(api.scopeCapsule).toBeNull();
 		expect(api.timelineResult.diagnostic).toEqual({ kind: 'invalid-target' });
 
-		// Selecting a valid Edge clears the marker via a successful scope install.
-		expect(store.selectionActions.selectConnection('tour-b-paris')).toBe(true);
+		// Explicit Preview Edge clears the marker and enters the valid scope.
+		expect(store.previewEdge('tour-b-paris', 'forward', 'director')).toBe(true);
 		expect(api.timelineResult.diagnostic).toEqual({ kind: 'ok' });
 		expect(api.scopeCapsule).toBe('Edge · Tour B: Departure → Tour Paris');
 	});
 
 	it('invalid-Camera marker derives from canonical selection and clears on selection change', () => {
-		const store = createFixtureEditorStore();
-		expect(store.selectionActions.selectNavigationNode('tour-a')).toBe(true);
+		const store = createEditorStore({
+			document: unsequencedDocument(),
+			rooms: chopinRuntime.rooms
+		});
+		expect(store.previewCamera('tour-a', 'director')).toBe(true);
 		store.document.navigationNodes = store.document.navigationNodes.filter(
-			(node) => node.id !== 'tour-a'
+			(node) => node.id !== 'tour-b'
 		);
-		store.cameraPreview = null;
-
 		const api = useCameraTimeline(store);
+		store.selection.setNavigation({ kind: 'node', nodeId: 'tour-b', handle: 'position' });
 		expect(api.timelineResult.diagnostic).toEqual({ kind: 'invalid-target' });
 
-		expect(store.selectionActions.selectNavigationNode('tour-b')).toBe(true);
+		expect(store.selectionActions.selectNavigationNode('tour-a')).toBe(true);
 		expect(api.timelineResult.diagnostic).toEqual({ kind: 'ok' });
-		expect(api.scopeCapsule).toBe('Camera · Tour B: Departure · Static');
+		expect(api.scopeCapsule).toBe('Camera · Tour A: Entrance · Static');
 	});
 });
 

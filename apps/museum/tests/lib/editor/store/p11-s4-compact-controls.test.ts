@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { chopinRuntime } from '$lib/content/chopin-project';
+import { createEditorStore } from '$lib/editor/editor-store.svelte';
+import { cloneFixtureDocument } from '../../content/__fixtures__/load-fixture-scene';
 import { createFixtureEditorStore } from '../editor-test-utils';
 import { useCameraTimeline } from '$lib/editor/hooks/use-camera-timeline.svelte';
 
@@ -8,6 +11,15 @@ const LIB_DIR = fileURLToPath(new URL('../../../../src/lib', import.meta.url));
 
 function readLibSource(relativePath: string): string {
 	return readFileSync(LIB_DIR + '/' + relativePath, 'utf8');
+}
+
+function createUnsequencedStore() {
+	const document = cloneFixtureDocument();
+	for (const node of document.navigationNodes) {
+		delete (node as { nextNodeId?: string }).nextNodeId;
+		delete (node as { previousNodeId?: string }).previousNodeId;
+	}
+	return createEditorStore({ document, rooms: chopinRuntime.rooms });
 }
 
 /**
@@ -79,7 +91,7 @@ describe('P11.4 visible Stop removed from the timeline UI (§11.3)', () => {
 describe('P11.4 Edge Reverse is the paused-edge direction swap (§11.3)', () => {
 	it('swaps direction with physical pose preserved via the 1 − e playhead flip', () => {
 		const store = createFixtureEditorStore();
-		expect(store.selectionActions.selectConnection('tour-a-b')).toBe(true);
+		expect(store.previewEdge('tour-a-b', 'forward', 'director')).toBe(true);
 		expect(store.cameraPreview).toMatchObject({ kind: 'edge', direction: 'forward' });
 		expect(store.setCameraPreviewPlayhead(0.3)).toBe(true);
 
@@ -93,10 +105,11 @@ describe('P11.4 Edge Reverse is the paused-edge direction swap (§11.3)', () => 
 		const store = createFixtureEditorStore();
 		expect(store.swapEdgePreviewDirection()).toBe(false); // idle
 
-		expect(store.selectionActions.selectNavigationNode('tour-a')).toBe(true);
-		expect(store.swapEdgePreviewDirection()).toBe(false); // camera scope
+		const camera = createUnsequencedStore();
+		expect(camera.previewCamera('tour-a', 'director')).toBe(true);
+		expect(camera.swapEdgePreviewDirection()).toBe(false); // camera scope
 
-		expect(store.selectionActions.selectConnection('tour-a-b')).toBe(true);
+		expect(store.previewEdge('tour-a-b', 'forward', 'director')).toBe(true);
 		expect(store.playCameraPreview()).toBe(true);
 		expect(store.swapEdgePreviewDirection()).toBe(false); // playing
 	});
@@ -106,7 +119,7 @@ describe('P11.4 Edge Reverse is the paused-edge direction swap (§11.3)', () => 
 		const api = useCameraTimeline(store);
 		expect(api.edgeReverseDisabled).toBe(true); // idle candidate
 
-		expect(store.selectionActions.selectConnection('tour-a-b')).toBe(true);
+		expect(store.previewEdge('tour-a-b', 'forward', 'director')).toBe(true);
 		expect(api.edgeReverseDisabled).toBe(false); // paused edge
 
 		expect(store.playCameraPreview()).toBe(true);
@@ -129,7 +142,7 @@ describe('P11.4 Edge Repeat is edge-only and never touches Sequence state (§11.
 		expect(store.edgeRepeat).toBe(false);
 
 		// Edge scope — the flag lands and is session-only.
-		expect(store.selectionActions.selectConnection('tour-a-b')).toBe(true);
+		expect(store.previewEdge('tour-a-b', 'forward', 'director')).toBe(true);
 		store.edgeRepeat = true;
 		expect(store.edgeRepeat).toBe(true);
 		expect(store.cameraPreview).toMatchObject({ kind: 'edge' });
@@ -137,7 +150,7 @@ describe('P11.4 Edge Repeat is edge-only and never touches Sequence state (§11.
 
 	it('repeat toggling never changes document topology, timing, or history', () => {
 		const store = createFixtureEditorStore();
-		expect(store.selectionActions.selectConnection('tour-a-b')).toBe(true);
+		expect(store.previewEdge('tour-a-b', 'forward', 'director')).toBe(true);
 		const connectionCount = store.document.connections.length;
 		const historyVersion = store.historyVersion;
 
@@ -152,7 +165,7 @@ describe('P11.4 Edge Repeat is edge-only and never touches Sequence state (§11.
 		const api = useCameraTimeline(store);
 		expect(api.edgeRepeatDisabled).toBe(true); // no edge preview
 
-		expect(store.selectionActions.selectConnection('tour-a-b')).toBe(true);
+		expect(store.previewEdge('tour-a-b', 'forward', 'director')).toBe(true);
 		expect(api.edgeRepeatDisabled).toBe(false);
 		store.edgeRepeat = true;
 		expect(api.edgeRepeat).toBe(true);

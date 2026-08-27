@@ -99,8 +99,8 @@ success percentages.
 | **P11.4** | 67 | Sol medium | implemented, uncommitted (verified 2026-08-26 — 2,228 tests green; +3 complete-scrub/mode-row fix pins) — compact controls parity across Timeline/Inspector/Plan/3D; wires orphaned edge APIs; review fixes applied (branch diagnostics, orphaned scope-label removal); the P12 baseline |
 | **P11.5** | 48 | Luna high | open — focused regression + six-doc contract reconciliation (mechanical but wide) |
 | **P12** | 78 | Sol high | approved 2026-08-26 — ratified contract freeze; four implementation slices on the P11.4 baseline; low ambiguity (fully specified), high breadth (supersedes three pinned contracts per §9 migration table) |
-| **P12.S1** | 70 | Sol medium | open — binary transport (`complete` removed, derived `atEnd`), seconds playhead, `edgeRepeat` field; mechanical migration on the pinned model; the shipped complete-scrub fix is the stepping stone |
-| **P12.S2** | 80 | Sol high | open — selection-only matrix (Laws 2–4), Sequence-node seek+pause, explicit scope entries, `requestTransportPause()` split; the only genuine contract supersession (P11.2 playing-POV seek refusal) + largest test churn (p11-s3 16 pins, contracts) |
+| **P12.S1** | 70 | Sol medium | shipped 2026-08-26 as P12.1 — binary transport (`complete` removed, derived `atEnd`/`canPlay`), normalized `[0,1]` playhead, derived seconds/duration, Edge-only Repeat, preserve-playing writes, and idle Sequence shell |
+| **P12.S2** | 80 | Sol high | shipped as P12.2 (2026-08-26) — selection-only matrix (Laws 2–4), Sequence-node seek+pause, explicit scope entries, partial-route prefix resolution, `requestTransportPause()` split; 2,247 tests green + build/check clean |
 | **P12.S3** | 72 | Sol high | open — one-shell edge-local lane projection (new truthful presentation data, design judgment) + Flip playhead-reset migration (p11-s4 swap pin) |
 | **P12.S4** | 56 | Sol medium | open — 36px header anatomy, collapsed 48px mini-scrubber, reserved Observer slots, `+ View Key` rename + Plan/3D viewMode guard, Escape behavior + banner copy |
 | **D1** | 96 | Sol xhigh | out of tracker — P4 companion, own plan; Max only by exception |

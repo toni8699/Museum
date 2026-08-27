@@ -9,6 +9,7 @@
 	import type { LayoutVec2 } from '$lib/layout/layout-types';
 	import type { Vec3 } from '$lib/types/scene';
 	import { Vector3 } from 'three';
+	import { isFlowNode } from '$lib/content/scene';
 	import type { EditorStore } from '../editor-store.svelte';
 	import type { EditorContextMenuStore } from '../context-menu/context-menu-state.svelte';
 	import { isEditableTarget } from '../context-menu/editable-target';
@@ -465,7 +466,7 @@
 		if (!node) return;
 		store.selectionActions.selectNavigationNode(nodeId);
 		const flow = store.mainFlowNodeIds;
-		const onSequence = flow.includes(nodeId);
+		const onSequence = flow.includes(nodeId) || (!store.isRelic && isFlowNode(node));
 		const removalFailure = onSequence ? validateGuidedTourRemoval(store.document, nodeId) : null;
 		const deletionFailure = validateNavigationNodeDeletion(store.document, nodeId);
 		contextMenu.open({
@@ -476,6 +477,9 @@
 				spatial: true,
 				nodeOnSequence: onSequence,
 				mutationBlockedReason: blocked,
+				previewCameraReason: !store.isRelic && onSequence
+					? 'Sequenced cameras are inspected from Sequence scope'
+					: null,
 				removeFromSequenceReason:
 					removalFailure && !removalFailure.ok ? removalFailure.message : null,
 				deleteNodeReason: deletionFailure.ok ? null : deletionFailure.message,

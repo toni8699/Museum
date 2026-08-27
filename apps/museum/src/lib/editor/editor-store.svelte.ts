@@ -1930,9 +1930,12 @@ export class EditorStore {
 		return this.cameraPreviewCommands.previewEdge(connectionId, direction, mode);
 	}
 
-	/** P12.3 — explicit Scope-pill Sequence entry; paused and mode-preserving. */
-	enterSequenceScope() {
-		return this.cameraPreviewCommands.enterSequenceScope();
+	/**
+	 * P12.3 — explicit Scope-pill Sequence entry; paused and mode-preserving.
+	 * P12 S4 — optional `mode` is the header's explicit idle-POV choice.
+	 */
+	enterSequenceScope(mode?: EditorCameraPreviewMode) {
+		return this.cameraPreviewCommands.enterSequenceScope(mode);
 	}
 
 	/** S2 — explicit Preview Sequence entry, restores last Sequence playhead when valid. */

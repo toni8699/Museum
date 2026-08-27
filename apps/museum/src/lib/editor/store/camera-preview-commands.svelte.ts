@@ -657,8 +657,14 @@ export class EditorCameraPreviewCommands {
 		return true;
 	}
 
-	/** P12.3 — explicit Scope-pill entry; installs paused Sequence without autoplay. */
-	enterSequenceScope(): boolean {
+	/**
+	 * P12.3 — explicit Scope-pill entry; installs paused Sequence without
+	 * autoplay. P12 S4 — the optional `mode` is the header's explicit idle-POV
+	 * choice (idle + POV enters *paused* Sequence in `visitor` mode at the
+	 * restored playhead; never autoplay). Absent, the current preview mode is
+	 * preserved (`director` on idle) — no second mode store is introduced.
+	 */
+	enterSequenceScope(mode?: EditorCameraPreviewMode): boolean {
 		const host = this.host;
 		const current = host.cameraPreview;
 		if (
@@ -693,7 +699,7 @@ export class EditorCameraPreviewCommands {
 		host.previewController.preview = {
 			kind: 'sequence',
 			startNodeId: timeline.startNodeId,
-			mode: current?.mode ?? 'director',
+			mode: mode ?? current?.mode ?? 'director',
 			transport: 'paused',
 			runId,
 			playhead,

@@ -1,15 +1,14 @@
 /**
  * Slice 8 — editor keyboard shortcut cascade (app shell only).
  *
- * Escape order (audit §7 #4 / F16) must stay:
- * cameraPreview → stopCameraPreview (early return)
- * then (when not editing fields):
- * cancelPendingNavigation → cancelAssetPlacement → finishAnchorEditing →
- * finishViewKeyframeEditing → deselect (scene-owned only)
- */import { tick, getContext } from 'svelte';
-	import type { EditorStore } from '../editor-store.svelte';
-	import type { EditorInteractionStore } from '../store/editor-interaction-store.svelte';
-	import type { EditorGizmoCapabilities } from '../gizmo/editor-gizmo-policy';
+ * Main-editor Escape order (P12 §7) is:
+ * active gesture → pending Camera command → playing temporal preview pause →
+ * normal cancellation. The relic keeps its stop-on-Escape lifecycle.
+ */
+import { tick } from 'svelte';
+import type { EditorStore } from '../editor-store.svelte';
+import type { EditorInteractionStore } from '../store/editor-interaction-store.svelte';
+import type { EditorGizmoCapabilities } from '../gizmo/editor-gizmo-policy';
 
 export type EditorShortcutHost = {
 	getViewportElement: () => HTMLElement | null | undefined;
@@ -22,7 +21,8 @@ function isEditableTarget(target: EventTarget | null) {
 	if (!(target instanceof HTMLElement)) return false;
 	if (target.isContentEditable) return true;
 	return ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName);
-}	export function createEditorShortcutHandler(
+}
+export function createEditorShortcutHandler(
 		store: EditorStore,
 		host: EditorShortcutHost,
 		interactionStore?: EditorInteractionStore,
@@ -94,15 +94,54 @@ function isEditableTarget(target: EventTarget | null) {
 
 	return (event: KeyboardEvent) => {
 		if (event.defaultPrevented) return;
-		if (store.cameraPreview) {
-			if (event.key === 'Escape') {
+		const isEscape =
+			event.key === 'Escape' &&
+			!event.metaKey &&
+			!event.ctrlKey &&
+			!event.altKey &&
+			!event.shiftKey;
+		if (isEscape) {
+			// Gizmo/drag owners receive Escape first and restore their own snapshot.
+			if (store.isEditorInteractionActive) return;
+			// Editable fields and local menus retain precedence when they did not
+			// already prevent the event before it reached the shell.
+			if (isEditableTarget(event.target)) return;
+			if (store.isRelic && store.cameraPreview) {
 				event.preventDefault();
 				event.stopPropagation();
 				store.stopCameraPreview();
 				return;
 			}
-			if (store.isDocumentMutationBlocked) return;
+			if (store.cancelPendingNavigation('Camera command cancelled')) {
+				event.preventDefault();
+				return;
+			}
+			if (
+				store.cameraPreview &&
+				store.cameraPreview.kind !== 'camera' &&
+				store.isCameraPreviewPlaying
+			) {
+				event.preventDefault();
+				store.pauseCameraPreview();
+				return;
+			}
+			if (store.cancelAssetPlacement('Placement cancelled')) {
+				event.preventDefault();
+				return;
+			}
+			if (store.finishAnchorEditing()) {
+				event.preventDefault();
+				return;
+			}
+			if (store.finishViewKeyframeEditing()) {
+				event.preventDefault();
+				return;
+			}
+			if (deselectActive) deselectActive();
+			else if (editorOwnsSceneShortcuts()) store.selectionActions.deselect();
+			return;
 		}
+		if (store.cameraPreview && store.isDocumentMutationBlocked) return;
 		if (isEditableTarget(event.target)) return;
 		const modifier = event.metaKey || event.ctrlKey;
 		const key = event.key.toLowerCase();
@@ -175,31 +214,6 @@ function isEditableTarget(target: EventTarget | null) {
 			event.preventDefault();
 			store.focusSelection();
 		} else if (interactionStore && !modifier && !event.altKey && !event.shiftKey) {
-			// Escape must stay reachable in editor: the mode-key branch above would
-			// otherwise swallow it (else-if), so run the cancel cascade before
-			// the W/E/R/T handling. Kept inline for parity with the relic branch.
-			if (event.key === 'Escape') {
-				if (store.transformInteractionActive) return;
-				if (store.cancelPendingNavigation('Camera command cancelled')) {
-					event.preventDefault();
-					return;
-				}
-				if (store.cancelAssetPlacement('Placement cancelled')) {
-					event.preventDefault();					return;
-				}
-				if (store.finishAnchorEditing()) {
-					event.preventDefault();
-					return;
-				}
-				if (store.finishViewKeyframeEditing()) {
-					event.preventDefault();
-					return;
-				}
-				// Escape deselects whichever domain is active.
-				if (deselectActive) deselectActive();
-				else if (sceneOwnsShortcuts) store.selectionActions.deselect();
-				return;
-			}
 			// Phase 6.1 section 3 — Unity-style gizmo mode keybinds. W = translate,
 		// E = rotate, R = scale, T = translate alias, X = toggle Space.
 		// Bind here BEFORE the long modifier chains so plain key presses resolve.
@@ -253,28 +267,6 @@ function isEditableTarget(target: EventTarget | null) {
 			event.preventDefault();
 			return;
 		}
-	} else if (!modifier && !event.altKey && event.key === 'Escape') {
-			if (store.transformInteractionActive) return;
-			if (store.cancelPendingNavigation('Camera command cancelled')) {
-				event.preventDefault();
-				return;
-			}
-			if (store.cancelAssetPlacement('Placement cancelled')) {
-				event.preventDefault();
-				return;
-			}
-			if (store.finishAnchorEditing()) {
-				event.preventDefault();
-				return;
-			}
-			if (store.finishViewKeyframeEditing()) {
-				event.preventDefault();
-				return;
-			}
-			// Escape deselects whichever domain is active; the default
-			// keeps the legacy scene-owned deselect for the relic.
-			if (deselectActive) deselectActive();
-			else if (sceneOwnsShortcuts) store.selectionActions.deselect();
 		}
 	};
 }

@@ -12,13 +12,13 @@ function createFixtureEditorStore() {
 	return createEditorStore({ document: cloneFixtureDocument(), rooms: chopinRuntime.rooms });
 }
 
-function createUnsequencedStore() {
+function createUnsequencedStore(relic = false) {
 	const document = cloneFixtureDocument();
 	for (const node of document.navigationNodes) {
 		delete (node as { nextNodeId?: string }).nextNodeId;
 		delete (node as { previousNodeId?: string }).previousNodeId;
 	}
-	return createEditorStore({ document, rooms: chopinRuntime.rooms });
+	return createEditorStore({ document, rooms: chopinRuntime.rooms, relic });
 }
 
 function makeKeyEvent(key: string): KeyboardEvent {
@@ -353,8 +353,8 @@ describe('EditorStore Phase 1 shell session state', () => {
 });
 
 describe('registerEditorShortcuts Escape cascade', () => {
-	it('stops an active camera preview on Escape before later cancel paths', () => {
-		const store = createUnsequencedStore();
+	it('keeps the relic stop-on-Escape lifecycle before later cancel paths', () => {
+		const store = createUnsequencedStore(true);
 		expect(store.previewCamera('tour-paris', 'director')).toBe(true);
 		expect(store.cameraPreview).not.toBeNull();
 
@@ -362,6 +362,23 @@ describe('registerEditorShortcuts Escape cascade', () => {
 		handler(makeKeyEvent('Escape'));
 
 		expect(store.cameraPreview).toBeNull();
+	});
+
+	it('pauses a playing main-editor temporal preview on Escape without tearing down scope', () => {
+		const store = createFixtureEditorStore();
+		expect(store.previewSequence('visitor')).toBe(true);
+		expect(store.setCameraPreviewPlayhead(0.35)).toBe(true);
+		const selection = store.navigationSelection;
+
+		const handler = createEditorShortcutHandler(store, nullShortcutHost);
+		handler(makeKeyEvent('Escape'));
+
+		expect(store.cameraPreview).toMatchObject({
+			kind: 'sequence',
+			transport: 'paused',
+			playhead: 0.35
+		});
+		expect(store.navigationSelection).toEqual(selection);
 	});
 
 	it('cancels pending navigation on Escape when no preview is active', () => {

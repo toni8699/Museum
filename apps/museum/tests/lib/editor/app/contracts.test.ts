@@ -146,7 +146,8 @@ describe('P3 structural visual contracts', () => {
 		expect(panel).toContain(
 			'<EditorCameraTimelineDots {store} {viewMode} {contextMenu} edgeTimeline={edgeTimeline} />'
 		);
-		expect(panel).toContain('{#if preview}<EditorCameraPreviewControls {store} />{/if}');
+		expect(panel).toContain('{#if store.isRelic && preview}');
+		expect(panel).toContain('<EditorCameraPreviewControls {store} />');
 		expect(panel).not.toContain('EditorCameraEdgeRuler');
 		expect(panel).not.toContain("previewScope === 'edge'");
 		expect(panel).not.toContain("previewScope === 'camera'");
@@ -956,7 +957,7 @@ describe('single gizmo host', () => {
 		// Relic camera targets refuse rotate/scale keys, matching the toolbar's
 		// existing restriction; the Escape cascade and preview locks are intact.
 		expect(shortcuts).toContain("hasNavigationTransform && modeForKey !== 'translate'");
-		expect(shortcuts).toContain("if (store.cameraPreview) {");
+		expect(shortcuts).toContain('const inPreview = store.cameraPreview !== null;');
 	});
 });
 
@@ -1089,7 +1090,7 @@ describe('camera context contracts', () => {
 		expect(frame).toContain('grid-area: bottom');
 	});
 
-	it('presents the single tour as a read-only selector in the timeline header (P1.7 §3)', () => {
+	it('keeps the single tour as a relic-only read-only selector in the timeline header (P1.7 §3)', () => {
 		const frame = readLibSource('editor/camera/EditorCameraTimelineFrame.svelte');
 		// The canonical tour is a read-only presentation — the skeleton has
 		// exactly one guided tour, so the selector itself must carry zero
@@ -1097,6 +1098,8 @@ describe('camera context contracts', () => {
 		// in the sidebar's Sequence Inspector).
 		const selector = frame.match(/class="tour-selector"[\s\S]*?<\/button>/)?.[0];
 		expect(selector).toBeTruthy();
+		expect(frame).toContain('{#if store.isRelic}');
+		expect(frame).toContain('<header class="s4-header"');
 		expect(selector!).toContain('Main Visitor Tour');
 		expect(selector!).toContain('aria-disabled="true"');
 		expect(selector!).not.toContain('onclick');
@@ -1330,6 +1333,7 @@ describe('camera context contracts', () => {
 		// scope branch keeps the preview controls on a stable shell.
 		expect(timeline).not.toContain('Camera flow unavailable');
 		expect(timeline).toContain("scope === 'camera'");
+		expect(timeline).toContain('{#if store.isRelic && preview}');
 		expect(timeline).toContain('<EditorCameraPreviewControls {store} />');
 		// P11.3 §9 — the retained-scope failed-install shell renders the inline
 		// marker in EVERY scope branch (camera included), naming the invalid

@@ -70,9 +70,11 @@
 	<!-- P11.3 §4 — Camera is static: no ruler, lanes, or fabricated time; the
 	     panel height stays stable (no jump to/from the old error panel). -->
 	<div class="timeline-panel">
-		<div class="timeline-toolbar">
-			{#if preview}<EditorCameraPreviewControls {store} />{/if}
-		</div>
+		{#if store.isRelic && preview}
+			<div class="timeline-toolbar">
+				<EditorCameraPreviewControls {store} />
+			</div>
+		{/if}
 		{#if result.diagnostic.kind === 'invalid-target'}
 			<p class="inline-diagnostic">{targetKindLabel} unavailable</p>
 		{/if}
@@ -82,8 +84,8 @@
 	     lanes. Relic keeps its frozen P11.4 mini-shell. -->
 	<div class="timeline-panel">
 		<div class="timeline-toolbar">
-			<EditorCameraTimelineRuler {store} />
-			{#if preview}<EditorCameraPreviewControls {store} />{/if}
+			<EditorCameraTimelineRuler {store} {viewMode} />
+			{#if store.isRelic && preview}<EditorCameraPreviewControls {store} />{/if}
 		</div>
 		{#if edgeTimeline && !store.isRelic}
 			<EditorCameraTimelineDots {store} {viewMode} {contextMenu} edgeTimeline={edgeTimeline} />
@@ -126,8 +128,8 @@
 			</div>
 		{/if}
 		<div class="timeline-toolbar">
-			<EditorCameraTimelineRuler {store} />
-			{#if preview}<EditorCameraPreviewControls {store} />{/if}
+			<EditorCameraTimelineRuler {store} {viewMode} />
+			{#if store.isRelic && preview}<EditorCameraPreviewControls {store} />{/if}
 		</div>
 		{#if timeline}<EditorCameraTimelineDots {store} {viewMode} {contextMenu} />{/if}
 		{#if result.diagnostic.kind === 'gap'}

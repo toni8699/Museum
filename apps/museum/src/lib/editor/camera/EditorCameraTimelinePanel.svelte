@@ -24,6 +24,7 @@
 	// selection + preview scope before timeline existence.
 	const scope = $derived(timelineApi.scope);
 	const result = $derived(timelineApi.timelineResult);
+	const edgeTimeline = $derived(timelineApi.edgeTimeline);
 	const targetKindLabel = $derived(
 		store.navigationSelection?.kind === 'connection' ? 'Edge' : 'Camera'
 	);
@@ -77,14 +78,16 @@
 		{/if}
 	</div>
 {:else if scope === 'edge'}
-	<!-- P11.3 §4 — Edge scope renders the edge-local ruler; the five-lane Dots
-	     are hidden (they are Sequence-global content on the global time
-	     domain — no mixed time domains). -->
+	<!-- P12.3 — Edge scope keeps one shell and adds inert truthful Edge-local
+	     lanes. Relic keeps its frozen P11.4 mini-shell. -->
 	<div class="timeline-panel">
 		<div class="timeline-toolbar">
 			<EditorCameraTimelineRuler {store} />
 			{#if preview}<EditorCameraPreviewControls {store} />{/if}
 		</div>
+		{#if edgeTimeline && !store.isRelic}
+			<EditorCameraTimelineDots {store} {viewMode} {contextMenu} edgeTimeline={edgeTimeline} />
+		{/if}
 		{#if result.diagnostic.kind === 'invalid-target'}
 			<p class="inline-diagnostic">{targetKindLabel} unavailable</p>
 		{/if}

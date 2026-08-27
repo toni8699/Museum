@@ -1,7 +1,9 @@
 <script lang="ts">
 	import { ChevronDown, ChevronUp } from 'lucide-svelte';
-	import { onDestroy } from 'svelte';
+	import { isFlowNode } from '$lib/content/scene';
+	import { onDestroy, tick } from 'svelte';
 	import EditorCameraTimelinePanel from './EditorCameraTimelinePanel.svelte';
+	import { getCameraEdgePreviewChoices } from './editor-camera-preview-affordances';
 	import { useCameraTimeline } from '../hooks/use-camera-timeline.svelte';
 	import {
 		EDITOR_TIMELINE_COLLAPSED_HEIGHT,
@@ -28,6 +30,89 @@
 	// P11.3 §4 — the scope capsule replaces the old `preview-badge`; it owns
 	// all scope text (no duplicate prose in the panel or preview controls).
 	const capsule = $derived(timelineApi.scopeCapsule);
+	const scopeLabel = $derived(!store.isRelic ? capsule ?? 'Sequence' : null);
+	const selectedConnection = $derived(store.selectedConnection);
+	const selectedNode = $derived.by(() => {
+		const selection = store.navigationSelection;
+		return selection?.kind === 'node'
+			? store.document.navigationNodes.find((node) => node.id === selection.nodeId) ?? null
+			: null;
+	});
+	const selectedUnsequencedNode = $derived(
+		selectedNode && !store.isRelic && !isFlowNode(selectedNode) ? selectedNode : null
+	);
+	const selectedEdgeChoices = $derived.by(() =>
+		selectedConnection
+			? getCameraEdgePreviewChoices(
+					store.document,
+					store.guidedTourNodeIds,
+					selectedConnection
+			  )
+			: null
+	);
+
+	type ScopeMenuItem = {
+		id: string;
+		label: string;
+		action?: () => void;
+		heading?: boolean;
+	};
+
+	const scopeMenuItems = $derived.by((): ScopeMenuItem[] => {
+		const items: ScopeMenuItem[] = [
+			{
+				id: 'sequence',
+				label: '🎞 Sequence (Full Tour)',
+				action: () => store.enterSequenceScope()
+			}
+		];
+		const choices = selectedEdgeChoices;
+		if (selectedConnection && choices) {
+			if (choices.sequenceAdjacent) {
+				const choice = choices.choices[0];
+				if (choice) {
+					items.push({
+						id: 'edge',
+						label: `⇄ Preview Edge · ${choice.label}`,
+						action: () =>
+							void store.previewEdge(
+								selectedConnection.id,
+								choice.direction,
+								store.cameraPreview?.mode ?? 'director'
+							)
+					});
+				}
+			} else {
+				items.push({ id: 'edge-heading', label: '⇄ Preview Edge…', heading: true });
+				for (const choice of choices.choices) {
+					items.push({
+						id: `edge-${choice.direction}`,
+						label: choice.label,
+						action: () =>
+							void store.previewEdge(
+								selectedConnection.id,
+								choice.direction,
+								store.cameraPreview?.mode ?? 'director'
+							)
+					});
+				}
+			}
+		}
+		if (selectedUnsequencedNode) {
+			const node = selectedUnsequencedNode;
+			items.push({
+				id: 'camera',
+				label: `📷 Preview Camera · ${node.label}`,
+				action: () => void store.previewCamera(node.id, store.cameraPreview?.mode ?? 'director')
+			});
+		}
+		return items;
+	});
+
+	let pillMenuOpen = $state(false);
+	let pillButton = $state<HTMLButtonElement | null>(null);
+	let pillMenu = $state<HTMLElement | null>(null);
+	let menuSelectionKey = '';
 	let resizing = $state(false);
 	let resizeStartY = 0;
 	let resizeStartHeight = 0;
@@ -69,6 +154,105 @@
 		event.preventDefault();
 		store.setTimelineHeight(nextHeight);
 	}
+
+	function selectionKey() {
+		const selection = store.navigationSelection;
+		if (!selection) return 'none';
+		if (selection.kind === 'node') return `node:${selection.nodeId}`;
+		if (selection.kind === 'connection') return `connection:${selection.connectionId}`;
+		if (selection.kind === 'anchor') return `anchor:${selection.connectionId}:${selection.anchorId}`;
+		return `view-keyframe:${selection.connectionId}:${selection.direction}:${selection.keyframeId}`;
+	}
+
+	function closePillMenu(returnFocus = false) {
+		pillMenuOpen = false;
+		if (returnFocus) void tick().then(() => pillButton?.focus());
+	}
+
+	function runScopeItem(item: ScopeMenuItem) {
+		if (!item.action) return;
+		closePillMenu();
+		item.action();
+		void tick().then(() => pillButton?.focus());
+	}
+
+	function togglePillMenu() {
+		if (store.isRelic) return;
+		if (pillMenuOpen) closePillMenu(true);
+		else pillMenuOpen = true;
+	}
+
+	function menuButtons() {
+		return pillMenu
+			? Array.from(pillMenu.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')).filter(
+					(button) => !button.disabled
+			  )
+			: [];
+	}
+
+	function handlePillMenuKeydown(event: KeyboardEvent) {
+		const buttons = menuButtons();
+		const currentIndex = buttons.indexOf(document.activeElement as HTMLButtonElement);
+		if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+			if (buttons.length === 0) return;
+			event.preventDefault();
+			const delta = event.key === 'ArrowDown' ? 1 : -1;
+			buttons[(currentIndex + delta + buttons.length) % buttons.length]?.focus();
+		} else if (event.key === 'Enter' || event.key === ' ') {
+			const active = document.activeElement;
+			if (active instanceof HTMLButtonElement && pillMenu?.contains(active)) {
+				event.preventDefault();
+				active.click();
+			}
+		} else if (event.key === 'Escape') {
+			event.preventDefault();
+			event.stopPropagation();
+			closePillMenu(true);
+		} else if (event.key === 'Tab') {
+			pillMenuOpen = false;
+		}
+	}
+
+	function handlePillKeydown(event: KeyboardEvent) {
+		if (
+			!pillMenuOpen &&
+			(event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ')
+		) {
+			event.preventDefault();
+			pillMenuOpen = true;
+		}
+	}
+
+	$effect(() => {
+		const key = selectionKey();
+		if (pillMenuOpen && menuSelectionKey && menuSelectionKey !== key) pillMenuOpen = false;
+		menuSelectionKey = key;
+		if (store.isRelic) pillMenuOpen = false;
+	});
+
+	$effect(() => {
+		if (!pillMenuOpen) return;
+		void tick().then(() => {
+			if (!pillMenuOpen) return;
+			pillMenu?.querySelector<HTMLButtonElement>('[role="menuitem"]:not(:disabled)')?.focus();
+		});
+		const onPointerDown = (event: PointerEvent) => {
+			const target = event.target as Node;
+			if (!pillMenu?.contains(target) && target !== pillButton) closePillMenu();
+		};
+		const onWindowKeydown = (event: KeyboardEvent) => {
+			if (event.key !== 'Escape') return;
+			event.preventDefault();
+			event.stopPropagation();
+			closePillMenu(true);
+		};
+		window.addEventListener('pointerdown', onPointerDown, true);
+		window.addEventListener('keydown', onWindowKeydown, true);
+		return () => {
+			window.removeEventListener('pointerdown', onPointerDown, true);
+			window.removeEventListener('keydown', onWindowKeydown, true);
+		};
+	});
 
 	onDestroy(stopResize);
 </script>
@@ -114,8 +298,49 @@
 			<span>Main Visitor Tour</span>
 			<ChevronDown size={13} aria-hidden="true" />
 		</button>
-		{#if capsule}
-			<span class="scope-capsule">{capsule}</span>
+		{#if scopeLabel}
+			<div class="scope-switcher">
+				<button
+					bind:this={pillButton}
+					type="button"
+					class="scope-capsule"
+					aria-haspopup="menu"
+					aria-expanded={pillMenuOpen}
+					aria-label={`Camera preview scope: ${scopeLabel}`}
+					title={scopeLabel}
+					onclick={togglePillMenu}
+					onkeydown={handlePillKeydown}
+				>
+					<span>🎞 {scopeLabel}</span>
+					<ChevronDown size={13} aria-hidden="true" />
+				</button>
+				{#if pillMenuOpen}
+					<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+					<div
+						bind:this={pillMenu}
+						class="scope-menu"
+						role="menu"
+						aria-label="Camera preview scope"
+						tabindex="-1"
+						onkeydown={handlePillMenuKeydown}
+					>
+						{#each scopeMenuItems as item (item.id)}
+							{#if item.heading}
+								<div class="scope-menu-heading" role="presentation">{item.label}</div>
+							{:else}
+								<button
+									type="button"
+									role="menuitem"
+									class:indented={item.id.startsWith('edge-')}
+									onclick={() => runScopeItem(item)}
+								>{item.label}</button>
+							{/if}
+						{/each}
+					</div>
+				{/if}
+			</div>
+		{:else if capsule}
+			<span class="scope-capsule relic-scope-capsule">{capsule}</span>
 		{:else if expanded}
 			<span class="workspace-label">{store.currentWorkspace} workspace</span>
 		{/if}
@@ -188,6 +413,8 @@
 		padding: 0.35rem 0.75rem 0.35rem 0.9rem;
 		box-sizing: border-box;
 		border-bottom: 1px solid transparent;
+		white-space: nowrap;
+		overflow: visible;
 	}
 	.timeline-frame:has(.content) header { border-bottom-color: var(--editor-border-subtle); }
 	.heading { display: flex; align-items: baseline; gap: 0.6rem; min-width: 0; }
@@ -208,18 +435,64 @@
 		cursor: default;
 	}
 	.workspace-label { margin-left: auto; text-transform: capitalize; }
+	.scope-switcher { position: relative; min-width: 0; margin-left: auto; }
 	.scope-capsule {
-		margin-left: auto;
+		display: inline-flex;
+		max-width: 20rem;
+		align-items: center;
+		gap: 0.28rem;
 		padding: 0.14rem 0.38rem;
 		border: 1px solid var(--editor-accent-pressed);
 		border-radius: 999px;
+		background: transparent;
 		color: var(--editor-text-primary);
+		font: inherit;
 		font-size: 0.6rem;
 		font-weight: 650;
 		letter-spacing: 0.04em;
 		text-transform: uppercase;
 		white-space: nowrap;
 	}
+	button.scope-capsule { cursor: pointer; }
+	button.scope-capsule:hover,
+	button.scope-capsule:focus-visible { border-color: var(--editor-accent); outline: none; }
+	.scope-capsule > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+	.relic-scope-capsule { margin-left: auto; }
+	.scope-menu {
+		position: absolute;
+		top: calc(100% + 0.3rem);
+		right: 0;
+		z-index: 20;
+		display: grid;
+		min-width: 15rem;
+		max-width: min(24rem, 70vw);
+		padding: 0.25rem;
+		border: 1px solid var(--editor-border-normal);
+		border-radius: 0.35rem;
+		background: var(--editor-bg-panel-raised);
+		box-shadow: var(--editor-shadow-popover);
+	}
+	.scope-menu-heading {
+		padding: 0.38rem 0.55rem 0.22rem;
+		color: var(--editor-text-muted);
+		font-size: 0.62rem;
+		font-weight: 650;
+	}
+	.scope-menu button {
+		padding: 0.38rem 0.55rem;
+		border: 0;
+		border-radius: 0.25rem;
+		background: transparent;
+		color: var(--editor-text-primary);
+		font: inherit;
+		font-size: 0.68rem;
+		text-align: left;
+		white-space: nowrap;
+		cursor: pointer;
+	}
+	.scope-menu button.indented { padding-left: 1.15rem; }
+	.scope-menu button:hover,
+	.scope-menu button:focus-visible { background: var(--editor-bg-hover); outline: none; }
 	.toggle {
 		display: inline-flex;
 		align-items: center;
@@ -245,7 +518,7 @@
 	@media (max-width: 44rem) {
 		header { gap: 0.45rem; padding-inline: 0.6rem; }
 		.phase-label, .workspace-label { display: none; }
-		.scope-capsule { margin-left: auto; }
+		.scope-capsule { max-width: 12rem; }
 		.content { padding-inline: 0.6rem; }
 	}
 </style>

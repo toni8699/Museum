@@ -139,10 +139,13 @@ describe('P3 structural visual contracts', () => {
 		expect(timeline).not.toContain('<strong>Camera Framing</strong>');
 	});
 
-	it('keeps one five-lane timeline mounted through camera, edge, and sequence previews', () => {
+	it('keeps one five-lane timeline component shared by camera, edge, and sequence previews', () => {
 		const panel = readLibSource('editor/camera/EditorCameraTimelinePanel.svelte');
 
-		expect(panel.match(/<EditorCameraTimelineDots/g)).toHaveLength(1);
+		expect(panel.match(/<EditorCameraTimelineDots/g)).toHaveLength(2);
+		expect(panel).toContain(
+			'<EditorCameraTimelineDots {store} {viewMode} {contextMenu} edgeTimeline={edgeTimeline} />'
+		);
 		expect(panel).toContain('{#if preview}<EditorCameraPreviewControls {store} />{/if}');
 		expect(panel).not.toContain('EditorCameraEdgeRuler');
 		expect(panel).not.toContain("previewScope === 'edge'");

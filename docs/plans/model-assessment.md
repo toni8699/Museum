@@ -101,7 +101,7 @@ success percentages.
 | **P12** | 78 | Sol high | approved 2026-08-26 — ratified contract freeze; four implementation slices on the P11.4 baseline; low ambiguity (fully specified), high breadth (supersedes three pinned contracts per §9 migration table) |
 | **P12.S1** | 70 | Sol medium | shipped 2026-08-26 as P12.1 — binary transport (`complete` removed, derived `atEnd`/`canPlay`), normalized `[0,1]` playhead, derived seconds/duration, Edge-only Repeat, preserve-playing writes, and idle Sequence shell |
 | **P12.S2** | 80 | Sol high | shipped as P12.2 (2026-08-26) — selection-only matrix (Laws 2–4), Sequence-node seek+pause, explicit scope entries, partial-route prefix resolution, `requestTransportPause()` split; 2,247 tests green + build/check clean |
-| **P12.S3** | 72 | Sol high | open — one-shell edge-local lane projection (new truthful presentation data, design judgment) + Flip playhead-reset migration (p11-s4 swap pin) |
+| **P12.S3** | 72 | Sol high | shipped 2026-08-27 — one-shell Edge-local lane projection, interactive Scope pill, and non-relic Flip reset with relic preservation; 2,258 tests green + check/build clean |
 | **P12.S4** | 56 | Sol medium | open — 36px header anatomy, collapsed 48px mini-scrubber, reserved Observer slots, `+ View Key` rename + Plan/3D viewMode guard, Escape behavior + banner copy |
 | **D1** | 96 | Sol xhigh | out of tracker — P4 companion, own plan; Max only by exception |
 

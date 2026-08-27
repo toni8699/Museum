@@ -5,7 +5,13 @@ slice plus one next action only.
 
 ## Working tree
 
-- Current delta: **P12.2 (S2) — selection matrix** (2026-08-26, uncommitted).
+- Current delta: **P12.3 (S3) — one-shell Edge-local lanes + Flip semantics**
+  (2026-08-27, implemented/verified, uncommitted). Truthful Edge-local
+  five-lane projection, non-relic Flip reset, relic preservation, and local
+  keyboard-accessible contextual Scope pill. `npm run check`, full Vitest
+  (2,259 passed / 1 skipped), and `npm run build` are green. Next: P12.4
+  header/collapsed-dock chrome.
+- Previous delta: **P12.2 (S2) — selection matrix** (2026-08-26, shipped).
   Selection is selection-only by default; sequenced-node clicks in Sequence
   seek and pause without focus framing; explicit Preview Edge/Camera own scope
   entry; transport seeks pause either POV or Observer after validation; broken

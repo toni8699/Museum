@@ -1930,12 +1930,17 @@ export class EditorStore {
 		return this.cameraPreviewCommands.previewEdge(connectionId, direction, mode);
 	}
 
+	/** P12.3 — explicit Scope-pill Sequence entry; paused and mode-preserving. */
+	enterSequenceScope() {
+		return this.cameraPreviewCommands.enterSequenceScope();
+	}
+
 	/** S2 — explicit Preview Sequence entry, restores last Sequence playhead when valid. */
 	previewSequence(mode: EditorCameraPreviewMode = 'visitor') {
 		return this.cameraPreviewCommands.previewSequence(mode);
 	}
 
-	/** S2 — swap edge direction preserving physical location (paused only). */
+	/** P12 — Flip edge direction; relic keeps P11.4 pose preservation. */
 	swapEdgePreviewDirection() {
 		return this.cameraPreviewCommands.swapEdgePreviewDirection();
 	}

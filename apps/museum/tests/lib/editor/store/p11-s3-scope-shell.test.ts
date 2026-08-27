@@ -143,7 +143,7 @@ describe('P11.3 scope capsule (§4)', () => {
 	it('agrees with canonical selection after every successful scope install', () => {
 		const store = createFixtureEditorStore();
 		const api = useCameraTimeline(store);
-		expect(api.scopeCapsule).toBeNull(); // idle — workspace label owns the header
+		expect(api.scopeCapsule).toBe('Sequence'); // non-relic idle owns interactive Sequence pill
 
 		const cameraStore = createEditorStore({
 			document: unsequencedDocument(),
@@ -277,7 +277,7 @@ describe('P11.3 diagnostics from the single { timeline, diagnostic } boundary (�
 
 		const api = useCameraTimeline(store);
 		expect(api.scope).toBe('idle');
-		expect(api.scopeCapsule).toBeNull();
+		expect(api.scopeCapsule).toBe('Sequence');
 		expect(api.timelineResult.diagnostic).toEqual({ kind: 'invalid-target' });
 
 		// Explicit Preview Edge clears the marker and enters the valid scope.

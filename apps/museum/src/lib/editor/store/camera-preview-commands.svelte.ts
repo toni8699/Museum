@@ -343,6 +343,10 @@ export class EditorCameraPreviewCommands {
 			host.setStatusMessage('Sequenced cameras are inspected from Sequence scope');
 			return false;
 		}
+		if (host.cameraPreview?.kind === 'sequence') {
+			host.previewController.lastSequencePlayhead =
+				host.cameraTimelineController.cameraTimelinePlayhead;
+		}
 		if (!this.prepareCameraPreview()) return false;
 		if (!host.isRelic) {
 			host.selection.setNavigation({ kind: 'node', nodeId, handle: 'position' });
@@ -653,6 +657,52 @@ export class EditorCameraPreviewCommands {
 		return true;
 	}
 
+	/** P12.3 — explicit Scope-pill entry; installs paused Sequence without autoplay. */
+	enterSequenceScope(): boolean {
+		const host = this.host;
+		const current = host.cameraPreview;
+		if (
+			current?.kind === 'sequence' ||
+			host.isEditorInteractionActive ||
+			host.isDocumentTransactionActive
+		) {
+			return false;
+		}
+
+		// Resolve every candidate before prepare/preview mutation so an unavailable
+		// Sequence leaves the current scope, selection, route, and Repeat untouched.
+		const timeline = host.cameraTimelineController.readCameraTimeline();
+		if (!timeline) return false;
+		const playhead = [
+			host.previewController.lastSequencePlayhead,
+			host.cameraTimelineController.cameraTimelinePlayhead
+		].find(
+			(value): value is number =>
+				typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1
+		) ?? 0;
+		if (!this.prepareCameraPreview()) return false;
+
+		const runId = host.previewController.allocRunId();
+		host.previewController.clearCapturedRoute();
+		host.previewController.edgeRepeat = false;
+		if (!current) {
+			host.previewController.followEnabled = true;
+			host.previewController.recenterVersion += 1;
+		}
+		host.cameraTimelineController.cameraTimelinePlayhead = playhead;
+		host.previewController.preview = {
+			kind: 'sequence',
+			startNodeId: timeline.startNodeId,
+			mode: current?.mode ?? 'director',
+			transport: 'paused',
+			runId,
+			playhead,
+			startedAtMs: null
+		};
+		host.timelineExpanded = true;
+		return true;
+	}
+
 	/**
 	 * S2 explicit Preview Sequence — the sole sequence entry (S6 folded
 	 * `previewGuidedTour` into this). Restores `lastSequencePlayhead` when
@@ -719,13 +769,15 @@ export class EditorCameraPreviewCommands {
 		return true;
 	}
 
-	/** S2 — direction swap preserving physical location (paused only). */
+	/** P12 — Flip uses reset semantics in the main editor; relic keeps P11.4. */
 	swapEdgePreviewDirection(): boolean {
 		const host = this.host;
 		const preview = host.cameraPreview;
 		if (!preview || preview.kind !== 'edge' || preview.transport !== 'paused') return false;
 		if (host.isEditorInteractionActive || host.isDocumentTransactionActive) return false;
-		const result = host.previewController.swapEdgeDirection();
+		const result = host.isRelic
+			? host.previewController.swapEdgeDirectionPreserve()
+			: host.previewController.swapEdgeDirectionReset();
 		if (!result) return false;
 		const updated = host.cameraPreview as Extract<EditorCameraPreview, { kind: 'edge' }>;
 		if (!updated || updated.kind !== 'edge') return false;

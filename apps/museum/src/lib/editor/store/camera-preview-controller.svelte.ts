@@ -134,6 +134,8 @@ function cloneResolvedCameraRoute(route: ResolvedCameraRoute): ResolvedCameraRou
 
 export type { CameraPreviewCamera, CameraPreviewEdge, CameraPreviewSequence };
 
+type EdgePreview = Extract<NonNullable<EditorCameraPreview>, { kind: 'edge' }>;
+
 /**
  * S6 — the discriminated kind rename made kinds equal scopes
  * (`camera`/`edge`/`sequence`), so this is now an identity mapping.
@@ -545,50 +547,25 @@ export function isPreviewStale(
 		return true;
 	}
 
-	/**
-	 * S2 direction swap — only when `kind === 'edge' && paused`.
-	 * Resolves a fresh opposite-direction route (never reuses captured snapshot),
-	 * preserves physical camera location via edge-domain `1 - e` flip.
-	 * Keeps `edgeRepeat`, updates discovery via caller (commands layer does setDiscovery).
-	 * Returns new playhead or null on failure.
-	 */
-	swapEdgeDirection(): { playhead: number; runId: number } | null {
-		const preview = this.preview;
-		if (!preview || preview.kind !== 'edge' || preview.transport !== 'paused') return null;
-		// Ensure director/visitor mode preserved
+	/** Resolve fresh opposite traversal before either Flip variant mutates state. */
+	#resolveOppositeEdgeSwap(preview: EdgePreview) {
 		const opposite: CameraConnectionDirection = preview.direction === 'forward' ? 'reverse' : 'forward';
-		const graph = this.#graph();
-		// Resolve fresh opposite route — never reuse captured snapshot geometry
-		let oppositeRoute: ResolvedCameraRoute;
 		try {
-			oppositeRoute = getCameraConnectionRoute(preview.connectionId, opposite, graph);
+			return {
+				opposite,
+				oppositeRoute: getCameraConnectionRoute(preview.connectionId, opposite, this.#graph())
+			};
 		} catch {
 			return null;
 		}
-		let oldMotion;
-		let newMotion;
-		try {
-			oldMotion = resolveDirectedEdgeMotionByDirection(graph, preview.connectionId, preview.direction, {
-				route: this.getCapturedRoute(preview.runId) ?? undefined
-			}).motion;
-			newMotion = resolveDirectedEdgeMotionByDirection(graph, preview.connectionId, opposite).motion;
-		} catch {
-			return null;
-		}
-		// Edge-domain flip: e = edgeProgress(old, playhead), e' = 1 - e, playhead' = progressAtEdge(new, e')
-		let e: number;
-		try {
-			e = cameraMotionEdgeProgressAtProgress(oldMotion, 0, preview.playhead);
-		} catch {
-			return null;
-		}
-		const ePrime = 1 - e;
-		let newPlayhead: number;
-		try {
-			newPlayhead = cameraMotionProgressAtEdgeProgress(newMotion, 0, ePrime);
-		} catch {
-			return null;
-		}
+	}
+
+	#commitEdgeDirectionSwap(
+		preview: EdgePreview,
+		opposite: CameraConnectionDirection,
+		oppositeRoute: ResolvedCameraRoute,
+		playhead: number
+	) {
 		const fromNodeId = opposite === 'forward' ? oppositeRoute.nodeIds[0]! : oppositeRoute.nodeIds.at(-1)!;
 		const toNodeId = opposite === 'forward' ? oppositeRoute.nodeIds.at(-1)! : oppositeRoute.nodeIds[0]!;
 		const runId = this.#nextRunId++;
@@ -600,11 +577,64 @@ export function isPreviewStale(
 			fromNodeId,
 			toNodeId,
 			runId,
-			playhead: Math.min(1, Math.max(0, newPlayhead)),
+			playhead: Math.min(1, Math.max(0, playhead)),
 			startedAtMs: null
 		};
-		// keep edgeRepeat as-is
 		return { playhead: this.preview.playhead, runId };
+	}
+
+	/** P12 non-relic Flip — paused Edge, resolve fresh route, reset to 0. */
+	swapEdgeDirectionReset(): { playhead: number; runId: number } | null {
+		const preview = this.preview;
+		if (!preview || preview.kind !== 'edge' || preview.transport !== 'paused') return null;
+		const resolved = this.#resolveOppositeEdgeSwap(preview);
+		if (!resolved) return null;
+		return this.#commitEdgeDirectionSwap(
+			preview,
+			resolved.opposite,
+			resolved.oppositeRoute,
+			0
+		);
+	}
+
+	/** P11.4 relic Flip — paused Edge, preserve physical pose via 1 − e. */
+	swapEdgeDirectionPreserve(): { playhead: number; runId: number } | null {
+		const preview = this.preview;
+		if (!preview || preview.kind !== 'edge' || preview.transport !== 'paused') return null;
+		const resolved = this.#resolveOppositeEdgeSwap(preview);
+		if (!resolved) return null;
+		let oldMotion;
+		let newMotion;
+		try {
+			oldMotion = resolveDirectedEdgeMotionByDirection(this.#graph(), preview.connectionId, preview.direction, {
+				route: this.getCapturedRoute(preview.runId) ?? undefined
+			}).motion;
+			newMotion = resolveDirectedEdgeMotionByDirection(
+				this.#graph(),
+				preview.connectionId,
+				resolved.opposite
+			).motion;
+		} catch {
+			return null;
+		}
+		let e: number;
+		try {
+			e = cameraMotionEdgeProgressAtProgress(oldMotion, 0, preview.playhead);
+		} catch {
+			return null;
+		}
+		let newPlayhead: number;
+		try {
+			newPlayhead = cameraMotionProgressAtEdgeProgress(newMotion, 0, 1 - e);
+		} catch {
+			return null;
+		}
+		return this.#commitEdgeDirectionSwap(
+			preview,
+			resolved.opposite,
+			resolved.oppositeRoute,
+			newPlayhead
+		);
 	}
 
 	/** Deep clone of the captured route for the matching `runId`. */

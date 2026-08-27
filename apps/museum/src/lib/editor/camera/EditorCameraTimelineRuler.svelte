@@ -29,6 +29,11 @@
 	const edgeRepeat = $derived(timelineApi.edgeRepeat);
 	const edgeRepeatDisabled = $derived(timelineApi.edgeRepeatDisabled);
 	const canPlay = $derived(timelineApi.canPlay);
+	const edgeFlipDescription = $derived(
+		store.isRelic
+			? 'Swap travel direction, keeping the physical camera location.'
+			: 'Swap travel direction, reset to start.'
+	);
 
 	function formatTime(seconds: number) {
 		const safe = Math.max(0, seconds);
@@ -53,16 +58,15 @@
 				disabled={tourTransportDisabled || !canPlay}
 				onclick={() => timelineApi.toggleTourPlayback()}
 			>{#if previewPlaying}<Pause size={14} aria-hidden="true" />{:else}<Play size={14} aria-hidden="true" />{/if}</button>
-			<!-- P11.4 §11.3 — Edge Reverse is the paused-edge direction SWAP
-			     (fresh opposite route, physical pose preserved via the 1 − e
-			     flip), not the sequence-side travel toggle. -->
+			<!-- P12 — Edge Reverse is Flip. Main editor resets to 0; relic keeps
+			     P11.4 physical-pose preservation. -->
 			<button
 				type="button"
 				class="reverse"
 				class:active={reverseActive}
 				aria-pressed={reverseActive}
-				aria-label={reverseLabel}
-				title={`${reverseLabel}. Swap travel direction, keeping the physical camera location.`}
+				aria-label={`${reverseLabel}. ${edgeFlipDescription}`}
+				title={`${reverseLabel}. ${edgeFlipDescription}`}
 				disabled={edgeReverseDisabled}
 				onclick={() => timelineApi.swapEdgeReverse()}
 			><ArrowLeftRight size={14} aria-hidden="true" /></button>

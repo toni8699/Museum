@@ -26,7 +26,8 @@ function createUnsequencedStore() {
  * P11.4 — compact controls and parity (slice verification gate, §12 +
  * §11.3 annex). Segmented Observer/Through; icon-only transport + Observer
  * tools with names/tooltips; Follow/Recenter Observer-only; Edge Reverse is
- * the paused-edge direction SWAP (pose preserved via the 1 − e flip); Repeat
+ * the paused-edge direction SWAP (main editor resets to 0; relic preserves
+ * pose via the 1 − e flip); Repeat
  * is edge-only and never touches Sequence topology/duration; visible Stop is
  * gone from the timeline UI while `stopCameraPreview()` teardown stays
  * reachable via Escape/lifecycle only; the duplicate Preview Edge affordance
@@ -88,8 +89,8 @@ describe('P11.4 visible Stop removed from the timeline UI (§11.3)', () => {
 	});
 });
 
-describe('P11.4 Edge Reverse is the paused-edge direction swap (§11.3)', () => {
-	it('swaps direction with physical pose preserved via the 1 − e playhead flip', () => {
+describe('P12.3 Edge Flip migration (§3)', () => {
+	it('swaps direction and resets the non-relic Edge playhead to 0', () => {
 		const store = createFixtureEditorStore();
 		expect(store.previewEdge('tour-a-b', 'forward', 'director')).toBe(true);
 		expect(store.cameraPreview).toMatchObject({ kind: 'edge', direction: 'forward' });
@@ -98,7 +99,7 @@ describe('P11.4 Edge Reverse is the paused-edge direction swap (§11.3)', () => 
 		expect(store.swapEdgePreviewDirection()).toBe(true);
 
 		expect(store.cameraPreview).toMatchObject({ kind: 'edge', direction: 'reverse' });
-		expect(store.cameraPreview!.playhead).toBeCloseTo(0.7, 5);
+		expect(store.cameraPreview!.playhead).toBe(0);
 	});
 
 	it('refuses outside paused edge state (idle, camera, playing)', () => {

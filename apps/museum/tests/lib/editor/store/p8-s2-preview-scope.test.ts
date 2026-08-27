@@ -4,8 +4,6 @@ import { previewScopeOf } from '$lib/editor/store/camera-preview-controller.svel
 import { createFixtureEditorStore } from '../editor-test-utils';
 import { cloneFixtureDocument } from '../../content/__fixtures__/load-fixture-scene';
 import { createEditorStore } from '$lib/editor/editor-store.svelte';
-import { createCameraMotionSample, sampleCameraMotion } from '$lib/museum/navigation/camera-motion';
-import { resolveDirectedEdgeMotionByDirection } from '$lib/editor/camera/editor-directed-edge-motion';
 
 describe('P8 S2 previewScopeOf', () => {
 	it('maps kinds to scopes', () => {
@@ -216,26 +214,19 @@ describe('P8 S2 explicit preview scopes', () => {
 		expect(store2.cameraTimelinePlayhead).toBe(beforeGlobal);
 	});
 
-	it('direction swap preserves pose (1 - e) and keeps repeat+discovery', () => {
+	it('P12.3 migration — direction swap resets non-relic Edge and keeps repeat+discovery', () => {
 		const store = createFixtureEditorStore();
 		store.setWorkspace('camera');
 		const connId = store.document.connections[0]!.id;
 		expect(store.previewEdge(connId, 'forward', 'director')).toBe(true);
 		expect(store.setEdgePreviewRepeat(true)).toBe(true);
 		expect(store.setCameraPreviewPlayhead(0.37)).toBe(true);
-		const before = store.cameraPreview as Extract<typeof store.cameraPreview, { kind: 'edge' }>;
-		const oldMotion = resolveDirectedEdgeMotionByDirection(store.state.graph, connId, 'forward').motion;
-		const sampleBefore = createCameraMotionSample();
-		sampleCameraMotion(oldMotion, before.playhead, sampleBefore);
 		expect(store.swapEdgePreviewDirection()).toBe(true);
 		const after = store.cameraPreview as Extract<typeof store.cameraPreview, { kind: 'edge' }>;
 		expect(after.direction).toBe('reverse');
+		expect(after.playhead).toBe(0);
 		expect(store.edgeRepeat).toBe(true);
 		expect(store.activeCameraDirection).toBe('reverse');
-		const newMotion = resolveDirectedEdgeMotionByDirection(store.state.graph, connId, 'reverse').motion;
-		const sampleAfter = createCameraMotionSample();
-		sampleCameraMotion(newMotion, after.playhead, sampleAfter);
-		expect(sampleBefore.position.distanceTo(sampleAfter.position)).toBeLessThan(1e-4);
 	});
 
 	it('delete selected edge → pruneIfStale clears preview', () => {

@@ -191,7 +191,7 @@ export function useCameraTimeline(store: EditorStore) {
 		 */
 		get scopeCapsule(): string | null {
 			const preview = store.cameraPreview;
-			if (!preview) return null;
+			if (!preview) return store.isRelic ? null : 'Sequence';
 			if (preview.kind === 'sequence') return 'Sequence';
 			if (preview.kind === 'camera') {
 				const node = store.document.navigationNodes.find(

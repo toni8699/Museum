@@ -6,6 +6,7 @@
 	import {
 		cameraTimelineEdgeProgressAtProgress,
 		cameraTimelineProgressAtEdgeProgress,
+		type EdgeLocalTimeline,
 		type EditorCameraTimeline,
 		type EditorCameraTimelineEdge
 	} from './editor-camera-timeline';
@@ -33,18 +34,21 @@
 	import {
 		cameraMotionProgressAtEdgeProgress,
 		createCameraMotionSample,
-		sampleCameraMotion
+		sampleCameraMotion,
+		type Vector3Like
 	} from '$lib/museum/navigation/camera-motion';
 	import type { CameraFramingEnvelope } from '$lib/content/scene';
 
 	let {
 		store,
 		viewMode = '3d',
-		contextMenu = null
+		contextMenu = null,
+		edgeTimeline = null
 	}: {
 		store: EditorStore;
 		viewMode?: 'plan' | '3d';
 		contextMenu?: EditorContextMenuStore | null;
+		edgeTimeline?: EdgeLocalTimeline | null;
 	} = $props();
 
 	type TimelineViewKeyMarker = {
@@ -69,6 +73,7 @@
 	const timelineApi = useCameraTimeline(store);
 	const timeline = $derived(timelineApi.timeline);
 	const playhead = $derived(timelineApi.playhead);
+	const edgePlayhead = $derived(timelineApi.edgePlayhead);
 	const selectionDisabled = $derived(timelineApi.selectionDisabled);
 	const framingDisabled = $derived(timelineApi.framingDisabled);
 	const selected = $derived(store.navigationSelection);
@@ -84,6 +89,10 @@
 		target: HTMLElement;
 		marker: TimelineViewKeyMarker;
 	} | null>(null);
+
+	function vectorTuple(value: Vector3Like): readonly [number, number, number] {
+		return 'x' in value ? [value.x, value.y, value.z] : [value[0], value[1], value[2]];
+	}
 
 	function edgeDirection(
 		edge: EditorCameraTimelineEdge
@@ -125,6 +134,46 @@
 	}
 
 	const viewKeyMarkers = $derived(readViewKeyMarkers(timeline));
+	type EdgeTimelineViewKeyMarker = {
+		keyframeId: string;
+		timeProgress: number;
+		timeSeconds: number;
+		fov: number;
+		cameraTarget: readonly [number, number, number];
+	};
+
+	const edgeViewKeyMarkers = $derived.by((): EdgeTimelineViewKeyMarker[] => {
+		if (!edgeTimeline) return [];
+		const keyframes = edgeTimeline.motion.positionEdgeSpans[0]?.viewTrack?.keyframes ?? [];
+		return keyframes.flatMap((keyframe) => {
+			const timeProgress = cameraMotionProgressAtEdgeProgress(
+				edgeTimeline.motion,
+				0,
+				keyframe.progress
+			);
+			if (!Number.isFinite(timeProgress)) return [];
+			return [{
+				keyframeId: keyframe.id,
+				timeProgress,
+				timeSeconds: timeProgress * edgeTimeline.durationSeconds,
+				fov: keyframe.fov,
+				cameraTarget: vectorTuple(keyframe.cameraTarget)
+			}];
+		});
+	});
+	const edgeTimeTicks = $derived.by(() => {
+		if (!edgeTimeline) return [];
+		return Array.from({ length: 11 }, (_, index) => ({
+			progress: index / 10,
+			seconds: edgeTimeline.durationSeconds * (index / 10)
+		}));
+	});
+	const edgeLabel = $derived.by(() => {
+		if (!edgeTimeline) return 'Selected connection';
+		const from = store.document.navigationNodes.find((node) => node.id === edgeTimeline.fromNodeId);
+		const to = store.document.navigationNodes.find((node) => node.id === edgeTimeline.toNodeId);
+		return `${from?.label ?? edgeTimeline.fromNodeId} → ${to?.label ?? edgeTimeline.toNodeId}`;
+	});
 	const timeTicks = $derived.by(() => {
 		if (!timeline) return [];
 		return Array.from({ length: 11 }, (_, index) => ({
@@ -712,7 +761,95 @@
 	});
 </script>
 
-{#if timeline}
+{#if edgeTimeline}
+	<!-- P12.3 — one-shell Edge projection. Every position is Edge-local;
+	     Sequence boundaries, global spans, and authoring handlers stay out. -->
+	<div class="lanes edge-lanes">
+		<div class="ruler-label">Time</div>
+		<div class="time-ruler" aria-hidden="true">
+			{#each edgeTimeTicks as tick (tick.progress)}
+				<span class="time-tick" style={`left: ${percent(tick.progress)};`}>
+					<i></i>{formatTime(tick.seconds).replace(/\.00$/, '')}
+				</span>
+			{/each}
+		</div>
+
+		<div class="lane-label">
+			<Route size={14} aria-hidden="true" />
+			<strong>Camera Path</strong>
+			<span>1 transition · {edgeTimeline.durationSeconds.toFixed(2)}s</span>
+		</div>
+		<div class="track route-track" aria-label={`Camera Path · ${edgeLabel}`}>
+			<div class="rail"></div>
+			<div
+				class="edge edge-local"
+				style="left: 0; width: 100%;"
+				title={`${edgeLabel} · ${edgeTimeline.durationSeconds.toFixed(2)}s`}
+			></div>
+			<div class="playhead" style={`left: ${percent(edgePlayhead)};`}></div>
+		</div>
+
+		<div class="lane-label quiet">
+			<Clapperboard size={14} aria-hidden="true" />
+			<strong>Shots</strong>
+			<span>No independent shot data</span>
+		</div>
+		<div class="track shots-track" aria-label="Shots — no independent shot data">
+			<span class="no-keys">Quiet for Edge scope</span>
+			<div class="playhead" style={`left: ${percent(edgePlayhead)};`}></div>
+		</div>
+
+		<div class="lane-label">
+			<Aperture size={14} aria-hidden="true" />
+			<strong>FOV</strong>
+			<span>{edgeViewKeyMarkers.length} key{edgeViewKeyMarkers.length === 1 ? '' : 's'}</span>
+		</div>
+		<div class="track fov-track" aria-label="FOV — Edge-local presentation">
+			<div class="rail"></div>
+			{#if edgeViewKeyMarkers.length === 0}<span class="no-keys">No FOV keys</span>{/if}
+			{#each edgeViewKeyMarkers as marker (marker.keyframeId)}
+				<span
+					class="key-marker fov-key edge-marker"
+					style={`left: ${markerPosition(marker.timeProgress)};`}
+					title={`${marker.fov.toFixed(1)}° FOV · ${formatTime(marker.timeSeconds)}`}
+					aria-hidden="true"
+				><i></i><span>{marker.fov.toFixed(0)}°</span></span>
+			{/each}
+			<div class="playhead" style={`left: ${percent(edgePlayhead)};`}></div>
+		</div>
+
+		<div class="lane-label">
+			<Crosshair size={14} aria-hidden="true" />
+			<strong>Look At</strong>
+			<span>Edge-local keys</span>
+		</div>
+		<div class="track look-track" aria-label="Look At — Edge-local presentation">
+			<div class="rail"></div>
+			{#if edgeViewKeyMarkers.length === 0}<span class="no-keys">No target keys</span>{/if}
+			{#each edgeViewKeyMarkers as marker (`look:${marker.keyframeId}`)}
+				<span
+					class="key-marker look-key edge-marker"
+					style={`left: ${markerPosition(marker.timeProgress)};`}
+					title={`Look at ${marker.cameraTarget.map((value) => value.toFixed(1)).join(', ')} · ${formatTime(marker.timeSeconds)}`}
+					aria-hidden="true"
+				><i></i></span>
+			{/each}
+			<div class="playhead" style={`left: ${percent(edgePlayhead)};`}></div>
+		</div>
+
+		<div class="lane-label quiet">
+			<RotateCw size={14} aria-hidden="true" />
+			<strong>Roll</strong>
+			<span>0°</span>
+		</div>
+		<div class="track roll-track" aria-label="Roll — fixed at zero degrees">
+			<div class="rail"></div>
+			<span class="roll-value start">0°</span>
+			<span class="roll-value end">0°</span>
+			<div class="playhead" style={`left: ${percent(edgePlayhead)};`}></div>
+		</div>
+	</div>
+{:else if timeline}
 	<div class="lanes">
 		<div class="ruler-label">Time</div>
 		<div class="time-ruler" aria-hidden="true">
@@ -993,6 +1130,7 @@
 	.rail { position: absolute; top: 50%; left: 0.9rem; right: 0.9rem; height: 1px; background: var(--editor-border-strong); }
 	.route-track .rail { height: 2px; background: var(--editor-timeline-path); }
 	.edge { position: absolute; top: 50%; z-index: 1; height: 6px; min-width: 1px; transform: translateY(-50%); overflow: hidden; padding: 0; border: 0; border-radius: 999px; background: var(--editor-timeline-path); cursor: crosshair; opacity: 0.72; }
+	.edge-local { pointer-events: none; cursor: default; }
 	.edge:hover:not(:disabled), .edge.selected { opacity: 1; box-shadow: 0 0 0 3px rgb(47 140 255 / 18%); }
 	.diamond.node { position: absolute; top: 50%; z-index: 4; width: 20px; height: 20px; transform: translate(-50%, -50%); padding: 0; border: 2px solid var(--editor-timeline-path); border-radius: 50%; background: var(--editor-bg-panel); color: var(--editor-text-primary); font: 650 0.58rem/1 var(--editor-font); cursor: pointer; }
 	.diamond.node:hover:not(:disabled), .diamond.node.selected { border-color: var(--editor-accent-hover); background: var(--editor-bg-selected); box-shadow: 0 0 0 3px rgb(47 140 255 / 16%); }
@@ -1007,6 +1145,7 @@
 	.key-marker.reverse { filter: saturate(0.72); }
 	.key-marker:hover:not(:disabled), .key-marker.selected { color: var(--editor-text-primary); text-shadow: 0 0 8px rgb(47 140 255 / 70%); }
 	.key-marker.dragging { color: var(--editor-text-primary); cursor: grabbing; }
+	.edge-marker { pointer-events: none; cursor: default; }
 	.playhead { position: absolute; top: 0; bottom: 0; z-index: 3; width: 1px; transform: translateX(-0.5px); background: var(--editor-timeline-playhead); pointer-events: none; box-shadow: 0 0 5px rgb(47 140 255 / 55%); }
 	.no-keys { position: absolute; top: 50%; left: 0.65rem; transform: translateY(-50%); color: var(--editor-text-disabled); font-size: 0.56rem; }
 	.roll-track .rail { background: var(--editor-timeline-roll); opacity: 0.5; }

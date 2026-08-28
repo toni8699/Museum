@@ -1081,13 +1081,22 @@ describe('camera context contracts', () => {
 		expect(sceneBranch).toContain('Ceiling');
 	});
 
-	it('mounts the camera timeline bottom frame for the Camera domain in both views, never Scene', () => {
+	it('docks the live camera timeline inside the center viewport in both views, never Scene', () => {
 		const app = readLibSource('editor/app/EditorApp.svelte');
 		const frame = readLibSource('editor/camera/EditorCameraTimelineFrame.svelte');
 		expect(app).toContain("viewState.domain === 'camera'");
-		// The frame keeps its full-width bottom-strip contract; only its mount
-		// point is Camera-domain gated.
-		expect(frame).toContain('grid-area: bottom');
+		const centerStart = app.indexOf('class="center"');
+		const frameMount = app.indexOf('<EditorCameraTimelineFrame');
+		const inspectorMount = app.indexOf('<EditorInspector');
+		expect(frameMount).toBeGreaterThan(centerStart);
+		expect(frameMount).toBeLessThan(inspectorMount);
+		expect(app).not.toContain("'bottom bottom bottom'");
+		expect(app).toContain('.center { position: relative; min-width: 0; min-height: 0; overflow: hidden;');
+		expect(frame).toContain('.timeline-frame.live {');
+		expect(frame).toContain('bottom: 16px;');
+		expect(frame).toContain('width: min(47.5rem, calc(100% - 2rem));');
+		// Frozen relic keeps its root-grid placement.
+		expect(frame).toContain("store.isRelic ? ' grid-area: bottom;' : ''");
 	});
 
 	it('keeps the single tour as a relic-only read-only selector in the timeline header (P1.7 §3)', () => {

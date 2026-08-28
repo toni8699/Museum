@@ -84,11 +84,83 @@
 	);
 
 	let framingTrackElement = $state<HTMLElement>();
+	let scrubTrackElement = $state<HTMLElement>();
+	let scrubDrag = $state<{ pointerId: number; target: HTMLElement; edge: boolean } | null>(null);
 	let keyDrag = $state<{
 		pointerId: number;
 		target: HTMLElement;
 		marker: TimelineViewKeyMarker;
 	} | null>(null);
+
+	function scrubProgress(event: PointerEvent, element: HTMLElement, fallback: number) {
+		const rect = element.getBoundingClientRect();
+		return rect.width > 0 ? Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width)) : fallback;
+	}
+
+	function timelineScrubDisabled(edge: boolean) {
+		return store.isRelic || (edge ? timelineApi.edgeScrubDisabled : timelineApi.scrubDisabled);
+	}
+
+	function seekTimeline(progress: number, edge: boolean) {
+		if (timelineApi.previewPlaying) store.pauseCameraPreview();
+		if (edge) timelineApi.seekEdge(progress);
+		else timelineApi.seek(progress);
+	}
+
+	function isTimelineInteractiveTarget(target: EventTarget | null) {
+		return target instanceof Element && Boolean(target.closest(
+			'button, a, input, select, textarea, [role="menu"], [role="menuitem"], [role="menuitemcheckbox"], [data-timeline-interactive]'
+		));
+	}
+
+	function beginTimelineScrub(event: PointerEvent, edge: boolean) {
+		if (
+			event.button !== 0 ||
+			timelineScrubDisabled(edge) ||
+			scrubDrag ||
+			!scrubTrackElement ||
+			isTimelineInteractiveTarget(event.target)
+		) return;
+		const target = event.currentTarget as HTMLElement;
+		scrubDrag = { pointerId: event.pointerId, target, edge };
+		target.setPointerCapture(event.pointerId);
+		const progress = scrubProgress(event, scrubTrackElement, edge ? edgePlayhead : playhead);
+		seekTimeline(progress, edge);
+		event.preventDefault();
+	}
+
+	function updateTimelineScrub(event: PointerEvent) {
+		const active = scrubDrag;
+		if (!active || event.pointerId !== active.pointerId) return;
+		if (!scrubTrackElement) return;
+		const progress = scrubProgress(event, scrubTrackElement, active.edge ? edgePlayhead : playhead);
+		seekTimeline(progress, active.edge);
+		event.preventDefault();
+	}
+
+	function endTimelineScrub(event: PointerEvent) {
+		if (!scrubDrag || event.pointerId !== scrubDrag.pointerId) return;
+		const active = scrubDrag;
+		scrubDrag = null;
+		if (active.target.hasPointerCapture(event.pointerId)) active.target.releasePointerCapture(event.pointerId);
+	}
+
+	function cancelTimelineScrub() {
+		if (!scrubDrag) return;
+		scrubDrag = null;
+	}
+
+	function handlePlayheadKeydown(event: KeyboardEvent, edge: boolean) {
+		const current = edge ? edgePlayhead : playhead;
+		let next = current;
+		if (event.key === 'ArrowLeft') next = Math.max(0, current - 0.01);
+		else if (event.key === 'ArrowRight') next = Math.min(1, current + 0.01);
+		else if (event.key === 'Home') next = 0;
+		else if (event.key === 'End') next = 1;
+		else return;
+		event.preventDefault();
+		seekTimeline(next, edge);
+	}
 
 	function vectorTuple(value: Vector3Like): readonly [number, number, number] {
 		return 'x' in value ? [value.x, value.y, value.z] : [value[0], value[1], value[2]];
@@ -163,10 +235,7 @@
 	});
 	const edgeTimeTicks = $derived.by(() => {
 		if (!edgeTimeline) return [];
-		return Array.from({ length: 11 }, (_, index) => ({
-			progress: index / 10,
-			seconds: edgeTimeline.durationSeconds * (index / 10)
-		}));
+		return timeTicksForDuration(edgeTimeline.durationSeconds);
 	});
 	const edgeLabel = $derived.by(() => {
 		if (!edgeTimeline) return 'Selected connection';
@@ -176,10 +245,7 @@
 	});
 	const timeTicks = $derived.by(() => {
 		if (!timeline) return [];
-		return Array.from({ length: 11 }, (_, index) => ({
-			progress: index / 10,
-			seconds: timeline.durationSeconds * (index / 10)
-		}));
+		return timeTicksForDuration(timeline.durationSeconds);
 	});
 	const shotSegments = $derived.by((): TimelineShotSegment[] => {
 		if (!timeline) return [];
@@ -496,6 +562,21 @@
 		return `${String(minutes).padStart(2, '0')}:${remainder.toFixed(2).padStart(5, '0')}`;
 	}
 
+	function timeTicksForDuration(durationSeconds: number) {
+		if (durationSeconds <= 0) return [{ progress: 0, seconds: 0 }];
+		const targetIntervals = 5;
+		const stepSeconds = Math.max(
+			0.25,
+			Math.ceil(durationSeconds / targetIntervals / 0.25) * 0.25
+		);
+		const tickSeconds = Array.from(
+			{ length: Math.floor(durationSeconds / stepSeconds) + 1 },
+			(_, index) => index * stepSeconds
+		);
+		if (durationSeconds - tickSeconds.at(-1)! > 1e-9) tickSeconds.push(durationSeconds);
+		return tickSeconds.map((seconds) => ({ progress: seconds / durationSeconds, seconds }));
+	}
+
 	function percent(progress: number) {
 		return `${Math.min(100, Math.max(0, progress * 100))}%`;
 	}
@@ -764,14 +845,40 @@
 {#if edgeTimeline}
 	<!-- P12.3 — one-shell Edge projection. Every position is Edge-local;
 	     Sequence boundaries, global spans, and authoring handlers stay out. -->
-	<div class="lanes edge-lanes">
+	<div
+		class="lanes edge-lanes"
+		role="group"
+		aria-label="Edge camera timeline lanes"
+		onpointerdown={(event) => beginTimelineScrub(event, true)}
+		onpointermove={updateTimelineScrub}
+		onpointerup={endTimelineScrub}
+		onpointercancel={endTimelineScrub}
+		onlostpointercapture={cancelTimelineScrub}
+	>
 		<div class="ruler-label">Time</div>
-		<div class="time-ruler" aria-hidden="true">
+		<div
+			bind:this={scrubTrackElement}
+			class="time-ruler scrub-surface"
+		>
 			{#each edgeTimeTicks as tick (tick.progress)}
 				<span class="time-tick" style={`left: ${percent(tick.progress)};`}>
-					<i></i>{formatTime(tick.seconds).replace(/\.00$/, '')}
+					<i></i>{formatTime(tick.seconds)}
 				</span>
 			{/each}
+		</div>
+		<div class="timeline-playhead-overlay" style={`--playhead-progress: ${percent(edgePlayhead)};`}>
+			<div class="timeline-playhead-line" aria-hidden="true"></div>
+			<div
+				class="playhead-head"
+				role="slider"
+				tabindex="0"
+				aria-label="Edge timeline playhead"
+				aria-valuemin="0"
+				aria-valuemax="1"
+				aria-valuenow={edgePlayhead}
+				aria-valuetext={`${formatTime(edgeTimeline.durationSeconds * edgePlayhead)} of ${formatTime(edgeTimeline.durationSeconds)}`}
+				onkeydown={(event) => handlePlayheadKeydown(event, true)}
+			></div>
 		</div>
 
 		<div class="lane-label">
@@ -786,7 +893,6 @@
 				style="left: 0; width: 100%;"
 				title={`${edgeLabel} · ${edgeTimeline.durationSeconds.toFixed(2)}s`}
 			></div>
-			<div class="playhead" style={`left: ${percent(edgePlayhead)};`}></div>
 		</div>
 
 		<div class="lane-label quiet">
@@ -796,7 +902,6 @@
 		</div>
 		<div class="track shots-track" aria-label="Shots — no independent shot data">
 			<span class="no-keys">Quiet for Edge scope</span>
-			<div class="playhead" style={`left: ${percent(edgePlayhead)};`}></div>
 		</div>
 
 		<div class="lane-label">
@@ -815,7 +920,6 @@
 					aria-hidden="true"
 				><i></i><span>{marker.fov.toFixed(0)}°</span></span>
 			{/each}
-			<div class="playhead" style={`left: ${percent(edgePlayhead)};`}></div>
 		</div>
 
 		<div class="lane-label">
@@ -834,7 +938,6 @@
 					aria-hidden="true"
 				><i></i></span>
 			{/each}
-			<div class="playhead" style={`left: ${percent(edgePlayhead)};`}></div>
 		</div>
 
 		<div class="lane-label quiet">
@@ -846,19 +949,57 @@
 			<div class="rail"></div>
 			<span class="roll-value start">0°</span>
 			<span class="roll-value end">0°</span>
-			<div class="playhead" style={`left: ${percent(edgePlayhead)};`}></div>
 		</div>
 	</div>
 {:else if timeline}
-	<div class="lanes">
-		<div class="ruler-label">Time</div>
-		<div class="time-ruler" aria-hidden="true">
+	<div
+		class="lanes"
+		role="group"
+		aria-label="Sequence camera timeline lanes"
+		onpointerdown={(event) => beginTimelineScrub(event, false)}
+		onpointermove={updateTimelineScrub}
+		onpointerup={endTimelineScrub}
+		onpointercancel={endTimelineScrub}
+		onlostpointercapture={cancelTimelineScrub}
+	>
+		<div class="ruler-label">
+			<span>Time</span>
+			{#if !store.isRelic && viewMode === '3d'}
+				<button
+					type="button"
+					class="add-view-key"
+					data-timeline-interactive
+					disabled={!timelineApi.canAddViewKeyframeAtPlayhead}
+					onclick={() => timelineApi.addViewKeyframeAtPlayhead()}
+				>+ View Key</button>
+			{/if}
+		</div>
+		<div
+			bind:this={scrubTrackElement}
+			class="time-ruler scrub-surface"
+		>
 			{#each timeTicks as tick (tick.progress)}
 				<span class="time-tick" style={`left: ${percent(tick.progress)};`}>
-					<i></i>{formatTime(tick.seconds).replace(/\.00$/, '')}
+					<i></i>{formatTime(tick.seconds)}
 				</span>
 			{/each}
 		</div>
+		{#if !store.isRelic}
+			<div class="timeline-playhead-overlay" style={`--playhead-progress: ${percent(playhead)};`}>
+				<div class="timeline-playhead-line" aria-hidden="true"></div>
+				<div
+					class="playhead-head"
+					role="slider"
+					tabindex="0"
+					aria-label="Sequence timeline playhead"
+					aria-valuemin="0"
+					aria-valuemax="1"
+					aria-valuenow={playhead}
+					aria-valuetext={`${formatTime(timeline.durationSeconds * playhead)} of ${formatTime(timeline.durationSeconds)}`}
+					onkeydown={(event) => handlePlayheadKeydown(event, false)}
+				></div>
+			</div>
+		{/if}
 
 		<div class="lane-label">
 			<Route size={14} aria-hidden="true" />
@@ -900,7 +1041,7 @@
 					oncontextmenu={(event) => onNodeMarkerContextMenu(event, boundary.nodeId)}
 				>{boundary.boundaryIndex + 1}</button>
 			{/each}
-			<div class="playhead" style={`left: ${percent(playhead)};`}></div>
+			{#if store.isRelic}<div class="playhead" style={`left: ${percent(playhead)};`}></div>{/if}
 		</div>
 
 		<div class="lane-label">
@@ -921,7 +1062,7 @@
 					oncontextmenu={(event) => onNodeMarkerContextMenu(event, shot.nodeId)}
 				><span>{shot.boundaryIndex + 1}</span>{shot.label}</button>
 			{/each}
-			<div class="playhead" style={`left: ${percent(playhead)};`}></div>
+			{#if store.isRelic}<div class="playhead" style={`left: ${percent(playhead)};`}></div>{/if}
 		</div>
 
 		<div class="lane-label">
@@ -1041,7 +1182,7 @@
 					}}
 				><i></i><span>{marker.fov.toFixed(0)}°</span></button>
 			{/each}
-			<div class="playhead" style={`left: ${percent(playhead)};`}></div>
+			{#if store.isRelic}<div class="playhead" style={`left: ${percent(playhead)};`}></div>{/if}
 		</div>
 
 		<div class="lane-label">
@@ -1075,7 +1216,7 @@
 					}}
 				><i></i></button>
 			{/each}
-			<div class="playhead" style={`left: ${percent(playhead)};`}></div>
+			{#if store.isRelic}<div class="playhead" style={`left: ${percent(playhead)};`}></div>{/if}
 		</div>
 
 		<div class="lane-label quiet">
@@ -1087,13 +1228,14 @@
 			<div class="rail"></div>
 			<span class="roll-value start">0°</span>
 			<span class="roll-value end">0°</span>
-			<div class="playhead" style={`left: ${percent(playhead)};`}></div>
+			{#if store.isRelic}<div class="playhead" style={`left: ${percent(playhead)};`}></div>{/if}
 		</div>
 	</div>
 {/if}
 
 <style>
 	.lanes {
+		position: relative;
 		display: grid;
 		min-width: 42rem;
 		grid-template-columns: 7.5rem minmax(30rem, 1fr);
@@ -1110,13 +1252,17 @@
 		border-top: 1px solid var(--editor-border-subtle);
 		background: color-mix(in srgb, var(--editor-bg-panel-raised) 68%, transparent);
 	}
-	.ruler-label { display: flex; align-items: center; padding-left: 0.65rem; border-top: 0; color: var(--editor-text-muted); font-size: 0.58rem; text-transform: uppercase; letter-spacing: 0.08em; }
+	.ruler-label { display: flex; align-items: center; justify-content: space-between; gap: 0.35rem; padding: 0 0.45rem 0 0.65rem; border-top: 0; color: var(--editor-text-muted); font-size: 0.58rem; text-transform: uppercase; letter-spacing: 0.08em; }
+	.add-view-key { min-height: 20px; padding: 0.15rem 0.35rem; border: 1px solid var(--editor-accent-pressed); border-radius: 0.25rem; background: var(--editor-bg-control); color: var(--editor-text-primary); font: 600 0.54rem/1 var(--editor-font); text-transform: none; letter-spacing: normal; cursor: pointer; }
+	.add-view-key:hover:not(:disabled), .add-view-key:focus-visible { border-color: var(--editor-accent); outline: none; }
+	.add-view-key:disabled { opacity: 0.38; cursor: default; }
 	.lane-label { display: grid; min-width: 0; grid-template-columns: 1.1rem auto minmax(0, 1fr); align-items: center; gap: 0.35rem; padding: 0 0.55rem; }
 	.lane-label :global(svg) { color: var(--editor-text-muted); }
 	.lane-label strong { color: var(--editor-text-primary); font-size: 0.66rem; font-weight: 620; white-space: nowrap; }
 	.lane-label span { overflow: hidden; color: var(--editor-text-muted); font-size: 0.54rem; text-align: right; text-overflow: ellipsis; white-space: nowrap; }
 	.lane-label.quiet { opacity: 0.72; }
-	.time-ruler { position: relative; min-width: 30rem; border-bottom: 1px solid var(--editor-border-subtle); color: var(--editor-timeline-ruler-fg); }
+	.time-ruler { position: relative; min-width: 30rem; container-type: inline-size; border-bottom: 1px solid var(--editor-border-subtle); color: var(--editor-timeline-ruler-fg); }
+	.scrub-surface { cursor: ew-resize; }
 	.time-tick { position: absolute; top: 5px; transform: translateX(-50%); font: var(--editor-timeline-ruler-font); font-variant-numeric: tabular-nums; white-space: nowrap; }
 	.time-tick:first-child { transform: none; }
 	.time-tick:last-child { transform: translateX(-100%); }
@@ -1126,6 +1272,7 @@
 		min-width: 30rem;
 		border-top: 1px solid var(--editor-border-subtle);
 		background-image: repeating-linear-gradient(90deg, transparent 0, transparent calc(10% - 1px), rgb(255 255 255 / 4%) calc(10% - 1px), rgb(255 255 255 / 4%) 10%);
+		cursor: ew-resize;
 	}
 	.rail { position: absolute; top: 50%; left: 0.9rem; right: 0.9rem; height: 1px; background: var(--editor-border-strong); }
 	.route-track .rail { height: 2px; background: var(--editor-timeline-path); }
@@ -1136,7 +1283,8 @@
 	.diamond.node:hover:not(:disabled), .diamond.node.selected { border-color: var(--editor-accent-hover); background: var(--editor-bg-selected); box-shadow: 0 0 0 3px rgb(47 140 255 / 16%); }
 	.shot-block { position: absolute; top: 5px; bottom: 5px; display: flex; min-width: 1px; align-items: center; gap: 0.35rem; overflow: hidden; padding: 0 0.45rem; border: 1px solid rgb(140 124 243 / 38%); border-radius: 2px; background: linear-gradient(90deg, rgb(47 140 255 / 26%), rgb(140 124 243 / 18%)); color: var(--editor-text-secondary); font: 0.58rem/1 var(--editor-font); text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
 	.shot-block span { display: inline-grid; width: 16px; height: 16px; flex: 0 0 auto; place-items: center; border-radius: 50%; background: rgb(255 255 255 / 10%); color: var(--editor-text-primary); }
-	.shot-block:hover:not(:disabled), .shot-block.selected { border-color: var(--editor-accent-hover); color: var(--editor-text-primary); }
+	.shot-block:hover:not(:disabled) { border-color: var(--editor-accent-hover); color: var(--editor-text-primary); }
+	.shot-block.selected { border-color: var(--editor-accent); background: linear-gradient(90deg, rgb(37 99 235 / 38%), rgb(99 102 241 / 30%)); color: var(--editor-text-primary); box-shadow: inset 0 0 0 1px rgb(96 165 250 / 35%); }
 	.key-marker { position: absolute; top: 50%; z-index: 4; display: inline-flex; align-items: center; gap: 0.25rem; transform: translate(-50%, -50%); padding: 0; border: 0; background: transparent; color: var(--editor-text-secondary); font: 0.54rem/1 var(--editor-font); cursor: ew-resize; }
 	.key-marker i { display: block; width: 8px; height: 8px; transform: rotate(45deg); border: 1px solid currentColor; background: var(--editor-bg-panel); }
 	.fov-key { color: var(--editor-timeline-fov); }
@@ -1147,6 +1295,11 @@
 	.key-marker.dragging { color: var(--editor-text-primary); cursor: grabbing; }
 	.edge-marker { pointer-events: none; cursor: default; }
 	.playhead { position: absolute; top: 0; bottom: 0; z-index: 3; width: 1px; transform: translateX(-0.5px); background: var(--editor-timeline-playhead); pointer-events: none; box-shadow: 0 0 5px rgb(47 140 255 / 55%); }
+	.timeline-playhead-overlay { position: absolute; top: 0; right: 0; bottom: 0; left: 7.5rem; z-index: 5; pointer-events: none; }
+	.timeline-playhead-line { position: absolute; top: 18px; bottom: 0; left: var(--playhead-progress); width: 1px; transform: translateX(-0.5px); background: var(--editor-timeline-playhead); box-shadow: 0 0 5px rgb(47 140 255 / 55%); }
+	.playhead-head { position: absolute; top: 12px; left: var(--playhead-progress); z-index: 6; width: 24px; height: 24px; transform: translateX(-50%); outline: none; cursor: ew-resize; pointer-events: auto; }
+	.playhead-head::before { content: ''; position: absolute; top: 3px; left: 5px; border-right: 7px solid transparent; border-left: 7px solid transparent; border-top: 9px solid var(--editor-accent); filter: drop-shadow(0 0 4px rgb(47 140 255 / 70%)); }
+	.playhead-head:focus-visible { border-radius: 4px; box-shadow: 0 0 0 1px var(--editor-accent); }
 	.no-keys { position: absolute; top: 50%; left: 0.65rem; transform: translateY(-50%); color: var(--editor-text-disabled); font-size: 0.56rem; }
 	.roll-track .rail { background: var(--editor-timeline-roll); opacity: 0.5; }
 	.roll-value { position: absolute; top: 50%; transform: translateY(-50%); color: var(--editor-text-muted); font-size: 0.54rem; }
@@ -1169,5 +1322,8 @@
 
 	@media (max-width: 44rem) {
 		.lanes { grid-template-columns: 7rem minmax(30rem, 1fr); }
+		.timeline-playhead-overlay { left: 7rem; }
+	}
+	@container (min-width: 52rem) {
 	}
 </style>

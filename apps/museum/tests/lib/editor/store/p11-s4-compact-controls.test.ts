@@ -56,11 +56,14 @@ describe('P11.4 segmented mode + icon-only a11y (source contracts)', () => {
 		expect(controls).toContain("{#if preview.mode === 'director'}");
 	});
 
-	it('Edge Reverse is the icon-only swap and Repeat is an icon-only toggle in the Ruler', () => {
+	it('main-editor Ruler no longer owns Edge Reverse or Repeat controls; relic keeps them', () => {
 		const ruler = readLibSource('editor/camera/EditorCameraTimelineRuler.svelte');
+		const frame = readLibSource('editor/camera/EditorCameraTimelineFrame.svelte');
+		const liveFrame = frame.slice(frame.indexOf('<header class="s4-header"'));
 		expect(ruler).toContain('timelineApi.swapEdgeReverse()');
-		expect(ruler).toContain('aria-label="Repeat edge"');
-		expect(ruler).toContain('aria-pressed={edgeRepeat}');
+		expect(frame).not.toContain('aria-label="Repeat edge"');
+		expect(liveFrame).not.toContain('Repeat edge');
+		expect(liveFrame).not.toContain('>Reverse</button>');
 	});
 
 	it('dense single-row toolbar with a narrow wrap — no duplicate stacked controls', () => {

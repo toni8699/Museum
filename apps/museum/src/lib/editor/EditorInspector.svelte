@@ -1032,8 +1032,10 @@
 
 	{#if !scenePlanStaging}
 	<section class="camera-controls" aria-label="Editor camera controls">
-		<h2>Camera</h2>
-		<p>Middle-drag pans. Camera-node rows frame their authored eye and target.</p>
+		<div class="section-heading">
+			<h2>Camera</h2>
+			<span class="help" role="img" aria-label="Camera controls help" title="Middle-drag pans. Camera-node rows frame their authored eye and target.">?</span>
+		</div>
 		<button type="button" class:active={store.cameraPanEnabled} aria-pressed={store.cameraPanEnabled} disabled={store.isVisitorCameraPreview} onclick={() => store.toggleCameraPan()}>Pan {store.cameraPanEnabled ? 'on' : 'off'}</button>
 		<button type="button" class:active={store.gridVisible} aria-pressed={store.gridVisible} disabled={store.isVisitorCameraPreview} onclick={() => store.toggleGrid()}>Grid {store.gridVisible ? 'on' : 'off'}</button>
 		<label class="floor-color">
@@ -1200,9 +1202,10 @@
 	.placement-actions p { margin: 0; color: var(--editor-text-muted); font-size: 0.67rem; line-height: 1.4; }
 	.deselect { align-self: flex-start; }
 	.camera-controls, .lighting { margin-top: 0.4rem; gap: 0.7rem; border-top: 1px solid var(--editor-border-subtle); padding-top: 0.85rem; }
-	.camera-controls p, .lighting p { margin: 0; color: var(--editor-text-secondary); font-size: 0.75rem; line-height: 1.4; }
+	.lighting p { margin: 0; color: var(--editor-text-secondary); font-size: 0.75rem; line-height: 1.4; }
 	.camera-controls button { align-self: flex-start; }
-	.camera-controls button.active { border-color: var(--editor-accent); background: var(--editor-bg-selected); color: var(--editor-text-primary); }
+	.camera-controls button.active { border-color: var(--editor-accent); background: var(--editor-bg-selected); box-shadow: 0 0 8px rgb(59 130 246 / 30%); color: var(--editor-accent-hover); }
+	.help { display: inline-grid; width: 1.1rem; height: 1.1rem; place-items: center; border: 1px solid var(--editor-border-normal); border-radius: 999px; color: var(--editor-text-muted); font: 600 0.62rem/1 var(--editor-font); cursor: help; }
 	.floor-color { display: flex; flex-direction: column; gap: 0.3rem; color: var(--editor-text-secondary); font-size: 0.75rem; }
 	.floor-color .color-row { display: flex; align-items: center; gap: 0.45rem; }
 	.floor-color input[type='color'] { width: 2rem; height: 1.5rem; padding: 0; border: 1px solid var(--editor-border-normal); border-radius: 0.32rem; background: transparent; cursor: pointer; }

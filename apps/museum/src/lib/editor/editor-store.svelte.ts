@@ -1570,6 +1570,11 @@ export class EditorStore {
 		);
 	}
 
+	/** Seek the previous/next camera-node boundary. */
+	stepCameraNodeBoundary(direction: -1 | 1) {
+		return this.cameraTimelineController.stepCameraNodeBoundary(direction);
+	}
+
 	/** Seek the previous/next guided node or visible directional framing key. */
 	stepCameraTimeline(direction: -1 | 1) {
 		return this.cameraTimelineController.stepCameraTimeline(direction);

@@ -330,6 +330,9 @@
 			     the bottom timeline are Camera-only; Scene stays scene chrome. -->
 			<Workspace3DView {store} {layoutPreview} {layoutInteraction} context={viewState.domain} {contextMenu} />
 		{/if}
+		{#if viewState.domain === 'camera'}
+			<EditorCameraTimelineFrame {store} viewMode={viewState.activeView} {contextMenu} />
+		{/if}
 	</div>
 	<EditorInspector
 		{store}
@@ -341,9 +344,6 @@
 		{viewState}
 		bind:clusterNameInput
 	/>
-	{#if viewState.domain === 'camera'}
-		<EditorCameraTimelineFrame {store} viewMode={viewState.activeView} {contextMenu} />
-	{/if}
 	<!-- P1.1 (design-spec §2/§18) — persistent status bar in every workspace. -->
 	<StatusBar {store} {layoutPreview} {layoutInteraction} {viewState} {activeSelection} />
 	<EditorMaterialChoiceDialog {store} />
@@ -356,11 +356,10 @@
 	.page {
 		display: grid;
 		grid-template-columns: minmax(15rem, var(--editor-left-width)) minmax(0, 1fr) minmax(17.5rem, var(--editor-right-width));
-		grid-template-rows: auto minmax(0, 1fr) auto auto;
+		grid-template-rows: auto minmax(0, 1fr) auto;
 		grid-template-areas:
 			'top top top'
 			'left center right'
-			'bottom bottom bottom'
 			'status status status';
 		height: 100vh;
 		height: 100dvh;
@@ -369,7 +368,7 @@
 		color: var(--editor-text-primary);
 		font-family: var(--editor-font);
 	}
-	.center { position: relative; min-width: 0; min-height: 0; outline: none; }
+	.center { position: relative; min-width: 0; min-height: 0; overflow: hidden; outline: none; }
 	.center:focus-visible { box-shadow: inset 0 0 0 1px var(--editor-accent); }
 
 	/* P1.7 review fix — both plan surfaces stay mounted (G3 pattern). The
@@ -392,11 +391,10 @@
 	@media (max-width: 62rem) {
 		.page {
 			grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-			grid-template-rows: auto minmax(24rem, 58vh) auto minmax(16rem, 34rem) auto;
+			grid-template-rows: auto minmax(24rem, 58vh) minmax(16rem, 34rem) auto;
 			grid-template-areas:
 				'top top'
 				'center center'
-				'bottom bottom'
 				'left right'
 				'status status';
 			height: auto;
@@ -409,11 +407,10 @@
 	@media (max-width: 44rem) {
 		.page {
 			grid-template-columns: minmax(0, 1fr);
-			grid-template-rows: auto minmax(22rem, 55vh) auto minmax(16rem, 30rem) minmax(18rem, 30rem) auto;
+			grid-template-rows: auto minmax(22rem, 55vh) minmax(16rem, 30rem) minmax(18rem, 30rem) auto;
 			grid-template-areas:
 				'top'
 				'center'
-				'bottom'
 				'left'
 				'right'
 				'status';

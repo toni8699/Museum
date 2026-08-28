@@ -563,6 +563,33 @@ export class EditorCameraTimelineController {
 		return cues.sort((left, right) => left.progress - right.progress);
 	}
 
+	/** Seek the previous/next camera-node boundary without changing scope. */
+	stepCameraNodeBoundary(direction: -1 | 1) {
+		if (!this.#canSeekCameraTimeline()) return false;
+		const preview = this.host.cameraPreview;
+		if (!preview || preview.kind === 'camera') return false;
+		if (preview.kind === 'edge') {
+			const capturedRoute = this.host.getCapturedCameraPreviewRoute(preview.runId);
+			const edgeTimeline = createEdgeLocalTimeline(
+				this.host.graph,
+				preview.connectionId,
+				preview.direction,
+				capturedRoute ? { route: capturedRoute } : undefined
+			);
+			if (!edgeTimeline) return false;
+			const target = direction < 0 ? 0 : 1;
+			return this.seekEdgePreview(target);
+		}
+		const timeline = this.readCameraTimeline();
+		if (!timeline || timeline.nodeBoundaries.length === 0) return false;
+		const epsilon = 1e-6;
+		const target = direction < 0
+			? [...timeline.nodeBoundaries].reverse().find((boundary) => boundary.progress < preview.playhead - epsilon)
+			: timeline.nodeBoundaries.find((boundary) => boundary.progress > preview.playhead + epsilon);
+		if (!target) return false;
+		return this.seekSequencePreview(target.progress);
+	}
+
 	/** Seek the previous/next cue without changing selection or scope. */
 	stepCameraTimeline(direction: -1 | 1) {
 		if (!this.#canSeekCameraTimeline()) return false;

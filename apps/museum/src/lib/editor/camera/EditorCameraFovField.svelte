@@ -141,7 +141,7 @@
 		font-size: 0.62rem;
 		cursor: pointer;
 	}
-	.lens-btn.active { border-color: var(--editor-accent); background: var(--editor-bg-selected); color: var(--editor-text-primary); }
+	.lens-btn.active { border-color: var(--editor-accent); background: var(--editor-bg-selected); box-shadow: 0 0 8px rgb(59 130 246 / 30%); color: var(--editor-accent-hover); }
 	.lens-btn:disabled { opacity: 0.42; cursor: default; }
 	.fov-copy { display: flex; flex-direction: column; gap: 0.1rem; margin: 0.3rem 0 0; color: var(--editor-text-muted); font-size: 0.6rem; line-height: 1.35; }
 </style>

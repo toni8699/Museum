@@ -372,6 +372,9 @@ export function useCameraTimeline(store: EditorStore) {
 		step(direction: -1 | 1) {
 			store.stepCameraTimeline(direction);
 		},
+		stepNodeBoundary(direction: -1 | 1) {
+			store.stepCameraNodeBoundary(direction);
+		},
 		toggleTourPlayback() {
 			const preview = store.cameraPreview;
 			// P11.3 §2 — Camera scope is static: its transport is inert and ▶

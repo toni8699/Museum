@@ -75,7 +75,7 @@
 				<EditorCameraPreviewControls {store} />
 			</div>
 		{/if}
-		{#if result.diagnostic.kind === 'invalid-target'}
+		{#if store.isRelic && result.diagnostic.kind === 'invalid-target'}
 			<p class="inline-diagnostic">{targetKindLabel} unavailable</p>
 		{/if}
 	</div>
@@ -83,14 +83,16 @@
 	<!-- P12.3 — Edge scope keeps one shell and adds inert truthful Edge-local
 	     lanes. Relic keeps its frozen P11.4 mini-shell. -->
 	<div class="timeline-panel">
-		<div class="timeline-toolbar">
-			<EditorCameraTimelineRuler {store} {viewMode} />
-			{#if store.isRelic && preview}<EditorCameraPreviewControls {store} />{/if}
-		</div>
+		{#if store.isRelic}
+			<div class="timeline-toolbar">
+				<EditorCameraTimelineRuler {store} {viewMode} />
+				{#if preview}<EditorCameraPreviewControls {store} />{/if}
+			</div>
+		{/if}
 		{#if edgeTimeline && !store.isRelic}
 			<EditorCameraTimelineDots {store} {viewMode} {contextMenu} edgeTimeline={edgeTimeline} />
 		{/if}
-		{#if result.diagnostic.kind === 'invalid-target'}
+		{#if store.isRelic && result.diagnostic.kind === 'invalid-target'}
 			<p class="inline-diagnostic">{targetKindLabel} unavailable</p>
 		{/if}
 	</div>
@@ -99,13 +101,13 @@
 	     loop readout renders only in Sequence scope. Compact inline
 	     diagnostics replace the old modal-like error panel. -->
 	<div class="timeline-panel">
-		{#if scope === 'sequence' && chain.length > 0}
+		{#if store.isRelic && scope === 'sequence' && chain.length > 0}
 			<div class="loop-readout" aria-label="Derived loop state">
 				{#if showLoopRow && flowHasLoop}
 					<span class="loop-readout__text">
 						<strong>Loops via:</strong> {nodeLabel(chainTailNodeId!)} → {nodeLabel(chainHeadNodeId!)}
 						{#if loopDurationSeconds !== null}
-							<span class="loop-duration">({loopDurationSeconds.toFixed(1)}s)</span>
+							<span class="loop-duration">({loopDurationSeconds!.toFixed(1)}s)</span>
 						{/if}
 					</span>
 					<button
@@ -127,16 +129,18 @@
 				{/if}
 			</div>
 		{/if}
-		<div class="timeline-toolbar">
-			<EditorCameraTimelineRuler {store} {viewMode} />
-			{#if store.isRelic && preview}<EditorCameraPreviewControls {store} />{/if}
-		</div>
+		{#if store.isRelic}
+			<div class="timeline-toolbar">
+				<EditorCameraTimelineRuler {store} {viewMode} />
+				{#if preview}<EditorCameraPreviewControls {store} />{/if}
+			</div>
+		{/if}
 		{#if timeline}<EditorCameraTimelineDots {store} {viewMode} {contextMenu} />{/if}
-		{#if result.diagnostic.kind === 'gap'}
+		{#if store.isRelic && result.diagnostic.kind === 'gap'}
 			<p class="inline-diagnostic">Gap at {nodeLabel(result.diagnostic.fromNodeId)}</p>
-		{:else if result.diagnostic.kind === 'no-flow'}
+		{:else if store.isRelic && result.diagnostic.kind === 'no-flow'}
 			<p class="inline-diagnostic">No sequence yet</p>
-		{:else if result.diagnostic.kind === 'invalid-target'}
+		{:else if store.isRelic && result.diagnostic.kind === 'invalid-target'}
 			<p class="inline-diagnostic">{targetKindLabel} unavailable</p>
 		{/if}
 	</div>

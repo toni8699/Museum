@@ -17,36 +17,57 @@ describe('P12.4 S4 — live header chrome', () => {
 
 		expect(frame).toContain('<header class="relic-header">');
 		expect(frame).toContain('class="tour-selector"');
-		expect(live).toContain('Camera timeline controls');
-		expect(live).toContain('Jump to start');
+		expect(live).toContain('<header class="s4-header">');
+		expect(live).toContain('Previous camera node');
+		expect(live).toContain('Next camera node');
 		expect(live).toContain('Play camera flow');
 		expect(live).toContain('class="timecode"');
 		expect(live).toContain('class="more-tools"');
 		expect(live).toContain('class="toggle s4-toggle"');
+		expect(frame).toContain("return 'Sequence (Full Tour)'");
+		expect(frame).toContain('`${endpoints.fromLabel} → ${endpoints.toLabel}`');
 		expect(live).not.toContain('tour-selector');
 		expect(live).not.toContain('EditorCameraPreviewControls');
 
 		expect(frame).toContain('height: 36px;');
-		expect(frame).toContain('height: 12px;');
-		expect(frame).toContain('height: 24px;');
-		expect(frame).toContain('class="mini-scrubber-row"');
+		expect(frame).toContain('height: 48px;');
+		expect(frame).toContain('height: 1.8rem;');
+		expect(frame).toContain('class="mini-player"');
+		expect(frame).toContain('mini-player__scrubber');
+		expect(live).not.toContain('Repeat edge');
 		expect(frame).toContain('@media (max-width: 44rem)');
 	});
 
-	it('keeps expanded scope-local actions in the ruler and gates View Key to live 3D Sequence', () => {
+	it('keeps the old ruler relic-only and moves live scrubbing plus View Key into Dots', () => {
+		const frame = readLibSource('editor/camera/EditorCameraTimelineFrame.svelte');
 		const panel = readLibSource('editor/camera/EditorCameraTimelinePanel.svelte');
 		const ruler = readLibSource('editor/camera/EditorCameraTimelineRuler.svelte');
-		const liveRuler = ruler.slice(ruler.indexOf('{:else if scope === \'edge\''));
+		const dots = readLibSource('editor/camera/EditorCameraTimelineDots.svelte');
 
 		expect(panel).toContain('<EditorCameraTimelineRuler {store} {viewMode} />');
-		expect(panel).toContain('{#if store.isRelic && preview}');
+		expect(panel).toContain('{#if store.isRelic}');
 		expect(panel).toContain('<EditorCameraPreviewControls {store} />');
-		expect(ruler).toContain('viewMode === \'3d\'');
-		expect(ruler).toContain('scope === \'sequence\'');
-		expect(liveRuler).toContain('+ View Key');
-		expect(liveRuler).not.toContain('+ Camera Key');
-		expect(liveRuler).not.toContain('toggleTourPlayback');
+		expect(dots).toContain("!store.isRelic && viewMode === '3d'");
+		expect(dots).toContain('+ View Key');
 		expect(ruler).toContain('+ Camera Key');
+		expect(ruler).toContain('type="range"');
+		expect(dots).toContain('class="timeline-playhead-overlay"');
+		expect(dots).toContain('.timeline-playhead-overlay { position: absolute;');
+		expect(dots).not.toContain('grid-column: 2; grid-row: 1 / -1');
+		expect(dots).toContain('class="playhead-head"');
+		expect(dots).toContain('role="slider"');
+		expect(dots).toContain('aria-label="Sequence timeline playhead"');
+		expect(dots).toContain("event.key === 'Home'");
+		expect(dots).toContain("event.key === 'End'");
+		expect(dots).toContain('[data-timeline-interactive]');
+		expect(dots).toContain('timeTicksForDuration(timeline.durationSeconds)');
+		expect(dots).toContain('durationSeconds / targetIntervals / 0.25');
+		expect(dots).toContain('index * stepSeconds');
+		expect(dots).not.toContain("replace(/\\.00$/, '')");
+		expect(dots).not.toContain('.time-tick:nth-last-child(2)');
+		expect(dots).toContain('@container (min-width: 52rem)');
+		expect(dots).toContain('.shot-block.selected { border-color: var(--editor-accent);');
+		expect(frame).toContain('.header-transport .header-icon.active,');
 	});
 });
 
@@ -70,6 +91,9 @@ describe('P12.4 S4 — idle mode and transport lifecycle', () => {
 			transport: 'paused',
 			playhead: 0.35
 		});
+
+		expect(store.stepCameraNodeBoundary(1)).toBe(true);
+		expect(store.cameraPreview?.transport).toBe('paused');
 	});
 
 	it('does not apply live header controls to the relic store surface', () => {

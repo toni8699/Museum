@@ -101,7 +101,7 @@
 	h3 { margin: 0; font-size: 0.78rem; letter-spacing: 0.02em; color: var(--editor-text-secondary); }
 	.direction-switch { display: flex; gap: 0.25rem; }
 	.direction-switch button { padding: 0.28rem 0.45rem; border: 1px solid var(--editor-border-normal); border-radius: 0.3rem; background: var(--editor-bg-panel-raised); color: var(--editor-text-secondary); font: inherit; font-size: 0.66rem; cursor: pointer; }
-	.direction-switch button.active { border-color: var(--editor-accent); background: var(--editor-bg-selected); color: var(--editor-text-primary); }
+	.direction-switch button.active { border-color: var(--editor-accent); background: var(--editor-bg-selected); box-shadow: 0 0 8px rgb(59 130 246 / 30%); color: var(--editor-accent-hover); }
 	.direction-switch button:disabled { opacity: 0.42; cursor: default; }
 	dl { display: flex; flex-direction: column; gap: 0.4rem; margin: 0; }
 	dl div { display: grid; grid-template-columns: 4.4rem 1fr; gap: 0.45rem; }

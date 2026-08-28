@@ -859,9 +859,10 @@
 	.sidebar-section-header h2 {
 		min-width: 0;
 		margin: 0;
-		font-size: 0.78rem;
+		font-size: 0.68rem;
 		font-weight: 650;
-		letter-spacing: 0.02em;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
 		color: var(--editor-text-secondary);
 	}
 	.sidebar-section-header span {
@@ -880,22 +881,35 @@
 		list-style: none;
 	}
 	.guided-line {
+		position: relative;
 		display: grid;
 		min-width: 0;
-		grid-template-columns: 1.7rem minmax(0, 1fr) auto;
+		grid-template-columns: 1.7rem minmax(0, 1fr);
 		gap: 0.1rem;
 	}
 	.free-line {
+		position: relative;
 		display: grid;
 		min-width: 0;
-		grid-template-columns: 1.7rem minmax(0, 1fr) auto;
+		grid-template-columns: 1.7rem minmax(0, 1fr);
 		gap: 0.1rem;
 	}
 	.guided-actions {
+		position: absolute;
+		top: 0;
+		right: 0;
+		bottom: 0;
 		display: flex;
 		align-items: stretch;
 		gap: 0.08rem;
+		padding-left: 0.4rem;
+		background: linear-gradient(90deg, transparent, var(--editor-bg-panel) 0.4rem);
+		opacity: 0;
+		pointer-events: none;
+		transition: opacity 100ms ease;
 	}
+	.guided-line:hover .guided-actions,
+	.guided-line:focus-within .guided-actions { opacity: 1; pointer-events: auto; }
 	.guided-actions button {
 		display: inline-flex;
 		align-items: center;
@@ -930,10 +944,33 @@
 		color: var(--editor-success);
 	}
 	.free-actions {
+		position: absolute;
+		top: 0;
+		right: 0;
+		bottom: 0;
 		display: flex;
 		align-items: stretch;
 		gap: 0.08rem;
+		padding-left: 0.4rem;
+		background: linear-gradient(90deg, transparent, var(--editor-bg-panel) 0.4rem);
+		opacity: 0;
+		pointer-events: none;
+		transition: opacity 100ms ease;
 	}
+	.free-line:hover .free-actions,
+	.free-line:focus-within .free-actions { opacity: 1; pointer-events: auto; }
+	.sequence-preview {
+		flex: 0 0 auto;
+		padding: 0.28rem 0.5rem;
+		border: 1px solid var(--editor-accent-pressed);
+		border-radius: 0.3rem;
+		background: color-mix(in srgb, var(--editor-accent) 10%, transparent);
+		color: var(--editor-accent-hover);
+		font: 500 0.65rem/1.2 var(--editor-font);
+		cursor: pointer;
+	}
+	.sequence-preview:hover:not(:disabled) { border-color: var(--editor-accent); background: color-mix(in srgb, var(--editor-accent) 18%, transparent); }
+	.sequence-preview:disabled { opacity: 0.4; cursor: default; }
 	.free-actions button {
 		display: inline-flex;
 		align-items: center;

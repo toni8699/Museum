@@ -136,9 +136,10 @@
 	.sidebar-section-header h2 {
 		min-width: 0;
 		margin: 0;
-		font-size: 0.78rem;
+		font-size: 0.68rem;
 		font-weight: 650;
-		letter-spacing: 0.02em;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
 		color: var(--editor-text-secondary);
 	}
 	.sidebar-section-header span {

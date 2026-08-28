@@ -1,5 +1,6 @@
 <script lang="ts">
 	import {
+		ArrowLeftRight,
 		ChevronDown,
 		ChevronUp,
 		CircleAlert,
@@ -8,7 +9,6 @@
 		Eye,
 		Pause,
 		Play,
-		Repeat,
 		Scan,
 		Video
 	} from 'lucide-svelte';
@@ -52,9 +52,6 @@
 	const hasTemporalTimeline = $derived(
 		(scope === 'sequence' && timeline !== null) || (scope === 'edge' && edgeTimeline !== null)
 	);
-	const showHeaderPlay = $derived(
-		(scope === 'idle' || hasTemporalTimeline) && timelineApi.canPlay
-	);
 	const activePlayhead = $derived(scope === 'edge' ? edgePlayhead : playhead);
 	const showCollapsedScrubber = $derived(!expanded && hasTemporalTimeline);
 	const collapsedScrubDisabled = $derived(
@@ -63,10 +60,15 @@
 	const collapsedScrubberLabel = $derived(
 		scope === 'edge' ? 'Edge playhead' : 'Sequence playhead'
 	);
-	const jumpDisabled = $derived(
+	const previousNodeDisabled = $derived(
 		!hasTemporalTimeline ||
-		!timelineApi.canPlay ||
 		activePlayhead <= 0 ||
+		store.isEditorInteractionActive ||
+		store.isDocumentTransactionActive
+	);
+	const nextNodeDisabled = $derived(
+		!hasTemporalTimeline ||
+		activePlayhead >= 1 ||
 		store.isEditorInteractionActive ||
 		store.isDocumentTransactionActive
 	);
@@ -76,14 +78,23 @@
 	const headerDiagnostic = $derived.by(() => {
 		const diagnostic = result.diagnostic;
 		if (diagnostic.kind === 'gap') return `Gap at ${nodeLabel(diagnostic.fromNodeId)}`;
-		if (diagnostic.kind === 'no-flow') return 'No sequence yet';
+		if (diagnostic.kind === 'no-flow') return null;
 		if (diagnostic.kind === 'invalid-target') return `${targetKindLabel} unavailable`;
 		return null;
 	});
+	const sequenceAvailable = $derived(timeline !== null);
 	// P11.3 §4 — the scope capsule replaces the old `preview-badge`; it owns
 	// all scope text (no duplicate prose in the panel or preview controls).
 	const capsule = $derived(timelineApi.scopeCapsule);
-	const scopeLabel = $derived(!store.isRelic ? capsule ?? 'Sequence' : null);
+	const scopeLabel = $derived.by(() => {
+		if (store.isRelic) return null;
+		if (scope === 'idle' || scope === 'sequence') return 'Sequence (Full Tour)';
+		if (scope === 'edge') {
+			const endpoints = timelineApi.edgeEndpoints;
+			if (endpoints) return `${endpoints.fromLabel} → ${endpoints.toLabel}`;
+		}
+		return capsule ?? 'Camera';
+	});
 	const selectedConnection = $derived(store.selectedConnection);
 	const selectedNode = $derived.by(() => {
 		const selection = store.navigationSelection;
@@ -115,7 +126,7 @@
 		const items: ScopeMenuItem[] = [
 			{
 				id: 'sequence',
-				label: '🎞 Sequence (Full Tour)',
+				label: 'Sequence (Full Tour)',
 				action: () => store.enterSequenceScope()
 			}
 		];
@@ -126,7 +137,7 @@
 				if (choice) {
 					items.push({
 						id: 'edge',
-						label: `⇄ Preview Edge · ${choice.label}`,
+						label: choice.label,
 						action: () =>
 							void store.previewEdge(
 								selectedConnection.id,
@@ -136,7 +147,6 @@
 					});
 				}
 			} else {
-				items.push({ id: 'edge-heading', label: '⇄ Preview Edge…', heading: true });
 				for (const choice of choices.choices) {
 					items.push({
 						id: `edge-${choice.direction}`,
@@ -287,13 +297,13 @@
 		else if (mode === 'visitor') store.enterSequenceScope('visitor');
 	}
 
-	function jumpToStart() {
-		if (scope === 'edge') timelineApi.seekEdge(0);
-		else if (scope === 'sequence') timelineApi.seek(0);
+	function stepNode(direction: -1 | 1) {
+		timelineApi.stepNodeBoundary(direction);
 	}
 
 	function scrubCollapsed(event: Event) {
 		const progress = Number((event.currentTarget as HTMLInputElement).value);
+		if (previewPlaying) store.pauseCameraPreview();
 		if (scope === 'edge') timelineApi.seekEdge(progress);
 		else timelineApi.seek(progress);
 	}
@@ -355,9 +365,7 @@
 	}
 
 	function hasOverflowItems() {
-		return Boolean(
-			(preview && cameraMode === 'director') || (scope === 'edge' && edgeTimeline)
-		);
+		return Boolean(preview && cameraMode === 'director');
 	}
 
 	function formatTime(seconds: number) {
@@ -437,8 +445,12 @@
 <section
 	class="timeline-frame"
 	class:resizing
+	class:live={!store.isRelic}
+	class:relic={store.isRelic}
+	class:expanded
+	class:collapsed={!expanded}
 	aria-label="Camera timeline"
-	style={`grid-area: bottom; height: ${height}px;`}
+	style={`height: ${height}px;${store.isRelic ? ' grid-area: bottom;' : ''}`}
 >
 	{#if expanded}
 		<!-- svelte-ignore a11y_no_noninteractive_tabindex (interactive separator follows the WAI-ARIA window-splitter pattern) -->
@@ -493,8 +505,9 @@
 				{/if}
 			</button>
 		</header>
-	{:else}
-		<header class="s4-header" aria-label="Camera timeline controls">
+	{:else if expanded || !showCollapsedScrubber}
+		<header class="s4-header">
+			{#if sequenceAvailable}
 			<div class="scope-switcher">
 				<button
 					bind:this={pillButton}
@@ -506,10 +519,9 @@
 					title={scopeLabel}
 					onclick={togglePillMenu}
 					onkeydown={handlePillKeydown}
-				>
-					<span>🎞 {scopeLabel}</span>
-					<ChevronDown size={13} aria-hidden="true" />
-				</button>
+					>
+						<span>{scopeLabel}</span>
+					</button>
 				{#if pillMenuOpen}
 					<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 					<div
@@ -535,6 +547,20 @@
 					</div>
 				{/if}
 			</div>
+			{:else}
+				<div class="scope-capsule scope-status" role="status" aria-label="No sequence yet">
+					<CircleAlert size={13} aria-hidden="true" />
+					<span>No sequence yet</span>
+				</div>
+			{/if}
+			<button
+				type="button"
+				class="header-icon edge-flip"
+				aria-label="Flip edge. Swap travel direction, reset to start."
+				title="Flip edge. Swap travel direction, reset to start."
+				disabled={!edgeTimeline || timelineApi.edgeReverseDisabled}
+				onclick={() => timelineApi.swapEdgeReverse()}
+			><ArrowLeftRight size={14} aria-hidden="true" /></button>
 
 			<div class="mode-control" role="group" aria-label="Camera preview mode">
 				<button
@@ -555,7 +581,7 @@
 				><Eye size={13} aria-hidden="true" /><span>Observer</span></button>
 			</div>
 
-			<div class="observer-actions" aria-label="Observer tools">
+			<div class="observer-actions" role="group" aria-label="Observer tools">
 				{#if cameraMode === 'director'}
 					<button
 						type="button"
@@ -579,50 +605,15 @@
 				{/if}
 			</div>
 
-			{#if showHeaderPlay || hasTemporalTimeline}
-				<div class="header-transport" aria-label="Camera timeline transport">
-					{#if hasTemporalTimeline}
-						<button
-							type="button"
-							class="header-icon"
-							aria-label="Jump to start"
-							title="Jump to start"
-							disabled={jumpDisabled}
-							onclick={jumpToStart}
-						><span aria-hidden="true">|◀</span></button>
-					{/if}
-					{#if showHeaderPlay}
-						<button
-							type="button"
-							class="header-icon"
-							class:active={previewPlaying}
-							aria-label={scope === 'idle' ? 'Play camera flow' : timelineApi.playLabel}
-							title={scope === 'idle' ? 'Play camera flow' : timelineApi.playLabel}
-							onclick={() => timelineApi.toggleTourPlayback()}
-						>{#if previewPlaying}<Pause size={14} aria-hidden="true" />{:else}<Play size={14} aria-hidden="true" />{/if}</button>
-					{/if}
-					{#if hasTemporalTimeline}
-						<output class="timecode" aria-label="Camera timeline time">
-							{formatTime(timelineApi.currentSeconds)} / {formatTime(durationSeconds)}
-						</output>
-					{/if}
-					{#if scope === 'edge' && edgeTimeline}
-						<button
-							type="button"
-							class="header-icon edge-repeat-inline"
-							class:active={timelineApi.edgeRepeat}
-							aria-pressed={timelineApi.edgeRepeat}
-							aria-label="Repeat edge"
-							title="Repeat edge"
-							disabled={timelineApi.edgeRepeatDisabled || !timelineApi.canPlay}
-							onclick={() => (store.edgeRepeat = !store.edgeRepeat)}
-						><Repeat size={14} aria-hidden="true" /></button>
-					{/if}
-				</div>
-			{/if}
+			<div class="header-transport" aria-label="Camera timeline transport">
+				<button type="button" class="header-icon" aria-label="Previous camera node" title="Previous camera node" disabled={previousNodeDisabled} onclick={() => stepNode(-1)}><span aria-hidden="true">|◀</span></button>
+				<button type="button" class="header-icon" class:active={previewPlaying} aria-label={scope === 'idle' ? 'Play camera flow' : timelineApi.playLabel} title={scope === 'idle' ? 'Play camera flow' : timelineApi.playLabel} disabled={!timelineApi.canPlay} onclick={() => timelineApi.toggleTourPlayback()}>{#if previewPlaying}<Pause size={14} aria-hidden="true" />{:else}<Play size={14} aria-hidden="true" />{/if}</button>
+				<button type="button" class="header-icon" aria-label="Next camera node" title="Next camera node" disabled={nextNodeDisabled} onclick={() => stepNode(1)}><span aria-hidden="true">▶│</span></button>
+				<output class="timecode" aria-label="Camera timeline time">{formatTime(timelineApi.currentSeconds)} / {formatTime(durationSeconds)}</output>
+			</div>
 
 			{#if headerDiagnostic}
-				<div class="diagnostic" title={headerDiagnostic} aria-label={headerDiagnostic}>
+				<div class="diagnostic" role="status" title={headerDiagnostic} aria-label={headerDiagnostic}>
 					<CircleAlert size={13} aria-hidden="true" />
 					<span class="diagnostic-copy">{headerDiagnostic}</span>
 				</div>
@@ -651,15 +642,6 @@
 							tabindex="-1"
 							onkeydown={handleMoreMenuKeydown}
 						>
-							{#if scope === 'edge' && edgeTimeline}
-								<button
-									type="button"
-									role="menuitemcheckbox"
-									aria-checked={timelineApi.edgeRepeat}
-									disabled={timelineApi.edgeRepeatDisabled || !timelineApi.canPlay}
-									onclick={() => (store.edgeRepeat = !store.edgeRepeat)}
-								>Repeat edge</button>
-							{/if}
 							{#if preview && cameraMode === 'director'}
 								<button
 									type="button"
@@ -694,22 +676,45 @@
 		<div class="content">
 			<EditorCameraTimelinePanel {store} {viewMode} {contextMenu} />
 		</div>
-	{/if}
-	{#if showCollapsedScrubber}
-		<div class="mini-scrubber-row">
-			<label class="mini-scrubber">
+	{:else if showCollapsedScrubber && !store.isRelic}
+		<div class="mini-player" role="toolbar" aria-label="Camera timeline mini-player">
+			{#if sequenceAvailable}
+			<div class="scope-switcher">
+				<button bind:this={pillButton} type="button" class="scope-capsule" aria-haspopup="menu" aria-expanded={pillMenuOpen} aria-label={`Camera preview scope: ${scopeLabel}`} title={scopeLabel} onclick={togglePillMenu} onkeydown={handlePillKeydown}>
+						<span>{scopeLabel}</span>
+				</button>
+				{#if pillMenuOpen}
+					<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+					<div bind:this={pillMenu} class="scope-menu" role="menu" aria-label="Camera preview scope" tabindex="-1" onkeydown={handlePillMenuKeydown}>
+						{#each scopeMenuItems as item (item.id)}
+							{#if item.heading}<div class="scope-menu-heading" role="presentation">{item.label}</div>{:else}<button type="button" role="menuitem" class:indented={item.id.startsWith('edge-')} onclick={() => runScopeItem(item)}>{item.label}</button>{/if}
+						{/each}
+					</div>
+				{/if}
+			</div>
+			{:else}
+				<div class="scope-capsule scope-status" role="status" aria-label="No sequence yet"><CircleAlert size={13} aria-hidden="true" /><span>No sequence yet</span></div>
+			{/if}
+			<button type="button" class="mini-player__icon" aria-label="Flip edge. Swap travel direction, reset to start." title="Flip edge. Swap travel direction, reset to start." disabled={!edgeTimeline || timelineApi.edgeReverseDisabled} onclick={() => timelineApi.swapEdgeReverse()}><ArrowLeftRight size={13} aria-hidden="true" /></button>
+			<div class="mini-player__transport" role="group" aria-label="Camera timeline transport">
+				<button type="button" class="mini-player__icon" aria-label="Previous camera node" title="Previous camera node" disabled={previousNodeDisabled} onclick={() => stepNode(-1)}>│◀</button>
+				<button type="button" class="mini-player__icon mini-player__play" class:active={previewPlaying} aria-label={timelineApi.playLabel} title={timelineApi.playLabel} disabled={!timelineApi.canPlay} onclick={() => timelineApi.toggleTourPlayback()}>{#if previewPlaying}<Pause size={13} aria-hidden="true" />{:else}<Play size={13} aria-hidden="true" />{/if}</button>
+				<button type="button" class="mini-player__icon" aria-label="Next camera node" title="Next camera node" disabled={nextNodeDisabled} onclick={() => stepNode(1)}>▶│</button>
+			</div>
+			<label class="mini-player__scrubber">
 				<span class="sr-only">{collapsedScrubberLabel}</span>
-				<input
-					type="range"
-					min="0"
-					max="1"
-					step="0.0005"
-					value={activePlayhead}
-					disabled={collapsedScrubDisabled}
-					aria-label={collapsedScrubberLabel}
-					oninput={scrubCollapsed}
-				/>
+				<input type="range" min="0" max="1" step="0.0005" value={activePlayhead} disabled={collapsedScrubDisabled} aria-label={collapsedScrubberLabel} oninput={scrubCollapsed} />
 			</label>
+			<output class="mini-player__timecode" aria-label="Camera timeline time">{formatTime(timelineApi.currentSeconds)} / {formatTime(durationSeconds)}</output>
+			<div class="mode-control" role="group" aria-label="Camera preview mode">
+				<button type="button" class:active={cameraMode === 'visitor'} aria-pressed={cameraMode === 'visitor'} aria-label="POV" title="Through Camera" onclick={() => choosePreviewMode('visitor')}><Video size={13} aria-hidden="true" /><span>POV</span></button>
+				<button type="button" class:active={cameraMode === 'director'} aria-pressed={cameraMode === 'director'} aria-label="Observer" title="Observer" onclick={() => choosePreviewMode('director')}><Eye size={13} aria-hidden="true" /><span>Observer</span></button>
+			</div>
+			<div class="mini-player__observer-actions" role="group" aria-label="Observer tools">
+				<button type="button" class="mini-player__icon" aria-label="Recenter camera" title="Recenter camera" disabled={cameraMode !== 'director' || !preview || store.isEditorInteractionActive || store.isDocumentTransactionActive} onclick={() => store.recenterCameraPreview()}><Scan size={13} aria-hidden="true" /></button>
+				<button type="button" class="mini-player__icon" class:active={store.cameraPreviewFollowEnabled} aria-pressed={store.cameraPreviewFollowEnabled} aria-label="Follow camera" title="Follow camera" disabled={cameraMode !== 'director' || !preview || store.isEditorInteractionActive || store.isDocumentTransactionActive} onclick={() => store.toggleCameraPreviewFollow()}><Crosshair size={13} aria-hidden="true" /></button>
+			</div>
+			<button type="button" class="mini-player__icon" aria-expanded="false" aria-label="Expand camera timeline" title="Expand camera timeline" disabled={store.isEditorInteractionActive} onclick={() => store.toggleTimeline()}><ChevronUp size={14} aria-hidden="true" /></button>
 		</div>
 	{/if}
 </section>
@@ -723,6 +728,27 @@
 		border-top: 1px solid var(--editor-border-subtle);
 		background: var(--editor-bg-panel);
 	}
+	.timeline-frame.live {
+		position: absolute;
+		right: 0;
+		bottom: 0;
+		left: 0;
+		z-index: 10;
+		width: 100%;
+		max-width: 100%;
+	}
+	.timeline-frame.live.collapsed {
+		right: auto;
+		bottom: 16px;
+		left: 50%;
+		width: min(47.5rem, calc(100% - 2rem));
+		transform: translateX(-50%);
+		border: 1px solid var(--editor-border-normal);
+		border-radius: 0.75rem;
+		box-shadow: 0 12px 32px rgb(0 0 0 / 60%), 0 0 0 1px rgb(255 255 255 / 8%);
+	}
+	.timeline-frame.live.collapsed .mini-player,
+	.timeline-frame.live.collapsed .s4-header { border-radius: inherit; }
 	.timeline-frame.resizing { user-select: none; }
 
 	.resize-handle {
@@ -783,21 +809,23 @@
 	}
 	.workspace-label { margin-left: auto; text-transform: capitalize; }
 	.scope-switcher { position: relative; min-width: 0; margin-left: auto; }
+	.scope-status { color: var(--editor-text-muted); border-color: var(--editor-border-normal); }
+	.scope-status :global(svg) { flex: 0 0 auto; }
 	.scope-capsule {
 		display: inline-flex;
 		max-width: 20rem;
 		align-items: center;
-		gap: 0.28rem;
-		padding: 0.14rem 0.38rem;
+		gap: 0.5rem;
+		padding: 0.25rem 0.75rem;
 		border: 1px solid var(--editor-accent-pressed);
 		border-radius: 999px;
 		background: transparent;
 		color: var(--editor-text-primary);
 		font: inherit;
-		font-size: 0.6rem;
-		font-weight: 650;
+		font-size: 0.75rem;
+		font-weight: 500;
 		letter-spacing: 0.04em;
-		text-transform: uppercase;
+		text-transform: capitalize;
 		white-space: nowrap;
 	}
 	button.scope-capsule { cursor: pointer; }
@@ -807,8 +835,8 @@
 	.relic-scope-capsule { margin-left: auto; }
 	.scope-menu {
 		position: absolute;
-		top: calc(100% + 0.3rem);
-		right: 0;
+		top: calc(100% + 0.4rem);
+		left: 0;
 		z-index: 20;
 		display: grid;
 		min-width: 15rem;
@@ -822,17 +850,17 @@
 	.scope-menu-heading {
 		padding: 0.38rem 0.55rem 0.22rem;
 		color: var(--editor-text-muted);
-		font-size: 0.62rem;
+		font-size: 0.56rem;
 		font-weight: 650;
 	}
-	.scope-menu button {
-		padding: 0.38rem 0.55rem;
+	.scope-menu > button {
+		padding: 0.375rem 0.625rem;
 		border: 0;
 		border-radius: 0.25rem;
 		background: transparent;
 		color: var(--editor-text-primary);
-		font: inherit;
-		font-size: 0.68rem;
+		font: 500 0.75rem/1.2 var(--editor-font);
+		text-transform: capitalize;
 		text-align: left;
 		white-space: nowrap;
 		cursor: pointer;
@@ -846,16 +874,21 @@
 	   cue that follows the active camera scope through the dock. */
 	.s4-header {
 		gap: 0.45rem;
-		padding: 0.25rem 0.6rem;
+		padding: 0.25rem 0.75rem;
 	}
 	.s4-header .scope-switcher {
-		flex: 1 1 11rem;
+		order: 1;
+		width: 13.75rem;
+		flex: 0 0 13.75rem;
 		margin-left: 0;
 	}
 	.s4-header .scope-capsule {
+		box-sizing: border-box;
+		width: 100%;
 		max-width: 100%;
 		min-width: 0;
 	}
+	.s4-header > .scope-status { order: 1; width: 13.75rem; flex: 0 0 13.75rem; box-sizing: border-box; }
 	.s4-header .scope-capsule > span { min-width: 0; }
 	.mode-control,
 	.observer-actions,
@@ -866,13 +899,14 @@
 		gap: 0.18rem;
 	}
 	.mode-control {
+		order: 3;
 		flex: 0 1 auto;
 		border: 1px solid var(--editor-border-normal);
 		border-radius: 0.3rem;
 		background: var(--editor-bg-panel-raised);
 	}
 	.s4-header button {
-		font: inherit;
+		font-family: inherit;
 	}
 	.mode-control button,
 	.header-icon,
@@ -914,6 +948,7 @@
 		opacity: 0.42;
 	}
 	.observer-actions {
+		order: 4;
 		flex: 0 0 auto;
 		grid-template-columns: repeat(2, 1.55rem);
 		min-width: 3.28rem;
@@ -925,8 +960,9 @@
 		box-sizing: border-box;
 	}
 	.header-transport {
+		order: 2;
 		flex: 0 1 auto;
-		margin-left: auto;
+		margin-left: 0;
 		font-variant-numeric: tabular-nums;
 	}
 	.header-icon {
@@ -934,6 +970,13 @@
 		padding-inline: 0.2rem;
 		border-color: var(--editor-border-normal);
 		background: var(--editor-bg-panel-raised);
+	}
+	.header-transport .header-icon.active,
+	.mini-player__play.active {
+		border-color: rgb(59 130 246 / 80%);
+		background: rgb(37 99 235 / 25%);
+		box-shadow: 0 0 10px rgb(59 130 246 / 40%);
+		color: #60a5fa;
 	}
 	.timecode {
 		min-width: 7.8rem;
@@ -944,6 +987,7 @@
 		white-space: nowrap;
 	}
 	.diagnostic {
+		order: 5;
 		display: inline-flex;
 		min-width: 0;
 		flex: 0 1 15rem;
@@ -958,7 +1002,7 @@
 	}
 	.diagnostic :global(svg) { flex: 0 0 auto; color: var(--editor-accent); }
 	.diagnostic-copy { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-	.more-tools { position: relative; display: none; flex: 0 0 auto; }
+	.more-tools { position: relative; order: 6; display: none; flex: 0 0 auto; }
 	.more-trigger { width: 1.65rem; }
 	.more-menu {
 		position: absolute;
@@ -986,30 +1030,56 @@
 	}
 	.more-menu button:hover,
 	.more-menu button:focus-visible { background: var(--editor-bg-hover); outline: none; }
-	.s4-toggle { width: 1.7rem; flex: 0 0 1.7rem; padding-inline: 0.2rem; }
+	.s4-toggle { position: relative; order: 7; width: 1.7rem; flex: 0 0 1.7rem; margin-left: auto; padding-inline: 0.2rem; }
+	.s4-toggle::before { content: ''; position: absolute; top: 0.25rem; bottom: 0.25rem; left: -0.45rem; width: 1px; background: var(--editor-border-subtle); }
+	.edge-flip { order: 1; flex: 0 0 1.7rem; }
+	.timeline-frame:not(:has(.content)) .s4-header { height: 48px; min-height: 48px; flex-basis: 48px; }
 
-	.mini-scrubber-row {
-		position: relative;
+	.mini-player {
+		display: flex;
 		box-sizing: border-box;
-		height: 12px;
-		flex: 0 0 12px;
-		padding: 0 0.75rem;
-		border-top: 1px solid var(--editor-border-subtle);
+		min-width: 0;
+		height: 48px;
+		flex: 0 0 48px;
+		align-items: center;
+		gap: 0.35rem;
+		padding: 0.35rem 0.75rem;
+		background: var(--editor-bg-panel);
 	}
-	.mini-scrubber {
-		position: relative;
-		display: block;
-		height: 12px;
+	.mini-player .scope-switcher { width: 13.75rem; flex: 0 0 13.75rem; margin-left: 0; }
+	.mini-player .scope-capsule { width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box; }
+	.mini-player > .scope-status { width: 13.75rem; flex: 0 0 13.75rem; box-sizing: border-box; }
+	.mini-player .mode-control { order: initial; }
+	.mini-player__observer-actions { display: flex; flex: 0 0 auto; gap: 0.25rem; }
+	.mini-player__icon {
+		display: inline-flex;
+		width: 1.8rem;
+		height: 1.8rem;
+		flex: 0 0 1.8rem;
+		align-items: center;
+		justify-content: center;
+		padding: 0;
+		border: 1px solid var(--editor-border-normal);
+		border-radius: 0.3rem;
+		background: var(--editor-bg-panel-raised);
+		color: var(--editor-text-secondary);
+		font: inherit;
+		font-size: 0.62rem;
+		cursor: pointer;
 	}
-	.mini-scrubber input {
-		position: absolute;
-		top: -6px;
-		left: 0;
+	.mini-player__icon:hover:not(:disabled),
+	.mini-player__icon.active { border-color: var(--editor-accent); color: var(--editor-text-primary); }
+	.mini-player__icon:disabled { opacity: 0.4; cursor: default; }
+	.mini-player__transport { display: flex; align-items: center; gap: 0.25rem; }
+	.mini-player__scrubber { display: flex; min-width: 5rem; min-height: 24px; flex: 1; align-items: center; }
+	.mini-player__scrubber input {
 		width: 100%;
 		height: 24px;
 		margin: 0;
 		accent-color: var(--editor-accent);
+		cursor: ew-resize;
 	}
+	.mini-player__timecode { min-width: 7.8rem; color: var(--editor-text-primary); font: 650 0.66rem/1 var(--editor-font); font-variant-numeric: tabular-nums; text-align: center; white-space: nowrap; }
 	.sr-only {
 		position: absolute;
 		width: 1px;
@@ -1048,9 +1118,9 @@
 		.phase-label, .workspace-label { display: none; }
 		.scope-capsule { max-width: 12rem; }
 		.s4-header { gap: 0.28rem; padding-inline: 0.45rem; }
-		.s4-header .scope-switcher { flex-basis: 6rem; }
-		.s4-header .observer-actions,
-		.s4-header .edge-repeat-inline { display: none; }
+		.s4-header .scope-switcher,
+		.s4-header > .scope-status { width: 8rem; flex-basis: 8rem; }
+		.s4-header .observer-actions { display: none; }
 		.s4-header .more-tools { display: block; }
 		.s4-header .diagnostic { flex: 0 0 1.65rem; justify-content: center; padding-inline: 0.2rem; }
 		.s4-header .diagnostic-copy { display: none; }
@@ -1058,6 +1128,9 @@
 		.mode-control button span { overflow: hidden; max-width: 4.4rem; text-overflow: ellipsis; }
 		.timecode { min-width: 6.1rem; }
 		.content { padding-inline: 0.6rem; }
-		.mini-scrubber-row { padding-inline: 0.6rem; }
+		.mini-player { padding-inline: 0.6rem; }
+		.mini-player .scope-switcher,
+		.mini-player > .scope-status { width: 8rem; flex-basis: 8rem; }
+		.mini-player__timecode { min-width: 6.1rem; font-size: 0.58rem; }
 	}
 </style>

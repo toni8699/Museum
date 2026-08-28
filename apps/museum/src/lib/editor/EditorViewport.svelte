@@ -275,7 +275,7 @@
 					{#if store.pendingNavigationCommand?.kind === 'connect-pending-node'}
 						<EditorCameraHelpers {store} nodeId={store.pendingNavigationCommand.node.id} />
 					{/if}
-				{:else if store.cameraSelection && !store.pendingPlacementAssetId && !store.pendingPlacementPrimitiveKind && !store.pendingPlacementLightKind && !store.isFramingBlocked}
+				{:else if store.cameraSelection && !store.pendingPlacementAssetId && !store.pendingPlacementPrimitiveKind && !store.pendingPlacementLightKind && (!store.isFramingBlocked || (store.transformInteractionActive && store.transformInteractionKind === 'camera'))}
 					{#key store.cameraSelection.nodeId}
 						<EditorCameraHelpers {store} nodeId={store.cameraSelection.nodeId} />
 					{/key}

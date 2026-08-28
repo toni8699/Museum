@@ -5,12 +5,33 @@ slice plus one next action only.
 
 ## Working tree
 
-- Current delta: **P12.3 (S3) — one-shell Edge-local lanes + Flip semantics**
+- Docs delta (2026-08-28, uncommitted): the Camera Plan passive-object-footprint
+  design is ratified — `Design-specs/Camera-layout-design.md` (tokens re-rooted
+  to the shared footprint presentation, direction wording corrected, label halo
+  kept, checklist re-scoped to contract level); the designer brief
+  `Design-specs/Camera-plan-objects-brief.md` is approved and superseded; and
+  `Design-specs/Design-specs.md` §3/§10/§27 are amended to the ratified rule
+  (Camera Plan renders passive scene footprints; direction is never drawn on
+  connections). No implementation. P14
+  (`docs/plans/2026-08-28-P14-camera-plan-footprints.md`) is registered and
+  approved — slotted immediately after P12 in the plan tracker and model
+  assessment.
+- Current delta: **P12.4 (S4) — amended designer mini-player + lane-scrub chrome**
+  (2026-08-27, implemented/verified, uncommitted). The main editor now has an
+  integrated temporal mini-player with Previous/Play-Pause/Next node transport,
+  active-scope scrubber, timecode, and the existing mode/Observer tools. The
+  expanded five-lane timeline now scrubs from the ruler/playhead surface with
+  an interactive playhead head; the standalone expanded range scrubber and
+  main-editor Repeat/loop/Replay/Reverse controls are removed. `+ View Key`
+  remains code-backed/reserved for later placement. The relic remains frozen.
+  The relic keeps its frozen P11.4 header/ruler, controls, and stop-on-Escape
+  lifecycle.  Focused P12.4 and editor contract tests pass (109 tests), and `npm run check`
+  reports 0 errors / 0 warnings. Full Vitest/build remain to be run for the
+  amended delta. Next: run full verification, then resume P12 S5 closeout.
+- Previous delta: **P12.3 (S3) — one-shell Edge-local lanes + Flip semantics**
   (2026-08-27, implemented/verified, uncommitted). Truthful Edge-local
   five-lane projection, non-relic Flip reset, relic preservation, and local
-  keyboard-accessible contextual Scope pill. `npm run check`, full Vitest
-  (2,259 passed / 1 skipped), and `npm run build` are green. Next: P12.4
-  header/collapsed-dock chrome.
+  keyboard-accessible contextual Scope pill.
 - Previous delta: **P12.2 (S2) — selection matrix** (2026-08-26, shipped).
   Selection is selection-only by default; sequenced-node clicks in Sequence
   seek and pause without focus framing; explicit Preview Edge/Camera own scope
@@ -165,17 +186,20 @@ slice plus one next action only.
 - Previous slice: **P3B.6 retained-edge selection parity**, closed 2026-08-25.
   The active P3B umbrella is the back-pointer.
 
-## Next action
-
-- **P12.3 (S3) — one-shell edge-local lane + Flip semantics** (per the
-  ratified P12 freeze): project truthful Edge timing in the shared shell,
-  reset Edge playhead on Flip, then continue with P12.4 chrome. P12.2 is
-  shipped; P3B.7a/P3B.8 QA remains downstream of P12.
+## Next action- **P12 amended S4 implementation** — implement and verify the designer mini-player, lane-based scrubbing/playhead head, node-boundary Previous/Next, retained POV/Observer + Center/Follow controls, and removal of main-editor Repeat/loop/Replay; then resume P12 S5 closeout. **Hard gate (owner 2026-08-27): P12 +
+P3B must both close before anything else is implemented or continues; no other
+plan is scheduled** (P4/P5/P13 removed 2026-08-27; P13 re-registered same day as
+a nice-to-have **proposed** plan — stop-at-node playback, not scheduled).
+**P14 (Camera Plan passive object footprints) is approved and scheduled
+immediately after P12** — the first work after the gate closes (P14 plan +
+tracker rows 2026-08-28). The
+P3B.7a/P3B.8 QA tail is the gate's P3B half. Product vision lives in the north
+star.
 
 ## Verification
 
-- Working tree (P12.2): `npm run check` 0 errors / 0 warnings; `npm run build`
-  passes; the full `apps/museum` suite is green (2,247 tests, 1 skipped). The
+- Working tree (P12.4): `npm run check` 0 errors / 0 warnings; `npm run build`
+  passes; the full `apps/museum` suite is green (2,264 tests, 1 skipped). The
   two
   pre-existing baseline failures from the P11.1 handoff are resolved: the
   guided/leaf-edge deletion row migrated in P11.2 (leaf-edge deletion is now
@@ -207,6 +231,11 @@ slice plus one next action only.
   (8 cases for mode-independent seek/step, late pause, partial routes, and
   relic behavior); the migrated P11.1 matrix now has 17 cases including
   post-gap last-boundary seeking and explicit Unsequenced Camera/Edge entry.
+- P12.4 coverage: `tests/lib/editor/store/p12-s4-header-chrome.test.ts`
+  (fixed-header ownership, relic boundary, collapsed mini-scrubber sizing,
+  live 3D Sequence-only `+ View Key`, idle POV entry, and mode/playhead
+  preservation); Escape coverage also pins main-editor pause versus relic
+  teardown in `editor-store-shell.test.ts`.
   `layout-gizmo-adapter` sequential-transform pins now green;
   sphere diameter contract pinned in `layout-object-editing`,
   `layout-preview-state`, and the regenerated `layout-geometry-golden`

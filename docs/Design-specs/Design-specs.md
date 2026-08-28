@@ -131,8 +131,11 @@ Both Scene Plan and Camera Plan consume the **same underlying Plan render model*
 Scene Plan may add eligible Scene footprint projection at render layer 6 (P2),
 and its **Arrange** mode composes those footprints with existing Layout-object
 Plan render identities into one owner-aware hit set at layers 5–6 (P10).
-Camera Plan passes no Scene footprint projection and shows only its permitted
-architectural/camera layers.
+Camera Plan renders the same passive Scene footprint projection at render
+layer 6 as inert 2D spatial context beneath the camera graph (ratified
+2026-08-28, [`Camera-layout-design.md`](Camera-layout-design.md)), then shows
+its permitted architectural/camera layers. Camera Plan footprints are
+presentation-only: no hit-testing, selection, or collision semantics.
 
 Camera Plan then adds a filtered overlay containing only:
 
@@ -609,7 +612,9 @@ Selected:
 subtle outer highlight
 ```
 
-No arrowheads in Camera Plan because the connection represents undirected topology.
+No arrowheads in Camera Plan: direction is never drawn on the connection.
+Unsequenced connections carry no implied direction; in a sequenced tour,
+direction is implied by sequence order, not drawn on the edge.
 
 Camera Timeline **may** use direction because it represents ordered playback rather than topology.
 
@@ -1187,6 +1192,7 @@ not editable
 Camera Plan may:
 
 * place cameras using floor hit testing
+* render passive object footprints as non-interactive spatial context (ratified 2026-08-28, [`Camera-layout-design.md`](Camera-layout-design.md))
 * select camera nodes
 * select connections
 * drag nodes
@@ -1770,4 +1776,4 @@ Visual priorities:
 9. **color communicates state, not decoration**
 10. **product-specific graphics beat generic icons where semantics matter**
 
-This preserves the central design rule from the canonical specification: the interface must communicate the actual product model truthfully — no arrows on undirected Camera Plan connections, no fake loop state, no duplicate spatial models, and no Camera framing controls leaking into Plan.
+This preserves the central design rule from the canonical specification: the interface must communicate the actual product model truthfully — no arrows on Camera Plan connections, no fake loop state, no duplicate spatial models, and no Camera framing controls leaking into Plan.

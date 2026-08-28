@@ -2572,6 +2572,17 @@ export class EditorStore {
 			this.isDocumentMutationBlocked &&
 			!this.historyController.isFramingTransactionActive
 		) {
+			// A block that arrives mid-transaction (a preview mode flip or
+			// transport change landing while a drag holds the transaction open)
+			// must not leak the open transaction: release the live interaction
+			// that owns it, then roll back and close. A leaked transaction
+			// refuses every later begin() while the gizmo stays attached —
+			// orbit eats the drag and the view rotates instead of the node
+			// moving (the reported camera-gizmo bug).
+			if (this.transformInteractionActive) this.#cancelTransform?.();
+			if (this.directPathInteractionActive) this.#cancelDirectPathDrag?.();
+			if (this.viewKeyframeProgressDrag) this.cancelViewKeyframeProgressDrag();
+			this.historyController.cancel();
 			return false;
 		}
 		if (!this.historyController.isDocumentUndoBlocked) return false;

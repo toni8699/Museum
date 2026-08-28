@@ -186,14 +186,31 @@ export class EditorGizmoHostController {
 			controls.axis !== null &&
 			!isThreeAxisAllowed(resolveEffectiveMode(this.deps.getMode(), adapter.policy), controls.axis, adapter.policy)
 		) {
+			this.releaseControlDrag();
 			return;
 		}
 		const session = adapter.begin({ targetKey: adapter.key });
-		if (!session) return;
+		if (!session) {
+			// Refused begin: three r175 has already set `dragging` (it fires
+			// dragging-changed BEFORE this mouseDown), so without a release the
+			// control would phantom-drag the proxy while orbit also consumes
+			// the gesture. Release the control drag and stay inert; orbit
+			// stays enabled.
+			this.releaseControlDrag();
+			return;
+		}
 		this.session = session;
 		const orbit = this.deps.getOrbit();
 		this.orbitWasEnabled = orbit?.enabled ?? null;
 		if (orbit) orbit.enabled = false;
+		// three r175 fires `dragging-changed(true)` BEFORE `mouseDown`, so
+		// onDraggingChanged always sees `session === null` there — emit
+		// DRAG_START here instead. `dragActive` makes this exactly-once under
+		// either event order (older three dispatched mouseDown first).
+		if (!this.dragActive) {
+			this.dragActive = true;
+			this.deps.dispatch({ type: 'DRAG_START' });
+		}
 	}
 
 	/** TransformControls `objectChange`: one live session preview. */
@@ -261,12 +278,7 @@ export class EditorGizmoHostController {
 			this.deps.dispatch({ type: 'DRAG_END', cancelled: true });
 		}
 		this.restoreOrbit();
-		const controls = this.deps.controls;
-		// Three's TransformControls lacks a public cancelDrag(); flip the
-		// private flag so it releases pointer capture. Works on r170 today.
-		controls.reset();
-		(controls as { dragging?: boolean }).dragging = false;
-		controls.pointerUp(null);
+		this.releaseControlDrag();
 		this.deps.recomputeCursor(false);
 		return true;
 	}
@@ -276,6 +288,19 @@ export class EditorGizmoHostController {
 		const orbit = this.deps.getOrbit();
 		if (orbit) orbit.enabled = this.orbitWasEnabled;
 		this.orbitWasEnabled = null;
+	}
+
+	/**
+	 * Release an in-flight TransformControls drag. Three has no public
+	 * cancelDrag(): `reset()` clears the drag plane, flipping `dragging`
+	 * fires `dragging-changed(false)`, and `pointerUp(null)` releases the
+	 * pointer capture (r175).
+	 */
+	private releaseControlDrag() {
+		const controls = this.deps.controls;
+		controls.reset();
+		(controls as { dragging?: boolean }).dragging = false;
+		controls.pointerUp(null);
 	}
 
 	// keyboard / modifier routing ------------------------------------------------

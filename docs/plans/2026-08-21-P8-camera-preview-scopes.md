@@ -187,7 +187,8 @@ Ratified order (2026-08-21 scope decision): **P1 → P8 → P2 → P3** — exte
 the camera-first phase; P3 stays last as pure cosmetics. **P1 shipped +
 closed 2026-08-21, so P8 is the active gate.** Remaining **P7** increments
 (**P7.1 → P7.5 → P7.2 → P7.3**, Option B) resume after P8 Slices 1–4.
-P4/P5 unscheduled.
+P4/P5 were removed from the tracker 2026-08-27 (stale plans overhaul; work
+re-registers after the P12/P3B hard gate).
 
 - **Slot: ahead of P2** —
   [scope decision](../archive/plans/2026-08-21-scope-decision-p8-before-p2.md).
@@ -203,7 +204,8 @@ P4/P5 unscheduled.
   deliver "any real connection locally previewable"); its future multi-edge
   branch playback composes the Slice 1 primitive. Update that doc's
   prerequisite pointer at registration.
-- **P4/P5:** unaffected.
+- **P4/P5:** removed from the tracker 2026-08-27 — no active plan; any future
+  GLB-import/optimization work re-registers after the P12/P3B hard gate.
 
 ## F. Implementation order (smallest safe slices)
 
@@ -307,8 +309,8 @@ Detail: [Slice 6 design](#slice-6--design-detail-folded-2026-08-22).
 Detail for §F Slice 2, folded from `docs/p8-slice-2-preview-scope-state.md`
 (original deleted per fold-and-delete). The readiness survey is grep-verified
 against the tree on 2026-08-21; re-grep at implementation time.
-**Routing:** Sol medium (54, 92% Sol max), margin 0 → escalate on first
-failure (`docs/plans/model-assessment.md`).
+**Routing:** Sol medium (54, 93% Sol xhigh — re-calibrated 2026-08-27, Sol Max
+removed), margin 0 → escalate on first failure (`docs/plans/model-assessment.md`).
 
 ### S2 readiness survey (grep-verified)
 

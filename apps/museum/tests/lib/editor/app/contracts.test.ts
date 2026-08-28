@@ -746,6 +746,15 @@ describe('single gizmo host', () => {
 		}
 	});
 
+	it('keeps the selected camera helper mounted while its gizmo owns the drag', () => {
+		for (const path of ['editor/app/Workspace3DView.svelte', 'editor/EditorViewport.svelte']) {
+			const source = readLibSource(path);
+			expect(source, path).toContain(
+				"!store.isFramingBlocked || (store.transformInteractionActive && store.transformInteractionKind === 'camera')"
+			);
+		}
+	});
+
 	it('keeps EditorSelection on the bound controls with axis/dragging precedence before the S6 layout flow', () => {
 		const selection = readLibSource('editor/EditorSelection.svelte');
 		expect(selection).toContain('transformControls?: TransformControls;');
@@ -1399,12 +1408,20 @@ describe('camera context contracts', () => {
 			expect(source).toContain('.preview-shield.non-blocking {');
 			expect(source).toContain('pointer-events: none;');
 		}
-		// Framing handle pose re-gate is playing-visitor-only.
+		// The static framing frustum yields to the Director playhead frustum for
+		// the whole preview session; a playing visitor keeps it hidden and a
+		// paused visitor still shows it (paused framing stays editable).
 		const framingHelpers = readLibSource('editor/camera/EditorCameraFramingHelpers.svelte');
+		expect(framingHelpers).toContain('store.isDirectorCameraPreview ||');
 		expect(framingHelpers).toContain(
 			'(store.isVisitorCameraPreview && store.isCameraPreviewPlaying)'
 		);
 		expect(framingHelpers).not.toContain('store.isCameraPreviewPlaying ||');
+		// The moving playhead frustum renders for the whole Director session —
+		// transport- and selection-independent (scrub follows the path).
+		const cameraRig = readLibSource('editor/camera/EditorCameraRig.svelte');
+		expect(cameraRig).toContain("preview.mode === 'director';");
+		expect(cameraRig).not.toContain("preview.transport === 'playing' || !selectedFraming");
 		// Room selection is AA (drop the broad mutation gate).
 		const sceneTree = readLibSource('editor/EditorSceneTree.svelte');
 		expect(sceneTree).not.toContain('if (store.isDocumentMutationBlocked) return;');

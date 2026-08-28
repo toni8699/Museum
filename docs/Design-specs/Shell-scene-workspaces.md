@@ -659,7 +659,7 @@ The shell/visual spec defines the Arrange footprint states for both owners.
 * Layout objects — footprint from the existing Plan render identities; only
   non-profile objects are Arrange hit targets
 * wall/ceiling/surface catalogue models — omitted from P2 projection
-* imported project models — unsupported until P4 imported-bounds registry
+* imported project models — unsupported (GLB import deferred; re-registers after the P12/P3B hard gate)
 * lights — no interactive footprint
 * camera/tour content — not part of Plan Arrange
 

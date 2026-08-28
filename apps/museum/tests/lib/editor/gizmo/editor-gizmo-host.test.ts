@@ -343,9 +343,11 @@ describe('EditorGizmoHostController — begin refusal', () => {
 		store.setMode('rotate');
 		host.refreshConfiguration();
 		controls.axis = 'X';
+		controls.dragging = true; // three r175 sets this before dispatching mouseDown
 		host.onControlsMouseDown();
 		expect(adapter.beginCalls).toBe(0);
 		expect(session.previews).toHaveLength(0);
+		expect(controls.dragging).toBe(false);
 		expect(orbit.get().enabled).toBe(true);
 	});
 });

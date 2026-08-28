@@ -2,7 +2,13 @@
 
 Layout-first editor for indoor 3D. Draw a floor plan. Place openings and objects. Author a camera tour. Export one file. A separate visitor runtime renders it.
 
-No server. No account. Everything lives in your browser. Save = export. Load = import.
+Local-first: everything works offline in your browser, and save/load runs
+through portable export/import. Accounts, cloud project save, and hosted
+publish are part of the final product vision (see [`docs/north-star.md`](docs/north-star.md))
+— not yet scheduled. The roadmap is gated: the current camera timeline (P12)
+and orientation/preview QA (P3B) must close before anything else is
+implemented. The server, when it arrives, stays an optional sync/save/publish
+target and never becomes a boot dependency.
 
 ## Example
 

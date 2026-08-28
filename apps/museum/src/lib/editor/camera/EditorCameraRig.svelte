@@ -151,14 +151,16 @@
 		}
 	}
 
+	/**
+	 * The moving playhead frustum renders for the whole Director preview
+	 * session — playing or paused/scrubbing, selection-independent — so
+	 * scrubbing previews where the camera path is. The selected camera's
+	 * static framing frustum hides over the same span
+	 * (EditorCameraFramingHelpers.framingPose), keeping exactly one frustum
+	 * on screen during any Director preview.
+	 */
 	function showDirectorPreviewFrustum(preview: ActiveCameraPreview) {
-		const selection = store.navigationSelection;
-		const selectedFraming =
-			selection?.kind === 'node' || selection?.kind === 'view-keyframe';
-		return (
-			preview.mode === 'director' &&
-			(preview.transport === 'playing' || !selectedFraming)
-		);
+		return preview.mode === 'director';
 	}
 
 	function applyPreviewPose(currentCamera: PerspectiveCamera) {

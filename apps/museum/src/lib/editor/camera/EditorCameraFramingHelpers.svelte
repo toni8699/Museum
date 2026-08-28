@@ -85,9 +85,11 @@
 	function framingPose() {
 		if (
 			store.currentWorkspace !== 'camera' ||
-			// P11.2 §3 — handles render under a playing Director preview so the
-			// drag can auto-pause through the framing seam; only a playing
-			// visitor keeps them hidden (framing is locked there).
+			// The static framing frustum yields to the moving Director playhead
+			// frustum for the whole preview session (playing or paused/scrubbing);
+			// a playing visitor keeps it hidden too (framing is locked there).
+			// A paused visitor still shows it so paused framing stays editable.
+			store.isDirectorCameraPreview ||
 			(store.isVisitorCameraPreview && store.isCameraPreviewPlaying) ||
 			store.pendingPlacementAssetId ||
 			store.pendingPlacementPrimitiveKind ||

@@ -13,9 +13,11 @@
  * reviewer suggested (re-convert through `rooms.point`) would DOUBLE-convert
  * and introduce the very displacement described.
  *
- * The frustum-gating (bug 2) store inputs ARE confirmed below: paused
- * Director + selected node leaves the moving preview frustum hidden while the
- * static framing frustum stays; playing Director shows both.
+ * The frustum-gating store inputs are pinned below. 2026-08-28: the gating
+ * fix landed — the moving playhead frustum now renders for the WHOLE Director
+ * session (paused/scrubbing included) and the selected camera's static
+ * framing frustum hides under any Director preview. The assertions below pin
+ * the store inputs that drive both components' new predicates.
  *
  * Delete this file after assessment.
  */
@@ -95,8 +97,8 @@ describe('TMP — reviewer finding falsification (camera-node gizmo frame)', () 
 	});
 });
 
-describe('TMP — frustum gating inputs (bug 2) — CONFIRMED', () => {
-	it('paused Director + selected node: mutation not blocked (static frustum stays, moving frustum hidden)', () => {
+describe('TMP — frustum gating inputs (post-fix behavior) — CONFIRMED', () => {
+	it('paused Director + selected node: moving frustum ON, static framing OFF (scrub previews the path)', () => {
 		const store = createFixtureEditorStore();
 		const node = store.document.navigationNodes.find((n) => n.id === 'tour-a')!;
 		expect(store.selectionActions.selectNavigationNode(node.id)).toBe(true);
@@ -109,17 +111,14 @@ describe('TMP — frustum gating inputs (bug 2) — CONFIRMED', () => {
 
 		// Inputs read by EditorCameraRig.showDirectorPreviewFrustum and
 		// EditorCameraFramingHelpers.framingPose:
-		expect(store.isVisitorCameraPreview).toBe(false);
+		expect(store.isDirectorCameraPreview).toBe(true); // ⇒ moving frustum ON (whole session)
+		expect(store.isVisitorCameraPreview).toBe(false); // ⇒ static framing OFF
 		expect(store.isCameraPreviewPlaying).toBe(false);
 		expect(store.isDocumentMutationBlocked).toBe(false); // paused Director authors freely
-		expect(store.navigationSelection?.kind).toBe('node'); // selectedFraming === true
-		// ⇒ showDirectorPreviewFrustum = director && (playing || !selectedFraming) = FALSE
-		//   (no moving frustum while scrubbing), while framingPose's guard
-		//   (visitor && playing) is false ⇒ the selected node's static frustum
-		//   stays. Exactly the reported scrub behavior.
+		expect(store.navigationSelection?.kind).toBe('node');
 	});
 
-	it('playing Director: two-frustum combination (preview shows, static frustum guard stays false)', () => {
+	it('playing Director: moving frustum ON, static framing OFF (single frustum during play)', () => {
 		const store = createFixtureEditorStore();
 		const node = store.document.navigationNodes.find((n) => n.id === 'tour-a')!;
 		expect(store.selectionActions.selectNavigationNode(node.id)).toBe(true);
@@ -127,11 +126,11 @@ describe('TMP — frustum gating inputs (bug 2) — CONFIRMED', () => {
 
 		const preview = store.cameraPreview!;
 		expect(preview.transport).toBe('playing');
-		// showDirectorPreviewFrustum: playing ⇒ TRUE (moving frustum appears).
+		// showDirectorPreviewFrustum: director session ⇒ TRUE (moving frustum).
 		expect(preview.mode === 'director' && preview.transport === 'playing').toBe(true);
-		// framingPose guard (isVisitorCameraPreview && isCameraPreviewPlaying):
-		// visitor is FALSE ⇒ guard false ⇒ the selected node's static frustum
-		// ALSO stays ⇒ two amber frustums during Director play.
+		// framingPose now hides on isDirectorCameraPreview ⇒ the selected node's
+		// static frustum is gone during play ⇒ exactly one frustum on screen.
+		expect(store.isDirectorCameraPreview).toBe(true);
 		expect(store.isVisitorCameraPreview).toBe(false);
 		expect(store.isCameraPreviewPlaying).toBe(true);
 		// And the document is mutation-blocked ⇒ the transform gizmo detaches

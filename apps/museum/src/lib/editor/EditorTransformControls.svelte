@@ -75,6 +75,11 @@
 			store.isDocumentMutationBlocked ||
 			store.directPathInteractionActive ||
 			store.viewKeyframeProgressDrag !== null ||
+			// A history transaction without an owning transform interaction
+			// (leaked by an interrupted gesture) can never begin a gizmo
+			// session — detach instead of leaving a dead gizmo that silently
+			// hands every drag to orbit.
+			(store.isDocumentUndoBlocked && !store.transformInteractionActive) ||
 			!store.transformGizmoVisible,
 		pendingPlacement: Boolean(
 			store.pendingPlacementAssetId ||

@@ -215,7 +215,7 @@ tracker + CURRENT.
   relic; not a refactor.
 - Dead workspace packages (`note-cursor`, `audio-plink`, `portfolio-content`,
   `portfolio-hud`, `scroll-travel`) — one-line lockfile cleanup, fold into any
-  dependency touch (P4 GLB import is the natural owner).
+  dependency touch (GLB import is the natural owner; no P4 plan — deferred, re-registers after the P12/P3B hard gate).
 - Frozen visitor lane (`camera-motion.ts`, `camera-route.ts`) and
   `wall-mesh-builder.ts` — size justified by cohesion, leave alone.
 

@@ -15,7 +15,7 @@
 | Placements | `scene.json` via editor |
 
 `AssetModel.svelte` owns load/clone/fallback. Do not add room-local GLTF loaders.  
-GLB import pipeline = **deferred** (tracker P4).
+GLB import pipeline = **deferred** (not scheduled; re-registers after the P12/P3B hard gate).
 
 ## Plan footprint metadata (P2.1)
 

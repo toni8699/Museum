@@ -1,7 +1,7 @@
 # Camera and tour
 
 **Read when:** nodes, connections, paths, guided order, timeline, framing, sequence preview.  
-**Last reviewed:** 2026-08-22
+**Last reviewed:** 2026-08-28 (P12 closeout)
 **Deep dump (rare):** [`../archive/CAMERA_AND_LAYOUT.md`](../archive/CAMERA_AND_LAYOUT.md)
 
 ---
@@ -95,18 +95,18 @@ Plan ↔ 3D; a persisted view-keyframe selection gets only a passive
   changes and failed/cancelled gestures produce none. Escape cancels an active
   drag first (capture-phase, cannot fall through to pending-command
   cancellation), then the pending navigation command, then returns to Select.
-- **Preview grammar (P11 supersedes the P3B.5 baseline):** selecting a Camera
-  enters paused `Camera` scope and selecting a connection enters paused local
-  `Edge` scope; neither action autoplays. A selected edge follows the canonical
-  Camera selection and may initialize from the Sequence playhead's matching
-  local physical progress when valid. `Preview Sequence` remains an explicit
-  whole-route command because Sequence is not an entity selection. Active scope
-  labels stay compact (`Camera · C`, `Edge · B → C`, `Sequence`). Connections
-  remain one undirected topology model; direction is traversal/preview state.
-  While playing, selection authoring pauses the preview before changing scope;
-  paused/complete preview remains available for safe authoring and inspection.
-  Edge Repeat is temporary Edge transport; Sequence looping is derived only
-  from authored tail↔head topology.
+- **Preview grammar (P12):** ordinary Camera/connection selection is
+  selection-only. `Preview Camera` explicitly enters paused static `Camera`
+  scope for an Unsequenced node; `Preview Edge` explicitly enters paused local
+  `Edge` scope with deterministic direction; the Scope menu explicitly enters
+  `Sequence`. None autoplays. A sequenced-node click seeks + pauses only while
+  Sequence scope is already active. Active scope labels stay compact (`Camera ·
+  C`, `Edge · B → C`, `Sequence (Full Tour)`). Connections remain one undirected
+  topology model; direction is traversal/preview state. Safe authoring pauses a
+  playing preview in place. Main-editor transport is binary Play/Pause; Play at
+  end restarts from `0`, Escape pauses without tearing down, and Repeat/loop /
+  distinct Replay chrome is absent. Edge Repeat and stop-on-Escape remain only
+  in the frozen relic.
 
 Visitor: plays the open-chain order (loop derived); free nodes via BFS; transitioning = no nav; Paris = fixed eye + free-look. No ribbons on `/museum`.
 

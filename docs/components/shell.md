@@ -1,7 +1,7 @@
 # Shell and workspaces
 
 **Read when:** app chrome, Scene/Camera switch, Layout mode, top bar, timeline frame, project menu.  
-**Last reviewed:** 2026-08-23 (P9)
+**Last reviewed:** 2026-08-28 (P12 closeout)
 
 ---
 
@@ -55,7 +55,13 @@ Timeline: collapsed `48px`; default expanded `288px`, user range `240–300px`.
 Expansion state persists verbatim and never auto-expands on a domain switch.
 Display lanes: Camera Path · Shots · FOV · Look At · Roll. These project the
 current two backing models (Guided Route + Camera Framing); P3 adds no new
-Shots/Roll entities or independent raw curves.
+Shots/Roll entities or independent raw curves. Expanded main-editor chrome has
+a fixed `36px` header; collapsed chrome is an integrated `48px` temporal
+mini-player. Expanded scrubbing belongs to the ruler/five-lane playhead surface,
+not a second playback bar. Main-editor controls are Previous/Next camera-node
+boundary, Play/Pause, POV/Observer, and Center/Follow; `+ View Key` appears only
+for 3D Sequence. Scope changes are explicit, selection-only by default, and
+main-editor Repeat/loop/distinct Replay controls do not exist.
 
 Status bar is persistent and informational. Its save state aggregates scene
 and layout dirtiness; Plan reads Plan grid/snap state and Plan navigation

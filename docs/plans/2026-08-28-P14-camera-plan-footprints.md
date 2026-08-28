@@ -1,8 +1,7 @@
-# P14 — Camera Plan passive object footprints (approved, scheduled after P12)
+# P14 — Camera Plan passive object footprints (approved, after remaining gate)
 
-**Status:** `approved` — registered and **scheduled immediately after P12**
-(owner 2026-08-28). Slots behind the P3B + P12 hard gate: nothing starts until
-both close; P14 is the first work after the gate.
+**Status:** `approved` — P12 shipped 2026-08-28; P14 is the first work after
+the remaining P3B.7a/P3B.8 hard-gate tail closes (owner 2026-08-28).
 **Tracker:** [`README.md`](README.md) — **P14**, depends on: P12.
 **Placement:** Design already ratified — `Design-specs/Camera-layout-design.md`
 (2026-08-28) + approved designer brief
@@ -173,7 +172,6 @@ cross-surface diff check (Scene Plan unchanged).
 
 ## Status
 
-Approved — **scheduled immediately after P12** (owner 2026-08-28). Hard gate
-(owner 2026-08-27): P3B + P12 must both close before anything is implemented;
-P14 is the first work after the gate, ahead of all unscheduled future work
-(P13 stays proposed/unscheduled).
+Approved — P12 shipped 2026-08-28. P14 is the first work after the remaining
+P3B.7a/P3B.8 hard gate, ahead of all unscheduled future work (P13 stays
+proposed/unscheduled).

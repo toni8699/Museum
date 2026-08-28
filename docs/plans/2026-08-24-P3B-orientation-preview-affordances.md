@@ -123,11 +123,17 @@ world Y  ← vertical height
 
 * Camera Plan connections remain undirected.
 * Direction appears only in explicit preview/playback actions.
-* **Superseded by P11 (2026-08-25):** Camera/Edge selection now drives paused local preview scope; the original selection-independent rule below is retained only as the shipped P3B.5 baseline and must not govern new implementation.
+* **Superseded by P12 (2026-08-28):** ordinary Camera/Edge selection is
+  selection-only. Preview Camera, Preview Edge, and Scope-menu actions install
+  paused scopes explicitly; a sequenced-node click only seeks + pauses while
+  Sequence scope is already active.
 * Selection never starts playback.
-* Selection never resets the playhead unless entering the newly selected local scope requires a safe fallback from an unavailable progress mapping.
+* Ordinary selection never resets the playhead; explicit scope entry starts or
+  preserves progress only as defined by P12.
 * Sequence remains an explicit whole-route preview scope.
-* Camera/Edge selection and preview scope share canonical selection; no second active-edge identity.
+* Preview scope resolves against canonical Camera selection; no second
+  active-edge identity exists, but ordinary selection may differ from retained
+  preview scope.
 * Preview actions use Play/CirclePlay semantics.
 * Eye remains visibility/view semantics.
 * No document/history mutation from the orientation widget.
@@ -163,9 +169,8 @@ build validation passed. Post-review: preview entries stay disabled during
 pending navigation, node actions use CirclePlay semantics, topology mutation
 gates are restored, and the edge action group carries an accessible name.
 
-**Next slice:** P11.1 — Contract and state-transition seam. P3B.7a/P3B.8
-preview QA remains blocked on the P11 selection-driven scope contract; the
-P3B.7b context-menu tail remains deferred and non-blocking.
+**Next slice:** P3B.7a/P3B.8 QA tail closeout, after P12. P3B.7b context-menu
+tail remains deferred and non-blocking.
 
 Canonical interaction grammar:
 
@@ -180,7 +185,11 @@ Play / Pause
 → control current preview
 ```
 
-**Historical P3B.5 baseline — superseded by P11:** normal selection was selection-only and preview scope was independent. P11 changes this contract: Camera/Edge selection changes scope to a paused local preview without autoplay; Sequence remains explicit. See [`2026-08-25-P11-camera-timeline-preview-ux-redesign.md`](../archive/plans/2026-08-25-P11-camera-timeline-preview-ux-redesign.md).
+**Historical P3B.5/P11 baseline — superseded by P12:** normal selection is again
+selection-only. Preview Camera, Preview Edge, and Scope-menu entry are explicit
+and paused; Sequence remains explicit except sequenced-node seek+pause within an
+already-active Sequence scope. See the
+[archived P12 contract](../archive/plans/2026-08-26-P12-camera-timeline-contract-freeze.md).
 
 ---
 
@@ -268,7 +277,8 @@ This is direction selection for one undirected topology edge.
 
 It is not a second topology model.
 
-Existing `Reverse` remains Edge-scope transport behavior; P11 further compacts it and keeps Repeat Edge-only.
+P12 replaces live `Reverse` with explicit Edge Flip (reset to `0`) and removes
+live Repeat; frozen relic keeps its P11.4 controls.
 
 Example active label:
 
@@ -380,7 +390,7 @@ Verify:
 
 ### Camera preview
 
-* **P11 supersedes the first two selection rules:** clicking a Camera/Edge selects and enters the corresponding paused scope without autoplay;
+* Clicking a Camera/Edge selects only; explicit preview actions enter paused scope;
 * Preview Sequence remains an explicit sequence-preview scope command;
 * sequence edge direction derives from Sequence adjacency;
 * unsequenced edge requires explicit direction choice;
@@ -452,11 +462,11 @@ Check:
    P3B.6 (closed 2026-08-25)
 
 4. Next behavior slice
-   P11.1 → P11.2 → P11.3 → P11.4 → P11.5
+   P11.1 → P11.2 → P11.3 → P11.4 → P11.5 → P12
 
 5. Core QA
-   P3B.7a (after P11)
-   P3B.8 (after P11)
+   P3B.7a (after P12)
+   P3B.8 (after P12)
 
 6. Deferred tail
    P3B.7b
@@ -471,9 +481,9 @@ P3B.4 Status); Group B proceeds without a stop gate.
 
 ## Group C
 
-* **Historical P3B.5 baseline only:** selection and preview scope were independent. P11 supersedes this rule.
-* Node preview semantics remain identical for sequenced and unsequenced cameras; selecting a node enters paused static Camera scope.
-* Selecting an edge enters paused Edge scope; Sequence preview remains an explicit Sequence/timeline action.
+* Ordinary Camera/Edge selection is selection-only under P12.
+* Preview Camera is explicit and available only for Unsequenced cameras.
+* Preview Edge is explicit and paused; Sequence scope entry remains explicit.
 * Edge-preview direction explicit and deterministic.
 * Camera topology remains undirected.
 * Unsequenced (retained) edges are selectable in Camera Plan and show

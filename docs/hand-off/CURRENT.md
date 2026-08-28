@@ -5,304 +5,66 @@ slice plus one next action only.
 
 ## Working tree
 
-- Docs delta (2026-08-28, uncommitted): the Camera Plan passive-object-footprint
-  design is ratified — `Design-specs/Camera-layout-design.md` (tokens re-rooted
-  to the shared footprint presentation, direction wording corrected, label halo
-  kept, checklist re-scoped to contract level); the designer brief
-  `Design-specs/Camera-plan-objects-brief.md` is approved and superseded; and
-  `Design-specs/Design-specs.md` §3/§10/§27 are amended to the ratified rule
-  (Camera Plan renders passive scene footprints; direction is never drawn on
-  connections). No implementation. P14
-  (`docs/plans/2026-08-28-P14-camera-plan-footprints.md`) is registered and
-  approved — slotted immediately after P12 in the plan tracker and model
-  assessment.
-- Current delta: **P12.4 (S4) — amended designer mini-player + lane-scrub chrome**
-  (2026-08-27, implemented/verified, uncommitted). The main editor now has an
-  integrated temporal mini-player with Previous/Play-Pause/Next node transport,
-  active-scope scrubber, timecode, and the existing mode/Observer tools. The
-  expanded five-lane timeline now scrubs from the ruler/playhead surface with
-  an interactive playhead head; the standalone expanded range scrubber and
-  main-editor Repeat/loop/Replay/Reverse controls are removed. `+ View Key`
-  remains code-backed/reserved for later placement. The relic remains frozen.
-  The relic keeps its frozen P11.4 header/ruler, controls, and stop-on-Escape
-  lifecycle.  Focused P12.4 and editor contract tests pass (109 tests), and `npm run check`
-  reports 0 errors / 0 warnings. Full Vitest/build remain to be run for the
-  amended delta. Next: run full verification, then resume P12 S5 closeout.
-- Previous delta: **P12.3 (S3) — one-shell Edge-local lanes + Flip semantics**
-  (2026-08-27, implemented/verified, uncommitted). Truthful Edge-local
-  five-lane projection, non-relic Flip reset, relic preservation, and local
-  keyboard-accessible contextual Scope pill.
-- Previous delta: **P12.2 (S2) — selection matrix** (2026-08-26, shipped).
-  Selection is selection-only by default; sequenced-node clicks in Sequence
-  seek and pause without focus framing; explicit Preview Edge/Camera own scope
-  entry; transport seeks pause either POV or Observer after validation; broken
-  flows retain an evaluable prefix and last boundary; Preview Camera is gated
-  to Unsequenced nodes. Added `p12-s2` coverage and migrated P11/P8 pins.
-- Previous delta: **P11.4 — compact controls and parity + P11 close bug fixes
-  (2026-08-26).** Segmented mode controls, compact transport, Edge
-  Reverse/Repeat, visible-Stop removal, and completed-preview inspection fixes.
-- Previous delta: **P11.3 — scope-aware timeline shell (2026-08-26,
-  committed `ab1210a`; bad-merge revert `45bcd6d`).** Scope-first branching per the
-  §10 projection table: presentation resolves from canonical selection +
-  preview scope before timeline existence. Camera scope is static (no ruler /
-  lanes / time, stable panel height); Edge scope renders the edge-local ruler
-  (local duration/time/scrub, existing labeled Reverse) with the five-lane
-  Dots hidden, even when the global Sequence cannot build; Sequence scope /
-  idle keep the global ruler + Dots, with the derived loop-readout strip
-  restricted to Sequence scope. One scope capsule in the Frame header
-  replaces the `preview-badge` and the duplicate `EditorCameraPreviewControls`
-  `<p>`; the capsule agrees with canonical selection after every successful
-  install and names the retained scope on a failed install, with the inline
-  marker naming the invalid selection in every scope branch (camera/edge /
-  sequence/idle). Transport grammar
-  is Play/Pause/Replay (paused `Play` supersedes P3B.5's `Resume preview`;
-  complete `Replay`); Camera-scope transport is inert (▶ never starts the
-  Sequence). Modal-like error panels are replaced by compact inline
-  diagnostics from one `{ timeline, diagnostic }` boundary: typed
-  `CameraRouteError` in `camera-route.ts` (`gap` with endpoints from
-  `getFlowRoute`'s missing connection, `no-flow` from the timeline build), an
-  identity-null `createEdgeLocalTimeline` (null only for missing identity;
-  defects rethrow), and a derived `invalid-target` marker (canonical
-  Edge/Camera selection with no installed scope and failed identity
-  resolution — never stored, no suppression/reset matrix). Unexpected defects
-  route to the status channel only (no double-reporting). P11.4 owns the
-  dense-row layout, segmented Observer/Through, icon-only tools, Edge
-  Reverse/Repeat wiring, and visible-Stop removal; labeled controls stay in
-  their current rows.
-- Previous delta: **P11.2 review fixes (2026-08-26, committed `7508093`,
-  on top of `728c7e6`).** Three conformance fixes to the pinned P11.2 order:
-  (1) the navigation-graph entry points now validate/resolve BEFORE the
-  auto-pause seam — `beginConnectExistingNodes` resolves the source node
-  first, `connectNavigationNodes` validates the connection plan first, and
-  the guided-tour family moves the seam after each validator via a new
-  `#pauseForGuidedTourAuthoring()` helper — so a rejected gesture never
-  pauses a playing preview; (2) `isFramingBlocked` mirrors
-  `requestFramingPause` exactly (any non-paused visitor blocks), so a
-  *complete* visitor preview no longer renders dead framing handles;
-  (3) the in-transaction live writes (`updateNavigationNodePoint` /
-  `updateNavigationNodeTargetPoint` / `updateSelectedNodeFov` /
-  `updateSelectedViewKeyframeFov`) drop the seam call under an open
-  transaction (the drag-begin seam already paused; the plan forbids the
-  seam under an open transaction) and document the invariant.
-- **P11.2 — mutation policy / paused authoring — implemented and committed
-  2026-08-26 (`728c7e6`).** The mutation-gate pre-inventory annex
-  (`docs/archive/plans/2026-08-25-P11.2-mutation-gate-pre-inventory.md`) classifies
-  every `isDocumentMutationBlocked` site into AA/AP/SB/CH/DEL buckets;
-  `requestAuthoringPause` / `requestFramingPause` seams replace blocked
-  refusal for Camera-authoring writes (visitor refuses; playing Director
-  pauses in place — session-only, no history entry, no stop teardown) with
-  the canonical pinned order: prohibited checks → validate/resolve → seam →
-  begin transaction → write/capture. UI layer fronted with AP/AA/CH
-  predicates, visitor-only `inert` sidebars, and a non-blocking Director
-  shield. The two pre-existing baseline failures are resolved by the P11.2
-  test migrations. New suite
-  `tests/lib/editor/store/p11-s2-mutation-policy.test.ts` (18 cases).
-- Previous delta: **Layout bugfixes on top of P11.1 (2026-08-25,
-  uncommitted).** (1) Sequential-transform loss: the gizmo host's
-  same-target fast path retains the pre-commit adapter, so scale→move/rotate
-  derived dimensions from the stale baseline and reverted them;
-  `layout-gizmo-adapter` `begin()` now re-resolves the descriptor against the
-  canonical layout at drag start (fallback to captured descriptor when the
-  identity no longer resolves); the two `layout-gizmo-adapter`
-  sequential-transform pins that were failing red now pass. (2) Sphere
-  pancake: spheres render/pick/AABB at their X/Z footprint diameter on every
-  axis (`sphereRenderScale` moved to `$lib/layout/layout-geometry-objects`,
-  re-exported by `layout-object-editing`; wired into `transformedSphereSamples`
-  + `LayoutPreviewScene`), and Plan placement stores the resting center
-  (floor + radius). Legacy documents with old centers may sit slightly off;
-  Y-dimension edits no longer distort spheres. Golden object-matrix digest and
-  three pinned sphere tests migrated as intentional geometry corrections.
-- Previous delta: **P11.1 — selection-driven scope seam — implemented
-  2026-08-25 (uncommitted).** Camera node/connection selection now installs
-  the matching paused preview scope through a new host seam
-  (`selectionActions → installSelectionPreviewScope → cameraPreviewCommands.
-  installSelectionScope`), superseding P8 D1 / P3B Group C and the P8 S5
-  leave-Sequence-playing rule. Seam contract: resolve route before mutating
-  (failed installs leave the current scope untouched); never autoplay; pause
-  Sequence by scope replacement with `lastSequencePlayhead` snapshot, no
-  `stopCameraPreview()` teardown; current-edge handoff maps local progress
-  only when the global ruler sits inside the selected edge's span
-  (`cameraTimelineEdgePlayheadAtProgress` clamps, so the span check is the
-  staleness gate); idempotent for matching paused scopes; re-selecting the
-  playing edge pauses it in place; Observer/Through mode preserved on scope
-  switches, director on idle entry; scrub-driven selects forward
-  `preservePreviewObserver` to keep Follow framing and skip recenter.
-  Explicit entries: `previewSelectedConnection` now blocks only on *playing*
-  previews (paused selection-scopes are ordinary authoring state);
-  `previewSelectedNode`/`previewEdge`/`previewSequence` unchanged. Selection
-  guards dropped `isDocumentMutationBlocked` but bar the new
-  `isCameraPreviewStopping` window (stop/restore re-entrancy).
-- Migrated superseded pins (renamed/commented as P11.1 migrations):
-  Phase 3.1 parity pair, guards matrix, Director-blocks-mutations, Phase 2.1
-  helpers visibility, both Phase 2.2 scrub tests, P3B.5 playhead-preservation,
-  three P8 S3 hook-level tests. New suite:
-  `tests/lib/editor/store/p11-s1-selection-scope.test.ts` (12 cases).
-- P3B.1–P3B.6 remain shipped in tree (see previous slices below); P3B.4 adds the pure cardinal snap sampler in the
-  camera-motion authority (320ms ease-out great-circle direction/distance/up
-  plus a target-blend channel for fallback-replaced targets), the exported
-  two-phase resolution split consumed by both commit paths, projector-driven
-  flight with the fixture-pinned landing handoff, mid-flight retarget from the
-  last applied sample, cancel on manual orbit (`start` event), and the
-  reduced-motion instant path. Review fix: every cancellation path (manual
-  orbit, preview takeover, teardown, missing-ref teardown, reduced-motion
-  replacement) routes through the non-terminal
-  `cancelEditorOrientationSnap` handoff — global +Y restore + inertia drain —
-  so an interrupted ±Y flight cannot leak its interpolated lookAt/up reference;
-  fixtures pin mid-flight cancel on both polar faces and exact eye/target
-  continuity.
-- P3B.5 adds selection-free named camera preview, one shared Plan/3D edge
-  affordance, sequence-adjacent predecessor→successor direction derivation,
-  explicit two-direction choices for all other edges, Sequence Inspector /
-  Timeline sequence ownership, and named Camera/Edge/Sequence scope labels.
-- Post-P3B.5 review fix (2026-08-25): timeline ▶ now controls the *current*
-  preview scope per the P3B.5 grammar — resumes/replays an active edge or
-  sequence instead of hijacking to Sequence; idle/camera-hold still starts the
-  default sequence transport. Orphaned S3 EdgeRuler hook methods removed
-  (`toggleEdgePlayback`, `previewActiveEdge`, `stepEdge`, `seekEdge`,
-  `toggleEdgeReverse`, hook-level `setEdgeRepeat`). Resolved follow-up
-  (2026-08-25): the orphaned `swapEdgePreviewDirection` / store-level
-  `setEdgePreviewRepeat` APIs are dispositioned into P11 — its Edge Reverse /
-  Repeat controls become their UI callers (P11 plan §10, P11.4); no interim
-  wiring before that slice.
-  Post-review fixes preserve pending navigation across every preview entry,
-  restore the mutation gate on Insert/Disconnect Loop, use CirclePlay rather
-  than Eye for node preview, unify sequenced/unsequenced preview availability,
-  and expose the edge actions as an accessible labeled group.
-- Post-ship P3B.2/P3B.3 review fixes (2026-08-25, owner-dispositioned):
-  removed the vestigial `targetStillValid` gate from pointer activation,
-  aligned proxy/axis focus-visible to the specified 2px `--editor-gizmo-hover`
-  ring, fixed an axis press tinting the matching face overlay, and documented
-  the intentional ≤4px release slop under pointer capture (test + comment).
-- Existing P3.4/P3.5 context-menu implementation remains in the tree, but those
-  increments are explicitly **undone and deferred as low priority for later
-  revisit**, after the rest of P3B is complete. Broader surface, interaction,
-  backing-identity, validator, and relic-boundary tests are required before
-  acceptance. The work is tracked in
-  [`../plans/2026-08-24-P3B-orientation-preview-affordances.md`](../plans/2026-08-24-P3B-orientation-preview-affordances.md).
-- P3B.6 retained-edge selection parity is closed 2026-08-25: retained
-  dashed/desaturated edges preserve their base presentation while exposing
-  visible hover and selection feedback; focused tests, type checking, and
-  build validation passed.
-- Previous slice: **P3B.6 retained-edge selection parity**, closed 2026-08-25.
-  The active P3B umbrella is the back-pointer.
+- Current delta: **P12.5 closeout — shipped 2026-08-28, uncommitted.** Canonical
+  Camera timeline/shell/design docs now express the P12 selection-only,
+  explicit-entry, binary-transport, one-shell contract. Superseded P11 test
+  assertions are migrated or explicitly relic-scoped. Browser QA exposed and
+  fixed one lifecycle defect: unmounting Camera 3D while switching to Camera
+  Plan no longer tears down a paused main-editor preview session. The relic
+  keeps its frozen teardown behavior. P12 umbrella and slice briefs are
+  archived; tracker and router now identify P3B.7a/P3B.8 as the remaining gate.
+- Previous delta: **P12.4 — integrated temporal mini-player + lane scrubbing**
+  (shipped 2026-08-27, uncommitted). Main-editor transport is Previous /
+  Play-Pause / Next with active-scope scrubbing, timecode, POV/Observer, and
+  Center/Follow. Expanded mode owns the five-lane ruler/playhead surface.
+  Main-editor Repeat/loop/Replay/Reverse are absent; `+ View Key` remains a
+  live 3D Sequence-only action. `/museum/editor` remains frozen.
 
-## Next action- **P12 amended S4 implementation** — implement and verify the designer mini-player, lane-based scrubbing/playhead head, node-boundary Previous/Next, retained POV/Observer + Center/Follow controls, and removal of main-editor Repeat/loop/Replay; then resume P12 S5 closeout. **Hard gate (owner 2026-08-27): P12 +
-P3B must both close before anything else is implemented or continues; no other
-plan is scheduled** (P4/P5/P13 removed 2026-08-27; P13 re-registered same day as
-a nice-to-have **proposed** plan — stop-at-node playback, not scheduled).
-**P14 (Camera Plan passive object footprints) is approved and scheduled
-immediately after P12** — the first work after the gate closes (P14 plan +
-tracker rows 2026-08-28). The
-P3B.7a/P3B.8 QA tail is the gate's P3B half. Product vision lives in the north
-star.
+## Next action
+
+- Close **P3B.7a/P3B.8** browser/visual QA. This is the sole remaining hard
+  gate. After it closes, P14 Camera Plan passive footprints is first scheduled.
 
 ## Verification
 
-- Working tree (P12.4): `npm run check` 0 errors / 0 warnings; `npm run build`
-  passes; the full `apps/museum` suite is green (2,264 tests, 1 skipped). The
-  two
-  pre-existing baseline failures from the P11.1 handoff are resolved: the
-  guided/leaf-edge deletion row migrated in P11.2 (leaf-edge deletion is now
-  one undoable transaction), and the pending-navigation contract row passes.
-- New coverage: `tests/lib/editor/store/p11-s4-compact-controls.test.ts`
-  (14 cases: segmented a11y, icon-only names/tooltips, Follow/Recenter hidden
-  in Through, swap pose preservation `0.3 → 0.7`, swap refusal matrix
-  (idle/camera/playing), hook enable matrix, Repeat edge-only + session-only +
-  zero document/history impact, Stop absent across the three components with
-  teardown still reachable, mount disposition); p8-s4 +3 complete-inspection
-  pins (sequence knob works from complete, hook scrub/step gates open at
-  complete, edge knob resumes from the scrubbed pose);
-  `tests/lib/editor/store/p11-s3-scope-shell.test.ts`
-  (16 cases: scope-first projection per the §10 table, Camera transport
-  inert, exact Play/Pause/Replay grammar, Edge-with-unbuildable-Sequence,
-  capsule/selection agreement + failed-install retained-scope exception
-  (Sequence- and Camera-retained variants),
-  no-flow / typed gap / unexpected-defect propagation / invalid-Edge and
-  invalid-Camera derivation with selection-change clearing, and the
-  identity-null `createEdgeLocalTimeline` contract);
-  `tests/lib/editor/store/p11-s2-mutation-policy.test.ts`
-  (18 cases: AP one-transaction writes, CTC scrub auto-pause, DEL
-  keep/force-stop, visitor floor incl. paused-visitor framing, placement
-  SB/cancel AA, pinned ordering for prohibited/stale/no-op/endpoint/zero-delta
-  gestures, CH·AA chrome); `tests/lib/editor/store/p11-s1-selection-scope.test.ts`
-  (17 cases incl. selection-only scope rules, post-gap seeking, and the
-  failed-install-does-not-snapshot ordering pin);
-- P12.2 coverage: `tests/lib/editor/store/p12-s2-selection-matrix.test.ts`
-  (8 cases for mode-independent seek/step, late pause, partial routes, and
-  relic behavior); the migrated P11.1 matrix now has 17 cases including
-  post-gap last-boundary seeking and explicit Unsequenced Camera/Edge entry.
-- P12.4 coverage: `tests/lib/editor/store/p12-s4-header-chrome.test.ts`
-  (fixed-header ownership, relic boundary, collapsed mini-scrubber sizing,
-  live 3D Sequence-only `+ View Key`, idle POV entry, and mode/playhead
-  preservation); Escape coverage also pins main-editor pause versus relic
-  teardown in `editor-store-shell.test.ts`.
-  `layout-gizmo-adapter` sequential-transform pins now green;
-  sphere diameter contract pinned in `layout-object-editing`,
-  `layout-preview-state`, and the regenerated `layout-geometry-golden`
-  object-matrix digest (sphere-only diff).
-- Browser QA accepted P3B.3 earlier: exact six-face-then-axis Tab order,
-  proxy cues, hover/focus/pressed/active states, keyboard activation, pointer
-  capture, >4px cancellation, ≤4px snapping pass. Widget-scoped axe:
-  0 violations.
+- Full Vitest: 167 files passed, 1 skipped; 2,274 tests passed, 1 skipped.
+- `npm run check`: 0 errors / 0 warnings.
+- `npm run build`: passed; known unused-import and chunk-size warnings only.
+- Focused P12 closeout contracts: 111 tests passed.
+- Browser QA passed main-editor Sequence, Edge, and static Camera scopes;
+  Play/Pause and focused-viewport Escape; Camera Plan ↔ Camera 3D continuity;
+  expanded/collapsed and 650px narrow chrome; Scope/More keyboard focus return;
+  relic isolation; no-flow shell; and `/museum` visitor purity. Gap behavior is
+  contract-covered rather than manually reconstructed in this pass.
 
 ## Known bugs / deferred
 
-- P3.4/P3.5 are implemented but undone/not accepted; they are low priority and
-  deferred for later revisit after the rest of P3B.
-- Direct 3D wall/interior-anchor picks remain deferred; rooms, openings, and
-  objects are directly pickable.
+- P3.4/P3.5 remain undone/not accepted and low-priority deferred.
+- Direct 3D wall/interior-anchor picks remain deferred.
 - Layout hover feed and anchor-helper octahedra remain disconnected.
-- Drafted-room `focusRoom` still has a latent Paris-default path outside the
+- Drafted-room `focusRoom` retains a latent Paris-default path outside the
   fixed editor flow.
-- Runtime logs expose existing Svelte `ownership_invalid_mutation` warnings for
-  `cameraPlan` and `layoutInteraction`; static `svelte-check` remains clean.
+- Runtime logs retain known Svelte `ownership_invalid_mutation` warnings for
+  `cameraPlan` and `layoutInteraction`; static checking is clean.
 
 ## Traps
 
-- Context-menu handlers call `preventDefault()` only after an approved custom
-  menu resolves; editable targets and empty space retain native behavior.
-- Selection-before-menu compares full target identity. Same-kind/different-id
-  targets must select before menu; already-selected Scene members preserve
-  multi-selection.
-- Both Plan workspaces stay mounted. Hidden cell must retain `inert` and
+- Both Plan workspaces stay mounted. Hidden cells retain `inert` and
   `plan-cell--hidden`; shared `view` remains one Plan|3D axis.
+- Camera 3D rig unmount during a main-editor Camera Plan switch must preserve
+  the paused preview session. Leaving the Camera workspace stops it through
+  `setWorkspace`; the relic retains stop-on-unmount/stop-on-Escape behavior.
+- P12 ordinary selection never enters Camera/Edge scope. Only explicit preview
+  actions do; sequenced-node selection in Sequence seeks + pauses.
 - Camera timeline edge keys include direction; preview-route memo keys on
   `preview.runId`, never cloned route identity.
-- Stable mutable Three camera refs are not orientation-render signals. P3B.2's
-  immutable projection snapshot is the DOM overlay authority.
-- Snap flights (P3B.4) write sampled poses per frame and land via
-  `controls.update()` + global `+Y` restore; every *interruption* (manual
-  orbit, preview takeover, teardown) must route through the non-terminal
-  `cancelEditorOrientationSnap` handoff — a raw runtime clear leaks the
-  interpolated `camera.up` into OrbitControls' live lookAt/update orientation.
-  Cancellation
-  listens on the controls `start` event, so programmatic updates never cancel
-  a flight. Retarget replaces the flight from the last applied sample and
-  must not call the handoff.
-- P3B.3 target hysteresis state must persist across projection snapshots; do
-  not derive hit mode or proxy fallback from one frame in isolation.
-- P11.1 seam ordering: resolve the route BEFORE any preview mutation — a
-  failed install must leave the current scope intact. The edge local-progress
-  handoff needs an explicit span check (`getEditorCameraTimelineLocation`);
-  `cameraTimelineEdgePlayheadAtProgress` clamps out-of-span positions to 0/1
-  and never rejects. Selection during `stopCameraPreview` is barred via
-  `isCameraPreviewStopping`, not the broad mutation gate.
-- P11.1 review-fix policy: transaction/stopping bars live at SELECTOR entry
-  (no reducer-commit-then-fail). If edge route resolution fails after the
-  reducer write, selection stays canonical with NO scope; status explains and
-  the next successful action repairs — never roll navigation back.
-  Second review round: `lastSequencePlayhead` snapshot happens only AFTER
-  seam validation (a failed install no longer clobbers the saved playhead),
-  and `isCameraPreviewStopping` spans the whole `stopCameraPreview` body
-  (keyframe-drag cancel → framing-cancel → restore → clear), single
-  try/finally.
 - Camera means guided PerspectiveCamera navigation, never webcam.
 
 ## Non-negotiables
 
-- `/museum` and `/museum/editor` frozen; `/museum` visitor chunks contain no
-  editor/layout code; editor ships at `/` and `/editor`.
-- No commits unless user asks.
+- `/museum` is visitor-only and its chunks contain no editor/layout code.
+  Editor ships at `/`, `/editor`, and frozen relic `/museum/editor`.
+- No commits unless the user asks.
 - One nav + one motion: `camera-route.ts` + `camera-motion.ts` only.
 - Svelte 5 runes / Threlte; no second selection, history, graph, motion,
   geometry, or transform system.

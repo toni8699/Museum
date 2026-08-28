@@ -21,6 +21,11 @@ describe('P12.4 S4 — live header chrome', () => {
 		expect(live).toContain('Previous camera node');
 		expect(live).toContain('Next camera node');
 		expect(live).toContain('Play camera flow');
+		expect(live).toContain('timelineApi.playLabel');
+		expect(live).toContain('aria-label="POV"');
+		expect(live).toContain('aria-label="Observer"');
+		expect(live).toContain('aria-label="Recenter camera"');
+		expect(live).toContain('aria-label="Follow camera"');
 		expect(live).toContain('class="timecode"');
 		expect(live).toContain('class="more-tools"');
 		expect(live).toContain('class="toggle s4-toggle"');
@@ -35,6 +40,7 @@ describe('P12.4 S4 — live header chrome', () => {
 		expect(frame).toContain('class="mini-player"');
 		expect(frame).toContain('mini-player__scrubber');
 		expect(live).not.toContain('Repeat edge');
+		expect(live).not.toContain('Replay');
 		expect(frame).toContain('@media (max-width: 44rem)');
 	});
 
@@ -101,5 +107,11 @@ describe('P12.4 S4 — idle mode and transport lifecycle', () => {
 		expect(store.isRelic).toBe(true);
 		expect(store.enterSequenceScope('visitor')).toBe(true);
 		expect(store.cameraPreview).toMatchObject({ kind: 'sequence', transport: 'paused' });
+	});
+
+	it('keeps Camera preview session alive when the 3D rig unmounts for Camera Plan', () => {
+		const rig = readLibSource('editor/camera/EditorCameraRig.svelte');
+		expect(rig).toContain("store.isRelic || store.currentWorkspace !== 'camera'");
+		expect(rig).toContain('store.stopCameraPreview()');
 	});
 });

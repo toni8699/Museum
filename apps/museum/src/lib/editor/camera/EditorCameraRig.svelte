@@ -565,7 +565,16 @@
 
 	onDestroy(() => {
 		const restored = restoreOrbitIfNeeded();
-		if (restored && director.preview) store.stopCameraPreview();
+		// Camera 3D unmounts when the shared Camera view switches to Plan. P12
+		// keeps that preview session alive; leaving the Camera domain already
+		// stops it through setWorkspace. The frozen relic keeps its teardown.
+		if (
+			restored &&
+			director.preview &&
+			(store.isRelic || store.currentWorkspace !== 'camera')
+		) {
+			store.stopCameraPreview();
+		}
 		store.setCameraPreviewRestorer(null);
 		disposeVirtualCameraHelpers();
 	});

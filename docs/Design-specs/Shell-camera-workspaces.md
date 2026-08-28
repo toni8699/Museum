@@ -447,7 +447,7 @@ Preserve:
 * expanded/collapsed state
 * user-resized height
 * timeline selection
-* timeline zoom where practical
+* timeline scale (fixed in P12; zoom remains deferred)
 
 The implementation should treat Timeline as **Camera-domain infrastructure**, not as a child feature whose lifecycle is owned by Camera3D.
 
@@ -461,20 +461,21 @@ Default expanded height: `288px`. User-resized range: `240–300px`.
 
 Collapsed height: `48px`.
 
-Timeline includes a compact scope/transport header. P11 supersedes the earlier
-separate preview-control presentation:
+Timeline uses one P12 scope/transport shell:
 
 ```text
-[Camera · C | Edge · B → C | Sequence]  |◀  [Play / Pause / Replay]
-[00:01.20 / 00:04.20]  [Observer ↔ Through Camera] [Follow] [Recenter]
+[Camera · C | B → C | Sequence (Full Tour)]  [Previous] [Play/Pause] [Next]
+[00:01.20 / 00:04.20]  [POV ↔ Observer] [Center] [Follow] [+ View Key in 3D Sequence]
 ```
 
-Camera scope is static and keeps transport quiet/disabled. Edge scope exposes
-local time, scrub, Reverse, and temporary Repeat. Sequence scope exposes global
-time and derived topology-loop state, but no generic loop toggle. Stop is not
-normal timeline chrome; internal teardown remains required for Escape,
-stale/invalid cleanup, document replacement, Camera-domain exit, and explicit
-lifecycle boundaries.
+Camera scope is static and keeps temporal transport/time/scrub quiet. Edge scope
+exposes local time and scrub; Flip is an explicit scope action and resets local
+playhead to `0`. Sequence scope exposes global time and derived topology-loop
+state. Main-editor transport is binary Play/Pause: Play at end restarts from
+`0`; there is no distinct Replay, Repeat, loop, Reverse, or Stop chrome.
+Previous/Next move between camera-node boundaries. Escape pauses main-editor
+playback without changing scope/playhead. Frozen `/museum/editor` retains its
+P11.4 Reverse/Repeat and stop-on-Escape controls/lifecycle.
 
 Canonical lanes:
 
@@ -496,12 +497,13 @@ yet); `FOV`/`Look At` ← one `RuntimeCameraViewKeyframe`
 (`editor-camera-view.ts:136`, not representable). Timeline remains
 `Graph + Sequence → Timeline` (`editor-camera-timeline.ts:128`).
 
-Timeline is Camera-tour semantic UI. Camera/Edge selection normally drives the
-active local scope; `Preview Sequence` is the explicit whole-route exception.
-Selection never autoplays. Playing owns the evaluated camera pose; a safe
-authoring gesture auto-pauses first, while paused/complete preview remains
-inspectable and authorable through the canonical pipeline. This P11 contract
-supersedes the former selection-independent preview rule.
+Timeline is Camera-tour semantic UI. Ordinary Camera/Edge selection never
+changes scope. Explicit Preview Camera/Preview Edge actions and the Scope menu
+install paused scopes; only Unsequenced cameras expose Preview Camera. While
+Sequence scope is active, selecting a sequenced node seeks and pauses. Playing
+owns the evaluated camera pose; safe authoring auto-pauses first. Expanded
+scrubbing uses the ruler/five-lane playhead surface; collapsed mode uses one
+integrated mini-player. Timeline zoom remains deferred.
 
 It should not regress into generic raw tracks such as:
 

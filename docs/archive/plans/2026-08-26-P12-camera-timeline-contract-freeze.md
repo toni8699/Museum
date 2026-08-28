@@ -1,7 +1,8 @@
 # P12 — Camera Timeline / Preview contract freeze (ratified specification)
 
-**Status:** `approved` — ratified & frozen 2026-08-26. Implementation slices
-follow; the plan is the contract, not the work breakdown.
+**Status:** `shipped` — P12.1–P12.5 complete 2026-08-28; archived after
+canonical-doc reconciliation, assertion migration, browser QA, and the full
+verification gate.
 **Amended 2026-08-27 (S4 designer brief incorporation):** P12 S4 is expanded before S5 closeout to adopt the corrected designer brief ([`2026-08-27-P12-S4-designer-brief-amendment.md`](2026-08-27-P12-S4-designer-brief-amendment.md)), including the collapsed mini-player and lane-based expanded scrubbing described below; the P12 scope model and main-editor transport ownership remain authoritative. `+ View Key` remains visible in expanded 3D Sequence, with later placement polish permitted. Edge Repeat/loop and Replay affordances are removed from the main-editor contract. Previous/Next mean previous/next camera-node boundary, not frame or keyframe stepping. The relic remains frozen. The designer reference is interpreted as visual guidance only where it conflicts with existing P12 scope/data semantics.
 **Amended 2026-08-26 (post-ratification review):** (1) closeout ownership is
 pinned to P12 in the tracker (§10 S5); (2) the distinct Replay affordance is
@@ -11,7 +12,7 @@ wording so it never collides with the derived `Stops at` loop readout
 (§4/§6); (4) the later S4 designer amendment supersedes the interim
 36px-header + 12px-mini-row composition with one integrated `48px` collapsed
 mini-player; expanded header remains `36px`, and transport remains unique (§6).
-**Tracker:** [`README.md`](README.md) — **P12**, depends on: P11.
+**Tracker:** [`../../plans/README.md`](../../plans/README.md) — **P12**, depends on: P11.
 **Placement:** the independent designer review of the P11 UX findings produced
 the canonical specification below. The owner closed the six product questions,
 one sequence-loop blocker, and a later implementation-hardening review. This

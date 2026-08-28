@@ -287,14 +287,10 @@ That follows the semantic-color rules of the product spec.
 | Roll           | `RotateCw`     |
 | Play           | `Play`         |
 | Pause          | `Pause`        |
-| Replay         | `RotateCcw`    |
 | Follow         | `Crosshair`    |
-| Recenter       | `Scan`         |
-| Edge Reverse   | `ArrowLeftRight` |
-| Edge Repeat    | `Repeat`       |
-| Zoom in        | `ZoomIn`       |
-| Zoom out       | `ZoomOut`      |
-| Fit timeline   | `Maximize2`    |
+| Center         | `Scan`         |
+| Edge Flip      | `ArrowLeftRight` |
+| Previous / Next camera node | `SkipBack` / `SkipForward` |
 
 ## Do not use Lucide for these
 
@@ -1074,28 +1070,34 @@ Do not expose Move/Path/Frame permanently in Camera Plan.
 
 # 23. Camera Timeline header
 
-Use a compact scope-driven header (P11):
+Use one compact P12 scope-driven header. Expanded header is `36px`; collapsed
+timeline is an integrated `48px` temporal mini-player:
 
 ```text
-[Edge · Camera B → Camera C] [↔] [Repeat] |◀ [▶/Ⅱ] 1.2 / 4.2s [Observer ↔ Through Camera] [Follow] [Recenter]
-[Sequence]                         |◀ [▶/Ⅱ] 7.8 / 80.0s [Observer ↔ Through Camera] [Follow] [Recenter]
-[Camera · Camera C · Static]       [Observer ↔ Through Camera]
+[Camera B → Camera C] [Previous] [▶/Ⅱ] [Next] 1.2 / 4.2s [POV ↔ Observer] [Center] [Follow]
+[Sequence (Full Tour)] [Previous] [▶/Ⅱ] [Next] 7.8 / 80.0s [POV ↔ Observer] [Center] [Follow] [+ View Key]
+[Camera · Camera C · Static] [POV ↔ Observer]
 ```
 
-The single transport control means Play / Pause / Replay (resume from a
-pause is Play; Replay at a completed end). Follow and
-Recenter are Observer-only icon controls; Stop is internal lifecycle behavior,
-not normal timeline chrome. Scope is derived from canonical Camera selection
-for Camera/Edge, while Sequence remains an explicit whole-route mode. Exact
-pixel treatment remains a visual implementation concern after P11 semantics
-are accepted.
+Transport is binary Play/Pause; Play from the completed end restarts at `0`.
+Previous/Next move between camera-node boundaries. Center and Follow are
+Observer-only. Ordinary selection is selection-only; Preview Camera, Preview
+Edge, and Scope-menu actions explicitly install paused scopes. Main-editor
+Repeat/loop, Reverse, distinct Replay, and Stop chrome are absent. Edge Flip is
+a scope-menu action. Escape pauses without teardown. Frozen `/museum/editor`
+retains its P11.4 exceptions.
 
 Transport and Observer tools are icon-only with `aria-label` + `title`
-coverage (P11.4): Follow (`Crosshair`, `aria-pressed` toggle), Recenter
-(`Scan`), Play/Pause/Replay, Edge Reverse (`ArrowLeftRight`) and Repeat
-(`Repeat`).
+coverage: Previous/Next, Play/Pause, Follow (`Crosshair`, `aria-pressed`
+toggle), and Center (`Scan`). `+ View Key` is visible and code-backed only in
+3D Sequence. Narrow layouts keep primary controls visible; Scope and More menus
+remain keyboard operable with local-menu Escape precedence.
 
 Use tabular numerals for time.
+
+Expanded scrubbing belongs to ruler/five-lane playhead and its keyboard-
+accessible head. No standalone expanded range scrubber. Timeline zoom is
+deferred.
 
 ---
 

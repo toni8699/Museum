@@ -1,7 +1,6 @@
 # P12 S4 — Camera timeline chrome designer brief
 
-**Status:** Approved and implementation-ready; owner approved the
-timeline-as-scrub-surface direction 2026-08-27.
+**Status:** Shipped 2026-08-27; archived with P12 closeout 2026-08-28.
 **Date:** 2026-08-27
 **Parent contract:** [`2026-08-26-P12-camera-timeline-contract-freeze.md`](2026-08-26-P12-camera-timeline-contract-freeze.md)
 **Scope:** Main editor only (`/` and `/editor`). The legacy relic at

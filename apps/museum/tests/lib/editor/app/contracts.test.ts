@@ -139,7 +139,7 @@ describe('P3 structural visual contracts', () => {
 		expect(timeline).not.toContain('<strong>Camera Framing</strong>');
 	});
 
-	it('keeps one five-lane timeline component shared by camera, edge, and sequence previews', () => {
+	it('keeps one five-lane timeline component shared by live scopes; relic owns old controls', () => {
 		const panel = readLibSource('editor/camera/EditorCameraTimelinePanel.svelte');
 
 		expect(panel.match(/<EditorCameraTimelineDots/g)).toHaveLength(2);
@@ -1340,29 +1340,24 @@ describe('camera context contracts', () => {
 		expect(panel).toContain('both cameras return to Unsequenced');
 	});
 
-	// Preview escape controls must remain available when there is no valid
-	// guided timeline (for example, a single-camera node preview).
-	it('keeps single-camera preview escape surface outside the locked editor surface', () => {
+	it('keeps P11 preview controls mounted only for the frozen relic', () => {
 		const timeline = readLibSource('editor/camera/EditorCameraTimelinePanel.svelte');
 		const controls = readLibSource('editor/camera/EditorCameraPreviewControls.svelte');
 		const sidebar = readLibSource('editor/app/EditorSidebar.svelte');
 		const relicSidebar = readLibSource('editor/EditorLeftSidebar.svelte');
-		// P11.3 §4/§9 — the old modal-like error panel is gone; the Camera
-		// scope branch keeps the preview controls on a stable shell.
+		// Live P12 scope/chrome ownership lives in p12-s4-header-chrome.test.ts.
+		// This component survives only inside the relic branch.
 		expect(timeline).not.toContain('Camera flow unavailable');
 		expect(timeline).toContain("scope === 'camera'");
 		expect(timeline).toContain('{#if store.isRelic && preview}');
 		expect(timeline).toContain('<EditorCameraPreviewControls {store} />');
-		// P11.3 §9 — the retained-scope failed-install shell renders the inline
-		// marker in EVERY scope branch (camera included), naming the invalid
-		// canonical selection via the shared target-kind label.
+		// Retained-scope diagnostics and live lanes remain shared panel behavior.
 		expect(timeline).toContain('{targetKindLabel} unavailable');
 		expect(timeline).toContain('<EditorCameraTimelineDots {store} {viewMode} {contextMenu} />');
 		expect(controls).toContain('preview.kind !== \'camera\'');
 		expect(controls).toContain('store.playCameraPreview()');
-		// P11.4 §11.3 — visible Stop is removed from the timeline UI entirely;
-		// `stopCameraPreview()` teardown stays reachable via Escape/lifecycle
-		// only (p8-s5 matrix stays green).
+		// Frozen P11.4 relic controls keep binary transport/mode tools; teardown
+		// stays reachable through relic Escape/lifecycle.
 		expect(controls).not.toContain('store.stopCameraPreview()');
 		expect(controls).not.toContain('Stop preview');
 		expect(controls).toContain('grid-auto-flow: column;');

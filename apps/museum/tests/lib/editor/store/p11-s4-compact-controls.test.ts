@@ -23,8 +23,9 @@ function createUnsequencedStore() {
 }
 
 /**
- * P11.4 — compact controls and parity (slice verification gate, §12 +
- * §11.3 annex). Segmented Observer/Through; icon-only transport + Observer
+ * P11.4 frozen-relic controls. P12 moved live mode/transport ownership into
+ * EditorCameraTimelineFrame. This suite pins only retained relic behavior:
+ * segmented Observer/Through; icon-only transport + Observer
  * tools with names/tooltips; Follow/Recenter Observer-only; Edge Reverse is
  * the paused-edge direction SWAP (main editor resets to 0; relic preserves
  * pose via the 1 − e flip); Repeat
@@ -34,7 +35,7 @@ function createUnsequencedStore() {
  * is removed from CameraFlowPanel + CameraPlanInspector.
  */
 
-describe('P11.4 segmented mode + icon-only a11y (source contracts)', () => {
+describe('P11.4 frozen-relic segmented mode + icon-only a11y', () => {
 	const controls = readLibSource('editor/camera/EditorCameraPreviewControls.svelte');
 
 	it('one accessible segmented Camera-mode control with aria-pressed segments', () => {
@@ -66,7 +67,7 @@ describe('P11.4 segmented mode + icon-only a11y (source contracts)', () => {
 		expect(liveFrame).not.toContain('>Reverse</button>');
 	});
 
-	it('dense single-row toolbar with a narrow wrap — no duplicate stacked controls', () => {
+	it('relic toolbar keeps its dense row and narrow wrap', () => {
 		expect(controls).toContain('grid-auto-flow: column;');
 		expect(controls).toContain('@media (max-width: 44rem)');
 		expect(controls).not.toContain('>Stop preview</button>');

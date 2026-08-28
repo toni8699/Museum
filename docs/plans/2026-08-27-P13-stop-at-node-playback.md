@@ -1,8 +1,8 @@
 # P13 — Sequence stop-at-node playback (proposed, nice-to-have)
 
 **Status:** `proposed` — registered but deliberately **not scheduled** (owner
-2026-08-27). Nice to have, not needed right now; it waits for the P3B + P12 hard
-gate like all future work.
+2026-08-27). Nice to have, not needed right now; P12 shipped 2026-08-28 and it
+now waits behind the remaining P3B.7a/P3B.8 hard-gate tail.
 **Tracker:** [`README.md`](README.md) — **P13**, depends on: P12.
 **Placement:** Product-level idea with a known design; no owner decision pending
 beyond scheduling. Registered now so the design and its P12 contract notes are
@@ -93,7 +93,6 @@ kinds, or the FSM transport states.
 
 ## Status
 
-Proposed, **not scheduled**. Hard gate (owner 2026-08-27): P3B + P12 must both
-close before anything else is implemented or continues. This is the natural
-first candidate to schedule after the gate; promote its status or re-register at
-that point.
+Proposed, **not scheduled**. P12 shipped 2026-08-28; P3B.7a/P3B.8 is the
+remaining hard gate. P14, not P13, is first scheduled after the gate; promote
+P13 only by a later owner decision.

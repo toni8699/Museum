@@ -212,7 +212,7 @@
 	.room-fill.selected { fill: var(--editor-plan-room-selected-bg); fill-opacity: 1; }
 	.room-outline { fill: none; stroke: var(--editor-plan-wall); stroke-width: 1; vector-effect: non-scaling-stroke; }
 	.room-outline.selected { stroke: var(--editor-plan-selection); stroke-width: 3; }
-	.scene-footprint { fill: rgb(146 144 138 / 12%); stroke: var(--editor-plan-muted); stroke-width: 1.5; stroke-dasharray: 5 4; vector-effect: non-scaling-stroke; pointer-events: none; }
+	.scene-footprint { fill: var(--plan-footprint-fill, rgb(146 144 138 / 12%)); stroke: var(--plan-footprint-stroke, var(--editor-plan-muted)); stroke-width: 1.5; stroke-dasharray: 5 4; vector-effect: non-scaling-stroke; pointer-events: none; }
 	.scene-footprint.active { fill: rgb(47 140 255 / 10%); stroke: var(--editor-plan-hover-stroke); stroke-width: 2; }
 	.scene-footprint.bridge-hover { fill: rgb(47 140 255 / 16%); stroke: var(--editor-plan-hover-stroke); stroke-width: 2.5; }
 	.scene-footprint.selected { fill: rgb(47 140 255 / 24%); stroke: var(--editor-plan-selection); stroke-width: 3; }
@@ -245,9 +245,9 @@
 	/* Fallback for renderer-neutral projections without architecture metadata. */
 	.opening-line { stroke: var(--editor-plan-object); stroke-width: 7; vector-effect: non-scaling-stroke; pointer-events: none; }
 	.opening-line.opening-selected { stroke: var(--editor-plan-selection); stroke-width: 9; }
-	.layout-object { fill: var(--editor-plan-object-fill); stroke: var(--editor-plan-object-stroke); stroke-width: 2; vector-effect: non-scaling-stroke; pointer-events: none; }
+	.layout-object { fill: var(--plan-layout-object-fill, var(--editor-plan-object-fill)); stroke: var(--plan-layout-object-stroke, var(--editor-plan-object-stroke)); stroke-width: 2; stroke-dasharray: var(--plan-layout-object-dasharray, none); vector-effect: non-scaling-stroke; pointer-events: none; }
 	.layout-object.selected { fill: rgb(47 140 255 / 24%); stroke: var(--editor-plan-selection); stroke-width: 3; }
-	.layout-object.readonly { fill: var(--editor-plan-readonly-fill); stroke-dasharray: 5 3; }
+	.layout-object.readonly { fill: var(--plan-layout-object-fill, var(--editor-plan-readonly-fill)); stroke-dasharray: var(--plan-layout-object-dasharray, 5 3); }
 	/* P3.3 — Arrange hover outline (presentation-only, never looks selected). */
 	.arrange-hover { fill: rgb(47 140 255 / 8%); stroke: var(--editor-plan-hover-stroke); stroke-width: 2; stroke-dasharray: 6 4; vector-effect: non-scaling-stroke; pointer-events: none; }
 	.camera-path { fill: none; stroke: var(--editor-camera-edge-stroke); stroke-width: 2; stroke-dasharray: 6 4; vector-effect: non-scaling-stroke; pointer-events: none; }

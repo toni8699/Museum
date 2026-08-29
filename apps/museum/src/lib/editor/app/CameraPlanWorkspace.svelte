@@ -5,6 +5,8 @@
 	import CameraPlanViewport from '$lib/editor/camera-plan/CameraPlanViewport.svelte';
 	import type { CameraPlanState } from '$lib/editor/camera-plan/camera-plan-state.svelte';
 	import type { EditorContextMenuStore } from '$lib/editor/context-menu/context-menu-state.svelte';
+	import { resolveEditorPlacementScale } from '$lib/editor/scale-vector';
+	import type { SceneEntity } from '$lib/content/scene';
 
 	let {
 		store,
@@ -17,11 +19,18 @@
 		cameraPlan: CameraPlanState;
 		contextMenu?: EditorContextMenuStore | null;
 	} = $props();
+
+	// Same session-aware scale resolution as Scene Plan/3D, so a scaled
+	// placement renders the same footprint size on every surface.
+	function effectiveSceneScale(entity: SceneEntity) {
+		void store.placementScaleVectorVersion;
+		return resolveEditorPlacementScale(entity.scale, store.getPlacementScaleVector(entity.id));
+	}
 </script>
 
 <div class="camera-plan-workspace" role="application" aria-label="Camera Plan surface">
 	<CameraPlanToolbar {store} {cameraPlan} />
-	<CameraPlanViewport {store} preview={layoutPreview} {cameraPlan} {contextMenu} />
+	<CameraPlanViewport {store} preview={layoutPreview} {cameraPlan} {contextMenu} getEffectiveSceneScale={effectiveSceneScale} />
 </div>
 
 <style>

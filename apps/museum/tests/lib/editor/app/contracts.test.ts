@@ -179,6 +179,21 @@ describe('P3 structural visual contracts', () => {
 		expect(cameraPlan).toContain('background: var(--editor-camera-plan-canvas-bg)');
 		expect(cameraPlan).toContain('--editor-plan-room-bg: var(--editor-camera-plan-room-bg)');
 	});
+
+	it('keeps P14 footprint aliases surface-scoped and Scene-safe', () => {
+		const tokens = readLibSource('editor/styles/plan.css');
+		const cameraPlan = readLibSource('editor/camera-plan/CameraPlanViewport.svelte');
+		const planSvg = readLibSource('editor/layout/PlanSvg.svelte');
+
+		expect(tokens).toContain('--editor-camera-footprint-stroke: var(--editor-plan-muted);');
+		expect(tokens).toContain('--editor-camera-footprint-fill: rgb(146 144 138 / 12%);');
+		expect(cameraPlan).toContain('--plan-footprint-stroke: var(--editor-camera-footprint-stroke)');
+		expect(cameraPlan).toContain('--plan-layout-object-dasharray: 5 4');
+		expect(planSvg).toContain('var(--plan-footprint-stroke, var(--editor-plan-muted))');
+		expect(planSvg).toContain('var(--plan-layout-object-fill, var(--editor-plan-object-fill))');
+		expect(planSvg).not.toContain('--editor-camera-footprint-stroke');
+		expect(planSvg).not.toContain('--editor-camera-footprint-fill');
+	});
 });
 
 describe('zero-node policy + room-resolver seam', () => {

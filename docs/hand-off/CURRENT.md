@@ -5,7 +5,14 @@ slice plus one next action only.
 
 ## Working tree
 
-- Current delta: **3D Sequence View Key rewire — shipped 2026-08-28,
+- Current delta: **P14 Camera Plan passive object footprints — shipped
+  2026-08-29, uncommitted (review fixes 1+2 applied).** Camera Plan now derives
+  the live Scene footprint projection, renders eligible passive footprints
+  below the camera graph, and gives Camera-only layout objects (including
+  imported plan-drawn `profile` objects) the same muted dashed treatment.
+  Footprints resolve the same session-aware placement scale as Scene Plan/3D.
+  No collision, validation, interaction, or geometry changes were added.
+- Previous delta: **3D Sequence View Key rewire — shipped 2026-08-28,
   uncommitted.** `+ View Key` now resolves the selected Sequence edge from the
   global playhead, samples the shared motion, auto-pauses a playing Director,
   commits the directional key, and restores the paused Sequence scope at the
@@ -13,46 +20,22 @@ slice plus one next action only.
   safety reset behavior. The collapsed Camera mini-player now gives its scope
   pill a shorter flexible slot, reserves mode/observer tool widths, and lets
   the scrubber absorb remaining space so the icon controls no longer overlap.
-- Previous delta: **P3B.7a/P3B.8 core QA closeout — shipped 2026-08-28,
-  uncommitted.** Focused regression and browser QA now cover all four canonical
-  views, orientation behavior, preview scopes, isolation, continuity, keyboard
-  and pointer affordances, reduced motion, high-DPI SVG rendering, narrow
-  chrome, and relic routes. QA exposed and fixed one P12 contract defect:
-  static Camera scope no longer renders edge-flip, transport, timecode, or
-  scrubber chrome. The P3B umbrella is archived; P3B.7b remains deferred and
-  non-blocking.
-- Previous delta: **P12.5 closeout — shipped 2026-08-28, uncommitted.** Canonical
-  Camera timeline/shell/design docs now express the P12 selection-only,
-  explicit-entry, binary-transport, one-shell contract. Superseded P11 test
-  assertions are migrated or explicitly relic-scoped. Browser QA exposed and
-  fixed one lifecycle defect: unmounting Camera 3D while switching to Camera
-  Plan no longer tears down a paused main-editor preview session. The relic
-  keeps its frozen teardown behavior. P12 umbrella and slice briefs are
-  archived.
-- Previous delta: **P12.4 — integrated temporal mini-player + lane scrubbing**
-  (shipped 2026-08-27, uncommitted). Main-editor transport is Previous /
-  Play-Pause / Next with active-scope scrubbing, timecode, POV/Observer, and
-  Center/Follow. Expanded mode owns the five-lane ruler/playhead surface.
-  Main-editor Repeat/loop/Replay/Reverse are absent; `+ View Key` remains a
-  live 3D Sequence-only action. `/museum/editor` remains frozen.
 
 ## Next action
 
-- Begin approved **P14 Camera Plan passive footprints**. P3B.7a/P3B.8 is closed;
+- Use the tracker for future work. P13 remains proposed/unscheduled, and
   P3B.7b remains a deferred, non-blocking acceptance tail.
 
 ## Verification
 
-- Full Vitest: 167 files passed, 1 skipped; 2,275 tests passed, 1 skipped.
+- Full Vitest: 168 files passed, 1 skipped; 2,280 tests passed, 1 skipped.
 - `npm run check`: 0 errors / 0 warnings.
 - `npm run build`: passed; known unused-import and chunk-size warnings only.
-- Focused P3B/P12 contracts: 109 tests passed.
-- Browser QA passed Scene Plan, Scene 3D, Camera Plan, and Camera 3D;
-  Sequence, Edge, and static Camera scopes; transport and focused-viewport
-  Escape; Plan ↔ 3D continuity; expanded/collapsed and 640px narrow chrome;
-  Scope/More keyboard focus return; reduced motion; DPR2 SVG rendering; relic
-  isolation; no-flow shell; `/museum` visitor purity; and the enabled/clicked
-  3D Sequence `+ View Key` path with Sequence scope continuity.
+- Focused P14/renderer contracts: 136 tests passed.
+- Browser QA passed Camera Plan overview/density and close-up footprint checks;
+  four eligible Scene footprints and two layout objects rendered beneath the
+  graph, stayed inert, and retained the accepted 1.5px / `5 4` baseline.
+  Scene Plan retained its original filled-object presentation.
 
 ## Known bugs / deferred
 

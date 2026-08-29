@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createPrimitiveEntity } from '$lib/editor/editor-primitives';
-import type { SceneDocument, SceneEntity, SceneModelEntity } from '$lib/content/scene';
+import type { SceneDocument, SceneEntity, SceneModelEntity, SceneObjectCluster } from '$lib/content/scene';
 import { createLayoutRoomRegistry } from '$lib/project/project-layout-semantics';
 import type { Asset } from '$lib/types/assets';
 import { getAssetById, validateAssetFootprint } from '$lib/content/assets';
@@ -12,13 +12,14 @@ import {
 } from '$lib/editor/layout/layout-preview-state.svelte';
 import { g1DocumentWithRooms, g1RectangleRoom } from '../../layout/__fixtures__/layout-g1-fixtures';
 
-function sceneWith(entities: SceneEntity[]): SceneDocument {
+function sceneWith(entities: SceneEntity[], clusters: SceneObjectCluster[] = []): SceneDocument {
 	return {
 		textures: [],
 		materials: [],
 		entities,
 		navigationNodes: [],
-		connections: []
+		connections: [],
+		...(clusters.length > 0 ? { clusters } : {})
 	};
 }
 
@@ -139,6 +140,35 @@ describe('buildPlanSceneFootprintProjection', () => {
 		expect(projection.footprints[2]!.points[0]).toEqual([2, 0]);
 		expect(projection.footprints[2]!.points[8]![0]).toBeCloseTo(0);
 		expect(projection.footprints[2]!.points[8]![1]).toBeCloseTo(4);
+	});
+
+	it('projects cluster members individually without a group outline', () => {
+		const members: SceneEntity[] = [
+			modelEntity('cluster-model', 'asset-a', { position: [1, 0, 1] }),
+			createPrimitiveEntity({
+				id: 'cluster-box',
+				kind: 'box',
+				roomId: 'room-a',
+				position: [4, 0, 4],
+				dimensions: { width: 1, height: 1, depth: 1 }
+			})
+		];
+		const projection = buildPlanSceneFootprintProjection(
+			sceneWith(members, [{
+				id: 'cluster-a',
+				name: 'Cluster A',
+				roomId: 'room-a',
+				memberIds: ['cluster-model', 'cluster-box']
+			}]),
+			createLayoutRoomRegistry(g1DocumentWithRooms([g1RectangleRoom('room-a', 0, 0, 8, 8)])),
+			{ assetById: () => asset({ width: 1, depth: 1 }) }
+		);
+
+		expect(projection.footprints.map((footprint) => footprint.entityId)).toEqual([
+			'cluster-model',
+			'cluster-box'
+		]);
+		expect(projection.footprints.some((footprint) => footprint.entityId === 'cluster-a')).toBe(false);
 	});
 
 	it('omits missing, invalid, non-floor, and unknown-room models', () => {

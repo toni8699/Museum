@@ -128,6 +128,34 @@ describe('buildPlanRenderModel', () => {
 		expect('hit' in footprint ? footprint.hit : undefined).toBeUndefined();
 	});
 
+	it('keeps passive footprints below every camera layer', () => {
+		const { geometry } = compileLayoutGeometry(g2LineRectangleDocument());
+		const model = buildPlanRenderModel(geometry, {
+			paths: [{ key: 'p0', polyline: [[0, 0], [1, 1]] }],
+			viewCones: [{ key: 'c0', origin: [0, 0], target: [4, 0], fovDegrees: 60, nodeId: 'n0' }],
+			portalCrossings: [{ key: 'x0', point: [2, 0], openingId: 'door' }],
+			timingLabels: [{ key: 'l0', anchor: [1, 0], text: '4s', connectionId: 'c0' }]
+		}, undefined, {
+			footprints: [{
+				key: 'scene-footprint:entity-a',
+				entityId: 'entity-a',
+				roomId: 'room-rectangle',
+				kind: 'primitive',
+				primitive: 'box',
+				points: [[1, 1], [3, 1], [3, 2], [1, 2]]
+			}]
+		});
+		const byOrder = new Map(model.layers.map((layer) => [layer.order, layer.primitives]));
+		const footprint = byOrder.get(6)![0]!;
+
+		expect(footprint.style).toBe('scene-footprint');
+		expect('hit' in footprint ? footprint.hit : undefined).toBeUndefined();
+		expect(byOrder.get(7)!.map((primitive) => primitive.style)).toEqual(['camera-path']);
+		expect(byOrder.get(8)!.map((primitive) => primitive.style)).toEqual(['view-cone']);
+		expect(byOrder.get(9)!.map((primitive) => primitive.style)).toEqual(['portal-crossing']);
+		expect(byOrder.get(10)!.map((primitive) => primitive.style)).toEqual(['timing-label']);
+	});
+
 	it('slots camera projection records into layers 7–10', () => {
 		const { geometry } = compileLayoutGeometry(g2LineRectangleDocument());
 		const model = buildPlanRenderModel(geometry, {

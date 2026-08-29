@@ -9,7 +9,7 @@
 	import type { LayoutVec2 } from '$lib/layout/layout-types';
 	import type { Vec3 } from '$lib/types/scene';
 	import { Vector3 } from 'three';
-	import { isFlowNode } from '$lib/content/scene';
+	import { isFlowNode, type SceneEntity } from '$lib/content/scene';
 	import type { EditorStore } from '../editor-store.svelte';
 	import type { EditorContextMenuStore } from '../context-menu/context-menu-state.svelte';
 	import { isEditableTarget } from '../context-menu/editable-target';
@@ -49,6 +49,7 @@
 		type CameraPlanTransientState,
 		type PlanCameraSelectionInput
 	} from '../layout/plan-camera-projection';
+	import { buildPlanSceneFootprintProjection } from '../layout/plan-scene-footprint';
 	import { applyCameraPlanHover } from './camera-plan-hover';
 	import {
 		nearestPolylineProgress,
@@ -64,12 +65,14 @@
 		store,
 		preview,
 		cameraPlan,
-		contextMenu = null
+		contextMenu = null,
+		getEffectiveSceneScale = undefined
 	}: {
 		store: EditorStore;
 		preview: LayoutPreviewState;
 		cameraPlan: CameraPlanState;
 		contextMenu?: EditorContextMenuStore | null;
+		getEffectiveSceneScale?: (entity: SceneEntity) => number | Vec3 | undefined;
 	} = $props();
 	const activeSelection = getContext<EditorActiveSelectionStore | undefined>(
 		ACTIVE_EDITOR_SELECTION_KEY
@@ -122,16 +125,29 @@
 		rubberBand,
 		placementGhost
 	}));
+	const sceneProjection = $derived.by(() => {
+		// The room registry is a plain store seam. Layout mutations replace it in
+		// EditorApp, so key this derived value to the live layout version or a
+		// moved room leaves Camera Plan footprints in its old frame.
+		void preview.previewVersion;
+		return buildPlanSceneFootprintProjection(
+			store.document,
+			store.rooms,
+			getEffectiveSceneScale ? { getEffectiveScale: getEffectiveSceneScale } : {}
+		);
+	});
 	const planModel = $derived.by(() => {
 		const camera = authoringProjection;
-		if (!camera?.authoring) return buildPlanRenderModel(preview.geometry);
+		if (!camera?.authoring) {
+			return buildPlanRenderModel(preview.geometry, undefined, undefined, sceneProjection);
+		}
 		return buildPlanRenderModel(preview.geometry, {
 			...camera,
 			authoring: {
 				...camera.authoring,
 				interaction: buildCameraPlanTransientPrimitives(transients)
 			}
-		});
+		}, undefined, sceneProjection);
 	});
 	// P1.5 — hover is presentation-only and applied as a post-model token remap,
 	// so pointer moves (per-move `cameraPlan.hover` writes) never re-run the
@@ -824,7 +840,7 @@
 
 <style>
 	.camera-plan-viewport { position: absolute; inset: 0; z-index: 3; background: var(--editor-camera-plan-canvas-bg); }
-	.plan-canvas { display: block; position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: crosshair; outline: none; background: var(--editor-camera-plan-canvas-bg); --editor-plan-room-bg: var(--editor-camera-plan-room-bg); }
+	.plan-canvas { display: block; position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: crosshair; outline: none; background: var(--editor-camera-plan-canvas-bg); --editor-plan-room-bg: var(--editor-camera-plan-room-bg); --plan-footprint-stroke: var(--editor-camera-footprint-stroke); --plan-footprint-fill: var(--editor-camera-footprint-fill); --plan-layout-object-stroke: var(--editor-camera-footprint-stroke); --plan-layout-object-fill: var(--editor-camera-footprint-fill); --plan-layout-object-dasharray: 5 4; }
 	.plan-help { position: absolute; top: 4.25rem; left: 50%; z-index: 5; max-width: min(34rem, calc(100% - 2rem)); transform: translateX(-50%); padding: 0.45rem 0.7rem; border: 1px solid var(--editor-border-normal); border-radius: 999px; background: var(--editor-bg-panel-raised); color: var(--editor-text-primary); font: 600 0.7rem/1.2 var(--editor-font); pointer-events: none; text-align: center; }
 	.plan-meta { position: absolute; left: 0.8rem; bottom: 0.8rem; z-index: 2; display: flex; gap: 0.7rem; color: var(--editor-plan-muted); font: 0.68rem/1 var(--editor-font); pointer-events: none; }
 	@media (max-width: 44rem) {

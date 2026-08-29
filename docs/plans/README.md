@@ -69,14 +69,14 @@ Policy rules:
 | P11 | Camera Timeline / Preview UX redesign — selection-driven Camera/Edge scope, compact non-modal transport, paused authoring, and scope-aware timeline shell | **shipped 2026-08-26 — P11.1–P11.5 complete** (P11.3 `ab1210a` + bad-merge revert `45bcd6d`; P11.4 `e2fb450` + close docs `c718c80`); P12 ratifies the follow-on contract | P8 + P3B.5 | archived → [2026-08-25-P11-camera-timeline-preview-ux-redesign.md](../archive/plans/2026-08-25-P11-camera-timeline-preview-ux-redesign.md) (+ [P11.2 pre-inventory annex](../archive/plans/2026-08-25-P11.2-mutation-gate-pre-inventory.md)) |
 | P12 | Camera Timeline / Preview contract freeze — five laws, binary transport, explicit scopes, one-shell lanes, integrated temporal mini-player | **shipped 2026-08-28 — P12.1–P12.5 complete** | P11 | archived → [2026-08-26-P12-camera-timeline-contract-freeze.md](../archive/plans/2026-08-26-P12-camera-timeline-contract-freeze.md) |
 | P13 | Sequence stop-at-node playback — Sequence-scope Play stops at the beginning of each node (boundary), with a toggle to play full end-to-end; single-increment, no rewrite | **proposed — nice-to-have, not scheduled** (owner 2026-08-27); follows the P3B + P12 gate | P12 | [2026-08-27-P13-stop-at-node-playback.md](2026-08-27-P13-stop-at-node-playback.md) |
-| P14 | Camera Plan passive object footprints — ratified `Camera-layout-design.md`: scene footprint layer + plan-primitive parity on the Camera Plan surface, inert beneath the camera graph (no collision/validation) | **approved — next work after P3B closeout** (owner 2026-08-28) | P12 | [2026-08-28-P14-camera-plan-footprints.md](2026-08-28-P14-camera-plan-footprints.md) |
+| P14 | Camera Plan passive object footprints — ratified `Camera-layout-design.md`: scene footprint layer + plan-primitive parity on the Camera Plan surface, inert beneath the camera graph (no collision/validation) | **shipped 2026-08-29 — P14 S1–S3 complete** | P12 | archived → [2026-08-28-P14-camera-plan-footprints.md](../archive/plans/2026-08-28-P14-camera-plan-footprints.md) |
 | — | Branch rejoin — **experiment, no schedule** (rejoin into a later Sequence stop; dead-end return already ships; multi-edge playback would compose P8's edge primitive) | proposed | P8 conceptually | [2026-08-21-branch-rejoin-experiment.md](2026-08-21-branch-rejoin-experiment.md) |
 | … | future work re-registers here | | | |
 
 **Hard gate:** P12 shipped 2026-08-28; core P3B shipped 2026-08-28 after
-P3B.7a/P3B.8 closed. P3B.7b remains deferred and non-blocking. P14 is approved
-as the first work after P3B. P13 remains proposed and unscheduled. Product
-vision lives in the north star.
+P3B.7a/P3B.8 closed. P3B.7b remains deferred and non-blocking. P14 shipped as
+the first work after P3B. P13 remains proposed and unscheduled. Product vision
+lives in the north star.
 
 Execution order: **P6 → P1 → P8 → P7 → P9 → P2 → P3 → P11** — P1 shipped
 2026-08-21; the owner re-prioritized **P8 ahead of P2** on 2026-08-21
@@ -117,7 +117,7 @@ docs** — the plans were stale relative to the current roadmap. Product
 direction is not re-created as plans; the north star holds the final polished
 product vision. P12 shipped 2026-08-28; **P3B.7a/P3B.8 closed on 2026-08-28 and
 core P3B shipped**. P3B.7b remains a non-blocking deferred tail. P13 remains
-proposed and unscheduled; P14 follows P3B.
+proposed and unscheduled; P14 shipped as the first post-P3B slice.
 
 P12 (2026-08-26) ratifies the Camera timeline/preview contract after the designer
 review of the P11 UX findings; it supersedes the conflicting P11.2–P11.4 rows
@@ -212,10 +212,10 @@ prefixed.
 - `archived → ../archive/plans/2026-08-26-P12.3-slice-brief.md` (shipped P12.3 brief)
 - `archived → ../archive/plans/2026-08-27-P12-S4-designer-brief-amendment.md` (shipped P12 S4 amendment)
 - `archived → ../archive/plans/2026-08-24-P3B-orientation-preview-affordances.md` (core shipped 2026-08-28 — P3B.7a/P3B.8 closed; P3B.7b remains deferred/non-blocking)
+- `archived → ../archive/plans/2026-08-28-P14-camera-plan-footprints.md` (shipped 2026-08-29 — P14 S1–S3 complete)
 
 **Sources:** all source content is folded into the umbrella docs (P1 §A–§D ·
 P2 §A); the original source files were deleted 2026-08-18. P4/P5 sources were
 removed with the deleted plans 2026-08-27.
 
-**Not archived (active):** this tracker · P13 · P14 · the branch-rejoin
-experiment.
+**Not archived (active):** this tracker · P13 · the branch-rejoin experiment.

@@ -1,8 +1,7 @@
-# P14 — Camera Plan passive object footprints (approved, after remaining gate)
+# P14 — Camera Plan passive object footprints (shipped)
 
-**Status:** `approved` — P12 shipped 2026-08-28; P14 is the first work after
-the remaining P3B.7a/P3B.8 hard-gate tail closes (owner 2026-08-28).
-**Tracker:** [`README.md`](README.md) — **P14**, depends on: P12.
+**Status:** `shipped` — 2026-08-29; P14 S1–S3 complete.
+**Tracker:** [`../../plans/README.md`](../../plans/README.md) — **P14**, depends on: P12.
 **Placement:** Design already ratified — `Design-specs/Camera-layout-design.md`
 (2026-08-28) + approved designer brief
 (`Design-specs/Camera-plan-objects-brief.md`) + amended `Design-specs.md`
@@ -166,12 +165,19 @@ byte-identical.
 
 ## Verification
 
-Full Vitest suite + `npm run check` + `npm run build`; browser QA of the
-footprint treatment on the toned camera paper across the ratified zoom range;
-cross-surface diff check (Scene Plan unchanged).
+- `npm run check`: 0 errors / 0 warnings.
+- Full Vitest: 168 files passed, 1 skipped; 2,280 tests passed, 1 skipped.
+- `npm run build`: passed; known unused-import, chunk-size, and adapter-auto
+  warnings only.
+- Browser QA used a representative layout/scene with catalogue models,
+  primitives, a light, and a cluster: Camera Plan rendered four eligible
+  Scene footprints plus two layout objects, kept the graph above them, and
+  left footprints inert. Scene Plan retained its filled-object presentation;
+  lights and the cluster outline were absent. The accepted baseline is a
+  1.5px footprint stroke with a `5 4` dash on the toned paper, legible from
+  overview through close-up zoom.
 
 ## Status
 
-Approved — P12 shipped 2026-08-28. P14 is the first work after the remaining
-P3B.7a/P3B.8 hard gate, ahead of all unscheduled future work (P13 stays
-proposed/unscheduled).
+Shipped — 2026-08-29. P13 stays proposed/unscheduled; P3B.7b remains deferred
+and non-blocking.

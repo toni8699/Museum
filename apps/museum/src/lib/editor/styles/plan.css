@@ -32,6 +32,8 @@
 
 	/* Camera Plan is slightly more subdued than Scene Plan (DS §9): topology
 	   is the foreground information. */
+	--editor-camera-footprint-stroke: var(--editor-plan-muted);
+	--editor-camera-footprint-fill: rgb(146 144 138 / 12%);
 	--editor-camera-node-fill: #0c3766;
 	--editor-camera-node-stroke: var(--editor-accent-hover);
 	--editor-camera-edge-stroke: rgb(47 140 255 / 60%);

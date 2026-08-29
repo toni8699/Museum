@@ -39,6 +39,9 @@ describe('P12.4 S4 — live header chrome', () => {
 		expect(frame).toContain('height: 1.8rem;');
 		expect(frame).toContain('class="mini-player"');
 		expect(frame).toContain('mini-player__scrubber');
+		expect(frame).toContain('.mini-player .scope-switcher { width: 10rem; flex: 0 1 10rem;');
+		expect(frame).toContain('.mini-player .mode-control { order: initial; flex: 0 0 auto; }');
+		expect(frame).toContain('.mini-player__scrubber { display: flex; min-width: 0;');
 		expect(live).toMatch(/\{#if scope !== 'camera'\}[\s\S]*class="header-icon edge-flip"/);
 		expect(live).toMatch(/\{#if scope !== 'camera'\}[\s\S]*class="header-transport"/);
 		expect(live).not.toContain('Repeat edge');

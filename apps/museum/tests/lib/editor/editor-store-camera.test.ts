@@ -1123,6 +1123,37 @@ describe('EditorStore camera view authoring', () => {
 		expect(store.selectedConnection?.viewTracks?.forward).toHaveLength(1);
 	});
 
+	it('adds a view key from the selected edge in playing Director Sequence', () => {
+		const store = createFixtureEditorStore();
+		const connection = store.document.connections[0]!;
+		store.selectionActions.selectConnection(connection.id);
+		expect(store.previewSequence('director')).toBe(true);
+
+		const timeline = store.getCameraTimeline()!;
+		const edge = timeline.edges.find((candidate) => candidate.connectionId === connection.id)!;
+		const sequenceProgress =
+			(edge.motionStartSeconds + edge.motionEndSeconds) / (2 * timeline.durationSeconds);
+		expect(store.setCameraPreviewPlayhead(sequenceProgress)).toBe(true);
+		expect(store.cameraPreview?.transport).toBe('playing');
+		expect(store.canAddViewKeyframeAtPlayhead).toBe(true);
+
+		expect(store.addViewKeyframeAtPlayhead()).toBe(true);
+		expect(store.navigationSelection).toMatchObject({
+			kind: 'view-keyframe',
+			connectionId: connection.id,
+			direction: 'forward'
+		});
+		expect(store.selectedViewKeyframe?.progress).toBeGreaterThan(0);
+		expect(store.selectedViewKeyframe?.progress).toBeLessThan(1);
+		expect(store.selectedConnection?.viewTracks?.forward).toHaveLength(1);
+		expect(store.cameraPreview).toMatchObject({
+			kind: 'sequence',
+			mode: 'director',
+			transport: 'paused',
+			playhead: sequenceProgress
+		});
+	});
+
 	it('moves anchor-launched authoring to nearest exact curve progress first', () => {
 		const store = createFixtureEditorStore();
 		const connection = store.document.connections[0]!;

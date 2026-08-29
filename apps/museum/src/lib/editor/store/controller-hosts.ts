@@ -410,6 +410,12 @@ export function createControllerHosts(
 		get cameraPreview() {
 			return source.cameraPreview;
 		},
+		get activeCameraConnectionId() {
+			return source.activeCameraConnectionId;
+		},
+		get activeCameraDirection() {
+			return source.activeCameraDirection;
+		},
 		get navigationSelection() {
 			return source.navigationSelection;
 		},

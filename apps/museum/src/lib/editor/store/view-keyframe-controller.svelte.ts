@@ -45,6 +45,7 @@ import {
 	cameraMotionProgressAtEdgeProgress,
 	createCameraMotionSample,
 	sampleCameraMotion,
+	type CameraMotion,
 	type Vector3Like
 } from '$lib/museum/navigation/camera-motion';
 import {
@@ -72,6 +73,8 @@ import {
 } from '../camera/editor-camera-view';
 import {
 	cameraTimelineProgressAtEdgeProgress,
+	cameraTimelineEdgePlayheadAtProgress,
+	getEditorCameraTimelineLocation,
 	type EditorCameraTimeline
 } from '../camera/editor-camera-timeline';
 import type { EditorNavigationSelection } from '../editor-selection';
@@ -100,6 +103,11 @@ type ConnectionCameraPreview = Extract<
 	Exclude<EditorCameraPreview, null>,
 	{ kind: 'edge' }
 >;
+type SequenceCameraPreview = Extract<
+	Exclude<EditorCameraPreview, null>,
+	{ kind: 'sequence' }
+>;
+type ViewKeyframeAuthoringPreview = ConnectionCameraPreview | SequenceCameraPreview;
 
 function vec3Matches(a: Vec3, b: Vec3) {
 	return a[0] === b[0] && a[1] === b[1] && a[2] === b[2];
@@ -144,6 +152,8 @@ export interface EditorViewKeyframeControllerHost {
 	readonly selectedViewKeyframe: SceneCameraViewKeyframe | undefined;
 	readonly selectedRoomId: RoomId | null;
 	readonly cameraPreview: EditorCameraPreview;
+	readonly activeCameraConnectionId: string | null;
+	readonly activeCameraDirection: CameraConnectionDirection;
 
 	navigationSelection: EditorNavigationSelection;
 	viewKeyframeProgressDrag: EditorViewKeyframeProgressDragSelection | null;
@@ -550,15 +560,13 @@ export class EditorViewKeyframeController {
 
 	get canAddViewKeyframeAtPlayhead() {
 		const preview = this.host.cameraPreview;
-		const connection = this.host.selectedConnection;
-		// P11.2 §8 — a *playing* Director edge preview stays eligible so the UI
-		// keeps the Add-keyframe affordance clickable; the action itself pauses.
+		// P11.2 §8 — a *playing* Director preview stays eligible so the UI keeps
+		// the Add-keyframe affordance clickable; the action itself pauses.
 		if (
 			!preview ||
-			preview.kind !== 'edge' ||
+			(preview.kind !== 'edge' && preview.kind !== 'sequence') ||
 			preview.mode !== 'director' ||
 			(preview.transport !== 'paused' && preview.transport !== 'playing') ||
-			preview.connectionId !== connection?.id ||
 			this.host.isEditorInteractionActive ||
 			this.host.isDocumentTransactionActive
 		) {
@@ -570,7 +578,7 @@ export class EditorViewKeyframeController {
 		return (
 			progress > EDITOR_CAMERA_VIEW_PROGRESS_EPSILON &&
 			progress < 1 - EDITOR_CAMERA_VIEW_PROGRESS_EPSILON &&
-			!(connection.viewTracks?.[preview.direction] ?? []).some(
+			!(authoring.connection.viewTracks?.[authoring.direction] ?? []).some(
 				(keyframe) =>
 					Math.abs(keyframe.progress - progress) <=
 					EDITOR_CAMERA_VIEW_PROGRESS_EPSILON
@@ -578,33 +586,58 @@ export class EditorViewKeyframeController {
 		);
 	}
 
-	#getViewKeyframeAuthoringSample(preview: ConnectionCameraPreview) {
-		const route = this.host.getCapturedCameraPreviewRoute(preview.runId);
-		if (!route) return null;
-		const connection = this.host.document.connections.find(
-			(candidate) => candidate.id === preview.connectionId
-		);
-		if (!connection) return null;
-		// P8 S1 parity — key authoring parameterizes against the same authored
-		// timing/easing the preview plays with (captured route + live options).
-		const motion = resolveDirectedEdgeMotionForConnection(
-			connection,
-			preview.direction,
-			route
-		).motion;
+	#getViewKeyframeAuthoringSample(preview: ViewKeyframeAuthoringPreview) {
+		const connectionId =
+			preview.kind === 'edge'
+				? preview.connectionId
+				: this.host.activeCameraConnectionId;
+		const direction =
+			preview.kind === 'edge' ? preview.direction : this.host.activeCameraDirection;
+		const connection = this.host.selectedConnection;
+		if (!connection || !connectionId || connection.id !== connectionId) return null;
+
+		let motion: CameraMotion;
 		let playhead = preview.playhead;
+		if (preview.kind === 'edge') {
+			const route = this.host.getCapturedCameraPreviewRoute(preview.runId);
+			if (!route) return null;
+			// P8 S1 parity — key authoring parameterizes against the same authored
+			// timing/easing the preview plays with (captured route + live options).
+			motion = resolveDirectedEdgeMotionForConnection(connection, direction, route).motion;
+		} else {
+			const timeline = this.host.getCameraTimeline();
+			if (!timeline) return null;
+			let location;
+			try {
+				location = getEditorCameraTimelineLocation(timeline, preview.playhead);
+			} catch {
+				return null;
+			}
+			if (location.edge.connectionId !== connectionId) return null;
+			const edgePlayhead = cameraTimelineEdgePlayheadAtProgress(
+				timeline,
+				connectionId,
+				direction,
+				preview.playhead
+			);
+			if (edgePlayhead === null) return null;
+			motion = location.edge.motions[direction];
+			playhead = edgePlayhead;
+		}
+
 		let edgeProgress: number;
 		const selection = this.host.navigationSelection;
 		if (
+			preview.kind === 'edge' &&
 			selection?.kind === 'anchor' &&
-			selection.connectionId === preview.connectionId
+			selection.connectionId === connectionId
 		) {
 			const anchor = this.host.selectedAnchor;
 			if (!anchor) return null;
 			const path = createDraftConnectionPositionPath(
 				this.host.document,
-				preview.connectionId,
-				preview.direction,
+				connectionId,
+				direction,
 				this.host.rooms
 			);
 			edgeProgress = findNearestCurveProgress(
@@ -615,7 +648,7 @@ export class EditorViewKeyframeController {
 		} else {
 			edgeProgress = cameraMotionEdgeProgressAtProgress(motion, 0, playhead);
 		}
-		return { motion, playhead, edgeProgress };
+		return { connection, direction, motion, playhead, edgeProgress };
 	}
 
 	addViewKeyframeAtPlayhead() {
@@ -628,13 +661,11 @@ export class EditorViewKeyframeController {
 			return false;
 		}
 		const preview = this.host.cameraPreview;
-		const connection = this.host.selectedConnection;
 		if (
 			!preview ||
-			preview.kind !== 'edge' ||
+			(preview.kind !== 'edge' && preview.kind !== 'sequence') ||
 			preview.mode !== 'director' ||
-			(preview.transport !== 'paused' && preview.transport !== 'playing') ||
-			preview.connectionId !== connection?.id
+			(preview.transport !== 'paused' && preview.transport !== 'playing')
 		) {
 			return false;
 		}
@@ -642,7 +673,7 @@ export class EditorViewKeyframeController {
 		// or duplicate-progress click never pauses a playing preview.
 		const authoring = this.#getViewKeyframeAuthoringSample(preview);
 		if (!authoring) return false;
-		const { edgeProgress, motion, playhead } = authoring;
+		const { connection, direction, edgeProgress, motion, playhead } = authoring;
 		if (
 			edgeProgress <= EDITOR_CAMERA_VIEW_PROGRESS_EPSILON ||
 			edgeProgress >= 1 - EDITOR_CAMERA_VIEW_PROGRESS_EPSILON
@@ -650,7 +681,7 @@ export class EditorViewKeyframeController {
 			this.host.setStatusMessage('Move the Director playhead inside the connection');
 			return false;
 		}
-		const track = connection.viewTracks?.[preview.direction] ?? [];
+		const track = connection.viewTracks?.[direction] ?? [];
 		if (
 			track.some(
 				(keyframe) =>
@@ -663,7 +694,9 @@ export class EditorViewKeyframeController {
 		}
 		if (!this.host.requestAuthoringPause()) return false;
 
-		this.host.setCameraPreviewPlayhead(playhead, preview.runId);
+		if (preview.kind === 'edge') {
+			this.host.setCameraPreviewPlayhead(playhead, preview.runId);
+		}
 		const sample = createCameraMotionSample();
 		sampleCameraMotion(motion, playhead, sample);
 		const existingIds = [
@@ -672,7 +705,7 @@ export class EditorViewKeyframeController {
 		].map((keyframe) => keyframe.id);
 		const id = allocateCameraViewKeyframeId(
 			connection.id,
-			preview.direction,
+			direction,
 			existingIds
 		);
 		const keyframe = createSceneCameraViewKeyframeAtWorldTarget(
@@ -686,22 +719,35 @@ export class EditorViewKeyframeController {
 
 		if (!this.host.beginDocumentTransaction()) return false;
 		connection.viewTracks ??= { forward: [], reverse: [] };
-		connection.viewTracks[preview.direction].push(keyframe);
-		connection.viewTracks[preview.direction].sort(
+		connection.viewTracks[direction].push(keyframe);
+		connection.viewTracks[direction].sort(
 			(left, right) => left.progress - right.progress
 		);
-		if (preview.direction === 'forward') {
+		if (direction === 'forward') {
 			syncReverseViewTrackFromForward(connection);
 		}
-		this.#reconcileEditedDirection(connection, preview.direction);
+		this.#reconcileEditedDirection(connection, direction);
 		// P7.1 — in-transaction reducer write (guarded actions would no-op).
 		this.host.selection.setNavigation({
 			kind: 'view-keyframe',
 			connectionId: connection.id,
-			direction: preview.direction,
+			direction,
 			keyframeId: id
 		});
-		return this.host.commitDocumentTransaction();
+		const committed = this.host.commitDocumentTransaction();
+		if (committed && preview.kind === 'sequence') {
+			// Sequence normally hard-resets after a paused Director document swap.
+			// View-key authoring is the one Sequence-scope document write, so restore
+			// its paused scope at the exact global playhead after the commit.
+			this.host.setCameraPreview({
+				...preview,
+				transport: 'paused',
+				startedAtMs: null,
+				runId: this.host.allocPreviewRunId()
+			});
+			this.host.setStatusMessage(null);
+		}
+		return committed;
 	}
 
 	// ===================================================================

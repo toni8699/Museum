@@ -13,10 +13,12 @@
  *
  * **Document coupling.** Takes the document store in the constructor and
  * reads `document.state.graph` for route resolution. The composition root
- * registers two `afterReplace` listeners on the document store: this	 * controller's `refreshPausedDirector()` (hard-resets a paused Director SEQUENCE preview or re-resolves/keeps the others;
- * returns Error for the root status channel if the document changes mid-pause)
- * and `pruneIfStale()` (drops the FSM
- * to idle when the source node no longer exists).
+ * registers two `afterReplace` listeners on the document store: this
+ * controller's `refreshPausedDirector()` (hard-resets a paused Director
+ * SEQUENCE preview for ordinary document swaps or re-resolves/keeps the
+ * others; returns an Error for the root status channel if the document
+ * changes mid-pause) and `pruneIfStale()` (drops the FSM to idle when the
+ * source node no longer exists).
  *
  * **Locally-redeclared `EditorCameraPreview` types** mirror the
  * `editor-types.ts` barrel; structural typing keeps the two in sync.
@@ -667,15 +669,14 @@ export function isPreviewStale(
 
 	/**
 	 * `afterReplace` listener — **P8 S5 owner decision (2026-08-22): hard
-	 * reset for paused Director SEQUENCE previews only.** A sequence is not
-	 * an authoring surface, so any document swap stops it — no live re-
-	 * resolution (re-resolving would silently re-map the pause point onto
-	 * edited flow content and bump the runId — the stale-snapshot trap), and
-	 * the returned error surfaces a status message telling the user to
-	 * re-run Preview Sequence. Connection and node previews keep refreshing
-	 * below: they ARE the framing-authoring surface (add/move view keys and
-	 * edit framing while paused — pinned by `editor-store-camera` tests), so
-	 * their re-resolution is the authoring feedback loop, not a drift bug.
+	 * reset for paused Director SEQUENCE previews on ordinary document swaps.**
+	 * A generic sequence edit must not silently re-map the pause point onto
+	 * edited flow content (the stale-snapshot trap). The view-key authoring
+	 * command is the one intentional Sequence-scope write and restores its
+	 * paused scope after this safety reset. Connection and node previews keep
+	 * refreshing below: they are the framing-authoring surface (add/move view
+	 * keys and edit framing while paused), so their re-resolution is the
+	 * authoring feedback loop, not a drift bug.
 	 * Visitor-mode previews are intentionally early-returned (immutable
 	 * ownership — never re-resolved).
 	 */

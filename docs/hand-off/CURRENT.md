@@ -5,7 +5,15 @@ slice plus one next action only.
 
 ## Working tree
 
-- Current delta: **P3B.7a/P3B.8 core QA closeout — shipped 2026-08-28,
+- Current delta: **3D Sequence View Key rewire — shipped 2026-08-28,
+  uncommitted.** `+ View Key` now resolves the selected Sequence edge from the
+  global playhead, samples the shared motion, auto-pauses a playing Director,
+  commits the directional key, and restores the paused Sequence scope at the
+  same playhead. Generic paused-Sequence document swaps retain their existing
+  safety reset behavior. The collapsed Camera mini-player now gives its scope
+  pill a shorter flexible slot, reserves mode/observer tool widths, and lets
+  the scrubber absorb remaining space so the icon controls no longer overlap.
+- Previous delta: **P3B.7a/P3B.8 core QA closeout — shipped 2026-08-28,
   uncommitted.** Focused regression and browser QA now cover all four canonical
   views, orientation behavior, preview scopes, isolation, continuity, keyboard
   and pointer affordances, reduced motion, high-DPI SVG rendering, narrow
@@ -35,7 +43,7 @@ slice plus one next action only.
 
 ## Verification
 
-- Full Vitest: 167 files passed, 1 skipped; 2,274 tests passed, 1 skipped.
+- Full Vitest: 167 files passed, 1 skipped; 2,275 tests passed, 1 skipped.
 - `npm run check`: 0 errors / 0 warnings.
 - `npm run build`: passed; known unused-import and chunk-size warnings only.
 - Focused P3B/P12 contracts: 109 tests passed.
@@ -43,7 +51,8 @@ slice plus one next action only.
   Sequence, Edge, and static Camera scopes; transport and focused-viewport
   Escape; Plan ↔ 3D continuity; expanded/collapsed and 640px narrow chrome;
   Scope/More keyboard focus return; reduced motion; DPR2 SVG rendering; relic
-  isolation; no-flow shell; and `/museum` visitor purity.
+  isolation; no-flow shell; `/museum` visitor purity; and the enabled/clicked
+  3D Sequence `+ View Key` path with Sequence scope continuity.
 
 ## Known bugs / deferred
 

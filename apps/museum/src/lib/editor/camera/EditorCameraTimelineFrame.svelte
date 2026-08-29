@@ -1046,14 +1046,15 @@
 		height: 48px;
 		flex: 0 0 48px;
 		align-items: center;
-		gap: 0.35rem;
+		gap: 0.2rem;
 		padding: 0.35rem 0.75rem;
 		background: var(--editor-bg-panel);
 	}
-	.mini-player .scope-switcher { width: 13.75rem; flex: 0 0 13.75rem; margin-left: 0; }
+	.mini-player .scope-switcher { width: 10rem; flex: 0 1 10rem; margin-left: 0; }
 	.mini-player .scope-capsule { width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box; }
-	.mini-player > .scope-status { width: 13.75rem; flex: 0 0 13.75rem; box-sizing: border-box; }
-	.mini-player .mode-control { order: initial; }
+	.mini-player .scope-capsule > span { min-width: 0; }
+	.mini-player > .scope-status { width: 10rem; flex: 0 1 10rem; box-sizing: border-box; }
+	.mini-player .mode-control { order: initial; flex: 0 0 auto; }
 	.mini-player__observer-actions { display: flex; flex: 0 0 auto; gap: 0.25rem; }
 	.mini-player__icon {
 		display: inline-flex;
@@ -1074,8 +1075,8 @@
 	.mini-player__icon:hover:not(:disabled),
 	.mini-player__icon.active { border-color: var(--editor-accent); color: var(--editor-text-primary); }
 	.mini-player__icon:disabled { opacity: 0.4; cursor: default; }
-	.mini-player__transport { display: flex; align-items: center; gap: 0.25rem; }
-	.mini-player__scrubber { display: flex; min-width: 5rem; min-height: 24px; flex: 1; align-items: center; }
+	.mini-player__transport { display: flex; flex: 0 0 auto; align-items: center; gap: 0.2rem; }
+	.mini-player__scrubber { display: flex; min-width: 0; min-height: 24px; flex: 1 1 0; align-items: center; }
 	.mini-player__scrubber input {
 		width: 100%;
 		height: 24px;
@@ -1083,7 +1084,7 @@
 		accent-color: var(--editor-accent);
 		cursor: ew-resize;
 	}
-	.mini-player__timecode { min-width: 7.8rem; color: var(--editor-text-primary); font: 650 0.66rem/1 var(--editor-font); font-variant-numeric: tabular-nums; text-align: center; white-space: nowrap; }
+	.mini-player__timecode { min-width: 6rem; color: var(--editor-text-primary); font: 650 0.66rem/1 var(--editor-font); font-variant-numeric: tabular-nums; text-align: center; white-space: nowrap; }
 	.sr-only {
 		position: absolute;
 		width: 1px;

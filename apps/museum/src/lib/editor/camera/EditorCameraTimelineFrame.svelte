@@ -553,14 +553,16 @@
 					<span>No sequence yet</span>
 				</div>
 			{/if}
-			<button
-				type="button"
-				class="header-icon edge-flip"
-				aria-label="Flip edge. Swap travel direction, reset to start."
-				title="Flip edge. Swap travel direction, reset to start."
-				disabled={!edgeTimeline || timelineApi.edgeReverseDisabled}
-				onclick={() => timelineApi.swapEdgeReverse()}
-			><ArrowLeftRight size={14} aria-hidden="true" /></button>
+			{#if scope !== 'camera'}
+				<button
+					type="button"
+					class="header-icon edge-flip"
+					aria-label="Flip edge. Swap travel direction, reset to start."
+					title="Flip edge. Swap travel direction, reset to start."
+					disabled={!edgeTimeline || timelineApi.edgeReverseDisabled}
+					onclick={() => timelineApi.swapEdgeReverse()}
+				><ArrowLeftRight size={14} aria-hidden="true" /></button>
+			{/if}
 
 			<div class="mode-control" role="group" aria-label="Camera preview mode">
 				<button
@@ -605,12 +607,14 @@
 				{/if}
 			</div>
 
-			<div class="header-transport" aria-label="Camera timeline transport">
-				<button type="button" class="header-icon" aria-label="Previous camera node" title="Previous camera node" disabled={previousNodeDisabled} onclick={() => stepNode(-1)}><span aria-hidden="true">|◀</span></button>
-				<button type="button" class="header-icon" class:active={previewPlaying} aria-label={scope === 'idle' ? 'Play camera flow' : timelineApi.playLabel} title={scope === 'idle' ? 'Play camera flow' : timelineApi.playLabel} disabled={!timelineApi.canPlay} onclick={() => timelineApi.toggleTourPlayback()}>{#if previewPlaying}<Pause size={14} aria-hidden="true" />{:else}<Play size={14} aria-hidden="true" />{/if}</button>
-				<button type="button" class="header-icon" aria-label="Next camera node" title="Next camera node" disabled={nextNodeDisabled} onclick={() => stepNode(1)}><span aria-hidden="true">▶│</span></button>
-				<output class="timecode" aria-label="Camera timeline time">{formatTime(timelineApi.currentSeconds)} / {formatTime(durationSeconds)}</output>
-			</div>
+			{#if scope !== 'camera'}
+				<div class="header-transport" aria-label="Camera timeline transport">
+					<button type="button" class="header-icon" aria-label="Previous camera node" title="Previous camera node" disabled={previousNodeDisabled} onclick={() => stepNode(-1)}><span aria-hidden="true">|◀</span></button>
+					<button type="button" class="header-icon" class:active={previewPlaying} aria-label={scope === 'idle' ? 'Play camera flow' : timelineApi.playLabel} title={scope === 'idle' ? 'Play camera flow' : timelineApi.playLabel} disabled={!timelineApi.canPlay} onclick={() => timelineApi.toggleTourPlayback()}>{#if previewPlaying}<Pause size={14} aria-hidden="true" />{:else}<Play size={14} aria-hidden="true" />{/if}</button>
+					<button type="button" class="header-icon" aria-label="Next camera node" title="Next camera node" disabled={nextNodeDisabled} onclick={() => stepNode(1)}><span aria-hidden="true">▶│</span></button>
+					<output class="timecode" aria-label="Camera timeline time">{formatTime(timelineApi.currentSeconds)} / {formatTime(durationSeconds)}</output>
+				</div>
+			{/if}
 
 			{#if headerDiagnostic}
 				<div class="diagnostic" role="status" title={headerDiagnostic} aria-label={headerDiagnostic}>

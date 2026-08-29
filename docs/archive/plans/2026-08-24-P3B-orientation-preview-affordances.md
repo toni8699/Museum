@@ -1,8 +1,8 @@
 # P3B — Orientation Box, Plan Parity, and Camera Preview Affordances
 
 **Date:** 2026-08-24
-**Status:** In progress — P3B.6 closed 2026-08-25; P11 is the next implementation slice
-**Tracker:** `docs/plans/README.md` — **P3B**, depends on P3 + P8 S2–S4; P3B.6 retained-edge parity is shipped, and P11 precedes the remaining P3B preview QA
+**Status:** Core shipped 2026-08-28 — P3B.7a/P3B.8 closed; P3B.7b remains deferred and non-blocking
+**Tracker:** `docs/plans/README.md` — **P3B**, depends on P3 + P8 S2–S4; core P3B.1–P3B.8 is shipped, while the P3B.7b deferred acceptance tail remains independent
 **Historical source:** `P3 umbrella` — extracted P3.4/P3.5 and P3B scope
 
 ---
@@ -189,7 +189,7 @@ Play / Pause
 selection-only. Preview Camera, Preview Edge, and Scope-menu entry are explicit
 and paused; Sequence remains explicit except sequenced-node seek+pause within an
 already-active Sequence scope. See the
-[archived P12 contract](../archive/plans/2026-08-26-P12-camera-timeline-contract-freeze.md).
+[archived P12 contract](2026-08-26-P12-camera-timeline-contract-freeze.md).
 
 ---
 
@@ -442,6 +442,11 @@ Check:
 * Camera preview transport;
 * no relic-route regression.
 
+**Status: closed 2026-08-28.** Browser QA passed all four canonical views,
+Plan↔3D continuity, Scene/Camera isolation, selection and timeline preservation,
+keyboard/pointer focus behavior, narrow chrome, reduced motion, high-DPI SVG
+rendering, Camera transport, and `/museum` plus `/museum/editor` relic routes.
+
 ---
 
 # Sequential Execution Order
@@ -465,8 +470,8 @@ Check:
    P11.1 → P11.2 → P11.3 → P11.4 → P11.5 → P12
 
 5. Core QA
-   P3B.7a (after P12)
-   P3B.8 (after P12)
+   P3B.7a (closed 2026-08-28)
+   P3B.8 (closed 2026-08-28)
 
 6. Deferred tail
    P3B.7b

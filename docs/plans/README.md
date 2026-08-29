@@ -60,7 +60,7 @@ Policy rules:
 | P1 | Camera overhaul | shipped | renewal | archived → [2026-08-18-P1-camera-overhaul.md](../archive/plans/2026-08-18-P1-camera-overhaul.md) |
 | P2 | Plan staging mode — 2D furnishing | **shipped 2026-08-23 — P2.1–P2.4 complete** | P1 + P9 | archived → [2026-08-18-P2-plan-staging.md](../archive/plans/2026-08-18-P2-plan-staging.md) |
 | P3 | UI overhaul — accepted structural visual reconciliation (P3.1–P3.3, P3.6) | **shipped 2026-08-24** | P9 + P1 | archived → [2026-08-18-P3-ui-overhaul.md](../archive/plans/2026-08-18-P3-ui-overhaul.md) |
-| P3B | Scene|Camera × Plan|3D orientation interaction, Plan-surface parity, camera preview affordances, and deferred P3.4/P3.5 acceptance tail | **in-progress — remaining hard gate: P3B.1–P3B.6 shipped 2026-08-24/25; P3B.7a/P3B.8 QA tail must close before anything else** | P3 + P8 | [2026-08-24-P3B-orientation-preview-affordances.md](2026-08-24-P3B-orientation-preview-affordances.md) |
+| P3B | Scene|Camera × Plan|3D orientation interaction, Plan-surface parity, camera preview affordances, and deferred P3.4/P3.5 acceptance tail | **shipped 2026-08-28 — core P3B.1–P3B.8 complete; P3B.7b remains deferred/non-blocking** | P3 + P8 | archived → [2026-08-24-P3B-orientation-preview-affordances.md](../archive/plans/2026-08-24-P3B-orientation-preview-affordances.md) |
 | P6 | Editor artifact rename (de-H1) | shipped | renewal | archived → [2026-08-18-P6-editor-rename.md](archive/plans/2026-08-18-P6-editor-rename.md) |
 | P7 | Museum-editor facade decoupling — finish the deferred H1 splits (selection de-coupling, facade thinning, type collapse, shims, Chopin defaults, shell boot) + P7.6 museum-vocabulary scrub (drop-prefix scene vocabulary, relic keeps museum; format hard break) | **shipped 2026-08-23 — P7.1 + P7.5 + P7.2 + P7.3 + P7.6 all complete; P7 closed** | P1 | [2026-08-19-P7-editor-facade-collapse.md](2026-08-19-P7-editor-facade-collapse.md) + [P7.6 strings pre-inventory (annex)](2026-08-23-P7.6-strings-pre-inventory.md) |
 | P8 | Camera preview scopes — Preview Camera / Preview Edge / Preview Sequence; directed-edge motion resolver + timing parity; edge-local timeline | **shipped — S1–S6 (2026-08-22)** | P1 | [2026-08-21-P8-camera-preview-scopes.md](2026-08-21-P8-camera-preview-scopes.md) |
@@ -68,14 +68,15 @@ Policy rules:
 | P10 | Plan Arrange Objects redesign — owner-aware Arrange surface for Layout objects + eligible Scene entities; no cross-document gestures | **shipped 2026-08-24 — P10.0–P10.5 complete** | P2 + P9 | archived → [2026-08-23-P10-plan-arrange-objects.md](../archive/plans/2026-08-23-P10-plan-arrange-objects.md) |
 | P11 | Camera Timeline / Preview UX redesign — selection-driven Camera/Edge scope, compact non-modal transport, paused authoring, and scope-aware timeline shell | **shipped 2026-08-26 — P11.1–P11.5 complete** (P11.3 `ab1210a` + bad-merge revert `45bcd6d`; P11.4 `e2fb450` + close docs `c718c80`); P12 ratifies the follow-on contract | P8 + P3B.5 | archived → [2026-08-25-P11-camera-timeline-preview-ux-redesign.md](../archive/plans/2026-08-25-P11-camera-timeline-preview-ux-redesign.md) (+ [P11.2 pre-inventory annex](../archive/plans/2026-08-25-P11.2-mutation-gate-pre-inventory.md)) |
 | P12 | Camera Timeline / Preview contract freeze — five laws, binary transport, explicit scopes, one-shell lanes, integrated temporal mini-player | **shipped 2026-08-28 — P12.1–P12.5 complete** | P11 | archived → [2026-08-26-P12-camera-timeline-contract-freeze.md](../archive/plans/2026-08-26-P12-camera-timeline-contract-freeze.md) |
-| P13 | Sequence stop-at-node playback — Sequence-scope Play stops at the beginning of each node (boundary), with a toggle to play full end-to-end; single-increment, no rewrite | **proposed — nice-to-have, not scheduled** (owner 2026-08-27); waits for the P3B + P12 hard gate | P12 | [2026-08-27-P13-stop-at-node-playback.md](2026-08-27-P13-stop-at-node-playback.md) |
-| P14 | Camera Plan passive object footprints — ratified `Camera-layout-design.md`: scene footprint layer + plan-primitive parity on the Camera Plan surface, inert beneath the camera graph (no collision/validation) | **approved — first work after the remaining P3B hard gate closes** (owner 2026-08-28) | P12 | [2026-08-28-P14-camera-plan-footprints.md](2026-08-28-P14-camera-plan-footprints.md) |
+| P13 | Sequence stop-at-node playback — Sequence-scope Play stops at the beginning of each node (boundary), with a toggle to play full end-to-end; single-increment, no rewrite | **proposed — nice-to-have, not scheduled** (owner 2026-08-27); follows the P3B + P12 gate | P12 | [2026-08-27-P13-stop-at-node-playback.md](2026-08-27-P13-stop-at-node-playback.md) |
+| P14 | Camera Plan passive object footprints — ratified `Camera-layout-design.md`: scene footprint layer + plan-primitive parity on the Camera Plan surface, inert beneath the camera graph (no collision/validation) | **approved — next work after P3B closeout** (owner 2026-08-28) | P12 | [2026-08-28-P14-camera-plan-footprints.md](2026-08-28-P14-camera-plan-footprints.md) |
 | — | Branch rejoin — **experiment, no schedule** (rejoin into a later Sequence stop; dead-end return already ships; multi-edge playback would compose P8's edge primitive) | proposed | P8 conceptually | [2026-08-21-branch-rejoin-experiment.md](2026-08-21-branch-rejoin-experiment.md) |
 | … | future work re-registers here | | | |
 
-**Hard gate:** P12 shipped 2026-08-28; P3B.7a/P3B.8 is the remaining gate.
-P14 is approved as the first work after P3B closes. P13 remains proposed and
-unscheduled. Product vision lives in the north star.
+**Hard gate:** P12 shipped 2026-08-28; core P3B shipped 2026-08-28 after
+P3B.7a/P3B.8 closed. P3B.7b remains deferred and non-blocking. P14 is approved
+as the first work after P3B. P13 remains proposed and unscheduled. Product
+vision lives in the north star.
 
 Execution order: **P6 → P1 → P8 → P7 → P9 → P2 → P3 → P11** — P1 shipped
 2026-08-21; the owner re-prioritized **P8 ahead of P2** on 2026-08-21
@@ -114,8 +115,9 @@ removed P4 (client GLB import), P5 (optimization), and the short-lived
 P13/P4 backend-persistence registration from the tracker and deleted the plan
 docs** — the plans were stale relative to the current roadmap. Product
 direction is not re-created as plans; the north star holds the final polished
-product vision. P12 shipped 2026-08-28; **P3B.7a/P3B.8 is now the sole remaining
-hard-gate tail**. P13 remains proposed and unscheduled; P14 follows the gate.
+product vision. P12 shipped 2026-08-28; **P3B.7a/P3B.8 closed on 2026-08-28 and
+core P3B shipped**. P3B.7b remains a non-blocking deferred tail. P13 remains
+proposed and unscheduled; P14 follows P3B.
 
 P12 (2026-08-26) ratifies the Camera timeline/preview contract after the designer
 review of the P11 UX findings; it supersedes the conflicting P11.2–P11.4 rows
@@ -209,10 +211,11 @@ prefixed.
 - `archived → ../archive/plans/2026-08-26-P12.2-slice-brief.md` (shipped P12.2 brief)
 - `archived → ../archive/plans/2026-08-26-P12.3-slice-brief.md` (shipped P12.3 brief)
 - `archived → ../archive/plans/2026-08-27-P12-S4-designer-brief-amendment.md` (shipped P12 S4 amendment)
+- `archived → ../archive/plans/2026-08-24-P3B-orientation-preview-affordances.md` (core shipped 2026-08-28 — P3B.7a/P3B.8 closed; P3B.7b remains deferred/non-blocking)
 
 **Sources:** all source content is folded into the umbrella docs (P1 §A–§D ·
 P2 §A); the original source files were deleted 2026-08-18. P4/P5 sources were
 removed with the deleted plans 2026-08-27.
 
-**Not archived (active):** this tracker · P3B follow-up · P13 · P14 · the
-branch-rejoin experiment.
+**Not archived (active):** this tracker · P13 · P14 · the branch-rejoin
+experiment.

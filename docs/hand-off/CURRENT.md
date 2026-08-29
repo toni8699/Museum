@@ -5,14 +5,22 @@ slice plus one next action only.
 
 ## Working tree
 
-- Current delta: **P12.5 closeout — shipped 2026-08-28, uncommitted.** Canonical
+- Current delta: **P3B.7a/P3B.8 core QA closeout — shipped 2026-08-28,
+  uncommitted.** Focused regression and browser QA now cover all four canonical
+  views, orientation behavior, preview scopes, isolation, continuity, keyboard
+  and pointer affordances, reduced motion, high-DPI SVG rendering, narrow
+  chrome, and relic routes. QA exposed and fixed one P12 contract defect:
+  static Camera scope no longer renders edge-flip, transport, timecode, or
+  scrubber chrome. The P3B umbrella is archived; P3B.7b remains deferred and
+  non-blocking.
+- Previous delta: **P12.5 closeout — shipped 2026-08-28, uncommitted.** Canonical
   Camera timeline/shell/design docs now express the P12 selection-only,
   explicit-entry, binary-transport, one-shell contract. Superseded P11 test
   assertions are migrated or explicitly relic-scoped. Browser QA exposed and
   fixed one lifecycle defect: unmounting Camera 3D while switching to Camera
   Plan no longer tears down a paused main-editor preview session. The relic
   keeps its frozen teardown behavior. P12 umbrella and slice briefs are
-  archived; tracker and router now identify P3B.7a/P3B.8 as the remaining gate.
+  archived.
 - Previous delta: **P12.4 — integrated temporal mini-player + lane scrubbing**
   (shipped 2026-08-27, uncommitted). Main-editor transport is Previous /
   Play-Pause / Next with active-scope scrubbing, timecode, POV/Observer, and
@@ -22,20 +30,20 @@ slice plus one next action only.
 
 ## Next action
 
-- Close **P3B.7a/P3B.8** browser/visual QA. This is the sole remaining hard
-  gate. After it closes, P14 Camera Plan passive footprints is first scheduled.
+- Begin approved **P14 Camera Plan passive footprints**. P3B.7a/P3B.8 is closed;
+  P3B.7b remains a deferred, non-blocking acceptance tail.
 
 ## Verification
 
 - Full Vitest: 167 files passed, 1 skipped; 2,274 tests passed, 1 skipped.
 - `npm run check`: 0 errors / 0 warnings.
 - `npm run build`: passed; known unused-import and chunk-size warnings only.
-- Focused P12 closeout contracts: 111 tests passed.
-- Browser QA passed main-editor Sequence, Edge, and static Camera scopes;
-  Play/Pause and focused-viewport Escape; Camera Plan ↔ Camera 3D continuity;
-  expanded/collapsed and 650px narrow chrome; Scope/More keyboard focus return;
-  relic isolation; no-flow shell; and `/museum` visitor purity. Gap behavior is
-  contract-covered rather than manually reconstructed in this pass.
+- Focused P3B/P12 contracts: 109 tests passed.
+- Browser QA passed Scene Plan, Scene 3D, Camera Plan, and Camera 3D;
+  Sequence, Edge, and static Camera scopes; transport and focused-viewport
+  Escape; Plan ↔ 3D continuity; expanded/collapsed and 640px narrow chrome;
+  Scope/More keyboard focus return; reduced motion; DPR2 SVG rendering; relic
+  isolation; no-flow shell; and `/museum` visitor purity.
 
 ## Known bugs / deferred
 
@@ -46,6 +54,8 @@ slice plus one next action only.
   fixed editor flow.
 - Runtime logs retain known Svelte `ownership_invalid_mutation` warnings for
   `cameraPlan` and `layoutInteraction`; static checking is clean.
+- A browser axe audit still reports generic editor color-contrast review items
+  in empty/status text and SVG labels; these are outside the closed P3B gate.
 
 ## Traps
 

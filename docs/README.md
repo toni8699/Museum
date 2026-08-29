@@ -1,10 +1,10 @@
 # Museum docs — context router
 
-**Audience:** agents + humans. **Last reviewed:** 2026-08-28 (P12 shipped; P3B QA tail is the remaining hard gate; north star holds product vision).
+**Audience:** agents + humans. **Last reviewed:** 2026-08-28 (P12 and core P3B shipped; P3B.7b remains deferred; north star holds product vision).
 **Bootstrap (hard rules):** [`../AGENTS.md`](../AGENTS.md) ·
 **Plan status / what's next:** [`plans/README.md`](./plans/README.md) (tracker) ·
 **Live working-tree state:** [`hand-off/CURRENT.md`](./hand-off/CURRENT.md) ·
-**Roadmap gate:** P12 is shipped. P3B.7a/P3B.8 is the remaining hard-gate tail; P14 starts after it closes.
+**Roadmap gate:** P12 and core P3B are shipped. P3B.7b remains deferred and non-blocking; P14 is next.
 
 ## Context discipline (progressive disclosure)
 

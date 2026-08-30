@@ -70,13 +70,16 @@ Policy rules:
 | P12 | Camera Timeline / Preview contract freeze — five laws, binary transport, explicit scopes, one-shell lanes, integrated temporal mini-player | **shipped 2026-08-28 — P12.1–P12.5 complete** | P11 | archived → [2026-08-26-P12-camera-timeline-contract-freeze.md](../archive/plans/2026-08-26-P12-camera-timeline-contract-freeze.md) |
 | P13 | Sequence stop-at-node playback — Sequence-scope Play stops at the beginning of each node (boundary), with a toggle to play full end-to-end; single-increment, no rewrite | **proposed — nice-to-have, not scheduled** (owner 2026-08-27); follows the P3B + P12 gate | P12 | [2026-08-27-P13-stop-at-node-playback.md](2026-08-27-P13-stop-at-node-playback.md) |
 | P14 | Camera Plan passive object footprints — ratified `Camera-layout-design.md`: scene footprint layer + plan-primitive parity on the Camera Plan surface, inert beneath the camera graph (no collision/validation) | **shipped 2026-08-29 — P14 S1–S3 complete** | P12 | archived → [2026-08-28-P14-camera-plan-footprints.md](../archive/plans/2026-08-28-P14-camera-plan-footprints.md) |
+| P15 | camera-core extraction — slice 1 of the ratified migration review: move `museum/navigation/camera-route.ts` + `camera-motion.ts` (and the minimum compile-required type surface) into `@portfolio/camera-core`, sever the Chopin default, migrate all importers, add source + runtime visitor-boundary pins; zero runtime behavior change for existing production call sites | **approved 2026-08-29 with 4 amendments — slice 1 of the ratified migration review** | P14 + [migration review](2026-08-29-backend-persistence-migration-review.md) | [2026-08-29-P15-camera-core-extraction.md](2026-08-29-P15-camera-core-extraction.md) |
 | — | Branch rejoin — **experiment, no schedule** (rejoin into a later Sequence stop; dead-end return already ships; multi-edge playback would compose P8's edge primitive) | proposed | P8 conceptually | [2026-08-21-branch-rejoin-experiment.md](2026-08-21-branch-rejoin-experiment.md) |
 | … | future work re-registers here | | | |
 
 **Hard gate:** P12 shipped 2026-08-28; core P3B shipped 2026-08-28 after
 P3B.7a/P3B.8 closed. P3B.7b remains deferred and non-blocking. P14 shipped as
-the first work after P3B. P13 remains proposed and unscheduled. Product vision
-lives in the north star.
+the first work after P3B. P13 remains proposed and unscheduled. **P15
+(camera-core extraction) is approved as slice 1 of the ratified migration
+review (2026-08-29)** — the first step toward the editor/visitor/api split.
+Product vision lives in the north star.
 
 Execution order: **P6 → P1 → P8 → P7 → P9 → P2 → P3 → P11** — P1 shipped
 2026-08-21; the owner re-prioritized **P8 ahead of P2** on 2026-08-21
@@ -218,4 +221,4 @@ prefixed.
 P2 §A); the original source files were deleted 2026-08-18. P4/P5 sources were
 removed with the deleted plans 2026-08-27.
 
-**Not archived (active):** this tracker · P13 · the branch-rejoin experiment.
+**Not archived (active):** this tracker · P13 · P15 · the branch-rejoin experiment.

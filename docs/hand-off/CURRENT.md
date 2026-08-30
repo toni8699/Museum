@@ -23,8 +23,15 @@ slice plus one next action only.
 
 ## Next action
 
-- Use the tracker for future work. P13 remains proposed/unscheduled, and
-  P3B.7b remains a deferred, non-blocking acceptance tail.
+- **P15 (camera-core extraction) is approved with 4 amendments** — slice 1 of
+  the ratified migration review
+  ([2026-08-29-backend-persistence-migration-review.md](../plans/2026-08-29-backend-persistence-migration-review.md)
+  §0.3): move `museum/navigation/camera-route.ts` + `camera-motion.ts` into
+  `@portfolio/camera-core` (minimum compile-required type surface only,
+  headless-core boundary, explicit-graph API tightening, source + runtime
+  boundary pins), sever the Chopin default, migrate all importers. P13 remains
+  proposed/unscheduled, and P3B.7b remains a deferred, non-blocking acceptance
+  tail.
 
 ## Verification
 

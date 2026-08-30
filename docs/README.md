@@ -1,10 +1,10 @@
 # Museum docs — context router
 
-**Audience:** agents + humans. **Last reviewed:** 2026-08-30 (P15 shipped; P3B.7b remains deferred; north star holds product vision).
+**Audience:** agents + humans. **Last reviewed:** 2026-08-30 (P16 shipped; P3B.7b remains deferred; north star holds product vision).
 **Bootstrap (hard rules):** [`../AGENTS.md`](../AGENTS.md) ·
 **Plan status / what's next:** [`plans/README.md`](./plans/README.md) (tracker) ·
 **Live working-tree state:** [`hand-off/CURRENT.md`](./hand-off/CURRENT.md) ·
-**Roadmap gate:** P12, core P3B, P14, and P15 are shipped. P3B.7b remains deferred and non-blocking; P13 remains proposed/unscheduled.
+**Roadmap gate:** P12, core P3B, P14, P15, and P16 are shipped. P3B.7b remains deferred and non-blocking; P13 remains proposed/unscheduled.
 
 ## Context discipline (progressive disclosure)
 
@@ -78,8 +78,8 @@ or migrated. Persistence is portable export/import only.
 | Scene entities / materials / lights | [`components/scene-content.md`](./components/scene-content.md) | `apps/museum/src/lib/content/` |
 | Gizmo / placement / transforms | [`components/placement.md`](./components/placement.md) | `apps/museum/src/lib/editor/gizmo/` |
 | Camera / tour / motion | [`components/camera-tour.md`](./components/camera-tour.md) | `packages/camera-core/src/` · visitor components in `apps/museum/src/lib/museum/navigation/` |
-| Persistence / schema / history | [`components/persistence.md`](./components/persistence.md) | `apps/museum/src/lib/project/` · `content/scene-codec/` |
-| Scene codec internals | [`components/scene-codec.md`](./components/scene-codec.md) | `apps/museum/src/lib/content/scene-codec/` |
+| Persistence / schema / history | [`components/persistence.md`](./components/persistence.md) | `packages/project-model/src/` · `packages/layout-core/src/` · app facades |
+| Scene codec internals | [`components/scene-codec.md`](./components/scene-codec.md) | `packages/project-model/src/scene-codec/` · app facade |
 | Assets / catalogue | [`components/assets.md`](./components/assets.md) | `apps/museum/src/lib/content/assets.ts` |
 | Tests | [`../apps/museum/tests/README.md`](../apps/museum/tests/README.md) | |
 

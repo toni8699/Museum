@@ -2,10 +2,15 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, extname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import {
+	compileLayoutGeometry,
+	createEmptyLayoutDocument,
+	validateLayoutDocument
+} from '@portfolio/layout-core';
 
 const srcRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../../src');
 const libRoot = resolve(srcRoot, 'lib');
-const layoutDir = resolve(libRoot, 'layout');
+const layoutDir = resolve(srcRoot, '../../../packages/layout-core/src');
 
 const COMPILER_FILES = readdirSync(layoutDir)
 	.filter((name) => name.startsWith('layout-geometry') && name.endsWith('.ts') && !name.endsWith('.test.ts'))
@@ -34,6 +39,7 @@ function walk(dir: string): string[] {
 const ALL_SOURCE_FILES = walk(libRoot).filter(
 	(file) => !file.includes('.test.') && ['.ts', '.svelte'].includes(extname(file))
 );
+const PACKAGE_SOURCE_FILES = walk(layoutDir).filter((file) => file.endsWith('.ts'));
 
 function sourceOf(file: string): string {
 	return readFileSync(file, 'utf8');
@@ -43,13 +49,19 @@ function importSpecifiers(source: string): string[] {
 	return [...source.matchAll(IMPORT_SPECIFIER)].map((match) => match[1] ?? match[2] ?? '');
 }
 
-function filesDefining(signature: string): string[] {
-	return ALL_SOURCE_FILES.filter((file) => sourceOf(file).includes(signature)).map((file) => file.slice(libRoot.length + 1));
+function packageFilesDefining(signature: string): string[] {
+	return PACKAGE_SOURCE_FILES.filter((file) => sourceOf(file).includes(signature)).map((file) => file.slice(layoutDir.length + 1));
 }
 
 describe('G1 geometry boundary', () => {
+	it('exposes the layout contract directly from layout-core', () => {
+		const document = createEmptyLayoutDocument();
+		expect(validateLayoutDocument(document).success).toBe(true);
+		expect(compileLayoutGeometry(document).issues).toEqual([]);
+	});
+
 	it('keeps the compiler graph free of editor, Svelte, Three, and browser imports', () => {
-		for (const file of COMPILER_FILES) {
+		for (const file of PACKAGE_SOURCE_FILES) {
 			const source = sourceOf(file);
 			for (const specifier of importSpecifiers(source)) {
 				expect(specifier.startsWith('$lib/editor')).toBe(false);
@@ -60,12 +72,12 @@ describe('G1 geometry boundary', () => {
 		}
 	});
 
-	it('defines each geometry kernel exactly once, under $lib/layout', () => {
-		expect(filesDefining('export function sampleSegment')).toEqual(['layout/layout-geometry-curve.ts']);
-		expect(filesDefining('export function compileLayoutGeometry')).toEqual(['layout/layout-geometry.ts']);
-		expect(filesDefining('export function splitWallAroundOpenings')).toEqual(['layout/layout-geometry-openings.ts']);
-		expect(filesDefining('export function splitSampledWallAroundOpenings')).toEqual(['layout/layout-geometry-openings.ts']);
-		expect(filesDefining('export function buildArchProfile')).toEqual(['layout/layout-geometry-openings.ts']);
+	it('defines each geometry kernel exactly once, under layout-core', () => {
+		expect(packageFilesDefining('export function sampleSegment')).toEqual(['layout-geometry-curve.ts']);
+		expect(packageFilesDefining('export function compileLayoutGeometry')).toEqual(['layout-geometry.ts']);
+		expect(packageFilesDefining('export function splitWallAroundOpenings')).toEqual(['layout-geometry-openings.ts']);
+		expect(packageFilesDefining('export function splitSampledWallAroundOpenings')).toEqual(['layout-geometry-openings.ts']);
+		expect(packageFilesDefining('export function buildArchProfile')).toEqual(['layout-geometry-openings.ts']);
 	});
 
 	it('removes all retired resampling helpers', () => {

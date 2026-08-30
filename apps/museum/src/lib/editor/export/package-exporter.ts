@@ -30,8 +30,8 @@ import {
 	type PackageManifest,
 	type PackageManifestTextureEntry,
 	type SupportedMime
-} from '$lib/content/package-format';
-import { sha256Bytes } from '$lib/editor/helpers/package-sha';
+} from '@portfolio/project-model';
+import { sha256Bytes } from '@portfolio/project-model';
 import { sniffImageMime } from '$lib/editor/helpers/mime-sniff';
 import type { SceneDocument, SceneTextureAsset } from '$lib/content/scene';
 

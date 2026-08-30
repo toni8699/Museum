@@ -24,7 +24,7 @@
  * visitor route does not import this module.
  */
 
-import { sha256Bytes } from '$lib/editor/helpers/package-sha';
+import { sha256Bytes } from '@portfolio/project-model';
 
 export type BinaryTextureMime = string;
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { sha256Bytes } from '$lib/editor/helpers/package-sha';
+import { sha256Bytes } from '@portfolio/project-model';
 
 describe('package-sha', () => {
 	it('produces the SHA-256 of an empty buffer as 64-char lowercase hex prefixed sha256-', async () => {

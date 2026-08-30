@@ -1,4 +1,4 @@
-import type { NavigationGraph } from '@portfolio/camera-core';
+import type { NavigationGraph } from '@portfolio/project-model';
 import { getCameraRoute, getNode } from '@portfolio/camera-core';
 import type { SceneObjectPlacement } from '$lib/content/scene';
 import type { RoomId } from '$lib/types/scene';

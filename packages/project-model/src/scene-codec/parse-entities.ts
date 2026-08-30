@@ -11,17 +11,13 @@
  * Tagged `@internal` — never imported outside `scene-codec/`; consumers walk
  * documents through `validateSceneDocument` or `parseSceneDocumentJson`.
  */
-import { getAssetById, isSceneObjectFallback } from '../assets';
-import { isMaterialId } from '../materials';
-import { isSafeTextureUri } from '../texture-uri';
-import type { Vec3 } from '$lib/types/scene';
-import type { MaterialId } from '$lib/types/materials';
 import type {
 	SceneBoxDimensions,
 	SceneCylinderDimensions,
 	SceneEntity,
 	SceneLightEntity,
 	SceneLightKind,
+	MaterialId,
 	SceneModelEntity,
 	SceneMaterialInstance,
 	SceneObjectCluster,
@@ -29,8 +25,10 @@ import type {
 	ScenePrimitiveEntity,
 	ScenePrimitiveKind,
 	SceneSphereDimensions,
-	SceneTextureAsset
+	SceneTextureAsset,
+	Vec3
 } from '../scene';
+import type { ResolvedSceneValidationOptions } from '../scene-validation';
 import type { SceneDocumentIssue } from './index';
 import type { JsonRecord } from './readers';
 import {
@@ -50,10 +48,13 @@ import {
 	readVec3
 } from './readers';
 
+type EntityParserOptions = { allowMaterialInstance: boolean } & ResolvedSceneValidationOptions;
+
 export function parseTextureAsset(
 	input: unknown,
 	path: string,
-	issues: SceneDocumentIssue[]
+	issues: SceneDocumentIssue[],
+	validation: ResolvedSceneValidationOptions
 ): SceneTextureAsset | undefined {
 	if (!isRecord(input)) {
 		addIssue(issues, path, 'invalid_type', 'Expected a texture asset object');
@@ -63,7 +64,8 @@ export function parseTextureAsset(
 	const id = readRequiredString(input, 'id', path, issues);
 	const name = readRequiredString(input, 'name', path, issues);
 	const uri = readRequiredString(input, 'uri', path, issues);
-	if (uri && !isSafeTextureUri(uri)) {
+	const safeUri = uri !== undefined && validation.isSafeTextureUri(uri);
+	if (uri && !safeUri) {
 		addIssue(
 			issues,
 			`${path}.uri`,
@@ -71,14 +73,15 @@ export function parseTextureAsset(
 			'Texture URI must be a safe root-relative public path'
 		);
 	}
-	if (!id || !name || !uri || !isSafeTextureUri(uri)) return undefined;
+	if (!id || !name || !uri || !safeUri) return undefined;
 	return { id, name, uri };
 }
 
 export function parseMaterialInstance(
 	input: unknown,
 	path: string,
-	issues: SceneDocumentIssue[]
+	issues: SceneDocumentIssue[],
+	validation: ResolvedSceneValidationOptions
 ): SceneMaterialInstance | undefined {
 	if (!isRecord(input)) {
 		addIssue(issues, path, 'invalid_type', 'Expected a material instance object');
@@ -94,7 +97,7 @@ export function parseMaterialInstance(
 	const name = readRequiredString(input, 'name', path, issues);
 	const baseMaterialIdRaw = readRequiredString(input, 'baseMaterialId', path, issues);
 	const baseMaterialId =
-		baseMaterialIdRaw && isMaterialId(baseMaterialIdRaw)
+		baseMaterialIdRaw && validation.isKnownMaterialId(baseMaterialIdRaw)
 			? (baseMaterialIdRaw as MaterialId)
 			: undefined;
 	if (baseMaterialIdRaw && !baseMaterialId) {
@@ -203,7 +206,7 @@ export function parseModelEntity(
 	input: JsonRecord,
 	path: string,
 	issues: SceneDocumentIssue[],
-	options: { allowMaterialInstance: boolean }
+	options: EntityParserOptions
 ): SceneModelEntity | undefined {
 	assertAllowedKeys(
 		input,
@@ -226,11 +229,11 @@ export function parseModelEntity(
 	const name = readRequiredString(input, 'name', path, issues);
 	const roomId = readRoomId(input, 'roomId', path, issues);
 	const assetId = readRequiredString(input, 'assetId', path, issues);
-	if (assetId && !getAssetById(assetId)) {
+	if (assetId && !options.isKnownAssetId(assetId)) {
 		addIssue(issues, `${path}.assetId`, 'unknown_asset', `Unknown asset: ${assetId}`);
 	}
 	const fallback = readRequiredString(input, 'fallback', path, issues);
-	if (fallback && !isSceneObjectFallback(fallback)) {
+	if (fallback && !options.isSceneObjectFallback(fallback)) {
 		addIssue(issues, `${path}.fallback`, 'invalid_fallback', `Invalid fallback: ${fallback}`);
 	}
 	const materialInstanceId = options.allowMaterialInstance
@@ -264,7 +267,7 @@ export function parsePrimitiveEntity(
 	input: JsonRecord,
 	path: string,
 	issues: SceneDocumentIssue[],
-	options: { allowMaterialInstance: boolean }
+	options: EntityParserOptions
 ): ScenePrimitiveEntity | undefined {
 	assertAllowedKeys(
 		input,
@@ -303,7 +306,9 @@ export function parsePrimitiveEntity(
 			: parsePrimitiveDimensions(primitive, input.dimensions, `${path}.dimensions`, issues);
 	const materialIdRaw = readRequiredString(input, 'materialId', path, issues);
 	const materialId =
-		materialIdRaw && isMaterialId(materialIdRaw) ? (materialIdRaw as MaterialId) : undefined;
+		materialIdRaw && options.isKnownMaterialId(materialIdRaw)
+			? (materialIdRaw as ScenePrimitiveEntity['materialId'])
+			: undefined;
 	if (materialIdRaw && !materialId) {
 		addIssue(issues, `${path}.materialId`, 'unknown_material', `Unknown material: ${materialIdRaw}`);
 	}
@@ -497,7 +502,7 @@ export function parseEntity(
 	input: unknown,
 	path: string,
 	issues: SceneDocumentIssue[],
-	options: { allowMaterialInstance: boolean }
+	options: EntityParserOptions
 ): SceneEntity | undefined {
 	if (!isRecord(input)) {
 		addIssue(issues, path, 'invalid_type', 'Expected a scene entity object');

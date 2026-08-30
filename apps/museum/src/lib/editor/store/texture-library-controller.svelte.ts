@@ -49,7 +49,7 @@ import type { EditorSelectionActions } from './selection-actions.svelte';
 import type { EditorSessionState } from './session-state.svelte';
 import type { EditorMaterialResourceMutator } from './material-resource-mutator.svelte';
 import { BinaryTextureStore } from './binary-texture-store.svelte';
-import { extensionForMime, isSupportedMime } from '$lib/content/package-format';
+import { extensionForMime, isSupportedMime } from '@portfolio/project-model';
 
 /**
  * Composition-root surface `EditorTextureLibraryController` depends on.

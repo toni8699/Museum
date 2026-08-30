@@ -5,30 +5,27 @@ slice plus one next action only.
 
 ## Working tree
 
-- Current delta: **P15 camera-core extraction — shipped 2026-08-30,
-  uncommitted.** `@portfolio/camera-core` now owns the canonical route/motion
-  engines and their minimum structural camera/graph types. The Chopin graph is
-  explicit at every route call site; the visitor navigation components remain
-  app-owned. Source and built `/museum` visitor-boundary pins are enforced.
-- Previous delta: **P14 Camera Plan passive object footprints — shipped
-  2026-08-29, uncommitted (review fixes 1+2 applied).** Camera Plan now derives
-  the live Scene footprint projection, renders eligible passive footprints
-  below the camera graph, and gives Camera-only layout objects (including
-  imported plan-drawn `profile` objects) the same muted dashed treatment.
-  Footprints resolve the same session-aware placement scale as Scene Plan/3D.
-  No collision, validation, interaction, or geometry changes were added.
+- Current delta: **P16 project-model + layout-core extraction — shipped
+  2026-08-30, uncommitted.** Canonical pure project/scene/layout/package
+  primitives now live in `@portfolio/project-model` and
+  `@portfolio/layout-core`; app paths are compatibility facades/adapters and
+  the package graph remains acyclic.
+- Previous delta: **P15 camera-core extraction — shipped 2026-08-30,
+  uncommitted.** Route/motion execution remains owned by
+  `@portfolio/camera-core`; the visitor and editor share one explicit graph
+  boundary.
 
 ## Next action
 
 - P13 remains proposed/unscheduled, and P3B.7b remains a deferred,
-  non-blocking acceptance tail. P16 is now registered as a proposed
-  project-model + layout-core extraction plan; owner approval is the next gate.
+  non-blocking acceptance tail. No next implementation slice is scheduled.
 
 ## Verification
 
-- Full Vitest: 169 files passed, 1 skipped; 2,284 tests passed, 1 skipped.
+- Full Vitest: 170 files passed, 1 skipped; 2,288 tests passed, 1 skipped.
 - `npm run check`: 0 errors / 0 warnings.
-- `npm run check:camera-core`: passed.
+- `npm run check:camera-core`, `npm run check:layout-core`, and
+  `npm run check:project-model`: passed.
 - `npm run build`: passed; known unused-import and chunk-size warnings only.
 - `verify:visitor-bundle`: passed; `/museum` closure reached no editor entry.
 - Browser QA passed `/museum` Entrance → Poland navigation, `/`, `/editor`,

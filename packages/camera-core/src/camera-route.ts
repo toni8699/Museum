@@ -1,8 +1,8 @@
-import { getNode, type NavigationGraph } from './navigation';
+import { getNode, type CameraGraph } from './navigation';
 import type {
   CameraConnectionDirection,
-  NavigationNodeData,
-  RuntimeConnection,
+  CameraGraphConnection,
+  CameraGraphNode,
   Vec3
 } from './scene-types';
 export type { CameraConnectionDirection } from './scene-types';
@@ -15,7 +15,7 @@ import type {
 } from './camera-motion';
 
 type OrientedConnection = {
-  connection: RuntimeConnection;
+  connection: CameraGraphConnection;
   fromNodeId: string;
   toNodeId: string;
   reversed: boolean;
@@ -54,7 +54,7 @@ export type ResolvedCameraRoute = CameraRoute & {
   edges: CameraRouteEdge[];
 };
 
-function connectedEdges(nodeId: string, graph: NavigationGraph): OrientedConnection[] {
+function connectedEdges(nodeId: string, graph: CameraGraph): OrientedConnection[] {
   const edges: OrientedConnection[] = [];
 
   for (const connection of graph.connections) {
@@ -82,7 +82,7 @@ function connectedEdges(nodeId: string, graph: NavigationGraph): OrientedConnect
 function findConnectionPath(
   fromNodeId: string,
   toNodeId: string,
-  graph: NavigationGraph
+  graph: CameraGraph
 ) {
   const queue: { nodeId: string; path: OrientedConnection[] }[] = [
     { nodeId: fromNodeId, path: [] }
@@ -107,7 +107,7 @@ function findConnectionPath(
 function findDirectConnectionSafe(
   fromNodeId: string,
   toNodeId: string,
-  graph: NavigationGraph
+  graph: CameraGraph
 ): OrientedConnection | undefined {
   const connection = graph.connections.find(
     (candidate) =>
@@ -122,7 +122,7 @@ function findDirectConnectionSafe(
 function findDirectConnection(
   fromNodeId: string,
   toNodeId: string,
-  graph: NavigationGraph
+  graph: CameraGraph
 ): OrientedConnection {
   const direct = findDirectConnectionSafe(fromNodeId, toNodeId, graph);
   if (!direct) {
@@ -182,10 +182,10 @@ function travelFacingTarget(positions: readonly Vec3[], index: number): Vec3 {
 }
 
 function buildLookAheadTargets(
-	fromNodeId: string,
-	toNodeId: string,
-	positions: readonly Vec3[],
-	graph: NavigationGraph,
+  fromNodeId: string,
+  toNodeId: string,
+  positions: readonly Vec3[],
+  graph: CameraGraph,
 	options: { travelFacingEnds?: boolean } = {}
 ): Vec3[] {
 	const lastIndex = positions.length - 1;
@@ -205,7 +205,7 @@ function buildLookAheadTargets(
 
 function buildOrientedViewTrack(
   edge: OrientedConnection,
-  graph: NavigationGraph
+  graph: CameraGraph
 ): CameraRouteViewTrack {
   const startNode = getNode(edge.fromNodeId, graph);
   const endNode = getNode(edge.toNodeId, graph);
@@ -258,7 +258,7 @@ function assertOrientedPathContiguous(path: readonly OrientedConnection[]) {
 
 function buildPositionParts(
   path: readonly OrientedConnection[],
-  graph: NavigationGraph
+  graph: CameraGraph
 ) {
   const parts: CameraPositionPathPart[] = [];
   const routeEdges: CameraRouteEdge[] = [];
@@ -375,7 +375,7 @@ function buildResolvedRoute(
   fromNodeId: string,
   toNodeId: string,
   path: readonly OrientedConnection[],
-  graph: NavigationGraph
+  graph: CameraGraph
 ): ResolvedCameraRoute {
   assertOrientedPathContiguous(path);
   const { parts: positionParts, routeEdges: edges } = buildPositionParts(path, graph);
@@ -395,7 +395,7 @@ function buildResolvedRoute(
 export function getCameraRoute(
   fromNodeId: string,
   toNodeId: string,
-  graph: NavigationGraph
+  graph: CameraGraph
 ): ResolvedCameraRoute {
   if (fromNodeId === toNodeId) {
     const node = getNode(fromNodeId, graph);
@@ -428,7 +428,7 @@ export function getCameraRoute(
 export function getCameraConnectionRoute(
   connectionId: string,
   direction: CameraConnectionDirection,
-  graph: NavigationGraph
+  graph: CameraGraph
 ): ResolvedCameraRoute {
   if (direction !== 'forward' && direction !== 'reverse') {
     throw new Error(`Unknown camera connection direction: ${String(direction)}`);
@@ -451,8 +451,8 @@ export function getCameraConnectionRoute(
 }
 
 type FlowChain = {
-  head: NavigationNodeData;
-  tail: NavigationNodeData;
+  head: CameraGraphNode;
+  tail: CameraGraphNode;
   nodeIds: string[];
   path: OrientedConnection[];
   connectionIds: ReadonlySet<string>;
@@ -476,7 +476,7 @@ export type FlowRouteResolution = {
  * (the derived chain never takes the closing edge). Order links choose
  * topology; this never substitutes a BFS path for a missing flow edge.
  */
-function walkFlowChain(startNodeId: string, graph: NavigationGraph): FlowChain {
+function walkFlowChain(startNodeId: string, graph: CameraGraph): FlowChain {
   const start = getNode(startNodeId, graph);
   if (start.nextNodeId === undefined) {
     throw new Error(`Camera node ${startNodeId} is not on the flow (no nextNodeId)`);
@@ -541,7 +541,7 @@ function flowGapError(gap: FlowRouteGap) {
 function appendFlowLoop(
   chain: FlowChain,
   path: OrientedConnection[],
-  graph: NavigationGraph
+  graph: CameraGraph
 ) {
   const closing = findDirectConnectionSafe(chain.tail.id, chain.head.id, graph);
   if (!closing || chain.connectionIds.has(closing.connection.id)) {
@@ -554,7 +554,7 @@ function appendFlowLoop(
 /** Resolve ordered flow while retaining any evaluable prefix before a gap. */
 export function resolveFlowRoute(
   startNodeId: string,
-  graph: NavigationGraph,
+  graph: CameraGraph,
   options: { loop?: boolean } = {}
 ): FlowRouteResolution {
   const chain = walkFlowChain(startNodeId, graph);
@@ -586,7 +586,7 @@ export function resolveFlowRoute(
  */
 export function getFlowLoopConnectionId(
   startNodeId: string,
-  graph: NavigationGraph
+  graph: CameraGraph
 ): string | null {
   const chain = walkFlowChain(startNodeId, graph);
   if (chain.gap) throw flowGapError(chain.gap);
@@ -604,7 +604,7 @@ export function getFlowLoopConnectionId(
  */
 export function getFlowRoute(
   startNodeId: string,
-  graph: NavigationGraph,
+  graph: CameraGraph,
   options: { loop?: boolean } = {}
 ): ResolvedCameraRoute {
   const resolution = resolveFlowRoute(startNodeId, graph, options);
@@ -615,9 +615,9 @@ export function getFlowRoute(
   return resolution.route;
 }
 
-/** Phase 3.7: project a connection's authored timing pair onto per-direction motion options consumed by `createCameraMotion`. Accepts persisted (`SceneConnection`) and runtime (`RuntimeConnection`) records — only `timing` is read. */
+/** Phase 3.7: project a connection's authored timing pair onto per-direction motion options consumed by `createCameraMotion`. Only `timing` is read. */
 export function getCameraMotionOptions(
-  connection: Pick<RuntimeConnection, 'timing'>,
+  connection: Pick<CameraGraphConnection, 'timing'>,
   direction: CameraConnectionDirection
 ): CameraMotionOptions {
   const timing = connection.timing?.[direction];

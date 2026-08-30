@@ -10,7 +10,7 @@ import {
 	sanitizeFilename,
 	type PackageManifest,
 	type PackageManifestTextureEntry
-} from '$lib/content/package-format';
+} from '@portfolio/project-model';
 
 describe('package-format', () => {
 	describe('derivePackageId', () => {

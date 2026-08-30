@@ -8,9 +8,9 @@
     Vector3
   } from 'three';
   import {
-    getNode,
-    type NavigationGraph
+    getNode
   } from '@portfolio/camera-core';
+  import type { NavigationGraph } from '@portfolio/project-model';
   import { navigationGraph } from '$lib/content/chopin-project';
   import {
     runtimeState,

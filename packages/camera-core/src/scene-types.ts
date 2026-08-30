@@ -26,8 +26,8 @@ export const CAMERA_EASING: readonly CameraEasing[] = [
   'ease-in-out'
 ] as const;
 
-/** TEMPORARY TYPE HOME → project-model. Keep this structural in P15. */
-export type NavigationNodeData = {
+/** Structural graph input consumed by camera routing. */
+export type CameraGraphNode = {
   id: string;
   roomId: string;
   label: string;
@@ -42,8 +42,7 @@ export type NavigationNodeData = {
   holdSeconds?: number;
 };
 
-/** TEMPORARY TYPE HOME → project-model. Runtime view data stays structural. */
-export type RuntimeCameraViewKeyframe = {
+export type CameraViewKeyframe = {
   id: string;
   progress: number;
   cameraTarget: Vec3;
@@ -52,55 +51,56 @@ export type RuntimeCameraViewKeyframe = {
   easing?: CameraEasing;
 };
 
-/** TEMPORARY TYPE HOME → project-model. */
-export type RuntimeCameraFramingEnvelope = {
+export type CameraFramingEnvelope = {
   enterStart: number;
   enterEnd: number;
   exitStart: number;
   exitEnd: number;
 };
 
-export type RuntimeConnectionViewTracks = Record<
+export type CameraConnectionViewTracks = Record<
   CameraConnectionDirection,
-  RuntimeCameraViewKeyframe[]
+  CameraViewKeyframe[]
 > & {
   framingEnvelope?: Partial<
-    Record<CameraConnectionDirection, RuntimeCameraFramingEnvelope>
+    Record<CameraConnectionDirection, CameraFramingEnvelope>
   >;
 };
 
-export type RuntimePathAnchor = {
+export type CameraPathAnchor = {
   id: string;
   position: Vec3;
 };
 
-export type RuntimePositionPath =
+export type CameraPositionPath =
   | {
       kind: 'rounded-polyline';
-      anchors: RuntimePathAnchor[];
+      anchors: CameraPathAnchor[];
     }
   | {
       kind: 'auto-bezier';
-      anchors: RuntimePathAnchor[];
+      anchors: CameraPathAnchor[];
     };
 
-/** TEMPORARY TYPE HOME → project-model. Only camera-consumed fields live here. */
-export type RuntimeConnection = {
+export type CameraConnectionTiming = {
+  forward?: {
+    durationSeconds?: number;
+    easing?: CameraEasing;
+  };
+  reverse?: {
+    durationSeconds?: number;
+    easing?: CameraEasing;
+  };
+};
+
+/** Structural connection input consumed by camera routing/motion. */
+export type CameraGraphConnection = {
   id: string;
   fromNodeId: string;
   toNodeId: string;
-  positionPath: RuntimePositionPath;
-  viewTracks?: RuntimeConnectionViewTracks;
+  positionPath: CameraPositionPath;
+  viewTracks?: CameraConnectionViewTracks;
   targetWaypoints?: Vec3[];
   clearance: number;
-  timing?: {
-    forward?: {
-      durationSeconds?: number;
-      easing?: CameraEasing;
-    };
-    reverse?: {
-      durationSeconds?: number;
-      easing?: CameraEasing;
-    };
-  };
+  timing?: CameraConnectionTiming;
 };

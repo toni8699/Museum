@@ -7,8 +7,8 @@ import {
   CAMERA_FOV,
   createCameraMotionSample,
   getNode,
-  type NavigationGraph,
-  type NavigationNodeData
+  type CameraGraph,
+  type CameraGraphNode
 } from '@portfolio/camera-core';
 
 const appSrc = resolve(dirname(fileURLToPath(import.meta.url)), '../../../src');
@@ -34,7 +34,7 @@ function sourceFiles(root: string): string[] {
 
 describe('camera-core package boundary', () => {
   it('exposes the camera API directly without an app shim', () => {
-    const node: NavigationNodeData = {
+    const node: CameraGraphNode = {
       id: 'node',
       roomId: 'room',
       label: 'Node',
@@ -43,7 +43,7 @@ describe('camera-core package boundary', () => {
       fov: CAMERA_FOV.default,
       connectedNodeIds: []
     };
-    const graph: NavigationGraph = {
+    const graph: CameraGraph = {
       navigationNodes: [node],
       connections: [],
       nodeById: new Map([[node.id, node]])
@@ -62,6 +62,7 @@ describe('camera-core package boundary', () => {
       expect(source, file).not.toMatch(
         /(?:from|import\()\s*['"][^'"]*(?:\$lib|chopin-project|@threlte|svelte)(?:\/|['"])/
       );
+      expect(source, file).not.toMatch(/@portfolio\/project-model/);
       expect(source, file).not.toMatch(
         /(?:from|import\()\s*['"](?:three\/(?:addons|examples)|@threlte|svelte)/
       );

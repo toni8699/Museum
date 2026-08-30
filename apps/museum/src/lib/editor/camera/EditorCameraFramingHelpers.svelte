@@ -147,8 +147,8 @@
 			hide();
 			return;
 		}
-		eye.set(...pose.position);
-		target.set(...pose.target);
+		eye.set(pose.position[0], pose.position[1], pose.position[2]);
+		target.set(pose.target[0], pose.target[1], pose.target[2]);
 		if (eye.distanceToSquared(target) <= 1e-12) {
 			hide();
 			return;

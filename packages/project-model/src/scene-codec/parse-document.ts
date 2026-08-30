@@ -18,7 +18,7 @@ import {
 	type RoomId,
 	type SceneConnectionTiming,
 	type Vec3
-} from '$lib/types/scene';
+} from '../scene';
 import type {
 	CameraFramingEnvelope,
 	SceneDocument,

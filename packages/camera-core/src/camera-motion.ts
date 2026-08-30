@@ -11,7 +11,7 @@ import {
   CAMERA_FOV,
   type CameraConnectionDirection,
   type CameraEasing,
-  type RuntimeCameraFramingEnvelope
+  type CameraFramingEnvelope
 } from './scene-types';
 
 export type Vector3Like =
@@ -59,7 +59,7 @@ export type CameraRouteViewTrack = {
   /** Generated from the oriented destination node; never persisted. */
   end: CameraRouteView;
   /** Direction-owned travel-relative automatic/authored framing blend bounds. */
-  framingEnvelope?: RuntimeCameraFramingEnvelope;
+  framingEnvelope?: CameraFramingEnvelope;
 };
 
 export type CameraRouteEdge = {
@@ -237,7 +237,7 @@ type PreparedCameraRouteViewTrack = {
   start: PreparedCameraRouteView;
   keyframes: PreparedCameraRouteViewKeyframe[];
   end: PreparedCameraRouteView;
-  framingEnvelope?: RuntimeCameraFramingEnvelope;
+  framingEnvelope?: CameraFramingEnvelope;
 };
 
 type PreparedCameraRouteEdge = Omit<
@@ -258,7 +258,7 @@ type CameraMotionEdgeView = {
   points: CameraMotionViewPoint[];
   automaticTargetPath: CurvePath<Vector3> | null;
   hasAuthoredKeyframes: boolean;
-  framingEnvelope?: RuntimeCameraFramingEnvelope;
+  framingEnvelope?: CameraFramingEnvelope;
   guard: CameraFramingGuard | null;
 };
 
@@ -1111,7 +1111,7 @@ export function smootherstepRamp(
 }
 
 export function sampleFramingEnvelopeWeight(
-  envelope: RuntimeCameraFramingEnvelope,
+  envelope: CameraFramingEnvelope,
   progress: number
 ) {
   const enterWeight = smootherstepRamp(
@@ -1674,7 +1674,7 @@ function continueSingularDirections(samples: RawCameraFramingGuardSample[]) {
 
 function limitFramingAngularRate(
   samples: RawCameraFramingGuardSample[],
-  envelope: RuntimeCameraFramingEnvelope
+  envelope: CameraFramingEnvelope
 ) {
   const cumulativeAngles = [0];
   for (let index = 1; index < samples.length; index += 1) {

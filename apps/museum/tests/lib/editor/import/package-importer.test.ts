@@ -4,9 +4,9 @@ import { importPackage } from '$lib/editor/import/package-importer';
 import {
 	REWRITE_URI_PREFIX,
 	derivePackageId
-} from '$lib/content/package-format';
+} from '@portfolio/project-model';
 import { parseSceneDocumentJson } from '$lib/content/scene-codec';
-import { sha256Bytes } from '$lib/editor/helpers/package-sha';
+import { sha256Bytes } from '@portfolio/project-model';
 import baseSceneFixture from '$lib/content/scene.json';
 
 async function buildMinimalValidPackage(): Promise<Uint8Array> {

@@ -21,11 +21,12 @@ Editor (greenfield)          /museum (frozen Chopin relic)
 
 | Concern | Source of truth |
 |---------|-----------------|
-| Rooms, frames, boundaries, openings | `project.layout` / `LayoutDocument` |
+| Rooms, frames, boundaries, openings | `project.layout` / `LayoutDocument` (`@portfolio/layout-core`) |
 | Rough parametric layout objects | `project.layout.objects` |
-| Scene models, primitives, lights, materials | `project.scene` / `SceneDocument` |
+| Scene models, primitives, lights, materials | `project.scene` / `SceneDocument` (`@portfolio/project-model`) |
 | Camera nodes, connections, paths, view tracks | `project.scene` |
-| Derived geometry | pure `compileLayoutGeometry()` |
+| Derived geometry | pure `compileLayoutGeometry()` (`@portfolio/layout-core`) |
+| Project/scene validation, codecs, room semantics, runtime graph | `@portfolio/project-model` |
 | Plan presentation | `CompiledLayoutGeometry` → `PlanRenderModel` → `PlanSvg.svelte` |
 | 3D wall meshes | `wall-mesh-builder` → `wall-geometry-adapter` |
 | Camera route/motion | `@portfolio/camera-core` (`camera-route.ts` + `camera-motion.ts`) only |
@@ -43,14 +44,15 @@ are never serialized.
 | Entities / materials / lights | [`components/scene-content.md`](./components/scene-content.md) | `apps/museum/src/lib/content/` |
 | Gizmo / placement / transforms | [`components/placement.md`](./components/placement.md) | `apps/museum/src/lib/editor/gizmo/` |
 | Camera / tour / motion | [`components/camera-tour.md`](./components/camera-tour.md) | `packages/camera-core/src/` · visitor components in `apps/museum/src/lib/museum/navigation/` |
-| Persistence / schema / history | [`components/persistence.md`](./components/persistence.md) | `apps/museum/src/lib/project/` · `content/scene-codec/` |
-| Scene codec internals | [`components/scene-codec.md`](./components/scene-codec.md) | `apps/museum/src/lib/content/scene-codec/` |
+| Persistence / schema / history | [`components/persistence.md`](./components/persistence.md) | `packages/project-model/src/` · `packages/layout-core/src/` · app facades |
+| Scene codec internals | [`components/scene-codec.md`](./components/scene-codec.md) | `packages/project-model/src/scene-codec/` · app facade |
 | Assets / catalogue | [`components/assets.md`](./components/assets.md) | `apps/museum/src/lib/content/assets.ts` |
 
 ## Geometry boundary
 
 `LayoutDocument` = authored semantic CAD. `CompiledLayoutGeometry` = derived,
-cacheable, renderer-neutral, never serialized. No SVG strings, `THREE.*`, DOM,
+cacheable, renderer-neutral, never serialized; both are owned by
+`@portfolio/layout-core`. No SVG strings, `THREE.*`, DOM,
 WebGL/WebGPU handles, materials, cameras, or UI state below the layout
 boundary. Plan and unified 3D consume the same compile; no consumer resamples
 curves or reinterprets opening topology. The Three adapter owns buffers,

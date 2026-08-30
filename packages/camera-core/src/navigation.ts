@@ -1,13 +1,13 @@
-import type { NavigationNodeData, RuntimeConnection } from './scene-types';
+import type { CameraGraphConnection, CameraGraphNode } from './scene-types';
 
 /** TEMPORARY TYPE HOME → project-model. Structural graph input for camera-core. */
-export type NavigationGraph = {
-  navigationNodes: readonly NavigationNodeData[];
-  connections: readonly RuntimeConnection[];
-  nodeById: ReadonlyMap<string, NavigationNodeData>;
+export type CameraGraph = {
+  navigationNodes: readonly CameraGraphNode[];
+  connections: readonly CameraGraphConnection[];
+  nodeById: ReadonlyMap<string, CameraGraphNode>;
 };
 
-export function getNode(id: string, graph: NavigationGraph): NavigationNodeData {
+export function getNode(id: string, graph: CameraGraph): CameraGraphNode {
   const node = graph.nodeById.get(id);
   if (!node) throw new Error(`Unknown navigation node: ${id}`);
   return node;

@@ -3,10 +3,7 @@ export type RoomId = string;
 
 export type TourMode = 'guided' | 'free';
 
-import {
-  CAMERA_EASING,
-  CAMERA_FOV
-} from '@portfolio/camera-core';
+import { CAMERA_EASING, CAMERA_FOV } from '@portfolio/camera-core';
 import type {
   CameraConnectionDirection,
   CameraEasing,
@@ -18,7 +15,7 @@ import type {
   RuntimePathAnchor,
   RuntimePositionPath,
   Vec3
-} from '@portfolio/camera-core';
+} from '@portfolio/project-model';
 
 export { CAMERA_EASING, CAMERA_FOV };
 export type {

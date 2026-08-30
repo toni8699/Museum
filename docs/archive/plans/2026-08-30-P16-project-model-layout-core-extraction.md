@@ -1,7 +1,7 @@
 # P16 — project-model + layout-core extraction (slice 2 of the ratified migration)
 
-**Status:** `proposed` — implementation plan drafted 2026-08-30; owner approval
-required before implementation.
+**Status:** `shipped` — S0–S5 complete 2026-08-30; package extraction,
+boundary pins, parity checks, and browser smoke all pass.
 **Depends on:** P15 (shipped 2026-08-30) + the ratified
 [backend/persistence migration review](2026-08-29-backend-persistence-migration-review.md)
 §0.2, pass 2.
@@ -122,9 +122,74 @@ package may import `apps/museum` or any `editor/**` implementation.
 - Any new scene/layout schema field, generated endpoint persistence, automatic
   room adjacency inference, or second graph/geometry implementation.
 
+## S0 recorded inventory (opened 2026-08-30)
+
+The inventory was produced from the current tree with `rg -l` over
+`apps/museum/src` and `apps/museum/tests`; paths below are the direct-import
+surfaces, not transitive dependants.
+
+| Current seam | Final owner | Direct production importers | Direct test importers / source readers |
+| --- | --- | --- | --- |
+| `content/scene.ts` | `project-model`, except catalogue-backed placement adapters | editor `*.svelte*`, editor camera/store modules, `content/chopin-project.ts`, `content/chopin-room-presentation.ts`, `museum/**`, `state/runtime-state.svelte.ts`, `project/**`, benches, and `content/rooms-to-layout.ts` | `tests/lib/content/**`, editor app/camera/store/layout/project tests, layout fixture tests, museum navigation/paris/state tests; `editor/app/contracts.test.ts` and `museum/visitor-import-boundary.test.ts` read source/import graphs |
+| `content/scene-codec/` | `project-model` codec barrel + private parser siblings | `editor/EditorProjectMenu.svelte`, editor document/import/export/store modules, `project/project-codec.ts` | content scene/fixture tests, editor app/import/store/layout tests; `editor/app/contracts.test.ts` reads implementation paths |
+| `layout/layout-types.ts`, `layout/layout-codec.ts`, `layout/layout-room-frame.ts`, `layout/layout-portals.ts` | `layout-core` | `content/chopin-layout.ts`, `content/rooms-to-layout.ts`, `content/chopin-project.ts`, `project/**`, editor layout/gizmo/camera/plan modules, museum layout, benches | content Chopin tests, editor layout/gizmo/project tests, layout fixtures/codec/frame/portal/plan/wall tests; `layout/layout-geometry-boundary.test.ts` reads ownership paths |
+| `layout/layout-geometry*.ts` | `layout-core` | `content/chopin-project.ts`, benches, routes/dev/perf, editor camera/layout/plan modules, museum layout, plus `wall-mesh-builder.ts` as app adapter | layout geometry/golden/parity/fixture/plan/shared-wall/wall tests, editor layout/camera/plan tests, bench/render boundary tests; `layout/layout-geometry-boundary.test.ts`, `plan-render-boundary.test.ts`, and `wall-mesh-builder.test.ts` read source |
+| `project/project-types.ts`, `project/project-codec.ts`, `project/project-layout-semantics.ts` | `project-model` | `content/chopin-project.ts`, `content/chopin-room-presentation.ts`, editor app/store/layout/gizmo/camera modules, museum runtime/render modules | content Chopin tests, editor app/camera/layout/project/store tests, museum visitor tests; contract/boundary tests read source |
+| `content/package-format.ts` | `project-model` | editor import/export, MIME helper, texture-library/project-export stores | content package-format and editor package round-trip/import tests |
+| `editor/helpers/package-sha.ts` | `project-model` | `content/package-format.ts`, editor import/export/binary-texture store | editor package-sha/import tests |
+
+### S0 ownership decisions
+
+- `Project` becomes the temporary compatibility alias of final
+  `ProjectDocument`; serialized keys stay `{ id, name, layout, scene }`.
+- `SceneDocument`, authored scene entities/resources/clusters, camera nodes,
+  connections, path/view/timing data, `RuntimeScene`, `SceneRoomResolver`,
+  `createNavigationGraph`, and graph identity assertions belong to
+  `project-model`. `NavigationGraph`/`getNode` currently re-exported by
+  `camera-core` are temporary homes and will be reduced to structural camera
+  execution inputs after model types land.
+- `Vec3` is a structural tuple in package contracts; the durable scene/model
+  alias is exported by `project-model`. `layout-core` owns its layout-local
+  tuple/geometry types and does not import back into the model package.
+- `SceneObjectPlacement`, `placementToModelEntity`, asset/material IDs,
+  catalogue lookups, fallback predicates, and texture-URI policy remain
+  museum adapters. The model codec will receive optional pure validation
+  predicates for known assets/materials/fallbacks and safe texture URIs.
+- `LayoutDocument` and all renderer-neutral layout geometry/compiler/query
+  helpers belong to `layout-core`. `plan-render-model.ts`, editor session and
+  interaction modules, `PlanSvg.svelte`, `wall-mesh-builder.ts`, and all Three/
+  Svelte ownership remain in the app.
+- `chopin-project.ts`, `chopin-layout.ts`, `rooms-to-layout.ts`, presentation
+  metadata, `rooms.ts`, and the visitor FSM remain app/fixture composition;
+  the packages do not import Chopin, catalogue, editor, Svelte, Threlte, DOM,
+  or renderer handles.
+
+### S0 frozen fixture baseline
+
+- `src/lib/content/chopin-project.json`: 45,586 bytes;
+  SHA-256 `f0d69396d096133e0d08437e299fa08c8dce143a0acdb41e77f64d053b3a6a16`.
+- Existing parity anchors: `content/chopin-project.test.ts` locks canonical
+  bytes, seven room frames, seven explicit portal relations, resolved
+  node/connection identity, and fresh generated endpoints; it also asserts
+  room-reference issue paths. `layout-geometry-golden.test.ts` locks the
+  checked-in Chopin geometry plus G1/G2 fixture outputs.
+- Package anchors: `content/package-format.test.ts`,
+  `editor/helpers/package-sha.test.ts`, and
+  `editor/export/package-roundtrip-smoke.test.ts` lock manifest/fingerprint,
+  hard-break filename/URI rules, and byte round-trips.
+- Non-import source readers to migrate or update are
+  `editor/app/contracts.test.ts`, `museum/camera-core-boundary.test.ts`,
+  `museum/visitor-import-boundary.test.ts`, `layout/layout-geometry-boundary.test.ts`,
+  `layout/plan-render-boundary.test.ts`, `layout/wall-mesh-builder.test.ts`,
+  and `src/lib/bench/record-baseline.ts`.
+
+**S0 gate state:** closed 2026-08-30. The package graph is acyclic, every
+moved symbol has one owner, the catalogue seam is explicit, fixture
+hashes/anchors are recorded, and package boundary tests are machine-checked.
+
 ## Slices
 
-### S0 — Pre-inventory and ownership gate
+### S0 — Pre-inventory and ownership gate — complete
 
 No implementation move starts until this inventory is recorded in the plan
 closeout notes or an attached code comment where the source is the authority.
@@ -163,7 +228,7 @@ closeout notes or an attached code comment where the source is the authority.
 current JSON and geometry fixtures are captured, and no unresolved catalogue
 or `Project`/`ProjectDocument` decision remains.
 
-### S1 — Package skeletons and public contracts
+### S1 — Package skeletons and public contracts — complete
 
 - Create `packages/project-model` and `packages/layout-core` using the
   workspace/package conventions established by `camera-core`:
@@ -187,7 +252,7 @@ or `Project`/`ProjectDocument` decision remains.
   imports from both packages. Pure Three math is allowed only in camera-core;
   layout-core and the model codecs remain Three-free.
 
-### S2 — Extract layout-core
+### S2 — Extract layout-core — complete
 
 Move the shared layout leaf without moving editor interaction or renderer
 ownership:
@@ -218,7 +283,7 @@ goldens/parity, plan-render boundary tests, performance fixtures, and the
 checked-in Chopin geometry all match the pre-extraction results. The package
 has no Svelte, DOM, Three, editor, or visitor-fixture import.
 
-### S3 — Extract project-model document types and codecs
+### S3 — Extract project-model document types and codecs — complete
 
 - Move the canonical scene model types and pure helpers from `content/scene.ts`
   into project-model: `SceneDocument`, authored node/connection/path/view
@@ -260,7 +325,7 @@ tests pass with identical semantic results. `serializeProject` and
 checked-in fixtures; runtime endpoint arrays are fresh and absent from
 serialized documents.
 
-### S4 — Relocate package format and SHA helper
+### S4 — Relocate package format and SHA helper — complete
 
 - Move the pure `sha256Bytes` implementation into project-model and export it
   from the package barrel. Keep the cross-runtime `globalThis.crypto.subtle`
@@ -280,7 +345,7 @@ serialized documents.
 verification, and editor archive tests pass; a source scan finds no
 `content/package-format.ts → editor/**` edge and no duplicate SHA helper.
 
-### S5 — Integration verification and closeout
+### S5 — Integration verification and closeout — complete
 
 Run and record all of the following before marking P16 shipped:
 
@@ -349,6 +414,30 @@ P16 is complete only when all of these are true:
 - No `apps/editor`, `apps/api`, backend, auth, Save/Load, R2, runtime, or
   collaboration surface has been introduced.
 
+## Closeout (2026-08-30)
+
+- Added standalone `@portfolio/layout-core` and `@portfolio/project-model`
+  packages with explicit workspace exports and checks. Layout model/codec,
+  renderer-neutral geometry, room-frame/portal semantics, scene/project model
+  and codecs, room resolution/graph construction, package format, and SHA
+  primitives now have one package owner.
+- Left app paths as thin facades/adapters where compatibility or museum
+  catalogue policy requires them. Camera-core now exposes only structural
+  `CameraGraph*` execution inputs; durable scene/runtime types live in
+  project-model. No package imports app, editor, Svelte, Threlte, DOM, or
+  renderer handles; camera-core has no project-model edge.
+- Added direct package/boundary coverage and preserved the existing source
+  readers. The checked-in JSON, generated-endpoint freshness, graph identity,
+  geometry goldens, package manifest/fingerprint, and visitor closure remain
+  pinned by the existing tests.
+- Verification: `npm test` — 170 files passed, 1 skipped; 2,288 tests passed,
+  1 skipped. Root `npm run check`, `npm run check:camera-core`,
+  `npm run check:layout-core`, and `npm run check:project-model` pass;
+  `npm run build` passes with existing dependency/chunk warnings;
+  `npm run verify:visitor-bundle -w @portfolio/museum` passes. Browser smoke
+  passed `/museum` Entrance → Poland navigation, `/`, `/editor`, and
+  `/museum/editor` mounting.
+
 ## Rollback and fallback split
 
 - If S0 finds that extracting layout-core with project-model creates a cycle,
@@ -367,4 +456,3 @@ P16 is complete only when all of these are true:
   facade boundary. Restore the old app import path through a re-export shim
   while correcting the package; do not alter the production JSON contract or
   route/motion behavior to make the extraction compile.
-

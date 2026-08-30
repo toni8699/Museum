@@ -13,7 +13,7 @@
  * the manifest's `mime` matches the actual bytes (image-format trust).
  */
 
-import type { SupportedMime } from '$lib/content/package-format';
+import type { SupportedMime } from '@portfolio/project-model';
 
 export function sniffImageMime(bytes: Uint8Array): SupportedMime | null {
 	if (bytes.length >= 8) {

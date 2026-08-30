@@ -19,7 +19,7 @@ import { buildPackage } from '$lib/editor/export/package-exporter';
 import { importPackage } from '$lib/editor/import/package-importer';
 import {
 	REWRITE_URI_PREFIX
-} from '$lib/content/package-format';
+} from '@portfolio/project-model';
 import baseSceneFixture from '$lib/content/scene.json';
 import type { SceneDocument, SceneTextureAsset } from '$lib/content/scene';
 

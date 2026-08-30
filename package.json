@@ -13,6 +13,8 @@
     "build:museum": "npm run build -w @portfolio/museum",
     "check": "npm run check -w @portfolio/museum",
     "check:camera-core": "npm run check -w @portfolio/camera-core",
+    "check:layout-core": "npm run check -w @portfolio/layout-core",
+    "check:project-model": "npm run check -w @portfolio/project-model",
     "test": "npm run test -w @portfolio/museum"
   },
   "engines": {

@@ -1,6 +1,11 @@
 import type { CameraGraphConnection, CameraGraphNode } from './scene-types';
 
-/** TEMPORARY TYPE HOME → project-model. Structural graph input for camera-core. */
+/**
+ * Structural graph input for camera-core (P16 final state — stays here).
+ * Durable scene/runtime model types live in @portfolio/project-model; this
+ * package intentionally keeps its own minimal structural shape so the
+ * dependency stays one-way (camera-core never imports project-model).
+ */
 export type CameraGraph = {
   navigationNodes: readonly CameraGraphNode[];
   connections: readonly CameraGraphConnection[];

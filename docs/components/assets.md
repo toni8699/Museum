@@ -8,10 +8,10 @@
 
 | Stage | Location |
 |-------|----------|
-| Source models | `apps/museum/assets-source/models/` |
-| Licences | `apps/museum/assets-source/licenses/` |
+| Source models | `apps/editor/assets-source/models/` |
+| Licences | `apps/editor/assets-source/licenses/` |
 | Production GLBs | `apps/museum/static/museum/models/` |
-| Manifest | `apps/museum/src/lib/content/assets.ts` |
+| Manifest | app-local `src/lib/content/assets.ts` |
 | Placements | `scene.json` via editor |
 
 `AssetModel.svelte` owns load/clone/fallback. Do not add room-local GLTF loaders.  

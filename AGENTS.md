@@ -6,9 +6,9 @@ Conflict: **`docs/` component files + hub win** over this file for product detai
 
 ## Repo facts
 
-- npm workspaces; **only app** `@portfolio/museum`.
+- npm workspaces; apps are `@portfolio/editor` and read-only `@portfolio/museum`.
 - “Camera” = **3D guided PerspectiveCamera navigation**, not webcam.
-- Root `dev` / `build` / `check` / `test` target museum only.
+- Root `dev` / `test` target editor; root `build` / `check` cover both apps.
 
 ## Hard rules
 

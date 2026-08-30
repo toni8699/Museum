@@ -6,7 +6,7 @@ For a specific surface, go straight to the matching contract doc (table below).
 ## Two isolated lanes
 
 ```text
-Editor (greenfield)          /museum (frozen Chopin relic)
+apps/editor (greenfield)     apps/museum (frozen Chopin visitor)
   New Project → Plan → 3D        checked-in chopin-project.json + runtime
   → portable export/import       /museum/editor = frozen legacy editor relic
 ```
@@ -16,6 +16,20 @@ Editor (greenfield)          /museum (frozen Chopin relic)
 - The editor ships in production builds (no build-flag gating).
 - Shared visitor-safe geometry/render modules may serve both lanes; session,
   selection, hierarchy, gizmo, import, and asset-store code stay editor-only.
+
+## Platform boundary
+
+| Concern | Ratified owner |
+|---------|-----------------|
+| API runtime + compute | Fastify + TypeScript on Render |
+| Platform/database state | Neon Postgres |
+| Heavy asset bytes | Cloudflare R2 |
+| Identity authentication | Managed auth provider |
+| Product/project authorization | Fastify + Postgres |
+
+P18 provisions only the Render API and Neon database through secret
+`DATABASE_URL`. R2 and managed-auth integration remain later slices. The auth
+provider proves identity; it never owns project permissions.
 
 ## Ownership
 
@@ -40,13 +54,13 @@ are never serialized.
 
 | Working on… | Read | Key source |
 |---|---|---|
-| Shell / workspaces / timeline | [`components/shell.md`](./components/shell.md) | `apps/museum/src/lib/editor/app/` |
-| Entities / materials / lights | [`components/scene-content.md`](./components/scene-content.md) | `apps/museum/src/lib/content/` |
-| Gizmo / placement / transforms | [`components/placement.md`](./components/placement.md) | `apps/museum/src/lib/editor/gizmo/` |
+| Shell / workspaces / timeline | [`components/shell.md`](./components/shell.md) | `apps/editor/src/lib/editor/app/` |
+| Entities / materials / lights | [`components/scene-content.md`](./components/scene-content.md) | app-local `src/lib/content/` facades |
+| Gizmo / placement / transforms | [`components/placement.md`](./components/placement.md) | `apps/editor/src/lib/editor/gizmo/` |
 | Camera / tour / motion | [`components/camera-tour.md`](./components/camera-tour.md) | `packages/camera-core/src/` · visitor components in `apps/museum/src/lib/museum/navigation/` |
 | Persistence / schema / history | [`components/persistence.md`](./components/persistence.md) | `packages/project-model/src/` · `packages/layout-core/src/` · app facades |
 | Scene codec internals | [`components/scene-codec.md`](./components/scene-codec.md) | `packages/project-model/src/scene-codec/` · app facade |
-| Assets / catalogue | [`components/assets.md`](./components/assets.md) | `apps/museum/src/lib/content/assets.ts` |
+| Assets / catalogue | [`components/assets.md`](./components/assets.md) | app-local `src/lib/content/assets.ts` |
 
 ## Geometry boundary
 

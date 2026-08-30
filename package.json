@@ -7,15 +7,17 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "npm run dev:museum",
+    "dev": "npm run dev:editor",
+    "dev:editor": "npm run dev -w @portfolio/editor",
     "dev:museum": "npm run dev -w @portfolio/museum",
-    "build": "npm run build:museum",
+    "build": "npm run build:editor && npm run build:museum",
+    "build:editor": "npm run build -w @portfolio/editor",
     "build:museum": "npm run build -w @portfolio/museum",
-    "check": "npm run check -w @portfolio/museum",
+    "check": "npm run check -w @portfolio/editor && npm run check -w @portfolio/museum",
     "check:camera-core": "npm run check -w @portfolio/camera-core",
     "check:layout-core": "npm run check -w @portfolio/layout-core",
     "check:project-model": "npm run check -w @portfolio/project-model",
-    "test": "npm run test -w @portfolio/museum"
+    "test": "npm run test -w @portfolio/editor"
   },
   "engines": {
     "node": ">=20"

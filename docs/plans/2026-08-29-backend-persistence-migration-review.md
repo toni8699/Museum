@@ -7,6 +7,9 @@ a decision-support doc). Archive on acceptance.
 and resolved all open decisions (§0). P15 (the `camera-core` extraction) was
 approved **with 4 amendments** recorded in §0.3; later slices build on this
 record.
+**Platform amendment:** **2026-08-30** — owner superseded the prior database
+choice with Neon Postgres and ratified managed identity auth as the future auth
+boundary; Render remains API compute and R2 remains object storage.
 **Date:** 2026-08-29. **Trigger:** proposal to split `apps/museum` into
 `apps/editor` + `apps/museum` (visitor) + `apps/api`, extract shared packages,
 and add DB-backed persistence.
@@ -46,22 +49,26 @@ closed — see the ratification in §0.
    with relic behavior preserved — no architectural fork. Final removal is an
    explicit future product decision, never an accidental consequence of the
    split.
-5. **Backend:** TypeScript + **Fastify** on **Render**; **Render Postgres**;
-   **Cloudflare R2** for object storage. Conventional Node service (not
-   edge/serverless) so future background workers stay straightforward. Backend
-   consumes `@portfolio/project-model`. Python/Rust workers only when a real
-   workload demands them.
-6. **Persistence:** Postgres owns platform state + versioned semantic documents
-   (`users`, `projects`, `project_versions`, `assets`, `published_versions`
-   later); `project_versions` stores the serialized `ProjectDocument` as JSONB.
+5. **Platform:** TypeScript + **Fastify** on **Render**; **Neon Postgres**;
+   **Cloudflare R2** for object storage; a **managed auth provider** for identity
+   authentication. Conventional Node service (not edge/serverless) so future
+   background workers stay straightforward. Backend consumes
+   `@portfolio/project-model`. Python/Rust workers only when a real workload
+   demands them. Managed auth proves identity; Fastify + Postgres own product
+   authorization and project permissions.
+6. **Persistence:** Neon Postgres owns platform state + versioned semantic
+   documents (`users`, `projects`, `project_versions`, `assets`,
+   `published_versions` later); `project_versions` stores the serialized
+   `ProjectDocument` as JSONB.
    **Never** normalize into `walls` / `scene_objects` / `camera_nodes` /
    `path_anchors` tables — that would create a second scene model. R2 owns heavy
    bytes (GLB, textures, images, audio, video, thumbnails); DB owns identity,
    metadata, provenance/license/import state, and storage references. Supports
    built-in/procedural (no R2 object), uploaded, and provider-imported assets.
-7. **First auth/persistence scope:** single-user auth/ownership only. Durable
-   model `User → Projects (metadata + ProjectVersions) → Assets`; first workflow
-   is Save → persist → reload → Load restores the same project. **Deferred:**
+7. **First auth/persistence scope:** managed identity auth plus single-user
+   product ownership only. Durable model
+   `User → Projects (metadata + ProjectVersions) → Assets`; first workflow is
+   Save → persist → reload → Load restores the same project. **Deferred:**
    teams, memberships, collaboration, billing, realtime presence, complex
    permissions.
 
@@ -89,9 +96,11 @@ closed — see the ratification in §0.
    relic entry (or explicitly deprecate later). One topological restructure of
    `apps/*`; CI verifies the visitor-safe dependency closure and the editor-free
    `/museum` runtime.
-4. **Backend-provisioning pass — `apps/api` (Fastify) + Render Postgres.**
-   Create the API service and add the database together (same Render
-   provisioning); backend consumes `@portfolio/project-model`.
+4. **Backend-provisioning pass — Render `apps/api` (Fastify) + Neon Postgres.**
+   Provision Neon separately, pass its `DATABASE_URL` to the Render service as
+   an unmanaged secret, and keep both regions geographically close where
+   practical; backend consumes `@portfolio/project-model`. No R2 bucket or
+   managed-auth integration in this pass.
 5. **First persistence slice — project Save/Load + minimal ownership.**
    Implement Save/Load, project versions, and single-user auth/ownership only.
    Right-sized per §0.1.7/§5.3.
@@ -279,9 +288,8 @@ as a gated editor entry (or deprecate/redirect it) rather than a frozen fork.
 1. **Frozen-relic fate.** Keep `/museum/editor` as an editor relic entry
    (status quo) vs. deprecate/redirect into the live editor. Decide explicitly;
    silent removal is a product change.
-2. **Backend stack + deploy topology.** Three apps means three SvelteKit
-   apps/adapters (currently a single `adapter-auto`). Name the API framework
-   (Hono? Node?) and how editor/museum/api each ship.
+2. **Backend stack + deploy topology.** Three deployables need explicit hosts.
+   Name the API framework and how editor/museum/api/database each ship.
 3. **Auth is the biggest new surface — right-size the first slice.**
    Consider single-user/local (or storage-backed) Save/Load before full DB +
    auth (sessions/ownership/memberships).
@@ -307,9 +315,10 @@ with the Pass 2 extraction, not with `camera-core`):
 4. Split the editor app; trim editor→visitor imports — same App-split pass.
 5. Decide relic fate explicitly (keep as gated editor relic entry or
    deprecate/redirect) — folded into the App-split pass.
-6. Backend-provisioning pass (`apps/api` + Postgres), then the first
-   persistence slice (Save/Load + minimal ownership), then R2 asset storage.
-   Defer `runtime`/`api-contract`/`player` and full auth until real need.
+6. Backend-provisioning pass (Render `apps/api` + Neon Postgres), then the first
+   persistence slice (Save/Load + managed identity + minimal ownership), then
+   R2 asset storage. Defer `runtime`/`api-contract`/`player` and broader auth
+   until real need.
 
 ## 7. Open decisions — resolved
 
@@ -317,8 +326,10 @@ All four open decisions were resolved by the owner on 2026-08-29 (§0.1):
 
 - Fork vs. pinned-share → **pinned-share** (§0.1.1).
 - The `/museum/editor` relic fate → **gated relic entry, no fork** (§0.1.4).
-- Backend stack + deploy → **Fastify / Render / Postgres / R2** (§0.1.5).
-- Auth scope for the first slice → **single-user Save/Load only** (§0.1.7).
+- Platform stack + deploy → **Fastify / Render / Neon Postgres / R2 / managed
+  identity auth** (§0.1.5).
+- Auth scope for the first slice → **managed identity + single-user Save/Load
+  authorization only** (§0.1.7).
 
 §6 remains the ratified execution sequence; §0.2 is the authoritative numbered
 order.

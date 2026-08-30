@@ -5,9 +5,7 @@ Layout-first editor for indoor 3D. Draw a floor plan. Place openings and objects
 Local-first: everything works offline in your browser, and save/load runs
 through portable export/import. Accounts, cloud project save, and hosted
 publish are part of the final product vision (see [`docs/north-star.md`](docs/north-star.md))
-— not yet scheduled. The roadmap is gated: the current camera timeline (P12)
-and orientation/preview QA (P3B) must close before anything else is
-implemented. The server, when it arrives, stays an optional sync/save/publish
+— not yet scheduled. The server, when it arrives, stays an optional sync/save/publish
 target and never becomes a boot dependency.
 
 ## Example
@@ -36,8 +34,15 @@ npm run dev
 ```
 
 - `/` or `/editor`: main editor. 2D CAD plan -> 3D render
-- `/museum`: legacy code. Chopin museum preview
 - `/museum/editor`: legacy editor
+
+The read-only visitor is a separate app:
+
+```bash
+npm run dev:museum
+```
+
+- `/museum`: frozen Chopin museum visitor
 
 ```bash
 npm run build   # production build

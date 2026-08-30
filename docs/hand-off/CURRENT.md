@@ -5,20 +5,28 @@ slice plus one next action only.
 
 ## Working tree
 
-- Current delta: **P16 project-model + layout-core extraction — shipped
-  2026-08-30, uncommitted.** Canonical pure project/scene/layout/package
-  primitives now live in `@portfolio/project-model` and
-  `@portfolio/layout-core`; app paths are compatibility facades/adapters and
-  the package graph remains acyclic.
-- Previous delta: **P15 camera-core extraction — shipped 2026-08-30,
-  uncommitted.** Route/motion execution remains owned by
-  `@portfolio/camera-core`; the visitor and editor share one explicit graph
-  boundary.
+- Current planning delta: **P18 backend provisioning — planned and registered,
+  no implementation started.** The plan scopes Slice 4 to a Render-hosted
+  `apps/api`, separately provisioned Neon Postgres through secret
+  `DATABASE_URL`, and live/ready health checks; persistence remains a later
+  slice. R2 and managed auth are ratified future boundaries, not P18 work.
+- Current delta: **P17 editor / visitor app split — shipped 2026-08-30,
+  uncommitted.**
+  `apps/editor` owns the authoring routes and gated relic;
+  `apps/museum` owns only the read-only `/museum` visitor.
+- Visitor-app cleanup (uncommitted): removed dead monolith leftovers from
+  `apps/museum/src` — legacy `content/rooms*`/`chopin-layout`, unused
+  facade/render files, editor placement/material-preview components, the
+  dead `virtual:museum-editor-entry` ambient declaration, and dangling
+  `sourceFile` manifest metadata.
 
 ## Next action
 
-- P13 remains proposed/unscheduled, and P3B.7b remains a deferred,
-  non-blocking acceptance tail. No next implementation slice is scheduled.
+- Implement [P18](../plans/2026-08-30-P18-backend-provisioning.md), starting
+  with P18.0's boundary inventory. Confirm Neon and Render names, nearby
+  regions, and plans with the owner before provisioning or creating paid
+  resources. P13 remains proposed/unscheduled; P3B.7b remains deferred and
+  non-blocking.
 
 ## Verification
 
@@ -26,10 +34,12 @@ slice plus one next action only.
 - `npm run check`: 0 errors / 0 warnings.
 - `npm run check:camera-core`, `npm run check:layout-core`, and
   `npm run check:project-model`: passed.
-- `npm run build`: passed; known unused-import and chunk-size warnings only.
-- `verify:visitor-bundle`: passed; `/museum` closure reached no editor entry.
-- Browser QA passed `/museum` Entrance → Poland navigation, `/`, `/editor`,
-  and `/museum/editor` mounting.
+- `npm run build`: both app builds passed; known unused-import and chunk-size
+  warnings only.
+- `verify:visitor-bundle`: passed; standalone `/museum` reached 4 server and
+  9 client entries with no editor entry.
+- Browser QA passed standalone `/museum` Entrance → Poland navigation and
+  editor `/`, `/editor`, and `/museum/editor` mounting.
 
 ## Known bugs / deferred
 

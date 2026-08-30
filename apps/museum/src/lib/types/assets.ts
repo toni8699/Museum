@@ -52,7 +52,6 @@ export type Asset = {
   id: AssetId;
   name: string;
   category: AssetCategory;
-  sourceFile?: string;
   productionFile?: string;
   sourceUrl?: string;
   creator?: string;

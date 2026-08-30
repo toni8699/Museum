@@ -1,12 +1,12 @@
 # P18 — backend provisioning
 
-**Status:** planned — ready to implement. **Date:** 2026-08-30.
+**Status:** in-progress. **Date:** 2026-08-30.
 **Depends on:** P17. **Source:** backend/persistence migration review, Slice 4 /
 Backend-provisioning pass.
 
 ## Outcome
 
-Ship a deployable `@portfolio/api` Fastify service on Render and a Neon
+Ship a deployable `@museum/api` Fastify service on Render and a Neon
 Postgres database wired to it through `DATABASE_URL`. The service exposes
 separate liveness and database-backed readiness checks, starts from the npm
 workspace, and leaves the next persistence slice a stable process/deployment
@@ -50,7 +50,7 @@ Fastify and Postgres continue to own project permissions.
 
 ## Service and lifecycle contract
 
-- Add `apps/api` / `@portfolio/api` as a pure TypeScript Node service. Keep
+- Add `apps/api` / `@museum/api` as a pure TypeScript Node service. Keep
   app construction separate from process startup so tests never bind a port.
 - `GET /health/live` returns success when the Fastify process is responsive;
   it does not query Postgres.
@@ -68,12 +68,12 @@ Fastify and Postgres continue to own project permissions.
 
 ```text
 Render
-└─ @portfolio/api
+└─ @museum/api
       │ DATABASE_URL secret
       ▼
    Neon Postgres
 
-Future: @portfolio/api → Cloudflare R2 + managed auth provider
+Future: @museum/api → Cloudflare R2 + managed auth provider
 ```
 
 - Add one root `render.yaml` Blueprint containing only the API web service.

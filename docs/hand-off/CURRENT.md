@@ -5,11 +5,15 @@ slice plus one next action only.
 
 ## Working tree
 
-- Current planning delta: **P18 backend provisioning — planned and registered,
-  no implementation started.** The plan scopes Slice 4 to a Render-hosted
+- Current planning delta: **P18 backend provisioning — in progress.** The plan
+  scopes Slice 4 to a Render-hosted
   `apps/api`, separately provisioned Neon Postgres through secret
   `DATABASE_URL`, and live/ready health checks; persistence remains a later
   slice. R2 and managed auth are ratified future boundaries, not P18 work.
+- Current delta: **P18 local API boundary implemented, uncommitted.** Added the
+  Fastify workspace, bounded Postgres pool/readiness check, guarded shutdown,
+  Node-native tests, canonical document type pin, and API-only Render
+  Blueprint. No Neon or Render resource has been provisioned or synced.
 - Current delta: **P17 editor / visitor app split — shipped 2026-08-30,
   uncommitted.**
   `apps/editor` owns the authoring routes and gated relic;
@@ -22,11 +26,9 @@ slice plus one next action only.
 
 ## Next action
 
-- Implement [P18](../plans/2026-08-30-P18-backend-provisioning.md), starting
-  with P18.0's boundary inventory. Confirm Neon and Render names, nearby
-  regions, and plans with the owner before provisioning or creating paid
-  resources. P13 remains proposed/unscheduled; P3B.7b remains deferred and
-  non-blocking.
+- Confirm owner-approved Render service name/region/plan and supply a Neon
+  `DATABASE_URL`; then sync/provision and run the live/ready smoke. P13 remains
+  proposed/unscheduled; P3B.7b remains deferred and non-blocking.
 
 ## Verification
 
@@ -34,6 +36,8 @@ slice plus one next action only.
 - `npm run check`: 0 errors / 0 warnings.
 - `npm run check:camera-core`, `npm run check:layout-core`, and
   `npm run check:project-model`: passed.
+- API: `check:api`, `test:api` (6 passed), and `build:api` passed. Real Neon
+  smoke remains unrun because `DATABASE_URL` is absent.
 - `npm run build`: both app builds passed; known unused-import and chunk-size
   warnings only.
 - `verify:visitor-bundle`: passed; standalone `/museum` reached 4 server and
@@ -52,6 +56,8 @@ slice plus one next action only.
   `cameraPlan` and `layoutInteraction`; static checking is clean.
 - A browser axe audit still reports generic editor color-contrast review items
   in empty/status text and SVG labels; these are outside the closed P3B gate.
+- P18 Render/Neon provisioning and real-database smoke await owner-approved
+  resource values and credentials.
 
 ## Traps
 

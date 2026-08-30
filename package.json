@@ -9,15 +9,19 @@
   "scripts": {
     "dev": "npm run dev:editor",
     "dev:editor": "npm run dev -w @portfolio/editor",
+    "dev:api": "npm run dev -w @museum/api",
     "dev:museum": "npm run dev -w @portfolio/museum",
     "build": "npm run build:editor && npm run build:museum",
+    "build:api": "npm run build -w @museum/api",
     "build:editor": "npm run build -w @portfolio/editor",
     "build:museum": "npm run build -w @portfolio/museum",
     "check": "npm run check -w @portfolio/editor && npm run check -w @portfolio/museum",
+    "check:api": "npm run check -w @museum/api",
     "check:camera-core": "npm run check -w @portfolio/camera-core",
     "check:layout-core": "npm run check -w @portfolio/layout-core",
     "check:project-model": "npm run check -w @portfolio/project-model",
-    "test": "npm run test -w @portfolio/editor"
+    "test": "npm run test -w @portfolio/editor",
+    "test:api": "npm run test -w @museum/api"
   },
   "engines": {
     "node": ">=20"

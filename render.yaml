@@ -1,0 +1,14 @@
+# Candidate P18 values; confirm the service name, region, and plan before the
+# first Render sync or any paid resource is created.
+services:
+  - type: web
+    name: museum-api
+    runtime: node
+    region: ohio
+    plan: starter
+    buildCommand: npm ci && npm run build:api
+    startCommand: npm run start -w @museum/api
+    healthCheckPath: /health/live
+    envVars:
+      - key: DATABASE_URL
+        sync: false

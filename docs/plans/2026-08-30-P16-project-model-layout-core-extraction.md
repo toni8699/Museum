@@ -1,0 +1,370 @@
+# P16 — project-model + layout-core extraction (slice 2 of the ratified migration)
+
+**Status:** `proposed` — implementation plan drafted 2026-08-30; owner approval
+required before implementation.
+**Depends on:** P15 (shipped 2026-08-30) + the ratified
+[backend/persistence migration review](2026-08-29-backend-persistence-migration-review.md)
+§0.2, pass 2.
+**Baseline:** P15's `@portfolio/camera-core` package, explicit graph-taking
+camera APIs, visitor source/runtime boundary pins, and the current
+`chopin-project.json`/Scene v6 contract.
+
+## Goal
+
+Extract the canonical, pure document and layout primitives from
+`apps/museum` into shared packages:
+
+- `@portfolio/project-model` owns the project/scene semantic model, project
+  validation and codec, scene validation and codec, room-reference semantics,
+  room-resolved scene projection, navigation-graph construction, and the pure
+  portable package/fingerprint primitives.
+- `@portfolio/layout-core` owns the shared authored-layout leaf and its pure
+  geometry compiler: layout types/codec, room-frame transforms, portal
+  projection, compiled geometry, geometry validation, curve/opening helpers,
+  and query geometry.
+
+The editor and visitor continue to consume one canonical implementation. The
+existing app files become thin compatibility facades, fixture composition, or
+renderer/editor adapters. JSON shapes, canonical serialization, generated
+endpoint rules, route/motion behavior, and all current production surfaces
+remain unchanged.
+
+This is a package extraction only. It does not split `apps/museum`, create
+`apps/editor` or `apps/api`, add Save/Load, provision Postgres/R2, or create a
+generic `runtime`/`api-contract` package.
+
+## Ratified boundary decisions carried into P16
+
+1. **One-way camera dependency.** `@portfolio/camera-core` stays independent
+   of `@portfolio/project-model`. It may expose small structural execution
+   inputs for camera routes and motion. `project-model` may consume those
+   inputs/pure camera math, but camera-core never imports project-model.
+2. **Durable model types leave the P15 temporary home.** The P15 temporary
+   `NavigationNodeData`, runtime connection/view/path types, and model-level
+   tuple aliases move to their final model package. Camera-core retains only
+   the minimum structural input types needed to execute a route or motion.
+   The package must not retain a second durable scene model.
+3. **No generated data is promoted to the document.** Scene endpoints inserted
+   by `resolveSceneDocument` remain fresh runtime values. They are never
+   emitted by a serializer, stored in a package, or added to a history entry.
+4. **Layout is semantic; geometry is derived.** `LayoutDocument` remains the
+   authored source. `CompiledLayoutGeometry` remains deterministic,
+   renderer-handle-free, and non-serialized. `wall-mesh-builder` and Three
+   resource ownership remain app adapters.
+5. **Catalogue and renderer dependencies stay outside the model.** The
+   project-model package cannot import the museum asset catalogue, material
+   catalogue, editor helpers, Svelte, Threlte, DOM, or Three scene objects.
+   If codec checks need catalogue knowledge, the package exposes a small
+   validator/context seam and the museum facade supplies the existing
+   catalogue predicates. No asset binary is added to the model envelope.
+6. **No schema redesign.** The current project envelope remains
+   `{ id, name, layout, scene }`; layout and scene keep their current
+   canonical shapes, strict unknown-key behavior, array ordering, and
+   no-version-field rules. P16 may relocate existing compatibility helpers,
+   but it does not invent a version field or activate migrations.
+7. **No app topology change.** `/`, `/editor`, `/museum`, and
+   `/museum/editor` remain in the current app. The later app-split pass owns
+   the route move and the stronger whole-app visitor source pin.
+
+## Package graph
+
+The recommended graph is deliberately acyclic:
+
+```text
+@portfolio/camera-core       @portfolio/layout-core
+          │                         │
+          └────────────┬────────────┘
+                       ▼
+              @portfolio/project-model
+                       ▼
+                 apps/museum
+```
+
+`layout-core` is the layout leaf: it owns the layout document shape and the
+layout-only codec/geometry implementation, while `project-model` re-exports
+the canonical layout contract as part of the project surface. This keeps the
+room-transform/geometry implementation from depending back on
+project-model. `project-model` owns the cross-document project rules and may
+use `layout-core`'s room registry plus camera-core's pure path math. No
+package may import `apps/museum` or any `editor/**` implementation.
+
+## Scope
+
+### In
+
+- New pure TypeScript workspace packages:
+  `packages/project-model` and `packages/layout-core`.
+- Relocation of the authored layout model, layout codec, pure geometry
+  compiler/validation, room transforms, and portal projection.
+- Relocation of the scene model, scene codec, project model/codec, project
+  room-reference and world-space camera-pose validation, scene resolution, and
+  navigation graph construction.
+- Relocation of `content/package-format.ts` and
+  `editor/helpers/package-sha.ts` into project-model-owned portable package
+  primitives, removing the `package-format → editor` dependency.
+- App compatibility facades and importer migration so existing editor,
+  visitor, fixture, and test call sites keep their current behavior while the
+  implementation lives in the packages.
+- Standalone package checks, package boundary tests, canonical JSON/geometry
+  parity tests, and the existing visitor source/runtime bundle checks.
+- Ownership documentation updates after the extraction is verified.
+
+### Out
+
+- `apps/editor` creation or any route/app split.
+- `/museum/editor` relic fork, relocation, removal, or behavior change.
+- Fastify, Render, Postgres, R2, authentication, Save/Load, project versions,
+  or API contracts.
+- A generic `player` or Svelte `runtime` package.
+- Editor session state, selection, history, gizmos, hover, Arrange gestures,
+  UI components, Threlte components, Three objects/materials, or binary asset
+  storage.
+- Any new scene/layout schema field, generated endpoint persistence, automatic
+  room adjacency inference, or second graph/geometry implementation.
+
+## Slices
+
+### S0 — Pre-inventory and ownership gate
+
+No implementation move starts until this inventory is recorded in the plan
+closeout notes or an attached code comment where the source is the authority.
+
+- Enumerate every direct importer of the current seams:
+  `content/scene.ts`, `content/scene-codec/`, `layout/layout-types.ts`,
+  `layout/layout-codec.ts`, `layout/layout-geometry*`,
+  `layout/layout-room-frame.ts`, `layout/layout-portals.ts`,
+  `project/project-*.ts`, `content/package-format.ts`, and
+  `editor/helpers/package-sha.ts`.
+- Classify each exported symbol as `project-model`, `layout-core`,
+  `camera-core structural input`, `museum catalogue/fixture`, or
+  `editor-only`. The inventory must explicitly classify `Project` versus the
+  final `ProjectDocument` name, `RuntimeScene`, `NavigationGraph`,
+  `SceneRoomResolver`, all `Runtime*` camera types, `Vec3`, material/fallback
+  IDs, and every helper currently importing `assets`, `materials`, or
+  `texture-uri`.
+- Confirm the package graph has no cycle. If a symbol would make
+  `layout-core ↔ project-model`, keep the layout leaf's implementation and
+  expose a structural interface rather than adding a package back-edge.
+- Record the exact app/test path list and non-import source readers, including
+  contract tests that inspect implementation paths. Distinguish compatibility
+  facades from moved implementations.
+- Freeze before/after fixtures for:
+  `chopin-project.json` canonical bytes, the seven Chopin room frames and
+  portal relations, resolved node/connection identity, generated endpoint
+  exclusion, geometry golden outputs, and package manifest/fingerprint output.
+- Decide the codec adapter boundary. The recommended public seam is a pure
+  `SceneValidationOptions`/context with optional predicates for known asset
+  IDs, known material IDs, and safe texture URIs. The museum facade passes the
+  existing predicates so current unknown-asset/material and unsafe-URI errors
+  retain their exact codes and paths; the shared package remains usable by a
+  future backend without importing the catalogue.
+
+**Gate:** every moved symbol has one owner, every package edge is one-way, the
+current JSON and geometry fixtures are captured, and no unresolved catalogue
+or `Project`/`ProjectDocument` decision remains.
+
+### S1 — Package skeletons and public contracts
+
+- Create `packages/project-model` and `packages/layout-core` using the
+  workspace/package conventions established by `camera-core`:
+  `type: module`, explicit `exports`, `files: ["src"]`, standalone
+  `tsconfig.json`, and a `check` script.
+- Add matching workspace dependencies and lockfile entries. Add root
+  `check:project-model` and `check:layout-core` commands without changing the
+  root commands' museum target.
+- Establish public barrels. Internal parser/geometry siblings remain private
+  behind their package barrel, matching the existing scene-codec contract.
+- Make the final public naming explicit. Prefer `ProjectDocument` as the
+  durable package name with `Project` as a temporary compatibility alias if
+  the current app surface still needs it; do not change serialized keys or
+  force an unrelated editor-wide rename.
+- Define package-local structural camera inputs in camera-core as needed by
+  route/motion. Remove P15's temporary model-shaped types from camera-core
+  only after the model equivalents and all adapters compile. The resulting
+  camera-core source must contain no project-model import.
+- Add boundary tests that import each public barrel directly and reject
+  `$lib`, `editor/**`, Svelte, Threlte, DOM, renderer-handle, and app-catalogue
+  imports from both packages. Pure Three math is allowed only in camera-core;
+  layout-core and the model codecs remain Three-free.
+
+### S2 — Extract layout-core
+
+Move the shared layout leaf without moving editor interaction or renderer
+ownership:
+
+- Move `layout-types.ts` and `layout-codec.ts` into the layout-core public
+  contract. Preserve `units: 'meters'`, explicit room frames, normalized yaw,
+  meter-based opening offsets, explicit door portal pairs, profile-object
+  round trips, strict unknown-key rejection, and canonical ordering.
+- Move the pure geometry modules:
+  `layout-geometry.ts`, `layout-geometry-types.ts`,
+  `layout-geometry-curve.ts`, `layout-geometry-openings.ts`,
+  `layout-geometry-objects.ts`, `layout-geometry-queries.ts`, and
+  `layout-geometry-validation.ts`.
+- Move `layout-room-frame.ts` and `layout-portals.ts` so world/local frame
+  conversion and explicit portal projection have one owner.
+- Keep `plan-render-model.ts`, `PlanSvg.svelte`, editor preview/session state,
+  gizmo/hit/interaction modules, and `wall-mesh-builder.ts` in the app. The
+  latter consumes compiled geometry and owns Three buffers/materials/raycast
+  identity; it must not move into layout-core.
+- Update app imports to `@portfolio/layout-core` (or a documented app facade
+  that only re-exports package symbols). No production importer may retain a
+  second local implementation.
+- Preserve geometry cache-key/identity behavior and the single compile path
+  used by Plan, editor 3D, visitor 3D, and camera-plan footprints.
+
+**S2 acceptance:** layout codec tests, layout-room-frame tests, geometry
+goldens/parity, plan-render boundary tests, performance fixtures, and the
+checked-in Chopin geometry all match the pre-extraction results. The package
+has no Svelte, DOM, Three, editor, or visitor-fixture import.
+
+### S3 — Extract project-model document types and codecs
+
+- Move the canonical scene model types and pure helpers from `content/scene.ts`
+  into project-model: `SceneDocument`, authored node/connection/path/view
+  types, entities/resources/clusters, `RuntimeScene`, empty-document creation,
+  cloning, type guards, scene resolution, and graph construction/assertion.
+- Move the five-file scene codec as one public surface, preserving its exact
+  issue codes/paths, canonical deep-clone behavior, directional view tracks,
+  framing-envelope validation, strict v6 shape, and no-generated-endpoint
+  serialization rule.
+- Move `project-types.ts`, `project-codec.ts`, and the cross-document semantic
+  checks currently in `project-layout-semantics.ts`. The project codec must
+  continue to validate nested layout and scene documents, prefix nested issue
+  paths, reject unknown room references, and repeat camera-pose/envelope
+  checks at the project boundary.
+- Keep the project room registry on the model side, backed by layout-core's
+  room/frame semantics. It must continue to provide one registry and one
+  resolved scene instance to `chopin-project.ts`; graph identity assertions
+  remain enforced.
+- Keep `chopin-project.ts` as the app-owned checked-in fixture/runtime
+  composition. It validates the raw fixture once, creates the model registry,
+  resolves the scene, builds the graph, and compiles geometry through the
+  packages. It does not move Chopin presentation metadata or the hardcoded
+  visitor FSM into project-model.
+- Keep renderer/catalogue adapters in the app. In particular, any
+  `getAssetById`-based naming or material rendering behavior remains in the
+  museum app; model validation receives pure predicates/context instead of
+  importing the catalogue.
+- Add app facades at the old `$lib` paths only where they preserve existing
+  import ergonomics. Facades may configure museum validation options and
+  re-export package types; they may not contain a copied codec/resolver.
+- Migrate direct production and test consumers to package barrels where no
+  app-specific adapter is needed. Update source-reading contract tests to
+  assert package ownership rather than old implementation paths.
+
+**S3 acceptance:** all scene/project codec, scene resolution, Chopin fixture,
+editor document-store/history, camera graph, importer/exporter, and visitor
+tests pass with identical semantic results. `serializeProject` and
+`serializeSceneDocument` produce byte-identical canonical output for the
+checked-in fixtures; runtime endpoint arrays are fresh and absent from
+serialized documents.
+
+### S4 — Relocate package format and SHA helper
+
+- Move the pure `sha256Bytes` implementation into project-model and export it
+  from the package barrel. Keep the cross-runtime `globalThis.crypto.subtle`
+  behavior and `sha256-<lowercase-hex>` format.
+- Move the pure manifest/id/filename helpers from
+  `content/package-format.ts` into project-model. Preserve the hard-break
+  `.scenepack.zip` format, `manifest.json`/texture path conventions, MIME
+  allow-list, filename sanitization, collision suffixes, deterministic package
+  IDs, and timestamp formatting.
+- Keep ZIP/Blob/File/browser orchestration in editor import/export modules.
+  Those modules consume project-model primitives; project-model must never
+  import the editor to obtain hashing or package helpers.
+- Remove the old editor helper implementation after all importers and tests
+  migrate. If a compatibility path is retained, it is a re-export shim only.
+
+**S4 acceptance:** package-format, package SHA, package round-trip, texture
+verification, and editor archive tests pass; a source scan finds no
+`content/package-format.ts → editor/**` edge and no duplicate SHA helper.
+
+### S5 — Integration verification and closeout
+
+Run and record all of the following before marking P16 shipped:
+
+- `npm run check:project-model`
+- `npm run check:layout-core`
+- `npm test`
+- `npm run check` with 0 errors and 0 warnings
+- `npm run build`
+- `npm run verify:visitor-bundle -w @portfolio/museum` after the build
+- Browser smoke for `/museum` visitor navigation, `/`, `/editor`, and the
+  `/museum/editor` relic entry.
+
+Add or retain separate boundary pins:
+
+- package source scans: no `$lib`, `editor/**`, Svelte, Threlte, DOM, or
+  renderer-handle imports in project-model/layout-core; no project-model edge
+  in camera-core;
+- visitor source scan: `src/lib/museum/**` remains editor-free;
+- built `/museum` closure scan: no reachable editor entry/chunk, including
+  `EditorApp` and `virtual:museum-editor-entry`.
+
+Update the live docs only after the checks pass:
+`docs/README.md`, `docs/architecture.md`,
+`docs/components/persistence.md`, `docs/components/scene-codec.md`, the
+camera/layout ownership pointers, `docs/hand-off/CURRENT.md`, and the plan
+tracker. On close, mark P16 shipped, move this plan to
+`docs/archive/plans/`, and leave the tracker's one-line archive stub.
+
+## Files and ownership
+
+| Area | Planned change |
+| --- | --- |
+| `packages/project-model/` | New package for project/scene types, scene/project codecs, cross-document validation, room-resolved runtime projection, graph construction, package format, and SHA helper. |
+| `packages/layout-core/` | New package for layout types/codec, room-frame transforms, portal projection, compiled geometry/types, curve/opening/object/query helpers, and geometry validation. |
+| `packages/camera-core/` | Replace P15 temporary model-shaped inputs with minimal structural execution inputs; retain route/motion ownership and no reverse model dependency. |
+| `apps/museum/src/lib/content/scene.ts` | Thin app facade/adapters over project-model; retain only museum catalogue/renderer-specific placement helpers if required. |
+| `apps/museum/src/lib/content/scene-codec/` | Facade or migrated test boundary over the project-model scene codec; no copied parser implementation. |
+| `apps/museum/src/lib/layout/` | Facades for package symbols; keep Plan presentation, wall mesh/Three adapters, and editor-only interaction local. |
+| `apps/museum/src/lib/project/` | Facades or editor integration over project-model; no duplicate project codec or cross-document semantic implementation. |
+| `apps/museum/src/lib/content/chopin-project.ts` | App-owned fixture/presentation/runtime composition using the packages. |
+| `apps/museum/src/lib/content/package-format.ts`, `apps/museum/src/lib/editor/helpers/package-sha.ts` | Move pure implementation to project-model; remove the editor leak and leave only re-export compatibility if needed. |
+| `apps/museum/tests/` and package boundary tests | Keep integration/golden coverage, migrate imports, add direct package and boundary coverage, and update source readers. |
+| `package.json`, app manifests, `package-lock.json` | Register both workspaces, package dependencies, and standalone checks without changing root museum targets. |
+| `docs/` and `apps/museum/src/lib/editor/README.md` | Update ownership pointers only after implementation verification. |
+
+## Acceptance contract
+
+P16 is complete only when all of these are true:
+
+- There is exactly one project/scene codec, one room-resolution path, one
+  navigation graph builder, and one layout geometry compiler.
+- `@portfolio/project-model` and `@portfolio/layout-core` compile standalone,
+  are pure TypeScript, and import no app/editor/UI/rendering code.
+- `@portfolio/camera-core` imports no project-model and continues to own the
+  only route/motion engines; all graph-taking calls remain explicit.
+- `chopin-project.json` and the current Scene v6/layout documents round-trip
+  canonically with unchanged bytes, issue paths, array order, and optional
+  field behavior.
+- Resolved camera positions, view targets, graph identity, room transforms,
+  geometry identities, and generated endpoint freshness match the current
+  tests; no generated endpoint is serialized.
+- Editor package import/export still works, but hashing/package-format
+  primitives no longer reach into `editor/helpers`.
+- The visitor still mounts and navigates, the editor and relic still mount,
+  and the built `/museum` route closure contains no editor code.
+- No `apps/editor`, `apps/api`, backend, auth, Save/Load, R2, runtime, or
+  collaboration surface has been introduced.
+
+## Rollback and fallback split
+
+- If S0 finds that extracting layout-core with project-model creates a cycle,
+  land the leaf layout package first and keep project-model's public facade
+  pointed at it; never copy the compiler or add a reverse package edge.
+- If catalogue validation cannot be made package-neutral without changing
+  current errors, keep the existing museum codec facade as a thin configured
+  adapter and defer only the backend-neutral validator context. The canonical
+  model and codec implementation still must not import the catalogue.
+- If the combined pass is too broad after inventory, split before S2 into
+  **P16a: project-model + package-sha/package-format** and a separately
+  registered layout-core increment. Preserve the same package graph, facades,
+  fixtures, and boundary gates; do not begin the app-split pass until both
+  leaves are green.
+- Any failed parity or visitor-boundary check stops the slice at the current
+  facade boundary. Restore the old app import path through a re-export shim
+  while correcting the package; do not alter the production JSON contract or
+  route/motion behavior to make the extraction compile.
+

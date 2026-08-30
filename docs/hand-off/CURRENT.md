@@ -21,7 +21,8 @@ slice plus one next action only.
 ## Next action
 
 - P13 remains proposed/unscheduled, and P3B.7b remains a deferred,
-  non-blocking acceptance tail. The next migration slice is not registered yet.
+  non-blocking acceptance tail. P16 is now registered as a proposed
+  project-model + layout-core extraction plan; owner approval is the next gate.
 
 ## Verification
 

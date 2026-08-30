@@ -12,7 +12,7 @@ import {
   type CameraConnectionDirection,
   type CameraEasing,
   type RuntimeCameraFramingEnvelope
-} from '$lib/types/scene';
+} from './scene-types';
 
 export type Vector3Like =
   | readonly [number, number, number]

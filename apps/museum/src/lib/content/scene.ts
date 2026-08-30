@@ -5,6 +5,7 @@ import {
 } from './scene-codec';
 import type { AssetId, AssetPlacement, SceneObjectFallback } from '$lib/types/assets';
 import type { MaterialId } from '$lib/types/materials';
+import type { NavigationGraph } from '@portfolio/camera-core';
 import type {
   CameraConnectionDirection,
   CameraEasing,
@@ -17,6 +18,9 @@ import type {
   SceneViewKeyframeTiming,
   Vec3
 } from '$lib/types/scene';
+
+export { getNode } from '@portfolio/camera-core';
+export type { NavigationGraph } from '@portfolio/camera-core';
 
 /** Runtime / editor projection of a model entity (no kind/name). */
 export type SceneObjectPlacement = AssetPlacement & {
@@ -426,12 +430,6 @@ export function placementToModelEntity(
   };
 }
 
-export type NavigationGraph = {
-  navigationNodes: readonly NavigationNodeData[];
-  connections: readonly RuntimeConnection[];
-  nodeById: ReadonlyMap<string, NavigationNodeData>;
-};
-
 export type SceneRoomResolver = {
   has(roomId: string): boolean;
   point(roomId: string, localPoint: Vec3): Vec3;
@@ -585,10 +583,4 @@ export function assertNavigationGraphMatchesScene(
   ) {
     throw new Error('Navigation state must use the same resolved scene instance');
   }
-}
-
-export function getNode(id: string, graph: NavigationGraph) {
-  const node = graph.nodeById.get(id);
-  if (!node) throw new Error(`Unknown navigation node: ${id}`);
-  return node;
 }

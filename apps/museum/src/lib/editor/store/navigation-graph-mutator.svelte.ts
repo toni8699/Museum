@@ -57,7 +57,7 @@ import {
 } from '../editor-navigation-graph';
 import { runOrFail } from '../helpers/validators-runner';
 import { CAMERA_DIRECTION_TREE_KEY_SEPARATOR } from '../helpers/scene-keys';
-import type { ResolvedCameraRoute } from '$lib/museum/navigation/camera-route';
+import type { ResolvedCameraRoute } from '@portfolio/camera-core';
 import type {
 	EditorCameraPreview,
 	EditorPendingNavigationCommand,

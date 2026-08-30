@@ -13,8 +13,8 @@ import {
 	createCameraMotion,
 	createCameraMotionSample,
 	sampleCameraMotion
-} from '$lib/museum/navigation/camera-motion';
-import { getCameraRoute } from '$lib/museum/navigation/camera-route';
+} from '@portfolio/camera-core';
+import { getCameraRoute } from '@portfolio/camera-core';
 import { describe, expect, it } from 'vitest';
 
 const resolveSceneDocument = (input: unknown) =>

@@ -10,7 +10,7 @@ import {
 	createCameraPositionPath,
 	type CameraPositionPathPart,
 	type Vector3Like
-} from '$lib/museum/navigation/camera-motion';
+} from '@portfolio/camera-core';
 import type { RoomId, Vec3 } from '$lib/types/scene';
 import type { CameraConnectionDirection } from '$lib/types/scene';
 import { CurvePath, MathUtils, Vector3 } from 'three';

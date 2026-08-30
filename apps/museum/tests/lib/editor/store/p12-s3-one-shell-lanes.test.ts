@@ -8,7 +8,7 @@ import {
 	cameraMotionProgressAtEdgeProgress,
 	createCameraMotionSample,
 	sampleCameraMotion
-} from '$lib/museum/navigation/camera-motion';
+} from '@portfolio/camera-core';
 import {
 	createFixtureEditorStore,
 	createRelicFixtureEditorStore

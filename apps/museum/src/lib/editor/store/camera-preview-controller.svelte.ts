@@ -29,12 +29,12 @@ import {
 	cameraMotionProgressAtEdgeProgress,
 	createCameraMotion,
 	type Vector3Like
-} from '$lib/museum/navigation/camera-motion';
+} from '@portfolio/camera-core';
 import {
 	getCameraConnectionRoute,
 	getCameraRoute,
 	type ResolvedCameraRoute
-} from '$lib/museum/navigation/camera-route';
+} from '@portfolio/camera-core';
 import {
 	cameraTimelineProgressAtEdgeProgress,
 	createEditorCameraTimelineResolution,

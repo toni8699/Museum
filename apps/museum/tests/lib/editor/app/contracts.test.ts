@@ -29,6 +29,7 @@ import { museumEditorEntryPlugin } from '../../../../vite/museum-editor-entry-pl
 const ROUTES_DIR = fileURLToPath(new URL('../../../../src/routes', import.meta.url));
 const LIB_DIR = fileURLToPath(new URL('../../../../src/lib', import.meta.url));
 const TEST_DIR = fileURLToPath(new URL('../../../../tests', import.meta.url));
+const CAMERA_CORE_DIR = path.resolve(LIB_DIR, '../../../..', 'packages/camera-core/src');
 
 function readRouteSource(routePath: string): string {
 	return fs.readFileSync(path.join(ROUTES_DIR, routePath), 'utf8');
@@ -36,6 +37,10 @@ function readRouteSource(routePath: string): string {
 
 function readLibSource(relativePath: string): string {
 	return fs.readFileSync(path.join(LIB_DIR, relativePath), 'utf8');
+}
+
+function readCameraCoreSource(relativePath: string): string {
+	return fs.readFileSync(path.join(CAMERA_CORE_DIR, relativePath), 'utf8');
 }
 
 function existsLibSource(relativePath: string): boolean {
@@ -843,8 +848,8 @@ describe('single gizmo host', () => {
 		]) {
 			expect(source).not.toContain('editor/gizmo');
 		}
-		const cameraRoute = readLibSource('museum/navigation/camera-route.ts');
-		const cameraMotion = readLibSource('museum/navigation/camera-motion.ts');
+		const cameraRoute = readCameraCoreSource('camera-route.ts');
+		const cameraMotion = readCameraCoreSource('camera-motion.ts');
 		expect(cameraRoute).not.toContain('TransformControls');
 		expect(cameraMotion).not.toContain('TransformControls');
 	});

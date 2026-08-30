@@ -1,10 +1,10 @@
 # Museum docs — context router
 
-**Audience:** agents + humans. **Last reviewed:** 2026-08-28 (P12 and core P3B shipped; P3B.7b remains deferred; north star holds product vision).
+**Audience:** agents + humans. **Last reviewed:** 2026-08-30 (P15 shipped; P3B.7b remains deferred; north star holds product vision).
 **Bootstrap (hard rules):** [`../AGENTS.md`](../AGENTS.md) ·
 **Plan status / what's next:** [`plans/README.md`](./plans/README.md) (tracker) ·
 **Live working-tree state:** [`hand-off/CURRENT.md`](./hand-off/CURRENT.md) ·
-**Roadmap gate:** P12 and core P3B are shipped. P3B.7b remains deferred and non-blocking; P14 is next.
+**Roadmap gate:** P12, core P3B, P14, and P15 are shipped. P3B.7b remains deferred and non-blocking; P13 remains proposed/unscheduled.
 
 ## Context discipline (progressive disclosure)
 
@@ -77,7 +77,7 @@ or migrated. Persistence is portable export/import only.
 | Shell / workspaces / timeline | [`components/shell.md`](./components/shell.md) · [`Design-specs/Design-shell-specs.md`](./Design-specs/Design-shell-specs.md) (+ per-domain [`Shell-scene-workspaces.md`](./Design-specs/Shell-scene-workspaces.md) / [`Shell-camera-workspaces.md`](./Design-specs/Shell-camera-workspaces.md)) | `apps/museum/src/lib/editor/app/` |
 | Scene entities / materials / lights | [`components/scene-content.md`](./components/scene-content.md) | `apps/museum/src/lib/content/` |
 | Gizmo / placement / transforms | [`components/placement.md`](./components/placement.md) | `apps/museum/src/lib/editor/gizmo/` |
-| Camera / tour / motion | [`components/camera-tour.md`](./components/camera-tour.md) | `apps/museum/src/lib/museum/navigation/` |
+| Camera / tour / motion | [`components/camera-tour.md`](./components/camera-tour.md) | `packages/camera-core/src/` · visitor components in `apps/museum/src/lib/museum/navigation/` |
 | Persistence / schema / history | [`components/persistence.md`](./components/persistence.md) | `apps/museum/src/lib/project/` · `content/scene-codec/` |
 | Scene codec internals | [`components/scene-codec.md`](./components/scene-codec.md) | `apps/museum/src/lib/content/scene-codec/` |
 | Assets / catalogue | [`components/assets.md`](./components/assets.md) | `apps/museum/src/lib/content/assets.ts` |

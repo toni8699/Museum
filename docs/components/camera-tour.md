@@ -1,7 +1,7 @@
 # Camera and tour
 
 **Read when:** nodes, connections, paths, guided order, timeline, framing, sequence preview.  
-**Last reviewed:** 2026-08-28 (P12 closeout)
+**Last reviewed:** 2026-08-30 (P15 closeout)
 **Deep dump (rare):** [`../archive/CAMERA_AND_LAYOUT.md`](../archive/CAMERA_AND_LAYOUT.md)
 
 ---
@@ -15,7 +15,9 @@
 
 Defaults: eye **1.65 m**, target **1.25 m**, distance **3 m**, clearance **0.35 m**.  
 Resolver inserts `node:<id>:position` — **never** persist those as interiors.  
-Editor preview + visitor share **`camera-route` + `camera-motion` only**.
+Editor preview + visitor share **`@portfolio/camera-core`** (`camera-route` +
+`camera-motion`) only. Visitor-only `CameraDirector.svelte` and
+`NavigationNode.svelte` remain app components.
 
 Directional view tracks may carry one optional `framingEnvelope` per travel
 direction: `0 ≤ enterStart ≤ enterEnd ≤ exitStart ≤ exitEnd ≤ 1`. Route

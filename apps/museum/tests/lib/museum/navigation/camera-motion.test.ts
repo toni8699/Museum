@@ -26,7 +26,7 @@ import {
   smootherstepRamp,
   type CameraFramingGuardStatus,
   type CameraRoute
-} from '$lib/museum/navigation/camera-motion';
+} from '@portfolio/camera-core';
 import {
   CAMERA_FOV,
   type CameraEasing,

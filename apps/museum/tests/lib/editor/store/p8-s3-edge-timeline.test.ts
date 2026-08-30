@@ -6,7 +6,7 @@ import { cloneFixtureDocument } from '../../content/__fixtures__/load-fixture-sc
 import { createEdgeLocalTimeline } from '$lib/editor/camera/editor-camera-timeline';
 import { resolveDirectedEdgeMotionByDirection } from '$lib/editor/camera/editor-directed-edge-motion';
 import { useCameraTimeline } from '$lib/editor/hooks/use-camera-timeline.svelte';
-import { createCameraMotionSample, sampleCameraMotion } from '$lib/museum/navigation/camera-motion';
+import { createCameraMotionSample, sampleCameraMotion } from '@portfolio/camera-core';
 
 function addFreeNodeWithConnection(document: ReturnType<typeof cloneFixtureDocument>) {
 	// Add free node E (Unsequenced)

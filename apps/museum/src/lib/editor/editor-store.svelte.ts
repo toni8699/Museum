@@ -23,7 +23,7 @@ import type { RuntimeStateStore } from '$lib/state/runtime-state.svelte';
 import {
 	cameraMotionProgressAtEdgeProgress,
 	createCameraMotion
-} from '$lib/museum/navigation/camera-motion';
+} from '@portfolio/camera-core';
 import {
 	CAMERA_EASING,
 	type CameraConnectionDirection,
@@ -36,8 +36,8 @@ import {
 	getCameraConnectionRoute,
 	getCameraRoute,
 	type ResolvedCameraRoute
-} from '$lib/museum/navigation/camera-route';
-import type { Vector3Like } from '$lib/museum/navigation/camera-motion';
+} from '@portfolio/camera-core';
+import type { Vector3Like } from '@portfolio/camera-core';
 import type { Object3D } from 'three';
 import {
 	nextPlacementCycleId,

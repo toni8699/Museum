@@ -3,8 +3,8 @@ import type { SceneDocument } from '$lib/content/scene';
 import { g1DocumentWithRooms, g1RectangleRoom } from '../../layout/__fixtures__/layout-g1-fixtures';
 import { createLayoutRoomRegistry } from '$lib/project/project-layout-semantics';
 import { resolvePlanSceneGraphFromDocument } from '$lib/editor/layout/plan-camera-projection';
-import { createCameraMotion } from '$lib/museum/navigation/camera-motion';
-import { getCameraConnectionRoute, getCameraMotionOptions } from '$lib/museum/navigation/camera-route';
+import { createCameraMotion } from '@portfolio/camera-core';
+import { getCameraConnectionRoute, getCameraMotionOptions } from '@portfolio/camera-core';
 import { resolveCameraConnectionTiming } from '$lib/editor/camera/editor-camera-timing';
 
 function documentWith(overrides: {

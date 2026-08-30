@@ -1,10 +1,7 @@
-import {
-  getNode,
-  type NavigationGraph,
-  type SceneObjectPlacement
-} from '$lib/content/scene';
+import type { NavigationGraph } from '@portfolio/camera-core';
+import { getCameraRoute, getNode } from '@portfolio/camera-core';
+import type { SceneObjectPlacement } from '$lib/content/scene';
 import type { RoomId } from '$lib/types/scene';
-import { getCameraRoute } from './navigation/camera-route';
 
 export type MuseumNavigationStatus = {
   currentRoomId: RoomId;

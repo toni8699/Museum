@@ -1,5 +1,5 @@
 import type { Room, Vec3 } from '$lib/types/scene';
-import { VISITOR_CAMERA_PROJECTION } from '$lib/museum/navigation/camera-motion';
+import { VISITOR_CAMERA_PROJECTION } from '@portfolio/camera-core';
 import type { LayoutBounds3 } from '$lib/layout/layout-geometry-types';
 import { Box3, Sphere, Vector3, type Object3D, type PerspectiveCamera } from 'three';
 

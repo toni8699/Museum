@@ -9,7 +9,7 @@ import {
 	createCameraMotionSample,
 	sampleCameraMotion,
 	type CameraMotion
-} from '$lib/museum/navigation/camera-motion';
+} from '@portfolio/camera-core';
 import {
 	followEditorDirectorObserver,
 	recenterEditorDirectorObserver

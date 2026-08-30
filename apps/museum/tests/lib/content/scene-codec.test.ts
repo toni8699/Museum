@@ -6,7 +6,7 @@ import {
 import { chopinRuntime, sceneDocument } from '$lib/content/chopin-project';
 import { chopinProject } from '$lib/content/chopin-project';
 import { validateProject } from '$lib/project/project-codec';
-import { createCameraPositionPath } from '$lib/museum/navigation/camera-motion';
+import { createCameraPositionPath } from '@portfolio/camera-core';
 import {
 	parseSceneDocumentJson,
 	serializeSceneDocument,

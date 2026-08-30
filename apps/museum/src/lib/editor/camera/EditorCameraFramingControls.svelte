@@ -29,7 +29,7 @@
 		sampleCameraMotion,
 		readCameraFramingGuardStatus,
 		type CameraMotion
-	} from '$lib/museum/navigation/camera-motion';
+	} from '@portfolio/camera-core';
 	import { resolveDirectedEdgeMotionByDirection } from './editor-directed-edge-motion';
 	import EditorNumberField from '../fields/EditorNumberField.svelte';
 
@@ -159,7 +159,7 @@
 
 	/** Compute ramp seconds for one ramp of the envelope using the exact motion. */
 	function computeRampSecondsFromMotion(
-		motion: import('$lib/museum/navigation/camera-motion').CameraMotion,
+		motion: import('@portfolio/camera-core').CameraMotion,
 		_edgeIndex: number,
 		rampStart: number,
 		rampEnd: number
@@ -173,9 +173,9 @@
 
 	/** Sample FOV rate across enter/exit ramps and return diagnostics for exceeding the limit. */
 	function sampleFovRateDiagnostics(
-		motion: import('$lib/museum/navigation/camera-motion').CameraMotion,
+		motion: import('@portfolio/camera-core').CameraMotion,
 		env: CameraFramingEnvelope,
-		sample: import('$lib/museum/navigation/camera-motion').CameraMotionSample
+		sample: import('@portfolio/camera-core').CameraMotionSample
 	): CameraFramingDiagnostic[] {
 		const diagnostics: CameraFramingDiagnostic[] = [];
 		const maxRate = CAMERA_FRAMING_AUTHORING_COMFORT.maxFovRateDegreesPerSecond;

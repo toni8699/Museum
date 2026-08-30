@@ -65,28 +65,45 @@ closed — see the ratification in §0.
    teams, memberships, collaboration, billing, realtime presence, complex
    permissions.
 
-### 0.2 Revised implementation order (ratified)
+### 0.2 Revised implementation order (ratified — merged into passes)
 
-1. Extract `camera-core` (both current consumers switch to `@portfolio/camera-core`; no behavior change).
-2. Relocate `package-sha` / remove the editor leak from `package-format`.
-3. Extract `project-model` (ProjectDocument, LayoutDocument, SceneDocument,
-   types, schema, validation, codec, package format, migrations, portable
-   import/export primitives — Svelte/runes-free).
-4. Extract `layout-core` where genuinely shared.
-5. Lift `/museum` into a standalone visitor app (pinned shared packages; no
-   editor dependency; CI verifies the visitor-safe dependency closure).
-6. Split the greenfield editor into `apps/editor`.
-7. Keep `/museum/editor` as a gated relic entry (or explicitly deprecate later).
-8. Create `apps/api` with Fastify.
-9. Add Render Postgres.
-10. Implement project Save/Load + project versions.
-11. Add basic auth/ownership.
-12. Add R2 asset storage + asset metadata.
+> The twelve numbered increments are grouped into **six passes**, each sub-plannable
+> independently (sub-plan only after the passes it depends on land). Pass 1 is
+> already in progress as P15; passes 2–6 are the remaining work.
+
+1. **P15 (in progress) — extract `camera-core`.** Both current consumers switch
+   to `@portfolio/camera-core`; no behavior change. See §0.3 for the approved
+   amendments. Kept as its own pass — it is the unblocking leaf and its
+   dependents need its output. *Skipped for sub-planning (already underway).*
+2. **Package-extraction pass — `project-model` + `package-sha` + `layout-core`.**
+   Relocate `package-sha` into `project-model` (removes the `package-format →
+   editor` leak), extract `project-model` (ProjectDocument, LayoutDocument,
+   SceneDocument, types, schema, validation, codec, package format, migrations,
+   portable import/export primitives — Svelte/runes-free), and `layout-core`
+   where genuinely shared. Same pure-TS extraction mechanics throughout; no app
+   topology change. Starts only after Pass 1 lands (`project-model`'s
+   `SceneDocument` depends on the extracted `camera-core`).
+3. **App-split pass — lift visitor + split editor + gate relic.** Lift
+   `/museum` into a standalone visitor app on pinned shared packages, split the
+   greenfield editor into `apps/editor`, and keep `/museum/editor` as a gated
+   relic entry (or explicitly deprecate later). One topological restructure of
+   `apps/*`; CI verifies the visitor-safe dependency closure and the editor-free
+   `/museum` runtime.
+4. **Backend-provisioning pass — `apps/api` (Fastify) + Render Postgres.**
+   Create the API service and add the database together (same Render
+   provisioning); backend consumes `@portfolio/project-model`.
+5. **First persistence slice — project Save/Load + minimal ownership.**
+   Implement Save/Load, project versions, and single-user auth/ownership only.
+   Right-sized per §0.1.7/§5.3.
+6. **Asset storage — R2 + asset metadata.** Add R2 object storage and asset
+   metadata for built-in/procedural, uploaded, and provider-imported assets.
+   Standalone/orthogonal; may proceed in parallel with later passes.
 
 **Deferred deliberately:** generic `player`, `runtime` package, `api-contract`
-package, collaboration, teams/memberships, Python workers, Rust workers, full
-publishing platform. The restructuring establishes long-term boundaries now
-without prematurely implementing the long-term platform.
+package, collaboration, teams/memberships, full auth beyond single-user,
+Python workers, Rust workers, full publishing platform. The restructuring
+establishes long-term boundaries now without prematurely implementing the
+long-term platform.
 
 ### 0.3 P15 approval amendments (2026-08-29)
 
@@ -278,14 +295,21 @@ as a gated editor entry (or deprecate/redirect it) rather than a frozen fork.
 
 ## 6. Recommended sequence (synthesis)
 
-1. Extract `camera-core` (and relocate `package-sha`) — unblocks both directions.
-2. Extract `project-model` (+ `layout-core` when both apps genuinely need it).
+Same shape as the passes in §0.2 (note: §6.1 fixes the earlier wording —
+`package-sha` is relocated mechanically into `project-model`, i.e. it rides
+with the Pass 2 extraction, not with `camera-core`):
+
+1. Extract `camera-core` (in progress, P15) — unblocks both directions.
+2. Package-extraction pass: `project-model` + `package-sha` + `layout-core`
+   (when both apps genuinely need `layout-core`).
 3. Freeze + lift the `/museum` visitor app on the pinned packages (the actual
-   cheap freeze).
-4. Split the editor app; trim editor→visitor imports.
-5. Decide relic fate explicitly (keep as editor relic entry or deprecate/redirect).
-6. Add `api` only after the persistence scope is fixed; defer
-   `runtime`/`api-contract`/`player` and full auth until real need.
+   cheap freeze) — App-split pass.
+4. Split the editor app; trim editor→visitor imports — same App-split pass.
+5. Decide relic fate explicitly (keep as gated editor relic entry or
+   deprecate/redirect) — folded into the App-split pass.
+6. Backend-provisioning pass (`apps/api` + Postgres), then the first
+   persistence slice (Save/Load + minimal ownership), then R2 asset storage.
+   Defer `runtime`/`api-contract`/`player` and full auth until real need.
 
 ## 7. Open decisions — resolved
 

@@ -47,11 +47,11 @@ import {
 	sampleCameraMotion,
 	type CameraMotion,
 	type Vector3Like
-} from '$lib/museum/navigation/camera-motion';
+} from '@portfolio/camera-core';
 import {
 	getCameraConnectionRoute,
 	type ResolvedCameraRoute
-} from '$lib/museum/navigation/camera-route';
+} from '@portfolio/camera-core';
 import { resolveDirectedEdgeMotionForConnection } from '../camera/editor-directed-edge-motion';
 import {
 	createDraftConnectionPositionPath,

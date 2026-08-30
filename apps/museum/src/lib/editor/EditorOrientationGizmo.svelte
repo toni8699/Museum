@@ -11,7 +11,7 @@
 	} from './camera/editor-camera';
 	import {
 		createEditorCardinalSnapMotion
-	} from '$lib/museum/navigation/camera-motion';
+	} from '@portfolio/camera-core';
 	import type { LayoutBounds3 } from '$lib/layout/layout-geometry-types';
 	import {
 		cancelEditorOrientationSnap,

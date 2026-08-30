@@ -12,7 +12,7 @@ import type {
 import type { LayoutRoomRegistry } from '$lib/project/project-layout-semantics';
 import type { RuntimeStateStore } from '$lib/state/runtime-state.svelte';
 import type { CameraConnectionDirection, RoomId } from '$lib/types/scene';
-import type { ResolvedCameraRoute } from '$lib/museum/navigation/camera-route';
+import type { ResolvedCameraRoute } from '@portfolio/camera-core';
 import type { EditorCameraSelection, EditorNavigationSelection } from '../editor-selection';
 import type { EditorCameraTimeline } from '../camera/editor-camera-timeline';
 import type { EditorTransformMode } from '../editor-transform';

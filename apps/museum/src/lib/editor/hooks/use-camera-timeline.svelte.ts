@@ -13,7 +13,7 @@ import {
 	type EditorCameraTimeline,
 	type EditorCameraTimelineNodeBoundary
 } from '../camera/editor-camera-timeline';
-import { CameraRouteError } from '$lib/museum/navigation/camera-route';
+import { CameraRouteError } from '@portfolio/camera-core';
 import { previewScopeOf } from '../store/camera-preview-controller.svelte';
 import { formatCameraNodeLabel } from '../editor-outliner';
 import type { EditorStore } from '../editor-store.svelte';

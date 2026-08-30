@@ -5,44 +5,33 @@ slice plus one next action only.
 
 ## Working tree
 
-- Current delta: **P14 Camera Plan passive object footprints — shipped
+- Current delta: **P15 camera-core extraction — shipped 2026-08-30,
+  uncommitted.** `@portfolio/camera-core` now owns the canonical route/motion
+  engines and their minimum structural camera/graph types. The Chopin graph is
+  explicit at every route call site; the visitor navigation components remain
+  app-owned. Source and built `/museum` visitor-boundary pins are enforced.
+- Previous delta: **P14 Camera Plan passive object footprints — shipped
   2026-08-29, uncommitted (review fixes 1+2 applied).** Camera Plan now derives
   the live Scene footprint projection, renders eligible passive footprints
   below the camera graph, and gives Camera-only layout objects (including
   imported plan-drawn `profile` objects) the same muted dashed treatment.
   Footprints resolve the same session-aware placement scale as Scene Plan/3D.
   No collision, validation, interaction, or geometry changes were added.
-- Previous delta: **3D Sequence View Key rewire — shipped 2026-08-28,
-  uncommitted.** `+ View Key` now resolves the selected Sequence edge from the
-  global playhead, samples the shared motion, auto-pauses a playing Director,
-  commits the directional key, and restores the paused Sequence scope at the
-  same playhead. Generic paused-Sequence document swaps retain their existing
-  safety reset behavior. The collapsed Camera mini-player now gives its scope
-  pill a shorter flexible slot, reserves mode/observer tool widths, and lets
-  the scrubber absorb remaining space so the icon controls no longer overlap.
 
 ## Next action
 
-- **P15 (camera-core extraction) is approved with 4 amendments** — slice 1 of
-  the ratified migration review
-  ([2026-08-29-backend-persistence-migration-review.md](../plans/2026-08-29-backend-persistence-migration-review.md)
-  §0.3): move `museum/navigation/camera-route.ts` + `camera-motion.ts` into
-  `@portfolio/camera-core` (minimum compile-required type surface only,
-  headless-core boundary, explicit-graph API tightening, source + runtime
-  boundary pins), sever the Chopin default, migrate all importers. P13 remains
-  proposed/unscheduled, and P3B.7b remains a deferred, non-blocking acceptance
-  tail.
+- P13 remains proposed/unscheduled, and P3B.7b remains a deferred,
+  non-blocking acceptance tail. The next migration slice is not registered yet.
 
 ## Verification
 
-- Full Vitest: 168 files passed, 1 skipped; 2,280 tests passed, 1 skipped.
+- Full Vitest: 169 files passed, 1 skipped; 2,284 tests passed, 1 skipped.
 - `npm run check`: 0 errors / 0 warnings.
+- `npm run check:camera-core`: passed.
 - `npm run build`: passed; known unused-import and chunk-size warnings only.
-- Focused P14/renderer contracts: 136 tests passed.
-- Browser QA passed Camera Plan overview/density and close-up footprint checks;
-  four eligible Scene footprints and two layout objects rendered beneath the
-  graph, stayed inert, and retained the accepted 1.5px / `5 4` baseline.
-  Scene Plan retained its original filled-object presentation.
+- `verify:visitor-bundle`: passed; `/museum` closure reached no editor entry.
+- Browser QA passed `/museum` Entrance → Poland navigation, `/`, `/editor`,
+  and `/museum/editor` mounting.
 
 ## Known bugs / deferred
 
@@ -74,6 +63,7 @@ slice plus one next action only.
 - `/museum` is visitor-only and its chunks contain no editor/layout code.
   Editor ships at `/`, `/editor`, and frozen relic `/museum/editor`.
 - No commits unless the user asks.
-- One nav + one motion: `camera-route.ts` + `camera-motion.ts` only.
+- One nav + one motion: `@portfolio/camera-core` owns `camera-route.ts` +
+  `camera-motion.ts` only.
 - Svelte 5 runes / Threlte; no second selection, history, graph, motion,
   geometry, or transform system.

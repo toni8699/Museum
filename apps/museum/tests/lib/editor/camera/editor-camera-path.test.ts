@@ -1,7 +1,7 @@
 import { roomPoint } from '$lib/content/rooms';
 import { chopinRuntime } from '$lib/content/chopin-project';
 import type { SceneDocument } from '$lib/content/scene';
-import { createCameraPositionPath } from '$lib/museum/navigation/camera-motion';
+import { createCameraPositionPath } from '@portfolio/camera-core';
 import type { Vec3 } from '$lib/types/scene';
 import { CurvePath, LineCurve3, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';

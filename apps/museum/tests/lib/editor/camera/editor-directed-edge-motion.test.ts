@@ -11,8 +11,8 @@ import {
 	createCameraMotion,
 	createCameraMotionSample,
 	sampleCameraMotion
-} from '$lib/museum/navigation/camera-motion';
-import { getCameraConnectionRoute } from '$lib/museum/navigation/camera-route';
+} from '@portfolio/camera-core';
+import { getCameraConnectionRoute } from '@portfolio/camera-core';
 import { createEditorCameraTimeline } from '$lib/editor/camera/editor-camera-timeline';
 import {
 	resolveConnectionEdgeMotions,

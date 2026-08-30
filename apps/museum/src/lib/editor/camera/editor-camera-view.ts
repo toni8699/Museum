@@ -10,7 +10,7 @@ import type {
 	RoomId,
 	Vec3
 } from '$lib/types/scene';
-import type { Vector3Like } from '$lib/museum/navigation/camera-motion';
+import type { Vector3Like } from '@portfolio/camera-core';
 import {
 	createDraftConnectionPositionPath,
 	isWorldPointInsideRoomXZ

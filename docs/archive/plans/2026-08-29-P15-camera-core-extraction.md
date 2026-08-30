@@ -1,8 +1,8 @@
 # P15 — camera-core extraction (slice 1 of the ratified migration)
 
-**Status:** `approved with amendments` — registered 2026-08-29; slice 1 of the
-ratified migration review
-([2026-08-29-backend-persistence-migration-review.md](2026-08-29-backend-persistence-migration-review.md)
+**Status:** `shipped` — 2026-08-30; S0–S4 complete; slice 1 of the ratified
+migration review
+([2026-08-29-backend-persistence-migration-review.md](../../plans/2026-08-29-backend-persistence-migration-review.md)
 §0.2, steps 1–2). Owner approved 2026-08-29 **with 4 amendments** (§Amendments):
 minimum dependency surface, headless-core wording, explicit-graph API
 tightening, and source vs. runtime boundary pins.
@@ -315,14 +315,14 @@ order) build on this package.
 
 ## Verification
 
-- Run `npm run check:camera-core`, full Vitest, `npm run check`, and
-  `npm run build`; then run the post-build `verify:visitor-bundle` route-closure
-  guard (baseline: 168 files / 2,280 tests / 0 errors).
+- Final verification: 169 files passed, 1 skipped; 2,284 tests passed, 1
+  skipped; `npm run check` reported 0 errors / 0 warnings; build and the
+  visitor-bundle guard passed.
 - Browser QA: `/museum` visitor tour, `/` and `/editor` editor camera
   timeline/preview, and `/museum/editor` relic mounting behave identically
   after the import-path migration.
 
 ## Status
 
-Approved — 2026-08-29. P13 stays proposed/unscheduled; P3B.7b remains deferred
-and non-blocking.
+Shipped — 2026-08-30. S0–S4 complete. P13 stays proposed/unscheduled;
+P3B.7b remains deferred and non-blocking.

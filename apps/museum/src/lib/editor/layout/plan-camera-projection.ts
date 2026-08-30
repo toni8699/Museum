@@ -1,8 +1,8 @@
 import { createNavigationGraph, resolveSceneDocument, type SceneDocument, type NavigationGraph } from '$lib/content/scene';
 import { createLayoutRoomRegistry, type LayoutRoomRegistry } from '$lib/project/project-layout-semantics';
 import type { Project } from '$lib/project/project-types';
-import { getCameraConnectionRoute, getCameraMotionOptions } from '$lib/museum/navigation/camera-route';
-import type { Vector3Like } from '$lib/museum/navigation/camera-motion';
+import { getCameraConnectionRoute, getCameraMotionOptions } from '@portfolio/camera-core';
+import type { Vector3Like } from '@portfolio/camera-core';
 import { projectLayoutPortalRelations, type LayoutPortalRelation } from '$lib/layout/layout-portals';
 import type { LayoutVec2 } from '$lib/layout/layout-types';
 import { geometryId, type CompiledLayoutGeometry, type LayoutGeometryIssue } from '$lib/layout/layout-geometry-types';

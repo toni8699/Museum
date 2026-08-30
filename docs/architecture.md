@@ -28,7 +28,7 @@ Editor (greenfield)          /museum (frozen Chopin relic)
 | Derived geometry | pure `compileLayoutGeometry()` |
 | Plan presentation | `CompiledLayoutGeometry` → `PlanRenderModel` → `PlanSvg.svelte` |
 | 3D wall meshes | `wall-mesh-builder` → `wall-geometry-adapter` |
-| Camera route/motion | `camera-route.ts` + `camera-motion.ts` only |
+| Camera route/motion | `@portfolio/camera-core` (`camera-route.ts` + `camera-motion.ts`) only |
 | Project-local GLB bytes | portable package manifest + editor asset store |
 | Selection, history, gizmo proxies, UI | editor session only |
 
@@ -42,7 +42,7 @@ are never serialized.
 | Shell / workspaces / timeline | [`components/shell.md`](./components/shell.md) | `apps/museum/src/lib/editor/app/` |
 | Entities / materials / lights | [`components/scene-content.md`](./components/scene-content.md) | `apps/museum/src/lib/content/` |
 | Gizmo / placement / transforms | [`components/placement.md`](./components/placement.md) | `apps/museum/src/lib/editor/gizmo/` |
-| Camera / tour / motion | [`components/camera-tour.md`](./components/camera-tour.md) | `apps/museum/src/lib/museum/navigation/` |
+| Camera / tour / motion | [`components/camera-tour.md`](./components/camera-tour.md) | `packages/camera-core/src/` · visitor components in `apps/museum/src/lib/museum/navigation/` |
 | Persistence / schema / history | [`components/persistence.md`](./components/persistence.md) | `apps/museum/src/lib/project/` · `content/scene-codec/` |
 | Scene codec internals | [`components/scene-codec.md`](./components/scene-codec.md) | `apps/museum/src/lib/content/scene-codec/` |
 | Assets / catalogue | [`components/assets.md`](./components/assets.md) | `apps/museum/src/lib/content/assets.ts` |

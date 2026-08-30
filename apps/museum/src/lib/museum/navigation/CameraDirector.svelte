@@ -10,7 +10,7 @@
   import {
     getNode,
     type NavigationGraph
-  } from '$lib/content/scene';
+  } from '@portfolio/camera-core';
   import { navigationGraph } from '$lib/content/chopin-project';
   import {
     runtimeState,
@@ -23,8 +23,8 @@
     sampleCameraMotion,
     VISITOR_CAMERA_PROJECTION,
     type CameraMotion
-  } from './camera-motion';
-  import { getCameraRoute } from './camera-route';
+  } from '@portfolio/camera-core';
+  import { getCameraRoute } from '@portfolio/camera-core';
 
   let {
     graph = navigationGraph,

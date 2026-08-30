@@ -6,19 +6,19 @@ import {
 	sampleCameraMotion,
 	type CameraMotionSample,
 	type CameraMotion
-} from '$lib/museum/navigation/camera-motion';
+} from '@portfolio/camera-core';
 import {
 	CameraRouteError,
 	resolveFlowRoute,
 	type FlowRouteGap
-} from '$lib/museum/navigation/camera-route';
+} from '@portfolio/camera-core';
 import { isFlowNode } from '$lib/content/scene';
 import { EDITOR_GUIDED_TOUR_START_NODE_ID } from '../editor-navigation-graph';
 import {
 	resolveConnectionEdgeMotions,
 	resolveDirectedEdgeMotionByDirection
 } from './editor-directed-edge-motion';
-import type { ResolvedCameraRoute } from '$lib/museum/navigation/camera-route';
+import type { ResolvedCameraRoute } from '@portfolio/camera-core';
 
 const TIMELINE_EPSILON = 1e-9;
 

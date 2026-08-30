@@ -16,8 +16,8 @@
  * deliberately freezes the controller's interface and the controller-local
  * copy is the one consumed by `FSM.play()` etc.
  */
-import type { Vector3Like } from '$lib/museum/navigation/camera-motion';
-import type { ResolvedCameraRoute } from '$lib/museum/navigation/camera-route';
+import type { Vector3Like } from '@portfolio/camera-core';
+import type { ResolvedCameraRoute } from '@portfolio/camera-core';
 import type { Vec3 } from '$lib/types/scene';
 
 /** Tuple check — `Vector3Like` is either `{x,y,z}` or `[x,y,z]`. */

@@ -33,11 +33,11 @@ import type {
 } from '$lib/content/scene';
 import {
 	cameraMotionProgressAtEdgeProgress
-} from '$lib/museum/navigation/camera-motion';
+} from '@portfolio/camera-core';
 import {
 	getCameraConnectionRoute,
 	type ResolvedCameraRoute
-} from '$lib/museum/navigation/camera-route';
+} from '@portfolio/camera-core';
 import type { CameraConnectionDirection } from '$lib/types/scene';
 import {
 	cameraTimelineEdgePlayheadAtProgress,

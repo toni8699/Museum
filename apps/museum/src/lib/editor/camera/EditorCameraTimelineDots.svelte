@@ -36,7 +36,7 @@
 		createCameraMotionSample,
 		sampleCameraMotion,
 		type Vector3Like
-	} from '$lib/museum/navigation/camera-motion';
+	} from '@portfolio/camera-core';
 	import type { CameraFramingEnvelope } from '$lib/content/scene';
 
 	let {

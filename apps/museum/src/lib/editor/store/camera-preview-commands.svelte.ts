@@ -44,7 +44,7 @@ import {
 	type RuntimeScene
 } from '$lib/content/scene';
 import type { RuntimeStateStore } from '$lib/state/runtime-state.svelte';
-import { getCameraConnectionRoute, getCameraRoute, type ResolvedCameraRoute } from '$lib/museum/navigation/camera-route';
+import { getCameraConnectionRoute, getCameraRoute, type ResolvedCameraRoute } from '@portfolio/camera-core';
 import { resolveDirectedEdgeMotionByDirection } from '../camera/editor-directed-edge-motion';
 import {
 	cameraTimelineEdgePlayheadAtProgress,

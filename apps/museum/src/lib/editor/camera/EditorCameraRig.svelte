@@ -7,7 +7,7 @@
 		CAMERA_FOV_UPDATE_EPSILON,
 		VISITOR_CAMERA_PROJECTION,
 		type CameraMotion
-	} from '$lib/museum/navigation/camera-motion';
+	} from '@portfolio/camera-core';
 	import { resolveDirectedEdgeMotionByDirection } from './editor-directed-edge-motion';
 	import { T, useTask, useThrelte } from '@threlte/core';
 	import { OrbitControls } from '@threlte/extras';

@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, extname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -40,6 +40,23 @@ function visitorImportGraph(): Set<string> {
 	return visited;
 }
 
+function sourceFiles(root: string): string[] {
+	const files: string[] = [];
+	const pending = [root];
+	while (pending.length > 0) {
+		const file = pending.pop()!;
+		const stat = statSync(file);
+		if (stat.isDirectory()) {
+			for (const child of readdirSync(file)) {
+				if (!child.startsWith('.')) pending.push(resolve(file, child));
+			}
+		} else if (file.endsWith('.ts') || file.endsWith('.svelte')) {
+			files.push(file);
+		}
+	}
+	return files;
+}
+
 describe('visitor import boundary', () => {
 	it('uses one serialized project/layout path with no editor or legacy architecture imports', () => {
 		const graph = visitorImportGraph();
@@ -63,6 +80,15 @@ describe('visitor import boundary', () => {
 			const source = readFileSync(file, 'utf8');
 			expect(source).not.toContain('architectureSource');
 			expect(source).not.toContain('architecture=layout');
+		}
+	});
+
+	it('keeps all museum source imports free of editor code', () => {
+		for (const file of sourceFiles(resolve(appSrc, 'lib/museum'))) {
+			const source = readFileSync(file, 'utf8');
+			expect(source, file).not.toMatch(
+				/(?:from|import\()\s*['"][^'"]*(?:\$lib\/editor|(?:\.\.?\/)\.?editor\/)/
+			);
 		}
 	});
 });

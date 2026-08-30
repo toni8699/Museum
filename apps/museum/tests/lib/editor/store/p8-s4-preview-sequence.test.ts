@@ -11,7 +11,7 @@ import {
 	sampleEditorCameraSchedule
 } from '$lib/editor/camera/editor-camera-timeline';
 import { useCameraTimeline } from '$lib/editor/hooks/use-camera-timeline.svelte';
-import { createCameraMotionSample } from '$lib/museum/navigation/camera-motion';
+import { createCameraMotionSample } from '@portfolio/camera-core';
 
 describe('P8 S4 — boundary epsilon (scrub + playback)', () => {
 	it('scrub onto a node boundary from below/above resolves the correct edge + direction and writes the playhead', () => {

@@ -5,7 +5,7 @@ import { useCameraTimeline } from '$lib/editor/hooks/use-camera-timeline.svelte'
 import {
 	createEditorCameraTimelineResolution
 } from '$lib/editor/camera/editor-camera-timeline';
-import { resolveFlowRoute } from '$lib/museum/navigation/camera-route';
+import { resolveFlowRoute } from '@portfolio/camera-core';
 import { createRelicFixtureEditorStore, createFixtureEditorStore } from '../editor-test-utils';
 import { cloneFixtureDocument } from '../../content/__fixtures__/load-fixture-scene';
 

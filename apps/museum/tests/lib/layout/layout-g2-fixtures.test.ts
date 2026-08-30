@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { chopinProject } from '$lib/content/chopin-project';
-import { getCameraMotionOptions, getFlowRoute } from '$lib/museum/navigation/camera-route';
-import type { Vector3Like } from '$lib/museum/navigation/camera-motion';
+import { getCameraMotionOptions, getFlowRoute } from '@portfolio/camera-core';
+import type { Vector3Like } from '@portfolio/camera-core';
 
 function vectorToTuple(point: Vector3Like): [number, number, number] {
 	return 'x' in point ? [point.x, point.y, point.z] : [point[0], point[1], point[2]];

@@ -5,7 +5,7 @@ import {
 	createEditorCardinalSnapMotion,
 	EDITOR_CARDINAL_SNAP_DURATION_MS,
 	type CardinalSnapMotionSample
-} from '$lib/museum/navigation/camera-motion';
+} from '@portfolio/camera-core';
 import {
 	CARDINAL_FACE_TO_EYE,
 	CARDINAL_FACE_UP,

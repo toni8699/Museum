@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { cloneResolvedCameraRoute } from '$lib/editor/helpers/route-clone';
-import type { ResolvedCameraRoute } from '$lib/museum/navigation/camera-route';
+import type { ResolvedCameraRoute } from '@portfolio/camera-core';
 
 function routeWithEnvelope(): ResolvedCameraRoute {
 	return {

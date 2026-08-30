@@ -34,4 +34,5 @@ P0 (archived): [`docs/archive/plans/pre-h1-letters/2026-08-10-layout-cad-foundat
 | `hooks/shortcuts.svelte.ts` | Keyboard |
 | `export/` `import/` | Package I/O |
 
-Shared motion: `../museum/navigation/` — do not fork.
+Shared motion: `@portfolio/camera-core` — do not fork. Visitor-only navigation
+components remain in `../museum/navigation/`.

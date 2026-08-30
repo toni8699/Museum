@@ -1,11 +1,11 @@
 import type { NavigationGraph } from '$lib/content/scene';
 import type { CameraConnectionDirection, RuntimeConnection } from '$lib/types/scene';
-import { createCameraMotion, type CameraMotion } from '$lib/museum/navigation/camera-motion';
+import { createCameraMotion, type CameraMotion } from '@portfolio/camera-core';
 import {
 	getCameraConnectionRoute,
 	getCameraMotionOptions,
 	type ResolvedCameraRoute
-} from '$lib/museum/navigation/camera-route';
+} from '@portfolio/camera-core';
 
 /**
  * P8 S1 — the canonical directed-edge motion resolver.

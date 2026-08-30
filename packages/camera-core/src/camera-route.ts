@@ -1,15 +1,11 @@
-import {
-  getNode,
-  type NavigationGraph
-} from '$lib/content/scene';
-import { navigationGraph } from '$lib/content/chopin-project';
+import { getNode, type NavigationGraph } from './navigation';
 import type {
   CameraConnectionDirection,
-  RuntimeConnection,
   NavigationNodeData,
+  RuntimeConnection,
   Vec3
-} from '$lib/types/scene';
-export type { CameraConnectionDirection } from '$lib/types/scene';
+} from './scene-types';
+export type { CameraConnectionDirection } from './scene-types';
 import type {
   CameraMotionOptions,
   CameraPositionPathPart,
@@ -399,7 +395,7 @@ function buildResolvedRoute(
 export function getCameraRoute(
   fromNodeId: string,
   toNodeId: string,
-  graph: NavigationGraph = navigationGraph
+  graph: NavigationGraph
 ): ResolvedCameraRoute {
   if (fromNodeId === toNodeId) {
     const node = getNode(fromNodeId, graph);
@@ -432,7 +428,7 @@ export function getCameraRoute(
 export function getCameraConnectionRoute(
   connectionId: string,
   direction: CameraConnectionDirection,
-  graph: NavigationGraph = navigationGraph
+  graph: NavigationGraph
 ): ResolvedCameraRoute {
   if (direction !== 'forward' && direction !== 'reverse') {
     throw new Error(`Unknown camera connection direction: ${String(direction)}`);
@@ -558,7 +554,7 @@ function appendFlowLoop(
 /** Resolve ordered flow while retaining any evaluable prefix before a gap. */
 export function resolveFlowRoute(
   startNodeId: string,
-  graph: NavigationGraph = navigationGraph,
+  graph: NavigationGraph,
   options: { loop?: boolean } = {}
 ): FlowRouteResolution {
   const chain = walkFlowChain(startNodeId, graph);
@@ -590,7 +586,7 @@ export function resolveFlowRoute(
  */
 export function getFlowLoopConnectionId(
   startNodeId: string,
-  graph: NavigationGraph = navigationGraph
+  graph: NavigationGraph
 ): string | null {
   const chain = walkFlowChain(startNodeId, graph);
   if (chain.gap) throw flowGapError(chain.gap);
@@ -608,7 +604,7 @@ export function getFlowLoopConnectionId(
  */
 export function getFlowRoute(
   startNodeId: string,
-  graph: NavigationGraph = navigationGraph,
+  graph: NavigationGraph,
   options: { loop?: boolean } = {}
 ): ResolvedCameraRoute {
   const resolution = resolveFlowRoute(startNodeId, graph, options);

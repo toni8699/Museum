@@ -1,4 +1,4 @@
-import { VISITOR_CAMERA_PROJECTION } from '$lib/museum/navigation/camera-motion';
+import { VISITOR_CAMERA_PROJECTION } from '@portfolio/camera-core';
 import { Box3, Group, Mesh, BoxGeometry, PerspectiveCamera, Vector3 } from 'three';
 import { describe, expect, it, vi } from 'vitest';
 import {

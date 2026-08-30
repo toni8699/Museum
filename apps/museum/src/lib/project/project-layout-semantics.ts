@@ -1,5 +1,5 @@
 import type { SceneDocument, SceneRoomResolver } from '$lib/content/scene';
-import { createCameraPositionPath } from '$lib/museum/navigation/camera-motion';
+import { createCameraPositionPath } from '@portfolio/camera-core';
 import { layoutRoomLocalPoint, layoutRoomPoint } from '$lib/layout/layout-room-frame';
 import type { LayoutDocument, LayoutFloor, LayoutRoom } from '$lib/layout/layout-types';
 import type { Vec3 } from '$lib/types/scene';

@@ -8,7 +8,7 @@ import {
 	createEdgeLocalTimeline,
 	createEditorCameraTimeline
 } from '$lib/editor/camera/editor-camera-timeline';
-import { CameraRouteError, getFlowRoute } from '$lib/museum/navigation/camera-route';
+import { CameraRouteError, getFlowRoute } from '@portfolio/camera-core';
 
 /**
  * P11.3 — scope-aware timeline shell (slice verification gate, §12).

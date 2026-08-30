@@ -1,7 +1,7 @@
 import type { PerspectiveCamera } from 'three';
 import type { OrbitControls as ThreeOrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { consumeEditorOrbitInertia, type EditorOrbitControlsLike } from './camera/editor-camera';
-import type { CardinalSnapMotion } from '../museum/navigation/camera-motion';
+import type { CardinalSnapMotion } from '@portfolio/camera-core';
 import type { CardinalView } from './camera/editor-camera';
 import type { OrientationProjectionSnapshot } from './editor-orientation-projection';
 import type { OrientationSnapStartPose } from './editor-orientation-interaction';

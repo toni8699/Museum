@@ -15,13 +15,13 @@ import {
   createCameraMotion,
   createCameraMotionSample,
   sampleCameraMotion
-} from '$lib/museum/navigation/camera-motion';
+} from '@portfolio/camera-core';
 import {
   getCameraConnectionRoute,
   getCameraRoute,
   getFlowLoopConnectionId,
   getFlowRoute
-} from '$lib/museum/navigation/camera-route';
+} from '@portfolio/camera-core';
 
 const { graph: fixtureGraph } = loadFixtureScene();
 
@@ -638,14 +638,14 @@ describe('getCameraRoute', () => {
     );
   });
 
-  it('keeps checked-in scene as default graph (identity smoke)', () => {
+  it('keeps checked-in scene graph explicit at the call site (identity smoke)', () => {
     const start = navigationGraph.navigationNodes[0]!;
     const neighbor = start.connectedNodeIds[0];
     if (!neighbor) {
       expect(navigationGraph.connections.length).toBeGreaterThan(0);
       return;
     }
-    expect(getCameraRoute(start.id, neighbor)).toEqual(
+    expect(getCameraRoute(start.id, neighbor, navigationGraph)).toEqual(
       getCameraRoute(start.id, neighbor, navigationGraph)
     );
     expect(navigationGraph.navigationNodes).toBe(scene.navigationNodes);

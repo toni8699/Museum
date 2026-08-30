@@ -73,7 +73,8 @@ Policy rules:
 | P15 | camera-core extraction — slice 1 of the ratified migration review: move `museum/navigation/camera-route.ts` + `camera-motion.ts` (and the minimum compile-required type surface) into `@portfolio/camera-core`, sever the Chopin default, migrate all importers, add source + runtime visitor-boundary pins; zero runtime behavior change for existing production call sites | **shipped 2026-08-30 — S0–S4 complete** | P14 + [migration review](2026-08-29-backend-persistence-migration-review.md) | archived → [2026-08-29-P15-camera-core-extraction.md](../archive/plans/2026-08-29-P15-camera-core-extraction.md) |
 | P16 | project-model + layout-core extraction — slice 2 of the ratified migration review: extract pure project/scene/layout documents, codecs, room semantics, compiled geometry, package format, and SHA primitives behind shared packages; preserve canonical JSON, generated-endpoint, graph, geometry, editor, visitor, and relic behavior | **shipped 2026-08-30 — S0–S5 complete** | P15 | archived → [2026-08-30-P16-project-model-layout-core-extraction.md](../archive/plans/2026-08-30-P16-project-model-layout-core-extraction.md) |
 | P17 | editor / visitor app split — slice 3 of the ratified migration review: standalone `@portfolio/editor` and read-only `@portfolio/museum`, with the relic gated into editor and source/runtime visitor boundary pins | **shipped 2026-08-30** | P16 | archived → [2026-08-30-P17-app-split.md](../archive/plans/2026-08-30-P17-app-split.md) |
-| P18 | backend provisioning — slice 4 of the ratified migration review: deploy `@museum/api` Fastify compute on Render, connect it to separately provisioned Neon Postgres through secret `DATABASE_URL`, and add process/database health checks with no persistence schema yet | **in-progress** | P17 | [2026-08-30-P18-backend-provisioning.md](2026-08-30-P18-backend-provisioning.md) |
+| P18 | backend provisioning — slice 4 of the ratified migration review: deploy `@museum/api` Fastify compute on Render, connect it to separately provisioned Neon Postgres through secret `DATABASE_URL`, and add process/database health checks with no persistence schema yet | **shipped 2026-08-30 — infrastructure boundary; owner-run Render/Neon provisioning remains the P19 gate** | P17 | archived → [2026-08-30-P18-backend-provisioning.md](../archive/plans/2026-08-30-P18-backend-provisioning.md) |
+| P19 | first project persistence — authenticated semantic-document Save/Load, immutable project versions, and single-user ownership on the P18 API/Neon boundary | proposed | P18 | [2026-08-30-P19-project-persistence.md](2026-08-30-P19-project-persistence.md) |
 | — | Branch rejoin — **experiment, no schedule** (rejoin into a later Sequence stop; dead-end return already ships; multi-edge playback would compose P8's edge primitive) | proposed | P8 conceptually | [2026-08-21-branch-rejoin-experiment.md](2026-08-21-branch-rejoin-experiment.md) |
 | … | future work re-registers here | | | |
 
@@ -84,7 +85,9 @@ the first work after P3B. P13 remains proposed and unscheduled. **P15
 migration review** — the first step toward the editor/visitor/api split. **P16
 (project-model + layout-core extraction) shipped 2026-08-30 as slice 2 of the
 ratified migration review.** **P17 (editor / visitor app split) shipped
-2026-08-30 as slice 3.** **P18 (backend provisioning) is planned as slice 4.**
+2026-08-30 as slice 3.** **P18 (backend provisioning) shipped 2026-08-30 as
+slice 4's infrastructure boundary; owner-run Render/Neon provisioning remains
+the P19 gate.**
 Product vision lives in the north star.
 
 Execution order: **P6 → P1 → P8 → P7 → P9 → P2 → P3 → P11** — P1 shipped
@@ -223,6 +226,7 @@ prefixed.
 - `archived → ../archive/plans/2026-08-24-P3B-orientation-preview-affordances.md` (core shipped 2026-08-28 — P3B.7a/P3B.8 closed; P3B.7b remains deferred/non-blocking)
 - `archived → ../archive/plans/2026-08-28-P14-camera-plan-footprints.md` (shipped 2026-08-29 — P14 S1–S3 complete)
 - `archived → ../archive/plans/2026-08-29-P15-camera-core-extraction.md` (shipped 2026-08-30 — S0–S4 complete)
+- `archived → ../archive/plans/2026-08-30-P18-backend-provisioning.md` (shipped 2026-08-30 — infrastructure boundary; owner-run Render/Neon provisioning remains the P19 gate)
 
 **Sources:** all source content is folded into the umbrella docs (P1 §A–§D ·
 P2 §A); the original source files were deleted 2026-08-18. P4/P5 sources were

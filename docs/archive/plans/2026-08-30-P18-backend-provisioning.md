@@ -1,6 +1,7 @@
 # P18 — backend provisioning
 
-**Status:** in-progress. **Date:** 2026-08-30.
+**Status:** shipped — infrastructure boundary complete; owner-run Render/Neon
+provisioning remains the P19 entry gate. **Date:** 2026-08-30.
 **Depends on:** P17. **Source:** backend/persistence migration review, Slice 4 /
 Backend-provisioning pass.
 
@@ -199,3 +200,11 @@ provider, local files, browser storage, an ORM, or a second document model. If
 the first persistence endpoint later proves direct SQL insufficient, choose
 migrations/query tooling in that slice against its concrete schema rather than
 speculating here.
+
+## Closeout
+
+P18 shipped at the infrastructure-boundary scope: `@museum/api`, health checks,
+bounded Postgres lifecycle, tests, and the API-only Render Blueprint are in the
+workspace. The owner will provision Neon and Render, supply `DATABASE_URL`, and
+run the real health smoke before P19 starts. No credentials or application
+schema were added.

@@ -5,7 +5,9 @@ slice plus one next action only.
 
 ## Working tree
 
-- Current planning delta: **P18 backend provisioning — in progress.** The plan
+- Current planning delta: **P18 backend provisioning — shipped.** The local
+  infrastructure boundary is complete; owner-run Render/Neon provisioning is
+  the P19 entry gate. The plan
   scopes Slice 4 to a Render-hosted
   `apps/api`, separately provisioned Neon Postgres through secret
   `DATABASE_URL`, and live/ready health checks; persistence remains a later
@@ -56,8 +58,8 @@ slice plus one next action only.
   `cameraPlan` and `layoutInteraction`; static checking is clean.
 - A browser axe audit still reports generic editor color-contrast review items
   in empty/status text and SVG labels; these are outside the closed P3B gate.
-- P18 Render/Neon provisioning and real-database smoke await owner-approved
-  resource values and credentials.
+- Owner-run P18 Render/Neon provisioning and real-database smoke remain the P19
+  entry gate.
 
 ## Traps
 

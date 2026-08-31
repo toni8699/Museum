@@ -247,9 +247,10 @@ P-number; future work re-registers here when scheduled.
 
 - **Current / near-term platform work** (grounded in active rows): core
   extraction / app boundaries (P15–P17 shipped), backend provisioning (P18
-  shipped), project Save/Load (P19 proposed), then auth/ownership, R2-backed
-  project assets, persistence integration, spatial editor completion/polish,
-  and a basic publish/runtime boundary.
+  shipped), project Save/Load + first managed-auth integration + single-user
+  ownership (P19 proposed), then auth UX/hardening and richer permissions,
+  R2-backed project assets, persistence integration, spatial editor
+  completion/polish, and a basic publish/runtime boundary.
 - **Medium-term product infrastructure** (possible direction, unscheduled):
   project dashboard, project asset management, hosted project loading,
   published project versions, portable project/export hardening, and generic
@@ -267,5 +268,7 @@ P-number; future work re-registers here when scheduled.
 Constraints: no Experience implementation tickets are created now, and
 Experience work must not displace persistence or Spatial completion.
 `ExperienceDocument` gets no codecs, migrations, or backend endpoints.
-R2 and managed-auth integration remain out of P18; P19 is authenticated
-project Save/Load only (no Experience schema, no R2).
+R2 and managed-auth integration remain out of P18. P19 includes the first
+managed-provider bearer verification and single-user ownership required for
+Save/Load; broader auth UX/hardening and richer permissions remain later.
+P19 has no Experience schema and no R2.

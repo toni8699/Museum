@@ -3,6 +3,7 @@
 **Status:** proposed. **Date:** 2026-08-30. **Depends on:** P18.
 **Source:** backend/persistence migration review §0.1.6–§0.1.7 and P18,
 first-persistence pass.
+**Amended:** 2026-08-31 — five review amendments applied.
 
 ## Outcome
 
@@ -34,9 +35,10 @@ code or production secrets are added; this plan does not invent a provider.
 
 - Reuse P18's `createApp`, `DatabasePool`, `readConfig`, `startServer`,
   Fastify injection tests, `pg`, and `@portfolio/project-model` dependency.
-- Use `validateProject`, `parseProjectJson`, and `serializeProject` from
-  `@portfolio/project-model` as the only project boundary. The API must not
-  copy `ProjectDocument`, scene/layout validation, codecs, or schema.
+- Use `validateProject` from `@portfolio/project-model` as the API's object
+  boundary. Keep `parseProjectJson` and `serializeProject` for text-file and
+  portable-package boundaries; the API must not copy `ProjectDocument`,
+  scene/layout validation, codecs, or schema.
 - Compose the saved document at the `apps/editor` composition root from the
   live `store.document`, `layoutPreview.project.layout`, and the current
   project `id`/`name`. Do not serialize `layoutPreview.project.scene` as a
@@ -69,16 +71,17 @@ type ProjectDocument = {
   JSONB value. The database never receives normalized walls, objects, camera
   nodes, connections, path anchors, or generated endpoints.
 - The API validates the incoming unknown value with the shared project model,
-  requires `document.id === :projectId`, and stores the canonical object
-  returned by that validation. No API-added `version` field enters the
-  document; version is database metadata only.
+  requires `document.id === :projectId`, and sends/stores the canonical
+  `result.project` object returned by `validateProject`. No API-added
+  `version` field enters the document; version is database metadata only.
 - JSONB contains semantic references only. P19 accepts shipped catalogue and
   safe static texture references; reuse `store.projectExportBlocker` to refuse
   unresolved `/local/...` and package-rewrite texture URIs with a clear Save
   error. No binary bytes are silently treated as durable.
-- Load validates and canonicalizes the JSONB result again before returning it.
-  The fidelity assertion is canonical `serializeProject` equivalence, not
-  PostgreSQL key order or raw JSONB byte identity.
+- Load validates and canonicalizes the JSONB result again with
+  `validateProject(response.document)` before returning `result.project`. The
+  fidelity assertion uses that result's `canonicalJson`, not PostgreSQL key
+  order or raw JSONB byte identity.
 
 ### Minimal schema
 
@@ -93,14 +96,14 @@ projects
   id text primary key
   owner_id text not null references users(id)
   name text not null
-  latest_version bigint not null default 0
+  latest_version integer not null default 0
   created_at timestamptz not null
   updated_at timestamptz not null
 
 project_versions
   id bigint generated always as identity primary key
   project_id text not null references projects(id)
-  version bigint not null
+  version integer not null
   document jsonb not null
   created_at timestamptz not null
   unique (project_id, version)
@@ -123,6 +126,12 @@ first slice deliberately uses the project-row lock and last-successful-save
 wins for multiple tabs; `ponytail: add expectedVersion optimistic locking if
 multi-tab concurrency becomes a real product requirement.`
 
+Pin the project request body limit explicitly at **2 MiB**, based on the
+largest checked-in canonical project fixture currently measuring 45,586 bytes
+and headroom for semantic growth without allowing unbounded JSON. A body just
+over the limit returns `413 Payload Too Large`; malformed JSON remains a
+separate `400` response. Do not inherit Fastify's default accidentally.
+
 ## HTTP and identity contract
 
 Health routes remain public and unchanged. Project routes require a verified
@@ -139,10 +148,11 @@ managed-provider bearer token:
   root session state. Subsequent Saves use the same ID. The API never trusts
   an owner ID, email, or project name supplied outside the validated document.
 - Missing or invalid bearer credentials return a generic `401`. Invalid
-  documents, ID mismatches, and oversized/malformed bodies return structured
-  `400` responses without stack traces. Unknown or non-owned projects return
-  generic `404` responses. Database failures return a generic bounded `503`;
-  connection strings and provider tokens never appear in responses or logs.
+  documents, ID mismatches, and malformed bodies return structured `400`
+  responses; oversized bodies return `413`, all without stack traces. Unknown
+  or non-owned projects return generic `404` responses. Database failures
+  return a generic bounded `503`; connection strings and provider tokens
+  never appear in responses or logs.
 - Keep provider verification at the API edge. Inject the verifier into
   `createApp` for Node tests, and use the provider's official smallest server
   verifier in production. Do not create a generic auth package or accept a
@@ -159,6 +169,7 @@ Add root-owned project metadata and persistence status, not a parallel store:
 ```ts
 projectId: string | null;
 projectName: string;
+savedProjectName: string;
 projectVersion: number | null;
 ```
 
@@ -168,46 +179,71 @@ the relic keeps its existing checked-in project actions. The project menu gets
 one small name field and an owned-project list, not a project-management
 surface.
 
+The combined dirty predicate is:
+
+```ts
+projectIsDirty =
+  store.isDirty ||
+  layoutPreviewIsDirty(layoutPreview) ||
+  projectName !== savedProjectName;
+```
+
+Keep one shared Save/Load request mutex. Local document edits may remain
+responsive during a Save, but a second Save or Load cannot start until the
+first request has settled; only the current request token may update
+`projectVersion`.
+
 ### Save
 
 1. Refuse while a document gesture/transaction is active, while either
    document is invalid, or while `projectExportBlocker` reports unresolved
    local/package texture bytes.
 2. Compose the full `{ id, name, layout, scene }` from the live stores and
-   run `serializeProject` once. Cross-document room-reference failure leaves
-   both documents, selection, history, and dirty state untouched.
-3. Acquire the provider access token, `PUT` the canonical document, and only
-   after a successful response update `projectId`, `projectName`,
-   `projectVersion`, both document baselines, and the status message.
+   run `validateProject(composed)`. On success, capture a `SaveSnapshot`
+   containing the exact request document plus `sceneCanonicalJson`,
+   `layoutCanonicalJson`, `projectName`, and `projectId`; send `result.project`
+   as the JSON object body. Cross-document failure leaves both documents,
+   selection, history, and dirty state untouched.
+3. Acquire the provider access token, `PUT` the snapshot's canonical object,
+   and only after a successful response update `projectId` and
+   `projectVersion`. Set the scene/layout baselines and `savedProjectName`
+   from the snapshot, never by reading live state at response time. If the
+   user edited the scene, layout, or name while Save was in flight, the
+   current state remains dirty against that snapshot.
 4. Saving preserves the current domain/view, selection, camera preview
    session, and undo/redo history. The combined project dirty indicator is
-   `store.isDirty || layoutPreviewIsDirty(layoutPreview)`.
+   `projectIsDirty`, including the project-name comparison above.
 
-Add the smallest baseline-only facades needed for this behavior (for example,
-`EditorStore.markSaved()` and a layout baseline helper). Do not implement Save
-by importing the same document, because import intentionally clears selection
-and history.
+Add the smallest snapshot-aware baseline-only facades needed for this behavior
+(for example, `EditorStore.markSaved(snapshot.sceneCanonicalJson)` and a
+layout baseline helper). Do not implement Save by importing the same document,
+because import intentionally clears selection and history.
 
 ### Load
 
 1. Authenticate and list only the current user's projects. Refreshing the
    page leaves the blank boot project in place until the user chooses Load.
-2. Fetch the selected latest project, parse it through `parseProjectJson`, and
-   preflight the complete replacement with `derivePreviewBundle` and the
-   remote room registry before mutating either live document.
-3. Use one combined dirty confirmation when either scene or layout is dirty.
-   Refuse during an active gesture; stop/cancel camera preview and pending
+2. Use one combined dirty confirmation when either scene, layout, or project
+   name is dirty, then capture a live scene/layout/name fingerprint.
+   Fetch the selected latest project, validate its response object through
+   `validateProject(response.document)`, and preflight the complete
+   replacement with `derivePreviewBundle` and the remote room registry before
+   mutating either live document.
+3. Refuse during an active gesture; stop/cancel camera preview and pending
    placement through the existing replacement guards.
 4. Install the preflighted layout + scene as one composition-root operation,
    passing the remote room registry into the scene replacement seam so a
-   remote layout and scene cannot briefly resolve against the old rooms. On
-   any parse, validation, geometry, auth, or network failure before commit,
-   the current project remains unchanged.
+   remote layout and scene cannot briefly resolve against the old rooms. Just
+   before commit, compare the live scene/layout/name fingerprint and re-check
+   that no document gesture or transaction is active. If either check fails,
+   abort with a re-load message and leave the current project unchanged. On
+   any validation, geometry, auth, or network failure before commit, the same
+   no-mutation guarantee applies.
 5. After success, clear active scene/layout selection, pending placement,
    preview-only navigation, and shared undo/redo history; set both baselines,
-   project metadata, and status. Preserve the current Scene|Camera and
-   Plan|3D view choice unless the existing replacement guard requires a
-   teardown.
+   `savedProjectName`, project metadata, and status from the validated load.
+   Preserve the current Scene|Camera and Plan|3D view choice unless the
+   existing replacement guard requires a teardown.
 
 The only new cross-domain seam is the minimum root-owned full-project
 replacement operation plus the existing store/layout baseline hooks required
@@ -223,13 +259,15 @@ motion, selection, or geometry system.
   settings with the owner.
 - Record provider configuration as deployment secrets/environment values;
   do not commit tokens, JWKS credentials, or Neon URLs.
-- Pin the request/response shapes above and the `project_versions` JSONB
-  policy in API tests before adding editor UI.
+- Pin the request/response shapes, object-based `validateProject` boundary,
+  2 MiB body limit, and the `project_versions` JSONB policy in API tests
+  before adding editor UI.
 
 ### P19.1 — schema and direct persistence queries
 
 - Add the SQL migration, tiny `migrate:api` runner, tables, constraints, and
-  owner/updated index.
+  owner/updated index, with integer public version columns and a bigint-only
+  surrogate row ID if retained.
 - Add direct SQL functions for list, transactional Save, and latest Load.
   Keep query code close to the API; no repository abstraction for one schema.
 - Add the provider-verifier injection and authenticated route handlers to the
@@ -239,11 +277,13 @@ motion, selection, or geometry system.
 
 - Add the smallest provider browser sign-in/token seam and API-origin config;
   use the provider's hosted/native sign-in flow rather than custom credentials.
-- Add root project metadata, combined dirty state, Save/Load actions, name
-  editing, owned-project list, busy/error status, and abortable mount-time
-  project-list fetch to `apps/editor`.
+- Add root project metadata, name/save-baseline state, combined dirty state,
+  Save/Load actions, name editing, owned-project list, one-request mutex,
+  busy/error status, and abortable mount-time project-list fetch to
+  `apps/editor`.
 - Add the full-project preflight/install seam, scene-room-registry handoff,
-  baseline-only Save completion, and selection/history teardown on Load.
+  snapshot-based Save completion, load fingerprint guard, and
+  selection/history teardown on Load.
 - Keep existing plain JSON/package import/export as-is; cloud Save is semantic
   JSON only and does not alter the portable package format.
 
@@ -260,9 +300,12 @@ motion, selection, or geometry system.
 ### API and database
 
 1. `npm run check:api`, `npm run test:api`, `npm run build:api`, and
-   `npm run migrate:api` pass. Reapplying the migration is a no-op.
+   `npm run migrate:api` pass. Reapplying the migration is a no-op; public
+   project version values are JS numbers, not `pg` `bigint` strings.
 2. Unauthenticated, invalid-token, malformed-body, invalid-project, and
-   document-ID-mismatch requests fail without SQL writes or secret leakage.
+   document-ID-mismatch requests fail without SQL writes or secret leakage;
+   a valid just-under-limit body succeeds, just-over-limit bodies return
+   `413`, and malformed JSON returns `400`.
 3. An authenticated user can list only owned projects, Save a new project as
    version 1, Save it again as version 2, and Load the latest canonical
    document. The earlier version remains immutable in `project_versions`.
@@ -278,25 +321,29 @@ motion, selection, or geometry system.
 
 ### Editor and regression
 
-7. Save composes the live scene and layout, rejects cross-document invalidity
-   and unresolved local/package texture references, and leaves the prior
-   state untouched on failure. A successful Save resets both dirty baselines
-   without clearing selection or history.
-8. Load preflights the whole project, uses one dirty confirmation, restores
+7. Save composes the live scene and layout, validates the object with
+   `validateProject`, rejects cross-document invalidity and unresolved
+   local/package texture references, and leaves the prior state untouched on
+   failure. A successful Save resets baselines from its captured snapshot,
+   including `savedProjectName`, without clearing selection or history.
+8. A Save that sends snapshot A, receives a response after the user edits to
+   B, and completes leaves B dirty; a second Save/Load cannot overlap the
+   first or regress `projectVersion`.
+9. Load preflights the whole project, uses one dirty confirmation, restores
    layout + scene together with the remote room registry, clears selection and
    shared history after success, and leaves the current state unchanged on
-   parse/auth/network/preflight failure.
-9. A browser smoke passes: sign in → edit scene/layout → Save → observe v1 →
+   validation/auth/network/preflight failure or a changed live fingerprint.
+10. A browser smoke passes: sign in → edit scene/layout → Save → observe v1 →
    edit again → Save v2 → refresh → Load → verify room frames, layout objects,
    scene entities, camera nodes/connections, and derived runtime geometry.
-10. Browser smoke covers canceling a dirty Load, a failed Save, an expired or
-    rejected token, an empty owned-project list, and two users' isolation.
-11. The greenfield editor exposes the cloud actions; `/museum/editor` keeps
-    its relic actions and never constructs the cloud persistence controller;
-    `/museum` makes no API/auth request and remains visitor-only.
-12. `npm run check`, `npm run build`, the full editor suite,
-    `verify:visitor-bundle`, and existing `/`, `/editor`, `/museum`, and
-    `/museum/editor` browser smoke all pass.
+11. Browser smoke covers canceling a dirty Load, a failed Save, an expired or
+   rejected token, an empty owned-project list, and two users' isolation.
+12. The greenfield editor exposes the cloud actions; `/museum/editor` keeps
+   its relic actions and never constructs the cloud persistence controller;
+   `/museum` makes no API/auth request and remains visitor-only.
+13. `npm run check`, `npm run build`, the full editor suite,
+   `verify:visitor-bundle`, and existing `/`, `/editor`, `/museum`, and
+   `/museum/editor` browser smoke all pass.
 
 ## Mount, relic, Plan, and visitor boundaries
 

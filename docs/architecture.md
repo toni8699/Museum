@@ -28,8 +28,30 @@ apps/editor (greenfield)     apps/museum (frozen Chopin visitor)
 | Product/project authorization | Fastify + Postgres |
 
 P18 provisions only the Render API and Neon database through secret
-`DATABASE_URL`. R2 and managed-auth integration remain later slices. The auth
-provider proves identity; it never owns project permissions.
+`DATABASE_URL`. R2 and managed-auth integration remain later slices; P19 is
+authenticated project Save/Load only. Experience mode/schema, R2, and project
+persistence endpoints are not P18/P19 scope. The auth provider proves
+identity; it never owns project permissions.
+
+## Project-level surfaces (future)
+
+The current `Scene | Camera` × `Plan | 3D` workspaces are the canonical
+**Spatial** authoring surface and remain unchanged. Long-term, the project
+shell adds three project-level surfaces without renaming or flattening the
+Spatial model:
+
+- **Experience** — visitor-facing navigation and presentation. It *references*
+  Spatial truth (existing cameras, rooms, authored destinations) and never
+  creates duplicate camera positions/graphs/sequences/paths, room definitions,
+  scene objects, or layout geometry. Experience navigation intent resolves
+  through the canonical camera route/motion system; Experience UI never
+  performs independent XYZ/FOV interpolation. `ExperienceDocument` is a future
+  ownership boundary only — no schema, codecs, migrations, or backend scope now.
+- **Assets** — one shared project asset registry serving Spatial and
+  Experience; no independent per-mode asset stores.
+- **Publish** — visitor-safe runtime + Experience UI + project data/assets;
+  developer/export consumption levels are future direction (no runtime SDK
+  defined now).
 
 ## Ownership
 
@@ -77,4 +99,6 @@ materials, resource lifetime, and raycast identity adaptation.
 Dual nav graphs · second motion/gizmo/geometry compiler · persist generated
 endpoints · persist Three/render state · infer room ownership/adjacency from
 coordinates · import Chopin/legacy editor state into the editor · independent
-layout-only import · hide the editor behind a build flag.
+layout-only import · hide the editor behind a build flag · Experience UI
+performing independent camera interpolation · duplicate camera/graph/geometry/
+room state in Experience · separate Spatial and Experience asset stores.

@@ -233,3 +233,34 @@ P2 §A); the original source files were deleted 2026-08-18. P4/P5 sources were
 removed with the deleted plans 2026-08-27.
 
 **Not archived (active):** this tracker · P13 · the branch-rejoin experiment.
+
+## Long-term roadmap (direction only — not registered)
+
+Ratified 2026-08-31 with the north-star amendment: the project shell has two
+primary creative modes — **Spatial** (the current editor) and **Experience**
+(future) — plus project-level **Assets** and **Publish** surfaces, all
+operating on one portable project truth. Direction lives in
+[`../north-star.md`](../north-star.md) and its final conceptual hierarchy;
+this section records only the sequencing tiers. Nothing here is a registered
+P-number; future work re-registers here when scheduled.
+
+- **Current / near-term platform work** (grounded in active rows): core
+  extraction / app boundaries (P15–P17 shipped), backend provisioning (P18
+  shipped), project Save/Load (P19 proposed), then auth/ownership, R2-backed
+  project assets, persistence integration, spatial editor completion/polish,
+  and a basic publish/runtime boundary.
+- **Medium-term product infrastructure** (possible direction, unscheduled):
+  project dashboard, project asset management, hosted project loading,
+  published project versions, portable project/export hardening, and generic
+  visitor/player extraction when genuinely needed.
+- **Long-term Experience work** (unscheduled): Experience mode shell,
+  `ExperienceDocument` design, visitor menu authoring, destination bindings,
+  contextual titles/info cards, visitor preferences, reduced-motion behavior,
+  the Experience asset picker, the developer runtime SDK, headless runtime,
+  and community/gallery surfaces.
+
+Constraints: no Experience implementation tickets are created now, and
+Experience work must not displace persistence or Spatial completion.
+`ExperienceDocument` gets no codecs, migrations, or backend endpoints.
+R2 and managed-auth integration remain out of P18; P19 is authenticated
+project Save/Load only (no Experience schema, no R2).

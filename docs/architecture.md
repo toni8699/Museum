@@ -28,9 +28,11 @@ apps/editor (greenfield)     apps/museum (frozen Chopin visitor)
 | Product/project authorization | Fastify + Postgres |
 
 P18 provisions only the Render API and Neon database through secret
-`DATABASE_URL`. R2 and managed-auth integration remain later slices; P19 is
-authenticated project Save/Load only. Experience mode/schema, R2, and project
-persistence endpoints are not P18/P19 scope. The auth provider proves
+`DATABASE_URL`. P19 introduces the first managed-auth integration needed for
+bearer identity, single-user project ownership, and authenticated project
+Save/Load endpoints. R2 remains a later slice; richer auth UX/hardening,
+permissions/memberships, teams, and collaboration also remain later.
+Experience mode/schema remains outside P18/P19. The auth provider proves
 identity; it never owns project permissions.
 
 ## Project-level surfaces (future)
@@ -51,9 +53,12 @@ Spatial model:
   **Spatial → Camera owns authored camera/path/timing/framing truth**;
   Experience interactions may reference spatial entities and canonical
   temporal evaluation, and may reuse the same 3D preview/render surface, but
-  never own or edit duplicate path/camera truth. `ExperienceDocument` is a
-  future ownership boundary only — no schema, codecs, migrations, or backend
-  scope now.
+  never own or edit duplicate path/camera truth. Spatial Camera may author or
+  emit semantic cue markers tied to that canonical temporal evaluation, while
+  Experience Interaction owns the visitor-facing action binding to those cue
+  events; a cue is not a second behavior-authoring system. `ExperienceDocument`
+  is a future ownership boundary only — no schema, codecs, migrations, or
+  backend scope now.
 - **Assets** — one shared project asset registry serving Spatial and
   Experience; no independent per-mode asset stores.
 - **Publish** — visitor-safe runtime + Experience UI + project data/assets;
@@ -109,7 +114,8 @@ coordinates · import Chopin/legacy editor state into the editor · independent
 layout-only import · hide the editor behind a build flag · Experience UI
 performing independent camera interpolation · Experience Interaction editing
 camera/path truth outside Spatial · duplicating canonical timing/path values
-into Experience truth · independent Experience camera evaluation · a separate
-Interaction asset store · `ExperienceScene` / `ExperienceCameraGraph` /
-`ExperienceCameraPath` / `ExperienceRenderer` as a second spatial authority ·
-separate Spatial and Experience asset stores.
+into Experience truth · independent Experience camera evaluation · binding
+narration/audio/UI actions in Spatial Camera as a competing interaction
+authority · a separate Interaction asset store · `ExperienceScene` /
+`ExperienceCameraGraph` / `ExperienceCameraPath` / `ExperienceRenderer` as a
+second spatial authority · separate Spatial and Experience asset stores.

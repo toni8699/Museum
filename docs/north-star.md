@@ -54,6 +54,9 @@ The long-term project shell has **two primary creative modes**:
 Project Shell
 ├─ Spatial
 ├─ Experience
+│  ├─ Navigation
+│  ├─ Content
+│  └─ Interactions
 ├─ Assets
 └─ Publish
 ```
@@ -61,6 +64,12 @@ Project Shell
 `Spatial` and `Experience` are the two primary creative modes. `Assets` and
 `Publish` are project-level supporting surfaces, not additional spatial
 workspaces.
+
+The `Experience` decomposition above (**Navigation · Content · Interactions**)
+is conceptual future structure only. **Interactions are an authoring lens
+within Experience, not a third project mode:** Experience is the
+visitor-facing presentation/navigation/behavior-authoring surface, and
+Interaction is the semantic behavior model that surface uses.
 
 Conceptual product hierarchy:
 
@@ -171,28 +180,14 @@ valuable than a frozen mesh. Layout-owned procedural construction must extend
 procedural assets remain Scene-domain entities/assets. Neither creates a
 parallel geometry authority.
 
-All byte-backed asset acquisition should converge on one canonical ingest
-boundary:
-
-```text
-Built-in
-Upload
-Online
-   ↓
-validate → normalize → optimize → derive metadata/previews
-   ↓
-canonical Asset record + runtime representation
-   ↓
-normal editor placement
-```
-
-External tools, providers, generators, and file formats are replaceable
-boundaries around this pipeline rather than durable project concepts.
-Provider/tool-specific state must stop at adapter/import boundaries. Imported
-records preserve provenance needed for safe reuse and publishing, including
-source identity, creator, license, attribution, and source reference where
-applicable. Credits/attribution should be derivable from project asset metadata
-rather than maintained as unrelated manual text.
+All asset sources converge on **one canonical asset record / ingest boundary**;
+a once-accepted asset resolves through the same placement, packaging, and
+publishing rules regardless of origin. External tools, providers, generators,
+and file formats are replaceable boundaries around that boundary rather than
+durable project concepts. Imported records preserve provenance needed for safe
+reuse and publishing, including source identity, creator, license, attribution,
+and source reference where applicable. Credits/attribution should be derivable
+from project asset metadata rather than maintained as unrelated manual text.
 
 Generic mesh supply is not the product moat. The value is how assets become
 structured, reusable participants in spatial authoring and interaction.
@@ -298,7 +293,7 @@ Experience
 │  ├─ headings / groups
 │  └─ destinations
 │
-├─ Contextual visitor content
+├─ Content
 │  ├─ titles
 │  ├─ subtitles
 │  ├─ descriptions
@@ -306,18 +301,103 @@ Experience
 │  ├─ info panels
 │  └─ links / actions
 │
-└─ Visitor controls
-   ├─ guided / free navigation
-   ├─ motion / reduced-motion
-   ├─ audio
-   └─ other visitor-safe settings
+└─ Interactions
+   └─ Event → Target → Action
+       references Spatial + Assets
 ```
 
+**Experience and Interaction are distinct, not overlapping.** Experience is the
+surface: navigation, content, and visitor-facing UI (including visitor-safe
+settings such as guided/free navigation, motion/reduced-motion, and audio
+controls). **Interaction is the semantic behavior model that surface uses** —
+structured `Event → Target → Action` rules. Interaction is an authoring lens
+within Experience, not a catch-all owner for visitor UI, camera data, scene
+objects, or assets.
+
 Example: a visitor enters the 3D experience, moves to the Paris room, moves
-toward the piano/table, a contextual title/info appears, clicks **Learn More**,
-and opens an internal or external destination. A collapsible menu
-(Introduction · Early Life · Paris Room · Piano · Final Years) may reference
-existing authored cameras or spatial destinations.
+toward the piano/table, an info panel appears, clicks **Learn More**, and opens
+an internal or external destination. A collapsible menu (Introduction · Early
+Life · Paris Room · Piano · Final Years) may reference existing authored
+cameras or spatial destinations. Concretely:
+
+```text
+Experience / Navigation:  "Piano" menu item → Camera Piano
+Experience / Content:      Camera Piano reached → display Piano info card
+Interaction model:          Reach Camera Piano → Show Piano Info
+```
+
+## Same world, different authoring lens
+
+Spatial and Experience operate on the **same project, the same 3D world, the
+same cameras, the same assets, and the same runtime** — they expose different
+authoring lenses over that shared truth:
+
+```text
+same project · same scene · same cameras · same assets · same runtime
+
+        ↓
+
+different authoring surface / authority
+```
+
+Spatial authors spatial truth; Experience authors how the visitor reacts to and
+navigates that truth. Experience does **not** require an independent renderer or
+an alternate scene. A future Experience workspace may reuse the visitor-safe /
+editor preview of the same 3D project while placing different authoring UI
+around it:
+
+```text
+Experience
+[Navigation] [Content] [Interactions]
+
+┌──────────────┬──────────────────┬──────────────┐
+│ Interaction  │    3D Preview    │ Inspector    │
+│ tree / rules │                  │              │
+│              │ same project     │ Event        │
+│ Gallery      │ same cameras     │ Target       │
+│  Enter       │ same assets      │ Action       │
+│   → Narrate  │                  │              │
+└──────────────┴──────────────────┴──────────────┘
+```
+
+This is **not another 3D workspace authority** — it is another authoring
+surface over the same project state. Do not create `ExperienceScene`,
+`ExperienceCameraGraph`, `ExperienceCameraPath`, `ExperienceRenderer` truth, or
+equivalent duplicates.
+
+## Spatial camera authority vs Experience interaction authority
+
+**Spatial → Camera is the sole authority** for authored camera and path truth:
+
+```text
+camera node pose        path geometry / anchors
+connection topology     sequence
+transition duration     camera target / orientation
+FOV                     framing
+camera / path spatial editing
+```
+
+Experience interactions may **reference and observe** this authored state, but
+they must not become another camera editor. For example, Experience may display
+read-only values and react to the canonical timeline:
+
+```text
+Transition: Gallery Entrance → Piano
+
+Duration      5.2 s       read-only
+Path length   12.4 m      read-only
+```
+
+```text
+At 60% of transition → Show Piano title
+```
+
+Changing path shape, path anchors, camera pose, transition duration, FOV, or
+framing must route the author back to **Spatial → Camera → Plan / 3D**. A
+future Experience surface may expose an action such as **Edit Camera Path ↗**
+that switches to the canonical Spatial Camera surface and preserves the
+relevant camera/connection selection where practical — it does not duplicate
+the editing controls in Experience.
 
 **Experience references Spatial; it never duplicates it.**
 
@@ -350,6 +430,9 @@ Experience UI
 ```
 
 There remains **one camera graph, one route system, and one motion evaluator**.
+Interaction triggers that depend on camera reached, transition progress, or
+sequence completion derive those events from this canonical camera/runtime
+evaluation — never an independent Experience camera.
 
 **Motion accessibility changes presentation, not spatial truth.** Reduced /
 no-motion visitor preferences affect transition presentation only:
@@ -367,27 +450,51 @@ accessibility.
 
 ## Interaction and behavior authoring
 
-The product gains a lightweight, typed interaction layer for common spatial
-and web behaviors without requiring general-purpose application code. The
-visitor-facing actions Experience mode exposes (links, info panels,
-destinations) and the spatial interactions that make the world responsive
-(audio, doors, narration) share this one layer.
+Interaction is the underlying **semantic behavior model** of the Experience
+surface. The product gains a lightweight, typed interaction layer for common
+spatial and web behaviors without requiring general-purpose application code.
+Experience may expose these rules through visual/structured authoring UI; the
+interaction layer provides the behavior underneath.
 
-The authoring grammar should stay close to:
+The authoring grammar stays close to:
 
 ```text
 Event → Target → Action
 ```
 
-Examples:
+Examples (audio/media selected from the shared project asset registry):
 
 ```text
-Click → Piano → Play Audio → Nocturne
-Click → Door → Open
-Enter → Gallery → Play Narration
+Enter → Gallery → Play Audio → gallery-narration.mp3
+Click → Piano → Play Audio → nocturne.mp3
 Reach → Camera C → Show → Painting Info
 Sequence End → Main Tour → Show → Credits
 ```
+
+**Prefer semantic triggers** that refer to authored project meaning over raw
+seconds:
+
+```text
+Enter Room / Leave Room     Sequence Start / End
+Reach Camera                Transition Start / End
+Click Object
+```
+
+Advanced temporal triggers may come later where useful (for example `At 60% of
+transition` or `At 2.5 s into transition`), but they must evaluate against the
+**canonical authored transition/timeline**, never a copied copy:
+
+```text
+Spatial transition duration = 5 s
+Interaction: at 60% → fade narration in → evaluates at 3.0 s
+
+Spatial duration later changes to 8 s
+same 60% interaction                 → evaluates at 4.8 s
+```
+
+The interaction stores/references semantic or relative timing according to its
+eventual contract; it must not silently copy camera timing into a second source
+of truth. No persistence representation is defined now.
 
 Authoring should autocomplete from the actual project and from capabilities
 supported by the selected object or asset. Invalid operations should be
@@ -603,10 +710,13 @@ merely for convenience.
 
 `ExperienceDocument` is a **future ownership boundary only** and is not
 defined yet: no concrete TypeScript schema, no codecs, no migrations, no
-backend endpoints, and nothing in the current backend slices. If interactions
-later become substantial, explicitly decide whether they live inside
-`experience` or become a separate durable domain; that schema is not
-pre-designed now.
+backend endpoints, and nothing in the current backend slices. Ratifying that
+**Interaction authoring lives under Experience** (product/UI ownership) does
+**not** determine persistence/document ownership. The durable interaction
+representation remains an explicit future decision — possibly
+`ExperienceDocument └─ interactions` or a sibling `Project └─ interactions`
+domain; this direction chooses between neither and no schema is pre-designed
+now.
 
 ## Sacred contracts
 
@@ -625,10 +735,12 @@ pre-designed now.
    `compileLayoutGeometry()` (or its evolved canonical successor), never from
    competing consumer-specific reconstructions.
 5. **One camera graph/motion system.** Camera direction, assisted authoring,
-   cuts/branches, previews, AI authoring, and **Experience navigation intent**
-   resolve through the canonical camera route and motion pipeline rather than
-   creating a second navigation/motion model. Experience UI never performs
-   independent XYZ/FOV interpolation.
+   cuts/branches, previews, AI authoring, and **Experience navigation /
+   interaction intent** resolve through the canonical camera route and motion
+   pipeline rather than creating a second navigation/motion model. Experience
+   UI never performs independent XYZ/FOV interpolation. Interaction triggers
+   (camera reached, transition progress, sequence completion) derive from this
+   one evaluation, never an independent Experience camera.
 6. **Topology and Sequence stay different.** Connections describe possible
    movement; Sequence describes ordered guided traversal. Neither silently
    rewrites the other.
@@ -649,9 +761,10 @@ pre-designed now.
     authoring binds to existing cameras, rooms, and authored destinations and
     composes visitor-facing navigation/presentation; it never creates
     duplicate camera positions, graphs, sequences, paths, room definitions,
-    scene objects, or layout geometry. Motion/reduced-motion preferences
-    change transition presentation only, never spatial truth or destination
-    state.
+    scene objects, or layout geometry, and it never edits camera/path/timing
+    truth. Interactions are an Experience authoring lens, not a separate mode.
+    Motion/reduced-motion preferences change transition presentation only,
+    never spatial truth or destination state.
 12. **Assets belong to the project, not a mode.** One shared project asset
     registry serves both Spatial and Experience; no independent per-mode
     asset store and no second asset/ingest pipeline.
@@ -748,13 +861,14 @@ Public Product
       │  │  ├─ Plan → Layout | Arrange
       │  │  └─ 3D
       │  └─ Camera
-      │     ├─ Plan
-      │     └─ 3D
+      │     └─ canonical spatial / path / timing authority
       │
       ├─ Experience                      future
       │  ├─ Navigation
-      │  ├─ Contextual visitor content
-      │  └─ Visitor controls
+      │  ├─ Content
+      │  └─ Interactions
+      │       └─ Event → Target → Action
+      │           references Spatial + Assets
       │
       ├─ Assets
       │  └─ shared project asset registry
@@ -765,7 +879,20 @@ Public Product
          └─ export / integration later
 ```
 
-**Spatial builds and directs the world. Experience makes that world
-understandable, navigable, and usable by visitors. Assets and publishing
-belong to the project, and all surfaces operate on one portable project
-truth.**
+The authority flow:
+
+```text
+Spatial authors world + movement
+          ↓
+Experience observes / references that truth
+          ↓
+Interaction rules react to semantic events
+          ↓
+canonical visitor runtime executes the result
+```
+
+**Same project, same world, same cameras, same assets, same runtime —
+different authoring lenses. Spatial defines spatial truth; Experience defines
+how the visitor navigates, understands, and reacts to it. Assets and
+publishing belong to the project, and all surfaces operate on one portable
+project truth.**

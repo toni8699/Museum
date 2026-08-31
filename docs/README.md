@@ -1,6 +1,6 @@
 # Museum docs — context router
 
-**Audience:** agents + humans. **Last reviewed:** 2026-08-31 (north star amended — project shell adds Experience mode; P18 infrastructure boundary shipped; P3B.7b remains deferred; north star holds product vision).
+**Audience:** agents + humans. **Last reviewed:** 2026-08-31 (north star amended — Experience vs Interaction authoring boundary ratified; project shell adds Experience mode; P18 infrastructure boundary shipped; P3B.7b remains deferred; north star holds product vision).
 **Bootstrap (hard rules):** [`../AGENTS.md`](../AGENTS.md) ·
 **Plan status / what's next:** [`plans/README.md`](./plans/README.md) (tracker) ·
 **Live working-tree state:** [`hand-off/CURRENT.md`](./hand-off/CURRENT.md) ·

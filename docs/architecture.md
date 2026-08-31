@@ -45,8 +45,15 @@ Spatial model:
   creates duplicate camera positions/graphs/sequences/paths, room definitions,
   scene objects, or layout geometry. Experience navigation intent resolves
   through the canonical camera route/motion system; Experience UI never
-  performs independent XYZ/FOV interpolation. `ExperienceDocument` is a future
-  ownership boundary only — no schema, codecs, migrations, or backend scope now.
+  performs independent XYZ/FOV interpolation. Interactions are an Experience
+  authoring lens (not a third mode) using an `Event → Target → Action`
+  semantic model that references Spatial entities + the shared asset registry.
+  **Spatial → Camera owns authored camera/path/timing/framing truth**;
+  Experience interactions may reference spatial entities and canonical
+  temporal evaluation, and may reuse the same 3D preview/render surface, but
+  never own or edit duplicate path/camera truth. `ExperienceDocument` is a
+  future ownership boundary only — no schema, codecs, migrations, or backend
+  scope now.
 - **Assets** — one shared project asset registry serving Spatial and
   Experience; no independent per-mode asset stores.
 - **Publish** — visitor-safe runtime + Experience UI + project data/assets;
@@ -100,5 +107,9 @@ Dual nav graphs · second motion/gizmo/geometry compiler · persist generated
 endpoints · persist Three/render state · infer room ownership/adjacency from
 coordinates · import Chopin/legacy editor state into the editor · independent
 layout-only import · hide the editor behind a build flag · Experience UI
-performing independent camera interpolation · duplicate camera/graph/geometry/
-room state in Experience · separate Spatial and Experience asset stores.
+performing independent camera interpolation · Experience Interaction editing
+camera/path truth outside Spatial · duplicating canonical timing/path values
+into Experience truth · independent Experience camera evaluation · a separate
+Interaction asset store · `ExperienceScene` / `ExperienceCameraGraph` /
+`ExperienceCameraPath` / `ExperienceRenderer` as a second spatial authority ·
+separate Spatial and Experience asset stores.

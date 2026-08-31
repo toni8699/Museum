@@ -114,4 +114,6 @@ Plan ↔ 3D; a persisted view-keyframe selection gets only a passive
 
 Visitor: plays the open-chain order (loop derived); free nodes via BFS; transitioning = no nav; Paris = fixed eye + free-look. No ribbons on `/museum`.
 
-Limits: no collision/navmesh; synthesized look; timeline drag-connect ≤1 new edge; guarded deletes.
+Limits: no collision/navmesh; synthesized look; timeline drag-connect ≤1 new edge; guarded deletes.  
+Future Experience / Interaction consumers reference this canonical camera
+graph/route/motion evaluation; they do not implement another one.

@@ -227,6 +227,7 @@ prefixed.
 - `archived → ../archive/plans/2026-08-28-P14-camera-plan-footprints.md` (shipped 2026-08-29 — P14 S1–S3 complete)
 - `archived → ../archive/plans/2026-08-29-P15-camera-core-extraction.md` (shipped 2026-08-30 — S0–S4 complete)
 - `archived → ../archive/plans/2026-08-30-P18-backend-provisioning.md` (shipped 2026-08-30 — infrastructure boundary; owner-run Render/Neon provisioning remains the P19 gate)
+- `archived → ../archive/plans/2026-08-31-scope-decision-experience-interaction-boundary.md` (scope decision — Experience/Interaction authoring boundary; ratified 2026-08-31)
 
 **Sources:** all source content is folded into the umbrella docs (P1 §A–§D ·
 P2 §A); the original source files were deleted 2026-08-18. P4/P5 sources were
@@ -257,7 +258,11 @@ P-number; future work re-registers here when scheduled.
   `ExperienceDocument` design, visitor menu authoring, destination bindings,
   contextual titles/info cards, visitor preferences, reduced-motion behavior,
   the Experience asset picker, the developer runtime SDK, headless runtime,
-  and community/gallery surfaces.
+  and community/gallery surfaces. Experience is composed of **Navigation ·
+  Content · Interactions**; Interactions are an authoring lens within
+  Experience (an `Event → Target → Action` semantic model), never a separate
+  mode — ratified 2026-08-31
+  ([scope decision](../archive/plans/2026-08-31-scope-decision-experience-interaction-boundary.md)).
 
 Constraints: no Experience implementation tickets are created now, and
 Experience work must not displace persistence or Spatial completion.

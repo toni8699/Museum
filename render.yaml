@@ -2,12 +2,12 @@
 # first Render sync or any paid resource is created.
 services:
   - type: web
-    name: museum-api
+    name: biskiq-api
     runtime: node
     region: ohio
     plan: starter
     buildCommand: npm ci && npm run build:api
-    startCommand: npm run start -w @museum/api
+    startCommand: npm run start -w @biskiq/api
     healthCheckPath: /health/live
     envVars:
       - key: DATABASE_URL

@@ -7,7 +7,7 @@ Backend-provisioning pass.
 
 ## Outcome
 
-Ship a deployable `@museum/api` Fastify service on Render and a Neon
+Ship a deployable `@biskiq/api` Fastify service on Render and a Neon
 Postgres database wired to it through `DATABASE_URL`. The service exposes
 separate liveness and database-backed readiness checks, starts from the npm
 workspace, and leaves the next persistence slice a stable process/deployment
@@ -51,7 +51,7 @@ Fastify and Postgres continue to own project permissions.
 
 ## Service and lifecycle contract
 
-- Add `apps/api` / `@museum/api` as a pure TypeScript Node service. Keep
+- Add `apps/api` / `@biskiq/api` as a pure TypeScript Node service. Keep
   app construction separate from process startup so tests never bind a port.
 - `GET /health/live` returns success when the Fastify process is responsive;
   it does not query Postgres.
@@ -69,12 +69,12 @@ Fastify and Postgres continue to own project permissions.
 
 ```text
 Render
-└─ @museum/api
+└─ @biskiq/api
       │ DATABASE_URL secret
       ▼
    Neon Postgres
 
-Future: @museum/api → Cloudflare R2 + managed auth provider
+Future: @biskiq/api → Cloudflare R2 + managed auth provider
 ```
 
 - Add one root `render.yaml` Blueprint containing only the API web service.
@@ -203,7 +203,7 @@ speculating here.
 
 ## Closeout
 
-P18 shipped at the infrastructure-boundary scope: `@museum/api`, health checks,
+P18 shipped at the infrastructure-boundary scope: `@biskiq/api`, health checks,
 bounded Postgres lifecycle, tests, and the API-only Render Blueprint are in the
 workspace. The owner will provision Neon and Render, supply `DATABASE_URL`, and
 run the real health smoke before P19 starts. No credentials or application

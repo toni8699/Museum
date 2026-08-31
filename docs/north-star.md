@@ -250,8 +250,12 @@ A node remains a real authored viewpoint. A connection remains authored
 spatial/topological work. Sequence remains an ordered traversal over existing
 topology. Higher-level direction may describe intent such as a reveal, orbit,
 push-in, rest, hero view, or establishing view; attention beats may direct the
-visitor toward selected subjects during a transition; cues may coordinate
-narration, audio, UI, or other experience actions.
+visitor toward selected subjects during a transition. **Cues are semantic
+temporal markers emitted by the authored camera flow, not visitor-action
+bindings.** Experience interactions may listen for those cue events and bind
+narration, audio, UI, or other visitor-facing actions to them. Spatial Camera
+therefore owns where/when a cue occurs; Experience Interaction owns what
+happens in response.
 
 Spatial transitions and editorial transitions can coexist. A connection may
 represent continuous movement where appropriate; an explicitly authored cut,
@@ -322,9 +326,12 @@ cameras or spatial destinations. Concretely:
 
 ```text
 Experience / Navigation:  "Piano" menu item → Camera Piano
-Experience / Content:      Camera Piano reached → display Piano info card
+Experience / Content:      Piano Info = title + subtitle + image + Learn More
 Interaction model:          Reach Camera Piano → Show Piano Info
 ```
+
+Navigation defines where the visitor can go. Content defines what can be
+presented. Interaction defines when or why an action occurs.
 
 ## Same world, different authoring lens
 
@@ -430,9 +437,9 @@ Experience UI
 ```
 
 There remains **one camera graph, one route system, and one motion evaluator**.
-Interaction triggers that depend on camera reached, transition progress, or
-sequence completion derive those events from this canonical camera/runtime
-evaluation — never an independent Experience camera.
+Interaction triggers that depend on camera reached, transition progress, cue
+reached, or sequence completion derive those events from this canonical
+camera/runtime evaluation — never an independent Experience camera.
 
 **Motion accessibility changes presentation, not spatial truth.** Reduced /
 no-motion visitor preferences affect transition presentation only:
@@ -468,6 +475,7 @@ Examples (audio/media selected from the shared project asset registry):
 Enter → Gallery → Play Audio → gallery-narration.mp3
 Click → Piano → Play Audio → nocturne.mp3
 Reach → Camera C → Show → Painting Info
+Cue Reached → Piano Reveal → Show → Piano Info
 Sequence End → Main Tour → Show → Credits
 ```
 
@@ -477,7 +485,7 @@ seconds:
 ```text
 Enter Room / Leave Room     Sequence Start / End
 Reach Camera                Transition Start / End
-Click Object
+Cue Reached                 Click Object
 ```
 
 Advanced temporal triggers may come later where useful (for example `At 60% of
@@ -739,8 +747,10 @@ now.
    interaction intent** resolve through the canonical camera route and motion
    pipeline rather than creating a second navigation/motion model. Experience
    UI never performs independent XYZ/FOV interpolation. Interaction triggers
-   (camera reached, transition progress, sequence completion) derive from this
-   one evaluation, never an independent Experience camera.
+   (camera reached, transition progress, cue reached, sequence completion)
+   derive from this one evaluation, never an independent Experience camera.
+   Spatial Camera may emit semantic cue markers; Experience Interaction owns
+   the visitor-facing action binding to those cue events.
 6. **Topology and Sequence stay different.** Connections describe possible
    movement; Sequence describes ordered guided traversal. Neither silently
    rewrites the other.

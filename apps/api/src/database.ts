@@ -2,8 +2,21 @@ import { Pool } from 'pg';
 
 import type { ApiConfig } from './config.js';
 
+export type DatabaseQueryResult<Row = Record<string, unknown>> = {
+	rows: Row[];
+};
+
+export interface DatabaseClient {
+	query<Row = Record<string, unknown>>(
+		text: string,
+		values?: unknown[]
+	): Promise<DatabaseQueryResult<Row>>;
+	release(): void;
+}
+
 export interface DatabasePool {
-	query(text: string): Promise<unknown>;
+	query(text: string, values?: unknown[]): Promise<unknown>;
+	connect?(): Promise<DatabaseClient>;
 	end(): Promise<void>;
 	on?(event: 'error', listener: (error: unknown) => void): unknown;
 }

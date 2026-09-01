@@ -4,11 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite-node --watch src/index.ts",
+    "dev": "vite-node --watch src/start.ts",
     "build": "tsc -p tsconfig.json",
-    "start": "node dist/index.js",
+    "start": "vite-node dist/start.js",
     "check": "tsc -p tsconfig.json --noEmit",
-    "test": "npm run build && node --test tests/*.test.mjs"
+    "migrate": "npm run build && node dist/migrate.js",
+    "test": "npm run build && vite-node tests/api.test.mjs"
   },
   "dependencies": {
     "@portfolio/layout-core": "*",

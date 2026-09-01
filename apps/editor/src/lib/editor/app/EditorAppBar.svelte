@@ -5,6 +5,7 @@
 	import type { EditorStore } from '$lib/editor/editor-store.svelte';
 	import type { EditorDomain, EditorViewState } from './editor-view-state.svelte';
 	import type { EditorViewMode } from './editor-view-mode';
+	import type { ProjectSummary } from '$lib/editor/project-persistence';
 
 	let {
 		store,
@@ -12,7 +13,16 @@
 		viewState,
 		confirmSceneReplacement,
 		confirmLayoutReplacement,
-		projectName,
+		projectName = 'Untitled project',
+		projectIsDirty,
+		onProjectNameChange,
+		onSaveProject,
+		onLoadProject,
+		onRefreshProjects,
+		onSignIn,
+		ownedProjects = [],
+		cloudStatus = 'disabled',
+		cloudError = null,
 		onReset
 	}: {
 		store: EditorStore;
@@ -20,7 +30,16 @@
 		viewState: EditorViewState;
 		confirmSceneReplacement: () => boolean;
 		confirmLayoutReplacement: () => boolean;
-		projectName: string;
+		projectName?: string;
+		projectIsDirty?: boolean;
+		onProjectNameChange?: (name: string) => void;
+		onSaveProject?: () => void;
+		onLoadProject?: (projectId: string) => void;
+		onRefreshProjects?: () => void;
+		onSignIn?: () => void | Promise<void>;
+		ownedProjects?: readonly ProjectSummary[];
+		cloudStatus?: 'disabled' | 'ready' | 'loading' | 'saving' | 'error';
+		cloudError?: string | null;
 		/** fired after the Project-menu reset actions; the shell clears the active selection. */
 		onReset?: () => void;
 	} = $props();
@@ -31,7 +50,7 @@
 	// playing Director preview (leaving the camera workspace stops it via the
 	// existing setWorkspace teardown); only an active gesture blocks.
 	const canSwitch = $derived(!store.isEditorInteractionActive);
-	const dirty = $derived(store.isDirty);
+	const dirty = $derived(projectIsDirty ?? store.isDirty);
 	let projectMenuOpen = $state(false);
 
 	// P1.1 — two always-visible segmented controls: the domain switcher is
@@ -111,6 +130,16 @@
 			{layoutPreview}
 			{confirmSceneReplacement}
 			{confirmLayoutReplacement}
+			{projectName}
+			{projectIsDirty}
+			{onProjectNameChange}
+			{onSaveProject}
+			{onLoadProject}
+			{onRefreshProjects}
+			{onSignIn}
+			{ownedProjects}
+			{cloudStatus}
+			{cloudError}
 			{onReset}
 			bind:open={projectMenuOpen}
 		/>

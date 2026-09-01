@@ -5,41 +5,35 @@ slice plus one next action only.
 
 ## Working tree
 
-- Current planning delta: **P18 backend provisioning — shipped.** The local
-  infrastructure boundary is complete; owner-run Render/Neon provisioning is
-  the P19 entry gate. The plan
-  scopes Slice 4 to a Render-hosted
-  `apps/api`, separately provisioned Neon Postgres through secret
-  `DATABASE_URL`, and live/ready health checks; persistence remains a later
-  slice. R2 and managed auth are ratified future boundaries, not P18 work.
-- Current delta: **P18 local API boundary implemented, uncommitted.** Added the
-  Fastify workspace, bounded Postgres pool/readiness check, guarded shutdown,
-  Node-native tests, canonical document type pin, and API-only Render
-  Blueprint. No Neon or Render resource has been provisioned or synced.
-- Current delta: **P17 editor / visitor app split — shipped 2026-08-30,
-  uncommitted.**
-  `apps/editor` owns the authoring routes and gated relic;
-  `apps/museum` owns only the read-only `/museum` visitor.
-- Visitor-app cleanup (uncommitted): removed dead monolith leftovers from
-  `apps/museum/src` — legacy `content/rooms*`/`chopin-layout`, unused
-  facade/render files, editor placement/material-preview components, the
-  dead `virtual:museum-editor-entry` ambient declaration, and dangling
-  `sourceFile` manifest metadata.
+- Current planning delta: **P19 first project persistence — implementation in
+  progress behind the provider/live deployment gate.** P18's owner-run
+  Render/Neon provisioning and passing live/ready smoke remain prerequisites
+  for production Save/Load.
+- Current delta: **P19.1/P19.2 implemented, uncommitted.** Added the checked-in
+  JSONB/version migration, direct owner-scoped API queries, injected bearer
+  verifier seam, bounded body/CORS handling, and greenfield editor cloud
+  Save/Load with snapshot baselines, atomic room-registry replacement, and
+  owned-project UI. No provider SDK, production secret, migration application,
+  or live API call was added.
+- Immediate previous slice: **P18 backend provisioning — shipped 2026-08-30.**
+  The local Fastify/Postgres boundary and API-only Render Blueprint are in the
+  tree; resource provisioning remains owner-run.
 
 ## Next action
 
-- Confirm owner-approved Render service name/region/plan and supply a Neon
-  `DATABASE_URL`; then sync/provision and run the live/ready smoke. P13 remains
-  proposed/unscheduled; P3B.7b remains deferred and non-blocking.
+- Confirm the owner-approved managed provider, API/editor origins, and passing
+  P18 live/ready smoke; then wire the official verifier, apply the migration,
+  configure secrets, and run authenticated deployed Save → refresh → Load.
 
 ## Verification
 
-- Full Vitest: 170 files passed, 1 skipped; 2,288 tests passed, 1 skipped.
+- Full Vitest: 171 files passed, 1 skipped; 2,291 tests passed, 1 skipped.
 - `npm run check`: 0 errors / 0 warnings.
 - `npm run check:camera-core`, `npm run check:layout-core`, and
   `npm run check:project-model`: passed.
-- API: `check:api`, `test:api` (6 passed), and `build:api` passed. Real Neon
-  smoke remains unrun because `DATABASE_URL` is absent.
+- API: `check:api`, `test:api` (11 passed), and `build:api` passed. Migration
+  idempotency is covered with an injected database client; real Neon smoke and
+  migration application remain unrun.
 - `npm run build`: both app builds passed; known unused-import and chunk-size
   warnings only.
 - `verify:visitor-bundle`: passed; standalone `/museum` reached 4 server and
@@ -58,8 +52,8 @@ slice plus one next action only.
   `cameraPlan` and `layoutInteraction`; static checking is clean.
 - A browser axe audit still reports generic editor color-contrast review items
   in empty/status text and SVG labels; these are outside the closed P3B gate.
-- Owner-run P18 Render/Neon provisioning and real-database smoke remain the P19
-  entry gate.
+- Owner-approved provider configuration, Render/Neon provisioning, and real
+  authenticated persistence smoke remain the P19 release gate.
 
 ## Traps
 

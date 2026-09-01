@@ -14,6 +14,7 @@
 	import { onMount } from 'svelte';
 	import { acquireObjectUrl, releaseObjectUrl } from './store/binary-texture-store.svelte';
 	import type { EditorStore } from './editor-store.svelte';
+	import type { ProjectSummary } from './project-persistence';
 
 	let {
 		store,
@@ -21,6 +22,16 @@
 		confirmSceneReplacement,
 		confirmLayoutReplacement,
 		relic = false,
+		projectName = 'Untitled project',
+		projectIsDirty,
+		onProjectNameChange,
+		onSaveProject,
+		onLoadProject,
+		onRefreshProjects,
+		onSignIn,
+		ownedProjects = [],
+		cloudStatus = 'disabled',
+		cloudError = null,
 		open = $bindable(false),
 		onReset
 	}: {
@@ -29,12 +40,24 @@
 		confirmSceneReplacement: () => boolean;
 		confirmLayoutReplacement: () => boolean;
 		relic?: boolean;
+		projectName?: string;
+		projectIsDirty?: boolean;
+		onProjectNameChange?: (name: string) => void;
+		onSaveProject?: () => void;
+		onLoadProject?: (projectId: string) => void;
+		onRefreshProjects?: () => void;
+		onSignIn?: () => void | Promise<void>;
+		ownedProjects?: readonly ProjectSummary[];
+		cloudStatus?: 'disabled' | 'ready' | 'loading' | 'saving' | 'error';
+		cloudError?: string | null;
 		open?: boolean;
 		/** fired after a reset action; the shell clears the active selection on all three slots. */
 		onReset?: () => void;
 	} = $props();
 
-	const dirty = $derived(store.isDirty);
+	const dirty = $derived(projectIsDirty ?? (store.isDirty || layoutPreviewIsDirty(layoutPreview)));
+	const cloudConfigured = $derived(cloudStatus !== 'disabled' && onSaveProject !== undefined);
+	const cloudBusy = $derived(cloudStatus === 'loading' || cloudStatus === 'saving');
 	const projectMutationBlocked = $derived(
 		store.isDocumentMutationBlocked || store.isEditorInteractionActive
 	);
@@ -248,6 +271,52 @@
 	>Project <ChevronDown size={14} aria-hidden="true" /></button>
 	{#if open}
 		<div class="project-menu" role="dialog" aria-label="Project actions">
+			{#if !relic && onSaveProject}
+				<section class="cloud-project" aria-label="Cloud project">
+					<div class="project-heading">
+						<div>
+							<strong>Cloud project</strong>
+							<span>Save and load your owned semantic project.</span>
+						</div>
+						<span class:dirty={dirty} class="document-state">
+							{cloudStatus === 'saving' ? 'Saving' : cloudStatus === 'loading' ? 'Loading' : dirty ? 'Unsaved' : 'Saved'}
+						</span>
+					</div>
+					<label class="project-name-field">
+						<span>Project name</span>
+						<input
+							value={projectName}
+							oninput={(event) => onProjectNameChange?.((event.currentTarget as HTMLInputElement).value)}
+							maxlength="200"
+						/>
+					</label>
+					<div class="project-actions">
+						<button type="button" class="primary" disabled={!cloudConfigured || cloudBusy} onclick={onSaveProject}>
+							{cloudStatus === 'saving' ? 'Saving…' : 'Save cloud project'}
+						</button>
+						{#if onSignIn}
+							<button type="button" disabled={cloudBusy} onclick={onSignIn}>Sign in</button>
+						{/if}
+					</div>
+					<div class="cloud-project-heading">
+						<strong>Owned projects</strong>
+						<button type="button" class="text-button" disabled={!cloudConfigured || cloudBusy} onclick={onRefreshProjects}>Refresh</button>
+					</div>
+					{#if ownedProjects.length === 0}
+						<p class="empty-projects">No saved projects.</p>
+					{:else}
+						<ul class="owned-projects">
+							{#each ownedProjects as project (project.id)}
+								<li>
+									<span><strong>{project.name}</strong><small>v{project.version}</small></span>
+									<button type="button" disabled={!cloudConfigured || cloudBusy} onclick={() => onLoadProject?.(project.id)}>Load</button>
+								</li>
+							{/each}
+						</ul>
+					{/if}
+					{#if cloudError}<p class="cloud-error" role="alert">{cloudError}</p>{/if}
+				</section>
+			{/if}
 			<div class="project-heading">
 				<div>
 					<strong>Scene JSON</strong>
@@ -393,6 +462,21 @@
 	.project-heading > div { display: flex; min-width: 0; flex-direction: column; gap: 0.15rem; }
 	.project-heading strong { font-size: 0.8rem; }
 	.project-heading span:not(.document-state) { color: var(--editor-text-muted); font-size: 0.65rem; line-height: 1.35; }
+	.cloud-project { margin-bottom: 0.8rem; padding-bottom: 0.8rem; border-bottom: 1px solid var(--editor-border-subtle); }
+	.project-name-field { display: flex; flex-direction: column; gap: 0.3rem; margin-top: 0.65rem; color: var(--editor-text-secondary); font-size: 0.68rem; }
+	.project-name-field input { min-width: 0; padding: 0.38rem 0.45rem; border: 1px solid var(--editor-border-normal); border-radius: 0.3rem; background: var(--editor-bg-panel); color: var(--editor-text-primary); font: inherit; font-size: 0.72rem; }
+	.cloud-project-heading { display: flex; align-items: center; justify-content: space-between; margin-top: 0.8rem; color: var(--editor-text-secondary); font-size: 0.68rem; }
+	.text-button { padding: 0; border: 0; background: transparent; color: var(--editor-text-primary); font: inherit; font-size: 0.68rem; text-decoration: underline; cursor: pointer; }
+	.text-button:disabled { opacity: 0.4; cursor: default; }
+	.owned-projects { display: flex; flex-direction: column; gap: 0.3rem; margin: 0.45rem 0 0; padding: 0; list-style: none; }
+	.owned-projects li { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.36rem 0.42rem; border: 1px solid var(--editor-border-subtle); border-radius: 0.3rem; }
+	.owned-projects li > span { display: flex; min-width: 0; flex-direction: column; gap: 0.08rem; }
+	.owned-projects strong { overflow: hidden; color: var(--editor-text-primary); font-size: 0.7rem; text-overflow: ellipsis; white-space: nowrap; }
+	.owned-projects small { color: var(--editor-text-muted); font-size: 0.62rem; }
+	.owned-projects button { padding: 0.25rem 0.45rem; border: 1px solid var(--editor-border-normal); border-radius: 0.25rem; background: var(--editor-bg-panel-raised); color: var(--editor-text-primary); font: inherit; font-size: 0.65rem; cursor: pointer; }
+	.owned-projects button:disabled { opacity: 0.4; cursor: default; }
+	.empty-projects, .cloud-error { margin: 0.5rem 0 0; color: var(--editor-text-muted); font-size: 0.66rem; line-height: 1.4; }
+	.cloud-error { color: var(--editor-danger-fg); }
 	.project-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 0.35rem; margin-top: 0.7rem; }
 	.project-actions button {
 		width: 100%;

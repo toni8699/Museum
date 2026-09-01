@@ -32,8 +32,11 @@ export type EditorShellBootResult = {
 export function useEditorShellBoot(input: {
 	store: EditorStore;
 	layoutPreview: LayoutPreviewState;
+	projectNameDirty?: () => boolean;
 }): EditorShellBootResult {
-	const { store, layoutPreview } = input;
+	const { store, layoutPreview, projectNameDirty = () => false } = input;
+	const projectDirty = () =>
+		store.isDirty || layoutPreviewIsDirty(layoutPreview) || projectNameDirty();
 
 	const textureLifecycle = createTextureLifecycle(createEditorSourceLoader());
 	onMount(() => {
@@ -47,7 +50,7 @@ export function useEditorShellBoot(input: {
 	// rendering, so a server render cannot touch `window`. The effect's
 	// teardown removes the listener on a dirty→clean flip and on unmount.
 	$effect(() => {
-		if (!store.isDirty && !layoutPreviewIsDirty(layoutPreview)) return;
+		if (!projectDirty()) return;
 		const unloadGuard = createUnloadGuard(window);
 		unloadGuard.attach();
 		return () => unloadGuard.detach();
@@ -62,6 +65,9 @@ export function useEditorShellBoot(input: {
 	}
 
 	function confirmNavigation(): boolean {
+		if (projectNameDirty() && !store.isDirty && !layoutPreviewIsDirty(layoutPreview)) {
+			return window.confirm('Discard unsaved project changes?');
+		}
 		const result = computeConfirmNavigation({
 			sceneDirty: store.isDirty,
 			layoutDirty: layoutPreviewIsDirty(layoutPreview)
@@ -71,7 +77,7 @@ export function useEditorShellBoot(input: {
 	}
 
 	beforeNavigate((navigation) => {
-		if ((!store.isDirty && !layoutPreviewIsDirty(layoutPreview)) || navigation.willUnload) return;
+		if (!projectDirty() || navigation.willUnload) return;
 		if (!confirmNavigation()) navigation.cancel();
 	});
 

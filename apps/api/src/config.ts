@@ -1,6 +1,7 @@
 export type ApiConfig = {
 	databaseUrl: string;
 	port: number;
+	editorOrigin?: string;
 };
 
 export class ConfigError extends Error {
@@ -42,9 +43,23 @@ function readPort(value: string | undefined): number {
 	return port;
 }
 
+function readEditorOrigin(value: string | undefined): string | undefined {
+	const origin = value?.trim();
+	if (!origin) return undefined;
+	try {
+		const url = new URL(origin);
+		if (!['http:', 'https:'].includes(url.protocol) || url.pathname !== '/' || url.search || url.hash) {
+			throw new Error();
+		}
+		return url.origin;
+	} catch {
+		throw new ConfigError('EDITOR_ORIGIN must be an HTTP(S) origin');
+	}
+}
+
 export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
-	return {
-		databaseUrl: readDatabaseUrl(env.DATABASE_URL),
-		port: readPort(env.PORT)
-	};
+	const databaseUrl = readDatabaseUrl(env.DATABASE_URL);
+	const port = readPort(env.PORT);
+	const editorOrigin = readEditorOrigin(env.EDITOR_ORIGIN);
+	return editorOrigin ? { databaseUrl, port, editorOrigin } : { databaseUrl, port };
 }

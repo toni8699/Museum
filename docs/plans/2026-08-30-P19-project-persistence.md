@@ -1,6 +1,6 @@
 # P19 — first project persistence
 
-**Status:** proposed. **Date:** 2026-08-30. **Depends on:** P18.
+**Status:** in-progress. **Date:** 2026-08-30. **Depends on:** P18.
 **Source:** backend/persistence migration review §0.1.6–§0.1.7 and P18,
 first-persistence pass.
 **Amended:** 2026-08-31 — five review amendments applied.

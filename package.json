@@ -13,6 +13,7 @@
     "dev:museum": "npm run dev -w @portfolio/museum",
     "build": "npm run build:editor && npm run build:museum",
     "build:api": "npm run build -w @biskiq/api",
+    "migrate:api": "npm run migrate -w @biskiq/api",
     "build:editor": "npm run build -w @portfolio/editor",
     "build:museum": "npm run build -w @portfolio/museum",
     "check": "npm run check -w @portfolio/editor && npm run check -w @portfolio/museum",

@@ -151,9 +151,13 @@ export class EditorDocumentStore {
 	 * listener atomically. Used by `commitDocumentTransaction`,
 	 * `undo/redo`, `importDocument`, and `resetToCheckedInDocument`.
 	 */
-	replace(next: SceneDocument) {
-		this.document = cloneSceneDocument(next);
-		this.#rebuildRuntime();
+	replace(next: SceneDocument, rooms: LayoutRoomRegistry = this.rooms) {
+		const cloned = cloneSceneDocument(next);
+		const runtime = this.#deriveRuntime(cloned, rooms);
+		this.document = cloned;
+		this.rooms = rooms;
+		this.scene = runtime.scene;
+		this.state = runtime.state;
 		this.#fireAfterReplace();
 	}
 
@@ -209,15 +213,24 @@ export class EditorDocumentStore {
 	}
 
 	#rebuildRuntime(rooms: LayoutRoomRegistry = this.rooms) {
-		const nextScene = resolveSceneDocument(this.document, rooms);
-		const initialNodeId = pickInitialNavigationNodeId(nextScene);
-		const nextState = createRuntimeState(createNavigationGraph(nextScene), initialNodeId);
+		const runtime = this.#deriveRuntime(this.document, rooms);
 		// Re-assigning `$state.raw` outside an `untrack` wrap inside the
 		// sub-store is safe; the watcher pipeline ignores `$state.raw`
 		// reads. Match the pre-slice god-file (lines 4311–4312) — do not
 		// untrack, that would drift from prior behaviour.
-		this.scene = nextScene;
-		this.state = nextState;
+		this.scene = runtime.scene;
+		this.state = runtime.state;
+	}
+
+	#deriveRuntime(document: SceneDocument, rooms: LayoutRoomRegistry): {
+		scene: RuntimeScene;
+		state: RuntimeStateStore;
+	} {
+		const scene = resolveSceneDocument(document, rooms);
+		return {
+			scene,
+			state: createRuntimeState(createNavigationGraph(scene), pickInitialNavigationNodeId(scene))
+		};
 	}
 
 	#fireAfterReplace() {

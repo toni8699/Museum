@@ -246,6 +246,29 @@ function commitPreviewBundle(state: LayoutPreviewState, bundle: ReturnType<typeo
 	state.bounds = bundle.bounds;
 }
 
+/** Install a fully preflighted remote layout without re-deriving it. */
+export function installLayoutPreviewBundle(
+	state: LayoutPreviewState,
+	bundle: ReturnType<typeof derivePreviewBundle>
+): void {
+	state.source = 'imported';
+	commitPreviewBundle(state, bundle);
+	state.previewVersion += 1;
+	state.reframeVersion += 1;
+	state.lastMutationMessage = null;
+	state.statusMessage = null;
+	state.importError = null;
+}
+
+/** Save baseline only; unlike import/reset this preserves selection and history. */
+export function markLayoutPreviewSaved(
+	state: LayoutPreviewState,
+	canonicalJson = serializeLayoutDocument(state.project.layout)
+): void {
+	state.baselineLayoutJson = canonicalJson;
+	state.baselineKind = 'imported';
+}
+
 /**
  * install the layout adapter's last-valid candidate in one shot
  * (the same field set `commitPreviewBundle` writes, plus the session

@@ -294,6 +294,10 @@ export class EditorStore {
 		// this is now a one-line delegate.
 		return this.documentStore.isDirty;
 	}
+	/** Reset only the scene dirty baseline; selection and history stay intact. */
+	markSaved(canonicalJson: string): void {
+		this.documentStore.setBaseline(canonicalJson);
+	}
 	get canExport(): boolean {
 		return this.validation.success && !this.isDocumentTransactionActive;
 	}
@@ -2613,6 +2617,24 @@ export class EditorStore {
 			this.setStatusMessage(validation.issues[0]?.message ?? 'Scene document validation failed');
 			return false;
 		}
+		return this.#replaceValidatedDocument(validation.document, validation.canonicalJson, this.rooms);
+	}
+
+	/** Replace scene + room registry as one composition-root operation for cloud Load. */
+	replaceProjectDocument(document: SceneDocument, rooms: LayoutRoomRegistry) {
+		const validation = validateSceneDocument(document);
+		if (!validation.success) {
+			this.setStatusMessage(validation.issues[0]?.message ?? 'Scene document validation failed');
+			return false;
+		}
+		return this.#replaceValidatedDocument(validation.document, validation.canonicalJson, rooms);
+	}
+
+	#replaceValidatedDocument(
+		document: SceneDocument,
+		canonicalJson: string,
+		rooms: LayoutRoomRegistry
+	) {
 		if (!this.#prepareDocumentReplacement()) return false;
 
 		this.cancelAssetPlacement();
@@ -2625,8 +2647,8 @@ export class EditorStore {
 		this.selectionStore.setWorkspace({ kind: 'none' });
 		this.session.clearCameraFocusRequest();
 		this.session.clearAllPlacementScaleVectors();
-		this.documentStore.replace(validation.document);
-		this.documentStore.setBaseline(validation.canonicalJson);
+		this.documentStore.replace(document, rooms);
+		this.documentStore.setBaseline(canonicalJson);
 		this.historyController.clear();
 		return true;
 	}

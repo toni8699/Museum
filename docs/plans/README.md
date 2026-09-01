@@ -74,7 +74,7 @@ Policy rules:
 | P16 | project-model + layout-core extraction — slice 2 of the ratified migration review: extract pure project/scene/layout documents, codecs, room semantics, compiled geometry, package format, and SHA primitives behind shared packages; preserve canonical JSON, generated-endpoint, graph, geometry, editor, visitor, and relic behavior | **shipped 2026-08-30 — S0–S5 complete** | P15 | archived → [2026-08-30-P16-project-model-layout-core-extraction.md](../archive/plans/2026-08-30-P16-project-model-layout-core-extraction.md) |
 | P17 | editor / visitor app split — slice 3 of the ratified migration review: standalone `@portfolio/editor` and read-only `@portfolio/museum`, with the relic gated into editor and source/runtime visitor boundary pins | **shipped 2026-08-30** | P16 | archived → [2026-08-30-P17-app-split.md](../archive/plans/2026-08-30-P17-app-split.md) |
 | P18 | backend provisioning — slice 4 of the ratified migration review: deploy `@biskiq/api` Fastify compute on Render, connect it to separately provisioned Neon Postgres through secret `DATABASE_URL`, and add process/database health checks with no persistence schema yet | **shipped 2026-08-30 — infrastructure boundary; owner-run Render/Neon provisioning remains the P19 gate** | P17 | archived → [2026-08-30-P18-backend-provisioning.md](../archive/plans/2026-08-30-P18-backend-provisioning.md) |
-| P19 | first project persistence — authenticated semantic-document Save/Load, immutable project versions, and single-user ownership on the P18 API/Neon boundary | proposed | P18 | [2026-08-30-P19-project-persistence.md](2026-08-30-P19-project-persistence.md) |
+| P19 | first project persistence — authenticated semantic-document Save/Load, immutable project versions, and single-user ownership on the P18 API/Neon boundary | in-progress — provider/live deployment gate remains | P18 | [2026-08-30-P19-project-persistence.md](2026-08-30-P19-project-persistence.md) |
 | — | Branch rejoin — **experiment, no schedule** (rejoin into a later Sequence stop; dead-end return already ships; multi-edge playback would compose P8's edge primitive) | proposed | P8 conceptually | [2026-08-21-branch-rejoin-experiment.md](2026-08-21-branch-rejoin-experiment.md) |
 | … | future work re-registers here | | | |
 
@@ -248,7 +248,8 @@ P-number; future work re-registers here when scheduled.
 - **Current / near-term platform work** (grounded in active rows): core
   extraction / app boundaries (P15–P17 shipped), backend provisioning (P18
   shipped), project Save/Load + first managed-auth integration + single-user
-  ownership (P19 proposed), then auth UX/hardening and richer permissions,
+  ownership (P19 in progress behind its provider/live deployment gate), then
+  auth UX/hardening and richer permissions,
   R2-backed project assets, persistence integration, spatial editor
   completion/polish, and a basic publish/runtime boundary.
 - **Medium-term product infrastructure** (possible direction, unscheduled):

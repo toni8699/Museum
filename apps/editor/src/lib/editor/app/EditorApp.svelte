@@ -5,6 +5,7 @@
 	// below is shell-owned.
 	import type { Asset } from '$lib/types/assets';
 	import { onMount, setContext, untrack } from 'svelte';
+	import { env } from '$env/dynamic/public';
 	// P3.2 — canonical token architecture + Inter Variable (Design-specs §37).
 	import '@fontsource-variable/inter';
 	import '$lib/editor/styles/tokens.css';
@@ -23,11 +24,23 @@
 		EDITOR_INTERACTION_STORE_KEY
 	} from '$lib/editor/store/editor-interaction-store.svelte';
 	import { createEditorStore } from '$lib/editor/editor-store.svelte';
-	import { createEmptyProject } from '$lib/project/project-codec';
+	import {
+		createEmptyProject,
+		validateProject
+	} from '$lib/project/project-codec';
+	import type { ProjectDocument } from '$lib/project/project-types';
 	import { createLayoutRoomRegistry } from '$lib/project/project-layout-semantics';
+	import { serializeSceneDocument } from '$lib/content/scene-codec';
+	import { serializeLayoutDocument } from '$lib/layout/layout-codec';
+	import { hasBlockingLayoutIssues } from '$lib/layout/layout-geometry-validation';
 	import {
 		captureLayoutPreviewSnapshot,
 		createEmptyLayoutPreviewState,
+		derivePreviewBundle,
+		installLayoutPreviewBundle,
+		layoutPreviewCanonicalJson,
+		layoutPreviewIsDirty,
+		markLayoutPreviewSaved,
 		restoreLayoutPreviewSnapshot
 	} from '$lib/editor/layout/layout-preview-state.svelte';
 	import { useEditorShellBoot } from '$lib/editor/hooks/editor-shell-boot.svelte';
@@ -56,6 +69,20 @@
 	import { resolveLayoutGizmoTarget } from '$lib/editor/gizmo/layout-gizmo-target';
 	import { buildPlanSceneFootprintProjection } from '$lib/editor/layout/plan-scene-footprint';
 	import { resolveEditorPlacementScale } from '$lib/editor/scale-vector';
+	import {
+		createProjectApi,
+		createProjectId,
+		projectFingerprint,
+		ProjectPersistenceError,
+		sameProjectFingerprint,
+		type ProjectPersistenceConfig,
+		type ProjectSummary
+	} from '$lib/editor/project-persistence';
+
+	let {
+		projectPersistence = null
+	}: { projectPersistence?: ProjectPersistenceConfig | null } = $props();
+	const configuredProjectPersistence = untrack(() => projectPersistence);
 
 	// the editor boots blank on every load: one canonical empty project
 	// seeds both the scene-only store and the layout-only preview surface.
@@ -63,6 +90,25 @@
 		id: 'project:untitled',
 		name: 'Untitled project'
 	});
+	let projectId = $state<string | null>(null);
+	let projectName = $state(bootProject.name);
+	let savedProjectName = $state(bootProject.name);
+	let projectVersion = $state<number | null>(null);
+	let ownedProjects = $state<ProjectSummary[]>([]);
+	let cloudError = $state<string | null>(null);
+	let cloudStatus = $state<'disabled' | 'ready' | 'loading' | 'saving' | 'error'>('disabled');
+	let projectMutationInFlight = $state(false);
+	let projectRequestToken = 0;
+	let projectRequestController: AbortController | null = null;
+	const projectAuth = configuredProjectPersistence?.auth ?? null;
+	const projectApi = createProjectApi(
+		{
+			apiOrigin: configuredProjectPersistence?.apiOrigin ?? env.PUBLIC_API_ORIGIN,
+			auth: projectAuth
+		},
+		configuredProjectPersistence?.fetch
+	);
+	if (projectApi) cloudStatus = 'ready';
 	const layoutPreview = $state(createEmptyLayoutPreviewState());
 	const layoutInteraction = $state(createLayoutInteractionState());
 	// Construct before the store: the selection activation hook gates its
@@ -229,12 +275,212 @@
 	let viewportElement = $state<HTMLElement | null>(null);
 	let clusterNameInput = $state<HTMLInputElement>();
 	let selectedAsset = $state<Asset>();
+	const projectIsDirty = $derived(
+		store.isDirty ||
+		layoutPreviewIsDirty(layoutPreview) ||
+		projectName !== savedProjectName
+	);
 
 	// P7.4 — shared boot composable (dirty guard + texture lifecycle only).
 	// Shortcut wiring stays shell-owned; see `useEditorShellBoot`.
 	const { confirmSceneReplacement, confirmLayoutReplacement } = useEditorShellBoot({
 		store,
-		layoutPreview
+		layoutPreview,
+		projectNameDirty: () => projectName !== savedProjectName
+	});
+
+	function currentProjectFingerprint() {
+		return projectFingerprint(
+			store.canonicalJson ?? JSON.stringify(store.document),
+			layoutPreviewCanonicalJson(layoutPreview),
+			projectName
+		);
+	}
+
+	function setCloudError(message: string): void {
+		cloudError = message;
+		cloudStatus = 'error';
+		store.setStatusMessage(message);
+	}
+
+	function persistenceMessage(error: unknown, fallback: string): string {
+		return error instanceof ProjectPersistenceError ? error.message : fallback;
+	}
+
+	function canStartProjectMutation(): boolean {
+		if (!projectApi) {
+			setCloudError('Cloud Save/Load is not configured');
+			return false;
+		}
+		if (projectMutationInFlight) return false;
+		if (store.isEditorInteractionActive || store.isDocumentTransactionActive) {
+			setCloudError('Stop the current interaction before changing projects');
+			return false;
+		}
+		return true;
+	}
+
+	function confirmProjectReplacement(): boolean {
+		return !projectIsDirty || window.confirm('Discard unsaved project changes?');
+	}
+
+	async function refreshOwnedProjects(signal?: AbortSignal): Promise<void> {
+		if (!projectApi) return;
+		try {
+			ownedProjects = await projectApi.listProjects(signal);
+			if (!projectMutationInFlight) {
+				cloudError = null;
+				cloudStatus = 'ready';
+			}
+		} catch (error) {
+			if (signal?.aborted || (error instanceof DOMException && error.name === 'AbortError')) return;
+			if (!projectMutationInFlight) setCloudError(persistenceMessage(error, 'Could not list cloud projects'));
+		}
+	}
+
+	async function signInToProjects(): Promise<void> {
+		if (!projectAuth?.signIn) return;
+		try {
+			cloudStatus = 'loading';
+			cloudError = null;
+			await projectAuth.signIn();
+			await refreshOwnedProjects();
+		} catch (error) {
+			setCloudError(persistenceMessage(error, 'Sign-in failed'));
+		}
+	}
+
+	async function saveProject(): Promise<void> {
+		if (!canStartProjectMutation()) return;
+		const name = projectName.trim();
+		if (!name) {
+			setCloudError('Project name cannot be empty');
+			return;
+		}
+		if (store.projectExportBlocker) {
+			setCloudError('Save blocked: resolve local or package texture references first');
+			return;
+		}
+		if (hasBlockingLayoutIssues(layoutPreview.issues)) {
+			setCloudError(`Save blocked: ${layoutPreview.issues[0]?.message ?? 'Layout geometry is invalid'}`);
+			return;
+		}
+
+		const validation = validateProject({
+			id: projectId ?? createProjectId(),
+			name,
+			layout: layoutPreview.project.layout,
+			scene: store.document
+		});
+		if (!validation.success) {
+			setCloudError(`Save blocked: ${validation.issues[0]?.message ?? 'Project validation failed'}`);
+			return;
+		}
+		const snapshot = JSON.parse(validation.canonicalJson) as ProjectDocument;
+		const sceneCanonicalJson = serializeSceneDocument(snapshot.scene);
+		const layoutCanonicalJson = serializeLayoutDocument(snapshot.layout);
+		const token = ++projectRequestToken;
+		const controller = new AbortController();
+		projectRequestController = controller;
+		projectMutationInFlight = true;
+		cloudStatus = 'saving';
+		cloudError = null;
+		try {
+			const saved = await projectApi!.saveProject(snapshot, controller.signal);
+			if (token !== projectRequestToken) return;
+			projectId = saved.projectId;
+			projectVersion = saved.version;
+			savedProjectName = snapshot.name;
+			store.markSaved(sceneCanonicalJson);
+			markLayoutPreviewSaved(layoutPreview, layoutCanonicalJson);
+			ownedProjects = [
+				...ownedProjects.filter((project) => project.id !== saved.projectId),
+				{ id: saved.projectId, name: saved.name, version: saved.version, updatedAt: saved.updatedAt }
+			];
+			cloudStatus = 'ready';
+			store.setStatusMessage(`Saved ${saved.name} v${saved.version}`);
+		} catch (error) {
+			if (token === projectRequestToken && !(controller.signal.aborted)) {
+				setCloudError(persistenceMessage(error, 'Could not save project'));
+			}
+		} finally {
+			if (token === projectRequestToken) {
+				projectMutationInFlight = false;
+				projectRequestController = null;
+			}
+		}
+	}
+
+	async function loadProject(selectedProjectId: string): Promise<void> {
+		if (!canStartProjectMutation() || !confirmProjectReplacement()) return;
+		const fingerprint = currentProjectFingerprint();
+		const token = ++projectRequestToken;
+		const controller = new AbortController();
+		projectRequestController = controller;
+		projectMutationInFlight = true;
+		cloudStatus = 'loading';
+		cloudError = null;
+		try {
+			const loaded = await projectApi!.loadProject(selectedProjectId, controller.signal);
+			const validation = validateProject(loaded.document);
+			if (!validation.success || validation.project.id !== selectedProjectId) {
+				throw new ProjectPersistenceError('invalid', 'Loaded project failed validation');
+			}
+			const bundle = derivePreviewBundle(
+				validation.project.id,
+				validation.project.name,
+				validation.project.layout,
+				validation.project.scene
+			);
+			if (hasBlockingLayoutIssues(bundle.issues)) {
+				throw new ProjectPersistenceError('invalid', 'Loaded project has invalid layout geometry');
+			}
+			if (!sameProjectFingerprint(fingerprint, currentProjectFingerprint())) {
+				throw new ProjectPersistenceError('invalid', 'Project changed while loading; please load again');
+			}
+			if (store.isEditorInteractionActive || store.isDocumentTransactionActive) {
+				throw new ProjectPersistenceError('invalid', 'Project changed while loading; please load again');
+			}
+			const rooms = createLayoutRoomRegistry(validation.project.layout);
+			if (!store.replaceProjectDocument(validation.project.scene, rooms)) {
+				throw new ProjectPersistenceError('invalid', 'Could not replace the current project');
+			}
+			installLayoutPreviewBundle(layoutPreview, bundle);
+			setLayoutViewMode(layoutInteraction, viewState.activeView === 'plan' ? 'plan' : '3d');
+			store.markSaved(serializeSceneDocument(validation.project.scene));
+			markLayoutPreviewSaved(layoutPreview, serializeLayoutDocument(validation.project.layout));
+			activeSelection.reset();
+			projectId = loaded.projectId;
+			projectName = validation.project.name;
+			savedProjectName = validation.project.name;
+			projectVersion = loaded.version;
+			cloudStatus = 'ready';
+			store.setStatusMessage(`Loaded ${validation.project.name} v${loaded.version}`);
+		} catch (error) {
+			if (token === projectRequestToken && !controller.signal.aborted) {
+				setCloudError(persistenceMessage(error, 'Could not load project'));
+			}
+		} finally {
+			if (token === projectRequestToken) {
+				projectMutationInFlight = false;
+				projectRequestController = null;
+			}
+		}
+	}
+
+	onMount(() => {
+		if (!projectApi) return;
+		const controller = new AbortController();
+		void refreshOwnedProjects(controller.signal);
+		const unsubscribe = projectAuth?.onChange?.((signedIn) => {
+			if (signedIn) void refreshOwnedProjects(controller.signal);
+			else ownedProjects = [];
+		});
+		return () => {
+			controller.abort();
+			projectRequestController?.abort();
+			unsubscribe?.();
+		};
 	});
 
 	onMount(() =>
@@ -267,7 +513,16 @@
 		{viewState}
 		{confirmSceneReplacement}
 		{confirmLayoutReplacement}
-		projectName={bootProject.name}
+		{projectName}
+		projectIsDirty={projectIsDirty}
+		onProjectNameChange={(name) => (projectName = name)}
+		onSaveProject={saveProject}
+		onLoadProject={loadProject}
+		onRefreshProjects={() => void refreshOwnedProjects()}
+		onSignIn={projectAuth?.signIn ? signInToProjects : undefined}
+		{ownedProjects}
+		{cloudStatus}
+		{cloudError}
 		onReset={() => activeSelection.reset()}
 	/>
 	<EditorSidebar

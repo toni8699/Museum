@@ -9,12 +9,13 @@ slice plus one next action only.
   progress behind the provider/live deployment gate.** P18's owner-run
   Render/Neon provisioning and passing live/ready smoke remain prerequisites
   for production Save/Load.
-- Current delta: **P19.1/P19.2 implemented, uncommitted.** Added the checked-in
-  JSONB/version migration, direct owner-scoped API queries, injected bearer
-  verifier seam, bounded body/CORS handling, and greenfield editor cloud
-  Save/Load with snapshot baselines, atomic room-registry replacement, and
-  owned-project UI. No provider SDK, production secret, migration application,
-  or live API call was added.
+- Current delta: **P19.1/P19.2 shipped in `2c70561`; review fixes are
+  uncommitted.** Save retries retain their first project ID, trimmed names
+  settle the baseline, stale project lists are discarded, cloud chrome is
+  disabled when unconfigured, and API/editor acceptance coverage is expanded.
+  A separate uncommitted Vercel adapter/output configuration is also present.
+  No provider SDK, production secret, migration application, or live API call
+  was added.
 - Immediate previous slice: **P18 backend provisioning — shipped 2026-08-30.**
   The local Fastify/Postgres boundary and API-only Render Blueprint are in the
   tree; resource provisioning remains owner-run.
@@ -27,15 +28,17 @@ slice plus one next action only.
 
 ## Verification
 
-- Full Vitest: 171 files passed, 1 skipped; 2,291 tests passed, 1 skipped.
+- Full Vitest: 171 files passed, 1 skipped; 2,295 tests passed, 1 skipped.
 - `npm run check`: 0 errors / 0 warnings.
 - `npm run check:camera-core`, `npm run check:layout-core`, and
   `npm run check:project-model`: passed.
-- API: `check:api`, `test:api` (11 passed), and `build:api` passed. Migration
+- API: `check:api`, `test:api` (12 passed), and `build:api` passed. Migration
   idempotency is covered with an injected database client; real Neon smoke and
   migration application remain unrun.
-- `npm run build`: both app builds passed; known unused-import and chunk-size
-  warnings only.
+- `npm run build:editor` passed; the root build reaches Museum but the current
+  uncommitted `adapter-vercel` config rejects local Node 26 (that adapter
+  accepts Node 18, 20, or 22). Known unused-import and chunk-size warnings
+  remain.
 - `verify:visitor-bundle`: passed; standalone `/museum` reached 4 server and
   9 client entries with no editor entry.
 - Browser QA passed standalone `/museum` Entrance → Poland navigation and

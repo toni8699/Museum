@@ -57,7 +57,7 @@ export function createProjectApi(
 ): ProjectApi | null {
 	const origin = normalizeApiOrigin(config.apiOrigin ?? '');
 	if (!origin || !config.auth) return null;
-	const requestFetch = fetchImpl ?? globalThis.fetch?.bind(globalThis);
+	const requestFetch = fetchImpl ?? config.fetch ?? globalThis.fetch?.bind(globalThis);
 	if (!requestFetch) throw new ProjectPersistenceError('configuration', 'Cloud requests are unavailable');
 
 	return {

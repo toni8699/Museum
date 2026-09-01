@@ -271,7 +271,7 @@
 	>Project <ChevronDown size={14} aria-hidden="true" /></button>
 	{#if open}
 		<div class="project-menu" role="dialog" aria-label="Project actions">
-			{#if !relic && onSaveProject}
+			{#if !relic && cloudConfigured}
 				<section class="cloud-project" aria-label="Cloud project">
 					<div class="project-heading">
 						<div>

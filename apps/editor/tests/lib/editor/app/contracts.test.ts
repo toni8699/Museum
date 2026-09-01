@@ -1774,3 +1774,55 @@ describe('P3B.5 preview affordance source contracts', () => {
 		expect(edgeActions).toContain('role="group" aria-label="Preview Edge"');
 	});
 });
+
+describe('P19 project persistence coordinator contracts', () => {
+	it('keeps one first-save identity and settles trimmed-name baselines', () => {
+		const app = readLibSource('editor/app/EditorApp.svelte');
+		const saveStart = app.indexOf('async function saveProject');
+		const save = app.slice(saveStart, app.indexOf('async function loadProject', saveStart));
+
+		expect(save).toContain('const saveProjectId = projectId ?? createProjectId();');
+		expect(save).toContain('id: saveProjectId');
+		expect(save).toContain('if (projectId === null) projectId = saveProjectId;');
+		expect(save.indexOf('if (projectId === null) projectId = saveProjectId;')).toBeLessThan(
+			save.indexOf('await projectApi!.saveProject')
+		);
+		expect(save).toContain('if (projectName.trim() === snapshot.name) projectName = snapshot.name;');
+		expect(save).toContain('store.markSaved(sceneCanonicalJson)');
+		expect(save).toContain('markLayoutPreviewSaved(layoutPreview, layoutCanonicalJson)');
+		expect(save).toContain(
+			'{ id: saved.projectId, name: saved.name, version: saved.version, updatedAt: saved.updatedAt },'
+		);
+	});
+
+	it('drops stale project lists around mutations and keeps project replacement guarded', () => {
+		const app = readLibSource('editor/app/EditorApp.svelte');
+		const refresh = app.slice(
+			app.indexOf('async function refreshOwnedProjects'),
+			app.indexOf('async function signInToProjects')
+		);
+		const gate = app.slice(
+			app.indexOf('function canStartProjectMutation'),
+			app.indexOf('function confirmProjectReplacement')
+		);
+		const load = app.slice(app.indexOf('async function loadProject'));
+
+		expect(refresh).toContain('const requestToken = ++projectListRequestToken;');
+		expect(refresh).toContain('const mutationEpoch = projectMutationEpoch;');
+		expect(refresh).toContain('requestToken !== projectListRequestToken');
+		expect(refresh).toContain('mutationEpoch !== projectMutationEpoch');
+		expect(gate).toContain('store.isEditorInteractionActive || store.isDocumentTransactionActive');
+		expect(load).toContain('sameProjectFingerprint(fingerprint, currentProjectFingerprint())');
+		expect(load).toContain('store.isEditorInteractionActive || store.isDocumentTransactionActive');
+	});
+
+	it('does not expose disabled cloud chrome and keeps the relic controller-free', () => {
+		const menu = readLibSource('editor/EditorProjectMenu.svelte');
+		const relic = readLibSource('editor/MuseumEditorApp.svelte');
+
+		expect(menu).toContain('{#if !relic && cloudConfigured}');
+		expect(menu).toContain("const cloudConfigured = $derived(cloudStatus !== 'disabled' && onSaveProject !== undefined);");
+		expect(relic).not.toContain('createProjectApi');
+		expect(relic).toContain('<EditorAppBar {store} {layoutPreview} {confirmSceneReplacement} {confirmLayoutReplacement} {relic} />');
+	});
+});

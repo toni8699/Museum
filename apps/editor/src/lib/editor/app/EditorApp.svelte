@@ -100,6 +100,8 @@
 	let projectMutationInFlight = $state(false);
 	let projectRequestToken = 0;
 	let projectRequestController: AbortController | null = null;
+	let projectMutationEpoch = 0;
+	let projectListRequestToken = 0;
 	const projectAuth = configuredProjectPersistence?.auth ?? null;
 	const projectApi = createProjectApi(
 		{
@@ -326,15 +328,27 @@
 
 	async function refreshOwnedProjects(signal?: AbortSignal): Promise<void> {
 		if (!projectApi) return;
+		const requestToken = ++projectListRequestToken;
+		const mutationEpoch = projectMutationEpoch;
 		try {
-			ownedProjects = await projectApi.listProjects(signal);
-			if (!projectMutationInFlight) {
-				cloudError = null;
-				cloudStatus = 'ready';
-			}
+			const projects = await projectApi.listProjects(signal);
+			if (
+				requestToken !== projectListRequestToken ||
+				mutationEpoch !== projectMutationEpoch ||
+				projectMutationInFlight
+			) return;
+			ownedProjects = projects;
+			cloudError = null;
+			cloudStatus = 'ready';
 		} catch (error) {
 			if (signal?.aborted || (error instanceof DOMException && error.name === 'AbortError')) return;
-			if (!projectMutationInFlight) setCloudError(persistenceMessage(error, 'Could not list cloud projects'));
+			if (
+				requestToken === projectListRequestToken &&
+				mutationEpoch === projectMutationEpoch &&
+				!projectMutationInFlight
+			) {
+				setCloudError(persistenceMessage(error, 'Could not list cloud projects'));
+			}
 		}
 	}
 
@@ -366,8 +380,9 @@
 			return;
 		}
 
+		const saveProjectId = projectId ?? createProjectId();
 		const validation = validateProject({
-			id: projectId ?? createProjectId(),
+			id: saveProjectId,
 			name,
 			layout: layoutPreview.project.layout,
 			scene: store.document
@@ -383,6 +398,8 @@
 		const controller = new AbortController();
 		projectRequestController = controller;
 		projectMutationInFlight = true;
+		projectMutationEpoch += 1;
+		if (projectId === null) projectId = saveProjectId;
 		cloudStatus = 'saving';
 		cloudError = null;
 		try {
@@ -391,11 +408,12 @@
 			projectId = saved.projectId;
 			projectVersion = saved.version;
 			savedProjectName = snapshot.name;
+			if (projectName.trim() === snapshot.name) projectName = snapshot.name;
 			store.markSaved(sceneCanonicalJson);
 			markLayoutPreviewSaved(layoutPreview, layoutCanonicalJson);
 			ownedProjects = [
-				...ownedProjects.filter((project) => project.id !== saved.projectId),
-				{ id: saved.projectId, name: saved.name, version: saved.version, updatedAt: saved.updatedAt }
+				{ id: saved.projectId, name: saved.name, version: saved.version, updatedAt: saved.updatedAt },
+				...ownedProjects.filter((project) => project.id !== saved.projectId)
 			];
 			cloudStatus = 'ready';
 			store.setStatusMessage(`Saved ${saved.name} v${saved.version}`);
@@ -405,6 +423,7 @@
 			}
 		} finally {
 			if (token === projectRequestToken) {
+				projectMutationEpoch += 1;
 				projectMutationInFlight = false;
 				projectRequestController = null;
 			}
@@ -418,6 +437,7 @@
 		const controller = new AbortController();
 		projectRequestController = controller;
 		projectMutationInFlight = true;
+		projectMutationEpoch += 1;
 		cloudStatus = 'loading';
 		cloudError = null;
 		try {
@@ -462,6 +482,7 @@
 			}
 		} finally {
 			if (token === projectRequestToken) {
+				projectMutationEpoch += 1;
 				projectMutationInFlight = false;
 				projectRequestController = null;
 			}
@@ -474,7 +495,10 @@
 		void refreshOwnedProjects(controller.signal);
 		const unsubscribe = projectAuth?.onChange?.((signedIn) => {
 			if (signedIn) void refreshOwnedProjects(controller.signal);
-			else ownedProjects = [];
+			else {
+				projectListRequestToken += 1;
+				ownedProjects = [];
+			}
 		});
 		return () => {
 			controller.abort();

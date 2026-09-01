@@ -55,6 +55,21 @@ describe('project persistence client', () => {
 		);
 	});
 
+	it('uses the configured fetch implementation when no call-site override is supplied', async () => {
+		const fetch = vi.fn(async () => new Response(JSON.stringify({ projects: [] }), { status: 200 }));
+		const api = createProjectApi({
+			apiOrigin: 'https://api.example.test',
+			auth: { getAccessToken: async () => 'token' },
+			fetch
+		})!;
+
+		await expect(api.listProjects()).resolves.toEqual([]);
+		expect(fetch).toHaveBeenCalledWith(
+			'https://api.example.test/projects',
+			expect.objectContaining({ method: 'GET' })
+		);
+	});
+
 	it('keeps project ids native and fingerprints all three live fields', () => {
 		expect(createProjectId(() => 'uuid')).toBe('project:uuid');
 		const first = projectFingerprint('scene-a', 'layout-a', 'One');

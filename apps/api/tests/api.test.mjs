@@ -280,6 +280,11 @@ test('project save/load appends immutable versions and isolates owners', async (
 			url: '/projects',
 			headers: { authorization: 'Bearer valid' }
 		});
+		const otherList = await app.inject({
+			method: 'GET',
+			url: '/projects',
+			headers: { authorization: 'Bearer other' }
+		});
 		const otherLoad = await app.inject({
 			method: 'GET',
 			url: '/projects/project:test',
@@ -299,6 +304,7 @@ test('project save/load appends immutable versions and isolates owners', async (
 		assert.equal(loaded.statusCode, 200);
 		assert.deepEqual(loaded.json().document, secondDocument);
 		assert.deepEqual(list.json().projects.map(({ id, version }) => ({ id, version })), [{ id: 'project:test', version: 2 }]);
+		assert.deepEqual(otherList.json(), { projects: [] });
 		assert.equal(otherLoad.statusCode, 404);
 		assert.equal(otherSave.statusCode, 404);
 		assert.deepEqual(pool.versions.get('project:test').get(1), projectDocument());
@@ -316,6 +322,18 @@ test('project body parsing keeps malformed and oversized JSON distinct', async (
 			headers: { authorization: 'Bearer valid', 'content-type': 'application/json' },
 			payload: '{"document":'
 		});
+		const invalidDocument = await app.inject({
+			method: 'PUT',
+			url: '/projects/project:test',
+			headers: { authorization: 'Bearer valid', 'content-type': 'application/json' },
+			payload: JSON.stringify({ document: { id: 'project:test', name: 'Missing fields' } })
+		});
+		const mismatchedDocument = await app.inject({
+			method: 'PUT',
+			url: '/projects/project:test',
+			headers: { authorization: 'Bearer valid', 'content-type': 'application/json' },
+			payload: JSON.stringify({ document: { ...projectDocument(), id: 'project:other' } })
+		});
 		const oversized = await app.inject({
 			method: 'PUT',
 			url: '/projects/project:test',
@@ -323,7 +341,35 @@ test('project body parsing keeps malformed and oversized JSON distinct', async (
 			payload: JSON.stringify({ document: 'x'.repeat(2 * 1024 * 1024) })
 		});
 		assert.equal(malformed.statusCode, 400);
+		assert.equal(invalidDocument.statusCode, 400);
+		assert.equal(invalidDocument.json().error.code, 'invalid_project');
+		assert.equal(mismatchedDocument.statusCode, 400);
+		assert.equal(mismatchedDocument.json().error.code, 'project_id_mismatch');
 		assert.equal(oversized.statusCode, 413);
+	} finally {
+		await app.close();
+	}
+});
+
+test('project payload just under 2 MiB is accepted', async () => {
+	const pool = memoryPool();
+	const app = createApp({ pool, authVerifier: async () => 'user-1', logger: false });
+	try {
+		const limit = 2 * 1024 * 1024;
+		const basePayload = JSON.stringify({ document: projectDocument('') });
+		const name = 'x'.repeat(limit - Buffer.byteLength(basePayload) - 1);
+		const payload = JSON.stringify({ document: projectDocument(name) });
+		assert.equal(Buffer.byteLength(payload), limit - 1);
+
+		const response = await app.inject({
+			method: 'PUT',
+			url: '/projects/project:test',
+			headers: { authorization: 'Bearer valid', 'content-type': 'application/json' },
+			payload
+		});
+
+		assert.equal(response.statusCode, 200);
+		assert.equal(response.json().version, 1);
 	} finally {
 		await app.close();
 	}

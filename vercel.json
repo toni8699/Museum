@@ -1,0 +1,5 @@
+{
+  "framework": "sveltekit",
+  "buildCommand": "npm run build -w @portfolio/editor",
+  "outputDirectory": "apps/editor/.vercel/output"
+}

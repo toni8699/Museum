@@ -2,6 +2,10 @@ export type ApiConfig = {
 	databaseUrl: string;
 	port: number;
 	editorOrigin?: string;
+	apiOrigin?: string;
+	googleClientId?: string;
+	googleClientSecret?: string;
+	sessionKey?: Buffer;
 };
 
 export class ConfigError extends Error {
@@ -43,9 +47,12 @@ function readPort(value: string | undefined): number {
 	return port;
 }
 
-function readEditorOrigin(value: string | undefined): string | undefined {
+function readOrigin(value: string | undefined, name: string, required = false): string | undefined {
 	const origin = value?.trim();
-	if (!origin) return undefined;
+	if (!origin) {
+		if (required) throw new ConfigError(`${name} is required`);
+		return undefined;
+	}
 	try {
 		const url = new URL(origin);
 		if (!['http:', 'https:'].includes(url.protocol) || url.pathname !== '/' || url.search || url.hash) {
@@ -53,13 +60,39 @@ function readEditorOrigin(value: string | undefined): string | undefined {
 		}
 		return url.origin;
 	} catch {
-		throw new ConfigError('EDITOR_ORIGIN must be an HTTP(S) origin');
+		throw new ConfigError(`${name} must be an HTTP(S) origin`);
 	}
+}
+
+function readRequired(value: string | undefined, name: string): string {
+	const result = value?.trim();
+	if (!result) throw new ConfigError(`${name} is required`);
+	return result;
+}
+
+function readSessionKey(value: string | undefined): Buffer {
+	const encoded = readRequired(value, 'SESSION_KEY');
+	const key = /^[0-9a-f]{64}$/i.test(encoded)
+		? Buffer.from(encoded, 'hex')
+		: Buffer.from(encoded, 'base64');
+	if (key.length !== 32) {
+		throw new ConfigError('SESSION_KEY must be a 32-byte base64 or hex key');
+	}
+	return key;
 }
 
 export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
 	const databaseUrl = readDatabaseUrl(env.DATABASE_URL);
 	const port = readPort(env.PORT);
-	const editorOrigin = readEditorOrigin(env.EDITOR_ORIGIN);
-	return editorOrigin ? { databaseUrl, port, editorOrigin } : { databaseUrl, port };
+	const editorOrigin = readOrigin(env.EDITOR_ORIGIN, 'EDITOR_ORIGIN', true)!;
+	const apiOrigin = readOrigin(env.API_ORIGIN ?? env.RENDER_EXTERNAL_URL, 'API_ORIGIN');
+	return {
+		databaseUrl,
+		port,
+		editorOrigin,
+		...(apiOrigin ? { apiOrigin } : {}),
+		googleClientId: readRequired(env.GOOGLE_CLIENT_ID, 'GOOGLE_CLIENT_ID'),
+		googleClientSecret: readRequired(env.GOOGLE_CLIENT_SECRET, 'GOOGLE_CLIENT_SECRET'),
+		sessionKey: readSessionKey(env.SESSION_KEY)
+	};
 }

@@ -20,6 +20,8 @@
 		onLoadProject,
 		onRefreshProjects,
 		onSignIn,
+		onSignOut,
+		sessionStatus = 'unauthenticated',
 		ownedProjects = [],
 		cloudStatus = 'disabled',
 		cloudError = null,
@@ -37,6 +39,8 @@
 		onLoadProject?: (projectId: string) => void;
 		onRefreshProjects?: () => void;
 		onSignIn?: () => void | Promise<void>;
+		onSignOut?: () => void | Promise<void>;
+		sessionStatus?: 'checking' | 'authenticated' | 'unauthenticated' | 'error';
 		ownedProjects?: readonly ProjectSummary[];
 		cloudStatus?: 'disabled' | 'ready' | 'loading' | 'saving' | 'error';
 		cloudError?: string | null;
@@ -137,6 +141,8 @@
 			{onLoadProject}
 			{onRefreshProjects}
 			{onSignIn}
+			{onSignOut}
+			{sessionStatus}
 			{ownedProjects}
 			{cloudStatus}
 			{cloudError}

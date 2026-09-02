@@ -10,11 +10,14 @@ export type ProjectSummary = {
 export type SavedProject = Omit<ProjectSummary, 'id'> & { projectId: string };
 export type LoadedProject = SavedProject & { document: unknown };
 
+export type ProjectSession =
+	| { authenticated: false }
+	| { authenticated: true; user: { id: string } };
+
 export type ProjectAuth = {
-	getAccessToken(signal?: AbortSignal): Promise<string | null>;
-	signIn?: () => Promise<void>;
-	signOut?: () => Promise<void> | void;
-	onChange?: (listener: (signedIn: boolean) => void) => () => void;
+	getSession(signal?: AbortSignal): Promise<ProjectSession>;
+	signIn: () => void | Promise<void>;
+	signOut: (signal?: AbortSignal) => Promise<void>;
 };
 
 export type ProjectPersistenceConfig = {
@@ -51,22 +54,41 @@ export class ProjectPersistenceError extends Error {
 	}
 }
 
+export function createProjectAuth(apiOrigin: string, fetchImpl?: FetchLike): ProjectAuth {
+	const origin = normalizeApiOrigin(apiOrigin);
+	const requestFetch = fetchImpl ?? globalThis.fetch?.bind(globalThis);
+	if (!origin || !requestFetch) {
+		throw new ProjectPersistenceError('configuration', 'Cloud requests are unavailable');
+	}
+
+	return {
+		getSession: (signal) =>
+			requestJson(requestFetch, origin, '/auth/me', { method: 'GET' }, signal).then(readSession),
+		signIn: () => {
+			if (typeof window === 'undefined') throw new ProjectPersistenceError('configuration', 'Sign-in is unavailable');
+			window.location.assign(`${origin}/auth/login`);
+		},
+		signOut: (signal) =>
+			requestJson(requestFetch, origin, '/auth/logout', { method: 'POST' }, signal).then(() => undefined)
+	};
+}
+
 export function createProjectApi(
 	config: ProjectPersistenceConfig,
 	fetchImpl?: FetchLike
 ): ProjectApi | null {
 	const origin = normalizeApiOrigin(config.apiOrigin ?? '');
-	if (!origin || !config.auth) return null;
+	if (!origin) return null;
 	const requestFetch = fetchImpl ?? config.fetch ?? globalThis.fetch?.bind(globalThis);
 	if (!requestFetch) throw new ProjectPersistenceError('configuration', 'Cloud requests are unavailable');
 
 	return {
-		listProjects: (signal) => requestJson(requestFetch, origin, config.auth!, '/projects', { method: 'GET' }, signal).then(readProjectList),
+		listProjects: (signal) =>
+			requestJson(requestFetch, origin, '/projects', { method: 'GET' }, signal).then(readProjectList),
 		saveProject: (project, signal) =>
 			requestJson(
 				requestFetch,
 				origin,
-				config.auth!,
 				`/projects/${encodeURIComponent(project.id)}`,
 				{ method: 'PUT', body: JSON.stringify({ document: project }) },
 				signal
@@ -75,7 +97,6 @@ export function createProjectApi(
 			requestJson(
 				requestFetch,
 				origin,
-				config.auth!,
 				`/projects/${encodeURIComponent(projectId)}`,
 				{ method: 'GET' },
 				signal
@@ -116,29 +137,20 @@ function normalizeApiOrigin(origin: string): string {
 async function requestJson(
 	fetchImpl: FetchLike,
 	origin: string,
-	auth: ProjectAuth,
 	path: string,
 	init: RequestInit,
 	signal?: AbortSignal
 ): Promise<unknown> {
-	let token: string | null;
-	try {
-		token = await auth.getAccessToken(signal);
-	} catch (error) {
-		if (isAbort(error, signal)) throw error;
-		throw new ProjectPersistenceError('auth', 'Sign-in is required');
-	}
-	if (!token) throw new ProjectPersistenceError('auth', 'Sign-in is required');
-
 	let response: Response;
 	try {
 		response = await fetchImpl(`${origin}${path}`, {
 			...init,
+			credentials: 'include',
 			signal,
 			headers: {
 				Accept: 'application/json',
 				...(init.body === undefined ? {} : { 'Content-Type': 'application/json' }),
-				Authorization: `Bearer ${token}`
+				...(init.headers ?? {})
 			}
 		});
 	} catch (error) {
@@ -147,10 +159,12 @@ async function requestJson(
 	}
 
 	let body: unknown = null;
-	try {
-		body = await response.json();
-	} catch {
-		// Empty error bodies are mapped by status below.
+	if (response.status !== 204) {
+		try {
+			body = await response.json();
+		} catch {
+			// Empty error bodies are mapped by status below.
+		}
 	}
 	if (response.ok) return body;
 	throw responseError(response.status, body);
@@ -162,6 +176,13 @@ function responseError(status: number, body: unknown): ProjectPersistenceError {
 	if (status === 413) return new ProjectPersistenceError('too-large', 'Project payload is too large', status);
 	if (status >= 500) return new ProjectPersistenceError('server', 'Cloud service is unavailable', status);
 	return new ProjectPersistenceError('invalid', readErrorMessage(body) ?? 'Cloud request was rejected', status);
+}
+
+function readSession(value: unknown): ProjectSession {
+	if (!isRecord(value) || typeof value.authenticated !== 'boolean') throw invalidResponse();
+	if (!value.authenticated) return { authenticated: false };
+	if (!isRecord(value.user)) throw invalidResponse();
+	return { authenticated: true, user: { id: readString(value.user.id) } };
 }
 
 function readProjectList(value: unknown): ProjectSummary[] {

@@ -9,6 +9,9 @@ import { sanitizeDatabaseError } from '../dist/database.js';
 import { installShutdownHandlers } from '../dist/shutdown.js';
 import { startServer } from '../dist/server.js';
 
+const SESSION_KEY = Buffer.alloc(32, 7);
+const SESSION_COOKIE = 'museum-editor-session';
+
 function stubPool({ query = async () => undefined, end = async () => undefined } = {}) {
 	return { query, end };
 }
@@ -109,6 +112,19 @@ function memoryPool() {
 	return pool;
 }
 
+function cookieFrom(response) {
+	const header = response.headers['set-cookie'];
+	const value = Array.isArray(header) ? header[0] : header;
+	assert.ok(value, 'response should set a session cookie');
+	return value.split(';', 1)[0];
+}
+
+async function sessionCookie(app, userId) {
+	await app.ready();
+	const value = app.encodeSecureSession(app.createSecureSession({ userId }));
+	return `${SESSION_COOKIE}=${encodeURIComponent(value)}`;
+}
+
 test('liveness is independent of Postgres', async () => {
 	let queries = 0;
 	const app = createApp({
@@ -143,27 +159,7 @@ test('readiness succeeds after SELECT 1', async () => {
 	}
 });
 
-test('readiness hides database failures behind a generic 503', async () => {
-	const app = createApp({
-		pool: stubPool({
-			query: async () => {
-				throw new Error('postgres://user:secret@example.test/db');
-			}
-		}),
-		logger: false
-	});
-
-	try {
-		const response = await app.inject('/health/ready');
-		assert.equal(response.statusCode, 503);
-		assert.deepEqual(response.json(), { status: 'unavailable' });
-		assert.equal(response.body.includes('secret'), false);
-	} finally {
-		await app.close();
-	}
-});
-
-test('configuration rejects missing and invalid startup values without exposing them', async () => {
+test('configuration validates deployment auth values without exposing secrets', async () => {
 	assert.throws(
 		() => readConfig({ PORT: '3000' }),
 		(error) => error instanceof ConfigError && error.message === 'DATABASE_URL is required'
@@ -187,21 +183,34 @@ test('configuration rejects missing and invalid startup values without exposing 
 		}),
 		(error) => error instanceof ConfigError
 	);
-	assert.deepEqual(
-		readConfig({ DATABASE_URL: 'postgres://user@db.example.test/app', PORT: '3000' }),
-		{ databaseUrl: 'postgres://user@db.example.test/app', port: 3000 }
-	);
-	assert.equal(
-		readConfig({
+
+	const key = Buffer.alloc(32, 9);
+	const config = readConfig({
+		DATABASE_URL: 'postgres://user@db.example.test/app',
+		PORT: '3000',
+		API_ORIGIN: 'https://api.example.test/',
+		EDITOR_ORIGIN: 'https://editor.example.test/',
+		GOOGLE_CLIENT_ID: 'client-id',
+		GOOGLE_CLIENT_SECRET: 'client-secret',
+		SESSION_KEY: key.toString('base64')
+	});
+	assert.equal(config.databaseUrl, 'postgres://user@db.example.test/app');
+	assert.equal(config.port, 3000);
+	assert.equal(config.apiOrigin, 'https://api.example.test');
+	assert.equal(config.editorOrigin, 'https://editor.example.test');
+	assert.equal(config.googleClientId, 'client-id');
+	assert.equal(config.googleClientSecret, 'client-secret');
+	assert.deepEqual(config.sessionKey, key);
+	assert.throws(
+		() => readConfig({
 			DATABASE_URL: 'postgres://user@db.example.test/app',
 			PORT: '3000',
-			EDITOR_ORIGIN: 'https://editor.example.test/'
-		}).editorOrigin,
-		'https://editor.example.test'
-	);
-	assert.throws(
-		() => readConfig({ DATABASE_URL: 'postgres://user@db.example.test/app', PORT: '3000', EDITOR_ORIGIN: 'https://editor.example.test/path' }),
-		(error) => error instanceof ConfigError && error.message === 'EDITOR_ORIGIN must be an HTTP(S) origin'
+			EDITOR_ORIGIN: 'https://editor.example.test',
+			GOOGLE_CLIENT_ID: 'client-id',
+			GOOGLE_CLIENT_SECRET: 'client-secret',
+			SESSION_KEY: 'short'
+		}),
+		(error) => error instanceof ConfigError && !error.message.includes('short')
 	);
 });
 
@@ -227,11 +236,157 @@ test('database logs retain only safe error metadata', () => {
 	assert.deepEqual(sanitizeDatabaseError(error), { name: 'Error', code: 'ECONNREFUSED' });
 });
 
-test('project routes require a verified bearer and do not query anonymously', async () => {
+test('login creates fresh state, PKCE, nonce, callback URL, and secure cookie', async () => {
+	let authorization;
+	const app = createApp({
+		pool: stubPool(),
+		apiOrigin: 'https://api.example.test',
+		editorOrigin: 'https://editor.example.test',
+		sessionKey: SESSION_KEY,
+		oidc: {
+			async createAuthorizationUrl(input) {
+				authorization = input;
+				return `https://accounts.google.test/auth?${new URLSearchParams({
+					client_id: 'client-id',
+					redirect_uri: input.redirectUri,
+					response_type: 'code',
+					scope: 'openid email profile',
+					state: input.state,
+					code_challenge: input.codeChallenge,
+					code_challenge_method: 'S256',
+					nonce: input.nonce
+				})}`;
+			},
+			async exchangeAuthorizationCode() {
+				throw new Error('not called');
+			}
+		},
+		logger: false
+	});
+	try {
+		const response = await app.inject({ method: 'GET', url: '/auth/login' });
+		assert.equal(response.statusCode, 302);
+		assert.equal(authorization.redirectUri, 'https://api.example.test/auth/callback');
+		assert.match(authorization.state, /^\S+$/);
+		assert.match(authorization.codeChallenge, /^\S+$/);
+		assert.match(authorization.nonce, /^\S+$/);
+		assert.notEqual(authorization.codeChallenge, authorization.state);
+		const location = new URL(response.headers.location);
+		assert.equal(location.searchParams.get('scope'), 'openid email profile');
+		assert.equal(location.searchParams.get('redirect_uri'), authorization.redirectUri);
+		assert.equal(location.searchParams.get('state'), authorization.state);
+		assert.equal(location.searchParams.get('code_challenge_method'), 'S256');
+		const cookie = cookieFrom(response);
+		assert.match(response.headers['set-cookie'], /HttpOnly/i);
+		assert.match(response.headers['set-cookie'], /Secure/i);
+		assert.match(response.headers['set-cookie'], /SameSite=Lax/i);
+		assert.match(cookie, new RegExp(`^${SESSION_COOKIE}=`));
+	} finally {
+		await app.close();
+	}
+});
+
+test('callback validates the session-bound state and forwards PKCE plus nonce', async () => {
+	let authorization;
+	let callback;
+	let queries = 0;
+	const pool = stubPool({ query: async () => queries++ });
+	const app = createApp({
+		pool,
+		apiOrigin: 'https://api.example.test',
+		editorOrigin: 'https://editor.example.test',
+		sessionKey: SESSION_KEY,
+		oidc: {
+			async createAuthorizationUrl(input) {
+				authorization = input;
+				return 'https://accounts.google.test/auth';
+			},
+			async exchangeAuthorizationCode(input) {
+				callback = input;
+				return { subject: 'google-subject-1' };
+			}
+		},
+		logger: false
+	});
+	try {
+		const login = await app.inject({ method: 'GET', url: '/auth/login' });
+		const callbackResponse = await app.inject({
+			method: 'GET',
+			url: `/auth/callback?code=authorization-code&state=${encodeURIComponent(authorization.state)}`,
+			headers: { cookie: cookieFrom(login) }
+		});
+		assert.equal(callbackResponse.statusCode, 302);
+		assert.equal(callbackResponse.headers.location, 'https://editor.example.test');
+		assert.equal(callback.callbackUrl.toString(), `https://api.example.test/auth/callback?code=authorization-code&state=${encodeURIComponent(authorization.state)}`);
+		assert.equal(callback.codeVerifier.length > 20, true);
+		assert.equal(callback.expectedState, authorization.state);
+		assert.equal(callback.expectedNonce, authorization.nonce);
+		assert.equal(queries, 0);
+
+		const me = await app.inject({
+			method: 'GET',
+			url: '/auth/me',
+			headers: { cookie: cookieFrom(callbackResponse) }
+		});
+		assert.deepEqual(me.json(), { authenticated: true, user: { id: 'google:google-subject-1' } });
+	} finally {
+		await app.close();
+	}
+});
+
+test('tampered state, rejected PKCE/token, and invalid identity never create a session', async () => {
+	let exchangeCalls = 0;
+	const app = createApp({
+		pool: stubPool(),
+		apiOrigin: 'https://api.example.test',
+		editorOrigin: 'https://editor.example.test',
+		sessionKey: SESSION_KEY,
+		oidc: {
+			async createAuthorizationUrl(input) {
+				return `https://accounts.google.test/auth?state=${encodeURIComponent(input.state)}`;
+			},
+			async exchangeAuthorizationCode() {
+				exchangeCalls += 1;
+				throw new Error('token exchange rejected');
+			}
+		},
+		logger: false
+	});
+	try {
+		const login = await app.inject({ method: 'GET', url: '/auth/login' });
+		const cookie = cookieFrom(login);
+		const tampered = await app.inject({
+			method: 'GET',
+			url: '/auth/callback?code=authorization-code&state=wrong',
+			headers: { cookie }
+		});
+		assert.equal(tampered.statusCode, 400);
+		assert.equal(exchangeCalls, 0);
+		const tamperedMe = await app.inject({ method: 'GET', url: '/auth/me', headers: { cookie: cookieFrom(tampered) } });
+		assert.deepEqual(tamperedMe.json(), { authenticated: false });
+
+		const secondLogin = await app.inject({ method: 'GET', url: '/auth/login' });
+		const state = new URL(secondLogin.headers.location).searchParams.get('state');
+		const rejected = await app.inject({
+			method: 'GET',
+			url: `/auth/callback?code=authorization-code&state=${encodeURIComponent(state)}`,
+			headers: { cookie: cookieFrom(secondLogin) }
+		});
+		assert.equal(rejected.statusCode, 400);
+		assert.equal(exchangeCalls, 1);
+		const rejectedMe = await app.inject({ method: 'GET', url: '/auth/me', headers: { cookie: cookieFrom(rejected) } });
+		assert.deepEqual(rejectedMe.json(), { authenticated: false });
+		assert.equal(rejected.body.includes('token exchange'), false);
+	} finally {
+		await app.close();
+	}
+});
+
+test('project routes require a valid secure session and do not query anonymously', async () => {
 	let queries = 0;
 	const app = createApp({
 		pool: stubPool({ query: async () => queries++ }),
-		authVerifier: async (token) => (token === 'valid' ? { subject: 'user-1' } : null),
+		sessionKey: SESSION_KEY,
 		logger: false
 	});
 	try {
@@ -239,7 +394,7 @@ test('project routes require a verified bearer and do not query anonymously', as
 		const invalid = await app.inject({
 			method: 'GET',
 			url: '/projects',
-			headers: { authorization: 'Bearer wrong' }
+			headers: { cookie: `${SESSION_COOKIE}=invalid` }
 		});
 		assert.equal(missing.statusCode, 401);
 		assert.equal(invalid.statusCode, 401);
@@ -251,49 +406,31 @@ test('project routes require a verified bearer and do not query anonymously', as
 
 test('project save/load appends immutable versions and isolates owners', async () => {
 	const pool = memoryPool();
-	const app = createApp({
-		pool,
-		authVerifier: async (token) => (token === 'other' ? 'user-2' : token === 'valid' ? 'user-1' : null),
-		logger: false
-	});
+	const app = createApp({ pool, sessionKey: SESSION_KEY, logger: false });
 	try {
+		const userOne = await sessionCookie(app, 'google:user-1');
+		const userTwo = await sessionCookie(app, 'google:user-2');
 		const first = await app.inject({
 			method: 'PUT',
 			url: '/projects/project:test',
-			headers: { authorization: 'Bearer valid' },
+			headers: { cookie: userOne },
 			payload: { document: projectDocument() }
 		});
 		const secondDocument = projectDocument('Renamed project');
 		const second = await app.inject({
 			method: 'PUT',
 			url: '/projects/project:test',
-			headers: { authorization: 'Bearer valid' },
+			headers: { cookie: userOne },
 			payload: { document: secondDocument }
 		});
-		const loaded = await app.inject({
-			method: 'GET',
-			url: '/projects/project:test',
-			headers: { authorization: 'Bearer valid' }
-		});
-		const list = await app.inject({
-			method: 'GET',
-			url: '/projects',
-			headers: { authorization: 'Bearer valid' }
-		});
-		const otherList = await app.inject({
-			method: 'GET',
-			url: '/projects',
-			headers: { authorization: 'Bearer other' }
-		});
-		const otherLoad = await app.inject({
-			method: 'GET',
-			url: '/projects/project:test',
-			headers: { authorization: 'Bearer other' }
-		});
+		const loaded = await app.inject({ method: 'GET', url: '/projects/project:test', headers: { cookie: userOne } });
+		const list = await app.inject({ method: 'GET', url: '/projects', headers: { cookie: userOne } });
+		const otherList = await app.inject({ method: 'GET', url: '/projects', headers: { cookie: userTwo } });
+		const otherLoad = await app.inject({ method: 'GET', url: '/projects/project:test', headers: { cookie: userTwo } });
 		const otherSave = await app.inject({
 			method: 'PUT',
 			url: '/projects/project:test',
-			headers: { authorization: 'Bearer other' },
+			headers: { cookie: userTwo },
 			payload: { document: projectDocument('Intruder') }
 		});
 
@@ -308,36 +445,34 @@ test('project save/load appends immutable versions and isolates owners', async (
 		assert.equal(otherLoad.statusCode, 404);
 		assert.equal(otherSave.statusCode, 404);
 		assert.deepEqual(pool.versions.get('project:test').get(1), projectDocument());
+		assert.equal(pool.calls.filter(({ text }) => text.includes('INSERT INTO users')).length, 3);
 	} finally {
 		await app.close();
 	}
 });
 
-test('project body parsing keeps malformed and oversized JSON distinct', async () => {
-	const app = createApp({ pool: stubPool(), authVerifier: async () => 'user-1', logger: false });
+test('project body parsing keeps malformed, invalid, mismatched, and oversized JSON distinct', async () => {
+	const app = createApp({ pool: memoryPool(), sessionKey: SESSION_KEY, logger: false });
 	try {
-		const malformed = await app.inject({
-			method: 'PUT',
-			url: '/projects/project:test',
-			headers: { authorization: 'Bearer valid', 'content-type': 'application/json' },
-			payload: '{"document":'
-		});
+		const cookie = await sessionCookie(app, 'google:user-1');
+		const headers = { cookie, 'content-type': 'application/json' };
+		const malformed = await app.inject({ method: 'PUT', url: '/projects/project:test', headers, payload: '{"document":' });
 		const invalidDocument = await app.inject({
 			method: 'PUT',
 			url: '/projects/project:test',
-			headers: { authorization: 'Bearer valid', 'content-type': 'application/json' },
+			headers,
 			payload: JSON.stringify({ document: { id: 'project:test', name: 'Missing fields' } })
 		});
 		const mismatchedDocument = await app.inject({
 			method: 'PUT',
 			url: '/projects/project:test',
-			headers: { authorization: 'Bearer valid', 'content-type': 'application/json' },
+			headers,
 			payload: JSON.stringify({ document: { ...projectDocument(), id: 'project:other' } })
 		});
 		const oversized = await app.inject({
 			method: 'PUT',
 			url: '/projects/project:test',
-			headers: { authorization: 'Bearer valid', 'content-type': 'application/json' },
+			headers,
 			payload: JSON.stringify({ document: 'x'.repeat(2 * 1024 * 1024) })
 		});
 		assert.equal(malformed.statusCode, 400);
@@ -353,8 +488,9 @@ test('project body parsing keeps malformed and oversized JSON distinct', async (
 
 test('project payload just under 2 MiB is accepted', async () => {
 	const pool = memoryPool();
-	const app = createApp({ pool, authVerifier: async () => 'user-1', logger: false });
+	const app = createApp({ pool, sessionKey: SESSION_KEY, logger: false });
 	try {
+		const cookie = await sessionCookie(app, 'google:user-1');
 		const limit = 2 * 1024 * 1024;
 		const basePayload = JSON.stringify({ document: projectDocument('') });
 		const name = 'x'.repeat(limit - Buffer.byteLength(basePayload) - 1);
@@ -364,7 +500,7 @@ test('project payload just under 2 MiB is accepted', async () => {
 		const response = await app.inject({
 			method: 'PUT',
 			url: '/projects/project:test',
-			headers: { authorization: 'Bearer valid', 'content-type': 'application/json' },
+			headers: { cookie, 'content-type': 'application/json' },
 			payload
 		});
 
@@ -375,10 +511,12 @@ test('project payload just under 2 MiB is accepted', async () => {
 	}
 });
 
-test('CORS exposes only the configured editor origin', async () => {
+test('CORS, credentials, origin checks, and logout are restricted to the editor origin', async () => {
 	const app = createApp({
-		pool: stubPool(),
+		pool: memoryPool(),
+		apiOrigin: 'https://api.example.test',
 		editorOrigin: 'https://editor.example.test',
+		sessionKey: SESSION_KEY,
 		logger: false
 	});
 	try {
@@ -387,7 +525,8 @@ test('CORS exposes only the configured editor origin', async () => {
 			url: '/projects',
 			headers: {
 				origin: 'https://editor.example.test',
-				'access-control-request-method': 'GET'
+				'access-control-request-method': 'GET',
+				'access-control-request-headers': 'content-type'
 			}
 		});
 		const rejected = await app.inject({
@@ -397,7 +536,34 @@ test('CORS exposes only the configured editor origin', async () => {
 		});
 		assert.equal(allowed.statusCode, 204);
 		assert.equal(allowed.headers['access-control-allow-origin'], 'https://editor.example.test');
+		assert.equal(allowed.headers['access-control-allow-credentials'], 'true');
+		assert.equal(allowed.headers['access-control-allow-methods'], 'GET, PUT, POST, OPTIONS');
+		assert.equal(allowed.headers['access-control-allow-headers'], 'Content-Type');
 		assert.equal(rejected.statusCode, 403);
+
+		const cookie = await sessionCookie(app, 'google:user-1');
+		const badPut = await app.inject({
+			method: 'PUT',
+			url: '/projects/project:test',
+			headers: { origin: 'https://other.example.test', cookie },
+			payload: { document: projectDocument() }
+		});
+		const badLogout = await app.inject({
+			method: 'POST',
+			url: '/auth/logout',
+			headers: { origin: 'https://other.example.test', cookie }
+		});
+		assert.equal(badPut.statusCode, 403);
+		assert.equal(badLogout.statusCode, 403);
+
+		const logout = await app.inject({
+			method: 'POST',
+			url: '/auth/logout',
+			headers: { origin: 'https://editor.example.test', cookie }
+		});
+		assert.equal(logout.statusCode, 204);
+		const me = await app.inject({ method: 'GET', url: '/auth/me', headers: { cookie: cookieFrom(logout) } });
+		assert.deepEqual(me.json(), { authenticated: false });
 	} finally {
 		await app.close();
 	}

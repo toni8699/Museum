@@ -29,6 +29,8 @@
 		onLoadProject,
 		onRefreshProjects,
 		onSignIn,
+		onSignOut,
+		sessionStatus = 'unauthenticated',
 		ownedProjects = [],
 		cloudStatus = 'disabled',
 		cloudError = null,
@@ -47,6 +49,8 @@
 		onLoadProject?: (projectId: string) => void;
 		onRefreshProjects?: () => void;
 		onSignIn?: () => void | Promise<void>;
+		onSignOut?: () => void | Promise<void>;
+		sessionStatus?: 'checking' | 'authenticated' | 'unauthenticated' | 'error';
 		ownedProjects?: readonly ProjectSummary[];
 		cloudStatus?: 'disabled' | 'ready' | 'loading' | 'saving' | 'error';
 		cloudError?: string | null;
@@ -291,18 +295,24 @@
 						/>
 					</label>
 					<div class="project-actions">
-						<button type="button" class="primary" disabled={!cloudConfigured || cloudBusy} onclick={onSaveProject}>
+						<button type="button" class="primary" disabled={!cloudConfigured || cloudBusy || sessionStatus !== 'authenticated'} onclick={onSaveProject}>
 							{cloudStatus === 'saving' ? 'Saving…' : 'Save cloud project'}
 						</button>
-						{#if onSignIn}
-							<button type="button" disabled={cloudBusy} onclick={onSignIn}>Sign in</button>
+						{#if sessionStatus === 'authenticated'}
+							<button type="button" disabled={cloudBusy} onclick={onSignOut}>Sign out</button>
+						{:else if onSignIn}
+							<button type="button" disabled={cloudBusy || sessionStatus === 'checking'} onclick={onSignIn}>
+								{sessionStatus === 'checking' ? 'Checking…' : 'Sign in'}
+							</button>
 						{/if}
 					</div>
 					<div class="cloud-project-heading">
 						<strong>Owned projects</strong>
 						<button type="button" class="text-button" disabled={!cloudConfigured || cloudBusy} onclick={onRefreshProjects}>Refresh</button>
 					</div>
-					{#if ownedProjects.length === 0}
+					{#if sessionStatus !== 'authenticated'}
+						<p class="empty-projects">Sign in to view saved projects.</p>
+					{:else if ownedProjects.length === 0}
 						<p class="empty-projects">No saved projects.</p>
 					{:else}
 						<ul class="owned-projects">

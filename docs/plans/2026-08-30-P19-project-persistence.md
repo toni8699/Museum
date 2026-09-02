@@ -4,6 +4,14 @@
 **Source:** backend/persistence migration review §0.1.6–§0.1.7 and P18,
 first-persistence pass.
 **Amended:** 2026-08-31 — five review amendments applied.
+**Amended:** 2026-09-01 — auth-boundary amendment: Google OIDC (Authorization
+Code + PKCE) plus an app-owned `@fastify/secure-session` cookie replace the
+managed-provider bearer-token integration. Persistence scope and the project
+model are unchanged.
+**Amended:** 2026-09-01 (owner review) — production session contract pins a
+same-site editor/API topology with `SameSite=Lax` cookies (no third-party
+cookies), the roles of OAuth `state` / PKCE / OIDC `nonce` are corrected, and
+lazy `users` row materialization is pinned.
 
 ## Outcome
 
@@ -27,9 +35,12 @@ navigation, Plan geometry, the `/museum` visitor, or the `/museum/editor`
 relic behavior.
 
 P19 starts only after P18.3 has a confirmed Render/Neon deployment and a
-passing live/ready smoke. The managed identity provider, API audience/issuer,
-and deployed editor origin must be owner-approved before provider-specific
-code or production secrets are added; this plan does not invent a provider.
+passing live/ready smoke. The owner-approved Google OAuth web application
+(client ID/secret), the approved callback URL terminating on the API, the
+deployed editor and API production origins, and the `SESSION_KEY` must be
+pinned before Google OIDC code or production secrets are added. Google
+OpenID Connect is the only identity provider for v1; this plan does not
+invent a provider.
 
 ## Existing APIs and ownership
 
@@ -89,7 +100,7 @@ Add one checked-in SQL migration under `apps/api/migrations/`:
 
 ```sql
 users
-  id text primary key                         -- managed identity subject
+  id text primary key                         -- provider-qualified verified OIDC subject, e.g. google:<sub>
   created_at timestamptz not null
 
 projects
@@ -110,7 +121,13 @@ project_versions
 ```
 
 Use `now()` defaults, a descending owner/updated index for the project list,
-and a JSON-object check on `project_versions.document`. Keep the migration
+and a JSON-object check on `project_versions.document`. `users.id` holds the
+provider-qualified verified OIDC subject `google:<sub>`, derived only from
+Google's stable verified `sub` claim; it is the only durable identity P19
+stores. Do not add password fields, session tables, OAuth token tables,
+provider-profile tables, roles, teams, memberships, or permissions in P19 —
+the secure session is not part of `ProjectDocument` and is not project
+persistence. Keep the migration
 runner tiny and direct: a versioned SQL file plus a `schema_migrations` table,
 one transaction per migration, and a root `migrate:api` command. Do not add an
 ORM or migration framework. The API process must not mutate schema at
@@ -134,35 +151,125 @@ separate `400` response. Do not inherit Fastify's default accidentally.
 
 ## HTTP and identity contract
 
-Health routes remain public and unchanged. Project routes require a verified
-managed-provider bearer token:
+Authentication is **Google OpenID Connect → Authorization Code + PKCE →
+Fastify callback → app-owned secure session cookie → Fastify/Postgres
+authorization**. Google proves identity; Museum Editor owns its own session
+and product authorization. This is lightweight external authentication, not
+home-grown authentication: Google owns credentials and account security;
+Museum Editor owns only the OIDC handshake, its secure application session,
+and product authorization. The product identity derives only from Google's
+verified stable OIDC `sub` claim.
+
+Health routes remain public and unchanged. The auth surface is:
+
+| Method | Route | Behavior |
+|---|---|---|
+| `GET` | `/auth/login` | Fresh PKCE verifier/challenge + OAuth `state` (+ OIDC `nonce` where required) bound to the initiating browser session; `302` to Google's authorization endpoint; scopes `openid email profile` only, no unrelated Google API permissions |
+| `GET` | `/auth/callback` | Validate the authorization response through `openid-client` (state, nonce, PKCE verifier); exchange the code; accept identity only from the validated OIDC `sub`; clear transient login state; establish the Museum Editor session; `302` to the owner-approved editor origin |
+| `GET` | `/auth/me` | Session cookie → `{ authenticated: false }` or `{ authenticated: true, user: { id: "google:<sub>" } }` |
+| `POST` | `/auth/logout` | Clear/invalidate the Museum Editor session cookie; never attempts a global Google account logout |
+
+The Google redirect URI terminates on the API (`{API_ORIGIN}/auth/callback`),
+never on the editor. The flow is: `GET /auth/login` → Google → `GET
+/auth/callback` → establish the secure Museum Editor session → redirect to
+the editor.
+
+Project routes require the authenticated Museum Editor secure-session cookie:
 
 | Method | Route | Request | Success |
 |---|---|---|---|
-| `GET` | `/projects` | bearer token | `{ projects: [{ id, name, version, updatedAt }] }` |
-| `PUT` | `/projects/:projectId` | `{ document: unknown }` | `{ projectId, version, name, updatedAt }` |
-| `GET` | `/projects/:projectId` | bearer token | `{ projectId, version, name, updatedAt, document }` for latest |
+| `GET` | `/projects` | session cookie | `{ projects: [{ id, name, version, updatedAt }] }` |
+| `PUT` | `/projects/:projectId` | session cookie + `{ document: unknown }` | `{ projectId, version, name, updatedAt }` |
+| `GET` | `/projects/:projectId` | session cookie | `{ projectId, version, name, updatedAt, document }` for latest |
 
+- The session cookie is `HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/`, with
+  bounded expiry, and never readable by editor JavaScript. Production
+  authenticated Save/Load requires a **same-site** editor/API topology —
+  preferably sibling subdomains under one registrable domain (for example
+  `app.example.com` editor → `api.example.com` API): cross-origin but
+  same-site, so CORS is still required yet the session never depends on
+  third-party cookie behavior. The temporary `*.vercel.app` →
+  `*.onrender.com` topology is cross-site and is acceptable only for
+  API/OIDC development and browser compatibility testing, not as the
+  production session contract; loosen `SameSite` only if the actual
+  topology requires it. Do not hard-code deployment assumptions into
+  project persistence logic.
 - The editor generates a new first-save ID with native
   `crypto.randomUUID()` (for example, `project:<uuid>`), then keeps it in
   root session state. Subsequent Saves use the same ID. The API never trusts
   an owner ID, email, or project name supplied outside the validated document.
-- Missing or invalid bearer credentials return a generic `401`. Invalid
-  documents, ID mismatches, and malformed bodies return structured `400`
-  responses; oversized bodies return `413`, all without stack traces. Unknown
-  or non-owned projects return generic `404` responses. Database failures
-  return a generic bounded `503`; connection strings and provider tokens
-  never appear in responses or logs.
-- Keep provider verification at the API edge. Inject the verifier into
-  `createApp` for Node tests, and use the provider's official smallest server
-  verifier in production. Do not create a generic auth package or accept a
+- Missing or invalid sessions return a generic `401`; invalid documents, ID
+  mismatches, and malformed bodies return structured `400` responses;
+  oversized bodies return `413`, all without stack traces. Unknown or
+  non-owned projects return generic `404` responses. Database failures
+  return a generic bounded `503`; the Google client secret, session key,
+  authorization codes, tokens, cookies, and database URL never appear in
+  responses or logs.
+- Identity is the Google-verified stable OIDC `sub`, converted to the
+  canonical internal identity `google:<sub>` (`users.id`). The callback
+  never trusts query parameters, email, name, or any browser-provided
+  identity data as authorization identity. Store only the minimum durable
+  session identity the app requires — the internal user ID. Do not persist
+  Google access tokens in Postgres and do not retain refresh tokens: P19
+  needs authentication, not access to Google services.
+- Materialize `users` lazily: the Google callback establishes only the
+  authenticated session — `google:<sub>` lives in the session, not as a
+  database write. The first successful Save upserts the `users` row and
+  creates the project/version inside that one transaction (per the Save
+  contract below); `/auth/me` never performs a database write.
+- Do not implement: passwords, password reset, email verification, custom
+  credential storage, a home-grown OAuth/OIDC implementation, custom JWT
+  signing, refresh-token infrastructure, multiple identity providers, a
+  generic auth package, Clerk/Auth0/Supabase Auth/WorkOS SDKs, or
+  browser-visible auth tokens. No generic provider interface is created
+  merely to support hypothetical future providers.
+- Session identity is resolved by `@fastify/secure-session` at the API edge.
+  Production composes the real `openid-client` Google configuration;
+  `createApp` keeps the smallest app-local OIDC/session seams needed for
+  tests (tests never contact Google). Do not create `@portfolio/auth-core`.
+  Any injectable type stays inside `apps/api` and is shaped around the
+  actual OIDC operations P19 uses; project authorization is tested
+  independently of Google network calls. The API never accepts a
   client-supplied identity claim.
-- If the deployed editor and Render API are cross-origin, allow only the
-  owner-approved editor origin and the required `GET`, `PUT`, and preflight
-  headers. No wildcard production origin is permitted. If host routing makes
-  them same-origin, omit CORS code.
+- Authorization is unchanged by the transport swap: secure session →
+  authenticated internal user id → Fastify project route → Postgres
+  ownership check → project. Google answers "Who authenticated?"; Museum
+  Editor answers "What can this user access?". Database authorization is
+  never delegated to Google.
+- `/auth/me` returns the minimal editor-visible session state. The current
+  UI shows only Sign in/out and project status; if a display name, avatar,
+  or email is genuinely needed later, inspect the existing UI first. Do not
+  add profile persistence merely because Google supplies the claims.
+- CORS/CSRF for cross-origin editor/API deployments: allow only the
+  owner-approved editor origin with credentialed CORS; never
+  `Access-Control-Allow-Origin: *`; allow only the required methods
+  (`GET`, `PUT`, `POST`, `OPTIONS`) and headers (`Content-Type`); require
+  the expected `Origin` for unsafe authenticated browser requests (project
+  `PUT` and logout `POST`). Project mutations remain JSON requests. OAuth
+  authorization-request CSRF/correlation is protected by `state`; PKCE
+  binds the authorization code to the initiating client, and the OIDC
+  `nonce` binds and replay-protects the ID-token authentication response
+  where applicable — never rely on CORS alone. If host routing later makes
+  editor/API same-origin, simplify the configuration while preserving the
+  same authorization rules.
 
 ## Editor Save/Load behavior
+
+### Session bootstrap
+
+On mount the editor calls `GET {API_ORIGIN}/auth/me` with
+`credentials: 'include'`: authenticated → list owned projects; not
+authenticated → show the Sign in action. Sign in navigates the browser to
+`GET {API_ORIGIN}/auth/login`; after the Google callback the API establishes
+the secure session cookie and redirects back to the editor. Logout `POST`s
+`/auth/logout` and clears the in-memory session state. All project API calls
+are normal JSON requests with `credentials: 'include'`. The editor never
+holds an OAuth access token and stores no token in localStorage,
+sessionStorage, Svelte stores, `ProjectDocument`, or URL query parameters.
+No Google browser SDK belongs in `apps/editor` unless code inspection
+demonstrates the redirect-based OIDC flow genuinely requires it — the
+default is no browser SDK; the editor's only involvement in the OIDC flow is
+the redirect handoff.
 
 Add root-owned project metadata and persistence status, not a parallel store:
 
@@ -172,6 +279,11 @@ projectName: string;
 savedProjectName: string;
 projectVersion: number | null;
 ```
+
+The editor also keeps session presentation state (`checking | authenticated |
+unauthenticated | error`) derived from `/auth/me` at mount and from the Sign
+in/logout actions. This remains in-memory session/UI state and is never
+serialized.
 
 The existing app bar/menu receives optional Save/Load callbacks and status.
 The greenfield `EditorApp` supplies them; `MuseumEditorApp` supplies none, so
@@ -204,12 +316,14 @@ first request has settled; only the current request token may update
    `layoutCanonicalJson`, `projectName`, and `projectId`; send `result.project`
    as the JSON object body. Cross-document failure leaves both documents,
    selection, history, and dirty state untouched.
-3. Acquire the provider access token, `PUT` the snapshot's canonical object,
-   and only after a successful response update `projectId` and
-   `projectVersion`. Set the scene/layout baselines and `savedProjectName`
-   from the snapshot, never by reading live state at response time. If the
-   user edited the scene, layout, or name while Save was in flight, the
-   current state remains dirty against that snapshot.
+3. Require the authenticated Museum Editor session and `PUT` the snapshot's
+   canonical object as a credentialed JSON request (`credentials: 'include'`
+   so the session cookie travels with the request), and only after a
+   successful response update `projectId` and `projectVersion`. Set the
+   scene/layout baselines and `savedProjectName` from the snapshot, never by
+   reading live state at response time. If the user edited the scene,
+   layout, or name while Save was in flight, the current state remains dirty
+   against that snapshot.
 4. Saving preserves the current domain/view, selection, camera preview
    session, and undo/redo history. The combined project dirty indicator is
    `projectIsDirty`, including the project-name comparison above.
@@ -221,8 +335,9 @@ because import intentionally clears selection and history.
 
 ### Load
 
-1. Authenticate and list only the current user's projects. Refreshing the
-   page leaves the blank boot project in place until the user chooses Load.
+1. Use the authenticated session established at mount and list only the
+   current user's projects. Refreshing the page leaves the blank boot
+   project in place until the user chooses Load.
 2. Use one combined dirty confirmation when either scene, layout, or project
    name is dirty, then capture a live scene/layout/name fingerprint.
    Fetch the selected latest project, validate its response object through
@@ -252,48 +367,87 @@ motion, selection, or geometry system.
 
 ## Implementation slices
 
-### P19.0 — ratify the integration gate
+### P19.0 — ratify the Google OIDC integration gate
 
-- Confirm P18.3 Render/Neon health smoke, the API origin, the editor origin,
-  and the managed identity provider's subject/audience/issuer verification
-  settings with the owner.
-- Record provider configuration as deployment secrets/environment values;
-  do not commit tokens, JWKS credentials, or Neon URLs.
-- Pin the request/response shapes, object-based `validateProject` boundary,
-  2 MiB body limit, and the `project_versions` JSONB policy in API tests
-  before adding editor UI.
+- Confirm the P18.3 Render/Neon health smoke and the API origin; the owner
+  creates/approves the Google OAuth web application.
+- Pin the deployment environment ownership: API private secrets
+  `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `SESSION_KEY`, `DATABASE_URL`;
+  API configuration `EDITOR_ORIGIN` (and the callback base if needed);
+  editor public configuration `PUBLIC_API_ORIGIN`. Never commit secrets, and
+  never expose `GOOGLE_CLIENT_SECRET` or `SESSION_KEY` through public
+  SvelteKit environment variables.
+- Pin the approved Google callback URL (terminating on the API,
+  `{API_ORIGIN}/auth/callback`), the editor production origin, and generate
+  the 32-byte secure-session secret.
+- Require a same-site production editor/API topology (preferably sibling
+  subdomains under one registrable domain) for authenticated Save/Load;
+  the default cookie config is `HttpOnly`, `Secure`, `SameSite=Lax`,
+  `Path=/`. The temporary `*.vercel.app` → `*.onrender.com` topology is
+  for API/OIDC development and browser compatibility testing only, not the
+  production session contract. If a shared domain is unavailable at P19.3,
+  use a same-origin proxy/BFF route or explicitly block production
+  acceptance rather than weakening the session model; loosen `SameSite`
+  only if the actual topology requires it.
+- Pin the exact `/auth/login`, `/auth/callback`, `/auth/me`, `/auth/logout`
+  route shapes before editor integration, plus the request/response shapes,
+  object-based `validateProject` boundary, 2 MiB body limit, and the
+  `project_versions` JSONB policy in API tests.
 
-### P19.1 — schema and direct persistence queries
+### P19.1 — schema, API persistence, and authentication
 
 - Add the SQL migration, tiny `migrate:api` runner, tables, constraints, and
   owner/updated index, with integer public version columns and a bigint-only
-  surrogate row ID if retained.
+  surrogate row ID if retained. `users.id` is the provider-qualified verified
+  OIDC subject (`google:<sub>`).
 - Add direct SQL functions for list, transactional Save, and latest Load.
   Keep query code close to the API; no repository abstraction for one schema.
-- Add the provider-verifier injection and authenticated route handlers to the
-  existing Fastify app. Keep health and shutdown behavior unchanged.
+- Install/configure `openid-client` and `@fastify/secure-session`; add
+  `/auth/login`, `/auth/callback`, `/auth/me`, and `/auth/logout` per the
+  HTTP contract above (PKCE verifier/challenge + state + nonce bound to the
+  initiating browser session; validated exchange; transient login state
+  cleared before the authenticated session is established).
+- Protect project routes with session-derived identity (`google:<sub>` →
+  `users.id`). Keep health and shutdown behavior unchanged.
+- Ordinary API unit tests never contact Google: OIDC authorization/callback
+  behavior receives the smallest app-local injected stub, and authenticated
+  project-route tests use real `@fastify/secure-session` behavior or a
+  narrowly scoped test session helper. Project authorization stays tested
+  independently of Google network calls.
 
-### P19.2 — editor client and full-document replacement
+### P19.2 — editor session and Save/Load integration
 
-- Add the smallest provider browser sign-in/token seam and API-origin config;
-  use the provider's hosted/native sign-in flow rather than custom credentials.
-- Add root project metadata, name/save-baseline state, combined dirty state,
-  Save/Load actions, name editing, owned-project list, one-request mutex,
-  busy/error status, and abortable mount-time project-list fetch to
-  `apps/editor`.
+- Replace the provider SDK/token seam with: session bootstrap via
+  `/auth/me`, Sign in navigation to `{API_ORIGIN}/auth/login`, a logout
+  action, and credentialed project API requests (`credentials: 'include'`).
+- Add root project metadata, name/save-baseline state, session presentation
+  state (`checking | authenticated | unauthenticated | error`), combined
+  dirty state, Save/Load actions, name editing, owned-project list,
+  one-request mutex, busy/error status, and abortable mount-time
+  project-list fetch to `apps/editor`.
 - Add the full-project preflight/install seam, scene-room-registry handoff,
   snapshot-based Save completion, load fingerprint guard, and
   selection/history teardown on Load.
+- No Google browser SDK and no token storage; the editor never holds an
+  OAuth access token.
 - Keep existing plain JSON/package import/export as-is; cloud Save is semantic
   JSON only and does not alter the portable package format.
 
-### P19.3 — deployment and end-to-end smoke
+### P19.3 — deployment smoke
 
-- Apply the migration to the owner-approved Neon database, configure managed
-  auth/API/editor origins, and deploy the existing API service without
-  changing the Render/Neon topology.
-- Run authenticated Save → refresh → list → Load against the deployed API,
-  then rerun API, editor, visitor-boundary, build, and browser checks.
+- Register the Google approved redirect URI (`{API_ORIGIN}/auth/callback`)
+  and approved origin where required; configure the API secrets
+  (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `SESSION_KEY`, `DATABASE_URL`),
+  `EDITOR_ORIGIN`, the secure-session key, and exact editor-origin CORS;
+  apply the migration to the owner-approved Neon database; deploy the
+  existing API service without changing the Render/Neon topology.
+- Run the authenticated smoke against the deployed stack: visit editor →
+  Sign in with Google → callback establishes the app session → `/auth/me`
+  succeeds → edit → Save v1 → refresh → authenticated session remains → list
+  → Load → logout → `/auth/me` reports unauthenticated → project routes
+  return `401`. Also verify a second Google identity cannot access the first
+  identity's projects. Then rerun API, editor, visitor-boundary, build, and
+  browser checks.
 
 ## Acceptance
 
@@ -302,7 +456,7 @@ motion, selection, or geometry system.
 1. `npm run check:api`, `npm run test:api`, `npm run build:api`, and
    `npm run migrate:api` pass. Reapplying the migration is a no-op; public
    project version values are JS numbers, not `pg` `bigint` strings.
-2. Unauthenticated, invalid-token, malformed-body, invalid-project, and
+2. Unauthenticated, invalid-session, malformed-body, invalid-project, and
    document-ID-mismatch requests fail without SQL writes or secret leakage;
    a valid just-under-limit body succeeds, just-over-limit bodies return
    `413`, and malformed JSON returns `400`.
@@ -337,22 +491,52 @@ motion, selection, or geometry system.
    edit again → Save v2 → refresh → Load → verify room frames, layout objects,
    scene entities, camera nodes/connections, and derived runtime geometry.
 11. Browser smoke covers canceling a dirty Load, a failed Save, an expired or
-   rejected token, an empty owned-project list, and two users' isolation.
+   invalid session, an empty owned-project list, and two users' isolation.
 12. The greenfield editor exposes the cloud actions; `/museum/editor` keeps
-   its relic actions and never constructs the cloud persistence controller;
-   `/museum` makes no API/auth request and remains visitor-only.
+   its relic actions and never constructs the cloud persistence controller
+   or the new auth/persistence client; `/museum` makes no API/auth request
+   and remains visitor-only.
 13. `npm run check`, `npm run build`, the full editor suite,
    `verify:visitor-bundle`, and existing `/`, `/editor`, `/museum`, and
    `/museum/editor` browser smoke all pass.
 
+### OIDC, session, and deployment (2026-09-01 auth amendment)
+
+14. `/auth/login` creates a fresh authorization request with PKCE/state and
+    the expected API callback URL.
+15. Tampered or missing OAuth `state` fails; no session is created.
+16. Missing or wrong PKCE verification fails; no session is created.
+17. An invalid callback, token, or identity response never creates an
+    authenticated session.
+18. A successful callback stores only the canonical internal identity
+    (`google:<sub>`) in the Museum Editor secure session. It performs no
+    database write; the corresponding `users.id` row is materialized lazily
+    inside the first successful Save transaction.
+19. Project routes reject missing or invalid sessions with a generic `401`.
+20. An authenticated session can list, Save, and Load owned projects.
+21. A second Google subject cannot list, Load, or overwrite the first
+    subject's project.
+22. Logout clears the session, and project requests subsequently fail with
+    `401`.
+23. No Google client secret, session key, authorization code, token, cookie,
+    or database URL appears in logs or responses.
+24. `/museum` performs no auth/API requests.
+25. `/museum/editor` does not construct the new auth/persistence client.
+26. Cookie/CORS behavior passes against the real deployed editor/API
+    topology.
+27. Cross-origin unauthorized origins cannot perform authenticated project
+    mutations.
+28. OAuth callback attacks with invalid state/nonce/PKCE fail closed.
+
 ## Mount, relic, Plan, and visitor boundaries
 
-- API pool, routes, and auth verification are process-owned; tests use
+- API pool, routes, and session verification are process-owned; tests use
   Fastify injection and injected identity/database seams without binding a
-  port or contacting a provider.
-- Browser auth/listener/token state mounts only in the greenfield `EditorApp`.
-  Unmount aborts pending list/load requests and removes provider listeners;
-  no API call is started by the relic or visitor route.
+  port and without network calls to Google.
+- Browser session state mounts only in the greenfield `EditorApp`. Unmount
+  aborts pending list/load requests; no API call is started by the relic or
+  visitor route, and `/museum/editor` never constructs the auth/persistence
+  client.
 - Save/Load is a whole-project operation. There is no separate cloud Layout
   save, Scene save, camera save, selection persistence, or history persistence.
   Existing Plan|3D and Scene|Camera mounts, camera preview teardown, and
@@ -367,14 +551,16 @@ motion, selection, or geometry system.
 
 ## Fallback
 
-- If the identity provider is not approved, stop before production Save/Load.
-  The schema/query/API tests may be prepared behind injected test identity,
-  but do not ship unauthenticated project routes or replace managed identity
-  with local storage, passwords, or a home-grown JWT verifier.
-- If provider SDK integration is the only blocker, split P19 into the
-  concrete SQL/API persistence slice and a provider adapter slice while
-  preserving the same bearer/request contract. Do not add an `api-contract`
-  package for the split.
+- If the Google OAuth credentials or origins are not owner-approved,
+  production authentication and Save/Load do not ship. Persistence/query
+  tests may continue behind injected test identity/session seams, but do not
+  fall back to unauthenticated project routes, local passwords, a custom JWT
+  service, or storing Google tokens as a shortcut.
+- Do not broaden to multiple OAuth providers during P19; no generic auth
+  package and no `@portfolio/auth-core` are created. If editor/API
+  cross-site cookie deployment proves operationally unacceptable, evaluate
+  same-site or proxy routing as deployment work before replacing the auth
+  architecture.
 - If the full-project editor replacement is too broad after preflight, land
   P19a (schema, auth, API, and direct route tests) before P19b (editor
   Save/Load). Do not expose independent durable scene/layout endpoints.

@@ -6,40 +6,42 @@ slice plus one next action only.
 ## Working tree
 
 - Current planning delta: **P19 first project persistence — implementation in
-  progress behind the provider/live deployment gate.** P18's owner-run
+  progress behind the Google OIDC/live deployment gate.** P18's owner-run
   Render/Neon provisioning and passing live/ready smoke remain prerequisites
-  for production Save/Load.
-- Current delta: **P19.1/P19.2 shipped in `2c70561`; review fixes are
-  uncommitted.** Save retries retain their first project ID, trimmed names
-  settle the baseline, stale project lists are discarded, cloud chrome is
-  disabled when unconfigured, and API/editor acceptance coverage is expanded.
-  A separate uncommitted Vercel adapter/output configuration is also present.
-  No provider SDK, production secret, migration application, or live API call
-  was added.
+  for production Save/Load. The 2026-09-01 auth amendment ratifies Google
+  OIDC (Authorization Code + PKCE) + an app-owned `@fastify/secure-session`
+  cookie; no managed-provider bearer contract remains.
+- Current delta: **P19 persistence plus the Google OIDC/session amendment is
+  implemented locally; review fixes remain uncommitted.** Save retries retain
+  their first project ID, trimmed names settle the baseline, stale project
+  lists are discarded, cloud chrome is disabled when unconfigured, and the
+  API/editor acceptance coverage is expanded. The API now owns the Google
+  Authorization Code + PKCE exchange and secure session; the editor uses
+  `/auth/me`, redirect sign-in, logout, and credentialed JSON requests. No
+  production secret, migration application, or live API call was added.
 - Immediate previous slice: **P18 backend provisioning — shipped 2026-08-30.**
   The local Fastify/Postgres boundary and API-only Render Blueprint are in the
   tree; resource provisioning remains owner-run.
 
 ## Next action
 
-- Confirm the owner-approved managed provider, API/editor origins, and passing
-  P18 live/ready smoke; then wire the official verifier, apply the migration,
-  configure secrets, and run authenticated deployed Save → refresh → Load.
+- Configure the owner-approved Google OAuth web application, same-site
+  production editor/API origins, Render secrets, and Neon migration; then run
+  authenticated deployed Sign in → Save → refresh → Load → logout smoke.
 
 ## Verification
 
-- Full Vitest: 171 files passed, 1 skipped; 2,295 tests passed, 1 skipped.
+- Full Vitest: 171 files passed, 1 skipped; 2,296 tests passed, 1 skipped.
 - `npm run check`: 0 errors / 0 warnings.
 - `npm run check:camera-core`, `npm run check:layout-core`, and
   `npm run check:project-model`: passed.
-- API: `check:api`, `test:api` (12 passed), and `build:api` passed. Migration
+- API: `check:api`, `test:api` (14 passed), and `build:api` passed. Migration
   idempotency is covered with an injected database client; real Neon smoke and
   migration application remain unrun.
-- `npm run build:editor` passed; the root build reaches Museum but the current
-  uncommitted `adapter-vercel` config rejects local Node 26 (that adapter
-  accepts Node 18, 20, or 22). Known unused-import and chunk-size warnings
+- `npm run build`: passed for Editor and Museum with the current
+  `adapter-vercel` configuration. Known unused-import and chunk-size warnings
   remain.
-- `verify:visitor-bundle`: passed; standalone `/museum` reached 4 server and
+- `verify:visitor-bundle`: passed; standalone `/museum` reached 3 server and
   9 client entries with no editor entry.
 - Browser QA passed standalone `/museum` Entrance → Poland navigation and
   editor `/`, `/editor`, and `/museum/editor` mounting.
@@ -55,8 +57,8 @@ slice plus one next action only.
   `cameraPlan` and `layoutInteraction`; static checking is clean.
 - A browser axe audit still reports generic editor color-contrast review items
   in empty/status text and SVG labels; these are outside the closed P3B gate.
-- Owner-approved provider configuration, Render/Neon provisioning, and real
-  authenticated persistence smoke remain the P19 release gate.
+- Owner-approved Google OAuth configuration, Render/Neon provisioning, and
+  real authenticated persistence smoke remain the P19 release gate.
 
 ## Traps
 

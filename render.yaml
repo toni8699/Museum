@@ -1,5 +1,5 @@
-# Candidate P18 values; confirm the service name, region, and plan before the
-# first Render sync or any paid resource is created.
+# Confirm the service name, region, and plan before the first Render sync or
+# any paid resource is created.
 services:
   - type: web
     name: biskiq-api
@@ -11,4 +11,14 @@ services:
     healthCheckPath: /health/live
     envVars:
       - key: DATABASE_URL
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: SESSION_KEY
+        sync: false
+      - key: EDITOR_ORIGIN
+        sync: false
+      - key: API_ORIGIN
         sync: false

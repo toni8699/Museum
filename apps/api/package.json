@@ -12,9 +12,11 @@
     "test": "npm run build && vite-node tests/api.test.mjs"
   },
   "dependencies": {
+    "@fastify/secure-session": "^8.3.0",
     "@portfolio/layout-core": "*",
     "@portfolio/project-model": "*",
     "fastify": "^5.0.0",
+    "openid-client": "^6.8.7",
     "pg": "^8.0.0"
   },
   "devDependencies": {

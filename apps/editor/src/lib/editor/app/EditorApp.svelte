@@ -70,6 +70,7 @@
 	import { buildPlanSceneFootprintProjection } from '$lib/editor/layout/plan-scene-footprint';
 	import { resolveEditorPlacementScale } from '$lib/editor/scale-vector';
 	import {
+		createProjectAuth,
 		createProjectApi,
 		createProjectId,
 		projectFingerprint,
@@ -97,20 +98,28 @@
 	let ownedProjects = $state<ProjectSummary[]>([]);
 	let cloudError = $state<string | null>(null);
 	let cloudStatus = $state<'disabled' | 'ready' | 'loading' | 'saving' | 'error'>('disabled');
+	let sessionStatus = $state<'checking' | 'authenticated' | 'unauthenticated' | 'error'>('unauthenticated');
 	let projectMutationInFlight = $state(false);
 	let projectRequestToken = 0;
 	let projectRequestController: AbortController | null = null;
 	let projectMutationEpoch = 0;
 	let projectListRequestToken = 0;
-	const projectAuth = configuredProjectPersistence?.auth ?? null;
+	const projectApiOrigin = configuredProjectPersistence?.apiOrigin ?? env.PUBLIC_API_ORIGIN;
+	const projectAuth =
+		configuredProjectPersistence?.auth ??
+		(projectApiOrigin
+			? createProjectAuth(projectApiOrigin, configuredProjectPersistence?.fetch)
+			: null);
 	const projectApi = createProjectApi(
 		{
-			apiOrigin: configuredProjectPersistence?.apiOrigin ?? env.PUBLIC_API_ORIGIN,
-			auth: projectAuth
+			apiOrigin: projectApiOrigin
 		},
 		configuredProjectPersistence?.fetch
 	);
-	if (projectApi) cloudStatus = 'ready';
+	if (projectApi) {
+		cloudStatus = 'ready';
+		sessionStatus = 'checking';
+	}
 	const layoutPreview = $state(createEmptyLayoutPreviewState());
 	const layoutInteraction = $state(createLayoutInteractionState());
 	// Construct before the store: the selection activation hook gates its
@@ -309,9 +318,21 @@
 		return error instanceof ProjectPersistenceError ? error.message : fallback;
 	}
 
+	function clearExpiredProjectSession(error: unknown): boolean {
+		if (!(error instanceof ProjectPersistenceError) || error.code !== 'auth') return false;
+		sessionStatus = 'unauthenticated';
+		ownedProjects = [];
+		projectListRequestToken += 1;
+		return true;
+	}
+
 	function canStartProjectMutation(): boolean {
 		if (!projectApi) {
 			setCloudError('Cloud Save/Load is not configured');
+			return false;
+		}
+		if (sessionStatus !== 'authenticated') {
+			setCloudError('Sign-in is required');
 			return false;
 		}
 		if (projectMutationInFlight) return false;
@@ -327,7 +348,7 @@
 	}
 
 	async function refreshOwnedProjects(signal?: AbortSignal): Promise<void> {
-		if (!projectApi) return;
+		if (!projectApi || sessionStatus !== 'authenticated') return;
 		const requestToken = ++projectListRequestToken;
 		const mutationEpoch = projectMutationEpoch;
 		try {
@@ -342,6 +363,10 @@
 			cloudStatus = 'ready';
 		} catch (error) {
 			if (signal?.aborted || (error instanceof DOMException && error.name === 'AbortError')) return;
+			if (clearExpiredProjectSession(error)) {
+				setCloudError('Sign-in is required');
+				return;
+			}
 			if (
 				requestToken === projectListRequestToken &&
 				mutationEpoch === projectMutationEpoch &&
@@ -352,15 +377,56 @@
 		}
 	}
 
+	async function bootstrapProjectSession(signal?: AbortSignal): Promise<void> {
+		if (!projectApi || !projectAuth) return;
+		sessionStatus = 'checking';
+		cloudStatus = 'loading';
+		cloudError = null;
+		try {
+			const session = await projectAuth.getSession(signal);
+			if (!session.authenticated) {
+				sessionStatus = 'unauthenticated';
+				ownedProjects = [];
+				cloudStatus = 'ready';
+				return;
+			}
+			sessionStatus = 'authenticated';
+			await refreshOwnedProjects(signal);
+		} catch (error) {
+			if (signal?.aborted || (error instanceof DOMException && error.name === 'AbortError')) return;
+			if (clearExpiredProjectSession(error)) {
+				setCloudError('Sign-in is required');
+				return;
+			}
+			sessionStatus = 'error';
+			setCloudError(persistenceMessage(error, 'Could not check sign-in status'));
+		}
+	}
+
 	async function signInToProjects(): Promise<void> {
 		if (!projectAuth?.signIn) return;
 		try {
-			cloudStatus = 'loading';
+			cloudStatus = 'ready';
 			cloudError = null;
 			await projectAuth.signIn();
-			await refreshOwnedProjects();
 		} catch (error) {
 			setCloudError(persistenceMessage(error, 'Sign-in failed'));
+		}
+	}
+
+	async function signOutFromProjects(): Promise<void> {
+		if (!projectAuth || projectMutationInFlight) return;
+		try {
+			cloudStatus = 'loading';
+			cloudError = null;
+			await projectAuth.signOut();
+			projectListRequestToken += 1;
+			ownedProjects = [];
+			sessionStatus = 'unauthenticated';
+			cloudStatus = 'ready';
+			store.setStatusMessage('Signed out');
+		} catch (error) {
+			setCloudError(persistenceMessage(error, 'Sign-out failed'));
 		}
 	}
 
@@ -419,6 +485,7 @@
 			store.setStatusMessage(`Saved ${saved.name} v${saved.version}`);
 		} catch (error) {
 			if (token === projectRequestToken && !(controller.signal.aborted)) {
+				clearExpiredProjectSession(error);
 				setCloudError(persistenceMessage(error, 'Could not save project'));
 			}
 		} finally {
@@ -478,6 +545,7 @@
 			store.setStatusMessage(`Loaded ${validation.project.name} v${loaded.version}`);
 		} catch (error) {
 			if (token === projectRequestToken && !controller.signal.aborted) {
+				clearExpiredProjectSession(error);
 				setCloudError(persistenceMessage(error, 'Could not load project'));
 			}
 		} finally {
@@ -490,20 +558,11 @@
 	}
 
 	onMount(() => {
-		if (!projectApi) return;
 		const controller = new AbortController();
-		void refreshOwnedProjects(controller.signal);
-		const unsubscribe = projectAuth?.onChange?.((signedIn) => {
-			if (signedIn) void refreshOwnedProjects(controller.signal);
-			else {
-				projectListRequestToken += 1;
-				ownedProjects = [];
-			}
-		});
+		void bootstrapProjectSession(controller.signal);
 		return () => {
 			controller.abort();
 			projectRequestController?.abort();
-			unsubscribe?.();
 		};
 	});
 
@@ -544,6 +603,8 @@
 		onLoadProject={loadProject}
 		onRefreshProjects={() => void refreshOwnedProjects()}
 		onSignIn={projectAuth?.signIn ? signInToProjects : undefined}
+		onSignOut={projectAuth?.signOut ? signOutFromProjects : undefined}
+		{sessionStatus}
 		{ownedProjects}
 		{cloudStatus}
 		{cloudError}

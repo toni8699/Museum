@@ -24,16 +24,18 @@ apps/editor (greenfield)     apps/museum (frozen Chopin visitor)
 | API runtime + compute | Fastify + TypeScript on Render |
 | Platform/database state | Neon Postgres |
 | Heavy asset bytes | Cloudflare R2 |
-| Identity authentication | Managed auth provider |
+| Identity authentication | Google OIDC — external identity; Museum Editor owns its session + authorization |
 | Product/project authorization | Fastify + Postgres |
 
 P18 provisions only the Render API and Neon database through secret
-`DATABASE_URL`. P19 introduces the first managed-auth integration needed for
-bearer identity, single-user project ownership, and authenticated project
+`DATABASE_URL`. P19 introduces the first Google OpenID Connect integration
+(Authorization Code + PKCE) and the app-owned secure session needed for
+verified identity, single-user project ownership, and authenticated project
 Save/Load endpoints. R2 remains a later slice; richer auth UX/hardening,
 permissions/memberships, teams, and collaboration also remain later.
-Experience mode/schema remains outside P18/P19. The auth provider proves
-identity; it never owns project permissions.
+Experience mode/schema remains outside P18/P19. External identity proves who
+the user is; Fastify + Postgres own product authorization and project
+permissions.
 
 ## Project-level surfaces (future)
 

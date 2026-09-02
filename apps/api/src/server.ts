@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 
 import { createApp } from './app.js';
-import type { TokenVerifier } from './auth.js';
+import { createGoogleOidc, type OidcClient } from './auth.js';
 import { ConfigError, readConfig, type ApiConfig } from './config.js';
 import { createPool, type DatabasePool } from './database.js';
 import { installShutdownHandlers, type ShutdownProcess } from './shutdown.js';
@@ -10,16 +10,23 @@ export type StartServerOptions = {
 	config?: ApiConfig;
 	env?: NodeJS.ProcessEnv;
 	pool?: DatabasePool;
-	authVerifier?: TokenVerifier;
+	oidc?: OidcClient;
 	processLike?: ShutdownProcess;
 };
 
 export async function startServer(options: StartServerOptions = {}): Promise<FastifyInstance> {
 	const config = options.config ?? readConfig(options.env);
+	const oidc =
+		options.oidc ??
+		(config.googleClientId && config.googleClientSecret
+			? createGoogleOidc({ clientId: config.googleClientId, clientSecret: config.googleClientSecret })
+			: undefined);
 	const app = createApp({
 		pool: options.pool ?? createPool(config),
-		authVerifier: options.authVerifier,
-		editorOrigin: config.editorOrigin
+		apiOrigin: config.apiOrigin,
+		editorOrigin: config.editorOrigin,
+		oidc,
+		sessionKey: config.sessionKey
 	});
 	const closeOnce = installShutdownHandlers(app, options.processLike);
 

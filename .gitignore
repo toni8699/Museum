@@ -19,3 +19,4 @@ vite.config.ts.timestamp-*
 .cursor/
 .opencode/
 .env
+.env.local

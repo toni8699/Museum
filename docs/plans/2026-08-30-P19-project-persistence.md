@@ -449,6 +449,19 @@ motion, selection, or geometry system.
   identity's projects. Then rerun API, editor, visitor-boundary, build, and
   browser checks.
 
+### P19.4 — guest-first entry + Project Shell scaffold
+
+- Implement the tracked P19 closeout behavior in
+  [`2026-09-02-P19.4-editor-shell.md`](2026-09-02-P19.4-editor-shell.md):
+  guest-first entry, Project Hub, thin Project Shell routing, explicit
+  new-local versus owned-project Load intent, and one resumable
+  auth-before-Save continuation over the existing P19 coordinator.
+- Keep Spatial document/session/history authority inside `EditorApp`; the
+  route supplies only project identity and one-shot Load/resume intent.
+- Preserve P19 identity and authorization semantics. Callback navigation may
+  add only the bounded success/cancel/failure return behavior required to
+  resume or discard the browser-session Save handoff.
+
 ## Acceptance
 
 ### API and database

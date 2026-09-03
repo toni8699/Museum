@@ -60,6 +60,11 @@ success percentages.
 | **P3B.8** | 63 | Sol medium | open — browser QA across all four shell views; part of the P12/P3B hard gate |
 | **P12** | 78 | Sol high | approved 2026-08-26 — ratified contract freeze; four implementation slices on the P11.4 baseline; low ambiguity (fully specified), high breadth (supersedes three pinned contracts per §9 migration table); **hard gate with P3B (owner 2026-08-27)** |
 | **P14** | 42 | Luna high | approved 2026-08-28 — Camera Plan passive object footprints; fully specified (ratified `Camera-layout-design.md`), bounded breadth (one viewport + CSS tokens + test pins), mechanical wiring with existing layer; scheduled immediately after P12 |
+| **P20.S0** | 70 | Sol medium | proposed, unregistered — asset contract + R2 gate (investigation/planning slice); high ambiguity (9 targeted unknowns, P1 A-vs-B schema decision with version-policy consequences, guest-binary tradeoff) but no implementation or verification load; blocked on P19 ship; output is the S1–S4 slice briefs |
+| **P20.S1** | 78 | Sol high | proposed, unregistered — Postgres registry + R2 streaming client + authenticated API + test seam; new migration, hash-while-streaming upload, metadata + byte authz, pending/ready/failed states; high security consequence (key injection, ownership) and broad failure/rollback verification; needs slice brief with literal SQL + route table |
+| **P20.S2** | 72 | Sol medium | proposed, unregistered — Spatial ingest integration reusing existing placement/selection/history commands; cross-surface editor state work but ambiguity resolved by S0; needs slice brief (UI seam, resolver entry, built-in row policy) |
+| **P20.S3** | 76 | Sol high | proposed, unregistered — texture conversion + Save-blocker integration across codec/store/exporter; failure matrix (upload-ok/mutation-fails and reverse, retries) with durable-truth corruption consequence; needs slice brief after S0 resolves the P1 reference shape |
+| **P20.S4** | 64 | Sol medium | proposed, unregistered — Load resolution seam + deployed round-trip smoke; bounded implementation, verification-heavy (refresh/Load/render fidelity); needs slice brief after S0–S1 |
 
 All shipped rows (P1.6–P3.3, P3B.1–P3B.6, P7.1–P7.6, P8.S1–S6, P11.1–P11.5,
 P12.S1–S4) were scrubbed 2026-08-27 — shipped work is not re-assessed here.

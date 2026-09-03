@@ -6,16 +6,20 @@ slice plus one next action only.
 ## Working tree
 
 - Current planning delta: **P20 S0 asset contract + cloud-Save durability gate
-  complete on 2026-09-03; S1 implementation brief is ready, behind the P19
-  Google OIDC/live deployment gate and owner-run R2 provisioning.** P19's owner-run
+  complete on 2026-09-03; P20.1/S1 API implementation is complete locally on
+  2026-09-03, behind the P19 Google OIDC/live deployment gate and owner-run R2
+  provisioning.** P19's owner-run
   Render/Neon provisioning and passing live/ready smoke remain prerequisites
   for production Save/Load. The 2026-09-01 auth amendment ratifies Google
   OIDC (Authorization Code + PKCE) + an app-owned `@fastify/secure-session`
   cookie; no managed-provider bearer contract remains.
-- Current delta: **P19 persistence, Google OIDC/session behavior, P19.4's
+- Current delta: **P20.1/S1's registry migration, authenticated metadata/content
+  API, injected object-store seam, and production R2 adapter are implemented
+  locally; changes remain uncommitted.** The API keeps object keys out of
+  metadata, streams bounded image uploads, hashes bytes, and never serves
+  pending/failed assets. P19 persistence, Google OIDC/session behavior, P19.4's
   guest-first entry/Project Shell, and P20 S0's separate cloud-Save durability
-  predicate plus stale-draft re-check are implemented locally; changes remain
-  uncommitted.** Save retries
+  predicate plus stale-draft re-check remain implemented locally. Save retries
   retain their first project ID, trimmed names
   settle the baseline, stale project lists are discarded, cloud chrome is
   disabled when unconfigured, and guest Save resumes through a validated
@@ -23,17 +27,20 @@ slice plus one next action only.
   exchange and secure session; the editor uses `/auth/me`, bounded intent
   redirects, logout, and credentialed JSON requests. No production secret,
   migration application, or live API call was added.
-- Immediate previous slice: **P20 S0 — complete 2026-09-03.** Contract,
-  cloud-save gate, stale pending-save guard, and divergence coverage are done;
-  P18 backend provisioning remains the infrastructure baseline.
+- Immediate previous slice: **P20.1/S1 — local implementation complete
+  2026-09-03.** Migration, owner-scoped routes, streaming validation, failure
+  states, and R2 composition are covered locally; P20 S0 was the preceding
+  contract/gate slice. P18 backend provisioning remains the infrastructure
+  baseline.
   The local Fastify/Postgres boundary and API-only Render Blueprint are in the
   tree; resource provisioning remains owner-run.
 
 ## Next action
 
 - Finish P19's owner-approved Google OAuth web application, same-site
-  production editor/API origins, Render secrets, and Neon migration; then
-  configure P20's private R2 bucket/secrets and open S1's registry/API work.
+  production editor/API origins, Render secrets, and Neon migration; configure
+  P20's private R2 bucket/secrets; then run the authenticated register → upload
+  → list/read → byte-fetch smoke before opening S2 registry integration.
 
 ## Verification
 
@@ -41,9 +48,10 @@ slice plus one next action only.
 - `npm run check`: 0 errors / 0 warnings.
 - `npm run check:camera-core`, `npm run check:layout-core`, and
   `npm run check:project-model`: passed.
-- API: `check:api`, `test:api` (15 passed), and `build:api` passed. Migration
-  idempotency is covered with an injected database client; real Neon smoke and
-  migration application remain unrun.
+- API: `check:api`, `test:api` (23 passed), and `build:api` passed. Migration
+  idempotency and the local asset registry/R2 seam are covered with injected
+  clients; real Neon migration, R2 calls, and live authenticated smoke remain
+  unrun.
 - P20 cloud-save predicate tests: targeted 34 tests plus the submit-boundary
   contract and the full editor suite (2,305 passed, 1 skipped) passed;
   local/package URIs remain blocked for cloud
@@ -73,6 +81,8 @@ slice plus one next action only.
   in empty/status text and SVG labels; these are outside the closed P3B gate.
 - Owner-approved Google OAuth configuration, Render/Neon provisioning, and
   real authenticated persistence smoke remain the P19 release gate.
+- P20.1's owner-run private R2 bucket, credentials, Render secrets, and live
+  asset smoke remain the P20 S1 release gate.
 
 ## Traps
 

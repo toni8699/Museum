@@ -1,6 +1,6 @@
 # P20 — Project Asset Registry + R2 asset storage
 
-**Status:** in-progress; S0 complete 2026-09-03. S1 implementation brief is ready, held by the P19 live gate and owner-run R2 provisioning.
+**Status:** in-progress; S0 + S1 implemented locally 2026-09-03, held by the P19 live gate and owner-run R2 provisioning/smoke.
 **Depends on:** P19 shipped, including the live Google OIDC / deployed Save–Load gate.
 **Source:** ratified backend/persistence migration review Pass 6 + current North Star shared-assets direction.
 **Amended:** owner-ratified amendment direction (SceneDocument vs registry ownership, portable package semantics, shared-package purity, R2 test seam, key/dedup isolation, tightened v1 scope, targeted S0 inventory, S-slice naming) — S0 must resolve the durable texture-reference, cloud-Save durability, and guest-binary contracts before S1.
@@ -434,8 +434,8 @@ S0 records the current code inventory and ratifies the durable contract before
 the registry or R2 API starts.
 
 **S0 status:** complete 2026-09-03, including the stale pending-save durability
-re-check and session-vs-cloud divergence regression test. **Next slice:** S1
-registry database + authenticated R2 API, after the owner-run gates below.
+re-check and session-vs-cloud divergence regression test. S1 is implemented
+locally; its owner-run release gates remain below. S2 follows live S1 smoke.
 
 ## S0 recorded inventory (opened and closed 2026-09-03)
 
@@ -570,7 +570,7 @@ Do not implement against assumptions from old plans if current code differs.
 
 S0 pins the local/API contract below; owner-run Cloudflare account, bucket,
 credential, Render-secret, and live-smoke provisioning remains pending and is
-the S1 entry gate.
+the S1 release gate.
 
 Pin:
 
@@ -693,9 +693,10 @@ Do not hide this behavior inside ad-hoc session storage or silently discard loca
 
 # S1 — registry database + R2 API
 
-**Owner shorthand:** P20.1. **Brief ready:** 2026-09-03. **Entry gate:** P19
-live/ready authenticated Save–Load smoke plus owner-provisioned private R2
-bucket and Render secrets.
+**Owner shorthand:** P20.1. **Brief ready:** 2026-09-03. **Local
+implementation:** complete 2026-09-03. **Entry/release gate:** P19 live/ready
+authenticated Save–Load smoke plus owner-provisioned private R2 bucket and
+Render secrets.
 
 ## Outcome and boundary
 
@@ -814,25 +815,23 @@ state = pending
 
 ```text
 authenticate before consuming body
-→ BEGIN
-→ SELECT owned asset FOR UPDATE
-→ require pending or failed; set failed back to pending for retry
+→ read owned pending/failed asset
+→ atomically replace object key with per-attempt opaque claim; set pending
 → read at most 12 prefix bytes and sniff MIME
 → stream prefix + remainder through byte counter + createHash('sha256')
 → objectStore.put(key, stream, sniffed MIME, declared length)
 → require observed length = Content-Length and ≤ 25 MiB
-→ UPDATE mime/byte_size/sha256/import_state='ready'/updated_at
-→ COMMIT
+→ conditionally UPDATE matching claim to ready with MIME/size/SHA
 ```
 
-Row lock remains held during upload. At 25 MiB this is bounded and prevents
-two concurrent PUTs from racing object bytes against metadata without adding
-an `uploading` state or job system. Leave implementation note:
-`// ponytail: row lock spans ≤25 MiB upload; add a claim/lease only if DB pressure appears.`
+No DB transaction spans client/R2 streaming. Object key doubles as claim token;
+concurrent attempts use distinct keys, and only latest matching claim can
+finalize. Leave implementation note:
+`// ponytail: object key doubles as upload claim; superseded bytes stay orphaned until GC ships.`
 
-Validation/stream/store failure commits `failed`; retry reuses same ID/key.
-PUT success plus DB finalize failure rolls back to `pending`; retained object
-is not served and retry overwrites it. No cleanup/delete.
+Validation/stream/store failure marks matching claim `failed`; retry reuses
+asset ID with new key. PUT success plus finalize failure leaves `pending`;
+retained object is not served. No cleanup/delete.
 
 `GET .../content` authorizes and loads `ready` metadata before calling object
 storage. Missing object/size mismatch returns 503 without mutation; mid-stream

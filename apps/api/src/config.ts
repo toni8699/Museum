@@ -6,6 +6,10 @@ export type ApiConfig = {
 	googleClientId?: string;
 	googleClientSecret?: string;
 	sessionKey?: Buffer;
+	r2Endpoint: string;
+	r2Bucket: string;
+	r2AccessKeyId: string;
+	r2SecretAccessKey: string;
 };
 
 export class ConfigError extends Error {
@@ -70,6 +74,27 @@ function readRequired(value: string | undefined, name: string): string {
 	return result;
 }
 
+function readR2Endpoint(value: string | undefined): string {
+	const endpoint = readRequired(value, 'R2_ENDPOINT');
+	try {
+		const url = new URL(endpoint);
+		if (
+			url.protocol !== 'https:' ||
+			!url.hostname ||
+			url.username ||
+			url.password ||
+			url.pathname !== '/' ||
+			url.search ||
+			url.hash
+		) {
+			throw new Error();
+		}
+		return url.origin;
+	} catch {
+		throw new ConfigError('R2_ENDPOINT must be a credential-free HTTPS URL');
+	}
+}
+
 function readSessionKey(value: string | undefined): Buffer {
 	const encoded = readRequired(value, 'SESSION_KEY');
 	const key = /^[0-9a-f]{64}$/i.test(encoded)
@@ -93,6 +118,10 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
 		...(apiOrigin ? { apiOrigin } : {}),
 		googleClientId: readRequired(env.GOOGLE_CLIENT_ID, 'GOOGLE_CLIENT_ID'),
 		googleClientSecret: readRequired(env.GOOGLE_CLIENT_SECRET, 'GOOGLE_CLIENT_SECRET'),
-		sessionKey: readSessionKey(env.SESSION_KEY)
+		sessionKey: readSessionKey(env.SESSION_KEY),
+		r2Endpoint: readR2Endpoint(env.R2_ENDPOINT),
+		r2Bucket: readRequired(env.R2_BUCKET, 'R2_BUCKET'),
+		r2AccessKeyId: readRequired(env.R2_ACCESS_KEY_ID, 'R2_ACCESS_KEY_ID'),
+		r2SecretAccessKey: readRequired(env.R2_SECRET_ACCESS_KEY, 'R2_SECRET_ACCESS_KEY')
 	};
 }

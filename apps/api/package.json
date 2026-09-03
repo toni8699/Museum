@@ -12,6 +12,7 @@
     "test": "npm run build && vite-node tests/api.test.mjs"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1125.0",
     "@fastify/secure-session": "^8.3.0",
     "@portfolio/layout-core": "*",
     "@portfolio/project-model": "*",

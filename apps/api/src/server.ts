@@ -4,6 +4,7 @@ import { createApp } from './app.js';
 import { createGoogleOidc, type OidcClient } from './auth.js';
 import { ConfigError, readConfig, type ApiConfig } from './config.js';
 import { createPool, type DatabasePool } from './database.js';
+import { createR2ObjectStore, type ObjectStore } from './object-store.js';
 import { installShutdownHandlers, type ShutdownProcess } from './shutdown.js';
 
 export type StartServerOptions = {
@@ -11,6 +12,7 @@ export type StartServerOptions = {
 	env?: NodeJS.ProcessEnv;
 	pool?: DatabasePool;
 	oidc?: OidcClient;
+	objectStore?: ObjectStore;
 	processLike?: ShutdownProcess;
 };
 
@@ -26,7 +28,8 @@ export async function startServer(options: StartServerOptions = {}): Promise<Fas
 		apiOrigin: config.apiOrigin,
 		editorOrigin: config.editorOrigin,
 		oidc,
-		sessionKey: config.sessionKey
+		sessionKey: config.sessionKey,
+		objectStore: options.objectStore ?? createR2ObjectStore(config)
 	});
 	const closeOnce = installShutdownHandlers(app, options.processLike);
 

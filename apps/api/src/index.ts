@@ -5,10 +5,12 @@ import { main } from './server.js';
 
 export * from './app.js';
 export * from './auth.js';
+export * from './asset-persistence.js';
 export * from './config.js';
 export * from './database.js';
 export * from './document-boundary.js';
 export * from './project-persistence.js';
+export * from './object-store.js';
 export { runMigrations } from './migrate.js';
 export * from './server.js';
 export * from './shutdown.js';

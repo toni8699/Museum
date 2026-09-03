@@ -162,7 +162,7 @@ async function withTransaction<T>(
 	}
 }
 
-async function queryRows<Row>(
+export async function queryRows<Row>(
 	db: Pick<DatabasePool, 'query'>,
 	text: string,
 	values: unknown[]

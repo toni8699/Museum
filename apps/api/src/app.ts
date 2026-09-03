@@ -1,5 +1,11 @@
 import secureSession from '@fastify/secure-session';
-import Fastify, { type FastifyInstance, type FastifyRequest, type FastifyServerOptions } from 'fastify';
+import Fastify, {
+	type FastifyInstance,
+	type FastifyReply,
+	type FastifyRequest,
+	type FastifyServerOptions
+} from 'fastify';
+import { Readable } from 'node:stream';
 
 import {
 	createOidcLoginState,
@@ -10,6 +16,21 @@ import {
 	type OidcLoginState
 } from './auth.js';
 import { sanitizeDatabaseError, type DatabasePool } from './database.js';
+import {
+	assetMetadata,
+	AssetInputError,
+	AssetNotFoundError,
+	AssetNotReadyError,
+	isValidAssetId,
+	isValidProjectId,
+	listAssets,
+	MAX_ASSET_BYTES,
+	readAsset,
+	readAssetNameBody,
+	registerAsset,
+	uploadAsset
+} from './asset-persistence.js';
+import type { ObjectStore } from './object-store.js';
 import {
 	listProjects,
 	loadProject,
@@ -25,6 +46,7 @@ export type ApiAppOptions = {
 	editorOrigin?: string;
 	oidc?: OidcClient;
 	sessionKey?: Buffer;
+	objectStore?: ObjectStore;
 	logger?: FastifyServerOptions['logger'];
 };
 
@@ -39,6 +61,7 @@ export function createApp({
 	editorOrigin,
 	oidc,
 	sessionKey,
+	objectStore,
 	logger = true
 }: ApiAppOptions): FastifyInstance {
 	const safeLogger =
@@ -50,6 +73,10 @@ export function createApp({
 	const app = Fastify({ logger: safeLogger, bodyLimit: BODY_LIMIT_BYTES });
 	const sessionsEnabled = sessionKey !== undefined;
 	const expectedBrowserOrigin = editorOrigin ?? apiOrigin;
+	app.addContentTypeParser(
+		'application/octet-stream',
+		async (_request: FastifyRequest, payload: FastifyRequest['raw']) => payload
+	);
 
 	if (sessionKey !== undefined) {
 		app.register(secureSession, {
@@ -72,9 +99,13 @@ export function createApp({
 	});
 
 	let poolClose: Promise<void> | undefined;
+	let objectStoreClose: Promise<void> | undefined;
 	app.addHook('onClose', async () => {
 		poolClose ??= Promise.resolve().then(() => pool.end());
-		await poolClose;
+		if (objectStore?.close) {
+			objectStoreClose ??= Promise.resolve().then(() => objectStore.close?.()).then(() => undefined);
+		}
+		await Promise.all([poolClose, objectStoreClose]);
 	});
 
 	if (editorOrigin || apiOrigin) {
@@ -85,7 +116,7 @@ export function createApp({
 					.header('Access-Control-Allow-Origin', origin)
 					.header('Access-Control-Allow-Credentials', 'true')
 					.header('Vary', 'Origin')
-					.header('Access-Control-Allow-Methods', 'GET, PUT, POST, OPTIONS')
+					.header('Access-Control-Allow-Methods', 'GET, PUT, POST, PATCH, DELETE, OPTIONS')
 					.header('Access-Control-Allow-Headers', 'Content-Type');
 			}
 			if (request.method === 'OPTIONS') {
@@ -94,9 +125,7 @@ export function createApp({
 				}
 				return reply.code(204).send();
 			}
-			const unsafeBrowserRequest =
-				request.method === 'PUT' ||
-				(request.method === 'POST' && request.url.startsWith('/auth/logout'));
+			const unsafeBrowserRequest = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method);
 			if (unsafeBrowserRequest && expectedBrowserOrigin && origin !== expectedBrowserOrigin) {
 				return reply.code(403).send(errorBody('forbidden', 'Forbidden'));
 			}
@@ -117,13 +146,25 @@ export function createApp({
 		}
 	});
 
-	app.setErrorHandler((error, _request, reply) => {
+	app.setErrorHandler((error, request, reply) => {
 		const code = (error as { code?: unknown }).code;
 		if (code === 'FST_ERR_CTP_BODY_TOO_LARGE') {
 			return reply.code(413).send(errorBody('payload_too_large', 'Payload Too Large'));
 		}
 		if (code === 'FST_ERR_CTP_INVALID_JSON_BODY') {
 			return reply.code(400).send(errorBody('invalid_json', 'Malformed JSON body'));
+		}
+		if (code === 'FST_ERR_CTP_EMPTY_JSON_BODY') {
+			const isAssetRegistration = request.url.startsWith('/projects/') && request.url.includes('/assets');
+			return reply
+				.code(400)
+				.send(errorBody(isAssetRegistration ? 'invalid_asset' : 'invalid_json', 'Malformed JSON body'));
+		}
+		if (code === 'FST_ERR_CTP_INVALID_MEDIA_TYPE') {
+			return reply.code(415).send(errorBody('unsupported_media_type', 'Unsupported Media Type'));
+		}
+		if (code === 'FST_ERR_CTP_INVALID_CONTENT_LENGTH') {
+			return reply.code(400).send(errorBody('invalid_upload', 'Invalid upload length'));
 		}
 		return reply.code(500).send(errorBody('internal_error', 'Internal Server Error'));
 	});
@@ -271,7 +312,153 @@ export function createApp({
 		}
 	});
 
+	const requireAssetSession = async (request: FastifyRequest, reply: FastifyReply) => {
+		if (!sessionUserId(request, sessionsEnabled)) return unauthorized(reply);
+	};
+	const requireAssetUpload = async (request: FastifyRequest, reply: FastifyReply) => {
+		if (!sessionUserId(request, sessionsEnabled)) return unauthorized(reply);
+		const { projectId, assetId } = request.params as { projectId?: unknown; assetId?: unknown };
+		if (!isValidProjectId(projectId) || !isValidAssetId(assetId)) {
+			return assetInputFailure(reply, new AssetInputError('invalid_asset', 400, 'Invalid asset identifier'));
+		}
+		const contentLength = readUploadContentLength(request);
+		if (contentLength instanceof AssetInputError) return assetInputFailure(reply, contentLength);
+	};
+
+	app.get('/projects/:projectId/assets', { onRequest: requireAssetSession }, async (request, reply) => {
+		const userId = sessionUserId(request, sessionsEnabled);
+		const projectId = (request.params as { projectId?: unknown }).projectId;
+		if (!userId) return unauthorized(reply);
+		if (!isValidProjectId(projectId)) return assetInputFailure(reply, new AssetInputError('invalid_asset', 400, 'Invalid project ID'));
+		try {
+			return { assets: await listAssets(pool, userId, projectId) };
+		} catch (error) {
+			return assetFailure(app, reply, error, 'Asset list failed');
+		}
+	});
+
+	app.post('/projects/:projectId/assets', { onRequest: requireAssetSession }, async (request, reply) => {
+		const userId = sessionUserId(request, sessionsEnabled);
+		const projectId = (request.params as { projectId?: unknown }).projectId;
+		if (!userId) return unauthorized(reply);
+		if (!isValidProjectId(projectId)) return assetInputFailure(reply, new AssetInputError('invalid_asset', 400, 'Invalid project ID'));
+		try {
+			if (!isJsonContentType(request.headers['content-type'])) {
+				return assetInputFailure(reply, new AssetInputError('unsupported_media_type', 415, 'Unsupported Media Type'));
+			}
+			const name = readAssetNameBody(request.body);
+			const asset = await registerAsset(pool, userId, projectId, name);
+			return reply.code(201).send(asset);
+		} catch (error) {
+			return assetFailure(app, reply, error, 'Asset registration failed');
+		}
+	});
+
+	app.get('/projects/:projectId/assets/:assetId', { onRequest: requireAssetSession }, async (request, reply) => {
+		const userId = sessionUserId(request, sessionsEnabled);
+		const { projectId, assetId } = request.params as { projectId?: unknown; assetId?: unknown };
+		if (!userId) return unauthorized(reply);
+		if (!isValidProjectId(projectId) || !isValidAssetId(assetId)) {
+			return assetInputFailure(reply, new AssetInputError('invalid_asset', 400, 'Invalid asset identifier'));
+		}
+		try {
+			return assetMetadata(await readAsset(pool, userId, projectId, assetId));
+		} catch (error) {
+			return assetFailure(app, reply, error, 'Asset read failed');
+		}
+	});
+
+	app.put('/projects/:projectId/assets/:assetId/content', { onRequest: requireAssetUpload }, async (request, reply) => {
+		const userId = sessionUserId(request, sessionsEnabled);
+		const { projectId, assetId } = request.params as { projectId?: unknown; assetId?: unknown };
+		if (!userId) return unauthorized(reply);
+		if (!isValidProjectId(projectId) || !isValidAssetId(assetId)) {
+			return assetInputFailure(reply, new AssetInputError('invalid_asset', 400, 'Invalid asset identifier'));
+		}
+		const contentLength = readUploadContentLength(request);
+		if (contentLength instanceof AssetInputError) return assetInputFailure(reply, contentLength);
+		if (!(request.body instanceof Readable)) {
+			return assetInputFailure(reply, new AssetInputError('invalid_upload', 400, 'Invalid upload body'));
+		}
+		try {
+			return await uploadAsset(pool, userId, projectId, assetId, contentLength, request.body, objectStore);
+		} catch (error) {
+			return assetFailure(app, reply, error, 'Asset upload failed');
+		}
+	});
+
+	app.get('/projects/:projectId/assets/:assetId/content', { onRequest: requireAssetSession }, async (request, reply) => {
+		const userId = sessionUserId(request, sessionsEnabled);
+		const { projectId, assetId } = request.params as { projectId?: unknown; assetId?: unknown };
+		if (!userId) return unauthorized(reply);
+		if (!isValidProjectId(projectId) || !isValidAssetId(assetId)) {
+			return assetInputFailure(reply, new AssetInputError('invalid_asset', 400, 'Invalid asset identifier'));
+		}
+		try {
+			const asset = await readAsset(pool, userId, projectId, assetId);
+			if (asset.importState !== 'ready') throw new AssetNotReadyError();
+			if (asset.storageKind !== 'r2' || asset.objectKey === null) throw new AssetNotReadyError();
+			if (asset.mime === null || asset.byteSize === null) {
+				return databaseFailure(app, reply, new Error('Ready asset metadata is incomplete'), 'Asset bytes failed');
+			}
+			if (!objectStore) throw new Error('Object storage is unavailable');
+			const stored = await objectStore.get(asset.objectKey);
+			if (!stored || stored.contentLength !== asset.byteSize) {
+				return reply.code(503).send(errorBody('service_unavailable', 'Service Unavailable'));
+			}
+			reply
+				.header('Content-Type', asset.mime)
+				.header('Content-Length', String(asset.byteSize))
+				.header('Cache-Control', 'private, no-store');
+			return reply.send(stored.body);
+		} catch (error) {
+			return assetFailure(app, reply, error, 'Asset bytes failed');
+		}
+	});
+
 	return app;
+}
+
+function assetInputFailure(reply: FastifyReply, error: AssetInputError) {
+	return reply.code(error.statusCode).send(errorBody(error.code, error.message));
+}
+
+function assetFailure(app: FastifyInstance, reply: FastifyReply, error: unknown, message: string) {
+	if (error instanceof AssetInputError) return assetInputFailure(reply, error);
+	if (error instanceof AssetNotFoundError) return notFound(reply);
+	if (error instanceof AssetNotReadyError) {
+		return reply.code(409).send(errorBody('asset_not_ready', 'Asset Not Ready'));
+	}
+	return databaseFailure(app, reply, error, message);
+}
+
+function isOctetStream(value: string | undefined): boolean {
+	return value?.split(';', 1)[0]?.trim().toLowerCase() === 'application/octet-stream';
+}
+
+function isJsonContentType(value: string | undefined): boolean {
+	return value?.split(';', 1)[0]?.trim().toLowerCase() === 'application/json';
+}
+
+function readUploadContentLength(request: FastifyRequest): number | AssetInputError {
+	if (!isOctetStream(request.headers['content-type'])) {
+		return new AssetInputError('unsupported_media_type', 415, 'Unsupported Media Type');
+	}
+	const value = request.headers['content-length'];
+	if (typeof value !== 'string') {
+		return new AssetInputError('length_required', 411, 'Content-Length is required');
+	}
+	if (!/^\d+$/.test(value)) {
+		return new AssetInputError('invalid_upload', 400, 'Invalid Content-Length');
+	}
+	const declaredLength = BigInt(value);
+	if (declaredLength === 0n) {
+		return new AssetInputError('invalid_upload', 400, 'Invalid upload length');
+	}
+	if (declaredLength > BigInt(MAX_ASSET_BYTES)) {
+		return new AssetInputError('payload_too_large', 413, 'Payload Too Large');
+	}
+	return Number(declaredLength);
 }
 
 function sessionUserId(request: FastifyRequest, sessionsEnabled: boolean): string | null {

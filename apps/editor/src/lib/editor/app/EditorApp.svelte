@@ -70,6 +70,9 @@
 	import { resolveLayoutGizmoTarget } from '$lib/editor/gizmo/layout-gizmo-target';
 	import { buildPlanSceneFootprintProjection } from '$lib/editor/layout/plan-scene-footprint';
 	import { resolveEditorPlacementScale } from '$lib/editor/scale-vector';
+	import { PROJECT_ASSET_MAX_BYTES, sniffImageMime } from '$lib/editor/helpers/mime-sniff';
+	import { registerVerifiedProjectAsset } from '$lib/editor/helpers/register-verified-project-asset';
+	import { BinaryTextureStore } from '$lib/editor/store/binary-texture-store.svelte';
 	import {
 		createProjectAuth,
 		createProjectApi,
@@ -80,6 +83,7 @@
 		readPendingCloudSave,
 		sameProjectFingerprint,
 		writePendingCloudSave,
+		type ProjectAssetMetadata,
 		type ProjectPersistenceConfig,
 		type ProjectSummary
 	} from '$lib/editor/project-persistence';
@@ -117,6 +121,17 @@
 	let projectRequestController: AbortController | null = null;
 	let projectMutationEpoch = 0;
 	let projectListRequestToken = 0;
+	let projectAssets = $state<ProjectAssetMetadata[]>([]);
+	let projectAssetsStatus = $state<'unavailable' | 'loading' | 'ready' | 'error'>('unavailable');
+	let retryableProjectAssetId = $state<string | null>(null);
+	let projectAssetMutationInFlight = $state(false);
+	let projectAssetContextId: string | null = null;
+	let projectAssetEpoch = 0;
+	let projectAssetListToken = 0;
+	let projectAssetMutationToken = 0;
+	let projectAssetListController: AbortController | null = null;
+	let projectAssetMutationController: AbortController | null = null;
+	let projectAssetRetry: ProjectAssetRetry | null = null;
 	let saveAuthGateOpen = $state(false);
 	let pendingSaveActive = $state(untrack(() => resumePendingSave));
 	const projectApiOrigin = configuredProjectPersistence?.apiOrigin ?? env.PUBLIC_API_ORIGIN;
@@ -301,6 +316,12 @@
 	let viewportElement = $state<HTMLElement | null>(null);
 	let clusterNameInput = $state<HTMLInputElement>();
 	let selectedAsset = $state<Asset>();
+	const currentProjectIsOwned = $derived(
+		sessionStatus === 'authenticated' &&
+		projectId !== null &&
+		ownedProjects.some((project) => project.id === projectId)
+	);
+	const projectAssetsAvailable = $derived(projectApi !== null && currentProjectIsOwned);
 	const projectIsDirty = $derived(
 		store.isDirty ||
 		layoutPreviewIsDirty(layoutPreview) ||
@@ -313,6 +334,16 @@
 		store,
 		layoutPreview,
 		projectNameDirty: () => projectName !== savedProjectName
+	});
+
+	$effect(() => {
+		const nextProjectId = currentProjectIsOwned && !projectMutationInFlight ? projectId : null;
+		if (nextProjectId === projectAssetContextId) return;
+		invalidateProjectAssets();
+		if (nextProjectId) {
+			projectAssetContextId = nextProjectId;
+			void refreshProjectAssets(nextProjectId);
+		}
 	});
 
 	function currentProjectFingerprint() {
@@ -338,7 +369,417 @@
 		sessionStatus = 'unauthenticated';
 		ownedProjects = [];
 		projectListRequestToken += 1;
+		invalidateProjectAssets();
 		return true;
+	}
+
+	type ProjectAssetRetry = {
+		projectId: string;
+		assetId: string;
+		name: string;
+		bytes: Uint8Array;
+	};
+
+	type ProjectAssetOperation = {
+		projectId: string;
+		epoch: number;
+		token: number;
+		controller: AbortController;
+	};
+
+	function retainCurrentSceneTextureBytes(): void {
+		untrack(() =>
+			BinaryTextureStore.clearExcept(new Set(store.document.textures.map((texture) => texture.uri)))
+		);
+	}
+
+	function clearProjectAssetRetry(): void {
+		projectAssetRetry = null;
+		retryableProjectAssetId = null;
+	}
+
+	function invalidateProjectAssets(): void {
+		projectAssetEpoch += 1;
+		projectAssetListToken += 1;
+		projectAssetMutationToken += 1;
+		projectAssetListController?.abort();
+		projectAssetMutationController?.abort();
+		projectAssetListController = null;
+		projectAssetMutationController = null;
+		projectAssetMutationInFlight = false;
+		projectAssetContextId = null;
+		projectAssets = [];
+		projectAssetsStatus = 'unavailable';
+		clearProjectAssetRetry();
+		retainCurrentSceneTextureBytes();
+	}
+
+	function isCurrentProjectAssetContext(targetProjectId: string, epoch: number): boolean {
+		return (
+			epoch === projectAssetEpoch &&
+			projectAssetContextId === targetProjectId &&
+			projectId === targetProjectId &&
+			sessionStatus === 'authenticated' &&
+			ownedProjects.some((project) => project.id === targetProjectId)
+		);
+	}
+
+	function isCurrentProjectAssetOperation(operation: ProjectAssetOperation): boolean {
+		return (
+			operation.token === projectAssetMutationToken &&
+			projectAssetMutationController === operation.controller &&
+			isCurrentProjectAssetContext(operation.projectId, operation.epoch)
+		);
+	}
+
+	function isAborted(error: unknown, signal: AbortSignal): boolean {
+		return signal.aborted || (error instanceof DOMException && error.name === 'AbortError');
+	}
+
+	async function refreshProjectAssets(targetProjectId: string): Promise<void> {
+		if (
+			!projectApi ||
+			projectMutationInFlight ||
+			!isCurrentProjectAssetContext(targetProjectId, projectAssetEpoch)
+		) {
+			return;
+		}
+		const requestToken = ++projectAssetListToken;
+		const epoch = projectAssetEpoch;
+		projectAssetListController?.abort();
+		const controller = new AbortController();
+		projectAssetListController = controller;
+		projectAssetsStatus = 'loading';
+		try {
+			const assets = await projectApi.listAssets(targetProjectId, controller.signal);
+			if (
+				requestToken !== projectAssetListToken ||
+				!isCurrentProjectAssetContext(targetProjectId, epoch)
+			) {
+				return;
+			}
+			projectAssets = assets;
+			projectAssetsStatus = 'ready';
+		} catch (error) {
+			if (
+				isAborted(error, controller.signal) ||
+				requestToken !== projectAssetListToken ||
+				!isCurrentProjectAssetContext(targetProjectId, epoch)
+			) {
+				return;
+			}
+			if (clearExpiredProjectSession(error)) {
+				store.setStatusMessage('Sign-in is required');
+				return;
+			}
+			projectAssetsStatus = 'error';
+			store.setStatusMessage(persistenceMessage(error, 'Could not load project assets'));
+		} finally {
+			if (requestToken === projectAssetListToken) projectAssetListController = null;
+		}
+	}
+
+	function beginProjectAssetMutation(): ProjectAssetOperation | null {
+		const targetProjectId = projectId;
+		if (
+			!projectApi ||
+			!targetProjectId ||
+			!currentProjectIsOwned ||
+			projectAssetContextId !== targetProjectId
+		) {
+			store.setStatusMessage('Project assets require an authenticated owned project');
+			return null;
+		}
+		projectAssetMutationController?.abort();
+		retainCurrentSceneTextureBytes();
+		const token = ++projectAssetMutationToken;
+		const epoch = projectAssetEpoch;
+		const controller = new AbortController();
+		projectAssetMutationController = controller;
+		projectAssetMutationInFlight = true;
+		return { projectId: targetProjectId, epoch, token, controller };
+	}
+
+	function projectAssetUri(assetId: string): string {
+		return `/project-assets/${assetId}`;
+	}
+
+	function readyProjectAssetMatches(
+		asset: ProjectAssetMetadata,
+		operation: ProjectAssetOperation,
+		assetId: string,
+		bytes: Uint8Array,
+		mime: string
+	): boolean {
+		return (
+			asset.id === assetId &&
+			asset.projectId === operation.projectId &&
+			asset.kind === 'texture' &&
+			asset.storageKind === 'r2' &&
+			asset.sourceKind === 'upload' &&
+			asset.importState === 'ready' &&
+			asset.mime === mime &&
+			asset.byteSize === bytes.byteLength &&
+			asset.sha256 !== null
+		);
+	}
+
+	async function primeVerifiedProjectAsset(
+		operation: ProjectAssetOperation,
+		uri: string,
+		bytes: Uint8Array,
+		mime: NonNullable<ProjectAssetMetadata['mime']>,
+		expectedSha256: string
+	): Promise<boolean> {
+		if (!isCurrentProjectAssetOperation(operation)) return false;
+		let registered = false;
+		await registerVerifiedProjectAsset(bytes, expectedSha256, (fingerprint) => {
+			if (!isCurrentProjectAssetOperation(operation)) return;
+			registered = true;
+			return BinaryTextureStore.register(uri, bytes, mime, fingerprint);
+		});
+		return registered && isCurrentProjectAssetOperation(operation);
+	}
+
+	async function registerPrimedProjectTexture(
+		operation: ProjectAssetOperation,
+		name: string,
+		uri: string
+	): Promise<string | null> {
+		try {
+			const textureId = await store.registerTexture(
+				name,
+				uri,
+				() => isCurrentProjectAssetOperation(operation)
+			);
+			if (!isCurrentProjectAssetOperation(operation)) return null;
+			if (!textureId) retainCurrentSceneTextureBytes();
+			return textureId;
+		} catch (error) {
+			if (isCurrentProjectAssetOperation(operation)) retainCurrentSceneTextureBytes();
+			throw error;
+		}
+	}
+
+	async function finishProjectAssetUpload(
+		operation: ProjectAssetOperation,
+		name: string,
+		assetId: string,
+		bytes: Uint8Array,
+		mime: ProjectAssetMetadata['mime']
+	): Promise<string | null> {
+		const uploaded = await projectApi!.uploadAsset(
+			operation.projectId,
+			assetId,
+			bytes,
+			operation.controller.signal
+		);
+		if (!isCurrentProjectAssetOperation(operation)) return null;
+		if (!mime || !readyProjectAssetMatches(uploaded, operation, assetId, bytes, mime)) {
+			throw new ProjectPersistenceError('invalid', 'Cloud asset upload returned invalid metadata');
+		}
+
+		const uri = projectAssetUri(assetId);
+		if (!(await primeVerifiedProjectAsset(operation, uri, bytes, mime, uploaded.sha256!))) return null;
+		const textureId = await registerPrimedProjectTexture(operation, name, uri);
+		if (!isCurrentProjectAssetOperation(operation)) return null;
+		if (!textureId) {
+			clearProjectAssetRetry();
+			await refreshProjectAssets(operation.projectId);
+			return null;
+		}
+		clearProjectAssetRetry();
+		await refreshProjectAssets(operation.projectId);
+		return textureId;
+	}
+
+	async function uploadProjectTexture(name: string, bytes: Uint8Array): Promise<string | null> {
+		const trimmedName = name.trim();
+		if (!projectAssetsAvailable) {
+			store.setStatusMessage('Project assets require an authenticated owned project');
+			return null;
+		}
+		if (!trimmedName) {
+			store.setStatusMessage('Texture name is required');
+			return null;
+		}
+		if (!(bytes instanceof Uint8Array) || bytes.byteLength === 0) {
+			store.setStatusMessage('Texture bytes must be a non-empty buffer');
+			return null;
+		}
+		if (bytes.byteLength > PROJECT_ASSET_MAX_BYTES) {
+			store.setStatusMessage('Texture is larger than 25 MiB');
+			return null;
+		}
+		const mime = sniffImageMime(bytes);
+		if (!mime) {
+			store.setStatusMessage('Unsupported image format — use PNG, WebP, or JPEG');
+			return null;
+		}
+
+		clearProjectAssetRetry();
+		const operation = beginProjectAssetMutation();
+		if (!operation) return null;
+		const uploadBytes = bytes.slice();
+		let retry: ProjectAssetRetry | null = null;
+		try {
+			const registered = await projectApi!.registerAsset(
+				operation.projectId,
+				trimmedName,
+				operation.controller.signal
+			);
+			if (!isCurrentProjectAssetOperation(operation)) return null;
+			if (
+				registered.projectId !== operation.projectId ||
+				registered.kind !== 'texture' ||
+				registered.storageKind !== 'r2' ||
+				registered.sourceKind !== 'upload' ||
+				registered.importState !== 'pending'
+			) {
+				throw new ProjectPersistenceError('invalid', 'Cloud asset registration returned invalid metadata');
+			}
+			retry = {
+				projectId: operation.projectId,
+				assetId: registered.id,
+				name: trimmedName,
+				bytes: uploadBytes
+			};
+			projectAssetRetry = retry;
+			retryableProjectAssetId = registered.id;
+			return await finishProjectAssetUpload(operation, trimmedName, registered.id, uploadBytes, mime);
+		} catch (error) {
+			if (!isCurrentProjectAssetOperation(operation) || isAborted(error, operation.controller.signal)) {
+				return null;
+			}
+			if (clearExpiredProjectSession(error)) {
+				store.setStatusMessage('Sign-in is required');
+				return null;
+			}
+			if (retry) {
+				projectAssetRetry = retry;
+				retryableProjectAssetId = retry.assetId;
+				void refreshProjectAssets(operation.projectId);
+			}
+			store.setStatusMessage(persistenceMessage(error, 'Could not upload texture'));
+			return null;
+		} finally {
+			if (operation.token === projectAssetMutationToken) {
+				projectAssetMutationInFlight = false;
+				projectAssetMutationController = null;
+			}
+		}
+	}
+
+	async function retryProjectTexture(): Promise<string | null> {
+		const retry = projectAssetRetry;
+		if (!retry || retryableProjectAssetId !== retry.assetId || !projectAssetsAvailable) return null;
+		const mime = sniffImageMime(retry.bytes);
+		if (!mime) {
+			clearProjectAssetRetry();
+			store.setStatusMessage('The retry image is no longer valid');
+			return null;
+		}
+		const operation = beginProjectAssetMutation();
+		if (!operation || operation.projectId !== retry.projectId) return null;
+		try {
+			return await finishProjectAssetUpload(
+				operation,
+				retry.name,
+				retry.assetId,
+				retry.bytes,
+				mime
+			);
+		} catch (error) {
+			if (!isCurrentProjectAssetOperation(operation) || isAborted(error, operation.controller.signal)) {
+				return null;
+			}
+			if (clearExpiredProjectSession(error)) {
+				store.setStatusMessage('Sign-in is required');
+				return null;
+			}
+			void refreshProjectAssets(operation.projectId);
+			store.setStatusMessage(persistenceMessage(error, 'Could not retry texture upload'));
+			return null;
+		} finally {
+			if (operation.token === projectAssetMutationToken) {
+				projectAssetMutationInFlight = false;
+				projectAssetMutationController = null;
+			}
+		}
+	}
+
+	async function acceptProjectTexture(assetId: string): Promise<string | null> {
+		if (!projectAssetsAvailable) {
+			store.setStatusMessage('Project assets require an authenticated owned project');
+			return null;
+		}
+		const asset = projectAssets.find((candidate) => candidate.id === assetId);
+		if (
+			!asset ||
+			asset.importState !== 'ready' ||
+			asset.kind !== 'texture' ||
+			asset.storageKind !== 'r2' ||
+			asset.sourceKind !== 'upload' ||
+			asset.projectId !== projectId
+		) {
+			store.setStatusMessage('Texture is not ready');
+			return null;
+		}
+		const operation = beginProjectAssetMutation();
+		if (!operation) return null;
+		const uri = projectAssetUri(asset.id);
+		try {
+			if (store.document.textures.some((texture) => texture.uri === uri)) {
+				return registerPrimedProjectTexture(operation, asset.name, uri);
+			}
+			const cached = BinaryTextureStore.getEntry(uri);
+			if (
+				cached?.fingerprint === asset.sha256 &&
+				cached.mime === asset.mime &&
+				cached.bytes.byteLength === asset.byteSize
+			) {
+				return registerPrimedProjectTexture(operation, asset.name, uri);
+			}
+			const content = await projectApi!.loadAssetContent(
+				operation.projectId,
+				asset.id,
+				operation.controller.signal
+			);
+			if (!isCurrentProjectAssetOperation(operation)) return null;
+			if (
+				asset.mime === null ||
+				asset.byteSize === null ||
+				asset.sha256 === null ||
+				content.mime !== asset.mime ||
+				content.bytes.byteLength !== asset.byteSize ||
+				sniffImageMime(content.bytes) !== content.mime
+			) {
+				throw new ProjectPersistenceError('invalid', 'Cloud asset bytes failed validation');
+			}
+			if (
+				!(await primeVerifiedProjectAsset(operation, uri, content.bytes, content.mime, asset.sha256))
+			) return null;
+			return registerPrimedProjectTexture(operation, asset.name, uri);
+		} catch (error) {
+			if (!isCurrentProjectAssetOperation(operation) || isAborted(error, operation.controller.signal)) {
+				return null;
+			}
+			if (clearExpiredProjectSession(error)) {
+				store.setStatusMessage('Sign-in is required');
+				return null;
+			}
+			store.setStatusMessage(persistenceMessage(error, 'Could not use project texture'));
+			return null;
+		} finally {
+			if (operation.token === projectAssetMutationToken) {
+				projectAssetMutationInFlight = false;
+				projectAssetMutationController = null;
+			}
+		}
+	}
+
+	function onProjectTextureFileSelected(): void {
+		clearProjectAssetRetry();
 	}
 
 	type SaveSnapshot = {
@@ -349,6 +790,10 @@
 
 	function canCaptureProjectSnapshot(): boolean {
 		if (projectMutationInFlight) return false;
+		if (projectAssetMutationInFlight) {
+			setCloudError('Finish the project asset upload before saving');
+			return false;
+		}
 		if (store.isEditorInteractionActive || store.isDocumentTransactionActive) {
 			setCloudError('Stop the current interaction before saving');
 			return false;
@@ -488,6 +933,10 @@
 
 	async function submitSaveSnapshot(snapshot: SaveSnapshot): Promise<boolean> {
 		if (!canStartProjectMutation()) return false;
+		if (projectAssetMutationInFlight) {
+			setCloudError('Finish the project asset upload before saving');
+			return false;
+		}
 		// Defense in depth for resumed/stale handoff drafts: every payload must
 		// pass the cloud durability gate immediately before leaving the browser.
 		if (computeCloudSaveBlocker(snapshot.project.scene)) {
@@ -539,6 +988,7 @@
 
 	async function signOutFromProjects(): Promise<void> {
 		if (!projectAuth || projectMutationInFlight) return;
+		invalidateProjectAssets();
 		try {
 			cloudStatus = 'loading';
 			cloudError = null;
@@ -549,6 +999,10 @@
 			cloudStatus = 'ready';
 			store.setStatusMessage('Signed out');
 		} catch (error) {
+			if (sessionStatus === 'authenticated' && projectId && ownedProjects.some((project) => project.id === projectId)) {
+				projectAssetContextId = projectId;
+				void refreshProjectAssets(projectId);
+			}
 			setCloudError(persistenceMessage(error, 'Sign-out failed'));
 		}
 	}
@@ -677,6 +1131,7 @@
 
 	async function loadProject(selectedProjectId: string): Promise<void> {
 		if (!canStartProjectMutation() || !confirmProjectReplacement()) return;
+		invalidateProjectAssets();
 		const fingerprint = currentProjectFingerprint();
 		const token = ++projectRequestToken;
 		const controller = new AbortController();
@@ -710,6 +1165,7 @@
 			if (!store.replaceProjectDocument(validation.project.scene, rooms)) {
 				throw new ProjectPersistenceError('invalid', 'Could not replace the current project');
 			}
+			retainCurrentSceneTextureBytes();
 			installLayoutPreviewBundle(layoutPreview, bundle);
 			setLayoutViewMode(layoutInteraction, viewState.activeView === 'plan' ? 'plan' : '3d');
 			store.markSaved(serializeSceneDocument(validation.project.scene));
@@ -741,6 +1197,7 @@
 		return () => {
 			controller.abort();
 			projectRequestController?.abort();
+			invalidateProjectAssets();
 		};
 	});
 
@@ -800,6 +1257,13 @@
 		{activeSelection}
 		{viewState}
 		{contextMenu}
+		projectAssets={projectAssets}
+		projectAssetsStatus={projectAssetsStatus}
+		retryableProjectAssetId={retryableProjectAssetId}
+		onUploadProjectTexture={projectAssetsAvailable ? uploadProjectTexture : undefined}
+		onRetryProjectTexture={projectAssetsAvailable ? retryProjectTexture : undefined}
+		onAcceptProjectTexture={projectAssetsAvailable ? acceptProjectTexture : undefined}
+		onProjectTextureFileSelected={onProjectTextureFileSelected}
 		bind:outlinerElement
 		onAssetSelection={(asset) => (selectedAsset = asset)}
 		// Explicit Models-tab click: detach the active scene selection so the

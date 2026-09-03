@@ -55,9 +55,12 @@ class BinaryTextureStoreImpl {
 	async register(
 		uri: string,
 		bytes: Uint8Array,
-		mime: BinaryTextureMime
+		mime: BinaryTextureMime,
+		precomputedFingerprint?: string
 	): Promise<{ fingerprint: string }> {
-		const fingerprint = await sha256Bytes(bytes);
+		// Callers that must compare a digest before replacing an existing entry
+		// pass the already-verified value, keeping the cache mutation synchronous.
+		const fingerprint = precomputedFingerprint ?? (await sha256Bytes(bytes));
 		const existing = this.#map.get(uri);
 		if (existing?.objectUrl) {
 			URL.revokeObjectURL(existing.objectUrl);

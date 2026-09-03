@@ -10,15 +10,24 @@
 		orderRecentlyUsedTextures,
 		TEXTURE_DRAG_MIME
 	} from './editor-textures';
-	import { sniffImageMime } from '$lib/editor/helpers/mime-sniff';
+	import { PROJECT_ASSET_MAX_BYTES, sniffImageMime } from '$lib/editor/helpers/mime-sniff';
+	import type { ProjectAssetMetadata } from '$lib/editor/project-persistence';
 	import type { EditorStore } from './editor-store.svelte';
 
-	type SourceMode = 'public' | 'local';
+	type SourceMode = 'public' | 'local' | 'cloud';
 
 	let {
 		store,
 		onselectionchange,
-		onSelectAsset
+		onSelectAsset,
+		projectAssets = [],
+		projectAssetsStatus = 'unavailable',
+		retryableProjectAssetId = null,
+		onUploadProjectTexture,
+		onRetryProjectTexture,
+		onAcceptProjectTexture,
+		onProjectTextureFileSelected,
+		resolveTextureImageSrc = (uri: string) => uri
 	}: {
 		store: EditorStore;
 		onselectionchange?: (asset: Asset | undefined) => void;
@@ -26,6 +35,14 @@
 		 * uses this to detach the active scene selection so the asset panel
 		 * shows immediately. Absent on the relic — frozen legacy behavior. */
 		onSelectAsset?: (asset: Asset) => void;
+		projectAssets?: readonly ProjectAssetMetadata[];
+		projectAssetsStatus?: 'unavailable' | 'loading' | 'ready' | 'error';
+		retryableProjectAssetId?: string | null;
+		onUploadProjectTexture?: (name: string, bytes: Uint8Array) => Promise<string | null>;
+		onRetryProjectTexture?: () => Promise<string | null>;
+		onAcceptProjectTexture?: (assetId: string) => Promise<string | null>;
+		onProjectTextureFileSelected?: () => void;
+		resolveTextureImageSrc?: (uri: string) => string | null;
 	} = $props();
 
 	const categories = [...new Set(assetCatalog.map((asset) => asset.category))];
@@ -45,6 +62,7 @@
 	let localFileError = $state<string | null>(null);
 	let dropActive = $state(false);
 	let fileInputElement = $state<HTMLInputElement | null>(null);
+	let projectAssetActionId = $state<string | null>(null);
 
 	const assets = $derived(
 		listAssetLibraryItems({
@@ -92,6 +110,22 @@
 			.filter((texture): texture is SceneTextureAsset => texture !== undefined)
 			.filter((texture) => filterTextureLibraryItems([texture], query).length > 0)
 	);
+	const cloudSourceAvailable = $derived(onUploadProjectTexture !== undefined);
+	const projectAssetItems = $derived(
+		projectAssets
+			.filter((asset) => asset.kind === 'texture')
+			.filter((asset) => {
+				const needle = query.trim().toLocaleLowerCase();
+				if (!needle) return true;
+				return [asset.name, `/project-assets/${asset.id}`].some((value) =>
+					value.toLocaleLowerCase().includes(needle)
+				);
+			})
+	);
+
+	$effect(() => {
+		if (sourceMode === 'cloud' && !cloudSourceAvailable) switchSourceMode('public');
+	});
 
 	$effect(() => {
 		onselectionchange?.(libraryTab === 'models' ? selectedAsset : undefined);
@@ -146,6 +180,40 @@
 		return store.textureLoadStates[texture.uri]?.status === 'ready';
 	}
 
+	function textureImageSrc(texture: SceneTextureAsset): string | null {
+		return resolveTextureImageSrc(texture.uri);
+	}
+
+	function projectAssetUri(asset: ProjectAssetMetadata): string {
+		return `/project-assets/${asset.id}`;
+	}
+
+	function projectAssetImageSrc(asset: ProjectAssetMetadata): string | null {
+		return resolveTextureImageSrc(projectAssetUri(asset));
+	}
+
+	async function acceptProjectAsset(asset: ProjectAssetMetadata): Promise<void> {
+		if (!onAcceptProjectTexture || projectAssetActionId) return;
+		projectAssetActionId = asset.id;
+		try {
+			const textureId = await onAcceptProjectTexture(asset.id);
+			if (textureId) selectedTextureId = textureId;
+		} finally {
+			projectAssetActionId = null;
+		}
+	}
+
+	async function retryProjectAsset(): Promise<void> {
+		if (!onRetryProjectTexture || !retryableProjectAssetId || projectAssetActionId) return;
+		projectAssetActionId = retryableProjectAssetId;
+		try {
+			const textureId = await onRetryProjectTexture();
+			if (textureId) selectedTextureId = textureId;
+		} finally {
+			projectAssetActionId = null;
+		}
+	}
+
 	async function submitTextureRegistration(event: SubmitEvent) {
 		event.preventDefault();
 		if (registering) return;
@@ -161,11 +229,22 @@
 					localFileError = 'Unsupported image format — use PNG, WebP, or JPEG';
 					return;
 				}
-				textureId = await store.registerLocalFileTexture(
-					nameDraft || pendingLocalFileName || 'Texture',
-					pendingLocalBytes,
-					sniffedMime
-				);
+				if (sourceMode === 'cloud') {
+					if (!onUploadProjectTexture) {
+						localFileError = 'Cloud project assets are unavailable';
+						return;
+					}
+					textureId = await onUploadProjectTexture(
+						nameDraft || pendingLocalFileName || 'Texture',
+						pendingLocalBytes
+					);
+				} else {
+					textureId = await store.registerLocalFileTexture(
+						nameDraft || pendingLocalFileName || 'Texture',
+						pendingLocalBytes,
+						sniffedMime
+					);
+				}
 			}
 			if (!textureId) return;
 			selectedTextureId = textureId;
@@ -183,9 +262,14 @@
 	let pendingLocalFileName = $state<string | null>(null);
 
 	async function readLocalFile(file: File) {
+		onProjectTextureFileSelected?.();
 		localFileError = null;
 		if (!file.type.startsWith('image/')) {
 			localFileError = 'File must be an image (PNG, WebP, or JPEG)';
+			return;
+		}
+		if (sourceMode === 'cloud' && file.size > PROJECT_ASSET_MAX_BYTES) {
+			localFileError = 'Texture is larger than 25 MiB';
 			return;
 		}
 		try {
@@ -225,7 +309,7 @@
 
 	function onDropZoneEnter(event: DragEvent) {
 		event.preventDefault();
-		if (sourceMode !== 'local') return;
+		if (sourceMode === 'public') return;
 		if (!dragHasImageType(event.dataTransfer?.types ?? [])) {
 			if (event.dataTransfer) event.dataTransfer.dropEffect = 'none';
 			return;
@@ -241,7 +325,7 @@
 
 	async function onDropZoneOver(event: DragEvent) {
 		event.preventDefault();
-		if (sourceMode !== 'local') return;
+		if (sourceMode === 'public') return;
 		if (!dragHasImageType(event.dataTransfer?.types ?? [])) {
 			if (event.dataTransfer) event.dataTransfer.dropEffect = 'none';
 			return;
@@ -252,13 +336,14 @@
 	async function onDropZoneDrop(event: DragEvent) {
 		event.preventDefault();
 		dropActive = false;
-		if (sourceMode !== 'local') return;
+		if (sourceMode === 'public') return;
 		const file = event.dataTransfer?.files?.[0];
 		if (file) await readLocalFile(file);
 	}
 
 	function switchSourceMode(next: SourceMode) {
 		sourceMode = next;
+		onProjectTextureFileSelected?.();
 		localFileError = null;
 		pendingLocalBytes = null;
 		pendingLocalFileName = null;
@@ -436,7 +521,7 @@
 		<p class="count">{textureItems.length} texture{textureItems.length === 1 ? '' : 's'}</p>
 
 	<form class="register" onsubmit={submitTextureRegistration}>
-		<div class="register-source" role="group" aria-label="Texture source">
+		<div class="register-source" class:three={cloudSourceAvailable} role="group" aria-label="Texture source">
 			<button
 				type="button"
 				class="source-button"
@@ -451,6 +536,15 @@
 				aria-pressed={sourceMode === 'local'}
 				onclick={() => switchSourceMode('local')}
 			>Local file</button>
+			{#if cloudSourceAvailable}
+				<button
+					type="button"
+					class="source-button"
+					class:active={sourceMode === 'cloud'}
+					aria-pressed={sourceMode === 'cloud'}
+					onclick={() => switchSourceMode('cloud')}
+				>Cloud file</button>
+			{/if}
 		</div>
 
 		<label>
@@ -483,9 +577,9 @@
 			<p class="hint">Root-relative public paths only. The image must load and decode before it is registered.</p>
 		{:else}
 			<div class="dropzone"
-				class:active={dropActive}
-				role="region"
-				aria-label="Drop image files to register"
+					class:active={dropActive}
+					role="region"
+					aria-label={sourceMode === 'cloud' ? 'Drop image files to upload' : 'Drop image files to register'}
 				ondragenter={onDropZoneEnter}
 				ondragleave={onDropZoneLeave}
 				ondragover={onDropZoneOver}
@@ -513,14 +607,68 @@
 				class="register-button"
 				disabled={registering || !pendingLocalBytes}
 			>
-				{registering ? 'Checking…' : 'Register texture'}
+				{registering ? (sourceMode === 'cloud' ? 'Uploading…' : 'Checking…') : sourceMode === 'cloud' ? 'Upload to project' : 'Register texture'}
 			</button>
-			<p class="hint">Bytes stay session-only — exporting the project as a package bundles the binary.</p>
+			<p class="hint">
+				{sourceMode === 'cloud'
+					? 'Uploads are stored in the current project and use the existing texture path.'
+					: 'Bytes stay session-only — exporting the project as a package bundles the binary.'}
+			</p>
 			{#if localFileError}
 				<p class="error" role="alert">{localFileError}</p>
 			{/if}
 		{/if}
 	</form>
+
+	{#if projectAssetsStatus !== 'unavailable'}
+		<section class="project-assets" aria-label="Project textures">
+			<div class="project-assets-heading">
+				<h3>Project textures</h3>
+				{#if projectAssetsStatus === 'loading'}<span>Loading…</span>{/if}
+			</div>
+			{#if projectAssetsStatus === 'error'}
+				<p class="empty">Project textures could not be loaded.</p>
+			{:else if projectAssetItems.length > 0}
+				<ul class="asset-list project-asset-list">
+					{#each projectAssetItems as asset (asset.id)}
+						{@const uri = projectAssetUri(asset)}
+						{@const imageSrc = projectAssetImageSrc(asset)}
+						{@const isUsed = allTextures.some((texture) => texture.uri === uri)}
+						<li class="project-asset-row">
+							<div class="project-asset-thumb">
+								{#if imageSrc}
+									<img src={imageSrc} alt="" loading="lazy" />
+								{:else}
+									<span aria-hidden="true">{asset.importState === 'ready' ? 'Ready' : '…'}</span>
+								{/if}
+							</div>
+							<div class="project-asset-info">
+								<strong>{asset.name}</strong>
+								<span>{asset.importState} · {uri}</span>
+							</div>
+							{#if asset.importState === 'ready'}
+								<button
+									type="button"
+									class="use-project-asset"
+									disabled={projectAssetActionId !== null}
+									onclick={() => acceptProjectAsset(asset)}
+								>{projectAssetActionId === asset.id ? 'Loading…' : isUsed ? 'Used' : 'Use texture'}</button>
+							{:else if asset.importState === 'failed' && retryableProjectAssetId === asset.id && pendingLocalBytes && onRetryProjectTexture}
+								<button
+									type="button"
+									class="retry"
+									disabled={projectAssetActionId !== null}
+									onclick={retryProjectAsset}
+								>{projectAssetActionId === asset.id ? 'Retrying…' : 'Retry upload'}</button>
+							{/if}
+						</li>
+					{/each}
+				</ul>
+			{:else if projectAssetsStatus === 'ready'}
+				<p class="empty">No project textures match these filters.</p>
+			{/if}
+		</section>
+	{/if}
 
 		{#if recentTextures.length > 0}
 			<section class="recents" aria-label="Recently used textures">
@@ -542,6 +690,7 @@
 			<ul class="texture-grid">
 				{#each orderedTextures as texture (texture.id)}
 					{@const state = textureLoadState(texture)}
+					{@const imageSrc = textureImageSrc(texture)}
 					<li class="texture-card" class:selected={selectedTextureId === texture.id}>
 						<button
 							type="button"
@@ -556,8 +705,10 @@
 								<span class="thumb-status" role="status">Loading…</span>
 							{:else if state?.status === 'error'}
 								<span class="thumb-status error" role="status">Load failed</span>
+							{:else if imageSrc}
+								<img src={imageSrc} alt="" loading="lazy" />
 							{:else}
-								<img src={texture.uri} alt="" loading="lazy" />
+								<span class="thumb-status">Unavailable</span>
 							{/if}
 							<strong>{texture.name}</strong>
 							<span class="uri">{texture.uri}</span>
@@ -682,6 +833,7 @@
 	.retry { align-self: flex-start; padding: 0.26rem 0.5rem; border: 1px solid var(--editor-danger-border); border-radius: 0.28rem; background: var(--editor-danger-soft); color: var(--editor-danger-fg); font: inherit; font-size: 0.66rem; cursor: pointer; }
 	/* Phase 5.4 — local-file texture register (Source toggle + drop zone) */
 	.register-source { display: grid; grid-template-columns: 1fr 1fr; gap: 0.3rem; }
+	.register-source.three { grid-template-columns: repeat(3, 1fr); }
 	.source-button {
 		padding: 0.34rem 0.5rem;
 		border: 1px solid var(--editor-border-normal);
@@ -719,4 +871,18 @@
 	.register .error { margin: 0; color: var(--editor-danger-fg); font-size: 0.66rem; }
 	.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; clip-path: inset(50%); }
 	.retry:hover { background: var(--editor-danger-soft); }
+	.project-assets { display: flex; flex-direction: column; gap: 0.35rem; }
+	.project-assets-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; }
+	.project-assets-heading h3 { margin: 0; color: var(--editor-text-secondary); font-size: 0.72rem; font-weight: 650; }
+	.project-assets-heading span { color: var(--editor-text-muted); font-size: 0.64rem; }
+	.project-asset-list { max-height: 24vh; }
+	.project-asset-row { display: grid; grid-template-columns: 2.5rem minmax(0, 1fr) auto; gap: 0.45rem; align-items: center; padding: 0.35rem; border: 1px solid var(--editor-border-subtle); border-radius: 0.35rem; background: var(--editor-bg-panel); }
+	.project-asset-thumb { display: flex; align-items: center; justify-content: center; width: 2.5rem; height: 2.5rem; overflow: hidden; border-radius: 0.24rem; background: var(--editor-bg-panel-raised); color: var(--editor-text-muted); font-size: 0.58rem; }
+	.project-asset-thumb img { width: 100%; height: 100%; object-fit: cover; }
+	.project-asset-info { display: flex; min-width: 0; flex-direction: column; gap: 0.12rem; }
+	.project-asset-info strong { overflow-wrap: anywhere; font-size: 0.72rem; }
+	.project-asset-info span { color: var(--editor-text-muted); font-size: 0.6rem; overflow-wrap: anywhere; }
+	.use-project-asset { padding: 0.3rem 0.42rem; border: 1px solid var(--editor-accent-border); border-radius: 0.28rem; background: var(--editor-bg-control); color: var(--editor-text-primary); font: inherit; font-size: 0.62rem; cursor: pointer; }
+	.use-project-asset:hover:not(:disabled) { background: var(--editor-bg-hover); }
+	.use-project-asset:disabled { opacity: 0.55; cursor: default; }
 </style>

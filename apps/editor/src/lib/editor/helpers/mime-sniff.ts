@@ -15,6 +15,8 @@
 
 import type { SupportedMime } from '@portfolio/project-model';
 
+export const PROJECT_ASSET_MAX_BYTES = 25 * 1024 * 1024;
+
 export function sniffImageMime(bytes: Uint8Array): SupportedMime | null {
 	if (bytes.length >= 8) {
 		const b0 = bytes[0];

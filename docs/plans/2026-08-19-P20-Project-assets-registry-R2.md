@@ -920,6 +920,11 @@ and leave unused `assets` table, never destructive down-migration.
 
 # S2 — Spatial registry integration
 
+**Owner shorthand:** P20.2. **Brief ready:** 2026-09-03 —
+[Spatial registry integration slice brief](2026-09-03-P20.2-spatial-registry-integration.md).
+**Entry gate:** P19 live/ready authenticated Save–Load smoke plus P20.1 private-R2
+authenticated smoke.
+
 Integrate the registry into the **existing Spatial asset system**.
 
 Do not build the final project-level Assets workspace yet.

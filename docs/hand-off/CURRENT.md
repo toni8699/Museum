@@ -7,7 +7,8 @@ slice plus one next action only.
 
 - Current planning delta: **P20 S0 asset contract + cloud-Save durability gate
   complete on 2026-09-03; P20.1/S1 API implementation is complete locally on
-  2026-09-03, behind the P19 Google OIDC/live deployment gate and owner-run R2
+  2026-09-03; P20.2/S2's Spatial registry integration brief is wired, all
+  behind the P19 Google OIDC/live deployment gate and owner-run R2
   provisioning.** P19's owner-run
   Render/Neon provisioning and passing live/ready smoke remain prerequisites
   for production Save/Load. The 2026-09-01 auth amendment ratifies Google
@@ -40,7 +41,8 @@ slice plus one next action only.
 - Finish P19's owner-approved Google OAuth web application, same-site
   production editor/API origins, Render secrets, and Neon migration; configure
   P20's private R2 bucket/secrets; then run the authenticated register → upload
-  → list/read → byte-fetch smoke before opening S2 registry integration.
+  → list/read → byte-fetch smoke before implementing the wired P20.2
+  Spatial registry integration brief.
 
 ## Verification
 

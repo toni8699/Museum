@@ -86,8 +86,10 @@ Account
 Spatial mode is the current editor and remains the core authoring system;
 Experience mode is the long-term direction described below. The public product
 may later include Landing, Examples / community projects, Guides / tutorials,
-Sign in, and Dashboard surfaces; those are not near-term roadmap work and are
-not over-designed ahead of schedule.
+Sign in, and Dashboard surfaces; Landing and Dashboard entry surfaces are
+reserved in the P21 tier (product shell + Project Hub), while Examples /
+community projects, Guides / tutorials, and Sign-in surfaces are not
+near-term roadmap work and are not over-designed ahead of schedule.
 
 ## Core authoring model — Spatial mode
 

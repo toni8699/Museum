@@ -84,8 +84,13 @@ export class EditorTextureLibraryController {
 	 * reuse the existing texture with no history. Verification happens
 	 * before any document transaction begins.
 	 */
-	async registerTexture(name: string, uri: string): Promise<string | null> {
+	async registerTexture(
+		name: string,
+		uri: string,
+		isCurrent: () => boolean = () => true
+	): Promise<string | null> {
 		const host = this.host;
+		if (!isCurrent()) return null;
 		const trimmedName = name.trim();
 		const trimmedUri = uri.trim();
 		if (!trimmedUri || !isSafeTextureUri(trimmedUri)) {
@@ -99,12 +104,14 @@ export class EditorTextureLibraryController {
 			return existing.id;
 		}
 		const verification = await this.textureVerifier(trimmedUri);
+		if (!isCurrent()) return null;
 		if (verification.status !== 'ready') {
 			host.setStatusMessage(verification.message);
 			return null;
 		}
 		// Recheck current state — Reset/Import/Undo/another registration may
 		// have replaced the document while the image loaded.
+		if (!isCurrent()) return null;
 		const raced = host.document.textures.find((texture) => texture.uri === trimmedUri);
 		if (raced) {
 			host.session.markTextureRecentlyUsed(raced.id);

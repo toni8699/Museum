@@ -8,6 +8,8 @@
 	// for the common boot-empty case. "Reset empty" is dropped (it duplicated
 	// the Project menu's resetLayout).
 	import type { Asset } from '$lib/types/assets';
+	import type { ProjectAssetMetadata } from '$lib/editor/project-persistence';
+	import { BinaryTextureStore } from '$lib/editor/store/binary-texture-store.svelte';
 	import EditorAssetLibrary from '$lib/editor/EditorAssetLibrary.svelte';
 	import {
 		layoutPreviewSessionStatus,
@@ -31,6 +33,13 @@
 		outlinerElement = $bindable(),
 		onAssetSelection,
 		onSelectAsset,
+		projectAssets = [],
+		projectAssetsStatus = 'unavailable',
+		retryableProjectAssetId = null,
+		onUploadProjectTexture,
+		onRetryProjectTexture,
+		onAcceptProjectTexture,
+		onProjectTextureFileSelected,
 		contextMenu = null
 	}: {
 		store: EditorStore;
@@ -41,6 +50,13 @@
 		outlinerElement?: HTMLElement | null;
 		onAssetSelection?: (asset: Asset | undefined) => void;
 		onSelectAsset?: (asset: Asset) => void;
+		projectAssets?: readonly ProjectAssetMetadata[];
+		projectAssetsStatus?: 'unavailable' | 'loading' | 'ready' | 'error';
+		retryableProjectAssetId?: string | null;
+		onUploadProjectTexture?: (name: string, bytes: Uint8Array) => Promise<string | null>;
+		onRetryProjectTexture?: () => Promise<string | null>;
+		onAcceptProjectTexture?: (assetId: string) => Promise<string | null>;
+		onProjectTextureFileSelected?: () => void;
 		contextMenu?: EditorContextMenuStore | null;
 	} = $props();
 
@@ -56,6 +72,11 @@
 
 	function switchLeftPanel(panel: 'scene' | 'assets') {
 		store.setLeftPanel(panel);
+	}
+
+	function resolveTextureImageSrc(uri: string): string | null {
+		const source = BinaryTextureStore.objectUrlFor(uri) ?? uri;
+		return source.startsWith('/project-assets/') ? null : source;
 	}
 
 	// S10.1 — Rooms header (+): jump to Scene → Plan and start a rectangle-room draft.
@@ -128,7 +149,19 @@
 		</div>
 		{#if showScenePanelTabs}
 			<div class="panel-content" class:panel-content--hidden={store.leftPanel !== 'assets'}>
-				<EditorAssetLibrary {store} onselectionchange={onAssetSelection} {onSelectAsset} />
+				<EditorAssetLibrary
+					{store}
+					onselectionchange={onAssetSelection}
+					{onSelectAsset}
+					{projectAssets}
+					{projectAssetsStatus}
+					{retryableProjectAssetId}
+					{onUploadProjectTexture}
+					{onRetryProjectTexture}
+					{onAcceptProjectTexture}
+					{onProjectTextureFileSelected}
+					{resolveTextureImageSrc}
+				/>
 			</div>
 		{/if}
 	{/if}

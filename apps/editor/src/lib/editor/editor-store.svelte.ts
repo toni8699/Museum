@@ -2444,8 +2444,12 @@ export class EditorStore {
 	// `options.textureVerifier ?? createTextureVerifier()` defaulting stays
 	// intact.
 
-	async registerTexture(name: string, uri: string): Promise<string | null> {
-		return this.textureLibraryController.registerTexture(name, uri);
+	async registerTexture(
+		name: string,
+		uri: string,
+		isCurrent?: () => boolean
+	): Promise<string | null> {
+		return this.textureLibraryController.registerTexture(name, uri, isCurrent);
 	}
 
 	async registerLocalFileTexture(

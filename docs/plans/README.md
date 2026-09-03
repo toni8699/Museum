@@ -75,7 +75,7 @@ Policy rules:
 | P17 | editor / visitor app split — slice 3 of the ratified migration review: standalone `@portfolio/editor` and read-only `@portfolio/museum`, with the relic gated into editor and source/runtime visitor boundary pins | **shipped 2026-08-30** | P16 | archived → [2026-08-30-P17-app-split.md](../archive/plans/2026-08-30-P17-app-split.md) |
 | P18 | backend provisioning — slice 4 of the ratified migration review: deploy `@biskiq/api` Fastify compute on Render, connect it to separately provisioned Neon Postgres through secret `DATABASE_URL`, and add process/database health checks with no persistence schema yet | **shipped 2026-08-30 — infrastructure boundary; owner-run Render/Neon provisioning remains the P19 gate** | P17 | archived → [2026-08-30-P18-backend-provisioning.md](../archive/plans/2026-08-30-P18-backend-provisioning.md) |
 | P19 | first project persistence — authenticated semantic-document Save/Load, immutable project versions, single-user ownership, and P19.4 guest-first entry/Project Shell closeout | in-progress — Google OIDC/live deployment gate remains | P18 | [umbrella](2026-08-30-P19-project-persistence.md) · [P19.4 annex](2026-09-02-P19.4-editor-shell.md) |
-| P20 | Project Asset Registry + R2 — durable project-scoped texture assets, authenticated storage, Spatial integration, portable package fidelity, and refresh/Load resolution | in-progress — S0 + S1 implementation complete locally; P20.2 brief ready 2026-09-03; P19 live gate + owner-run R2 provisioning remain | P19 | [umbrella](2026-08-19-P20-Project-assets-registry-R2.md) · [P20.2 brief](2026-09-03-P20.2-spatial-registry-integration.md) |
+| P20 | Project Asset Registry + R2 — durable project-scoped texture assets, authenticated storage, Spatial integration, portable package fidelity, and refresh/Load resolution | in-progress — S0 + S1 + S2 / P20.2 implemented locally (shipped 2026-09-03); **P20.3 and P20.4 remain**; P19 live gate + owner-run R2 provisioning remain | P19 | [umbrella](2026-08-19-P20-Project-assets-registry-R2.md) · [P20.2 brief](2026-09-03-P20.2-spatial-registry-integration.md) · [P20.3 brief](2026-09-03-P20.3-texture-durable-conversion.md) |
 | — | Branch rejoin — **experiment, no schedule** (rejoin into a later Sequence stop; dead-end return already ships; multi-edge playback would compose P8's edge primitive) | proposed | P8 conceptually | [2026-08-21-branch-rejoin-experiment.md](2026-08-21-branch-rejoin-experiment.md) |
 | … | future work re-registers here | | | |
 
@@ -254,8 +254,8 @@ P-number; the numbered tiers below are next-free-number reservations
   [`../Design-specs`](../Design-specs/); nothing commits to implementation
   until its plan doc is filed.
 - **P20 — Project Asset Registry + R2.** Registered and in-progress — see the
-  active row above (S0 + S1 implemented locally; held by the P19 live gate +
-  owner-run R2 provisioning/smoke).
+  active row above (S0 + S1 + S2 / P20.2 implemented locally; **P20.3 and
+  P20.4 remain**; held by the P19 live gate + owner-run R2 provisioning/smoke).
 - **P21 — Product shell + Project Hub + core editor UX polish.** Landing/entry
   flow, dashboard / project cards, shell navigation, Save/auth/account states,
   asset entry points, and editor chrome/density cleanup. Direction only; the

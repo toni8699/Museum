@@ -31,18 +31,25 @@ P18 provisions only the Render API and Neon database through secret
 `DATABASE_URL`. P19 introduces the first Google OpenID Connect integration
 (Authorization Code + PKCE) and the app-owned secure session needed for
 verified identity, single-user project ownership, and authenticated project
-Save/Load endpoints. R2 remains a later slice; richer auth UX/hardening,
-permissions/memberships, teams, and collaboration also remain later.
-Experience mode/schema remains outside P18/P19. External identity proves who
-the user is; Fastify + Postgres own product authorization and project
-permissions.
+Save/Load endpoints. **P20 introduces the project-scoped asset registry +
+private R2 storage** — asset metadata in Postgres, heavy bytes in Cloudflare
+R2 through `apps/api` only (no R2/S3 client enters the editor or shared
+packages). P20.2 has landed in Spatial for project texture upload/list/use;
+P20.3/P20.4 remain the durability / cloud-Save-blocker / refresh-Load
+completion work unless the current tree proves otherwise. Richer auth
+UX/hardening, permissions/memberships, teams, and collaboration also remain
+later. Experience mode/schema remains outside P18/P19/P20. External identity
+proves who the user is; Fastify + Postgres own product authorization and
+project permissions.
 
 ## Project-level surfaces (future)
 
 The current `Scene | Camera` × `Plan | 3D` workspaces are the canonical
-**Spatial** authoring surface and remain unchanged. Long-term, the project
-shell adds three project-level surfaces without renaming or flattening the
-Spatial model:
+**Spatial** authoring surface and remain unchanged. Per the North Star, the
+project has **two primary creative modes — Spatial and Experience** — plus the
+project-level supporting surfaces **Assets** and **Publish**. These are not
+four identical authoring modes; they join the shell without renaming or
+flattening the Spatial model:
 
 - **Experience** — visitor-facing navigation and presentation. It *references*
   Spatial truth (existing cameras, rooms, authored destinations) and never
@@ -91,12 +98,28 @@ are never serialized.
 | Working on… | Read | Key source |
 |---|---|---|
 | Shell / workspaces / timeline | [`components/shell.md`](./components/shell.md) | `apps/editor/src/lib/editor/app/` |
+| P21+ product shell / Hub / chrome target | [`Design-specs/Design-Plan(P21+).md`](./Design-specs/Design-Plan(P21+).md) | — |
 | Entities / materials / lights | [`components/scene-content.md`](./components/scene-content.md) | app-local `src/lib/content/` facades |
 | Gizmo / placement / transforms | [`components/placement.md`](./components/placement.md) | `apps/editor/src/lib/editor/gizmo/` |
 | Camera / tour / motion | [`components/camera-tour.md`](./components/camera-tour.md) | `packages/camera-core/src/` · visitor components in `apps/museum/src/lib/museum/navigation/` |
 | Persistence / schema / history | [`components/persistence.md`](./components/persistence.md) | `packages/project-model/src/` · `packages/layout-core/src/` · app facades |
 | Scene codec internals | [`components/scene-codec.md`](./components/scene-codec.md) | `packages/project-model/src/scene-codec/` · app facade |
-| Assets / catalogue | [`components/assets.md`](./components/assets.md) | app-local `src/lib/content/assets.ts` |
+| Assets / catalogue / project asset registry | [`components/assets.md`](./components/assets.md) | app-local `src/lib/content/assets.ts` · editor registry UI/persistence (`EditorAssetLibrary.svelte` · `project-persistence.ts`) |
+
+**Shell source index**
+
+```text
+Target product IA / P21+ chrome
+→ docs/Design-specs/Design-Plan(P21+).md
+
+Current implementation map
+→ docs/components/shell.md
+
+Per-workspace exposure
+→ docs/Design-specs/Design-shell-specs.md
+→ docs/Design-specs/Shell-scene-workspaces.md
+→ docs/Design-specs/Shell-camera-workspaces.md
+```
 
 ## Geometry boundary
 

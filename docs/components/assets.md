@@ -1,8 +1,46 @@
 # Assets
 
-**Read when:** Paris GLBs, licences, catalogue, import/replace models.  
-**Last reviewed:** 2026-08-23  
+**Read when:** Paris GLBs, licences, catalogue, import/replace models, project texture registry.  
+**Last reviewed:** 2026-09-03 (P20.2)  
 **Full checklist:** [`../archive/ASSET_WORKFLOW.md`](../archive/ASSET_WORKFLOW.md)
+
+---
+
+## Current asset system (2026-09-03 — P20.2)
+
+```text
+Built-in catalogue
+→ existing catalogue/static behavior
+→ no P20.2 registry row required
+
+Local file texture
+→ session BinaryTextureStore
+→ package portability path
+→ not durable cloud storage by itself
+
+Cloud file texture
+→ authenticated owned project
+→ registry metadata
+→ private R2 bytes
+→ logical /project-assets/{assetId}
+→ existing SceneTextureAsset registration
+→ existing drag/assignment/render path
+
+Project registry rows
+→ currently texture/image focused
+→ PNG/WebP/JPEG
+```
+
+P20.2 does **not** build the final Assets workspace. P20.3 owns current
+local/package durability conversion; P20.4 owns refresh/Load resolution. GLB
+import, provider search, and delete/GC remain deferred unless newer code
+proves otherwise. Built-ins retain catalogue identity — do not invent
+registry behavior for them.
+
+The catalogue rows below describe the built-in asset model; the project
+registry is separate and is served through the authenticated API (see
+[`editor/project-persistence.ts`](../../apps/editor/src/lib/editor/project-persistence.ts)
+and `EditorAssetLibrary.svelte`).
 
 ---
 

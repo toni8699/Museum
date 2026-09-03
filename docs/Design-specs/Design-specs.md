@@ -1,11 +1,22 @@
 # Museum Editor — UI Design System & Implementation Specification
 
 **Status:** canonical UI implementation specification — ratified 2026-08-19;
-reconciled 2026-08-23 by P9. Blue `#2F8CFF` is the sole target accent system.
+reconciled 2026-08-23 by P9; shell placement/dimensions amended 2026-09-03 by
+the P21+ shell plan (see note below). Blue `#2F8CFF` is the sole target accent
+system.
 **Scope:** technology, component stack, visual tokens, typography, iconography, panel sizing, interaction states, Scene/Camera × Plan/3D workspaces, Inspector, Asset Library, Outliner, Camera Timeline.
 **Provenance:** governs the canonical concepts registered in
 [`Design-png/README.md`](../../Design-png/README.md); executed by
 [P3](../archive/plans/2026-08-18-P3-ui-overhaul.md).
+
+> **P21+ amendment (2026-09-03):** shell **placement and dimensions** are
+> amended by [`Design-Plan(P21+).md`](./Design-Plan(P21+).md) — the P21+
+> two-row shell (Row 1 Project Row + Row 2 Workspace Ribbon) supersedes the
+> single 56px app bar and permanent floating viewport toolbar described in the
+> sections below. This amendment covers chrome placement/sizing only; the
+> broader visual language (color, tokens, typography, panels, spacing),
+> workspace behavior, and capability rules in this specification remain
+> canonical.
 
 This specification translates the approved product model and generated UI concepts into concrete implementation rules. The canonical product remains the explicit `Scene | Camera` × `Plan | 3D` domain/view system:
 
@@ -679,10 +690,15 @@ Use modest radii:
 small controls:       4px
 buttons/inputs:       5px
 segmented controls:   6px
-floating toolbar:     7px
+transient/floating viewport utility: 7px
 popover/menu:         7px
 large panel:          0px
 ```
+
+The radius above applies to transient/floating viewport utilities and
+popovers, not to a permanent floating toolbar — under the P21+ amendment,
+contextual authoring tools live in the Workspace Ribbon (Row 2), which is not a
+floating surface.
 
 Panels themselves should generally meet edge-to-edge.
 
@@ -712,14 +728,17 @@ Focus:
 0 0 0 2px rgba(47,140,255,.18)
 ```
 
-Floating contextual toolbar:
+Transient/floating viewport utility (elevation only — not a permanent toolbar):
 
 ```css
 box-shadow:
   0 8px 24px rgba(0, 0, 0, 0.38);
 ```
 
-Menus/popovers use a smaller equivalent.
+Menus/popovers use a smaller equivalent. Under the P21+ amendment there is no
+permanent floating contextual toolbar; the Workspace Ribbon (Row 2) hosts
+permanent contextual authoring tools without a drop shadow between chrome
+rows.
 
 Do not put drop shadows between permanent side panels.
 
@@ -727,36 +746,42 @@ Do not put drop shadows between permanent side panels.
 
 # 15. Shell dimensions
 
-Recommended desktop reference:
+**P21+ target (amended by [`Design-Plan(P21+).md`](./Design-Plan(P21+).md)):**
+the single-app-bar target is superseded by a two-row top chrome. The runtime
+CSS tokens `--editor-appbar-height` (56px) and `--editor-status-height` (32px)
+still carry the pre-P21 values; P21 implementation migrates them. There is no
+permanent floating viewport toolbar.
 
 ```text
-App bar:            56px
+Project Row:       36px
+Workspace Ribbon:  32px
+Total top chrome:  68px
 
-Left sidebar:       300px
-minimum:            240px
-maximum:            420px
+Left sidebar:      300px
+minimum:           240px
+maximum:           420px
 
-Right Inspector:    320px
-minimum:            280px
-maximum:            420px
+Right Inspector:   320px
+minimum:           280px
+maximum:           420px
 
-Status bar:         32px
+Status bar:        24px (P21 target)
 
-Floating toolbar:   38–40px high
+Transient/floating viewport utilities: 38–40px high
 ```
 
 Shell:
 
 ```text
-┌──────────────── App Bar ──────────────────┐
-│ left │          viewport          │ right │
-│      │                            │       │
-├──────┴──── Camera Timeline ───────┴───────┤
-│                Status                     │
-└───────────────────────────────────────────┘
+┌──────────── Project Row ─────────────────┐
+├───────── Workspace Ribbon ───────────────┤
+│ left │          viewport          │ right│
+├──────┴──── Camera Timeline ───────┴─────┤
+│                Status                    │
+└──────────────────────────────────────────┘
 ```
 
-Top = actions.
+Top = project context + workspace authoring tools.
 Left = structure/resources.
 Center = world.
 Right = properties.
@@ -808,6 +833,10 @@ gap:           6px
 font:         13px / 500
 radius:        5px
 ```
+
+> **P21+ Row 2 rule (see §18):** contextual authoring buttons inside the
+> Workspace Ribbon use the 28px compact sizing; the 32px above applies to
+> standard buttons outside the Ribbon.
 
 Default:
 
@@ -867,6 +896,22 @@ height: 34px
 min width/item: 74px
 font: 13px / 500
 ```
+
+> **P21+ Row 2 supersession (amended by
+> [`Design-Plan(P21+).md`](./Design-Plan(P21+).md)):** the 34px height above
+> applies to segmented controls **outside** the Workspace Ribbon. Row 2 uses
+> the compact rule:
+
+```text
+Workspace Ribbon compact controls: 28px
+- Scene | Camera
+- Plan | 3D
+- Layout | Arrange
+- contextual Row 2 authoring buttons
+```
+
+Standard controls outside the Workspace Ribbon may retain the existing 32px
+sizing where applicable.
 
 Selected:
 
@@ -1008,13 +1053,22 @@ Do not put large colored status backgrounds behind entire cards.
 
 ---
 
-# 22. Contextual viewport toolbar
+# 22. Contextual authoring tools — Workspace Ribbon (Row 2)
 
-Toolbar floats near top center/left of viewport.
+**P21+ model (amended by [`Design-Plan(P21+).md`](./Design-Plan(P21+).md)):**
+permanent contextual authoring tools live in the Workspace Ribbon (Row 2),
+not in a toolbar floating over the viewport. The tool sets per workspace below
+are unchanged; only their placement changed. Viewport-local floating UI is
+reserved for things with spatial meaning: orientation cube, TransformControls,
+rotation handles, path anchors, camera/frustum helpers, and
+selection/direct-manipulation fixtures. The Camera Timeline transport is **not**
+relocated into Row 2.
 
-Scene → Plan:
+Scene → Plan populates the Ribbon with:
 
 ```text
+Scene | Camera
+Plan | 3D
 Layout | Arrange
 Select
 Wall
@@ -1026,9 +1080,11 @@ Measure
 …
 ```
 
-Scene → 3D:
+Scene → 3D populates the Ribbon with:
 
 ```text
+Scene | Camera
+Plan | 3D
 Select
 Move
 Rotate
@@ -1039,9 +1095,11 @@ Snap
 …
 ```
 
-Camera → Plan:
+Camera → Plan populates the Ribbon with:
 
 ```text
+Scene | Camera
+Plan | 3D
 Select
 Add Camera
 Connect
@@ -1049,9 +1107,11 @@ View
 …
 ```
 
-Camera → 3D:
+Camera → 3D populates the Ribbon with:
 
 ```text
+Scene | Camera
+Plan | 3D
 Select
 Move
 Rotate
@@ -1639,7 +1699,7 @@ The frame stays mounted. Workspace content changes.
 Create one design-token file rather than repeating values:
 
 ```text
-src/lib/editor/styles/
+apps/editor/src/lib/editor/styles/
 ├─ tokens.css
 ├─ editor-shell.css
 ├─ controls.css
@@ -1710,8 +1770,8 @@ Example:
   --editor-radius-md: 5px;
   --editor-radius-lg: 7px;
 
-  --editor-appbar-height:    56px;
-  --editor-status-height:    32px;
+  --editor-appbar-height:    56px; /* pre-P21; P21 target: Row 1 36px + Row 2 32px */
+  --editor-status-height:    32px; /* pre-P21; P21 target: 24px */
   --editor-left-width:       300px;
   --editor-right-width:      320px;
   --editor-timeline-height:  288px;

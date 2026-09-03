@@ -31,9 +31,14 @@
 	import type { ProjectDocument } from '$lib/project/project-types';
 	import { createLayoutRoomRegistry } from '$lib/project/project-layout-semantics';
 	import { serializeSceneDocument } from '$lib/content/scene-codec';
+	import type { SceneTextureAsset } from '$lib/content/scene';
 	import { serializeLayoutDocument } from '$lib/layout/layout-codec';
 	import { hasBlockingLayoutIssues } from '$lib/layout/layout-geometry-validation';
-	import { computeCloudSaveBlocker } from '$lib/editor/store/project-export-store.svelte';
+	import {
+		computeCloudSaveBlocker,
+		isPackageRewriteUri,
+		isProjectAssetUri
+	} from '$lib/editor/store/project-export-store.svelte';
 	import {
 		captureLayoutPreviewSnapshot,
 		createEmptyLayoutPreviewState,
@@ -124,6 +129,7 @@
 	let projectAssets = $state<ProjectAssetMetadata[]>([]);
 	let projectAssetsStatus = $state<'unavailable' | 'loading' | 'ready' | 'error'>('unavailable');
 	let retryableProjectAssetId = $state<string | null>(null);
+	let retryableProjectTextureId = $state<string | null>(null);
 	let projectAssetMutationInFlight = $state(false);
 	let projectAssetContextId: string | null = null;
 	let projectAssetEpoch = 0;
@@ -132,6 +138,8 @@
 	let projectAssetListController: AbortController | null = null;
 	let projectAssetMutationController: AbortController | null = null;
 	let projectAssetRetry: ProjectAssetRetry | null = null;
+	const projectAssetRetainedSourceUris = new Set<string>();
+	const projectAssetExportControllers = new Set<AbortController>();
 	let saveAuthGateOpen = $state(false);
 	let pendingSaveActive = $state(untrack(() => resumePendingSave));
 	const projectApiOrigin = configuredProjectPersistence?.apiOrigin ?? env.PUBLIC_API_ORIGIN;
@@ -373,11 +381,17 @@
 		return true;
 	}
 
+	type ProjectAssetIntent =
+		| { kind: 'register' }
+		| { kind: 'replace'; textureId: string; sourceUri: string };
+
 	type ProjectAssetRetry = {
 		projectId: string;
 		assetId: string;
 		name: string;
 		bytes: Uint8Array;
+		intent: ProjectAssetIntent;
+		ready: ProjectAssetMetadata | null;
 	};
 
 	type ProjectAssetOperation = {
@@ -388,14 +402,24 @@
 	};
 
 	function retainCurrentSceneTextureBytes(): void {
-		untrack(() =>
-			BinaryTextureStore.clearExcept(new Set(store.document.textures.map((texture) => texture.uri)))
-		);
+		untrack(() => {
+			const retainUris = new Set(store.document.textures.map((texture) => texture.uri));
+			for (const uri of projectAssetRetainedSourceUris) retainUris.add(uri);
+			BinaryTextureStore.clearExcept(retainUris);
+		});
+	}
+
+	function setProjectAssetRetry(retry: ProjectAssetRetry): void {
+		projectAssetRetry = retry;
+		retryableProjectAssetId = retry.assetId;
+		retryableProjectTextureId =
+			retry.intent.kind === 'replace' ? retry.intent.textureId : null;
 	}
 
 	function clearProjectAssetRetry(): void {
 		projectAssetRetry = null;
 		retryableProjectAssetId = null;
+		retryableProjectTextureId = null;
 	}
 
 	function invalidateProjectAssets(): void {
@@ -404,6 +428,8 @@
 		projectAssetMutationToken += 1;
 		projectAssetListController?.abort();
 		projectAssetMutationController?.abort();
+		for (const controller of projectAssetExportControllers) controller.abort();
+		projectAssetExportControllers.clear();
 		projectAssetListController = null;
 		projectAssetMutationController = null;
 		projectAssetMutationInFlight = false;
@@ -412,6 +438,7 @@
 		projectAssetsStatus = 'unavailable';
 		clearProjectAssetRetry();
 		retainCurrentSceneTextureBytes();
+		projectAssetRetainedSourceUris.clear();
 	}
 
 	function isCurrentProjectAssetContext(targetProjectId: string, epoch: number): boolean {
@@ -504,6 +531,80 @@
 		return `/project-assets/${assetId}`;
 	}
 
+	function readyProjectAssetForCurrentProject(
+		uri: string,
+		expectedProjectId: string | null = projectId
+	): ProjectAssetMetadata | null {
+		if (
+			!isProjectAssetUri(uri) ||
+			!expectedProjectId ||
+			!isCurrentProjectAssetContext(expectedProjectId, projectAssetEpoch)
+		) {
+			return null;
+		}
+		const assetId = uri.slice('/project-assets/'.length);
+		const asset = projectAssets.find(
+			(candidate) => candidate.id === assetId && candidate.projectId === expectedProjectId
+		);
+		if (
+			!asset ||
+			asset.kind !== 'texture' ||
+			asset.storageKind !== 'r2' ||
+			asset.sourceKind !== 'upload' ||
+			asset.importState !== 'ready' ||
+			asset.mime === null ||
+			asset.byteSize === null ||
+			!Number.isFinite(asset.byteSize) ||
+			asset.byteSize <= 0 ||
+			asset.byteSize > PROJECT_ASSET_MAX_BYTES ||
+			!asset.sha256?.trim()
+		) {
+			return null;
+		}
+		return asset;
+	}
+
+	function isReadyProjectAssetForSave(uri: string, expectedProjectId: string): boolean {
+		return readyProjectAssetForCurrentProject(uri, expectedProjectId) !== null;
+	}
+
+	function upsertProjectAsset(asset: ProjectAssetMetadata, operation: ProjectAssetOperation): void {
+		if (!isCurrentProjectAssetOperation(operation)) return;
+		const index = projectAssets.findIndex((candidate) => candidate.id === asset.id);
+		if (index === -1) projectAssets = [asset, ...projectAssets];
+		else projectAssets[index] = asset;
+		if (projectAssetsStatus === 'unavailable' || projectAssetsStatus === 'error') {
+			projectAssetsStatus = 'ready';
+		}
+	}
+
+	function isCurrentProjectAssetIntent(
+		operation: ProjectAssetOperation,
+		retry: ProjectAssetRetry
+	): boolean {
+		if (!isCurrentProjectAssetOperation(operation)) return false;
+		if (retry.intent.kind === 'register') return true;
+		return store.document.textures.some(
+			(texture) =>
+				texture.id === retry.intent.textureId && texture.uri === retry.intent.sourceUri
+		);
+	}
+
+	function conversionSource(textureId: string):
+		| { texture: SceneTextureAsset; bytes: Uint8Array; mime: NonNullable<ProjectAssetMetadata['mime']> }
+		| null {
+		if (!projectAssetsAvailable) return null;
+		const texture = store.document.textures.find((candidate) => candidate.id === textureId);
+		if (!texture || !isPackageRewriteUri(texture.uri)) return null;
+		const entry = BinaryTextureStore.getEntry(texture.uri);
+		if (!entry || entry.bytes.byteLength === 0 || entry.bytes.byteLength > PROJECT_ASSET_MAX_BYTES) {
+			return null;
+		}
+		const mime = sniffImageMime(entry.bytes);
+		if (!mime || entry.mime !== mime) return null;
+		return { texture, bytes: entry.bytes.slice(), mime };
+	}
+
 	function readyProjectAssetMatches(
 		asset: ProjectAssetMetadata,
 		operation: ProjectAssetOperation,
@@ -563,28 +664,47 @@
 
 	async function finishProjectAssetUpload(
 		operation: ProjectAssetOperation,
-		name: string,
-		assetId: string,
-		bytes: Uint8Array,
+		retry: ProjectAssetRetry,
 		mime: ProjectAssetMetadata['mime']
 	): Promise<string | null> {
-		const uploaded = await projectApi!.uploadAsset(
-			operation.projectId,
-			assetId,
-			bytes,
-			operation.controller.signal
-		);
-		if (!isCurrentProjectAssetOperation(operation)) return null;
-		if (!mime || !readyProjectAssetMatches(uploaded, operation, assetId, bytes, mime)) {
-			throw new ProjectPersistenceError('invalid', 'Cloud asset upload returned invalid metadata');
+		if (!isCurrentProjectAssetIntent(operation, retry)) return null;
+		const assetId = retry.assetId;
+		let uploaded = retry.ready;
+		if (!uploaded) {
+			uploaded = await projectApi!.uploadAsset(
+				operation.projectId,
+				assetId,
+				retry.bytes,
+				operation.controller.signal
+			);
+			if (!isCurrentProjectAssetIntent(operation, retry)) return null;
+			if (!mime || !readyProjectAssetMatches(uploaded, operation, assetId, retry.bytes, mime)) {
+				throw new ProjectPersistenceError('invalid', 'Cloud asset upload returned invalid metadata');
+			}
+			retry.ready = uploaded;
+		} else if (!mime || !readyProjectAssetMatches(uploaded, operation, assetId, retry.bytes, mime)) {
+			throw new ProjectPersistenceError('invalid', 'Cached cloud asset metadata is no longer valid');
 		}
 
+		upsertProjectAsset(uploaded, operation);
 		const uri = projectAssetUri(assetId);
-		if (!(await primeVerifiedProjectAsset(operation, uri, bytes, mime, uploaded.sha256!))) return null;
-		const textureId = await registerPrimedProjectTexture(operation, name, uri);
+		if (!(await primeVerifiedProjectAsset(operation, uri, retry.bytes, mime!, uploaded.sha256!))) return null;
+		let textureId: string | null;
+		if (retry.intent.kind === 'replace') {
+			if (
+				!isCurrentProjectAssetIntent(operation, retry) ||
+				!store.replaceTextureUri(retry.intent.textureId, retry.intent.sourceUri, uri)
+			) {
+				throw new ProjectPersistenceError('invalid', 'Could not replace the texture reference');
+			}
+			projectAssetRetainedSourceUris.add(retry.intent.sourceUri);
+			textureId = retry.intent.textureId;
+		} else {
+			textureId = await registerPrimedProjectTexture(operation, retry.name, uri);
+		}
 		if (!isCurrentProjectAssetOperation(operation)) return null;
 		if (!textureId) {
-			clearProjectAssetRetry();
+			retainCurrentSceneTextureBytes();
 			await refreshProjectAssets(operation.projectId);
 			return null;
 		}
@@ -621,7 +741,6 @@
 		const operation = beginProjectAssetMutation();
 		if (!operation) return null;
 		const uploadBytes = bytes.slice();
-		let retry: ProjectAssetRetry | null = null;
 		try {
 			const registered = await projectApi!.registerAsset(
 				operation.projectId,
@@ -638,15 +757,17 @@
 			) {
 				throw new ProjectPersistenceError('invalid', 'Cloud asset registration returned invalid metadata');
 			}
-			retry = {
+			const retry: ProjectAssetRetry = {
 				projectId: operation.projectId,
 				assetId: registered.id,
 				name: trimmedName,
-				bytes: uploadBytes
+				bytes: uploadBytes,
+				intent: { kind: 'register' },
+				ready: null
 			};
-			projectAssetRetry = retry;
-			retryableProjectAssetId = registered.id;
-			return await finishProjectAssetUpload(operation, trimmedName, registered.id, uploadBytes, mime);
+			upsertProjectAsset(registered, operation);
+			setProjectAssetRetry(retry);
+			return await finishProjectAssetUpload(operation, retry, mime);
 		} catch (error) {
 			if (!isCurrentProjectAssetOperation(operation) || isAborted(error, operation.controller.signal)) {
 				return null;
@@ -655,9 +776,8 @@
 				store.setStatusMessage('Sign-in is required');
 				return null;
 			}
-			if (retry) {
-				projectAssetRetry = retry;
-				retryableProjectAssetId = retry.assetId;
+			if (projectAssetRetry) {
+				setProjectAssetRetry(projectAssetRetry);
 				void refreshProjectAssets(operation.projectId);
 			}
 			store.setStatusMessage(persistenceMessage(error, 'Could not upload texture'));
@@ -682,13 +802,7 @@
 		const operation = beginProjectAssetMutation();
 		if (!operation || operation.projectId !== retry.projectId) return null;
 		try {
-			return await finishProjectAssetUpload(
-				operation,
-				retry.name,
-				retry.assetId,
-				retry.bytes,
-				mime
-			);
+			return await finishProjectAssetUpload(operation, retry, mime);
 		} catch (error) {
 			if (!isCurrentProjectAssetOperation(operation) || isAborted(error, operation.controller.signal)) {
 				return null;
@@ -697,8 +811,70 @@
 				store.setStatusMessage('Sign-in is required');
 				return null;
 			}
+			setProjectAssetRetry(retry);
 			void refreshProjectAssets(operation.projectId);
 			store.setStatusMessage(persistenceMessage(error, 'Could not retry texture upload'));
+			return null;
+		} finally {
+			if (operation.token === projectAssetMutationToken) {
+				projectAssetMutationInFlight = false;
+				projectAssetMutationController = null;
+			}
+		}
+	}
+
+	function canConvertProjectTexture(texture: SceneTextureAsset): boolean {
+		return conversionSource(texture.id)?.texture.uri === texture.uri;
+	}
+
+	async function convertProjectTexture(textureId: string): Promise<string | null> {
+		const source = conversionSource(textureId);
+		if (!source) {
+			store.setStatusMessage('Select a cached local or package texture to save to the project');
+			return null;
+		}
+		const operation = beginProjectAssetMutation();
+		if (!operation) return null;
+		const sourceUri = source.texture.uri;
+		projectAssetRetainedSourceUris.add(sourceUri);
+		try {
+			const registered = await projectApi!.registerAsset(
+				operation.projectId,
+				source.texture.name,
+				operation.controller.signal
+			);
+			if (!isCurrentProjectAssetOperation(operation)) return null;
+			if (
+				registered.projectId !== operation.projectId ||
+				registered.kind !== 'texture' ||
+				registered.storageKind !== 'r2' ||
+				registered.sourceKind !== 'upload' ||
+				registered.importState !== 'pending'
+			) {
+				throw new ProjectPersistenceError('invalid', 'Cloud asset registration returned invalid metadata');
+			}
+			const retry: ProjectAssetRetry = {
+				projectId: operation.projectId,
+				assetId: registered.id,
+				name: source.texture.name,
+				bytes: source.bytes,
+				intent: { kind: 'replace', textureId, sourceUri },
+				ready: null
+			};
+			upsertProjectAsset(registered, operation);
+			setProjectAssetRetry(retry);
+			return await finishProjectAssetUpload(operation, retry, source.mime);
+		} catch (error) {
+			if (!isCurrentProjectAssetOperation(operation) || isAborted(error, operation.controller.signal)) {
+				return null;
+			}
+			if (clearExpiredProjectSession(error)) {
+				store.setStatusMessage('Sign-in is required');
+				return null;
+			}
+			if (projectAssetRetry) setProjectAssetRetry(projectAssetRetry);
+			void refreshProjectAssets(operation.projectId);
+			store.setStatusMessage(persistenceMessage(error, 'Could not save texture to project'));
 			return null;
 		} finally {
 			if (operation.token === projectAssetMutationToken) {
@@ -780,6 +956,56 @@
 
 	function onProjectTextureFileSelected(): void {
 		clearProjectAssetRetry();
+	}
+
+	async function resolveProjectAssetBytes(uri: string): Promise<Uint8Array | null> {
+		const targetProjectId = projectId;
+		const epoch = projectAssetEpoch;
+		const asset = readyProjectAssetForCurrentProject(uri, targetProjectId);
+		if (!projectApi || !asset || !targetProjectId) return null;
+		const controller = new AbortController();
+		projectAssetExportControllers.add(controller);
+		try {
+			const content = await projectApi.loadAssetContent(
+				targetProjectId,
+				asset.id,
+				controller.signal
+			);
+			if (
+				!isCurrentProjectAssetContext(targetProjectId, epoch) ||
+				!isReadyProjectAssetForSave(uri, targetProjectId)
+			) {
+				return null;
+			}
+			if (
+				content.mime !== asset.mime ||
+				content.bytes.byteLength !== asset.byteSize ||
+				sniffImageMime(content.bytes) !== content.mime
+			) {
+				throw new ProjectPersistenceError('invalid', 'Cloud asset bytes failed validation');
+			}
+			let registered = false;
+			await registerVerifiedProjectAsset(content.bytes, asset.sha256!, (fingerprint) => {
+				if (!isCurrentProjectAssetContext(targetProjectId, epoch)) return;
+				registered = true;
+				return BinaryTextureStore.register(uri, content.bytes, content.mime, fingerprint);
+			});
+			return registered && isCurrentProjectAssetContext(targetProjectId, epoch)
+				? content.bytes
+				: null;
+		} catch (error) {
+			if (isAborted(error, controller.signal) || !isCurrentProjectAssetContext(targetProjectId, epoch)) {
+				return null;
+			}
+			if (clearExpiredProjectSession(error)) {
+				store.setStatusMessage('Sign-in is required');
+				return null;
+			}
+			store.setStatusMessage(persistenceMessage(error, 'Could not resolve project texture bytes'));
+			return null;
+		} finally {
+			projectAssetExportControllers.delete(controller);
+		}
 	}
 
 	type SaveSnapshot = {
@@ -903,7 +1129,8 @@
 			setCloudError('Project name cannot be empty');
 			return null;
 		}
-		if (store.projectCloudSaveBlocker) {
+		const saveProjectId = projectId ?? createProjectId();
+		if (computeCloudSaveBlocker(store.document, (uri) => isReadyProjectAssetForSave(uri, saveProjectId))) {
 			setCloudError('Save blocked: resolve texture asset references first');
 			return null;
 		}
@@ -912,7 +1139,6 @@
 			return null;
 		}
 
-		const saveProjectId = projectId ?? createProjectId();
 		const validation = validateProject({
 			id: saveProjectId,
 			name,
@@ -939,7 +1165,11 @@
 		}
 		// Defense in depth for resumed/stale handoff drafts: every payload must
 		// pass the cloud durability gate immediately before leaving the browser.
-		if (computeCloudSaveBlocker(snapshot.project.scene)) {
+		if (
+			computeCloudSaveBlocker(snapshot.project.scene, (uri) =>
+				isReadyProjectAssetForSave(uri, snapshot.project.id)
+			)
+		) {
 			setCloudError('Save blocked: resolve texture asset references first');
 			return false;
 		}

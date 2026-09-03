@@ -62,8 +62,8 @@ success percentages.
 | **P14** | 42 | Luna high | approved 2026-08-28 — Camera Plan passive object footprints; fully specified (ratified `Camera-layout-design.md`), bounded breadth (one viewport + CSS tokens + test pins), mechanical wiring with existing layer; scheduled immediately after P12 |
 | **P20.S0** | 70 | Sol medium | proposed, unregistered — asset contract + R2 gate (investigation/planning slice); high ambiguity (9 targeted unknowns, P1 A-vs-B schema decision with version-policy consequences, guest-binary tradeoff) but no implementation or verification load; blocked on P19 ship; output is the S1–S4 slice briefs |
 | **P20.S1** | 78 | Sol high | implemented locally 2026-09-03, unregistered — Postgres registry + R2 streaming client + authenticated API + test seam; held by P19 live gate + owner-run R2 provisioning/smoke |
-| **P20.S2** | 72 | Sol medium | brief ready 2026-09-03, unregistered — new cloud-file ingest + Spatial acceptance reuse existing placement/selection/history; built-ins stay catalogue-only; implementation awaits P19/P20.1 live gates |
-| **P20.S3** | 76 | Sol high | proposed, unregistered — texture conversion + Save-blocker integration across codec/store/exporter; failure matrix (upload-ok/mutation-fails and reverse, retries) with durable-truth corruption consequence; needs slice brief after S0 resolves the P1 reference shape |
+| **P20.S2** | 72 | Sol medium | implemented locally 2026-09-03, unregistered — new cloud-file ingest + Spatial acceptance reuse existing placement/selection/history; built-ins stay catalogue-only; release awaits P19/P20.1 live gates |
+| **P20.S3** | 76 | Sol high | brief ready 2026-09-03, unregistered — explicit local/package texture conversion + readiness-aware Save blocker + portable export; failure matrix pins upload/mutation/Save retries; implementation awaits P19/P20.1 live gates |
 | **P20.S4** | 64 | Sol medium | proposed, unregistered — Load resolution seam + deployed round-trip smoke; bounded implementation, verification-heavy (refresh/Load/render fidelity); needs slice brief after S0–S1 |
 
 All shipped rows (P1.6–P3.3, P3B.1–P3B.6, P7.1–P7.6, P8.S1–S6, P11.1–P11.5,

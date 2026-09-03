@@ -129,6 +129,21 @@ export class EditorMaterialResourceMutator {
 		return { status: 'created', textureId };
 	}
 
+	replaceTextureUri(textureId: string, expectedUri: string, nextUri: string): boolean {
+		if (this.host.isDocumentMutationBlocked || this.host.isEditorInteractionActive) return false;
+		const texture = this.host.document.textures.find((candidate) => candidate.id === textureId);
+		if (!texture || texture.uri !== expectedUri || texture.uri === nextUri || !isSafeTextureUri(nextUri)) {
+			return false;
+		}
+		if (!this.host.beginDocumentTransaction()) return false;
+		texture.uri = nextUri;
+		if (!this.host.commitDocumentTransaction()) {
+			this.host.cancelDocumentTransaction();
+			return false;
+		}
+		return true;
+	}
+
 	// =================================================================
 	// Material instance patch
 	// =================================================================

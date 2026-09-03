@@ -126,6 +126,7 @@ import { importPackage } from './import/package-importer';
 import {
 	computeCloudSaveBlocker,
 	computeProjectExportBlocker,
+	isProjectAssetUri,
 	type CloudSaveBlocker,
 	type ProjectExportBlocker
 } from './store/project-export-store.svelte';
@@ -2460,19 +2461,30 @@ export class EditorStore {
 		return this.textureLibraryController.registerLocalFileTexture(name, bytes, mime);
 	}
 
+	replaceTextureUri(textureId: string, expectedUri: string, nextUri: string): boolean {
+		return this.materialResourceMutator.replaceTextureUri(textureId, expectedUri, nextUri);
+	}
+
 	/**
 	 * Phase 5.4 — export the document as a self-contained `.scenepack.zip`.
-	 * The resolver injects bytes from `BinaryTextureStore`; any texture not
-	 * registered AND not fetchable (a `package-<id>/...` rewrite URI) yields
-	 * `'unresolved-binary'` so the caller knows to resolve it first.
+	 * The resolver injects cached bytes first, then lets the editor app resolve
+	 * a current logical project asset. Everything else remains unresolved.
 	 */
 	async exportPackage(
-		options: { now?: Date } = {}
+		options: {
+			now?: Date;
+			resolveBytesByUri?: (uri: string) => Promise<Uint8Array | null>;
+		} = {}
 	): Promise<PackageExportResult> {
 		return buildPackage({
 			document: this.document,
-			resolveBytesByUri: async (uri) =>
-				BinaryTextureStore.has(uri) ? await BinaryTextureStore.resolve(uri) : null,
+			resolveBytesByUri: async (uri) => {
+				if (BinaryTextureStore.has(uri)) return BinaryTextureStore.resolve(uri);
+				if (isProjectAssetUri(uri)) {
+					return options.resolveBytesByUri?.(uri) ?? null;
+				}
+				return null;
+			},
 			now: options.now
 		});
 	}

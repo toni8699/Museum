@@ -2,9 +2,13 @@
 
 **Read when:** choosing product direction, defining long-term scope, or reviewing
 pitches. **Current implementation priorities and sequencing live in the
-tracker:** [`plans/README.md`](./plans/README.md). Current behavior remains
-canonical in the architecture/component/design contracts; this document
-states the destination, not a claim that every capability already exists.
+tracker:** [`plans/README.md`](./plans/README.md). **P21+ shell / Project Hub /
+Visitor Preview target IA** (entry, project navigation, Row 1 / Row 2 chrome
+placement, persistence presentation) lives in
+[`Design-specs/Design-Plan(P21+).md`](./Design-specs/Design-Plan(P21+).md).
+Current behavior remains canonical in the architecture/component/design
+contracts; this document states the destination, not a claim that every
+capability already exists.
 **Ratified 2026-08-31:** the project shell has two primary creative modes —
 **Spatial** (the current editor) and **Experience** (long-term direction) —
 plus project-level **Assets** and **Publish** surfaces. Not-yet-built

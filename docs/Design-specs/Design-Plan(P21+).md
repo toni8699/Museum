@@ -1,6 +1,61 @@
 # Museum Editor: Unified Product Shell & Information Architecture
 ### Canonical Design Plan (P21+ Baseline)
 
+**Status:** P21+ target authority — reconciles the ratified shell direction with
+current implementation status (2026-09-03). This document states the **target**;
+it does not claim the two-row shell is implemented today. The current tree
+remains the pre-P21 stacked Project Shell scaffold + `EditorAppBar`.
+
+---
+
+## Authority & Supersession
+
+For P21+ product-shell concerns this document is the canonical target authority:
+
+```text
+Design-Plan(P21+).md
+→ canonical target authority for:
+   - /
+   - /projects
+   - Project Shell
+   - Row 1 / Row 2 chrome placement
+   - Spatial control placement
+   - persistence/account presentation
+   - project-level Visitor Preview
+   - future Experience / Assets / Publish placement
+
+Existing workspace specs
+→ remain authoritative for:
+   - Scene / Camera behavior
+   - Plan / 3D capabilities
+   - Layout / Arrange behavior
+   - selection
+   - history semantics
+   - camera topology / Sequence
+   - Timeline behavior
+   - Inspector behavior
+   - direct manipulation
+   - document ownership
+
+Design-specs.md
+→ remains authoritative for visual language/tokens except where
+  Design-Plan(P21+) explicitly supersedes shell dimensions or placement.
+```
+
+> Where older shell documents describe a single 56px editor header or permanent
+> floating viewport toolbars, the P21+ two-row shell supersedes those placement
+> rules. The underlying workspace capabilities remain unchanged.
+
+> Wireframes for Experience, Assets and Publish are shell-composition
+> illustrations only. Their internal product models are not ratified by this
+> document.
+
+Where a status column says **Wired**, the underlying control already exists
+today in the pre-P21 shell (Project Shell scaffold / `EditorAppBar`) and would
+be re-hosted into the P21+ rows; **P21 Target** means the P21+ implementation
+adds or relocates it. Nothing here implies the old behavior has already been
+implemented away.
+
 ---
 
 ## A. Purpose and Scope
@@ -55,13 +110,69 @@ Project Shell Context (Identity · persistence tier · workspace routing · hist
  └── Visitor Preview (Full-project interactive visitor simulation)
 ```
 
-> **History Architecture Clarification:** Undo/Redo is an **editor/session capability**, not serialized document state. The project shell exposes global history controls, but document history remains owned by client runtime stores.
+> **Project-navigation hierarchy (North Star reconciliation).** Row 1 renders
+> `Spatial | Experience | Assets | Publish` as one compact physical navigation
+> group, but the four entries are **not** equivalent creative workspaces:
+
+```text
+Project
+├─ Creative authoring
+│  ├─ Spatial
+│  └─ Experience
+├─ Assets
+└─ Publish
+```
+
+> Spatial and Experience are the two primary creative modes; Assets and
+> Publish are project-level supporting surfaces. The UI may still visually
+> present them in one compact navigation group. Routes stay exactly:
+> `/project/:id/spatial` · `/project/:id/experience` · `/project/:id/assets`
+> · `/project/:id/publish` · `/project/:id/preview`.
+
+> **History Architecture Clarification:** Undo/Redo is an **editor/session
+> capability**, not serialized document state. Row 1 owns the stable physical
+> history-control slot:
+>
+> - **Spatial** — the controls bind to the existing chronological tagged
+>   Scene/Layout history stack.
+> - **Experience** — history semantics are deferred until Experience ownership
+>   is designed.
+> - **Assets** — registry/API operations do not enter Spatial editor history.
+> - **Publish** — publishing/platform operations do not enter Spatial editor
+>   history.
+>
+> Invariant: leaving Spatial must never allow a visible global Undo button to
+> unexpectedly undo hidden Spatial work. Future non-Spatial surfaces therefore
+> either bind the fixed slot to a deliberately compatible history model or
+> disable/hide the actions while preserving the shell layout. Document history
+> remains owned by client runtime stores and is never serialized into
+> `ProjectDocument`.
 
 ---
 
 ## C. Persistent Shell Specification
 
 The application shell uses a **Compact Two-Level Architecture (68px total height)**. This design provides physical stability: controls in Row 2 never change location or layout when future workspaces are enabled in Row 1.
+
+**Target shell dimensions — supersede the single-app-bar model:**
+
+```text
+Current pre-P21 implementation:
+56px editor app bar + separate project scaffold
+
+P21+ target:
+36px Project Row
++ 32px Workspace Ribbon
+= 68px total persistent top chrome
+
+Status:
+24px target
+```
+
+The runtime CSS variables `--editor-appbar-height` (56px) and
+`--editor-status-height` (32px) still carry the pre-P21 values; P21
+implementation must migrate them (Row 1 = 36px, Row 2 = 32px, status = 24px)
+rather than altering code in this documentation pass.
 
 ```text
 ┌────────────────────────────────────────────────────────────────────────────────────────────────────────┐
@@ -88,6 +199,27 @@ Owns global identity, cloud persistence status, workspace navigation, global und
 | **Right** | Visitor Preview | Secondary accent button: `▶ Preview` (`height: 28px`). Invokes Visitor Preview takeover. | P21 Target |
 | **Far Right** | Account Profile | Guest: `Sign in` button. Authenticated: Google avatar circle (`24×24px`) with menu. | Wired |
 
+**Row 1 persistence cluster semantics.** The two persistence elements report
+different things:
+
+```text
+[Local Session / Cloud]
+→ ProjectDocument persistence location
+
+[Saved / Save / Saving / Save Blocked]
+→ authored ProjectDocument snapshot state
+```
+
+The Row 1 save state reports the authored `ProjectDocument` baseline. It does
+not mean every project-level remote operation is synchronized:
+
+- Asset upload → project-registry persistence → separate operation/status
+- Future Publish → deployment/release state → separate operation/status
+
+A successfully uploaded R2 asset may already be durable while the current
+`ProjectDocument` remains dirty. Do not merge registry upload state,
+deployment state, and `ProjectDocument` dirty state into one Boolean.
+
 ### 2. Row 2: Workspace Ribbon (Height: 32px / 2.0rem)
 Row 2 is the **canonical workspace toolbar**. It answers: *"What can I author in this active workspace right now?"*
 
@@ -107,13 +239,25 @@ Row 2 is the **canonical workspace toolbar**. It answers: *"What can I author in
   - Snapping toggle & increment selector (`Snap: 0.25m`), Grid visibility, Metric display readouts.
 
 ### 3. Sizing & Token Compliance
-This design complies with established visual design tokens (`docs/Design-specs/Design-specs.md`):
-- **Active Accent:** `--editor-accent-blue` (`#2F8CFF`). *(Do not use `#3B82F6`, which is reserved strictly for `--editor-axis-z`.)*
-- **Row 1 Chrome:** `--editor-bg-chrome` (`#1A1D24`), Bottom border `1px solid var(--editor-border, #2A2F3A)`.
-- **Row 2 Chrome:** `--editor-bg-panel` (`#1F232B`), Bottom border `1px solid var(--editor-border, #2A2F3A)`.
-- **Drafting Canvas (Plan):** `#F5F3EE` (High-contrast bright technical paper).
-- **Viewport Canvas (3D):** `--editor-bg-viewport` (`#111317`).
-- **Status Bar:** Bottom fixed `24px` height (`#1A1D24`).
+
+This design targets the shared visual design tokens (`docs/Design-specs/Design-specs.md` §7–§8 and `src/lib/editor/styles/tokens.css`). Tokens named below as existing exist in the current token file; every other surface is explicitly marked as a **P21 implementation token change/addition** — nothing is invented and presented as already shipped.
+
+- **Active / selection accent:** `--editor-accent` (`#2F8CFF`). *(Do not use `#3B82F6`, which is reserved strictly for `--editor-axis-z` and is never a generic UI accent.)*
+- **Row 1 / Row 2 chrome backgrounds:** the current token file defines no
+  dedicated row-1/row-2 shell band surfaces. **P21 implementation token
+  change/addition** — propose `--editor-bg-row-1` and `--editor-bg-row-2` in
+  the dark-blue shell family, with bottom borders from the existing
+  `--editor-border-subtle` / `--editor-border-normal` tokens. Do not claim
+  `--editor-bg-panel` / `--editor-bg-panel-raised` are row chrome without a
+  deliberate mapping decision at implementation time.
+- **Drafting Canvas (Plan):** `--editor-plan-bg` (`#F5F3EE`) — exists today
+  (bright technical drafting paper).
+- **Viewport Canvas (3D):** the 3D viewport sits on the app background token
+  `--editor-bg-app` (`#071019`) — exists today. No separate viewport token is
+  claimed.
+- **Status Bar:** bottom `24px` target height — **P21 dimension change**
+  (current runtime `--editor-status-height` is `32px`); surface/text tokens
+  come from the existing shell/text token families.
 
 ---
 
@@ -191,8 +335,9 @@ The wireframes below demonstrate physical layout stability across all authoring 
 | - Models (6)     |                                                                 | Roughness:0.35|
 |   * Grand Piano  |                                                                 | Metalness:0.05|
 |   - Velvet Bench |                                                                 | Texture:      |
-|                  |                                                                 | /project-assets/|
-|                  |                                                                 |  tex_walnut_d |
+|                  |                                                                 | Texture:      |
+|                  |                                                                 | tex_walnut_d  |
+|                  |                                                                 | (catalogue)   |
 +------------------+-----------------------------------------------------------------+---------------+
 | Status: Scene 3D Active | 1 Object Selected | Alt+Drag: Orbit | Middle-Click: Pan | Scroll: Zoom   |
 +----------------------------------------------------------------------------------------------------+
@@ -301,7 +446,7 @@ The wireframes below demonstrate physical layout stability across all authoring 
 |                  | chandelier_point.glb   3D Model   850 KB   1 Instance   Ready    | Used in:      |
 |                  | audio_chopin_nocturne  Audio      6.2 MB   Unassigned   Ready    | - Salon A     |
 +------------------+-----------------------------------------------------------------+---------------+
-| Status: Project Asset Registry Synced | Consumed by Spatial and Experience via /project-assets/*   |
+| Status: Registry rows are uploaded files | Registry-backed via /project-assets; built-ins stay catalogue   |
 +----------------------------------------------------------------------------------------------------+
 ```
 
@@ -352,7 +497,58 @@ The wireframes below demonstrate physical layout stability across all authoring 
 
 ---
 
-## E. Project Hub (`/projects`)
+## E. Public Entry (`/`)
+
+This plan governs `/`, including normal (non-OAuth) entry behavior.
+
+### Guest
+
+```text
+/
+→ public entry
+→ Start creating
+   → create client project UUID
+   → /project/:id/spatial
+   → no auth/backend gate
+
+OR
+
+→ Continue with Google
+   → OAuth
+   → /projects
+```
+
+### Authenticated returning creator
+
+A normal visit with a valid authenticated session routes straight to the
+Project Hub — an authenticated creator is **not** forced through the guest
+landing every visit:
+
+```text
+valid authenticated session
+→ /projects
+```
+
+### OAuth return priority
+
+OAuth return behavior takes precedence over the normal entry redirect and is
+not redesigned here:
+
+```text
+intent=projects
+→ /projects
+
+intent=save
+→ validate/read pending 15-minute Save handoff
+→ restore original project ID
+→ /project/:id/spatial?resume-save=1
+```
+
+> Authentication remains a cloud-capability gate, never an authoring gate.
+
+---
+
+## F. Project Hub (`/projects`)
 
 The Hub serves as the management directory for projects.
 
@@ -402,7 +598,7 @@ The Hub serves as the management directory for projects.
 
 ---
 
-## F. Persistence and Account UX
+## G. Persistence and Account UX
 
 To prevent creator confusion, **Persistence Location** (where the project is stored) and **Sync State** (whether mutations are saved) are separated into two explicit UI elements in Row 1.
 
@@ -431,11 +627,16 @@ ROW 1 PERSISTENCE CLUSTER:
 ### 2. Authentication Flow & Handoff
 - Auth is Google OAuth (PKCE) only.
 - Guest clicks `Save to Cloud`: current `ProjectDocument` serializes to `sessionStorage` (15-minute expiration). Full-page redirect to Google.
-- Callback returns to `/project/:id/spatial?auth=success&resume-save=1`. Document restores from `sessionStorage`, commits the initial cloud version, and transitions badge from `[Local Session]` to `[☁ Cloud]`. Project ID is preserved.
+- The `intent=save` callback returns to the entry surface, whose
+  session-storage trampoline validates the pending 15-minute handoff, restores
+  the original project ID, and resumes at `/project/:id/spatial?resume-save=1`.
+  The document restores from `sessionStorage`, commits the initial cloud
+  version, and transitions the badge from `[Local Session]` to `[☁ Cloud]`.
+  Project ID is preserved.
 
 ---
 
-## G. First-Run / Empty-Project Experience
+## H. First-Run / Empty-Project Experience
 
 To eliminate blank-canvas disorientation without introducing patronizing onboarding wizards, the editor uses a non-modal **Ghost Blueprint Watermark**.
 
@@ -447,8 +648,10 @@ To eliminate blank-canvas disorientation without introducing patronizing onboard
   │                  ╎                                   ╎                 │
   │                  ╎        DRAW YOUR FIRST ROOM       ╎                 │
   │                  ╎                                   ╎                 │
-  │                  ╎        [ Rectangle Room ]         ╎                 │
-  │                  ╎        [ Polygon Room   ]         ╎                 │
+  │                  ╎                                   ╎                 │
+  │                  ╎      Use Rectangle Room or        ╎                 │
+  │                  ╎      Polygon Room in the          ╎                 │
+  │                  ╎      toolbar above ↑              ╎                 │
   │                  ╎                                   ╎                 │
   │                  ╎        10.0m × 8.0m               ╎                 │
   │                  └ - - - - - - - - - - - - - - - - - ┘                 │
@@ -458,7 +661,11 @@ To eliminate blank-canvas disorientation without introducing patronizing onboard
 
 ### First-Run Rules:
 1. **The Ghost Watermark:** A dashed blueprint rectangle ($10\text{m} \times 8\text{m}$) rendered with 20% opacity outline in CAD slate-blue (`#64748B`) at world origin $(0, 0)$.
-2. **Semantic Affordance:** Displays clear action labels: `Draw your first room`, followed by `[Rectangle Room]` and `[Polygon Room]` indicators. Keyboard shortcuts are only shown if explicitly ratified.
+2. **Directional Guidance (not dead controls):** The overlay is
+   `pointer-events: none`, so it must not render button-like controls. It
+   displays plain directional guidance — e.g., `Draw your first room`, then
+   `Use Rectangle Room or Polygon Room in the toolbar above ↑`. Keyboard
+   shortcuts are only shown if explicitly ratified.
 3. **Zero Interaction Blocking:** Watermark has `pointer-events: none`. It cannot intercept clicks, pans, or drags.
 4. **Session-Scoped Dismissal:** The watermark unmounts automatically once the project is no longer empty, or for the remainder of the editor session upon first tool use. Dismissal is **not** serialized into `ProjectDocument`.
 5. **Inspector Primer:** The right Inspector displays a reference card while selection count is zero:
@@ -467,7 +674,7 @@ To eliminate blank-canvas disorientation without introducing patronizing onboard
 
 ---
 
-## H. Visitor Preview (`/project/:id/preview`)
+## I. Visitor Preview (`/project/:id/preview`)
 
 Visitor Preview answers: *"What will visitors actually experience?"*
 
@@ -495,29 +702,49 @@ VISITOR-SAFE RUNTIME VIEWPORT
 
 ---
 
-## I. Unified Assets Architecture
+## J. Unified Assets Architecture
 
-There is **exactly one Project Asset Registry**. Asset source (Built-in Catalogue, Cloud Upload, or Online Provider) is metadata, not a top-level silo.
+There is **one user-facing Project Asset System**. Asset source is
+metadata/acquisition context — not a separate store and not a top-level silo.
+Registry-backed identity (`/project-assets/{assetId}`) applies to **uploaded
+project files**, not to every asset.
 
 ```text
-                      PROJECT ASSET SYSTEM
-             Logical URI: /project-assets/{assetId}
-             (Stable Identity + Registry Metadata)
-                               │
-       ┌───────────────────────┼───────────────────────┐
-       ▼                       ▼                       ▼
-STATIC / BUILT-IN       PROJECT R2 STORAGE      EXTERNAL PROVIDER
-(Bundled package files) (Uploaded binary bytes) (Future imported assets)
+ONE USER-FACING PROJECT ASSET SYSTEM
+
+Built-in / catalogue assets
+→ deterministic catalogue/static identity
+→ no project registry row required in current P20 behavior
+→ no R2 object
+
+Uploaded project files
+→ Project Asset Registry
+→ logical /project-assets/{assetId}
+→ metadata in Postgres
+→ bytes in private R2
+
+Online / provider acquisition
+→ future source/import mechanism
+→ exact durable representation deferred
 ```
 
 ### Relationship Rules:
-1. **Registry Authority:** The Project Asset System provides stable identity and metadata. Bytes resolve from built-in static sources, private Cloudflare R2 storage (for uploaded project bytes), or future external providers. Projects reference assets solely via logical URIs: `/project-assets/{assetId}`.
+1. **Registry authority is scoped to registry-backed project files.** Uploaded
+   project files are referenced through the stable logical project-asset
+   identity `/project-assets/{assetId}` and resolve bytes from private
+   Cloudflare R2. Built-in/catalogue assets retain their existing deterministic
+   catalogue identity and do not require registry rows; online/provider
+   acquisition is a future mechanism with its durable representation deferred.
+   Projects do **not** reference assets solely via `/project-assets/{assetId}`.
+   Do not create `SpatialAssetStore`, `ExperienceAssetStore`, `BuiltInAssetStore`,
+   or `CloudAssetStore` as competing product authorities — placement/assignment
+   keeps one path, consumed by Spatial and future Experience.
 2. **Spatial Assets Panel:** Acts as a task-oriented placement picker. Filterable by type (`3D Models | Textures | Lights`) and source (`All | Built-in | Uploads`).
 3. **Assets Workspace (Future):** Central management surface over the same underlying registry. May later support management capabilities such as replacement, cleanup, usage inspection, and storage management; exact capabilities are deferred.
 
 ---
 
-## J. Current → Target Migration Map
+## K. Current → Target Migration Map
 
 | Existing Element / Scaffold | Current Location | Proposed Permanent Location | Nature of Change |
 |---|---|---|---|
@@ -537,7 +764,7 @@ STATIC / BUILT-IN       PROJECT R2 STORAGE      EXTERNAL PROVIDER
 
 ---
 
-## K. Target vs. Implementation Dependency Matrix
+## L. Target vs. Implementation Dependency Matrix
 
 | Capability / Surface | Status | Current Reality (Tree) | Future Prerequisite Dependency |
 |---|---|---|---|
@@ -555,7 +782,7 @@ STATIC / BUILT-IN       PROJECT R2 STORAGE      EXTERNAL PROVIDER
 
 ---
 
-## L. Canonical Decisions / Non-Decisions
+## M. Canonical Decisions / Non-Decisions
 
 ### Ratified by This Plan
 1. **The Compact Two-Level Shell (68px):** Row 1 (36px) owns global project context; Row 2 (32px) owns workspace contextual authoring.
@@ -566,7 +793,7 @@ STATIC / BUILT-IN       PROJECT R2 STORAGE      EXTERNAL PROVIDER
 6. **Publish as a Project Workspace:** Publish is a peer workspace destination in Row 1 (`/project/:id/publish`), not a duplicated global header button.
 7. **Two-Axis Persistence Presentation:** Storage tier (`[Local Session]` vs. `[Cloud]`) is explicitly decoupled from sync state (`Saved` vs. `Save`).
 8. **Unified Asset System:** Exactly one asset registry with metadata-driven filtering; no independent asset silos. Bytes resolve from static bundles, R2, or external sources.
-9. **Design System Token Integrity:** Active accent is `--editor-accent-blue` (`#2F8CFF`). Shell chrome uses established `--editor-bg-*` tokens.
+9. **Design System Token Integrity:** Active accent is `--editor-accent` (`#2F8CFF`); `--editor-axis-z` (`#3B82F6`) stays a spatial Z-axis color, never a generic UI accent. Row 1/Row 2 chrome background tokens are P21 additions as specified in §C.3.
 10. **Camera Graph Invariant:** Connections are strictly undirected (`1 — 2`), with zero arrowheads.
 
 ### Explicitly Deferred / Not Ratified by This Plan

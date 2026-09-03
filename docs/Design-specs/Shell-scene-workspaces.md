@@ -9,6 +9,11 @@
 > §30 as amended below.
 Global shell / cross-domain rules live in [`Design-shell-specs.md`](./Design-shell-specs.md); camera workspaces in [`Shell-camera-workspaces.md`](./Shell-camera-workspaces.md).
 
+> **P21+ placement note (2026-09-03):** tool **placement** only — the
+> contextual toolbar region becomes the Workspace Ribbon (Row 2) per
+> [`Design-Plan(P21+).md`](./Design-Plan(P21+).md). Every capability, authority,
+> hit-test, and mutation rule in this file is unchanged.
+
 ---
 
 # 6. Scene → Plan
@@ -36,9 +41,10 @@ unifies object manipulation without unifying object ownership.
 `layout | arrange` is a Scene → Plan-local authoring mode beneath the
 domain × view axes (§1 Workspace-local authoring mode).
 
-The mode control lives in the **Scene Plan contextual toolbar region**, in one
-consistent position for populated, empty, Layout, and Arrange states; never in
-the global domain/view switchers. Active mode must be visually obvious — not
+The mode control lives in the **Scene Plan contextual toolbar region** — under
+the P21+ shell this is the Workspace Ribbon (Row 2) — in one consistent
+position for populated, empty, Layout, and Arrange states; never in the global
+domain/view switchers. Active mode must be visually obvious — not
 hidden in hover behavior or inferred from selection. The user must be able to
 answer immediately:
 
@@ -116,6 +122,10 @@ Edit in Arrange
 The bridge-hover footprint must not look already selected.
 
 ### Context toolbar
+
+**P21+ placement (Row 2):** Scene Plan Layout populates the Workspace Ribbon
+with `Scene | Camera` · `Plan | 3D` · `Layout | Arrange` plus the Layout
+contextual tools below. Capabilities are unchanged.
 
 Canonical capabilities:
 
@@ -303,6 +313,10 @@ spans both documents.
 
 ### Context toolbar
 
+**P21+ placement (Row 2):** Scene Plan Arrange populates the Workspace Ribbon
+with `Scene | Camera` · `Plan | 3D` · `Layout | Arrange` plus the Arrange
+contextual actions below. Direct move/rotation handles stay viewport-local.
+
 The toolbar routes by local mode. Arrange does not require a large permanent
 toolset; at minimum the shell exposes an unmistakable Arrange state plus the
 existing interaction model:
@@ -460,6 +474,11 @@ Scene → 3D; it is absent from Scene Plan Layout/Arrange, Camera Plan, and
 Camera 3D.
 
 ## Context toolbar
+
+**P21+ placement (Row 2):** Scene 3D populates the Workspace Ribbon with the
+canonical tool grammar below plus `Scene | Camera` · `Plan | 3D`. The viewport
+keeps only direct-manipulation fixtures: TransformControls, selection outline,
+orientation cube, placement ghost, and direct-manipulation fixtures.
 
 Canonical capabilities:
 

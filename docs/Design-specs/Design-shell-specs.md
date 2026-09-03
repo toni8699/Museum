@@ -32,6 +32,14 @@ This specification answers:
 
 It intentionally does **not** prescribe Svelte component structure, stores, routing strategy, rendering architecture, or implementation technology.
 
+> **P21+ reconciliation note (2026-09-03):** Shell placement and chrome
+> hierarchy amended by [`Design-Plan(P21+).md`](./Design-Plan(P21+).md);
+> workspace capability/exposure rules in this document remain canonical.
+> Where this spec describes a single global header or a permanent floating
+> contextual viewport toolbar, the P21+ two-row shell (Row 1 Project Row ·
+> Row 2 Workspace Ribbon) supersedes that **placement** only. No capability,
+> authority, or mutation matrix below is changed by this amendment.
+
 ---
 
 # 1. Canonical Workspace Model
@@ -120,15 +128,17 @@ Rules:
 
 # 2. Global Shell Contract
 
-The default editor shell consists of six persistent regions:
+The editor shell consists of persistent regions. **P21+ placement (amended by
+[`Design-Plan(P21+).md`](./Design-Plan(P21+).md)):** the former single global
+header + permanent floating contextual viewport toolbar are replaced by a
+Project Row (Row 1) and a Workspace Ribbon (Row 2):
 
 ```text
-┌─────────────────────────────────────────────────────────────────┐
-│ GLOBAL HEADER                                                   │
-├──────────────┬──────────────────────────────┬───────────────────┤
-│              │ CONTEXTUAL VIEWPORT TOOLBAR  │                   │
-│ LEFT PANEL   │                              │ RIGHT INSPECTOR   │
-│              │          VIEWPORT            │                   │
+PROJECT ROW — Row 1
+WORKSPACE RIBBON — Row 2
+┌──────────────┬──────────────────────────────┬───────────────────┐
+│              │                              │                   │
+│ LEFT PANEL   │          VIEWPORT            │ INSPECTOR         │
 │              │                              │                   │
 ├──────────────┴──────────────────────────────┴───────────────────┤
 │ CAMERA TIMELINE — Camera domain only                            │
@@ -137,39 +147,48 @@ The default editor shell consists of six persistent regions:
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-Region ownership:
+Region ownership (placement per P21+; capabilities below remain canonical):
 
-| Region          | Responsibility                                  |
-| --------------- | ----------------------------------------------- |
-| Global header   | project + workspace navigation + global actions |
-| Left panel      | structure/resources belonging to current domain |
-| Context toolbar | actions belonging to current workspace          |
-| Viewport        | spatial authoring surface                       |
-| Inspector       | properties of current selection                 |
-| Timeline        | temporal Camera authoring                       |
-| Status bar      | state, navigation hints, snap, units            |
+| Region           | Responsibility                                                                  |
+| ---------------- | ------------------------------------------------------------------------------- |
+| Project Row      | project identity, persistence, project navigation, history slot, Visitor Preview, account |
+| Workspace Ribbon | active workspace routing + contextual authoring commands + precision/view controls |
+| Left panel       | structure/resources belonging to current domain                                |
+| Viewport         | spatial authoring + direct-manipulation overlays only                           |
+| Inspector        | properties of current selection                                                 |
+| Timeline         | temporal Camera authoring                                                       |
+| Status bar       | state, navigation hints, snap, units                                            |
 
 The overall shell should remain structurally stable while workspace-specific content changes inside these regions.
 
 ---
 
-# 3. Global Header
+# 3. Project Row (Row 1) and Workspace Ribbon (Row 2)
 
-The global header exists in **all four workspaces**.
+**P21+ placement (amended by [`Design-Plan(P21+).md`](./Design-Plan(P21+).md)
+§C):** the former single global header + permanent contextual viewport toolbar
+split into two chrome rows. Capability and authority rules are unchanged — this
+is placement only.
 
-It exposes:
+Row 1 (Project Row) exists across **all four project surfaces** (Spatial and Experience as the two primary creative modes; Assets and Publish as project-level supporting surfaces). It exposes:
 
 * product/project identity
-* current project selector/name
-* `[Scene | Camera]`
-* `[Plan | 3D]`
-* save state
-* undo
-* redo
-* project-level menu/actions
+* current project name (inline editable)
+* persistence location + save state (Row 1 persistence cluster)
+* project-level navigation (`Spatial | Experience | Assets | Publish`)
+* the global Undo/Redo slot
+* project-level Visitor Preview
+* account / sign-in
+* project-level document menu/actions
 * editor/settings access where applicable
 
-The global header MUST NOT contain workspace-specific manipulation commands such as:
+Row 2 (Workspace Ribbon) owns workspace routing and contextual authoring:
+
+* `[Scene | Camera]`
+* `[Plan | 3D]`
+* active authoring tools for the current workspace
+
+Row 1 MUST NOT contain workspace-specific manipulation commands such as:
 
 * Move
 * Rotate
@@ -179,7 +198,7 @@ The global header MUST NOT contain workspace-specific manipulation commands such
 * Frame
 * Path
 
-Those belong to the contextual viewport toolbar.
+Those belong to the contextual Workspace Ribbon (Row 2).
 
 ### State behavior
 
@@ -413,6 +432,10 @@ Likewise, Scene workspaces may show Camera entries in project hierarchy without 
 
 # 16. Toolbar Ownership
 
+**P21+ placement:** contextual authoring tools live in the Workspace Ribbon
+(Row 2) rather than a floating viewport toolbar. The viewport retains only
+direct-manipulation fixtures (selection handles, gizmos, orientation box).
+
 Toolbar should be selected from current workspace.
 
 Canonical routing:
@@ -576,7 +599,7 @@ Shell should remain stable.
 Changes:
 
 * Scene sidebar → Camera Sidebar
-* contextual toolbar → Camera toolbar
+* Workspace Ribbon tools → Camera-domain ribbon tools (Row 2)
 * Inspector routes to Camera context/selection
 * Camera Timeline expands from bottom
 * viewport becomes Camera representation of selected Plan/3D view
@@ -590,7 +613,7 @@ animation; its expansion state remains unchanged.
 Reverse:
 
 * Camera Sidebar → Scene Hierarchy/Assets
-* Camera toolbar → Scene toolbar
+* Camera-domain ribbon tools → Scene-domain ribbon tools (Row 2)
 * Camera Timeline collapses/disappears
 * Scene Inspector context restored
 
@@ -617,7 +640,7 @@ Persistent:
 Changes:
 
 * viewport representation
-* contextual toolbar
+* Workspace Ribbon (Row 2) tools
 * Inspector capabilities where view-specific
 * viewport helpers
 

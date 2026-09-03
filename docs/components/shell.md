@@ -1,9 +1,22 @@
 # Shell and workspaces
 
 **Read when:** app chrome, Scene/Camera switch, Layout mode, top bar, timeline frame, project menu.  
-**Last reviewed:** 2026-08-28 (P12 closeout)
+**Last reviewed:** 2026-09-03 (P20.2 + P21+ shell doc reconciliation)
+
+**Current implementation status:** the pre-P21 stacked Project Shell scaffold
++ `EditorAppBar` remains in the tree (2026-09-03).
+**P21+ target:** [`../Design-specs/Design-Plan(P21+).md`](../Design-specs/Design-Plan(P21+).md)
+— target authority for product entry (`/`), Project Hub (`/projects`), Project
+Shell chrome, Row 1 / Row 2 placement, persistence/account presentation, and
+project-level Visitor Preview.
+
+This file remains the **current implementation map**. Everything below
+describes the tree as it exists today (pre-P21) unless explicitly marked as
+P21+ target.
 
 ---
+
+## Current implementation — pre-P21
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
@@ -44,8 +57,13 @@ history rules) is canonical in [`camera-tour.md`](./camera-tour.md).
 
 | Workspace | Preview |
 |-----------|---------|
-| Scene | Preview Scene → `/museum` |
+| Scene | Preview Scene → `/museum` (pre-P21 temporary) |
 | Camera | Preview Camera → in-editor selected-camera view; Preview Edge and Preview Sequence remain contextual scopes |
+
+> **Pre-P21 note:** `Preview Scene → /museum` is temporary pre-P21 behavior,
+> not canonical target. The P21+ target is the project-level Visitor Preview
+> takeover (`/project/:id/preview`) per
+> [`Design-Plan(P21+).md`](../Design-specs/Design-Plan(P21+).md) §I.
 
 Project menu: scene Import/Paste/Copy/Download/Reset + separate Layout JSON Import/Paste/Copy/Download/Reset section. Layout status + invalid-import feedback appear in menu, sidebar, inspector. Scene + layout replacement confirmations document-scoped; editor navigation + browser unload protect either dirty document. Undo/Redo enabled in Layout, shares one chronological stack with tagged scene/layout entries. Top-bar scene dirty badge scene-scoped. **No** automatic git Save.
 
@@ -66,3 +84,30 @@ main-editor Repeat/loop/distinct Replay controls do not exist.
 Status bar is persistent and informational. Its save state aggregates scene
 and layout dirtiness; Plan reads Plan grid/snap state and Plan navigation
 hints, while 3D reads 3D grid/transform-snap state and 3D navigation hints.
+
+---
+
+## P21+ target
+
+Summary of the ratified target (full detail in
+[`Design-Plan(P21+).md`](../Design-specs/Design-Plan(P21+).md)):
+
+```text
+36px Project Row (Row 1)
++ 32px Workspace Ribbon (Row 2)
+= 68px total persistent top chrome
+status bar 24px
+no permanent floating viewport toolbar
+project-level Visitor Preview
+```
+
+- Row 1 hosts project identity, persistence, project navigation, the Undo/Redo
+  slot, Visitor Preview, and account; Row 2 hosts `Scene | Camera`,
+  `Plan | 3D`, and the active workspace's contextual authoring tools.
+- The current floating/contextual toolbars relocate into Row 2; viewports keep
+  only direct-manipulation fixtures.
+- Undo/Redo in Row 1 binds the existing chronological tagged Scene/Layout
+  history stack for Spatial; non-Spatial surfaces defer or disable the slot
+  rather than sharing one universal cross-workspace undo.
+- `Preview Scene → /museum` is a temporary pre-P21 behavior and is **not** the
+  canonical target.

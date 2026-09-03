@@ -6,32 +6,27 @@ slice plus one next action only.
 ## Working tree
 
 - Current planning delta: **P20 S0 asset contract + cloud-Save durability gate
-  complete on 2026-09-03; P20.1/S1 API implementation is complete locally on
-  2026-09-03; P20.2/S2's Spatial registry integration brief is wired, all
-  behind the P19 Google OIDC/live deployment gate and owner-run R2
+  complete on 2026-09-03; P20.1/S1 API and P20.2/S2 Spatial integration are
+  implemented locally; P20.3/S3's durable texture-conversion brief is ready,
+  all behind the P19 Google OIDC/live deployment gate and owner-run R2
   provisioning.** P19's owner-run
   Render/Neon provisioning and passing live/ready smoke remain prerequisites
   for production Save/Load. The 2026-09-01 auth amendment ratifies Google
   OIDC (Authorization Code + PKCE) + an app-owned `@fastify/secure-session`
   cookie; no managed-provider bearer contract remains.
-- Current delta: **P20.1/S1's registry migration, authenticated metadata/content
-  API, injected object-store seam, and production R2 adapter are implemented
-  locally; changes remain uncommitted.** The API keeps object keys out of
-  metadata, streams bounded image uploads, hashes bytes, and never serves
-  pending/failed assets. P19 persistence, Google OIDC/session behavior, P19.4's
-  guest-first entry/Project Shell, and P20 S0's separate cloud-Save durability
-  predicate plus stale-draft re-check remain implemented locally. Save retries
-  retain their first project ID, trimmed names
-  settle the baseline, stale project lists are discarded, cloud chrome is
-  disabled when unconfigured, and guest Save resumes through a validated
-  browser-session handoff. The API owns the Google Authorization Code + PKCE
-  exchange and secure session; the editor uses `/auth/me`, bounded intent
-  redirects, logout, and credentialed JSON requests. No production secret,
-  migration application, or live API call was added.
-- Immediate previous slice: **P20.1/S1 — local implementation complete
-  2026-09-03.** Migration, owner-scoped routes, streaming validation, failure
-  states, and R2 composition are covered locally; P20 S0 was the preceding
-  contract/gate slice. P18 backend provisioning remains the infrastructure
+- Current implementation baseline: **P20.1/S1 registry API + R2 seam and
+  P20.2/S2 Spatial ingest/list/accept are committed locally.** The API keeps
+  object keys out of metadata, streams bounded image uploads, hashes bytes,
+  and never serves pending/failed assets. The editor keeps registry lifecycle
+  in `EditorApp`, uses logical `/project-assets/{assetId}` references, primes
+  verified session bytes, and reuses existing texture/history/assignment paths.
+  P19 persistence, Google OIDC/session behavior, P19.4 guest-first shell, and
+  P20 S0's separate cloud-Save durability gate remain in the baseline. No
+  production secret, migration application, or live API call was added.
+- Immediate previous slice: **P20.2/S2 — local implementation complete
+  2026-09-03.** Cloud texture ingest/list/accept reuses the existing Spatial
+  texture, assignment, selection, history, and renderer paths; P20.1 was the
+  preceding API slice. P18 backend provisioning remains the infrastructure
   baseline.
   The local Fastify/Postgres boundary and API-only Render Blueprint are in the
   tree; resource provisioning remains owner-run.
@@ -41,8 +36,8 @@ slice plus one next action only.
 - Finish P19's owner-approved Google OAuth web application, same-site
   production editor/API origins, Render secrets, and Neon migration; configure
   P20's private R2 bucket/secrets; then run the authenticated register → upload
-  → list/read → byte-fetch smoke before implementing the wired P20.2
-  Spatial registry integration brief.
+  → list/read → byte-fetch smoke before implementing the wired P20.3 durable
+  texture-conversion brief.
 
 ## Verification
 

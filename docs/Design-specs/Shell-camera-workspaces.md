@@ -4,6 +4,12 @@
 **Scope:** §9 Camera → Plan · §10 Camera → 3D · §11 Timeline ownership · §12 Timeline exposure · §13 Camera selection continuity.
 Global shell / cross-domain rules live in [`Design-shell-specs.md`](./Design-shell-specs.md); scene workspaces in [`Shell-scene-workspaces.md`](./Shell-scene-workspaces.md).
 
+> **P21+ placement note (2026-09-03):** tool **placement** only — the
+> contextual toolbar region becomes the Workspace Ribbon (Row 2) per
+> [`Design-Plan(P21+).md`](./Design-Plan(P21+).md). The Camera Timeline stays a
+> Camera-domain dock and is never relocated into Row 2. Every capability,
+> authority, and P12 preview/scope/transport rule in this file is unchanged.
+
 ---
 
 # 9. Camera → Plan
@@ -140,6 +146,11 @@ Rules:
 ---
 
 ## Context toolbar
+
+**P21+ placement (Row 2):** Camera Plan populates the Workspace Ribbon with
+`Scene | Camera` · `Plan | 3D` plus the tools below (Grid/Snap as applicable).
+No FOV, framing, frustum, look-target, or Y editing appears here, and
+connections remain undirected with zero arrowheads.
 
 Canonical primary tools:
 
@@ -327,6 +338,10 @@ Camera 3D owns:
 
 ## Context toolbar
 
+**P21+ placement (Row 2):** Camera 3D populates the Workspace Ribbon with
+`Scene | Camera` · `Plan | 3D` plus the canonical grammar below (Observer / POV
+where currently specified). Camera 3D retains full X/Y/Z authority.
+
 Workspace capabilities include:
 
 ```text
@@ -411,6 +426,10 @@ Same Camera Timeline instance/state as Camera Plan.
 # 11. Camera Timeline Ownership
 
 This is a hard shell invariant.
+
+**P21+ placement note:** the Camera Timeline is **not** relocated into the
+Workspace Ribbon (Row 2). It remains its own Camera-domain dock in both Camera
+Plan and Camera 3D, and all P12 preview/scope/transport rules are preserved.
 
 The Timeline belongs to:
 

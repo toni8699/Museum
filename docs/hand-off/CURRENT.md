@@ -6,8 +6,8 @@ slice plus one next action only.
 ## Working tree
 
 - Current planning delta: **P20 S0 asset contract + cloud-Save durability gate
-  complete on 2026-09-03; S1 is next, behind the P19 Google OIDC/live
-  deployment gate and owner-run R2 provisioning.** P19's owner-run
+  complete on 2026-09-03; S1 implementation brief is ready, behind the P19
+  Google OIDC/live deployment gate and owner-run R2 provisioning.** P19's owner-run
   Render/Neon provisioning and passing live/ready smoke remain prerequisites
   for production Save/Load. The 2026-09-01 auth amendment ratifies Google
   OIDC (Authorization Code + PKCE) + an app-owned `@fastify/secure-session`

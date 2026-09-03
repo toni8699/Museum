@@ -75,7 +75,7 @@ Policy rules:
 | P17 | editor / visitor app split — slice 3 of the ratified migration review: standalone `@portfolio/editor` and read-only `@portfolio/museum`, with the relic gated into editor and source/runtime visitor boundary pins | **shipped 2026-08-30** | P16 | archived → [2026-08-30-P17-app-split.md](../archive/plans/2026-08-30-P17-app-split.md) |
 | P18 | backend provisioning — slice 4 of the ratified migration review: deploy `@biskiq/api` Fastify compute on Render, connect it to separately provisioned Neon Postgres through secret `DATABASE_URL`, and add process/database health checks with no persistence schema yet | **shipped 2026-08-30 — infrastructure boundary; owner-run Render/Neon provisioning remains the P19 gate** | P17 | archived → [2026-08-30-P18-backend-provisioning.md](../archive/plans/2026-08-30-P18-backend-provisioning.md) |
 | P19 | first project persistence — authenticated semantic-document Save/Load, immutable project versions, single-user ownership, and P19.4 guest-first entry/Project Shell closeout | in-progress — Google OIDC/live deployment gate remains | P18 | [umbrella](2026-08-30-P19-project-persistence.md) · [P19.4 annex](2026-09-02-P19.4-editor-shell.md) |
-| P20 | Project Asset Registry + R2 — durable project-scoped texture assets, authenticated storage, Spatial integration, portable package fidelity, and refresh/Load resolution | in-progress — S0 complete 2026-09-03; S1 next, held by P19 live gate + owner-run R2 provisioning | P19 | [2026-08-19-P20-Project-assets-registry-R2.md](2026-08-19-P20-Project-assets-registry-R2.md) |
+| P20 | Project Asset Registry + R2 — durable project-scoped texture assets, authenticated storage, Spatial integration, portable package fidelity, and refresh/Load resolution | in-progress — S0 complete 2026-09-03; S1 brief ready, held by P19 live gate + owner-run R2 provisioning | P19 | [2026-08-19-P20-Project-assets-registry-R2.md](2026-08-19-P20-Project-assets-registry-R2.md) |
 | — | Branch rejoin — **experiment, no schedule** (rejoin into a later Sequence stop; dead-end return already ships; multi-edge playback would compose P8's edge primitive) | proposed | P8 conceptually | [2026-08-21-branch-rejoin-experiment.md](2026-08-21-branch-rejoin-experiment.md) |
 | … | future work re-registers here | | | |
 
@@ -244,16 +244,36 @@ primary creative modes — **Spatial** (the current editor) and **Experience**
 operating on one portable project truth. Direction lives in
 [`../north-star.md`](../north-star.md) and its final conceptual hierarchy;
 this section records only the sequencing tiers. Nothing here is a registered
-P-number; future work re-registers here when scheduled.
+P-number; the numbered tiers below are next-free-number reservations
+(direction only) that become registered only when their plan docs are filed
+(owner roadmap 2026-09-03):
+
+- **P20 — Project Asset Registry + R2.** Registered and in-progress — see the
+  active row above (S0 complete; S1 brief ready, held by the P19 live gate +
+  owner-run R2 provisioning).
+- **P21 — Basic Publish/runtime.** Minimal publish surface and read-only
+  runtime/visitor boundary for a saved project. Direction only; its brief is
+  written once P20's Spatial integration is close.
+- **P22 — ORM / typed DB layer.** A typed database layer (schema-owned types,
+  typed query access) once the raw-parameterized-SQL surface from P19–P21 —
+  projects, versions, assets — plus P23+ tenant shapes justify it. Deliberate
+  deferral: P19/P20 keep their no-ORM pins; no ORM, query builder, or generic
+  storage package before this tier.
+- **P23+ — Experience, sharing, domains, teams, billing.** The Experience
+  strand (long-term bullet below) plus collaborative/tenant surfaces. Not one
+  work item — each entry gets its own P-number and plan doc when scheduled,
+  starting at P23.
 
 - **Current / near-term platform work** (grounded in active rows): core
   extraction / app boundaries (P15–P17 shipped), backend provisioning (P18
   shipped), project Save/Load + first Google OIDC + app-owned secure-session
   integration + single-user ownership (P19 in progress behind its Google
-  OIDC/live deployment gate), then
-  auth UX/hardening and richer permissions,
-  R2-backed project assets, persistence integration, spatial editor
-  completion/polish, and a basic publish/runtime boundary.
+  OIDC/live deployment gate), then the numbered tier sequence above:
+  R2-backed project assets with Spatial integration (P20, in progress), a
+  basic publish/runtime boundary (P21), the
+  ORM / typed DB layer (P22), and Experience + sharing/domains/teams/billing
+  (P23+). Auth UX/hardening and richer permissions ride with the P23+
+  collaborative tier, not P19/P20.
 - **Medium-term product infrastructure** (possible direction, unscheduled):
   project dashboard, project asset management, hosted project loading,
   published project versions, portable project/export hardening, and generic
@@ -276,3 +296,7 @@ Google OIDC (Authorization Code + PKCE) + app-owned secure-session
 integration and single-user ownership required for Save/Load; broader auth
 UX/hardening and richer permissions remain later.
 P19 has no Experience schema and no R2.
+
+P19–P21 stay raw parameterized SQL: the no-ORM pins in the P19/P20 plans are
+scope-limited to those tiers and are revisited only by the P22 ORM/typed DB
+tier. P21 and P22 hold no Experience schema; Experience work remains P23+.

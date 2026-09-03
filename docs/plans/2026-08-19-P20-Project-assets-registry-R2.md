@@ -1,6 +1,6 @@
 # P20 — Project Asset Registry + R2 asset storage
 
-**Status:** in-progress; S0 complete 2026-09-03. S1 is next, held by the P19 live gate and owner-run R2 provisioning.
+**Status:** in-progress; S0 complete 2026-09-03. S1 implementation brief is ready, held by the P19 live gate and owner-run R2 provisioning.
 **Depends on:** P19 shipped, including the live Google OIDC / deployed Save–Load gate.
 **Source:** ratified backend/persistence migration review Pass 6 + current North Star shared-assets direction.
 **Amended:** owner-ratified amendment direction (SceneDocument vs registry ownership, portable package semantics, shared-package purity, R2 test seam, key/dedup isolation, tightened v1 scope, targeted S0 inventory, S-slice naming) — S0 must resolve the durable texture-reference, cloud-Save durability, and guest-binary contracts before S1.
@@ -693,153 +693,229 @@ Do not hide this behavior inside ad-hoc session storage or silently discard loca
 
 # S1 — registry database + R2 API
 
-Add the first durable `assets` schema and API.
+**Owner shorthand:** P20.1. **Brief ready:** 2026-09-03. **Entry gate:** P19
+live/ready authenticated Save–Load smoke plus owner-provisioned private R2
+bucket and Render secrets.
 
-## Conceptual schema
+## Outcome and boundary
 
-Expected shape:
+Authenticated owner can register one project texture, stream PNG/WebP/JPEG
+bytes into private R2, list/read metadata, and fetch through authorized API.
+Stable server UUID survives; failed upload never becomes `ready`.
 
-```text
-assets
-  id
-  project_id
-  name
-  kind/category
-  storage_kind
-  mime
-  byte_size
-  sha256
-  object_key nullable
-  source_kind
-  source_ref nullable
-  source_url nullable
-  creator nullable
-  license
-  attribution nullable
-  import_state
-  created_at
-  updated_at
+S1 is API infrastructure only. It does not add editor UI, mutate
+`SceneDocument`, create `/project-assets/{assetId}` references, relax S0's
+cloud-Save blocker, resolve runtime textures, or change package export. Those
+belong to S2–S4. No GLB, delete/GC, dedup, presigned URLs, multipart/resumable
+flow, workers, CDN, transcoding, ORM, or generic storage package.
+
+## Existing seams to reuse
+
+- `app.ts`: `createApp`, session, generic 404, origin/error/logging patterns.
+- `project-persistence.ts` + `database.ts`: parameterized SQL, row readers,
+  transactions, `ProjectNotFoundError`, `DatabasePool` / `DatabaseClient`.
+  Put asset SQL in sibling `asset-persistence.ts`; no ORM/model widening.
+- `config.ts` + `server.ts`: env validation and composition-time injection.
+- `migrate.ts`: ordered forward-only runner; add `002-project-assets.sql`.
+- Existing image rules: PNG 8-byte signature, WebP `RIFF....WEBP`, JPEG
+  `FF D8 FF`. Copy this tiny pure check API-locally; never import editor code.
+- Existing integrity spelling: lowercase `sha256-<64 hex>`.
+
+## Literal migration
+
+`apps/api/migrations/002-project-assets.sql`:
+
+```sql
+CREATE TABLE IF NOT EXISTS assets (
+	id uuid PRIMARY KEY,
+	project_id text NOT NULL REFERENCES projects(id),
+	name text NOT NULL CHECK (
+		char_length(name) BETWEEN 1 AND 128 AND name = btrim(name)
+		AND position('/' in name) = 0 AND position(chr(92) in name) = 0
+	),
+	kind text NOT NULL CHECK (kind IN ('texture', 'procedural')),
+	storage_kind text NOT NULL CHECK (storage_kind IN ('r2', 'none')),
+	source_kind text NOT NULL CHECK (source_kind IN ('upload', 'builtin', 'procedural')),
+	source_ref text,
+	mime text CHECK (mime IN ('image/png', 'image/webp', 'image/jpeg')),
+	byte_size bigint CHECK (byte_size BETWEEN 1 AND 26214400),
+	sha256 text CHECK (sha256 ~ '^sha256-[0-9a-f]{64}$'),
+	object_key text UNIQUE,
+	import_state text NOT NULL CHECK (import_state IN ('pending', 'ready', 'failed')),
+	created_at timestamptz NOT NULL DEFAULT now(),
+	updated_at timestamptz NOT NULL DEFAULT now(),
+	CHECK (
+		(storage_kind = 'r2' AND object_key IS NOT NULL AND source_kind = 'upload')
+		OR (storage_kind = 'none' AND object_key IS NULL
+			AND source_kind IN ('builtin', 'procedural'))
+	),
+	CHECK (storage_kind = 'r2' OR import_state = 'ready'),
+	CHECK (import_state <> 'ready' OR storage_kind = 'none'
+		OR (mime IS NOT NULL AND byte_size IS NOT NULL AND sha256 IS NOT NULL))
+);
+
+CREATE INDEX IF NOT EXISTS assets_project_created_at_idx
+	ON assets (project_id, created_at DESC, id ASC);
 ```
 
-This is directional, not a literal required schema.
+App validation additionally requires NFC-normalized names. API-created rows
+are exactly `kind='texture'`, `storage_kind='r2'`, `source_kind='upload'`.
+`none` rows only preserve built-in/procedural schema viability; S1 adds no
+route that creates them. Node `crypto.randomUUID()` creates `id`; Node
+`randomBytes()` creates opaque key suffix. No Postgres extension.
 
-Object-backed rows begin in `pending`, so upload-derived fields may remain nullable until finalization. A `ready` row requires validated MIME, byte size, SHA-256 and object key.
+## HTTP contract
 
-Built-in/procedural assets must allow:
+Route-level `onRequest` requires valid session before body parsing. Every query
+filters through `projects.owner_id`; unknown/foreign IDs return identical
+`404 { error: { code: 'not_found', message: 'Not Found' } }`. Client never
+sends owner/asset ID, object key, bucket, checksum, size, or final MIME.
 
-```text
-object_key = null
-```
+| Method | Route | Request | Success |
+| --- | --- | --- | --- |
+| `GET` | `/projects/:projectId/assets` | none | `200 { assets: AssetMetadata[] }`, newest first |
+| `POST` | `/projects/:projectId/assets` | JSON `{ name }` only | `201 AssetMetadata` in `pending` state |
+| `GET` | `/projects/:projectId/assets/:assetId` | none | `200 AssetMetadata`, any state |
+| `PUT` | `/projects/:projectId/assets/:assetId/content` | raw `application/octet-stream`; required `Content-Length` | `200 AssetMetadata` in `ready` state |
+| `GET` | `/projects/:projectId/assets/:assetId/content` | none | `200` streamed bytes with sniffed `Content-Type`, DB `Content-Length`, `Cache-Control: private, no-store` |
 
-when there are no project-owned bytes.
+`AssetMetadata` contains `id`, `projectId`, `name`, `kind`, `storageKind`,
+`sourceKind`, `sourceRef`, `mime`, `byteSize`, `sha256`, `importState`,
+`createdAt`, and `updatedAt`. It never contains `objectKey` or a storage URL.
 
-Use direct SQL and the existing migration runner.
+Validation/errors:
 
-Do not add an ORM.
+- malformed UUID/project ID (`[A-Za-z0-9][A-Za-z0-9._:-]*`) or name/body:
+  `400 invalid_asset`;
+- missing length: `411 length_required`; zero/mismatched length: `400 invalid_upload`;
+- declared or observed body above 25 MiB: `413 payload_too_large`;
+- wrong request content type or unsupported magic bytes: `415 unsupported_media_type`;
+- upload to `ready`, or byte GET before `ready`: `409 asset_not_ready`;
+- DB/R2 failure, missing ready object, or R2 length mismatch: `503 service_unavailable`.
 
-## Authorization
+Broaden current origin guard to all unsafe browser methods (`POST`, `PUT`,
+`PATCH`, `DELETE`), not only project `PUT` and logout. `GET`, `HEAD`, and OIDC
+callback remain safe-method paths. Register one `application/octet-stream`
+content parser returning request stream; size enforcement stays in streaming
+pipeline so binary requests do not inherit P19's 2 MiB JSON limit.
 
-Every project-asset operation resolves:
+## Persistence and upload order
 
-```text
-secure session
-→ authenticated user
-→ owned project
-→ asset
-```
-
-Preserve P19's information-hiding semantics:
-
-```text
-unknown project
-non-owned project
-→ same generic 404
-```
-
-Do not accept `ownerId` from the client.
-
-Byte retrieval repeats the same session → project ownership check as metadata retrieval. Raw object keys, bucket names, or signed URLs are never accepted from the client and never exposed as the normal contract.
-
-## Object-store test seam
-
-S1 must make object storage injectable at the API composition boundary. Keep the interface to put/get; P20 has no user-facing or rollback delete operation:
-
-```text
-createApp → R2/S3-backed implementation (production)
-createApp → deterministic in-memory/fake object store (tests)
-```
-
-`npm run test:api` must not contact Cloudflare. Do not create a generic workspace-level storage package; keep the interface local to `apps/api` unless another real consumer later justifies extraction.
-
-## Minimum API
-
-Plan the smallest authenticated surface for:
+`POST` performs one `INSERT ... SELECT` from owned `projects`; zero returned
+rows means generic 404. It allocates:
 
 ```text
-list project assets
-read asset metadata
-create/register asset
-upload asset bytes
-retrieve asset bytes
+assetId = crypto.randomUUID()
+objectKey = projects/{projectId}/assets/{assetId}/{random opaque suffix}
+state = pending
 ```
 
-Exact HTTP shapes belong to the detailed implementation plan.
-
-Binary requests must not inherit the P19 2 MiB semantic-document limit.
-
-P20 gets its own explicit upload bounds.
-
-Stream bytes rather than buffering the whole object in Fastify memory.
-
-For v1:
+`PUT` does:
 
 ```text
-browser
-→ Fastify
-→ R2
+authenticate before consuming body
+→ BEGIN
+→ SELECT owned asset FOR UPDATE
+→ require pending or failed; set failed back to pending for retry
+→ read at most 12 prefix bytes and sniff MIME
+→ stream prefix + remainder through byte counter + createHash('sha256')
+→ objectStore.put(key, stream, sniffed MIME, declared length)
+→ require observed length = Content-Length and ≤ 25 MiB
+→ UPDATE mime/byte_size/sha256/import_state='ready'/updated_at
+→ COMMIT
 ```
 
-is acceptable.
+Row lock remains held during upload. At 25 MiB this is bounded and prevents
+two concurrent PUTs from racing object bytes against metadata without adding
+an `uploading` state or job system. Leave implementation note:
+`// ponytail: row lock spans ≤25 MiB upload; add a claim/lease only if DB pressure appears.`
 
-Do not introduce yet:
+Validation/stream/store failure commits `failed`; retry reuses same ID/key.
+PUT success plus DB finalize failure rolls back to `pending`; retained object
+is not served and retry overwrites it. No cleanup/delete.
+
+`GET .../content` authorizes and loads `ready` metadata before calling object
+storage. Missing object/size mismatch returns 503 without mutation; mid-stream
+failure terminates response and logs safe metadata only. Do not hash each read.
+
+## Object-store seam and dependency
+
+Add API-local `object-store.ts` only:
+
+```ts
+import type { Readable } from 'node:stream';
+
+type ObjectStore = {
+	put(key: string, body: Readable,
+		options: { contentType: string; contentLength: number }): Promise<void>;
+	get(key: string): Promise<{ body: Readable; contentLength: number } | null>;
+	close?(): void;
+};
+```
+
+`createApp` receives this interface. Tests inject deterministic memory/failure
+stores. Production `server.ts` constructs `S3Client` with `region: 'auto'`,
+configured endpoint/credentials, and `PutObjectCommand` / `GetObjectCommand`.
+Add only `@aws-sdk/client-s3`; no `lib-storage`. `onClose` destroys S3 client
+once alongside pool closure.
+
+Add required config: `R2_ENDPOINT` (credential-free HTTPS URL), `R2_BUCKET`,
+`R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`. Values stay server-only and never
+enter logs/responses. `npm run test:api` supplies fake store and makes zero
+network calls.
+
+## App/editor lifecycle semantics
+
+No Svelte mount, unmount, selection, placement, transform, or history change.
+API owns one object-store adapter for process lifetime and closes it on Fastify
+shutdown. S2 owns editor registry state; S3 owns undoable URI replacement.
+
+## Exact acceptance
+
+Add focused cases to `apps/api/tests/api.test.mjs`:
+
+1. migration runner applies 002 once; Neon smoke proves `none` rows pass and
+   incomplete `ready` R2 rows fail;
+2. every asset route rejects missing/invalid session before DB or store calls;
+3. owner register/list/read works; malformed inputs fail; foreign metadata,
+   upload, and bytes share same 404;
+4. server generates IDs/keys under project namespace; key never enters JSON;
+5. multi-chunk PNG/WebP/JPEG records exact MIME, size, `sha256-<hex>`;
+6. missing/zero/false/oversized length, length mismatch, wrong content type,
+   bad magic, client abort, and store PUT failure never produce `ready`;
+7. concurrent PUTs serialize; second sees `ready`; failed/pending retry same ID;
+8. finalize failure leaves `pending` while fake store retains object;
+9. ready bytes stream with expected headers; pending/failed do not call store;
+   missing object/size mismatch return 503; stream failure is bounded;
+10. foreign byte request rejects before store GET;
+11. config errors redact secrets; shutdown closes store once;
+12. existing auth/project/CORS/2 MiB tests remain green.
+
+Run:
 
 ```text
-presigned direct browser upload
-multipart/resumable orchestration
-background workers
-CDN architecture
-transcoding pipeline
+npm run check:api
+npm run test:api
+npm run build:api
+npm run verify:visitor-bundle
 ```
 
-unless code inventory proves an immediate requirement.
+After owner gate, manual smoke: register → upload one PNG → list/read → fetch
+and byte-compare; repeat fetch under second user and confirm generic 404; force
+bad MIME and >25 MiB and confirm no ready asset. Never use production
+credentials in automated tests.
 
----
+## Relic, visitor, and rollback
 
-# Upload transaction semantics
+`/museum` and `/museum/editor` receive no imports, routes, registry state, or
+private requests. `@portfolio/project-model`, `@portfolio/layout-core`, and
+`@portfolio/camera-core` receive no server/storage dependency. Plan/Camera,
+navigation, scene schema, and visitor bundle stay unchanged.
 
-Pin this order:
-
-```text
-validate request
-→ authenticate / authorize
-→ allocate stable asset ID + server-owned object key
-→ create pending registry row
-→ stream/hash upload
-→ finalize validated metadata as ready
-→ return stable asset identity
-```
-
-The detailed plan must prevent a durable registry entry from claiming usable storage when its upload failed.
-
-Use the small explicit state machine:
-
-```text
-pending
-ready
-failed
-```
-
-Upload failure marks the row `failed`. If PUT succeeds but finalization fails, the row remains `pending`; it is never returned as usable, and retry resumes against that identity. Deferred cleanup may later remove abandoned rows/objects. Do not let half-written asset records masquerade as usable assets.
+If S1 expands, land two reviewable groups: (A) migration + direct SQL + routes
+against fake store; (B) R2 adapter + config + owner smoke. Do not deploy A
+alone. Existing migration runner is forward-only; rollback means stop deploy
+and leave unused `assets` table, never destructive down-migration.
 
 ---
 

@@ -34,6 +34,11 @@
 		ownedProjects = [],
 		cloudStatus = 'disabled',
 		cloudError = null,
+		saveAuthGateOpen = false,
+		onContinueSaveAuth,
+		onCancelSaveAuth,
+		pendingSaveActive = false,
+		onDiscardPendingSave,
 		open = $bindable(false),
 		onReset
 	}: {
@@ -54,6 +59,11 @@
 		ownedProjects?: readonly ProjectSummary[];
 		cloudStatus?: 'disabled' | 'ready' | 'loading' | 'saving' | 'error';
 		cloudError?: string | null;
+		saveAuthGateOpen?: boolean;
+		onContinueSaveAuth?: () => void | Promise<void>;
+		onCancelSaveAuth?: () => void;
+		pendingSaveActive?: boolean;
+		onDiscardPendingSave?: () => void;
 		open?: boolean;
 		/** fired after a reset action; the shell clears the active selection on all three slots. */
 		onReset?: () => void;
@@ -295,8 +305,8 @@
 						/>
 					</label>
 					<div class="project-actions">
-						<button type="button" class="primary" disabled={!cloudConfigured || cloudBusy || sessionStatus !== 'authenticated'} onclick={onSaveProject}>
-							{cloudStatus === 'saving' ? 'Saving…' : 'Save cloud project'}
+						<button type="button" class="primary" disabled={!cloudConfigured || cloudBusy} onclick={onSaveProject}>
+							{cloudStatus === 'saving' ? 'Saving…' : pendingSaveActive ? 'Retry save' : 'Save cloud project'}
 						</button>
 						{#if sessionStatus === 'authenticated'}
 							<button type="button" disabled={cloudBusy} onclick={onSignOut}>Sign out</button>
@@ -306,6 +316,19 @@
 							</button>
 						{/if}
 					</div>
+					{#if saveAuthGateOpen}
+						<div class="save-auth-gate" role="alertdialog" aria-modal="true" aria-labelledby="save-auth-title">
+							<strong id="save-auth-title">Save your project</strong>
+							<p>Sign in with Google to save this project and access it later.</p>
+							<div class="project-actions">
+								<button type="button" class="primary" onclick={onContinueSaveAuth}>Continue with Google</button>
+								<button type="button" onclick={onCancelSaveAuth}>Not now</button>
+							</div>
+						</div>
+					{/if}
+					{#if pendingSaveActive}
+						<button type="button" class="discard-draft" onclick={onDiscardPendingSave}>Discard draft</button>
+					{/if}
 					<div class="cloud-project-heading">
 						<strong>Owned projects</strong>
 						<button type="button" class="text-button" disabled={!cloudConfigured || cloudBusy} onclick={onRefreshProjects}>Refresh</button>
@@ -476,6 +499,11 @@
 	.project-name-field { display: flex; flex-direction: column; gap: 0.3rem; margin-top: 0.65rem; color: var(--editor-text-secondary); font-size: 0.68rem; }
 	.project-name-field input { min-width: 0; padding: 0.38rem 0.45rem; border: 1px solid var(--editor-border-normal); border-radius: 0.3rem; background: var(--editor-bg-panel); color: var(--editor-text-primary); font: inherit; font-size: 0.72rem; }
 	.cloud-project-heading { display: flex; align-items: center; justify-content: space-between; margin-top: 0.8rem; color: var(--editor-text-secondary); font-size: 0.68rem; }
+	.save-auth-gate { margin-top: 0.7rem; padding: 0.65rem; border: 1px solid var(--editor-accent-border); border-radius: 0.35rem; background: var(--editor-bg-selected); }
+	.save-auth-gate p { margin: 0.35rem 0 0; color: var(--editor-text-secondary); font-size: 0.68rem; line-height: 1.4; }
+	.save-auth-gate .project-actions { margin-top: 0.55rem; }
+	.discard-draft { width: 100%; margin-top: 0.45rem; padding: 0.3rem 0.5rem; border: 1px solid var(--editor-danger-border); border-radius: 0.25rem; background: var(--editor-danger-soft); color: var(--editor-danger-fg); font: inherit; font-size: 0.68rem; cursor: pointer; }
+	.discard-draft:hover { border-color: var(--editor-danger); }
 	.text-button { padding: 0; border: 0; background: transparent; color: var(--editor-text-primary); font: inherit; font-size: 0.68rem; text-decoration: underline; cursor: pointer; }
 	.text-button:disabled { opacity: 0.4; cursor: default; }
 	.owned-projects { display: flex; flex-direction: column; gap: 0.3rem; margin: 0.45rem 0 0; padding: 0; list-style: none; }

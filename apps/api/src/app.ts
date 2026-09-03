@@ -6,6 +6,7 @@ import {
 	googleUserId,
 	isGoogleUserId,
 	type OidcClient,
+	type OidcLoginIntent,
 	type OidcLoginState
 } from './auth.js';
 import { sanitizeDatabaseError, type DatabasePool } from './database.js';
@@ -129,8 +130,10 @@ export function createApp({
 
 	app.get('/auth/login', async (request, reply) => {
 		if (!sessionsEnabled || !oidc) return authUnavailable(reply);
+		const intent = readLoginIntent(request, apiOrigin);
+		if (!intent) return invalidLoginIntent(reply);
 		try {
-			const login = await createOidcLoginState();
+			const login = await createOidcLoginState(intent);
 			const redirectUri = getCallbackUrl(request, apiOrigin).toString();
 			const authorizationUrl = await oidc.createAuthorizationUrl({
 				redirectUri,
@@ -141,7 +144,8 @@ export function createApp({
 			appSession(request).set('oidcLogin', {
 				state: login.state,
 				codeVerifier: login.codeVerifier,
-				nonce: login.nonce
+				nonce: login.nonce,
+				intent: login.intent
 			} satisfies OidcLoginState);
 			return reply.redirect(String(authorizationUrl));
 		} catch {
@@ -161,9 +165,18 @@ export function createApp({
 		}
 		const state = singleQueryParam(callbackUrl, 'state');
 		const code = singleQueryParam(callbackUrl, 'code');
-		if (!login || !state || state !== login.state || !code || singleQueryParam(callbackUrl, 'error')) {
+		const callbackError = singleQueryParam(callbackUrl, 'error');
+		if (!login || !state || state !== login.state) {
 			clearOidcLoginState(request);
 			return invalidCallback(reply);
+		}
+		if (callbackError) {
+			clearOidcLoginState(request);
+			return callbackFailure(reply, editorOrigin, login.intent, callbackError === 'access_denied' ? 'cancelled' : 'failed');
+		}
+		if (!code) {
+			clearOidcLoginState(request);
+			return callbackFailure(reply, editorOrigin, login.intent, 'failed');
 		}
 
 		try {
@@ -178,10 +191,15 @@ export function createApp({
 			clearOidcLoginState(request);
 			appSession(request).regenerate();
 			appSession(request).set('userId', userId);
-			return reply.redirect(editorOrigin ?? apiOrigin ?? '/');
+			return reply.redirect(
+				boundedRedirect(
+					editorOrigin ?? apiOrigin,
+					login.intent === 'projects' ? '/projects' : '/?auth=success&intent=save'
+				)
+			);
 		} catch {
 			clearOidcLoginState(request);
-			return invalidCallback(reply);
+			return callbackFailure(reply, editorOrigin, login.intent, 'failed');
 		}
 	});
 
@@ -268,6 +286,7 @@ function readOidcLoginState(value: unknown): OidcLoginState | null {
 		typeof value.state !== 'string' ||
 		typeof value.codeVerifier !== 'string' ||
 		typeof value.nonce !== 'string' ||
+		!isLoginIntent(value.intent) ||
 		!value.state ||
 		!value.codeVerifier ||
 		!value.nonce
@@ -277,7 +296,8 @@ function readOidcLoginState(value: unknown): OidcLoginState | null {
 	return {
 		state: value.state,
 		codeVerifier: value.codeVerifier,
-		nonce: value.nonce
+		nonce: value.nonce,
+		intent: value.intent
 	};
 }
 
@@ -301,6 +321,22 @@ function singleQueryParam(url: URL, name: string): string | null {
 	return values.length === 1 && values[0] ? values[0] : null;
 }
 
+function readLoginIntent(request: FastifyRequest, apiOrigin?: string): OidcLoginIntent | null {
+	let url: URL;
+	try {
+		url = getRequestUrl(request, apiOrigin);
+	} catch {
+		return null;
+	}
+	const values = url.searchParams.getAll('intent');
+	if (values.length === 0) return 'projects';
+	return values.length === 1 && isLoginIntent(values[0]) ? values[0] : null;
+}
+
+function isLoginIntent(value: unknown): value is OidcLoginIntent {
+	return value === 'projects' || value === 'save';
+}
+
 function getCallbackUrl(request: FastifyRequest, apiOrigin?: string): URL {
 	const base = apiOrigin ?? `${request.protocol}://${request.headers.host ?? 'localhost'}`;
 	return new URL('/auth/callback', base);
@@ -317,6 +353,24 @@ function authUnavailable(reply: { code(statusCode: number): { send(body: unknown
 
 function invalidCallback(reply: { code(statusCode: number): { send(body: unknown): unknown } }) {
 	return reply.code(400).send(errorBody('invalid_callback', 'Authentication callback was rejected'));
+}
+
+function invalidLoginIntent(reply: { code(statusCode: number): { send(body: unknown): unknown } }) {
+	return reply.code(400).send(errorBody('invalid_intent', 'Authentication intent was rejected'));
+}
+
+function callbackFailure(
+	reply: { redirect(url: string): unknown; code(statusCode: number): { send(body: unknown): unknown } },
+	editorOrigin: string | undefined,
+	intent: OidcLoginIntent,
+	status: 'cancelled' | 'failed'
+) {
+	if (!editorOrigin) return invalidCallback(reply);
+	return reply.redirect(boundedRedirect(editorOrigin, `/?auth=${status}&intent=${intent}`));
+}
+
+function boundedRedirect(origin: string | undefined, path: string): string {
+	return origin ? new URL(path, origin).toString() : path;
 }
 
 function isDocumentBody(value: unknown): value is { document: unknown } {

@@ -2,12 +2,17 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { createEmptyProject } from '$lib/project/project-codec';
 import {
+	clearPendingCloudSave,
 	createProjectApi,
 	createProjectAuth,
 	createProjectId,
+	PENDING_CLOUD_SAVE_KEY,
+	PENDING_CLOUD_SAVE_MAX_AGE_MS,
 	ProjectPersistenceError,
 	projectFingerprint,
-	sameProjectFingerprint
+	readPendingCloudSave,
+	sameProjectFingerprint,
+	writePendingCloudSave
 } from '$lib/editor/project-persistence';
 
 const project = createEmptyProject({ id: 'project:one', name: 'One' });
@@ -86,5 +91,31 @@ describe('project persistence client', () => {
 		expect(sameProjectFingerprint(first, projectFingerprint('scene-a', 'layout-b', 'One'))).toBe(false);
 		expect(sameProjectFingerprint(first, projectFingerprint('scene-a', 'layout-a', 'Two'))).toBe(false);
 		expect(new ProjectPersistenceError('auth', 'Sign-in is required')).toBeInstanceOf(Error);
+	});
+
+	it('validates, bounds, and clears the session-only Save handoff', () => {
+		const values = new Map<string, string>();
+		const storage = {
+			getItem: (key: string) => values.get(key) ?? null,
+			setItem: (key: string, value: string) => values.set(key, value),
+			removeItem: (key: string) => values.delete(key)
+		};
+		const now = 1_000_000;
+
+		expect(writePendingCloudSave(project, storage, now)).toBe(true);
+		expect(JSON.parse(values.get(PENDING_CLOUD_SAVE_KEY)!)).toEqual({ createdAt: now, project });
+		expect(readPendingCloudSave(storage, now)).toEqual({ status: 'ready', project });
+
+		values.set(PENDING_CLOUD_SAVE_KEY, JSON.stringify({ createdAt: now - PENDING_CLOUD_SAVE_MAX_AGE_MS - 1, project }));
+		expect(readPendingCloudSave(storage, now)).toEqual({ status: 'expired' });
+		expect(values.has(PENDING_CLOUD_SAVE_KEY)).toBe(false);
+
+		values.set(PENDING_CLOUD_SAVE_KEY, JSON.stringify({ createdAt: now, project, token: 'never' }));
+		expect(readPendingCloudSave(storage, now)).toEqual({ status: 'invalid' });
+		expect(values.has(PENDING_CLOUD_SAVE_KEY)).toBe(false);
+
+		writePendingCloudSave(project, storage, now);
+		clearPendingCloudSave(storage);
+		expect(values.has(PENDING_CLOUD_SAVE_KEY)).toBe(false);
 	});
 });

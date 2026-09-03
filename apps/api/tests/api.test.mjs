@@ -316,7 +316,7 @@ test('callback validates the session-bound state and forwards PKCE plus nonce', 
 			headers: { cookie: cookieFrom(login) }
 		});
 		assert.equal(callbackResponse.statusCode, 302);
-		assert.equal(callbackResponse.headers.location, 'https://editor.example.test');
+		assert.equal(callbackResponse.headers.location, 'https://editor.example.test/projects');
 		assert.equal(callback.callbackUrl.toString(), `https://api.example.test/auth/callback?code=authorization-code&state=${encodeURIComponent(authorization.state)}`);
 		assert.equal(callback.codeVerifier.length > 20, true);
 		assert.equal(callback.expectedState, authorization.state);
@@ -372,11 +372,47 @@ test('tampered state, rejected PKCE/token, and invalid identity never create a s
 			url: `/auth/callback?code=authorization-code&state=${encodeURIComponent(state)}`,
 			headers: { cookie: cookieFrom(secondLogin) }
 		});
-		assert.equal(rejected.statusCode, 400);
+		assert.equal(rejected.statusCode, 302);
+		assert.equal(rejected.headers.location, 'https://editor.example.test/?auth=failed&intent=projects');
 		assert.equal(exchangeCalls, 1);
 		const rejectedMe = await app.inject({ method: 'GET', url: '/auth/me', headers: { cookie: cookieFrom(rejected) } });
 		assert.deepEqual(rejectedMe.json(), { authenticated: false });
 		assert.equal(rejected.body.includes('token exchange'), false);
+	} finally {
+		await app.close();
+	}
+});
+
+test('save login intent survives the OIDC round trip and access denial is bounded', async () => {
+	let authorization;
+	const app = createApp({
+		pool: stubPool(),
+		apiOrigin: 'https://api.example.test',
+		editorOrigin: 'https://editor.example.test',
+		sessionKey: SESSION_KEY,
+		oidc: {
+			async createAuthorizationUrl(input) {
+				authorization = input;
+				return `https://accounts.google.test/auth?state=${encodeURIComponent(input.state)}`;
+			},
+			async exchangeAuthorizationCode() {
+				return { subject: 'google-save-user' };
+			}
+		},
+		logger: false
+	});
+	try {
+		const invalid = await app.inject({ method: 'GET', url: '/auth/login?intent=other' });
+		assert.equal(invalid.statusCode, 400);
+
+		const saveLogin = await app.inject({ method: 'GET', url: '/auth/login?intent=save' });
+		const saveCallback = await app.inject({
+			method: 'GET',
+			url: `/auth/callback?error=access_denied&state=${encodeURIComponent(authorization.state)}`,
+			headers: { cookie: cookieFrom(saveLogin) }
+		});
+		assert.equal(saveCallback.statusCode, 302);
+		assert.equal(saveCallback.headers.location, 'https://editor.example.test/?auth=cancelled&intent=save');
 	} finally {
 		await app.close();
 	}

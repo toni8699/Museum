@@ -25,6 +25,11 @@
 		ownedProjects = [],
 		cloudStatus = 'disabled',
 		cloudError = null,
+		saveAuthGateOpen = false,
+		onContinueSaveAuth,
+		onCancelSaveAuth,
+		pendingSaveActive = false,
+		onDiscardPendingSave,
 		onReset
 	}: {
 		store: EditorStore;
@@ -44,6 +49,11 @@
 		ownedProjects?: readonly ProjectSummary[];
 		cloudStatus?: 'disabled' | 'ready' | 'loading' | 'saving' | 'error';
 		cloudError?: string | null;
+		saveAuthGateOpen?: boolean;
+		onContinueSaveAuth?: () => void | Promise<void>;
+		onCancelSaveAuth?: () => void;
+		pendingSaveActive?: boolean;
+		onDiscardPendingSave?: () => void;
 		/** fired after the Project-menu reset actions; the shell clears the active selection. */
 		onReset?: () => void;
 	} = $props();
@@ -146,6 +156,11 @@
 			{ownedProjects}
 			{cloudStatus}
 			{cloudError}
+			{saveAuthGateOpen}
+			{onContinueSaveAuth}
+			{onCancelSaveAuth}
+			{pendingSaveActive}
+			{onDiscardPendingSave}
 			{onReset}
 			bind:open={projectMenuOpen}
 		/>

@@ -402,12 +402,33 @@ describe('route wiring (relic smoke proxy, no DOM harness)', () => {
 		expect(relic).not.toContain('EditorApp');
 	});
 
-	it('/ and /editor mount the editor shell', () => {
+	it('keeps the root and compatibility entry lightweight', () => {
 		for (const routePath of ['+page.svelte', 'editor/+page.svelte']) {
 			const source = readRouteSource(routePath);
-			expect(source).toContain('EditorApp');
+			expect(source).not.toContain('EditorApp');
 			expect(source).not.toContain('virtual:museum-editor-entry');
 		}
+		const root = readRouteSource('+page.svelte');
+		const compatibility = readRouteSource('editor/+page.svelte');
+		expect(root).toContain('Start creating');
+		expect(root).toContain("signIn('projects')");
+		expect(compatibility).toContain("/project/${encodeURIComponent(createProjectId())}/spatial");
+		expect(readLibSource('editor/project-persistence.ts')).toContain("/auth/login?intent=");
+	});
+
+	it('mounts EditorApp only inside the project Spatial route', () => {
+		const spatial = readRouteSource('project/[projectId]/spatial/+page.svelte');
+		expect(spatial).toContain('EditorApp');
+		expect(spatial).toContain('loadOwnedProject');
+		expect(spatial).toContain('resumePendingSave');
+	});
+
+	it('keeps Project Shell navigation thin and Spatial-only', () => {
+		const shell = readRouteSource('project/[projectId]/+layout.svelte');
+		expect(shell).toContain('href="/projects"');
+		expect(shell).toContain('Spatial');
+		expect(shell).toContain('{@render children()}');
+		expect(shell).not.toContain('EditorApp');
 	});
 
 	it('virtual:museum-editor-entry resolves to the legacy MuseumEditorApp', () => {
@@ -1778,18 +1799,18 @@ describe('P3B.5 preview affordance source contracts', () => {
 describe('P19 project persistence coordinator contracts', () => {
 	it('keeps one first-save identity and settles trimmed-name baselines', () => {
 		const app = readLibSource('editor/app/EditorApp.svelte');
-		const saveStart = app.indexOf('async function saveProject');
+		const saveStart = app.indexOf('function captureValidatedSaveSnapshot');
 		const save = app.slice(saveStart, app.indexOf('async function loadProject', saveStart));
 
 		expect(save).toContain('const saveProjectId = projectId ?? createProjectId();');
 		expect(save).toContain('id: saveProjectId');
-		expect(save).toContain('if (projectId === null) projectId = saveProjectId;');
-		expect(save.indexOf('if (projectId === null) projectId = saveProjectId;')).toBeLessThan(
+		expect(save).toContain('if (projectId === null) projectId = snapshot.project.id;');
+		expect(save.indexOf('if (projectId === null) projectId = snapshot.project.id;')).toBeLessThan(
 			save.indexOf('await projectApi!.saveProject')
 		);
-		expect(save).toContain('if (projectName.trim() === snapshot.name) projectName = snapshot.name;');
-		expect(save).toContain('store.markSaved(sceneCanonicalJson)');
-		expect(save).toContain('markLayoutPreviewSaved(layoutPreview, layoutCanonicalJson)');
+		expect(save).toContain('if (projectName.trim() === snapshot.project.name) projectName = snapshot.project.name;');
+		expect(save).toContain('store.markSaved(snapshot.sceneCanonicalJson)');
+		expect(save).toContain('markLayoutPreviewSaved(layoutPreview, snapshot.layoutCanonicalJson)');
 		expect(save).toContain(
 			'{ id: saved.projectId, name: saved.name, version: saved.version, updatedAt: saved.updatedAt },'
 		);
@@ -1822,6 +1843,9 @@ describe('P19 project persistence coordinator contracts', () => {
 
 		expect(menu).toContain('{#if !relic && cloudConfigured}');
 		expect(menu).toContain("const cloudConfigured = $derived(cloudStatus !== 'disabled' && onSaveProject !== undefined);");
+		expect(menu).toContain('Save your project');
+		expect(menu).toContain('Sign in with Google to save this project and access it later.');
+		expect(menu).toContain('Discard draft');
 		expect(relic).not.toContain('createProjectApi');
 		expect(relic).toContain('<EditorAppBar {store} {layoutPreview} {confirmSceneReplacement} {confirmLayoutReplacement} {relic} />');
 	});

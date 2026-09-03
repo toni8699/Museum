@@ -73,25 +73,37 @@
 		createProjectAuth,
 		createProjectApi,
 		createProjectId,
+		clearPendingCloudSave,
 		projectFingerprint,
 		ProjectPersistenceError,
+		readPendingCloudSave,
 		sameProjectFingerprint,
+		writePendingCloudSave,
 		type ProjectPersistenceConfig,
 		type ProjectSummary
 	} from '$lib/editor/project-persistence';
 
 	let {
+		projectId: routeProjectId = null,
+		loadOwnedProject = false,
+		resumePendingSave = false,
 		projectPersistence = null
-	}: { projectPersistence?: ProjectPersistenceConfig | null } = $props();
+	}: {
+		projectId?: string | null;
+		loadOwnedProject?: boolean;
+		resumePendingSave?: boolean;
+		projectPersistence?: ProjectPersistenceConfig | null;
+	} = $props();
 	const configuredProjectPersistence = untrack(() => projectPersistence);
+	const initialProjectId = untrack(() => routeProjectId || 'project:untitled');
 
 	// the editor boots blank on every load: one canonical empty project
 	// seeds both the scene-only store and the layout-only preview surface.
 	const bootProject = createEmptyProject({
-		id: 'project:untitled',
+		id: initialProjectId,
 		name: 'Untitled project'
 	});
-	let projectId = $state<string | null>(null);
+	let projectId = $state<string | null>(untrack(() => routeProjectId));
 	let projectName = $state(bootProject.name);
 	let savedProjectName = $state(bootProject.name);
 	let projectVersion = $state<number | null>(null);
@@ -104,6 +116,8 @@
 	let projectRequestController: AbortController | null = null;
 	let projectMutationEpoch = 0;
 	let projectListRequestToken = 0;
+	let saveAuthGateOpen = $state(false);
+	let pendingSaveActive = $state(untrack(() => resumePendingSave));
 	const projectApiOrigin = configuredProjectPersistence?.apiOrigin ?? env.PUBLIC_API_ORIGIN;
 	const projectAuth =
 		configuredProjectPersistence?.auth ??
@@ -326,6 +340,21 @@
 		return true;
 	}
 
+	type SaveSnapshot = {
+		project: ProjectDocument;
+		sceneCanonicalJson: string;
+		layoutCanonicalJson: string;
+	};
+
+	function canCaptureProjectSnapshot(): boolean {
+		if (projectMutationInFlight) return false;
+		if (store.isEditorInteractionActive || store.isDocumentTransactionActive) {
+			setCloudError('Stop the current interaction before saving');
+			return false;
+		}
+		return true;
+	}
+
 	function canStartProjectMutation(): boolean {
 		if (!projectApi) {
 			setCloudError('Cloud Save/Load is not configured');
@@ -378,7 +407,10 @@
 	}
 
 	async function bootstrapProjectSession(signal?: AbortSignal): Promise<void> {
-		if (!projectApi || !projectAuth) return;
+		if (!projectApi || !projectAuth) {
+			if (resumePendingSave) setCloudError('Cloud Save/Load is not configured');
+			return;
+		}
 		sessionStatus = 'checking';
 		cloudStatus = 'loading';
 		cloudError = null;
@@ -388,10 +420,14 @@
 				sessionStatus = 'unauthenticated';
 				ownedProjects = [];
 				cloudStatus = 'ready';
+				if (resumePendingSave) setCloudError('Sign-in is required to resume this save');
 				return;
 			}
 			sessionStatus = 'authenticated';
 			await refreshOwnedProjects(signal);
+			if (signal?.aborted || sessionStatus !== 'authenticated') return;
+			if (resumePendingSave) await resumePendingCloudSave();
+			else if (loadOwnedProject && projectId) await loadProject(projectId);
 		} catch (error) {
 			if (signal?.aborted || (error instanceof DOMException && error.name === 'AbortError')) return;
 			if (clearExpiredProjectSession(error)) {
@@ -408,9 +444,89 @@
 		try {
 			cloudStatus = 'ready';
 			cloudError = null;
-			await projectAuth.signIn();
+			await projectAuth.signIn('projects');
 		} catch (error) {
 			setCloudError(persistenceMessage(error, 'Sign-in failed'));
+		}
+	}
+
+	function captureValidatedSaveSnapshot(): SaveSnapshot | null {
+		if (!canCaptureProjectSnapshot()) return null;
+		const name = projectName.trim();
+		if (!name) {
+			setCloudError('Project name cannot be empty');
+			return null;
+		}
+		if (store.projectExportBlocker) {
+			setCloudError('Save blocked: resolve local or package texture references first');
+			return null;
+		}
+		if (hasBlockingLayoutIssues(layoutPreview.issues)) {
+			setCloudError(`Save blocked: ${layoutPreview.issues[0]?.message ?? 'Layout geometry is invalid'}`);
+			return null;
+		}
+
+		const saveProjectId = projectId ?? createProjectId();
+		const validation = validateProject({
+			id: saveProjectId,
+			name,
+			layout: layoutPreview.project.layout,
+			scene: store.document
+		});
+		if (!validation.success) {
+			setCloudError(`Save blocked: ${validation.issues[0]?.message ?? 'Project validation failed'}`);
+			return null;
+		}
+		const snapshot = JSON.parse(validation.canonicalJson) as ProjectDocument;
+		return {
+			project: snapshot,
+			sceneCanonicalJson: serializeSceneDocument(snapshot.scene),
+			layoutCanonicalJson: serializeLayoutDocument(snapshot.layout)
+		};
+	}
+
+	async function submitSaveSnapshot(snapshot: SaveSnapshot): Promise<boolean> {
+		if (!canStartProjectMutation()) return false;
+		const token = ++projectRequestToken;
+		const controller = new AbortController();
+		projectRequestController = controller;
+		projectMutationInFlight = true;
+		projectMutationEpoch += 1;
+		if (projectId === null) projectId = snapshot.project.id;
+		cloudStatus = 'saving';
+		cloudError = null;
+		try {
+			const saved = await projectApi!.saveProject(snapshot.project, controller.signal);
+			if (token !== projectRequestToken) return false;
+			projectId = saved.projectId;
+			projectVersion = saved.version;
+			savedProjectName = snapshot.project.name;
+			if (projectName.trim() === snapshot.project.name) projectName = snapshot.project.name;
+			store.markSaved(snapshot.sceneCanonicalJson);
+			markLayoutPreviewSaved(layoutPreview, snapshot.layoutCanonicalJson);
+			ownedProjects = [
+				{ id: saved.projectId, name: saved.name, version: saved.version, updatedAt: saved.updatedAt },
+				...ownedProjects.filter((project) => project.id !== saved.projectId)
+			];
+			if (pendingSaveActive) {
+				clearPendingCloudSave();
+				pendingSaveActive = false;
+			}
+			cloudStatus = 'ready';
+			store.setStatusMessage(`Saved ${saved.name} v${saved.version}`);
+			return true;
+		} catch (error) {
+			if (token === projectRequestToken && !controller.signal.aborted) {
+				clearExpiredProjectSession(error);
+				setCloudError(persistenceMessage(error, 'Could not save project'));
+			}
+			return false;
+		} finally {
+			if (token === projectRequestToken) {
+				projectMutationEpoch += 1;
+				projectMutationInFlight = false;
+				projectRequestController = null;
+			}
 		}
 	}
 
@@ -431,70 +547,125 @@
 	}
 
 	async function saveProject(): Promise<void> {
-		if (!canStartProjectMutation()) return;
-		const name = projectName.trim();
-		if (!name) {
-			setCloudError('Project name cannot be empty');
+		if (!projectApi) {
+			setCloudError('Cloud Save/Load is not configured');
 			return;
 		}
-		if (store.projectExportBlocker) {
-			setCloudError('Save blocked: resolve local or package texture references first');
+		if (sessionStatus !== 'authenticated') {
+			if (projectAuth?.signIn) {
+				saveAuthGateOpen = true;
+				cloudError = null;
+			} else {
+				setCloudError('Sign-in is required');
+			}
 			return;
 		}
-		if (hasBlockingLayoutIssues(layoutPreview.issues)) {
-			setCloudError(`Save blocked: ${layoutPreview.issues[0]?.message ?? 'Layout geometry is invalid'}`);
+		const snapshot = captureValidatedSaveSnapshot();
+		if (snapshot) await submitSaveSnapshot(snapshot);
+	}
+
+	async function continueSaveAuthentication(): Promise<void> {
+		if (!projectAuth?.signIn) return;
+		if (pendingSaveActive) {
+			const pending = readPendingCloudSave();
+			if (pending.status === 'ready') {
+				if (pending.project.id !== projectId) {
+					setCloudError('The pending save draft does not match this project');
+					return;
+				}
+				saveAuthGateOpen = false;
+				try {
+					await projectAuth.signIn('save');
+				} catch (error) {
+					saveAuthGateOpen = true;
+					setCloudError(persistenceMessage(error, 'Sign-in failed'));
+				}
+				return;
+			}
+			pendingSaveActive = false;
+		}
+		const snapshot = captureValidatedSaveSnapshot();
+		if (!snapshot) return;
+		if (!writePendingCloudSave(snapshot.project)) {
+			setCloudError('Could not preserve the project before sign-in');
+			return;
+		}
+		pendingSaveActive = true;
+		saveAuthGateOpen = false;
+		try {
+			await projectAuth.signIn('save');
+		} catch (error) {
+			saveAuthGateOpen = true;
+			setCloudError(persistenceMessage(error, 'Sign-in failed'));
+		}
+	}
+
+	function discardPendingSave(): void {
+		clearPendingCloudSave();
+		pendingSaveActive = false;
+		saveAuthGateOpen = false;
+		store.setStatusMessage('Discarded pending save draft');
+	}
+
+	async function resumePendingCloudSave(): Promise<void> {
+		const pending = readPendingCloudSave();
+		if (pending.status !== 'ready') {
+			pendingSaveActive = false;
+			if (pending.status === 'expired') setCloudError('The pending save draft expired');
+			return;
+		}
+		if (projectId !== pending.project.id) {
+			clearPendingCloudSave();
+			pendingSaveActive = false;
+			setCloudError('The pending save draft does not match this project');
+			return;
+		}
+		if (store.isEditorInteractionActive || store.isDocumentTransactionActive) {
+			setCloudError('Stop the current interaction before resuming this save');
 			return;
 		}
 
-		const saveProjectId = projectId ?? createProjectId();
-		const validation = validateProject({
-			id: saveProjectId,
-			name,
-			layout: layoutPreview.project.layout,
-			scene: store.document
-		});
-		if (!validation.success) {
-			setCloudError(`Save blocked: ${validation.issues[0]?.message ?? 'Project validation failed'}`);
+		let bundle: ReturnType<typeof derivePreviewBundle>;
+		try {
+			bundle = derivePreviewBundle(
+				pending.project.id,
+				pending.project.name,
+				pending.project.layout,
+				pending.project.scene
+			);
+		} catch {
+			clearPendingCloudSave();
+			pendingSaveActive = false;
+			setCloudError('The pending save draft is invalid');
 			return;
 		}
-		const snapshot = JSON.parse(validation.canonicalJson) as ProjectDocument;
-		const sceneCanonicalJson = serializeSceneDocument(snapshot.scene);
-		const layoutCanonicalJson = serializeLayoutDocument(snapshot.layout);
-		const token = ++projectRequestToken;
-		const controller = new AbortController();
-		projectRequestController = controller;
-		projectMutationInFlight = true;
-		projectMutationEpoch += 1;
-		if (projectId === null) projectId = saveProjectId;
-		cloudStatus = 'saving';
-		cloudError = null;
-		try {
-			const saved = await projectApi!.saveProject(snapshot, controller.signal);
-			if (token !== projectRequestToken) return;
-			projectId = saved.projectId;
-			projectVersion = saved.version;
-			savedProjectName = snapshot.name;
-			if (projectName.trim() === snapshot.name) projectName = snapshot.name;
-			store.markSaved(sceneCanonicalJson);
-			markLayoutPreviewSaved(layoutPreview, layoutCanonicalJson);
-			ownedProjects = [
-				{ id: saved.projectId, name: saved.name, version: saved.version, updatedAt: saved.updatedAt },
-				...ownedProjects.filter((project) => project.id !== saved.projectId)
-			];
-			cloudStatus = 'ready';
-			store.setStatusMessage(`Saved ${saved.name} v${saved.version}`);
-		} catch (error) {
-			if (token === projectRequestToken && !(controller.signal.aborted)) {
-				clearExpiredProjectSession(error);
-				setCloudError(persistenceMessage(error, 'Could not save project'));
-			}
-		} finally {
-			if (token === projectRequestToken) {
-				projectMutationEpoch += 1;
-				projectMutationInFlight = false;
-				projectRequestController = null;
-			}
+		if (hasBlockingLayoutIssues(bundle.issues)) {
+			clearPendingCloudSave();
+			pendingSaveActive = false;
+			setCloudError('The pending save draft has invalid layout geometry');
+			return;
 		}
+
+		const sceneBaseline = store.baselineCanonicalJson;
+		const rooms = createLayoutRoomRegistry(pending.project.layout);
+		if (!store.replaceProjectDocument(pending.project.scene, rooms)) {
+			setCloudError('Could not restore the pending save draft');
+			return;
+		}
+		installLayoutPreviewBundle(layoutPreview, bundle);
+		setLayoutViewMode(layoutInteraction, viewState.activeView === 'plan' ? 'plan' : '3d');
+		// Replacement installs a temporary clean baseline; restore the blank boot
+		// baseline so a failed resumed Save leaves the draft visibly dirty.
+		store.markSaved(sceneBaseline);
+		activeSelection.reset();
+		projectName = pending.project.name;
+		projectVersion = null;
+		pendingSaveActive = true;
+		await submitSaveSnapshot({
+			project: pending.project,
+			sceneCanonicalJson: serializeSceneDocument(pending.project.scene),
+			layoutCanonicalJson: serializeLayoutDocument(pending.project.layout)
+		});
 	}
 
 	async function loadProject(selectedProjectId: string): Promise<void> {
@@ -608,6 +779,11 @@
 		{ownedProjects}
 		{cloudStatus}
 		{cloudError}
+		{saveAuthGateOpen}
+		onContinueSaveAuth={continueSaveAuthentication}
+		onCancelSaveAuth={() => (saveAuthGateOpen = false)}
+		pendingSaveActive={pendingSaveActive}
+		onDiscardPendingSave={discardPendingSave}
 		onReset={() => activeSelection.reset()}
 	/>
 	<EditorSidebar

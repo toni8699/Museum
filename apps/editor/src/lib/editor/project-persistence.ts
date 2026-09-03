@@ -1,4 +1,17 @@
 import type { ProjectDocument } from '@portfolio/project-model';
+import { validateProject } from '$lib/project/project-codec';
+
+export type ProjectLoginIntent = 'projects' | 'save';
+
+export const PENDING_CLOUD_SAVE_KEY = 'museum:pending-cloud-save:v1';
+export const PENDING_CLOUD_SAVE_MAX_AGE_MS = 15 * 60 * 1000;
+
+export type SessionStorageLike = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
+
+export type PendingCloudSaveResult =
+	| { status: 'missing' }
+	| { status: 'invalid' | 'expired' }
+	| { status: 'ready'; project: ProjectDocument };
 
 export type ProjectSummary = {
 	id: string;
@@ -16,7 +29,7 @@ export type ProjectSession =
 
 export type ProjectAuth = {
 	getSession(signal?: AbortSignal): Promise<ProjectSession>;
-	signIn: () => void | Promise<void>;
+	signIn: (intent?: ProjectLoginIntent) => void | Promise<void>;
 	signOut: (signal?: AbortSignal) => Promise<void>;
 };
 
@@ -64,9 +77,9 @@ export function createProjectAuth(apiOrigin: string, fetchImpl?: FetchLike): Pro
 	return {
 		getSession: (signal) =>
 			requestJson(requestFetch, origin, '/auth/me', { method: 'GET' }, signal).then(readSession),
-		signIn: () => {
+		signIn: (intent = 'projects') => {
 			if (typeof window === 'undefined') throw new ProjectPersistenceError('configuration', 'Sign-in is unavailable');
-			window.location.assign(`${origin}/auth/login`);
+			window.location.assign(`${origin}/auth/login?intent=${encodeURIComponent(intent)}`);
 		},
 		signOut: (signal) =>
 			requestJson(requestFetch, origin, '/auth/logout', { method: 'POST' }, signal).then(() => undefined)
@@ -108,6 +121,65 @@ export function createProjectId(randomUUID: () => string = () => globalThis.cryp
 	return `project:${randomUUID()}`;
 }
 
+export function writePendingCloudSave(
+	project: unknown,
+	storage: SessionStorageLike | null = browserSessionStorage(),
+	createdAt = Date.now()
+): boolean {
+	if (!storage || !Number.isFinite(createdAt)) return false;
+	const validation = validateProject(project);
+	if (!validation.success) return false;
+	try {
+		storage.setItem(
+			PENDING_CLOUD_SAVE_KEY,
+			JSON.stringify({ createdAt, project: JSON.parse(validation.canonicalJson) })
+		);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+export function readPendingCloudSave(
+	storage: SessionStorageLike | null = browserSessionStorage(),
+	now = Date.now()
+): PendingCloudSaveResult {
+	if (!storage) return { status: 'missing' };
+	const raw = storage.getItem(PENDING_CLOUD_SAVE_KEY);
+	if (!raw) return { status: 'missing' };
+	try {
+		const value: unknown = JSON.parse(raw);
+		if (!isRecord(value) || Object.keys(value).some((key) => !['createdAt', 'project'].includes(key))) {
+			throw new Error('invalid handoff');
+		}
+		if (typeof value.createdAt !== 'number' || !Number.isFinite(value.createdAt) || value.createdAt > now) {
+			throw new Error('invalid timestamp');
+		}
+		if (now - value.createdAt > PENDING_CLOUD_SAVE_MAX_AGE_MS) {
+			storage.removeItem(PENDING_CLOUD_SAVE_KEY);
+			return { status: 'expired' };
+		}
+		const validation = validateProject(value.project);
+		if (!validation.success) throw new Error('invalid project');
+		return { status: 'ready', project: JSON.parse(validation.canonicalJson) as ProjectDocument };
+	} catch {
+		try {
+			storage.removeItem(PENDING_CLOUD_SAVE_KEY);
+		} catch {
+			// Session storage can disappear while a tab is closing.
+		}
+		return { status: 'invalid' };
+	}
+}
+
+export function clearPendingCloudSave(storage: SessionStorageLike | null = browserSessionStorage()): void {
+	try {
+		storage?.removeItem(PENDING_CLOUD_SAVE_KEY);
+	} catch {
+		// Best-effort cleanup; the slot is session-scoped and expires on read.
+	}
+}
+
 export type ProjectFingerprint = {
 	sceneCanonicalJson: string;
 	layoutCanonicalJson: string;
@@ -132,6 +204,15 @@ export function sameProjectFingerprint(a: ProjectFingerprint, b: ProjectFingerpr
 
 function normalizeApiOrigin(origin: string): string {
 	return origin.trim().replace(/\/+$/, '');
+}
+
+function browserSessionStorage(): SessionStorageLike | null {
+	if (typeof window === 'undefined') return null;
+	try {
+		return window.sessionStorage;
+	} catch {
+		return null;
+	}
 }
 
 async function requestJson(

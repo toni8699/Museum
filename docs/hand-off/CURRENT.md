@@ -11,14 +11,15 @@ slice plus one next action only.
   for production Save/Load. The 2026-09-01 auth amendment ratifies Google
   OIDC (Authorization Code + PKCE) + an app-owned `@fastify/secure-session`
   cookie; no managed-provider bearer contract remains.
-- Current delta: **P19 persistence plus the Google OIDC/session amendment is
-  implemented locally; review fixes remain uncommitted.** Save retries retain
-  their first project ID, trimmed names settle the baseline, stale project
-  lists are discarded, cloud chrome is disabled when unconfigured, and the
-  API/editor acceptance coverage is expanded. The API now owns the Google
-  Authorization Code + PKCE exchange and secure session; the editor uses
-  `/auth/me`, redirect sign-in, logout, and credentialed JSON requests. No
-  production secret, migration application, or live API call was added.
+- Current delta: **P19 persistence, Google OIDC/session behavior, and P19.4's
+  guest-first entry/Project Shell are implemented locally; changes remain
+  uncommitted.** Save retries retain their first project ID, trimmed names
+  settle the baseline, stale project lists are discarded, cloud chrome is
+  disabled when unconfigured, and guest Save resumes through a validated
+  browser-session handoff. The API owns the Google Authorization Code + PKCE
+  exchange and secure session; the editor uses `/auth/me`, bounded intent
+  redirects, logout, and credentialed JSON requests. No production secret,
+  migration application, or live API call was added.
 - Immediate previous slice: **P18 backend provisioning — shipped 2026-08-30.**
   The local Fastify/Postgres boundary and API-only Render Blueprint are in the
   tree; resource provisioning remains owner-run.
@@ -31,11 +32,11 @@ slice plus one next action only.
 
 ## Verification
 
-- Full Vitest: 171 files passed, 1 skipped; 2,296 tests passed, 1 skipped.
+- Full Vitest: 171 files passed, 1 skipped; 2,299 tests passed, 1 skipped.
 - `npm run check`: 0 errors / 0 warnings.
 - `npm run check:camera-core`, `npm run check:layout-core`, and
   `npm run check:project-model`: passed.
-- API: `check:api`, `test:api` (14 passed), and `build:api` passed. Migration
+- API: `check:api`, `test:api` (15 passed), and `build:api` passed. Migration
   idempotency is covered with an injected database client; real Neon smoke and
   migration application remain unrun.
 - `npm run build`: passed for Editor and Museum with the current
@@ -43,8 +44,11 @@ slice plus one next action only.
   remain.
 - `verify:visitor-bundle`: passed; standalone `/museum` reached 3 server and
   9 client entries with no editor entry.
-- Browser QA passed standalone `/museum` Entrance → Poland navigation and
-  editor `/`, `/editor`, and `/museum/editor` mounting.
+- Local browser QA passed editor entry → new Spatial project, Project Hub →
+  new project, `/editor` compatibility redirect, explicit `load=1` cleanup,
+  and the authenticated-projects root trampoline. Existing standalone
+  `/museum` Entrance → Poland navigation and `/museum/editor` mounting remain
+  covered by the prior smoke.
 
 ## Known bugs / deferred
 

@@ -26,6 +26,8 @@ export type OidcCallbackRequest = {
 	expectedNonce: string;
 };
 
+export type OidcLoginIntent = 'projects' | 'save';
+
 /** The only OIDC operations the API edge needs from its Google adapter. */
 export type OidcClient = {
 	createAuthorizationUrl(input: OidcAuthorizationRequest): Promise<URL | string>;
@@ -36,6 +38,7 @@ export type OidcLoginState = {
 	state: string;
 	codeVerifier: string;
 	nonce: string;
+	intent: OidcLoginIntent;
 };
 
 /**
@@ -84,12 +87,15 @@ export function createGoogleOidc(input: {
 	};
 }
 
-export async function createOidcLoginState(): Promise<OidcLoginState & { codeChallenge: string }> {
+export async function createOidcLoginState(
+	intent: OidcLoginIntent = 'projects'
+): Promise<OidcLoginState & { codeChallenge: string }> {
 	const codeVerifier = randomPKCECodeVerifier();
 	return {
 		state: randomState(),
 		codeVerifier,
 		nonce: randomNonce(),
+		intent,
 		codeChallenge: await calculatePKCECodeChallenge(codeVerifier)
 	};
 }

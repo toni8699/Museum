@@ -16,9 +16,12 @@
 
 import { describe, expect, it, vi } from 'vitest';
 import {
+	computeCloudSaveBlocker,
 	computeProjectExportBlocker,
 	isPackageRewriteUri,
+	isProjectAssetUri,
 	isTextureUriResolved,
+	isTextureCloudSaveDurable,
 	unresolvedCount,
 	unresolvedIds
 } from '$lib/editor/store/project-export-store.svelte';
@@ -117,6 +120,14 @@ describe('project-export-store predicates', () => {
 		});
 	});
 
+	describe('isProjectAssetUri', () => {
+		it('recognizes only logical project-asset references', () => {
+			expect(isProjectAssetUri('/project-assets/asset_123')).toBe(true);
+			expect(isProjectAssetUri('/project-assets/asset-123/name.png')).toBe(false);
+			expect(isProjectAssetUri('/api/projects/p/assets/asset_123')).toBe(false);
+		});
+	});
+
 	describe('isTextureUriResolved', () => {
 		it('true when binary store has the uri', () => {
 			expect(isTextureUriResolved('/textures/pkg/walnut.png', stubBinaryStore(['/textures/pkg/walnut.png']).has)).toBe(
@@ -139,6 +150,12 @@ describe('project-export-store predicates', () => {
 
 		it('false when binary store does not have it AND uri is unsafe (?query=…)', () => {
 			expect(isTextureUriResolved('/textures/walnut.png?a=b', stubBinaryStore().has)).toBe(false);
+		});
+
+		it('false for project-asset URI even when session bytes exist', () => {
+			expect(
+				isTextureUriResolved('/project-assets/asset_123', stubBinaryStore(['/project-assets/asset_123']).has)
+			).toBe(false);
 		});
 	});
 
@@ -241,6 +258,44 @@ describe('project-export-store predicates', () => {
 			const after = computeProjectExportBlocker(docB, store);
 			expect(before!.unresolvedTextures.length).toBe(1);
 			expect(after!.unresolvedTextures.length).toBe(2);
+		});
+	});
+
+	describe('cloud Save durability', () => {
+		it('diverges from session export resolution for local bytes', () => {
+			const uri = '/local/aabbccddeeff/walnut.png';
+			const document = makeDocument([makeTexture({ uri })]);
+			const binaryStore = stubBinaryStore([uri]);
+
+			expect(computeProjectExportBlocker(document, binaryStore)).toBeNull();
+			expect(computeCloudSaveBlocker(document)).toEqual({
+				unresolvedTextures: document.textures
+			});
+		});
+
+		it('blocks local/package URIs even when session bytes exist', () => {
+			const localUri = '/local/aabbccddeeff/walnut.png';
+			const packageUri = `/textures/${PRIVATE_PKG_ID}/plaster.png`;
+			const document = makeDocument([
+				makeTexture({ id: 'walnut', uri: localUri }),
+				makeTexture({ id: 'plaster', uri: packageUri })
+			]);
+			const blocker = computeCloudSaveBlocker(document, () => false);
+			expect(blocker?.unresolvedTextures.map((texture) => texture.id)).toEqual([
+				'walnut',
+				'plaster'
+			]);
+		});
+
+		it('accepts static URIs and ready logical project assets', () => {
+			expect(isTextureCloudSaveDurable('/museum/textures/walnut.png')).toBe(true);
+			expect(isTextureCloudSaveDurable('/project-assets/asset_123')).toBe(false);
+			expect(
+				isTextureCloudSaveDurable('/project-assets/asset_123', (uri) => uri.endsWith('asset_123'))
+			).toBe(true);
+			expect(computeCloudSaveBlocker(makeDocument([
+				makeTexture({ uri: '/project-assets/asset_123' })
+			]), (uri) => uri.endsWith('asset_123'))).toBeNull();
 		});
 	});
 

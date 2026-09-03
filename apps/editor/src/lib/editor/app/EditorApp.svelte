@@ -33,6 +33,7 @@
 	import { serializeSceneDocument } from '$lib/content/scene-codec';
 	import { serializeLayoutDocument } from '$lib/layout/layout-codec';
 	import { hasBlockingLayoutIssues } from '$lib/layout/layout-geometry-validation';
+	import { computeCloudSaveBlocker } from '$lib/editor/store/project-export-store.svelte';
 	import {
 		captureLayoutPreviewSnapshot,
 		createEmptyLayoutPreviewState,
@@ -457,8 +458,8 @@
 			setCloudError('Project name cannot be empty');
 			return null;
 		}
-		if (store.projectExportBlocker) {
-			setCloudError('Save blocked: resolve local or package texture references first');
+		if (store.projectCloudSaveBlocker) {
+			setCloudError('Save blocked: resolve texture asset references first');
 			return null;
 		}
 		if (hasBlockingLayoutIssues(layoutPreview.issues)) {
@@ -487,6 +488,12 @@
 
 	async function submitSaveSnapshot(snapshot: SaveSnapshot): Promise<boolean> {
 		if (!canStartProjectMutation()) return false;
+		// Defense in depth for resumed/stale handoff drafts: every payload must
+		// pass the cloud durability gate immediately before leaving the browser.
+		if (computeCloudSaveBlocker(snapshot.project.scene)) {
+			setCloudError('Save blocked: resolve texture asset references first');
+			return false;
+		}
 		const token = ++projectRequestToken;
 		const controller = new AbortController();
 		projectRequestController = controller;

@@ -1797,6 +1797,17 @@ describe('P3B.5 preview affordance source contracts', () => {
 });
 
 describe('P19 project persistence coordinator contracts', () => {
+	it('rechecks cloud durability at the final submit boundary for resumed drafts', () => {
+		const app = readLibSource('editor/app/EditorApp.svelte');
+		const submitStart = app.indexOf('async function submitSaveSnapshot');
+		const submit = app.slice(submitStart, app.indexOf('async function signOutFromProjects', submitStart));
+
+		expect(submit).toContain('computeCloudSaveBlocker(snapshot.project.scene)');
+		expect(submit.indexOf('computeCloudSaveBlocker(snapshot.project.scene)')).toBeLessThan(
+			submit.indexOf('await projectApi!.saveProject')
+		);
+	});
+
 	it('keeps one first-save identity and settles trimmed-name baselines', () => {
 		const app = readLibSource('editor/app/EditorApp.svelte');
 		const saveStart = app.indexOf('function captureValidatedSaveSnapshot');

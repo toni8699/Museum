@@ -124,7 +124,9 @@ import {
 } from './export/package-exporter';
 import { importPackage } from './import/package-importer';
 import {
+	computeCloudSaveBlocker,
 	computeProjectExportBlocker,
+	type CloudSaveBlocker,
 	type ProjectExportBlocker
 } from './store/project-export-store.svelte';
 
@@ -313,6 +315,10 @@ export class EditorStore {
 	 */
 	get projectExportBlocker(): ProjectExportBlocker | null {
 		return computeProjectExportBlocker(this.document, BinaryTextureStore);
+	}
+	/** P20 S0 — cloud Save cannot persist session-only local/package bytes. */
+	get projectCloudSaveBlocker(): CloudSaveBlocker | null {
+		return computeCloudSaveBlocker(this.document);
 	}
 	/** Count of unresolved textures. Convenience accessor. */
 	get unresolvedTextureCount(): number {

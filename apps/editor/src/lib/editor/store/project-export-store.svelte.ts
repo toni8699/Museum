@@ -5,17 +5,19 @@
  * **Predicate — single source of truth for the export gate.** A
  * `SceneTextureAsset.uri` is *resolved* by walking the cases in order:
  *
- *  1. **`binaryStore.has(uri)`** → resolved (served by an in-session binary).
- *  2. **`isPackageRewriteUri(uri)`** → BLOCKED. Package-bound rewrite URIs
+ *  1. **`isProjectAssetUri(uri)`** → BLOCKED. Logical project-asset refs are
+ *     project-bound and carry no portable bytes in plain JSON.
+ *  2. **`binaryStore.has(uri)`** → resolved (served by an in-session binary).
+ *  3. **`isPackageRewriteUri(uri)`** → BLOCKED. Package-bound rewrite URIs
  *     (the `/textures/package-<12-hex>/...` format emitted by
  *     `REWRITE_URI_PREFIX` in `content/package-format.ts`) have no static
  *     backing on disk; they only carry meaning when the matching binary is
  *     registered. Even though they pass the project's `isSafeTextureUri`
  *     predicate, fetching them in the editor would 404.
- *  3. **`isSafeTextureUri(uri)`** → resolved (to be dispatched by
+ *  4. **`isSafeTextureUri(uri)`** → resolved (to be dispatched by
  *     `texture-cache.ts`'s public-fetch path — that wire is Task 6).
  *
- * Any URI that survives steps 1–3 unresolved is collected into the
+ * Any URI that survives steps 1–4 unresolved is collected into the
  * `ProjectExportBlocker` returned to the project menu / status bar.
  *
  * **Pure functions.** `computeProjectExportBlocker(document, binaryStore)`
@@ -24,9 +26,8 @@
  * `$state`-wrapped `BinaryTextureStore` Map) — see
  * `binary-texture-store.svelte.ts` for the reactivity contract.
  *
- * **No facade / no instance helpers required for this slice.** Task 8
- * (Project menu) will wire the consumer; this file's only contract is the
- * predicate + the blocker shape.
+ * **No facade / no instance helpers required for this slice.** The editor
+ * store exposes the cloud-save predicate; this file owns both pure gates.
  */
 
 import type { SceneDocument, SceneTextureAsset } from '$lib/content/scene';
@@ -34,6 +35,11 @@ import { isSafeTextureUri } from '$lib/content/texture-uri';
 
 /** Structural blocker surfaced to the project menu / status bar. */
 export type ProjectExportBlocker = {
+	unresolvedTextures: SceneTextureAsset[];
+};
+
+/** Structural blocker for semantic cloud Save, separate from plain export. */
+export type CloudSaveBlocker = {
 	unresolvedTextures: SceneTextureAsset[];
 };
 
@@ -52,9 +58,17 @@ const PACKAGE_REWRITE_REGEX = /^\/textures\/package-[0-9a-f]{12}\/[^?#]+$/;
  */
 const LOCAL_BINARY_REGEX = /^\/local\/[0-9a-f]{12}\/[^?#]+$/;
 
+/** Logical project-asset URI reserved for registry-backed resources. */
+const PROJECT_ASSET_REGEX = /^\/project-assets\/[A-Za-z0-9_-]+$/;
+
 /** True when `uri` lives under a binary-explicit prefix with no static backing. */
 export function isPackageRewriteUri(uri: string): boolean {
 	return PACKAGE_REWRITE_REGEX.test(uri) || LOCAL_BINARY_REGEX.test(uri);
+}
+
+/** True for a logical project-asset reference, never an R2/API URL. */
+export function isProjectAssetUri(uri: string): boolean {
+	return PROJECT_ASSET_REGEX.test(uri);
 }
 
 /**
@@ -62,6 +76,7 @@ export function isPackageRewriteUri(uri: string): boolean {
  * the predicate's contract — see the file docstring.
  */
 export function isTextureUriResolved(uri: string, hasFn: (uri: string) => boolean): boolean {
+	if (isProjectAssetUri(uri)) return false;
 	if (hasFn(uri)) return true;
 	if (isPackageRewriteUri(uri)) return false;
 	return isSafeTextureUri(uri);
@@ -86,6 +101,29 @@ export function computeProjectExportBlocker(
 		}
 	}
 	return unresolved.length > 0 ? { unresolvedTextures: unresolved } : null;
+}
+
+/**
+ * Cloud Save durability is intentionally stricter than session resolution:
+ * local/package URIs remain blocked even when BinaryTextureStore has bytes.
+ * Registry-backed URIs pass only after the caller proves registry readiness.
+ */
+export function isTextureCloudSaveDurable(
+	uri: string,
+	isReadyProjectAsset: (uri: string) => boolean = () => false
+): boolean {
+	if (!isSafeTextureUri(uri) || isPackageRewriteUri(uri)) return false;
+	return !isProjectAssetUri(uri) || isReadyProjectAsset(uri);
+}
+
+export function computeCloudSaveBlocker(
+	document: SceneDocument,
+	isReadyProjectAsset: (uri: string) => boolean = () => false
+): CloudSaveBlocker | null {
+	const unresolvedTextures = document.textures.filter(
+		(texture) => !isTextureCloudSaveDurable(texture.uri, isReadyProjectAsset)
+	);
+	return unresolvedTextures.length > 0 ? { unresolvedTextures } : null;
 }
 
 /**

@@ -13,7 +13,7 @@ v6 editable: **model** / **primitive** (`box|plane|cylinder|sphere`) / **light**
 | Models | Catalogue; room-agnostic placement (resolves the clicked floor) |
 | Shapes | Box / plane / cylinder / sphere |
 | Lights | Point / spot / directional — aim by rotation |
-| Textures | URI/file → bind via materials (not scene objects) |
+| Textures | URI/file → bind via materials (not scene objects); P20 project assets use logical `/project-assets/{assetId}` refs resolved by authenticated editor context |
 
 Clusters = named same-room member groups; visitor renders flat; **no** prefab library yet.  
 Session lighting/fog = preview only, not saved.  

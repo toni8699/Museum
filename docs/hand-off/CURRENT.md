@@ -5,40 +5,50 @@ slice plus one next action only.
 
 ## Working tree
 
-- Current planning delta: **P19 first project persistence — implementation in
-  progress behind the Google OIDC/live deployment gate.** P18's owner-run
+- Current planning delta: **P20 S0 asset contract + cloud-Save durability gate
+  complete on 2026-09-03; S1 is next, behind the P19 Google OIDC/live
+  deployment gate and owner-run R2 provisioning.** P19's owner-run
   Render/Neon provisioning and passing live/ready smoke remain prerequisites
   for production Save/Load. The 2026-09-01 auth amendment ratifies Google
   OIDC (Authorization Code + PKCE) + an app-owned `@fastify/secure-session`
   cookie; no managed-provider bearer contract remains.
-- Current delta: **P19 persistence, Google OIDC/session behavior, and P19.4's
-  guest-first entry/Project Shell are implemented locally; changes remain
-  uncommitted.** Save retries retain their first project ID, trimmed names
+- Current delta: **P19 persistence, Google OIDC/session behavior, P19.4's
+  guest-first entry/Project Shell, and P20 S0's separate cloud-Save durability
+  predicate plus stale-draft re-check are implemented locally; changes remain
+  uncommitted.** Save retries
+  retain their first project ID, trimmed names
   settle the baseline, stale project lists are discarded, cloud chrome is
   disabled when unconfigured, and guest Save resumes through a validated
   browser-session handoff. The API owns the Google Authorization Code + PKCE
   exchange and secure session; the editor uses `/auth/me`, bounded intent
   redirects, logout, and credentialed JSON requests. No production secret,
   migration application, or live API call was added.
-- Immediate previous slice: **P18 backend provisioning — shipped 2026-08-30.**
+- Immediate previous slice: **P20 S0 — complete 2026-09-03.** Contract,
+  cloud-save gate, stale pending-save guard, and divergence coverage are done;
+  P18 backend provisioning remains the infrastructure baseline.
   The local Fastify/Postgres boundary and API-only Render Blueprint are in the
   tree; resource provisioning remains owner-run.
 
 ## Next action
 
-- Configure the owner-approved Google OAuth web application, same-site
-  production editor/API origins, Render secrets, and Neon migration; then run
-  authenticated deployed Sign in → Save → refresh → Load → logout smoke.
+- Finish P19's owner-approved Google OAuth web application, same-site
+  production editor/API origins, Render secrets, and Neon migration; then
+  configure P20's private R2 bucket/secrets and open S1's registry/API work.
 
 ## Verification
 
-- Full Vitest: 171 files passed, 1 skipped; 2,299 tests passed, 1 skipped.
+- Full Vitest: 171 files passed, 1 skipped; 2,305 tests passed, 1 skipped.
 - `npm run check`: 0 errors / 0 warnings.
 - `npm run check:camera-core`, `npm run check:layout-core`, and
   `npm run check:project-model`: passed.
 - API: `check:api`, `test:api` (15 passed), and `build:api` passed. Migration
   idempotency is covered with an injected database client; real Neon smoke and
   migration application remain unrun.
+- P20 cloud-save predicate tests: targeted 34 tests plus the submit-boundary
+  contract and the full editor suite (2,305 passed, 1 skipped) passed;
+  local/package URIs remain blocked for cloud
+  Save even when session bytes exist, while the existing plain-export
+  predicate remains unchanged for current packages.
 - `npm run build`: passed for Editor and Museum with the current
   `adapter-vercel` configuration. Known unused-import and chunk-size warnings
   remain.

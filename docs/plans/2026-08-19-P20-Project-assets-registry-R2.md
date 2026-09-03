@@ -1,6 +1,6 @@
 # P20 — Project Asset Registry + R2 asset storage
 
-**Status:** proposed umbrella plan.
+**Status:** in-progress; S0 complete 2026-09-03. S1 is next, held by the P19 live gate and owner-run R2 provisioning.
 **Depends on:** P19 shipped, including the live Google OIDC / deployed Save–Load gate.
 **Source:** ratified backend/persistence migration review Pass 6 + current North Star shared-assets direction.
 **Amended:** owner-ratified amendment direction (SceneDocument vs registry ownership, portable package semantics, shared-package purity, R2 test seam, key/dedup isolation, tightened v1 scope, targeted S0 inventory, S-slice naming) — S0 must resolve the durable texture-reference, cloud-Save durability, and guest-binary contracts before S1.
@@ -430,7 +430,101 @@ Prefer the smallest scheme that:
 
 # S0 — asset contract + R2 infrastructure gate
 
-Before implementation, perform code inventory and ratify the durable contract.
+S0 records the current code inventory and ratifies the durable contract before
+the registry or R2 API starts.
+
+**S0 status:** complete 2026-09-03, including the stale pending-save durability
+re-check and session-vs-cloud divergence regression test. **Next slice:** S1
+registry database + authenticated R2 API, after the owner-run gates below.
+
+## S0 recorded inventory (opened and closed 2026-09-03)
+
+### Current code map
+
+| Surface | Current source / reader | S0 finding |
+| --- | --- | --- |
+| Scene model and codec | `packages/project-model/src/scene.ts` (`SceneTextureAsset`, `SceneMaterialInstance`); `scene-codec/parse-entities.ts` (`parseTextureAsset`); `scene-codec/canonical.ts` (`canonicalDocument`); `scene-codec/parse-document.ts` (`baseTextureId` semantic check) | Canonical texture shape is exactly `{ id, name, uri }`; `uri` is required, safe root-relative, and no scene version/migration field exists. `baseTextureId` remains the scene-local texture binding. |
+| URI producers | `store/texture-library-controller.svelte.ts` (`registerTexture`, `registerLocalFileTexture`); `store/material-resource-mutator.svelte.ts` (`registerVerifiedTexture`); `content/materials.ts` catalogue definitions | Current forms are arbitrary safe root-relative public paths, generated `/local/<12 lowercase hex>/<name>.<ext>`, and generated `/textures/package-<12 lowercase hex>/<name>.<ext>`. Catalogue material paths are not `SceneTextureAsset` rows. No client GLB import path exists. |
+| Session resolution | `store/binary-texture-store.svelte.ts`; `texture-verifier.ts`; `museum/materials/texture-cache.ts`; `hooks/editor-shell-boot-core.ts` | Local/package bytes live only in `BinaryTextureStore`; renderer source loading checks its object URL before public fetch. Cache/load-state keys are the URI string. |
+| Direct readers / UI | `museum/materials/scene-instance-material.ts`; `EditorAssetLibrary.svelte`; `EditorMaterialInspector.svelte`; `editor-textures.ts`; `EditorSceneEntities.svelte` | Material resolution converts `baseTextureId` → `texture.uri`; thumbnails use `img src={texture.uri}`; search displays/filter on name + URI; inspector displays URI/local status; scene renderer receives texture rows unchanged. |
+| Export / import | `store/project-export-store.svelte.ts`; `export/package-exporter.ts`; `import/package-importer.ts`; `EditorProjectMenu.svelte`; `editor-store.svelte.ts` | Existing plain-export blocker resolves BinaryTextureStore first, blocks unregistered local/package refs, and accepts other safe URIs. Package export resolves bytes, hashes them, embeds them, and rewrites to package-local URI; package import returns URI-keyed binaries. Package filename inference reads the URI; fingerprints hash bytes, not URI. |
+| Cloud persistence | `app/EditorApp.svelte` (`captureValidatedSaveSnapshot`, `submitSaveSnapshot`); `editor/project-persistence.ts`; `apps/api/src/app.ts`; `apps/api/src/project-persistence.ts` | P19 sends one validated semantic `ProjectDocument` as JSON; API stores JSONB. Before S0, cloud Save reused the plain-export blocker, so session bytes could make local/package refs appear saveable. S0 adds `projectCloudSaveBlocker` plus a final submit-boundary re-check; plain-export semantics stay separate. |
+| Catalogue / visitor | `content/assets.ts`, `types/assets.ts`, `content/materials.ts`; editor and standalone museum copies of `museum/materials/scene-instance-material.ts` and `texture-cache.ts` | Catalogue metadata mixes source/provenance, placement, fallback, and runtime file paths. `/museum` and `/museum/editor` remain independent of private project assets. |
+
+The current GLB path is catalogue-only: `AssetModel.svelte` loads checked-in
+`productionFile` values and fallback models. There is no viable generic client
+GLB import/placement path to reuse, so GLB stays out of P20 v1.
+
+### S0 ownership decisions
+
+1. **Durable reference: choose B, with an explicit logical URI contract.** Keep
+   `@portfolio/project-model` unchanged and retain the backward-compatible
+   `{ id, name, uri }` shape. A registry-backed texture uses
+   `/project-assets/{assetId}`, where `assetId` is a server-issued opaque UUID
+   in one path segment. This is a semantic project reference, not an API URL,
+   R2 key, bucket path, or public fetch URL. The current safe-URI validator
+   continues to validate its syntax; editor resolution intercepts this prefix.
+2. `SceneTextureAsset.id` remains the scene-local texture resource ID used by
+   `SceneMaterialInstance.baseTextureId`. The registry UUID is carried only by
+   the logical URI. Existing IDs, catalogue model `assetId` values, and
+   checked-in documents remain unchanged.
+3. Static safe root-relative URIs retain their current public-resource meaning.
+   `/local/...` and `/textures/package-.../...` remain session/package forms.
+   Successful cloud conversion replaces either with exactly
+   `/project-assets/{assetId}` after registry upload reaches `ready`.
+4. Editor runtime resolution adds one app-local registry/resource resolver
+   ahead of the existing texture loader. It resolves a logical URI through the
+   authenticated project context, then hands bytes/object URLs to the existing
+   cache. No R2 SDK or storage type enters `project-model`, `layout-core`, or
+   `camera-core`; visitor-safe code never requests private registry assets.
+5. Package export resolves a logical URI through its injected byte resolver,
+   then emits the existing package-local URI and manifest shape. Package import
+   restores the current local/package binary form and never auto-uploads.
+   Plain JSON copy/download blocks logical project-asset URIs with a
+   project-bound error; it never promises byte portability or rebinding.
+6. Catalogue entries remain catalogue-owned. Existing shipped model IDs and
+   placement/fallback behavior are preserved; no project registry row is
+   created for a catalogue-only built-in. If a future accepted asset needs a
+   registry row, source/provenance/license/attribution plus deterministic
+   authoring metadata are snapshotted there; Scene still owns placement and
+   fallback. No catalogue is moved into `@portfolio/project-model`.
+
+### S0 cloud-save, history, guest, and storage decisions
+
+- `projectExportBlocker` remains session-resolution/plain-export state. The
+  separate `projectCloudSaveBlocker` rejects local/package URIs even when
+  `BinaryTextureStore` has bytes, rejects logical project URIs until a registry
+  resolver proves `ready`, and accepts safe static URIs. `EditorApp` uses only
+  the cloud blocker for semantic Save; the final submit boundary re-checks
+  stale/resumed payloads. Targeted tests pin both predicates.
+- Conversion is one undoable scene transaction after upload is `ready`. Failed
+  document mutation leaves the ready asset unreferenced; failed project Save
+  leaves the durable reference dirty and retryable without re-upload. Undoing
+  conversion restores a local/package URI and therefore restores the cloud
+  Save block. No automatic fallback or silent byte loss.
+- Guest behavior chooses **A — authenticated conversion only**. OAuth never
+  claims in-memory bytes survive. A guest with local bytes exports a portable
+  package, authenticates, re-imports, then explicitly converts/uploads. No
+  anonymous user, temporary server row, or anonymous R2 object.
+- Registry IDs are server-generated UUIDs. R2 keys use deterministic project
+  namespace plus opaque suffix:
+  `projects/{projectId}/assets/{assetId}/{opaqueSuffix}`. Client never supplies
+  keys; private byte GET repeats session → owned project → asset authorization.
+  P20 v1 computes SHA-256 for integrity, does no deduplication, and ships no
+  remove/delete/GC operation. Ready rows require validated metadata and a
+  successful object; failed PUT marks `failed`, while PUT-success/finalize-
+  failure stays `pending` and is never returned as usable.
+- v1 upload bound is 25 MiB. Accepted classes are PNG, WebP, and JPEG only;
+  server-side magic-byte sniffing is authoritative over client MIME/size/SHA.
+  Filename is display metadata only: NFC-normalized, basename-only, bounded,
+  and never used as an object key. API-local validation may reuse the existing
+  magic-byte rules without importing editor code.
+- R2 uses the S3-compatible API through `apps/api`; no generic workspace
+  storage package or second backend. Production names are server-only
+  `R2_ENDPOINT`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, and
+  `R2_SECRET_ACCESS_KEY`; local tests inject a deterministic in-memory store.
+  Cloudflare account/bucket, location, Render secret values, and live smoke
+  remain owner-run and are not fabricated in source.
 
 ## Required code inventory
 
@@ -474,6 +568,10 @@ Do not implement against assumptions from old plans if current code differs.
 
 ## R2 owner-run gate
 
+S0 pins the local/API contract below; owner-run Cloudflare account, bucket,
+credential, Render-secret, and live-smoke provisioning remains pending and is
+the S1 entry gate.
+
 Pin:
 
 * Cloudflare account;
@@ -491,7 +589,7 @@ Do not add a generic object-storage abstraction unless a concrete second backend
 
 ## Pin lifecycle semantics
 
-S0 must ratify:
+S0 ratifies the following lifecycle:
 
 ```text
 register
@@ -503,11 +601,29 @@ Load
 download/fetch
 ```
 
-including failure behavior.
+including failure behavior:
 
-Also decide:
+* **register:** an authenticated owned project creates a server-issued UUID
+  row in `pending` state; the client supplies display metadata and bytes, never
+  an asset ID or object key.
+* **upload:** the API validates size, magic-byte MIME, and SHA-256, writes the
+  object under the server-owned project namespace, then finalizes metadata.
+* **resolve:** metadata and byte reads require the same session → owned-project
+  check; only `ready` rows may resolve to the editor.
+* **reference:** the scene stores only `/project-assets/{assetId}` after a
+  successful upload; local/package references remain session/package forms.
+* **Save / Load:** semantic JSONB Save accepts only durable static or ready
+  project references; Load returns the logical reference and the editor
+  resolves bytes through the authenticated asset endpoint.
+* **download/fetch:** private API byte fetch, never a public R2 URL; package
+  export injects resolved bytes and keeps its existing embedded-byte contract.
+* **failure:** failed validation or PUT marks the row `failed`; a successful
+  PUT followed by finalize failure remains `pending` and is never usable.
+  P20 ships no delete, GC, or orphan cleanup operation.
 
-* R2 key format — deterministic **project namespace**, server-owned opaque object identity (e.g. `projects/{projectId}/assets/{assetId}/{opaque-server-suffix}`; exact format after review). Do not make the full object key deterministic: the namespace is deterministic, the final storage identifier is opaque. Hard rules: client never supplies the R2 key; key is always project-scoped; asset ID must be authorized against that project; raw object key is never sufficient authorization; byte GET repeats the same session → project ownership check as metadata GET; bucket remains private; no guessable/public R2 URLs as the normal contract;
+S1 implementation must preserve these pinned constraints:
+
+* R2 key format — deterministic **project namespace**, server-owned opaque object identity: `projects/{projectId}/assets/{assetId}/{opaque-suffix}`. Do not make the full object key deterministic: the namespace is deterministic, the final storage identifier is opaque. Hard rules: client never supplies the R2 key; key is always project-scoped; asset ID must be authorized against that project; raw object key is never sufficient authorization; byte GET repeats the same session → project ownership check as metadata GET; bucket remains private; no guessable/public R2 URLs as the normal contract;
 * SHA-256 integrity;
 * duplicate-byte behavior — if SHA-256 dedup ships, scope it to the project (`(project_id, sha256)` or equivalent); no cross-user/cross-project dedup in P20 (avoids existence inference, ownership leakage, and coupled retention). Dedup may be deferred entirely; integrity hashing alone suffices for v1;
 * metadata/object creation order;
@@ -568,7 +684,8 @@ Persist only the required unresolved asset bytes into a short-lived browser-loca
 
 If B materially expands P20 into an IndexedDB/offline subsystem, reject it and keep A.
 
-S0 must choose A or B before implementation; this guest-binary contract and the cloud-Save durability gate are entry blockers for S1.
+S0 chooses **A — authenticated conversion only**; this guest-binary contract
+and the cloud-Save durability gate are closed entry blockers for S1.
 
 Do not hide this behavior inside ad-hoc session storage or silently discard local binary state.
 

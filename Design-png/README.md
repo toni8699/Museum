@@ -1,9 +1,11 @@
 # Museum Editor visual reference registry
 
 **Status:** active visual registry — P21+ primary visual set promoted 2026-09-04.  
-**Authority:** source/tests → architecture + shell/workspace behavior specs → `docs/Design-specs/Design-Plan(P21+).md` for P21+ shell/IA → `docs/Design-specs/Design-specs.md` for visual language/tokens → the visual references registered here.
+**Authority:** source/tests → architecture + shell/workspace behavior specs → `docs/Design-specs/Design-Plan(P21+).md` for P21+ shell/IA → `docs/Design-specs/Design-specs.md` for visual language/tokens → `docs/Design-specs/P21-visual-implementation-references.md` + the visual references registered here for concrete P21 composition.
 
 The P21+ images now define the **primary visual composition and chrome direction** for the editor. Older Scene/Camera images are retained as specialized state/interaction references; they no longer govern shell placement, toolbar placement, persistence chrome, current terminology, or general P21+ visual composition.
+
+The normative visual implementation companion is [`docs/Design-specs/P21-visual-implementation-references.md`](../docs/Design-specs/P21-visual-implementation-references.md). P21 is not complete by merely moving existing controls into the two-row shell; the core Spatial workspaces and Visitor Preview must also be visually reconciled to the registered P21 compositions.
 
 ## Authority rules
 
@@ -15,7 +17,7 @@ The P21+ images now define the **primary visual composition and chrome direction
 
 ## P21 primary visual references
 
-These images are the primary implementation-facing compositions for the P21 editor shell and core Spatial workspaces.
+These images are the primary implementation-facing compositions for the P21 editor shell, core Spatial workspaces, and Visitor Preview.
 
 | File | Surface/state | Visual authority | Governing behavior |
 |---|---|---|---|
@@ -24,6 +26,7 @@ These images are the primary implementation-facing compositions for the P21 edit
 | `P21/scene-3d.png` | Scene → 3D · selected Scene entity | Primary Scene 3D composition, hierarchy/Inspector density, selected-object treatment | Shell Scene §7; Design §28A |
 | `P21/camera-plan.png` | Camera → Plan · selected connection + expanded Timeline | Primary Camera Plan composition, passive footprints, topology/timing/timeline presentation | Shell Camera §9/§12; Camera flow; Camera Plan footprint spec |
 | `P21/camera-3d.png` | Camera → 3D · selected camera + expanded Timeline | Primary Camera 3D composition, framing/path overlays, Camera sidebar and Timeline | Shell Camera §10/§12; camera-tour contract |
+| `P21/Preview.png` | Project-level Visitor Preview | Primary Visitor Preview composition; full-screen visitor-runtime isolation with minimal editor-owned Preview/Exit chrome | `Design-Plan(P21+)` §I; visitor/editor isolation contract |
 
 ### Shared P21 shell visual contract
 
@@ -33,6 +36,7 @@ These images are the primary implementation-facing compositions for the P21 edit
 - `#2F8CFF` is the sole generic active/selection accent; RGB axis colors remain spatial semantics only.
 - Scene Plan uses the warm drafting-paper surface; Scene/Camera 3D use the dark professional real-time viewport treatment.
 - Only `Spatial` is exposed in the strict P21 implementation state; future project surfaces may be shown in Future references.
+- Visitor Preview intentionally drops the normal editor shell, panels, gizmos, and Timeline; only minimal editor-owned Preview/Exit chrome may remain around visitor-safe runtime content.
 
 ## Future / North-Star visual references
 
@@ -103,6 +107,7 @@ Review each image at original resolution. For implementation:
 
 - shell/chrome and broad visual hierarchy come from the P21 primary set;
 - exact behavior, ownership, topology, selection/history, transforms, and Timeline semantics come from source/tests and the governing specs;
+- Visitor Preview must remain visitor-safe and authoring-chrome-free regardless of incidental generated-image details;
 - Future images must not be used to infer an unratified backend or data model;
 - legacy images must not reintroduce the pre-P21 app bar, permanent floating toolbar, `Staging` terminology, or old persistence/Preview chrome.
 

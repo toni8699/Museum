@@ -1,6 +1,8 @@
 # P20 — Project Asset Registry + R2 asset storage
 
-**Status:** in-progress; S0 + S1 + S2 + S3 / P20.3 implemented locally (2026-09-03), P20.4 outstanding, held by owner-run R2 provisioning/smoke.
+**Status:** in-progress; S0 + S1 + S2 + S3 / P20.3 implemented locally
+(2026-09-03), P20.4 brief ready and implementation outstanding, held by
+owner-run R2 provisioning/smoke.
 **Depends on:** P19 shipped, including the live Google OIDC / deployed Save–Load gate.
 **Source:** ratified backend/persistence migration review Pass 6 + current North Star shared-assets direction.
 **Amended:** owner-ratified amendment direction (SceneDocument vs registry ownership, portable package semantics, shared-package purity, R2 test seam, key/dedup isolation, tightened v1 scope, targeted S0 inventory, S-slice naming) — S0 must resolve the durable texture-reference, cloud-Save durability, and guest-binary contracts before S1.
@@ -1090,6 +1092,11 @@ Plain JSON does not embed bytes. S0 must explicitly choose whether registry-back
 ---
 
 # S4 — Load/runtime resolution + deployment smoke
+
+**Owner shorthand:** P20.4. **Brief ready:** 2026-09-03 —
+[Load/runtime asset-resolution slice brief](2026-09-03-P20.4-load-runtime-resolution.md).
+**Entry gate:** owner-run P20.1 private-R2 authenticated smoke. P20.2 and P20.3
+are implemented locally.
 
 A cloud project must survive the complete persistence round trip.
 

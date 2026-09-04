@@ -1,7 +1,7 @@
 # Editor themes
 
 **Read when:** theme switching, `data-theme`, token theming rules, adding a new theme.  
-**Last reviewed:** 2026-09-03 (theme wiring)
+**Last reviewed:** 2026-09-03 (theme wiring; P21 Row 1 placement ratified)
 
 ---
 
@@ -25,6 +25,13 @@ tests/lib/editor/theme-registry.test.ts  → app.html allowlist ↔ registry syn
 ```
 
 Source: [`editor/theme.svelte.ts`](../../apps/editor/src/lib/editor/theme.svelte.ts).
+
+**P21+ target placement** (Design-Plan §C.1): the picker moves to Row 1
+far-right as a palette icon immediately before Account Profile —
+`[↺ ↻] [▶ Preview] [Theme] [Avatar]`. Theme is a global presentation
+preference, not a project document action, so it never enters the
+persistence cluster or the Workspace Ribbon; today it lives in the pre-P21
+app bar actions.
 
 ## How it works
 
@@ -64,7 +71,7 @@ visitor lane.
 **first** declaration of every token — the scene-palette contract test
 (`tests/lib/editor/styles/scene-palette.test.ts`) matches the first
 `--editor-<name>: #hex;` declaration, so the base must never be reordered or
-restructured.
+restructured (one exception today: `--editor-danger-fg`, see below).
 
 **Invariant — spatial interaction palette, identical in every theme, never
 overridden:**
@@ -90,11 +97,19 @@ status soft + border variants, --editor-danger-fg
 shadows / elevation, color-scheme
 orientation widget (surface / hover / border / label / face lit/mid/shadow /
 edge-solid / face-hover/pressed)
+future P21 row-1/row-2 shell bands (--editor-bg-row-1 / --editor-bg-row-2,
+proposed in Design-Plan §C.3) are chrome by rule — theme-aware when they land
 ```
 
 The orientation box is a pure-CSS DOM widget (`EditorOrientationGizmo.svelte`
 reads CSS variables only), so it themes for free — it is not part of the
 Three.js palette and not covered by the scene-palette contract.
+
+One hygiene exception: `--editor-danger-fg` is defined in
+`styles/controls.css`, not `tokens.css` (a `:root[data-theme='…']` override
+still wins by specificity, so themes can already override it). Parked — move
+it into `tokens.css` during theme #2 or the next token cleanup so the
+canonical file truly holds every theme-aware token.
 
 ## Adding a future theme — three steps
 
@@ -117,4 +132,6 @@ Design rule: the palette of a new theme is a design decision — author actual
 values with review (chrome surfaces, borders, text, status variants,
 shadows; plan paper and 3D overlays stay unchanged). Do not create new
 tokens for a theme unless a semantic genuinely needs one; prefer reusing the
-accent family or existing semantic tokens.
+accent family or existing semantic tokens. Palette ratification for a second
+theme is a Design-specs §7/§8 decision (visual-language authority), not a
+mechanism change — this page documents the mechanism only.

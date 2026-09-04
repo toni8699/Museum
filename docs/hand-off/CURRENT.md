@@ -7,8 +7,9 @@ slice plus one next action only.
 
 - Current planning delta: **P20 S0 asset contract + cloud-Save durability gate,
   P20.1/S1 API, P20.2/S2 Spatial integration, and P20.3/S3 durable
-  texture-conversion are implemented locally on 2026-09-03; P20.4 remains,
-  all behind the owner-run R2 provisioning.** P19 shipped 2026-09-03 — its
+  texture-conversion are implemented locally on 2026-09-03; the P20.4/S4
+  Load-resolution brief is ready and implementation remains, all behind the
+  owner-run R2 provisioning.** P19 shipped 2026-09-03 — its
   owner-run Google OIDC/live deployment smoke passed and production Save/Load
   is live. The 2026-09-01 auth amendment ratifies Google
   OIDC (Authorization Code + PKCE) + an app-owned `@fastify/secure-session`
@@ -37,7 +38,8 @@ slice plus one next action only.
 - P19 is shipped (2026-09-03 — Google OIDC/live deployment smoke passed).
   Next: configure P20's private R2 bucket/secrets, then run the authenticated
   register → upload → list/read → byte-fetch smoke (the P20.1 owner gate);
-  after that, implement P20.4 automatic refresh/Load-time asset resolution.
+  after that, implement the ready P20.4 automatic refresh/Load-time asset
+  resolution brief.
 
 ## Verification
 

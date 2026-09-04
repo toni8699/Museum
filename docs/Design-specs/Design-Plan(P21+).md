@@ -177,7 +177,7 @@ rather than altering code in this documentation pass.
 ```text
 ┌────────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │ ROW 1: PROJECT SHELL (36px) — Global Project Context                                                   │
-│ [← Hub] │ "Chopin Salon" ✎  [☁ Cloud] [● Saved] [···]  │ [Spatial | Experience | Assets | Publish] │ [↺ ↻] [▶ Preview] [Avatar] │
+│ [← Hub] │ "Chopin Salon" ✎  [☁ Cloud] [● Saved] [···]  │ [Spatial | Experience | Assets | Publish] │ [↺ ↻] [▶ Preview] [Theme] [Avatar] │
 ├────────────────────────────────────────────────────────────────────────────────────────────────────────┤
 │ ROW 2: WORKSPACE RIBBON (32px) — Active Workspace Scope (Canonical Contextual Toolbar)                 │
 │ [ Scene | Camera ] [ Plan | 3D ] │ Mode: [Layout | Arrange] │ [Rect Room] [Poly Room] [Opening] │ Snap: 0.25m │
@@ -197,6 +197,7 @@ Owns global identity, cloud persistence status, workspace navigation, global und
 | **Center** | Project Navigation | Segmented nav: `[ Spatial \| Experience \| Assets \| Publish ]`. **P21 rule:** Only `Spatial` is exposed; remaining entries are unrendered until their respective project surfaces are built. | P21 Target |
 | **Right** | Global History | `[ ↺ Undo ]` `[ ↻ Redo ]` icon button pair (`⌘Z` / `⌘⇧Z`). Operates on document-wide history stack. | Wired |
 | **Right** | Visitor Preview | Secondary accent button: `▶ Preview` (`height: 28px`). Invokes Visitor Preview takeover. | P21 Target |
+| **Right** | Theme | Palette icon (`28×28px`) immediately before Account Profile. Global presentation preference — not a project document action; never part of persistence or save state. Registry-driven menu (`editor/theme.svelte.ts`); ships with `navy-blue` only. | Wired |
 | **Far Right** | Account Profile | Guest: `Sign in` button. Authenticated: Google avatar circle (`24×24px`) with menu. | Wired |
 
 **Row 1 persistence cluster semantics.** The two persistence elements report
@@ -270,7 +271,7 @@ The wireframes below demonstrate physical layout stability across all authoring 
 
 ```text
 +----------------------------------------------------------------------------------------------------+
-| [<-] Chopin Salon Paris    [Cloud] [Saved v]      [...] | [SPATIAL]  Experience  Assets  Publish | [<-] [->] [> Preview] [User] |
+| [<-] Chopin Salon Paris    [Cloud] [Saved v]      [...] | [SPATIAL]  Experience  Assets  Publish | [<-] [->] [> Preview] [Theme] [User] |
 +----------------------------------------------------------------------------------------------------+
 | [SCENE | Camera]  [PLAN | 3D] | Mode: [LAYOUT | Arrange] | Tools: [Select] [Rect Room] [Poly] [Opening] | Snap: 0.25m  Grid: On |
 +------------------+-----------------------------------------------------------------+---------------+
@@ -293,7 +294,7 @@ The wireframes below demonstrate physical layout stability across all authoring 
 
 ```text
 +----------------------------------------------------------------------------------------------------+
-| [<-] Chopin Salon Paris    [Cloud] [Saved v]      [...] | [SPATIAL]  Experience  Assets  Publish | [<-] [->] [> Preview] [User] |
+| [<-] Chopin Salon Paris    [Cloud] [Saved v]      [...] | [SPATIAL]  Experience  Assets  Publish | [<-] [->] [> Preview] [Theme] [User] |
 +----------------------------------------------------------------------------------------------------+
 | [SCENE | Camera]  [PLAN | 3D] | Mode: [Layout | ARRANGE] | Tools: [Select / Direct Drag] [Delete]       | Snap: 0.25m  Grid: On |
 +------------------+-----------------------------------------------------------------+---------------+
@@ -323,7 +324,7 @@ The wireframes below demonstrate physical layout stability across all authoring 
 
 ```text
 +----------------------------------------------------------------------------------------------------+
-| [<-] Chopin Salon Paris    [Cloud] [Saved v]      [...] | [SPATIAL]  Experience  Assets  Publish | [<-] [->] [> Preview] [User] |
+| [<-] Chopin Salon Paris    [Cloud] [Saved v]      [...] | [SPATIAL]  Experience  Assets  Publish | [<-] [->] [> Preview] [Theme] [User] |
 +----------------------------------------------------------------------------------------------------+
 | [SCENE | Camera]  [Plan | 3D] | Tools: [Select] [Move] [Rotate] [Scale] | Transform: [Local | World]  | Snap: 0.25m  Snap: 15°|
 +------------------+-----------------------------------------------------------------+---------------+
@@ -348,7 +349,7 @@ The wireframes below demonstrate physical layout stability across all authoring 
 
 ```text
 +----------------------------------------------------------------------------------------------------+
-| [<-] Chopin Salon Paris    [Cloud] [Saved v]      [...] | [SPATIAL]  Experience  Assets  Publish | [<-] [->] [> Preview] [User] |
+| [<-] Chopin Salon Paris    [Cloud] [Saved v]      [...] | [SPATIAL]  Experience  Assets  Publish | [<-] [->] [> Preview] [Theme] [User] |
 +----------------------------------------------------------------------------------------------------+
 | [Scene | CAMERA]  [PLAN | 3D] | Tools: [Select] [Add Camera] [Connect Nodes]               | Snap: 0.25m  Grid: On |
 +------------------+-----------------------------------------------------------------+---------------+
@@ -378,7 +379,7 @@ The wireframes below demonstrate physical layout stability across all authoring 
 
 ```text
 +----------------------------------------------------------------------------------------------------+
-| [<-] Chopin Salon Paris    [Cloud] [Saved v]      [...] | [SPATIAL]  Experience  Assets  Publish | [<-] [->] [> Preview] [User] |
+| [<-] Chopin Salon Paris    [Cloud] [Saved v]      [...] | [SPATIAL]  Experience  Assets  Publish | [<-] [->] [> Preview] [Theme] [User] |
 +----------------------------------------------------------------------------------------------------+
 | [Scene | CAMERA]  [Plan | 3D] | Tools: [Select] [Move] [Rotate] [Add Cam] [Path] [Frame] [View]  | View: [Observer | POV]|
 +------------------+-----------------------------------------------------------------+---------------+
@@ -410,7 +411,7 @@ The wireframes below demonstrate physical layout stability across all authoring 
 
 ```text
 +----------------------------------------------------------------------------------------------------+
-| [<-] Chopin Salon Paris    [Cloud] [Saved v]      [...] | Spatial  [EXPERIENCE]  Assets  Publish | [<-] [->] [> Preview] [User] |
+| [<-] Chopin Salon Paris    [Cloud] [Saved v]      [...] | Spatial  [EXPERIENCE]  Assets  Publish | [<-] [->] [> Preview] [Theme] [User] |
 +----------------------------------------------------------------------------------------------------+
 | Sections: [Navigation | Content | Interactions] | Flow: [Guided Tour v]               | [ + Add Menu Item ]   |
 +------------------+-----------------------------------------------------------------+---------------+
@@ -433,7 +434,7 @@ The wireframes below demonstrate physical layout stability across all authoring 
 
 ```text
 +----------------------------------------------------------------------------------------------------+
-| [<-] Chopin Salon Paris    [Cloud] [Saved v]      [...] | Spatial  Experience  [ASSETS]  Publish | [<-] [->] [> Preview] [User] |
+| [<-] Chopin Salon Paris    [Cloud] [Saved v]      [...] | Spatial  Experience  [ASSETS]  Publish | [<-] [->] [> Preview] [Theme] [User] |
 +----------------------------------------------------------------------------------------------------+
 | Type: [All | 3D Models | Images | Audio] | Source: [All | Upload | Built-in] | Search: [ Filter... ] | [+ Upload] |
 +------------------+-----------------------------------------------------------------+---------------+
@@ -455,7 +456,7 @@ The wireframes below demonstrate physical layout stability across all authoring 
 
 ```text
 +----------------------------------------------------------------------------------------------------+
-| [<-] Chopin Salon Paris    [Cloud] [Saved v]      [...] | Spatial  Experience  Assets  [PUBLISH] | [<-] [->] [> Preview] [User] |
+| [<-] Chopin Salon Paris    [Cloud] [Saved v]      [...] | Spatial  Experience  Assets  [PUBLISH] | [<-] [->] [> Preview] [Theme] [User] |
 +----------------------------------------------------------------------------------------------------+
 | Target: [Production | Staging] | Release: v14 | Status: [Live]                      | [ Publish Changes ] |
 +------------------+-----------------------------------------------------------------+---------------+
@@ -760,6 +761,7 @@ Online / provider acquisition
 | **Floating Canvas Toolbars** | Floating over viewport | **Row 2 Center** (Zone B) | **Superseded.** Contextual tools now live canonically in Row 2. |
 | **Undo / Redo** | App bar right | **Row 1 Right** | Elevates document-wide history to global project shell. |
 | **"Preview Museum" Link** | App bar right (links `/museum`) | **Row 1 Right (`▶ Preview`)** | Removed frozen demo link; replaced with true Visitor Preview takeover. |
+| **Theme Menu** | `EditorAppBar.svelte` (right actions) | **Row 1 Far Right** (`[Theme]`, before Avatar) | Re-hosted — palette icon; registry-driven (`theme.svelte.ts`); ships with `navy-blue` only. |
 | **Hub Project List** | `/projects` (plain table) | `/projects` (polished hub) | Polished tabular list; ready for Recent Cards addition. |
 
 ---

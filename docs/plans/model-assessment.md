@@ -64,7 +64,7 @@ success percentages.
 | **P20.S1** | 78 | Sol high | implemented locally 2026-09-03, unregistered — Postgres registry + R2 streaming client + authenticated API + test seam; held by owner-run R2 provisioning/smoke |
 | **P20.S2** | 72 | Sol medium | implemented locally 2026-09-03, unregistered — new cloud-file ingest + Spatial acceptance reuse existing placement/selection/history; built-ins stay catalogue-only; release awaits the P20.1 owner-run R2 smoke |
 | **P20.S3** | 76 | Sol high | implemented locally 2026-09-03, unregistered — explicit local/package texture conversion + readiness-aware Save blocker + portable export; failure matrix pins upload/mutation/Save retries; held by the P20.1 owner-run R2 smoke |
-| **P20.S4** | 64 | Sol medium | proposed, unregistered — Load resolution seam + deployed round-trip smoke; bounded implementation, verification-heavy (refresh/Load/render fidelity); needs slice brief after S0–S1 |
+| **P20.S4** | 64 | Sol medium | brief ready 2026-09-03, unregistered — pre-replacement Load hydration through the existing binary cache/renderer + deployed round-trip smoke; bounded implementation, verification-heavy (refresh/Load/render fidelity); held by owner-run P20.1 R2 smoke |
 
 All shipped rows (P1.6–P3.3, P3B.1–P3B.6, P7.1–P7.6, P8.S1–S6, P11.1–P11.5,
 P12.S1–S4) were scrubbed 2026-08-27 — shipped work is not re-assessed here.

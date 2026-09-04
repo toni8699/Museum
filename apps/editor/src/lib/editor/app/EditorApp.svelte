@@ -85,6 +85,11 @@
 		type ProjectAssetRetry
 	} from '$lib/editor/project-asset-upload';
 	import {
+		hydrateProjectAssets,
+		isReadyProjectTextureMetadata,
+		ownsProjectLoad
+	} from '$lib/editor/project-asset-load';
+	import {
 		createProjectAuth,
 		createProjectApi,
 		createProjectId,
@@ -543,19 +548,7 @@
 		const asset = projectAssets.find(
 			(candidate) => candidate.id === assetId && candidate.projectId === expectedProjectId
 		);
-		if (
-			!asset ||
-			asset.kind !== 'texture' ||
-			asset.storageKind !== 'r2' ||
-			asset.sourceKind !== 'upload' ||
-			asset.importState !== 'ready' ||
-			asset.mime === null ||
-			asset.byteSize === null ||
-			!Number.isFinite(asset.byteSize) ||
-			asset.byteSize <= 0 ||
-			asset.byteSize > PROJECT_ASSET_MAX_BYTES ||
-			!asset.sha256?.trim()
-		) {
+		if (!asset || !isReadyProjectTextureMetadata(asset, expectedProjectId)) {
 			return null;
 		}
 		return asset;
@@ -612,11 +605,7 @@
 	): boolean {
 		return (
 			asset.id === assetId &&
-			asset.projectId === operation.projectId &&
-			asset.kind === 'texture' &&
-			asset.storageKind === 'r2' &&
-			asset.sourceKind === 'upload' &&
-			asset.importState === 'ready' &&
+			isReadyProjectTextureMetadata(asset, operation.projectId) &&
 			asset.mime === mime &&
 			asset.byteSize === bytes.byteLength &&
 			asset.sha256 !== null
@@ -999,7 +988,7 @@
 		return true;
 	}
 
-	function canStartProjectMutation(): boolean {
+	function canStartProjectMutation(allowSupersede = false): boolean {
 		if (!projectApi) {
 			setCloudError('Cloud Save/Load is not configured');
 			return false;
@@ -1008,12 +997,21 @@
 			setCloudError('Sign-in is required');
 			return false;
 		}
-		if (projectMutationInFlight) return false;
+		if (projectMutationInFlight && !allowSupersede) return false;
 		if (store.isEditorInteractionActive || store.isDocumentTransactionActive) {
 			setCloudError('Stop the current interaction before changing projects');
 			return false;
 		}
 		return true;
+	}
+
+	function cancelProjectMutation(): void {
+		if (!projectMutationInFlight) return;
+		projectRequestToken += 1;
+		projectRequestController?.abort();
+		projectRequestController = null;
+		projectMutationInFlight = false;
+		projectMutationEpoch += 1;
 	}
 
 	function confirmProjectReplacement(): boolean {
@@ -1189,7 +1187,8 @@
 	}
 
 	async function signOutFromProjects(): Promise<void> {
-		if (!projectAuth || projectMutationInFlight) return;
+		if (!projectAuth) return;
+		cancelProjectMutation();
 		invalidateProjectAssets();
 		try {
 			cloudStatus = 'loading';
@@ -1223,6 +1222,7 @@
 			}
 			return;
 		}
+		cancelProjectMutation();
 		const snapshot = captureValidatedSaveSnapshot();
 		if (snapshot) await submitSaveSnapshot(snapshot);
 	}
@@ -1333,7 +1333,8 @@
 	}
 
 	async function loadProject(selectedProjectId: string): Promise<void> {
-		if (!canStartProjectMutation() || !confirmProjectReplacement()) return;
+		if (!canStartProjectMutation(true) || !confirmProjectReplacement()) return;
+		cancelProjectMutation();
 		invalidateProjectAssets();
 		const fingerprint = currentProjectFingerprint();
 		const token = ++projectRequestToken;
@@ -1345,6 +1346,8 @@
 		cloudError = null;
 		try {
 			const loaded = await projectApi!.loadProject(selectedProjectId, controller.signal);
+			controller.signal.throwIfAborted();
+			if (!ownsProjectLoad(token, controller, projectRequestToken, projectRequestController)) return;
 			const validation = validateProject(loaded.document);
 			if (!validation.success || validation.project.id !== selectedProjectId) {
 				throw new ProjectPersistenceError('invalid', 'Loaded project failed validation');
@@ -1358,11 +1361,39 @@
 			if (hasBlockingLayoutIssues(bundle.issues)) {
 				throw new ProjectPersistenceError('invalid', 'Loaded project has invalid layout geometry');
 			}
+			const loadIsCurrent = () =>
+				ownsProjectLoad(token, controller, projectRequestToken, projectRequestController) &&
+				!controller.signal.aborted &&
+				sameProjectFingerprint(fingerprint, currentProjectFingerprint()) &&
+				!store.isEditorInteractionActive &&
+				!store.isDocumentTransactionActive;
 			if (!sameProjectFingerprint(fingerprint, currentProjectFingerprint())) {
 				throw new ProjectPersistenceError('invalid', 'Project changed while loading; please load again');
 			}
 			if (store.isEditorInteractionActive || store.isDocumentTransactionActive) {
 				throw new ProjectPersistenceError('invalid', 'Project changed while loading; please load again');
+			}
+			const hydration = await hydrateProjectAssets({
+				projectId: selectedProjectId,
+				textures: validation.project.scene.textures,
+				api: projectApi!,
+				cache: BinaryTextureStore,
+				signal: controller.signal,
+				isCurrent: loadIsCurrent
+			});
+			if (!loadIsCurrent()) {
+				throw new ProjectPersistenceError('invalid', 'Project changed while loading; please load again');
+			}
+			for (const asset of hydration.staged) {
+				await BinaryTextureStore.register(
+					asset.uri,
+					asset.bytes,
+					asset.mime,
+					asset.fingerprint
+				);
+				if (!loadIsCurrent()) {
+					throw new ProjectPersistenceError('invalid', 'Project changed while loading; please load again');
+				}
 			}
 			const rooms = createLayoutRoomRegistry(validation.project.layout);
 			if (!store.replaceProjectDocument(validation.project.scene, rooms)) {
@@ -1378,15 +1409,24 @@
 			projectName = validation.project.name;
 			savedProjectName = validation.project.name;
 			projectVersion = loaded.version;
+			if (hydration.assets) {
+				projectAssetContextId = loaded.projectId;
+				projectAssets = hydration.assets;
+				projectAssetsStatus = 'ready';
+			}
 			cloudStatus = 'ready';
 			store.setStatusMessage(`Loaded ${validation.project.name} v${loaded.version}`);
 		} catch (error) {
-			if (token === projectRequestToken && !controller.signal.aborted) {
+			if (
+				ownsProjectLoad(token, controller, projectRequestToken, projectRequestController) &&
+				!controller.signal.aborted
+			) {
+				retainCurrentSceneTextureBytes();
 				clearExpiredProjectSession(error);
 				setCloudError(persistenceMessage(error, 'Could not load project'));
 			}
 		} finally {
-			if (token === projectRequestToken) {
+			if (ownsProjectLoad(token, controller, projectRequestToken, projectRequestController)) {
 				projectMutationEpoch += 1;
 				projectMutationInFlight = false;
 				projectRequestController = null;

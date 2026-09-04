@@ -5,18 +5,20 @@ slice plus one next action only.
 
 ## Working tree
 
-- Current planning delta: **P20 S0 asset contract + cloud-Save durability gate,
-  P20.1/S1 API, P20.2/S2 Spatial integration, and P20.3/S3 durable
-  texture-conversion are implemented locally on 2026-09-03; the P20.4/S4
-  Load-resolution brief is ready and implementation remains, all behind the
-  owner-run R2 provisioning.** P19 shipped 2026-09-03 — its
+- Current planning delta: **P20 S0–S4, including P20.4 Load/runtime asset
+  resolution, are implemented locally as of 2026-09-04; owner-run R2
+  provisioning and both deployed smokes remain.** P19 shipped 2026-09-03 — its
   owner-run Google OIDC/live deployment smoke passed and production Save/Load
   is live. The 2026-09-01 auth amendment ratifies Google
   OIDC (Authorization Code + PKCE) + an app-owned `@fastify/secure-session`
   cookie; no managed-provider bearer contract remains.
 - Current implementation baseline: **P20.1/S1 registry API + R2 seam,
-  P20.2/S2 Spatial ingest/list/accept, and P20.3/S3 durable conversion are
-  implemented locally.** The API keeps
+  P20.2/S2 Spatial ingest/list/accept, P20.3/S3 durable conversion, and
+  P20.4/S4 atomic Load hydration are implemented locally.** Load deduplicates
+  logical texture refs, requires ready owned metadata, reuses matching verified
+  cache entries, sequentially fetches and stages missing bytes, verifies
+  MIME/size/sniffed type/SHA, and primes the existing cache before one guarded
+  project replacement. The API keeps
   object keys out of metadata, streams bounded image uploads, hashes bytes,
   and never serves pending/failed assets. The editor keeps registry lifecycle
   in `EditorApp`, uses logical `/project-assets/{assetId}` references, primes
@@ -24,26 +26,24 @@ slice plus one next action only.
   P19 persistence, Google OIDC/session behavior, P19.4 guest-first shell, and
   P20 S0's separate cloud-Save durability gate remain in the baseline. No
   production secret, migration application, or live API call was added.
-- Immediate previous slice: **P20.3/S3 — local implementation complete
-  2026-09-03.** Explicit local/package texture conversion reuses the existing
-  binary cache, project registry, guarded Scene transaction, cloud-Save gate,
-  and package exporter; P20.4 owns automatic refresh/Load resolution. P20.2
-  was the preceding Spatial integration slice. P18 backend provisioning
-  remains the infrastructure baseline.
+- Immediate previous slice: **P20.4/S4 — local implementation complete
+  2026-09-04.** It reuses the existing project request controller, binary cache,
+  renderer, and replacement transaction; no renderer, persistent cache, or
+  background loader was added. P20.3 was the preceding durable-conversion
+  slice. P18 backend provisioning remains the infrastructure baseline.
   The local Fastify/Postgres boundary and API-only Render Blueprint are in the
   tree; resource provisioning remains owner-run.
 
 ## Next action
 
 - P19 is shipped (2026-09-03 — Google OIDC/live deployment smoke passed).
-  Next: configure P20's private R2 bucket/secrets, then run the authenticated
-  register → upload → list/read → byte-fetch smoke (the P20.1 owner gate);
-  after that, implement the ready P20.4 automatic refresh/Load-time asset
-  resolution brief.
+  Next: configure P20's private R2 bucket/secrets, run the authenticated
+  register → upload → list/read → byte-fetch smoke, then run the deployed
+  Save → hard refresh → Load → render/package-fidelity smoke to close P20.
 
 ## Verification
 
-- Full Vitest: 173 files passed, 1 skipped; 2,320 tests passed, 1 skipped.
+- Full Vitest: 176 files passed, 1 skipped; 2,351 tests passed, 1 skipped.
 - `npm run check`: 0 errors / 0 warnings.
 - `npm run check:camera-core`, `npm run check:layout-core`, and
   `npm run check:project-model`: passed.
@@ -52,8 +52,9 @@ slice plus one next action only.
   clients; the P19 live/ready authenticated smoke passed 2026-09-03 (owner-run,
   including the real Neon migration); real R2 calls and the P20.1 live asset
   smoke remain unrun.
-- P20.3 targeted conversion/package/mutator behavior and P20 cloud-save
-  predicate tests passed; full editor suite (2,320 passed, 1 skipped) passed;
+- P20.4 targeted Load-resolution tests (22 passed), P20.3 conversion/package/
+  mutator behavior, and P20 cloud-save predicate tests passed; full editor
+  suite (2,351 passed, 1 skipped) passed;
   local/package URIs remain blocked for cloud
   Save even when session bytes exist, while the existing plain-export
   predicate remains unchanged for current packages.

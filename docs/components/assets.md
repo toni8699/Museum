@@ -1,7 +1,7 @@
 # Assets
 
 **Read when:** Paris GLBs, licences, catalogue, import/replace models, project texture registry.  
-**Last reviewed:** 2026-09-03 (P20.2)  
+**Last reviewed:** 2026-09-04 (P20.4)
 **Full checklist:** [`../archive/ASSET_WORKFLOW.md`](../archive/ASSET_WORKFLOW.md)
 
 ---
@@ -31,11 +31,12 @@ Project registry rows
 → PNG/WebP/JPEG
 ```
 
-P20.2 does **not** build the final Assets workspace. P20.3 owns current
-local/package durability conversion; P20.4 owns refresh/Load resolution. GLB
-import, provider search, and delete/GC remain deferred unless newer code
-proves otherwise. Built-ins retain catalogue identity — do not invent
-registry behavior for them.
+P20 does **not** build the final Assets workspace. Local/package durability
+conversion is explicit. Cloud Load resolves every referenced logical texture
+before project replacement, verifies registry metadata plus MIME/size/SHA,
+then primes the existing binary store; failure leaves the current project
+unchanged. GLB import, provider search, and delete/GC remain deferred. Built-ins
+retain catalogue identity — do not invent registry behavior for them.
 
 The catalogue rows below describe the built-in asset model; the project
 registry is separate and is served through the authenticated API (see

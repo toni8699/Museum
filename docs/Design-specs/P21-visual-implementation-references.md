@@ -42,7 +42,7 @@ Use these registered images as the implementation-facing visual targets:
 | `Design-png/P21/scene-3d.png` | Scene → 3D · selected Scene entity | Owns broad Scene 3D composition, hierarchy/Inspector density, dark viewport treatment, selected-object emphasis, and contextual Row 2 composition. |
 | `Design-png/P21/camera-plan.png` | Camera → Plan · selected connection + expanded Timeline | Owns broad Camera Plan composition, Plan-vs-topology hierarchy, Camera sidebar density, connection Inspector layout, passive footprint presentation, and expanded Timeline placement. |
 | `Design-png/P21/camera-3d.png` | Camera → 3D · selected camera + expanded Timeline | Owns broad Camera 3D composition, Camera sidebar, framing/path overlay density, Inspector composition, and shared expanded Timeline treatment. |
-| `Design-png/P21/visitor-preview.png` | Project-level Visitor Preview | Owns Preview's full-screen visual isolation: visitor runtime content, minimal editor-owned Preview/Exit chrome, and absence of authoring shell/gizmos/Timeline. |
+| `Design-png/P21/Preview.png` | Project-level Visitor Preview | Owns Preview's full-screen visual isolation: visitor runtime content, minimal editor-owned Preview/Exit chrome, and absence of authoring shell/gizmos/Timeline. |
 
 The first five images must read as states of **one exact editor shell**. Workspace-specific content changes; the shared application frame does not drift.
 

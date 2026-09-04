@@ -1,7 +1,8 @@
 # P20 — Project Asset Registry + R2 asset storage
 
-**Status:** in-progress; S0–S4 / P20.4 implemented locally (2026-09-04), held
-by owner-run R2 provisioning and deployed smokes.
+**Status:** shipped 2026-09-04 — S0–S4 verified by local live smoke against
+real R2 (`biskiq-assets-test`) + local Postgres. Deployed Render/Neon-topology
+smoke not run — deferred.
 **Depends on:** P19 shipped, including the live Google OIDC / deployed Save–Load gate.
 **Source:** ratified backend/persistence migration review Pass 6 + current North Star shared-assets direction.
 **Amended:** owner-ratified amendment direction (SceneDocument vs registry ownership, portable package semantics, shared-package purity, R2 test seam, key/dedup isolation, tightened v1 scope, targeted S0 inventory, S-slice naming) — S0 must resolve the durable texture-reference, cloud-Save durability, and guest-binary contracts before S1.
@@ -906,6 +907,14 @@ and byte-compare; repeat fetch under second user and confirm generic 404; force
 bad MIME and >25 MiB and confirm no ready asset. Never use production
 credentials in automated tests.
 
+**Owner-run result (2026-09-04, local stack):** 15/15 PASS against local API +
+local Postgres + real R2 — register → PNG upload → list/read → byte-identical
+fetch (`image/png`, `private, no-store`); second-user metadata/bytes `404`/`404`;
+bad magic `415` (row → `failed`); oversized declared length `413`; no
+`objectKey` in any metadata. The smoke exposed Postgres `42702` (unqualified
+`RETURNING` in `UPDATE … FROM projects p`); fixed by qualifying with `a.` for
+the two updates while the INSERT keeps unqualified names (no alias in scope).
+
 ## Relic, visitor, and rollback
 
 `/museum` and `/museum/editor` receive no imports, routes, registry state, or
@@ -1145,6 +1154,14 @@ upload GLB
 ```
 
 Do not expand P20 merely to make the second smoke possible.
+
+**Owner-run result (2026-09-04, local stack):** browser round-trip passed —
+Cloud-file import → Save v9 (logical URI only, no bytes/keys in JSON) →
+refresh (blank boot, no auto-load) → explicit Load (registry bytes hydrated,
+`blob:` thumbnails, project clean, no history) → re-Save v10 with no re-upload
+(asset count unchanged) → unauthenticated byte GET `401` → package export
+embeds byte-identical PNG under a package-local URI with no R2/API-URL
+leakage (manifest SHA matches the R2 SHA).
 
 ---
 

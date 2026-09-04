@@ -5,41 +5,35 @@ slice plus one next action only.
 
 ## Working tree
 
-- Current planning delta: **P20 S0–S4, including P20.4 Load/runtime asset
-  resolution, are implemented locally as of 2026-09-04; owner-run R2
-  provisioning and both deployed smokes remain.** P19 shipped 2026-09-03 — its
-  owner-run Google OIDC/live deployment smoke passed and production Save/Load
-  is live. The 2026-09-01 auth amendment ratifies Google
-  OIDC (Authorization Code + PKCE) + an app-owned `@fastify/secure-session`
-  cookie; no managed-provider bearer contract remains.
-- Current implementation baseline: **P20.1/S1 registry API + R2 seam,
-  P20.2/S2 Spatial ingest/list/accept, P20.3/S3 durable conversion, and
-  P20.4/S4 atomic Load hydration are implemented locally.** Load deduplicates
-  logical texture refs, requires ready owned metadata, reuses matching verified
-  cache entries, sequentially fetches and stages missing bytes, verifies
-  MIME/size/sniffed type/SHA, and primes the existing cache before one guarded
-  project replacement. The API keeps
-  object keys out of metadata, streams bounded image uploads, hashes bytes,
-  and never serves pending/failed assets. The editor keeps registry lifecycle
-  in `EditorApp`, uses logical `/project-assets/{assetId}` references, primes
-  verified session bytes, and reuses existing texture/history/assignment paths.
-  P19 persistence, Google OIDC/session behavior, P19.4 guest-first shell, and
-  P20 S0's separate cloud-Save durability gate remain in the baseline. No
-  production secret, migration application, or live API call was added.
-- Immediate previous slice: **P20.4/S4 — local implementation complete
-  2026-09-04.** It reuses the existing project request controller, binary cache,
-  renderer, and replacement transaction; no renderer, persistent cache, or
-  background loader was added. P20.3 was the preceding durable-conversion
-  slice. P18 backend provisioning remains the infrastructure baseline.
+- Planning delta: **P20 shipped 2026-09-04 — S0–S4 verified by local live
+  smoke against real R2 (`biskiq-assets-test`) + local Postgres.** P20.1 API
+  15/15 (register → upload → list/read → byte-fetch, user-2 `404`s, bad-magic
+  `415`, oversized `413`); P20.2 browser Cloud-file → ready → Use flow; P20.3
+  browser local-import → Save-block → `Save to project` → Save v11 → undo/redo
+  loop; P20.4 browser Save v9 → refresh (blank boot) → Load (hydrated `blob:`
+  render, clean, no history) → re-Save v10 with no re-upload → package export
+  (byte-identical embed, no R2/API-URL leakage). Drag-onto-entity and
+  project-switch-during-upload were not browser-exercised (unit-covered only).
+  Production Render/Neon-topology smoke is deferred, not a close item.
+- Code delta (uncommitted): **`apps/api/src/asset-persistence.ts` —
+  `returningColumns()` takes a table prefix; the two `UPDATE … FROM projects`
+  sites pass `'a.'`, the INSERT stays unqualified.** The smoke exposed Postgres
+  `42702` (ambiguous `RETURNING` — no upload could reach `ready`); the stubbed
+  API suite never caught it. `check:api` + `test:api` (23 passed) green after.
+- Smoke residue (local only, not shipped state): `project:smoke-p20s1` v11 +
+  ~20 asset rows in local Postgres + test objects in the `biskiq-assets-test`
+  R2 bucket. No production secret, migration, or live deployment was touched.
+- Immediate previous slice: **P20 smoke + `RETURNING` fix, 2026-09-04.**
+  P19 (Google OIDC/live deployment smoke, 2026-09-03) is the prior baseline.
   The local Fastify/Postgres boundary and API-only Render Blueprint are in the
   tree; resource provisioning remains owner-run.
 
 ## Next action
 
-- P19 is shipped (2026-09-03 — Google OIDC/live deployment smoke passed).
-  Next: configure P20's private R2 bucket/secrets, run the authenticated
-  register → upload → list/read → byte-fetch smoke, then run the deployed
-  Save → hard refresh → Load → render/package-fidelity smoke to close P20.
+- P20 is shipped. Next: file the P21 plan (product shell + Project Hub +
+  editor UX polish; design track feeds it) — no P21 code until its doc is
+  registered. Production-topology (Render/Neon) smoke rides with the publish
+  tier or an owner-scheduled pass, not P20.
 
 ## Verification
 
@@ -48,10 +42,11 @@ slice plus one next action only.
 - `npm run check:camera-core`, `npm run check:layout-core`, and
   `npm run check:project-model`: passed.
 - API: `check:api`, `test:api` (23 passed), and `build:api` passed. Migration
-  idempotency and the local asset registry/R2 seam are covered with injected
-  clients; the P19 live/ready authenticated smoke passed 2026-09-03 (owner-run,
-  including the real Neon migration); real R2 calls and the P20.1 live asset
-  smoke remain unrun.
+  idempotency holds; the asset registry/R2 seam was additionally proven by the
+  2026-09-04 local live smoke (15/15 API checks + browser S2/S3/S4 flows +
+  package fidelity) against local Postgres + real R2. P19's live/ready
+  authenticated smoke passed 2026-09-03 (owner-run, including the real Neon
+  migration).
 - P20.4 targeted Load-resolution tests (22 passed), P20.3 conversion/package/
   mutator behavior, and P20 cloud-save predicate tests passed; full editor
   suite (2,351 passed, 1 skipped) passed;
@@ -67,7 +62,9 @@ slice plus one next action only.
   new project, `/editor` compatibility redirect, explicit `load=1` cleanup,
   and the authenticated-projects root trampoline. Existing standalone
   `/museum` Entrance → Poland navigation and `/museum/editor` mounting remain
-  covered by the prior smoke.
+  covered by the prior smoke. The 2026-09-04 P20 browser smoke (Cloud-file
+  import, local→durable conversion + undo/redo, Save → refresh → Load →
+  render → re-Save, package export) passed on the same local stack.
 
 ## Known bugs / deferred
 
@@ -83,8 +80,8 @@ slice plus one next action only.
 - P19 shipped 2026-09-03: owner-approved Google OAuth configuration,
   Render/Neon provisioning, and the real authenticated persistence smoke are
   complete.
-- P20.1's owner-run private R2 bucket, credentials, Render secrets, and live
-  asset smoke remain the P20 S1 release gate.
+- P20 shipped 2026-09-04 on the local stack; the deployed Render/Neon-topology
+  smoke is deferred to the publish tier or an owner-scheduled pass.
 
 ## Traps
 

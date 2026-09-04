@@ -220,7 +220,7 @@ SET object_key = $4, import_state = 'pending', updated_at = now()
 FROM projects p
 WHERE a.id = $1::uuid AND a.project_id = $2 AND p.id = a.project_id
 	AND p.owner_id = $3 AND a.import_state <> 'ready'
-RETURNING ${returningColumns()}`,
+RETURNING ${returningColumns('a.')}`,
 		[assetId, projectId, ownerId, objectKey]
 	);
 	if (!claimed[0]) throw new AssetNotReadyError();
@@ -247,7 +247,7 @@ SET mime = $4, byte_size = $5, sha256 = $6, import_state = 'ready', updated_at =
 FROM projects p
 WHERE a.id = $1::uuid AND a.project_id = $2 AND p.id = a.project_id
 	AND p.owner_id = $3 AND a.object_key = $7 AND a.import_state = 'pending'
-RETURNING ${returningColumns()}`,
+RETURNING ${returningColumns('a.')}`,
 		[assetId, projectId, ownerId, uploaded.mime, uploaded.byteSize, uploaded.sha256, objectKey]
 	);
 	const finalizedRow = finalized[0];
@@ -409,22 +409,23 @@ function toBuffer(value: unknown): Buffer {
 	throw new Error('Asset request stream yielded a non-byte chunk');
 }
 
-function returningColumns(): string {
+function returningColumns(table = ''): string {
+	const c = (name: string) => `${table}${name}`;
 	return `
-	id,
-	project_id AS "projectId",
-	name,
-	kind,
-	storage_kind AS "storageKind",
-	source_kind AS "sourceKind",
-	source_ref AS "sourceRef",
-	mime,
-	byte_size AS "byteSize",
-	sha256,
-	object_key AS "objectKey",
-	import_state AS "importState",
-	created_at AS "createdAt",
-	updated_at AS "updatedAt"`;
+	${c('id')},
+	${c('project_id')} AS "projectId",
+	${c('name')},
+	${c('kind')},
+	${c('storage_kind')} AS "storageKind",
+	${c('source_kind')} AS "sourceKind",
+	${c('source_ref')} AS "sourceRef",
+	${c('mime')},
+	${c('byte_size')} AS "byteSize",
+	${c('sha256')},
+	${c('object_key')} AS "objectKey",
+	${c('import_state')} AS "importState",
+	${c('created_at')} AS "createdAt",
+	${c('updated_at')} AS "updatedAt"`;
 }
 
 function readAssetMetadata(row: AssetRow): AssetMetadata {

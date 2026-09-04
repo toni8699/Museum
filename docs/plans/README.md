@@ -75,7 +75,7 @@ Policy rules:
 | P17 | editor / visitor app split — slice 3 of the ratified migration review: standalone `@portfolio/editor` and read-only `@portfolio/museum`, with the relic gated into editor and source/runtime visitor boundary pins | **shipped 2026-08-30** | P16 | archived → [2026-08-30-P17-app-split.md](../archive/plans/2026-08-30-P17-app-split.md) |
 | P18 | backend provisioning — slice 4 of the ratified migration review: deploy `@biskiq/api` Fastify compute on Render, connect it to separately provisioned Neon Postgres through secret `DATABASE_URL`, and add process/database health checks with no persistence schema yet | **shipped 2026-08-30 — infrastructure boundary; owner-run Render/Neon provisioning remains the P19 gate** | P17 | archived → [2026-08-30-P18-backend-provisioning.md](../archive/plans/2026-08-30-P18-backend-provisioning.md) |
 | P19 | first project persistence — authenticated semantic-document Save/Load, immutable project versions, single-user ownership, and P19.4 guest-first entry/Project Shell closeout | **shipped 2026-09-03 — Google OIDC/live deployment smoke passed** | P18 | [umbrella](2026-08-30-P19-project-persistence.md) · [P19.4 annex](2026-09-02-P19.4-editor-shell.md) |
-| P20 | Project Asset Registry + R2 — durable project-scoped texture assets, authenticated storage, Spatial integration, portable package fidelity, and refresh/Load resolution | in-progress — S0–S4 / P20.4 implemented locally (2026-09-04); owner-run R2 provisioning and both deployed smokes remain | P19 | [umbrella](2026-08-19-P20-Project-assets-registry-R2.md) · [P20.2 brief](2026-09-03-P20.2-spatial-registry-integration.md) · [P20.3 brief](2026-09-03-P20.3-texture-durable-conversion.md) · [P20.4 brief](2026-09-03-P20.4-load-runtime-resolution.md) |
+| P20 | Project Asset Registry + R2 — durable project-scoped texture assets, authenticated storage, Spatial integration, portable package fidelity, and refresh/Load resolution | **shipped 2026-09-04 — local live smoke vs real R2 passed (S1 API 15/15 + S2/S3/S4 browser flows + package fidelity); production-topology smoke deferred** | P19 | [umbrella](2026-08-19-P20-Project-assets-registry-R2.md) · [P20.2 brief](2026-09-03-P20.2-spatial-registry-integration.md) · [P20.3 brief](2026-09-03-P20.3-texture-durable-conversion.md) · [P20.4 brief](2026-09-03-P20.4-load-runtime-resolution.md) |
 | — | Branch rejoin — **experiment, no schedule** (rejoin into a later Sequence stop; dead-end return already ships; multi-edge playback would compose P8's edge primitive) | proposed | P8 conceptually | [2026-08-21-branch-rejoin-experiment.md](2026-08-21-branch-rejoin-experiment.md) |
 | … | future work re-registers here | | | |
 
@@ -88,7 +88,10 @@ migration review** — the first step toward the editor/visitor/api split. **P16
 ratified migration review.** **P17 (editor / visitor app split) shipped
 2026-08-30 as slice 3.** **P18 (backend provisioning) shipped 2026-08-30 as
 slice 4's infrastructure boundary.** **P19 (first project persistence) shipped
-2026-09-03 — Google OIDC/live deployment smoke passed.**
+2026-09-03 — Google OIDC/live deployment smoke passed.** **P20 (asset registry
++ R2) shipped 2026-09-04 — local live smoke vs real R2 passed
+(S1 API 15/15 + S2/S3/S4 browser flows + package fidelity); production-topology
+smoke deferred.**
 Product vision lives in the north star.
 
 Execution order: **P6 → P1 → P8 → P7 → P9 → P2 → P3 → P11** — P1 shipped
@@ -253,9 +256,8 @@ P-number; the numbered tiers below are next-free-number reservations
   running alongside the implementation tiers. Concepts and specs land in
   [`../Design-specs`](../Design-specs/); nothing commits to implementation
   until its plan doc is filed.
-- **P20 — Project Asset Registry + R2.** Registered and in-progress — see the
-  active row above (S0–S4 / P20.4 implemented locally; held by owner-run R2
-  provisioning and deployed smokes).
+- **P20 — Project Asset Registry + R2.** Shipped 2026-09-04 (local live smoke
+  vs real R2 passed; production-topology smoke deferred).
 - **P21 — Product shell + Project Hub + core editor UX polish.** Landing/entry
   flow, dashboard / project cards, shell navigation, Save/auth/account states,
   asset entry points, and editor chrome/density cleanup. Direction only; the
@@ -282,7 +284,8 @@ P-number; the numbered tiers below are next-free-number reservations
   shipped), project Save/Load + first Google OIDC + app-owned secure-session
   integration + single-user ownership (P19 shipped 2026-09-03 — live smoke
   passed), then the numbered tier sequence above:
-  R2-backed project assets with Spatial integration (P20, in progress), the
+  R2-backed project assets with Spatial integration (P20, shipped 2026-09-04 —
+  local live smoke vs real R2; production-topology smoke deferred), the
   product shell + Project Hub + editor UX polish (P21), the basic
   publish/visitor-runtime boundary (P22), the typed DB layer (P23), the
   Experience foundation (P24), and expansion (P25+). The design track runs

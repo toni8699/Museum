@@ -1083,7 +1083,7 @@
 	.layout-inspector { display: flex; flex-direction: column; gap: 0.8rem; }
 	.layout-inspector dl { display: flex; flex-direction: column; gap: 0.45rem; margin: 0; }
 	.layout-inspector dl div { display: flex; justify-content: space-between; gap: 0.7rem; }
-	.layout-inspector dt { color: var(--editor-text-muted); font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.04em; }
+	.layout-inspector dt { color: var(--editor-text-tint); font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.04em; }
 	.layout-inspector dd { margin: 0; color: var(--editor-text-primary); font-size: 0.72rem; text-align: right; }
 	.layout-inspector-note { margin: 0; color: var(--editor-text-secondary); font-size: 0.7rem; line-height: 1.45; }
 	.layout-accordion { display: flex; flex-direction: column; gap: 0.45rem; padding: 0.55rem; border: 1px solid var(--editor-border-subtle); border-radius: 0.4rem; background: var(--editor-bg-panel-raised); }
@@ -1204,7 +1204,7 @@
 	.camera-controls, .lighting { margin-top: 0.4rem; gap: 0.7rem; border-top: 1px solid var(--editor-border-subtle); padding-top: 0.85rem; }
 	.lighting p { margin: 0; color: var(--editor-text-secondary); font-size: 0.75rem; line-height: 1.4; }
 	.camera-controls button { align-self: flex-start; }
-	.camera-controls button.active { border-color: var(--editor-accent); background: var(--editor-bg-selected); box-shadow: 0 0 8px rgb(59 130 246 / 30%); color: var(--editor-accent-hover); }
+	.camera-controls button.active { border-color: var(--editor-accent); background: var(--editor-bg-selected); box-shadow: 0 0 8px color-mix(in srgb, var(--editor-accent) 30%, transparent); color: var(--editor-text-primary); }
 	.help { display: inline-grid; width: 1.1rem; height: 1.1rem; place-items: center; border: 1px solid var(--editor-border-normal); border-radius: 999px; color: var(--editor-text-muted); font: 600 0.62rem/1 var(--editor-font); cursor: help; }
 	.floor-color { display: flex; flex-direction: column; gap: 0.3rem; color: var(--editor-text-secondary); font-size: 0.75rem; }
 	.floor-color .color-row { display: flex; align-items: center; gap: 0.45rem; }

@@ -318,7 +318,7 @@
 		font-size: 0.68rem;
 		cursor: pointer;
 	}
-	.preset-btn.active { border-color: var(--editor-accent); background: var(--editor-bg-selected); box-shadow: 0 0 8px rgb(59 130 246 / 30%); color: var(--editor-accent-hover); }
+	.preset-btn.active { border-color: var(--editor-accent); background: var(--editor-bg-selected); box-shadow: 0 0 8px color-mix(in srgb, var(--editor-accent) 30%, transparent); color: var(--editor-text-primary); }
 	.preset-btn:disabled { opacity: 0.42; cursor: default; }
 	.envelope-status { margin: 0; color: var(--editor-text-muted); font-size: 0.65rem; text-align: center; }
 	.envelope-status.manual { color: var(--editor-warning); }

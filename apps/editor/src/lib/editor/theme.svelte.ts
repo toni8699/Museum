@@ -1,19 +1,30 @@
 /*
  * Editor theme registry + controller.
  *
- * Named theme identities (no generic "dark"/"light"): the shipped theme is
- * `navy-blue`; future themes are added as one THEMES entry + one
+ * Named theme identities (no generic "dark"/"light"). Shipped themes:
+ * `navy-blue` (canonical default) plus the curated chrome palettes
+ * `salon-espresso`, `electric-plum`, `acid-moss` and the multi-tonal
+ * `porcelain-atelier` (the first LIGHT identity), `synth-sunset`,
+ * `velvet-kodachrome`. A future theme is one THEMES entry + one
  * `:root[data-theme='<id>']` override block at the end of
  * styles/tokens.css + one entry in the app.html boot allowlist (the last is
  * CI-pinned by tests/lib/editor/theme-registry.test.ts).
  *
  * Theme surface split (tokens.css header is authoritative):
- *  - The spatial interaction palette — axes, gizmo, selection, layout box,
- *    accent family, plan paper — is INVARIANT in every theme (it is mirrored
- *    in scene-palette.ts for Three.js and pinned by the scene-palette
- *    contract test; never override it per theme).
- *  - Chrome surfaces + viewport utility widgets (orientation box) are
- *    theme-aware.
+ *  - The spatial interaction palette — axes, gizmo, selection outline/fill/
+ *    handle, layout box, plan paper + plan semantics, timeline lane
+ *    parameter colors — is INVARIANT in every theme (the 3D subset is
+ *    mirrored in scene-palette.ts and pinned by the scene-palette contract
+ *    test; never override it per theme). Spatial selection keeps its
+ *    brand-blue tokens in every theme.
+ *  - Chrome surfaces/borders, the chrome accent family (--editor-accent*,
+ *    incl. --editor-timeline-path/-playhead), and viewport utility widgets
+ *    (orientation box) are theme-aware. The BASE text ramp is declared once
+ *    at :root as light-dark() pairs (navy default wiring) and follows
+ *    `color-scheme` — theme blocks never override it; a future light theme
+ *    flips color-scheme and base text flips to dark ink. Chromatic role inks
+ *    (--editor-text-tint/-soft, -metric, -timecode, -success) may be
+ *    overridden per theme as full light-dark() pairs.
  *
  * The `data-theme` attribute may exist globally on <html> (the /museum
  * visitor technically carries it too); theme styling and state ownership
@@ -26,7 +37,13 @@
  */
 
 export const THEMES = {
-	'navy-blue': { label: 'Navy Blue', colorScheme: 'dark' }
+	'navy-blue': { label: 'Navy Blue', colorScheme: 'dark' },
+	'salon-espresso': { label: 'Salon Espresso', colorScheme: 'dark' },
+	'electric-plum': { label: 'Electric Plum', colorScheme: 'dark' },
+	'acid-moss': { label: 'Acid Moss', colorScheme: 'dark' },
+	'porcelain-atelier': { label: 'Porcelain Atelier', colorScheme: 'light' },
+	'synth-sunset': { label: 'Synth Sunset', colorScheme: 'dark' },
+	'velvet-kodachrome': { label: 'Velvet Kodachrome', colorScheme: 'dark' }
 } as const;
 
 export type ThemeId = keyof typeof THEMES;

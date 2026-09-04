@@ -13,11 +13,21 @@
  * FIRST declaration of every token (the scene-palette contract test matches
  * the first `--editor-<name>: #hex;` declaration). Additional themes are
  * additive `:root[data-theme='<id>'] { … }` override blocks at the END of
- * this file, overriding only theme-aware tokens: chrome surfaces/borders/
- * text/status/shadow/`color-scheme` + the orientation widget. INVARIANT in
- * every theme (spatial meaning stays fixed — never override): the accent
- * family, axis/gizmo colors, selection outline/hover/fill/handle, layout
- * box, and plan paper + plan semantic colors. Theme ids must also appear in
+ * this file, overriding only theme-aware tokens: chrome surfaces/borders,
+ * the chrome accent family (`--editor-accent*` — the interactive
+ * accent of chrome controls, incl. `--editor-timeline-path/-playhead`),
+ * shadows/status/`color-scheme` + the orientation widget. The BASE text
+ * ramp is declared once at `:root` as light-dark() pairs wired to the navy
+ * default and is never overridden per theme; `color-scheme` selects the
+ * member (all shipped themes are `dark`; a future light theme sets `light`
+ * and base text flips to dark ink automatically). The CHROMATIC role inks
+ * (tint/tint-soft/metric/timecode/success — DS §7 below) share the same
+ * mechanism and are the one text exception themes may re-author, as full
+ * light-dark() pairs. INVARIANT in
+ * every theme (spatial meaning stays fixed — never override): axis/gizmo
+ * colors, selection outline/hover/fill/handle, layout box, plan paper +
+ * plan semantic colors, and the timeline lane parameter colors
+ * (fov/look/roll/envelope/free). Theme ids must also appear in
  * the app.html boot allowlist between the THEME_IDS_SYNC_WITH_THEME_REGISTRY
  * markers (CI-pinned by tests/lib/editor/theme-registry.test.ts).
  */
@@ -38,13 +48,41 @@
 	--editor-border-normal: #243544;
 	--editor-border-strong: #32485a;
 
-	/* ── DS §7 — text ── */
-	--editor-text-primary: #edf3f8;
-	--editor-text-secondary: #a7b3bf;
-	--editor-text-muted: #71808e;
-	--editor-text-disabled: #52606c;
+	/* ── DS §7 — text ──
+	   BASE ramp — the navy defaults are THE font-color wiring for every
+	   theme: each token is one light-dark() pair keyed to `color-scheme`
+	   (dark themes — all shipped — resolve the light member; a future light
+	   theme sets `color-scheme: light` and text flips to the dark-ink member
+	   automatically). Muted clears 4.5:1 on every dark surface incl. hover
+	   and selected tints. Base tokens must never be overridden by theme
+	   blocks — contrast holds by construction.
 
-	/* ── DS §7 — primary blue: the sole active/selection accent ── */
+	   CHROMATIC role inks — non-monochrome depth layered above the base
+	   ramp (small text that still clears AA on chrome surfaces):
+	     tint / tint-soft  uppercase labels & meta take the theme's color
+	                        temperature (navy = cool slate; brass / violet /
+	                        lichen in the curated palettes);
+	     metric            technical numbers (lengths, speeds, coordinates);
+	     timecode          timeline times ("00:08.375") — amber by default;
+	     success           readable status text ("Valid") kept distinct from
+	                        the --editor-success glyph/border family.
+	   Chromatic tiers ARE theme-aware and may be overridden per theme — but
+	   always as a full light-dark() pair, never a single hex. */
+	--editor-text-primary: light-dark(#13161D, #F1F4F9);
+	--editor-text-secondary: light-dark(#3A4252, #B2BFD0);
+	--editor-text-muted: light-dark(#606B7E, #94A3B8);
+	--editor-text-disabled: light-dark(#9BA3AF, #505A69);
+
+	--editor-text-tint: light-dark(#475569, #94A3B8);
+	--editor-text-tint-soft: light-dark(#64748B, #64748B);
+	--editor-text-metric: light-dark(#0284C7, #38BDF8);
+	--editor-text-timecode: light-dark(#D97706, #FBBF24);
+	--editor-text-success: light-dark(#15803D, #4ADE80);
+
+	/* ── DS §7 — primary blue: the chrome interactive accent ──
+   navy default below; theme blocks re-derive the hue per palette. Spatial
+   selection keeps its own invariant tokens (--editor-selection-*,
+   --editor-gizmo-*, axes, plan) and stays brand blue in every theme. */
 	--editor-accent: #2f8cff;
 	--editor-accent-hover: #55a1ff;
 	--editor-accent-pressed: #1976df;
@@ -116,7 +154,9 @@
 	--editor-plan-selection: #2f8cff;
 	--editor-plan-readonly: #92908a;
 
-	/* ── DS §11 — timeline lane colors (inside data viz only) ── */
+	/* ── DS §11 — timeline lane colors (inside data viz only) ──
+   path/playhead follow the chrome accent family (theme-aware); the lane
+   parameter colors below are invariant data-viz identity. */
 	--editor-timeline-path: #2f8cff;
 	--editor-timeline-fov: #4f9eff;
 	--editor-timeline-look: #8c7cf3;
@@ -167,20 +207,261 @@
 }
 
 /* ── Theme override blocks ────────────────────────────────────────────────
-   Additional themes are additive override blocks appended at the end of
-   this file; only theme-aware tokens (chrome + orientation widget) may be
-   overridden — never the invariant spatial palette (accent family, axes,
-   gizmo, selection, layout box, plan paper). Each new theme id must also be
-   added to THEMES in theme.svelte.ts and to the app.html boot allowlist.
-
-   Example (illustrative, do not ship until a theme is designed):
-
-   :root[data-theme='porcelain'] {
-       color-scheme: light;
-       --editor-bg-app: #f4f6f8;
-       --editor-bg-panel: #ffffff;
-       --editor-text-primary: #10151a;
-       --editor-orientation-surface: #ffffff;
-       --editor-orientation-label: #10151a;
-   }
+   Themes are additive `:root[data-theme='<id>']` blocks appended at the end
+   of this file. Only theme-aware tokens may be overridden — chrome
+   surfaces/borders + the chrome accent family (incl. timeline path/
+   playhead) + the orientation widget (surface/hover/border/label) +
+   `color-scheme`. The BASE text ramp is centralized at `:root` as
+   light-dark() pairs (navy default wiring) and must NOT be overridden — a
+   theme flips `color-scheme` only (dark today; a future light theme sets
+   `light` and text auto-flips to dark ink). The chromatic role inks
+   (--editor-text-tint/tint-soft/metric/timecode/success) MAY be overridden
+   when a palette wants its own label temperature — always as a full
+   light-dark() pair, never a single hex. Never override the invariant
+   spatial palette (axes/gizmo, selection outline/fill/handle, layout box,
+   plan paper + plan semantics, timeline lane parameter colors). Each theme
+   id must also
+   appear in THEMES (theme.svelte.ts)
+   and in the app.html boot allowlist between the
+   THEME_IDS_SYNC_WITH_THEME_REGISTRY markers (CI-pinned).
    ── */
+
+/* Salon Espresso — Jazz Kissa / Parisian salon: roasted cacao, smoked bronze. */
+:root[data-theme='salon-espresso'] {
+	color-scheme: dark; /* text tokens stay the centralized :root light-dark ramp */
+
+	--editor-bg-app: #0d0a08;
+	--editor-bg-panel: #140f0d;
+	--editor-bg-panel-raised: #1c1512;
+	--editor-bg-control: #1f1714;
+	--editor-bg-hover: #291f1a;
+	--editor-bg-selected: #3d2a1e;
+
+	--editor-border-subtle: #241b16;
+	--editor-border-normal: #332720;
+	--editor-border-strong: #47362d;
+
+	--editor-accent: #e0a458;
+	--editor-accent-hover: #eebd7c;
+	--editor-accent-pressed: #c1833a;
+	--editor-accent-soft: rgb(224 164 88 / 16%);
+	--editor-accent-border: rgb(224 164 88 / 62%);
+
+	/* Chromatic role inks (full light-dark pairs): warm parchment labels,
+	   brass metrics, ember timecodes. Base text tokens stay centralized. */
+	--editor-text-tint: light-dark(#4A3B32, #D4C3B3);
+	--editor-text-tint-soft: light-dark(#6E584B, #9E8C7E);
+	--editor-text-metric: light-dark(#B45309, #FBBF24);
+	--editor-text-timecode: light-dark(#C2410C, #FB923C);
+
+	--editor-timeline-path: #e0a458;
+	--editor-timeline-playhead: #e0a458;
+
+	--editor-orientation-surface: #140f0d;
+	--editor-orientation-hover: #1c1512;
+	--editor-orientation-border: #332720;
+	--editor-orientation-label: #f5efeb;
+}
+
+/* Electric Plum — pop-art vernissage / nocturnal biennial: bruised cassis, royal violet. */
+:root[data-theme='electric-plum'] {
+	color-scheme: dark; /* text tokens stay the centralized :root light-dark ramp */
+
+	--editor-bg-app: #0a0612;
+	--editor-bg-panel: #120b1f;
+	--editor-bg-panel-raised: #1a102c;
+	--editor-bg-control: #1f1334;
+	--editor-bg-hover: #2c1b4a;
+	--editor-bg-selected: #3b1a66;
+
+	--editor-border-subtle: #221437;
+	--editor-border-normal: #311e4e;
+	--editor-border-strong: #492b73;
+
+	--editor-accent: #c07ef0;
+	--editor-accent-hover: #d6a2f6;
+	--editor-accent-pressed: #9c5cd6;
+	--editor-accent-soft: rgb(192 126 240 / 16%);
+	--editor-accent-border: rgb(192 126 240 / 62%);
+
+	/* Chromatic role inks (full light-dark pairs): lilac/ultraviolet labels,
+	   electric-violet metrics, magenta timecodes. Base text tokens stay
+	   centralized. */
+	--editor-text-tint: light-dark(#4C286D, #C4B5FD);
+	--editor-text-tint-soft: light-dark(#6B3B98, #9B87CA);
+	--editor-text-metric: light-dark(#6D28D9, #A78BFA);
+	--editor-text-timecode: light-dark(#BE185D, #F472B6);
+
+	--editor-timeline-path: #c07ef0;
+	--editor-timeline-playhead: #c07ef0;
+
+	--editor-orientation-surface: #120b1f;
+	--editor-orientation-hover: #1a102c;
+	--editor-orientation-border: #311e4e;
+	--editor-orientation-label: #f3eef8;
+}
+
+/* Acid Moss — brutalist zine studio / botanical pavilion: blackened lichen, industrial olive. */
+:root[data-theme='acid-moss'] {
+	color-scheme: dark; /* text tokens stay the centralized :root light-dark ramp */
+
+	--editor-bg-app: #080d0a;
+	--editor-bg-panel: #0f1712;
+	--editor-bg-panel-raised: #16211a;
+	--editor-bg-control: #1a2820;
+	--editor-bg-hover: #23352b;
+	--editor-bg-selected: #1e4330;
+
+	--editor-border-subtle: #1a2920;
+	--editor-border-normal: #263d2f;
+	--editor-border-strong: #385945;
+
+	--editor-accent: #aecb75;
+	--editor-accent-hover: #c2dc92;
+	--editor-accent-pressed: #8fb05c;
+	--editor-accent-soft: rgb(174 203 117 / 16%);
+	--editor-accent-border: rgb(174 203 117 / 62%);
+
+	/* Chromatic role inks (full light-dark pairs): lichen/celadon labels,
+	   mint metrics, citrine timecodes. Base text tokens stay centralized. */
+	--editor-text-tint: light-dark(#2D4A36, #A7C4AF);
+	--editor-text-tint-soft: light-dark(#3F644B, #7C9883);
+	--editor-text-metric: light-dark(#047857, #34D399);
+	--editor-text-timecode: light-dark(#CA8A04, #FACC15);
+
+	--editor-timeline-path: #aecb75;
+	--editor-timeline-playhead: #aecb75;
+
+	--editor-orientation-surface: #0f1712;
+	--editor-orientation-hover: #16211a;
+	--editor-orientation-border: #263d2f;
+	--editor-orientation-label: #eaf2ed;
+}
+
+/* Porcelain Atelier — Bauhaus exhibition / archival art book. The FIRST
+   LIGHT identity: warm French-porcelain chassis (#EDE8DF), alabaster panels,
+   terracotta/persimmon accent, deep petrol-charcoal ink (base text ramp
+   flips automatically via color-scheme: light) with cobalt metrics + warm
+   ochre timecodes. Base text tokens stay centralized; chromatic role inks
+   below are full light-dark() pairs. Semantic status hexes are re-inked for
+   legibility on porcelain (dark green/amber/red instead of dark-scheme
+   pastels); softs/borders keep their translucent treatment. */
+:root[data-theme='porcelain-atelier'] {
+	color-scheme: light;
+
+	--editor-bg-app: #ede8df;
+	--editor-bg-panel: #f6f3ec;
+	--editor-bg-panel-raised: #ffffff;
+	--editor-bg-control: #e4ddd2;
+	--editor-bg-hover: #dbd3c5;
+	--editor-bg-selected: #fbe9e4;
+
+	--editor-border-subtle: #ddd6cb;
+	--editor-border-normal: #c4bbb0;
+	--editor-border-strong: #9e9487;
+
+	--editor-accent: #d94826;
+	--editor-accent-hover: #ee5835;
+	--editor-accent-pressed: #b83a1d;
+	--editor-accent-soft: rgb(217 72 38 / 12%);
+	--editor-accent-border: rgb(217 72 38 / 65%);
+
+	/* Chromatic role inks (full light-dark pairs): warm sepia labels, deep
+	   blueprint-cobalt metrics, ochre timecodes. */
+	--editor-text-tint: light-dark(#574c43, #f3ebdd);
+	--editor-text-tint-soft: light-dark(#6b6155, #d2c6b8);
+	--editor-text-metric: light-dark(#1d4ed8, #60a5fa);
+	--editor-text-timecode: light-dark(#b45309, #fbbf24);
+
+	--editor-timeline-path: #d94826;
+	--editor-timeline-playhead: #d94826;
+
+	/* Readable status ink on porcelain (light-scheme re-ink). */
+	--editor-success: #15803d;
+	--editor-warning: #b45309;
+	--editor-danger: #b42318;
+	--editor-danger-fg: #b42318;
+
+	--editor-orientation-surface: #f6f3ec;
+	--editor-orientation-hover: #ede8df;
+	--editor-orientation-border: #c4bbb0;
+	--editor-orientation-label: #1a202c;
+}
+
+/* Synth Sunset — Miami vernissage / Risograph duotone. Dark midnight indigo
+   chassis, blackened ultramarine panels, hot electric-coral accent and
+   playhead, ice-cyan metrics, soft periwinkle labels, violet-slate borders.
+   Deliberate warm/cool clash on purpose. */
+:root[data-theme='synth-sunset'] {
+	color-scheme: dark;
+
+	--editor-bg-app: #0b0f19;
+	--editor-bg-panel: #121726;
+	--editor-bg-panel-raised: #1a2033;
+	--editor-bg-control: #1f273d;
+	--editor-bg-hover: #2b3552;
+	--editor-bg-selected: #3b2a35;
+
+	--editor-border-subtle: #1c2337;
+	--editor-border-normal: #293450;
+	--editor-border-strong: #40507a;
+
+	--editor-accent: #ff5a43;
+	--editor-accent-hover: #ff7561;
+	--editor-accent-pressed: #e0432e;
+	--editor-accent-soft: rgb(255 90 67 / 16%);
+	--editor-accent-border: rgb(255 90 67 / 65%);
+
+	/* Chromatic role inks (full light-dark pairs): soft periwinkle labels,
+	   ice-cyan metrics, hot-pink timecodes. */
+	--editor-text-tint: light-dark(#4338ca, #a5b4fc);
+	--editor-text-tint-soft: light-dark(#6d28d9, #7f8fc7);
+	--editor-text-metric: light-dark(#0369a1, #38bdf8);
+	--editor-text-timecode: light-dark(#be185d, #f472b6);
+
+	--editor-timeline-path: #ff5a43;
+	--editor-timeline-playhead: #ff5a43;
+
+	--editor-orientation-surface: #121726;
+	--editor-orientation-hover: #1a2033;
+	--editor-orientation-border: #293450;
+}
+
+/* Velvet Kodachrome — 1970s cultural archive / analog cinema console.
+   Smoked teak-umber chassis, goldenrod-marigold accent, dusty patina-teal
+   borders (the deliberate cold contrast), warm-cream ink, apricot metrics,
+   mint timecodes. */
+:root[data-theme='velvet-kodachrome'] {
+	color-scheme: dark;
+
+	--editor-bg-app: #12110e;
+	--editor-bg-panel: #1a1814;
+	--editor-bg-panel-raised: #24211c;
+	--editor-bg-control: #2a2620;
+	--editor-bg-hover: #38332b;
+	--editor-bg-selected: #3b321f;
+
+	--editor-border-subtle: #1e2725;
+	--editor-border-normal: #283835;
+	--editor-border-strong: #3d5450;
+
+	--editor-accent: #e5a93c;
+	--editor-accent-hover: #f3bf5d;
+	--editor-accent-pressed: #c48d2a;
+	--editor-accent-soft: rgb(229 169 60 / 16%);
+	--editor-accent-border: rgb(229 169 60 / 65%);
+
+	/* Chromatic role inks (full light-dark pairs): muted sage/patina labels,
+	   warm apricot metrics, mint timecodes. */
+	--editor-text-tint: light-dark(#55615d, #99a8a5);
+	--editor-text-tint-soft: light-dark(#3f4a47, #778783);
+	--editor-text-metric: light-dark(#9a3412, #fb923c);
+	--editor-text-timecode: light-dark(#047857, #34d399);
+
+	--editor-timeline-path: #e5a93c;
+	--editor-timeline-playhead: #e5a93c;
+
+	--editor-orientation-surface: #1a1814;
+	--editor-orientation-hover: #24211c;
+	--editor-orientation-border: #283835;
+}

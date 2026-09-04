@@ -80,7 +80,7 @@
 		align-items: center;
 		gap: 0.35rem;
 		padding: 0.38rem 0.55rem;
-		border: 1px solid rgb(70 68 78 / 88%);
+		border: 1px solid color-mix(in srgb, var(--editor-border-normal) 88%, transparent);
 		border-radius: 0.42rem;
 		background: var(--editor-bg-panel-raised);
 		box-shadow: var(--editor-shadow-toolbar);
@@ -101,9 +101,9 @@
 		flex-direction: column;
 		gap: 0.25rem;
 		padding: 0.35rem;
-		border: 1px solid rgb(70 68 78 / 88%);
+		border: 1px solid color-mix(in srgb, var(--editor-border-normal) 88%, transparent);
 		border-radius: 0.42rem;
-		background: rgb(19 19 26 / 96%);
+		background: color-mix(in srgb, var(--editor-bg-panel-raised) 96%, transparent);
 		box-shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 42%);
 		backdrop-filter: blur(8px);
 	}

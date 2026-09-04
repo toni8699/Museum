@@ -506,7 +506,7 @@
 	.handles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.35rem; }
 	.topology { display: grid; grid-template-columns: 1fr; gap: 0.35rem; }
 	button { padding: 0.42rem 0.4rem; border: 1px solid var(--editor-border-normal); border-radius: 0.3rem; background: var(--editor-bg-panel-raised); color: var(--editor-text-secondary); font: inherit; font-size: 0.72rem; cursor: pointer; }
-	button.active, button.done { border-color: var(--editor-accent); background: var(--editor-bg-selected); box-shadow: 0 0 8px rgb(59 130 246 / 30%); color: var(--editor-accent-hover); }
+	button.active, button.done { border-color: var(--editor-accent); background: var(--editor-bg-selected); box-shadow: 0 0 8px color-mix(in srgb, var(--editor-accent) 30%, transparent); color: var(--editor-text-primary); }
 	button.danger { border-color: var(--editor-danger-border); color: var(--editor-danger-fg); }
 	button:disabled, input:disabled { opacity: 0.42; cursor: default; }
 	.aim { display: flex; flex-direction: column; gap: 0.45rem; padding-top: 0.4rem; border-top: 1px solid var(--editor-border-subtle); }

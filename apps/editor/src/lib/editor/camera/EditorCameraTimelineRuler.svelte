@@ -280,7 +280,7 @@
 	.ruler-action.active { border-color: var(--editor-accent); background: var(--editor-bg-selected); color: var(--editor-text-primary); }
 	.ruler-action:disabled { opacity: 0.38; cursor: default; }
 	.ruler-action.add-key { border-color: var(--editor-accent-pressed); color: var(--editor-text-primary); white-space: nowrap; }
-	output { min-width: 4.8rem; color: var(--editor-text-primary); font: 650 0.72rem/1 var(--editor-font); font-variant-numeric: tabular-nums; }
+	output { min-width: 4.8rem; color: var(--editor-text-timecode); font: 650 0.72rem/1 var(--editor-font); font-variant-numeric: tabular-nums; }
 	.scrubber { display: flex; min-width: 8rem; flex: 1; align-items: center; gap: 0.45rem; }
 	.scrubber span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 	.scrubber input { width: 100%; margin: 0; accent-color: var(--editor-accent); }

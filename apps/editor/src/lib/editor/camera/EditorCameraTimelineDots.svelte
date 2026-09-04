@@ -1252,7 +1252,7 @@
 		border-top: 1px solid var(--editor-border-subtle);
 		background: color-mix(in srgb, var(--editor-bg-panel-raised) 68%, transparent);
 	}
-	.ruler-label { display: flex; align-items: center; justify-content: space-between; gap: 0.35rem; padding: 0 0.45rem 0 0.65rem; border-top: 0; color: var(--editor-text-muted); font-size: 0.58rem; text-transform: uppercase; letter-spacing: 0.08em; }
+	.ruler-label { display: flex; align-items: center; justify-content: space-between; gap: 0.35rem; padding: 0 0.45rem 0 0.65rem; border-top: 0; color: var(--editor-text-tint); font-size: 0.58rem; text-transform: uppercase; letter-spacing: 0.08em; }
 	.add-view-key { min-height: 20px; padding: 0.15rem 0.35rem; border: 1px solid var(--editor-accent-pressed); border-radius: 0.25rem; background: var(--editor-bg-control); color: var(--editor-text-primary); font: 600 0.54rem/1 var(--editor-font); text-transform: none; letter-spacing: normal; cursor: pointer; }
 	.add-view-key:hover:not(:disabled), .add-view-key:focus-visible { border-color: var(--editor-accent); outline: none; }
 	.add-view-key:disabled { opacity: 0.38; cursor: default; }
@@ -1261,7 +1261,7 @@
 	.lane-label strong { color: var(--editor-text-primary); font-size: 0.66rem; font-weight: 620; white-space: nowrap; }
 	.lane-label span { overflow: hidden; color: var(--editor-text-muted); font-size: 0.54rem; text-align: right; text-overflow: ellipsis; white-space: nowrap; }
 	.lane-label.quiet { opacity: 0.72; }
-	.time-ruler { position: relative; min-width: 30rem; container-type: inline-size; border-bottom: 1px solid var(--editor-border-subtle); color: var(--editor-timeline-ruler-fg); }
+	.time-ruler { position: relative; min-width: 30rem; container-type: inline-size; border-bottom: 1px solid var(--editor-border-subtle); color: var(--editor-text-timecode); }
 	.scrub-surface { cursor: ew-resize; }
 	.time-tick { position: absolute; top: 5px; transform: translateX(-50%); font: var(--editor-timeline-ruler-font); font-variant-numeric: tabular-nums; white-space: nowrap; }
 	.time-tick:first-child { transform: none; }
@@ -1278,27 +1278,27 @@
 	.route-track .rail { height: 2px; background: var(--editor-timeline-path); }
 	.edge { position: absolute; top: 50%; z-index: 1; height: 6px; min-width: 1px; transform: translateY(-50%); overflow: hidden; padding: 0; border: 0; border-radius: 999px; background: var(--editor-timeline-path); cursor: crosshair; opacity: 0.72; }
 	.edge-local { pointer-events: none; cursor: default; }
-	.edge:hover:not(:disabled), .edge.selected { opacity: 1; box-shadow: 0 0 0 3px rgb(47 140 255 / 18%); }
+	.edge:hover:not(:disabled), .edge.selected { opacity: 1; box-shadow: 0 0 0 3px color-mix(in srgb, var(--editor-accent) 18%, transparent); }
 	.diamond.node { position: absolute; top: 50%; z-index: 4; width: 20px; height: 20px; transform: translate(-50%, -50%); padding: 0; border: 2px solid var(--editor-timeline-path); border-radius: 50%; background: var(--editor-bg-panel); color: var(--editor-text-primary); font: 650 0.58rem/1 var(--editor-font); cursor: pointer; }
-	.diamond.node:hover:not(:disabled), .diamond.node.selected { border-color: var(--editor-accent-hover); background: var(--editor-bg-selected); box-shadow: 0 0 0 3px rgb(47 140 255 / 16%); }
-	.shot-block { position: absolute; top: 5px; bottom: 5px; display: flex; min-width: 1px; align-items: center; gap: 0.35rem; overflow: hidden; padding: 0 0.45rem; border: 1px solid rgb(140 124 243 / 38%); border-radius: 2px; background: linear-gradient(90deg, rgb(47 140 255 / 26%), rgb(140 124 243 / 18%)); color: var(--editor-text-secondary); font: 0.58rem/1 var(--editor-font); text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+	.diamond.node:hover:not(:disabled), .diamond.node.selected { border-color: var(--editor-accent-hover); background: var(--editor-bg-selected); box-shadow: 0 0 0 3px color-mix(in srgb, var(--editor-accent) 16%, transparent); }
+	.shot-block { position: absolute; top: 5px; bottom: 5px; display: flex; min-width: 1px; align-items: center; gap: 0.35rem; overflow: hidden; padding: 0 0.45rem; border: 1px solid color-mix(in srgb, var(--editor-timeline-look) 38%, transparent); border-radius: 2px; background: linear-gradient(90deg, color-mix(in srgb, var(--editor-timeline-path) 26%, transparent), color-mix(in srgb, var(--editor-timeline-look) 18%, transparent)); color: var(--editor-text-secondary); font: 0.58rem/1 var(--editor-font); text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
 	.shot-block span { display: inline-grid; width: 16px; height: 16px; flex: 0 0 auto; place-items: center; border-radius: 50%; background: rgb(255 255 255 / 10%); color: var(--editor-text-primary); }
 	.shot-block:hover:not(:disabled) { border-color: var(--editor-accent-hover); color: var(--editor-text-primary); }
-	.shot-block.selected { border-color: var(--editor-accent); background: linear-gradient(90deg, rgb(37 99 235 / 38%), rgb(99 102 241 / 30%)); color: var(--editor-text-primary); box-shadow: inset 0 0 0 1px rgb(96 165 250 / 35%); }
+	.shot-block.selected { border-color: var(--editor-accent); background: linear-gradient(90deg, color-mix(in srgb, var(--editor-accent) 45%, transparent), color-mix(in srgb, var(--editor-timeline-look) 30%, transparent)); color: var(--editor-text-primary); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--editor-accent) 40%, transparent); }
 	.key-marker { position: absolute; top: 50%; z-index: 4; display: inline-flex; align-items: center; gap: 0.25rem; transform: translate(-50%, -50%); padding: 0; border: 0; background: transparent; color: var(--editor-text-secondary); font: 0.54rem/1 var(--editor-font); cursor: ew-resize; }
 	.key-marker i { display: block; width: 8px; height: 8px; transform: rotate(45deg); border: 1px solid currentColor; background: var(--editor-bg-panel); }
 	.fov-key { color: var(--editor-timeline-fov); }
 	.look-key { color: var(--editor-timeline-look); }
 	.look-key i { border-radius: 50%; transform: none; }
 	.key-marker.reverse { filter: saturate(0.72); }
-	.key-marker:hover:not(:disabled), .key-marker.selected { color: var(--editor-text-primary); text-shadow: 0 0 8px rgb(47 140 255 / 70%); }
+	.key-marker:hover:not(:disabled), .key-marker.selected { color: var(--editor-text-primary); text-shadow: 0 0 8px color-mix(in srgb, var(--editor-accent) 70%, transparent); }
 	.key-marker.dragging { color: var(--editor-text-primary); cursor: grabbing; }
 	.edge-marker { pointer-events: none; cursor: default; }
-	.playhead { position: absolute; top: 0; bottom: 0; z-index: 3; width: 1px; transform: translateX(-0.5px); background: var(--editor-timeline-playhead); pointer-events: none; box-shadow: 0 0 5px rgb(47 140 255 / 55%); }
+	.playhead { position: absolute; top: 0; bottom: 0; z-index: 3; width: 1px; transform: translateX(-0.5px); background: var(--editor-timeline-playhead); pointer-events: none; box-shadow: 0 0 5px color-mix(in srgb, var(--editor-accent) 55%, transparent); }
 	.timeline-playhead-overlay { position: absolute; top: 0; right: 0; bottom: 0; left: 7.5rem; z-index: 5; pointer-events: none; }
-	.timeline-playhead-line { position: absolute; top: 18px; bottom: 0; left: var(--playhead-progress); width: 1px; transform: translateX(-0.5px); background: var(--editor-timeline-playhead); box-shadow: 0 0 5px rgb(47 140 255 / 55%); }
+	.timeline-playhead-line { position: absolute; top: 18px; bottom: 0; left: var(--playhead-progress); width: 1px; transform: translateX(-0.5px); background: var(--editor-timeline-playhead); box-shadow: 0 0 5px color-mix(in srgb, var(--editor-accent) 55%, transparent); }
 	.playhead-head { position: absolute; top: 12px; left: var(--playhead-progress); z-index: 6; width: 24px; height: 24px; transform: translateX(-50%); outline: none; cursor: ew-resize; pointer-events: auto; }
-	.playhead-head::before { content: ''; position: absolute; top: 3px; left: 5px; border-right: 7px solid transparent; border-left: 7px solid transparent; border-top: 9px solid var(--editor-accent); filter: drop-shadow(0 0 4px rgb(47 140 255 / 70%)); }
+	.playhead-head::before { content: ''; position: absolute; top: 3px; left: 5px; border-right: 7px solid transparent; border-left: 7px solid transparent; border-top: 9px solid var(--editor-accent); filter: drop-shadow(0 0 4px color-mix(in srgb, var(--editor-accent) 70%, transparent)); }
 	.playhead-head:focus-visible { border-radius: 4px; box-shadow: 0 0 0 1px var(--editor-accent); }
 	.no-keys { position: absolute; top: 50%; left: 0.65rem; transform: translateY(-50%); color: var(--editor-text-disabled); font-size: 0.56rem; }
 	.roll-track .rail { background: var(--editor-timeline-roll); opacity: 0.5; }

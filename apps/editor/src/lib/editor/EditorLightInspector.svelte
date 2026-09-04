@@ -189,7 +189,7 @@
 	}
 	dl { display: grid; gap: 0.35rem; margin: 0; }
 	dl div { display: grid; grid-template-columns: 5.5rem 1fr; gap: 0.4rem; align-items: baseline; }
-	dt { margin: 0; color: var(--editor-text-muted); font-size: 0.68rem; }
+	dt { margin: 0; color: var(--editor-text-tint); font-size: 0.68rem; }
 	dd { margin: 0; color: var(--editor-text-primary); font-size: 0.74rem; word-break: break-word; }
 	.checkbox { display: flex; align-items: center; gap: 0.45rem; color: var(--editor-text-secondary); font-size: 0.74rem; }
 	.checkbox input { accent-color: var(--editor-accent); }

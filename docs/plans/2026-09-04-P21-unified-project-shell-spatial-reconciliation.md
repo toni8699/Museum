@@ -1,0 +1,285 @@
+# P21 — Unified Project Shell + Spatial UI reconciliation
+
+**Status:** proposed — for review, no code. **Date:** 2026-09-04. **Depends on:** P20 shipped.
+**Source:** `docs/Design-specs/Design-Plan(P21+).md` (P21+ target authority) + `P21-visual-implementation-references.md` + `Design-png/P21/*` + current `main` audit below.
+**Purpose:** implement the two-row project shell **and** reconcile the existing Spatial editor + Visitor Preview to the canonical P21 visual compositions — not merely move controls into two header rows.
+
+Strict P21 exposes only `Spatial` in project navigation. `Experience / Assets / Publish` routes/placement stay reserved; their Future PNGs are visual direction only.
+
+---
+
+## 1. Outcome
+
+P21 leaves the editor with this persistent structure:
+
+```text
+ROW 1 — Project Row: 36px
+project identity · persistence location · save state · document menu
+· project navigation (Spatial only) · history · Visitor Preview · theme/account
+
+ROW 2 — Workspace Ribbon: 32px
+active workspace routing · contextual authoring tools · precision/view controls
+
+Status bar: 24px
+```
+
+And reconciles these surfaces to the canonical compositions:
+
+```text
+Scene → Plan → Layout      (Design-png/P21/scene-plan-layout.png — shell/chrome master)
+Scene → Plan → Arrange     (Design-png/P21/scene-plan-arrange.png)
+Scene → 3D                 (Design-png/P21/scene-3d.png)
+Camera → Plan              (Design-png/P21/camera-plan.png)
+Camera → 3D                (Design-png/P21/camera-3d.png)
+Visitor Preview            (Design-png/P21/Preview.png)
+```
+
+Authority order for conflicts:
+
+```text
+source + tests
+→ architecture / ownership invariants
+→ Scene / Camera workspace behavior specs (§6–§13)
+→ Design-Plan(P21+).md
+→ Design-specs.md
+→ P21-visual-implementation-references.md
+→ Design-png/P21/*
+→ legacy visual references
+```
+
+**Behavior beats pixels.** A PNG never redefines selection/history, Layout/Scene ownership, room-local transforms, Plan X/Z+yaw authority, camera topology, Sequence ordering, per-direction timing, preview scopes, Timeline semantics, asset persistence, visitor/editor isolation, or orientation behavior. Minor generator artifacts (orientation-cube styling, omitted sidebar rows, decorative details) are non-requirements.
+
+Out of scope: Experience internals, Assets management workspace, Publish internals, IndexedDB durable drafts, cover-generation pipeline, hosting/deployment. No dead `Experience | Assets | Publish` tabs. Project Hub strict baseline omits the cover shelf (`Future/project-hub-cover-enabled.png` stays future direction).
+
+---
+
+## 2. Existing APIs and ownership (reuse, do not rewrite)
+
+- Shell state: `apps/editor/src/lib/editor/app/editor-view-state.svelte.ts` (`domain:scene|camera`, shared `view:plan|3d`), `app/editor-view-mode.ts`, `store/session-state.svelte.ts:112` (`currentWorkspace/leftPanel/timeline`, `setWorkspace()`), `editor-store.svelte.ts:2065` facade + preview teardown, `app/active-editor-selection.svelte.ts` (single active `scene|camera|layout`), `store/selection-store.svelte.ts` + `store/selection-actions.svelte.ts`.
+- Shell composition: `app/EditorApp.svelte:1475-1586` (`EditorAppBar / EditorSidebar / PlanWorkspace / CameraPlanWorkspace / Workspace3DView / EditorCameraTimelineFrame / EditorInspector / StatusBar`), `app/EditorAppBar.svelte`, `lib/editor/EditorProjectMenu.svelte`, `routes/project/[projectId]/+layout.svelte`, `lib/editor/theme.svelte.ts`, `styles/tokens.css:140-141` (`--editor-appbar-height:56px`, `--editor-status-height:32px` — P21 migrates to 36/32/24).
+- Plan: `app/PlanWorkspace.svelte`, `layout/LayoutDraftToolbar.svelte`, `layout/LayoutPlanViewport.svelte`, `layout/PlanSvg.svelte`, `layout/arrange-hit.ts`, `layout/layout-interaction.ts` (`planViewMode: layout|staging` internally; P10 user label is `Arrange`), `layout/plan-hit.ts`, `layout/plan-scene-hit.ts`, `layout/plan-overlays.ts`, `layout/PlanCanvasChrome.svelte`.
+- 3D: `app/Workspace3DView.svelte`, `lib/editor/EditorTransformControls.svelte`, `gizmo/EditorTransformControlsHost.svelte` (sole owner) + `gizmo/*-adapter.svelte.ts`, `lib/editor/EditorOrientationGizmo.svelte` + `EditorOrientationGizmoProjector.svelte` (scene-only top-right).
+- Camera: `app/CameraPlanWorkspace.svelte`, `camera-plan/CameraPlanViewport.svelte`, `camera-plan/CameraPlanToolbar.svelte`, `camera-plan/camera-plan-state.svelte.ts`, `camera-plan/camera-plan-hit.ts`, `app/CameraSidebar.svelte` + `lib/editor/CameraFlowPanel.svelte`, `app/CameraPlanInspector.svelte`, `camera/EditorCameraInspector.svelte` + `camera/EditorCameraRig/Helpers/PathHelpers/ViewHelpers/FramingHelpers/*`, `camera/editor-camera-timeline.ts` (2 backing lanes → 5-lane projection), `camera/EditorCameraTimelineFrame/Panel/Ruler/Dots.svelte`, `store/camera-timeline-controller.svelte.ts`, `store/camera-preview-controller.svelte.ts`, `store/camera-preview-commands.svelte.ts`, `store/mutation-guards.svelte.ts:32`.
+- Sidebar/Inspector: `app/EditorSidebar.svelte`, `lib/editor/UnifiedProjectTree.svelte` + `unified-project-tree-model.ts`, `lib/editor/EditorAssetLibrary.svelte`, `lib/editor/EditorInspector.svelte` + `EditorTransform/Material/Light/Primitive/PlacementInspector`, `fields/*`.
+- Persistence/history: `lib/editor/project-persistence.ts` (sole cloud boundary), `store/document-store.svelte.ts`, `layout/layout-preview-state.svelte.ts:127,145,158,264`, `store/history-controller.svelte.ts` (chronological tagged `scene|layout`, 100 limit), `store/project-export-store.svelte.ts`, `project-asset-load/upload.ts`. Dirty = `store.isDirty || layoutPreviewIsDirty || nameDirty` (`EditorApp.svelte:344,368,1095-1335`).
+- Routes: `routes/+page.svelte` (`/` entry, `intent=projects|save` handoff), `routes/projects/+page.svelte` (Hub), `routes/editor/+page.svelte` (redirect), `routes/project/[projectId]/spatial/+page.svelte` (mounts `EditorApp`), `routes/museum/+page.svelte` (frozen Chopin visitor), `routes/museum/editor/+page.svelte` (relic). No `/project/:id/preview` yet — preview is in-editor FSM today; Row1 `Preview Museum → /museum` is temporary pre-P21 behavior.
+- Isolation: `apps/museum/scripts/verify-visitor-bundle.mjs`; museum deps only `@portfolio/camera-core|layout-core|project-model` + threlte/three. One nav/motion (`camera-route.ts` + `camera-motion.ts` only). Svelte 5 runes, strict TS, Threlte/Three stay.
+
+---
+
+## 3. Current-state audit (pre-P21, per surface)
+
+### Shell frame
+
+Single 56px `EditorAppBar` mixes domain + view + dirty + Undo/Redo + `Preview Museum → /museum` + theme + `EditorProjectMenu` (rename/save/auth hidden in dropdown). Route `+layout.svelte` is a thin `Projects | id | Spatial` bar. No Row1/Row2 split, no location/save-state split, no Spatial-only nav, no `▶ Preview` takeover entry.
+
+### Floating toolbars → Row 2 sources
+
+`LayoutDraftToolbar` (floating top-left: `Layout|Arrange`, `Plan|3D`, `Select|Rect|Poly`, Snap/Grid/Tour/Ceiling, Cancel) · `CameraPlanToolbar` (floating centered: `Select|View`, Add Camera, Connect, Grid/Snap) · `EditorViewportToolbar` (floating top-left 3D: `Select|Move|Rotate|Scale(+chain)`, Add camera in camera ctx, View menu, Local/World nearby) · `EditorViewportGridControls` (bottom) · `PlanCanvasChrome` (SVG grid/rulers — stays viewport-local) · `EditorPlacementTools` (in-canvas).
+
+### Scene Plan
+
+`PlanWorkspace + LayoutPlanViewport + PlanSvg` with guarded mutations, owner-aware `resolveArrangeHit` (containment → active-owner-selected → Scene L6 over Layout L5 → render order; Scene-only 6px halo), X/Z/yaw drags, yaw handle (Scene pivot `[0,0]`; Layout pivot world pivot; Shift 15° snap), owner-routed Delete, tagged single-entry history. No ghost watermark; Inspector is Place/Objects/Selection accordions (needs primer + owner-aware density). Internal `staging` id vs `Arrange` label.
+
+### Scene 3D
+
+Unified Threlte `Workspace3DView`, sole `EditorTransformControlsHost`, scene-only top-right orientation gizmo, blue outline + RGB gizmo. Behavior complete; needs ribbon re-host + Inspector density + status strings only.
+
+### Camera Plan / 3D + Timeline
+
+Backdrop + graph + per-direction edge timing (`speed = length/time`, duration preserved on re-path) + Y-preserving drags + 4-section sidebar + shared selection + Camera-domain Timeline (scope/transport/lanes per P12; 2-model → 5-lane projection; heights 288/240–300/48) all ship. Toolbars floating; sidebar/Inspector/Timeline need density/placement reconciliation only. Camera Plan must never gain FOV/frustum/look-target; Camera 3D keeps full XYZ + framing/path overlays.
+
+### Persistence / Hub / Preview
+
+Dirty/save/auth/history/selection/timeline/camera-pose all live in existing stores (see §2). Hub (`routes/projects/+page.svelte`) is functional (authed table, guest callout, one-click New → `/project/project:<uuid>/spatial`, Open → `?load=1`); no covers, no fake drafts — correct strict baseline. Preview has no route; visitor isolation enforced by bundle verifier.
+
+---
+
+## 4. Gap matrix
+
+| Surface | Current | P21 target | Behavior impact | Visual impact | Files involved | Risk |
+|---|---|---|---|---|---|---|
+| Project Row (36px) | Single bar + dropdown menu; `Preview→/museum`; no location/save split | `← Projects \| name✎ \| [Local Session\|Cloud] \| [Session active\|Saved\|Save\|Saving\|Save Blocked] \| ⋮ \| Spatial \| ↺↻ \| ▶ Preview \| theme \| avatar` | None (re-host; history = same tagged stack) | High | New `ProjectRow.svelte`; slices of `EditorAppBar/EditorProjectMenu/EditorApp`; `tokens.css` | Med |
+| Workspace Ribbon (32px) | 3 floating toolbars + app-bar switches | ZoneA fixed `Scene\|Camera + Plan\|3D` (+`Layout\|Arrange` on Scene Plan) · ZoneB contextual · ZoneC Snap/Grid/View; no floating permanent toolbars | None (re-host; Timeline stays dock) | High (28px dark-segmented, blue text) | New `WorkspaceRibbon*.svelte`; decompose 3 toolbars | Med |
+| Scene Plan Layout | Floating toolbar; no ghost; accordion Inspector | 10×8m dashed ghost (`#64748B` 20%, `pointer-events:none`, session-dismiss, not serialized) + primer Inspector + Row2 `Select Rect Poly Opening` + hierarchy + status | None (presentation) | High | `PlanWorkspace/LayoutPlanViewport/PlanSvg/plan-overlays/EditorSidebar/EditorInspector/StatusBar` + new ghost/primer | Low |
+| Scene Plan Arrange | Owner-aware behavior ships | Row2 `Select Delete + Snap/Grid/View`; Scene+Layout hierarchy; owner-banner Inspector (X/Z/Yaw editable, Y preserved, scale read-only); one yaw handle | Zero transform-model change | Med | Same Plan files + Inspector/StatusBar | Low-Med |
+| Scene 3D | Behavior ships | Row2 `Select Move Rotate Scale Add Asset \| Local/World \| snaps \| View`; same viewport/gizmo/cube; Inspector density; no Timeline | None | Med | `Workspace3DView/TransformControls*/OrientationGizmo/EditorInspector/StatusBar` | Low |
+| Camera Plan | Behavior ships; toolbar floating | Row2 `Select Add Camera Connect View \| Snap/Grid`; sidebar 4 sections; inert footprints; undirected edges + duration labels; per-direction Inspector; expanded Timeline dock | None (timing/topology/Y rules intact) | Med-High | `CameraPlanWorkspace/Viewport/CameraSidebar/FlowPanel/CameraPlanInspector/Timeline*` | Med |
+| Camera 3D | Behavior ships | Row2 `Select Move Rotate Add Camera Path Frame View \| Observer/POV \| Snap`; same sidebar/selection/timeline; FOV/LookAt/Roll Inspector | None (one timeline/state) | Med | `Workspace3DView/camera/*, EditorCameraInspector, Timeline*` | Med |
+| Timeline | P12 behavior ships; 2→5-lane projection | Keep P12 verbatim; density only (label 120px, ruler 28px, lanes 44/48/34/34/32; 48px mini-player; `+View Key` 3D-Sequence only) | None | Med | `EditorCameraTimeline*.svelte`, `timeline.css` | Low |
+| Inspector/sidebar | Correct routing; pre-P21 styling; internal `staging` | Stable shell + header/groups grammar; edge-to-edge panels (radius 0); user label `Arrange` everywhere | None | Med | Inspectors, `EditorSidebar/CameraSidebar/UnifiedProjectTree` | Low |
+| Status bar | Correct content; 32px | 24px; per-workspace strings (Arrange `Yaw Snap 15°`, Camera Plan `Y Preserved`) | None | Low | `StatusBar.svelte`, `tokens.css` | Low |
+| Visitor Preview | No route; FSM preview only | `/project/:id/preview`: transient validated in-memory snapshot; Esc/`✕ Exit` restores workspace/domain/view/mode/selection/camera/session exactly; shell unmounted, pill-only chrome; visitor-safe only | Adapter/coordinator only; no `/museum` change | High | New `preview/+page` + coordinator; `EditorApp` enter/exit; extend verifier | High |
+| Project Hub | Functional, no covers | Strict: authed full-height table (no Recent shelf), guest callout (no fake drafts), one-click New | None | Low | `routes/projects/+page.svelte`, `routes/+page.svelte` | Low |
+
+---
+
+## 5. Proposed component architecture (incremental)
+
+`EditorApp` stays state owner; new shell is presentational + callbacks.
+
+```text
+routes/project/[projectId]/
+├─ +layout.svelte            (thin; unchanged)
+├─ spatial/+page.svelte      (mounts ProjectShell in spatial mode)
+└─ preview/+page.svelte      (NEW takeover, no ProjectShell)
+
+ProjectShell.svelte (NEW wrapper; owns 36/32/body/timeline/24 grid)
+├─ ProjectRow.svelte (NEW)
+│  ├─ re-host: name edit + ⋮ overflow (from EditorProjectMenu)
+│  ├─ re-host: persistence cluster (selectors from EditorApp)
+│  ├─ re-host: Undo/Redo (history-controller)
+│  ├─ new: Spatial-only nav (future routes reserved in comments, not rendered)
+│  ├─ new: ▶ Preview entry (→ /project/:id/preview)
+│  └─ re-host: theme + avatar/sign-in
+├─ WorkspaceRibbon.svelte (NEW host)
+│  ├─ ZoneA: DomainSwitch + ViewSwitch + LayoutArrangeSwitch
+│  ├─ ZoneB: ScenePlanLayoutTools / ScenePlanArrangeTools /
+│  │         Scene3DTools / CameraPlanTools / Camera3DTools (re-hosted logic)
+│  └─ ZoneC: Snap/Grid/View precision (re-hosted)
+├─ WorkspaceBody (existing left/viewport/inspector grid)
+│  ├─ left: EditorSidebar / CameraSidebar — reused
+│  ├─ viewport: PlanWorkspace / Workspace3DView / CameraPlanWorkspace — reused
+│  │           (floating wrappers deleted; PlanCanvasChrome/gizmos/handles/
+│  │            frustums/anchors/targets/labels stay viewport-local)
+│  └─ right: EditorInspector + CameraPlanInspector — reused, density CSS
+├─ EditorCameraTimelineFrame (Camera only) — reused, density CSS
+└─ StatusBar (24px) — reused
+```
+
+Verdict: `EditorAppBar` → split then delete; `EditorProjectMenu` → dissolve into Row1 + ⋮ then delete; 3 floating toolbar wrappers → logic moved to Row2 groups, positioning deleted; all viewports/sidebars/inspectors/timeline/controllers/stores → reused; `ProjectRow/WorkspaceRibbon/tool-groups/ProjectShell/ghost/primer/preview-route+coordinator` → new; `Preview Museum → /museum` → deleted; future tabs → not rendered.
+
+### Row 2 migration classification
+
+- A. Row 2 command: `Select/Rect/Poly/Opening/Measure`, Arrange `Select/Delete`, 3D `Select/Move/Rotate/Scale/Add Asset/Local/World`, Camera `Select/Add Camera/Connect/View/Path/Frame`, `Layout|Arrange`, `Scene|Camera`, `Plan|3D`, Snap/Grid/Ceiling/Tour toggles, View menus.
+- B. Viewport-local spatial affordance (stays): transform gizmos, orientation widget, Plan yaw handle, camera frustums/paths/anchors, look targets, placement ghosts, Plan grid/rulers/scale bar, hover/selection outlines.
+- C. Obsolete/duplicate: floating toolbar positioning/styling, `Preview Museum → /museum` link, saturated-block segmented styling, interim amber Layout-object selection, permanent Move/Rotate modes in Arrange/Camera Plan.
+- D. Deferred: Experience/Assets/Publish tool groups, cover pipeline, placement-ghost 2D slice, Timeline zoom.
+
+---
+
+## 6. State/data-flow plan
+
+No new sources of truth. Rows read existing stores; only menus/inline-edit drafts/preview capture are new presentation state.
+
+```ts
+// ProjectRow selectors only — existing logic reused
+const location = currentProjectIsOwned ? 'cloud' : 'local'; // Local Session | Cloud
+const save = saveBlocked ? 'blocked' : saving ? 'saving'
+  : projectIsDirty ? 'dirty' : 'clean';                     // pill
+// Save click → existing submitSaveSnapshot(); guest dirty → existing saveAuthGate
+```
+
+```svelte
+<!-- Ribbon routes; never owns -->
+{#if domain==='scene' && view==='plan' && planMode==='layout'}
+  <ScenePlanLayoutTools {...existingDraftToolProps} />
+{:else if domain==='scene' && view==='plan'}
+  <ScenePlanArrangeTools onDelete={ownerAwareDelete} />
+{:else if domain==='scene'} <Scene3DTools ... />
+{:else if view==='plan'} <CameraPlanTools ... />
+{:else} <Camera3DTools ... />
+```
+
+Preview: enter captures `{domain,view,planMode,selection,timeline,editorCameraPose,session}` + `validateProject(derivePreviewBundle(...))` transient snapshot (memory only, guests/unsaved preview without Save); exit restores exactly, discards snapshot, never `markSaved`/clears history. Mount mechanics (retained shell state vs coordinator) are implementation detail.
+
+Per-concern verdict — all **re-host** existing behavior: dirty, baseline, guest/session, cloud ownership, save-flight, blockers, rename, doc menu, Google auth, undo/redo, domain, view, Layout/Arrange mode, selection, Timeline, camera pose. **Add** presentation only: pills/nav/menus/ribbon grouping/ghost-primer dismissal/preview capture.
+
+---
+
+## 7. Implementation slices
+
+### P21.1 — shell primitives/tokens
+
+Outcome: 36/32/24 chrome, 28px Row2 controls, dark-navy bands, `#2F8CFF` accent, dark-segmented active (dark surface + blue text), Inter density, 4–6px radii, edge-to-edge panels. Files: `styles/tokens.css` (`--editor-bg-row-1/2`, row heights, `--editor-status-height:24px`), `editor-shell/controls/inspector/timeline/plan.css`. Must not change behavior (`#3B82F6` stays axis-Z). Tests: `check`, contrast/keyboard spot. QA: measure rows; segmented not saturated. Done: tokens + primitives merged.
+
+### P21.2 — Row 1 project controls
+
+Outcome: `ProjectRow` with identity/persistence/history/Preview/theme/avatar; Spatial-only nav; ⋮ overflow. Files: new `ProjectRow.svelte`; slices of `EditorAppBar/EditorProjectMenu/EditorApp`. Deps: P21.1. Must not fork save/auth/history logic; no Exp/Ass/Pub tabs. Tests: persistence-presentation units (location vs pill; blocked/saving/dirty/clean). QA: Row1 vs Layout PNG; legacy preview link gone. Done: Row1 matches spec with existing behavior.
+
+### P21.3 — Row 2 routing + toolbar host
+
+Outcome: Ribbon Zones A/B/C; floating permanent toolbars removed. Files: new `WorkspaceRibbon*.svelte` + 4 tool groups; decompose `LayoutDraftToolbar/CameraPlanToolbar/EditorViewportToolbar`; touch `PlanWorkspace/CameraPlanWorkspace/Workspace3DView`. Deps: P21.1–2. Must keep §16 capability matrix; Timeline never in Row2. Tests: domain/view/mode switching; Arrange owner routing. QA: all 5 tool states in Row2; zero permanent floating toolbars. Done: ribbon owns all permanent commands.
+
+### P21.4 — Scene Plan reconciliation
+
+Outcome: ghost + primer + hierarchy + openings + status; Layout vs Arrange differentiation. Files: Plan files + `EditorSidebar/EditorInspector/StatusBar` + new ghost/primer. Deps: P21.3. Must not change X/Z/yaw authority, Y preservation, read-only scale, single tagged entry, no cross-owner selection. Tests: arrange-hit/owner/tag/Y-preserve suites. QA: `scene-plan-layout.png` (empty) + populated Layout reference. Done: no dead controls, no modal.
+
+### P21.5 — Scene 3D reconciliation
+
+Outcome: ribbon + density + status; viewport/gizmo/cube untouched. Files: `Workspace3DView/EditorTransformControls*/EditorOrientationGizmo/EditorInspector/StatusBar`. Deps: P21.3. Must not rewrite gizmo/selection/snap/history. Tests: gizmo/selection/outline suites. QA: `scene-3d.png` (ignore cube styling). Done: composition matches, behavior identical, no Timeline.
+
+### P21.6 — Camera Plan + Timeline reconciliation
+
+Outcome: sidebar/Inspector/footprints/undirected edges/timing + Timeline density. Files: Camera Plan files + `CameraSidebar/FlowPanel/CameraPlanInspector/Timeline*`. Deps: P21.3. Must preserve undirected topology, per-direction timing, Y preservation, Camera-only Timeline, shared selection. Tests: topology/Sequence/timing/Y/timeline-continuity. QA: `camera-plan.png` with expanded Timeline. Done: no FOV/frustum/look-target leak into Plan.
+
+### P21.7 — Camera 3D reconciliation
+
+Outcome: ribbon (Observer/POV) + FOV/LookAt/Roll Inspector + restrained overlays; same sidebar/timeline/selection. Files: `Workspace3DView/camera/*`, `EditorCameraInspector`, `Timeline*`. Deps: P21.6. Must keep full XYZ authority; one timeline/state. Tests: shared-state suites. QA: `camera-3d.png`. Done: Plan↔3D preserves selection/timeline.
+
+### P21.8 — Visitor Preview
+
+Outcome: `/project/:id/preview` takeover + coordinator. Files: new `preview/+page.svelte` + snapshot/coordinator (reuse museum visitor components via adapter); `EditorApp` enter/exit; extend `verify:visitor-bundle`. Deps: P21.2. Must not expose gizmos/handles/Inspector/Timeline/debug transport; must not modify frozen `/museum`; exact restore. Tests: enter/exit restore + isolation. QA: `Preview.png` (pill-only chrome; bottom nav illustrative until Experience). Done: Esc restores exactly.
+
+### P21.9 — Hub polish / integration
+
+Outcome: strict Hub (no Recent shelf) + entry/OAuth/`?load`/`?resume-save` intact. Files: `routes/projects/+page.svelte`, `routes/+page.svelte`, `routes/editor/+page.svelte`. Deps: P21.2, P21.8. Must not invent fake drafts or cover pipeline. Tests: route/auth/handoff. QA: guest + authed + New flows. Done: Hub + entry green.
+
+### P21.10 — visual/accessibility regression pass
+
+Outcome: sweep vs 6 PNGs + reduced-motion/keyboard + contrast. Files: CSS only + tracker closeout. Deps: all above. Must not smuggle behavior changes. Tests: full Vitest + `check` + `build` + `verify:visitor-bundle` + axe sweep. Done: checklists pass.
+
+---
+
+## 8. Test strategy
+
+Keep green: full Vitest (176 files / 2351 passed), `check` (editor+museum+camera/layout/project-model+api), `test:api` (23), `build`, `verify:visitor-bundle`, P20 Load (22) + cloud-save predicate + package-fidelity, Arrange hit/owner/tag, camera route/motion, timeline projection, selection continuity, Y-preservation.
+
+Add focused state/component tests (no per-pixel screenshots): domain/view switching · Layout/Arrange switching · selection persistence (Scene Plan↔3D; Camera Plan↔3D; Arrange last-owner, no resurrection) · one gesture = one tagged undo · owner-aware Arrange + Y/scale/ownership rules · Camera shared selection + shared Timeline · undirected connections vs ordered Sequence · per-direction timing preserved on re-path · Timeline Camera-only + P12 scopes/transport · persistence presentation (no duplicated dirty sources) · Preview enter/exit + isolation · keyboard/reduced-motion. Visual conformance is explicit manual QA vs the 6 PNGs (§9).
+
+---
+
+## 9. Visual QA checklist
+
+General: same 36+32 rows + 24px status across all five editor PNGs; Row1 order; 28px dark-segmented; `#F5F3EE` Plan vs dark 3D; `#2F8CFF` accent; edge-to-edge panels; tabular numerals; no floating toolbars; Spatial only.
+
+- `scene-plan-layout.png`: Row2 `SCENE\|Camera PLAN\|3D LAYOUT\|Arrange Select Rect Poly Door Window Snap`; `Hierarchy\|Assets`, `Environment/Architecture/No rooms yet`; ghost 10×8m + dims + scale bar; primer (Grid/Units/Tips, no dead buttons); status `X/Z Grid Orthogonal WallSnap Angle Scene>Plan>Layout`.
+- `scene-plan-arrange.png`: Row2 Arrange + `Select Delete Snap`; Scene+Layout hierarchy, piano selected; blue footprint + yaw handle; Inspector `SCENE ENTITY` X/Z/Yaw editable, Y preserved + `Edit in 3D`, Scale read-only; status `Yaw Snap 15°`.
+- `scene-3d.png`: Row2 `Select Move(active) Rotate Scale Add Asset Local\|World snaps View`; Decor/Lighting/Cameras hierarchy; blue outline + RGB gizmo, existing cube; Inspector Transform/Placement/Material/Visibility; status `Move Local snaps 1 selected`.
+- `camera-plan.png`: Row2 `Select Add Camera Connect View Snap Grid`; 4-section sidebar, `1—2` undirected; subdued backdrop, blue sequence / green unsequenced + selected edge `4.00s`; Inspector per-direction Duration/Speed + Path + Valid; 5-lane Timeline + transport; status `Y Preserved`. Ignore omitted rows/arrow ambiguity.
+- `camera-3d.png`: Row2 + `Observer\|POV`; same sidebar/selection; spline + frustum + look-target restrained; Inspector Transform/Rotation/FOV/LookAt/Roll/Path/Timing+speed; Timeline + `Preview Sequence/Paused/timecode`; status `Observer Sequence paused 1 selected`. Ignore cube text/thumbnail counts.
+- `Preview.png`: full-bleed visitor canvas; only `VISITOR PREVIEW Viewing Current Draft ✕ Exit Preview (Esc)` pill + visitor nav; zero editor chrome. Bottom nav illustrative.
+
+---
+
+## 10. Risks / open questions
+
+1. Preview snapshot source — in-memory `derivePreviewBundle + validateProject` vs hidden mount. Matters: restore + isolation. Need: `layout-preview-state.svelte.ts:derivePreviewBundle` + `apps/museum/.../MuseumCanvas.svelte` props. Default: in-memory snapshot, editor unmounted.
+2. Preview viewport reuse — strip editor `Workspace3DView` overlays vs import museum visitor components. Need: `Workspace3DView` overlay props + museum `MuseumScene` interface. Default: museum visitor components via adapter.
+3. Internal `staging` vs `Arrange` — label-only vs atomic rename. Need: `layout-interaction.ts` + `staging` refs. Default: label-only.
+4. Save-pill scope — document baseline only vs including registry-upload state (§C/G say document only). Need: `EditorApp` save block + `project-asset-upload.ts`. Default: document only.
+5. Timeline richness — projection CSS vs new Shots/Roll entities. Need: `EditorCameraTimelineDots.svelte:556`, `editor-camera-timeline.ts:56`. Default: projection only.
+6. `/museum` freeze — deletion of legacy preview link + new preview route must not touch frozen visitor/relic. Guard: `verify:visitor-bundle` + P19.4 intent flow.
+
+---
+
+## 11. Acceptance
+
+P21 ships when: two-row shell implemented + existing controls re-hosted in correct rows + permanent floating toolbars removed + all five Spatial compositions match P21 direction + Camera Plan/3D share sidebar/Timeline + Preview is visitor-only takeover — with zero changes to governing behavior contracts (ownership, transforms, topology, Sequence, timing, scopes, Timeline, persistence, isolation). Full Vitest + `check` + `build` (editor+museum) + `verify:visitor-bundle` green; browser smoke covers entry → Hub → New → spatial → save/auth → preview enter/exit → refresh/Load.
+
+## 12. Mount, relic, Plan, visitor boundaries
+
+- No second nav/graph/motion/geometry/gizmo/transform/selection/history system. `LayoutDocument` vs `SceneDocument` unchanged; room-local transforms unchanged; no world-space writebacks.
+- Plan edits X/Z/yaw only, Y preserved; no Plan scaling/Y/pitch/roll introduced by visual work.
+- Connections undirected; Sequence ordered playback subset; direction lives in timing/playback only.
+- Timeline stays Camera-domain dock; one instance/state across Plan/3D.
+- Preview is visitor-safe runtime + transient snapshot; no editor session/selection/history/gizmo/Inspector/Timeline/debug transport leaks. `/museum` + `/museum/editor` behavior unchanged unless a governing plan explicitly migrates them.
+- Svelte 5 runes, strict TS, Threlte/Three; existing ownership/lifecycle patterns retained.
+
+## 13. Fallback
+
+If the shell split proves too broad, land P21.1–21.3 (tokens + rows + ribbon host with existing toolbars re-hosted) before P21.4–21.7 (per-workspace reconciliation), then P21.8 (preview), then P21.9–21.10. Do not expose dead Experience/Assets/Publish tabs to fake progress; do not collapse documents to simplify routing; do not fork state to match screenshots. Rollback per slice is CSS/component revert; no migration or document change exists to roll back.
+
+## 14. Explicitly out of scope
+
+Experience internals · Assets management workspace · Publish internals · IndexedDB durable local drafts · cover-generation pipeline · hosting/deployment · Timeline zoom · 2D ghost placement · provider search · GLB import · multi-tour/branches · interaction authoring · runtime SDK. Future PNGs are direction only.

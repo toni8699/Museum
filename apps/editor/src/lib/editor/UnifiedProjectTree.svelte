@@ -1004,7 +1004,7 @@
 		flex-direction: column;
 		gap: 0.15rem;
 		padding: 0.3rem;
-		border: 1px solid rgb(70 68 78 / 88%);
+		border: 1px solid color-mix(in srgb, var(--editor-border-normal) 88%, transparent);
 		border-radius: 0.34rem;
 		background: var(--editor-bg-panel-raised);
 		box-shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 42%);

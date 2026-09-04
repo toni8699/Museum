@@ -986,7 +986,7 @@
 	}
 	.timecode {
 		min-width: 7.8rem;
-		color: var(--editor-text-primary);
+		color: var(--editor-text-timecode);
 		font: 650 0.66rem/1 var(--editor-font);
 		font-variant-numeric: tabular-nums;
 		text-align: center;
@@ -1086,7 +1086,7 @@
 		accent-color: var(--editor-accent);
 		cursor: ew-resize;
 	}
-	.mini-player__timecode { min-width: 6rem; color: var(--editor-text-primary); font: 650 0.66rem/1 var(--editor-font); font-variant-numeric: tabular-nums; text-align: center; white-space: nowrap; }
+	.mini-player__timecode { min-width: 6rem; color: var(--editor-text-timecode); font: 650 0.66rem/1 var(--editor-font); font-variant-numeric: tabular-nums; text-align: center; white-space: nowrap; }
 	.sr-only {
 		position: absolute;
 		width: 1px;

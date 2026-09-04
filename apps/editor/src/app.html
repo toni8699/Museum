@@ -3,6 +3,18 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script>
+      // THEME_IDS_SYNC_WITH_THEME_REGISTRY start
+      var THEME_IDS = ['navy-blue'];
+      // THEME_IDS_SYNC_WITH_THEME_REGISTRY end
+      try {
+        var themeId = localStorage.getItem('editor.theme');
+        if (THEME_IDS.indexOf(themeId) === -1) themeId = 'navy-blue';
+        document.documentElement.dataset.theme = themeId;
+      } catch (e) {
+        document.documentElement.dataset.theme = 'navy-blue';
+      }
+    </script>
     %sveltekit.head%
   </head>
   <body data-sveltekit-preload-data="hover">

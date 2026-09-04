@@ -977,10 +977,12 @@
 	}
 	.header-transport .header-icon.active,
 	.mini-player__play.active {
-		border-color: rgb(59 130 246 / 80%);
-		background: rgb(37 99 235 / 25%);
-		box-shadow: 0 0 10px rgb(59 130 246 / 40%);
-		color: #60a5fa;
+		/* Playback-active transport state: accent family (semantic token reuse,
+		   no component-literal blue). */
+		border-color: var(--editor-accent-border);
+		background: color-mix(in srgb, var(--editor-accent) 25%, transparent);
+		box-shadow: 0 0 10px color-mix(in srgb, var(--editor-accent) 40%, transparent);
+		color: var(--editor-accent-hover);
 	}
 	.timecode {
 		min-width: 7.8rem;

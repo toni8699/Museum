@@ -14,7 +14,7 @@ body:has(.editor-page) {
 .editor-page :is(button, input, select, textarea, [tabindex]):focus-visible {
 	outline: none;
 	border-color: var(--editor-accent);
-	box-shadow: 0 0 0 2px rgb(47 140 255 / 18%);
+	box-shadow: 0 0 0 2px var(--editor-accent-soft);
 }
 
 /* Numeric readouts keep tabular figures (DS §6); never monospace. */

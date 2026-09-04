@@ -1,10 +1,10 @@
 # Museum docs — context router
 
-**Audience:** agents + humans. **Last reviewed:** 2026-08-31 (north star amended — Experience vs Interaction authoring boundary ratified; project shell adds Experience mode; P18 infrastructure boundary shipped; P3B.7b remains deferred; north star holds product vision).
+**Audience:** agents + humans. **Last reviewed:** 2026-09-03 (P19 shipped — Google OIDC/live deployment smoke passed; P20's owner-run R2 provisioning/smoke is the active gate; P3B.7b remains deferred; north star holds product vision).
 **Bootstrap (hard rules):** [`../AGENTS.md`](../AGENTS.md) ·
 **Plan status / what's next:** [`plans/README.md`](./plans/README.md) (tracker) ·
 **Live working-tree state:** [`hand-off/CURRENT.md`](./hand-off/CURRENT.md) ·
-**Roadmap gate:** P12, core P3B, P14, P15, P16, P17, and P18 are shipped. P18's owner-run Render/Neon provisioning remains the P19 entry gate. P3B.7b remains deferred and non-blocking; P13 remains proposed/unscheduled.
+**Roadmap gate:** P12, core P3B, P14, P15, P16, P17, P18, and P19 are shipped (P19 on 2026-09-03 — Google OIDC/live deployment smoke passed). P20's owner-run R2 provisioning/smoke remains the active gate. P3B.7b remains deferred and non-blocking; P13 remains proposed/unscheduled.
 
 ## Context discipline (progressive disclosure)
 

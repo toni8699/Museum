@@ -20,11 +20,14 @@ describe('P20.2 Spatial registry integration', () => {
 		const app = readLibSource('editor/app/EditorApp.svelte');
 		const sidebar = readLibSource('editor/app/EditorSidebar.svelte');
 		const library = readLibSource('editor/EditorAssetLibrary.svelte');
+		const upload = readLibSource('editor/project-asset-upload.ts');
 		const relic = readLibSource('editor/MuseumEditorApp.svelte');
 
-		for (const method of ['listAssets', 'registerAsset', 'uploadAsset', 'loadAssetContent']) {
+		for (const method of ['listAssets', 'registerAsset', 'loadAssetContent']) {
 			expect(app).toMatch(new RegExp(`projectApi!?\\.${method}`));
 		}
+		expect(app).toContain('completeProjectAssetUpload');
+		expect(upload).toMatch(/api\.uploadAsset/);
 		expect(sidebar).toContain('onAcceptProjectTexture');
 		expect(sidebar).toContain('BinaryTextureStore.objectUrlFor(uri) ?? uri');
 		expect(sidebar).toContain("source.startsWith('/project-assets/') ? null : source");

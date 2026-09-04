@@ -1,5 +1,7 @@
 <script lang="ts">
-	import { Box, Redo2, Route, Undo2 } from 'lucide-svelte';
+	import { Box, Check, Palette, Redo2, Route, Undo2 } from 'lucide-svelte';
+	import { onMount } from 'svelte';
+	import { setTheme, THEMES, themeState, type ThemeId } from '$lib/editor/theme.svelte';
 	import EditorProjectMenu from '$lib/editor/EditorProjectMenu.svelte';
 	import type { LayoutPreviewState } from '$lib/editor/layout/layout-preview-state.svelte';
 	import type { EditorStore } from '$lib/editor/editor-store.svelte';
@@ -30,6 +32,7 @@
 		onCancelSaveAuth,
 		pendingSaveActive = false,
 		onDiscardPendingSave,
+		resolveProjectAssetBytes,
 		onReset
 	}: {
 		store: EditorStore;
@@ -54,6 +57,7 @@
 		onCancelSaveAuth?: () => void;
 		pendingSaveActive?: boolean;
 		onDiscardPendingSave?: () => void;
+		resolveProjectAssetBytes?: (uri: string) => Promise<Uint8Array | null>;
 		/** fired after the Project-menu reset actions; the shell clears the active selection. */
 		onReset?: () => void;
 	} = $props();
@@ -66,6 +70,26 @@
 	const canSwitch = $derived(!store.isEditorInteractionActive);
 	const dirty = $derived(projectIsDirty ?? store.isDirty);
 	let projectMenuOpen = $state(false);
+	let themeMenuOpen = $state(false);
+	let themeMenuElement = $state<HTMLElement>();
+	// Static registry snapshot: THEMES never changes at runtime, so the menu
+	// picks up future themes automatically without reactive machinery.
+	const themeEntries = Object.entries(THEMES) as Array<[ThemeId, (typeof THEMES)[ThemeId]]>;
+
+	onMount(() => {
+		const closeThemeMenu = (event: PointerEvent) => {
+			if (!themeMenuElement?.contains(event.target as Node)) themeMenuOpen = false;
+		};
+		const closeThemeMenuWithEscape = (event: KeyboardEvent) => {
+			if (event.key === 'Escape') themeMenuOpen = false;
+		};
+		window.addEventListener('pointerdown', closeThemeMenu);
+		window.addEventListener('keydown', closeThemeMenuWithEscape);
+		return () => {
+			window.removeEventListener('pointerdown', closeThemeMenu);
+			window.removeEventListener('keydown', closeThemeMenuWithEscape);
+		};
+	});
 
 	// P1.1 — two always-visible segmented controls: the domain switcher is
 	// primary (`Scene | Camera`), the view switcher is per-domain in fixed
@@ -139,6 +163,36 @@
 		{#if domain === 'scene' && activeView === '3d'}
 			<a class="preview-action" href="/museum" target="_blank" rel="noreferrer">Preview Museum</a>
 		{/if}
+		<div bind:this={themeMenuElement} class="theme-menu-wrap">
+			<button
+				type="button"
+				class:active={themeMenuOpen}
+				title="Theme"
+				aria-label="Theme"
+				aria-haspopup="menu"
+				aria-expanded={themeMenuOpen}
+				onclick={() => (themeMenuOpen = !themeMenuOpen)}
+			><Palette size={14} aria-hidden="true" /></button>
+			{#if themeMenuOpen}
+				<div class="theme-menu" role="menu" aria-label="Editor theme">
+					{#each themeEntries as [id, def] (id)}
+						<button
+							type="button"
+							role="menuitemradio"
+							aria-checked={themeState.current === id}
+							class:active={themeState.current === id}
+							onclick={() => {
+								setTheme(id);
+								themeMenuOpen = false;
+							}}
+						>
+							<span>{def.label}</span>
+							{#if themeState.current === id}<Check size={12} aria-hidden="true" />{/if}
+						</button>
+					{/each}
+				</div>
+			{/if}
+		</div>
 		<EditorProjectMenu
 			{store}
 			{layoutPreview}
@@ -161,6 +215,7 @@
 			{onCancelSaveAuth}
 			{pendingSaveActive}
 			{onDiscardPendingSave}
+			{resolveProjectAssetBytes}
 			{onReset}
 			bind:open={projectMenuOpen}
 		/>
@@ -232,6 +287,41 @@
 		text-decoration: none;
 		white-space: nowrap;
 	}
+	.theme-menu-wrap { position: relative; display: inline-flex; }
+	.theme-menu-wrap > button { padding-inline: 0.48rem; }
+	.theme-menu {
+		position: absolute;
+		top: calc(100% + 0.55rem);
+		right: 0;
+		z-index: 20;
+		min-width: 10.5rem;
+		box-sizing: border-box;
+		display: flex;
+		flex-direction: column;
+		gap: 0.15rem;
+		padding: 0.35rem;
+		border: 1px solid var(--editor-border-normal);
+		border-radius: 0.4rem;
+		background: var(--editor-bg-panel-raised);
+		box-shadow: var(--editor-shadow-popover);
+	}
+	.theme-menu button {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.5rem;
+		padding: 0.4rem 0.5rem;
+		border: 1px solid transparent;
+		border-radius: 0.3rem;
+		background: transparent;
+		color: var(--editor-text-primary);
+		font: inherit;
+		font-size: 0.72rem;
+		cursor: pointer;
+		text-align: left;
+	}
+	.theme-menu button:hover { border-color: transparent; background: var(--editor-bg-hover); }
+	.theme-menu button.active { border-color: transparent; background: var(--editor-bg-selected); }
 	.actions button:disabled { opacity: 0.4; cursor: default; }
 	.actions button:hover:not(:disabled),
 	.preview-action:hover { border-color: var(--editor-accent); }
@@ -249,5 +339,11 @@
 		.domains, .views { margin-left: auto; }
 		.domains button, .views button { padding-inline: 0.62rem; }
 		.actions button, .preview-action { padding-inline: 0.5rem; }
+		.theme-menu {
+			position: fixed;
+			top: 5.75rem;
+			right: 0.6rem;
+			left: auto;
+		}
 	}
 </style>

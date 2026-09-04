@@ -260,6 +260,54 @@ describe('EditorMaterialResourceMutator — texture registration', () => {
 	});
 });
 
+describe('EditorMaterialResourceMutator — guarded texture URI replacement', () => {
+	it('changes only the URI and commits one transaction', () => {
+		const document = documentOf(
+			[texture()],
+			[material({ baseTextureId: 't-1' })],
+			[primitiveEntity({ materialInstanceId: 'mat-1' })]
+		);
+		const before = structuredClone(document);
+		const host = rig({ document });
+		const mutator = new EditorMaterialResourceMutator(host);
+
+		expect(mutator.replaceTextureUri('t-1', '/textures/wall.webp', '/project-assets/a-1')).toBe(
+			true
+		);
+		expect(host.document.textures[0]).toEqual({
+			...before.textures[0],
+			uri: '/project-assets/a-1'
+		});
+		expect(host.document.materials).toEqual(before.materials);
+		expect(host.document.entities).toEqual(before.entities);
+		expect(host.beginCalls).toBe(1);
+		expect(host.commitCalls).toBe(1);
+	});
+
+	it('rejects stale, no-op, unsafe, and blocked replacements before a transaction', () => {
+		for (const [expectedUri, nextUri] of [
+			['/textures/other.webp', '/project-assets/a-1'],
+			['/textures/wall.webp', '/textures/wall.webp'],
+			['/textures/wall.webp', 'https://example.com/wall.webp']
+		]) {
+			const host = rig({ document: documentOf([texture()], [], []) });
+			const mutator = new EditorMaterialResourceMutator(host);
+			expect(mutator.replaceTextureUri('t-1', expectedUri, nextUri)).toBe(false);
+			expect(host.beginCalls).toBe(0);
+		}
+
+		const blockedHost = rig({ blocked: true, document: documentOf([texture()], [], []) });
+		expect(
+			new EditorMaterialResourceMutator(blockedHost).replaceTextureUri(
+				't-1',
+				'/textures/wall.webp',
+				'/project-assets/a-1'
+			)
+		).toBe(false);
+		expect(blockedHost.beginCalls).toBe(0);
+	});
+});
+
 describe('EditorMaterialResourceMutator — material patch', () => {
 	it('primitive first assignment derives baseMaterialId from catalogue', () => {
 		const document = documentOf([texture()], [], [primitiveEntity()]);

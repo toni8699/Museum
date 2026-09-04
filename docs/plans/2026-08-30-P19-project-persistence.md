@@ -1,6 +1,6 @@
 # P19 — first project persistence
 
-**Status:** in-progress. **Date:** 2026-08-30. **Depends on:** P18.
+**Status:** shipped 2026-09-03 — Google OIDC/live deployment smoke passed. **Date:** 2026-08-30. **Depends on:** P18.
 **Source:** backend/persistence migration review §0.1.6–§0.1.7 and P18,
 first-persistence pass.
 **Amended:** 2026-08-31 — five review amendments applied.
@@ -448,6 +448,9 @@ motion, selection, or geometry system.
   return `401`. Also verify a second Google identity cannot access the first
   identity's projects. Then rerun API, editor, visitor-boundary, build, and
   browser checks.
+- **Owner-run result (2026-09-03):** the deployed-stack authenticated smoke
+  passed end-to-end, including the second-identity isolation check and the
+  rerun regression checks; P19's live gate is closed.
 
 ### P19.4 — guest-first entry + Project Shell scaffold
 

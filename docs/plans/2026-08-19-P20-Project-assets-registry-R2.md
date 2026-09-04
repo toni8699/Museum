@@ -1,6 +1,6 @@
 # P20 — Project Asset Registry + R2 asset storage
 
-**Status:** in-progress; S0 + S1 + S2 / P20.2 implemented locally (shipped 2026-09-03), P20.3 brief ready and P20.4 outstanding, held by the P19 live gate and owner-run R2 provisioning/smoke.
+**Status:** in-progress; S0 + S1 + S2 + S3 / P20.3 implemented locally (2026-09-03), P20.4 outstanding, held by owner-run R2 provisioning/smoke.
 **Depends on:** P19 shipped, including the live Google OIDC / deployed Save–Load gate.
 **Source:** ratified backend/persistence migration review Pass 6 + current North Star shared-assets direction.
 **Amended:** owner-ratified amendment direction (SceneDocument vs registry ownership, portable package semantics, shared-package purity, R2 test seam, key/dedup isolation, tightened v1 scope, targeted S0 inventory, S-slice naming) — S0 must resolve the durable texture-reference, cloud-Save durability, and guest-binary contracts before S1.
@@ -696,8 +696,8 @@ Do not hide this behavior inside ad-hoc session storage or silently discard loca
 
 **Owner shorthand:** P20.1. **Brief ready:** 2026-09-03. **Local
 implementation:** complete 2026-09-03. **Entry/release gate:** P19 live/ready
-authenticated Save–Load smoke plus owner-provisioned private R2 bucket and
-Render secrets.
+authenticated Save–Load smoke (passed 2026-09-03) plus owner-provisioned
+private R2 bucket and Render secrets.
 
 ## Outcome and boundary
 
@@ -923,7 +923,7 @@ and leave unused `assets` table, never destructive down-migration.
 
 **Owner shorthand:** P20.2. **Brief ready / local implementation complete:** 2026-09-03 —
 [Spatial registry integration slice brief](2026-09-03-P20.2-spatial-registry-integration.md).
-**Entry gate:** P19 live/ready authenticated Save–Load smoke plus P20.1 private-R2
+**Entry gate:** P19 live/ready authenticated Save–Load smoke (passed 2026-09-03) plus P20.1 private-R2
 authenticated smoke.
 
 Integrate the registry into the **existing Spatial asset system**.
@@ -999,9 +999,9 @@ Do not hard-code Sketchfab into the durable registry model.
 
 # S3 — resolve current binary Save blockers
 
-**Owner shorthand:** P20.3. **Brief ready:** 2026-09-03 —
+**Owner shorthand:** P20.3. **Brief / local implementation complete:** 2026-09-03 —
 [Texture durable-conversion slice brief](2026-09-03-P20.3-texture-durable-conversion.md).
-**Entry gate:** P19 live/ready authenticated Save–Load smoke plus P20.1
+**Entry gate:** P19 live/ready authenticated Save–Load smoke (passed 2026-09-03) plus P20.1
 private-R2 authenticated smoke. P20.2 is implemented locally.
 
 P20 should make the first real cloud fidelity improvement by converting currently unresolved file-backed project resources into registry-backed durable assets.

@@ -1802,8 +1802,9 @@ describe('P19 project persistence coordinator contracts', () => {
 		const submitStart = app.indexOf('async function submitSaveSnapshot');
 		const submit = app.slice(submitStart, app.indexOf('async function signOutFromProjects', submitStart));
 
-		expect(submit).toContain('computeCloudSaveBlocker(snapshot.project.scene)');
-		expect(submit.indexOf('computeCloudSaveBlocker(snapshot.project.scene)')).toBeLessThan(
+		expect(submit).toContain('computeCloudSaveBlocker(snapshot.project.scene,');
+		expect(submit).toContain('isReadyProjectAssetForSave(uri, snapshot.project.id)');
+		expect(submit.indexOf('computeCloudSaveBlocker(snapshot.project.scene,')).toBeLessThan(
 			submit.indexOf('await projectApi!.saveProject')
 		);
 	});

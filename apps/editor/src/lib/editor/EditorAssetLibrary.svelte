@@ -23,9 +23,12 @@
 		projectAssets = [],
 		projectAssetsStatus = 'unavailable',
 		retryableProjectAssetId = null,
+		retryableProjectTextureId = null,
 		onUploadProjectTexture,
 		onRetryProjectTexture,
 		onAcceptProjectTexture,
+		canConvertProjectTexture,
+		onConvertProjectTexture,
 		onProjectTextureFileSelected,
 		resolveTextureImageSrc = (uri: string) => uri
 	}: {
@@ -38,9 +41,12 @@
 		projectAssets?: readonly ProjectAssetMetadata[];
 		projectAssetsStatus?: 'unavailable' | 'loading' | 'ready' | 'error';
 		retryableProjectAssetId?: string | null;
+		retryableProjectTextureId?: string | null;
 		onUploadProjectTexture?: (name: string, bytes: Uint8Array) => Promise<string | null>;
 		onRetryProjectTexture?: () => Promise<string | null>;
 		onAcceptProjectTexture?: (assetId: string) => Promise<string | null>;
+		canConvertProjectTexture?: (texture: SceneTextureAsset) => boolean;
+		onConvertProjectTexture?: (textureId: string) => Promise<string | null>;
 		onProjectTextureFileSelected?: () => void;
 		resolveTextureImageSrc?: (uri: string) => string | null;
 	} = $props();
@@ -208,6 +214,20 @@
 		projectAssetActionId = retryableProjectAssetId;
 		try {
 			const textureId = await onRetryProjectTexture();
+			if (textureId) selectedTextureId = textureId;
+		} finally {
+			projectAssetActionId = null;
+		}
+	}
+
+	async function convertProjectAsset(texture: SceneTextureAsset): Promise<void> {
+		const retry = retryableProjectTextureId === texture.id;
+		if (projectAssetActionId || (retry ? !onRetryProjectTexture : !onConvertProjectTexture)) return;
+		projectAssetActionId = texture.id;
+		try {
+			const textureId = retry
+				? await onRetryProjectTexture!()
+				: await onConvertProjectTexture!(texture.id);
 			if (textureId) selectedTextureId = textureId;
 		} finally {
 			projectAssetActionId = null;
@@ -716,6 +736,18 @@
 						{#if state?.status === 'error'}
 							<button type="button" class="retry" onclick={() => retryTextureProbe(texture)}>Retry</button>
 						{/if}
+						{#if canConvertProjectTexture?.(texture)}
+							<button
+								type="button"
+								class="save-project"
+								disabled={projectAssetActionId !== null}
+								onclick={() => convertProjectAsset(texture)}
+							>
+								{projectAssetActionId === texture.id
+									? retryableProjectTextureId === texture.id ? 'Retrying…' : 'Saving…'
+									: retryableProjectTextureId === texture.id ? 'Retry save to project' : 'Save to project'}
+							</button>
+						{/if}
 					</li>
 				{/each}
 			</ul>
@@ -831,6 +863,9 @@
 	.thumb strong { font-size: 0.72rem; overflow-wrap: anywhere; }
 	.thumb .uri { color: var(--editor-text-muted); font-size: 0.62rem; overflow-wrap: anywhere; }
 	.retry { align-self: flex-start; padding: 0.26rem 0.5rem; border: 1px solid var(--editor-danger-border); border-radius: 0.28rem; background: var(--editor-danger-soft); color: var(--editor-danger-fg); font: inherit; font-size: 0.66rem; cursor: pointer; }
+	.save-project { align-self: flex-start; padding: 0.26rem 0.5rem; border: 1px solid var(--editor-accent-border); border-radius: 0.28rem; background: var(--editor-bg-control); color: var(--editor-text-primary); font: inherit; font-size: 0.66rem; cursor: pointer; }
+	.save-project:hover:not(:disabled) { background: var(--editor-bg-hover); }
+	.save-project:disabled { opacity: 0.55; cursor: default; }
 	/* Phase 5.4 — local-file texture register (Source toggle + drop zone) */
 	.register-source { display: grid; grid-template-columns: 1fr 1fr; gap: 0.3rem; }
 	.register-source.three { grid-template-columns: repeat(3, 1fr); }

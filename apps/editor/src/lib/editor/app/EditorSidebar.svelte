@@ -8,6 +8,7 @@
 	// for the common boot-empty case. "Reset empty" is dropped (it duplicated
 	// the Project menu's resetLayout).
 	import type { Asset } from '$lib/types/assets';
+	import type { SceneTextureAsset } from '$lib/content/scene';
 	import type { ProjectAssetMetadata } from '$lib/editor/project-persistence';
 	import { BinaryTextureStore } from '$lib/editor/store/binary-texture-store.svelte';
 	import EditorAssetLibrary from '$lib/editor/EditorAssetLibrary.svelte';
@@ -36,9 +37,12 @@
 		projectAssets = [],
 		projectAssetsStatus = 'unavailable',
 		retryableProjectAssetId = null,
+		retryableProjectTextureId = null,
 		onUploadProjectTexture,
 		onRetryProjectTexture,
 		onAcceptProjectTexture,
+		canConvertProjectTexture,
+		onConvertProjectTexture,
 		onProjectTextureFileSelected,
 		contextMenu = null
 	}: {
@@ -53,9 +57,12 @@
 		projectAssets?: readonly ProjectAssetMetadata[];
 		projectAssetsStatus?: 'unavailable' | 'loading' | 'ready' | 'error';
 		retryableProjectAssetId?: string | null;
+		retryableProjectTextureId?: string | null;
 		onUploadProjectTexture?: (name: string, bytes: Uint8Array) => Promise<string | null>;
 		onRetryProjectTexture?: () => Promise<string | null>;
 		onAcceptProjectTexture?: (assetId: string) => Promise<string | null>;
+		canConvertProjectTexture?: (texture: SceneTextureAsset) => boolean;
+		onConvertProjectTexture?: (textureId: string) => Promise<string | null>;
 		onProjectTextureFileSelected?: () => void;
 		contextMenu?: EditorContextMenuStore | null;
 	} = $props();
@@ -156,9 +163,12 @@
 					{projectAssets}
 					{projectAssetsStatus}
 					{retryableProjectAssetId}
+					{retryableProjectTextureId}
 					{onUploadProjectTexture}
 					{onRetryProjectTexture}
 					{onAcceptProjectTexture}
+					{canConvertProjectTexture}
+					{onConvertProjectTexture}
 					{onProjectTextureFileSelected}
 					{resolveTextureImageSrc}
 				/>

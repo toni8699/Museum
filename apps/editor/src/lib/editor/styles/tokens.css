@@ -8,9 +8,24 @@
  * CSS variables); a contract test pins the two in sync.
  *
  * Section references: DS = docs/Design-specs/Design-specs.md.
+ *
+ * Theme layer — `:root` below is the canonical navy-blue theme and keeps the
+ * FIRST declaration of every token (the scene-palette contract test matches
+ * the first `--editor-<name>: #hex;` declaration). Additional themes are
+ * additive `:root[data-theme='<id>'] { … }` override blocks at the END of
+ * this file, overriding only theme-aware tokens: chrome surfaces/borders/
+ * text/status/shadow/`color-scheme` + the orientation widget. INVARIANT in
+ * every theme (spatial meaning stays fixed — never override): the accent
+ * family, axis/gizmo colors, selection outline/hover/fill/handle, layout
+ * box, and plan paper + plan semantic colors. Theme ids must also appear in
+ * the app.html boot allowlist between the THEME_IDS_SYNC_WITH_THEME_REGISTRY
+ * markers (CI-pinned by tests/lib/editor/theme-registry.test.ts).
  */
 
 :root {
+	/* Canonical navy-blue theme; see the theme-layer note in the header. */
+	color-scheme: dark;
+
 	/* ── DS §7 — dark shell (slightly blue, never neutral charcoal) ── */
 	--editor-bg-app: #071019;
 	--editor-bg-panel: #0a141f;
@@ -150,3 +165,22 @@
 	--editor-shadow-toolbar: 0 8px 24px rgb(0 0 0 / 38%);
 	--editor-shadow-popover: 0 4px 12px rgb(0 0 0 / 32%);
 }
+
+/* ── Theme override blocks ────────────────────────────────────────────────
+   Additional themes are additive override blocks appended at the end of
+   this file; only theme-aware tokens (chrome + orientation widget) may be
+   overridden — never the invariant spatial palette (accent family, axes,
+   gizmo, selection, layout box, plan paper). Each new theme id must also be
+   added to THEMES in theme.svelte.ts and to the app.html boot allowlist.
+
+   Example (illustrative, do not ship until a theme is designed):
+
+   :root[data-theme='porcelain'] {
+       color-scheme: light;
+       --editor-bg-app: #f4f6f8;
+       --editor-bg-panel: #ffffff;
+       --editor-text-primary: #10151a;
+       --editor-orientation-surface: #ffffff;
+       --editor-orientation-label: #10151a;
+   }
+   ── */

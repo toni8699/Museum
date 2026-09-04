@@ -39,6 +39,7 @@
 		onCancelSaveAuth,
 		pendingSaveActive = false,
 		onDiscardPendingSave,
+		resolveProjectAssetBytes,
 		open = $bindable(false),
 		onReset
 	}: {
@@ -64,6 +65,7 @@
 		onCancelSaveAuth?: () => void;
 		pendingSaveActive?: boolean;
 		onDiscardPendingSave?: () => void;
+		resolveProjectAssetBytes?: (uri: string) => Promise<Uint8Array | null>;
 		open?: boolean;
 		/** fired after a reset action; the shell clears the active selection on all three slots. */
 		onReset?: () => void;
@@ -207,7 +209,9 @@
 		if (exportInFlight) return;
 		exportInFlight = true;
 		try {
-			const result = await store.exportPackage();
+			const result = await store.exportPackage({
+				resolveBytesByUri: resolveProjectAssetBytes
+			});
 			if (result.status !== 'ok') {
 				store.setStatusMessage(`Export failed: ${result.detail}`);
 				return;

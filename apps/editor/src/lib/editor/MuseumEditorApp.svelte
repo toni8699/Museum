@@ -41,6 +41,7 @@
 	import { chopinProject, chopinRuntime, sceneDocument } from '$lib/content/chopin-project';
 	import { useEditorShellBoot } from './hooks/editor-shell-boot.svelte';
 	import { createLayoutInteractionState } from './layout/layout-interaction';
+	import { initTheme } from './theme.svelte';
 
 	let { relic = false }: { relic?: boolean } = $props();
 
@@ -84,13 +85,16 @@
 		layoutPreview
 	});
 
-	onMount(() =>
-		registerEditorShortcuts(store, {
+	onMount(() => {
+		// Theme bootstrap: sync the picker/state with the persisted theme
+		// (the app.html boot script already set the DOM attribute pre-hydration).
+		initTheme();
+		return registerEditorShortcuts(store, {
 			getViewportElement: () => viewportElement,
 			getOutlinerElement: () => outlinerElement,
 			getClusterNameInput: () => clusterNameInput
-		}, interactionStore)
-	);
+		}, interactionStore);
+	});
 
 </script>
 

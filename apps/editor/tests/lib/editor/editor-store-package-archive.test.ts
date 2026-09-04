@@ -155,6 +155,33 @@ describe('editor-store Phase 5.4 package-archive facade', () => {
 			}
 		});
 
+		it('resolves a logical project asset on a package cache miss', async () => {
+			const store = freshStore();
+			store.document.textures.push({
+				id: 'project-wall',
+				name: 'Project Wall',
+				uri: '/project-assets/asset-1'
+			});
+			const resolvedUris: string[] = [];
+
+			const result = await store.exportPackage({
+				resolveBytesByUri: async (uri) => {
+					resolvedUris.push(uri);
+					return PNG_BYTES;
+				}
+			});
+
+			expect(result.status).toBe('ok');
+			expect(resolvedUris).toEqual(['/project-assets/asset-1']);
+			if (result.status !== 'ok') return;
+			const scene = JSON.parse(new TextDecoder().decode(unzipSync(result.zip)['scene.json']!));
+			const exported = scene.textures.find((texture: { id: string }) => texture.id === 'project-wall');
+			expect(exported.uri).toMatch(/^\/textures\/package-[0-9a-f]{12}\//);
+			expect(Array.from(unzipSync(result.zip)[result.manifest.textures[0]!.destinationPath]!)).toEqual(
+				Array.from(PNG_BYTES)
+			);
+		});
+
 		it('does not block visitor catalogue URIs', () => {
 			// Document with a public catalogue texture (no binary entry needed).
 			const store = freshStore();

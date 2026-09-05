@@ -657,6 +657,111 @@ describe('P21.2 scene reconciliation', () => {
 	});
 });
 
+describe('P21.3 camera reconciliation', () => {
+	it('orders the Camera Plan ribbon Select | Add Camera Connect | View | Snap Grid', () => {
+		const toolbar = readLibSource('editor/camera-plan/CameraPlanToolbar.svelte');
+		const order = ['>Select</button>', '>Add Camera</button>', '>Connect</button>', '>View</button>', '>Snap</button>', '>Grid</button>'].map(
+			(label) => toolbar.indexOf(label)
+		);
+		for (const [index, position] of order.entries()) {
+			expect(position, `missing Row 2 control ${index}`).toBeGreaterThanOrEqual(0);
+			if (index > 0) expect(position).toBeGreaterThan(order[index - 1]!);
+		}
+	});
+
+	it('exposes Camera 3D Path/Frame/Observer/POV in the ribbon through existing commands only', () => {
+		const toolbar = readLibSource('editor/EditorViewportToolbar.svelte');
+		expect(toolbar).toContain('aria-label="Camera helper visibility"');
+		expect(toolbar).toContain('>Path</button>');
+		expect(toolbar).toContain('>Frame</button>');
+		expect(toolbar).toContain('store.toggleViewportShowPaths()');
+		expect(toolbar).toContain('store.toggleViewportShowFraming()');
+		expect(toolbar).toContain('aria-label="Camera preview mode"');
+		expect(toolbar).toContain('>Observer</button>');
+		expect(toolbar).toContain('>POV</button>');
+		expect(toolbar).toContain('store.setCameraPreviewMode(mode)');
+		expect(toolbar).toContain("store.enterSequenceScope('visitor')");
+		// Ribbon-only: the relic mount (no context) keeps its legacy menu.
+		expect(toolbar).toContain('{#if ribbon && isCameraContext}');
+	});
+
+	it('orders the Camera 3D ribbon Path Frame View Observer/POV Snap', () => {
+		const toolbar = readLibSource('editor/EditorViewportToolbar.svelte');
+		// Source order is render order: Path/Frame group, the shared View
+		// menu (snippet), the Observer/POV switch, then shared Snap last.
+		const helperStart = toolbar.indexOf('aria-label="Camera helper visibility"');
+		const renderStart = toolbar.indexOf('{@render viewMenu()}');
+		const modeStart = toolbar.indexOf('aria-label="Camera preview mode"');
+		const snapStart = toolbar.indexOf('<summary>Snap</summary>');
+		for (const position of [helperStart, renderStart, modeStart, snapStart]) {
+			expect(position).toBeGreaterThanOrEqual(0);
+		}
+		expect(renderStart).toBeGreaterThan(helperStart);
+		expect(modeStart).toBeGreaterThan(renderStart);
+		expect(snapStart).toBeGreaterThan(modeStart);
+		// One View menu definition; the shared site stays suppressed for the
+		// camera ribbon so the menu never mounts twice.
+		expect(toolbar).toContain('{#snippet viewMenu()}');
+		expect(toolbar).toContain('{#if !(ribbon && isCameraContext)}');
+	});
+
+	it('keeps FOV/frustum/look-target authoring out of Camera Plan', () => {
+		const inspector = readLibSource('editor/app/CameraPlanInspector.svelte');
+		expect(inspector).not.toContain('EditorCameraFovField');
+		expect(inspector).not.toContain('EditorCameraFramingControls');
+		expect(inspector).not.toContain('EditorVec3Field');
+		expect(inspector).not.toContain('commitSelectedNodeFov');
+		expect(inspector).not.toContain('viewportShowFraming');
+		const toolbar = readLibSource('editor/camera-plan/CameraPlanToolbar.svelte');
+		expect(toolbar).not.toContain('FOV');
+		expect(toolbar).not.toContain('Frame');
+		const viewport = readLibSource('editor/camera-plan/CameraPlanViewport.svelte');
+		expect(viewport).not.toContain('viewportShowFraming');
+		expect(viewport).not.toContain('EditorCameraFramingHelpers');
+	});
+
+	it('shares one Camera sidebar and one Timeline across Camera Plan and Camera 3D', () => {
+		const sidebar = readLibSource('editor/app/EditorSidebar.svelte');
+		expect(sidebar).toContain("{#if domain === 'camera'}");
+		expect(sidebar).toContain('<CameraSidebar {store} {layoutPreview} />');
+		const app = readLibSource('editor/app/EditorApp.svelte');
+		expect(app).toContain('createCameraPlanState()');
+		expect(app).toContain("{#if viewState.domain === 'camera'}");
+		expect(app).toContain('<EditorCameraTimelineFrame {store} viewMode={viewState.activeView}');
+		expect(app.match(/<EditorCameraTimelineFrame/g)).toHaveLength(1);
+	});
+
+	it('pins the shared Timeline density (120px labels, 28px ruler, 44/48/34/34/32 lanes, 48px mini-player, 3D-Sequence +View Key)', () => {
+		const dots = readLibSource('editor/camera/EditorCameraTimelineDots.svelte');
+		expect(dots).toContain('grid-template-columns: 7.5rem minmax(30rem, 1fr);');
+		expect(dots).toContain('grid-template-rows: 28px 44px 48px 34px 34px 32px;');
+		// +View Key stays 3D-only (Sequence branch); the Edge branch stays quiet.
+		expect(dots).toContain("{#if !store.isRelic && viewMode === '3d'}");
+		expect(dots).toContain('>+ View Key</button>');
+		const frame = readLibSource('editor/camera/EditorCameraTimelineFrame.svelte');
+		expect(frame).toContain('height: 48px;');
+		expect(frame).toContain('flex: 0 0 48px;');
+		const ruler = readLibSource('editor/camera/EditorCameraTimelineRuler.svelte');
+		expect(ruler).toContain("viewMode === '3d' &&");
+		expect(ruler).toContain("scope === 'sequence' &&");
+		expect(ruler).toContain('>+ View Key</button>');
+	});
+
+	it('reports the Camera 3D observer/scope/play/selection status without new state', () => {
+		const status = readLibSource('editor/app/StatusBar.svelte');
+		expect(status).toContain('isCamera3D');
+		expect(status).toContain('cameraModeLabel');
+		expect(status).toContain('cameraScopeLabel');
+		expect(status).toContain('cameraPlayLabel');
+		expect(status).toContain('cameraSelectionCount');
+		expect(status).toContain('store.cameraPreview?.mode');
+		expect(status).toContain("store.cameraPreview?.kind === 'edge'");
+		expect(status).not.toContain("kind !== 'node'");
+		expect(status).toContain('store.isCameraPreviewPlaying');
+		expect(status).toContain('store.navigationSelection');
+	});
+});
+
 describe('unified hierarchy contracts', () => {
 	it('mounts the editor sidebar + unified tree in the editor shell, never in the relic', () => {
 		// editor shell imports the new sidebar (and the unified tree through it).

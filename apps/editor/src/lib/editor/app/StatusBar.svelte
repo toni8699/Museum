@@ -78,6 +78,16 @@
 	);
 	const isScene3D = $derived(viewState.domain === 'scene' && viewState.activeView === '3d');
 	const isCameraPlan = $derived(viewState.domain === 'camera' && viewState.activeView === 'plan');
+	const isCamera3D = $derived(viewState.domain === 'camera' && viewState.activeView === '3d');
+	// P21.3 — Camera 3D status reuses the preview FSM (no new state):
+	// Observer/POV mode, Edge/Sequence scope from the preview kind, play
+	// state, and selection count. Scope must follow the preview kind —
+	// Sequence scope intentionally preserves an Edge selection, so deriving
+	// scope from selection would misreport "Edge".
+	const cameraModeLabel = $derived(store.cameraPreview?.mode === 'visitor' ? 'POV' : 'Observer');
+	const cameraScopeLabel = $derived(store.cameraPreview?.kind === 'edge' ? 'Edge' : 'Sequence');
+	const cameraPlayLabel = $derived(store.isCameraPreviewPlaying ? 'playing' : 'paused');
+	const cameraSelectionCount = $derived(store.navigationSelection ? 1 : 0);
 	const modeLabel = $derived(
 		!store.transformGizmoVisible
 			? 'Select'
@@ -104,7 +114,9 @@
 					? `${modeLabel} ${spaceLabel} snaps ${sceneSelectionCount} selected`
 					: isCameraPlan
 						? 'Y Preserved'
-						: null
+						: isCamera3D
+							? `${cameraModeLabel} ${cameraScopeLabel} ${cameraPlayLabel} ${cameraSelectionCount} selected`
+							: null
 	);
 </script>
 

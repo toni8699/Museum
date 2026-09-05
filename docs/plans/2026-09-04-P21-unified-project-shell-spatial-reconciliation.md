@@ -1,6 +1,6 @@
 # P21 — Unified Project Shell + Spatial UI reconciliation
 
-**Status:** in-progress — P21.1 shared shell. **Date:** 2026-09-04. **Depends on:** P20 shipped.
+**Status:** in-progress — P21.1–P21.3 complete; P21.4 pending. **Date:** 2026-09-04. **Depends on:** P20 shipped.
 **Source:** `docs/Design-specs/Design-Plan(P21+).md` (P21+ target authority) + `P21-visual-implementation-references.md` + `Design-png/P21/*` + current `main` audit below.
 **Purpose:** implement the two-row project shell **and** reconcile the existing Spatial editor + Visitor Preview to the canonical P21 visual compositions — not merely move controls into two header rows.
 

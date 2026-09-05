@@ -1239,7 +1239,9 @@
 		display: grid;
 		min-width: 42rem;
 		grid-template-columns: 7.5rem minmax(30rem, 1fr);
-		grid-template-rows: 24px 38px 40px 30px 30px 28px;
+		/* P21.3 — shared Timeline density: 120px labels, 28px ruler,
+		   44/48/34/34/32 lanes (Camera Plan + Camera 3D, one dock). */
+		grid-template-rows: 28px 44px 48px 34px 34px 32px;
 		overflow-x: auto;
 		border: 1px solid var(--editor-border-subtle);
 		border-radius: 0.28rem;

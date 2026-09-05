@@ -156,6 +156,17 @@
 			)
 	);
 
+	// P21.3 — Camera 3D ribbon exposes the Path/Frame helper toggles and the
+	// Observer/POV preview-mode switch through the existing session/preview
+	// commands (no new state; the View menu keeps the full helper list).
+	const previewMode = $derived(store.cameraPreview?.mode ?? 'director');
+
+	function choosePreviewMode(mode: 'director' | 'visitor') {
+		const preview = store.cameraPreview;
+		if (preview) store.setCameraPreviewMode(mode);
+		else if (mode === 'visitor') store.enterSequenceScope('visitor');
+	}
+
 	function toggleViewMenu() {
 		if (!viewMenuVisible) return;
 		viewMenuOpen = !viewMenuOpen;
@@ -300,6 +311,45 @@
 		</div>
 	{/if}
 
+	{#if ribbon && isCameraContext}
+		<div class="tool-group" aria-label="Camera helper visibility">
+			<button
+				type="button"
+				class:active={store.viewportShowPaths}
+				aria-pressed={store.viewportShowPaths}
+				disabled={disabled}
+				title="Toggle tour path visibility"
+				onclick={() => store.toggleViewportShowPaths()}
+			>Path</button>
+			<button
+				type="button"
+				class:active={store.viewportShowFraming}
+				aria-pressed={store.viewportShowFraming}
+				disabled={disabled}
+				title="Toggle framing and FOV helper visibility"
+				onclick={() => store.toggleViewportShowFraming()}
+			>Frame</button>
+		</div>
+		<!-- P21.3 — Camera 3D ribbon order: Path Frame | View | Observer/POV | Snap (shared). -->
+		{@render viewMenu()}
+		<div class="tool-group" role="group" aria-label="Camera preview mode">
+			<button
+				type="button"
+				class:active={previewMode === 'director'}
+				aria-pressed={previewMode === 'director'}
+				title="Observer"
+				onclick={() => choosePreviewMode('director')}
+			>Observer</button>
+			<button
+				type="button"
+				class:active={previewMode === 'visitor'}
+				aria-pressed={previewMode === 'visitor'}
+				title="Through camera"
+				onclick={() => choosePreviewMode('visitor')}
+			>POV</button>
+		</div>
+	{/if}
+
 	{#if ribbon && !isCameraContext}
 		<button disabled={disabled} onclick={() => store.setLeftPanel('assets')}>Add Asset</button>
 		<div class="tool-group" role="group" aria-label="Transform space">
@@ -322,6 +372,7 @@
 		</details>
 	{/if}
 
+	{#snippet viewMenu()}
 	{#if viewMenuVisible}
 		<div class="tool-group" aria-label="Viewport helper visibility">
 			<button
@@ -398,6 +449,11 @@
 				</div>
 			{/if}
 		</div>
+	{/if}
+	{/snippet}
+
+	{#if !(ribbon && isCameraContext)}
+		{@render viewMenu()}
 	{/if}
 </div>
 

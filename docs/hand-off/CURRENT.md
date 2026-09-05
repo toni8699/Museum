@@ -5,7 +5,7 @@ slice plus one next action only.
 
 ## Working tree
 
-- P21.1 shared shell + P21.2 Scene reconciliation implemented (uncommitted); registered in the tracker.
+- P21.1 shared shell + P21.2 Scene reconciliation + P21.3 Camera reconciliation implemented (uncommitted); registered in the tracker.
 
 - Planning delta: **P20 shipped 2026-09-04 — S0–S4 verified by local live
   smoke against real R2 (`biskiq-assets-test`) + local Postgres.** P20.1 API
@@ -41,7 +41,7 @@ slice plus one next action only.
 
 ## Next action
 
-- Implement P21.3 Camera reconciliation per [the registered plan](../plans/2026-09-04-P21-unified-project-shell-spatial-reconciliation.md): Camera Plan/3D + shared Timeline density. P21.4 remains pending.
+- Implement P21.4 Preview + project flows per [the registered plan](../plans/2026-09-04-P21-unified-project-shell-spatial-reconciliation.md): layout-owned Visitor Preview takeover (brief required before code) + strict Project Hub. Final acceptance gate follows.
 
 ## Verification
 

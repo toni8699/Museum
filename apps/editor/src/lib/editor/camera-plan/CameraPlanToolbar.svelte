@@ -41,18 +41,13 @@
 </script>
 
 <div class="camera-plan-toolbar" role="toolbar" aria-label="Camera Plan tools">
+	<!-- P21.3 — Row 2 order: Select | Add Camera Connect | View | Snap Grid. -->
 	<button
 		type="button"
 		class:active={cameraPlan.tool === 'select'}
 		aria-pressed={cameraPlan.tool === 'select'}
 		onclick={() => chooseTool('select')}
 	>Select</button>
-	<button
-		type="button"
-		class:active={cameraPlan.tool === 'view'}
-		aria-pressed={cameraPlan.tool === 'view'}
-		onclick={() => chooseTool('view')}
-	>View</button>
 	<span class="toolbar-separator" aria-hidden="true"></span>
 	<button
 		type="button"
@@ -72,16 +67,23 @@
 	<span class="toolbar-separator" aria-hidden="true"></span>
 	<button
 		type="button"
-		class:active={cameraPlan.planView.gridEnabled}
-		aria-pressed={cameraPlan.planView.gridEnabled}
-		onclick={() => (cameraPlan.planView.gridEnabled = !cameraPlan.planView.gridEnabled)}
-	>Grid</button>
+		class:active={cameraPlan.tool === 'view'}
+		aria-pressed={cameraPlan.tool === 'view'}
+		onclick={() => chooseTool('view')}
+	>View</button>
+	<span class="toolbar-separator" aria-hidden="true"></span>
 	<button
 		type="button"
 		class:active={cameraPlan.planView.snapEnabled}
 		aria-pressed={cameraPlan.planView.snapEnabled}
 		onclick={() => (cameraPlan.planView.snapEnabled = !cameraPlan.planView.snapEnabled)}
 	>Snap</button>
+	<button
+		type="button"
+		class:active={cameraPlan.planView.gridEnabled}
+		aria-pressed={cameraPlan.planView.gridEnabled}
+		onclick={() => (cameraPlan.planView.gridEnabled = !cameraPlan.planView.gridEnabled)}
+	>Grid</button>
 </div>
 
 <style>

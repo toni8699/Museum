@@ -251,19 +251,24 @@ Dependencies: P21.1; final integration verifies P21.2–P21.3.
 
 ### P21.5 — UI polish pass
 
-Implementation brief: [P21.5 UI polish pass](2026-09-05-P21.5-ui-polish-pass.md) (registered; details TBD — 2026-09-05).
+Implementation brief: [P21.5 UI polish pass](2026-09-05-P21.5-ui-polish-pass.md)
+(implementation spec filed 2026-09-05 — five slices: Row 1/Row 2 geometry +
+segmented controls + button hierarchy; canvas de-cluttering + status-bar
+migration; Inspector overhaul + selection isolation; light-mode contrast +
+token calibration; Camera Timeline + mini-player docking).
 
 Dependencies: P21.4; lands before the final acceptance gate.
 
-**Polish pass.** Outcome: integrated presentation-only polish across the
-shipped shell and reconciled surfaces — shared-frame consistency, density,
-state coverage (hover/focus/active/disabled/empty/loading/error), keyboard/
-reduced-motion/contrast, and any final-gate findings — per the P21.5 brief's
-TBD checklist, filled at P21.4 closeout. Files: presentation only (tokens/CSS,
-ribbon/tool-group styling, inspectors, Timeline chrome, status strings, new
-P21.4 surfaces). Must not change behavior, ownership, transforms, topology,
-timing, persistence, isolation, or navigation; no new controls, no dead
-buttons. Tests: regression only (existing suites stay green). QA: final
+**Polish pass.** Outcome: presentation-only polish per the filed spec.
+Pinned item (owner fold, 2026-09-05): single-ended Move/Scale gizmo handles
+(§2.4 — hide negative-end arrowheads/grip cubes after `getHelper()`; the only
+slice that touches gizmo geometry, since P21.2 leaves the gizmo untouched).
+Files: presentation only (tokens/CSS, ribbon/tool groups, inspectors,
+Timeline chrome, status strings, `scene-palette.ts` +
+`gizmo/EditorTransformControlsHost.svelte` for the gizmo declutter). Must not
+change behavior, ownership, transforms, topology, timing, persistence,
+isolation, or navigation; no new controls, no dead buttons. Tests: regression
+only (existing suites stay green) + gizmo-axis-presence unit. QA: final
 six-PNG comparison + axe/contrast/keyboard/reduced-motion sweep. Done:
 composition matches references with zero behavior drift.
 

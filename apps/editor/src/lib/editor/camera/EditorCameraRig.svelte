@@ -68,6 +68,7 @@
 		layoutFrameVersion = 0,
 		roomBoundsById = null,
 		takeoverPose = null,
+		takeoverObserver = null,
 		onTakeoverPoseRestored = undefined
 	}: {
 		store: EditorStore;
@@ -78,6 +79,8 @@
 		roomBoundsById?: ((roomId: string) => LayoutBounds3 | null) | null;
 		/** P21.4 — authoring orbit pose captured before preview takeover. */
 		takeoverPose?: EditorOrbitPose | null;
+		/** P21.4 review — Rig-local observer state captured before takeover. */
+		takeoverObserver?: import('../editor-store.svelte').TakeoverObserverState | null;
 		onTakeoverPoseRestored?: () => void;
 	} = $props();
 
@@ -341,8 +344,35 @@
 		return () => store.setTakeoverOrbitCapturer(null);
 	});
 
+	// P21.4 review — observer-state capturer. Records the Rig-local fields
+	// the preview effect consults on mount (`orbitPose`, `directorOrbitPose`,
+	// `handledRecenterVersion`, `activePreviewMode`, follow continuity) so the
+	// remount resumes exactly instead of recentering over the restored pose.
+	$effect(() => {
+		store.setTakeoverObserverCapturer(() => {
+			try {
+				return {
+					previewOrbitPose: orbitPose,
+					directorOrbitPose,
+					handledRecenterVersion,
+					activePreviewMode,
+					hasLastVirtualPosition,
+					lastVirtualPosition: [
+						lastVirtualPosition.x,
+						lastVirtualPosition.y,
+						lastVirtualPosition.z
+					] as [number, number, number]
+				};
+			} catch {
+				return null;
+			}
+		});
+		return () => store.setTakeoverObserverCapturer(null);
+	});
+
 	$effect(() => {
 		const pose = takeoverPose;
+		const observer = takeoverObserver;
 		const currentCamera = camera ?? ownedCamera;
 		const controls = orbitControls ?? ownedOrbitControls;
 		if (!pose || !currentCamera || !controls) return;
@@ -350,6 +380,19 @@
 			orbitDampingTaskEnabled = false;
 			restoreEditorOrbitPose(currentCamera, controls, pose);
 			orbitDampingTaskEnabled = pose.enableDamping;
+			// P21.4 review — restore observer locals BEFORE the preview effect
+			// below runs (declaration order): matching `handledRecenterVersion`
+			// suppresses `syncDirectorObserver` recentering, restored follow
+			// continuity avoids jumps, and `previewOrbitPose` keeps the later
+			// `orbitPose ??=` capture from snapshotting the restored pose.
+			if (observer) {
+				orbitPose = observer.previewOrbitPose;
+				directorOrbitPose = observer.directorOrbitPose;
+				handledRecenterVersion = observer.handledRecenterVersion;
+				activePreviewMode = observer.activePreviewMode;
+				hasLastVirtualPosition = observer.hasLastVirtualPosition;
+				lastVirtualPosition.set(...observer.lastVirtualPosition);
+			}
 		} catch {
 			// Best effort; a stale pose never blocks the viewport.
 		}

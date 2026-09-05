@@ -204,6 +204,23 @@ export type EditorLightingSettings = {
 	fogFar: number;
 };
 
+/**
+ * P21.4 review — Rig-local observer/preview-runtime snapshot preserved across
+ * the preview takeover alongside the orbit pose. `previewOrbitPose` is the
+ * Rig's saved pre-preview authoring pose (`orbitPose`, possibly null outside a
+ * Camera preview); the remaining fields keep the remounted preview effect
+ * from recentering or rebuilding observer follow state. `lastVirtualPosition`
+ * is a detached tuple. Session-only, never serialized.
+ */
+export type TakeoverObserverState = {
+	previewOrbitPose: import('$lib/editor/camera/editor-camera').EditorOrbitPose | null;
+	directorOrbitPose: import('$lib/editor/camera/editor-camera').EditorOrbitPose | null;
+	handledRecenterVersion: number;
+	activePreviewMode: EditorCameraPreviewMode | null;
+	hasLastVirtualPosition: boolean;
+	lastVirtualPosition: [number, number, number];
+};
+
 // Slice 3 debt 3.11 — types now live in `editor-types.ts`. Re-exported here
 // so consumers keep working unchanged until Slice 6 collapses them.
 export type {
@@ -842,6 +859,11 @@ export class EditorStore {
 	// P21.4 — takeover orbit capturer installed by the Rig; the shell calls it
 	// before teardown to preserve authoring orbit across the preview takeover.
 	#takeoverOrbitCapturer: (() => import('$lib/editor/camera/editor-camera').EditorOrbitPose | null) | null = null;
+	// P21.4 review — Rig-local observer/preview-runtime state preserved
+	// alongside the pose so remount resumes without recentering: the preview
+	// effect's `handledRecenterVersion` reset would otherwise overwrite the
+	// restored Observer pose via `syncDirectorObserver`.
+	#takeoverObserverCapturer: (() => TakeoverObserverState | null) | null = null;
 	// Phase 9.3 — `#viewKeyframeProgressDragInitialProgress` moved onto
 	// `EditorViewKeyframeController` with the progress-drag flow.
 	// Phase 9.2 — pending-nav restore slots moved onto
@@ -1459,6 +1481,16 @@ export class EditorStore {
 	/** P21.4 — capture the current authoring orbit pose, or null when 3D is not mounted. */
 	captureTakeoverOrbit(): import('$lib/editor/camera/editor-camera').EditorOrbitPose | null {
 		return this.#takeoverOrbitCapturer ? this.#takeoverOrbitCapturer() : null;
+	}
+
+	/** P21.4 review — observer-state capture installed by the Rig (null on teardown). */
+	setTakeoverObserverCapturer(capture: (() => TakeoverObserverState | null) | null) {
+		this.#takeoverObserverCapturer = capture;
+	}
+
+	/** P21.4 review — capture Rig-local observer state, or null when 3D is not mounted. */
+	captureTakeoverObserver(): TakeoverObserverState | null {
+		return this.#takeoverObserverCapturer ? this.#takeoverObserverCapturer() : null;
 	}
 
 	// Slice 2 — `@internal` shims the `EditorCameraPreviewCommands` host cast

@@ -4,10 +4,13 @@
 	// lifecycle) is shared via `useEditorShellBoot`, and only the shortcut wiring
 	// below is shell-owned.
 	import type { Asset } from '$lib/types/assets';
-	import { onMount, setContext, untrack } from 'svelte';
+	import { onMount, setContext, tick, untrack } from 'svelte';
 	import { env } from '$env/dynamic/public';
 	import { goto, afterNavigate } from '$app/navigation';
 	import { page } from '$app/state';
+	import { TextureLoader } from 'three';
+	import { setDefaultTextureSourceLoader } from '$lib/museum/materials/texture-cache';
+	import { createEditorSourceLoader } from '$lib/editor/hooks/editor-shell-boot-core';
 	// P3.2 — canonical token architecture + Inter Variable (Design-specs §37).
 	import '@fontsource-variable/inter';
 	import '$lib/editor/styles/tokens.css';
@@ -26,6 +29,7 @@
 		EDITOR_INTERACTION_STORE_KEY
 	} from '$lib/editor/store/editor-interaction-store.svelte';
 	import { createEditorStore } from '$lib/editor/editor-store.svelte';
+	import type { TakeoverObserverState } from '$lib/editor/editor-store.svelte';
 	import {
 		createEmptyProject,
 		validateProject
@@ -179,8 +183,17 @@
 	let previewEntryNotice = $state<string | null>(null);
 	let previewReturn = $state<PreviewReturnRecord | null>(null);
 	let previewTransitioning = $state(false);
-	let returnFocusTarget = $state<HTMLElement | null>(null);
+	// P21.4 review — takeover restores asynchronously (remount + tick), so a
+	// dedicated flag keeps input suppression active until Spatial state and
+	// focus restoration complete (`previewBundle` nulls before that finishes).
+	let previewRestoring = $state(false);
+	// P21.4 review — logical focus target: the focused element unmounts with
+	// the authoring subtree, so bill the *role* and focus its remounted
+	// replacement after `tick()` instead of the detached node.
+	type PreviewFocusKey = 'viewport' | 'outliner' | 'cluster-name' | 'project-name' | 'preview-action';
+	let returnFocusKey = $state<PreviewFocusKey | null>(null);
 	let takeoverOrbitPose = $state<EditorOrbitPose | null>(null);
+	let takeoverObserverState = $state<TakeoverObserverState | null>(null);
 	const isPreviewTakeover = $derived(previewBundle !== null);
 	const isPreviewSurface = $derived(surface === 'preview');
 	const projectApiOrigin = configuredProjectPersistence?.apiOrigin ?? env.PUBLIC_API_ORIGIN;
@@ -1522,7 +1535,9 @@
 	}
 
 	function enterPreviewFromSpatial(): DetachedPreviewBundle | null {
-		if (previewTransitioning || previewBundle) return previewBundle;
+		// Callers (entry button, afterNavigate reconciler) own the
+		// `previewTransitioning` guard; only bail when a bundle already exists.
+		if (previewBundle) return previewBundle;
 		const conditions = previewEntryConditions();
 		const blocker = computeVisitorPreviewBlocker({
 			scene: store.document,
@@ -1540,17 +1555,22 @@
 		// Capture return state before any viewport teardown. Validation passed;
 		// compose the detached bundle (live Scene, never the stale layout copy).
 		const captured = capturePreviewReturn();
-		const focusTarget =
-			typeof document !== 'undefined' && document.activeElement instanceof HTMLElement
-				? document.activeElement
-				: null;
+		// P21.4 review — logical focus target: the focused node unmounts with
+		// the authoring subtree, so record its role for post-tick resolution.
+		const focusKey = capturePreviewFocusKey();
 		// Capture component-local orbit pose before teardown; restored before
 		// the first visible frame on return (null when 3D is not mounted).
 		let orbitPose: EditorOrbitPose | null = null;
+		let observerState: TakeoverObserverState | null = null;
 		try {
 			orbitPose = store.captureTakeoverOrbit();
 		} catch {
 			orbitPose = null;
+		}
+		try {
+			observerState = store.captureTakeoverObserver();
+		} catch {
+			observerState = null;
 		}
 		// Close authoring menus before capture; unmount removes their listeners.
 		contextMenu.close();
@@ -1584,11 +1604,49 @@
 			return null;
 		}
 		previewReturn = captured;
-		returnFocusTarget = focusTarget;
+		returnFocusKey = focusKey;
 		takeoverOrbitPose = orbitPose;
+		takeoverObserverState = observerState;
+		// P21.4 review — wire the detached snapshot URLs into material
+		// loading: the preview-scoped loader resolves snapshot bytes first so
+		// the visitor viewport renders from the detached bundle, not the live
+		// editor loader. Restored on exit before URLs are revoked.
+		setDefaultTextureSourceLoader((uri, _slot) => {
+			const resolved = bundle.textures.resolveTexture(uri);
+			return new TextureLoader().loadAsync(resolved ?? uri);
+		});
 		previewBundle = bundle;
 		previewError = null;
 		return bundle;
+	}
+
+	function restoreEditorTextureLoader(): void {
+		try {
+			setDefaultTextureSourceLoader(createEditorSourceLoader());
+		} catch {
+			// Best effort; boot teardown nulls the loader on unmount regardless.
+		}
+	}
+
+	/**
+	 * P21.4 review — bill the focused element's role for post-tick focus
+	 * restoration. All authoring chrome unmounts during takeover, so element
+	 * identity never survives; each key re-queries the remounted subtree.
+	 */
+	function capturePreviewFocusKey(): PreviewFocusKey | null {
+		if (typeof document === 'undefined') return null;
+		const active = document.activeElement;
+		if (!(active instanceof HTMLElement)) return null;
+		if (viewportElement && (active === viewportElement || viewportElement.contains(active))) {
+			return 'viewport';
+		}
+		if (outlinerElement && (active === outlinerElement || outlinerElement.contains(active))) {
+			return 'outliner';
+		}
+		if (clusterNameInput && active === clusterNameInput) return 'cluster-name';
+		if (active.matches?.('input.project-name')) return 'project-name';
+		if (active.closest?.('.preview-action')) return 'preview-action';
+		return null;
 	}
 
 	function disposePreviewBundle(): void {
@@ -1600,7 +1658,7 @@
 		previewBundle = null;
 	}
 
-	function restorePreviewReturn(): void {
+	async function restorePreviewReturn(): Promise<void> {
 		const captured = previewReturn;
 		previewReturn = null;
 		if (captured) {
@@ -1630,16 +1688,47 @@
 		// Orbit pose restores via the Rig prop before the first visible frame;
 		// keep it for 3D returns (the Rig clears via callback after restore),
 		// drop it for Plan returns (no Rig to consume it).
-		// Focus returns last, keeping suppression active until completion.
-		const focusTarget = returnFocusTarget;
-		returnFocusTarget = null;
-		if (captured && captured.view !== '3d') takeoverOrbitPose = null;
-		if (focusTarget && typeof document !== 'undefined' && document.contains(focusTarget)) {
+		if (captured && captured.view !== '3d') {
+			takeoverOrbitPose = null;
+			takeoverObserverState = null;
+		}
+		// P21.4 review — focus returns last, after the remounted subtree binds:
+		// resolve the billed logical key against the new tree. Suppression
+		// stays active (via `previewRestoring`) until this completes.
+		const focusKey = returnFocusKey;
+		returnFocusKey = null;
+		if (focusKey && typeof document !== 'undefined') {
 			try {
-				focusTarget.focus({ preventScroll: true });
+				await tick();
+			} catch {
+				// Best effort; fall through to direct resolution.
+			}
+			try {
+				const target = resolvePreviewFocusTarget(focusKey);
+				target?.focus({ preventScroll: true });
 			} catch {
 				// Best effort.
 			}
+		}
+	}
+
+	/**
+	 * P21.4 review — resolve a billed focus key against the remounted Spatial
+	 * subtree. Every target unmounted during takeover; each branch re-queries
+	 * the live tree and may return null when its surface is not mounted.
+	 */
+	function resolvePreviewFocusTarget(key: PreviewFocusKey): HTMLElement | null {
+		switch (key) {
+			case 'viewport':
+				return viewportElement;
+			case 'outliner':
+				return outlinerElement;
+			case 'cluster-name':
+				return clusterNameInput ?? null;
+			case 'project-name':
+				return document.querySelector('input.project-name');
+			case 'preview-action':
+				return document.querySelector('.preview-action');
 		}
 	}
 
@@ -1696,12 +1785,18 @@
 			return;
 		}
 		if (!atPreview && previewBundle) {
-			// All successful same-project exits converge here.
+			// All successful same-project exits converge here. Restore the
+			// editor loader before revoking snapshot URLs, then dispose and
+			// restore; suppression holds (via `previewRestoring`) until the
+			// ticked focus restoration completes.
 			previewTransitioning = true;
+			previewRestoring = true;
 			try {
+				restoreEditorTextureLoader();
 				disposePreviewBundle();
-				restorePreviewReturn();
+				await restorePreviewReturn();
 			} finally {
+				previewRestoring = false;
 				previewTransitioning = false;
 			}
 		}
@@ -1753,8 +1848,10 @@
 			}
 			previewBundle = null;
 			previewReturn = null;
-			returnFocusTarget = null;
+			returnFocusKey = null;
 			takeoverOrbitPose = null;
+			takeoverObserverState = null;
+			previewRestoring = false;
 		};
 	});
 
@@ -1766,7 +1863,7 @@
 				getOutlinerElement: () => outlinerElement,
 				getClusterNameInput: () => clusterNameInput,
 				// P21.4 — takeover suppression lives until Spatial restoration.
-				isSuppressed: () => isPreviewTakeover
+				isSuppressed: () => isPreviewTakeover || previewRestoring
 			},
 			interactionStore,
 			() => activeSelection.deselectActive(),
@@ -1901,7 +1998,7 @@
 		{:else}
 			<!-- explicit 3D context seam: camera authoring overlays and
 			     the bottom timeline are Camera-only; Scene stays scene chrome. -->
-			<Workspace3DView {store} {layoutPreview} {layoutInteraction} context={viewState.domain} {contextMenu} takeoverPose={takeoverOrbitPose} onTakeoverPoseRestored={() => (takeoverOrbitPose = null)} />
+			<Workspace3DView {store} {layoutPreview} {layoutInteraction} context={viewState.domain} {contextMenu} takeoverPose={takeoverOrbitPose} takeoverObserver={takeoverObserverState} onTakeoverPoseRestored={() => { takeoverOrbitPose = null; takeoverObserverState = null; }} />
 		{/if}
 		{#if viewState.domain === 'camera'}
 			<EditorCameraTimelineFrame {store} viewMode={viewState.activeView} {contextMenu} />

@@ -77,6 +77,7 @@ import EditorCameraLabelProjector from '$lib/editor/camera/EditorCameraLabelProj
 		// P3.4/P3.5 — shared context-menu slot; Scene 3D + Camera 3D adapters.
 		contextMenu = null,
 		takeoverPose = null,
+		takeoverObserver = null,
 		onTakeoverPoseRestored = undefined
 	}: {
 		store: EditorStore;
@@ -85,6 +86,7 @@ import EditorCameraLabelProjector from '$lib/editor/camera/EditorCameraLabelProj
 		context: 'scene' | 'camera';
 		contextMenu?: EditorContextMenuStore | null;
 		takeoverPose?: import('$lib/editor/camera/editor-camera').EditorOrbitPose | null;
+		takeoverObserver?: import('$lib/editor/editor-store.svelte').TakeoverObserverState | null;
 		onTakeoverPoseRestored?: () => void;
 	} = $props();
 	const isCameraContext = $derived(context === 'camera');
@@ -375,6 +377,7 @@ import EditorCameraLabelProjector from '$lib/editor/camera/EditorCameraLabelProj
 					layoutFrameVersion={layoutPreview.previewVersion}
 					roomBoundsById={roomBoundsById}
 					{takeoverPose}
+					{takeoverObserver}
 					{onTakeoverPoseRestored}
 				/>
 			{/snippet}

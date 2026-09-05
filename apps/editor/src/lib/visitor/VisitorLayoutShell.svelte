@@ -6,6 +6,7 @@
 	import type { VisitorRoomPresentation } from './room-presentation';
 	import { neutralVisitorRoomPresentation } from './room-presentation';
 	import { buildRoomWallMesh } from '$lib/layout/wall-mesh-builder';
+	import { sphereRenderScale } from '$lib/layout/layout-geometry-objects';
 	import { toWallBufferGeometry } from '$lib/render/wall-geometry-adapter';
 	import { createVisitorWallMaterialFactory } from '$lib/museum/layout/wall-material-factory';
 	import MuseumMaterial from '$lib/museum/materials/MuseumMaterial.svelte';
@@ -137,6 +138,37 @@
 					/>
 				{/each}
 			{/each}
+		</T.Group>
+	{/each}
+	{#each geometry.objects as object (object.objectId)}
+		<T.Group
+			name={`VisitorLayoutObject:${object.objectId}`}
+			position={object.position}
+			rotation={object.rotation}
+		>
+			<T.Mesh
+				castShadow
+				receiveShadow
+				scale={object.kind === 'sphere'
+					? sphereRenderScale(object.dimensions)
+					: object.kind === 'cylinder'
+						? [1, 1, object.dimensions[2] / object.dimensions[0]]
+						: [1, 1, 1]}
+			>
+				{#if object.kind === 'box' || object.kind === 'plane' || object.kind === 'profile'}
+					<T.BoxGeometry args={object.dimensions} />
+				{:else if object.kind === 'cylinder'}
+					<T.CylinderGeometry
+						args={[object.dimensions[0] / 2, object.dimensions[0] / 2, object.dimensions[1], 24]}
+					/>
+				{:else}
+					<T.SphereGeometry args={[0.5, 24, 16]} />
+				{/if}
+				<!-- Visitor-neutral object surface (matches the editor layoutBox
+				     tone `#e7e4dd` by value; the editor palette module stays
+				     outside the visitor closure). No selection states. -->
+				<T.MeshStandardMaterial color="#e7e4dd" roughness={0.78} metalness={0} />
+			</T.Mesh>
 		</T.Group>
 	{/each}
 </T.Group>

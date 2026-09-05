@@ -5,6 +5,9 @@ import {
 	validatePreviewSurfaceGraph,
 	type PreviewSurfaceModuleEdge
 } from '../src/lib/visitor/preview-surface-boundary';
+import { collectUnresolvedDynamics } from './preview-surface-dynamic-scan';
+
+export { findUnresolvedDynamicImports } from './preview-surface-dynamic-scan';
 
 /**
  * P21.4 — Editor-build preview-surface bundle gate.
@@ -13,13 +16,27 @@ import {
  * `VisitorPreviewSurface` root through `importedIds` +
  * `dynamicallyImportedIds` (before relying on output chunk grouping). Missing
  * root, unresolved internal edges and forbidden runtime modules fail the
- * build. The existing standalone `/museum` verifier remains a separate
- * manifest-based gate; this gate never targets the whole preview route or a
- * shared output chunk containing the retained owner.
+ * build. Computed `import(variable)` dynamics leave no graph edge, so the
+ * `transform` hook records transformed sources and the closure walk additionally
+ * rejects expression-form dynamics found in them. The existing standalone
+ * `/museum` verifier remains a separate manifest-based gate; this gate never
+ * targets the whole preview route or a shared output chunk containing the
+ * retained owner.
  */
 export function previewSurfaceBoundaryPlugin(): Plugin {
+	// Transformed sources by resolved module id. `transform` runs during
+	// module loading; `generateBundle` consumes the recording. Only source
+	// files are kept (never node_modules payloads).
+	const transformedSources = new Map<string, string>();
+
 	return {
 		name: 'preview-surface-boundary',
+		// Build-time gate only: dev HMR never pays the source recording.
+		apply: 'build',
+		transform(code, id) {
+			if (!id.includes('node_modules')) transformedSources.set(id, code);
+			return undefined;
+		},
 		generateBundle(_options, _bundle) {
 			const getModuleInfo = this.getModuleInfo.bind(this);
 			const getModuleIds = this.getModuleIds.bind(this);
@@ -65,7 +82,7 @@ export function previewSurfaceBoundaryPlugin(): Plugin {
 			const result = validatePreviewSurfaceGraph({
 				rootId,
 				modules,
-				unresolvedDynamics: []
+				unresolvedDynamics: collectUnresolvedDynamics(transformedSources, seen)
 			});
 			// Re-check missing: edges pointing outside getModuleIds() (null info)
 			// were seeded as empty; the validator treats empty-edge modules as

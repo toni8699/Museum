@@ -45,7 +45,7 @@ slice plus one next action only.
 
 ## Verification
 
-- Full Vitest: 184 files passed, 1 skipped; 2,419 tests passed, 1 skipped.
+- Full Vitest: 185 files passed, 1 skipped; 2,425 tests passed, 1 skipped.
 - `npm run check`: 0 errors / 0 warnings.
 - `npm run check:camera-core`, `npm run check:layout-core`, and
   `npm run check:project-model`: passed.

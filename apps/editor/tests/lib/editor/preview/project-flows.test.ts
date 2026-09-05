@@ -65,15 +65,33 @@ describe('P21.4 project flows', () => {
 		expect(app).toContain('previewEntryNotice');
 		expect(app).toContain('Preview needs an open draft');
 		expect(app).toContain('captureTakeoverOrbit');
+		expect(app).toContain('captureTakeoverObserver');
 		expect(app).toContain('takeoverPose');
+		expect(app).toContain('takeoverObserver');
+		expect(app).toContain('TakeoverObserverState');
 		expect(app).toContain('onTakeoverPoseRestored');
+		expect(app).toContain('returnFocusKey');
+		expect(app).toContain('previewRestoring');
+		expect(app).toContain('setDefaultTextureSourceLoader');
+		expect(app).toContain('await tick()');
 		const shortcuts = libSource('editor/hooks/shortcuts.svelte.ts');
 		expect(shortcuts).toContain('isSuppressed');
 		const boot = libSource('editor/hooks/editor-shell-boot.svelte.ts');
 		expect(boot).toContain('isRetainedSessionNavigation');
 		const rig = libSource('editor/camera/EditorCameraRig.svelte');
 		expect(rig).toContain('setTakeoverOrbitCapturer');
+		expect(rig).toContain('setTakeoverObserverCapturer');
 		expect(rig).toContain('takeoverPose');
+		expect(rig).toContain('takeoverObserver');
+		// Entry-button/reconciler own the transitioning guard; the entry body
+		// must only bail on an existing bundle (regression: setting the flag
+		// before calling entry stalled the button with no navigation).
+		const entryBody = app.slice(
+			app.indexOf('function enterPreviewFromSpatial'),
+			app.indexOf('function disposePreviewBundle')
+		);
+		expect(entryBody).toContain('if (previewBundle) return previewBundle;');
+		expect(entryBody).not.toContain('previewTransitioning || previewBundle');
 		// Direct preview route is intent-only.
 		const previewPage = routeSource('project/[projectId]/preview/+page.svelte');
 		expect(previewPage).not.toContain('<EditorApp');

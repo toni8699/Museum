@@ -189,7 +189,8 @@ export function createApp({
 				intent: login.intent
 			} satisfies OidcLoginState);
 			return reply.redirect(String(authorizationUrl));
-		} catch {
+		} catch (error) {
+			app.log.warn({ auth: { stage: 'login', error: sanitizeAuthError(error) } }, 'OIDC login failed');
 			return authUnavailable(reply);
 		}
 	});
@@ -208,14 +209,23 @@ export function createApp({
 		const code = singleQueryParam(callbackUrl, 'code');
 		const callbackError = singleQueryParam(callbackUrl, 'error');
 		if (!login || !state || state !== login.state) {
+			app.log.warn(
+				{ auth: { stage: 'callback', reason: 'invalid_state', hasLogin: Boolean(login), hasState: Boolean(state) } },
+				'OIDC callback rejected'
+			);
 			clearOidcLoginState(request);
 			return invalidCallback(reply);
 		}
 		if (callbackError) {
+			app.log.warn(
+				{ auth: { stage: 'callback', reason: callbackError === 'access_denied' ? 'access_denied' : 'provider_error' } },
+				'OIDC callback failed'
+			);
 			clearOidcLoginState(request);
 			return callbackFailure(reply, editorOrigin, login.intent, callbackError === 'access_denied' ? 'cancelled' : 'failed');
 		}
 		if (!code) {
+			app.log.warn({ auth: { stage: 'callback', reason: 'missing_code' } }, 'OIDC callback failed');
 			clearOidcLoginState(request);
 			return callbackFailure(reply, editorOrigin, login.intent, 'failed');
 		}
@@ -232,13 +242,18 @@ export function createApp({
 			clearOidcLoginState(request);
 			appSession(request).regenerate();
 			appSession(request).set('userId', userId);
+			app.log.info({ auth: { stage: 'callback', intent: login.intent } }, 'OIDC callback succeeded');
 			return reply.redirect(
 				boundedRedirect(
 					editorOrigin ?? apiOrigin,
 					login.intent === 'projects' ? '/projects' : '/?auth=success&intent=save'
 				)
 			);
-		} catch {
+		} catch (error) {
+			app.log.warn(
+				{ auth: { stage: 'callback', reason: 'exchange_failed', error: sanitizeAuthError(error) } },
+				'OIDC callback failed'
+			);
 			clearOidcLoginState(request);
 			return callbackFailure(reply, editorOrigin, login.intent, 'failed');
 		}
@@ -246,6 +261,16 @@ export function createApp({
 
 	app.get('/auth/me', async (request) => {
 		const userId = sessionUserId(request, sessionsEnabled);
+		app.log.info(
+			{
+				auth: {
+					stage: 'session',
+					hasCookie: request.headers.cookie?.includes(`${SESSION_COOKIE_NAME}=`) ?? false,
+					authenticated: Boolean(userId)
+				}
+			},
+			'Authentication session checked'
+		);
 		return userId
 			? { authenticated: true, user: { id: userId } }
 			: { authenticated: false };
@@ -525,13 +550,16 @@ function isLoginIntent(value: unknown): value is OidcLoginIntent {
 }
 
 function getCallbackUrl(request: FastifyRequest, apiOrigin?: string): URL {
-	const base = apiOrigin ?? `${request.protocol}://${request.headers.host ?? 'localhost'}`;
-	return new URL('/auth/callback', base);
+	return publicApiUrl(request, apiOrigin, '/auth/callback');
 }
 
 function getRequestUrl(request: FastifyRequest, apiOrigin?: string): URL {
-	const base = apiOrigin ?? `${request.protocol}://${request.headers.host ?? 'localhost'}`;
-	return new URL(request.raw.url ?? request.url, base);
+	return publicApiUrl(request, apiOrigin, request.raw.url ?? request.url);
+}
+
+function publicApiUrl(request: FastifyRequest, apiOrigin: string | undefined, path: string): URL {
+	const base = `${apiOrigin ?? `${request.protocol}://${request.headers.host ?? 'localhost'}`}/`;
+	return new URL(path.replace(/^\/+/, ''), base);
 }
 
 function authUnavailable(reply: { code(statusCode: number): { send(body: unknown): unknown } }) {
@@ -594,6 +622,12 @@ function databaseFailure(
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function sanitizeAuthError(error: unknown): { name: string; code?: string } {
+	if (!(error instanceof Error)) return { name: 'Error' };
+	const code = (error as { code?: unknown }).code;
+	return typeof code === 'string' ? { name: error.name, code } : { name: error.name };
 }
 
 function safeRequestLog(request: { method?: string; url?: string }) {

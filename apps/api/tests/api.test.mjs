@@ -351,7 +351,7 @@ test('configuration validates deployment auth values without exposing secrets', 
 	const config = readConfig({
 		DATABASE_URL: 'postgres://user@db.example.test/app',
 		PORT: '3000',
-		API_ORIGIN: 'https://api.example.test/',
+		API_ORIGIN: 'https://editor.example.test/api/',
 		EDITOR_ORIGIN: 'https://editor.example.test/',
 		GOOGLE_CLIENT_ID: 'client-id',
 		GOOGLE_CLIENT_SECRET: 'client-secret',
@@ -360,7 +360,7 @@ test('configuration validates deployment auth values without exposing secrets', 
 	});
 	assert.equal(config.databaseUrl, 'postgres://user@db.example.test/app');
 	assert.equal(config.port, 3000);
-	assert.equal(config.apiOrigin, 'https://api.example.test');
+	assert.equal(config.apiOrigin, 'https://editor.example.test/api');
 	assert.equal(config.editorOrigin, 'https://editor.example.test');
 	assert.equal(config.googleClientId, 'client-id');
 	assert.equal(config.googleClientSecret, 'client-secret');
@@ -421,7 +421,7 @@ test('login creates fresh state, PKCE, nonce, callback URL, and secure cookie', 
 	let authorization;
 	const app = createApp({
 		pool: stubPool(),
-		apiOrigin: 'https://api.example.test',
+		apiOrigin: 'https://editor.example.test/api',
 		editorOrigin: 'https://editor.example.test',
 		sessionKey: SESSION_KEY,
 		oidc: {
@@ -447,7 +447,7 @@ test('login creates fresh state, PKCE, nonce, callback URL, and secure cookie', 
 	try {
 		const response = await app.inject({ method: 'GET', url: '/auth/login' });
 		assert.equal(response.statusCode, 302);
-		assert.equal(authorization.redirectUri, 'https://api.example.test/auth/callback');
+		assert.equal(authorization.redirectUri, 'https://editor.example.test/api/auth/callback');
 		assert.match(authorization.state, /^\S+$/);
 		assert.match(authorization.codeChallenge, /^\S+$/);
 		assert.match(authorization.nonce, /^\S+$/);
@@ -474,7 +474,7 @@ test('callback validates the session-bound state and forwards PKCE plus nonce', 
 	const pool = stubPool({ query: async () => queries++ });
 	const app = createApp({
 		pool,
-		apiOrigin: 'https://api.example.test',
+		apiOrigin: 'https://editor.example.test/api',
 		editorOrigin: 'https://editor.example.test',
 		sessionKey: SESSION_KEY,
 		oidc: {
@@ -498,7 +498,7 @@ test('callback validates the session-bound state and forwards PKCE plus nonce', 
 		});
 		assert.equal(callbackResponse.statusCode, 302);
 		assert.equal(callbackResponse.headers.location, 'https://editor.example.test/projects');
-		assert.equal(callback.callbackUrl.toString(), `https://api.example.test/auth/callback?code=authorization-code&state=${encodeURIComponent(authorization.state)}`);
+		assert.equal(callback.callbackUrl.toString(), `https://editor.example.test/api/auth/callback?code=authorization-code&state=${encodeURIComponent(authorization.state)}`);
 		assert.equal(callback.codeVerifier.length > 20, true);
 		assert.equal(callback.expectedState, authorization.state);
 		assert.equal(callback.expectedNonce, authorization.nonce);
@@ -517,6 +517,7 @@ test('callback validates the session-bound state and forwards PKCE plus nonce', 
 
 test('tampered state, rejected PKCE/token, and invalid identity never create a session', async () => {
 	let exchangeCalls = 0;
+	const logs = [];
 	const app = createApp({
 		pool: stubPool(),
 		apiOrigin: 'https://api.example.test',
@@ -531,7 +532,7 @@ test('tampered state, rejected PKCE/token, and invalid identity never create a s
 				throw new Error('token exchange rejected');
 			}
 		},
-		logger: false
+		logger: { level: 'warn', stream: { write: (line) => logs.push(JSON.parse(line)) } }
 	});
 	try {
 		const login = await app.inject({ method: 'GET', url: '/auth/login' });
@@ -556,6 +557,11 @@ test('tampered state, rejected PKCE/token, and invalid identity never create a s
 		assert.equal(rejected.statusCode, 302);
 		assert.equal(rejected.headers.location, 'https://editor.example.test/?auth=failed&intent=projects');
 		assert.equal(exchangeCalls, 1);
+		assert.equal(
+			logs.some((entry) => entry.msg === 'OIDC callback failed' && entry.auth?.reason === 'exchange_failed' && entry.auth?.error?.name === 'Error'),
+			true
+		);
+		assert.equal(JSON.stringify(logs).includes('token exchange rejected'), false);
 		const rejectedMe = await app.inject({ method: 'GET', url: '/auth/me', headers: { cookie: cookieFrom(rejected) } });
 		assert.deepEqual(rejectedMe.json(), { authenticated: false });
 		assert.equal(rejected.body.includes('token exchange'), false);

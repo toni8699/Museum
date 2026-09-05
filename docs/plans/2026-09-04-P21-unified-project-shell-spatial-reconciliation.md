@@ -99,9 +99,9 @@ Dirty/save/auth/history/selection/timeline/camera-pose all live in existing stor
 
 | Surface | Current | P21 target | Behavior impact | Visual impact | Files involved | Risk |
 |---|---|---|---|---|---|---|
-| Project Row (36px) | Single bar + dropdown menu; `Preview→/museum`; no location/save split | `← Projects \| name✎ \| [Local Session\|Cloud] \| [Session active\|Saved\|Save\|Saving\|Save Blocked] \| ⋮ \| Spatial \| ↺↻ \| ▶ Preview \| theme \| avatar` | None (re-host; history = same tagged stack) | High | New `ProjectRow.svelte`; slices of `EditorAppBar/EditorProjectMenu/EditorApp`; `tokens.css` | Med |
+| Project Row (36px) | Single bar + dropdown menu; `Preview→/museum`; no location/save split; route `+layout.svelte:13-22` always renders its own 44px shell-bar | `← Projects \| name✎ \| [Local Session\|Cloud] \| [Session active\|Saved\|Save\|Saving\|Save Blocked] \| ⋮ \| Spatial \| ↺↻ \| ▶ Preview \| theme \| avatar` (Row 1 replaces the layout shell-bar; no nested triple-row) | None (re-host; history = same tagged stack) | High | New `ProjectRow.svelte` + `ProjectShellHost`; P21.2 owns `routes/project/[projectId]/+layout.svelte`; slices of `EditorAppBar/EditorProjectMenu/EditorApp`; `tokens.css` | Med |
 | Workspace Ribbon (32px) | 3 floating toolbars + app-bar switches | ZoneA fixed `Scene\|Camera + Plan\|3D` (+`Layout\|Arrange` on Scene Plan) · ZoneB contextual · ZoneC Snap/Grid/View; no floating permanent toolbars | None (re-host; Timeline stays dock) | High (28px dark-segmented, blue text) | New `WorkspaceRibbon*.svelte`; decompose 3 toolbars | Med |
-| Scene Plan Layout | Floating toolbar; no ghost; accordion Inspector | 10×8m dashed ghost (`#64748B` 20%, `pointer-events:none`, session-dismiss, not serialized) + primer Inspector + Row2 `Select Rect Poly Opening` + hierarchy + status | None (presentation) | High | `PlanWorkspace/LayoutPlanViewport/PlanSvg/plan-overlays/EditorSidebar/EditorInspector/StatusBar` + new ghost/primer | Low |
+| Scene Plan Layout | Floating toolbar (`LayoutDraftToolbar.svelte:71-86` exposes only Select/Rect/Poly + Snap/Grid/Tour/Ceiling today); no ghost; accordion Inspector; standalone Wall + Measure commands do not exist (spec §6 lists them as canonical capabilities) | 10×8m dashed ghost (`#64748B` 20%, `pointer-events:none`, session-dismiss, not serialized) + primer Inspector + Row2 `Select \| Rect Room \| Poly Room \| Door \| Window` (supported opening controls only) + hierarchy + status. Standalone Wall creation + Measure are explicitly deferred (walls are room-derived; Measure has no owner) — no dead controls rendered, no new Wall/Measure implementation in P21.4 | None (presentation; Wall/Measure deferral is a recorded contract decision, not a silent cut) | High | `PlanWorkspace/LayoutPlanViewport/PlanSvg/plan-overlays/EditorSidebar/EditorInspector/StatusBar` + new ghost/primer | Low |
 | Scene Plan Arrange | Owner-aware behavior ships | Row2 `Select Delete + Snap/Grid/View`; Scene+Layout hierarchy; owner-banner Inspector (X/Z/Yaw editable, Y preserved, scale read-only); one yaw handle | Zero transform-model change | Med | Same Plan files + Inspector/StatusBar | Low-Med |
 | Scene 3D | Behavior ships | Row2 `Select Move Rotate Scale Add Asset \| Local/World \| snaps \| View`; same viewport/gizmo/cube; Inspector density; no Timeline | None | Med | `Workspace3DView/TransformControls*/OrientationGizmo/EditorInspector/StatusBar` | Low |
 | Camera Plan | Behavior ships; toolbar floating | Row2 `Select Add Camera Connect View \| Snap/Grid`; sidebar 4 sections; inert footprints; undirected edges + duration labels; per-direction Inspector; expanded Timeline dock | None (timing/topology/Y rules intact) | Med-High | `CameraPlanWorkspace/Viewport/CameraSidebar/FlowPanel/CameraPlanInspector/Timeline*` | Med |
@@ -109,23 +109,30 @@ Dirty/save/auth/history/selection/timeline/camera-pose all live in existing stor
 | Timeline | P12 behavior ships; 2→5-lane projection | Keep P12 verbatim; density only (label 120px, ruler 28px, lanes 44/48/34/34/32; 48px mini-player; `+View Key` 3D-Sequence only) | None | Med | `EditorCameraTimeline*.svelte`, `timeline.css` | Low |
 | Inspector/sidebar | Correct routing; pre-P21 styling; internal `staging` | Stable shell + header/groups grammar; edge-to-edge panels (radius 0); user label `Arrange` everywhere | None | Med | Inspectors, `EditorSidebar/CameraSidebar/UnifiedProjectTree` | Low |
 | Status bar | Correct content; 32px | 24px; per-workspace strings (Arrange `Yaw Snap 15°`, Camera Plan `Y Preserved`) | None | Low | `StatusBar.svelte`, `tokens.css` | Low |
-| Visitor Preview | No route; FSM preview only | `/project/:id/preview`: transient validated in-memory snapshot; Esc/`✕ Exit` restores workspace/domain/view/mode/selection/camera/session exactly; shell unmounted, pill-only chrome; visitor-safe only | Adapter/coordinator only; no `/museum` change | High | New `preview/+page` + coordinator; `EditorApp` enter/exit; extend verifier | High |
+| Visitor Preview | No route; FSM preview only; `EditorApp` mounted per spatial page and boots blank (`spatial/+page.svelte:22`, `EditorApp.svelte:121-126`) | Layout-owned takeover keyed by projectId (A→B tears down full session; no cross-project retention): transient validated in-memory document snapshot for the visitor viewport; Esc/`✕ Exit` restores workspace/domain/view/mode/selection/Timeline/camera/session exactly from the retained owner; spatial grid unmounted during preview, pill-only chrome; generic composition only (bespoke `MuseumScene` frames + Chopin `MuseumHUD` forbidden) | Session-hoist + adapter/coordinator; no `/museum` change; no history/baseline mutation | High | `+layout.svelte` (takeover switch, projectId-keyed owner) + new preview surface + snapshot/coordinator (generic `CameraDirector` + compiled-layout shell + generic entity renderer; P21.8 brief pins generic nav UI or keyboard-only limit); preview-surface import-closure bundle gate (below) | High |
 | Project Hub | Functional, no covers | Strict: authed full-height table (no Recent shelf), guest callout (no fake drafts), one-click New | None | Low | `routes/projects/+page.svelte`, `routes/+page.svelte` | Low |
 
 ---
 
 ## 5. Proposed component architecture (incremental)
 
-`EditorApp` stays state owner; new shell is presentational + callbacks.
+Session owner lives in the shared route layout; Spatial and Preview are
+rendered surfaces over that owner — never sibling `EditorApp` mounts.
+Navigating `spatial ↔ preview` must not destroy document, history,
+selection, camera, Timeline, or session state (`spatial/+page.svelte:22`
+mounts `EditorApp` today and `EditorApp.svelte:121-126` boots blank, so a
+sibling preview route would lose unsaved state).
 
 ```text
 routes/project/[projectId]/
-├─ +layout.svelte            (thin; unchanged)
-├─ spatial/+page.svelte      (mounts ProjectShell in spatial mode)
-└─ preview/+page.svelte      (NEW takeover, no ProjectShell)
+├─ +layout.svelte            (OWNS session: mounts ProjectShellHost once;
+│                             replaces the 44px shell-bar with Row 1;
+│                             switches spatial surface ↔ preview takeover)
+├─ spatial/+page.svelte      (surface intent only; no EditorApp mount)
+└─ preview/+page.svelte      (surface intent only; no second session)
 
-ProjectShell.svelte (NEW wrapper; owns 36/32/body/timeline/24 grid)
-├─ ProjectRow.svelte (NEW)
+ProjectShellHost (NEW; lives in +layout.svelte, mounted once per projectId)
+├─ ProjectRow.svelte (NEW = Row 1, replaces shell-bar header)
 │  ├─ re-host: name edit + ⋮ overflow (from EditorProjectMenu)
 │  ├─ re-host: persistence cluster (selectors from EditorApp)
 │  ├─ re-host: Undo/Redo (history-controller)
@@ -144,14 +151,20 @@ ProjectShell.svelte (NEW wrapper; owns 36/32/body/timeline/24 grid)
 │  │            frustums/anchors/targets/labels stay viewport-local)
 │  └─ right: EditorInspector + CameraPlanInspector — reused, density CSS
 ├─ EditorCameraTimelineFrame (Camera only) — reused, density CSS
-└─ StatusBar (24px) — reused
+├─ StatusBar (24px) — reused
+└─ VisitorPreviewSurface (NEW; rendered INSTEAD of the spatial grid when
+    preview intent is active: generic visitor composition only —
+    CameraDirector + compiled-layout shell + generic entity renderer;
+    never the full bespoke MuseumScene with its fixed
+    entrance/poland/paris/departure/workshop/music-chamber/legacy frames
+    (MuseumScene.svelte:119-140); no editor overlays)
 ```
 
-Verdict: `EditorAppBar` → split then delete; `EditorProjectMenu` → dissolve into Row1 + ⋮ then delete; 3 floating toolbar wrappers → logic moved to Row2 groups, positioning deleted; all viewports/sidebars/inspectors/timeline/controllers/stores → reused; `ProjectRow/WorkspaceRibbon/tool-groups/ProjectShell/ghost/primer/preview-route+coordinator` → new; `Preview Museum → /museum` → deleted; future tabs → not rendered.
+Verdict: `EditorAppBar` → split then delete; `EditorProjectMenu` → dissolve into Row1 + ⋮ then delete; `+layout.svelte` shell-bar header → replaced by Row 1 (P21.2 owns the layout; Preview bypasses spatial chrome via the layout-owned takeover switch); 3 floating toolbar wrappers → logic moved to Row2 groups, positioning deleted; all viewports/sidebars/inspectors/timeline/controllers/stores → reused; `ProjectShellHost/ProjectRow/WorkspaceRibbon/tool-groups/ghost/primer/preview-surface+coordinator` → new; `Preview Museum → /museum` → deleted; future tabs → not rendered.
 
 ### Row 2 migration classification
 
-- A. Row 2 command: `Select/Rect/Poly/Opening/Measure`, Arrange `Select/Delete`, 3D `Select/Move/Rotate/Scale/Add Asset/Local/World`, Camera `Select/Add Camera/Connect/View/Path/Frame`, `Layout|Arrange`, `Scene|Camera`, `Plan|3D`, Snap/Grid/Ceiling/Tour toggles, View menus.
+- A. Row 2 command: `Select/Rect Room/Poly Room/Door/Window` (supported openings only; standalone Wall + Measure deferred — §4), Arrange `Select/Delete`, 3D `Select/Move/Rotate/Scale/Add Asset/Local/World`, Camera `Select/Add Camera/Connect/View/Path/Frame`, `Layout|Arrange`, `Scene|Camera`, `Plan|3D`, Snap/Grid/Ceiling/Tour toggles, View menus.
 - B. Viewport-local spatial affordance (stays): transform gizmos, orientation widget, Plan yaw handle, camera frustums/paths/anchors, look targets, placement ghosts, Plan grid/rulers/scale bar, hover/selection outlines.
 - C. Obsolete/duplicate: floating toolbar positioning/styling, `Preview Museum → /museum` link, saturated-block segmented styling, interim amber Layout-object selection, permanent Move/Rotate modes in Arrange/Camera Plan.
 - D. Deferred: Experience/Assets/Publish tool groups, cover pipeline, placement-ghost 2D slice, Timeline zoom.
@@ -181,7 +194,15 @@ const save = saveBlocked ? 'blocked' : saving ? 'saving'
 {:else} <Camera3DTools ... />
 ```
 
-Preview: enter captures `{domain,view,planMode,selection,timeline,editorCameraPose,session}` + `validateProject(derivePreviewBundle(...))` transient snapshot (memory only, guests/unsaved preview without Save); exit restores exactly, discards snapshot, never `markSaved`/clears history. Mount mechanics (retained shell state vs coordinator) are implementation detail.
+Preview: the session owner stays mounted in `+layout.svelte` across
+`spatial ↔ preview` (never a sibling `EditorApp` remount). Enter captures
+`{domain,view,planMode,selection,timeline,editorCameraPose,session}` for
+restore + `validateProject(derivePreviewBundle(...))` transient document
+snapshot for the visitor viewport (memory only, guests/unsaved preview
+without Save). Exit restores the captured session exactly, discards the
+snapshot, never `markSaved`/clears history. The preview surface renders the
+generic visitor composition only (`CameraDirector` + compiled-layout shell +
+generic entity renderer); bespoke `MuseumScene` room frames are forbidden.
 
 Per-concern verdict — all **re-host** existing behavior: dirty, baseline, guest/session, cloud ownership, save-flight, blockers, rename, doc menu, Google auth, undo/redo, domain, view, Layout/Arrange mode, selection, Timeline, camera pose. **Add** presentation only: pills/nav/menus/ribbon grouping/ghost-primer dismissal/preview capture.
 
@@ -195,7 +216,7 @@ Outcome: 36/32/24 chrome, 28px Row2 controls, dark-navy bands, `#2F8CFF` accent,
 
 ### P21.2 — Row 1 project controls
 
-Outcome: `ProjectRow` with identity/persistence/history/Preview/theme/avatar; Spatial-only nav; ⋮ overflow. Files: new `ProjectRow.svelte`; slices of `EditorAppBar/EditorProjectMenu/EditorApp`. Deps: P21.1. Must not fork save/auth/history logic; no Exp/Ass/Pub tabs. Tests: persistence-presentation units (location vs pill; blocked/saving/dirty/clean). QA: Row1 vs Layout PNG; legacy preview link gone. Done: Row1 matches spec with existing behavior.
+Outcome: `ProjectRow` with identity/persistence/history/Preview/theme/avatar; Spatial-only nav; ⋮ overflow; route layout shell-bar replaced (no triple-row); session owner keyed by projectId with explicit A→B teardown (no cross-project retention — `EditorApp.svelte:118-119` one-shot init must become a keyed lifecycle). Files: new `ProjectRow.svelte` + `ProjectShellHost`; own `routes/project/[projectId]/+layout.svelte` (session mount + spatial/preview switch); slices of `EditorAppBar/EditorProjectMenu/EditorApp`. Deps: P21.1. Must not fork save/auth/history logic; no Exp/Ass/Pub tabs. Tests: persistence-presentation units (location vs pill; blocked/saving/dirty/clean) + layout owns single session mount + project-switch teardown regression. QA: Row1 vs Layout PNG (36px, no residual 44px bar); legacy preview link gone. Done: Row1 matches spec with existing behavior.
 
 ### P21.3 — Row 2 routing + toolbar host
 
@@ -203,7 +224,7 @@ Outcome: Ribbon Zones A/B/C; floating permanent toolbars removed. Files: new `Wo
 
 ### P21.4 — Scene Plan reconciliation
 
-Outcome: ghost + primer + hierarchy + openings + status; Layout vs Arrange differentiation. Files: Plan files + `EditorSidebar/EditorInspector/StatusBar` + new ghost/primer. Deps: P21.3. Must not change X/Z/yaw authority, Y preservation, read-only scale, single tagged entry, no cross-owner selection. Tests: arrange-hit/owner/tag/Y-preserve suites. QA: `scene-plan-layout.png` (empty) + populated Layout reference. Done: no dead controls, no modal.
+Outcome: ghost + primer + hierarchy + supported openings + status; Layout vs Arrange differentiation. Standalone Wall creation + Measure stay deferred per §4 (no dead controls, no new implementation). Files: Plan files + `EditorSidebar/EditorInspector/StatusBar` + new ghost/primer. Deps: P21.3. Must not change X/Z/yaw authority, Y preservation, read-only scale, single tagged entry, no cross-owner selection. Tests: arrange-hit/owner/tag/Y-preserve suites + Row2 exposes exactly `Select | Rect Room | Poly Room | Door | Window` (no Wall/Measure buttons). QA: `scene-plan-layout.png` (empty) + populated Layout reference. Done: no dead controls, no modal.
 
 ### P21.5 — Scene 3D reconciliation
 
@@ -219,7 +240,7 @@ Outcome: ribbon (Observer/POV) + FOV/LookAt/Roll Inspector + restrained overlays
 
 ### P21.8 — Visitor Preview
 
-Outcome: `/project/:id/preview` takeover + coordinator. Files: new `preview/+page.svelte` + snapshot/coordinator (reuse museum visitor components via adapter); `EditorApp` enter/exit; extend `verify:visitor-bundle`. Deps: P21.2. Must not expose gizmos/handles/Inspector/Timeline/debug transport; must not modify frozen `/museum`; exact restore. Tests: enter/exit restore + isolation. QA: `Preview.png` (pill-only chrome; bottom nav illustrative until Experience). Done: Esc restores exactly.
+Outcome: layout-owned takeover + coordinator + generic visitor surface (P21.8 brief required before code). Files: `+layout.svelte` takeover switch + retained session owner keyed by projectId (A→B tears down the full session — document, history, selection, camera, Timeline, asset contexts, pending requests — and mounts fresh; SvelteKit may reuse the layout while `EditorApp.svelte:118-119` initializes its ID only once via `untrack`, so direct A→B navigation must not retain project A's session); new preview surface + snapshot/coordinator (generic `CameraDirector` + compiled-layout shell + generic entity renderer; bespoke `MuseumScene` room frames and Chopin-specific `MuseumHUD` forbidden — P21.8 brief must name the generic node-navigation surface or explicitly limit P21 preview to keyboard/default spatial navigation); Editor-build preview-surface bundle gate (new check tracing the isolated `VisitorPreviewSurface` import closure — NOT the effective `/preview` route closure, which necessarily contains editor/session code via the parent layout — forbidding `editor/` session/selection/history/gizmo/inspector/timeline stores; rerunning the `/museum`-only `verify:visitor-bundle` is insufficient). Deps: P21.2. Must not expose gizmos/handles/Inspector/Timeline/debug transport; must not modify frozen `/museum`; session (not just document) restored exactly. Tests: sibling-navigation state-loss regression (preview round-trip preserves unsaved document + history + selection + camera/session); project-switch regression (direct A→B navigation mounts B clean with no A state); enter/exit restore + isolation (museum gate + preview-surface closure gate). QA: `Preview.png` (pill-only chrome; bottom nav illustrative until Experience — brief pins actual P21 nav scope). Done: Esc restores exactly with owner still mounted.
 
 ### P21.9 — Hub polish / integration
 
@@ -227,7 +248,7 @@ Outcome: strict Hub (no Recent shelf) + entry/OAuth/`?load`/`?resume-save` intac
 
 ### P21.10 — visual/accessibility regression pass
 
-Outcome: sweep vs 6 PNGs + reduced-motion/keyboard + contrast. Files: CSS only + tracker closeout. Deps: all above. Must not smuggle behavior changes. Tests: full Vitest + `check` + `build` + `verify:visitor-bundle` + axe sweep. Done: checklists pass.
+Outcome: sweep vs 6 PNGs + reduced-motion/keyboard + contrast. Files: CSS only + tracker closeout. Deps: all above. Must not smuggle behavior changes. Tests: full Vitest + `check` + `build` + `verify:visitor-bundle` + VisitorPreviewSurface import-closure gate + axe sweep. Done: checklists pass.
 
 ---
 
@@ -235,7 +256,7 @@ Outcome: sweep vs 6 PNGs + reduced-motion/keyboard + contrast. Files: CSS only +
 
 Keep green: full Vitest (176 files / 2351 passed), `check` (editor+museum+camera/layout/project-model+api), `test:api` (23), `build`, `verify:visitor-bundle`, P20 Load (22) + cloud-save predicate + package-fidelity, Arrange hit/owner/tag, camera route/motion, timeline projection, selection continuity, Y-preservation.
 
-Add focused state/component tests (no per-pixel screenshots): domain/view switching · Layout/Arrange switching · selection persistence (Scene Plan↔3D; Camera Plan↔3D; Arrange last-owner, no resurrection) · one gesture = one tagged undo · owner-aware Arrange + Y/scale/ownership rules · Camera shared selection + shared Timeline · undirected connections vs ordered Sequence · per-direction timing preserved on re-path · Timeline Camera-only + P12 scopes/transport · persistence presentation (no duplicated dirty sources) · Preview enter/exit + isolation · keyboard/reduced-motion. Visual conformance is explicit manual QA vs the 6 PNGs (§9).
+Add focused state/component tests (no per-pixel screenshots): layout-owned single session mount keyed by projectId + project-switch teardown (A→B mounts clean, no retained session) + preview round-trip without state loss · domain/view switching · Layout/Arrange switching · Row2 exposes only supported Layout tools (no Wall/Measure) · selection persistence (Scene Plan↔3D; Camera Plan↔3D; Arrange last-owner, no resurrection) · one gesture = one tagged undo · owner-aware Arrange + Y/scale/ownership rules · Camera shared selection + shared Timeline · undirected connections vs ordered Sequence · per-direction timing preserved on re-path · Timeline Camera-only + P12 scopes/transport · persistence presentation (no duplicated dirty sources) · Preview enter/exit + isolation (museum gate + preview-surface import-closure gate, never the full route closure) · keyboard/reduced-motion. Visual conformance is explicit manual QA vs the 6 PNGs (§9).
 
 ---
 
@@ -243,29 +264,31 @@ Add focused state/component tests (no per-pixel screenshots): domain/view switch
 
 General: same 36+32 rows + 24px status across all five editor PNGs; Row1 order; 28px dark-segmented; `#F5F3EE` Plan vs dark 3D; `#2F8CFF` accent; edge-to-edge panels; tabular numerals; no floating toolbars; Spatial only.
 
-- `scene-plan-layout.png`: Row2 `SCENE\|Camera PLAN\|3D LAYOUT\|Arrange Select Rect Poly Door Window Snap`; `Hierarchy\|Assets`, `Environment/Architecture/No rooms yet`; ghost 10×8m + dims + scale bar; primer (Grid/Units/Tips, no dead buttons); status `X/Z Grid Orthogonal WallSnap Angle Scene>Plan>Layout`.
+- `scene-plan-layout.png`: Row2 `SCENE\|Camera PLAN\|3D LAYOUT\|Arrange Select Rect Room Poly Room Door Window Snap` (no Wall/Measure — deferred per §4); `Hierarchy\|Assets`, `Environment/Architecture/No rooms yet`; ghost 10×8m + dims + scale bar; primer (Grid/Units/Tips, no dead buttons); status `X/Z Grid Orthogonal WallSnap Angle Scene>Plan>Layout`.
 - `scene-plan-arrange.png`: Row2 Arrange + `Select Delete Snap`; Scene+Layout hierarchy, piano selected; blue footprint + yaw handle; Inspector `SCENE ENTITY` X/Z/Yaw editable, Y preserved + `Edit in 3D`, Scale read-only; status `Yaw Snap 15°`.
 - `scene-3d.png`: Row2 `Select Move(active) Rotate Scale Add Asset Local\|World snaps View`; Decor/Lighting/Cameras hierarchy; blue outline + RGB gizmo, existing cube; Inspector Transform/Placement/Material/Visibility; status `Move Local snaps 1 selected`.
 - `camera-plan.png`: Row2 `Select Add Camera Connect View Snap Grid`; 4-section sidebar, `1—2` undirected; subdued backdrop, blue sequence / green unsequenced + selected edge `4.00s`; Inspector per-direction Duration/Speed + Path + Valid; 5-lane Timeline + transport; status `Y Preserved`. Ignore omitted rows/arrow ambiguity.
 - `camera-3d.png`: Row2 + `Observer\|POV`; same sidebar/selection; spline + frustum + look-target restrained; Inspector Transform/Rotation/FOV/LookAt/Roll/Path/Timing+speed; Timeline + `Preview Sequence/Paused/timecode`; status `Observer Sequence paused 1 selected`. Ignore cube text/thumbnail counts.
-- `Preview.png`: full-bleed visitor canvas; only `VISITOR PREVIEW Viewing Current Draft ✕ Exit Preview (Esc)` pill + visitor nav; zero editor chrome. Bottom nav illustrative.
+- `Preview.png`: full-bleed visitor canvas; only `VISITOR PREVIEW Viewing Current Draft ✕ Exit Preview (Esc)` pill + visitor nav; zero editor chrome. P21.8 brief pins whether that nav is a minimal generic node/sequence surface or keyboard/default spatial navigation only — Chopin-specific `MuseumHUD` (`chopinRuntime`, `getChopinRoomPresentation`) is forbidden.
 
 ---
 
 ## 10. Risks / open questions
 
-1. Preview snapshot source — in-memory `derivePreviewBundle + validateProject` vs hidden mount. Matters: restore + isolation. Need: `layout-preview-state.svelte.ts:derivePreviewBundle` + `apps/museum/.../MuseumCanvas.svelte` props. Default: in-memory snapshot, editor unmounted.
-2. Preview viewport reuse — strip editor `Workspace3DView` overlays vs import museum visitor components. Need: `Workspace3DView` overlay props + museum `MuseumScene` interface. Default: museum visitor components via adapter.
+1. Preview session ownership — resolved by §5/§6: owner stays mounted in `+layout.svelte`; spatial/preview are surfaces, never sibling `EditorApp` mounts. P21.8 brief must still pin the exact host component and restore fields before code.
+2. Preview viewport composition — generic `CameraDirector` + compiled-layout shell + generic entity renderer; bespoke `MuseumScene` room frames (`entrance/poland/paris/departure/workshop/music-chamber/legacy`) are forbidden. Need: generic shell/entity-renderer interface + camera-director props. P21.8 brief pins exact imports.
 3. Internal `staging` vs `Arrange` — label-only vs atomic rename. Need: `layout-interaction.ts` + `staging` refs. Default: label-only.
 4. Save-pill scope — document baseline only vs including registry-upload state (§C/G say document only). Need: `EditorApp` save block + `project-asset-upload.ts`. Default: document only.
 5. Timeline richness — projection CSS vs new Shots/Roll entities. Need: `EditorCameraTimelineDots.svelte:556`, `editor-camera-timeline.ts:56`. Default: projection only.
-6. `/museum` freeze — deletion of legacy preview link + new preview route must not touch frozen visitor/relic. Guard: `verify:visitor-bundle` + P19.4 intent flow.
+6. `/museum` freeze + preview isolation gate — deletion of legacy preview link + new preview surface must not touch frozen visitor/relic. Guards: existing `/museum` `verify:visitor-bundle` PLUS a new check scoped to the isolated `VisitorPreviewSurface` import closure (a full `/preview` route closure always contains editor/session code via the parent layout, so it must never be the gate target) + P19.4 intent flow.
+7. Project-ID lifecycle — the layout owner is keyed by projectId: A→B navigation tears down document/history/selection/camera/Timeline/asset contexts/pending requests and mounts B fresh. Regression test required; current `EditorApp.svelte:118-119` one-shot `untrack` init must become an explicit keyed lifecycle.
+8. Preview nav scope — P21.8 brief names the generic node-navigation surface or explicitly limits P21 preview to keyboard/default spatial navigation; `MuseumHUD` stays Chopin-only.
 
 ---
 
 ## 11. Acceptance
 
-P21 ships when: two-row shell implemented + existing controls re-hosted in correct rows + permanent floating toolbars removed + all five Spatial compositions match P21 direction + Camera Plan/3D share sidebar/Timeline + Preview is visitor-only takeover — with zero changes to governing behavior contracts (ownership, transforms, topology, Sequence, timing, scopes, Timeline, persistence, isolation). Full Vitest + `check` + `build` (editor+museum) + `verify:visitor-bundle` green; browser smoke covers entry → Hub → New → spatial → save/auth → preview enter/exit → refresh/Load.
+P21 ships when: layout-owned two-row shell implemented (no residual 44px bar, projectId-keyed session with clean A→B teardown) + existing controls re-hosted in correct rows + permanent floating toolbars removed + all five Spatial compositions match P21 direction (Layout Row2 without Wall/Measure per §4 deferral) + Camera Plan/3D share sidebar/Timeline + layout-owned Preview takeover with generic visitor composition (brief-pinned nav scope) and exact session restore — with zero changes to governing behavior contracts (ownership, transforms, topology, Sequence, timing, scopes, Timeline, persistence, isolation). Full Vitest + `check` + `build` (editor+museum) + both bundle gates (existing `/museum` verifier + preview-surface import-closure check, never the full route closure) green; browser smoke covers entry → Hub → New → spatial → save/auth → preview enter/exit (unsaved state preserved) → direct project A→B (no leakage) → refresh/Load.
 
 ## 12. Mount, relic, Plan, visitor boundaries
 
@@ -273,7 +296,7 @@ P21 ships when: two-row shell implemented + existing controls re-hosted in corre
 - Plan edits X/Z/yaw only, Y preserved; no Plan scaling/Y/pitch/roll introduced by visual work.
 - Connections undirected; Sequence ordered playback subset; direction lives in timing/playback only.
 - Timeline stays Camera-domain dock; one instance/state across Plan/3D.
-- Preview is visitor-safe runtime + transient snapshot; no editor session/selection/history/gizmo/Inspector/Timeline/debug transport leaks. `/museum` + `/museum/editor` behavior unchanged unless a governing plan explicitly migrates them.
+- Preview is a layout-owned takeover over the retained session + transient document snapshot with generic visitor-safe composition; no editor session/selection/history/gizmo/Inspector/Timeline/debug transport leaks into the preview surface. `/museum` + `/museum/editor` behavior unchanged unless a governing plan explicitly migrates them.
 - Svelte 5 runes, strict TS, Threlte/Three; existing ownership/lifecycle patterns retained.
 
 ## 13. Fallback
@@ -282,4 +305,4 @@ If the shell split proves too broad, land P21.1–21.3 (tokens + rows + ribbon h
 
 ## 14. Explicitly out of scope
 
-Experience internals · Assets management workspace · Publish internals · IndexedDB durable local drafts · cover-generation pipeline · hosting/deployment · Timeline zoom · 2D ghost placement · provider search · GLB import · multi-tour/branches · interaction authoring · runtime SDK. Future PNGs are direction only.
+Experience internals · Assets management workspace · Publish internals · standalone Wall creation + Measure commands (deferred per §4; walls stay room-derived) · IndexedDB durable local drafts · cover-generation pipeline · hosting/deployment · Timeline zoom · 2D ghost placement · provider search · GLB import · multi-tour/branches · interaction authoring · runtime SDK. Future PNGs are direction only.

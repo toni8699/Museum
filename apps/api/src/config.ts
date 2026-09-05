@@ -51,7 +51,12 @@ function readPort(value: string | undefined): number {
 	return port;
 }
 
-function readOrigin(value: string | undefined, name: string, required = false): string | undefined {
+function readOrigin(
+	value: string | undefined,
+	name: string,
+	required = false,
+	allowPath = false
+): string | undefined {
 	const origin = value?.trim();
 	if (!origin) {
 		if (required) throw new ConfigError(`${name} is required`);
@@ -59,10 +64,10 @@ function readOrigin(value: string | undefined, name: string, required = false): 
 	}
 	try {
 		const url = new URL(origin);
-		if (!['http:', 'https:'].includes(url.protocol) || url.pathname !== '/' || url.search || url.hash) {
+		if (!['http:', 'https:'].includes(url.protocol) || (!allowPath && url.pathname !== '/') || url.search || url.hash) {
 			throw new Error();
 		}
-		return url.origin;
+		return allowPath ? `${url.origin}${url.pathname.replace(/\/+$/, '')}` : url.origin;
 	} catch {
 		throw new ConfigError(`${name} must be an HTTP(S) origin`);
 	}
@@ -110,7 +115,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
 	const databaseUrl = readDatabaseUrl(env.DATABASE_URL);
 	const port = readPort(env.PORT);
 	const editorOrigin = readOrigin(env.EDITOR_ORIGIN, 'EDITOR_ORIGIN', true)!;
-	const apiOrigin = readOrigin(env.API_ORIGIN ?? env.RENDER_EXTERNAL_URL, 'API_ORIGIN');
+	const apiOrigin = readOrigin(env.API_ORIGIN ?? env.RENDER_EXTERNAL_URL, 'API_ORIGIN', false, true);
 	return {
 		databaseUrl,
 		port,

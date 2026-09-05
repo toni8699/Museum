@@ -76,7 +76,7 @@ Policy rules:
 | P18 | backend provisioning — slice 4 of the ratified migration review: deploy `@biskiq/api` Fastify compute on Render, connect it to separately provisioned Neon Postgres through secret `DATABASE_URL`, and add process/database health checks with no persistence schema yet | **shipped 2026-08-30 — infrastructure boundary; owner-run Render/Neon provisioning remains the P19 gate** | P17 | archived → [2026-08-30-P18-backend-provisioning.md](../archive/plans/2026-08-30-P18-backend-provisioning.md) |
 | P19 | first project persistence — authenticated semantic-document Save/Load, immutable project versions, single-user ownership, and P19.4 guest-first entry/Project Shell closeout | **shipped 2026-09-03 — Google OIDC/live deployment smoke passed** | P18 | [umbrella](2026-08-30-P19-project-persistence.md) · [P19.4 annex](2026-09-02-P19.4-editor-shell.md) |
 | P20 | Project Asset Registry + R2 — durable project-scoped texture assets, authenticated storage, Spatial integration, portable package fidelity, and refresh/Load resolution | **shipped 2026-09-04 — local live smoke vs real R2 passed (S1 API 15/15 + S2/S3/S4 browser flows + package fidelity); production-topology smoke deferred** | P19 | [umbrella](2026-08-19-P20-Project-assets-registry-R2.md) · [P20.2 brief](2026-09-03-P20.2-spatial-registry-integration.md) · [P20.3 brief](2026-09-03-P20.3-texture-durable-conversion.md) · [P20.4 brief](2026-09-03-P20.4-load-runtime-resolution.md) |
-| P21 | Unified Project Shell + Spatial UI reconciliation | in-progress — P21.1–P21.3 complete | P20 | [2026-09-04-P21-unified-project-shell-spatial-reconciliation.md](2026-09-04-P21-unified-project-shell-spatial-reconciliation.md) · [P21.4 brief](2026-09-05-P21.4-preview-project-flows.md) |
+| P21 | Unified Project Shell + Spatial UI reconciliation | in-progress — P21.1–P21.4 complete; P21.5 pending; final acceptance gate pending | P20 | [2026-09-04-P21-unified-project-shell-spatial-reconciliation.md](2026-09-04-P21-unified-project-shell-spatial-reconciliation.md) · [P21.4 brief](2026-09-05-P21.4-preview-project-flows.md) · [P21.5 brief](2026-09-05-P21.5-ui-polish-pass.md) |
 | — | Branch rejoin — **experiment, no schedule** (rejoin into a later Sequence stop; dead-end return already ships; multi-edge playback would compose P8's edge primitive) | proposed | P8 conceptually | [2026-08-21-branch-rejoin-experiment.md](2026-08-21-branch-rejoin-experiment.md) |
 | … | future work re-registers here | | | |
 
@@ -265,8 +265,8 @@ P-number; the numbered tiers below are next-free-number reservations
   design track feeds it.
 - **P22 — Basic Publish + visitor runtime.** Publish an owned project, resolve
   project assets, hosted visitor-safe output, and basic preview/publish
-  status. Direction only; its brief is written once P20's Spatial integration
-  and P21's shell are close.
+  status. Direction only; its brief is written once P21 closes — after the
+  P21.5 UI polish pass, not before.
 - **P23 — Typed DB layer.** A typed database layer (Drizzle/Kysely-style
   schema-owned types, typed query access) once the raw-parameterized-SQL
   surface from P19–P22 — projects, versions, assets — plus P25+ tenant shapes
@@ -287,8 +287,9 @@ P-number; the numbered tiers below are next-free-number reservations
   passed), then the numbered tier sequence above:
   R2-backed project assets with Spatial integration (P20, shipped 2026-09-04 —
   local live smoke vs real R2; production-topology smoke deferred), the
-  product shell + Project Hub + editor UX polish (P21), the basic
-  publish/visitor-runtime boundary (P22), the typed DB layer (P23), the
+  product shell + Project Hub + editor UX polish (P21, including the P21.5
+  UI polish pass before P22), the basic publish/visitor-runtime boundary
+  (P22), the typed DB layer (P23), the
   Experience foundation (P24), and expansion (P25+). The design track runs
   in parallel from Now. Auth UX/hardening and richer permissions ride with
   the P25+ collaborative tier, not P19/P20.

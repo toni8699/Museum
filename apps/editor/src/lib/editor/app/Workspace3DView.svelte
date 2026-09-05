@@ -75,13 +75,17 @@ import EditorCameraLabelProjector from '$lib/editor/camera/EditorCameraLabelProj
 		// Camera context; the editor camera rig stays mounted in both.
 		context = 'scene',
 		// P3.4/P3.5 — shared context-menu slot; Scene 3D + Camera 3D adapters.
-		contextMenu = null
+		contextMenu = null,
+		takeoverPose = null,
+		onTakeoverPoseRestored = undefined
 	}: {
 		store: EditorStore;
 		layoutPreview: LayoutPreviewState;
 		layoutInteraction: LayoutInteractionState;
 		context: 'scene' | 'camera';
 		contextMenu?: EditorContextMenuStore | null;
+		takeoverPose?: import('$lib/editor/camera/editor-camera').EditorOrbitPose | null;
+		onTakeoverPoseRestored?: () => void;
 	} = $props();
 	const isCameraContext = $derived(context === 'camera');
 	// P1.7 — shell spec "Viewport MUST show": order/badge kinds for the 3D
@@ -370,6 +374,8 @@ import EditorCameraLabelProjector from '$lib/editor/camera/EditorCameraLabelProj
 					layoutBounds={layoutPreview.bounds}
 					layoutFrameVersion={layoutPreview.previewVersion}
 					roomBoundsById={roomBoundsById}
+					{takeoverPose}
+					{onTakeoverPoseRestored}
 				/>
 			{/snippet}
 		</MuseumScene>

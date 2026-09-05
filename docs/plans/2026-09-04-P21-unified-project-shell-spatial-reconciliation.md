@@ -1,6 +1,6 @@
 # P21 — Unified Project Shell + Spatial UI reconciliation
 
-**Status:** in-progress — P21.1–P21.3 complete; P21.4 pending. **Date:** 2026-09-04. **Depends on:** P20 shipped.
+**Status:** in-progress — P21.1–P21.4 complete; P21.5 pending; final acceptance gate pending. **Date:** 2026-09-04 (P21.5 registered 2026-09-05). **Depends on:** P20 shipped.
 **Source:** `docs/Design-specs/Design-Plan(P21+).md` (P21+ target authority) + `P21-visual-implementation-references.md` + `Design-png/P21/*` + current `main` audit below.
 **Purpose:** implement the two-row project shell **and** reconcile the existing Spatial editor + Visitor Preview to the canonical P21 visual compositions — not merely move controls into two header rows.
 
@@ -211,7 +211,7 @@ Per-concern verdict — all **re-host** existing behavior: dirty, baseline, gues
 
 ## 7. Implementation slices
 
-Four implementation slices; the named work areas within each slice are acceptance coverage, not separately numbered slices. Each slice includes its relevant tests and visual/accessibility QA.
+Five implementation slices; the named work areas within each slice are acceptance coverage, not separately numbered slices. Each slice includes its relevant tests and visual/accessibility QA.
 
 ### P21.1 — Shared shell
 
@@ -249,9 +249,27 @@ Dependencies: P21.1; final integration verifies P21.2–P21.3.
 
 **Hub and project flows.** Outcome: strict Hub (no Recent shelf) + entry/OAuth/`?load`/`?resume-save` intact. Files: `routes/projects/+page.svelte`, `routes/+page.svelte`, `routes/editor/+page.svelte`. Must not invent fake drafts or cover pipeline. Tests: route/auth/handoff. QA: guest + authed + New flows. Done: Hub + entry green.
 
+### P21.5 — UI polish pass
+
+Implementation brief: [P21.5 UI polish pass](2026-09-05-P21.5-ui-polish-pass.md) (registered; details TBD — 2026-09-05).
+
+Dependencies: P21.4; lands before the final acceptance gate.
+
+**Polish pass.** Outcome: integrated presentation-only polish across the
+shipped shell and reconciled surfaces — shared-frame consistency, density,
+state coverage (hover/focus/active/disabled/empty/loading/error), keyboard/
+reduced-motion/contrast, and any final-gate findings — per the P21.5 brief's
+TBD checklist, filled at P21.4 closeout. Files: presentation only (tokens/CSS,
+ribbon/tool-group styling, inspectors, Timeline chrome, status strings, new
+P21.4 surfaces). Must not change behavior, ownership, transforms, topology,
+timing, persistence, isolation, or navigation; no new controls, no dead
+buttons. Tests: regression only (existing suites stay green). QA: final
+six-PNG comparison + axe/contrast/keyboard/reduced-motion sweep. Done:
+composition matches references with zero behavior drift.
+
 ### Final acceptance gate
 
-After all four slices, run full Vitest + `check` + `build` + `verify:visitor-bundle` + VisitorPreviewSurface import-closure gate + axe sweep, and complete the six-reference visual comparison in §9, including shared-frame consistency, reduced-motion, keyboard, and contrast checks. Each implementation slice includes its own relevant visual/accessibility checks; this gate verifies the integrated result and closes the tracker. Fix findings in the owning slice without introducing new behavior scope.
+After all five slices, run full Vitest + `check` + `build` + `verify:visitor-bundle` + VisitorPreviewSurface import-closure gate + axe sweep, and complete the six-reference visual comparison in §9, including shared-frame consistency, reduced-motion, keyboard, and contrast checks. Each implementation slice includes its own relevant visual/accessibility checks; this gate verifies the integrated result and closes the tracker. Fix findings in the owning slice without introducing new behavior scope.
 
 ---
 
@@ -308,7 +326,7 @@ P21 ships when: layout-owned two-row shell implemented (no residual 44px bar, pr
 
 ## 13. Fallback
 
-Land P21.1 (shared shell) before P21.2 (Scene) and P21.3 (Camera), then P21.4 (Preview + project flows), followed by the final acceptance gate. If a slice expands, use internal implementation checkpoints without creating more numbered slices or weakening acceptance. Do not expose dead Experience/Assets/Publish tabs to fake progress; do not collapse documents to simplify routing; do not fork state to match screenshots. Rollback per slice is CSS/component revert; no migration or document change exists to roll back.
+Land P21.1 (shared shell) before P21.2 (Scene) and P21.3 (Camera), then P21.4 (Preview + project flows), then P21.5 (UI polish pass), followed by the final acceptance gate. If a slice expands, use internal implementation checkpoints without creating more numbered slices or weakening acceptance. Do not expose dead Experience/Assets/Publish tabs to fake progress; do not collapse documents to simplify routing; do not fork state to match screenshots. Rollback per slice is CSS/component revert; no migration or document change exists to roll back.
 
 ## 14. Explicitly out of scope
 

@@ -419,9 +419,12 @@ describe('route wiring (relic smoke proxy, no DOM harness)', () => {
 	it('mounts one keyed session in the shared project layout', () => {
 		const spatial = readRouteSource('project/[projectId]/spatial/+page.svelte');
 		expect(spatial).not.toContain('<EditorApp');
+		const preview = readRouteSource('project/[projectId]/preview/+page.svelte');
+		expect(preview).not.toContain('<EditorApp');
 		const host = readLibSource('editor/app/ProjectShellHost.svelte');
-		expect(host).toContain('<EditorApp {projectId} {loadOwnedProject} {resumePendingSave} />');
+		expect(host).toContain('<EditorApp {projectId} {loadOwnedProject} {resumePendingSave} {surface} />');
 		expect(host).toContain('untrack(() => page.url.searchParams');
+		expect(host).toContain("endsWith('/preview')");
 		const layout = readRouteSource('project/[projectId]/+layout.svelte');
 		expect(layout).toContain('{#key page.params.projectId}');
 		// Teardown contract: unmount aborts in-flight project/asset requests
@@ -514,8 +517,11 @@ describe('P21.1 shared shell', () => {
 			expect(source).not.toContain('Preview Museum');
 			expect(source).not.toContain('href="/museum"');
 		}
-		// Row 1 carries a disabled Preview placeholder, never a dead route.
-		expect(readLibSource('editor/app/ProjectRow.svelte')).toContain('Visitor Preview is not available yet');
+		// P21.4 — Row 1 Preview entry is wired (no dead route, no placeholder).
+		const row = readLibSource('editor/app/ProjectRow.svelte');
+		expect(row).not.toContain('Visitor Preview is not available yet');
+		expect(row).toContain('onPreview');
+		expect(readLibSource('editor/app/EditorApp.svelte')).toContain('requestPreviewEntry');
 	});
 
 	it('never pops the document menu on background cloud errors', () => {

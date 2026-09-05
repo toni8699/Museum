@@ -14,6 +14,12 @@ export type EditorShortcutHost = {
 	getViewportElement: () => HTMLElement | null | undefined;
 	getOutlinerElement: () => HTMLElement | null | undefined;
 	getClusterNameInput: () => HTMLInputElement | null | undefined;
+	/**
+	 * P21.4 — takeover suppression. When true, the handler returns
+	 * immediately before `preventDefault`, Escape, Undo/Redo or any mutation.
+	 * Omitted on the relic.
+	 */
+	isSuppressed?: () => boolean;
 };
 
 function isEditableTarget(target: EventTarget | null) {
@@ -93,6 +99,7 @@ export function createEditorShortcutHandler(
 	}
 
 	return (event: KeyboardEvent) => {
+		if (host.isSuppressed?.()) return;
 		if (event.defaultPrevented) return;
 		const isEscape =
 			event.key === 'Escape' &&

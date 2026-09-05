@@ -33,7 +33,9 @@
 		pendingSaveActive = false,
 		onDiscardPendingSave,
 		resolveProjectAssetBytes,
-		onReset
+		onReset,
+		onPreview,
+		previewDisabledReason = null
 	}: {
 		store: EditorStore;
 		layoutPreview: LayoutPreviewState;
@@ -61,6 +63,8 @@
 		resolveProjectAssetBytes?: (uri: string) => Promise<Uint8Array | null>;
 		/** fired after the Project-menu reset actions; the shell clears the active selection. */
 		onReset?: () => void;
+		onPreview?: () => void | Promise<void>;
+		previewDisabledReason?: string | null;
 	} = $props();
 
 	const presentation = $derived(projectPersistencePresentation({
@@ -149,7 +153,12 @@
 	<div class="actions">
 		<button type="button" aria-label="Undo" title="Undo" disabled={!store.canUndo} onclick={() => store.undo()}><Undo2 size={14} /></button>
 		<button type="button" aria-label="Redo" title="Redo" disabled={!store.canRedo} onclick={() => store.redo()}><Redo2 size={14} /></button>
-		<button class="preview-action" disabled title="Visitor Preview is not available yet"><Play size={14} /> Preview</button>
+		<button
+			class="preview-action"
+			disabled={!onPreview}
+			title={previewDisabledReason ?? 'Open Visitor Preview'}
+			onclick={() => void onPreview?.()}
+		><Play size={14} /> Preview</button>
 		<div bind:this={themeMenuElement} class="theme-menu-wrap">
 			<button
 				type="button"

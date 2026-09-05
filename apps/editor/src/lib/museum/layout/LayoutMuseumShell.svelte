@@ -3,8 +3,8 @@
   import { Shape, type BufferGeometry, type Material } from 'three';
   import type { LayoutVec2 } from '$lib/layout/layout-types';
   import type { CompiledLayoutGeometry, LayoutBounds3 } from '$lib/layout/layout-geometry-types';
-  import type { ChopinRoomPresentation } from '$lib/content/chopin-room-presentation';
-  import { neutralRoomPresentation } from '$lib/content/chopin-room-presentation';
+  import type { VisitorRoomPresentation } from '$lib/visitor/room-presentation';
+  import { neutralVisitorRoomPresentation } from '$lib/visitor/room-presentation';
   import { buildRoomWallMesh } from '$lib/layout/wall-mesh-builder';
   import { toWallBufferGeometry } from '$lib/render/wall-geometry-adapter';
   import { createVisitorWallMaterialFactory } from './wall-material-factory';
@@ -17,7 +17,7 @@
     excludedRoomIds = []
   }: {
     geometry: CompiledLayoutGeometry;
-    presentation: Readonly<Record<string, ChopinRoomPresentation>>;
+    presentation: Readonly<Record<string, VisitorRoomPresentation>>;
     excludedRoomIds?: readonly string[];
   } = $props();
 
@@ -33,7 +33,7 @@
   }
 
   function roomPresentation(roomId: string) {
-    return presentation[roomId] ?? neutralRoomPresentation;
+    return presentation[roomId] ?? neutralVisitorRoomPresentation;
   }
 
   type AdaptedRoom =

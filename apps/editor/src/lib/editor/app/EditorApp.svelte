@@ -6,6 +6,8 @@
 	import type { Asset } from '$lib/types/assets';
 	import { onMount, setContext, untrack } from 'svelte';
 	import { env } from '$env/dynamic/public';
+	import { goto, afterNavigate } from '$app/navigation';
+	import { page } from '$app/state';
 	// P3.2 — canonical token architecture + Inter Variable (Design-specs §37).
 	import '@fontsource-variable/inter';
 	import '$lib/editor/styles/tokens.css';
@@ -64,6 +66,14 @@
 	import Workspace3DView from './Workspace3DView.svelte';
 	import CameraPlanWorkspace from './CameraPlanWorkspace.svelte';
 	import StatusBar from './StatusBar.svelte';
+	import VisitorPreviewSurface from '$lib/visitor/VisitorPreviewSurface.svelte';
+	import {
+		composeDetachedPreviewBundle,
+		computeVisitorPreviewBlocker,
+		type DetachedPreviewBundle
+	} from '$lib/editor/preview/preview-coordinator';
+	import { BinaryTextureStore } from '$lib/editor/store/binary-texture-store.svelte';
+	import type { EditorOrbitPose } from '$lib/editor/camera/editor-camera';
 	import { createCameraPlanState } from '$lib/editor/camera-plan/camera-plan-state.svelte';
 	import { createEditorContextMenuStore } from '$lib/editor/context-menu/context-menu-state.svelte';
 	import ContextMenu from '$lib/editor/context-menu/ContextMenu.svelte';
@@ -79,7 +89,6 @@
 	import { buildPlanSceneFootprintProjection } from '$lib/editor/layout/plan-scene-footprint';
 	import { resolveEditorPlacementScale } from '$lib/editor/scale-vector';
 	import { PROJECT_ASSET_MAX_BYTES, sniffImageMime } from '$lib/editor/helpers/mime-sniff';
-	import { BinaryTextureStore } from '$lib/editor/store/binary-texture-store.svelte';
 	import {
 		completeProjectAssetUpload,
 		primeVerifiedProjectAsset,
@@ -111,12 +120,14 @@
 		projectId: routeProjectId = null,
 		loadOwnedProject = false,
 		resumePendingSave = false,
-		projectPersistence = null
+		projectPersistence = null,
+		surface = 'spatial'
 	}: {
 		projectId?: string | null;
 		loadOwnedProject?: boolean;
 		resumePendingSave?: boolean;
 		projectPersistence?: ProjectPersistenceConfig | null;
+		surface?: 'spatial' | 'preview';
 	} = $props();
 	const configuredProjectPersistence = untrack(() => projectPersistence);
 	const initialProjectId = untrack(() => routeProjectId || 'project:untitled');
@@ -153,6 +164,25 @@
 	const projectAssetRetainedSourceUris = new Set<string>();
 	let saveAuthGateOpen = $state(false);
 	let pendingSaveActive = $state(untrack(() => resumePendingSave));
+	// P21.4 — layout-owned Visitor Preview takeover. The session owner stays
+	// mounted; Spatial and Preview are rendered surfaces over that owner.
+	type PreviewReturnRecord = {
+		domain: 'scene' | 'camera';
+		view: 'plan' | '3d';
+		planViewMode: 'layout' | 'staging';
+		cameraPlanTool: 'select' | 'view';
+		timelineExpanded: boolean;
+		wasPlayingPreview: boolean;
+	};
+	let previewBundle = $state<DetachedPreviewBundle | null>(null);
+	let previewError = $state<string | null>(null);
+	let previewEntryNotice = $state<string | null>(null);
+	let previewReturn = $state<PreviewReturnRecord | null>(null);
+	let previewTransitioning = $state(false);
+	let returnFocusTarget = $state<HTMLElement | null>(null);
+	let takeoverOrbitPose = $state<EditorOrbitPose | null>(null);
+	const isPreviewTakeover = $derived(previewBundle !== null);
+	const isPreviewSurface = $derived(surface === 'preview');
 	const projectApiOrigin = configuredProjectPersistence?.apiOrigin ?? env.PUBLIC_API_ORIGIN;
 	const projectAuth =
 		configuredProjectPersistence?.auth ??
@@ -374,7 +404,21 @@
 	const { confirmSceneReplacement, confirmLayoutReplacement } = useEditorShellBoot({
 		store,
 		layoutPreview,
-		projectNameDirty: () => projectName !== savedProjectName
+		projectNameDirty: () => projectName !== savedProjectName,
+		// P21.4 — same-project Spatial↔Preview keeps the retained session;
+		// project changes, Hub and other destinations keep the dirty guard.
+		isRetainedSessionNavigation: (url) => {
+			const currentId = projectId ?? initialProjectId;
+			const match = url.pathname.match(/^\/project\/([^/]+)\/(spatial|preview)\/?$/);
+			if (!match) return false;
+			let decoded = '';
+			try {
+				decoded = decodeURIComponent(match[1]!);
+			} catch {
+				return false;
+			}
+			return decoded === currentId;
+		}
 	});
 
 	$effect(() => {
@@ -1436,6 +1480,259 @@
 		}
 	}
 
+	// P21.4 — Visitor Preview takeover (layout-owned, session-retained).
+	function previewSpatialUrl(): string {
+		const id = projectId ?? initialProjectId;
+		return `/project/${encodeURIComponent(id)}/spatial`;
+	}
+
+	function previewUrl(): string {
+		const id = projectId ?? initialProjectId;
+		return `/project/${encodeURIComponent(id)}/preview`;
+	}
+
+	function previewEntryConditions() {
+		return {
+			interactionActive: store.isEditorInteractionActive,
+			documentTransactionActive: store.isDocumentTransactionActive,
+			projectMutationInFlight,
+			projectAssetMutationInFlight,
+			pendingPlacementActive:
+				Boolean(store.pendingPlacementAssetId) ||
+				Boolean(store.pendingPlacementPrimitiveKind) ||
+				Boolean(store.pendingPlacementLightKind) ||
+				Boolean(store.pendingNavigationCommand),
+			bootstrapBusy: cloudStatus === 'loading',
+			pendingSaveHandoff: pendingSaveActive || saveAuthGateOpen
+		};
+	}
+
+	function capturePreviewReturn(): PreviewReturnRecord {
+		return {
+			domain: viewState.domain,
+			view: viewState.activeView,
+			planViewMode: layoutInteraction.planViewMode,
+			cameraPlanTool: cameraPlanState.tool,
+			timelineExpanded: store.timelineExpanded,
+			wasPlayingPreview:
+				(store.cameraPreview?.transport === 'playing' &&
+					store.cameraPreview.kind !== 'camera') ??
+				false
+		};
+	}
+
+	function enterPreviewFromSpatial(): DetachedPreviewBundle | null {
+		if (previewTransitioning || previewBundle) return previewBundle;
+		const conditions = previewEntryConditions();
+		const blocker = computeVisitorPreviewBlocker({
+			scene: store.document,
+			layout: layoutPreview.project.layout,
+			projectId: projectId ?? initialProjectId,
+			projectName,
+			conditions,
+			textureStore: BinaryTextureStore
+		});
+		if (blocker) {
+			previewError = blocker;
+			store.setStatusMessage(blocker);
+			return null;
+		}
+		// Capture return state before any viewport teardown. Validation passed;
+		// compose the detached bundle (live Scene, never the stale layout copy).
+		const captured = capturePreviewReturn();
+		const focusTarget =
+			typeof document !== 'undefined' && document.activeElement instanceof HTMLElement
+				? document.activeElement
+				: null;
+		// Capture component-local orbit pose before teardown; restored before
+		// the first visible frame on return (null when 3D is not mounted).
+		let orbitPose: EditorOrbitPose | null = null;
+		try {
+			orbitPose = store.captureTakeoverOrbit();
+		} catch {
+			orbitPose = null;
+		}
+		// Close authoring menus before capture; unmount removes their listeners.
+		contextMenu.close();
+		if (captured.wasPlayingPreview) {
+			try {
+				store.pauseCameraPreview();
+			} catch {
+				// Remain spatial on pause failure.
+			}
+		}
+		let bundle: DetachedPreviewBundle;
+		try {
+			bundle = composeDetachedPreviewBundle({
+				scene: store.document,
+				layout: layoutPreview.project.layout,
+				projectId: projectId ?? initialProjectId,
+				projectName,
+				textureStore: BinaryTextureStore
+			});
+		} catch (error) {
+			const reason = error instanceof Error ? error.message : 'Could not prepare preview';
+			previewError = reason;
+			store.setStatusMessage(reason);
+			if (captured.wasPlayingPreview) {
+				try {
+					store.playCameraPreview();
+				} catch {
+					// Best effort resume.
+				}
+			}
+			return null;
+		}
+		previewReturn = captured;
+		returnFocusTarget = focusTarget;
+		takeoverOrbitPose = orbitPose;
+		previewBundle = bundle;
+		previewError = null;
+		return bundle;
+	}
+
+	function disposePreviewBundle(): void {
+		try {
+			previewBundle?.textures.dispose();
+		} catch {
+			// Best effort.
+		}
+		previewBundle = null;
+	}
+
+	function restorePreviewReturn(): void {
+		const captured = previewReturn;
+		previewReturn = null;
+		if (captured) {
+			// Restore shell routing first; setters are no-ops when unchanged and
+			// never replay selection actions that seek Timeline.
+			if (viewState.domain !== captured.domain) viewState.setDomain(captured.domain);
+			if (viewState.activeView !== captured.view) {
+				viewState.setView(captured.domain, captured.view);
+			}
+			if (layoutInteraction.planViewMode !== captured.planViewMode) {
+				layoutInteraction.planViewMode = captured.planViewMode;
+			}
+			if (cameraPlanState.tool !== captured.cameraPlanTool) {
+				cameraPlanState.tool = captured.cameraPlanTool;
+			}
+			if (store.timelineExpanded !== captured.timelineExpanded) {
+				store.setTimelineExpanded(captured.timelineExpanded);
+			}
+			if (captured.wasPlayingPreview) {
+				try {
+					store.playCameraPreview();
+				} catch {
+					// Remain paused on resume failure.
+				}
+			}
+		}
+		// Orbit pose restores via the Rig prop before the first visible frame;
+		// keep it for 3D returns (the Rig clears via callback after restore),
+		// drop it for Plan returns (no Rig to consume it).
+		// Focus returns last, keeping suppression active until completion.
+		const focusTarget = returnFocusTarget;
+		returnFocusTarget = null;
+		if (captured && captured.view !== '3d') takeoverOrbitPose = null;
+		if (focusTarget && typeof document !== 'undefined' && document.contains(focusTarget)) {
+			try {
+				focusTarget.focus({ preventScroll: true });
+			} catch {
+				// Best effort.
+			}
+		}
+	}
+
+	async function requestPreviewEntry(): Promise<void> {
+		if (previewTransitioning || previewBundle) {
+			if (previewBundle && !isPreviewSurface) {
+				await goto(previewUrl());
+			}
+			return;
+		}
+		previewTransitioning = true;
+		try {
+			const bundle = enterPreviewFromSpatial();
+			if (!bundle) return;
+			await goto(previewUrl());
+		} finally {
+			previewTransitioning = false;
+		}
+	}
+
+	async function requestPreviewExit(): Promise<void> {
+		// Host-owned: request the Spatial route; the reconciler restores.
+		await goto(previewSpatialUrl(), { replaceState: true });
+	}
+
+	let hasSeenSpatialInMount = $state(false);
+	$effect(() => {
+		if (surface === 'spatial') hasSeenSpatialInMount = true;
+	});
+
+	afterNavigate(async () => {
+		// Single idempotent surface reconciler (Back/Forward included).
+		// Do not restore state in beforeNavigate; another guard may cancel.
+		if (page.params.projectId !== (projectId ?? initialProjectId)) return;
+		if (previewTransitioning) return;
+		const atPreview = page.url.pathname.endsWith('/preview');
+		if (atPreview && !previewBundle) {
+			// Forward builds a fresh snapshot; direct/refresh redirects.
+			if (!hasSeenSpatialInMount) {
+				previewEntryNotice =
+					'Preview needs an open draft. Open your project, then choose Preview.';
+				await goto(previewSpatialUrl(), { replaceState: true });
+				return;
+			}
+			previewTransitioning = true;
+			try {
+				const bundle = enterPreviewFromSpatial();
+				if (!bundle) {
+					await goto(previewSpatialUrl(), { replaceState: true });
+				}
+			} finally {
+				previewTransitioning = false;
+			}
+			return;
+		}
+		if (!atPreview && previewBundle) {
+			// All successful same-project exits converge here.
+			previewTransitioning = true;
+			try {
+				disposePreviewBundle();
+				restorePreviewReturn();
+			} finally {
+				previewTransitioning = false;
+			}
+		}
+	});
+
+	onMount(() => {
+		// P21.4 — Escape belongs to the takeover host (preview exit only).
+		const onPreviewKeyDown = (event: KeyboardEvent) => {
+			if (!previewBundle) return;
+			if (
+				event.key !== 'Escape' ||
+				event.ctrlKey ||
+				event.metaKey ||
+				event.altKey ||
+				event.shiftKey ||
+				event.defaultPrevented
+			) {
+				return;
+			}
+			const target = event.target;
+			if (target instanceof HTMLElement) {
+				if (target.isContentEditable) return;
+				if (/^(INPUT|SELECT|TEXTAREA)$/.test(target.tagName)) return;
+			}
+			event.preventDefault();
+			void requestPreviewExit();
+		};
+		window.addEventListener('keydown', onPreviewKeyDown);
+		return () => window.removeEventListener('keydown', onPreviewKeyDown);
+	});
+
 	onMount(() => {
 		const controller = new AbortController();
 		// Theme bootstrap: sync the picker/state with the persisted theme
@@ -1447,6 +1744,17 @@
 			projectRequestController?.abort();
 			invalidateProjectAssets();
 			clearRetainedSourceAliases();
+			// P21.4 — A→B teardown destroys the owner, snapshot, requests and
+			// assets; late A results cannot install into B. Dispose preview URLs.
+			try {
+				previewBundle?.textures.dispose();
+			} catch {
+				// Best effort.
+			}
+			previewBundle = null;
+			previewReturn = null;
+			returnFocusTarget = null;
+			takeoverOrbitPose = null;
 		};
 	});
 
@@ -1456,7 +1764,9 @@
 			{
 				getViewportElement: () => viewportElement,
 				getOutlinerElement: () => outlinerElement,
-				getClusterNameInput: () => clusterNameInput
+				getClusterNameInput: () => clusterNameInput,
+				// P21.4 — takeover suppression lives until Spatial restoration.
+				isSuppressed: () => isPreviewTakeover
 			},
 			interactionStore,
 			() => activeSelection.deselectActive(),
@@ -1473,7 +1783,23 @@
 
 </script>
 
-<main class="page editor-page project-editor" class:previewing={store.isDocumentMutationBlocked}>
+<main class="page editor-page project-editor" class:previewing={store.isDocumentMutationBlocked} class:visitor-previewing={previewBundle !== null}>
+	{#if previewBundle}
+		{@const bundle = previewBundle}
+		<div class="visitor-takeover">
+			<VisitorPreviewSurface
+				scene={bundle.scene}
+				geometry={bundle.geometry}
+				rooms={bundle.rooms}
+				graph={bundle.graph}
+				resolveTexture={bundle.textures.resolveTexture}
+				reducedMotion={typeof window !== 'undefined' &&
+					typeof window.matchMedia === 'function' &&
+					window.matchMedia('(prefers-reduced-motion: reduce)').matches}
+				onExit={() => void requestPreviewExit()}
+			/>
+		</div>
+	{:else}
 	<ProjectRow
 		{store}
 		{layoutPreview}
@@ -1500,6 +1826,8 @@
 		onDiscardPendingSave={discardPendingSave}
 		resolveProjectAssetBytes={projectAssetsAvailable ? resolveProjectAssetBytes : undefined}
 		onReset={() => activeSelection.reset()}
+		onPreview={() => void requestPreviewEntry()}
+		previewDisabledReason={previewTransitioning ? 'Opening preview…' : null}
 	/>
 	<WorkspaceRibbon {store} {viewState} {layoutPreview} {layoutInteraction}
 		cameraPlan={cameraPlanState} gizmoCapabilities={activeGizmoCapabilities}
@@ -1573,7 +1901,7 @@
 		{:else}
 			<!-- explicit 3D context seam: camera authoring overlays and
 			     the bottom timeline are Camera-only; Scene stays scene chrome. -->
-			<Workspace3DView {store} {layoutPreview} {layoutInteraction} context={viewState.domain} {contextMenu} />
+			<Workspace3DView {store} {layoutPreview} {layoutInteraction} context={viewState.domain} {contextMenu} takeoverPose={takeoverOrbitPose} onTakeoverPoseRestored={() => (takeoverOrbitPose = null)} />
 		{/if}
 		{#if viewState.domain === 'camera'}
 			<EditorCameraTimelineFrame {store} viewMode={viewState.activeView} {contextMenu} />
@@ -1594,6 +1922,13 @@
 	<EditorMaterialChoiceDialog {store} />
 	<!-- P3.4 — the one shared context-menu shell. -->
 	<ContextMenu store={contextMenu} />
+	{#if previewEntryNotice}
+		<div class="preview-notice" role="status">
+			<span>{previewEntryNotice}</span>
+			<button type="button" onclick={() => (previewEntryNotice = null)}>Dismiss</button>
+		</div>
+	{/if}
+	{/if}
 </main>
 
 <style>
@@ -1616,6 +1951,38 @@
 	}
 	.center { position: relative; min-width: 0; min-height: 0; overflow: hidden; outline: none; }
 	.center:focus-visible { box-shadow: inset 0 0 0 1px var(--editor-accent); }
+
+	/* P21.4 — layout-owned takeover: full-bleed visitor canvas replaces all
+	   Spatial chrome; pill-only overlay lives in the preview surface. */
+	.page.visitor-previewing {
+		grid-template-columns: minmax(0, 1fr);
+		grid-template-rows: minmax(0, 1fr);
+		grid-template-areas: 'preview';
+	}
+	.visitor-takeover {
+		grid-area: preview;
+		position: relative;
+		min-width: 0;
+		min-height: 0;
+		overflow: hidden;
+		background: #050508;
+	}
+	.preview-notice {
+		position: absolute;
+		left: 50%;
+		bottom: 2.5rem;
+		transform: translateX(-50%);
+		display: flex;
+		align-items: center;
+		gap: 0.6rem;
+		padding: 0.55rem 0.75rem;
+		border: 1px solid var(--editor-accent-border);
+		border-radius: 0.5rem;
+		background: var(--editor-bg-panel-raised);
+		color: var(--editor-text-primary);
+		font: 600 0.75rem/1.3 var(--editor-font);
+		z-index: 40;
+	}
 
 	/* P1.7 review fix — both plan surfaces stay mounted (G3 pattern). The
 	   hidden cell flips instantly (owner: no fade on view/domain switches)

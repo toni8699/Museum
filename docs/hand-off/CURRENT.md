@@ -5,7 +5,7 @@ slice plus one next action only.
 
 ## Working tree
 
-- P21.1 shared shell + P21.2 Scene reconciliation + P21.3 Camera reconciliation implemented (uncommitted); registered in the tracker.
+- P21.1 shared shell + P21.2 Scene reconciliation + P21.3 Camera reconciliation + P21.4 Preview + project flows implemented (uncommitted); registered in the tracker.
 
 - Planning delta: **P20 shipped 2026-09-04 — S0–S4 verified by local live
   smoke against real R2 (`biskiq-assets-test`) + local Postgres.** P20.1 API
@@ -41,11 +41,11 @@ slice plus one next action only.
 
 ## Next action
 
-- Implement P21.4 Preview + project flows per [the registered plan](../plans/2026-09-04-P21-unified-project-shell-spatial-reconciliation.md): layout-owned Visitor Preview takeover + strict Project Hub, following the [P21.4 brief](../plans/2026-09-05-P21.4-preview-project-flows.md) (written; implementation pending). Final acceptance gate follows.
+- Implement P21.5 UI polish pass per [the P21.5 brief](../plans/2026-09-05-P21.5-ui-polish-pass.md) (presentation-only, no behavior change), then run the P21 final acceptance gate (six-reference visual comparison + axe/contrast sweep) and close the tracker.
 
 ## Verification
 
-- Full Vitest: 176 files passed, 1 skipped; 2,351 tests passed, 1 skipped.
+- Full Vitest: 184 files passed, 1 skipped; 2,419 tests passed, 1 skipped.
 - `npm run check`: 0 errors / 0 warnings.
 - `npm run check:camera-core`, `npm run check:layout-core`, and
   `npm run check:project-model`: passed.
@@ -55,17 +55,15 @@ slice plus one next action only.
   package fidelity) against local Postgres + real R2. P19's live/ready
   authenticated smoke passed 2026-09-03 (owner-run, including the real Neon
   migration).
-- P20.4 targeted Load-resolution tests (22 passed), P20.3 conversion/package/
-  mutator behavior, and P20 cloud-save predicate tests passed; full editor
-  suite (2,351 passed, 1 skipped) passed;
-  local/package URIs remain blocked for cloud
-  Save even when session bytes exist, while the existing plain-export
-  predicate remains unchanged for current packages.
+- P21.4: preview coordinator/blocker/bundle, visitor runtime/Sequence, closure
+  validator fixtures, and project-flow contracts green within the full suite;
+  `vite build` enforces the new preview-surface boundary plugin.
 - `npm run build`: passed for Editor and Museum with the current
   `adapter-vercel` configuration. Known unused-import and chunk-size warnings
   remain.
 - `verify:visitor-bundle`: passed; standalone `/museum` reached 3 server and
   9 client entries with no editor entry.
+- `verify-preview-surface`: passed; 7 visitor files, root + plugin wired, no static leaks.
 - Local browser QA passed editor entry → new Spatial project, Project Hub →
   new project, `/editor` compatibility redirect, explicit `load=1` cleanup,
   and the authenticated-projects root trampoline. Existing standalone

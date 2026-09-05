@@ -1,7 +1,9 @@
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
-import { museumEditorEntryPlugin } from './vite/museum-editor-entry-plugin';	export default defineConfig({
-		plugins: [museumEditorEntryPlugin(), sveltekit()],
+import { museumEditorEntryPlugin } from './vite/museum-editor-entry-plugin';
+import { previewSurfaceBoundaryPlugin } from './vite/preview-surface-boundary-plugin';
+export default defineConfig({
+		plugins: [museumEditorEntryPlugin(), previewSurfaceBoundaryPlugin(), sveltekit()],
 		server: {
 			fs: {
 				// SvelteKit replaces Vite's default fs.allow with its own fixed set

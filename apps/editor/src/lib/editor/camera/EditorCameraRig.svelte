@@ -66,7 +66,9 @@
 		graph,
 		layoutBounds = null,
 		layoutFrameVersion = 0,
-		roomBoundsById = null
+		roomBoundsById = null,
+		takeoverPose = null,
+		onTakeoverPoseRestored = undefined
 	}: {
 		store: EditorStore;
 		graph: NavigationGraph;
@@ -74,6 +76,9 @@
 		layoutFrameVersion?: number;
 		/** compiled per-room bounds for room-focus framing (relic omits). */
 		roomBoundsById?: ((roomId: string) => LayoutBounds3 | null) | null;
+		/** P21.4 — authoring orbit pose captured before preview takeover. */
+		takeoverPose?: EditorOrbitPose | null;
+		onTakeoverPoseRestored?: () => void;
 	} = $props();
 
 	// Store instance is stable for the editor session; hooks close over field getters.
@@ -317,6 +322,38 @@
 	$effect(() => {
 		store.setCameraPreviewRestorer(restoreOrbitIfNeeded);
 		return () => store.setCameraPreviewRestorer(null);
+	});
+
+	// P21.4 — takeover orbit capture/restore. The capturer reads the live
+	// orbit pose for the shell to preserve across the preview takeover;
+	// the restore runs once on remount before the first visible frame.
+	$effect(() => {
+		store.setTakeoverOrbitCapturer(() => {
+			const currentCamera = camera ?? ownedCamera;
+			const controls = orbitControls ?? ownedOrbitControls;
+			if (!currentCamera || !controls) return null;
+			try {
+				return captureEditorOrbitPose(currentCamera, controls);
+			} catch {
+				return null;
+			}
+		});
+		return () => store.setTakeoverOrbitCapturer(null);
+	});
+
+	$effect(() => {
+		const pose = takeoverPose;
+		const currentCamera = camera ?? ownedCamera;
+		const controls = orbitControls ?? ownedOrbitControls;
+		if (!pose || !currentCamera || !controls) return;
+		try {
+			orbitDampingTaskEnabled = false;
+			restoreEditorOrbitPose(currentCamera, controls, pose);
+			orbitDampingTaskEnabled = pose.enableDamping;
+		} catch {
+			// Best effort; a stale pose never blocks the viewport.
+		}
+		onTakeoverPoseRestored?.();
 	});
 
 	$effect(() => {

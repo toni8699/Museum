@@ -69,6 +69,7 @@ success percentages.
 | **P21.2** | 66 | Sol medium | proposed (combined) — Scene reconciliation (Plan ghost/primer/openings/status + 3D density); presentation-only but must preserve X/Z/yaw authority, Y preservation, single tagged entry, no cross-owner selection, untouched gizmo pipeline; no slice brief |
 | **P21.3** | 74 | Sol medium | proposed (combined) — Camera reconciliation (Plan sidebar/Inspector/footprints/undirected edges/per-direction timing + 3D framing/overlays + shared Timeline density, transport above lanes); must preserve topology, timing, Y rule, Camera-only Timeline, shared selection/state; top of Sol-medium band; no slice brief |
 | **P21.4** | 82 | Sol high | proposed (combined) — Preview takeover + Hub/flows: layout-owned takeover, exact session restore, generic visitor composition (bespoke frames + Chopin HUD forbidden), preview-surface import-closure gate, project-switch teardown, strict Hub + entry/OAuth integrity; highest ambiguity and consequence in P21; **slice brief required before code** (nav scope, exact imports, restore fields, gate mechanics) |
+| **P21.5** | 45 (provisional) | Luna high | registered 2026-09-05 — UI polish pass across shipped P21 surfaces; presentation-only, no behavior change; **details TBD** — checklist filled once P21.4 closes; lands before the P21 final acceptance gate and before P22 |
 
 All shipped rows (P1.6–P3.3, P3B.1–P3B.6, P7.1–P7.6, P8.S1–S6, P11.1–P11.5,
 P12.S1–S4) were scrubbed 2026-08-27 — shipped work is not re-assessed here.

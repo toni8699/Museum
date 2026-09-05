@@ -839,6 +839,9 @@ export class EditorStore {
 	#cancelDirectPathDrag: (() => boolean) | null = null;
 	#cancelDirectFramingDrag: (() => boolean) | null = null;
 	#restoreCameraPreview: (() => boolean) | null = null;
+	// P21.4 — takeover orbit capturer installed by the Rig; the shell calls it
+	// before teardown to preserve authoring orbit across the preview takeover.
+	#takeoverOrbitCapturer: (() => import('$lib/editor/camera/editor-camera').EditorOrbitPose | null) | null = null;
 	// Phase 9.3 — `#viewKeyframeProgressDragInitialProgress` moved onto
 	// `EditorViewKeyframeController` with the progress-drag flow.
 	// Phase 9.2 — pending-nav restore slots moved onto
@@ -1444,6 +1447,18 @@ export class EditorStore {
 	/** The camera rig installs this so modal guards remain active through restoration. */
 	setCameraPreviewRestorer(restore: (() => boolean) | null) {
 		this.#restoreCameraPreview = restore;
+	}
+
+	/** P21.4 — takeover orbit capture installed by the Rig (null on teardown). */
+	setTakeoverOrbitCapturer(
+		capture: (() => import('$lib/editor/camera/editor-camera').EditorOrbitPose | null) | null
+	) {
+		this.#takeoverOrbitCapturer = capture;
+	}
+
+	/** P21.4 — capture the current authoring orbit pose, or null when 3D is not mounted. */
+	captureTakeoverOrbit(): import('$lib/editor/camera/editor-camera').EditorOrbitPose | null {
+		return this.#takeoverOrbitCapturer ? this.#takeoverOrbitCapturer() : null;
 	}
 
 	// Slice 2 — `@internal` shims the `EditorCameraPreviewCommands` host cast

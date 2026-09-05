@@ -1,4 +1,8 @@
 import type { Project } from '$lib/project/project-types';
+import {
+	neutralVisitorRoomPresentation,
+	type VisitorRoomPresentation
+} from '$lib/visitor/room-presentation';
 
 export type ChopinRoomId =
 	| 'entrance'
@@ -9,19 +13,9 @@ export type ChopinRoomId =
 	| 'music-chamber'
 	| 'legacy';
 
-export type ChopinRoomPresentation = {
-	subtitle?: string;
-	mood?: string;
-	color: string;
-	accentColor: string;
-	shell: 'layout' | 'bespoke';
-};
+export type ChopinRoomPresentation = VisitorRoomPresentation;
 
-export const neutralRoomPresentation: ChopinRoomPresentation = {
-	color: '#4b4b52',
-	accentColor: '#a6a6ad',
-	shell: 'layout'
-};
+export const neutralRoomPresentation: ChopinRoomPresentation = neutralVisitorRoomPresentation;
 
 export const chopinRoomPresentation: Readonly<Record<ChopinRoomId, ChopinRoomPresentation>> = {
 	entrance: {

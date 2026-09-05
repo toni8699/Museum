@@ -33,8 +33,19 @@ export function useEditorShellBoot(input: {
 	store: EditorStore;
 	layoutPreview: LayoutPreviewState;
 	projectNameDirty?: () => boolean;
+	/**
+	 * P21.4 — retained-session navigation predicate. When true for the
+	 * destination, the dirty guard is exempt (same-project Spatial↔Preview
+	 * round trip preserves unsaved work). Defaults to false (relic).
+	 */
+	isRetainedSessionNavigation?: (url: URL) => boolean;
 }): EditorShellBootResult {
-	const { store, layoutPreview, projectNameDirty = () => false } = input;
+	const {
+		store,
+		layoutPreview,
+		projectNameDirty = () => false,
+		isRetainedSessionNavigation
+	} = input;
 	const projectDirty = () =>
 		store.isDirty || layoutPreviewIsDirty(layoutPreview) || projectNameDirty();
 
@@ -78,6 +89,7 @@ export function useEditorShellBoot(input: {
 
 	beforeNavigate((navigation) => {
 		if (!projectDirty() || navigation.willUnload) return;
+		if (isRetainedSessionNavigation?.(navigation.to?.url as URL)) return;
 		if (!confirmNavigation()) navigation.cancel();
 	});
 

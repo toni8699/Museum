@@ -68,7 +68,9 @@
 				return;
 			}
 			sessionStatus = 'authenticated';
-			projects = await api.listProjects(signal);
+			const listed = await api.listProjects(signal);
+			// Strict Hub: owned cloud projects by last modification descending.
+			projects = [...listed].sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : a.updatedAt > b.updatedAt ? -1 : 0));
 		} catch (error) {
 			if (signal.aborted || (error instanceof DOMException && error.name === 'AbortError')) return;
 			if (error instanceof ProjectPersistenceError && error.code === 'auth') {
@@ -113,18 +115,28 @@
 			{:else}
 				<ul>
 					{#each projects as project (project.id)}
+						{@const modified = (() => {
+							try {
+								return new Date(project.updatedAt).toLocaleString();
+							} catch {
+								return project.updatedAt;
+							}
+						})()}
 						<li>
-							<span><strong>{project.name}</strong><small>v{project.version}</small></span>
+							<span><strong>{project.name}</strong><small>v{project.version} · {modified} · Cloud</small></span>
 							<a href={projectUrl(project.id, true)}>Open</a>
 						</li>
 					{/each}
 				</ul>
 			{/if}
+		{:else if sessionStatus === 'error'}
+			<p class="status" role="alert">{notice || 'Could not load projects.'}</p>
+			<button type="button" class="primary new-project" onclick={() => void startCreating()}>New Project</button>
 		{:else}
-			<p class="muted">Your work is not saved to the cloud.</p>
+			<p class="muted">Your work stays in a temporary session until you sign in. No drafts are kept here.</p>
 			<button type="button" disabled={!auth} onclick={() => void signIn()}>Continue with Google</button>
 		{/if}
-		{#if notice}<p class="status" role="alert">{notice}</p>{/if}
+		{#if notice && sessionStatus !== 'error'}<p class="status" role="alert">{notice}</p>{/if}
 	</section>
 </main>
 

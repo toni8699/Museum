@@ -24,10 +24,11 @@ slice plus one next action only.
   OIDC login/callback stages and session presence without OAuth values, tokens,
   cookie contents, or user IDs; the API suite checks exchange errors stay
   redacted. This exposes the documented cross-site Vercel → Render cookie trap.
-- Deployment proxy delta (uncommitted): Vercel forwards `/api/*` to Render;
-  the API accepts that public base path when constructing the Google callback.
-  Production `API_ORIGIN` and `PUBLIC_API_ORIGIN` must both use the editor's
-  `/api` URL so the existing secure `SameSite=Lax` cookie stays first-party.
+- Deployment proxy delta: the Vercel build injects an external `/api/*` edge
+  route into the adapter-generated Build Output config (a top-level rewrite
+  was discarded); the API accepts that public base path when constructing the
+  Google callback. Production `API_ORIGIN` and `PUBLIC_API_ORIGIN` must both
+  use the editor's `/api` URL so `SameSite=Lax` stays first-party.
 - Smoke residue (local only, not shipped state): `project:smoke-p20s1` v11 +
   ~20 asset rows in local Postgres + test objects in the `biskiq-assets-test`
   R2 bucket. No production secret, migration, or live deployment was touched.

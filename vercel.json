@@ -1,8 +1,5 @@
 {
   "framework": "sveltekit",
-  "buildCommand": "npm run build -w @portfolio/editor",
-  "outputDirectory": "apps/editor/.vercel/output",
-  "rewrites": [
-    { "source": "/api/:path*", "destination": "https://biskiq-api.onrender.com/:path*" }
-  ]
+  "buildCommand": "npm run build -w @portfolio/editor && node scripts/inject-vercel-api-proxy.mjs",
+  "outputDirectory": "apps/editor/.vercel/output"
 }

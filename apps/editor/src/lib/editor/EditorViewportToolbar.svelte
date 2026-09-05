@@ -10,6 +10,7 @@
 	import type { EditorGizmoCapabilities } from './gizmo/editor-gizmo-policy';
 
 	let {
+		ribbon = false,
 		store,
 		showCeilings = false,
 		onToggleCeilings,
@@ -26,6 +27,7 @@
 		// which keeps the legacy navigation-before-placement arbitration.
 		gizmoCapabilities = null
 	}: {
+		ribbon?: boolean;
 		store: EditorStore;
 		// editor 3D (restored 2026-08-16): the layout ceiling toggle that the
 		// unification dropped lives in the View menu when these props are
@@ -165,7 +167,7 @@
 	});
 </script>
 
-<div bind:this={toolbarElement} class="toolbar" role="toolbar" aria-label="Viewport tools">
+<div bind:this={toolbarElement} class="toolbar" class:ribbon role="toolbar" aria-label="Viewport tools">
 	<div class="tool-group" aria-label="Transform tool">
 		<button
 			type="button"
@@ -278,6 +280,28 @@
 				Add camera
 			</button>
 		</div>
+	{/if}
+
+	{#if ribbon && !isCameraContext}
+		<button disabled={disabled} onclick={() => store.setLeftPanel('assets')}>Add Asset</button>
+		<div class="tool-group" role="group" aria-label="Transform space">
+			{#each ['local', 'world'] as space}
+				<button disabled={disabled || !interactionStore} class:active={interactionStore?.space === space}
+					aria-pressed={interactionStore?.space === space}
+					onclick={() => { if (interactionStore && interactionStore.space !== space) interactionStore.toggleSpace(); }}>{space === 'local' ? 'Local' : 'World'}</button>
+			{/each}
+		</div>
+	{/if}
+	{#if ribbon}
+		<details class="precision">
+			<summary>Snap</summary>
+			<div class="add-menu">
+				<label><input type="checkbox" checked={store.translationSnapEnabled} onchange={(e) => store.sessionView.setTranslationSnapEnabled(e.currentTarget.checked)} /> Move snap</label>
+				<label>Distance (m) <input type="number" min="0.01" step="0.01" value={store.translationSnap} oninput={(e) => { const v = Number(e.currentTarget.value); if (Number.isFinite(v)) store.sessionView.setTranslationSnap(v); }} /></label>
+				<label><input type="checkbox" checked={store.rotationSnapEnabled} onchange={(e) => store.sessionView.setRotationSnapEnabled(e.currentTarget.checked)} /> Rotate snap</label>
+				<label>Angle (°) <input type="number" min="1" max="180" value={store.rotationSnapDegrees} oninput={(e) => { const v = Number(e.currentTarget.value); if (Number.isFinite(v)) store.sessionView.setRotationSnapDegrees(v); }} /></label>
+			</div>
+		</details>
 	{/if}
 
 	{#if viewMenuVisible}
@@ -462,4 +486,12 @@
 		.tool-group { flex: 1 1 auto; }
 		.tool-group button { flex: 1; padding-inline: 0.38rem; }
 	}
+	.toolbar.ribbon { position:relative; inset:auto; transform:none; flex:1; min-width:0; height:28px; padding:0; border:0; border-radius:0; box-shadow:none; background:transparent; backdrop-filter:none; flex-wrap:nowrap; align-items:center; }
+	.ribbon button { height:28px; padding:0 6px; white-space:nowrap; }
+	.ribbon button.active { background:var(--editor-bg-control); color:var(--editor-accent); }
+	.precision { position:relative; margin-left:auto; }
+	.precision summary { cursor:pointer; color:var(--editor-text-secondary); font:500 12px var(--editor-font); padding:6px; }
+	.precision .add-menu { right:0; left:auto; }
+	.precision label { display:flex; justify-content:space-between; gap:6px; padding:4px; font-size:12px; }
+	.precision input[type=number] { width:64px; }
 </style>

@@ -14,6 +14,7 @@
 	import { toggleLayoutCeilings } from './layout-preview-state.svelte';
 
 	let {
+		ribbon = false,
 		interaction,
 		preview,
 		onCancelLayoutTransaction = () => false,
@@ -21,6 +22,7 @@
 		showPlanModeToggle = false,
 		onPlanModeChange
 	}: {
+		ribbon?: boolean;
 		interaction: LayoutInteractionState;
 		preview: LayoutPreviewState;
 		onCancelLayoutTransaction?: () => boolean;
@@ -54,7 +56,7 @@
 	}
 </script>
 
-<div class="layout-toolbar" role="toolbar" aria-label={interaction.planViewMode === 'staging' ? 'Scene Plan arrange tools' : 'Layout drafting tools'}>
+<div class="layout-toolbar" class:ribbon role="toolbar" aria-label={interaction.planViewMode === 'staging' ? 'Scene Plan arrange tools' : 'Layout drafting tools'}>
 	{#if showPlanModeToggle}
 		<div class="tool-group mode-group" role="group" aria-label="Scene Plan mode">
 			<button type="button" class:active={interaction.planViewMode === 'layout'} aria-pressed={interaction.planViewMode === 'layout'} onclick={() => choosePlanMode('layout')}>Layout</button>
@@ -74,7 +76,7 @@
 			<button type="button" class:active={interaction.tool === 'polygon'} aria-pressed={interaction.tool === 'polygon'} onclick={() => chooseTool('polygon')}>Polygon room</button>
 		{/if}
 	</div>
-	{#if interaction.viewMode === 'plan'}
+	{#if ribbon || interaction.viewMode === 'plan'}
 		<div class="tool-group options" aria-label="Plan options">
 			<button type="button" class:active={interaction.planView.snapEnabled} aria-pressed={interaction.planView.snapEnabled} onclick={() => togglePlanViewportOption(interaction, 'snapEnabled')}>Snap 0.25m</button>
 			<button type="button" class:active={interaction.planView.gridEnabled} aria-pressed={interaction.planView.gridEnabled} onclick={() => togglePlanViewportOption(interaction, 'gridEnabled')}>Grid</button>
@@ -103,4 +105,8 @@
 		.tool-group { flex: 1 1 auto; }
 		.tool-group button { flex: 1; }
 	}
+	.layout-toolbar.ribbon { position:relative; inset:auto; transform:none; flex:1; min-width:0; height:28px; padding:0; border:0; border-radius:0; box-shadow:none; background:transparent; backdrop-filter:none; flex-wrap:nowrap; align-items:center; }
+	.ribbon button { height:28px; padding:0 6px; white-space:nowrap; }
+	.ribbon button.active { background:var(--editor-bg-control); color:var(--editor-accent); }
+	.ribbon .options { margin-left:auto; }
 </style>

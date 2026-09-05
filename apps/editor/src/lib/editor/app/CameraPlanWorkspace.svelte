@@ -1,7 +1,6 @@
 <script lang="ts">
 	import type { LayoutPreviewState } from '$lib/editor/layout/layout-preview-state.svelte';
 	import type { EditorStore } from '$lib/editor/editor-store.svelte';
-	import CameraPlanToolbar from '$lib/editor/camera-plan/CameraPlanToolbar.svelte';
 	import CameraPlanViewport from '$lib/editor/camera-plan/CameraPlanViewport.svelte';
 	import type { CameraPlanState } from '$lib/editor/camera-plan/camera-plan-state.svelte';
 	import type { EditorContextMenuStore } from '$lib/editor/context-menu/context-menu-state.svelte';
@@ -29,7 +28,6 @@
 </script>
 
 <div class="camera-plan-workspace" role="application" aria-label="Camera Plan surface">
-	<CameraPlanToolbar {store} {cameraPlan} />
 	<CameraPlanViewport {store} preview={layoutPreview} {cameraPlan} {contextMenu} getEffectiveSceneScale={effectiveSceneScale} />
 </div>
 

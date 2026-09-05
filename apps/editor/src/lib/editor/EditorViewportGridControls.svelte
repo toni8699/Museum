@@ -70,16 +70,14 @@
 
 <style>
 	.grid-controls {
-		position: absolute;
-		right: 0.75rem;
-		bottom: 0.75rem;
+		position: relative;
 		z-index: 4;
 	}
 	.grid-toggle {
 		display: flex;
 		align-items: center;
 		gap: 0.35rem;
-		padding: 0.38rem 0.55rem;
+		height:28px; padding:0 6px;
 		border: 1px solid color-mix(in srgb, var(--editor-border-normal) 88%, transparent);
 		border-radius: 0.42rem;
 		background: var(--editor-bg-panel-raised);
@@ -94,7 +92,7 @@
 	.grid-popover {
 		position: absolute;
 		right: 0;
-		bottom: calc(100% + 0.3rem);
+		top: calc(100% + 0.3rem);
 		z-index: 20;
 		display: flex;
 		min-width: 11.5rem;

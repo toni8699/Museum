@@ -500,3 +500,15 @@
 	--editor-orientation-hover: #24211c;
 	--editor-orientation-border: #283835;
 }
+
+/* P21 main shell; the frozen relic retains its existing dimensions. */
+.project-editor {
+	--editor-project-row-height: 36px;
+	--editor-ribbon-height: 32px;
+	--editor-appbar-height: 36px;
+	--editor-status-height: 24px;
+	--editor-bg-row-1: #071019;
+	--editor-bg-row-2: #0d1925;
+	--editor-control-active-bg: var(--editor-bg-control);
+	--editor-control-active-fg: var(--editor-accent);
+}

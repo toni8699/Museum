@@ -1,5 +1,4 @@
 <script lang="ts">
-	import LayoutDraftToolbar from '$lib/editor/layout/LayoutDraftToolbar.svelte';
 	import LayoutPlanViewport from '$lib/editor/layout/LayoutPlanViewport.svelte';
 	import type { LayoutPreviewState } from '$lib/editor/layout/layout-preview-state.svelte';
 	import {
@@ -217,14 +216,6 @@
 </script>
 
 <div class="plan-view" role="application" aria-label="Plan drafting surface">
-	<LayoutDraftToolbar
-		interaction={layoutInteraction}
-		preview={layoutPreview}
-		onCancelLayoutTransaction={cancelLayoutTransaction}
-		showViewToggle={false}
-		showPlanModeToggle={active}
-		onPlanModeChange={choosePlanMode}
-	/>
 	<LayoutPlanViewport
 		model={layoutPreview.model}
 		preview={layoutPreview}

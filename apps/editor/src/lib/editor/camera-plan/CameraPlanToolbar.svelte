@@ -86,21 +86,11 @@
 
 <style>
 	.camera-plan-toolbar {
-		position: absolute;
-		top: 0.65rem;
-		left: 50%;
-		z-index: 6;
-		display: flex;
-		align-items: center;
-		gap: 0.3rem;
-		transform: translateX(-50%);
-		padding: 0.3rem;
-		border: 1px solid var(--editor-border-subtle);
-		border-radius: 0.45rem;
-		background: var(--editor-bg-panel-raised);
+		display:flex; align-items:center; gap:4px; flex:1; height:28px;
+
 	}
 	button {
-		padding: 0.4rem 0.6rem;
+		height:28px; padding:0 6px;
 		border: 1px solid transparent;
 		border-radius: 0.3rem;
 		background: transparent;
@@ -110,7 +100,7 @@
 		white-space: nowrap;
 	}
 	button:hover:not(:disabled) { background: var(--editor-bg-hover); color: var(--editor-text-primary); }
-	button.active { border-color: var(--editor-accent-border); background: var(--editor-bg-selected); color: var(--editor-text-primary); }
+	button.active { border-color: var(--editor-accent-border); background: var(--editor-bg-control); color: var(--editor-accent); }
 	button:disabled { opacity: 0.38; cursor: default; }
 	.toolbar-separator { width: 1px; height: 1.1rem; background: var(--editor-border-normal); }
 </style>

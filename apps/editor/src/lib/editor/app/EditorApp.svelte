@@ -57,7 +57,8 @@
 		reconcileLayoutSelection,
 		setLayoutViewMode
 	} from '$lib/editor/layout/layout-interaction';
-	import EditorAppBar from './EditorAppBar.svelte';
+	import ProjectRow from './ProjectRow.svelte';
+	import WorkspaceRibbon from './WorkspaceRibbon.svelte';
 	import PlanWorkspace from './PlanWorkspace.svelte';
 	import Workspace3DView from './Workspace3DView.svelte';
 	import CameraPlanWorkspace from './CameraPlanWorkspace.svelte';
@@ -170,7 +171,7 @@
 		sessionStatus = 'checking';
 	}
 	const layoutPreview = $state(createEmptyLayoutPreviewState());
-	const layoutInteraction = $state(createLayoutInteractionState());
+	const layoutInteraction = $state({ ...createLayoutInteractionState(), viewMode: 'plan' as const });
 	// Construct before the store: the selection activation hook gates its
 	// cross-domain clear through the current Scene Plan authority.
 	const viewState = new EditorViewState();
@@ -345,6 +346,15 @@
 		store.isDirty ||
 		layoutPreviewIsDirty(layoutPreview) ||
 		projectName !== savedProjectName
+	);
+
+	const saveBlocker = $derived(
+		projectAssetMutationInFlight ? 'Finish the project asset upload before saving'
+		: store.isEditorInteractionActive || store.isDocumentTransactionActive ? 'Stop the current interaction before saving'
+		: !projectName.trim() ? 'Project name cannot be empty'
+		: computeCloudSaveBlocker(store.document, (uri) => isReadyProjectAssetForSave(uri, projectId ?? initialProjectId)) ? 'Resolve texture asset references before saving'
+		: hasBlockingLayoutIssues(layoutPreview.issues) ? 'Resolve invalid layout geometry before saving'
+		: null
 	);
 
 	// P7.4 — shared boot composable (dirty guard + texture lifecycle only).
@@ -1471,11 +1481,12 @@
 
 </script>
 
-<main class="page editor-page" class:previewing={store.isDocumentMutationBlocked}>
-	<EditorAppBar
+<main class="page editor-page project-editor" class:previewing={store.isDocumentMutationBlocked}>
+	<ProjectRow
 		{store}
 		{layoutPreview}
-		{viewState}
+		{currentProjectIsOwned}
+		{saveBlocker}
 		{confirmSceneReplacement}
 		{confirmLayoutReplacement}
 		{projectName}
@@ -1498,6 +1509,9 @@
 		resolveProjectAssetBytes={projectAssetsAvailable ? resolveProjectAssetBytes : undefined}
 		onReset={() => activeSelection.reset()}
 	/>
+	<WorkspaceRibbon {store} {viewState} {layoutPreview} {layoutInteraction}
+		cameraPlan={cameraPlanState} gizmoCapabilities={activeGizmoCapabilities}
+		transformDisabled={activeSelection.active.domain === 'layout' && layoutDescriptor === null} />
 	<EditorSidebar
 		{store}
 		{layoutPreview}
@@ -1594,9 +1608,10 @@
 	.page {
 		display: grid;
 		grid-template-columns: minmax(15rem, var(--editor-left-width)) minmax(0, 1fr) minmax(17.5rem, var(--editor-right-width));
-		grid-template-rows: auto minmax(0, 1fr) auto;
+		grid-template-rows: var(--editor-project-row-height) var(--editor-ribbon-height) minmax(0, 1fr) var(--editor-status-height);
 		grid-template-areas:
 			'top top top'
+			'ribbon ribbon ribbon'
 			'left center right'
 			'status status status';
 		height: 100vh;
@@ -1627,31 +1642,6 @@
 	}
 
 	@media (max-width: 62rem) {
-		.page {
-			grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-			grid-template-rows: auto minmax(24rem, 58vh) minmax(16rem, 34rem) auto;
-			grid-template-areas:
-				'top top'
-				'center center'
-				'left right'
-				'status status';
-			height: auto;
-			min-height: 100vh;
-			min-height: 100dvh;
-			overflow-y: auto;
-		}
-	}
-
-	@media (max-width: 44rem) {
-		.page {
-			grid-template-columns: minmax(0, 1fr);
-			grid-template-rows: auto minmax(22rem, 55vh) minmax(16rem, 30rem) minmax(18rem, 30rem) auto;
-			grid-template-areas:
-				'top'
-				'center'
-				'left'
-				'right'
-				'status';
-		}
+		.page { grid-template-columns: 200px minmax(240px, 1fr) 240px; overflow:auto; }
 	}
 </style>

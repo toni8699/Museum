@@ -386,8 +386,8 @@ describe('Plan ↔ 3D switch preserves session state', () => {
 		expect(toolbar).toMatch(/role="menuitemcheckbox"[^]*?<span>Ceiling<\/span>/);
 		expect(ws3d).toContain('context: \'scene\' | \'camera\'');
 		expect(ws3d).not.toContain('cameraAgnosticViewMenu');
-		expect(ws3d).toContain('onToggleCeilings={');
-		expect(ws3d).toContain('toggleLayoutCeilings');
+		expect(readLibSource('editor/app/WorkspaceRibbon.svelte')).toContain('onToggleCeilings={');
+		expect(readLibSource('editor/app/WorkspaceRibbon.svelte')).toContain('toggleLayoutCeilings');
 		// The relic mount feeds neither prop, keeping its LayoutDraftToolbar
 		// Ceiling button as the single surface there.
 		expect(viewport).not.toContain('onToggleCeilings');
@@ -416,17 +416,19 @@ describe('route wiring (relic smoke proxy, no DOM harness)', () => {
 		expect(readLibSource('editor/project-persistence.ts')).toContain("/auth/login?intent=");
 	});
 
-	it('mounts EditorApp only inside the project Spatial route', () => {
+	it('mounts one keyed session in the shared project layout', () => {
 		const spatial = readRouteSource('project/[projectId]/spatial/+page.svelte');
-		expect(spatial).toContain('EditorApp');
-		expect(spatial).toContain('loadOwnedProject');
-		expect(spatial).toContain('resumePendingSave');
+		expect(spatial).not.toContain('<EditorApp');
+		const host = readLibSource('editor/app/ProjectShellHost.svelte');
+		expect(host).toContain('<EditorApp {projectId} {loadOwnedProject} {resumePendingSave} />');
+		expect(readRouteSource('project/[projectId]/+layout.svelte')).toContain('{#key page.params.projectId}');
 	});
 
-	it('keeps Project Shell navigation thin and Spatial-only', () => {
+	it('keeps Project Row navigation Spatial-only', () => {
 		const shell = readRouteSource('project/[projectId]/+layout.svelte');
-		expect(shell).toContain('href="/projects"');
-		expect(shell).toContain('Spatial');
+		const row = readLibSource('editor/app/ProjectRow.svelte');
+		expect(row).toContain('href="/projects"');
+		expect(row).toContain('Spatial');
 		expect(shell).toContain('{@render children()}');
 		expect(shell).not.toContain('EditorApp');
 	});
@@ -440,6 +442,83 @@ describe('route wiring (relic smoke proxy, no DOM harness)', () => {
 		expect(resolved).toBeTruthy();
 		const loaded = plugin.load?.(resolved!);
 		expect(loaded).toContain('MuseumEditorApp.svelte');
+	});
+});
+
+describe('P21.1 shared shell', () => {
+	it('pins the fixed Zone A switch cluster (Scene|Camera + Plan|3D only)', () => {
+		const ribbon = readLibSource('editor/app/WorkspaceRibbon.svelte');
+		expect(ribbon).toContain('aria-label="Editor domain"');
+		expect(ribbon).toContain('aria-label="Editor views"');
+		expect(ribbon).toContain("viewState.setDomain(domain as 'scene' | 'camera')");
+		expect(ribbon).toContain('viewState.setView(viewState.domain, view as');
+		expect(ribbon).toContain('flex:0 0 240px');
+		expect(ribbon).toContain('style="grid-area:ribbon;"');
+	});
+
+	it('routes every permanent command through the ribbon (no floating toolbars in main surfaces)', () => {
+		// The three main surfaces mount no toolbar/grid-control chrome; the
+		// ribbon re-hosts their logic (P21.1 re-host, zero behavior change).
+		expect(readLibSource('editor/app/PlanWorkspace.svelte')).not.toContain('LayoutDraftToolbar');
+		expect(readLibSource('editor/app/CameraPlanWorkspace.svelte')).not.toContain('CameraPlanToolbar');
+		const ws3d = readLibSource('editor/app/Workspace3DView.svelte');
+		expect(ws3d).not.toContain('<EditorViewportToolbar');
+		expect(ws3d).not.toContain('<EditorViewportGridControls');
+		const ribbon = readLibSource('editor/app/WorkspaceRibbon.svelte');
+		expect(ribbon).toContain('<LayoutDraftToolbar ribbon');
+		expect(ribbon).toContain('<CameraPlanToolbar {store} {cameraPlan} />');
+		expect(ribbon).toContain('<EditorViewportToolbar ribbon');
+		expect(ribbon).toContain('<EditorViewportGridControls {store} />');
+		expect(readLibSource('editor/app/EditorApp.svelte')).toContain('<WorkspaceRibbon');
+	});
+
+	it('keeps the Timeline docked, never in Row 2', () => {
+		const ribbon = readLibSource('editor/app/WorkspaceRibbon.svelte');
+		expect(ribbon).not.toContain('Timeline');
+		expect(readLibSource('editor/app/EditorApp.svelte')).toContain('<EditorCameraTimelineFrame');
+	});
+
+	it('renders no deferred Wall/Measure controls (walls stay room-derived)', () => {
+		for (const source of [
+			readLibSource('editor/layout/LayoutDraftToolbar.svelte'),
+			readLibSource('editor/app/WorkspaceRibbon.svelte'),
+			readLibSource('editor/app/ProjectRow.svelte'),
+			readLibSource('editor/app/EditorApp.svelte')
+		]) {
+			expect(source).not.toMatch(/>Wall</);
+			expect(source).not.toMatch(/>Measure</);
+		}
+	});
+
+	it('deletes the legacy preview link (Preview arrives in P21.4)', () => {
+		for (const source of [
+			readLibSource('editor/app/ProjectRow.svelte'),
+			readLibSource('editor/app/WorkspaceRibbon.svelte'),
+			readLibSource('editor/app/EditorApp.svelte')
+		]) {
+			expect(source).not.toContain('Preview Museum');
+			expect(source).not.toContain('href="/museum"');
+		}
+		// Row 1 carries a disabled Preview placeholder, never a dead route.
+		expect(readLibSource('editor/app/ProjectRow.svelte')).toContain('Visitor Preview is not available yet');
+	});
+
+	it('never pops the document menu on background cloud errors', () => {
+		// Only the explicit save-auth interruption surfaces the menu; a
+		// failed owned-projects refresh on fresh guest load must not.
+		const row = readLibSource('editor/app/ProjectRow.svelte');
+		expect(row).toContain('if (saveAuthGateOpen) projectMenuOpen = true');
+		expect(row).not.toContain('cloudError) projectMenuOpen = true');
+	});
+
+	it('leads Scene Plan Zone B with the Layout|Arrange switch', () => {
+		const ribbon = readLibSource('editor/app/WorkspaceRibbon.svelte');
+		expect(ribbon).toContain('showPlanModeToggle onPlanModeChange={choosePlanMode}');
+		expect(ribbon).toContain("viewState.activeView === 'plan' && viewState.domain === 'scene'");
+		const toolbar = readLibSource('editor/layout/LayoutDraftToolbar.svelte');
+		expect(toolbar).toContain('aria-label="Scene Plan mode"');
+		expect(toolbar).toContain('>Layout</button>');
+		expect(toolbar).toContain('>Arrange</button>');
 	});
 });
 
@@ -961,8 +1040,8 @@ describe('single gizmo host', () => {
 		const toolbar = readLibSource('editor/EditorViewportToolbar.svelte');
 		expect(toolbar).toContain('transformDisabled?: boolean');
 		expect(toolbar).toContain('transformDisabledFlag');
-		expect(readLibSource('editor/app/Workspace3DView.svelte')).toContain(
-			"transformDisabled={activeSelection?.active.domain === 'layout' && layoutDescriptor === null}"
+		expect(readLibSource('editor/app/EditorApp.svelte')).toContain(
+			"transformDisabled={activeSelection.active.domain === 'layout' && layoutDescriptor === null}"
 		);
 		expect(readLibSource('editor/EditorViewport.svelte')).not.toContain('transformDisabled');
 		// Shortcuts refuse W/E/R/T/X while a detached layout selection is active.
@@ -986,12 +1065,13 @@ describe('single gizmo host', () => {
 	it('shares one domain→capability projection between the toolbar and shortcuts (S7 step 6)', () => {
 		const ws3d = readLibSource('editor/app/Workspace3DView.svelte');
 		const app = readLibSource('editor/app/EditorApp.svelte');
-		// Both feed the same pure projection with the same adapter-owned policies.
-		for (const source of [ws3d, app]) {
-			expect(source).toContain('projectDomainGizmoCapabilities');
-			expect(source).toContain('SCENE_GIZMO_POLICY');
-			expect(source).toContain('CAMERA_GIZMO_POLICY');
-		}
+		// P21.1: the single projection lives in EditorApp (fed to the ribbon);
+		// the 3D viewport no longer computes it.
+		expect(app).toContain('projectDomainGizmoCapabilities');
+		expect(app).toContain('SCENE_GIZMO_POLICY');
+		expect(app).toContain('CAMERA_GIZMO_POLICY');
+		expect(ws3d).not.toContain('projectDomainGizmoCapabilities');
+		expect(readLibSource('editor/app/WorkspaceRibbon.svelte')).toContain('gizmoCapabilities');
 		// The policies are one source shared with the host through the adapters.
 		expect(readLibSource('editor/gizmo/scene-gizmo-adapter.svelte.ts')).toContain(
 			'export const SCENE_GIZMO_POLICY'
@@ -1046,7 +1126,6 @@ describe('layout candidate session', () => {
 		// Both editor call sites resolve the active selection's descriptor and pass
 		// its per-kind policy (null for a stale/missing identity).
 		for (const source of [
-			readLibSource('editor/app/Workspace3DView.svelte'),
 			readLibSource('editor/app/EditorApp.svelte')
 		]) {
 			expect(source).toContain('resolveLayoutGizmoTarget');
@@ -1054,8 +1133,8 @@ describe('layout candidate session', () => {
 		}
 		// The toolbar gate is explicit (layout domain AND descriptor null), not
 		// caps === null — a live layout publishes its policy.
-		expect(readLibSource('editor/app/Workspace3DView.svelte')).toContain(
-			"transformDisabled={activeSelection?.active.domain === 'layout' && layoutDescriptor === null}"
+		expect(readLibSource('editor/app/EditorApp.svelte')).toContain(
+			"transformDisabled={activeSelection.active.domain === 'layout' && layoutDescriptor === null}"
 		);
 		// Shortcuts refuse only a stale layout identity outright; a live one
 		// falls through to the per-mode caps refusal.
@@ -1334,7 +1413,7 @@ describe('camera context contracts', () => {
 	});
 
 	it('removed the relocated Place-camera action from the app bar', () => {
-		const appBar = readLibSource('editor/app/EditorAppBar.svelte');
+		const appBar = readLibSource('editor/app/ProjectRow.svelte');
 		expect(appBar).not.toContain('beginCameraPlacement');
 		expect(appBar).not.toContain('Place camera');
 	});
@@ -1429,7 +1508,7 @@ describe('camera context contracts', () => {
 		const appBar = readLibSource('editor/EditorAppBar.svelte');
 		expect(appBar).toContain('canSwitchWorkspace = $derived(!store.isEditorInteractionActive)');
 		expect(appBar).not.toContain('canSwitchWorkspace = $derived(!store.isDocumentMutationBlocked');
-		const appAppBar = readLibSource('editor/app/EditorAppBar.svelte');
+		const appAppBar = readLibSource('editor/app/WorkspaceRibbon.svelte');
 		expect(appAppBar).toContain('const canSwitch = $derived(!store.isEditorInteractionActive)');
 		expect(appAppBar).not.toContain('const canSwitch = $derived(!store.isDocumentMutationBlocked');
 		// Timeline frame resize + toggle are CH·AA (no mutation-blocked term).
@@ -1518,7 +1597,8 @@ describe('camera context contracts', () => {
 	it('mounts the Scene-3D-only orientation box with grid controls intact', () => {
 		const ws3d = readLibSource('editor/app/Workspace3DView.svelte');
 		const gridControls = readLibSource('editor/EditorViewportGridControls.svelte');
-		expect(ws3d).toContain('<EditorViewportGridControls {store} />');
+		expect(ws3d).not.toContain('<EditorViewportGridControls');
+		expect(readLibSource('editor/app/WorkspaceRibbon.svelte')).toContain('<EditorViewportGridControls {store} />');
 		// Overlay widget + canvas-side projector, both Scene-context gated.
 		// The gizmo receives the compiled layout bounds so its cardinal-snap
 		// fallback composes bounds framing before the neutral pose (P3B.1

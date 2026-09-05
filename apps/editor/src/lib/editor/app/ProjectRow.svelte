@@ -68,7 +68,10 @@
 		saving: cloudStatus === 'saving', blocker: saveBlocker
 	}));
 	let accountOpen = $state(false);
-	$effect(() => { if (saveAuthGateOpen || cloudError) projectMenuOpen = true; });
+	// Surface the explicit save-auth interruption only. Background cloud
+	// errors must never pop the menu open (they routinely fire on fresh
+	// guest loads when the owned-projects refresh fails).
+	$effect(() => { if (saveAuthGateOpen) projectMenuOpen = true; });
 	function rename(input: HTMLInputElement) {
 		const name = input.value.trim();
 		if (name) onProjectNameChange?.(name);

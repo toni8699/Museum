@@ -283,7 +283,7 @@
 	});
 </script>
 
-<div bind:this={projectMenuElement} class="project-menu-wrap">
+<div bind:this={projectMenuElement} class="project-menu-wrap" class:elevated>
 	<button
 		type="button"
 		class:active={open}
@@ -294,6 +294,7 @@
 	>{#if elevated}⋮{:else}Project <ChevronDown size={14} aria-hidden="true" />{/if}</button>
 	{#if open}
 		<div class="project-menu" role="dialog" aria-label="Project actions">
+			{#if saveBlocker}<p role="status">{saveBlocker}</p>{/if}
 			{#if !relic && cloudConfigured}
 				<section class="cloud-project" aria-label="Cloud project">
 					<div class="project-heading">
@@ -327,7 +328,6 @@
 						{/if}
 					</div>
 					{/if}
-					{#if saveBlocker}<p role="status">{saveBlocker}</p>{/if}
 					{#if saveAuthGateOpen}
 						<div class="save-auth-gate" role="alertdialog" aria-modal="true" aria-labelledby="save-auth-title">
 							<strong id="save-auth-title">Save your project</strong>
@@ -605,4 +605,6 @@
 			overflow: auto;
 		}
 	}
+	.elevated > button { height:28px; padding:0 9px; }
+	.elevated .project-menu { left:0; right:auto; }
 </style>

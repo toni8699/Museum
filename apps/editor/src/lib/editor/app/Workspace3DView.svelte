@@ -16,7 +16,6 @@ import { viewportPalette } from '$lib/editor/theme.svelte';
 import EditorCameraLabelProjector from '$lib/editor/camera/EditorCameraLabelProjector.svelte';
 	import EditorCameraLabelsOverlay from '$lib/editor/camera/EditorCameraLabelsOverlay.svelte';
 	import { buildCameraNodeLabelKinds } from '$lib/editor/camera/editor-camera-labels';
-	import EditorViewportGridControls from '$lib/editor/EditorViewportGridControls.svelte';
 	import EditorPlacementTools from '$lib/editor/EditorPlacementTools.svelte';
 	import EditorSelection from '$lib/editor/EditorSelection.svelte';
 	import {
@@ -36,7 +35,6 @@ import EditorCameraLabelProjector from '$lib/editor/camera/EditorCameraLabelProj
 	import type { NormalSelectionResult } from '$lib/editor/editor-selection';
 	import EditorSelectionHelper from '$lib/editor/EditorSelectionHelper.svelte';
 	import EditorTransformControls from '$lib/editor/EditorTransformControls.svelte';
-	import EditorViewportToolbar from '$lib/editor/EditorViewportToolbar.svelte';
 	import PlacementGhost from '$lib/editor/placement-ghost.svelte';
 	import LayoutPreviewScene from '$lib/editor/layout/LayoutPreviewScene.svelte';
 	import {
@@ -52,7 +50,6 @@ import EditorCameraLabelProjector from '$lib/editor/camera/EditorCameraLabelProj
 		type Layout3dHitCandidate
 	} from '$lib/editor/layout/layout-3d-picking';
 	import {
-		toggleLayoutCeilings,
 		type LayoutPreviewState
 	} from '$lib/editor/layout/layout-preview-state.svelte';
 	import type { EditorStore } from '$lib/editor/editor-store.svelte';
@@ -67,10 +64,6 @@ import EditorCameraLabelProjector from '$lib/editor/camera/EditorCameraLabelProj
 		ACTIVE_EDITOR_SELECTION_KEY,
 		type EditorActiveSelectionStore
 	} from './active-editor-selection.svelte';
-	import { SCENE_GIZMO_POLICY } from '$lib/editor/gizmo/scene-gizmo-adapter.svelte';
-	import { CAMERA_GIZMO_POLICY } from '$lib/editor/gizmo/camera-gizmo-adapter.svelte';
-	import { projectDomainGizmoCapabilities } from '$lib/editor/gizmo/editor-gizmo-policy';
-	import { resolveLayoutGizmoTarget } from '$lib/editor/gizmo/layout-gizmo-target';
 	import type { LayoutGizmoCandidateBundle } from '$lib/editor/gizmo/layout-gizmo-candidate';
 
 	let {
@@ -108,35 +101,6 @@ import EditorCameraLabelProjector from '$lib/editor/camera/EditorCameraLabelProj
 	// camera-chrome mounts/unmounts) and no fade plays.
 	const activeSelection = getContext<EditorActiveSelectionStore | undefined>(
 		ACTIVE_EDITOR_SELECTION_KEY
-	);
-
-	// resolve the active layout selection's descriptor so the toolbar /
-	// shortcuts publish its per-kind policy (`null` for a stale/missing
-	// identity, which stays inert).
-	const layoutDescriptor = $derived(
-		activeSelection?.active.domain === 'layout'
-			? resolveLayoutGizmoTarget(
-					layoutPreview.project.layout,
-					layoutPreview.geometry,
-					layoutInteraction.selection
-				)
-			: null
-	);
-
-	// step 6 — the active target's generic capability projection for the
-	// toolbar (scene/camera; layout via the descriptor policy; null for a stale
-	// identity or no target). Same projection the W/E/R/T shortcuts use in
-	// EditorApp, same policies the host gets from the adapters.
-	const activeGizmoCapabilities = $derived.by(() =>
-		projectDomainGizmoCapabilities(
-			activeSelection?.active.domain ?? 'none',
-			interactionStore?.mode ?? store.transformMode,
-			{
-				scene: SCENE_GIZMO_POLICY,
-				camera: CAMERA_GIZMO_POLICY,
-				layout: layoutDescriptor?.policy ?? null
-			}
-		)
 	);
 
 	// the transient candidate bundle the layout adapter previews during
@@ -385,14 +349,6 @@ import EditorCameraLabelProjector from '$lib/editor/camera/EditorCameraLabelProj
 	style:cursor={interactionStore?.cursor ?? 'default'}
 	aria-label="Unified 3D editor viewport"
 >
-	<EditorViewportToolbar
-		{store}
-		{context}
-		showCeilings={layoutPreview.showCeilings}
-		onToggleCeilings={() => toggleLayoutCeilings(layoutPreview)}
-		transformDisabled={activeSelection?.active.domain === 'layout' && layoutDescriptor === null}
-		gizmoCapabilities={activeGizmoCapabilities}
-	/>
 	<Canvas dpr={[1, 1.5]} shadows>
 		<MuseumScene
 			scene={store.scene}
@@ -542,7 +498,6 @@ import EditorCameraLabelProjector from '$lib/editor/camera/EditorCameraLabelProj
 		     3D and both Plan surfaces; P3B.3 adds full interaction states. -->
 		<EditorOrientationGizmo {store} layoutBounds={layoutPreview.bounds} />
 	{/if}
-	<EditorViewportGridControls {store} />
 </div>
 
 <style>

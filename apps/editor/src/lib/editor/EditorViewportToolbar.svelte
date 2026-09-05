@@ -8,6 +8,10 @@
 		type EditorInteractionStore
 	} from './store/editor-interaction-store.svelte';
 	import type { EditorGizmoCapabilities } from './gizmo/editor-gizmo-policy';
+	import {
+		parseRotationSnapDegrees,
+		parseTranslationSnapMeters
+	} from './snap-input-validation';
 
 	let {
 		ribbon = false,
@@ -157,6 +161,20 @@
 		viewMenuOpen = !viewMenuOpen;
 	}
 
+	// Native min/max never fire for typed input: reject out-of-range values
+	// before they reach gizmo state and restore the input from live state.
+	function commitTranslationSnap(input: HTMLInputElement) {
+		const next = parseTranslationSnapMeters(Number(input.value));
+		if (next === null) input.value = String(store.translationSnap);
+		else store.sessionView.setTranslationSnap(next);
+	}
+
+	function commitRotationSnapDegrees(input: HTMLInputElement) {
+		const next = parseRotationSnapDegrees(Number(input.value));
+		if (next === null) input.value = String(store.rotationSnapDegrees);
+		else store.sessionView.setRotationSnapDegrees(next);
+	}
+
 	onMount(() => {
 		const closeMenu = (event: PointerEvent) => {
 			if (toolbarElement?.contains(event.target as Node)) return;
@@ -297,9 +315,9 @@
 			<summary>Snap</summary>
 			<div class="add-menu">
 				<label><input type="checkbox" checked={store.translationSnapEnabled} onchange={(e) => store.sessionView.setTranslationSnapEnabled(e.currentTarget.checked)} /> Move snap</label>
-				<label>Distance (m) <input type="number" min="0.01" step="0.01" value={store.translationSnap} oninput={(e) => { const v = Number(e.currentTarget.value); if (Number.isFinite(v)) store.sessionView.setTranslationSnap(v); }} /></label>
+				<label>Distance (m) <input type="number" min="0.01" step="0.01" value={store.translationSnap} onchange={(e) => commitTranslationSnap(e.currentTarget)} /></label>
 				<label><input type="checkbox" checked={store.rotationSnapEnabled} onchange={(e) => store.sessionView.setRotationSnapEnabled(e.currentTarget.checked)} /> Rotate snap</label>
-				<label>Angle (°) <input type="number" min="1" max="180" value={store.rotationSnapDegrees} oninput={(e) => { const v = Number(e.currentTarget.value); if (Number.isFinite(v)) store.sessionView.setRotationSnapDegrees(v); }} /></label>
+				<label>Angle (°) <input type="number" min="1" max="180" value={store.rotationSnapDegrees} onchange={(e) => commitRotationSnapDegrees(e.currentTarget)} /></label>
 			</div>
 		</details>
 	{/if}

@@ -49,6 +49,7 @@
 		markLayoutPreviewSaved,
 		restoreLayoutPreviewSnapshot
 	} from '$lib/editor/layout/layout-preview-state.svelte';
+	import { deleteArrangeSelection as runArrangeDelete } from '$lib/editor/layout/arrange-delete';
 	import { useEditorShellBoot } from '$lib/editor/hooks/editor-shell-boot.svelte';
 	import { initTheme } from '$lib/editor/theme.svelte';
 	import {
@@ -90,6 +91,7 @@
 		isReadyProjectTextureMetadata,
 		ownsProjectLoad
 	} from '$lib/editor/project-asset-load';
+	import { ProjectAssetRequestScope } from '$lib/editor/project-asset-request-scope';
 	import {
 		createProjectAuth,
 		createProjectApi,
@@ -144,14 +146,11 @@
 	let retryableProjectTextureId = $state<string | null>(null);
 	let projectAssetMutationInFlight = $state(false);
 	let projectAssetContextId: string | null = null;
-	let projectAssetEpoch = 0;
-	let projectAssetListToken = 0;
-	let projectAssetMutationToken = 0;
-	let projectAssetListController: AbortController | null = null;
-	let projectAssetMutationController: AbortController | null = null;
+	// Session-owned asset request scope (epoch/tokens/controllers): one per
+	// mount, torn down on unmount — A→B navigation cannot leak requests.
+	const assetScope = new ProjectAssetRequestScope();
 	let projectAssetRetry: ProjectAssetRetry | null = null;
 	const projectAssetRetainedSourceUris = new Set<string>();
-	const projectAssetExportControllers = new Set<AbortController>();
 	let saveAuthGateOpen = $state(false);
 	let pendingSaveActive = $state(untrack(() => resumePendingSave));
 	const projectApiOrigin = configuredProjectPersistence?.apiOrigin ?? env.PUBLIC_API_ORIGIN;
@@ -332,6 +331,19 @@
 		return store.selectedPlacementIds.every((id) => eligible.has(id));
 	}
 
+	// P21.2 — Row 2 Arrange Delete delegates to the owner-aware router
+	// (`layout/arrange-delete.ts`, behaviorally pinned); the shell only binds
+	// the current domain/view.
+	function deleteArrangeSelection(): boolean {
+		return runArrangeDelete({
+			store,
+			layoutPreview,
+			layoutInteraction,
+			domain: viewState.domain,
+			activeView: viewState.activeView
+		});
+	}
+
 	let outlinerElement = $state<HTMLElement | null>(null);
 	let viewportElement = $state<HTMLElement | null>(null);
 	let clusterNameInput = $state<HTMLInputElement>();
@@ -436,15 +448,7 @@
 	}
 
 	function invalidateProjectAssets(): void {
-		projectAssetEpoch += 1;
-		projectAssetListToken += 1;
-		projectAssetMutationToken += 1;
-		projectAssetListController?.abort();
-		projectAssetMutationController?.abort();
-		for (const controller of projectAssetExportControllers) controller.abort();
-		projectAssetExportControllers.clear();
-		projectAssetListController = null;
-		projectAssetMutationController = null;
+		assetScope.invalidate();
 		projectAssetMutationInFlight = false;
 		projectAssetContextId = null;
 		projectAssets = [];
@@ -455,7 +459,7 @@
 
 	function isCurrentProjectAssetContext(targetProjectId: string, epoch: number): boolean {
 		return (
-			epoch === projectAssetEpoch &&
+			epoch === assetScope.epoch &&
 			projectAssetContextId === targetProjectId &&
 			projectId === targetProjectId &&
 			sessionStatus === 'authenticated' &&
@@ -465,8 +469,8 @@
 
 	function isCurrentProjectAssetOperation(operation: ProjectAssetOperation): boolean {
 		return (
-			operation.token === projectAssetMutationToken &&
-			projectAssetMutationController === operation.controller &&
+			operation.token === assetScope.mutationToken &&
+			assetScope.mutationController === operation.controller &&
 			isCurrentProjectAssetContext(operation.projectId, operation.epoch)
 		);
 	}
@@ -479,20 +483,16 @@
 		if (
 			!projectApi ||
 			projectMutationInFlight ||
-			!isCurrentProjectAssetContext(targetProjectId, projectAssetEpoch)
+			!isCurrentProjectAssetContext(targetProjectId, assetScope.epoch)
 		) {
 			return;
 		}
-		const requestToken = ++projectAssetListToken;
-		const epoch = projectAssetEpoch;
-		projectAssetListController?.abort();
-		const controller = new AbortController();
-		projectAssetListController = controller;
+		const { token: requestToken, epoch, controller } = assetScope.beginList();
 		projectAssetsStatus = 'loading';
 		try {
 			const assets = await projectApi.listAssets(targetProjectId, controller.signal);
 			if (
-				requestToken !== projectAssetListToken ||
+				requestToken !== assetScope.listToken ||
 				!isCurrentProjectAssetContext(targetProjectId, epoch)
 			) {
 				return;
@@ -502,7 +502,7 @@
 		} catch (error) {
 			if (
 				isAborted(error, controller.signal) ||
-				requestToken !== projectAssetListToken ||
+				requestToken !== assetScope.listToken ||
 				!isCurrentProjectAssetContext(targetProjectId, epoch)
 			) {
 				return;
@@ -514,7 +514,7 @@
 			projectAssetsStatus = 'error';
 			store.setStatusMessage(persistenceMessage(error, 'Could not load project assets'));
 		} finally {
-			if (requestToken === projectAssetListToken) projectAssetListController = null;
+			assetScope.releaseListController(requestToken);
 		}
 	}
 
@@ -529,12 +529,8 @@
 			store.setStatusMessage('Project assets require an authenticated owned project');
 			return null;
 		}
-		projectAssetMutationController?.abort();
 		retainCurrentSceneTextureBytes();
-		const token = ++projectAssetMutationToken;
-		const epoch = projectAssetEpoch;
-		const controller = new AbortController();
-		projectAssetMutationController = controller;
+		const { token, epoch, controller } = assetScope.beginMutation();
 		projectAssetMutationInFlight = true;
 		return { projectId: targetProjectId, epoch, token, controller };
 	}
@@ -550,7 +546,7 @@
 		if (
 			!isProjectAssetUri(uri) ||
 			!expectedProjectId ||
-			!isCurrentProjectAssetContext(expectedProjectId, projectAssetEpoch)
+			!isCurrentProjectAssetContext(expectedProjectId, assetScope.epoch)
 		) {
 			return null;
 		}
@@ -747,9 +743,8 @@
 			store.setStatusMessage(persistenceMessage(error, 'Could not upload texture'));
 			return null;
 		} finally {
-			if (operation.token === projectAssetMutationToken) {
+			if (assetScope.releaseMutationController(operation.token)) {
 				projectAssetMutationInFlight = false;
-				projectAssetMutationController = null;
 			}
 		}
 	}
@@ -780,9 +775,8 @@
 			store.setStatusMessage(persistenceMessage(error, 'Could not retry texture upload'));
 			return null;
 		} finally {
-			if (operation.token === projectAssetMutationToken) {
+			if (assetScope.releaseMutationController(operation.token)) {
 				projectAssetMutationInFlight = false;
-				projectAssetMutationController = null;
 			}
 		}
 	}
@@ -842,9 +836,8 @@
 			store.setStatusMessage(persistenceMessage(error, 'Could not save texture to project'));
 			return null;
 		} finally {
-			if (operation.token === projectAssetMutationToken) {
+			if (assetScope.releaseMutationController(operation.token)) {
 				projectAssetMutationInFlight = false;
-				projectAssetMutationController = null;
 			}
 		}
 	}
@@ -918,9 +911,8 @@
 			store.setStatusMessage(persistenceMessage(error, 'Could not use project texture'));
 			return null;
 		} finally {
-			if (operation.token === projectAssetMutationToken) {
+			if (assetScope.releaseMutationController(operation.token)) {
 				projectAssetMutationInFlight = false;
-				projectAssetMutationController = null;
 			}
 		}
 	}
@@ -931,11 +923,11 @@
 
 	async function resolveProjectAssetBytes(uri: string): Promise<Uint8Array | null> {
 		const targetProjectId = projectId;
-		const epoch = projectAssetEpoch;
+		const epoch = assetScope.epoch;
 		const asset = readyProjectAssetForCurrentProject(uri, targetProjectId);
 		if (!projectApi || !asset || !targetProjectId) return null;
 		const controller = new AbortController();
-		projectAssetExportControllers.add(controller);
+		assetScope.trackExport(controller);
 		try {
 			const content = await projectApi.loadAssetContent(
 				targetProjectId,
@@ -975,7 +967,7 @@
 			store.setStatusMessage(persistenceMessage(error, 'Could not resolve project texture bytes'));
 			return null;
 		} finally {
-			projectAssetExportControllers.delete(controller);
+			assetScope.untrackExport(controller);
 		}
 	}
 
@@ -1511,7 +1503,8 @@
 	/>
 	<WorkspaceRibbon {store} {viewState} {layoutPreview} {layoutInteraction}
 		cameraPlan={cameraPlanState} gizmoCapabilities={activeGizmoCapabilities}
-		transformDisabled={activeSelection.active.domain === 'layout' && layoutDescriptor === null} />
+		transformDisabled={activeSelection.active.domain === 'layout' && layoutDescriptor === null}
+		onDeleteArrange={deleteArrangeSelection} />
 	<EditorSidebar
 		{store}
 		{layoutPreview}
@@ -1597,7 +1590,7 @@
 		bind:clusterNameInput
 	/>
 	<!-- P1.1 (design-spec §2/§18) — persistent status bar in every workspace. -->
-	<StatusBar {store} {layoutPreview} {layoutInteraction} {viewState} {activeSelection} />
+	<StatusBar {store} {layoutPreview} {layoutInteraction} {viewState} {activeSelection} transformSpace={interactionStore.space} />
 	<EditorMaterialChoiceDialog {store} />
 	<!-- P3.4 — the one shared context-menu shell. -->
 	<ContextMenu store={contextMenu} />

@@ -111,7 +111,7 @@
 		}} />
 	<span class="location">{presentation.location}</span>
 	<button class="save-state" title={saveBlocker ?? presentation.hint}
-		disabled={cloudStatus === 'saving' || cloudStatus === 'loading'}
+		disabled={cloudStatus === 'saving' || cloudStatus === 'loading' || (!presentation.actionable && !saveBlocker)}
 		onclick={() => { if (saveBlocker) projectMenuOpen = true; else if (presentation.actionable) onSaveProject?.(); }}
 	>{presentation.label}</button>
 	<!-- Document operations remain in the existing menu; identity/save/auth are elevated. -->

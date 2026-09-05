@@ -20,7 +20,8 @@
 		onCancelLayoutTransaction = () => false,
 		showViewToggle = true,
 		showPlanModeToggle = false,
-		onPlanModeChange
+		onPlanModeChange,
+		onDeleteArrange
 	}: {
 		ribbon?: boolean;
 		interaction: LayoutInteractionState;
@@ -31,6 +32,8 @@
 		/** Scene Plan only; absent on Camera Plan, Scene 3D, and the relic. */
 		showPlanModeToggle?: boolean;
 		onPlanModeChange?: (mode: 'layout' | 'staging') => void;
+		/** Arrange owner-aware Delete (P21.2); absent keeps the toolbar selection-only. */
+		onDeleteArrange?: () => boolean;
 	} = $props();
 
 	function chooseView(mode: LayoutViewMode) {
@@ -72,8 +75,12 @@
 	<div class="tool-group" aria-label="Room drafting tool">
 		<button type="button" class:active={interaction.tool === 'select'} aria-pressed={interaction.tool === 'select'} onclick={() => chooseTool('select')}>Select</button>
 		{#if interaction.planViewMode === 'layout'}
-			<button type="button" class:active={interaction.tool === 'rectangle'} aria-pressed={interaction.tool === 'rectangle'} onclick={() => chooseTool('rectangle')}>Rect room</button>
-			<button type="button" class:active={interaction.tool === 'polygon'} aria-pressed={interaction.tool === 'polygon'} onclick={() => chooseTool('polygon')}>Polygon room</button>
+			<button type="button" class:active={interaction.tool === 'rectangle'} aria-pressed={interaction.tool === 'rectangle'} onclick={() => chooseTool('rectangle')}>Rect Room</button>
+			<button type="button" class:active={interaction.tool === 'polygon'} aria-pressed={interaction.tool === 'polygon'} onclick={() => chooseTool('polygon')}>Poly Room</button>
+			<button type="button" class:active={interaction.tool === 'door'} aria-pressed={interaction.tool === 'door'} onclick={() => chooseTool('door')}>Door</button>
+			<button type="button" class:active={interaction.tool === 'window'} aria-pressed={interaction.tool === 'window'} onclick={() => chooseTool('window')}>Window</button>
+		{:else if onDeleteArrange}
+			<button type="button" aria-label="Delete arrange selection" onclick={() => onDeleteArrange?.()}>Delete</button>
 		{/if}
 	</div>
 	{#if ribbon || interaction.viewMode === 'plan'}

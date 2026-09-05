@@ -103,6 +103,7 @@
 	import { planCameraProjectionForProject } from './plan-camera-projection';
 	import PlanSvg from './PlanSvg.svelte';
 	import PlanCanvasChrome from './PlanCanvasChrome.svelte';
+	import PlanEmptyGhost from './PlanEmptyGhost.svelte';
 
 	let {
 		model,
@@ -208,6 +209,10 @@
 	// P3.3 — live yaw readout while a Scene rotate gesture is in progress
 	// (same feedback language as room rotation).
 	let stagingYawFeedback = $state<number | null>(null);
+	// P21.2 — ghost blueprint session dismissal (not serialized): the 10×8m
+	// watermark unmounts once the project is non-empty, or for the remainder
+	// of the session upon first tool use.
+	let ghostDismissed = $state(false);
 
 	const viewBox = $derived(`0 0 ${interaction.planView.width} ${interaction.planView.height}`);
 	const draftPolygon = $derived(
@@ -299,6 +304,10 @@
 		preview.model.rooms.length === 0 &&
 		preview.model.objects.length === 0 &&
 		(scene?.entities.length ?? 0) === 0
+	);
+	// P21.2 — ghost blueprint visibility: Layout-only, empty, session-alive.
+	const ghostVisible = $derived(
+		planEmpty && interaction.planViewMode === 'layout' && !ghostDismissed
 	);
 	const arrangeLayoutRotationHandle = $derived.by(() => {
 		const objectId = arrangeActiveLayoutObject;
@@ -478,6 +487,11 @@
 		if (interaction.viewMode !== 'plan' || replacementVersion === framedReplacementVersion) return;
 		framedReplacementVersion = replacementVersion;
 		frameView();
+	});
+
+	// P21.2 — session-scoped ghost dismissal on first tool use (not serialized).
+	$effect(() => {
+		if (interaction.tool !== 'select' && !ghostDismissed) ghostDismissed = true;
 	});
 
 	function frameView() {
@@ -1728,8 +1742,10 @@
 	{#if arrangeEmpty && !stagingSelectionMessage}
 		<div class="arrange-empty" role="status">No movable objects here yet — create them in Layout or place them in Scene 3D.</div>
 	{/if}
-	{#if planEmpty}
-		<!-- P3.3 — canonical empty-plan onboarding treatment (scene-empty-plan.png). -->
+	{#if planEmpty && !ghostVisible}
+		<!-- P3.3 — canonical empty-plan onboarding treatment (scene-empty-plan.png).
+		     P21.2 ghost takes precedence in Layout; the card remains for the
+		     dismissed-but-still-empty session tail and non-Layout empty states. -->
 		<div class="plan-empty-state" role="status">
 			<strong>Empty floor plan</strong>
 			<span>Pick the Room tool to draft your first room, or place an asset from the sidebar.</span>
@@ -1764,6 +1780,9 @@
 		}}
 	>
 		<PlanCanvasChrome layer="grid" planView={interaction.planView} />
+		{#if ghostVisible}
+			<PlanEmptyGhost planView={interaction.planView} />
+		{/if}
 		<PlanSvg model={planModel} planView={interaction.planView} />
 		<PlanCanvasChrome layer="overlay" planView={interaction.planView} />
 		{#if selectedOpening}

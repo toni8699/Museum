@@ -11,10 +11,11 @@
 	import EditorViewportToolbar from '../EditorViewportToolbar.svelte';
 	import EditorViewportGridControls from '../EditorViewportGridControls.svelte';
 
-	let { store, viewState, layoutPreview, layoutInteraction, cameraPlan, gizmoCapabilities, transformDisabled } : {
+	let { store, viewState, layoutPreview, layoutInteraction, cameraPlan, gizmoCapabilities, transformDisabled, onDeleteArrange } : {
 		store: EditorStore; viewState: EditorViewState; layoutPreview: LayoutPreviewState;
 		layoutInteraction: LayoutInteractionState; cameraPlan: CameraPlanState;
 		gizmoCapabilities: EditorGizmoCapabilities | null; transformDisabled: boolean;
+		onDeleteArrange?: () => boolean;
 	} = $props();
 	const canSwitch = $derived(!store.isEditorInteractionActive);
 	function choosePlanMode(mode: 'layout' | 'staging') {
@@ -43,6 +44,7 @@
 		{#if viewState.activeView === 'plan' && viewState.domain === 'scene'}
 			<LayoutDraftToolbar ribbon interaction={layoutInteraction} preview={layoutPreview}
 				showViewToggle={false} showPlanModeToggle onPlanModeChange={choosePlanMode}
+				{onDeleteArrange}
 				onCancelLayoutTransaction={() => store.cancelLayoutTransaction()} />
 		{:else if viewState.activeView === 'plan'}
 			<CameraPlanToolbar {store} {cameraPlan} />

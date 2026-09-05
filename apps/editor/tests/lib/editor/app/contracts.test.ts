@@ -421,7 +421,22 @@ describe('route wiring (relic smoke proxy, no DOM harness)', () => {
 		expect(spatial).not.toContain('<EditorApp');
 		const host = readLibSource('editor/app/ProjectShellHost.svelte');
 		expect(host).toContain('<EditorApp {projectId} {loadOwnedProject} {resumePendingSave} />');
-		expect(readRouteSource('project/[projectId]/+layout.svelte')).toContain('{#key page.params.projectId}');
+		expect(host).toContain('untrack(() => page.url.searchParams');
+		const layout = readRouteSource('project/[projectId]/+layout.svelte');
+		expect(layout).toContain('{#key page.params.projectId}');
+		// Teardown contract: unmount aborts in-flight project/asset requests
+		// and drops asset contexts, so A→B navigation cannot leak requests or
+		// retained bytes (behaviorally pinned in
+		// `tests/lib/editor/app/project-session-isolation.test.ts`). Asset
+		// request ownership lives in `ProjectAssetRequestScope` — one per
+		// mount, invalidated on teardown.
+		const app = readLibSource('editor/app/EditorApp.svelte');
+		expect(app).toContain('projectRequestController?.abort();');
+		expect(app).toContain('invalidateProjectAssets();');
+		expect(app).toContain('clearRetainedSourceAliases();');
+		expect(app).toContain("import { ProjectAssetRequestScope } from '$lib/editor/project-asset-request-scope';");
+		expect(app).toContain('const assetScope = new ProjectAssetRequestScope();');
+		expect(app).toContain('assetScope.invalidate();');
 	});
 
 	it('keeps Project Row navigation Spatial-only', () => {
@@ -528,6 +543,117 @@ describe('P21.1 shared shell', () => {
 		expect(toolbar).toContain('aria-label="Scene Plan mode"');
 		expect(toolbar).toContain('>Layout</button>');
 		expect(toolbar).toContain('>Arrange</button>');
+	});
+
+	it('validates Row 2 snap number inputs before writing gizmo state', () => {
+		// Behaviorally pinned in `tests/lib/editor/snap-input-validation.test.ts`;
+		// here the wiring: the toolbar parses on change/blur (never per-keystroke,
+		// which corrupts mid-typing states) and restores from live state on reject.
+		const toolbar = readLibSource('editor/EditorViewportToolbar.svelte');
+		expect(toolbar).toContain('parseTranslationSnapMeters(Number(');
+		expect(toolbar).toContain('parseRotationSnapDegrees(Number(');
+		expect(toolbar).toContain('onchange={(e) => commitTranslationSnap');
+		expect(toolbar).toContain('onchange={(e) => commitRotationSnapDegrees');
+		expect(toolbar).toContain('input.value = String(store.translationSnap)');
+		expect(toolbar).toContain('input.value = String(store.rotationSnapDegrees)');
+	});
+
+	it('disables the save-state pill when neither actionable nor blocked', () => {
+		const row = readLibSource('editor/app/ProjectRow.svelte');
+		expect(row).toContain('(!presentation.actionable && !saveBlocker)');
+	});
+});
+
+describe('P21.2 scene reconciliation', () => {
+	it('exposes exactly the supported Layout tools in Row 2 (no Wall/Measure)', () => {
+		const toolbar = readLibSource('editor/layout/LayoutDraftToolbar.svelte');
+		for (const label of ['>Select</button>', '>Rect Room</button>', '>Poly Room</button>', '>Door</button>', '>Window</button>']) {
+			expect(toolbar).toContain(label);
+		}
+		expect(toolbar).not.toMatch(/>Wall</);
+		expect(toolbar).not.toMatch(/>Measure</);
+		expect(toolbar).toContain("interaction.planViewMode === 'layout'");
+	});
+
+	it('routes Arrange Delete through the active owner only (one gesture, one entry)', () => {
+		const toolbar = readLibSource('editor/layout/LayoutDraftToolbar.svelte');
+		expect(toolbar).toContain('onDeleteArrange');
+		expect(toolbar).toContain('aria-label="Delete arrange selection"');
+		expect(toolbar).toContain('>Delete</button>');
+		const ribbon = readLibSource('editor/app/WorkspaceRibbon.svelte');
+		expect(ribbon).toContain('onDeleteArrange');
+		expect(ribbon).toContain('{onDeleteArrange}');
+		// The router lives in `layout/arrange-delete.ts` (behaviorally pinned
+		// in `tests/lib/editor/app/arrange-delete.test.ts`); the shell only
+		// binds the current domain/view.
+		const helper = readLibSource('editor/layout/arrange-delete.ts');
+		expect(helper).toContain('deriveArrangeTarget');
+		expect(helper).toContain('deleteLayoutObject(layoutPreview, target.objectId)');
+		expect(helper).toContain('store.deleteSelection()');
+		const app = readLibSource('editor/app/EditorApp.svelte');
+		expect(app).toContain('function deleteArrangeSelection');
+		expect(app).toContain('runArrangeDelete');
+		expect(app).toContain('onDeleteArrange={deleteArrangeSelection}');
+	});
+
+	it('hides the Plan read-only card over the editable Layout surface', () => {
+		const inspector = readLibSource('editor/EditorInspector.svelte');
+		expect(inspector).toContain('{#if readOnlyNonLayout && !scenePlanStaging}');
+		expect(inspector).not.toContain('{#if readOnly && !scenePlanStaging}');
+	});
+
+	it('renders the session-scoped ghost blueprint (10×8m, slate, non-interactive, unserialized)', () => {
+		const ghost = readLibSource('editor/layout/PlanEmptyGhost.svelte');
+		expect(ghost).toContain('[-5, -4]');
+		expect(ghost).toContain('[5, 4]');
+		expect(ghost).toContain('#64748b');
+		expect(ghost).toContain('stroke-opacity: 0.2');
+		expect(ghost).toContain('pointer-events: none');
+		expect(ghost).toContain('10.0m');
+		expect(ghost).toContain('8.0m');
+		expect(ghost).not.toContain('<button');
+		const viewport = readLibSource('editor/layout/LayoutPlanViewport.svelte');
+		expect(viewport).toContain('PlanEmptyGhost');
+		expect(viewport).toContain('ghostDismissed');
+		expect(viewport).toContain('ghostVisible');
+		expect(viewport).toContain("planEmpty && interaction.planViewMode === 'layout' && !ghostDismissed");
+		expect(viewport).toContain('planEmpty && !ghostVisible');
+	});
+
+	it('shows the Layout primer while selection is zero (guidance only, no dead controls)', () => {
+		const inspector = readLibSource('editor/EditorInspector.svelte');
+		expect(inspector).toContain('showLayoutPrimer');
+		expect(inspector).toContain('layout-primer');
+		expect(inspector).toContain('Rect Room');
+		expect(inspector).toContain('Poly Room');
+		expect(inspector).toContain('Snap 0.25m');
+		// Primer carries no buttons — directional guidance only (Design-Plan H).
+		const primerStart = inspector.indexOf('<div class="layout-primer"');
+		const primerEnd = inspector.indexOf('</div>', primerStart);
+		const primerBlock = inspector.slice(primerStart, primerEnd);
+		expect(primerBlock).not.toContain('<button');
+	});
+
+	it('reports per-workspace status strings without touching behavior contracts', () => {
+		const status = readLibSource('editor/app/StatusBar.svelte');
+		expect(status).toContain('X/Z Grid Orthogonal WallSnap Angle Scene>Plan>Layout');
+		expect(status).toContain('Yaw Snap 15°');
+		expect(status).toContain('Y Preserved');
+		expect(status).toContain('workspaceStatus');
+		expect(status).toContain("transformSpace?: 'local' | 'world'");
+		// The workspace string is announced (role=status), never inside the
+		// aria-hidden hint group, and uses the AA-compliant secondary ink.
+		expect(status.indexOf('workspace-status')).toBeLessThan(status.indexOf('aria-hidden'));
+		expect(status).toContain('role="status">{workspaceStatus}');
+		expect(status).toContain('.workspace-status { color: var(--editor-text-secondary);');
+		const app = readLibSource('editor/app/EditorApp.svelte');
+		expect(app).toContain('transformSpace={interactionStore.space}');
+	});
+
+	it('keeps panels edge-to-edge in the project shell only', () => {
+		const css = readLibSource('editor/styles/editor-shell.css');
+		expect(css).toContain('.project-editor :is(.panel, .sidebar, .outliner, .inspector)');
+		expect(css).toContain('border-radius:0');
 	});
 });
 
@@ -1696,7 +1822,7 @@ describe('cross-domain selection contracts', () => {
 		expect(inspector).toContain('Not editable in Plan. Edit position in 3D.');
 		expect(inspector).toContain('Room-local Plan transform');
 		expect(inspector).toContain('Delete selected');
-		expect(inspector).toContain('{#if readOnly && !scenePlanStaging}');
+		expect(inspector).toContain('{#if readOnlyNonLayout && !scenePlanStaging}');
 	});
 
 	it('routes Staging gestures through the existing Scene transaction and placement mutator seam', () => {

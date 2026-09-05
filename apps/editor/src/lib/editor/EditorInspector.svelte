@@ -139,6 +139,15 @@
 	// Arrange's read-only gates apply only in the active Scene Plan view;
 	// a persisted staging mode must not disable fields after switching to 3D.
 	const arrangeMode = $derived(scenePlanStaging);
+	// P21.2 — Scene Plan Layout primer: reference card while selection is zero.
+	const isScenePlanLayout = $derived(
+		viewMode === 'plan' &&
+		viewState?.domain === 'scene' &&
+		layoutInteraction.planViewMode === 'layout'
+	);
+	const showLayoutPrimer = $derived(
+		isScenePlanLayout && layoutInteraction.selection.kind === 'none'
+	);
 	// Plan authority is workspace-specific (P1.5): Camera → Plan mounts the
 	// live Camera Plan inspector (timing + X/Z authoring); Scene → Plan stays
 	// the layout-CAD read-only gate — a preserved scene/camera selection keeps
@@ -625,7 +634,7 @@
 		{/if}
 	</header>
 
-	{#if readOnly && !scenePlanStaging}
+	{#if readOnlyNonLayout && !scenePlanStaging}
 		<section class="plan-readonly-card" aria-label="Read-only in Plan">
 			<div class="plan-readonly-head">
 				<Info size={15} aria-hidden="true" />
@@ -642,6 +651,15 @@
 
 	{#if domain === 'layout'}
 		<section class="layout-inspector" aria-label="Layout preview details">
+			{#if showLayoutPrimer}
+				<div class="layout-primer" aria-label="Layout primer">
+					<strong>Layout primer</strong>
+					<p>Rect Room — drag to draw a rectangular room · Poly Room — click points, close to finish.</p>
+					<p>Door / Window — click a wall to place a supported opening.</p>
+					<p>Grid {layoutInteraction.planView.gridEnabled ? 'on' : 'off'} · Snap 0.25m {layoutInteraction.planView.snapEnabled ? 'on' : 'off'} · Units metric (m).</p>
+					<p class="layout-primer-tip">Tip: walls stay room-derived; drag mid-span to bend existing walls.</p>
+				</div>
+			{/if}
 			<dl>
 				<div><dt>Project</dt><dd>{layoutPreview.project.name}</dd></div>
 				<div><dt>Source</dt><dd>{layoutPreviewSourceLabel(layoutPreview.source)}</dd></div>
@@ -1086,6 +1104,10 @@
 	.layout-inspector dt { color: var(--editor-text-tint); font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.04em; }
 	.layout-inspector dd { margin: 0; color: var(--editor-text-primary); font-size: 0.72rem; text-align: right; }
 	.layout-inspector-note { margin: 0; color: var(--editor-text-secondary); font-size: 0.7rem; line-height: 1.45; }
+	.layout-primer { display: flex; flex-direction: column; gap: 0.35rem; padding: 0.6rem 0.65rem; border: 1px solid var(--editor-border-subtle); border-radius: 0.4rem; background: var(--editor-bg-panel-raised); }
+	.layout-primer strong { font-size: 0.74rem; font-weight: 650; letter-spacing: 0.02em; color: var(--editor-text-primary); }
+	.layout-primer p { margin: 0; color: var(--editor-text-secondary); font-size: 0.7rem; line-height: 1.45; }
+	.layout-primer-tip { color: var(--editor-text-muted); }
 	.layout-accordion { display: flex; flex-direction: column; gap: 0.45rem; padding: 0.55rem; border: 1px solid var(--editor-border-subtle); border-radius: 0.4rem; background: var(--editor-bg-panel-raised); }
 	.accordion-trigger { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 0.2rem 0; border: 0; background: transparent; color: var(--editor-text-primary); font: inherit; font-size: 0.75rem; cursor: pointer; }
 	.accordion-trigger span { color: var(--editor-accent); font-size: 1rem; }

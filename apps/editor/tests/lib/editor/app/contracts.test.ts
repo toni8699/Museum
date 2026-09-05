@@ -511,6 +511,15 @@ describe('P21.1 shared shell', () => {
 		expect(row).not.toContain('cloudError) projectMenuOpen = true');
 	});
 
+	it('derives shell row bands from the theme-aware surface ramp (never hard hexes)', () => {
+		// Porcelain-atelier regression: hardcoded dark-navy rows stayed dark
+		// while the light theme went porcelain. Rows must resolve through
+		// themed surfaces so every theme stays consistent by construction.
+		const css = readLibSource('editor/styles/tokens.css');
+		expect(css).toContain('--editor-bg-row-1: var(--editor-bg-app)');
+		expect(css).toContain('--editor-bg-row-2: var(--editor-bg-panel-raised)');
+	});
+
 	it('leads Scene Plan Zone B with the Layout|Arrange switch', () => {
 		const ribbon = readLibSource('editor/app/WorkspaceRibbon.svelte');
 		expect(ribbon).toContain('showPlanModeToggle onPlanModeChange={choosePlanMode}');

@@ -501,14 +501,18 @@
 	--editor-orientation-border: #283835;
 }
 
-/* P21 main shell; the frozen relic retains its existing dimensions. */
+/* P21 main shell; the frozen relic retains its existing dimensions.
+   Row bands derive from the theme-aware surface ramp (never hard hexes),
+   so every theme — including the light porcelain-atelier — stays
+   consistent by construction. Navy resolves identically to the specced
+   dark-navy bands (bg-app #071019 / bg-panel-raised #0d1925). */
 .project-editor {
 	--editor-project-row-height: 36px;
 	--editor-ribbon-height: 32px;
 	--editor-appbar-height: 36px;
 	--editor-status-height: 24px;
-	--editor-bg-row-1: #071019;
-	--editor-bg-row-2: #0d1925;
+	--editor-bg-row-1: var(--editor-bg-app);
+	--editor-bg-row-2: var(--editor-bg-panel-raised);
 	--editor-control-active-bg: var(--editor-bg-control);
 	--editor-control-active-fg: var(--editor-accent);
 }

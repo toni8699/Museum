@@ -1,7 +1,7 @@
 # Editor themes
 
 **Read when:** theme switching, `data-theme`, token theming rules, adding a new theme.  
-**Last reviewed:** 2026-09-04 (seven themes incl. the first LIGHT identity; chromatic role inks ratified theme-aware as full `light-dark()` pairs)
+**Last reviewed:** 2026-09-05 (P21.1 shell rows rewired to theme-aware surfaces — porcelain-atelier light breakage fixed and verified live; row-band derivation rule ratified below)
 
 ---
 
@@ -57,14 +57,14 @@ light QA starts.
 
 The theme **wiring** is complete: a registry-driven `data-theme` attribute
 on `<html>`, a pre-hydration boot script (no flash), localStorage
-persistence, and a theme menu in the app bar that lists `THEMES` and checks
+persistence, and a theme menu in Row 1 that lists `THEMES` and checks
 the active theme.
 
 ```text
 theme.svelte.ts          → THEMES registry + controller (state, apply, persist)
 app.html                 → pre-hydration boot script (marker-synced allowlist)
 styles/tokens.css        → :root = navy-blue base; [data-theme='<id>'] overrides
-app/EditorAppBar.svelte  → theme menu (lists THEMES automatically)
+app/ProjectRow.svelte    → Row 1 theme menu (lists THEMES automatically)
 EditorApp / MuseumEditorApp → initTheme() on mount
 tests/lib/editor/theme.test.ts           → registry/controller behavior
 tests/lib/editor/theme-registry.test.ts  → app.html allowlist ↔ registry sync pin
@@ -72,12 +72,11 @@ tests/lib/editor/theme-registry.test.ts  → app.html allowlist ↔ registry syn
 
 Source: [`editor/theme.svelte.ts`](../../apps/editor/src/lib/editor/theme.svelte.ts).
 
-**P21+ target placement** (Design-Plan §C.1): the picker moves to Row 1
+**P21 shell placement** (landed P21.1): the picker sits in Row 1
 far-right as a palette icon immediately before Account Profile —
 `[↺ ↻] [▶ Preview] [Theme] [Avatar]`. Theme is a global presentation
 preference, not a project document action, so it never enters the
-persistence cluster or the Workspace Ribbon; today it lives in the pre-P21
-app bar actions.
+persistence cluster or the Workspace Ribbon.
 
 ## How it works
 
@@ -162,8 +161,15 @@ edge-solid / face-hover/pressed)
   --editor-viewport-grid-major/-minor (calibration-grid ink); resolved into
   the reactive `viewportPalette` in theme.svelte.ts (Three.js materials
   cannot read CSS variables)
-future P21 row-1/row-2 shell bands (--editor-bg-row-1 / --editor-bg-row-2,
-proposed in Design-Plan §C.3) are chrome by rule — theme-aware when they land
+P21 shell bands (--editor-bg-row-1 / --editor-bg-row-2, landed P21.1)
+are chrome by rule — they derive from the surface ramp via
+`var(--editor-bg-app)` / `var(--editor-bg-panel-raised)`, never hard
+hexes (a hardcoded dark-navy pair broke porcelain-atelier on landing;
+fixed 2026-09-05 and verified live). Navy resolves identically to the
+specced dark-navy bands. A theme that wants distinct row bands may add
+an additive override; the default follows the ramp. The derivation is
+pinned by the P21.1 shell contract test (`contracts.test.ts` —
+"derives shell row bands from the theme-aware surface ramp")
 ```
 
 The orientation box is a pure-CSS DOM widget (`EditorOrientationGizmo.svelte`
@@ -231,7 +237,7 @@ theme is deliberately additive; the CI pin makes the three steps safe:
 
 1. **Registry entry** — add the id + label to `THEMES` in
    `editor/theme.svelte.ts` (e.g. `'porcelain': { label: 'Porcelain',
-   colorScheme: 'light' }`). The app-bar menu lists it automatically.
+   colorScheme: 'light' }`). The Row 1 menu lists it automatically.
 2. **CSS override block** — append `:root[data-theme='<id>'] { … }` at the
    end of `styles/tokens.css`, overriding **only theme-aware tokens** (chrome
    surfaces/borders + the chrome accent family incl. timeline path/playhead +

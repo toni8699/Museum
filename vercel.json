@@ -1,5 +1,5 @@
 {
   "framework": "sveltekit",
-  "buildCommand": "npm run build -w @portfolio/editor && node scripts/inject-vercel-api-proxy.mjs",
+  "buildCommand": "npm run build -w @portfolio/editor && node apps/editor/scripts/inject-vercel-api-proxy.mjs",
   "outputDirectory": "apps/editor/.vercel/output"
 }

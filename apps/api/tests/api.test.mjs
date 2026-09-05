@@ -517,6 +517,7 @@ test('callback validates the session-bound state and forwards PKCE plus nonce', 
 
 test('tampered state, rejected PKCE/token, and invalid identity never create a session', async () => {
 	let exchangeCalls = 0;
+	const logs = [];
 	const app = createApp({
 		pool: stubPool(),
 		apiOrigin: 'https://api.example.test',
@@ -531,7 +532,7 @@ test('tampered state, rejected PKCE/token, and invalid identity never create a s
 				throw new Error('token exchange rejected');
 			}
 		},
-		logger: false
+		logger: { level: 'warn', stream: { write: (line) => logs.push(JSON.parse(line)) } }
 	});
 	try {
 		const login = await app.inject({ method: 'GET', url: '/auth/login' });
@@ -556,6 +557,11 @@ test('tampered state, rejected PKCE/token, and invalid identity never create a s
 		assert.equal(rejected.statusCode, 302);
 		assert.equal(rejected.headers.location, 'https://editor.example.test/?auth=failed&intent=projects');
 		assert.equal(exchangeCalls, 1);
+		assert.equal(
+			logs.some((entry) => entry.msg === 'OIDC callback failed' && entry.auth?.reason === 'exchange_failed' && entry.auth?.error?.name === 'Error'),
+			true
+		);
+		assert.equal(JSON.stringify(logs).includes('token exchange rejected'), false);
 		const rejectedMe = await app.inject({ method: 'GET', url: '/auth/me', headers: { cookie: cookieFrom(rejected) } });
 		assert.deepEqual(rejectedMe.json(), { authenticated: false });
 		assert.equal(rejected.body.includes('token exchange'), false);

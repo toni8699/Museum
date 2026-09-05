@@ -20,6 +20,10 @@ slice plus one next action only.
   sites pass `'a.'`, the INSERT stays unqualified.** The smoke exposed Postgres
   `42702` (ambiguous `RETURNING` — no upload could reach `ready`); the stubbed
   API suite never caught it. `check:api` + `test:api` (23 passed) green after.
+- Auth diagnostics delta (uncommitted): `apps/api/src/app.ts` now logs bounded
+  OIDC login/callback stages and session presence without OAuth values, tokens,
+  cookie contents, or user IDs; the API suite checks exchange errors stay
+  redacted. This exposes the documented cross-site Vercel → Render cookie trap.
 - Smoke residue (local only, not shipped state): `project:smoke-p20s1` v11 +
   ~20 asset rows in local Postgres + test objects in the `biskiq-assets-test`
   R2 bucket. No production secret, migration, or live deployment was touched.

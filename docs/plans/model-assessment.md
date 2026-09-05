@@ -65,6 +65,16 @@ success percentages.
 | **P20.S2** | 72 | Sol medium | shipped 2026-09-04, unregistered — new cloud-file ingest + Spatial acceptance reuse existing placement/selection/history; built-ins stay catalogue-only; verified by local live browser smoke vs real R2 |
 | **P20.S3** | 76 | Sol high | shipped 2026-09-04, unregistered — explicit local/package texture conversion + readiness-aware Save blocker + portable export; failure matrix pins upload/mutation/Save retries; verified by local live browser smoke vs real R2 |
 | **P20.S4** | 64 | Sol medium | shipped 2026-09-04, unregistered — pre-replacement Load hydration through the existing binary cache/renderer + round-trip smoke; bounded implementation, verification-heavy (refresh/Load/render fidelity); verified by local live browser smoke vs real R2 |
+| **P21.1** | 40 | DeepSeek V4 Flash (Luna high) | proposed — shell tokens/primitives (36/32/24 chrome, 28px Row2 controls, dark-navy bands, `#2F8CFF` accent, dark-segmented active); fully specified, bounded CSS-only breadth, no behavior change |
+| **P21.2** | 65 | Sol medium | proposed — Row 1 re-host (identity/persistence cluster/history/Preview/theme/avatar, Spatial-only nav); moderate cross-store wiring (dirty/save/auth/history selectors) with save/auth consequence, no new state |
+| **P21.3** | 72 | Sol medium | proposed — Row 2 host + 3-toolbar decomposition (ZoneA/B/C, floating wrappers deleted); must preserve §16 capability matrix and mode/tool authority; highest re-host risk before preview |
+| **P21.4** | 62 | Sol medium | proposed — Scene Plan reconciliation (ghost + primer + hierarchy + openings + status); presentation-only but must preserve X/Z/yaw authority, Y preservation, single tagged entry, no cross-owner selection |
+| **P21.5** | 52 | DeepSeek V4 Flash (Luna max) | proposed — Scene 3D density pass (ribbon + Inspector + status); viewport/gizmo/cube pipeline untouched; bounded CSS/props breadth |
+| **P21.6** | 70 | Sol medium | proposed — Camera Plan + Timeline density (sidebar/Inspector/footprints/undirected edges/per-direction timing + P12 Timeline verbatim); must preserve topology, timing, Y rule, Camera-only Timeline, shared selection |
+| **P21.7** | 66 | Sol medium | proposed — Camera 3D reconciliation (Observer/POV ribbon, FOV/LookAt/Roll Inspector, restrained overlays); same sidebar/timeline/selection as P21.6; full XYZ authority preserved |
+| **P21.8** | 82 | Sol high | proposed — Visitor Preview takeover (`/project/:id/preview`, transient snapshot, exact restore, visitor-safe isolation); new route + coordinator, highest ambiguity (snapshot source, viewport reuse) and consequence (isolation/restore); needs slice brief before code |
+| **P21.9** | 48 | DeepSeek V4 Flash (Luna xhigh) | proposed — Hub strict baseline (no Recent shelf, guest callout, one-click New) + entry/OAuth intent integrity; bounded route/auth breadth |
+| **P21.10** | 60 | Sol medium | proposed — visual/a11y regression pass vs 6 PNGs (reduced-motion/keyboard/contrast) + full-suite green; verification-heavy, no behavior changes |
 
 All shipped rows (P1.6–P3.3, P3B.1–P3B.6, P7.1–P7.6, P8.S1–S6, P11.1–P11.5,
 P12.S1–S4) were scrubbed 2026-08-27 — shipped work is not re-assessed here.

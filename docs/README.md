@@ -1,6 +1,6 @@
 # Museum docs — context router
 
-**Audience:** agents + humans. **Last reviewed:** 2026-09-04 (P20 shipped — local live smoke vs real R2 passed; P21 filing is next; P3B.7b remains deferred; north star holds product vision).
+**Audience:** agents + humans. **Last reviewed:** 2026-09-05 (P21 in progress — P21.1–P21.4 complete, P21.5 pending; docs pruned: tracker recent-5, model-assessment P20-onward, archive README fixed).
 **Bootstrap (hard rules):** [`../AGENTS.md`](../AGENTS.md) ·
 **Plan status / what's next:** [`plans/README.md`](./plans/README.md) (tracker) ·
 **Live working-tree state:** [`hand-off/CURRENT.md`](./hand-off/CURRENT.md) ·
@@ -37,7 +37,7 @@ conflicts — never "resolve" a product question by doc order.
 | Work on a surface | relevant `components/<surface>.md` (`CURRENT.md` only if it touches current work) |
 | Architecture / ownership question | [`architecture.md`](./architecture.md) → relevant component |
 | Product / design question | [`north-star.md`](./north-star.md) → relevant component |
-| UI / shell / workspace spec | [`Design-specs/Design-specs.md`](./Design-specs/Design-specs.md) (visual) · [`Design-specs/Design-shell-specs.md`](./Design-specs/Design-shell-specs.md) (global/cross-domain) · [`Shell-scene-workspaces.md`](./Design-specs/Shell-scene-workspaces.md) · [`Shell-camera-workspaces.md`](./Design-specs/Shell-camera-workspaces.md) (per-domain §6–§13) |
+| UI / shell / workspace spec | [`Design-specs/Design-specs.md`](./Design-specs/Design-specs.md) (visual) · [`Design-specs/Design-shell-specs.md`](./Design-specs/Design-shell-specs.md) (global/cross-domain) · [`Shell-scene-workspaces.md`](./Design-specs/Shell-scene-workspaces.md) · [`Shell-camera-workspaces.md`](./Design-specs/Shell-camera-workspaces.md) (per-domain §6–§13) · [`Designer-brieft-box.md`](./Design-specs/Designer-brieft-box.md) + [`Orientation-box-render-brief.md`](./Design-specs/Orientation-box-render-brief.md) (orientation widget) |
 | Historical question | [`archive/`](./archive/) (opt-in; nothing here is current truth) |
 
 ## Folder map
@@ -81,6 +81,7 @@ or migrated. Persistence is portable export/import only.
 | Persistence / schema / history | [`components/persistence.md`](./components/persistence.md) | `packages/project-model/src/` · `packages/layout-core/src/` · app facades |
 | Scene codec internals | [`components/scene-codec.md`](./components/scene-codec.md) | `packages/project-model/src/scene-codec/` · app facade |
 | Assets / catalogue | [`components/assets.md`](./components/assets.md) | app-local `src/lib/content/assets.ts` |
+| Themes | [`components/theme.md`](./components/theme.md) | `theme.svelte.ts` + `styles/tokens.css` |
 | Tests | [`../apps/editor/tests/README.md`](../apps/editor/tests/README.md) | |
 
 ## Meta — how to write the hand-off and the next plan

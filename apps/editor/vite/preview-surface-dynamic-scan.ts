@@ -12,6 +12,12 @@
  *
  * Deliberately a manual character scan, not a regex source parser: it never
  * resolves specifiers, only flags non-literal `import(` operators.
+ *
+ * Known limitation: regex literals are not masked (a `/` opener is ambiguous
+ * with division without full lexing), so an `import(` sequence inside a regex
+ * literal would false-positive. No such pattern exists in the visitor closure
+ * today — the build passing proves it — and any future hit fails closed with
+ * an explicit diagnostic naming the module.
  */
 
 function isIdentifierChar(char: string): boolean {

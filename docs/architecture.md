@@ -105,6 +105,7 @@ are never serialized.
 | Persistence / schema / history | [`components/persistence.md`](./components/persistence.md) | `packages/project-model/src/` · `packages/layout-core/src/` · app facades |
 | Scene codec internals | [`components/scene-codec.md`](./components/scene-codec.md) | `packages/project-model/src/scene-codec/` · app facade |
 | Assets / catalogue / project asset registry | [`components/assets.md`](./components/assets.md) | app-local `src/lib/content/assets.ts` · editor registry UI/persistence (`EditorAssetLibrary.svelte` · `project-persistence.ts`) |
+| Themes / tokens | [`components/theme.md`](./components/theme.md) | `theme.svelte.ts` + `styles/tokens.css` |
 
 **Shell source index**
 

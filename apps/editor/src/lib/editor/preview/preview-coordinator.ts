@@ -155,21 +155,35 @@ export function composeDetachedPreviewBundle(input: {
 
 	const bytesByUri = new Map<string, { bytes: Uint8Array; mime: string }>();
 	const urlsByUri = new Map<string, string>();
-	for (const texture of validation.project.scene.textures) {
-		const uri = texture.uri;
-		if (!requiresRetainedBytes(uri)) continue;
-		const entry = textureStore.getEntry(uri);
-		if (!entry || entry.bytes.byteLength === 0) {
-			throw new Error(`Texture “${texture.name}” is not available for preview`);
+	try {
+		for (const texture of validation.project.scene.textures) {
+			const uri = texture.uri;
+			if (!requiresRetainedBytes(uri)) continue;
+			const entry = textureStore.getEntry(uri);
+			if (!entry || entry.bytes.byteLength === 0) {
+				throw new Error(`Texture “${texture.name}” is not available for preview`);
+			}
+			const bytes = entry.bytes.slice();
+			bytesByUri.set(uri, { bytes, mime: entry.mime });
+			try {
+				const blob = new Blob([bytes.slice()], { type: entry.mime });
+				urlsByUri.set(uri, URL.createObjectURL(blob));
+			} catch {
+				throw new Error(`Texture “${texture.name}” is not available for preview`);
+			}
 		}
-		const bytes = entry.bytes.slice();
-		bytesByUri.set(uri, { bytes, mime: entry.mime });
-		try {
-			const blob = new Blob([bytes.slice()], { type: entry.mime });
-			urlsByUri.set(uri, URL.createObjectURL(blob));
-		} catch {
-			throw new Error(`Texture “${texture.name}” is not available for preview`);
+	} catch (error) {
+		// The entry gate pre-verifies availability, so this is race-only; still,
+		// never leak partially created snapshot URLs on the way out.
+		for (const url of urlsByUri.values()) {
+			try {
+				URL.revokeObjectURL(url);
+			} catch {
+				// Best effort.
+			}
 		}
+		urlsByUri.clear();
+		throw error;
 	}
 
 	const resolveTexture = (uri: string): string | null => {

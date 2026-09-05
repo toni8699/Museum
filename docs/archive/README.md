@@ -6,9 +6,15 @@ Historical plans, handoffs, specs, and deep guides. **Not active implementation 
 
 | Doc | Role |
 |-----|------|
-| [`../README.md`](../README.md) | Architecture + component contracts |
-| [`../hand-off/CURRENT.md`](../hand-off/CURRENT.md) | Live slice |
-| [`../plans/2026-08-10-layout-cad-foundation.md`](../plans/2026-08-10-layout-cad-foundation.md) | Active P0 (design + plan merged) |
+| [`../README.md`](../README.md) | Context router (navigation, rules, meta) |
+| [`../plans/README.md`](../plans/README.md) | Plan tracker (status, order — authoritative) |
+| [`../hand-off/CURRENT.md`](../hand-off/CURRENT.md) | Live working-tree delta |
+| [`../north-star.md`](../north-star.md) | Product vision |
+| [`../architecture.md`](../architecture.md) | Ownership / boundaries |
+
+If archive conflicts with live tree, **live tree wins**. Pre-2026-09-05
+versions of this table (which named a "P0" plan and a README layout from
+2026-08-10) are obsolete.
 
 If archive conflicts with live tree, **live tree wins**.
 

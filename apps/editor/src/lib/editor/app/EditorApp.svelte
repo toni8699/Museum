@@ -1552,8 +1552,27 @@
 			store.setStatusMessage(blocker);
 			return null;
 		}
-		// Capture return state before any viewport teardown. Validation passed;
-		// compose the detached bundle (live Scene, never the stale layout copy).
+		// Compose the detached bundle FIRST, before any session mutation: every
+		// step below (return capture, menu close, transport pause, loader
+		// install) mutates live state, so a composition failure must leave the
+		// session strictly untouched — no pause/replay churn, menu stays open.
+		let bundle: DetachedPreviewBundle;
+		try {
+			bundle = composeDetachedPreviewBundle({
+				scene: store.document,
+				layout: layoutPreview.project.layout,
+				projectId: projectId ?? initialProjectId,
+				projectName,
+				textureStore: BinaryTextureStore
+			});
+		} catch (error) {
+			const reason = error instanceof Error ? error.message : 'Could not prepare preview';
+			previewError = reason;
+			store.setStatusMessage(reason);
+			return null;
+		}
+		// Capture return state before any viewport teardown (live Scene already
+		// snapshotted above; never the layout state's stale Scene copy).
 		const captured = capturePreviewReturn();
 		// P21.4 review — logical focus target: the focused node unmounts with
 		// the authoring subtree, so record its role for post-tick resolution.
@@ -1578,30 +1597,9 @@
 			try {
 				store.pauseCameraPreview();
 			} catch {
-				// Remain spatial on pause failure.
+				// Pause reports a boolean; a refusal simply leaves transport
+				// playing and frozen by the Rig unmount instead.
 			}
-		}
-		let bundle: DetachedPreviewBundle;
-		try {
-			bundle = composeDetachedPreviewBundle({
-				scene: store.document,
-				layout: layoutPreview.project.layout,
-				projectId: projectId ?? initialProjectId,
-				projectName,
-				textureStore: BinaryTextureStore
-			});
-		} catch (error) {
-			const reason = error instanceof Error ? error.message : 'Could not prepare preview';
-			previewError = reason;
-			store.setStatusMessage(reason);
-			if (captured.wasPlayingPreview) {
-				try {
-					store.playCameraPreview();
-				} catch {
-					// Best effort resume.
-				}
-			}
-			return null;
 		}
 		previewReturn = captured;
 		returnFocusKey = focusKey;
@@ -1751,6 +1749,9 @@
 
 	async function requestPreviewExit(): Promise<void> {
 		// Host-owned: request the Spatial route; the reconciler restores.
+		// Overlap guard: an Escape inside the entry window is ignored so the
+		// in-flight entry completes instead of racing the exit reconciler.
+		if (previewTransitioning) return;
 		await goto(previewSpatialUrl(), { replaceState: true });
 	}
 

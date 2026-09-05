@@ -83,11 +83,8 @@ slice plus one next action only.
   `cameraPlan` and `layoutInteraction`; static checking is clean.
 - A browser axe audit still reports generic editor color-contrast review items
   in empty/status text and SVG labels; these are outside the closed P3B gate.
-- P19 shipped 2026-09-03: owner-approved Google OAuth configuration,
-  Render/Neon provisioning, and the real authenticated persistence smoke are
-  complete.
-- P20 shipped 2026-09-04 on the local stack; the deployed Render/Neon-topology
-  smoke is deferred to the publish tier or an owner-scheduled pass.
+- Deployed Render/Neon-topology smoke is deferred to the publish tier or an
+  owner-scheduled pass (local P19/P20 smokes passed 2026-09-03/04).
 
 ## Traps
 

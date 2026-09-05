@@ -1,17 +1,24 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import {
 	applyTheme,
 	DEFAULT_THEME,
 	initTheme,
 	readStoredTheme,
+	refreshViewportPalette,
 	setTheme,
 	THEME_IDS,
 	THEMES,
 	THEME_STORAGE_KEY,
 	themeState,
+	viewportPalette,
 	type ThemeDocTarget
 } from '$lib/editor/theme.svelte';
+
+const TOKENS_CSS = fileURLToPath(new URL('../../../src/lib/editor/styles/tokens.css', import.meta.url));
 
 function fakeDoc(): ThemeDocTarget {
 	return { documentElement: { dataset: {} } };
@@ -115,5 +122,27 @@ describe('editor theme registry + controller', () => {
 	it('applies state without a document (SSR-safe)', () => {
 		expect(() => applyTheme('navy-blue')).not.toThrow();
 		expect(themeState.current).toBe('navy-blue');
+	});
+
+	describe('3D viewport canvas palette', () => {
+		it('mirrors the navy :root defaults from tokens.css (first declaration)', () => {
+			const css = fs.readFileSync(TOKENS_CSS, 'utf8');
+			expect(viewportPalette).toEqual({
+				background: '#071019',
+				gridMajor: '#8d753c',
+				gridMinor: '#37342d'
+			});
+			// The :root declarations are the light-dark() pairs the palette
+			// resolves; keep the token names and navy members pinned.
+			expect(css).toMatch(/--editor-bg-viewport:\s*light-dark\(#ddd7ce,\s*#071019\);/i);
+			expect(css).toMatch(/--editor-viewport-grid-major:\s*light-dark\(#b1aca5,\s*#8d753c\);/i);
+			expect(css).toMatch(/--editor-viewport-grid-minor:\s*light-dark\(#cbc6be,\s*#37342d\);/i);
+		});
+
+		it('stays SSR-safe: refresh is a no-op without a document', () => {
+			expect(typeof document).toBe('undefined');
+			expect(() => refreshViewportPalette()).not.toThrow();
+			expect(viewportPalette.background).toBe('#071019');
+		});
 	});
 });

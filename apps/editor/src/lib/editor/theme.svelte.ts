@@ -18,8 +18,10 @@
  *    test; never override it per theme). Spatial selection keeps its
  *    brand-blue tokens in every theme.
  *  - Chrome surfaces/borders, the chrome accent family (--editor-accent*,
- *    incl. --editor-timeline-path/-playhead), and viewport utility widgets
- *    (orientation box) are theme-aware. The BASE text ramp is declared once
+ *    incl. --editor-timeline-path/-playhead), the 3D viewport canvas
+ *    (--editor-bg-viewport, resolved into `viewportPalette` below since
+ *    Three.js materials cannot read CSS variables), and viewport utility
+ *    widgets (orientation box) are theme-aware. The BASE text ramp is declared once
  *    at :root as light-dark() pairs (navy default wiring) and follows
  *    `color-scheme` — theme blocks never override it; a future light theme
  *    flips color-scheme and base text flips to dark ink. Chromatic role inks
@@ -84,11 +86,64 @@ export function readStoredTheme(storage?: Pick<Storage, 'getItem'>): ThemeId {
 	}
 }
 
-/** Apply a theme id: sync state and set `data-theme` on <html> (SSR-safe). */
+/**
+ * Resolved 3D viewport canvas palette. Three.js materials cannot read CSS
+ * custom properties, so the scene clear color and calibration-grid colors
+ * are resolved from tokens.css into this reactive state. The defaults below
+ * mirror the `:root` (navy) declarations; per-theme blocks override
+ * `--editor-bg-viewport`, and `light-dark()` members resolve through the
+ * document's active `color-scheme`. Editor viewports (Workspace3DView,
+ * EditorGrid) read this state, so a theme switch repaints the canvas.
+ */
+export const viewportPalette = $state({
+	background: '#071019',
+	gridMajor: '#8d753c',
+	gridMinor: '#37342d'
+});
+
+const VIEWPORT_TOKEN_BY_KEY: Record<keyof typeof viewportPalette, string> = {
+	background: '--editor-bg-viewport',
+	gridMajor: '--editor-viewport-grid-major',
+	gridMinor: '--editor-viewport-grid-minor'
+};
+
+/**
+ * Resolve a color token to its USED color (light-dark() members, rgba)
+ * through a probe element inheriting the document's `color-scheme`.
+ * Returns the fallback when the token is unset or the DOM is unavailable;
+ * never throws. The resolved "rgb(r, g, b)" string feeds three.js directly.
+ */
+function resolveTokenColor(token: string, fallback: string): string {
+	if (typeof document === 'undefined') return fallback;
+	try {
+		const root = document.documentElement;
+		if (!getComputedStyle(root).getPropertyValue(token).trim()) return fallback;
+		const probe = document.createElement('div');
+		probe.style.color = `var(${token})`;
+		root.appendChild(probe);
+		const resolved = getComputedStyle(probe).color;
+		probe.remove();
+		return resolved && resolved !== 'transparent' ? resolved : fallback;
+	} catch {
+		return fallback;
+	}
+}
+
+/** Re-resolve the 3D canvas palette from the live tokens (no-op SSR/tests). */
+export function refreshViewportPalette(): void {
+	if (typeof document === 'undefined') return;
+	for (const key of Object.keys(viewportPalette) as Array<keyof typeof viewportPalette>) {
+		viewportPalette[key] = resolveTokenColor(VIEWPORT_TOKEN_BY_KEY[key], viewportPalette[key]);
+	}
+}
+
+/** Apply a theme id: sync state, set `data-theme` on <html>, re-resolve the
+ * 3D canvas palette (SSR-safe). */
 export function applyTheme(id: ThemeId, doc?: ThemeDocTarget | null): void {
 	themeState.current = id;
 	const target = doc ?? getDocument();
 	if (target) target.documentElement.dataset.theme = id;
+	refreshViewportPalette();
 }
 
 /** Boot-time init: read the persisted theme, validate, apply. Returns the active id. */

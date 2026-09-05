@@ -11,8 +11,9 @@
 	import EditorCameraRig from '$lib/editor/camera/EditorCameraRig.svelte';
 	import EditorOrientationGizmo from '$lib/editor/EditorOrientationGizmo.svelte';
 	import EditorOrientationGizmoProjector from '$lib/editor/EditorOrientationGizmoProjector.svelte';
-	import EditorGrid from '$lib/editor/EditorGrid.svelte';
-	import EditorCameraLabelProjector from '$lib/editor/camera/EditorCameraLabelProjector.svelte';
+import EditorGrid from '$lib/editor/EditorGrid.svelte';
+import { viewportPalette } from '$lib/editor/theme.svelte';
+import EditorCameraLabelProjector from '$lib/editor/camera/EditorCameraLabelProjector.svelte';
 	import EditorCameraLabelsOverlay from '$lib/editor/camera/EditorCameraLabelsOverlay.svelte';
 	import { buildCameraNodeLabelKinds } from '$lib/editor/camera/editor-camera-labels';
 	import EditorViewportGridControls from '$lib/editor/EditorViewportGridControls.svelte';
@@ -404,6 +405,7 @@
 			fogFar={store.fogFar}
 			forceParisAssets
 			showArchitecture={false}
+			background={viewportPalette.background}
 		>
 			{#snippet camera(graph, _state)}
 				<EditorCameraRig

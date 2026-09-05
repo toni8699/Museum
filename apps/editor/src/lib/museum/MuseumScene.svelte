@@ -56,7 +56,8 @@
     fogNear = 22,
     fogFar = 54,
     forceParisAssets = false,
-    showArchitecture = true
+    showArchitecture = true,
+    background = 0x050508
   }: {
     runtime?: Runtime;
     scene?: RuntimeScene;
@@ -82,6 +83,10 @@
     forceParisAssets?: boolean;
     /** Editor layout mode can keep the shared camera while hiding scene geometry. */
     showArchitecture?: boolean;
+    /** Scene clear color — the editor passes its theme viewport-canvas token
+     * (fog matches so geometry fades into the canvas). Visitor default stays
+     * the legacy near-black. */
+    background?: number | string;
   } = $props();
 
   const bespokeRoomIds = $derived(
@@ -105,9 +110,9 @@
   <CameraDirector {graph} {state} />
 {/if}
 
-<T.Color attach="background" args={[0x050508]} />
+<T.Color attach="background" args={[background]} />
 {#if fogEnabled}
-  <T.Fog attach="fog" args={[0x050508, fogNear, fogFar]} />
+  <T.Fog attach="fog" args={[background, fogNear, fogFar]} />
 {/if}
 <T.AmbientLight intensity={ambientIntensity} />
 <T.DirectionalLight position={[2, 8, 5]} color="#c9d1df" intensity={directionalIntensity} />

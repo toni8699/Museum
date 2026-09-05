@@ -158,6 +158,10 @@ status soft + border variants, --editor-danger-fg
 shadows / elevation, color-scheme
 orientation widget (surface / hover / border / label / face lit/mid/shadow /
 edge-solid / face-hover/pressed)
+3D viewport canvas — --editor-bg-viewport (scene clear color) +
+  --editor-viewport-grid-major/-minor (calibration-grid ink); resolved into
+  the reactive `viewportPalette` in theme.svelte.ts (Three.js materials
+  cannot read CSS variables)
 future P21 row-1/row-2 shell bands (--editor-bg-row-1 / --editor-bg-row-2,
 proposed in Design-Plan §C.3) are chrome by rule — theme-aware when they land
 ```
@@ -165,6 +169,22 @@ proposed in Design-Plan §C.3) are chrome by rule — theme-aware when they land
 The orientation box is a pure-CSS DOM widget (`EditorOrientationGizmo.svelte`
 reads CSS variables only), so it themes for free — it is not part of the
 Three.js palette and not covered by the scene-palette contract.
+
+The **3D viewport canvas** (the Three.js scene clear color) is declared once
+at `:root` as a `light-dark()` pair — warm architectural studio gray
+`#DDD7CE` (~78% luminance, Rhino/SketchUp-style, harmonizing with Plan
+paper `#F5F3EE`) on light schemes, deep obsidian `#071019` on dark — and is
+**never pure black or pure white** (scene geometry and specular highlights
+vanish into either). Dark themes override the dark member with their own
+subtle chassis tone (e.g. smoked teak for `velvet-kodachrome`, midnight
+indigo for `synth-sunset`); `porcelain-atelier` pins `#DDD7CE` explicitly.
+Calibration-grid ink follows the same mechanism (brand brass on dark
+chrome, translucent graphite on light) via
+`--editor-viewport-grid-major/-minor`. `theme.svelte.ts` resolves these
+tokens into the reactive `viewportPalette` state (`background`/`gridMajor`/
+`gridMinor`, navy fallbacks) on every `applyTheme()` — `Workspace3DView`
+passes it to `MuseumScene` (`T.Color` + `T.Fog`, so fog fades geometry into
+the canvas) and `EditorGrid` rebuilds the `GridHelper` when it changes.
 
 **Text has two layers.** The **base ramp** — `--editor-text-primary /
 -secondary / -muted / -disabled` — is declared **once** at `:root` (navy is
@@ -215,7 +235,8 @@ theme is deliberately additive; the CI pin makes the three steps safe:
 2. **CSS override block** — append `:root[data-theme='<id>'] { … }` at the
    end of `styles/tokens.css`, overriding **only theme-aware tokens** (chrome
    surfaces/borders + the chrome accent family incl. timeline path/playhead +
-   orientation widget). Set `color-scheme: dark` (light-on-dark text via the
+   the 3D viewport canvas `--editor-bg-viewport` + orientation widget). Set
+   `color-scheme: dark` (light-on-dark text via the
    centralized `light-dark()` ramp) — or, for a future light theme,
    `color-scheme: light` + light chrome surfaces, and base text flips to
    dark ink automatically. Never override the base `--editor-text-*` ramp or

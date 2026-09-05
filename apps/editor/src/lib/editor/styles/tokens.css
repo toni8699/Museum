@@ -16,7 +16,8 @@
  * this file, overriding only theme-aware tokens: chrome surfaces/borders,
  * the chrome accent family (`--editor-accent*` — the interactive
  * accent of chrome controls, incl. `--editor-timeline-path/-playhead`),
- * shadows/status/`color-scheme` + the orientation widget. The BASE text
+ * shadows/status/`color-scheme`, the 3D viewport canvas
+ * (`--editor-bg-viewport`) + the orientation widget. The BASE text
  * ramp is declared once at `:root` as light-dark() pairs wired to the navy
  * default and is never overridden per theme; `color-scheme` selects the
  * member (all shipped themes are `dark`; a future light theme sets `light`
@@ -154,6 +155,20 @@
 	--editor-plan-selection: #2f8cff;
 	--editor-plan-readonly: #92908a;
 
+	/* ── DS §8 — 3D viewport canvas ──
+   The Three.js scene clear color and calibration grid. The canvas is
+   never pure black or pure white (geometry/highlights vanish into either);
+   the light member is the calibrated warm architectural studio gray
+   (#DDD7CE, ~78% luminance — Rhino/SketchUp-style) that harmonizes with
+   Plan paper #F5F3EE, and the dark member is deep obsidian rather than
+   pitch black. Three.js materials cannot read CSS variables, so
+   theme.svelte.ts resolves these tokens into the reactive `viewportPalette`
+   (navy fallbacks mirrored there). Grid lines are brand brass on dark
+   chrome and translucent graphite on light chrome (~8–20% black ink). */
+	--editor-bg-viewport: light-dark(#ddd7ce, #071019);
+	--editor-viewport-grid-major: light-dark(#b1aca5, #8d753c);
+	--editor-viewport-grid-minor: light-dark(#cbc6be, #37342d);
+
 	/* ── DS §11 — timeline lane colors (inside data viz only) ──
    path/playhead follow the chrome accent family (theme-aware); the lane
    parameter colors below are invariant data-viz identity. */
@@ -210,8 +225,9 @@
    Themes are additive `:root[data-theme='<id>']` blocks appended at the end
    of this file. Only theme-aware tokens may be overridden — chrome
    surfaces/borders + the chrome accent family (incl. timeline path/
-   playhead) + the orientation widget (surface/hover/border/label) +
-   `color-scheme`. The BASE text ramp is centralized at `:root` as
+   playhead) + the 3D viewport canvas (`--editor-bg-viewport`) + the
+   orientation widget (surface/hover/border/label) + `color-scheme`. The
+   BASE text ramp is centralized at `:root` as
    light-dark() pairs (navy default wiring) and must NOT be overridden — a
    theme flips `color-scheme` only (dark today; a future light theme sets
    `light` and text auto-flips to dark ink). The chromatic role inks
@@ -236,6 +252,9 @@
 	--editor-bg-control: #1f1714;
 	--editor-bg-hover: #291f1a;
 	--editor-bg-selected: #3d2a1e;
+
+	/* 3D viewport canvas: smoked-umber studio dark (never pitch black). */
+	--editor-bg-viewport: #100c08;
 
 	--editor-border-subtle: #241b16;
 	--editor-border-normal: #332720;
@@ -274,6 +293,9 @@
 	--editor-bg-hover: #2c1b4a;
 	--editor-bg-selected: #3b1a66;
 
+	/* 3D viewport canvas: violet-black studio dark. */
+	--editor-bg-viewport: #120c16;
+
 	--editor-border-subtle: #221437;
 	--editor-border-normal: #311e4e;
 	--editor-border-strong: #492b73;
@@ -311,6 +333,9 @@
 	--editor-bg-control: #1a2820;
 	--editor-bg-hover: #23352b;
 	--editor-bg-selected: #1e4330;
+
+	/* 3D viewport canvas: lichen-dark studio dark. */
+	--editor-bg-viewport: #0d120c;
 
 	--editor-border-subtle: #1a2920;
 	--editor-border-normal: #263d2f;
@@ -355,6 +380,10 @@
 	--editor-bg-control: #e4ddd2;
 	--editor-bg-hover: #dbd3c5;
 	--editor-bg-selected: #fbe9e4;
+
+	/* 3D viewport canvas: warm architectural studio gray (~78% luminance) —
+	   never pure white so white walls/plaster keep their silhouette. */
+	--editor-bg-viewport: #ddd7ce;
 
 	--editor-border-subtle: #ddd6cb;
 	--editor-border-normal: #c4bbb0;
@@ -402,6 +431,9 @@
 	--editor-bg-hover: #2b3552;
 	--editor-bg-selected: #3b2a35;
 
+	/* 3D viewport canvas: midnight-indigo studio dark (matches chassis). */
+	--editor-bg-viewport: #0b0f19;
+
 	--editor-border-subtle: #1c2337;
 	--editor-border-normal: #293450;
 	--editor-border-strong: #40507a;
@@ -440,6 +472,9 @@
 	--editor-bg-control: #2a2620;
 	--editor-bg-hover: #38332b;
 	--editor-bg-selected: #3b321f;
+
+	/* 3D viewport canvas: smoked-teak studio dark (matches chassis). */
+	--editor-bg-viewport: #12110e;
 
 	--editor-border-subtle: #1e2725;
 	--editor-border-normal: #283835;

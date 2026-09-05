@@ -6,6 +6,7 @@
 	import EditorCameraHelpers from './camera/EditorCameraHelpers.svelte';
 	import EditorCameraFramingHelpers from './camera/EditorCameraFramingHelpers.svelte';
 	import EditorGrid from './EditorGrid.svelte';
+	import { viewportPalette } from './theme.svelte';
 	import EditorCameraPathHelpers from './camera/EditorCameraPathHelpers.svelte';
 	import EditorCameraViewHelpers from './camera/EditorCameraViewHelpers.svelte';
 	import EditorCameraRig from './camera/EditorCameraRig.svelte';
@@ -189,6 +190,7 @@
 				fogFar={store.fogFar}
 				forceParisAssets
 				showArchitecture={false}
+				background={viewportPalette.background}
 			>
 				{#snippet camera(graph, _state)}
 					<EditorCameraRig
@@ -243,6 +245,7 @@
 				fogFar={store.fogFar}
 				forceParisAssets
 				showArchitecture
+				background={viewportPalette.background}
 			>
 				{#snippet camera(graph, _state)}
 					<EditorCameraRig

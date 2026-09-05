@@ -22,6 +22,8 @@
 		confirmSceneReplacement,
 		confirmLayoutReplacement,
 		relic = false,
+		elevated = false,
+		saveBlocker = null,
 		projectName = 'Untitled project',
 		projectIsDirty,
 		onProjectNameChange,
@@ -48,6 +50,8 @@
 		confirmSceneReplacement: () => boolean;
 		confirmLayoutReplacement: () => boolean;
 		relic?: boolean;
+		elevated?: boolean;
+		saveBlocker?: string | null;
 		projectName?: string;
 		projectIsDirty?: boolean;
 		onProjectNameChange?: (name: string) => void;
@@ -286,7 +290,8 @@
 		aria-haspopup="dialog"
 		aria-expanded={open}
 		onclick={() => (open = !open)}
-	>Project <ChevronDown size={14} aria-hidden="true" /></button>
+	aria-label={elevated ? "Document menu" : "Project"}
+	>{#if elevated}⋮{:else}Project <ChevronDown size={14} aria-hidden="true" />{/if}</button>
 	{#if open}
 		<div class="project-menu" role="dialog" aria-label="Project actions">
 			{#if !relic && cloudConfigured}
@@ -300,6 +305,7 @@
 							{cloudStatus === 'saving' ? 'Saving' : cloudStatus === 'loading' ? 'Loading' : dirty ? 'Unsaved' : 'Saved'}
 						</span>
 					</div>
+					{#if !elevated}
 					<label class="project-name-field">
 						<span>Project name</span>
 						<input
@@ -320,6 +326,8 @@
 							</button>
 						{/if}
 					</div>
+					{/if}
+					{#if saveBlocker}<p role="status">{saveBlocker}</p>{/if}
 					{#if saveAuthGateOpen}
 						<div class="save-auth-gate" role="alertdialog" aria-modal="true" aria-labelledby="save-auth-title">
 							<strong id="save-auth-title">Save your project</strong>

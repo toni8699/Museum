@@ -5,6 +5,8 @@ slice plus one next action only.
 
 ## Working tree
 
+- P21.1 shared shell implementation is in progress; registered in the tracker.
+
 - Planning delta: **P20 shipped 2026-09-04 — S0–S4 verified by local live
   smoke against real R2 (`biskiq-assets-test`) + local Postgres.** P20.1 API
   15/15 (register → upload → list/read → byte-fetch, user-2 `404`s, bad-magic
@@ -39,10 +41,7 @@ slice plus one next action only.
 
 ## Next action
 
-- P20 is shipped. Next: file the P21 plan (product shell + Project Hub +
-  editor UX polish; design track feeds it) — no P21 code until its doc is
-  registered. Production-topology (Render/Neon) smoke rides with the publish
-  tier or an owner-scheduled pass, not P20.
+- Implement P21.1 shared shell per [the registered plan](../plans/2026-09-04-P21-unified-project-shell-spatial-reconciliation.md): project-scoped session, two rows, re-hosted commands, focused regression and browser QA. P21.2–P21.4 remain pending.
 
 ## Verification
 

@@ -44,11 +44,61 @@ design suite. Its value is the combination of **semantic spatial authoring +
 experience direction + visitor-facing web UI + a portable, publishable
 runtime**.
 
-The product should remain useful in an AI-heavy future. Human direct
-manipulation, structured authoring, and AI/agent authoring operate on the same
-semantic project model. AI may generate or revise large parts of an
-experience, but the result remains inspectable, editable, constrained,
-versionable, and publishable through the normal editor.
+The product should remain useful in an AI-heavy future — not because AI
+cannot build 3D, but because stronger AI makes a reusable substrate more
+useful: the model operates higher-level primitives instead of rebuilding
+implementation. Museum Editor is not primarily a prompt-to-3D generator. It
+is a reusable, agent-native spatial experience authoring and execution
+platform. The pipeline it owns is:
+
+```text
+user intent
+→ semantic spatial project
+→ reusable authored primitives
+→ deterministic operations
+→ validation / preview
+→ visitor-safe runtime
+→ publish
+```
+
+The goal: when a human or an AI is asked to build an interactive 3D museum,
+showroom, portfolio, architectural walkthrough, or guided spatial experience,
+the cheaper and more reliable path is this platform's existing project model,
+architectural primitives, scene staging, camera direction, runtime, and
+publishing system — not regenerating a bespoke Three.js application and its
+infrastructure. External models and generators supply intent, meshes,
+textures, worlds, and proposed arrangements; the product supplies structure,
+operations, constraints, reuse, validation, runtime, and publishing. Generic
+3D generation is upstream infrastructure, not the moat.
+
+Human direct manipulation, structured authoring, and AI/agent authoring
+operate on the same semantic project model, as two clients of one canonical
+state:
+
+```text
+Human author → direct manipulation / structured authoring
+AI agent     → semantic operations / inspection / validation
+```
+
+Both produce the same canonical project state. AI may generate or revise
+large parts of an experience, but the result remains inspectable, editable,
+constrained, versionable, and publishable through the normal editor. The
+product is the reusable execution environment between user intent and a
+published spatial web experience:
+
+```text
+Prompt / human intent
+        ↓
+Reusable authoring substrate
+        ↓
+Layout + Scene + Camera + Experience
+        ↓
+Validation
+        ↓
+Visitor runtime
+        ↓
+Published URL
+```
 
 ## Project shell and modes
 
@@ -132,7 +182,17 @@ Useful higher-level construction tools may include bounded profile/extrude,
 revolve, sweep, mirror, arrays/repetition, curve-based walls, roof/stair
 helpers, and similarly semantic operations. These extend `LayoutDocument` and
 the single geometry compiler; they do not create a second mesh-authoring
-system.
+system. Every addition flows `LayoutDocument` → `compileLayoutGeometry()` →
+Plan + 3D, and stays `LayoutDocument`-owned — never promoted into Scene
+merely because something renders in 3D.
+
+Build capabilities should be expressible as deterministic domain operations
+independent of their toolbar/button presentation wherever practical (see
+Shared authoring operations). The strategic reason: semantic architecture is
+reusable project structure that a human or an agent can request directly —
+doors, stairs, alignment, duplication — instead of reconstructing arbitrary
+geometry or code each time. P23 (Layout Depth) expands this Build vocabulary;
+it does not add editor features for their own sake.
 
 The product is **not** a general-purpose DCC replacement. Deep mesh topology
 editing, sculpting, UV authoring, rigging, character animation, and bespoke
@@ -197,6 +257,16 @@ from project asset metadata rather than maintained as unrelated manual text.
 
 Generic mesh supply is not the product moat. The value is how assets become
 structured, reusable participants in spatial authoring and interaction.
+Scene staging becomes structured project state that can be inspected,
+edited, reused, and validated rather than bespoke rendering code generated
+per project. Lighting stays `SceneDocument`-owned scene/staging truth —
+authored light types, properties, and presets — and must not become
+shell/global configuration merely because it affects the whole rendered
+scene. Provider and generator output always enters through the canonical
+Asset Registry ingest into normal project operations; provider identity may
+survive as provenance metadata, but the provider is replaceable and never
+becomes project architecture. P24 (Scene / Staging Depth) expands this Stage
+vocabulary; it does not add editor features for their own sake.
 
 **Assets belong to the project, not a mode.** Long-term, assets are a
 project-level shared resource system consumed by both modes through one
@@ -275,6 +345,15 @@ resolve into the same inspectable project state. Users must be able to mix
 manual and assisted path, framing, and timing rather than choosing one global
 mode.
 
+That agents can increasingly stage cameras themselves does not obsolete this
+system — it raises its value. Generated camera intent resolves into
+inspectable, editable, reusable, validated, runtime-compatible canonical
+camera state: one camera graph, one route system, one motion evaluator, with
+topology vs Sequence kept separate and Plan/3D parity preserved. Experience
+references Camera rather than duplicating it. Camera is the Direct
+vocabulary of the reusable substrate, alongside the Build (Layout) and Stage
+(Scene) vocabularies.
+
 Longer-term experience flow may support multiple tours, optional branches,
 conditional traversal, free exploration, and sensible rejoin/resume behavior.
 Topology, sequence, and free navigation remain distinct concepts even when
@@ -338,6 +417,24 @@ Interaction model:          Reach Camera Piano → Show Piano Info
 
 Navigation defines where the visitor can go. Content defines what can be
 presented. Interaction defines when or why an action occurs.
+
+Experience is deliberately sequenced after Build and Stage depth (P25):
+
+```text
+P23 Build vocabulary
+        ↓
+P24 Stage vocabulary
+        ↓
+existing Direct / Camera vocabulary
+        ↓
+P25 Experience vocabulary
+```
+
+so that Experience has meaningful semantic things to reference. Its future
+`Event → Target → Action` model composes existing project meaning rather
+than compensating for missing Spatial capabilities. No `ExperienceDocument`
+schema is invented now; persistence ownership stays deferred as stated under
+Project truth.
 
 ## Same world, different authoring lens
 
@@ -562,6 +659,12 @@ The portable project package remains important for ownership, import/export,
 backup, migration, and local-first workflows even when hosted publishing is
 available.
 
+Strategically, publishing establishes the reusable execution target for
+every human-authored or agent-authored project: canonical project →
+deterministic asset resolution → visitor-safe runtime → published version →
+URL. That closed loop is what lets future agents validate and finish work
+instead of stopping at generated files.
+
 ## Developer and export direction
 
 The same authored project should eventually support multiple consumption
@@ -669,6 +772,31 @@ AI is a first-class authoring client, not a separate opaque generation mode.
 Human UI actions and AI/agent actions should converge on the same semantic
 commands and validation rules wherever practical.
 
+The explicit agent loop is:
+
+```text
+inspect
+→ propose
+→ apply semantic operations
+→ preview
+→ validate
+→ refine
+→ checkpoint/version
+→ publish
+```
+
+The preferred agent surface is high-level semantic operations — not:
+
+* arbitrary raw project JSON mutation
+* generated Svelte component trees
+* direct Three.js object mutation
+* pointer-level UI automation when a semantic operation exists
+* arbitrary JavaScript/Python execution as the primary product API
+
+Low-level escape hatches may exist eventually, but they are not the canonical
+authoring contract. When AI repeatedly generates the same logic, that logic
+should become a reusable primitive rather than regenerated output.
+
 Agent-facing APIs/MCP or equivalent interfaces should expose high-level
 capabilities such as creating spatial structure, placing assets, editing
 camera/experience flow, adding interactions, inspecting project state,
@@ -688,6 +816,49 @@ architectural constraints. Generated assets must enter the same canonical
 asset ingest, provenance, optimization, and placement pipeline rather than
 introducing a parallel asset or scene format. AI must not bypass the canonical
 geometry, selection, camera-motion, or persistence pipelines.
+
+## Shared authoring operations (future direction)
+
+Human UI and Agent/API should become clients of the same deterministic
+authoring behavior:
+
+```text
+Human UI ─────────┐
+                  │
+Agent / API ──────┼→ Semantic Authoring Operations
+                  │          ↓
+Import/provider ──┘     Project documents
+                             ↓
+                    canonical compilers/runtime
+```
+
+The direction: new authoring capability should be expressible as a
+deterministic domain operation independent of its toolbar/button presentation
+wherever practical. Conceptually (names illustrative only — no such generic
+framework is claimed to exist):
+
+```ts
+createOpening(...)
+setLayoutObjectTransform(...)
+alignLayoutObjects(...)
+placeAsset(...)
+setSceneTransform(...)
+createLight(...)
+setLightProperties(...)
+createCamera(...)
+connectCameras(...)
+setCameraCurve(...)
+setSequence(...)
+setShot(...)
+```
+
+No complete generic command framework is claimed to exist today. Before any
+future implementation plan extracts one, the implementation agent must
+inspect the current mutator/store/history abstractions and reuse them where
+appropriate; only the abstraction that current code pressure justifies gets
+extracted. UI remains one client of domain behavior, never its sole owner —
+that is what later makes an agent API inexpensive instead of requiring a
+second implementation of the editor.
 
 ## Project truth
 
@@ -784,6 +955,13 @@ now.
 12. **Assets belong to the project, not a mode.** One shared project asset
     registry serves both Spatial and Experience; no independent per-mode
     asset store and no second asset/ingest pipeline.
+13. **One semantic authoring path per intent.** Human UI, automation, and
+    future agent/API clients converge on the same validated project mutation
+    semantics wherever practical. Agent authoring must not create a parallel
+    Scene/Layout/Camera representation, bypass document ownership, or
+    produce a second history model. This coexists with contract 7: one
+    completed user/agent command or gesture produces one logical
+    transaction/history result where history applies.
 
 ## Technology gates
 
@@ -827,6 +1005,17 @@ Current production choices remain deliberate rather than ideological:
   and Experience asset stores)
 - migrating legacy/Chopin editor session state into the greenfield product
 
+Use this test before expanding authoring depth: does this capability
+describe, compose, direct, or validate a spatial web experience at a
+reusable semantic level? Good candidates include walls, openings, doors,
+stairs, platforms, dimensions, alignment, asset placement, lighting, camera
+shots, and interactions. Likely upstream/external-tool territory includes
+mesh topology editing, sculpting, retopology, UV editing, rig authoring,
+general character animation, arbitrary shader/node DCC work, and
+general-purpose geometry modeling. Imported or generated results from those
+systems are welcome; the product simply does not own their authoring
+workflows.
+
 ## Deferred scope is not a non-goal
 
 The following may be valuable long-term even when intentionally absent from
@@ -856,11 +1045,61 @@ current implementation slices:
 - hosted publishing, custom domains, embeds, and downloadable web builds
 - community/gallery ecosystem (Landing, Examples, Guides, Sign in, Dashboard)
 - agent/MCP/API authoring and automated preview/validation loops
+- domain-level validation and observability for authoring and agent loops
+  (constraint checks, spatial facts, camera/route integrity, performance
+  signals) — established incrementally as P23/P24 primitives grow, not as a
+  giant validator subsystem now
+- reusable presets and experience kits (gallery rooms, lighting setups,
+  pedestals, camera reveals, inspection shots, tour segments, staging
+  presets, interaction recipes) that resolve into normal project primitives
+  and operations rather than opaque generated blobs — reuse lowers agent
+  tool calls, tokens, latency, and failure surface
 
 Absence from today's tracker means **not scheduled yet**, not rejected by the
 product vision. Experience-mode work stays unscheduled until persistence and
 Spatial completion land; no Experience implementation tickets are created
 ahead of that.
+
+## Agent-readiness acceptance direction
+
+Future architectural acceptance principles — not claims that they all pass
+today:
+
+1. A human UI action and an equivalent headless semantic operation produce
+   the same authored document delta.
+2. One completed operation produces one logical transaction/history result
+   where history applies.
+3. Layout operations mutate `LayoutDocument`; Scene operations mutate
+   `SceneDocument`; cross-document operations require an explicitly designed
+   atomic contract rather than accidental side effects.
+4. Plan-level transforms preserve state owned exclusively by 3D authoring.
+5. Room-local ownership/transforms remain explicit and are never inferred
+   merely from coordinates.
+6. Camera operations reuse the canonical route/motion system.
+7. Generated assets enter the existing Asset Registry/ingest path.
+8. Visitor runtime consumes project truth without editor
+   selection/history/gizmo/session infrastructure.
+9. Validation can run without requiring UI pointer interaction.
+10. Project changes remain serializable/versionable and contain no
+    renderer/Three objects.
+
+## Strategic success test
+
+The platform is succeeding when a capable agent asked to build a common
+spatial web experience achieves the result primarily by inspecting the
+project, editing layout, acquiring/placing assets, staging the scene,
+authoring lighting and the camera experience, adding visitor behavior,
+validating, previewing, and publishing — rather than by generating a new
+renderer, camera interpolation system, persistence layer, asset loader,
+interaction runtime, and deployment stack from scratch.
+
+Long-term comparative metrics may include time to first published
+experience, bespoke code files generated, agent tool calls required,
+percentage of output represented as canonical semantic project state,
+validation failures before publish, ability to manually continue editing
+generated work, reuse across projects, publish/runtime reliability, and
+token/cost reduction versus bespoke-code generation. These are strategy
+metrics, not current release gates.
 
 ## Final conceptual hierarchy
 

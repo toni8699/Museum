@@ -7,6 +7,20 @@ slice plus one next action only.
 
 - P21.1 shared shell + P21.2 Scene reconciliation + P21.3 Camera reconciliation + P21.4 Preview + project flows implemented (uncommitted); registered in the tracker.
 
+- Planning delta: **Roadmap revised 2026-09-05 (owner):** P21.5 stays
+  strictly presentation-only (no authoring-depth expansion — lighting,
+  staging, layout objects, CAD features belong to Build/Stage tiers, not
+  polish) and P21 closes clean before P22. Long-term tiers renumbered —
+  **P22** Basic Publish + visitor runtime (first complete
+  author → preview → publish → visitor loop; stress-tests visitor/editor
+  isolation early), **P23** Layout Depth (layout objects + CAD/precision
+  tools, `LayoutDocument`-owned, single geometry compiler), **P24**
+  Scene/Staging Depth (Arrange + lighting authoring), **P25** Experience
+  foundation, **P26+** platform expansion. The former "P23 Typed DB layer"
+  is demoted to **conditional infrastructure** — adopt only on demonstrated
+  SQL-surface pain, as a slice inside/before a later tier, never a numbered
+  milestone; P19/P20 no-ORM pins unchanged. Tracker Long-term roadmap +
+  `Design-Plan(P21+).md` Experience-Workspace cell updated.
 - Planning delta: **P20 shipped 2026-09-04 — S0–S4 verified by local live
   smoke against real R2 (`biskiq-assets-test`) + local Postgres.** P20.1 API
   15/15 (register → upload → list/read → byte-fetch, user-2 `404`s, bad-magic

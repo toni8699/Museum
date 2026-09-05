@@ -88,6 +88,9 @@ gate) now lives in the archived docs, not here.
 
 - Next: P21.5 polish → final acceptance gate (full Vitest + `check` + `build`
   + bundle gates + six-PNG comparison + axe sweep), then the P22 brief.
+- Long-term tiers renumbered 2026-09-05 (owner): P23 Layout Depth, P24
+  Scene/Staging Depth, P25 Experience Foundation, P26+ platform expansion;
+  typed DB is conditional infrastructure, not a tier. See Long-term roadmap.
 - Deferred / non-blocking: P3B.7b (incl. the P3.4/P3.5 acceptance tail).
 - Proposed / unscheduled: P13, branch rejoin.
 - Shipped baseline: P12 + core P3B gate 2026-08-28; P14–P18 extraction slice;
@@ -118,7 +121,9 @@ operating on one portable project truth. Direction lives in
 this section records only the sequencing tiers. Nothing here is a registered
 P-number; the numbered tiers below are next-free-number reservations
 (direction only) that become registered only when their plan docs are filed
-(owner roadmap revised 2026-09-03):
+(owner roadmap revised 2026-09-03; tiers renumbered 2026-09-05 — authoring
+depth owns the P23/P24 slots, Experience moved to P25, typed DB demoted to
+conditional infrastructure):
 
 - **Now — Design track in parallel** (no P-number; design only — no major
   implementation yet): product flow / IA / shell / Hub / editor UX concepts
@@ -133,18 +138,39 @@ P-number; the numbered tiers below are next-free-number reservations
   project assets, hosted visitor-safe output, and basic preview/publish
   status. Direction only; its brief is written once P21 closes — after the
   P21.5 UI polish pass, not before.
-- **P23 — Typed DB layer.** A typed database layer (Drizzle/Kysely-style
-  schema-owned types, typed query access) once the raw-parameterized-SQL
-  surface from P19–P22 — projects, versions, assets — plus P25+ tenant shapes
-  justify it. Deliberate deferral: P19/P20 keep their no-ORM pins; no ORM,
-  query builder, or generic storage package before this tier.
-- **P24 — Experience foundation.** Navigation · Content · Interactions,
-  referencing existing Spatial / camera / assets work. Direction only; the
-  long-term Experience bullet below holds the remaining detail.
-- **P25+ — Expansion.** Sharing / teams, domains, reusable My Assets, provider
-  imports, richer Publish, and collaboration / billing if needed. Not one
-  work item — each entry gets its own P-number and plan doc when scheduled,
-  starting at P25.
+- **P23 — Layout Depth.** Layout-object expansion (more doors/windows/
+  openings, columns, stairs, platforms, railings, simple architectural
+  fixtures, reusable parametric objects) + CAD/precision tools (numeric
+  placement, stronger snapping, alignment, offset, duplicate/repeat, mirror,
+  room/wall constraints, better openings — built incrementally, never a "CAD
+  subsystem"). Everything extends `LayoutDocument` →
+  `compileLayoutGeometry()` → Plan + 3D; no second geometry path. Stays
+  `LayoutDocument`-owned — never promoted into Scene merely because it
+  renders 3D. Kept separate from P24 because Layout and Scene have different
+  document ownership and implementation risk.
+- **P24 — Scene / Staging Depth.** Arrange depth (ghost placement from the
+  asset library into Plan, duplicate, stronger multi-select transform,
+  align/distribute, placement guides, wall/floor snapping, spacing feedback,
+  footprint support, later grouped movement) + lighting authoring
+  (Directional/Point/Spot/Ambient, intensity/color/temperature/range/cone/
+  shadow/target/environment/presets — Scene content, never shell/global
+  settings) + asset placement / material polish.
+- **P25 — Experience foundation.** Navigation · Content · Interactions,
+  referencing existing Spatial / camera / assets work. Scheduled after Build
+  + Stage feel solid, so Experience operates on a meaningful authored
+  environment. Direction only; the long-term Experience bullet below holds
+  the remaining detail.
+- **P26+ — Platform expansion.** Sharing / teams, domains, reusable My
+  Assets, provider imports, richer Publish, and collaboration / billing if
+  needed. Not one work item — each entry gets its own P-number and plan doc
+  when scheduled, starting at P26.
+- **Typed DB layer — conditional infrastructure, not a numbered milestone**
+  (owner decision 2026-09-05, demoted from the former P23). A typed database
+  layer (Drizzle/Kysely-style schema-owned types, typed query access) is
+  adopted only when code pressure on the raw-parameterized-SQL surface from
+  P19–P22 proves it — as a small technical slice inside or before a later
+  tier, never as a product milestone owning a P-number. The P19/P20 no-ORM
+  pins hold until then.
 
 - **Current / near-term platform work** (grounded in active rows): core
   extraction / app boundaries (P15–P17 shipped), backend provisioning (P18
@@ -154,16 +180,19 @@ P-number; the numbered tiers below are next-free-number reservations
   R2-backed project assets with Spatial integration (P20, shipped 2026-09-04 —
   local live smoke vs real R2; production-topology smoke deferred), the
   product shell + Project Hub + editor UX polish (P21, including the P21.5
-  UI polish pass before P22), the basic publish/visitor-runtime boundary
-  (P22), the typed DB layer (P23), the
-  Experience foundation (P24), and expansion (P25+). The design track runs
-  in parallel from Now. Auth UX/hardening and richer permissions ride with
-  the P25+ collaborative tier, not P19/P20.
+  UI polish pass — strictly presentation-only — before P22), the basic
+  publish/visitor-runtime boundary (P22 — the first complete product loop:
+  author → preview → publish → visitor sees it, and an early stress test of
+  the visitor/editor isolation boundary), then editor authoring depth split
+  by document ownership (P23 Layout Depth, P24 Scene/Staging Depth), the
+  Experience foundation (P25), and platform expansion (P26+). The design
+  track runs in parallel from Now. Auth UX/hardening and richer permissions
+  ride with the P26+ collaborative tier, not P19/P20.
 - **Medium-term product infrastructure** (possible direction, unscheduled):
   hosted project loading and published project versions ride with P22;
   portable project/export hardening, project asset management, and generic
   visitor/player extraction when genuinely needed.
-- **Long-term Experience work** (unscheduled beyond the P24 foundation):
+- **Long-term Experience work** (unscheduled beyond the P25 foundation):
   Experience mode shell, `ExperienceDocument` design, visitor menu authoring,
   destination bindings, contextual titles/info cards, visitor preferences,
   reduced-motion behavior, the Experience asset picker, the developer runtime
@@ -183,5 +212,7 @@ UX/hardening and richer permissions remain later.
 P19 has no Experience schema and no R2.
 
 P19–P22 stay raw parameterized SQL: the no-ORM pins in the P19/P20 plans are
-scope-limited to those tiers and are revisited only by the P23 typed-DB
-tier. P21–P23 hold no Experience schema; Experience work remains P24+.
+scope-limited to those tiers and are revisited only when code pressure on
+that surface justifies a typed layer — conditional infrastructure (owner
+decision 2026-09-05), never a numbered milestone. P21–P24 hold no
+Experience schema; Experience work remains P25+.

@@ -778,7 +778,7 @@ Online / provider acquisition
 | **Ghost Blueprint Watermark**| **P21 Target** | Blank SVG grid | SVG overlay in `PlanWorkspace.svelte` auto-dismissing on edit. |
 | **Durable Local Persistence**| **Deferred** | Volatile browser session | Client-side IndexedDB document persistence layer. |
 | **Hub Recent Cover Shelf** | **Deferred** | Text-only table in `/projects`| Automated snapshot/cover pipeline. |
-| **Experience Workspace** | **Deferred** | None (Reserved route) | P23: Visitor UX data model and staging canvas. |
+| **Experience Workspace** | **Deferred** | None (Reserved route) | P25: Visitor UX data model and staging canvas. |
 | **Assets Manager Surface** | **Deferred** | Contextual Texture tab (P20)| P22: Dedicated registry management interface. |
 | **Publish Surface** | **Deferred** | None (Reserved route) | North Star: Hosting, custom domain, and CDN deployment engine. |
 

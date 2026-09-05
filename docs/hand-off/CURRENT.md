@@ -41,7 +41,7 @@ slice plus one next action only.
 
 ## Next action
 
-- Implement P21.4 Preview + project flows per [the registered plan](../plans/2026-09-04-P21-unified-project-shell-spatial-reconciliation.md): layout-owned Visitor Preview takeover (brief required before code) + strict Project Hub. Final acceptance gate follows.
+- Implement P21.4 Preview + project flows per [the registered plan](../plans/2026-09-04-P21-unified-project-shell-spatial-reconciliation.md): layout-owned Visitor Preview takeover + strict Project Hub, following the [P21.4 brief](../plans/2026-09-05-P21.4-preview-project-flows.md) (written; implementation pending). Final acceptance gate follows.
 
 ## Verification
 

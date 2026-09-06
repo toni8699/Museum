@@ -34,9 +34,11 @@ verified identity, single-user project ownership, and authenticated project
 Save/Load endpoints. **P20 introduces the project-scoped asset registry +
 private R2 storage** — asset metadata in Postgres, heavy bytes in Cloudflare
 R2 through `apps/api` only (no R2/S3 client enters the editor or shared
-packages). P20.2 has landed in Spatial for project texture upload/list/use;
-P20.3/P20.4 remain the durability / cloud-Save-blocker / refresh-Load
-completion work unless the current tree proves otherwise. Richer auth
+packages). P20.2 has landed in Spatial for project texture upload/list/use; P20 S0–S4
+shipped 2026-09-04 (local live smoke against real R2 completed; production
+topology smoke deferred). One `ProjectDocument` holds separately owned
+`LayoutDocument` and `SceneDocument` domains — Layout owns architecture,
+Scene owns entities/materials/lights/cameras; they are not merged. Richer auth
 UX/hardening, permissions/memberships, teams, and collaboration also remain
 later. Experience mode/schema remains outside P18/P19/P20. External identity
 proves who the user is; Fastify + Postgres own product authorization and

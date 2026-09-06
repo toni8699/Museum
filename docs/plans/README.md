@@ -90,7 +90,11 @@ gate) now lives in the archived docs, not here.
   + bundle gates + six-PNG comparison + axe sweep), then the P22 brief.
 - Long-term tiers renumbered 2026-09-05 (owner): P23 Layout Depth, P24
   Scene/Staging Depth, P25 Experience Foundation, P26+ platform expansion;
-  typed DB is conditional infrastructure, not a tier. See Long-term roadmap.
+  typed DB is conditional infrastructure, not a tier. Owner reconciliation
+  2026-09-06: P23/P24 are staged (minimum useful slices first, optional
+  depth tails later); P25 may follow the minima before the tails; a bounded
+  agent/reuse proof follows the first complete visitor-authoring slice. See
+  Long-term roadmap.
 - Deferred / non-blocking: P3B.7b (incl. the P3.4/P3.5 acceptance tail).
 - Proposed / unscheduled: P13, branch rejoin.
 - Shipped baseline: P12 + core P3B gate 2026-08-28; P14–P18 extraction slice;
@@ -99,11 +103,11 @@ gate) now lives in the archived docs, not here.
 
 ## Archived plans (recent 5 only)
 
+- `archived → [2026-09-06-scope-decision-roadmap-reconciliation.md](../archive/plans/2026-09-06-scope-decision-roadmap-reconciliation.md)` (scope decision — audit-review roadmap reconciliation: broad category, staged P23/P24, narrow P25 after minima, early bounded agent/reuse proof; ratified 2026-09-06)
 - `archived → [2026-08-31-scope-decision-experience-interaction-boundary.md](../archive/plans/2026-08-31-scope-decision-experience-interaction-boundary.md)` (scope decision — Experience/Interaction authoring boundary; ratified 2026-08-31)
 - `archived → [2026-08-30-P18-backend-provisioning.md](../archive/plans/2026-08-30-P18-backend-provisioning.md)` (shipped 2026-08-30)
 - `archived → [2026-08-30-P17-app-split.md](../archive/plans/2026-08-30-P17-app-split.md)` (shipped 2026-08-30)
 - `archived → [2026-08-30-P16-project-model-layout-core-extraction.md](../archive/plans/2026-08-30-P16-project-model-layout-core-extraction.md)` (shipped 2026-08-30)
-- `archived → [2026-08-29-P15-camera-core-extraction.md](../archive/plans/2026-08-29-P15-camera-core-extraction.md)` (shipped 2026-08-30 — S0–S4 complete)
 
 Older history — P14 and earlier, the letter-era A–H tracks, prior scope
 decisions — lives on disk under `docs/archive/plans/` (renewal era) and
@@ -139,15 +143,20 @@ conditional infrastructure):
   status. Direction only; its brief is written once P21 closes — after the
   P21.5 UI polish pass, not before. Strategic rationale: P22 establishes the
   reusable execution target for every human- or agent-authored project
-  (canonical project → deterministic asset resolution → visitor-safe runtime
-  → published version → URL) while protecting visitor/editor isolation. No
-  Experience or agent-authoring scope.
-- **P23 — Layout Depth.** Layout-object expansion (more doors/windows/
-  openings, columns, stairs, platforms, railings, simple architectural
-  fixtures, reusable parametric objects) + CAD/precision tools (numeric
-  placement, stronger snapping, alignment, offset, duplicate/repeat, mirror,
-  room/wall constraints, better openings — built incrementally, never a "CAD
-  subsystem"). Everything extends `LayoutDocument` →
+  (canonical project → deterministic asset resolution → cold visitor-safe
+  runtime → published version → URL) while protecting visitor/editor
+  isolation. The eventual proof is a cold boot in a fresh browser without
+  `EditorApp`, editor stores, selection, history, gizmos, or editor-only
+  asset setup. No Experience authoring, no agent API, no general Assets
+  workspace, no collaboration, no generic SDK.
+- **P23 — Layout Depth family (staged).** First the minimum useful Build
+  set: numeric placement/dimensions, stronger snapping, alignment, better
+  openings/doors/windows, duplicate/repeat of supported structure, simple
+  reusable architectural primitives. Optional depth tail (stairs, railings,
+  richer parametric components, curved-wall tooling, profile/extrude, sweep,
+  revolve, roof helpers, general constraint sophistication) is
+  demand/evidence-gated and registered later — never a prerequisite for
+  Experience. Everything extends `LayoutDocument` →
   `compileLayoutGeometry()` → Plan + 3D; no second geometry path. Stays
   `LayoutDocument`-owned — never promoted into Scene merely because it
   renders 3D. Kept separate from P24 because Layout and Scene have different
@@ -158,31 +167,45 @@ conditional infrastructure):
   document, deterministic operation, validation/preconditions, one history
   transaction, Plan+3D consumption, headless invocability — no premature
   universal command framework.
-- **P24 — Scene / Staging Depth.** Arrange depth (ghost placement from the
-  asset library into Plan, duplicate, stronger multi-select transform,
-  align/distribute, placement guides, wall/floor snapping, spacing feedback,
-  footprint support, later grouped movement) + lighting authoring
-  (Directional/Point/Spot/Ambient, intensity/color/temperature/range/cone/
-  shadow/target/environment/presets — Scene content, never shell/global
-  settings) + asset placement / material polish. P24 expands the **Stage
-  vocabulary** (structured, inspectable, reusable scene state rather than
+- **P24 — Scene / Staging Depth family (staged).** First the minimum useful
+  Stage set: durable supported asset placement/replacement, duplicate,
+  strong transforms, multi-select where justified, align/distribute,
+  floor/wall placement, material editing, core authored lighting, one useful
+  reusable lighting/environment setup. Later depth (advanced grouping,
+  richer placement tools, larger environment catalogue, richer lighting
+  rigs, advanced material workflows) follows evidence. Lighting stays
+  Scene-owned authored state, never shell/global truth. P24 expands the
+  **Stage vocabulary** (structured, inspectable, reusable scene state rather than
   bespoke rendering code) under the same operation-first planning rule as
   P23: lighting, placement, and composition become semantic operations over
   Scene truth, not behavior hidden inside Svelte components.
-- **P25 — Experience foundation.** Navigation · Content · Interactions,
-  referencing existing Spatial / camera / assets work. Scheduled after Build
-  + Stage feel solid, so Experience operates on a meaningful authored
-  environment: its `Event → Target → Action` model composes existing project
-  meaning rather than compensating for missing Spatial capabilities. No
-  schema now (see Constraints). Direction only; the long-term Experience
-  bullet below holds the remaining detail.
-- **P26+ — Platform expansion.** Later expansion may arrive as several
-  separately registered slices rather than one milestone: agent-facing API /
-  MCP, automated inspect → preview → validate loops, provider adapters,
-  reusable templates / experience kits, richer asset workflows / My Assets,
-  collaboration / teams, richer Publish / domains / embeds, runtime SDK /
-  headless runtime. No permanent P-numbers now — direction until individual
-  plan docs are filed, starting at P26.
+- **P25 — Experience foundation (narrow, after P23/P24 minima).** Navigation
+  · Content · Interactions, referencing existing Spatial / camera / assets
+  work. Begins once the P23/P24 minimum useful slices exist, before their
+  optional depth tails: first prove one complete visitor journey
+  (destination + visitor navigation + contextual content + small semantic
+  trigger/action set, e.g. reach-camera → show info, click → show/hide,
+  click → link, nav item → spatial destination) with visitor-safe
+  motion/accessibility behavior — not a general app builder. Its `Event →
+  Target → Action` model composes existing project meaning rather than
+  compensating for missing Spatial capabilities. No schema now (see
+  Constraints). Direction only; the long-term Experience bullet below holds
+  the remaining detail.
+- **Bounded agent/reuse proof (after first complete visitor-authoring
+  slice, before broad expansion).** Test whether a strong agent can inspect,
+  semantically edit, stage, author camera/experience changes, validate,
+  preview, publish, and revise through the same canonical behavior as human
+  authoring. Small useful operation set only; no custom planner, chat UI,
+  generic agent framework, four transports, or large MCP surface. Transport
+  stays replaceable per client need. Registered as its own brief when due;
+  no P-number is consumed by this direction entry.
+- **P26+ — Evidence-led platform expansion.** Later expansion arrives as
+  several separately registered slices rather than one milestone, scheduled
+  only against measured reuse/delivery/adoption needs: richer P23/P24/P25
+  depth tails, templates / camera kits / provider adapters, richer asset
+  workflows / My Assets, collaboration / teams, richer Publish / domains /
+  embeds, runtime SDK / headless runtime. No permanent P-numbers now —
+  direction until individual plan docs are filed, starting at P26.
 - **Typed DB layer — conditional infrastructure, not a numbered milestone**
   (owner decision 2026-09-05, demoted from the former P23). A typed database
   layer (Drizzle/Kysely-style schema-owned types, typed query access) is
@@ -212,9 +235,11 @@ conditional infrastructure):
   UI polish pass — strictly presentation-only — before P22), the basic
   publish/visitor-runtime boundary (P22 — the first complete product loop:
   author → preview → publish → visitor sees it, and an early stress test of
-  the visitor/editor isolation boundary), then editor authoring depth split
-  by document ownership (P23 Layout Depth, P24 Scene/Staging Depth), the
-  Experience foundation (P25), and platform expansion (P26+). The design
+  the visitor/editor isolation boundary), then minimum useful authoring
+  slices split by document ownership (P23 Layout Depth minimum, P24
+  Scene/Staging Depth minimum), the narrow Experience foundation (P25),
+  a bounded agent/reuse proof, then evidence-led depth tails and expansion
+  (P26+). The design
   track runs in parallel from Now. Auth UX/hardening and richer permissions
   ride with the P26+ collaborative tier, not P19/P20.
 - **Medium-term product infrastructure** (possible direction, unscheduled):
@@ -233,8 +258,7 @@ conditional infrastructure):
 
 Constraints: no Experience implementation tickets are created now, and
 Experience work must not displace persistence or Spatial completion.
-`ExperienceDocument` gets no codecs, migrations, or backend endpoints.
-R2 and managed-auth integration remain out of P18. P19 includes the first
+`ExperienceDocument` gets no codecs, migrations, or backend endpoints. P19 includes the first
 Google OIDC (Authorization Code + PKCE) + app-owned secure-session
 integration and single-user ownership required for Save/Load; broader auth
 UX/hardening and richer permissions remain later.
@@ -243,5 +267,9 @@ P19 has no Experience schema and no R2.
 P19–P22 stay raw parameterized SQL: the no-ORM pins in the P19/P20 plans are
 scope-limited to those tiers and are revisited only when code pressure on
 that surface justifies a typed layer — conditional infrastructure (owner
-decision 2026-09-05), never a numbered milestone. P21–P24 hold no
-Experience schema; Experience work remains P25+.
+decision 2026-09-05), never a numbered milestone. P21/P22 hold no
+Experience authoring or Experience schema; Experience schema remains
+unregistered until the P25 brief, and P25 may follow the accepted minimum
+P23/P24 slices without waiting for their optional depth tails. No
+Experience implementation tickets or codecs are created by roadmap direction
+alone.

@@ -1,5 +1,12 @@
 # AI-Native Spatial Authoring: SOTA, Moat, and Roadmap for `spatial-sketch-editor`
 
+> **Status note (2026-09-06).** Research snapshot. External/SOTA findings
+> remain reference evidence. Internal roadmap references reflect repository
+> state at research time and are superseded by `docs/plans/README.md` and
+> later owner decisions (notably the 2026-09-06 roadmap reconciliation:
+> P23/P24 staged depth families, narrow P25 after useful minima, bounded
+> agent/reuse proof after the first complete vertical slice).
+
 ## Executive summary
 
 Big finding: **one-shot 3D already crossed important line.** Frontier agents can now take rough intent, operate Blender or Three.js tooling, build editable scenes, inspect renders, fix their own mistakes, stage cameras, and iterate toward usable output. OpenAI published a concrete GPT-6 Astra workflow on September 4, 2026 where Astra turned a design brief into an editable Blender architectural scene, created architecture, furniture, materials, lighting and cameras through Blender's Python API, inspected preview renders, repaired intersections/composition, then produced a multi-shot camera tour. This not theory now. citeturn12search0turn15view0

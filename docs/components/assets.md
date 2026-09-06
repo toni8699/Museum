@@ -1,12 +1,12 @@
 # Assets
 
 **Read when:** Paris GLBs, licences, catalogue, import/replace models, project texture registry.  
-**Last reviewed:** 2026-09-04 (P20.4)
+**Last reviewed:** 2026-09-06 (P20 shipped 2026-09-04 — reconciliation only; truths below reconfirmed)
 **Full checklist:** [`../archive/ASSET_WORKFLOW.md`](../archive/ASSET_WORKFLOW.md)
 
 ---
 
-## Current asset system (2026-09-03 — P20.2)
+## Current asset system (P20 shipped 2026-09-04 — S0–S4)
 
 ```text
 Built-in catalogue

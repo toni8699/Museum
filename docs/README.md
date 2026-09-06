@@ -62,13 +62,19 @@ one-line `archived → <path>` stubs. No live doc explains what is archived.
 
 | Route | Role |
 |---|---|
-| `/` or `/editor` | Main editor, always ships in production |
+| `/` | Public entry (start creating guest project, or continue with Google) |
+| `/editor` | Compatibility redirect → `/project/:id/spatial` |
+| `/projects` | Project Hub (owned cloud project list for authenticated creators) |
+| `/project/:id/spatial` | Spatial workspace (Scene · Camera × Plan · 3D) |
+| `/project/:id/preview` | Visitor Preview takeover (transient snapshot, no save required) |
 | `/museum` | Frozen Chopin visitor relic (checked-in `chopin-project.json`) |
 | `/museum/editor` | Frozen legacy editor relic (Scene · Camera, no Layout) |
 | `/dev/materials` · `/dev/assets` · `/dev/perf` | Development previews / G3 harness |
 
 The editor boots into a fresh empty project; no Chopin/legacy state is loaded
-or migrated. Persistence is portable export/import only.
+or migrated. Guest/local work lives in the browser session with portable
+export/import. Authenticated cloud work adds owned Save/Load with a project
+list and versioned saves.
 
 ## Read what you need
 

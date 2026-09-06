@@ -7,16 +7,18 @@ slice plus one next action only.
 
 - P21.1 shared shell + P21.2 Scene reconciliation + P21.3 Camera reconciliation + P21.4 Preview + project flows implemented (uncommitted); registered in the tracker.
 
-- Planning delta: **Roadmap revised 2026-09-05 (owner):** P21.5 stays
-  strictly presentation-only (no authoring-depth expansion — lighting,
-  staging, layout objects, CAD features belong to Build/Stage tiers, not
-  polish) and P21 closes clean before P22. Long-term tiers renumbered —
+- Planning delta: **Roadmap revised 2026-09-05 (owner), reconciled 2026-09-06:**
+  P21.5 stays strictly presentation-only (no authoring-depth expansion —
+  lighting, staging, layout objects, CAD features belong to Build/Stage
+  tiers, not polish) and P21 closes clean before P22. Long-term tiers —
   **P22** Basic Publish + visitor runtime (first complete
   author → preview → publish → visitor loop; stress-tests visitor/editor
-  isolation early), **P23** Layout Depth (layout objects + CAD/precision
-  tools, `LayoutDocument`-owned, single geometry compiler), **P24**
-  Scene/Staging Depth (Arrange + lighting authoring), **P25** Experience
-  foundation, **P26+** platform expansion. The former "P23 Typed DB layer"
+  isolation early), **P23** Layout Depth family (minimum useful Build set
+  first; optional depth tail later), **P24** Scene/Staging Depth family
+  (minimum useful Stage set first; optional depth tail later), **P25**
+  narrow Experience foundation after the P23/P24 minima (before the tails),
+  then a bounded agent/reuse proof before broad expansion. P23/P24 stay
+  separate ownership domains. The former "P23 Typed DB layer"
   is demoted to **conditional infrastructure** — adopt only on demonstrated
   SQL-surface pain, as a slice inside/before a later tier, never a numbered
   milestone; P19/P20 no-ORM pins unchanged. Tracker Long-term roadmap +

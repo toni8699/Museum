@@ -16,27 +16,35 @@ capabilities here are direction only; nothing here claims they exist today.
 
 ## Product vision
 
-Museum Editor is a web-native authoring platform for **interactive spatial
-experiences**. Creators **build and direct the world in Spatial mode**, then
-**shape how visitors understand, navigate, and interact with that world in
-Experience mode** — all without external DCC tools, game-engine scripting, or
-deployment knowledge for normal work.
+Museum Editor is a web-native platform for authoring, directing, revising,
+and publishing **interactive spatial experiences**. Creators compose and
+direct the world in Spatial mode, then shape how visitors understand,
+navigate, and interact with that world in Experience mode — all without
+external DCC tools, game-engine scripting, or deployment knowledge for
+normal work.
 
-The long-term product loop is:
+Build, Stage, Direct, and Experience are complementary authoring
+capabilities, not a mandatory waterfall. A creator may import a space, start
+from a template, start from assets or story/content, or skip heavy
+architecture authoring. The conceptual loop is:
 
 ```text
-Build                    → architecture
-Stage                    → scene composition + assets
-Direct                   → cameras / movement / framing
-Shape Visitor Experience → navigation + contextual content + visitor controls
-Preview                  → visitor-safe experience
-Publish                  → hosted / downloadable / integrated output
+Compose / Build
+↔ Stage
+↔ Direct
+↔ Shape visitor experience
+→ Preview / validate
+→ Publish
+→ Revise
 ```
 
 Representative outcomes include museums and exhibitions, architectural and
 historical walkthroughs, spatial portfolios, product showrooms, educational
-experiences, interactive stories, and other 3D-first web experiences. The
-Chopin museum is a proving use case, not the product category.
+experiences, interactive stories, guided experiences, and other 3D-first web
+experiences. The Chopin museum is a proving use case, not the product
+category. Guided exhibitions, showrooms, portfolios, and educational/guided
+projects are candidate early validation examples — not the permanent
+category boundary, and no market validation is claimed for any wedge.
 
 The product is **not** a Blender replacement, a game engine, a BIM system, a
 Webflow-style website builder, a general CMS, or a Figma/Canva-style 2D
@@ -45,31 +53,46 @@ experience direction + visitor-facing web UI + a portable, publishable
 runtime**.
 
 The product should remain useful in an AI-heavy future — not because AI
-cannot build 3D, but because stronger AI makes a reusable substrate more
-useful: the model operates higher-level primitives instead of rebuilding
-implementation. Museum Editor is not primarily a prompt-to-3D generator. It
-is a reusable, agent-native spatial experience authoring and execution
-platform. The pipeline it owns is:
+cannot build 3D (assume frontier AI can increasingly create geometry, stage
+scenes, author lighting and cameras, write Three.js, operate DCC tools,
+create interactions, debug, and deploy), but because stronger AI makes
+reusable, tested behavior more useful: the model reuses capabilities instead
+of rebuilding them. Museum Editor is not primarily a prompt-to-3D
+generator. It is a reusable spatial experience authoring and execution
+platform where AI is a client, not a separate generation mode. The pipeline
+it owns is:
 
 ```text
-user intent
-→ semantic spatial project
-→ reusable authored primitives
-→ deterministic operations
-→ validation / preview
+human / agent intent
+→ canonical spatial project
+→ reusable semantic operations
+→ inspect / revise
+→ validation
 → visitor-safe runtime
 → publish
+→ continue editing / revise later
 ```
+
+The durable advantage must come from accumulated, tested reusable behavior
+across composition, revision, validation, runtime, and delivery. Semantic
+project state and operations make that reuse possible; they are not a moat
+merely because they exist. Whether using this platform is cheaper and more
+reliable than rebuilding equivalent infrastructure is a hypothesis to
+measure, not a claim.
 
 The goal: when a human or an AI is asked to build an interactive 3D museum,
 showroom, portfolio, architectural walkthrough, or guided spatial experience,
-the cheaper and more reliable path is this platform's existing project model,
-architectural primitives, scene staging, camera direction, runtime, and
-publishing system — not regenerating a bespoke Three.js application and its
-infrastructure. External models and generators supply intent, meshes,
+the path through this platform's existing project model, architectural
+primitives, scene staging, camera direction, runtime, and publishing system
+should be worth preferring over regenerating a bespoke Three.js application
+and its infrastructure. Humans and AI operate the same canonical project
+behavior. External models and generators supply intent, meshes,
 textures, worlds, and proposed arrangements; the product supplies structure,
 operations, constraints, reuse, validation, runtime, and publishing. Generic
-3D generation is upstream infrastructure, not the moat.
+3D generation is replaceable upstream infrastructure: provider output always
+enters through canonical ingest into project state, and provider identity
+survives only as provenance metadata — never as a second project
+architecture.
 
 Human direct manipulation, structured authoring, and AI/agent authoring
 operate on the same semantic project model, as two clients of one canonical
@@ -173,15 +196,16 @@ spatial domains are not renamed because a project shell now exists.
 
 Scene Plan grows from rough drafting into a practical architectural authoring
 surface for constructing spaces that are good enough to experience directly.
-The editor should support precise dimensions, snapping, rooms, walls, floors,
-ceilings, openings, doors/windows, multi-floor structures, reusable components,
-and progressively richer parametric operations where they materially improve
-spatial construction.
+P23 (Layout Depth) is explicitly staged: the first useful set favors
+high-leverage spatial semantics — numeric placement/dimensions, stronger
+snapping, alignment, better openings/doors/windows, duplicate/repeat of
+supported structure, and simple reusable architectural primitives. Later
+depth (stairs, railings, richer parametric components, curved-wall tooling,
+profile/extrude, sweep, revolve, roof helpers, general constraint
+sophistication) stays in the North Star as demand/evidence-gated follow-ups,
+not prerequisites for the first Experience proof.
 
-Useful higher-level construction tools may include bounded profile/extrude,
-revolve, sweep, mirror, arrays/repetition, curve-based walls, roof/stair
-helpers, and similarly semantic operations. These extend `LayoutDocument` and
-the single geometry compiler; they do not create a second mesh-authoring
+Every addition extends `LayoutDocument` and the single geometry compiler; they do not create a second mesh-authoring
 system. Every addition flows `LayoutDocument` → `compileLayoutGeometry()` →
 Plan + 3D, and stays `LayoutDocument`-owned — never promoted into Scene
 merely because something renders in 3D.
@@ -255,7 +279,10 @@ reuse and publishing, including source identity, creator, license, attribution,
 and source reference where applicable. Credits/attribution should be derivable
 from project asset metadata rather than maintained as unrelated manual text.
 
-Generic mesh supply is not the product moat. The value is how assets become
+Generic mesh supply is not the product advantage by itself. The value is how
+assets become structured, reusable participants in spatial authoring and
+interaction, with tested integration and useful feedback — validation itself
+is not the moat.
 structured, reusable participants in spatial authoring and interaction.
 Scene staging becomes structured project state that can be inspected,
 edited, reused, and validated rather than bespoke rendering code generated
@@ -265,8 +292,15 @@ shell/global configuration merely because it affects the whole rendered
 scene. Provider and generator output always enters through the canonical
 Asset Registry ingest into normal project operations; provider identity may
 survive as provenance metadata, but the provider is replaceable and never
-becomes project architecture. P24 (Scene / Staging Depth) expands this Stage
-vocabulary; it does not add editor features for their own sake.
+becomes project architecture. P24 (Scene / Staging Depth) is explicitly
+staged: the first useful set favors durable asset placement/replacement,
+duplicate, strong transforms, multi-select where justified,
+alignment/distribute, floor/wall placement, material editing, core authored
+lighting, and one useful reusable lighting/environment setup. Later depth
+(advanced grouping, richer placement tools, a larger environment catalogue,
+richer lighting rigs, advanced material workflows) follows evidence; it does
+not block the first Experience proof. P24 expands this Stage vocabulary; it
+does not add editor features for their own sake.
 
 **Assets belong to the project, not a mode.** Long-term, assets are a
 project-level shared resource system consumed by both modes through one
@@ -357,7 +391,13 @@ vocabulary of the reusable substrate, alongside the Build (Layout) and Stage
 Longer-term experience flow may support multiple tours, optional branches,
 conditional traversal, free exploration, and sensible rejoin/resume behavior.
 Topology, sequence, and free navigation remain distinct concepts even when
-combined in one visitor experience.
+combined in one visitor experience. The current physical Sequence
+representation (ordered links stored on nodes) is retained until multiple
+tours or repeated node occurrences create a concrete requirement; any such
+migration stays inside the existing Camera domain with one route system and
+one motion evaluator. Room-based scope remains current; if future
+imported/outdoor/world workflows become important, coordinate/ownership
+evolution is explicit future architecture work — no current rewrite.
 
 ## Experience mode — how visitors understand and navigate the world
 
@@ -418,19 +458,29 @@ Interaction model:          Reach Camera Piano → Show Piano Info
 Navigation defines where the visitor can go. Content defines what can be
 presented. Interaction defines when or why an action occurs.
 
-Experience is deliberately sequenced after Build and Stage depth (P25):
+Experience (P25) begins once P23/P24 have produced a minimum useful authored
+environment — before their optional depth tails — not after broad Build +
+Stage completion:
 
 ```text
-P23 Build vocabulary
+P23 minimum useful Build set
+        +
+P24 minimum useful Stage set
         ↓
-P24 Stage vocabulary
+P25 narrow complete Experience foundation
         ↓
-existing Direct / Camera vocabulary
+bounded agent + reuse proof
         ↓
-P25 Experience vocabulary
+evidence-led deeper P23/P24/P25 capabilities
 ```
 
-so that Experience has meaningful semantic things to reference. Its future
+P23 and P24 remain separate ownership domains; the change is
+sequencing/depth, not ownership. The first Experience proof is deliberately
+narrow (destination + visitor navigation + contextual content + a small
+semantic trigger/action set with visitor-safe motion/accessibility
+behavior).
+
+Its future
 `Event → Target → Action` model composes existing project meaning rather
 than compensating for missing Spatial capabilities. No `ExperienceDocument`
 schema is invented now; persistence ownership stays deferred as stated under
@@ -642,7 +692,11 @@ Published output combines the **visitor-safe spatial runtime + Experience UI
 titles, info panels, links, audio controls, motion preferences, and navigation
 controls. Visitors never receive editor session infrastructure: selection,
 undo/redo, gizmos, Inspector, editor shell state, authoring stores, or
-asset-management UI. Visitor/editor isolation stays strict.
+asset-management UI. Visitor/editor isolation stays strict. The eventual
+proof is a cold visitor runtime: published project/version + closed asset
+resolution + visitor bootstrap loading in a fresh browser into the visitor
+experience, without requiring `EditorApp`, editor stores, selection,
+history, gizmos, or editor-only asset setup.
 
 The preferred architecture is one generic runtime plus project data/assets,
 not one bespoke application deployment per project. Over time the platform may
@@ -729,11 +783,12 @@ unless a later concrete requirement justifies separate queryable metadata.
 Future project schema versions may extend the versioned envelope with
 `experience`, which does not require Experience-specific database tables now.
 
-Identity stays managed infrastructure: the managed provider owns OAuth/login,
-credentials, sessions/tokens, account recovery, and later MFA. Fastify +
-Postgres own product authorization — who may open, edit, or publish a
-project. The auth provider never becomes the canonical project-permission
-model.
+Identity stays external: an external identity provider proves/authenticates
+identity, while the Museum Editor backend owns the application session and
+product authorization. Fastify + Postgres own project ownership/permissions —
+who may open, edit, or publish a project. The identity provider never becomes
+the canonical project-permission model, and the North Star does not overfit
+to any single provider's implementation.
 
 Backend/platform concerns include users, projects, project membership,
 versioned saves/published versions, asset metadata and storage references,
@@ -760,7 +815,9 @@ replaceable adapters rather than new project-document dependencies.
 Long-term collaboration may add presence, shared editing, comments, and
 version/history workflows. It must preserve deterministic project ownership,
 selection isolation, and command/history semantics rather than introducing a
-second mutable copy of editor truth.
+second mutable copy of editor truth. Versioned Save is not conflict
+detection: before simultaneous human/agent writers are supported, an
+explicit stale-write/revision-precondition design is required. No CRDTs.
 
 The monorepo may evolve into separately deployable editor, visitor/player, and
 backend surfaces while sharing renderer-neutral domain packages. Deployment
@@ -794,8 +851,9 @@ The preferred agent surface is high-level semantic operations — not:
 * arbitrary JavaScript/Python execution as the primary product API
 
 Low-level escape hatches may exist eventually, but they are not the canonical
-authoring contract. When AI repeatedly generates the same logic, that logic
-should become a reusable primitive rather than regenerated output.
+authoring contract. Repeated, stable semantics with demonstrated
+reuse/demand are candidates for reusable primitives — not everything an AI
+happens to generate twice.
 
 Agent-facing APIs/MCP or equivalent interfaces should expose high-level
 capabilities such as creating spatial structure, placing assets, editing
@@ -816,6 +874,17 @@ architectural constraints. Generated assets must enter the same canonical
 asset ingest, provenance, optimization, and placement pipeline rather than
 introducing a parallel asset or scene format. AI must not bypass the canonical
 geometry, selection, camera-motion, or persistence pipelines.
+
+After P22 plus the minimum P23/P24 slices plus a narrow P25 visitor journey,
+the roadmap calls for a bounded agent/reuse proof — testing whether a
+strong agent can inspect a project and make semantic edits, stage, author
+camera/experience changes, validate, preview, publish, and perform a
+requested revision through the same canonical behavior as human authoring —
+before broad platform expansion. The first proof exposes only a small useful
+set of existing/extracted operations; transport (in-process TypeScript, MCP,
+REST, WebMCP) stays replaceable per client need. No custom planner, chat UI,
+generic agent framework, four transports, or large MCP surface is required
+for that proof.
 
 ## Shared authoring operations (future direction)
 
@@ -852,13 +921,22 @@ setSequence(...)
 setShot(...)
 ```
 
-No complete generic command framework is claimed to exist today. Before any
-future implementation plan extracts one, the implementation agent must
+No complete generic command framework is claimed to exist today, and none is
+created now. Extract domain operations incrementally as real P23/P24/P25
+capabilities require them: semantic intent → explicit inputs →
+validation/preconditions → deterministic candidate/mutation → one
+transaction/history result → render/runtime. Before any future
+implementation plan extracts one, the implementation agent must
 inspect the current mutator/store/history abstractions and reuse them where
 appropriate; only the abstraction that current code pressure justifies gets
 extracted. UI remains one client of domain behavior, never its sole owner —
 that is what later makes an agent API inexpensive instead of requiring a
-second implementation of the editor.
+second implementation of the editor. An agent must not need to change human
+selection merely to mutate project state. Current history supports separate
+Layout/Scene domain entries; when the first real multi-domain operation
+(Layout/Scene/Camera/Experience) requires it, construct the complete
+candidate, validate it, and apply it atomically — do not pretend several
+independent commits are already one transaction. No CRDT/event sourcing.
 
 ## Project truth
 
@@ -1000,6 +1078,9 @@ Current production choices remain deliberate rather than ideological:
 - becoming a general-purpose 2D design suite, BIM system, game engine, CMS,
   Webflow-style website builder, or landing-page builder merely through
   feature accumulation, or competing with Figma/Canva as a 2D design suite
+- a generic AI agent framework, or training a proprietary general 3D/world
+  model — external models, generators, and agent intelligence stay
+  replaceable clients/suppliers, welcome through supported ingest
 - Experience mode duplicating camera, geometry, room, or scene-authoring
   systems instead of referencing Spatial truth (including separate Spatial
   and Experience asset stores)
@@ -1085,21 +1166,22 @@ today:
 
 ## Strategic success test
 
-The platform is succeeding when a capable agent asked to build a common
-spatial web experience achieves the result primarily by inspecting the
-project, editing layout, acquiring/placing assets, staging the scene,
-authoring lighting and the camera experience, adding visitor behavior,
-validating, previewing, and publishing — rather than by generating a new
-renderer, camera interpolation system, persistence layer, asset loader,
-interaction runtime, and deployment stack from scratch.
+The AI/reuse thesis is falsifiable. Eventually compare the same capable
+model, same brief, same assets, and same acceptance criteria on project
+types such as gallery/exhibition, product showroom, spatial portfolio,
+guided educational experience, or architectural walkthrough, against:
 
-Long-term comparative metrics may include time to first published
-experience, bespoke code files generated, agent tool calls required,
-percentage of output represented as canonical semantic project state,
-validation failures before publish, ability to manually continue editing
-generated work, reuse across projects, publish/runtime reliability, and
-token/cost reduction versus bespoke-code generation. These are strategy
-metrics, not current release gates.
+```text
+A. Museum Editor / canonical operations
+B. strong reusable-code / Three.js starter baseline (not generate-from-zero)
+```
+
+Measure revisions as well as first creation: total time/intervention to
+accepted published result, total cost/failed attempts, revision correctness
+plus unrelated regressions, cold publish/runtime success, manual
+continuation/editability, and reuse in a second project. Do not invent
+numeric wins — no 2×/3×/10× savings are claimed until measured. These are
+strategy metrics, not current release gates.
 
 ## Final conceptual hierarchy
 

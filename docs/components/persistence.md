@@ -1,7 +1,7 @@
 # Persistence and schema
 
 **Read when:** scene/layout/project codecs, undo/history, import/export, dirty, fidelity.  
-**Last reviewed:** 2026-08-30 (P16 closeout)
+**Last reviewed:** 2026-09-06 (P20 shipped 2026-09-04 — reconciliation only, no contract change)
 
 ---
 
@@ -15,9 +15,13 @@
 
 **Project:** `{ id, name, layout, scene }`. Visitor-safe shared codec validates nested layout + scene in one shape, prefixes nested issues, rejects scene room references absent from same layout. `chopin-project.json` = sole production layout/scene source; `chopin-project.ts` validates once, exposes project, one room registry, resolved scene, navigation graph, runtime. No assets, binary payloads, UI, or history in envelope. Portable package IDs, manifest/filename rules, and `sha256Bytes` also live in `@portfolio/project-model`; ZIP/Blob orchestration stays in editor import/export.
 
+**Cloud persistence (P19 shipped 2026-09-03):** authenticated owned Save/Load wraps the same canonical `ProjectDocument` — `projects` row + `project_versions` versioned JSONB. Save validates the full document, locks the project row, appends a version, and bumps `latest_version`; Load reads the latest version and revalidates; the Hub lists owned projects with versions. Save takes no expected-base-version precondition today — row locking serializes writes but a stale full document can still save as a newer version; a stale-write/revision precondition is a future trigger before simultaneous human/agent writers, not current behavior.
+
+**Project asset durability (P20 shipped 2026-09-04):** registry metadata in Postgres, heavy texture bytes in private R2 through `apps/api` only. Session/package texture URIs cannot reach semantic JSONB Save (durability gate); package export resolves bytes and embeds them. Assets are not normalized into `ProjectDocument` — the registry/storage boundary stays separate.
+
 **Asset policy:** portable packages may embed user texture bytes through their manifest; scene model entities still reference shipped catalogue `assetId`s only. Project-local GLB import remains deferred. P20 cloud Save uses a separate durability gate: session/package texture URIs cannot reach semantic JSONB Save, while package export resolves bytes and embeds them.
 
-**History:** one chronological undo stack; entries tagged `layout` | `scene`; 100-entry cap; scene/layout transactions validate before commit; undo/redo replaces only entry's domain; no-op skips entry; scene or layout import/reset clears stack.
+**History:** one chronological undo stack; entries tagged `layout` | `scene`; 100-entry cap; scene/layout transactions validate before commit; undo/redo replaces only entry's domain; no-op skips entry; scene or layout import/reset clears stack. History is editor-session state only — never serialized, not a collaboration operation log, and separate per-domain entries are not an atomic cross-domain transaction.
 
 **Session-only:** `scaleVector` map, lighting overrides, UI chrome, pending ghosts.
 

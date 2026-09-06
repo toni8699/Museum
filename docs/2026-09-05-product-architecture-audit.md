@@ -2,6 +2,26 @@
 
 2026-09-05 · Advisory report · 12–36 month horizon · No implementation or ratification
 
+> **Owner reconciliation / status note (2026-09-06).**
+> Status: advisory evidence + technical findings retained. This report's
+> recommendations are not ratified scope. Owner reconciliation after review:
+> - broad category remains interactive spatial experiences (not exhibitions/showrooms only)
+> - exhibitions/showrooms are candidate validation wedges, not the permanent category boundary
+> - P21 → P22 retained unchanged (no AI work in P22, no P21 expansion)
+> - P23/P24 become staged depth families (minimum useful slices first; optional tails later; separate ownership kept)
+> - narrow P25 Experience proof may follow useful P23/P24 minima before optional tails
+> - bounded agent/reuse proof moves earlier, after the first complete vertical slice
+> - agent-native/semantic structure is a technical strategy to validate, not a claimed moat
+> - no market validation, numeric savings, or provider choice is claimed here
+>
+> Where the body below uses narrow category language (e.g. "initially for
+> repeatable guided exhibitions and showrooms"), read it as the auditor's
+> advisory wedge proposal, annotated — not as ratified product scope.
+> Current direction lives in `plans/README.md` (tracker) + `north-star.md`;
+> ratified decisions live in `archive/plans/2026-09-06-scope-decision-roadmap-reconciliation.md`.
+> Absolute local filesystem links from the original draft were converted to
+> repository-relative links; external research citations are untouched.
+
 ## A. Executive verdict
 
 **Keep the product category, preserve the core, and shorten the route to evidence.** Build a **spatial experience runtime and authoring platform**, initially for repeatable guided exhibitions and showrooms. Humans and agents are clients; neither is the category. “Agent-native substrate” describes a technical advantage to prove, not a customer outcome or an established moat.
@@ -22,7 +42,7 @@ The biggest thing not to build is a general geometric/DCC toolset accompanied by
 
 Evidence labels throughout: **CURRENT FACT** = inspected source/test behavior; **CURRENT CONTRACT** = deliberate documented requirement; **RESEARCH EVIDENCE** = external source with maturity stated; **INFERENCE** = interpretation; **PROPOSED DIRECTION** = recommendation; **DEFERRED** = no implementation implied.
 
-The attachment contains the audit request, not a second research report. I read the repository's [deep research report](/Users/tony/Documents/Personal/docs/deep-research-report.md) in full and checked decision-bearing external claims. Its internal roadmap is stale: it still assigns typed DB to P23 and Experience to P24. The current [tracker](/Users/tony/Documents/Personal/docs/plans/README.md:123) reserves P23 Layout, P24 Staging, P25 Experience, P26+ expansion, with typed DB conditional. Its proposed effort ranges, 25–60 calls, 3–10× savings, and star-rated moats are not measurements.
+The attachment contains the audit request, not a second research report. I read the repository's [deep research report](./deep-research-report.md) in full and checked decision-bearing external claims. Its internal roadmap is stale: it still assigns typed DB to P23 and Experience to P24. The current [tracker](./plans/README.md:123) reserves P23 Layout, P24 Staging, P25 Experience, P26+ expansion, with typed DB conditional. Its proposed effort ranges, 25–60 calls, 3–10× savings, and star-rated moats are not measurements.
 
 ### Domains, ownership, and consumers
 
@@ -42,7 +62,7 @@ The attachment contains the audit request, not a second research report. I read 
 | Publish | No publish endpoint in inspected API | None | P22 direction, not delivered public project runtime |
 | Backend/auth/storage | Fastify; Google OIDC; app-owned session/authorization; Postgres metadata; R2 bytes through API | Parameterized SQL and ownership checks; bounded image upload | Editor receives metadata/content, not R2 credentials; runtime publishing needs its own public snapshot/asset resolution |
 
-Primary code evidence: [Project types](/Users/tony/Documents/Personal/packages/project-model/src/project-types.ts), [project codec](/Users/tony/Documents/Personal/packages/project-model/src/project-codec.ts), [Layout types](/Users/tony/Documents/Personal/packages/layout-core/src/layout-types.ts), [Scene types/resolver](/Users/tony/Documents/Personal/packages/project-model/src/scene.ts:243), [asset registry](/Users/tony/Documents/Personal/apps/api/src/asset-persistence.ts:8), [catalogue](/Users/tony/Documents/Personal/apps/editor/src/lib/content/assets.ts), [Save](/Users/tony/Documents/Personal/apps/api/src/project-persistence.ts:53), [API routes](/Users/tony/Documents/Personal/apps/api/src/app.ts:294), [auth](/Users/tony/Documents/Personal/apps/api/src/auth.ts), [R2 adapter](/Users/tony/Documents/Personal/apps/api/src/object-store.ts).
+Primary code evidence: [Project types](../packages/project-model/src/project-types.ts), [project codec](../packages/project-model/src/project-codec.ts), [Layout types](../packages/layout-core/src/layout-types.ts), [Scene types/resolver](../packages/project-model/src/scene.ts:243), [asset registry](../apps/api/src/asset-persistence.ts:8), [catalogue](../apps/editor/src/lib/content/assets.ts), [Save](../apps/api/src/project-persistence.ts:53), [API routes](../apps/api/src/app.ts:294), [auth](../apps/api/src/auth.ts), [R2 adapter](../apps/api/src/object-store.ts).
 
 ```mermaid
 flowchart TD
@@ -66,21 +86,21 @@ flowchart TD
   SAVE -. P22 proposed .-> PUB[Published snapshot / URL]
 ```
 
-The npm workspace split already contains `camera-core`, `layout-core`, and `project-model`, plus editor, museum, and API apps. Camera core uses Three math; portable data does not thereby become renderer objects. “Renderer-independent truth” is not the claim that every evaluator has zero renderer-library dependencies. The museum app is frozen, not the generic publish destination. [Workspace scripts](/Users/tony/Documents/Personal/package.json), [camera motion](/Users/tony/Documents/Personal/packages/camera-core/src/camera-motion.ts:2007).
+The npm workspace split already contains `camera-core`, `layout-core`, and `project-model`, plus editor, museum, and API apps. Camera core uses Three math; portable data does not thereby become renderer objects. “Renderer-independent truth” is not the claim that every evaluator has zero renderer-library dependencies. The museum app is frozen, not the generic publish destination. [Workspace scripts](../package.json), [camera motion](../packages/camera-core/src/camera-motion.ts:2007).
 
 ### Consequential implementation findings
 
-1. **Ownership is sound; live assembly is still editor-centric.** Layout preview stores an entire Project while Scene has its own live document store. The preview coordinator deliberately reads live Scene rather than the Layout state's Scene copy. This is a known stale-copy hazard, not proof of current data corruption. Prefer one explicit project snapshot composition boundary now; narrow Layout state to its actual authority when that code is next touched. [Layout state](/Users/tony/Documents/Personal/apps/editor/src/lib/editor/layout/layout-preview-state.svelte.ts:54), [preview coordinator](/Users/tony/Documents/Personal/apps/editor/src/lib/editor/preview/preview-coordinator.ts).
-2. **Useful operations exist already.** `transformLayoutRoomUnit` validates inputs, clones, transforms, checks structure/geometry, and returns a result. `runLayoutMutation` wraps a mutation in existing history. Camera mutators expose domain behavior but also depend on selection, preview, session expansion, status, and pending UI commands through hosts. Reuse the former pattern and extract the latter's domain portions selectively. [Room transform](/Users/tony/Documents/Personal/apps/editor/src/lib/editor/layout/layout-room-transform.ts:21), [mutation runner](/Users/tony/Documents/Personal/apps/editor/src/lib/editor/layout/layout-mutation-runner.ts), [camera mutator](/Users/tony/Documents/Personal/apps/editor/src/lib/editor/store/navigation-graph-mutator.svelte.ts).
-3. **One history stack does not mean atomic project operations.** Entries are a Scene/Layout union. A template that adds a room, objects, cameras, and content needs a deliberately composed transaction or a whole-project candidate applied atomically. It must not pretend several commits are one. [History](/Users/tony/Documents/Personal/apps/editor/src/lib/editor/store/history-controller.svelte.ts:49).
-4. **Preview isolation is a useful start, not a complete runtime package.** The visitor surface takes explicit data; `EditorApp` installs the detached texture loader through a module-level cache hook. P22 must bootstrap the equivalent resolution in a cold visitor, without relying on editor setup. Runtime defaults also include fixed fog, ambient, and directional light. Separate author lighting from preview aids before claiming authored staging parity. [Preview surface](/Users/tony/Documents/Personal/apps/editor/src/lib/visitor/VisitorPreviewSurface.svelte:89), [loader installation](/Users/tony/Documents/Personal/apps/editor/src/lib/editor/app/EditorApp.svelte:1607), [texture cache](/Users/tony/Documents/Personal/apps/editor/src/lib/museum/materials/texture-cache.ts:43).
-5. **Sequence is conceptually separate from topology but physically stored on nodes.** A node has one next/previous pair. Multiple tours sharing nodes, repeated visits, and per-tour timing cannot all fit that representation without ambiguity. Do not migrate today; migrate at the first such requirement. [Scene navigation fields](/Users/tony/Documents/Personal/packages/project-model/src/scene.ts:49), [flow route](/Users/tony/Documents/Personal/packages/camera-core/src/camera-route.ts:555), [visitor traversal](/Users/tony/Documents/Personal/apps/editor/src/lib/visitor/visitor-runtime-state.svelte.ts).
-6. **Local coordinates are heterogeneous by design today.** Scene entities/camera nodes use room-local coordinates; Layout boundary points and objects are transformed directly when a room moves, together with its frame. Do not describe all Layout fields as room-local or rewrite them for symmetry. [Room transform implementation](/Users/tony/Documents/Personal/apps/editor/src/lib/editor/layout/layout-room-transform.ts).
-7. **Versioned saves are not conflict detection.** Row locking serializes Save transactions, but no expected revision means an agent or second tab can save a stale full document as a newer version. Add revision preconditions before simultaneous writers are supported. This does not require CRDTs. [Save signature and lock](/Users/tony/Documents/Personal/apps/api/src/project-persistence.ts:53).
+1. **Ownership is sound; live assembly is still editor-centric.** Layout preview stores an entire Project while Scene has its own live document store. The preview coordinator deliberately reads live Scene rather than the Layout state's Scene copy. This is a known stale-copy hazard, not proof of current data corruption. Prefer one explicit project snapshot composition boundary now; narrow Layout state to its actual authority when that code is next touched. [Layout state](../apps/editor/src/lib/editor/layout/layout-preview-state.svelte.ts:54), [preview coordinator](../apps/editor/src/lib/editor/preview/preview-coordinator.ts).
+2. **Useful operations exist already.** `transformLayoutRoomUnit` validates inputs, clones, transforms, checks structure/geometry, and returns a result. `runLayoutMutation` wraps a mutation in existing history. Camera mutators expose domain behavior but also depend on selection, preview, session expansion, status, and pending UI commands through hosts. Reuse the former pattern and extract the latter's domain portions selectively. [Room transform](../apps/editor/src/lib/editor/layout/layout-room-transform.ts:21), [mutation runner](../apps/editor/src/lib/editor/layout/layout-mutation-runner.ts), [camera mutator](../apps/editor/src/lib/editor/store/navigation-graph-mutator.svelte.ts).
+3. **One history stack does not mean atomic project operations.** Entries are a Scene/Layout union. A template that adds a room, objects, cameras, and content needs a deliberately composed transaction or a whole-project candidate applied atomically. It must not pretend several commits are one. [History](../apps/editor/src/lib/editor/store/history-controller.svelte.ts:49).
+4. **Preview isolation is a useful start, not a complete runtime package.** The visitor surface takes explicit data; `EditorApp` installs the detached texture loader through a module-level cache hook. P22 must bootstrap the equivalent resolution in a cold visitor, without relying on editor setup. Runtime defaults also include fixed fog, ambient, and directional light. Separate author lighting from preview aids before claiming authored staging parity. [Preview surface](../apps/editor/src/lib/visitor/VisitorPreviewSurface.svelte:89), [loader installation](../apps/editor/src/lib/editor/app/EditorApp.svelte:1607), [texture cache](../apps/editor/src/lib/museum/materials/texture-cache.ts:43).
+5. **Sequence is conceptually separate from topology but physically stored on nodes.** A node has one next/previous pair. Multiple tours sharing nodes, repeated visits, and per-tour timing cannot all fit that representation without ambiguity. Do not migrate today; migrate at the first such requirement. [Scene navigation fields](../packages/project-model/src/scene.ts:49), [flow route](../packages/camera-core/src/camera-route.ts:555), [visitor traversal](../apps/editor/src/lib/visitor/visitor-runtime-state.svelte.ts).
+6. **Local coordinates are heterogeneous by design today.** Scene entities/camera nodes use room-local coordinates; Layout boundary points and objects are transformed directly when a room moves, together with its frame. Do not describe all Layout fields as room-local or rewrite them for symmetry. [Room transform implementation](../apps/editor/src/lib/editor/layout/layout-room-transform.ts).
+7. **Versioned saves are not conflict detection.** Row locking serializes Save transactions, but no expected revision means an agent or second tab can save a stale full document as a newer version. Add revision preconditions before simultaneous writers are supported. This does not require CRDTs. [Save signature and lock](../apps/api/src/project-persistence.ts:53).
 
-The [router](/Users/tony/Documents/Personal/docs/README.md) still says persistence is export/import only; [architecture](/Users/tony/Documents/Personal/docs/architecture.md:25) lags P20 completion; North Star's auth wording gives sessions to a managed provider while implemented sessions are app-owned. Treat these as documentation drift. The handoff's historical test totals were not independently rerun.
+The [router](./README.md) still says persistence is export/import only; [architecture](./architecture.md:25) lags P20 completion; North Star's auth wording gives sessions to a managed provider while implemented sessions are app-owned. Treat these as documentation drift (fixed 2026-09-06 except where noted in the reconciliation record). The handoff's historical test totals were not independently rerun.
 
-**Verification performed:** six focused existing suites, 42 tests passed: project codec, room transforms, history, detached preview, visitor state, visitor boundary. This establishes bounded contracts, not end-to-end release readiness. In particular, the retained-texture preview test permits either a string or null after registration; it does not demonstrate successful textured rendering. [Preview test](/Users/tony/Documents/Personal/apps/editor/tests/lib/editor/preview/preview-coordinator.test.ts:74), [history interleaving test](/Users/tony/Documents/Personal/apps/editor/tests/lib/editor/store/history-controller.test.ts:175). No browser, production deployment, device-performance, or customer tests were run for this advisory audit.
+**Verification performed:** six focused existing suites, 42 tests passed: project codec, room transforms, history, detached preview, visitor state, visitor boundary. This establishes bounded contracts, not end-to-end release readiness. In particular, the retained-texture preview test permits either a string or null after registration; it does not demonstrate successful textured rendering. [Preview test](../apps/editor/tests/lib/editor/preview/preview-coordinator.test.ts:74), [history interleaving test](../apps/editor/tests/lib/editor/store/history-controller.test.ts:175). No browser, production deployment, device-performance, or customer tests were run for this advisory audit.
 
 ## C. SOTA implications
 
@@ -149,7 +169,7 @@ The exception is permanently insisting that all experiences fit rooms and one li
 
 ## F. North Star audit, section by section
 
-Read against [the complete North Star](/Users/tony/Documents/Personal/docs/north-star.md).
+Read against [the complete North Star](./north-star.md).
 
 | Section | Verdict | Exact amendment intent |
 |---|---|---|
@@ -399,7 +419,7 @@ Suggested concise replacement direction:
 
 ## Q. Proposed roadmap amendment
 
-Changes below are **proposed replacements in** [docs/plans/README.md](/Users/tony/Documents/Personal/docs/plans/README.md), **not applied**. Keep Rules, status enum, Active rows and existing filenames unchanged. Record an owner scope decision before applying revised sequencing. Future P reservations remain direction only; implementation is registered through ordinary plan briefs and depends-on fields.
+Changes below are **proposed replacements in** [docs/plans/README.md](./plans/README.md), **not applied**. Keep Rules, status enum, Active rows and existing filenames unchanged. Record an owner scope decision before applying revised sequencing. Future P reservations remain direction only; implementation is registered through ordinary plan briefs and depends-on fields.
 
 Replace the P22 direction bullet with:
 
@@ -423,7 +443,7 @@ Replace references in the long “Current / near-term platform work” paragraph
 
 ## R. Architecture-doc amendment
 
-Only durable ownership clarifications belong in [architecture.md](/Users/tony/Documents/Personal/docs/architecture.md):
+Only durable ownership clarifications belong in [architecture.md](./architecture.md):
 
 1. Correct current platform status to shipped image registry/cloud save/load; distinguish image ingest from future general model/media ingest. Correct auth/session ownership consistently.
 2. Clarify `LayoutDocument` and `SceneDocument` are separately owned parts of one project; a cross-domain operation must have an explicit atomic application contract. Existing tagged history is not yet that contract.

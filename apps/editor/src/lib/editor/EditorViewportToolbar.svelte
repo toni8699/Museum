@@ -2,6 +2,7 @@
 	import { ChevronDown, Eye, MousePointer2, Move, PackagePlus, RotateCw, Scaling, Video } from 'lucide-svelte';
 	import type { EditorTransformMode } from './editor-transform';
 	import type { EditorStore } from './editor-store.svelte';
+	import { EDITOR_BRIGHT_LIGHTING, EDITOR_VISITOR_LIGHTING } from './editor-store.svelte';
 	import { onMount, getContext } from 'svelte';
 	import {
 		EDITOR_INTERACTION_STORE_KEY,
@@ -141,6 +142,11 @@
 	);
 	// Ceiling is a layout concern and lives only in the editor Scene View menu.
 	const showCeilingRow = $derived(context === 'scene' && onToggleCeilings !== undefined);
+	// P21.5 §3.3 — the Scene 3D View menu is the relocation home for the
+	// viewport session controls removed from the Inspector (grid, floor
+	// color, session lighting). Scene-context only; the Camera branch and the
+	// relic mount keep their pinned rows untouched.
+	const showSceneViewOptions = $derived(context === 'scene');
 	// S10.1 — Camera workspace toolbar: `Select | Move | Rotate | Add camera | View`.
 	// Scale and the scale-chain toggle are unmounted in Camera; Add camera lives
 	// in the Camera toolbar (relocated from the app-bar action row).
@@ -446,6 +452,77 @@
 							<span>Ceiling</span>
 						</button>
 					{/if}
+					{#if showSceneViewOptions}
+						<button
+							type="button"
+							role="menuitemcheckbox"
+							aria-checked={store.cameraPanEnabled}
+							class="toggle-row"
+							disabled={store.isVisitorCameraPreview}
+							onclick={() => store.toggleCameraPan()}
+						>
+							<span class="check" aria-hidden="true">{store.cameraPanEnabled ? '✓' : '○'}</span>
+							<span>Pan</span>
+						</button>
+						<button
+							type="button"
+							role="menuitemcheckbox"
+							aria-checked={store.gridVisible}
+							class="toggle-row"
+							disabled={store.isVisitorCameraPreview}
+							onclick={() => store.toggleGrid()}
+						>
+							<span class="check" aria-hidden="true">{store.gridVisible ? '✓' : '○'}</span>
+							<span>Grid</span>
+						</button>
+						<div class="view-separator" role="separator" aria-orientation="horizontal"></div>
+						<label class="view-color-row">
+							<span>Floor</span>
+							<span class="color-inputs">
+								<input type="color" value={store.floorColor} aria-label="Editor floor color picker" disabled={store.isVisitorCameraPreview} onchange={(event) => store.sessionView.setFloorColor(event.currentTarget.value)} />
+								<input type="text" value={store.floorColor} spellcheck="false" aria-label="Editor floor color hex" disabled={store.isVisitorCameraPreview} onchange={(event) => store.sessionView.setFloorColor(event.currentTarget.value)} />
+							</span>
+						</label>
+						<div class="view-separator" role="separator" aria-orientation="horizontal"></div>
+						<div class="view-section-label" aria-hidden="true">Lighting</div>
+						<button
+							type="button"
+							role="menuitem"
+							class="toggle-row"
+							disabled={store.isVisitorCameraPreview}
+							onclick={() => store.applyLightingPreset(EDITOR_BRIGHT_LIGHTING)}
+						>
+							<span class="check" aria-hidden="true">○</span>
+							<span>Bright</span>
+						</button>
+						<button
+							type="button"
+							role="menuitem"
+							class="toggle-row"
+							disabled={store.isVisitorCameraPreview}
+							onclick={() => store.applyLightingPreset(EDITOR_VISITOR_LIGHTING)}
+						>
+							<span class="check" aria-hidden="true">○</span>
+							<span>Visitor</span>
+						</button>
+						<label class="view-slider-row"><span>Ambient {store.ambientIntensity.toFixed(2)}</span><input type="range" min="0" max="2" step="0.05" disabled={store.isVisitorCameraPreview} value={store.ambientIntensity} oninput={(event) => store.sessionView.setAmbientIntensity(+event.currentTarget.value)} /></label>
+						<label class="view-slider-row"><span>Directional {store.directionalIntensity.toFixed(2)}</span><input type="range" min="0" max="3" step="0.05" disabled={store.isVisitorCameraPreview} value={store.directionalIntensity} oninput={(event) => store.sessionView.setDirectionalIntensity(+event.currentTarget.value)} /></label>
+						<button
+							type="button"
+							role="menuitemcheckbox"
+							aria-checked={store.fogEnabled}
+							class="toggle-row"
+							disabled={store.isVisitorCameraPreview}
+							onclick={() => store.sessionView.setFogEnabled(!store.fogEnabled)}
+						>
+							<span class="check" aria-hidden="true">{store.fogEnabled ? '✓' : '○'}</span>
+							<span>Fog</span>
+						</button>
+						{#if store.fogEnabled}
+							<label class="view-slider-row"><span>Fog near {store.fogNear.toFixed(0)}</span><input type="range" min="1" max="80" step="1" disabled={store.isVisitorCameraPreview} value={store.fogNear} oninput={(event) => store.sessionView.setFogNear(+event.currentTarget.value)} /></label>
+							<label class="view-slider-row"><span>Fog far {store.fogFar.toFixed(0)}</span><input type="range" min="5" max="120" step="1" disabled={store.isVisitorCameraPreview} value={store.fogFar} oninput={(event) => store.sessionView.setFogFar(+event.currentTarget.value)} /></label>
+						{/if}
+					{/if}
 				</div>
 			{/if}
 		</div>
@@ -548,6 +625,21 @@
 
 	.toggle-row { display: flex; align-items: center; gap: 0.55rem; }
 	.toggle-row .check { width: 0.85rem; color: var(--editor-accent); font: inherit; font-size: 0.78rem; }
+	.toggle-row:disabled { opacity: 0.42; cursor: default; }
+
+	/* P21.5 §3.3 — View-menu relocation rows for the viewport session
+	   controls (grid / floor / lighting). Same toggle-row grammar; sliders
+	   and color inputs stay session-only and visitor-disabled. */
+	.view-separator { height: 1px; margin: 0.3rem 0.45rem; background: var(--editor-border-subtle); }
+	.view-section-label { padding: 0.3rem 0.45rem 0.1rem; color: var(--editor-text-muted); font: 600 0.62rem/1 var(--editor-font); text-transform: uppercase; letter-spacing: 0.05em; }
+	.view-slider-row { display: flex; flex-direction: column; gap: 0.3rem; padding: 0.3rem 0.45rem; color: var(--editor-text-secondary); font-size: 0.68rem; }
+	.view-slider-row input[type='range'] { width: 100%; accent-color: var(--editor-accent); }
+	.view-slider-row input:disabled { opacity: 0.4; }
+	.view-color-row { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.3rem 0.45rem; color: var(--editor-text-secondary); font-size: 0.68rem; }
+	.view-color-row .color-inputs { display: flex; align-items: center; gap: 0.4rem; }
+	.view-color-row input[type='color'] { width: 1.8rem; height: 1.3rem; padding: 0; border: 1px solid var(--editor-border-normal); border-radius: 0.3rem; background: transparent; cursor: pointer; }
+	.view-color-row input[type='text'] { width: 4.6rem; padding: 0.24rem 0.35rem; border: 1px solid var(--editor-border-normal); border-radius: 0.3rem; background: var(--editor-bg-panel-raised); color: var(--editor-text-primary); font: inherit; font-size: 0.68rem; }
+	.view-color-row input:disabled { opacity: 0.4; cursor: default; }
 
 	@media (max-width: 44rem) {
 		.toolbar {

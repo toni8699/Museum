@@ -773,6 +773,93 @@ describe('P21.3 camera reconciliation', () => {
 	});
 });
 
+describe('P21.5 Slice 3 inspector density + selection isolation', () => {
+	it('restyles the shared number field as a compact 28px axis-chip row (no forked row component)', () => {
+		const field = readLibSource('editor/fields/EditorNumberField.svelte');
+		expect(field).toContain('height: 28px;');
+		expect(field).toContain('axis-chip');
+		expect(field).toContain('width: 18px;');
+		expect(field).toContain('height: 18px;');
+		expect(field).toContain('font-variant-numeric: tabular-nums;');
+		expect(field).toContain("data-tone={chipTone}");
+		expect(field).toContain('aria-label={label}');
+		// Axis tones follow the canonical gizmo mapping (X red / Y green / Z blue).
+		expect(field).toContain("data-tone='x'");
+		expect(field).toContain('#f05252');
+		expect(field).toContain('#45c878');
+		expect(field).toContain('#3b82f6');
+		// No TransformInputRow fork exists; the shared field is reused.
+		expect(fs.existsSync(path.join(LIB_DIR, 'editor/components/TransformInputRow.svelte'))).toBe(false);
+		const vec3 = readLibSource('editor/fields/EditorVec3Field.svelte');
+		expect(vec3).toContain('axis-chip');
+		expect(vec3).toContain('height: 28px;');
+		expect(vec3).toContain('font-variant-numeric: tabular-nums;');
+	});
+
+	it('folds the transform axis legend into per-field chips (density only, scale semantics intact)', () => {
+		const inspector = readLibSource('editor/EditorTransformInspector.svelte');
+		expect(inspector).not.toContain('axis-legend');
+		expect(inspector).toContain('.field-grid');
+		expect(inspector).toContain('toggleScaleMode');
+		expect(inspector).toContain("scaleMode === 'uniform'");
+		expect(inspector).toContain("scaleMode === 'independent'");
+	});
+
+	it('removes the permanent Camera/Lighting panels so zero selection shows the primer only', () => {
+		const inspector = readLibSource('editor/EditorInspector.svelte');
+		expect(inspector).not.toContain('aria-label="Editor camera controls"');
+		expect(inspector).not.toContain('aria-label="Viewport lighting"');
+		expect(inspector).not.toContain('toggleCameraPan');
+		expect(inspector).not.toContain('applyLightingPreset');
+		expect(inspector).not.toContain('setAmbientIntensity');
+		expect(inspector).not.toContain('setFloorColor');
+		expect(inspector).not.toContain('camera-controls');
+		// Selection routing is preserved: layout CAD, Arrange, assets, camera,
+		// placement, and the empty primer path all stay mounted.
+		expect(inspector).toContain('showLayoutPrimer');
+		expect(inspector).toContain('aria-label="Arrange selection"');
+		expect(inspector).toContain('showAssetInspector');
+		expect(inspector).toContain('selectedNavigation');
+		expect(inspector).toContain('hasPlacementSelection');
+		expect(inspector).toContain('aria-label="Editor help"');
+	});
+
+	it('gates the 2D Place drafting grid to Scene Plan Layout only', () => {
+		const inspector = readLibSource('editor/EditorInspector.svelte');
+		expect(inspector).toContain('{#if isScenePlanLayout}');
+		expect(inspector).not.toContain('{#if !arrangeMode}');
+	});
+
+	it('relocates viewport session controls into the Scene 3D View menu (never the status bar)', () => {
+		const toolbar = readLibSource('editor/EditorViewportToolbar.svelte');
+		expect(toolbar).toContain('showSceneViewOptions');
+		expect(toolbar).toContain("context === 'scene'");
+		// Grid / floor / lighting rows live in the Scene branch only.
+		const sceneStart = toolbar.indexOf('{#if showSceneViewOptions}');
+		expect(sceneStart).toBeGreaterThanOrEqual(0);
+		const sceneBlock = toolbar.slice(sceneStart);
+		expect(sceneBlock).toContain('store.toggleCameraPan()');
+		expect(sceneBlock).toContain('store.toggleGrid()');
+		expect(sceneBlock).toContain('aria-label="Editor floor color picker"');
+		expect(sceneBlock).toContain('store.sessionView.setFloorColor');
+		expect(sceneBlock).toContain('EDITOR_BRIGHT_LIGHTING');
+		expect(sceneBlock).toContain('EDITOR_VISITOR_LIGHTING');
+		expect(sceneBlock).toContain('store.applyLightingPreset');
+		expect(sceneBlock).toContain('store.sessionView.setAmbientIntensity');
+		expect(sceneBlock).toContain('store.sessionView.setDirectionalIntensity');
+		expect(sceneBlock).toContain('store.sessionView.setFogEnabled');
+		// The Camera branch keeps its pinned rows; the relic (no context) is untouched.
+		expect(toolbar).toContain('{#if showCameraHelperRows}');
+		expect(toolbar).toContain('{#if showCeilingRow}');
+		// Status bar stays strings/hints only — no relocated authoring control lands there.
+		const status = readLibSource('editor/app/StatusBar.svelte');
+		expect(status).not.toContain('setFloorColor');
+		expect(status).not.toContain('setAmbientIntensity');
+		expect(status).not.toContain('applyLightingPreset');
+		expect(status).not.toContain('toggleGrid');
+	});
+});
+
 describe('unified hierarchy contracts', () => {
 	it('mounts the editor sidebar + unified tree in the editor shell, never in the relic', () => {
 		// editor shell imports the new sidebar (and the unified tree through it).

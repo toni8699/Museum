@@ -42,8 +42,6 @@
 	} from './layout/layout-interaction';
 	import { roomBounds, roomEdgeLength } from './layout/layout-editing';
 	import {
-		EDITOR_BRIGHT_LIGHTING,
-		EDITOR_VISITOR_LIGHTING,
 		type EditorStore
 	} from './editor-store.svelte';
 	import type { EditorActiveSelectionStore } from './app/active-editor-selection.svelte';
@@ -671,7 +669,7 @@
 			{#if layoutPreview.importError}<p class="layout-opening-warning" role="alert">Import failed: {layoutPreview.importError}</p>{/if}
 			<p class="layout-inspector-note">Openings are geometry-only in this phase. No room adjacency or portal semantics are inferred.</p>
 
-			{#if !arrangeMode}
+			{#if isScenePlanLayout}
 			<div class="layout-accordion">
 				<button type="button" class="accordion-trigger" aria-expanded={layoutInteraction.accordions.place} onclick={() => toggleLayoutAccordion(layoutInteraction, 'place')}><strong>Place</strong><span>{layoutInteraction.accordions.place ? '−' : '+'}</span></button>
 				{#if layoutInteraction.accordions.place}
@@ -1048,40 +1046,6 @@
 		</section>
 	{/if}
 
-	{#if !scenePlanStaging}
-	<section class="camera-controls" aria-label="Editor camera controls">
-		<div class="section-heading">
-			<h2>Camera</h2>
-			<span class="help" role="img" aria-label="Camera controls help" title="Middle-drag pans. Camera-node rows frame their authored eye and target.">?</span>
-		</div>
-		<button type="button" class:active={store.cameraPanEnabled} aria-pressed={store.cameraPanEnabled} disabled={store.isVisitorCameraPreview} onclick={() => store.toggleCameraPan()}>Pan {store.cameraPanEnabled ? 'on' : 'off'}</button>
-		<button type="button" class:active={store.gridVisible} aria-pressed={store.gridVisible} disabled={store.isVisitorCameraPreview} onclick={() => store.toggleGrid()}>Grid {store.gridVisible ? 'on' : 'off'}</button>
-		<label class="floor-color">
-			<span>Floor</span>
-			<div class="color-row">
-				<input type="color" value={store.floorColor} aria-label="Editor floor color picker" disabled={store.isVisitorCameraPreview} onchange={(event) => store.sessionView.setFloorColor(event.currentTarget.value)} />
-				<input type="text" value={store.floorColor} spellcheck="false" aria-label="Editor floor color hex" disabled={store.isVisitorCameraPreview} onchange={(event) => store.sessionView.setFloorColor(event.currentTarget.value)} />
-			</div>
-		</label>
-	</section>
-	{/if}
-
-	<section class="lighting" aria-label="Viewport lighting">
-		<h2>Lighting</h2>
-		<p>Session-only; excluded from history and visitor JSON.</p>
-		<div class="presets">
-			<button type="button" disabled={store.isVisitorCameraPreview} onclick={() => store.applyLightingPreset(EDITOR_BRIGHT_LIGHTING)}>Bright</button>
-			<button type="button" disabled={store.isVisitorCameraPreview} onclick={() => store.applyLightingPreset(EDITOR_VISITOR_LIGHTING)}>Visitor</button>
-		</div>
-		<label><span>Ambient {store.ambientIntensity.toFixed(2)}</span><input type="range" min="0" max="2" step="0.05" disabled={store.isVisitorCameraPreview} value={store.ambientIntensity} oninput={(event) => store.sessionView.setAmbientIntensity(+event.currentTarget.value)} /></label>
-		<label><span>Directional {store.directionalIntensity.toFixed(2)}</span><input type="range" min="0" max="3" step="0.05" disabled={store.isVisitorCameraPreview} value={store.directionalIntensity} oninput={(event) => store.sessionView.setDirectionalIntensity(+event.currentTarget.value)} /></label>
-		<label class="checkbox"><input type="checkbox" disabled={store.isVisitorCameraPreview} checked={store.fogEnabled} onchange={(event) => store.sessionView.setFogEnabled(event.currentTarget.checked)} /><span>Fog</span></label>
-		{#if store.fogEnabled}
-			<label><span>Fog near {store.fogNear.toFixed(0)}</span><input type="range" min="1" max="80" step="1" disabled={store.isVisitorCameraPreview} value={store.fogNear} oninput={(event) => store.sessionView.setFogNear(+event.currentTarget.value)} /></label>
-			<label><span>Fog far {store.fogFar.toFixed(0)}</span><input type="range" min="5" max="120" step="1" disabled={store.isVisitorCameraPreview} value={store.fogFar} oninput={(event) => store.sessionView.setFogFar(+event.currentTarget.value)} /></label>
-		{/if}
-	</section>
-
 	{#if readOnly}
 		<p class="plan-footer-note">
 			<span class="plan-footer-note__icon"><Lightbulb size={13} aria-hidden="true" /></span>
@@ -1195,9 +1159,7 @@
 		line-height: 1.4;
 	}
 	.plan-footer-note__icon { display: inline-flex; flex: 0 0 auto; margin-top: 0.05rem; color: var(--editor-accent); }
-	.presets { display: flex; gap: 0.35rem; }
-	.presets button, .deselect, .camera-controls button { padding: 0.38rem 0.5rem; border: 1px solid var(--editor-border-normal); border-radius: 0.32rem; background: var(--editor-bg-panel-raised); color: var(--editor-text-primary); font: inherit; font-size: 0.72rem; cursor: pointer; }
-	.camera-controls button:disabled, .presets button:disabled { opacity: 0.4; cursor: default; }
+	.deselect { padding: 0.38rem 0.5rem; border: 1px solid var(--editor-border-normal); border-radius: 0.32rem; background: var(--editor-bg-panel-raised); color: var(--editor-text-primary); font: inherit; font-size: 0.72rem; cursor: pointer; }
 	.selection dl div { display: flex; flex-direction: column; gap: 0.1rem; }
 	.selection dd { margin: 0; font-size: 0.8rem; }
 	.selection p { margin: 0; color: var(--editor-text-secondary); font-size: 0.75rem; line-height: 1.4; }
@@ -1223,19 +1185,6 @@
 	.placement-actions button.delete { border-color: var(--editor-danger-border); background: var(--editor-danger-soft); color: var(--editor-danger-fg); }
 	.placement-actions p { margin: 0; color: var(--editor-text-muted); font-size: 0.67rem; line-height: 1.4; }
 	.deselect { align-self: flex-start; }
-	.camera-controls, .lighting { margin-top: 0.4rem; gap: 0.7rem; border-top: 1px solid var(--editor-border-subtle); padding-top: 0.85rem; }
-	.lighting p { margin: 0; color: var(--editor-text-secondary); font-size: 0.75rem; line-height: 1.4; }
-	.camera-controls button { align-self: flex-start; }
-	.camera-controls button.active { border-color: var(--editor-accent); background: var(--editor-bg-selected); box-shadow: 0 0 8px color-mix(in srgb, var(--editor-accent) 30%, transparent); color: var(--editor-text-primary); }
-	.help { display: inline-grid; width: 1.1rem; height: 1.1rem; place-items: center; border: 1px solid var(--editor-border-normal); border-radius: 999px; color: var(--editor-text-muted); font: 600 0.62rem/1 var(--editor-font); cursor: help; }
-	.floor-color { display: flex; flex-direction: column; gap: 0.3rem; color: var(--editor-text-secondary); font-size: 0.75rem; }
-	.floor-color .color-row { display: flex; align-items: center; gap: 0.45rem; }
-	.floor-color input[type='color'] { width: 2rem; height: 1.5rem; padding: 0; border: 1px solid var(--editor-border-normal); border-radius: 0.32rem; background: transparent; cursor: pointer; }
-	.floor-color input[type='text'] { width: 5.5rem; padding: 0.28rem 0.4rem; border: 1px solid var(--editor-border-normal); border-radius: 0.32rem; background: var(--editor-bg-panel-raised); color: var(--editor-text-primary); font: inherit; font-size: 0.72rem; }
-	.presets button { flex: 1; }
-	.lighting label { display: flex; flex-direction: column; gap: 0.3rem; color: var(--editor-text-secondary); font-size: 0.75rem; }
-	.lighting label.checkbox { flex-direction: row; align-items: center; gap: 0.45rem; }
-	.lighting input[type='range'] { width: 100%; }
 
 	@media (max-width: 62rem) {
 		.panel { min-height: 0; max-height: 34rem; border-top: 1px solid var(--editor-border-subtle); }

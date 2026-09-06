@@ -87,13 +87,14 @@
 <fieldset bind:this={fieldset} {disabled} onfocusout={onFocusOut}>
 	<legend>{legend}</legend>
 	<div class="field-grid">
-		{#each ['X', 'Y', 'Z'] as axis, index}
-			<label>
-				<span>{axis}</span>
+		{#each [{ axis: 'X', tone: 'x' }, { axis: 'Y', tone: 'y' }, { axis: 'Z', tone: 'z' }] as { axis, tone }, index}
+			<label data-tone={tone} title={`${legend} ${axis}`}>
+				<span class="axis-chip" aria-hidden="true">{axis}</span>
 				<input
 					type="number"
 					{step}
 					value={drafts[index]}
+					aria-label={`${legend} ${axis}`}
 					oninput={(event) => onInput(index as 0 | 1 | 2, event)}
 					onpointerdown={onPointerDown}
 					onpointerup={() => (stepperInput = null)}
@@ -131,28 +132,60 @@
 
 	label {
 		display: flex;
-		flex-direction: column;
-		gap: 0.3rem;
+		align-items: center;
+		gap: 6px;
+		height: 28px;
 		min-width: 0;
-		color: var(--editor-text-secondary);
-		font-size: 0.7rem;
-		letter-spacing: 0.04em;
-		text-transform: uppercase;
+		box-sizing: border-box;
+		padding: 0 6px 0 2px;
+		border: 1px solid var(--editor-border-subtle);
+		border-radius: 5px;
+		background: var(--editor-bg-control);
+	}
+
+	.axis-chip {
+		display: inline-grid;
+		flex: 0 0 auto;
+		place-items: center;
+		width: 18px;
+		height: 18px;
+		border-radius: 3px;
+		font: 700 10px/1 var(--editor-font);
+	}
+
+	label[data-tone='x'] .axis-chip {
+		background: rgba(240, 82, 82, 0.15);
+		color: #f05252;
+	}
+
+	label[data-tone='y'] .axis-chip {
+		background: rgba(69, 200, 120, 0.15);
+		color: #45c878;
+	}
+
+	label[data-tone='z'] .axis-chip {
+		background: rgba(59, 130, 246, 0.15);
+		color: #3b82f6;
 	}
 
 	input {
+		flex: 1 1 auto;
 		min-width: 0;
 		width: 100%;
 		box-sizing: border-box;
-		padding: 0.42rem 0.45rem;
-		border: 1px solid var(--editor-border-normal);
-		border-radius: 0.3rem;
-		background: var(--editor-bg-app);
+		padding: 0;
+		border: 0;
+		background: transparent;
 		color: var(--editor-text-primary);
-		font: 0.76rem var(--editor-font);
+		font: 500 12px var(--editor-font);
+		font-variant-numeric: tabular-nums;
 	}
 
 	input:focus {
+		outline: none;
+	}
+
+	label:focus-within {
 		outline: 1px solid var(--editor-accent);
 		border-color: var(--editor-accent);
 	}

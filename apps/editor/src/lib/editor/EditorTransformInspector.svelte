@@ -96,12 +96,6 @@
 			<span>Room-local</span>
 		</div>
 
-		<div class="axis-legend" aria-label="Gizmo axis colors">
-			<span class="x">X</span><span>Red</span>
-			<span class="y">Y</span><span>Green</span>
-			<span class="z">Z</span><span>Blue</span>
-		</div>
-
 		<fieldset>
 			<legend>Position (m)</legend>
 			<div class="field-grid">
@@ -278,25 +272,6 @@
 		color: var(--editor-text-muted);
 		font-size: 0.68rem;
 	}
-
-	.axis-legend {
-		display: grid;
-		grid-template-columns: auto 1fr auto 1fr auto 1fr;
-		align-items: center;
-		gap: 0.25rem;
-		color: var(--editor-text-muted);
-		font-size: 0.67rem;
-	}
-
-	.axis-legend .x,
-	.axis-legend .y,
-	.axis-legend .z {
-		font-weight: 750;
-	}
-
-	.axis-legend .x { color: var(--editor-axis-x); }
-	.axis-legend .y { color: var(--editor-axis-y); }
-	.axis-legend .z { color: var(--editor-axis-z); }
 
 	fieldset {
 		margin: 0;

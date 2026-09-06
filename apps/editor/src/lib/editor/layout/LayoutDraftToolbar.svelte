@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { DoorOpen, Grid2x2, MousePointer2, Pentagon, Square, Trash2, X } from 'lucide-svelte';
 	import {
 		cancelLayoutPrimitiveDraft,
 		clearLayoutDraft,
@@ -61,7 +62,10 @@
 
 <div class="layout-toolbar" class:ribbon role="toolbar" aria-label={interaction.planViewMode === 'staging' ? 'Scene Plan arrange tools' : 'Layout drafting tools'}>
 	{#if showPlanModeToggle}
-		<div class="tool-group mode-group" role="group" aria-label="Scene Plan mode">
+		<!-- P21.5 §1.3 — [Layout|Arrange] joins the shared enclosed segmented
+		     grammar (Scene|Camera, Plan|3D, Layout|Arrange); ribbon and
+		     floating both draw their own enclosure per the shell contract. -->
+		<div class="segmented mode-group" role="group" aria-label="Scene Plan mode">
 			<button type="button" class:active={interaction.planViewMode === 'layout'} aria-pressed={interaction.planViewMode === 'layout'} onclick={() => choosePlanMode('layout')}>Layout</button>
 			<button type="button" class:active={interaction.planViewMode === 'staging'} aria-pressed={interaction.planViewMode === 'staging'} onclick={() => choosePlanMode('staging')}>Arrange</button>
 		</div>
@@ -73,14 +77,14 @@
 		</div>
 	{/if}
 	<div class="tool-group" aria-label="Room drafting tool">
-		<button type="button" class:active={interaction.tool === 'select'} aria-pressed={interaction.tool === 'select'} onclick={() => chooseTool('select')}>Select</button>
+		<button type="button" class:active={interaction.tool === 'select'} aria-pressed={interaction.tool === 'select'} onclick={() => chooseTool('select')}><MousePointer2 size={14} aria-hidden="true" /> Select</button>
 		{#if interaction.planViewMode === 'layout'}
-			<button type="button" class:active={interaction.tool === 'rectangle'} aria-pressed={interaction.tool === 'rectangle'} onclick={() => chooseTool('rectangle')}>Rect Room</button>
-			<button type="button" class:active={interaction.tool === 'polygon'} aria-pressed={interaction.tool === 'polygon'} onclick={() => chooseTool('polygon')}>Poly Room</button>
-			<button type="button" class:active={interaction.tool === 'door'} aria-pressed={interaction.tool === 'door'} onclick={() => chooseTool('door')}>Door</button>
-			<button type="button" class:active={interaction.tool === 'window'} aria-pressed={interaction.tool === 'window'} onclick={() => chooseTool('window')}>Window</button>
+			<button type="button" class:active={interaction.tool === 'rectangle'} aria-pressed={interaction.tool === 'rectangle'} onclick={() => chooseTool('rectangle')}><Square size={14} aria-hidden="true" /> Rect Room</button>
+			<button type="button" class:active={interaction.tool === 'polygon'} aria-pressed={interaction.tool === 'polygon'} onclick={() => chooseTool('polygon')}><Pentagon size={14} aria-hidden="true" /> Poly Room</button>
+			<button type="button" class:active={interaction.tool === 'door'} aria-pressed={interaction.tool === 'door'} onclick={() => chooseTool('door')}><DoorOpen size={14} aria-hidden="true" /> Door</button>
+			<button type="button" class:active={interaction.tool === 'window'} aria-pressed={interaction.tool === 'window'} onclick={() => chooseTool('window')}><Grid2x2 size={14} aria-hidden="true" /> Window</button>
 		{:else if onDeleteArrange}
-			<button type="button" aria-label="Delete arrange selection" onclick={() => onDeleteArrange?.()}>Delete</button>
+			<button type="button" aria-label="Delete arrange selection" onclick={() => onDeleteArrange?.()}><Trash2 size={14} aria-hidden="true" /> Delete</button>
 		{/if}
 	</div>
 	{#if ribbon || interaction.viewMode === 'plan'}
@@ -95,7 +99,7 @@
 		<button type="button" class:active={preview.showCeilings} aria-pressed={preview.showCeilings} onclick={() => toggleLayoutCeilings(preview)}>Ceiling</button>
 	{/if}
 	{#if interaction.planViewMode === 'layout' && (interaction.polygonPoints.length > 0 || interaction.rectangleStart || interaction.primitiveDraft || interaction.roomUnitDrag || interaction.tool === 'door' || interaction.tool === 'window')}
-		<button type="button" class="cancel" onclick={cancel}>Cancel</button>
+		<button type="button" class="cancel" onclick={cancel}><X size={14} aria-hidden="true" /> Cancel</button>
 	{/if}
 </div>
 
@@ -103,6 +107,12 @@
 	.layout-toolbar { position: absolute; top: 0.75rem; left: 0.75rem; z-index: 4; display: flex; gap: 0.3rem; padding: 0.3rem; border: 1px solid var(--editor-border-normal); border-radius: 0.42rem; background: var(--editor-bg-panel-raised); box-shadow: var(--editor-shadow-toolbar); }
 	.tool-group { display: flex; gap: 0.22rem; padding-right: 0.32rem; border-right: 1px solid var(--editor-border-subtle); }
 	.tool-group.options { border-right: 0; }
+	/* Floating [Layout|Arrange] keeps the enclosed segmented grammar too; the
+	   P21.5 ribbon grammar in styles/controls.css wins inside the shell. */
+	.segmented { display: flex; align-items: center; padding: 1px; gap: 1px; border: 1px solid var(--editor-border-subtle); border-radius: 6px; background: var(--editor-bg-control); }
+	.segmented button { height: 24px; padding: 0 8px; border: 0; border-radius: 4px; background: transparent; color: var(--editor-text-secondary); font: 600 0.68rem/1 var(--editor-font); cursor: pointer; }
+	.segmented button:hover { background: var(--editor-bg-hover); color: var(--editor-text-primary); }
+	.segmented button.active { background: var(--editor-accent-soft); color: var(--editor-text-primary); }
 	button { padding: 0.38rem 0.52rem; border: 1px solid transparent; border-radius: 0.3rem; background: transparent; color: var(--editor-text-secondary); font: 600 0.68rem/1 var(--editor-font); cursor: pointer; }
 	button:hover { border-color: var(--editor-border-strong); color: var(--editor-text-primary); }
 	button.active { border-color: var(--editor-accent-border); background: var(--editor-bg-selected); color: var(--editor-text-primary); }
@@ -114,6 +124,6 @@
 	}
 	.layout-toolbar.ribbon { position:relative; inset:auto; transform:none; flex:1; min-width:0; height:28px; padding:0; border:0; border-radius:0; box-shadow:none; background:transparent; backdrop-filter:none; flex-wrap:nowrap; align-items:center; }
 	.ribbon button { height:28px; padding:0 6px; white-space:nowrap; }
-	.ribbon button.active { background:var(--editor-bg-control); color:var(--editor-accent); }
+	.ribbon button.cancel { display:inline-flex; align-items:center; gap:6px; height:24px; padding:0 8px; background:var(--editor-danger-soft); border:1px solid var(--editor-danger-border); border-radius:4px; }
 	.ribbon .options { margin-left:auto; }
 </style>

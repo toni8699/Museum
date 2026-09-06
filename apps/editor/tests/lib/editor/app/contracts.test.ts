@@ -573,7 +573,10 @@ describe('P21.1 shared shell', () => {
 describe('P21.2 scene reconciliation', () => {
 	it('exposes exactly the supported Layout tools in Row 2 (no Wall/Measure)', () => {
 		const toolbar = readLibSource('editor/layout/LayoutDraftToolbar.svelte');
-		for (const label of ['>Select</button>', '>Rect Room</button>', '>Poly Room</button>', '>Door</button>', '>Window</button>']) {
+		// P21.5 §1.4 — labels pair with 14px Lucide icons, so match on the
+		// label text before the closing tag rather than a bare `>Label`. The
+		// tool set itself is unchanged.
+		for (const label of ['Select</button>', 'Rect Room</button>', 'Poly Room</button>', 'Door</button>', 'Window</button>']) {
 			expect(toolbar).toContain(label);
 		}
 		expect(toolbar).not.toMatch(/>Wall</);
@@ -585,7 +588,7 @@ describe('P21.2 scene reconciliation', () => {
 		const toolbar = readLibSource('editor/layout/LayoutDraftToolbar.svelte');
 		expect(toolbar).toContain('onDeleteArrange');
 		expect(toolbar).toContain('aria-label="Delete arrange selection"');
-		expect(toolbar).toContain('>Delete</button>');
+		expect(toolbar).toContain('Delete</button>');
 		const ribbon = readLibSource('editor/app/WorkspaceRibbon.svelte');
 		expect(ribbon).toContain('onDeleteArrange');
 		expect(ribbon).toContain('{onDeleteArrange}');
@@ -666,7 +669,9 @@ describe('P21.2 scene reconciliation', () => {
 describe('P21.3 camera reconciliation', () => {
 	it('orders the Camera Plan ribbon Select | Add Camera Connect | View | Snap Grid', () => {
 		const toolbar = readLibSource('editor/camera-plan/CameraPlanToolbar.svelte');
-		const order = ['>Select</button>', '>Add Camera</button>', '>Connect</button>', '>View</button>', '>Snap</button>', '>Grid</button>'].map(
+		// P21.5 §1.4 — command labels pair with 14px Lucide icons; the order
+		// contract (Select | Add Camera Connect | View | Snap Grid) is unchanged.
+		const order = ['Select</button>', 'Add Camera</button>', 'Connect</button>', 'View</button>', 'Snap</button>', 'Grid</button>'].map(
 			(label) => toolbar.indexOf(label)
 		);
 		for (const [index, position] of order.entries()) {
@@ -698,7 +703,7 @@ describe('P21.3 camera reconciliation', () => {
 		const helperStart = toolbar.indexOf('aria-label="Camera helper visibility"');
 		const renderStart = toolbar.indexOf('{@render viewMenu()}');
 		const modeStart = toolbar.indexOf('aria-label="Camera preview mode"');
-		const snapStart = toolbar.indexOf('<summary>Snap</summary>');
+		const snapStart = toolbar.indexOf('<summary class="ribbon-btn">Snap</summary>');
 		for (const position of [helperStart, renderStart, modeStart, snapStart]) {
 			expect(position).toBeGreaterThanOrEqual(0);
 		}

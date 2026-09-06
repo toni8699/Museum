@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { ChevronDown, Eye, MousePointer2, Move, RotateCw, Scaling, Video } from 'lucide-svelte';
+	import { ChevronDown, Eye, MousePointer2, Move, PackagePlus, RotateCw, Scaling, Video } from 'lucide-svelte';
 	import type { EditorTransformMode } from './editor-transform';
 	import type { EditorStore } from './editor-store.svelte';
 	import { onMount, getContext } from 'svelte';
@@ -351,7 +351,7 @@
 	{/if}
 
 	{#if ribbon && !isCameraContext}
-		<button disabled={disabled} onclick={() => store.setLeftPanel('assets')}>Add Asset</button>
+		<button class="ribbon-btn" disabled={disabled} onclick={() => store.setLeftPanel('assets')}><PackagePlus size={14} aria-hidden="true" /> Add Asset</button>
 		<div class="tool-group" role="group" aria-label="Transform space">
 			{#each ['local', 'world'] as space}
 				<button disabled={disabled || !interactionStore} class:active={interactionStore?.space === space}
@@ -362,7 +362,7 @@
 	{/if}
 	{#if ribbon}
 		<details class="precision">
-			<summary>Snap</summary>
+			<summary class="ribbon-btn">Snap</summary>
 			<div class="add-menu">
 				<label><input type="checkbox" checked={store.translationSnapEnabled} onchange={(e) => store.sessionView.setTranslationSnapEnabled(e.currentTarget.checked)} /> Move snap</label>
 				<label>Distance (m) <input type="number" min="0.01" step="0.01" value={store.translationSnap} onchange={(e) => commitTranslationSnap(e.currentTarget)} /></label>
@@ -562,7 +562,6 @@
 	}
 	.toolbar.ribbon { position:relative; inset:auto; transform:none; flex:1; min-width:0; height:28px; padding:0; border:0; border-radius:0; box-shadow:none; background:transparent; backdrop-filter:none; flex-wrap:nowrap; align-items:center; }
 	.ribbon button { height:28px; padding:0 6px; white-space:nowrap; }
-	.ribbon button.active { background:var(--editor-bg-control); color:var(--editor-accent); }
 	.precision { position:relative; margin-left:auto; }
 	.precision summary { cursor:pointer; color:var(--editor-text-secondary); font:500 12px var(--editor-font); padding:6px; }
 	.precision .add-menu { right:0; left:auto; }

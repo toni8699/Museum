@@ -29,3 +29,135 @@
 	--editor-danger-border: rgb(239 98 108 / 55%);
 	--editor-danger-fg: #f4b8bd;
 }
+
+/*
+ * P21.5 §1.4 — Row 2 (workspace ribbon) 4-tier affordance grammar + enclosed
+ * tool tracks + enclosed segmented switches.
+ *
+ * Scoped to the P21 shell ribbon (`.project-editor .workspace-ribbon`) so the
+ * frozen relic keeps its own divider-separated chrome; the component-scoped
+ * floating styles remain the relic's grammar. Theme-aware tokens only — never
+ * hard hexes. The 4-tier state grammar (resting / hover / active / primary
+ * CTA) is defined here once and consumed by every Row 2 track, standalone
+ * button, and segmented switch.
+ */
+
+/* Enclosed tool tracks (Zone B authoring groups): cohesive filled surfaces
+   lifting off the panel-raised ribbon via the calibrated bg-control step. */
+.project-editor .workspace-ribbon .tool-group {
+	display: inline-flex;
+	align-items: center;
+	box-sizing: border-box;
+	height: 28px;
+	padding: 2px;
+	gap: 1px;
+	background-color: var(--editor-bg-control);
+	border: 1px solid var(--editor-border-subtle);
+	border-radius: 6px;
+}
+
+/* Track inner buttons: 24px (28px track − 2px padding ×2), resting tier. */
+.project-editor .workspace-ribbon .tool-group > button {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	box-sizing: border-box;
+	height: 24px;
+	padding: 0 8px;
+	border: 1px solid transparent;
+	border-radius: 4px;
+	background: transparent;
+	color: var(--editor-text-secondary);
+	font: 500 12px/1 var(--editor-font);
+	white-space: nowrap;
+	cursor: pointer;
+}
+
+/* Hover tier. */
+.project-editor .workspace-ribbon .tool-group > button:hover:not(:disabled) {
+	background-color: var(--editor-bg-hover);
+	border-color: var(--editor-border-normal);
+	color: var(--editor-text-primary);
+}
+
+/* Active / toggled-on tier: soft accent fill, never a loud bare stroke. */
+.project-editor .workspace-ribbon .tool-group > button.active {
+	background-color: var(--editor-accent-soft);
+	border-color: var(--editor-accent-border);
+	color: var(--editor-text-primary);
+}
+
+.project-editor .workspace-ribbon .tool-group > button:disabled {
+	opacity: 0.42;
+	cursor: default;
+}
+
+/* Standalone Row 2 controls (outside tracks): subtle resting surface. */
+.project-editor .workspace-ribbon .ribbon-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	box-sizing: border-box;
+	height: 28px;
+	padding: 0 8px;
+	background-color: var(--editor-bg-control);
+	border: 1px solid var(--editor-border-subtle);
+	border-radius: 5px;
+	color: var(--editor-text-primary);
+	font: 500 12px/1 var(--editor-font);
+	white-space: nowrap;
+	cursor: pointer;
+}
+
+.project-editor .workspace-ribbon .ribbon-btn:hover:not(:disabled) {
+	background-color: var(--editor-bg-hover);
+	border-color: var(--editor-border-normal);
+}
+
+.project-editor .workspace-ribbon .ribbon-btn:disabled {
+	opacity: 0.42;
+	cursor: default;
+}
+
+/* Enclosed segmented switches: [Scene|Camera], [Plan|3D], [Layout|Arrange]. */
+.project-editor .workspace-ribbon .segmented {
+	display: inline-flex;
+	align-items: center;
+	box-sizing: border-box;
+	height: 28px;
+	padding: 1px;
+	gap: 1px;
+	background-color: var(--editor-bg-control);
+	border: 1px solid var(--editor-border-subtle);
+	border-radius: 6px;
+}
+
+.project-editor .workspace-ribbon .segmented > button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
+	height: 24px;
+	padding: 0 8px;
+	border: 1px solid transparent;
+	border-radius: 4px;
+	background: transparent;
+	color: var(--editor-text-secondary);
+	font: 500 12px/1 var(--editor-font);
+	cursor: pointer;
+}
+
+.project-editor .workspace-ribbon .segmented > button:hover:not(:disabled) {
+	background-color: var(--editor-bg-hover);
+	color: var(--editor-text-primary);
+}
+
+.project-editor .workspace-ribbon .segmented > button.active {
+	background-color: var(--editor-accent-soft);
+	color: var(--editor-text-primary);
+}
+
+.project-editor .workspace-ribbon .segmented > button:disabled {
+	opacity: 0.5;
+	cursor: default;
+}

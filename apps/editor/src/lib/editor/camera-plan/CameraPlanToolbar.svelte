@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { Camera, Eye, Grid3x3, Magnet, MousePointer2, Waypoints } from 'lucide-svelte';
 	import type { EditorStore } from '../editor-store.svelte';
 	import {
 		setCameraPlanTool,
@@ -41,68 +42,61 @@
 </script>
 
 <div class="camera-plan-toolbar" role="toolbar" aria-label="Camera Plan tools">
-	<!-- P21.3 — Row 2 order: Select | Add Camera Connect | View | Snap Grid. -->
-	<button
-		type="button"
-		class:active={cameraPlan.tool === 'select'}
-		aria-pressed={cameraPlan.tool === 'select'}
-		onclick={() => chooseTool('select')}
-	>Select</button>
-	<span class="toolbar-separator" aria-hidden="true"></span>
-	<button
-		type="button"
-		class:active={addCameraActive}
-		aria-pressed={addCameraActive}
-		disabled={blocked || pendingKind !== null}
-		onclick={armAddCamera}
-	>Add Camera</button>
-	<button
-		type="button"
-		class:active={connectActive}
-		aria-pressed={connectActive}
-		disabled={blocked || pendingKind !== null || !canConnect}
-		title={canConnect ? undefined : 'Select a source camera node first'}
-		onclick={armConnect}
-	>Connect</button>
-	<span class="toolbar-separator" aria-hidden="true"></span>
-	<button
-		type="button"
-		class:active={cameraPlan.tool === 'view'}
-		aria-pressed={cameraPlan.tool === 'view'}
-		onclick={() => chooseTool('view')}
-	>View</button>
-	<span class="toolbar-separator" aria-hidden="true"></span>
-	<button
-		type="button"
-		class:active={cameraPlan.planView.snapEnabled}
-		aria-pressed={cameraPlan.planView.snapEnabled}
-		onclick={() => (cameraPlan.planView.snapEnabled = !cameraPlan.planView.snapEnabled)}
-	>Snap</button>
-	<button
-		type="button"
-		class:active={cameraPlan.planView.gridEnabled}
-		aria-pressed={cameraPlan.planView.gridEnabled}
-		onclick={() => (cameraPlan.planView.gridEnabled = !cameraPlan.planView.gridEnabled)}
-	>Grid</button>
+	<!-- P21.3 — Row 2 order: Select | Add Camera Connect | View | Snap Grid.
+	     P21.5 §1.4 — Zone B authoring groups sit in enclosed .tool-group
+	     tracks (grammar in styles/controls.css); options stay text-only. -->
+	<div class="tool-group" role="group" aria-label="Selection">
+		<button
+			type="button"
+			class:active={cameraPlan.tool === 'select'}
+			aria-pressed={cameraPlan.tool === 'select'}
+			onclick={() => chooseTool('select')}
+		><MousePointer2 size={14} aria-hidden="true" /> Select</button>
+	</div>
+	<div class="tool-group" role="group" aria-label="Camera authoring">
+		<button
+			type="button"
+			class:active={addCameraActive}
+			aria-pressed={addCameraActive}
+			disabled={blocked || pendingKind !== null}
+			onclick={armAddCamera}
+		><Camera size={14} aria-hidden="true" /> Add Camera</button>
+		<button
+			type="button"
+			class:active={connectActive}
+			aria-pressed={connectActive}
+			disabled={blocked || pendingKind !== null || !canConnect}
+			title={canConnect ? undefined : 'Select a source camera node first'}
+			onclick={armConnect}
+		><Waypoints size={14} aria-hidden="true" /> Connect</button>
+	</div>
+	<div class="tool-group" role="group" aria-label="Camera view">
+		<button
+			type="button"
+			class:active={cameraPlan.tool === 'view'}
+			aria-pressed={cameraPlan.tool === 'view'}
+			onclick={() => chooseTool('view')}
+		><Eye size={14} aria-hidden="true" /> View</button>
+	</div>
+	<div class="tool-group" role="group" aria-label="Plan options">
+		<button
+			type="button"
+			class:active={cameraPlan.planView.snapEnabled}
+			aria-pressed={cameraPlan.planView.snapEnabled}
+			onclick={() => (cameraPlan.planView.snapEnabled = !cameraPlan.planView.snapEnabled)}
+		><Magnet size={14} aria-hidden="true" /> Snap</button>
+		<button
+			type="button"
+			class:active={cameraPlan.planView.gridEnabled}
+			aria-pressed={cameraPlan.planView.gridEnabled}
+			onclick={() => (cameraPlan.planView.gridEnabled = !cameraPlan.planView.gridEnabled)}
+		><Grid3x3 size={14} aria-hidden="true" /> Grid</button>
+	</div>
 </div>
 
 <style>
 	.camera-plan-toolbar {
-		display:flex; align-items:center; gap:4px; flex:1; height:28px;
-
+		display:flex; align-items:center; gap:6px; flex:1; min-width:0; height:28px;
 	}
-	button {
-		height:28px; padding:0 6px;
-		border: 1px solid transparent;
-		border-radius: 0.3rem;
-		background: transparent;
-		color: var(--editor-text-secondary);
-		font: 600 0.7rem/1 var(--editor-font);
-		cursor: pointer;
-		white-space: nowrap;
-	}
-	button:hover:not(:disabled) { background: var(--editor-bg-hover); color: var(--editor-text-primary); }
-	button.active { border-color: var(--editor-accent-border); background: var(--editor-bg-control); color: var(--editor-accent); }
-	button:disabled { opacity: 0.38; cursor: default; }
-	.toolbar-separator { width: 1px; height: 1.1rem; background: var(--editor-border-normal); }
+	/* Button surfaces/tracks come from the P21.5 grammar in styles/controls.css. */
 </style>

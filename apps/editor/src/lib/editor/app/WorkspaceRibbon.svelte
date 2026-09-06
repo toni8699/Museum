@@ -57,11 +57,10 @@
 </div>
 
 <style>
-	.workspace-ribbon { display:flex; height:var(--editor-ribbon-height); min-width:0; box-sizing:border-box; background:var(--editor-bg-row-2); border-bottom:1px solid var(--editor-border-normal); z-index:20; }
+	.workspace-ribbon { display:flex; height:var(--editor-ribbon-height); min-width:0; box-sizing:border-box; background:var(--editor-bg-row-2); border-bottom:1px solid var(--editor-border-subtle); z-index:20; }
 	.zone-a { display:flex; align-items:center; gap:8px; flex:0 0 240px; box-sizing:border-box; padding:0 8px; border-right:1px solid var(--editor-border-subtle); }
-	.segmented { display:flex; border:1px solid var(--editor-border-subtle); border-radius:4px; }
-	button { height:26px; padding:0 7px; border:0; border-radius:3px; background:transparent; color:var(--editor-text-secondary); font:500 12px var(--editor-font); cursor:pointer; }
-	button.active { background:var(--editor-bg-control); color:var(--editor-accent); }
-	button:disabled { opacity:.5; cursor:default; }
+	/* Row 2 control surfaces (tracks / segmented switches / ribbon-btn) are
+	   owned by the P21.5 grammar in styles/controls.css; only shell layout
+	   stays here. */
 	.contextual-tools { display:flex; align-items:center; gap:6px; flex:1; min-width:0; padding:0 8px; }
 </style>

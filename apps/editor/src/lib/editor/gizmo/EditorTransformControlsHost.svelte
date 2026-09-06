@@ -11,7 +11,7 @@
 		EditorGizmoHostController,
 		type EditorGizmoHostControls
 	} from './editor-gizmo-host-controller';
-	import { applyEditorGizmoPalette } from '../styles/scene-palette';
+	import { applyEditorGizmoPalette, applyEditorGizmoSingleEnding } from '../styles/scene-palette';
 
 	let {
 		store,
@@ -39,6 +39,9 @@
 	// P3.2 — cosmetic only: map TransformControls' default primary axis
 	// materials onto the canonical §8 tokens (geometry/pickers untouched).
 	applyEditorGizmoPalette(transformHelper);
+	// P21.5 §2.4 — cosmetic only: one tip per axis (the + end stays); the
+	// invisible picker hierarchy (hit-testing/snap/hover/active) is untouched.
+	applyEditorGizmoSingleEnding(transformHelper);
 	scene.add(transformHelper);
 	controls = transformControls;
 

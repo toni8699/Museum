@@ -45,7 +45,9 @@ export type PlanStyleToken =
 	| 'camera-node-selected'
 	| 'camera-node-hovered'
 	| 'camera-node-free'
-	| 'camera-unsequenced-badge'
+	| 'camera-node-free-selected'
+	| 'camera-node-halo'
+	| 'camera-node-glyph'
 	| 'camera-anchor'
 	| 'camera-anchor-selected'
 	| 'camera-anchor-hovered'
@@ -144,6 +146,18 @@ export type PlanTextPrimitive = {
 	/** Screen-constant offset (CSS px) applied by the adapter after the view transform. */
 	offsetPx?: readonly [number, number];
 	style: PlanStyleToken;
+	/**
+	 * P21.5 §2.5 — optional compact pill badge (rounded-rect behind centered
+	 * text), used by Camera Plan timing labels. `selected` drives the accent
+	 * fill + light-ink treatment; `segments` carry the per-direction display
+	 * strings with their authored/automatic flags so the renderer can mute +
+	 * dotted-underline automatic segments while authored segments stay solid.
+	 * `text` remains the joined display string (`'4.2s · 3.8s'`).
+	 */
+	pill?: {
+		selected?: boolean;
+		segments: readonly { text: string; authored: boolean }[];
+	};
 };
 
 export type PlanRenderPrimitive =
@@ -522,18 +536,47 @@ export function buildPlanRenderModel(
 			style: anchor.selected ? 'camera-anchor-selected' : 'camera-anchor'
 		});
 	}
+	// P21.5 Slice 2B — node diameter is state language: 24px resting, 28px
+	// selected. Picking uses its own screen-px constant (CAMERA_PLAN_NODE_
+	// HIT_RADIUS_PX), never the visual radius, so the growth is
+	// presentation-only. The selection halo is an extra flat circle primitive
+	// behind the node body; the unsequenced marker is the node's own dashed
+	// ring plus an emerald dot glyph (the old 30px badge ring is superseded).
 	for (const node of authoring?.nodes ?? []) {
+		const selected = node.selected === true;
+		const free = node.order === null;
+		const radiusPx = selected ? 14 : 12;
+		if (selected) {
+			cameraNodes.push({
+				kind: 'circle',
+				key: `${node.key}:halo`,
+				center: node.point,
+				radiusPx: radiusPx + 3,
+				style: 'camera-node-halo'
+			});
+		}
 		cameraNodes.push({
 			kind: 'circle',
 			key: node.key,
 			center: node.point,
-			radiusPx: 11,
-			style: node.selected
-				? 'camera-node-selected'
-				: node.order === null
+			radiusPx,
+			style: selected
+				? free
+					? 'camera-node-free-selected'
+					: 'camera-node-selected'
+				: free
 					? 'camera-node-free'
 					: 'camera-node'
 		});
+		if (free) {
+			cameraNodes.push({
+				kind: 'circle',
+				key: `${node.key}:glyph`,
+				center: node.point,
+				radiusPx: 4,
+				style: 'camera-node-glyph'
+			});
+		}
 	}
 
 	for (const path of camera?.paths ?? []) {

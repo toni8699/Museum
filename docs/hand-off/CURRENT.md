@@ -57,7 +57,7 @@ slice plus one next action only.
 
 ## Next action
 
-- Implement P21.5 UI polish pass per [the P21.5 brief](../plans/2026-09-05-P21.5-ui-polish-pass.md) (presentation-only, no behavior change), then run the P21 final acceptance gate (six-reference visual comparison + axe/contrast sweep) and close the tracker.
+- Implement P21.5 UI polish pass per [the P21.5 brief](../plans/2026-09-05-P21.5-ui-polish-pass.md) (presentation-only, no behavior change) — Slice 2 carries an open §2.6 gizmo continuation, and [Slice 2B camera node colors](../plans/2026-09-06-P21.5-slice-2B-camera-node-colors.md) runs immediately after Slice 2 with owner eye-test QA — then run the P21 final acceptance gate (six-reference visual comparison + axe/contrast sweep) and close the tracker.
 
 ## Verification
 

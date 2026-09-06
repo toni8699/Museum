@@ -158,20 +158,6 @@
 			: planModel
 	);
 
-	const pendingMessage = $derived.by(() => {
-		const pending = store.pendingNavigationCommand;
-		if (pending?.kind === 'place-camera') {
-			return 'Click any tagged room floor to place a camera · Escape cancels';
-		}
-		if (pending?.kind === 'connect-existing') {
-			return 'Choose another camera node · Escape cancels';
-		}
-		if (cameraPlan.tool === 'view') {
-			return 'Drag to pan · wheel zooms · Select returns to editing';
-		}
-		return 'Click node or edge to select · drag to move or bend · middle-drag pans · wheel zooms';
-	});
-
 	function navigationSelectionToInput(
 		selection: EditorNavigationSelection
 	): PlanCameraSelectionInput {
@@ -805,7 +791,7 @@
 </script>
 
 <div class="camera-plan-viewport" aria-label="Camera Plan drafting viewport">
-	<div class="plan-help" role="status">{pendingMessage}</div>
+	<!-- P21.5 §2.1 — no floating .plan-help pill; hints live in the status bar. -->
 	<!-- svelte-ignore a11y_no_noninteractive_tabindex (plan surface owns keyboard focus) -->
 	<!-- svelte-ignore a11y_no_noninteractive_element_interactions (plan surface owns pointer drafting events) -->
 	<svg
@@ -841,9 +827,5 @@
 <style>
 	.camera-plan-viewport { position: absolute; inset: 0; z-index: 3; background: var(--editor-camera-plan-canvas-bg); }
 	.plan-canvas { display: block; position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: crosshair; outline: none; background: var(--editor-camera-plan-canvas-bg); --editor-plan-room-bg: var(--editor-camera-plan-room-bg); --plan-footprint-stroke: var(--editor-camera-footprint-stroke); --plan-footprint-fill: var(--editor-camera-footprint-fill); --plan-layout-object-stroke: var(--editor-camera-footprint-stroke); --plan-layout-object-fill: var(--editor-camera-footprint-fill); --plan-layout-object-dasharray: 5 4; }
-	.plan-help { position: absolute; top: 4.25rem; left: 50%; z-index: 5; max-width: min(34rem, calc(100% - 2rem)); transform: translateX(-50%); padding: 0.45rem 0.7rem; border: 1px solid var(--editor-border-normal); border-radius: 999px; background: var(--editor-bg-panel-raised); color: var(--editor-text-primary); font: 600 0.7rem/1.2 var(--editor-font); pointer-events: none; text-align: center; }
 	.plan-meta { position: absolute; left: 0.8rem; bottom: 0.8rem; z-index: 2; display: flex; gap: 0.7rem; color: var(--editor-plan-muted); font: 0.68rem/1 var(--editor-font); pointer-events: none; }
-	@media (max-width: 44rem) {
-		.plan-help { top: 5.5rem; }
-	}
 </style>

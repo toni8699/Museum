@@ -1712,21 +1712,7 @@
 </script>
 
 <div class="plan-viewport" role="presentation" aria-label="Layout Plan drafting viewport" onpointerleave={dismissSceneBridge}>
-	<div class="plan-help" role="status">
-		{#if interaction.planViewMode === 'staging'}
-			Click a Scene footprint or Layout object to select · drag moves · handle rotates · Shift adds Scene items · wheel zooms
-		{:else if interaction.tool === 'rectangle'}
-			Drag to draw a rectangle · Shift angle snap · Escape cancels
-		{:else if interaction.tool === 'polygon'}
-			Click points · Backspace removes last · click first or Finish · Escape cancels
-		{:else if interaction.tool === 'door' || interaction.tool === 'window'}
-			Click any wall to place a {interaction.tool} · click existing opening to select · Escape returns to Select
-		{:else if interaction.tool === 'box' || interaction.tool === 'cylinder' || interaction.tool === 'sphere'}
-			{#if interaction.tool === 'box'}Drag opposite corners to place a box{:else}Drag from center to set {interaction.tool} radius{/if} · Escape cancels
-		{:else}
-			Click wall to select · drag mid-span to bend · drag anchors · openings · middle-drag pans · wheel zooms
-		{/if}
-	</div>
+	<!-- P21.5 §2.1 — no floating .plan-help pill; hints live in the status bar. -->
 	{#if stagingSelectionMessage}
 		<div class="staging-selection-warning" role="status">{stagingSelectionMessage}</div>
 	{/if}
@@ -1816,7 +1802,6 @@
 	.plan-canvas.object-rotation-handle-hover { cursor: grab; }
 	.plan-canvas.rotation-dragging { cursor: grabbing; }
 	.selection-label { fill: var(--editor-plan-label); font: 700 12px var(--editor-font); paint-order: stroke; stroke: var(--editor-plan-canvas-bg); stroke-width: 3px; stroke-linejoin: round; pointer-events: none; }
-	.plan-help { position: absolute; top: 4.25rem; left: 50%; z-index: 5; max-width: min(34rem, calc(100% - 2rem)); transform: translateX(-50%); padding: 0.45rem 0.7rem; border: 1px solid var(--editor-border-normal); border-radius: 999px; background: var(--editor-bg-panel-raised); color: var(--editor-text-primary); font: 600 0.7rem/1.2 var(--editor-font); pointer-events: none; text-align: center; }
 	.scene-bridge-chip { position: absolute; z-index: 8; padding: 0.32rem 0.48rem; border: 1px solid var(--editor-accent); border-radius: 999px; background: var(--editor-bg-selected); color: var(--editor-text-primary); font: 700 0.66rem/1 var(--editor-font); cursor: pointer; box-shadow: var(--editor-shadow-popover); }
 	.scene-bridge-chip:hover { background: var(--editor-accent-pressed); }
 	.staging-selection-warning { position: absolute; top: 7rem; left: 50%; z-index: 5; max-width: min(34rem, calc(100% - 2rem)); transform: translateX(-50%); padding: 0.42rem 0.65rem; border: 1px solid var(--editor-danger-border); border-radius: 0.35rem; background: var(--editor-bg-panel-raised); color: var(--editor-danger-fg); font: 600 0.7rem/1.25 var(--editor-font); pointer-events: none; text-align: center; }
@@ -1831,7 +1816,6 @@
 	.plan-meta { position: absolute; left: 0.8rem; bottom: 0.8rem; z-index: 2; display: flex; gap: 0.7rem; color: var(--editor-plan-muted); font: 0.68rem/1 var(--editor-font); pointer-events: none; }
 	.plan-meta .warning { color: var(--editor-danger-fg); }
 	@media (max-width: 44rem) {
-		.plan-help { top: 5.5rem; }
 		.staging-selection-warning { top: 8rem; }
 		.arrange-empty { top: 8rem; }
 	}

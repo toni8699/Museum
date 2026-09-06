@@ -167,7 +167,9 @@ describe('applyCameraPlanHover', () => {
 			kind: 'node',
 			nodeId: 'n-a'
 		});
-		expect(styleByKey(hoveredSelectedNode, NODE_A)).toBe('camera-node-selected');
+		// P21.5 Slice 2B — this fixture selects a FREE node, which now carries
+		// its own token (selected unsequenced: tint + solid ring + halo).
+		expect(styleByKey(hoveredSelectedNode, NODE_A)).toBe('camera-node-free-selected');
 
 		const anchorModel = buildPlanRenderModel(geometry, anchor);
 		const hoveredSelectedAnchor = applyCameraPlanHover(anchorModel, anchor.authoring, {

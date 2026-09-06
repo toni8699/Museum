@@ -44,7 +44,9 @@
 		'camera-node-selected': 'camera-node selected',
 		'camera-node-hovered': 'camera-node hovered',
 		'camera-node-free': 'camera-node free',
-		'camera-unsequenced-badge': 'camera-unsequenced-badge',
+		'camera-node-free-selected': 'camera-node free selected',
+		'camera-node-halo': 'camera-node-halo',
+		'camera-node-glyph': 'camera-node-glyph',
 		'camera-anchor': 'camera-anchor',
 		'camera-anchor-selected': 'camera-anchor selected',
 		'camera-anchor-hovered': 'camera-anchor hovered',
@@ -196,6 +198,26 @@
 			{:else if primitive.kind === 'circle'}
 				{@const screen = screenAt(primitive.center, primitive.offsetPx)}
 				<circle class={tokenClass(primitive.style)} cx={screen[0]} cy={screen[1]} r={primitive.radiusPx} />
+			{:else if primitive.pill}
+				{@const screen = screenAt(primitive.anchor, primitive.offsetPx)}
+				{@const pill = primitive.pill}
+				{@const width = Math.max(30, primitive.text.length * 6.6 + 14)}
+				<g class="pill-badge" class:selected={pill.selected === true} pointer-events="none">
+					<title>
+						{pill.segments.every((segment) => segment.authored)
+							? 'Authored timing'
+							: pill.segments.some((segment) => segment.authored)
+								? 'Partly authored timing'
+								: 'Automatic timing'}
+					</title>
+					<rect x={screen[0] - width / 2} y={screen[1] - 14} width={width} height={18} rx={4} />
+					<text class={tokenClass(primitive.style)} x={screen[0]} y={screen[1]}>
+						{#each pill.segments as segment, index (index)}
+							{#if index > 0}<tspan aria-hidden="true"> · </tspan>{/if}
+							<tspan class:auto={!segment.authored}>{segment.text}</tspan>
+						{/each}
+					</text>
+				</g>
 			{:else}
 				{@const screen = screenAt(primitive.anchor, primitive.offsetPx)}
 				<text class={tokenClass(primitive.style)} x={screen[0]} y={screen[1]}>{primitive.text}</text>
@@ -252,7 +274,7 @@
 	.arrange-hover { fill: rgb(47 140 255 / 8%); stroke: var(--editor-plan-hover-stroke); stroke-width: 2; stroke-dasharray: 6 4; vector-effect: non-scaling-stroke; pointer-events: none; }
 	.camera-path { fill: none; stroke: var(--editor-camera-edge-stroke); stroke-width: 2; stroke-dasharray: 6 4; vector-effect: non-scaling-stroke; pointer-events: none; }
 	.view-cone { fill: rgb(47 140 255 / 8%); stroke: var(--editor-camera-edge-stroke); stroke-width: 1; vector-effect: non-scaling-stroke; pointer-events: none; }
-	.look-target { fill: var(--editor-camera-node-stroke); stroke: var(--editor-plan-label); stroke-width: 1; pointer-events: none; }
+	.look-target { fill: var(--editor-plan-node-seq-bg); stroke: var(--editor-plan-label); stroke-width: 1; pointer-events: none; }
 	.portal-crossing { fill: var(--editor-plan-object); stroke: var(--editor-plan-wall); stroke-width: 1; pointer-events: none; }
 	.collision-warning { fill: rgb(239 98 108 / 30%); stroke: var(--editor-danger); stroke-width: 1; pointer-events: none; }
 	.timing-label { fill: var(--editor-plan-label); font: 10px var(--editor-font); font-variant-numeric: tabular-nums; paint-order: stroke; stroke: var(--editor-plan-canvas-bg); stroke-width: 3px; stroke-linejoin: round; pointer-events: none; }
@@ -265,16 +287,35 @@
 	   remains visible. */
 	.camera-edge.retained.selected { stroke: color-mix(in srgb, var(--editor-plan-selection) 48%, var(--editor-plan-muted)); stroke-width: 3.5; stroke-dasharray: 5 4; }
 	.camera-edge.retained.hovered { stroke: color-mix(in srgb, var(--editor-plan-hover-stroke) 42%, var(--editor-plan-muted)); stroke-width: 3; stroke-dasharray: 5 4; }
-	.camera-node { fill: var(--editor-camera-node-fill); stroke: var(--editor-camera-node-stroke); stroke-width: 2; vector-effect: non-scaling-stroke; }
-	.camera-node.selected { fill: var(--editor-accent); stroke: var(--editor-text-primary); stroke-width: 3; }
-	.camera-node.hovered { fill: var(--editor-accent-hover); stroke: var(--editor-text-primary); stroke-width: 3; }
-	.camera-node.free { fill: var(--editor-plan-canvas-bg); stroke: var(--editor-camera-unsequenced-ring); stroke-width: 2; stroke-dasharray: none; }
-	.camera-unsequenced-badge { fill: none; stroke: var(--editor-camera-unsequenced-ring); stroke-width: 1.5; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; pointer-events: none; }
+	/* P21.5 Slice 2B — camera node role colors are canvas-invariant tokens
+	   (plan.css); selection = halo + size growth, never fill inversion.
+	   Hover previews selection (active fill + white ring) but keeps 24px.
+	   Unsequenced: paper disc, dashed emerald ring at rest, solid + blue
+	   tint when selected. The `.free` rule wins over `.hovered` (equal
+	   specificity, later in file) — unsequenced nodes don't hover-change,
+	   matching the pre-2B behavior. */
+	.camera-node { fill: var(--editor-plan-node-seq-bg); stroke: var(--editor-plan-node-seq-border); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+	.camera-node.selected { fill: var(--editor-plan-node-seq-bg-active); stroke: var(--editor-plan-node-seq-border); stroke-width: 2; }
+	.camera-node.hovered { fill: var(--editor-plan-node-seq-bg-active); stroke: var(--editor-plan-node-seq-border); stroke-width: 2; }
+	.camera-node.free { fill: var(--editor-plan-canvas-bg); stroke: var(--editor-plan-node-unseq-border); stroke-width: 2; stroke-dasharray: 4 3; }
+	.camera-node.free.selected { fill: var(--editor-plan-node-unseq-bg-active); stroke: var(--editor-plan-node-unseq-border); stroke-width: 2; stroke-dasharray: none; }
+	.camera-node-halo { fill: var(--editor-plan-node-halo); pointer-events: none; }
+	.camera-node-glyph { fill: var(--editor-plan-node-unseq-glyph); pointer-events: none; }
 	.camera-anchor { fill: var(--editor-accent); stroke: var(--editor-text-primary); stroke-width: 2; vector-effect: non-scaling-stroke; }
 	.camera-anchor.selected { fill: var(--editor-text-primary); stroke: var(--editor-accent-pressed); stroke-width: 2.5; }
 	.camera-anchor.hovered { fill: var(--editor-accent-hover); stroke: var(--editor-text-primary); stroke-width: 2.5; }
-	.camera-order-label { fill: var(--editor-text-primary); font: 700 11px var(--editor-font); text-anchor: middle; dominant-baseline: middle; paint-order: stroke; stroke: var(--editor-accent-pressed); stroke-width: 3px; stroke-linejoin: round; pointer-events: none; }
-	.camera-timing-label { fill: var(--editor-plan-label); font: 10px var(--editor-font); font-variant-numeric: tabular-nums; text-anchor: middle; paint-order: stroke; stroke: var(--editor-plan-canvas-bg); stroke-width: 3px; stroke-linejoin: round; pointer-events: none; }
+	.camera-order-label { fill: var(--editor-plan-node-seq-text); font: 700 11px var(--editor-font); font-variant-numeric: tabular-nums; text-anchor: middle; dominant-baseline: middle; paint-order: stroke; stroke: var(--editor-plan-node-seq-bg-active); stroke-width: 3px; stroke-linejoin: round; pointer-events: none; }
+	/* P21.5 §2.5 — camera timing labels render as compact midpoint pills:
+	   ~18px rounded badge behind 11px tabular text; automatic segments are
+	   muted + dotted underline, authored segments solid; selected edges get
+	   the accent fill + light ink. pointer-events stays none (the Inspector
+	   owns the full breakdown). */
+	.camera-timing-label { fill: var(--editor-text-secondary); font: 11px var(--editor-font); font-variant-numeric: tabular-nums; text-anchor: middle; pointer-events: none; }
+	.pill-badge { pointer-events: none; }
+	.pill-badge rect { fill: var(--editor-bg-panel-raised); stroke: var(--editor-border-normal); stroke-width: 1; }
+	.pill-badge.selected rect { fill: var(--editor-accent); stroke: var(--editor-accent); }
+	.pill-badge.selected .camera-timing-label { fill: #fff; }
+	.pill-badge .auto { fill: var(--editor-text-muted); text-decoration: underline dotted; text-decoration-color: var(--editor-border-strong); }
 	.camera-connect-band { fill: none; stroke: var(--editor-plan-selection); stroke-width: 2; stroke-dasharray: 6 4; vector-effect: non-scaling-stroke; pointer-events: none; }
 	.camera-placement-ghost { fill: var(--editor-accent-soft); stroke: var(--editor-plan-selection); stroke-width: 2; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; pointer-events: none; }
 	.camera-placement-ghost.invalid { fill: rgb(239 98 108 / 20%); stroke: var(--editor-danger); }

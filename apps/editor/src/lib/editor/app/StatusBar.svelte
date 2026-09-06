@@ -152,7 +152,9 @@
 		display: flex;
 		align-items: center;
 		gap: 1rem;
-		min-height: 1.7rem;
+		/* P21.5 §2.2 — standalone height locked to the row token (24px); the
+		   shell also enforces it (.project-editor > .status-bar). */
+		min-height: var(--editor-status-height, 1.7rem);
 		padding: 0.2rem 0.75rem;
 		box-sizing: border-box;
 		border-top: 1px solid var(--editor-border-subtle);

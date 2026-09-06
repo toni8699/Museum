@@ -34,9 +34,21 @@
 	   is the foreground information. */
 	--editor-camera-footprint-stroke: var(--editor-plan-muted);
 	--editor-camera-footprint-fill: rgb(146 144 138 / 12%);
-	--editor-camera-node-fill: #0c3766;
-	--editor-camera-node-stroke: var(--editor-accent-hover);
 	--editor-camera-edge-stroke: rgb(47 140 255 / 60%);
 	--editor-camera-path-preview: rgb(47 140 255 / 75%);
-	--editor-camera-unsequenced-ring: var(--editor-success);
+
+	/* P21.5 Slice 2B — camera node role colors are canvas-invariant spatial
+	   tokens (never per-theme; precedent: --editor-axis-*). Plan paper is
+	   theme-invariant, so node ink must be too — theme-variable fills made
+	   porcelain resting nodes near-invisible and navy near-black. Selection
+	   uses halos + size, never fill inversion; the numeral halo stroke is
+	   the deeper active blue. */
+	--editor-plan-node-seq-bg:          #2F8CFF;
+	--editor-plan-node-seq-bg-active:   #1976DF;
+	--editor-plan-node-seq-border:      #FFFFFF;
+	--editor-plan-node-seq-text:        #FFFFFF;
+	--editor-plan-node-unseq-border:    #10B981;
+	--editor-plan-node-unseq-glyph:     #10B981;
+	--editor-plan-node-unseq-bg-active: rgba(47, 140, 255, 0.12);
+	--editor-plan-node-halo:            rgba(47, 140, 255, 0.35);
 }

@@ -82,13 +82,26 @@ Plan ↔ 3D; a persisted view-keyframe selection gets only a passive
 - **Order/free:** ordered nodes show stable `1…N` labels from
   `store.mainFlowNodeIds`; unsequenced nodes show an unnumbered dashed ring and
   “Unsequenced” in the inspector.
+- **Node colors (P21.5 Slice 2B):** node role colors are canvas-invariant
+  tokens — plan paper is theme-invariant, so node ink never follows the shell
+  theme. Sequenced nodes fill `#2F8CFF` with white bold tabular numerals and a
+  1.5px white ring; selected deepens to `#1976DF`, grows 24→28px, and gains a
+  translucent blue halo ring. Unsequenced nodes are paper discs with a 2px
+  dashed emerald ring and an emerald dot; when selected they take a blue tint
+  fill, a solid emerald ring, and the same halo. Selection uses halos + size,
+  never fill inversion, and picking uses its own screen-px hit radius — the
+  24→28px growth is presentation-only.
 - **Anchors:** interior anchors render only for the selected connection;
   dragging an edge with no anchor inserts one at the nearest curve progress
   (shared `getCameraPathInsertionIndex` / `insertConnectionAnchorAtWorldPoint`
   ownership rules) then drags it. Authored node/anchor Y is preserved
   byte-for-byte; snap adjusts X/Z only.
-- **Timing:** each edge labels both directions with the effective duration
-  (`A→B` / `B→A`), authored values distinguished from automatic fallbacks.
+- **Timing:** each edge shows one compact pill at the spline midpoint with
+  durations only — `4.2s` when both directions resolve the same readout,
+  otherwise `4.2s · 3.8s` (forward · reverse); non-finite reads `—`. Automatic
+  segments render muted with a dotted underline, authored segments solid; the
+  selected edge's pill takes the accent fill + light ink. Node names,
+  direction breakdown, and derived speed live in the connection Inspector.
   The Camera Plan connection inspector authors `durationSeconds` per direction
   through `setConnectionTiming` (finite-positive validation, one undo step,
   “Use automatic” removes only duration, preserving easing). Path length,

@@ -13,7 +13,6 @@ import type {
 	PlanCameraProjection,
 	PlanRenderPrimitive
 } from '$lib/layout/plan-render-model';	import { sampleDraftConnectionPath2D } from '../camera/editor-camera-path';
-	import { formatCameraNodeLabel } from '../editor-outliner';
 	import { resolveCameraConnectionTiming } from '../camera/editor-camera-timing';
 
 /**
@@ -100,22 +99,6 @@ export function resolvePlanSceneGraphFromDocument(
 	return createNavigationGraph(scene);
 }
 
-function directionLabel(
-	fromNodeId: string,
-	toNodeId: string,
-	nodeById: ReadonlyMap<string, { id: string; label?: string }>
-) {
-	const fromLabel = formatCameraNodeLabel(
-		nodeById.get(fromNodeId)?.label,
-		fromNodeId
-	);
-	const toLabel = formatCameraNodeLabel(
-		nodeById.get(toNodeId)?.label,
-		toNodeId
-	);
-	return `${fromLabel}→${toLabel}`;
-}
-
 /**
  * P1.5 — build the live Camera-authoring profile. Reads the draft document
  * through the supplied room registry and emits every topology edge once (as
@@ -142,7 +125,6 @@ export function buildPlanCameraAuthoringProjection(
 		(options.mainFlowNodeIds ?? []).map((nodeId, index) => [nodeId, index + 1] as const)
 	);
 	const retained = new Set(options.retainedConnectionIds ?? []);
-	const nodeById = new Map(document.navigationNodes.map((node) => [node.id, node]));
 
 	const connections: PlanCameraAuthoringConnection[] = [];
 	const nodes: PlanCameraAuthoringNode[] = [];
@@ -164,36 +146,51 @@ export function buildPlanCameraAuthoringProjection(
 			resolveCameraConnectionTiming(connection.id, 'forward', graph),
 			resolveCameraConnectionTiming(connection.id, 'reverse', graph)
 		];
+		const selected =
+			selection?.kind === 'connection' && selection.connectionId === connection.id;
 		connections.push({
 			key: geometryId(['plan', 'camera-edge', connection.id]),
 			connectionId: connection.id,
 			polyline,
 			fromNodeId: connection.fromNodeId,
 			toNodeId: connection.toNodeId,
-			selected: selection?.kind === 'connection' && selection.connectionId === connection.id,
+			selected,
 			retained: retained.has(connection.id),
 			timing
 		});
 
+		// P21.5 §2.5 — one compact pill per connection at the spline midpoint:
+		// durations only (node names / direction breakdown live in the
+		// connection Inspector). Equal directions collapse to a single
+		// duration; differing directions read `forward · reverse`.
 		const midpoint: LayoutVec2 = polyline.length > 0
 			? polyline[Math.floor(polyline.length / 2)]!
 			: [0, 0];
-		for (const readout of timing) {
-			const isForward = readout.direction === 'forward';
-			const fromId = isForward ? connection.fromNodeId : connection.toNodeId;
-			const toId = isForward ? connection.toNodeId : connection.fromNodeId;
-			const durationText = Number.isFinite(readout.durationSeconds)
-				? `${readout.durationSeconds.toFixed(1)}s`
-				: '—';
-			labels.push({
-				kind: 'text',
-				key: geometryId(['plan', 'camera-timing', connection.id, readout.direction]),
-				anchor: midpoint,
-				text: `${directionLabel(fromId, toId, nodeById)} ${durationText}${readout.authoredDuration ? '' : ' auto'}`,
-				offsetPx: isForward ? [0, -16] : [0, 18],
-				style: 'camera-timing-label'
-			});
-		}
+		const formatDuration = (seconds: number): string =>
+			Number.isFinite(seconds) ? `${seconds.toFixed(1)}s` : '—';
+		const segments = timing.map((readout) => ({
+			text: formatDuration(readout.durationSeconds),
+			authored: readout.authoredDuration
+		}));
+		// Equal directions collapse to a single readout (one segment) so the
+		// pill reads `4.0s`; differing directions keep forward · reverse.
+		const displaySegments =
+			segments[0]!.text === segments[1]!.text
+				? [
+						{
+							text: segments[0]!.text,
+							authored: segments[0]!.authored && segments[1]!.authored
+						}
+					]
+				: segments;
+		labels.push({
+			kind: 'text',
+			key: geometryId(['plan', 'camera-timing', connection.id]),
+			anchor: midpoint,
+			text: displaySegments.map((segment) => segment.text).join(' · '),
+			style: 'camera-timing-label',
+			pill: { selected, segments: displaySegments }
+		});
 	}
 
 	for (const node of document.navigationNodes) {
@@ -216,15 +213,10 @@ export function buildPlanCameraAuthoringProjection(
 				offsetPx: [0, 4],
 				style: 'camera-order-label'
 			});
-		} else {
-			labels.push({
-				kind: 'circle',
-				key: geometryId(['plan', 'camera-unsequenced-badge', node.id]),
-				center: point,
-				radiusPx: 15,
-				style: 'camera-unsequenced-badge'
-			});
 		}
+		// P21.5 Slice 2B — unsequenced nodes carry no label primitive: the
+		// dashed emerald ring is the node's own border and the marker is the
+		// render-model's dot glyph (the old 30px badge ring is superseded).
 	}
 
 	if (relevantConnectionId !== null) {

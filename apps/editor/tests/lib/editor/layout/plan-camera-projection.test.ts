@@ -257,11 +257,14 @@ describe('resolvePlanSceneGraphFromDocument (P1.5 document-level resolver)', () 
 			(primitive) => primitive.style === 'camera-order-label'
 		);
 		expect(orderLabels.map((label) => (label.kind === 'text' ? label.text : ''))).toEqual(['1', '2']);
+		// P21.5 Slice 2B — the projection no longer emits the 30px badge ring
+		// for free nodes: the dashed emerald ring is now the node's own
+		// border and the dot glyph is emitted by the render model.
 		expect(
 			projection.authoring!.labels.some(
-				(primitive) => primitive.style === 'camera-unsequenced-badge'
+				(primitive) => (primitive.style as string) === 'camera-unsequenced-badge'
 			)
-		).toBe(true);
+		).toBe(false);
 	});
 
 	it('carries selected state and keeps retained edges visible (hover is post-model only)', () => {
@@ -295,17 +298,41 @@ describe('resolvePlanSceneGraphFromDocument (P1.5 document-level resolver)', () 
 		expect(selectedAnchor.authoring!.anchors[0]!.selected).toBe(true);
 	});
 
-	it('labels both directions with effective duration, authored vs automatic distinguishable', () => {
+	it('labels each edge with one compact midpoint pill: durations only, authored vs automatic distinguishable', () => {
+		// P21.5 §2.5 — two stacked direction strings collapse to a single pill
+		// per connection at the spline midpoint; node names, direction arrows,
+		// and the `auto` word never reach the canvas.
 		const projection = authoring();
 		const timingLabels = projection.authoring!.labels.filter(
 			(primitive) => primitive.style === 'camera-timing-label'
 		);
-		const abLabels = timingLabels
-			.filter((label) => label.key.includes('c-ab'))
-			.map((label) => (label.kind === 'text' ? label.text : ''));
-		expect(abLabels).toEqual([
-			expect.stringMatching(/^A→B 4\.2s$/),
-			expect.stringMatching(/^B→A .* auto$/)
-		]);
+		expect(timingLabels).toHaveLength(2);
+
+		const ab = timingLabels.find((label) => label.key.includes('c-ab'))!;
+		expect(ab.kind).toBe('text');
+		if (ab.kind !== 'text') return;
+		// forward is authored 4.2s; reverse falls back to automatic timing, so
+		// the pill reads `4.2s · <auto>s` with per-segment authored flags.
+		expect(ab.text).toMatch(/^4\.2s · .+s$/);
+		expect(ab.pill?.segments).toHaveLength(2);
+		expect(ab.pill?.segments[0]).toEqual({ text: '4.2s', authored: true });
+		expect(ab.pill?.segments[1]!.authored).toBe(false);
+		expect(ab.pill?.selected).toBe(false);
+		expect(ab.text).not.toMatch(/[→A-Z]/);
+		expect(ab.text).not.toContain('auto');
+
+		const bc = timingLabels.find((label) => label.key.includes('c-bc'))!;
+		expect(bc.kind).toBe('text');
+		if (bc.kind !== 'text') return;
+		expect(bc.pill?.segments.every((segment) => !segment.authored)).toBe(true);
+		expect(bc.text).not.toContain('auto');
+
+		const selected = authoring({
+			selection: { kind: 'connection', connectionId: 'c-ab' }
+		});
+		const selectedLabel = selected.authoring!.labels.find(
+			(label) => label.style === 'camera-timing-label' && label.key.includes('c-ab')
+		)!;
+		expect(selectedLabel.kind === 'text' && selectedLabel.pill?.selected).toBe(true);
 	});
 });
